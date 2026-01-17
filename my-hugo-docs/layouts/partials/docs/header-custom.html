@@ -1,0 +1,19 @@
+{{/*
+  Custom header for the documentation site
+  Displays site title and theme switcher
+*/}}
+
+<header class="book-header-custom">
+  <div class="book-header-content">
+    <div class="book-header-left">
+      <span class="book-header-title">
+        <a href="/">{{ .Site.Title }}</a>
+      </span>
+    </div>
+
+    <div class="book-header-right">
+      {{/* Theme switcher */}}
+      {{ partial "docs/theme-switcher.html" . }}
+    </div>
+  </div>
+</header>

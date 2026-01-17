@@ -1,0 +1,37 @@
+{{/*
+  Page header showing breadcrumb and title
+*/}}
+
+<div class="book-page-header">
+  {{/* Breadcrumb */}}
+  {{ if .Parent }}
+  <nav class="book-breadcrumb">
+    {{ template "breadcrumb" (dict "page" . "pages" slice) }}
+  </nav>
+  {{ end }}
+
+  {{/* Page title */}}
+  <h1 class="book-page-title">
+    {{ partial "docs/title" . }}
+  </h1>
+
+  {{/* Page description if available */}}
+  {{ with .Description }}
+  <p class="book-page-description">{{ . }}</p>
+  {{ end }}
+</div>
+
+{{/* Breadcrumb template */}}
+{{ define "breadcrumb" }}
+  {{ if .page.Parent }}
+    {{ template "breadcrumb" (dict "page" .page.Parent "pages" (slice .page | append .pages)) }}
+  {{ end }}
+  {{ range .pages }}
+    {{ if .IsHome }}
+      <a href="{{ .RelPermalink }}">Home</a>
+    {{ else }}
+      <a href="{{ .RelPermalink }}">{{ partial "docs/title" . }}</a>
+    {{ end }}
+    <span class="breadcrumb-separator">/</span>
+  {{ end }}
+{{ end }}

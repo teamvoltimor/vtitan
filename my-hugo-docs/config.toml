@@ -4,13 +4,15 @@ title = "My Docs"
 theme = "hugo-book"
 defaultContentLanguage = "en"
 enableGitInfo = true
+contentDir = "content/v1"
 
 [params]
-BookTheme = "dark"
+BookTheme = "auto"
 BookToC = true
 BookSearch = true
 BookRepo = "https://github.com/your/repo"
 BookLogo = "logo.png"
+BookSection = "v1"
 
 
 

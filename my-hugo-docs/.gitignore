@@ -62,3 +62,6 @@ hugo_stats.json
 
 # Ignore logs
 *.log
+
+# Add Go scripts
+!scripts/**

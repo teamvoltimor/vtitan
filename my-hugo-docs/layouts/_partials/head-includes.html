@@ -1,3 +1,34 @@
-{{- /* layouts/partials/head-includes.html: Inject custom-dark.css for modern dark styling */ -}}
-{{- $customCSS := resources.Get "custom-dark.css" | minify | fingerprint }}
-<link rel="stylesheet" href="{{ $customCSS.RelPermalink }}" integrity="{{ $customCSS.Data.Integrity }}" crossorigin="anonymous">
+{{- /* layouts/partials/head-includes.html: Inject theme switcher script */ -}}
+
+{{- /* Inline theme initialization to prevent flash */ -}}
+<script>
+(function() {
+  const STORAGE_KEY = 'theme-preference';
+  function getStoredTheme() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return ['light', 'dark', 'auto'].includes(stored) ? stored : 'auto';
+    } catch (e) {
+      return 'auto';
+    }
+  }
+  function getSystemTheme() {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  }
+  function getEffectiveTheme(preference) {
+    return preference === 'auto' ? getSystemTheme() : preference;
+  }
+  const preference = getStoredTheme();
+  const effectiveTheme = getEffectiveTheme(preference);
+  document.documentElement.classList.add(effectiveTheme);
+  document.documentElement.setAttribute('data-theme', effectiveTheme);
+  document.documentElement.setAttribute('data-theme-preference', preference);
+})();
+</script>
+
+{{- /* Theme switcher script */ -}}
+{{- $themeSwitcher := resources.Get "theme-switcher.js" | minify | fingerprint }}
+<script src="{{ $themeSwitcher.RelPermalink }}" integrity="{{ $themeSwitcher.Data.Integrity }}" crossorigin="anonymous" defer></script>

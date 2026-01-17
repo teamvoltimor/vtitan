@@ -1,0 +1,16 @@
+{{/*
+  Custom sidebar for Hugo Book theme
+  Displays search bar and tree view navigation
+*/}}
+
+<aside class="book-menu">
+  <div class="book-menu-content">
+    {{/* Search bar */}}
+    {{ partial "docs/search" . }}
+
+    {{/* Navigation menu tree */}}
+    <nav class="book-menu-nav">
+      {{ partial "docs/menu-filetree" . }}
+    </nav>
+  </div>
+</aside>
