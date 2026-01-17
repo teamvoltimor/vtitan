@@ -12,7 +12,7 @@ BookToC = true
 BookSearch = true
 BookRepo = "https://github.com/your/repo"
 BookLogo = "logo.png"
-BookSection = "v1"
+BookSection = "*"
 
 
 
