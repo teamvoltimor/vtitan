@@ -1,0 +1,64 @@
+# Ignore everything by default
+*
+
+# But NOT these Hugo-required files and folders:
+!.gitignore
+!config.toml
+!config.yaml
+!config.json
+!archetypes/
+!content/
+!data/
+!layouts/
+!static/
+!themes/
+!assets/
+!resources/
+!hugo.toml
+!hugo.yaml
+!hugo.json
+
+# Allow all files in static (for images, CSS, etc.)
+!static/**
+
+# Allow all files in layouts (for custom templates/partials)
+!layouts/**
+
+# Allow all files in assets (for custom CSS/JS)
+!assets/**
+
+# Allow all files in themes (for theme code)
+!themes/**
+
+# Allow all files in archetypes (for archetype templates)
+!archetypes/**
+
+# Allow all files in data (for data-driven content)
+!data/**
+
+# Allow all files in resources (for Hugo's generated assets)
+!resources/**
+
+# Unignore all directories under content so allowed files are tracked
+!content/**/
+
+# Allow only _index.md and archetype/page standards in content (for Hugo content)
+!content/**/_index.md
+!content/**/index.md
+!content/**/README.md
+
+# Ignore Hugo build output
+public/
+resources/_gen/
+
+# Ignore OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Ignore Hugo cache
+hugo_stats.json
+
+# Ignore logs
+*.log

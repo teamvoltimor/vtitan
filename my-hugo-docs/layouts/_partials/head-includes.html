@@ -1,0 +1,3 @@
+{{- /* layouts/partials/head-includes.html: Inject custom-dark.css for modern dark styling */ -}}
+{{- $customCSS := resources.Get "custom-dark.css" | minify | fingerprint }}
+<link rel="stylesheet" href="{{ $customCSS.RelPermalink }}" integrity="{{ $customCSS.Data.Integrity }}" crossorigin="anonymous">

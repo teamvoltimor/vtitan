@@ -1,0 +1,24 @@
+<!-- layouts/partials/version-switcher.html -->
+<div style="margin: 1.5em 0; text-align: right;">
+  <label for="version-switcher" style="color: #bbb; font-weight: bold; margin-right: 0.5em;">
+    Version:
+  </label>
+  <select id="version-switcher" style="background: #23272e; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 0.3em 1em;">
+    <option value="/v1/" {{ if (eq (substr .Permalink 0 4) "/v1/") }}selected{{ end }}>v1</option>
+    <option value="/v2/" {{ if (eq (substr .Permalink 0 4) "/v2/") }}selected{{ end }}>v2</option>
+  </select>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var switcher = document.getElementById('version-switcher');
+    if (switcher) {
+      switcher.addEventListener('change', function () {
+        var selected = switcher.value;
+        // Try to preserve the current page path if it exists in the other version
+        var currentPath = window.location.pathname.replace(/^\/v[0-9]+\//, '/');
+        var target = selected.replace(/\/$/, '') + currentPath;
+        window.location.href = target;
+      });
+    }
+  });
+</script>
