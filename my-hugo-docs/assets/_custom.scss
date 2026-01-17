@@ -7,52 +7,52 @@
 // ============================================================================
 
 :root {
-  // === CORE COLORS ===
-  --body-background: #ffffff !important;
-  --body-font-color: #24292f !important;
-  --color-link: #0969da !important;
-  --color-visited-link: #8250df !important;
+    // === CORE COLORS ===
+    --body-background: #ffffff !important;
+    --body-font-color: #24292f !important;
+    --color-link: #0969da !important;
+    --color-visited-link: #8250df !important;
 
-  // === GRAYS ===
-  --gray-100: #f6f8fa !important;
-  --gray-200: #d0d7de !important;
-  --gray-300: #afb8c1 !important;
-  --gray-400: #8c959f !important;
-  --gray-500: #6e7781 !important;
+    // === GRAYS ===
+    --gray-100: #f6f8fa !important;
+    --gray-200: #d0d7de !important;
+    --gray-300: #afb8c1 !important;
+    --gray-400: #8c959f !important;
+    --gray-500: #6e7781 !important;
 
-  // === UI ELEMENTS ===
-  --color-border: #d0d7de !important;
-  --icon-filter: none !important;
+    // === UI ELEMENTS ===
+    --color-border: #d0d7de !important;
+    --icon-filter: none !important;
 
-  // === CODE ===
-  --code-bg: #f6f8fa !important;
-  --code-color: #cf222e !important;
-  --code-block-bg: #f6f8fa !important;
+    // === CODE ===
+    --code-bg: #f6f8fa !important;
+    --code-color: #cf222e !important;
+    --code-block-bg: #f6f8fa !important;
 
-  // === SEMANTIC COLORS ===
-  --color-accent-note: #0969da !important;
-  --color-accent-note-tint: #ddf4ff !important;
-  --color-accent-info: #0969da !important;
-  --color-accent-info-tint: #ddf4ff !important;
-  --color-accent-tip: #1a7f37 !important;
-  --color-accent-tip-tint: #dafbe1 !important;
-  --color-accent-success: #1a7f37 !important;
-  --color-accent-success-tint: #dafbe1 !important;
-  --color-accent-warning: #9a6700 !important;
-  --color-accent-warning-tint: #fff8c5 !important;
-  --color-accent-danger: #cf222e !important;
-  --color-accent-danger-tint: #ffebe9 !important;
-  --color-accent-caution: #d1242f !important;
-  --color-accent-caution-tint: #ffebe9 !important;
-  --color-accent-default: #6e7781 !important;
-  --color-accent-default-tint: #f6f8fa !important;
-  --color-accent-important: #8250df !important;
-  --color-accent-important-tint: #fbefff !important;
+    // === SEMANTIC COLORS ===
+    --color-accent-note: #0969da !important;
+    --color-accent-note-tint: #ddf4ff !important;
+    --color-accent-info: #0969da !important;
+    --color-accent-info-tint: #ddf4ff !important;
+    --color-accent-tip: #1a7f37 !important;
+    --color-accent-tip-tint: #dafbe1 !important;
+    --color-accent-success: #1a7f37 !important;
+    --color-accent-success-tint: #dafbe1 !important;
+    --color-accent-warning: #9a6700 !important;
+    --color-accent-warning-tint: #fff8c5 !important;
+    --color-accent-danger: #cf222e !important;
+    --color-accent-danger-tint: #ffebe9 !important;
+    --color-accent-caution: #d1242f !important;
+    --color-accent-caution-tint: #ffebe9 !important;
+    --color-accent-default: #6e7781 !important;
+    --color-accent-default-tint: #f6f8fa !important;
+    --color-accent-important: #8250df !important;
+    --color-accent-important-tint: #fbefff !important;
 
-  // Light theme specific
-  --sidebar-bg: #ffffff !important;
-  --hover-bg: #f6f8fa !important;
-  --active-bg: #e6edf3 !important;
+    // Light theme specific
+    --sidebar-bg: #ffffff !important;
+    --hover-bg: #f6f8fa !important;
+    --active-bg: #e6edf3 !important;
 }
 
 // ============================================================================
@@ -63,59 +63,59 @@ html.dark,
 html[data-theme="dark"],
 body.dark,
 [data-theme="dark"] {
-  // === CORE COLORS ===
-  --body-background: #0d1117 !important;
-  --body-font-color: #e6edf3 !important;
-  --color-link: #58a6ff !important;
-  --color-visited-link: #bc8cff !important;
+    // === CORE COLORS ===
+    --body-background: #0d1117 !important;
+    --body-font-color: #e6edf3 !important;
+    --color-link: #58a6ff !important;
+    --color-visited-link: #bc8cff !important;
 
-  // === GRAYS ===
-  --gray-100: #161b22 !important;
-  --gray-200: #21262d !important;
-  --gray-300: #30363d !important;
-  --gray-400: #484f58 !important;
-  --gray-500: #8b949e !important;
+    // === GRAYS ===
+    --gray-100: #161b22 !important;
+    --gray-200: #21262d !important;
+    --gray-300: #30363d !important;
+    --gray-400: #484f58 !important;
+    --gray-500: #8b949e !important;
 
-  // === UI ELEMENTS ===
-  --color-border: #30363d !important;
-  --icon-filter: brightness(0) invert(1) !important;
+    // === UI ELEMENTS ===
+    --color-border: #30363d !important;
+    --icon-filter: brightness(0) invert(1) !important;
 
-  // === CODE ===
-  --code-bg: #161b22 !important;
-  --code-color: #ff7b72 !important;
-  --code-block-bg: #0d1117 !important;
+    // === CODE ===
+    --code-bg: #161b22 !important;
+    --code-color: #ff7b72 !important;
+    --code-block-bg: #0d1117 !important;
 
-  // === SEMANTIC COLORS ===
-  --color-accent-note: #58a6ff !important;
-  --color-accent-note-tint: #0d1b2a !important;
-  --color-accent-info: #58a6ff !important;
-  --color-accent-info-tint: #0d1b2a !important;
-  --color-accent-tip: #56d364 !important;
-  --color-accent-tip-tint: #0a1e0a !important;
-  --color-accent-success: #56d364 !important;
-  --color-accent-success-tint: #0a1e0a !important;
-  --color-accent-warning: #e3b341 !important;
-  --color-accent-warning-tint: #1c1a0d !important;
-  --color-accent-danger: #ff7b72 !important;
-  --color-accent-danger-tint: #1c1214 !important;
-  --color-accent-caution: #ff7b72 !important;
-  --color-accent-caution-tint: #1c1214 !important;
-  --color-accent-default: #8b949e !important;
-  --color-accent-default-tint: #161b22 !important;
-  --color-accent-important: #bc8cff !important;
-  --color-accent-important-tint: #1a1625 !important;
+    // === SEMANTIC COLORS ===
+    --color-accent-note: #58a6ff !important;
+    --color-accent-note-tint: #0d1b2a !important;
+    --color-accent-info: #58a6ff !important;
+    --color-accent-info-tint: #0d1b2a !important;
+    --color-accent-tip: #56d364 !important;
+    --color-accent-tip-tint: #0a1e0a !important;
+    --color-accent-success: #56d364 !important;
+    --color-accent-success-tint: #0a1e0a !important;
+    --color-accent-warning: #e3b341 !important;
+    --color-accent-warning-tint: #1c1a0d !important;
+    --color-accent-danger: #ff7b72 !important;
+    --color-accent-danger-tint: #1c1214 !important;
+    --color-accent-caution: #ff7b72 !important;
+    --color-accent-caution-tint: #1c1214 !important;
+    --color-accent-default: #8b949e !important;
+    --color-accent-default-tint: #161b22 !important;
+    --color-accent-important: #bc8cff !important;
+    --color-accent-important-tint: #1a1625 !important;
 
-  // Dark theme specific
-  --sidebar-bg: #0d1117 !important;
-  --hover-bg: #161b22 !important;
-  --active-bg: #21262d !important;
+    // Dark theme specific
+    --sidebar-bg: #0d1117 !important;
+    --hover-bg: #161b22 !important;
+    --active-bg: #21262d !important;
 }
 
 // Force background on html and body
 html.dark,
 html.dark body {
-  background-color: #0d1117 !important;
-  color: #e6edf3 !important;
+    background-color: #0d1117 !important;
+    color: #e6edf3 !important;
 }
 
 // ============================================================================
@@ -123,44 +123,60 @@ html.dark body {
 // ============================================================================
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
-  line-height: 1.6;
-  background-color: var(--body-background) !important;
-  color: var(--body-font-color) !important;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica,
+        Arial, sans-serif;
+    line-height: 1.6;
+    background-color: var(--body-background) !important;
+    color: var(--body-font-color) !important;
 }
 
 // ============================================================================
 // 4. TYPOGRAPHY
 // ============================================================================
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
-  line-height: 1.25;
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
-  color: var(--body-font-color) !important;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--body-font-color) !important;
 }
 
 h1 {
-  font-size: 2rem;
-  border-bottom: 1px solid var(--gray-200);
-  padding-bottom: 0.3rem;
+    font-size: 2rem;
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: 0.3rem;
 }
 
 h2 {
-  font-size: 1.5rem;
-  border-bottom: 1px solid var(--gray-200);
-  padding-bottom: 0.3rem;
+    font-size: 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: 0.3rem;
 }
 
-h3 { font-size: 1.25rem; }
-h4 { font-size: 1rem; }
-h5 { font-size: 0.875rem; }
-h6 { font-size: 0.85rem; color: var(--gray-500) !important; }
+h3 {
+    font-size: 1.25rem;
+}
+h4 {
+    font-size: 1rem;
+}
+h5 {
+    font-size: 0.875rem;
+}
+h6 {
+    font-size: 0.85rem;
+    color: var(--gray-500) !important;
+}
 
 p {
-  margin-bottom: 1rem;
-  line-height: 1.6;
+    margin-bottom: 1rem;
+    line-height: 1.6;
 }
 
 // ============================================================================
@@ -168,17 +184,17 @@ p {
 // ============================================================================
 
 a {
-  color: var(--color-link) !important;
-  text-decoration: none;
-  transition: all 150ms ease;
+    color: var(--color-link) !important;
+    text-decoration: none;
+    transition: all 150ms ease;
 
-  &:hover {
-    text-decoration: underline;
-  }
+    &:hover {
+        text-decoration: underline;
+    }
 
-  &:visited {
-    color: var(--color-visited-link) !important;
-  }
+    &:visited {
+        color: var(--color-visited-link) !important;
+    }
 }
 
 // ============================================================================
@@ -186,31 +202,33 @@ a {
 // ============================================================================
 
 code {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  font-size: 0.875em;
-  background-color: var(--code-bg) !important;
-  color: var(--code-color) !important;
-  padding: 0.2em 0.4em;
-  border-radius: 0.375rem;
-  border: 1px solid var(--gray-200);
+    font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+        "Liberation Mono", monospace;
+    font-size: 0.875em;
+    background-color: var(--code-bg) !important;
+    color: var(--code-color) !important;
+    padding: 0.2em 0.4em;
+    border-radius: 0.375rem;
+    border: 1px solid var(--gray-200);
 }
 
 pre {
-  background-color: var(--code-block-bg) !important;
-  border: 1px solid var(--gray-200) !important;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-  line-height: 1.45;
+    background-color: var(--code-block-bg) !important;
+    border: 1px solid var(--gray-200) !important;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+    line-height: 1.45;
 
-  code {
-    background-color: transparent !important;
-    padding: 0;
-    color: var(--body-font-color) !important;
-    font-size: 0.875rem;
-    border: none;
-  }
+    code {
+        background-color: transparent !important;
+        padding: 0;
+        color: var(--body-font-color) !important;
+        font-size: 0.875rem;
+        border: none;
+    }
 }
 
 // ============================================================================
@@ -218,129 +236,152 @@ pre {
 // ============================================================================
 
 table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1.5rem 0;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  border: 1px solid var(--gray-200);
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.5rem 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid var(--gray-200);
 
-  thead {
-    background-color: var(--gray-100) !important;
-
-    th {
-      font-weight: 600;
-      padding: 0.75rem 1rem;
-      text-align: left;
-      border-bottom: 2px solid var(--gray-200) !important;
-      color: var(--body-font-color) !important;
-    }
-  }
-
-  tbody {
-    tr {
-      background-color: var(--body-background) !important;
-      border-top: 1px solid var(--gray-200);
-      transition: background-color 150ms ease;
-
-      &:nth-child(2n) {
+    thead {
         background-color: var(--gray-100) !important;
-      }
 
-      &:hover {
-        background-color: var(--hover-bg) !important;
-      }
-
-      td {
-        padding: 0.75rem 1rem;
-        border-right: 1px solid var(--gray-200);
-        color: var(--body-font-color) !important;
-
-        &:last-child {
-          border-right: none;
+        th {
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 2px solid var(--gray-200) !important;
+            color: var(--body-font-color) !important;
         }
-      }
     }
-  }
+
+    tbody {
+        tr {
+            background-color: var(--body-background) !important;
+            border-top: 1px solid var(--gray-200);
+            transition: background-color 150ms ease;
+
+            &:nth-child(2n) {
+                background-color: var(--gray-100) !important;
+            }
+
+            &:hover {
+                background-color: var(--hover-bg) !important;
+            }
+
+            td {
+                padding: 0.75rem 1rem;
+                border-right: 1px solid var(--gray-200);
+                color: var(--body-font-color) !important;
+
+                &:last-child {
+                    border-right: none;
+                }
+            }
+        }
+    }
 }
 
 // ============================================================================
 // 8. SIDEBAR & NAVIGATION
 // ============================================================================
 
+// Custom Scrollbar Styles (Sidebar, TOC, etc.)
+.book-menu,
+.book-toc,
+.book-toc-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) var(--sidebar-bg);
+
+    &::-webkit-scrollbar {
+        width: 8px;
+        background: var(--sidebar-bg);
+    }
+    &::-webkit-scrollbar-thumb {
+        background: var(--gray-300);
+        border-radius: 6px;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+        background: var(--gray-400);
+    }
+    &::-webkit-scrollbar-corner {
+        background: var(--sidebar-bg);
+    }
+}
+
 .book-menu {
-  background-color: var(--sidebar-bg) !important;
-  border-right: 1px solid var(--gray-200) !important;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-
-  .book-menu-content {
     background-color: var(--sidebar-bg) !important;
-    padding: 1rem;
-    padding-top: 1rem;
-  }
+    border-right: 1px solid var(--gray-200) !important;
+    position: sticky;
+    top: 3.5rem; // Height of .book-header-custom
+    height: calc(100vh - 3.5rem);
+    overflow-y: auto;
 
-  // Navigation links
-  a {
-    display: flex;
-    align-items: center;
-    padding: 0.375rem 0.75rem;
-    margin: 0.125rem 0;
-    border-radius: 0.375rem;
-    color: var(--body-font-color) !important;
-    transition: all 150ms ease;
-    font-size: 0.875rem;
-
-    &:hover {
-      background-color: var(--hover-bg) !important;
-      text-decoration: none;
+    .book-menu-content {
+        background-color: var(--sidebar-bg) !important;
+        padding: 1rem;
+        padding-top: 1rem;
     }
 
-    &.active {
-      background-color: var(--active-bg) !important;
-      font-weight: 600;
-      color: var(--color-link) !important;
+    // Navigation links
+    a {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin: 0.125rem 0;
+        border-radius: 0.375rem;
+        color: var(--body-font-color) !important;
+        transition: all 150ms ease;
+        font-size: 0.875rem;
+
+        &:hover {
+            background-color: var(--hover-bg) !important;
+            text-decoration: none;
+        }
+
+        &.active {
+            background-color: var(--active-bg) !important;
+            font-weight: 600;
+            color: var(--color-link) !important;
+        }
     }
-  }
 
-  // Tree view structure
-  ul {
-    list-style: none;
-    padding-left: 0;
-    margin: 0;
-
+    // Tree view structure
     ul {
-      margin-left: 0.75rem;
-      padding-left: 0.75rem;
-      border-left: 1px solid var(--gray-200);
-      margin-top: 0.25rem;
-      margin-bottom: 0.25rem;
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+
+        ul {
+            margin-left: 0.75rem;
+            padding-left: 0.75rem;
+            border-left: 1px solid var(--gray-200);
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
     }
-  }
 
-  li {
-    margin: 0.125rem 0;
-  }
-
-  // Folder/section labels
-  label {
-    display: flex;
-    align-items: center;
-    padding: 0.375rem 0.75rem;
-    margin: 0.125rem 0;
-    border-radius: 0.375rem;
-    color: var(--body-font-color) !important;
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 150ms ease;
-
-    &:hover {
-      background-color: var(--hover-bg) !important;
+    li {
+        margin: 0.125rem 0;
     }
-  }
+
+    // Folder/section labels
+    label {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin: 0.125rem 0;
+        border-radius: 0.375rem;
+        color: var(--body-font-color) !important;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 150ms ease;
+
+        &:hover {
+            background-color: var(--hover-bg) !important;
+        }
+    }
 }
 
 // ============================================================================
@@ -348,31 +389,31 @@ table {
 // ============================================================================
 
 .book-search {
-  margin: 0 0 1rem 0;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--gray-200);
+    margin: 0 0 1rem 0;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
 
-  input {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background-color: var(--gray-100) !important;
-    border: 1px solid var(--gray-200) !important;
-    border-radius: 0.5rem;
-    color: var(--body-font-color) !important;
-    font-size: 0.875rem;
-    transition: all 150ms ease;
+    input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background-color: var(--gray-100) !important;
+        border: 1px solid var(--gray-200) !important;
+        border-radius: 0.5rem;
+        color: var(--body-font-color) !important;
+        font-size: 0.875rem;
+        transition: all 150ms ease;
 
-    &:focus {
-      outline: 2px solid var(--color-link);
-      outline-offset: 2px;
-      background-color: var(--body-background) !important;
-      border-color: var(--color-link) !important;
+        &:focus {
+            outline: 2px solid var(--color-link);
+            outline-offset: 2px;
+            background-color: var(--body-background) !important;
+            border-color: var(--color-link) !important;
+        }
+
+        &::placeholder {
+            color: var(--gray-500);
+        }
     }
-
-    &::placeholder {
-      color: var(--gray-500);
-    }
-  }
 }
 
 // ============================================================================
@@ -380,37 +421,37 @@ table {
 // ============================================================================
 
 .theme-toggle {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  margin: 0.75rem auto;
-  padding: 0.5rem;
-  background-color: var(--gray-100) !important;
-  border: 1px solid var(--gray-200) !important;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: all 200ms ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0.75rem auto;
+    padding: 0.5rem;
+    background-color: var(--gray-100) !important;
+    border: 1px solid var(--gray-200) !important;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 200ms ease;
 
-  &:hover {
-    background-color: var(--hover-bg) !important;
-    border-color: var(--color-link) !important;
-    transform: scale(1.05);
-  }
+    &:hover {
+        background-color: var(--hover-bg) !important;
+        border-color: var(--color-link) !important;
+        transform: scale(1.05);
+    }
 
-  &:active {
-    transform: scale(0.95);
-  }
+    &:active {
+        transform: scale(0.95);
+    }
 
-  .theme-icon {
-    position: absolute;
-    width: 1.25rem;
-    height: 1.25rem;
-    color: var(--body-font-color);
-    display: none;
-  }
+    .theme-icon {
+        position: absolute;
+        width: 1.25rem;
+        height: 1.25rem;
+        color: var(--body-font-color);
+        display: none;
+    }
 }
 
 // ============================================================================
@@ -418,52 +459,62 @@ table {
 // ============================================================================
 
 .book-hint {
-  padding: 1rem;
-  margin: 1.5rem 0;
-  border-left: 4px solid;
-  border-radius: 0.5rem;
-  background-color: var(--gray-100);
+    padding: 1rem;
+    margin: 1.5rem 0;
+    border-left: 4px solid;
+    border-radius: 0.5rem;
+    background-color: var(--gray-100);
 
-  strong {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    font-size: 1rem;
-  }
+    strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+    }
 
-  p:last-child {
-    margin-bottom: 0;
-  }
+    p:last-child {
+        margin-bottom: 0;
+    }
 
-  &.note {
-    border-color: var(--color-accent-note);
-    background-color: var(--color-accent-note-tint);
-    strong { color: var(--color-accent-note); }
-  }
+    &.note {
+        border-color: var(--color-accent-note);
+        background-color: var(--color-accent-note-tint);
+        strong {
+            color: var(--color-accent-note);
+        }
+    }
 
-  &.info {
-    border-color: var(--color-accent-info);
-    background-color: var(--color-accent-info-tint);
-    strong { color: var(--color-accent-info); }
-  }
+    &.info {
+        border-color: var(--color-accent-info);
+        background-color: var(--color-accent-info-tint);
+        strong {
+            color: var(--color-accent-info);
+        }
+    }
 
-  &.tip {
-    border-color: var(--color-accent-tip);
-    background-color: var(--color-accent-tip-tint);
-    strong { color: var(--color-accent-tip); }
-  }
+    &.tip {
+        border-color: var(--color-accent-tip);
+        background-color: var(--color-accent-tip-tint);
+        strong {
+            color: var(--color-accent-tip);
+        }
+    }
 
-  &.warning {
-    border-color: var(--color-accent-warning);
-    background-color: var(--color-accent-warning-tint);
-    strong { color: var(--color-accent-warning); }
-  }
+    &.warning {
+        border-color: var(--color-accent-warning);
+        background-color: var(--color-accent-warning-tint);
+        strong {
+            color: var(--color-accent-warning);
+        }
+    }
 
-  &.danger {
-    border-color: var(--color-accent-danger);
-    background-color: var(--color-accent-danger-tint);
-    strong { color: var(--color-accent-danger); }
-  }
+    &.danger {
+        border-color: var(--color-accent-danger);
+        background-color: var(--color-accent-danger-tint);
+        strong {
+            color: var(--color-accent-danger);
+        }
+    }
 }
 
 // ============================================================================
@@ -471,19 +522,23 @@ table {
 // ============================================================================
 
 blockquote {
-  margin: 1.5rem 0;
-  padding: 0.5rem 1rem;
-  border-left: 0.25rem solid var(--gray-300);
-  background-color: var(--gray-100);
-  border-radius: 0.375rem;
-  color: var(--gray-500);
+    margin: 1.5rem 0;
+    padding: 0.5rem 1rem;
+    border-left: 0.25rem solid var(--gray-300);
+    background-color: var(--gray-100);
+    border-radius: 0.375rem;
+    color: var(--gray-500);
 
-  > :first-child { margin-top: 0; }
-  > :last-child { margin-bottom: 0; }
+    > :first-child {
+        margin-top: 0;
+    }
+    > :last-child {
+        margin-bottom: 0;
+    }
 
-  p {
-    color: var(--body-font-color) !important;
-  }
+    p {
+        color: var(--body-font-color) !important;
+    }
 }
 
 // ============================================================================
@@ -491,26 +546,27 @@ blockquote {
 // ============================================================================
 
 hr {
-  height: 2px;
-  padding: 0;
-  margin: 1.5rem 0;
-  background-color: var(--gray-200);
-  border: 0;
-  border-radius: 1px;
+    height: 2px;
+    padding: 0;
+    margin: 1.5rem 0;
+    background-color: var(--gray-200);
+    border: 0;
+    border-radius: 1px;
 }
 
 // ============================================================================
 // 14. LISTS
 // ============================================================================
 
-ul, ol {
-  padding-left: 2rem;
-  margin-bottom: 1rem;
+ul,
+ol {
+    padding-left: 2rem;
+    margin-bottom: 1rem;
 
-  li {
-    margin-bottom: 0.25rem;
-    color: var(--body-font-color) !important;
-  }
+    li {
+        margin-bottom: 0.25rem;
+        color: var(--body-font-color) !important;
+    }
 }
 
 // ============================================================================
@@ -518,66 +574,65 @@ ul, ol {
 // ============================================================================
 
 .book-page {
-  padding: 2rem;
-  background-color: var(--body-background) !important;
+    padding: 2rem;
+    background-color: var(--body-background) !important;
 }
 
 .markdown {
-  color: var(--body-font-color) !important;
+    color: var(--body-font-color) !important;
 
-  // Hide first H1 since we show it in page header
-  > h1:first-child {
-    display: none;
-  }
+    // Hide first H1 since we show it in page header
+    > h1:first-child {
+        display: none;
+    }
 }
 
 // Page header with breadcrumb and title
 .book-page-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--gray-200);
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
 
-  .book-breadcrumb {
-    display: flex;
-    align-items: center;
-    font-size: 0.875rem;
-    color: var(--gray-500);
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
+    .book-breadcrumb {
+        display: inline-block;
+        align-items: center;
+        font-size: 0.875rem;
+        color: var(--gray-500);
+        margin-bottom: 0.75rem;
 
-    a {
-      color: var(--gray-500) !important;
-      transition: color 150ms ease;
+        a {
+            color: var(--gray-500) !important;
+            transition: color 150ms ease;
 
-      &:hover {
-        color: var(--color-link) !important;
-        text-decoration: none;
-      }
+            &:hover {
+                color: var(--color-link) !important;
+                text-decoration: none;
+            }
+        }
+
+        .breadcrumb-separator {
+            margin: 0 0.5rem;
+            color: var(--gray-400);
+        }
     }
 
-    .breadcrumb-separator {
-      margin: 0 0.5rem;
-      color: var(--gray-400);
+    .book-page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1.2;
+        margin: 0;
+        padding: 0;
+        border: none !important;
+        color: var(--body-font-color) !important;
     }
-  }
 
-  .book-page-title {
-    font-size: 2.5rem;
-    font-weight: 700;
-    line-height: 1.2;
-    margin: 0;
-    padding: 0;
-    border: none !important;
-    color: var(--body-font-color) !important;
-  }
-
-  .book-page-description {
-    font-size: 1.125rem;
-    color: var(--gray-500);
-    margin-top: 0.75rem;
-    margin-bottom: 0;
-    line-height: 1.6;
-  }
+    .book-page-description {
+        font-size: 1.125rem;
+        color: var(--gray-500);
+        margin-top: 0.75rem;
+        margin-bottom: 0;
+        line-height: 1.6;
+    }
 }
 
 // ============================================================================
@@ -585,9 +640,9 @@ ul, ol {
 // ============================================================================
 
 .book-brand {
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--gray-200);
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
 }
 
 // ============================================================================
@@ -595,17 +650,23 @@ ul, ol {
 // ============================================================================
 
 @media screen and (max-width: 56rem) {
-  .book-page {
-    padding: 1rem;
-  }
+    .book-page {
+        padding: 1rem;
+    }
 
-  h1 { font-size: 1.75rem; }
-  h2 { font-size: 1.375rem; }
-  h3 { font-size: 1.125rem; }
+    h1 {
+        font-size: 1.75rem;
+    }
+    h2 {
+        font-size: 1.375rem;
+    }
+    h3 {
+        font-size: 1.125rem;
+    }
 
-  table {
-    font-size: 0.875rem;
-  }
+    table {
+        font-size: 0.875rem;
+    }
 }
 
 // ============================================================================
@@ -613,18 +674,18 @@ ul, ol {
 // ============================================================================
 
 *:focus-visible {
-  outline: 2px solid var(--color-link) !important;
-  outline-offset: 2px;
+    outline: 2px solid var(--color-link) !important;
+    outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 // ============================================================================
@@ -632,67 +693,76 @@ ul, ol {
 // ============================================================================
 
 .book-header-custom {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background-color: var(--body-background) !important;
-  border-bottom: 1px solid var(--gray-200) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: var(--body-background) !important;
+    border-bottom: 1px solid var(--gray-200) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
-  .book-header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 2rem;
-    max-width: 100%;
-  }
-
-  .book-header-left {
-    flex: 1;
-  }
-
-  .book-header-title {
-    display: inline-block;
-    margin: 0;
-    padding: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    line-height: 1;
-    border: none !important;
-
-    a {
-      color: var(--body-font-color) !important;
-      text-decoration: none;
-      transition: color 150ms ease;
-      border: none !important;
-      padding-bottom: 0 !important;
-
-      &:hover {
-        color: var(--color-link) !important;
-        text-decoration: none;
-      }
+    .book-header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 2rem;
+        max-width: 100%;
     }
-  }
 
-  .book-header-right {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
+    .book-header-left {
+        flex: 1;
+    }
 
-  // Theme switcher in header
-  .theme-toggle {
-    margin: 0;
-  }
+    .book-header-title {
+        display: inline-block;
+        margin: 0;
+        padding: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        line-height: 1;
+        border: none !important;
+
+        a {
+            color: var(--body-font-color) !important;
+            text-decoration: none;
+            transition: color 150ms ease;
+            border: none !important;
+            padding-bottom: 0 !important;
+
+            &:hover {
+                color: var(--color-link) !important;
+                text-decoration: none;
+            }
+
+            // Adjust main container to account for header
+            body {
+                padding-top: 3.5rem; // Height of .book-header-custom
+            }
+
+            .container {
+                margin-top: 0;
+            }
+        }
+    }
+
+    .book-header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    // Theme switcher in header
+    .theme-toggle {
+        margin: 0;
+    }
 }
 
 // Adjust main container to account for header
 body {
-  padding-top: 0;
+    padding-top: 0;
 }
 
 .container {
-  margin-top: 0;
+    margin-top: 0;
 }
 
 // ============================================================================
@@ -701,130 +771,138 @@ body {
 
 // Navigation tree container
 .book-menu-nav {
-  margin-top: 0;
-  padding-top: 0;
+    margin-top: 0;
+    padding-top: 0;
 
-  // Ensure tree is visible
-  ul {
-    display: block !important;
-    list-style: none;
-    padding-left: 0;
-    margin: 0.5rem 0;
-  }
-
-  // Better tree structure visibility
-  ul {
-    padding-left: 0;
-    margin: 0.25rem 0;
-
-    li {
-      display: block;
-      margin: 0;
-
-      // Nested lists with indentation
-      ul {
-        margin-left: 0.75rem;
-        padding-left: 0.75rem;
-        border-left: 1px solid var(--gray-200);
-        margin-top: 0.25rem;
-        margin-bottom: 0.25rem;
-      }
-    }
-  }
-
-  // Section collapse/expand functionality
-  .toggle {
-    display: none;
-
-    &:checked + label + ul {
-      display: block !important;
+    // Ensure tree is visible
+    ul {
+        display: block !important;
+        list-style: none;
+        padding-left: 0;
+        margin: 0.5rem 0;
     }
 
-    &:not(:checked) + label + ul {
-      display: none !important;
+    // Better tree structure visibility for nested lists
+    ul ul {
+        padding-left: 0;
+        margin: 0.25rem 0;
+
+        li {
+            display: block;
+            margin: 0;
+
+            // Nested lists with indentation
+            ul {
+                margin-left: 0.75rem;
+                padding-left: 0.75rem;
+                border-left: 1px solid var(--gray-200);
+                margin-top: 0.25rem;
+                margin-bottom: 0.25rem;
+            }
+        }
     }
 
-    &:checked + label > img:last-child {
-      transform: rotate(90deg);
-    }
-  }
+    // Section collapse/expand functionality
+    .toggle {
+        display: none;
 
-  label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    padding: 0.375rem 0.75rem;
-    margin: 0.125rem 0;
-    border-radius: 0.375rem;
-    color: var(--body-font-color) !important;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition: all 150ms ease;
+        &:checked + label + ul {
+            display: block !important;
+        }
 
-    &:hover {
-      background-color: var(--hover-bg) !important;
+        &:not(:checked) + label + ul {
+            display: none !important;
+        }
+
+        &:checked + label > img:last-child {
+            transform: rotate(90deg);
+        }
     }
 
+    label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        padding: 0.375rem 0.75rem;
+        margin: 0.125rem 0;
+        border-radius: 0.375rem;
+        color: var(--body-font-color) !important;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition: all 150ms ease;
+
+        &:hover {
+            background-color: var(--hover-bg) !important;
+        }
+
+        a {
+            flex: 1;
+        }
+
+        .chevron {
+            width: 1rem;
+            height: 1rem;
+            margin-left: 0.5rem;
+            font-size: 0.875rem;
+            transition: transform 150ms ease;
+            display: inline-block;
+        }
+
+        img {
+            width: 1rem;
+            height: 1rem;
+            margin-left: 0.5rem;
+            transition: transform 150ms ease;
+        }
+    }
+
+    // Rotate chevron when expanded
+    .toggle:checked + label .chevron {
+        transform: rotate(90deg);
+    }
+
+    .toggle:checked + label > img {
+        transform: rotate(90deg);
+    }
+
+    // Flex class for labels
+    .flex {
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    // Links in tree
     a {
-      flex: 1;
+        display: block;
+        padding: 0.375rem 0.75rem;
+        margin: 0.125rem 0;
+        border-radius: 0.375rem;
+        color: var(--body-font-color) !important;
+        transition: all 150ms ease;
+        font-size: 0.875rem;
+        text-decoration: none;
+
+        &:hover {
+            background-color: var(--hover-bg) !important;
+            text-decoration: none;
+        }
+
+        &.active {
+            background-color: var(--active-bg) !important;
+            font-weight: 600;
+            color: var(--color-link) !important;
+        }
     }
+}
 
-    .chevron {
-      width: 1rem;
-      height: 1rem;
-      margin-left: 0.5rem;
-      font-size: 0.875rem;
-      transition: transform 150ms ease;
-      display: inline-block;
-    }
-
-    img {
-      width: 1rem;
-      height: 1rem;
-      margin-left: 0.5rem;
-      transition: transform 150ms ease;
-    }
-  }
-
-  // Rotate chevron when expanded
-  .toggle:checked + label .chevron {
-    transform: rotate(90deg);
-  }
-
-  .toggle:checked + label > img {
-    transform: rotate(90deg);
-  }
-
-  // Flex class for labels
-  .flex {
-    display: flex;
-    align-items: center;
-    width: 100%;
-  }
-
-  // Links in tree
-  a {
-    display: block;
-    padding: 0.375rem 0.75rem;
-    margin: 0.125rem 0;
-    border-radius: 0.375rem;
-    color: var(--body-font-color) !important;
-    transition: all 150ms ease;
-    font-size: 0.875rem;
-    text-decoration: none;
-
-    &:hover {
-      background-color: var(--hover-bg) !important;
-      text-decoration: none;
-    }
-
-    &.active {
-      background-color: var(--active-bg) !important;
-      font-weight: 600;
-      color: var(--color-link) !important;
-    }
-  }
+// TOC sticky adjustment for header height
+.book-toc {
+    position: sticky;
+    top: 3.5rem; // Height of .book-header-custom
+    max-height: calc(100vh - 3.5rem);
+    overflow-y: auto;
 }
 
 // ============================================================================
@@ -832,15 +910,15 @@ body {
 // ============================================================================
 
 @media print {
-  .book-header-custom,
-  .book-menu,
-  .theme-toggle,
-  .book-search {
-    display: none !important;
-  }
+    .book-header-custom,
+    .book-menu,
+    .theme-toggle,
+    .book-search {
+        display: none !important;
+    }
 
-  * {
-    background: white !important;
-    color: black !important;
-  }
+    * {
+        background: white !important;
+        color: black !important;
+    }
 }
