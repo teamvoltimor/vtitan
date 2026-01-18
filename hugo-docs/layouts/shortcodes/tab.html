@@ -1,0 +1,6 @@
+{{- $name := .Get 0 | default "Tab" -}}
+{{- $id := .Get "id" | default (printf "tab-%d" (now.Unix)) -}}
+
+<div class="tab-pane" data-tab-name="{{ $name }}" id="{{ $id }}" role="tabpanel">
+  {{- .Inner -}}
+</div>

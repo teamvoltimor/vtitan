@@ -41,6 +41,72 @@
   </main>
 
   {{ partial "docs/inject/body" . }}
+
+  <!-- Back to Top Button -->
+  <button id="back-to-top" aria-label="Back to top" title="Back to top">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle id="back-to-top-progress" cx="12" cy="12" r="10" stroke-width="2" fill="none"/>
+      <circle id="back-to-top-progress-bar" cx="12" cy="12" r="10" stroke-width="2" fill="none"
+              stroke-dasharray="62.83" stroke-dashoffset="62.83"
+              transform="rotate(-90 12 12)" stroke-linecap="round"/>
+      <path d="M12 19V5M12 5L5 12M12 5L19 12" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <script>
+  (function() {
+    const btn = document.getElementById('back-to-top');
+    const progressBar = document.getElementById('back-to-top-progress-bar');
+    const circumference = 2 * Math.PI * 10; // r=10 for your SVG
+
+    function updateButton() {
+      const scrollY = window.scrollY || window.pageYOffset;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const percent = docHeight > 0 ? Math.min(scrollY / docHeight, 1) : 0;
+      if (progressBar) {
+        progressBar.setAttribute('stroke-dashoffset', circumference * (1 - percent));
+      }
+      btn.style.display = scrollY > 300 ? 'flex' : 'none';
+    }
+
+    if (btn) {
+      btn.addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // Keyboard accessibility: Enter/Space triggers scroll
+      btn.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          btn.click();
+        }
+      });
+    }
+
+    window.addEventListener('scroll', updateButton, { passive: true });
+    window.addEventListener('resize', updateButton);
+    document.addEventListener('DOMContentLoaded', updateButton);
+  })();
+  </script>
+
+  {{ $codeCopy := resources.Get "code-copy.js" }}
+  {{ if $codeCopy }}
+    {{ $codeCopy = $codeCopy | resources.Minify }}
+    <script>{{ $codeCopy.Content | safeJS }}</script>
+  {{ end }}
+
+  {{ $tocScrollSpy := resources.Get "toc-scroll-spy.js" }}
+  {{ if $tocScrollSpy }}
+    {{ $tocScrollSpy = $tocScrollSpy | resources.Minify }}
+    <script>{{ $tocScrollSpy.Content | safeJS }}</script>
+  {{ end }}
+
+  {{ $tabs := resources.Get "tabs.js" }}
+  {{ if $tabs }}
+    {{ $tabs = $tabs | resources.Minify }}
+    <script>{{ $tabs.Content | safeJS }}</script>
+  {{ end }}
 </body>
 </html>
 

@@ -3,6 +3,63 @@
 // ============================================================================
 
 // ============================================================================
+// Back-to-Top Button Styles
+// ============================================================================
+#back-to-top {
+    display: none;
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+    width: 3rem;
+    height: 3rem;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-primary, #2563eb);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+#back-to-top:hover,
+#back-to-top:focus-visible {
+    background: var(--color-link, #1d4ed8);
+    box-shadow: 0 6px 24px rgba(37, 99, 235, 0.15);
+    transform: translateY(-2px) scale(1.05);
+}
+
+#back-to-top svg {
+    pointer-events: none;
+}
+
+#back-to-top-progress {
+    stroke: rgba(255, 255, 255, 0.25);
+}
+
+#back-to-top-progress-bar {
+    stroke: #fff;
+    transition: stroke-dashoffset 0.2s;
+}
+
+@media (max-width: 600px) {
+    #back-to-top {
+        bottom: 1rem;
+        right: 1rem;
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+}
+
+// ============================================================================
 // 1. LIGHT THEME (Default)
 // ============================================================================
 
@@ -300,7 +357,12 @@ h6 {
 }
 
 // Heading anchor links
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     &[id] {
         position: relative;
         scroll-margin-top: var(--space-xl);
@@ -481,9 +543,13 @@ pre {
     }
 }
 
-// Enhanced code blocks with language indicator
-div.highlight {
+// Enhanced code blocks with language indicator and copy button
+div.highlight,
+pre {
     position: relative;
+}
+
+div.highlight {
     margin: var(--space-xl) 0;
 
     // Language label
@@ -509,6 +575,74 @@ div.highlight {
     }
 }
 
+// Copy button for code blocks
+.code-copy-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-300);
+    border-radius: 0.375rem;
+    color: var(--gray-600);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 200ms ease;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    &:hover {
+        background: var(--gray-200);
+        border-color: var(--gray-400);
+        color: var(--body-font-color);
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    &.copied {
+        background: var(--color-accent-success);
+        border-color: var(--color-accent-success);
+        color: white;
+
+        svg {
+            animation: checkmark 0.3s ease;
+        }
+    }
+}
+
+// Show copy button on hover
+div.highlight:hover .code-copy-button,
+pre:hover .code-copy-button {
+    opacity: 1;
+}
+
+// Adjust position when language label is present
+div.highlight[data-lang]::before ~ pre .code-copy-button {
+    top: 2.75rem;
+}
+
+@keyframes checkmark {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+}
+
 // ============================================================================
 // CHROMA SYNTAX HIGHLIGHTING CLASSES
 // ============================================================================
@@ -518,34 +652,71 @@ div.highlight {
     background-color: var(--chroma-bg);
 
     // Keywords (if, for, func, def, class, import, etc.)
-    .k, .kc, .kd, .kn, .kp, .kr, .kt {
+    .k,
+    .kc,
+    .kd,
+    .kn,
+    .kp,
+    .kr,
+    .kt {
         color: var(--chroma-keyword);
         font-weight: 600;
     }
 
     // Strings
-    .s, .s1, .s2, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx {
+    .s,
+    .s1,
+    .s2,
+    .sb,
+    .sc,
+    .sd,
+    .se,
+    .sh,
+    .si,
+    .sr,
+    .ss,
+    .sx {
         color: var(--chroma-string);
     }
 
     // Numbers
-    .m, .mf, .mh, .mi, .mo, .il {
+    .m,
+    .mf,
+    .mh,
+    .mi,
+    .mo,
+    .il {
         color: var(--chroma-number);
     }
 
     // Comments
-    .c, .c1, .cm, .cp, .cs {
+    .c,
+    .c1,
+    .cm,
+    .cp,
+    .cs {
         color: var(--chroma-comment);
         font-style: italic;
     }
 
     // Functions and methods
-    .n, .na, .nb, .nc, .nd, .ne, .nf, .nl, .nn, .nt, .nv {
+    .n,
+    .na,
+    .nb,
+    .nc,
+    .nd,
+    .ne,
+    .nf,
+    .nl,
+    .nn,
+    .nt,
+    .nv {
         color: var(--chroma-function);
     }
 
     // Operators
-    .o, .ow {
+    .o,
+    .ow {
         color: var(--chroma-operator);
     }
 
@@ -572,7 +743,8 @@ div.highlight {
     }
 
     // Literals and constants
-    .kc, .no {
+    .kc,
+    .no {
         color: var(--chroma-constant);
         font-weight: 600;
     }
@@ -589,7 +761,8 @@ div.highlight {
     }
 
     // Line numbers
-    .ln, .linenos {
+    .ln,
+    .linenos {
         color: var(--gray-400);
         user-select: none;
         padding-right: var(--space-md);
@@ -610,8 +783,12 @@ div.highlight {
 
     // Go
     .language-go & {
-        .kd { color: var(--chroma-keyword); } // var, const, func
-        .nx { color: var(--chroma-color); }   // identifiers
+        .kd {
+            color: var(--chroma-keyword);
+        } // var, const, func
+        .nx {
+            color: var(--chroma-color);
+        } // identifiers
     }
 
     // JavaScript/TypeScript
@@ -619,52 +796,84 @@ div.highlight {
     .language-typescript &,
     .language-js &,
     .language-ts & {
-        .kr { color: var(--chroma-keyword); } // const, let, var
-        .nx { color: var(--chroma-color); }   // identifiers
+        .kr {
+            color: var(--chroma-keyword);
+        } // const, let, var
+        .nx {
+            color: var(--chroma-color);
+        } // identifiers
     }
 
     // Python
     .language-python &,
     .language-py & {
-        .kn { color: var(--chroma-keyword); } // import, from
-        .nn { color: var(--chroma-function); } // module names
+        .kn {
+            color: var(--chroma-keyword);
+        } // import, from
+        .nn {
+            color: var(--chroma-function);
+        } // module names
     }
 
     // JSON
     .language-json & {
-        .nt { color: var(--chroma-function); } // property names
-        .s2 { color: var(--chroma-string); }   // string values
+        .nt {
+            color: var(--chroma-function);
+        } // property names
+        .s2 {
+            color: var(--chroma-string);
+        } // string values
     }
 
     // YAML
     .language-yaml &,
     .language-yml & {
-        .nt { color: var(--chroma-function); } // keys
-        .s { color: var(--chroma-string); }    // values
+        .nt {
+            color: var(--chroma-function);
+        } // keys
+        .s {
+            color: var(--chroma-string);
+        } // values
     }
 
     // XML/HTML
     .language-xml &,
     .language-html & {
-        .nt { color: var(--chroma-function); }    // tag names
-        .na { color: var(--chroma-variable); }    // attribute names
-        .s { color: var(--chroma-string); }       // attribute values
+        .nt {
+            color: var(--chroma-function);
+        } // tag names
+        .na {
+            color: var(--chroma-variable);
+        } // attribute names
+        .s {
+            color: var(--chroma-string);
+        } // attribute values
     }
 
     // CSS/SCSS
     .language-css &,
     .language-scss & {
-        .nc { color: var(--chroma-function); }  // class names
-        .nt { color: var(--chroma-keyword); }   // tag names
-        .k { color: var(--chroma-keyword); }    // properties
+        .nc {
+            color: var(--chroma-function);
+        } // class names
+        .nt {
+            color: var(--chroma-keyword);
+        } // tag names
+        .k {
+            color: var(--chroma-keyword);
+        } // properties
     }
 
     // Shell/Bash
     .language-bash &,
     .language-sh &,
     .language-shell & {
-        .nv { color: var(--chroma-variable); }  // variables
-        .nb { color: var(--chroma-builtin); }   // built-ins
+        .nv {
+            color: var(--chroma-variable);
+        } // variables
+        .nb {
+            color: var(--chroma-builtin);
+        } // built-ins
     }
 }
 
@@ -859,7 +1068,9 @@ table {
             outline: none;
             background-color: var(--body-background) !important;
             border-color: var(--color-link) !important;
-            box-shadow: 0 0 0 3px rgba(var(--color-link-rgb), 0.1), var(--shadow-md);
+            box-shadow:
+                0 0 0 3px rgba(var(--color-link-rgb), 0.1),
+                var(--shadow-md);
             transform: translateY(-1px);
         }
 
@@ -1092,7 +1303,12 @@ hr {
         transform: translate(-50%, -50%);
         width: 3rem;
         height: 3px;
-        background: linear-gradient(90deg, transparent, var(--color-link), transparent);
+        background: linear-gradient(
+            90deg,
+            transparent,
+            var(--color-link),
+            transparent
+        );
         border-radius: 2px;
     }
 }
@@ -1275,7 +1491,8 @@ dl {
 kbd {
     display: inline-block;
     padding: 0.25rem 0.5rem;
-    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1;
@@ -1481,7 +1698,11 @@ sup.footnote-ref {
         padding: 0;
         border: none !important;
         color: var(--body-font-color) !important;
-        background: linear-gradient(135deg, var(--body-font-color) 0%, var(--gray-500) 100%);
+        background: linear-gradient(
+            135deg,
+            var(--body-font-color) 0%,
+            var(--gray-500) 100%
+        );
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -1717,8 +1938,11 @@ body {
         left: 0;
         right: 0;
         bottom: 0;
-        background-image:
-            radial-gradient(circle at 1px 1px, var(--gray-200) 1px, transparent 0);
+        background-image: radial-gradient(
+            circle at 1px 1px,
+            var(--gray-200) 1px,
+            transparent 0
+        );
         background-size: 40px 40px;
         opacity: 0.3;
         pointer-events: none;
@@ -1727,8 +1951,11 @@ body {
 }
 
 html.dark .container::before {
-    background-image:
-        radial-gradient(circle at 1px 1px, var(--gray-300) 1px, transparent 0);
+    background-image: radial-gradient(
+        circle at 1px 1px,
+        var(--gray-300) 1px,
+        transparent 0
+    );
     opacity: 0.1;
 }
 
@@ -1884,7 +2111,11 @@ html.dark .container::before {
         gap: 0.5rem;
         padding: 0.875rem var(--space-lg);
         margin: 0 0 var(--space-md) 0;
-        background: linear-gradient(135deg, var(--gray-100) 0%, var(--hover-bg) 100%);
+        background: linear-gradient(
+            135deg,
+            var(--gray-100) 0%,
+            var(--hover-bg) 100%
+        );
         border: 2px solid var(--gray-200);
         border-left: 4px solid var(--color-link);
         border-radius: 0.75rem;
@@ -1985,6 +2216,96 @@ html.dark .container::before {
             border-left-color: var(--color-link);
             background-color: var(--active-bg);
         }
+    }
+}
+
+// ============================================================================
+// 19.5 TABS COMPONENT
+// ============================================================================
+
+.tabs {
+    margin: var(--space-xl) 0;
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.tabs-header {
+    display: flex;
+    background: var(--gray-100);
+    border-bottom: 2px solid var(--gray-200);
+    overflow-x: auto;
+    scrollbar-width: none; // Firefox
+
+    &::-webkit-scrollbar {
+        display: none; // Chrome, Safari, Edge
+    }
+}
+
+.tab-button {
+    flex: 0 0 auto;
+    padding: 0.875rem 1.5rem;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--gray-600);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+    position: relative;
+
+    &:hover {
+        background: var(--hover-bg);
+        color: var(--body-font-color);
+    }
+
+    &.active {
+        color: var(--color-link);
+        border-bottom-color: var(--color-link);
+        background: var(--body-background);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--color-link);
+        outline-offset: -2px;
+        z-index: 1;
+    }
+}
+
+.tabs-content {
+    background: var(--body-background);
+}
+
+.tab-pane {
+    display: none;
+    padding: var(--space-lg);
+    animation: fadeIn 0.2s ease;
+
+    &.active {
+        display: block;
+    }
+
+    // Remove margin from first and last elements
+    > *:first-child {
+        margin-top: 0;
+    }
+
+    > *:last-child {
+        margin-bottom: 0;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
@@ -2135,16 +2456,36 @@ button:not(.theme-toggle):not([type="checkbox"]) {
 }
 
 // Margin utilities
-.mt-0 { margin-top: 0 !important; }
-.mb-0 { margin-bottom: 0 !important; }
-.mt-1 { margin-top: var(--space-sm) !important; }
-.mt-2 { margin-top: var(--space-md) !important; }
-.mt-3 { margin-top: var(--space-lg) !important; }
-.mt-4 { margin-top: var(--space-xl) !important; }
-.mb-1 { margin-bottom: var(--space-sm) !important; }
-.mb-2 { margin-bottom: var(--space-md) !important; }
-.mb-3 { margin-bottom: var(--space-lg) !important; }
-.mb-4 { margin-bottom: var(--space-xl) !important; }
+.mt-0 {
+    margin-top: 0 !important;
+}
+.mb-0 {
+    margin-bottom: 0 !important;
+}
+.mt-1 {
+    margin-top: var(--space-sm) !important;
+}
+.mt-2 {
+    margin-top: var(--space-md) !important;
+}
+.mt-3 {
+    margin-top: var(--space-lg) !important;
+}
+.mt-4 {
+    margin-top: var(--space-xl) !important;
+}
+.mb-1 {
+    margin-bottom: var(--space-sm) !important;
+}
+.mb-2 {
+    margin-bottom: var(--space-md) !important;
+}
+.mb-3 {
+    margin-bottom: var(--space-lg) !important;
+}
+.mb-4 {
+    margin-bottom: var(--space-xl) !important;
+}
 
 // Content cards
 .card {
@@ -2214,10 +2555,18 @@ button:not(.theme-toggle):not([type="checkbox"]) {
     justify-content: space-between;
 }
 
-.gap-1 { gap: var(--space-sm); }
-.gap-2 { gap: var(--space-md); }
-.gap-3 { gap: var(--space-lg); }
-.gap-4 { gap: var(--space-xl); }
+.gap-1 {
+    gap: var(--space-sm);
+}
+.gap-2 {
+    gap: var(--space-md);
+}
+.gap-3 {
+    gap: var(--space-lg);
+}
+.gap-4 {
+    gap: var(--space-xl);
+}
 
 // ============================================================================
 // 21. PRINT STYLES
@@ -2267,7 +2616,12 @@ button:not(.theme-toggle):not([type="checkbox"]) {
     }
 
     // Ensure headings stay with content
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
         page-break-after: avoid;
         page-break-inside: avoid;
     }

@@ -1,34 +1,47 @@
 {{- /* layouts/partials/head-includes.html: Inject theme switcher script */ -}}
-
 {{- /* Inline theme initialization to prevent flash */ -}}
 <script>
-(function() {
-  const STORAGE_KEY = 'theme-preference';
-  function getStoredTheme() {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return ['light', 'dark', 'auto'].includes(stored) ? stored : 'auto';
-    } catch (e) {
-      return 'auto';
-    }
-  }
-  function getSystemTheme() {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
-  }
-  function getEffectiveTheme(preference) {
-    return preference === 'auto' ? getSystemTheme() : preference;
-  }
-  const preference = getStoredTheme();
-  const effectiveTheme = getEffectiveTheme(preference);
-  document.documentElement.classList.add(effectiveTheme);
-  document.documentElement.setAttribute('data-theme', effectiveTheme);
-  document.documentElement.setAttribute('data-theme-preference', preference);
-})();
+    (function () {
+        const STORAGE_KEY = "theme-preference";
+        function getStoredTheme() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                return ["light", "dark", "auto"].includes(stored)
+                    ? stored
+                    : "auto";
+            } catch (e) {
+                return "auto";
+            }
+        }
+        function getSystemTheme() {
+            if (
+                window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches
+            ) {
+                return "dark";
+            }
+            return "light";
+        }
+        function getEffectiveTheme(preference) {
+            return preference === "auto" ? getSystemTheme() : preference;
+        }
+        const preference = getStoredTheme();
+        const effectiveTheme = getEffectiveTheme(preference);
+        document.documentElement.classList.add(effectiveTheme);
+        document.documentElement.setAttribute("data-theme", effectiveTheme);
+        document.documentElement.setAttribute(
+            "data-theme-preference",
+            preference,
+        );
+    })();
 </script>
 
-{{- /* Theme switcher script */ -}}
-{{- $themeSwitcher := resources.Get "theme-switcher.js" | minify | fingerprint }}
-<script src="{{ $themeSwitcher.RelPermalink }}" integrity="{{ $themeSwitcher.Data.Integrity }}" crossorigin="anonymous" defer></script>
+{{- /* Theme switcher script */ -}} {{- with resources.Get "theme-switcher.js" |
+minify | fingerprint }}
+<script
+    src="{{ .RelPermalink }}"
+    integrity="{{ .Data.Integrity }}"
+    crossorigin="anonymous"
+    defer
+></script>
+{{- end }}

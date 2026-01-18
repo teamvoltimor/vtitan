@@ -1,0 +1,11 @@
+{{- $id := .Get "id" | default (printf "tabs-%d" (now.Unix)) -}}
+{{- $class := .Get "class" | default "" -}}
+
+<div class="tabs {{ $class }}" id="{{ $id }}" data-tabs>
+  <div class="tabs-header" role="tablist">
+    {{- /* Tab headers will be injected by JavaScript */ -}}
+  </div>
+  <div class="tabs-content">
+    {{- .Inner -}}
+  </div>
+</div>

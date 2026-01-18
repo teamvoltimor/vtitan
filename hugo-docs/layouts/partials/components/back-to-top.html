@@ -1,0 +1,100 @@
+klevor-v2\hugo-docs\layouts\partials\components\back-to-top.html
+<!-- Back-to-Top Floating Button Component -->
+<button
+  id="back-to-top"
+  aria-label="Back to top"
+  style="
+    display: none;
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+    width: 3rem;
+    height: 3rem;
+    border: none;
+    border-radius: 50%;
+    background: var(--color-primary, #2563eb);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+    outline: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  "
+  tabindex="0"
+>
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    style="display:block;margin:auto;"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <circle
+      id="back-to-top-progress"
+      cx="12"
+      cy="12"
+      r="11"
+      stroke="rgba(255,255,255,0.35)"
+      stroke-width="2"
+      fill="none"
+    />
+    <circle
+      id="back-to-top-progress-bar"
+      cx="12"
+      cy="12"
+      r="11"
+      stroke="#fff"
+      stroke-width="2.5"
+      fill="none"
+      stroke-linecap="round"
+      stroke-dasharray="69.12"
+      stroke-dashoffset="69.12"
+      style="transition: stroke-dashoffset 0.2s;"
+    />
+    <polyline
+      points="8 13 12 9 16 13"
+      stroke="#fff"
+      stroke-width="2"
+      fill="none"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+</button>
+<script>
+(function() {</script>
+  const btn = document.getElementById('back-to-top');
+  const progressBar = document.getElementById('back-to-top-progress-bar');
+  const circumference = 2 * Math.PI * 11; // r=11
+
+  function updateButton() {
+    const scrollY = window.scrollY || window.pageYOffset;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const percent = docHeight > 0 ? Math.min(scrollY / docHeight, 1) : 0;
+    progressBar.setAttribute('stroke-dashoffset', circumference * (1 - percent));
+    btn.style.display = scrollY > 300 ? 'flex' : 'none';
+  }
+
+  btn.addEventListener('click', function() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  window.addEventListener('scroll', updateButton, { passive: true });
+  window.addEventListener('resize', updateButton);
+  document.addEventListener('DOMContentLoaded', updateButton);
+
+  // Keyboard accessibility: Enter/Space triggers scroll
+  btn.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      btn.click();
+    }
+  });
+})();
+</script>
