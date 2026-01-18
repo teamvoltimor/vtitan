@@ -23,7 +23,7 @@ This document outlines the plan for building a documentation site using [Hugo](h
 ## Structure
 
 ```
-my-hugo-docs/
+hugo-docs/
 ├── config.toml
 ├── content/
 │   ├── _index.md         # Landing page
@@ -118,8 +118,8 @@ enableGitInfo = true
 ## Implementation Steps
 
 1. **Initialize Hugo site**  
-   - `hugo new site my-hugo-docs`
-   - `cd my-hugo-docs`
+   - `hugo new site hugo-docs`
+   - `cd hugo-docs`
    - `git init`
    - `git submodule add https://github.com/alex-shpak/hugo-book themes/hugo-book`
 
