@@ -152,6 +152,49 @@ html {
     scroll-padding-top: var(--space-xl);
 }
 
+// Page load animation
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.book-page {
+    animation: fadeIn 0.3s ease-out;
+}
+
+// Loading state (can be added via JS)
+.loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.6;
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 2rem;
+        height: 2rem;
+        margin: -1rem 0 0 -1rem;
+        border: 3px solid var(--gray-300);
+        border-top-color: var(--color-link);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 body {
     font-family:
         -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica,
@@ -359,6 +402,11 @@ pre {
     margin: var(--space-xl) 0;
     line-height: 1.5;
     box-shadow: var(--shadow-sm);
+    transition: box-shadow 200ms ease;
+
+    &:hover {
+        box-shadow: var(--shadow-md);
+    }
 
     code {
         background-color: transparent !important;
@@ -371,16 +419,56 @@ pre {
 
     // Better scrollbar for code blocks
     &::-webkit-scrollbar {
-        height: 8px;
+        height: 10px;
         background: var(--gray-100);
+        border-radius: 5px;
     }
     &::-webkit-scrollbar-thumb {
         background: var(--gray-300);
-        border-radius: 4px;
+        border-radius: 5px;
+        border: 2px solid var(--gray-100);
 
         &:hover {
             background: var(--gray-400);
         }
+    }
+
+    &::-webkit-scrollbar-track {
+        background: var(--gray-100);
+        border-radius: 5px;
+    }
+
+    // Language badge (if present via Hugo)
+    .chroma & {
+        padding-top: 2.5rem;
+    }
+}
+
+// Enhanced code blocks with language indicator
+div.highlight {
+    position: relative;
+    margin: var(--space-xl) 0;
+
+    // Language label
+    &::before {
+        content: attr(data-lang);
+        position: absolute;
+        top: 0;
+        right: 0;
+        padding: 0.375rem 0.75rem;
+        background: var(--gray-200);
+        color: var(--gray-600);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-radius: 0 0.75rem 0 0.5rem;
+        z-index: 1;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    pre {
+        margin: 0;
     }
 }
 
@@ -641,23 +729,44 @@ table {
 // ============================================================================
 
 .book-hint {
+    position: relative;
     padding: var(--space-lg);
+    padding-left: 3.5rem;
     margin: var(--space-xl) 0;
     border-left: 4px solid;
     border-radius: 0.75rem;
     background-color: var(--gray-100);
     box-shadow: var(--shadow-sm);
-    transition: box-shadow 200ms ease;
+    transition: all 200ms ease;
 
     &:hover {
         box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+    }
+
+    // Icon placeholder
+    &::before {
+        content: "ℹ";
+        position: absolute;
+        left: var(--space-lg);
+        top: var(--space-lg);
+        width: 1.5rem;
+        height: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: bold;
+        border-radius: 50%;
+        background: var(--body-background);
+        color: var(--gray-500);
     }
 
     strong {
         display: block;
         margin-bottom: var(--space-sm);
-        font-weight: 600;
-        font-size: 1rem;
+        font-weight: 700;
+        font-size: 1.0625rem;
     }
 
     p:last-child {
@@ -667,6 +776,13 @@ table {
     &.note {
         border-color: var(--color-accent-note);
         background-color: var(--color-accent-note-tint);
+
+        &::before {
+            content: "ℹ";
+            color: var(--color-accent-note);
+            background: var(--body-background);
+        }
+
         strong {
             color: var(--color-accent-note);
         }
@@ -675,6 +791,13 @@ table {
     &.info {
         border-color: var(--color-accent-info);
         background-color: var(--color-accent-info-tint);
+
+        &::before {
+            content: "ⓘ";
+            color: var(--color-accent-info);
+            background: var(--body-background);
+        }
+
         strong {
             color: var(--color-accent-info);
         }
@@ -683,6 +806,13 @@ table {
     &.tip {
         border-color: var(--color-accent-tip);
         background-color: var(--color-accent-tip-tint);
+
+        &::before {
+            content: "✓";
+            color: var(--color-accent-tip);
+            background: var(--body-background);
+        }
+
         strong {
             color: var(--color-accent-tip);
         }
@@ -691,6 +821,13 @@ table {
     &.warning {
         border-color: var(--color-accent-warning);
         background-color: var(--color-accent-warning-tint);
+
+        &::before {
+            content: "⚠";
+            color: var(--color-accent-warning);
+            background: var(--body-background);
+        }
+
         strong {
             color: var(--color-accent-warning);
         }
@@ -699,6 +836,13 @@ table {
     &.danger {
         border-color: var(--color-accent-danger);
         background-color: var(--color-accent-danger-tint);
+
+        &::before {
+            content: "✕";
+            color: var(--color-accent-danger);
+            background: var(--body-background);
+        }
+
         strong {
             color: var(--color-accent-danger);
         }
@@ -834,6 +978,66 @@ ul {
 }
 
 // ============================================================================
+// 14.4 DETAILS/SUMMARY (Collapsible Sections)
+// ============================================================================
+
+details {
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid var(--color-link);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 200ms ease;
+
+    &[open] {
+        box-shadow: var(--shadow-md);
+
+        summary {
+            margin-bottom: var(--space-md);
+            color: var(--color-link);
+
+            &::marker {
+                color: var(--color-link);
+            }
+        }
+    }
+
+    summary {
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--body-font-color);
+        padding: var(--space-sm);
+        margin: calc(var(--space-md) * -1);
+        margin-bottom: 0;
+        border-radius: 0.75rem 0.75rem 0 0;
+        transition: all 200ms ease;
+        user-select: none;
+        list-style-position: outside;
+
+        &:hover {
+            background: var(--hover-bg);
+            color: var(--color-link);
+        }
+
+        &::marker {
+            color: var(--gray-500);
+            font-size: 1.125em;
+        }
+
+        &::-webkit-details-marker {
+            color: var(--gray-500);
+        }
+    }
+
+    p:last-child {
+        margin-bottom: 0;
+    }
+}
+
+// ============================================================================
 // 14.5 DEFINITION LISTS
 // ============================================================================
 
@@ -892,6 +1096,55 @@ mark {
     color: var(--body-font-color);
     padding: 0.125em 0.25em;
     border-radius: 0.25rem;
+}
+
+// Footnotes
+.footnotes {
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-xl);
+    border-top: 2px solid var(--gray-200);
+    font-size: 0.875rem;
+
+    ol {
+        padding-left: 1.5rem;
+
+        li {
+            margin-bottom: var(--space-md);
+
+            p {
+                margin-bottom: var(--space-sm);
+            }
+        }
+    }
+
+    .footnote-backref {
+        margin-left: var(--space-xs);
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--color-link) !important;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+// Footnote references in text
+sup.footnote-ref {
+    a {
+        font-weight: 700;
+        text-decoration: none;
+        color: var(--color-link) !important;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        background: var(--color-accent-note-tint);
+        transition: all 200ms ease;
+
+        &:hover {
+            background: var(--color-link);
+            color: white !important;
+        }
+    }
 }
 
 // ============================================================================
@@ -1258,6 +1511,29 @@ body {
 
 .container {
     margin-top: 0;
+    max-width: 100%;
+
+    // Add subtle background pattern (optional)
+    &::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image:
+            radial-gradient(circle at 1px 1px, var(--gray-200) 1px, transparent 0);
+        background-size: 40px 40px;
+        opacity: 0.3;
+        pointer-events: none;
+        z-index: -1;
+    }
+}
+
+html.dark .container::before {
+    background-image:
+        radial-gradient(circle at 1px 1px, var(--gray-300) 1px, transparent 0);
+    opacity: 0.1;
 }
 
 // ============================================================================
@@ -1517,6 +1793,122 @@ body {
 }
 
 // ============================================================================
+// 20. BUTTONS & BADGES
+// ============================================================================
+
+// Button styles
+.book-btn,
+.btn,
+button:not(.theme-toggle):not([type="checkbox"]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: none;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--color-link);
+    color: white !important;
+    box-shadow: var(--shadow-sm);
+
+    &:hover {
+        background: var(--color-visited-link);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        text-decoration: none;
+    }
+
+    &:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow-sm);
+    }
+
+    &:focus-visible {
+        outline: 3px solid var(--color-link);
+        outline-offset: 2px;
+    }
+
+    // Variants
+    &.btn-secondary {
+        background: var(--gray-100);
+        color: var(--body-font-color) !important;
+        border-color: var(--gray-200);
+
+        &:hover {
+            background: var(--gray-200);
+            border-color: var(--gray-300);
+        }
+    }
+
+    &.btn-outline {
+        background: transparent;
+        color: var(--color-link) !important;
+        border-color: var(--color-link);
+
+        &:hover {
+            background: var(--color-link);
+            color: white !important;
+        }
+    }
+
+    &.btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+
+    &.btn-lg {
+        padding: 0.875rem 1.75rem;
+        font-size: 1.0625rem;
+    }
+}
+
+// Badge/Tag styles
+.badge,
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--body-font-color);
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 0.375rem;
+    white-space: nowrap;
+
+    &.badge-primary {
+        background: var(--color-link);
+        color: white;
+        border-color: var(--color-link);
+    }
+
+    &.badge-success {
+        background: var(--color-accent-tip);
+        color: white;
+        border-color: var(--color-accent-tip);
+    }
+
+    &.badge-warning {
+        background: var(--color-accent-warning);
+        color: white;
+        border-color: var(--color-accent-warning);
+    }
+
+    &.badge-danger {
+        background: var(--color-accent-danger);
+        color: white;
+        border-color: var(--color-accent-danger);
+    }
+}
+
+// ============================================================================
 // 20.5 UTILITY CLASSES
 // ============================================================================
 
@@ -1557,6 +1949,79 @@ body {
 .mb-2 { margin-bottom: var(--space-md) !important; }
 .mb-3 { margin-bottom: var(--space-lg) !important; }
 .mb-4 { margin-bottom: var(--space-xl) !important; }
+
+// Content cards
+.card {
+    padding: var(--space-lg);
+    background: var(--body-background);
+    border: 1px solid var(--gray-200);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-sm);
+    margin: var(--space-lg) 0;
+    transition: all 200ms ease;
+
+    &:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--gray-300);
+    }
+
+    .card-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: var(--space-sm);
+        color: var(--body-font-color);
+    }
+
+    .card-content {
+        margin: 0;
+    }
+}
+
+// Grid layout
+.grid {
+    display: grid;
+    gap: var(--space-lg);
+    margin: var(--space-xl) 0;
+
+    &.grid-2 {
+        grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    }
+
+    &.grid-3 {
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    }
+
+    &.grid-4 {
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    }
+}
+
+// Flex utilities
+.flex {
+    display: flex;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.justify-center {
+    justify-content: center;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+.gap-1 { gap: var(--space-sm); }
+.gap-2 { gap: var(--space-md); }
+.gap-3 { gap: var(--space-lg); }
+.gap-4 { gap: var(--space-xl); }
 
 // ============================================================================
 // 21. PRINT STYLES

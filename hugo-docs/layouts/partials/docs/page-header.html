@@ -5,8 +5,8 @@
 <div class="book-page-header">
   {{/* Breadcrumb */}}
   {{ if .Parent }}
-  <nav class="book-breadcrumb">
-    {{ template "breadcrumb" (dict "page" . "pages" slice) }}
+  <nav class="book-breadcrumb" aria-label="Breadcrumb">
+    {{ template "breadcrumb-recursive" . }}
   </nav>
   {{ end }}
 
@@ -21,17 +21,15 @@
   {{ end }}
 </div>
 
-{{/* Breadcrumb template */}}
-{{ define "breadcrumb" }}
-  {{ if .page.Parent }}
-    {{ template "breadcrumb" (dict "page" .page.Parent "pages" (slice .page | append .pages)) }}
-  {{ end }}
-  {{ range .pages }}
-    {{ if .IsHome }}
-      <a href="{{ .RelPermalink }}">Home</a>
+{{/* Simple recursive breadcrumb template */}}
+{{ define "breadcrumb-recursive" }}
+  {{ if .Parent }}
+    {{ template "breadcrumb-recursive" .Parent }}
+    {{ if .Parent.IsHome }}
+      <a href="{{ .Parent.RelPermalink }}">Home</a>
     {{ else }}
-      <a href="{{ .RelPermalink }}">{{ partial "docs/title" . }}</a>
+      <a href="{{ .Parent.RelPermalink }}">{{ partial "docs/title" .Parent }}</a>
     {{ end }}
-    <span class="breadcrumb-separator">/</span>
+    <span class="breadcrumb-separator" aria-hidden="true"></span>
   {{ end }}
 {{ end }}
