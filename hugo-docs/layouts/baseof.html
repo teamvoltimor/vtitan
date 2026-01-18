@@ -6,9 +6,6 @@
   {{ partial "docs/inject/head" . }}
 </head>
 <body dir="{{ default "ltr" .Site.Language.LanguageDirection }}" class="book-kind-{{ .Kind }} book-type-{{ .Type }}{{ with .Layout }} book-layout-{{ . }}{{ end }}">
-  {{/* Custom header with theme switcher */}}
-  {{ partial "docs/header-custom.html" . }}
-
   <input type="checkbox" class="hidden toggle" id="menu-control" />
   <input type="checkbox" class="hidden toggle" id="toc-control" />
   <main class="container flex">

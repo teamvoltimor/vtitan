@@ -1,0 +1,11 @@
+{{/*
+  Custom Table of Contents with title
+*/}}
+
+<div class="book-toc-header">
+  <h3 class="book-toc-title">On This Page</h3>
+</div>
+
+{{ partial "docs/inject/toc-before" . }}
+{{ .TableOfContents }}
+{{ partial "docs/inject/toc-after" . }}

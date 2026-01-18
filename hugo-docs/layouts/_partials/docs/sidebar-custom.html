@@ -1,10 +1,13 @@
 {{/*
   Custom sidebar for Hugo Book theme
-  Displays search bar and tree view navigation
+  Displays brand with theme switcher, search bar, and tree view navigation
 */}}
 
 <aside class="book-menu">
   <div class="book-menu-content">
+    {{/* Brand with integrated theme switcher */}}
+    {{ partial "docs/brand" . }}
+
     {{/* Search bar */}}
     {{ partial "docs/search" . }}
 
