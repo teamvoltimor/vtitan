@@ -1,6 +1,9 @@
 # Ignore everything by default
 *
 
+# Makefile
+!Makefile
+
 # But NOT these Hugo-required files and folders:
 !.gitignore
 !config.toml
@@ -17,6 +20,7 @@
 !hugo.toml
 !hugo.yaml
 !hugo.json
+!.hugo_build.lock
 
 # Allow all files in static (for images, CSS, etc.)
 !static/**
@@ -45,7 +49,15 @@
 # Allow only _index.md and archetype/page standards in content (for Hugo content)
 !content/**/_index.md
 !content/**/index.md
-!content/**/README.md
+
+# Add Go scripts
+!scripts/
+!scripts/**/*
+
+# Special MarkDown files unique to Hugo docs content
+!content/**/getting-started.md
+!content/**/test.md
+!content/**/usage.md
 
 # Ignore Hugo build output
 public/
@@ -62,6 +74,3 @@ hugo_stats.json
 
 # Ignore logs
 *.log
-
-# Add Go scripts
-!scripts/**

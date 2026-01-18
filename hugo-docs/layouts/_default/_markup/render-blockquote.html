@@ -1,0 +1,18 @@
+{{- $raw := .Text | plainify | trim " \n\r\t" -}} {{- $type := "" -}} {{- if
+hasPrefix $raw "[!TIP]" -}} {{- $type = "tip" -}} {{- else if hasPrefix $raw
+"[!NOTE]" -}} {{- $type = "note" -}} {{- else if hasPrefix $raw "[!IMPORTANT]"
+-}} {{- $type = "important" -}} {{- else if hasPrefix $raw "[!WARNING]" -}} {{-
+$type = "warning" -}} {{- else if hasPrefix $raw "[!DANGER]" -}} {{- $type =
+"danger" -}} {{- end -}} {{- if $type -}}
+<div class="book-hint {{ $type }}">
+    {{ .Text | replaceRE (printf "\\[!%s\\]" (upper $type)) "" | trim " \n\r\t"
+    }}
+</div>
+{{- else -}}
+<div class="book-hint note">
+    <strong>📝 Note:</strong>
+    <div>
+        {{ .Text }}
+    </div>
+</div>
+{{- end -}}

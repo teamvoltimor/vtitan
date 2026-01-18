@@ -12,7 +12,7 @@ All proposals have been reorganized into clear categories:
 
 ```
 proposals/
-├── 01-START-HERE.md              ← YOU ARE HERE
+├── 01-start-here.md              ← YOU ARE HERE
 ├── README.md                      ← Folder structure overview
 │
 ├── hardware/                      ← Hardware platform options
@@ -320,7 +320,7 @@ Win Probability: ⭐⭐⭐⭐⭐
 → Read `11-simulation-strategy.md`
 
 **Everything at once:**
-→ Start with THIS file (01-START-HERE.md) and follow the Learning Path above!
+→ Start with THIS file (01-start-here.md) and follow the Learning Path above!
 
 ---
 
@@ -348,7 +348,7 @@ Quick reference to all files:
 
 | File | Purpose |
 |------|---------|
-| `01-START-HERE.md` | **YOU ARE HERE** - Navigation guide |
+| `01-start-here.md` | **YOU ARE HERE** - Navigation guide |
 | `README.md` | Folder structure overview |
 | `/hardware/README.md` | Complete hardware options guide |
 | `/software/README.md` | Complete software options guide |
