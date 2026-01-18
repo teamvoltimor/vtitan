@@ -376,7 +376,44 @@ a {
 }
 
 // ============================================================================
-// 6. CODE BLOCKS
+// 6. CODE BLOCKS & SYNTAX HIGHLIGHTING
+// ============================================================================
+
+// Chroma Syntax Highlighting - Light Theme
+:root {
+    --chroma-bg: #f6f8fa;
+    --chroma-color: #24292f;
+    --chroma-comment: #6e7781;
+    --chroma-keyword: #cf222e;
+    --chroma-string: #0a3069;
+    --chroma-number: #0550ae;
+    --chroma-function: #8250df;
+    --chroma-operator: #cf222e;
+    --chroma-constant: #0550ae;
+    --chroma-variable: #953800;
+    --chroma-type: #0550ae;
+    --chroma-builtin: #8250df;
+    --chroma-literal: #0a3069;
+}
+
+// Chroma Syntax Highlighting - Dark Theme
+html.dark,
+html[data-theme="dark"] {
+    --chroma-bg: #161b22;
+    --chroma-color: #e6edf3;
+    --chroma-comment: #8b949e;
+    --chroma-keyword: #ff7b72;
+    --chroma-string: #a5d6ff;
+    --chroma-number: #79c0ff;
+    --chroma-function: #d2a8ff;
+    --chroma-operator: #ff7b72;
+    --chroma-constant: #79c0ff;
+    --chroma-variable: #ffa657;
+    --chroma-type: #79c0ff;
+    --chroma-builtin: #d2a8ff;
+    --chroma-literal: #a5d6ff;
+}
+
 // ============================================================================
 
 code {
@@ -394,13 +431,13 @@ code {
 
 pre {
     position: relative;
-    background-color: var(--code-block-bg) !important;
+    background-color: var(--chroma-bg) !important;
     border: 1px solid var(--gray-200) !important;
     border-radius: 0.75rem;
     padding: var(--space-lg);
     overflow-x: auto;
     margin: var(--space-xl) 0;
-    line-height: 1.5;
+    line-height: 1.6;
     box-shadow: var(--shadow-sm);
     transition: box-shadow 200ms ease;
 
@@ -411,7 +448,7 @@ pre {
     code {
         background-color: transparent !important;
         padding: 0;
-        color: var(--body-font-color) !important;
+        color: var(--chroma-color) !important;
         font-size: 0.875rem;
         border: none;
         font-weight: normal;
@@ -469,6 +506,165 @@ div.highlight {
 
     pre {
         margin: 0;
+    }
+}
+
+// ============================================================================
+// CHROMA SYNTAX HIGHLIGHTING CLASSES
+// ============================================================================
+
+.chroma {
+    color: var(--chroma-color);
+    background-color: var(--chroma-bg);
+
+    // Keywords (if, for, func, def, class, import, etc.)
+    .k, .kc, .kd, .kn, .kp, .kr, .kt {
+        color: var(--chroma-keyword);
+        font-weight: 600;
+    }
+
+    // Strings
+    .s, .s1, .s2, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx {
+        color: var(--chroma-string);
+    }
+
+    // Numbers
+    .m, .mf, .mh, .mi, .mo, .il {
+        color: var(--chroma-number);
+    }
+
+    // Comments
+    .c, .c1, .cm, .cp, .cs {
+        color: var(--chroma-comment);
+        font-style: italic;
+    }
+
+    // Functions and methods
+    .n, .na, .nb, .nc, .nd, .ne, .nf, .nl, .nn, .nt, .nv {
+        color: var(--chroma-function);
+    }
+
+    // Operators
+    .o, .ow {
+        color: var(--chroma-operator);
+    }
+
+    // Built-in functions and types
+    .bp {
+        color: var(--chroma-builtin);
+    }
+
+    // Variables and names
+    .n {
+        color: var(--chroma-color);
+    }
+
+    // Function names
+    .nf {
+        color: var(--chroma-function);
+        font-weight: 600;
+    }
+
+    // Class names
+    .nc {
+        color: var(--chroma-type);
+        font-weight: 600;
+    }
+
+    // Literals and constants
+    .kc, .no {
+        color: var(--chroma-constant);
+        font-weight: 600;
+    }
+
+    // Errors
+    .err {
+        color: var(--color-accent-danger);
+        background-color: var(--color-accent-danger-tint);
+    }
+
+    // Generic tokens
+    .g {
+        color: var(--chroma-color);
+    }
+
+    // Line numbers
+    .ln, .linenos {
+        color: var(--gray-400);
+        user-select: none;
+        padding-right: var(--space-md);
+        margin-right: var(--space-md);
+        border-right: 1px solid var(--gray-200);
+    }
+
+    // Highlighted lines
+    .hl {
+        background-color: rgba(var(--color-link-rgb), 0.1);
+        display: block;
+        margin: 0 calc(var(--space-lg) * -1);
+        padding: 0 var(--space-lg);
+        border-left: 3px solid var(--color-link);
+    }
+
+    // Language-specific adjustments
+
+    // Go
+    .language-go & {
+        .kd { color: var(--chroma-keyword); } // var, const, func
+        .nx { color: var(--chroma-color); }   // identifiers
+    }
+
+    // JavaScript/TypeScript
+    .language-javascript &,
+    .language-typescript &,
+    .language-js &,
+    .language-ts & {
+        .kr { color: var(--chroma-keyword); } // const, let, var
+        .nx { color: var(--chroma-color); }   // identifiers
+    }
+
+    // Python
+    .language-python &,
+    .language-py & {
+        .kn { color: var(--chroma-keyword); } // import, from
+        .nn { color: var(--chroma-function); } // module names
+    }
+
+    // JSON
+    .language-json & {
+        .nt { color: var(--chroma-function); } // property names
+        .s2 { color: var(--chroma-string); }   // string values
+    }
+
+    // YAML
+    .language-yaml &,
+    .language-yml & {
+        .nt { color: var(--chroma-function); } // keys
+        .s { color: var(--chroma-string); }    // values
+    }
+
+    // XML/HTML
+    .language-xml &,
+    .language-html & {
+        .nt { color: var(--chroma-function); }    // tag names
+        .na { color: var(--chroma-variable); }    // attribute names
+        .s { color: var(--chroma-string); }       // attribute values
+    }
+
+    // CSS/SCSS
+    .language-css &,
+    .language-scss & {
+        .nc { color: var(--chroma-function); }  // class names
+        .nt { color: var(--chroma-keyword); }   // tag names
+        .k { color: var(--chroma-keyword); }    // properties
+    }
+
+    // Shell/Bash
+    .language-bash &,
+    .language-sh &,
+    .language-shell & {
+        .nv { color: var(--chroma-variable); }  // variables
+        .nb { color: var(--chroma-builtin); }   // built-ins
     }
 }
 

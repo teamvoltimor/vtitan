@@ -19,7 +19,12 @@ BookSection = "*"
 [markup]
   [markup.highlight]
     noClasses = false
-    style = "monokai"
+    codeFences = true
+    guessSyntax = true
+    lineNoStart = 1
+    lineNos = false
+    lineNumbersInTable = false
+    tabWidth = 4
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]
