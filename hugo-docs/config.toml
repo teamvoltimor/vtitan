@@ -22,8 +22,8 @@ BookSection = "*"
     codeFences = true
     guessSyntax = true
     lineNoStart = 1
-    lineNos = false
-    lineNumbersInTable = false
+    lineNos = true
+    lineNumbersInTable = true
     tabWidth = 4
 
 [outputs]

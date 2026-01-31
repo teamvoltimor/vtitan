@@ -36,11 +36,23 @@
     const code = pre.querySelector('code');
     if (!code) return;
 
-    // Get text content (strip HTML)
-    let text = code.textContent || code.innerText;
+    let text = '';
 
-    // Remove line numbers if present
-    text = text.replace(/^\s*\d+\s+/gm, '');
+    // Check if using table-based line numbers (Hugo lineNumbersInTable)
+    const lntable = code.querySelector('.lntable');
+    if (lntable) {
+      // Get only the code column (second td), not the line numbers column
+      const codeCell = lntable.querySelector('.lntd:last-child');
+      if (codeCell) {
+        text = codeCell.textContent || codeCell.innerText;
+      }
+    } else {
+      // Get text content (strip HTML)
+      text = code.textContent || code.innerText;
+
+      // Remove inline line numbers if present (when not using table)
+      text = text.replace(/^\s*\d+\s+/gm, '');
+    }
 
     try {
       // Try using the Clipboard API

@@ -16,19 +16,23 @@
 
 ## 1. Technology Stack
 
-### Core Framework: ROS2 Humble
-- **Middleware:** DDS for inter-node communication
-- **Operating System:** Raspberry Pi OS (64-bit) with RT-PREEMPT patches
+### Core Framework: ROS2 Kilted Kaiju (Latest LTS)
+- **Release:** May 2025 (8 months old, mature and stable)
+- **Middleware:** DDS + Zenoh (Tier 1 support)
+- **Operating System:** Ubuntu 24.04 LTS (Noble Numbat)
 - **Build System:** Colcon
 - **Languages:**
-  - Python 3.11 (80%) - rapid development, node orchestration
+  - Python 3.12 (80%) - rapid development, node orchestration
   - C++ (20%) - performance-critical paths
 
-**Why ROS2?**
+**Why ROS2 Kilted?**
+- ✅ **10x faster Python executor** - Critical for vision processing!
+- ✅ **NV12 image support** - Native RPi Camera format (lower CPU usage)
 - ✅ Professional ecosystem with mature packages
-- ✅ Easy simulation testing (Gazebo)
+- ✅ Easy simulation testing (Gazebo Ionic)
 - ✅ Modular design (swap algorithms easily)
 - ✅ Strong visualization tools (RViz2, PlotJuggler)
+- ✅ Enhanced ROSBag with action server
 - ✅ Behavior Trees for adaptability (surprise rules)
 
 ### Primary Compute: Raspberry Pi 5 (8GB) ✅ REUSED
@@ -118,30 +122,46 @@
 
 ## 3. Vision & AI Strategy (Flexible!)
 
-### Approach A: YOLO on Hailo (Recommended)
+### Approach A: YOLO26 on Hailo (Recommended) 🚀
 
-**Why YOLO?**
+**Why YOLO26?**
+- **Latest & fastest** - 43% faster CPU inference than YOLO11!
+- Released Jan 14, 2026 - cutting edge technology
+- End-to-end NMS-free architecture (simpler deployment)
 - Robust to lighting, occlusions, angles
-- Hailo optimization: 30-60 FPS on Pi5
-- Easy to train/fine-tune
+- Hailo 8L optimization: 40-80 FPS expected (pending official support)
+- Easy to train/fine-tune (Ultralytics API)
+- Better accuracy with smaller model size (40.9 vs 39.5 mAP)
 
 **Pipeline:**
 1. Camera → `/camera/image_raw`
 2. ROS2 `sign_detector_node` (Python):
    - Subscribes to images
-   - Runs YOLO via Hailo SDK
+   - Runs YOLO26 via Hailo SDK (or ONNX Runtime)
    - Publishes `vision_msgs/Detection2DArray`
 3. ROS2 `decision_node`:
    - Subscribes to detections
    - Publishes `geometry_msgs/Twist` (velocity commands)
 
-**Training:**
-- Collect 5k+ images (manual driving + synthetic)
-- Train YOLOv8-Nano or YOLOv5s
-- Export to ONNX → Convert to Hailo HEF
-- Expected: 30-60 FPS on Hailo
+**Training (on laptop with RTX 4050):**
+- Collect 1k-5k images (manual driving + synthetic)
+- Train **YOLO26-Nano** (smallest, fastest variant - 2.4M params)
+- Export to ONNX → Convert to Hailo HEF (when supported)
+- Expected performance:
+  - **Laptop (ONNX GPU):** 250-300 FPS
+  - **RPi5 (ONNX CPU):** 15-20 FPS (43% faster than YOLO11!)
+  - **RPi5 (Hailo HEF):** 40-80 FPS estimated
+- Inference latency: ~15ms on Hailo (vs ~60ms on CPU)
 
-**Fallback:** Classical HSV detection (GPU-accelerated)
+**Development workflow:**
+- Train on laptop (fast with GPU)
+- Test with ONNX Runtime on laptop (250+ FPS)
+- Deploy to RPi5 with ONNX CPU (15-20 FPS, works now)
+- Upgrade to Hailo HEF when official support added (expected March-April 2026)
+
+**Fallback options:**
+- Classical HSV detection (120 FPS on Pi5)
+- YOLO11 + Hailo (30-60 FPS, proven today)
 
 ### Approach B: Classical CV + Hardware Validation
 
@@ -432,20 +452,24 @@ node = SignDetectorNode(options)
 - [ ] TCS34725 node (optional but recommended)
 
 ### Weeks 5-6: Vision Pipeline
-- **Path A (YOLO):**
-  - [ ] Collect/generate training data (5k+ images)
-  - [ ] Train YOLOv8-Nano
-  - [ ] Export ONNX → Hailo HEF
-  - [ ] ROS2 detector node
+- **Path A (YOLO26 - Recommended):**
+  - [ ] Generate synthetic training data (1k images, 2 minutes)
+  - [ ] Collect/augment with real images (optional, 100-500 images)
+  - [ ] Train YOLO26-Nano on laptop (RTX 4050, 30 minutes)
+  - [ ] Test with ONNX Runtime (250+ FPS on laptop - 43% faster!)
+  - [ ] Export ONNX for deployment
+  - [ ] ROS2 detector node (ONNX for dev, Hailo HEF when supported)
+  - [ ] Monitor Hailo Model Zoo for YOLO26 support
 
-- **Path B (Classical CV):**
+- **Path B (Classical CV - Faster to start):**
   - [ ] Implement HSV detection (GPU-accelerated)
   - [ ] Multi-frame averaging
   - [ ] ROS2 detector node
 
 - **Both Paths:**
-  - [ ] Fallback mechanism
-  - [ ] TCS34725 validation logic
+  - [ ] Fallback mechanism (YOLO26 primary, Classical CV backup)
+  - [ ] TCS34725 validation logic (unique innovation!)
+  - [ ] Multi-sensor voting for robustness
 
 ### Weeks 7-8: Control & Navigation
 - [ ] State machine (BehaviorTree or simple FSM)
@@ -520,9 +544,10 @@ teamsteelbot_ros2/
 │       ├── motor_driver.cpp
 │       └── usbcdc_bridge.cpp
 │
-├── models/                                 # AI models (if using YOLO)
-│   ├── yolov8n_traffic_signs.onnx
-│   └── yolov8n_traffic_signs.hef         # Hailo format
+├── models/                                 # AI models (if using YOLO26)
+│   ├── yolo26n_traffic_signs.pt          # PyTorch checkpoint
+│   ├── yolo26n_traffic_signs.onnx        # ONNX for laptop dev & RPi5 CPU
+│   └── yolo26n_traffic_signs.hef         # Hailo format (RPi5, when supported)
 │
 ├── docs/
 │   ├── journal/
