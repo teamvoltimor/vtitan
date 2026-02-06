@@ -179,21 +179,21 @@ class ScenarioGenerator:
         if randomize_all:
             lighting = self.randomize_lighting()
 
-            # Update sun light
+            # Update sun light (clamp intensity to [0.0, 1.0] for valid SDF)
             sun = world.find(".//light[@name='sun']")
             if sun is not None:
                 diffuse = sun.find('diffuse')
-                intensity = lighting['intensity']
+                intensity = min(1.0, max(0.0, lighting['intensity']))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{intensity} {intensity} {intensity} 1"
 
                 direction = sun.find('direction')
                 direction.text = f"{lighting['direction'][0]} {lighting['direction'][1]} {lighting['direction'][2]}"
 
-            # Update ambient light
+            # Update ambient light (clamp to valid range)
             ambient = world.find(".//light[@name='ambient_light']")
             if ambient is not None:
                 diffuse = ambient.find('diffuse')
-                amb_intensity = lighting['ambient_intensity']
+                amb_intensity = min(1.0, max(0.0, lighting['ambient_intensity']))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{amb_intensity} {amb_intensity} {amb_intensity} 1"
 
         # Generate traffic sign positions and colors (WRO Spec 13.19-13.22)
