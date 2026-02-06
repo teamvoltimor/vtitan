@@ -196,104 +196,113 @@ class ScenarioGenerator:
                 amb_intensity = min(1.0, max(0.0, lighting['ambient_intensity']))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{amb_intensity} {amb_intensity} {amb_intensity} 1"
 
-        # Generate traffic sign positions and colors (WRO Spec 13.19-13.22)
-        # Up to 7 red and up to 7 green per round
-        num_signs = random.randint(6, 14) if randomize_all else 8  # Total up to 14 (7 red + 7 green)
-        sign_positions = self.generate_sign_positions(num_signs)
-
+        # WRO: Traffic signs ONLY appear in OBSTACLES challenge (Spec 13.19-13.22)
+        # Open challenge has NO traffic signs!
+        sign_positions = []
         sign_colors = []
-        for i in range(num_signs):
-            # WRO rules: Randomly assign RED or GREEN (up to 7 each per Spec 13.20)
-            if random.random() < 0.5:
-                color_name = 'red'
-            else:
-                color_name = 'green'
 
-            if randomize_all:
-                color_rgb = self.randomize_color(color_name)
-            else:
-                color_rgb = self.randomization['colors'][color_name]['mean']
-
-            sign_colors.append((color_name, color_rgb))
-
-        # Add traffic signs to world (rectangular boxes per Spec 13.19)
-        for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
-            sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
-            ET.SubElement(sign_model, 'static').text = 'true'
-            ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
-
-            link = ET.SubElement(sign_model, 'link', name='link')
-
-            # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
-            visual = ET.SubElement(link, 'visual', name='visual')
-            geom = ET.SubElement(visual, 'geometry')
-            box = ET.SubElement(geom, 'box')
-            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
-
-            material = ET.SubElement(visual, 'material')
-            ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
-            ET.SubElement(material, 'diffuse').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
-            ET.SubElement(material, 'specular').text = '0.2 0.2 0.2 1'
-
-            # Collision
-            collision = ET.SubElement(link, 'collision', name='collision')
-            geom = ET.SubElement(collision, 'geometry')
-            box = ET.SubElement(geom, 'box')
-            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
-
-            world.append(sign_model)
-
-        # Add obstacles if obstacles challenge
-        # WRO: Obstacles are RED or GREEN blocks (same colors as signs)
-        obstacle_positions = []
-        obstacle_colors = []
         if self.challenge_type == 'obstacles':
-            num_obstacles = random.randint(3, 6) if randomize_all else 4
-            obstacle_positions = self.generate_obstacle_positions(num_obstacles, sign_positions)
+            # Generate traffic signs for obstacles challenge only
+            # Up to 7 red and up to 7 green per round
+            num_signs = random.randint(6, 14) if randomize_all else 8  # Total up to 14 (7 red + 7 green)
+            sign_positions = self.generate_sign_positions(num_signs)
 
-            for i, (x, y) in enumerate(obstacle_positions):
-                # WRO: Obstacles can be red or green
-                obstacle_color_name = 'red' if random.random() < 0.5 else 'green'
+            for i in range(num_signs):
+                # WRO rules: Randomly assign RED or GREEN (up to 7 each per Spec 13.20)
+                if random.random() < 0.5:
+                    color_name = 'red'
+                else:
+                    color_name = 'green'
 
                 if randomize_all:
-                    obstacle_color_rgb = self.randomize_color(obstacle_color_name)
+                    color_rgb = self.randomize_color(color_name)
                 else:
-                    obstacle_color_rgb = self.randomization['colors'][obstacle_color_name]['mean']
+                    color_rgb = self.randomization['colors'][color_name]['mean']
 
-                obstacle_colors.append((obstacle_color_name, obstacle_color_rgb))
+                sign_colors.append((color_name, color_rgb))
 
-                obstacle_model = ET.Element('model', name=f'{obstacle_color_name}_obstacle_{i}')
-                ET.SubElement(obstacle_model, 'static').text = 'false'
-                ET.SubElement(obstacle_model, 'pose').text = f'{x} {y} {self.track_bounds["z_obstacle"]} 0 0 0'
+            # Add traffic signs to world (rectangular boxes per Spec 13.19)
+            for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
+                sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
+                ET.SubElement(sign_model, 'static').text = 'true'
+                ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
 
-                link = ET.SubElement(obstacle_model, 'link', name='link')
+                link = ET.SubElement(sign_model, 'link', name='link')
 
-                # Visual
+                # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
                 visual = ET.SubElement(link, 'visual', name='visual')
                 geom = ET.SubElement(visual, 'geometry')
                 box = ET.SubElement(geom, 'box')
-                ET.SubElement(box, 'size').text = '0.10 0.10 0.10'
+                ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
 
                 material = ET.SubElement(visual, 'material')
-                ET.SubElement(material, 'ambient').text = f'{obstacle_color_rgb[0]} {obstacle_color_rgb[1]} {obstacle_color_rgb[2]} 1'
-                ET.SubElement(material, 'diffuse').text = f'{obstacle_color_rgb[0]} {obstacle_color_rgb[1]} {obstacle_color_rgb[2]} 1'
+                ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
+                ET.SubElement(material, 'diffuse').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
                 ET.SubElement(material, 'specular').text = '0.2 0.2 0.2 1'
 
                 # Collision
                 collision = ET.SubElement(link, 'collision', name='collision')
                 geom = ET.SubElement(collision, 'geometry')
                 box = ET.SubElement(geom, 'box')
-                ET.SubElement(box, 'size').text = '0.10 0.10 0.10'
+                ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
 
-                # Inertial
-                inertial = ET.SubElement(link, 'inertial')
-                ET.SubElement(inertial, 'mass').text = '0.5'
-                inertia = ET.SubElement(inertial, 'inertia')
-                ET.SubElement(inertia, 'ixx').text = '0.001'
-                ET.SubElement(inertia, 'iyy').text = '0.001'
-                ET.SubElement(inertia, 'izz').text = '0.001'
+                world.append(sign_model)
 
-                world.append(obstacle_model)
+        # NOTE: In WRO Future Engineers, there are NO separate obstacle objects!
+        # Both "open" and "obstacles" challenges use the same traffic signs.
+        # The difference is in the navigation rules, not the physical objects.
+        # Parking limitations (magenta blocks) only appear in obstacles challenge.
+
+        # Add parking limitations if obstacles challenge
+        if self.challenge_type == 'obstacles':
+            # WRO Spec 13.26: One parking lot with two parking lot limitations
+            # Position parking lot in a corner (example: northeast corner)
+            parking_x = 1.2
+            parking_y = 1.2
+
+            # Parking limitation 1 (horizontal)
+            parking1 = ET.Element('model', name='parking_limitation_1')
+            ET.SubElement(parking1, 'static').text = 'true'
+            ET.SubElement(parking1, 'pose').text = f'{parking_x} {parking_y} 0.05 0 0 0'  # 50mm height
+
+            link1 = ET.SubElement(parking1, 'link', name='link')
+            visual1 = ET.SubElement(link1, 'visual', name='visual')
+            geom1 = ET.SubElement(visual1, 'geometry')
+            box1 = ET.SubElement(geom1, 'box')
+            ET.SubElement(box1, 'size').text = '0.20 0.02 0.10'  # 200×20×100mm
+
+            material1 = ET.SubElement(visual1, 'material')
+            ET.SubElement(material1, 'ambient').text = '1.0 0.0 1.0 1'  # Magenta
+            ET.SubElement(material1, 'diffuse').text = '1.0 0.0 1.0 1'
+
+            collision1 = ET.SubElement(link1, 'collision', name='collision')
+            geom1_col = ET.SubElement(collision1, 'geometry')
+            box1_col = ET.SubElement(geom1_col, 'box')
+            ET.SubElement(box1_col, 'size').text = '0.20 0.02 0.10'
+
+            world.append(parking1)
+
+            # Parking limitation 2 (perpendicular)
+            parking2 = ET.Element('model', name='parking_limitation_2')
+            ET.SubElement(parking2, 'static').text = 'true'
+            ET.SubElement(parking2, 'pose').text = f'{parking_x - 0.11} {parking_y - 0.09} 0.05 0 0 1.5708'  # Rotated 90°
+
+            link2 = ET.SubElement(parking2, 'link', name='link')
+            visual2 = ET.SubElement(link2, 'visual', name='visual')
+            geom2 = ET.SubElement(visual2, 'geometry')
+            box2 = ET.SubElement(geom2, 'box')
+            ET.SubElement(box2, 'size').text = '0.20 0.02 0.10'
+
+            material2 = ET.SubElement(visual2, 'material')
+            ET.SubElement(material2, 'ambient').text = '1.0 0.0 1.0 1'
+            ET.SubElement(material2, 'diffuse').text = '1.0 0.0 1.0 1'
+
+            collision2 = ET.SubElement(link2, 'collision', name='collision')
+            geom2_col = ET.SubElement(collision2, 'geometry')
+            box2_col = ET.SubElement(geom2_col, 'box')
+            ET.SubElement(box2_col, 'size').text = '0.20 0.02 0.10'
+
+            world.append(parking2)
 
         # Save world file
         world_file = self.output_dir / f'scenario_{scenario_id:04d}.sdf'
@@ -305,11 +314,9 @@ class ScenarioGenerator:
             'challenge_type': self.challenge_type,
             'world_file': str(world_file),
             'num_signs': len(sign_positions),
-            'num_obstacles': len(obstacle_positions),
+            'has_parking_lot': self.challenge_type == 'obstacles',  # Parking lot only in obstacles challenge
             'sign_positions': [{'x': x, 'y': y, 'color': color}
-                              for (x, y), (color, _) in zip(sign_positions, sign_colors)],
-            'obstacle_positions': [{'x': x, 'y': y, 'color': color}
-                                  for (x, y), (color, _) in zip(obstacle_positions, obstacle_colors)] if self.challenge_type == 'obstacles' else []
+                              for (x, y), (color, _) in zip(sign_positions, sign_colors)]
         }
 
         metadata_file = self.output_dir / f'scenario_{scenario_id:04d}_metadata.json'
@@ -422,7 +429,7 @@ def main():
 
         print(f"  World file: {world_file}")
         print(f"  Traffic Signs: {metadata['num_signs']}")
-        print(f"  Obstacles: {metadata['num_obstacles']}")
+        print(f"  Parking Lot: {'Yes' if metadata['has_parking_lot'] else 'No'}")
 
     print("\n" + "=" * 60)
     print("Scenario generation complete!")
