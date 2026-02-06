@@ -10,13 +10,14 @@ track:
     wall_height: 0.3  # meters
 
 traffic_signs:
+  # WRO Official: Only RED and GREEN pillars
   types:
     - red_pillar
     - green_pillar
 
   pillar_specs:
-    radius: 0.03  # meters (3cm)
-    height: 0.30  # meters (30cm)
+    radius: 0.03  # meters (3cm diameter, WRO spec)
+    height: 0.30  # meters (30cm height, WRO spec)
 
   placement:
     num_pillars_min: 6
@@ -25,24 +26,53 @@ traffic_signs:
     avoid_start_zone: true
 
   colors:
+    # WRO Official Colors
     red:
-      ambient: [1.0, 0.0, 0.0]
+      ambient: [1.0, 0.0, 0.0]  # Pure red
       diffuse: [1.0, 0.0, 0.0]
       specular: [0.2, 0.2, 0.2]
     green:
-      ambient: [0.0, 1.0, 0.0]
+      ambient: [0.0, 1.0, 0.0]  # Pure green
       diffuse: [0.0, 1.0, 0.0]
       specular: [0.2, 0.2, 0.2]
+
+track_colors:
+  # WRO Official Track Colors (VERIFIED from Spec 13.1-13.9)
+  floor:
+    ambient: [1.0, 1.0, 1.0]  # WHITE - Official Spec 13.2
+    diffuse: [1.0, 1.0, 1.0]
+  walls:
+    ambient: [0.0, 0.0, 0.0]  # BLACK - Official Spec 13.4
+    diffuse: [0.0, 0.0, 0.0]
+  orange_lines:
+    ambient: [1.0, 0.4, 0.0]  # CMYK(0,60,100,0) - Spec 13.9
+    diffuse: [1.0, 0.4, 0.0]
+  blue_lines:
+    ambient: [0.0, 0.2, 1.0]  # CMYK(100,80,0,0) - Spec 13.9
+    diffuse: [0.0, 0.2, 1.0]
+
+track_dimensions:
+  # WRO Official Dimensions (VERIFIED from Spec 13.1, 13.3)
+  game_mat_size: [3.2, 3.2]  # 3200mm x 3200mm
+  racetrack_inner: [3.0, 3.0]  # 3000mm x 3000mm
+  wall_height: 0.1  # 100mm - Spec 13.3
 
 obstacles:
   enabled: true
 
+  # WRO Official: Obstacles are RED or GREEN blocks (same colors as pillars)
   block_specs:
-    size: [0.10, 0.10, 0.10]  # meters (10cm cube)
-    mass: 0.5  # kg
-    color:
-      ambient: [0.6, 0.3, 0.1]  # Brown/orange
-      diffuse: [0.6, 0.3, 0.1]
+    size: [0.10, 0.10, 0.10]  # meters (10cm cube, WRO spec)
+    mass: 0.5  # kg (lightweight, movable)
+
+  colors:
+    # WRO Rules: Obstacles match pillar colors
+    red:
+      ambient: [1.0, 0.0, 0.0]  # Pure red (pass on right)
+      diffuse: [1.0, 0.0, 0.0]
+    green:
+      ambient: [0.0, 1.0, 0.0]  # Pure green (pass on left)
+      diffuse: [0.0, 1.0, 0.0]
 
   placement:
     num_obstacles_min: 3

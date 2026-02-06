@@ -31,7 +31,8 @@
       </attenuation>
     </light>
 
-    <!-- Ground plane (track surface - gray mat) -->
+    <!-- Ground plane (3200mm x 3200mm mat, WRO Official Spec 13.1-13.2) -->
+    <!-- Main colour is WHITE (Spec 13.2) -->
     <model name="ground">
       <static>true</static>
       <link name="link">
@@ -39,20 +40,20 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>4 4</size>
+              <size>3.2 3.2</size>  <!-- 3200mm x 3200mm -->
             </plane>
           </geometry>
           <material>
-            <ambient>0.5 0.5 0.5 1</ambient>
-            <diffuse>0.5 0.5 0.5 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>1.0 1.0 1.0 1</ambient>  <!-- WHITE - WRO Official Spec 13.2 -->
+            <diffuse>1.0 1.0 1.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>  <!-- Slight specular for realism -->
           </material>
         </visual>
         <collision name="collision">
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>4 4</size>
+              <size>3.2 3.2</size>
             </plane>
           </geometry>
           <surface>
@@ -67,107 +68,264 @@
       </link>
     </model>
 
-    <!-- Track boundary walls (3m x 3m inner space, black walls) -->
-    <!-- North wall -->
-    <model name="wall_north">
+    <!-- EXTERIOR WALLS (WRO Official Spec 13.3-13.4) -->
+    <!-- Inner height: 100mm, Inner colour: BLACK -->
+
+    <!-- North exterior wall -->
+    <model name="exterior_wall_north">
       <static>true</static>
-      <pose>0 1.5 0.15 0 0 0</pose>
+      <pose>0 1.5 0.05 0 0 0</pose>  <!-- Height at 50mm (half of 100mm) -->
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>3.1 0.05 0.3</size></box>
+            <box><size>3.0 0.1 0.1</size></box>  <!-- 100mm height -->
           </geometry>
           <material>
-            <ambient>0.05 0.05 0.05 1</ambient>
-            <diffuse>0.05 0.05 0.05 1</diffuse>
+            <ambient>0.0 0.0 0.0 1</ambient>  <!-- BLACK - WRO Spec 13.4 -->
+            <diffuse>0.0 0.0 0.0 1</diffuse>
+            <specular>0.0 0.0 0.0 1</specular>
           </material>
         </visual>
         <collision name="collision">
           <geometry>
-            <box><size>3.1 0.05 0.3</size></box>
+            <box><size>3.0 0.1 0.1</size></box>
           </geometry>
         </collision>
       </link>
     </model>
 
-    <!-- South wall -->
-    <model name="wall_south">
+    <!-- South exterior wall -->
+    <model name="exterior_wall_south">
       <static>true</static>
-      <pose>0 -1.5 0.15 0 0 0</pose>
+      <pose>0 -1.5 0.05 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>3.1 0.05 0.3</size></box>
+            <box><size>3.0 0.1 0.1</size></box>
           </geometry>
           <material>
-            <ambient>0.05 0.05 0.05 1</ambient>
-            <diffuse>0.05 0.05 0.05 1</diffuse>
+            <ambient>0.0 0.0 0.0 1</ambient>
+            <diffuse>0.0 0.0 0.0 1</diffuse>
+            <specular>0.0 0.0 0.0 1</specular>
           </material>
         </visual>
         <collision name="collision">
           <geometry>
-            <box><size>3.1 0.05 0.3</size></box>
+            <box><size>3.0 0.1 0.1</size></box>
           </geometry>
         </collision>
       </link>
     </model>
 
-    <!-- East wall -->
-    <model name="wall_east">
+    <!-- East exterior wall -->
+    <model name="exterior_wall_east">
       <static>true</static>
-      <pose>1.5 0 0.15 0 0 0</pose>
+      <pose>1.5 0 0.05 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>0.05 3.0 0.3</size></box>
+            <box><size>0.1 3.0 0.1</size></box>
           </geometry>
           <material>
-            <ambient>0.05 0.05 0.05 1</ambient>
-            <diffuse>0.05 0.05 0.05 1</diffuse>
+            <ambient>0.0 0.0 0.0 1</ambient>
+            <diffuse>0.0 0.0 0.0 1</diffuse>
+            <specular>0.0 0.0 0.0 1</specular>
           </material>
         </visual>
         <collision name="collision">
           <geometry>
-            <box><size>0.05 3.0 0.3</size></box>
+            <box><size>0.1 3.0 0.1</size></box>
           </geometry>
         </collision>
       </link>
     </model>
 
-    <!-- West wall -->
-    <model name="wall_west">
+    <!-- West exterior wall -->
+    <model name="exterior_wall_west">
       <static>true</static>
-      <pose>-1.5 0 0.15 0 0 0</pose>
+      <pose>-1.5 0 0.05 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>0.05 3.0 0.3</size></box>
+            <box><size>0.1 3.0 0.1</size></box>
           </geometry>
           <material>
-            <ambient>0.05 0.05 0.05 1</ambient>
-            <diffuse>0.05 0.05 0.05 1</diffuse>
+            <ambient>0.0 0.0 0.0 1</ambient>
+            <diffuse>0.0 0.0 0.0 1</diffuse>
+            <specular>0.0 0.0 0.0 1</specular>
           </material>
         </visual>
         <collision name="collision">
           <geometry>
-            <box><size>0.05 3.0 0.3</size></box>
+            <box><size>0.1 3.0 0.1</size></box>
           </geometry>
         </collision>
       </link>
     </model>
 
-    <!-- Starting zone lines (optional visual guides) -->
-    <model name="start_line">
+    <!-- INTERIOR WALLS (WRO Official Spec 13.5-13.6) -->
+    <!-- Height: 100mm, Colour: BLACK on all sides -->
+    <!-- Distance from exterior walls varies by round type -->
+    <!-- NOTE: Interior wall configuration depends on specific challenge round -->
+    <!-- Add interior walls here based on challenge configuration -->
+
+    <!-- STARTING ZONE (WRO Official Spec 13.10-13.11) -->
+    <!-- Size: 200mm x 500mm, Dashed lines CMYK(0,0,0,30) = RGB(179,179,179) -->
+    <!-- Located in one corner -->
+    <model name="starting_zone">
       <static>true</static>
-      <pose>0 -1.2 0.001 0 0 0</pose>
+      <pose>-1.25 -0.9 0.0001 0 0 0</pose>  <!-- Southwest corner -->
+      <link name="link">
+        <!-- Dashed boundary rectangle (simplified as solid for visibility) -->
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 0.2 0.001</size></box>  <!-- 500mm x 200mm -->
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>  <!-- CMYK(0,0,0,30) ≈ RGB(179,179,179) -->
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ORANGE LINES (WRO Official Spec 13.9) -->
+    <!-- CMYK(0, 60, 100, 0) = RGB(255, 102, 0), Thickness: 20mm -->
+
+    <!-- Example orange line 1 (horizontal) -->
+    <model name="orange_line_1">
+      <static>true</static>
+      <pose>0 0.5 0.0002 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
-            <box><size>0.6 0.05 0.001</size></box>
+            <box><size>2.0 0.02 0.001</size></box>  <!-- 20mm thick -->
           </geometry>
           <material>
-            <ambient>1 1 1 1</ambient>
-            <diffuse>1 1 1 1</diffuse>
+            <ambient>1.0 0.4 0.0 1</ambient>  <!-- CMYK(0,60,100,0) ≈ RGB(255,102,0) -->
+            <diffuse>1.0 0.4 0.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Example orange line 2 (vertical) -->
+    <model name="orange_line_2">
+      <static>true</static>
+      <pose>-0.5 0 0.0002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.02 2.0 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>1.0 0.4 0.0 1</ambient>
+            <diffuse>1.0 0.4 0.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- BLUE LINES (WRO Official Spec 13.9) -->
+    <!-- CMYK(100, 80, 0, 0) = RGB(0, 51, 255), Thickness: 20mm -->
+
+    <!-- Example blue line 1 (horizontal) -->
+    <model name="blue_line_1">
+      <static>true</static>
+      <pose>0 -0.5 0.0002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>2.0 0.02 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.2 1.0 1</ambient>  <!-- CMYK(100,80,0,0) ≈ RGB(0,51,255) -->
+            <diffuse>0.0 0.2 1.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Example blue line 2 (vertical) -->
+    <model name="blue_line_2">
+      <static>true</static>
+      <pose>0.5 0 0.0002 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.02 2.0 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.0 0.2 1.0 1</ambient>
+            <diffuse>0.0 0.2 1.0 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- TRAFFIC SIGN SEATS (WRO Official Spec 13.12-13.15) -->
+    <!-- 50mm x 50mm squares with 1mm line, CMYK(0,0,0,30) -->
+    <!-- 85mm diameter circle around each seat, CMYK(20,0,100,0) = RGB(204,255,0) -->
+
+    <!-- Example traffic sign seat 1 -->
+    <model name="sign_seat_1">
+      <static>true</static>
+      <pose>0.8 0.8 0.0003 0 0 0</pose>
+      <link name="link">
+        <!-- Square seat marker -->
+        <visual name="square">
+          <geometry>
+            <box><size>0.05 0.05 0.001</size></box>  <!-- 50mm x 50mm -->
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>  <!-- Grey line color -->
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+        <!-- Circle around seat (simplified as disk) -->
+        <visual name="circle">
+          <geometry>
+            <cylinder>
+              <radius>0.0425</radius>  <!-- 85mm diameter = 42.5mm radius -->
+              <length>0.001</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.8 1.0 0.0 1</ambient>  <!-- CMYK(20,0,100,0) lime green -->
+            <diffuse>0.8 1.0 0.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Example traffic sign seat 2 -->
+    <model name="sign_seat_2">
+      <static>true</static>
+      <pose>-0.8 0.8 0.0003 0 0 0</pose>
+      <link name="link">
+        <visual name="square">
+          <geometry>
+            <box><size>0.05 0.05 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+          </material>
+        </visual>
+        <visual name="circle">
+          <geometry>
+            <cylinder>
+              <radius>0.0425</radius>
+              <length>0.001</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.8 1.0 0.0 1</ambient>
+            <diffuse>0.8 1.0 0.0 1</diffuse>
           </material>
         </visual>
       </link>

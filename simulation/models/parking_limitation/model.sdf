@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="parking_limitation">
+    <static>true</static>
+    <link name="link">
+      <!-- WRO Official Spec 13.25: Rectangular parallelepiped 200x20x100mm -->
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.20 0.02 0.10</size>  <!-- 200mm × 20mm × 100mm -->
+          </box>
+        </geometry>
+        <material>
+          <ambient>1.0 0.0 1.0 1</ambient>  <!-- Magenta RGB(255,0,255), WRO Spec 13.27 -->
+          <diffuse>1.0 0.0 1.0 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.20 0.02 0.10</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <mass>0.2</mass>  <!-- Weight not defined per Spec 13.29 -->
+        <inertia>
+          <ixx>0.0002</ixx>
+          <iyy>0.0007</iyy>
+          <izz>0.0007</izz>
+        </inertia>
+      </inertial>
+    </link>
+  </model>
+</sdf>

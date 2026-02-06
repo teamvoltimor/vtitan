@@ -1,34 +1,32 @@
 <?xml version="1.0"?>
 <sdf version="1.7">
-  <model name="traffic_pillar">
+  <model name="traffic_sign">
     <static>true</static>
     <link name="link">
-      <!-- Cylinder pillar -->
+      <!-- WRO Official Spec 13.19: Rectangular parallelepiped 50x50x100mm -->
       <visual name="visual">
         <geometry>
-          <cylinder>
-            <radius>0.03</radius>
-            <length>0.30</length>
-          </cylinder>
+          <box>
+            <size>0.05 0.05 0.10</size>  <!-- 50mm × 50mm × 100mm -->
+          </box>
         </geometry>
         <material>
-          <ambient>1 0 0 1</ambient>  <!-- Default red, will be overridden -->
-          <diffuse>1 0 0 1</diffuse>
+          <ambient>0.933 0.153 0.216 1</ambient>  <!-- Default red RGB(238,39,55), WRO Spec 13.21 -->
+          <diffuse>0.933 0.153 0.216 1</diffuse>
           <specular>0.2 0.2 0.2 1</specular>
         </material>
       </visual>
 
       <collision name="collision">
         <geometry>
-          <cylinder>
-            <radius>0.03</radius>
-            <length>0.30</length>
-          </cylinder>
+          <box>
+            <size>0.05 0.05 0.10</size>
+          </box>
         </geometry>
       </collision>
 
       <inertial>
-        <mass>0.1</mass>
+        <mass>0.1</mass>  <!-- Weight not defined per Spec 13.24 -->
         <inertia>
           <ixx>0.0001</ixx>
           <iyy>0.0001</iyy>

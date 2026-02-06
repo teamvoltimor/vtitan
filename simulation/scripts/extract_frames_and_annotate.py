@@ -40,12 +40,11 @@ class YOLOAnnotator:
         self.image_width = image_width
         self.image_height = image_height
 
-        # Class labels
+        # Class labels (WRO official: only red and green pillars)
         self.class_map = {
             'red': 0,
             'green': 1,
-            'blue': 2,
-            'obstacle': 3
+            'obstacle': 2  # For obstacles challenge
         }
 
     def project_3d_to_2d(self, x, y, z, camera_params):
@@ -303,18 +302,23 @@ def create_yolo_dataset(metadata_dir, frames_dir, output_dir):
     # Create data.yaml
     data_yaml = output_dir / 'data.yaml'
     with open(data_yaml, 'w') as f:
-        f.write(f"""# WRO Traffic Sign Dataset
+        f.write(f"""# WRO Traffic Sign Dataset (Official Colors)
 path: {output_dir.absolute()}
 train: images/train
 val: images/val
 
-nc: 4  # Number of classes
-names: ['red', 'green', 'blue', 'obstacle']
+nc: 3  # Number of classes (WRO official: red, green, obstacle)
+names: ['red', 'green', 'obstacle']
 
 # Training configuration
 imgsz: 640
 batch: 16
 epochs: 100
+
+# WRO Official Competition Notes:
+# - Red pillars: Turn right indicator
+# - Green pillars: Turn left indicator
+# - Obstacles: Only in obstacles challenge (red/green blocks)
 """)
 
     print(f"\nDataset created successfully!")

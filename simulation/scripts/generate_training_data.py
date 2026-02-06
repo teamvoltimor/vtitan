@@ -54,16 +54,18 @@ class ScenarioGenerator:
             'z_obstacle': 0.05
         }
 
-        # Randomization parameters
+        # Randomization parameters (WRO official colors - Spec 13.21-13.22)
         self.randomization = {
             'lighting': {
                 'intensity_range': (0.5, 1.5),
                 'direction_variance': 0.3
             },
             'colors': {
-                'red': {'mean': [1.0, 0.0, 0.0], 'std': [0.05, 0.02, 0.02]},
-                'green': {'mean': [0.0, 1.0, 0.0], 'std': [0.02, 0.05, 0.02]},
-                'blue': {'mean': [0.0, 0.0, 1.0], 'std': [0.02, 0.02, 0.05]}
+                # WRO Official Colors (Spec 13.21-13.22)
+                # Red: RGB(238, 39, 55) = (0.933, 0.153, 0.216)
+                # Green: RGB(68, 214, 44) = (0.267, 0.839, 0.173)
+                'red': {'mean': [0.933, 0.153, 0.216], 'std': [0.05, 0.02, 0.02]},
+                'green': {'mean': [0.267, 0.839, 0.173], 'std': [0.02, 0.05, 0.02]}
             },
             'physics': {
                 'friction_range': (0.6, 1.2),
@@ -71,18 +73,18 @@ class ScenarioGenerator:
             }
         }
 
-    def generate_pillar_positions(self, num_pillars=8):
-        """Generate random positions for traffic pillars"""
+    def generate_sign_positions(self, num_signs=8):
+        """Generate random positions for traffic signs (WRO Spec 13.20: up to 7 red + 7 green)"""
         positions = []
-        min_distance = 0.3  # Minimum distance between pillars
+        min_distance = 0.3  # Minimum distance between signs
 
         # Define zones to avoid overcrowding start area
-        start_zone = (-1.4, -0.8, 1.4, -1.0)  # x_min, x_max, y_min, y_max
+        start_zone = (-1.4, -0.8, -1.4, -0.9)  # x_min, x_max, y_min, y_max
 
         attempts = 0
         max_attempts = 1000
 
-        while len(positions) < num_pillars and attempts < max_attempts:
+        while len(positions) < num_signs and attempts < max_attempts:
             x = random.uniform(self.track_bounds['x_min'], self.track_bounds['x_max'])
             y = random.uniform(self.track_bounds['y_min'], self.track_bounds['y_max'])
 
@@ -92,7 +94,7 @@ class ScenarioGenerator:
                 attempts += 1
                 continue
 
-            # Check distance from existing pillars
+            # Check distance from existing signs
             too_close = False
             for px, py in positions:
                 if np.sqrt((x - px)**2 + (y - py)**2) < min_distance:
@@ -106,14 +108,14 @@ class ScenarioGenerator:
 
         return positions
 
-    def generate_obstacle_positions(self, num_obstacles=4, pillar_positions=None):
+    def generate_obstacle_positions(self, num_obstacles=4, sign_positions=None):
         """Generate random positions for obstacles (obstacles challenge)"""
         positions = []
-        min_distance_to_pillar = 0.2
+        min_distance_to_sign = 0.2
         min_distance_to_obstacle = 0.25
 
-        if pillar_positions is None:
-            pillar_positions = []
+        if sign_positions is None:
+            sign_positions = []
 
         attempts = 0
         max_attempts = 1000
@@ -122,10 +124,10 @@ class ScenarioGenerator:
             x = random.uniform(self.track_bounds['x_min'], self.track_bounds['x_max'])
             y = random.uniform(self.track_bounds['y_min'], self.track_bounds['y_max'])
 
-            # Check distance from pillars
+            # Check distance from traffic signs
             too_close = False
-            for px, py in pillar_positions:
-                if np.sqrt((x - px)**2 + (y - py)**2) < min_distance_to_pillar:
+            for px, py in sign_positions:
+                if np.sqrt((x - px)**2 + (y - py)**2) < min_distance_to_sign:
                     too_close = True
                     break
 
@@ -194,13 +196,14 @@ class ScenarioGenerator:
                 amb_intensity = lighting['ambient_intensity']
                 diffuse.text = f"{amb_intensity} {amb_intensity} {amb_intensity} 1"
 
-        # Generate pillar positions and colors
-        num_pillars = random.randint(6, 10) if randomize_all else 8
-        pillar_positions = self.generate_pillar_positions(num_pillars)
+        # Generate traffic sign positions and colors (WRO Spec 13.19-13.22)
+        # Up to 7 red and up to 7 green per round
+        num_signs = random.randint(6, 14) if randomize_all else 8  # Total up to 14 (7 red + 7 green)
+        sign_positions = self.generate_sign_positions(num_signs)
 
-        pillar_colors = []
-        for i in range(num_pillars):
-            # Alternate or randomize colors
+        sign_colors = []
+        for i in range(num_signs):
+            # WRO rules: Randomly assign RED or GREEN (up to 7 each per Spec 13.20)
             if random.random() < 0.5:
                 color_name = 'red'
             else:
@@ -211,22 +214,21 @@ class ScenarioGenerator:
             else:
                 color_rgb = self.randomization['colors'][color_name]['mean']
 
-            pillar_colors.append((color_name, color_rgb))
+            sign_colors.append((color_name, color_rgb))
 
-        # Add pillars to world
-        for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(pillar_positions, pillar_colors)):
-            pillar_model = ET.Element('model', name=f'{color_name}_pillar_{i}')
-            ET.SubElement(pillar_model, 'static').text = 'true'
-            ET.SubElement(pillar_model, 'pose').text = f'{x} {y} {self.track_bounds["z_pillar"]} 0 0 0'
+        # Add traffic signs to world (rectangular boxes per Spec 13.19)
+        for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
+            sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
+            ET.SubElement(sign_model, 'static').text = 'true'
+            ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
 
-            link = ET.SubElement(pillar_model, 'link', name='link')
+            link = ET.SubElement(sign_model, 'link', name='link')
 
-            # Visual
+            # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
             visual = ET.SubElement(link, 'visual', name='visual')
             geom = ET.SubElement(visual, 'geometry')
-            cylinder = ET.SubElement(geom, 'cylinder')
-            ET.SubElement(cylinder, 'radius').text = '0.03'
-            ET.SubElement(cylinder, 'length').text = '0.30'
+            box = ET.SubElement(geom, 'box')
+            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
 
             material = ET.SubElement(visual, 'material')
             ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
@@ -236,20 +238,31 @@ class ScenarioGenerator:
             # Collision
             collision = ET.SubElement(link, 'collision', name='collision')
             geom = ET.SubElement(collision, 'geometry')
-            cylinder = ET.SubElement(geom, 'cylinder')
-            ET.SubElement(cylinder, 'radius').text = '0.03'
-            ET.SubElement(cylinder, 'length').text = '0.30'
+            box = ET.SubElement(geom, 'box')
+            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
 
-            world.append(pillar_model)
+            world.append(sign_model)
 
         # Add obstacles if obstacles challenge
+        # WRO: Obstacles are RED or GREEN blocks (same colors as signs)
         obstacle_positions = []
+        obstacle_colors = []
         if self.challenge_type == 'obstacles':
             num_obstacles = random.randint(3, 6) if randomize_all else 4
-            obstacle_positions = self.generate_obstacle_positions(num_obstacles, pillar_positions)
+            obstacle_positions = self.generate_obstacle_positions(num_obstacles, sign_positions)
 
             for i, (x, y) in enumerate(obstacle_positions):
-                obstacle_model = ET.Element('model', name=f'obstacle_block_{i}')
+                # WRO: Obstacles can be red or green
+                obstacle_color_name = 'red' if random.random() < 0.5 else 'green'
+
+                if randomize_all:
+                    obstacle_color_rgb = self.randomize_color(obstacle_color_name)
+                else:
+                    obstacle_color_rgb = self.randomization['colors'][obstacle_color_name]['mean']
+
+                obstacle_colors.append((obstacle_color_name, obstacle_color_rgb))
+
+                obstacle_model = ET.Element('model', name=f'{obstacle_color_name}_obstacle_{i}')
                 ET.SubElement(obstacle_model, 'static').text = 'false'
                 ET.SubElement(obstacle_model, 'pose').text = f'{x} {y} {self.track_bounds["z_obstacle"]} 0 0 0'
 
@@ -262,8 +275,9 @@ class ScenarioGenerator:
                 ET.SubElement(box, 'size').text = '0.10 0.10 0.10'
 
                 material = ET.SubElement(visual, 'material')
-                ET.SubElement(material, 'ambient').text = '0.6 0.3 0.1 1'
-                ET.SubElement(material, 'diffuse').text = '0.6 0.3 0.1 1'
+                ET.SubElement(material, 'ambient').text = f'{obstacle_color_rgb[0]} {obstacle_color_rgb[1]} {obstacle_color_rgb[2]} 1'
+                ET.SubElement(material, 'diffuse').text = f'{obstacle_color_rgb[0]} {obstacle_color_rgb[1]} {obstacle_color_rgb[2]} 1'
+                ET.SubElement(material, 'specular').text = '0.2 0.2 0.2 1'
 
                 # Collision
                 collision = ET.SubElement(link, 'collision', name='collision')
@@ -290,11 +304,12 @@ class ScenarioGenerator:
             'scenario_id': scenario_id,
             'challenge_type': self.challenge_type,
             'world_file': str(world_file),
-            'num_pillars': len(pillar_positions),
+            'num_signs': len(sign_positions),
             'num_obstacles': len(obstacle_positions),
-            'pillar_positions': [{'x': x, 'y': y, 'color': color}
-                                 for (x, y), (color, _) in zip(pillar_positions, pillar_colors)],
-            'obstacle_positions': [{'x': x, 'y': y} for (x, y) in obstacle_positions]
+            'sign_positions': [{'x': x, 'y': y, 'color': color}
+                              for (x, y), (color, _) in zip(sign_positions, sign_colors)],
+            'obstacle_positions': [{'x': x, 'y': y, 'color': color}
+                                  for (x, y), (color, _) in zip(obstacle_positions, obstacle_colors)] if self.challenge_type == 'obstacles' else []
         }
 
         metadata_file = self.output_dir / f'scenario_{scenario_id:04d}_metadata.json'
