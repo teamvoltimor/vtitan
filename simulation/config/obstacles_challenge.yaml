@@ -1,0 +1,121 @@
+# Obstacles Challenge Configuration
+# WRO Future Engineers - Obstacles Challenge Rules
+
+challenge_type: "obstacles"
+
+track:
+  dimensions:
+    length: 3.0  # meters
+    width: 3.0   # meters
+    wall_height: 0.3  # meters
+
+traffic_signs:
+  types:
+    - red_pillar
+    - green_pillar
+
+  pillar_specs:
+    radius: 0.03  # meters (3cm)
+    height: 0.30  # meters (30cm)
+
+  placement:
+    num_pillars_min: 6
+    num_pillars_max: 10
+    min_distance_between: 0.3  # meters
+    avoid_start_zone: true
+
+  colors:
+    red:
+      ambient: [1.0, 0.0, 0.0]
+      diffuse: [1.0, 0.0, 0.0]
+      specular: [0.2, 0.2, 0.2]
+    green:
+      ambient: [0.0, 1.0, 0.0]
+      diffuse: [0.0, 1.0, 0.0]
+      specular: [0.2, 0.2, 0.2]
+
+obstacles:
+  enabled: true
+
+  block_specs:
+    size: [0.10, 0.10, 0.10]  # meters (10cm cube)
+    mass: 0.5  # kg
+    color:
+      ambient: [0.6, 0.3, 0.1]  # Brown/orange
+      diffuse: [0.6, 0.3, 0.1]
+
+  placement:
+    num_obstacles_min: 3
+    num_obstacles_max: 6
+    min_distance_to_pillar: 0.2  # meters
+    min_distance_between: 0.25  # meters
+    random_orientation: true
+
+robot:
+  start_position:
+    x: 0.0
+    y: -1.2
+    z: 0.1
+  start_orientation:
+    roll: 0.0
+    pitch: 0.0
+    yaw: 1.5708  # 90 degrees (facing forward)
+
+sensors:
+  lidar:
+    enabled: true
+    topic: "/wro_robot/scan"
+  camera:
+    enabled: true
+    topic: "/wro_robot/camera/image_raw"
+  imu:
+    enabled: true
+    topic: "/wro_robot/imu"
+
+randomization:
+  enabled: true
+
+  lighting:
+    sun_intensity:
+      min: 0.5
+      max: 1.5
+    ambient_intensity:
+      min: 0.3
+      max: 0.8
+    direction_variance: 0.3
+
+  colors:
+    enable_noise: true
+    gaussian_std: 0.05  # Color channel noise
+
+  physics:
+    friction:
+      min: 0.6
+      max: 1.2
+    mass_variance: 0.1  # ±10%
+
+  obstacles:
+    position_jitter: 0.05  # meters
+    orientation_random: true
+
+recording:
+  camera_topic: "/wro_robot/camera/image_raw"
+  lidar_topic: "/wro_robot/scan"
+  fps: 30
+  resolution:
+    width: 640
+    height: 480
+  format: "mp4"
+  save_rosbag: true  # Also save ROS2 bag for replay
+
+dataset:
+  save_frames: true
+  frame_skip: 5  # Save every 5th frame (more frequent for obstacle detection)
+  annotation_format: "yolo"  # YOLO format bounding boxes
+  include_depth: false  # Set true if using depth camera
+
+training:
+  num_scenarios: 150  # More scenarios for obstacle challenge
+  duration_per_scenario: 40  # seconds (longer for obstacle navigation)
+  autonomous_drive: false  # Use teleoperation for diverse data
+  include_failure_cases: true  # Record collision scenarios for negative examples
