@@ -421,7 +421,7 @@ def main():
         )
 
         print(f"  World file: {world_file}")
-        print(f"  Pillars: {metadata['num_pillars']}")
+        print(f"  Traffic Signs: {metadata['num_signs']}")
         print(f"  Obstacles: {metadata['num_obstacles']}")
 
     print("\n" + "=" * 60)
