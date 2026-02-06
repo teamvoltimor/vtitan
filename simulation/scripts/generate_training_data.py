@@ -313,12 +313,14 @@ class ScenarioGenerator:
         east_interior_x = track_max - corridor_widths['east']['width']
         west_interior_x = corridor_widths['west']['width']
 
-        # North interior wall (spans from west to east along Y=north_interior_y)
+        # North interior wall (spans from west to east, thickness extends inward)
+        # Wall positioned so outer face is at north_interior_y, inner face extends inward
         wall_north = ET.Element('model', name='interior_wall_north')
         ET.SubElement(wall_north, 'static').text = 'true'
         north_length = east_interior_x - west_interior_x
         north_center_x = (east_interior_x + west_interior_x) / 2
-        ET.SubElement(wall_north, 'pose').text = f"{north_center_x} {north_interior_y} 0.05 0 0 0"
+        north_wall_y = north_interior_y - 0.05  # Shift inward by half thickness
+        ET.SubElement(wall_north, 'pose').text = f"{north_center_x} {north_wall_y} 0.05 0 0 0"
 
         link_n = ET.SubElement(wall_north, 'link', name='link')
         visual_n = ET.SubElement(link_n, 'visual', name='visual')
@@ -337,12 +339,14 @@ class ScenarioGenerator:
         ET.SubElement(box_n_col, 'size').text = f"{north_length} 0.1 0.1"
         world.append(wall_north)
 
-        # South interior wall (spans from west to east along Y=south_interior_y)
+        # South interior wall (spans from west to east, thickness extends inward)
+        # Wall positioned so outer face is at south_interior_y, inner face extends inward
         wall_south = ET.Element('model', name='interior_wall_south')
         ET.SubElement(wall_south, 'static').text = 'true'
         south_length = east_interior_x - west_interior_x
         south_center_x = (east_interior_x + west_interior_x) / 2
-        ET.SubElement(wall_south, 'pose').text = f"{south_center_x} {south_interior_y} 0.05 0 0 0"
+        south_wall_y = south_interior_y + 0.05  # Shift inward by half thickness
+        ET.SubElement(wall_south, 'pose').text = f"{south_center_x} {south_wall_y} 0.05 0 0 0"
 
         link_s = ET.SubElement(wall_south, 'link', name='link')
         visual_s = ET.SubElement(link_s, 'visual', name='visual')
@@ -361,12 +365,14 @@ class ScenarioGenerator:
         ET.SubElement(box_s_col, 'size').text = f"{south_length} 0.1 0.1"
         world.append(wall_south)
 
-        # East interior wall (spans from south to north along X=east_interior_x)
+        # East interior wall (spans from south to north, thickness extends inward)
+        # Wall positioned so outer face is at east_interior_x, inner face extends inward
         wall_east = ET.Element('model', name='interior_wall_east')
         ET.SubElement(wall_east, 'static').text = 'true'
         east_length = north_interior_y - south_interior_y
         east_center_y = (north_interior_y + south_interior_y) / 2
-        ET.SubElement(wall_east, 'pose').text = f"{east_interior_x} {east_center_y} 0.05 0 0 0"
+        east_wall_x = east_interior_x - 0.05  # Shift inward by half thickness
+        ET.SubElement(wall_east, 'pose').text = f"{east_wall_x} {east_center_y} 0.05 0 0 0"
 
         link_e = ET.SubElement(wall_east, 'link', name='link')
         visual_e = ET.SubElement(link_e, 'visual', name='visual')
@@ -385,12 +391,14 @@ class ScenarioGenerator:
         ET.SubElement(box_e_col, 'size').text = f"0.1 {east_length} 0.1"
         world.append(wall_east)
 
-        # West interior wall (spans from south to north along X=west_interior_x)
+        # West interior wall (spans from south to north, thickness extends inward)
+        # Wall positioned so outer face is at west_interior_x, inner face extends inward
         wall_west = ET.Element('model', name='interior_wall_west')
         ET.SubElement(wall_west, 'static').text = 'true'
         west_length = north_interior_y - south_interior_y
         west_center_y = (north_interior_y + south_interior_y) / 2
-        ET.SubElement(wall_west, 'pose').text = f"{west_interior_x} {west_center_y} 0.05 0 0 0"
+        west_wall_x = west_interior_x + 0.05  # Shift inward by half thickness
+        ET.SubElement(wall_west, 'pose').text = f"{west_wall_x} {west_center_y} 0.05 0 0 0"
 
         link_w = ET.SubElement(wall_west, 'link', name='link')
         visual_w = ET.SubElement(link_w, 'visual', name='visual')
