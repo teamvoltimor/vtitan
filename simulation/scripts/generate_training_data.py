@@ -406,15 +406,16 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initialize generator
+    # Initialize generator (separate folders per challenge type)
+    challenge_output_dir = output_dir / args.challenge / 'scenarios'
     generator = ScenarioGenerator(
         base_world_path=args.base_world,
-        output_dir=output_dir / 'scenarios',
+        output_dir=challenge_output_dir,
         challenge_type=args.challenge
     )
 
     print(f"Generating {args.num_scenarios} scenarios for '{args.challenge}' challenge")
-    print(f"Output directory: {output_dir}")
+    print(f"Output directory: {challenge_output_dir}")
     print(f"Randomization: {'FULL' if args.randomize_all else 'BASIC'}")
     print("-" * 60)
 
@@ -433,10 +434,11 @@ def main():
 
     print("\n" + "=" * 60)
     print("Scenario generation complete!")
+    print(f"Challenge type: {args.challenge}")
     print(f"Total scenarios: {args.num_scenarios}")
-    print(f"Output directory: {output_dir}")
+    print(f"Output directory: {challenge_output_dir}")
     print("\nTo launch scenarios in Gazebo, use:")
-    print(f"  gz sim {output_dir}/scenarios/scenario_0000.sdf")
+    print(f"  gz sim {challenge_output_dir}/scenario_0000.sdf")
     print("\nTo record videos with ROS2:")
     print(f"  ros2 launch wro_simulation record_training_data.launch.py")
 
