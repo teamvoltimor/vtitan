@@ -44,15 +44,24 @@ class ScenarioGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.challenge_type = challenge_type
 
-        # Track dimensions (3m x 3m inner space)
+        # WRO 2026 Track dimensions (3000mm x 3000mm inner track)
+        # Coordinate system: (0,0) at bottom-left, (3.0, 3.0) at top-right
         self.track_bounds = {
-            'x_min': -1.4,
-            'x_max': 1.4,
-            'y_min': -1.4,
-            'y_max': 1.4,
-            'z_pillar': 0.15,  # Half height of pillar
-            'z_obstacle': 0.05
+            'min': 0.0,      # Minimum coordinate (bottom-left corner)
+            'max': 3.0,      # Maximum coordinate (top-right corner)
+            'center': 1.5,   # Center of track
+            'z_sign': 0.05,  # Half height of traffic sign (50mm)
         }
+
+        # Corridor width options for OPEN challenge (randomized per section)
+        # WRO: Each section's corridor width is either 600mm or 1000mm (coin toss)
+        self.corridor_widths = {
+            'narrow': 0.6,   # 600mm corridor
+            'wide': 1.0      # 1000mm corridor
+        }
+
+        # Track sections for starting position and corridor randomization
+        self.sections = ['north', 'south', 'east', 'west']
 
         # Randomization parameters (WRO official colors - Spec 13.21-13.22)
         self.randomization = {
@@ -73,26 +82,47 @@ class ScenarioGenerator:
             }
         }
 
-    def generate_sign_positions(self, num_signs=8):
-        """Generate random positions for traffic signs (WRO Spec 13.20: up to 7 red + 7 green)"""
+    def generate_sign_positions(self, num_signs=8, corridor_widths=None):
+        """Generate random positions for traffic signs in corridor sections"""
         positions = []
         min_distance = 0.3  # Minimum distance between signs
 
-        # Define zones to avoid overcrowding start area
-        start_zone = (-1.4, -0.8, -1.4, -0.9)  # x_min, x_max, y_min, y_max
-
+        # Generate positions in the four corridor sections
         attempts = 0
         max_attempts = 1000
 
         while len(positions) < num_signs and attempts < max_attempts:
-            x = random.uniform(self.track_bounds['x_min'], self.track_bounds['x_max'])
-            y = random.uniform(self.track_bounds['y_min'], self.track_bounds['y_max'])
+            # Pick a random section
+            section = random.choice(self.sections)
 
-            # Skip start zone
-            if (start_zone[0] <= x <= start_zone[1] and
-                start_zone[2] <= y <= start_zone[3]):
-                attempts += 1
-                continue
+            if corridor_widths and section in corridor_widths:
+                corridor_width = corridor_widths[section]['width']
+            else:
+                corridor_width = 0.7
+
+            # Calculate corridor bounds for this section
+            track_min = self.track_bounds['min']
+            track_max = self.track_bounds['max']
+
+            # Interior boundary is corridor_width from exterior
+            # North: y from (3.0 - corridor_width) to 3.0
+            # South: y from 0.0 to corridor_width
+            # East: x from (3.0 - corridor_width) to 3.0
+            # West: x from 0.0 to corridor_width
+
+            # Generate position in corridor
+            if section == 'north':
+                x = random.uniform(0.3, 2.7)  # Along track width
+                y = random.uniform(track_max - corridor_width + 0.1, track_max - 0.1)
+            elif section == 'south':
+                x = random.uniform(0.3, 2.7)  # Along track width
+                y = random.uniform(track_min + 0.1, corridor_width - 0.1)
+            elif section == 'east':
+                x = random.uniform(track_max - corridor_width + 0.1, track_max - 0.1)
+                y = random.uniform(0.3, 2.7)  # Along track height
+            else:  # west
+                x = random.uniform(track_min + 0.1, corridor_width - 0.1)
+                y = random.uniform(0.3, 2.7)  # Along track height
 
             # Check distance from existing signs
             too_close = False
@@ -161,6 +191,87 @@ class ScenarioGenerator:
             'ambient_intensity': intensity * 0.5
         }
 
+    def randomize_corridor_widths(self):
+        """Randomize corridor width for each section (OPEN challenge only)"""
+        # WRO: Each section has corridor width either 600mm or 1000mm (coin toss)
+        widths = {}
+        for section in self.sections:
+            # Coin toss: narrow (600mm) or wide (1000mm)
+            width_type = random.choice(['narrow', 'wide'])
+            widths[section] = {
+                'type': width_type,
+                'width': self.corridor_widths[width_type]
+            }
+        return widths
+
+    def randomize_starting_conditions(self, corridor_widths=None):
+        """Generate WRO-style randomized starting conditions"""
+        # Randomize direction (coin toss): clockwise or counterclockwise
+        direction = random.choice(['clockwise', 'counterclockwise'])
+
+        # Randomize starting section (one of four sides)
+        starting_section = random.choice(self.sections)
+
+        # Calculate starting position based on corridor width
+        if corridor_widths and starting_section in corridor_widths:
+            corridor_width = corridor_widths[starting_section]['width']
+        else:
+            corridor_width = 0.65  # Default center position
+
+        track_min = self.track_bounds['min']
+        track_max = self.track_bounds['max']
+        track_center = self.track_bounds['center']
+
+        # Calculate center of corridor for starting position
+        if starting_section == 'north':
+            y_pos = track_max - corridor_width / 2
+            start_positions = [
+                (track_center - 0.5, y_pos),  # Left
+                (track_center, y_pos),        # Center
+                (track_center + 0.5, y_pos)   # Right
+            ]
+        elif starting_section == 'south':
+            y_pos = corridor_width / 2
+            start_positions = [
+                (track_center - 0.5, y_pos),
+                (track_center, y_pos),
+                (track_center + 0.5, y_pos)
+            ]
+        elif starting_section == 'east':
+            x_pos = track_max - corridor_width / 2
+            start_positions = [
+                (x_pos, track_center - 0.5),
+                (x_pos, track_center),
+                (x_pos, track_center + 0.5)
+            ]
+        else:  # west
+            x_pos = corridor_width / 2
+            start_positions = [
+                (x_pos, track_center - 0.5),
+                (x_pos, track_center),
+                (x_pos, track_center + 0.5)
+            ]
+
+        starting_position = random.choice(start_positions)
+
+        # Starting orientation based on direction and section
+        yaw_map = {
+            'north': {'clockwise': -1.5708, 'counterclockwise': 1.5708},
+            'south': {'clockwise': 1.5708, 'counterclockwise': -1.5708},
+            'east': {'clockwise': 3.14159, 'counterclockwise': 0.0},
+            'west': {'clockwise': 0.0, 'counterclockwise': 3.14159}
+        }
+
+        starting_yaw = yaw_map[starting_section][direction]
+
+        return {
+            'direction': direction,
+            'section': starting_section,
+            'section_name': starting_section.capitalize(),
+            'position': starting_position,
+            'yaw': starting_yaw
+        }
+
     def randomize_color(self, color_name):
         """Generate randomized color with Gaussian noise"""
         params = self.randomization['colors'][color_name]
@@ -174,6 +285,138 @@ class ScenarioGenerator:
         tree = ET.parse(self.base_world_path)
         root = tree.getroot()
         world = root.find('world')
+
+        # Randomize corridor widths for OPEN challenge (interior walls)
+        # OBSTACLES challenge has fixed corridor width
+        corridor_widths = None
+        if self.challenge_type == 'open' and randomize_all:
+            corridor_widths = self.randomize_corridor_widths()
+        elif self.challenge_type == 'open':
+            # Default fixed widths for open challenge (800mm - middle value)
+            corridor_widths = {section: {'type': 'default', 'width': 0.8} for section in self.sections}
+        else:
+            # Obstacles challenge: fixed 1.0m corridor (creates 1.0m × 1.0m inner area)
+            corridor_widths = {section: {'type': 'fixed', 'width': 1.0} for section in self.sections}
+
+        # Calculate interior wall positions for all sections
+        # Each section's interior wall is offset from exterior based on corridor width
+        track_min = self.track_bounds['min']
+        track_max = self.track_bounds['max']
+
+        # Interior wall positions:
+        # North: y = track_max - corridor_width_north
+        # South: y = corridor_width_south
+        # East: x = track_max - corridor_width_east
+        # West: x = corridor_width_west
+        north_interior_y = track_max - corridor_widths['north']['width']
+        south_interior_y = corridor_widths['south']['width']
+        east_interior_x = track_max - corridor_widths['east']['width']
+        west_interior_x = corridor_widths['west']['width']
+
+        # North interior wall (spans from west to east along Y=north_interior_y)
+        wall_north = ET.Element('model', name='interior_wall_north')
+        ET.SubElement(wall_north, 'static').text = 'true'
+        north_length = east_interior_x - west_interior_x
+        north_center_x = (east_interior_x + west_interior_x) / 2
+        ET.SubElement(wall_north, 'pose').text = f"{north_center_x} {north_interior_y} 0.05 0 0 0"
+
+        link_n = ET.SubElement(wall_north, 'link', name='link')
+        visual_n = ET.SubElement(link_n, 'visual', name='visual')
+        geom_n = ET.SubElement(visual_n, 'geometry')
+        box_n = ET.SubElement(geom_n, 'box')
+        ET.SubElement(box_n, 'size').text = f"{north_length} 0.1 0.1"
+
+        material_n = ET.SubElement(visual_n, 'material')
+        ET.SubElement(material_n, 'ambient').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_n, 'diffuse').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_n, 'specular').text = '0.0 0.0 0.0 1'
+
+        collision_n = ET.SubElement(link_n, 'collision', name='collision')
+        geom_n_col = ET.SubElement(collision_n, 'geometry')
+        box_n_col = ET.SubElement(geom_n_col, 'box')
+        ET.SubElement(box_n_col, 'size').text = f"{north_length} 0.1 0.1"
+        world.append(wall_north)
+
+        # South interior wall (spans from west to east along Y=south_interior_y)
+        wall_south = ET.Element('model', name='interior_wall_south')
+        ET.SubElement(wall_south, 'static').text = 'true'
+        south_length = east_interior_x - west_interior_x
+        south_center_x = (east_interior_x + west_interior_x) / 2
+        ET.SubElement(wall_south, 'pose').text = f"{south_center_x} {south_interior_y} 0.05 0 0 0"
+
+        link_s = ET.SubElement(wall_south, 'link', name='link')
+        visual_s = ET.SubElement(link_s, 'visual', name='visual')
+        geom_s = ET.SubElement(visual_s, 'geometry')
+        box_s = ET.SubElement(geom_s, 'box')
+        ET.SubElement(box_s, 'size').text = f"{south_length} 0.1 0.1"
+
+        material_s = ET.SubElement(visual_s, 'material')
+        ET.SubElement(material_s, 'ambient').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_s, 'diffuse').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_s, 'specular').text = '0.0 0.0 0.0 1'
+
+        collision_s = ET.SubElement(link_s, 'collision', name='collision')
+        geom_s_col = ET.SubElement(collision_s, 'geometry')
+        box_s_col = ET.SubElement(geom_s_col, 'box')
+        ET.SubElement(box_s_col, 'size').text = f"{south_length} 0.1 0.1"
+        world.append(wall_south)
+
+        # East interior wall (spans from south to north along X=east_interior_x)
+        wall_east = ET.Element('model', name='interior_wall_east')
+        ET.SubElement(wall_east, 'static').text = 'true'
+        east_length = north_interior_y - south_interior_y
+        east_center_y = (north_interior_y + south_interior_y) / 2
+        ET.SubElement(wall_east, 'pose').text = f"{east_interior_x} {east_center_y} 0.05 0 0 0"
+
+        link_e = ET.SubElement(wall_east, 'link', name='link')
+        visual_e = ET.SubElement(link_e, 'visual', name='visual')
+        geom_e = ET.SubElement(visual_e, 'geometry')
+        box_e = ET.SubElement(geom_e, 'box')
+        ET.SubElement(box_e, 'size').text = f"0.1 {east_length} 0.1"
+
+        material_e = ET.SubElement(visual_e, 'material')
+        ET.SubElement(material_e, 'ambient').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_e, 'diffuse').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_e, 'specular').text = '0.0 0.0 0.0 1'
+
+        collision_e = ET.SubElement(link_e, 'collision', name='collision')
+        geom_e_col = ET.SubElement(collision_e, 'geometry')
+        box_e_col = ET.SubElement(geom_e_col, 'box')
+        ET.SubElement(box_e_col, 'size').text = f"0.1 {east_length} 0.1"
+        world.append(wall_east)
+
+        # West interior wall (spans from south to north along X=west_interior_x)
+        wall_west = ET.Element('model', name='interior_wall_west')
+        ET.SubElement(wall_west, 'static').text = 'true'
+        west_length = north_interior_y - south_interior_y
+        west_center_y = (north_interior_y + south_interior_y) / 2
+        ET.SubElement(wall_west, 'pose').text = f"{west_interior_x} {west_center_y} 0.05 0 0 0"
+
+        link_w = ET.SubElement(wall_west, 'link', name='link')
+        visual_w = ET.SubElement(link_w, 'visual', name='visual')
+        geom_w = ET.SubElement(visual_w, 'geometry')
+        box_w = ET.SubElement(geom_w, 'box')
+        ET.SubElement(box_w, 'size').text = f"0.1 {west_length} 0.1"
+
+        material_w = ET.SubElement(visual_w, 'material')
+        ET.SubElement(material_w, 'ambient').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_w, 'diffuse').text = '0.0 0.0 0.0 1'
+        ET.SubElement(material_w, 'specular').text = '0.0 0.0 0.0 1'
+
+        collision_w = ET.SubElement(link_w, 'collision', name='collision')
+        geom_w_col = ET.SubElement(collision_w, 'geometry')
+        box_w_col = ET.SubElement(geom_w_col, 'box')
+        ET.SubElement(box_w_col, 'size').text = f"0.1 {west_length} 0.1"
+        world.append(wall_west)
+
+        # Randomize starting conditions (WRO-style)
+        starting_conditions = self.randomize_starting_conditions(corridor_widths) if randomize_all else {
+            'direction': 'clockwise',
+            'section': 'south',
+            'section_name': 'South',
+            'position': (0.0, -1.0),
+            'yaw': 1.5708
+        }
 
         # Randomize lighting
         if randomize_all:
@@ -196,15 +439,15 @@ class ScenarioGenerator:
                 amb_intensity = min(1.0, max(0.0, lighting['ambient_intensity']))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{amb_intensity} {amb_intensity} {amb_intensity} 1"
 
-        # WRO: Traffic signs ONLY appear in OBSTACLES challenge (Spec 13.19-13.22)
-        # Open challenge has NO traffic signs!
+        # WRO: Traffic signs ONLY in obstacles challenge (Spec 13.19-13.22)
+        # Open challenge has NO traffic signs
         sign_positions = []
         sign_colors = []
 
         if self.challenge_type == 'obstacles':
             # Generate traffic signs for obstacles challenge only
-            # Up to 7 red and up to 7 green per round
-            num_signs = random.randint(6, 14) if randomize_all else 8  # Total up to 14 (7 red + 7 green)
+            # Up to 7 red and 7 green per round (total 14 signs max)
+            num_signs = random.randint(6, 14) if randomize_all else 8
             sign_positions = self.generate_sign_positions(num_signs)
 
             for i in range(num_signs):
@@ -221,32 +464,32 @@ class ScenarioGenerator:
 
                 sign_colors.append((color_name, color_rgb))
 
-            # Add traffic signs to world (rectangular boxes per Spec 13.19)
-            for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
-                sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
-                ET.SubElement(sign_model, 'static').text = 'true'
-                ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
+        # Add traffic signs to world (rectangular boxes per Spec 13.19)
+        for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
+            sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
+            ET.SubElement(sign_model, 'static').text = 'true'
+            ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
 
-                link = ET.SubElement(sign_model, 'link', name='link')
+            link = ET.SubElement(sign_model, 'link', name='link')
 
-                # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
-                visual = ET.SubElement(link, 'visual', name='visual')
-                geom = ET.SubElement(visual, 'geometry')
-                box = ET.SubElement(geom, 'box')
-                ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
+            # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
+            visual = ET.SubElement(link, 'visual', name='visual')
+            geom = ET.SubElement(visual, 'geometry')
+            box = ET.SubElement(geom, 'box')
+            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
 
-                material = ET.SubElement(visual, 'material')
-                ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
-                ET.SubElement(material, 'diffuse').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
-                ET.SubElement(material, 'specular').text = '0.2 0.2 0.2 1'
+            material = ET.SubElement(visual, 'material')
+            ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
+            ET.SubElement(material, 'diffuse').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
+            ET.SubElement(material, 'specular').text = '0.2 0.2 0.2 1'
 
-                # Collision
-                collision = ET.SubElement(link, 'collision', name='collision')
-                geom = ET.SubElement(collision, 'geometry')
-                box = ET.SubElement(geom, 'box')
-                ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
+            # Collision
+            collision = ET.SubElement(link, 'collision', name='collision')
+            geom = ET.SubElement(collision, 'geometry')
+            box = ET.SubElement(geom, 'box')
+            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
 
-                world.append(sign_model)
+            world.append(sign_model)
 
         # NOTE: In WRO Future Engineers, there are NO separate obstacle objects!
         # Both "open" and "obstacles" challenges use the same traffic signs.
@@ -257,8 +500,8 @@ class ScenarioGenerator:
         if self.challenge_type == 'obstacles':
             # WRO Spec 13.26: One parking lot with two parking lot limitations
             # Position parking lot in a corner (example: northeast corner)
-            parking_x = 1.2
-            parking_y = 1.2
+            parking_x = 2.7
+            parking_y = 2.7
 
             # Parking limitation 1 (horizontal)
             parking1 = ET.Element('model', name='parking_limitation_1')
@@ -313,8 +556,21 @@ class ScenarioGenerator:
             'scenario_id': scenario_id,
             'challenge_type': self.challenge_type,
             'world_file': str(world_file),
+            'corridor_widths': {
+                section: {
+                    'type': corridor_widths[section]['type'],
+                    'width_mm': int(corridor_widths[section]['width'] * 1000)
+                }
+                for section in self.sections
+            } if corridor_widths else None,
+            'starting_conditions': {
+                'direction': starting_conditions['direction'],
+                'section': starting_conditions['section_name'],
+                'position': {'x': starting_conditions['position'][0], 'y': starting_conditions['position'][1]},
+                'yaw': starting_conditions['yaw']
+            },
             'num_signs': len(sign_positions),
-            'has_parking_lot': self.challenge_type == 'obstacles',  # Parking lot only in obstacles challenge
+            'has_parking_lot': self.challenge_type == 'obstacles',
             'sign_positions': [{'x': x, 'y': y, 'color': color}
                               for (x, y), (color, _) in zip(sign_positions, sign_colors)]
         }
@@ -393,8 +649,8 @@ def main():
                        default='./training_data',
                        help='Output directory for generated data')
     parser.add_argument('--base-world', type=str,
-                       default='../worlds/wro_track_base.sdf',
-                       help='Base world SDF file')
+                       default='../worlds/wro_track_2026.sdf',
+                       help='Base world SDF file (default: wro_track_2026.sdf)')
     parser.add_argument('--randomize-all', action='store_true',
                        help='Enable full randomization (lighting, colors, physics)')
     parser.add_argument('--duration', type=int, default=30,
@@ -430,6 +686,7 @@ def main():
 
         print(f"  World file: {world_file}")
         print(f"  Traffic Signs: {metadata['num_signs']}")
+        print(f"  Starting: {metadata['starting_conditions']['section']} section, {metadata['starting_conditions']['direction']}")
         print(f"  Parking Lot: {'Yes' if metadata['has_parking_lot'] else 'No'}")
 
     print("\n" + "=" * 60)
