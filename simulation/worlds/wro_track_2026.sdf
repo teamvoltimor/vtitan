@@ -165,7 +165,7 @@
     <!-- CORNER LINES: Orange and Blue lines at 30° angles (WRO Spec 13.9) -->
     <!-- 20mm thick lines radiating from inner corners -->
 
-    <!-- Northeast corner - Blue line (extends to wall, 420mm from corner) -->
+    <!-- Northeast corner - Blue line (extends to east wall, 420mm from corner) -->
     <model name="corner_ne_blue">
       <static>true</static>
       <pose>2.5 2.29 0.0001 0 0 0.524</pose>  <!-- 30° angle, center of line -->
@@ -182,7 +182,24 @@
       </link>
     </model>
 
-    <!-- Southeast corner - Orange line (extends to wall, 420mm from corner) -->
+    <!-- Northeast corner - Orange line (extends to north wall, 420mm from corner) -->
+    <model name="corner_ne_orange">
+      <static>true</static>
+      <pose>2.29 2.5 0.0001 0 0 1.047</pose>  <!-- 60° angle, center of line -->
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.156 0.02 0.001</size></box>  <!-- From (2.0,2.0) to (2.58,3.0) -->
+          </geometry>
+          <material>
+            <ambient>1.0 0.4 0.0 1</ambient>  <!-- Orange CMYK(0,60,100,0) -->
+            <diffuse>1.0 0.4 0.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Southeast corner - Orange line (extends to east wall, 420mm from corner) -->
     <model name="corner_se_orange">
       <static>true</static>
       <pose>2.5 0.71 0.0001 0 0 -0.524</pose>  <!-- -30° angle, center of line -->
@@ -199,7 +216,24 @@
       </link>
     </model>
 
-    <!-- Southwest corner - Blue line (extends to wall, 420mm from corner) -->
+    <!-- Southeast corner - Blue line (extends to south wall, 420mm from corner) -->
+    <model name="corner_se_blue">
+      <static>true</static>
+      <pose>2.29 0.5 0.0001 0 0 -1.047</pose>  <!-- -60° angle, center of line -->
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.156 0.02 0.001</size></box>  <!-- From (2.0,1.0) to (2.58,0.0) -->
+          </geometry>
+          <material>
+            <ambient>0.0 0.2 1.0 1</ambient>  <!-- Blue CMYK(100,80,0,0) -->
+            <diffuse>0.0 0.2 1.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Southwest corner - Blue line (extends to west wall, 420mm from corner) -->
     <model name="corner_sw_blue">
       <static>true</static>
       <pose>0.5 0.71 0.0001 0 0 -2.618</pose>  <!-- -150° angle, center of line -->
@@ -216,7 +250,24 @@
       </link>
     </model>
 
-    <!-- Northwest corner - Orange line (extends to wall, 420mm from corner) -->
+    <!-- Southwest corner - Orange line (extends to south wall, 420mm from corner) -->
+    <model name="corner_sw_orange">
+      <static>true</static>
+      <pose>0.71 0.5 0.0001 0 0 -2.094</pose>  <!-- -120° angle, center of line -->
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.156 0.02 0.001</size></box>  <!-- From (1.0,1.0) to (0.42,0.0) -->
+          </geometry>
+          <material>
+            <ambient>1.0 0.4 0.0 1</ambient>  <!-- Orange CMYK(0,60,100,0) -->
+            <diffuse>1.0 0.4 0.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Northwest corner - Orange line (extends to west wall, 420mm from corner) -->
     <model name="corner_nw_orange">
       <static>true</static>
       <pose>0.5 2.29 0.0001 0 0 2.618</pose>  <!-- 150° angle, center of line -->
@@ -228,6 +279,23 @@
           <material>
             <ambient>1.0 0.4 0.0 1</ambient>  <!-- Orange CMYK(0,60,100,0) -->
             <diffuse>1.0 0.4 0.0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Northwest corner - Blue line (extends to north wall, 420mm from corner) -->
+    <model name="corner_nw_blue">
+      <static>true</static>
+      <pose>0.71 2.5 0.0001 0 0 2.094</pose>  <!-- 120° angle, center of line -->
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.156 0.02 0.001</size></box>  <!-- From (1.0,2.0) to (0.42,3.0) -->
+          </geometry>
+          <material>
+            <ambient>0.0 0.2 1.0 1</ambient>  <!-- Blue CMYK(100,80,0,0) -->
+            <diffuse>0.0 0.2 1.0 1</diffuse>
           </material>
         </visual>
       </link>
