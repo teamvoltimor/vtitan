@@ -438,5 +438,215 @@
       </link>
     </model>
 
+    <!-- CORRIDOR SUBDIVISION LINES (400mm-200mm-400mm divisions) -->
+
+    <!-- NORTH CORRIDOR (Y=2.0 to Y=3.0) subdivisions -->
+    <!-- Centerline dividing corridor length in half -->
+    <model name="corridor_north_center">
+      <static>true</static>
+      <pose>1.5 2.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at Y=2.4 (400mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_north_width1">
+      <static>true</static>
+      <pose>1.5 2.4 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>  <!-- Only X=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at Y=2.6 (600mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_north_width2">
+      <static>true</static>
+      <pose>1.5 2.6 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>  <!-- Only X=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- SOUTH CORRIDOR (Y=0.0 to Y=1.0) subdivisions -->
+    <!-- Centerline dividing corridor length in half -->
+    <model name="corridor_south_center">
+      <static>true</static>
+      <pose>1.5 0.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at Y=0.4 (400mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_south_width1">
+      <static>true</static>
+      <pose>1.5 0.4 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>  <!-- Only X=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at Y=0.6 (600mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_south_width2">
+      <static>true</static>
+      <pose>1.5 0.6 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>  <!-- Only X=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- EAST CORRIDOR (X=2.0 to X=3.0) subdivisions -->
+    <!-- Centerline dividing corridor length in half -->
+    <model name="corridor_east_center">
+      <static>true</static>
+      <pose>2.5 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at X=2.4 (400mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_east_width1">
+      <static>true</static>
+      <pose>2.4 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>  <!-- Only Y=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at X=2.6 (600mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_east_width2">
+      <static>true</static>
+      <pose>2.6 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>  <!-- Only Y=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- WEST CORRIDOR (X=0.0 to X=1.0) subdivisions -->
+    <!-- Centerline dividing corridor length in half -->
+    <model name="corridor_west_center">
+      <static>true</static>
+      <pose>0.5 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 0.001 0.001</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at X=0.4 (400mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_west_width1">
+      <static>true</static>
+      <pose>0.4 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>  <!-- Only Y=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Width division line at X=0.6 (600mm from inner edge) - only in corridor, not corners -->
+    <model name="corridor_west_width2">
+      <static>true</static>
+      <pose>0.6 1.5 0.0001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.001 1.0 0.001</size></box>  <!-- Only Y=1.0 to 2.0, avoiding corners -->
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 0.4</ambient>
+            <diffuse>0.5 0.5 0.5 0.4</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
   </world>
 </sdf>
