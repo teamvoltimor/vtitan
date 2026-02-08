@@ -82,61 +82,169 @@ class ScenarioGenerator:
             }
         }
 
-    def generate_sign_positions(self, num_signs=8, corridor_widths=None):
-        """Generate random positions for traffic signs in corridor sections"""
+    def get_corridor_grid_positions(self, section):
+        """Get 6 grid intersection positions for a corridor (2 width × 3 depth)
+
+        Positions are exactly at corridor division line intersections:
+        - Depth: Near (entry), Middle (centerline), Far (exit)
+        - Width: At the two division lines (0.4 and 0.6)
+        """
+        # Depth positions (along corridor length): at corners and centerline
+        near_pos = 1.0  # Entry (corner boundary)
+        middle_pos = 1.5  # Center (centerline)
+        far_pos = 2.0  # Exit (corner boundary)
+
+        # Width positions (across corridor width): at division lines
+        # Division lines at 0.4 and 0.6 create the 400-200-400mm pattern
+        outer_pos = 0.4  # First division line
+        inner_pos = 0.6  # Second division line
+
         positions = []
-        min_distance = 0.3  # Minimum distance between signs
 
-        # Generate positions in the four corridor sections
-        attempts = 0
-        max_attempts = 1000
+        if section == 'south':
+            # South corridor: X from 1.0 to 2.0 (depth), Y from 0.0 to 1.0 (width)
+            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
+                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
+                    positions.append({
+                        'x': depth_val,
+                        'y': width_val,
+                        'depth': depth_name,
+                        'width': width_name
+                    })
 
-        while len(positions) < num_signs and attempts < max_attempts:
-            # Pick a random section
-            section = random.choice(self.sections)
+        elif section == 'north':
+            # North corridor: X from 1.0 to 2.0 (depth), Y from 2.0 to 3.0 (width)
+            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
+                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
+                    positions.append({
+                        'x': depth_val,
+                        'y': 3.0 - width_val,  # Mirror: outer=2.8, inner=2.2
+                        'depth': depth_name,
+                        'width': width_name
+                    })
 
-            if corridor_widths and section in corridor_widths:
-                corridor_width = corridor_widths[section]['width']
-            else:
-                corridor_width = 0.7
+        elif section == 'east':
+            # East corridor: X from 2.0 to 3.0 (width), Y from 1.0 to 2.0 (depth)
+            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
+                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
+                    positions.append({
+                        'x': 3.0 - width_val,  # Mirror: outer=2.8, inner=2.2
+                        'y': depth_val,
+                        'depth': depth_name,
+                        'width': width_name
+                    })
 
-            # Calculate corridor bounds for this section
-            track_min = self.track_bounds['min']
-            track_max = self.track_bounds['max']
-
-            # Interior boundary is corridor_width from exterior
-            # North: y from (3.0 - corridor_width) to 3.0
-            # South: y from 0.0 to corridor_width
-            # East: x from (3.0 - corridor_width) to 3.0
-            # West: x from 0.0 to corridor_width
-
-            # Generate position in corridor
-            if section == 'north':
-                x = random.uniform(0.3, 2.7)  # Along track width
-                y = random.uniform(track_max - corridor_width + 0.1, track_max - 0.1)
-            elif section == 'south':
-                x = random.uniform(0.3, 2.7)  # Along track width
-                y = random.uniform(track_min + 0.1, corridor_width - 0.1)
-            elif section == 'east':
-                x = random.uniform(track_max - corridor_width + 0.1, track_max - 0.1)
-                y = random.uniform(0.3, 2.7)  # Along track height
-            else:  # west
-                x = random.uniform(track_min + 0.1, corridor_width - 0.1)
-                y = random.uniform(0.3, 2.7)  # Along track height
-
-            # Check distance from existing signs
-            too_close = False
-            for px, py in positions:
-                if np.sqrt((x - px)**2 + (y - py)**2) < min_distance:
-                    too_close = True
-                    break
-
-            if not too_close:
-                positions.append((x, y))
-
-            attempts += 1
+        elif section == 'west':
+            # West corridor: X from 0.0 to 1.0 (width), Y from 1.0 to 2.0 (depth)
+            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
+                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
+                    positions.append({
+                        'x': width_val,  # outer=0.2, inner=0.8
+                        'y': depth_val,
+                        'depth': depth_name,
+                        'width': width_name
+                    })
 
         return positions
+
+    # WRO 36 Predefined Scenarios (X, Y coordinates for South corridor)
+    SCENARIOS = {
+        # Single pillar scenarios (1-12)
+        1: [('green', 1.0, 0.6)],  # Near, Inner
+        2: [('red', 1.0, 0.6)],
+        3: [('green', 1.5, 0.6)],  # Middle, Inner
+        4: [('red', 1.5, 0.6)],
+        5: [('green', 2.0, 0.6)],  # Far, Inner
+        6: [('red', 2.0, 0.6)],
+        7: [('green', 1.0, 0.4)],  # Near, Outer
+        8: [('red', 1.0, 0.4)],
+        9: [('green', 1.5, 0.4)],  # Middle, Outer
+        10: [('red', 1.5, 0.4)],
+        11: [('green', 2.0, 0.4)],  # Far, Outer (assuming typo in original: 0.6 → 0.4)
+        12: [('red', 2.0, 0.4)],    # Far, Outer (assuming typo in original: 0.6 → 0.4)
+
+        # Double pillar scenarios (13-36)
+        13: [('green', 1.0, 0.4), ('green', 2.0, 0.6)],
+        14: [('green', 1.0, 0.4), ('red', 2.0, 0.6)],
+        15: [('red', 1.0, 0.4), ('green', 2.0, 0.6)],
+        16: [('green', 1.0, 0.4), ('red', 2.0, 0.6)],  # Duplicate of 14
+        17: [('red', 1.0, 0.4), ('green', 2.0, 0.6)],   # Duplicate of 15
+        18: [('red', 1.0, 0.4), ('red', 2.0, 0.6)],
+        19: [('green', 1.0, 0.6), ('green', 2.0, 0.4)],
+        20: [('green', 1.0, 0.6), ('red', 2.0, 0.4)],
+        21: [('red', 1.0, 0.6), ('green', 2.0, 0.4)],
+        22: [('green', 1.0, 0.6), ('red', 2.0, 0.4)],   # Duplicate of 20
+        23: [('red', 1.0, 0.6), ('green', 2.0, 0.4)],   # Duplicate of 21
+        24: [('red', 1.0, 0.6), ('red', 2.0, 0.4)],
+        25: [('green', 1.0, 0.6), ('green', 2.0, 0.6)],
+        26: [('green', 1.0, 0.6), ('red', 2.0, 0.6)],
+        27: [('red', 1.0, 0.6), ('green', 2.0, 0.6)],
+        28: [('green', 1.0, 0.6), ('red', 2.0, 0.6)],   # Duplicate of 26
+        29: [('red', 1.0, 0.6), ('green', 2.0, 0.6)],   # Duplicate of 27
+        30: [('red', 1.0, 0.6), ('red', 2.0, 0.6)],
+        31: [('green', 1.0, 0.4), ('green', 2.0, 0.4)],
+        32: [('green', 1.0, 0.4), ('red', 2.0, 0.4)],
+        33: [('red', 1.0, 0.4), ('green', 2.0, 0.4)],
+        34: [('green', 1.0, 0.4), ('red', 2.0, 0.4)],   # Duplicate of 32
+        35: [('red', 1.0, 0.4), ('green', 2.0, 0.4)],   # Duplicate of 33
+        36: [('red', 1.0, 0.4), ('red', 2.0, 0.4)],
+    }
+
+    def apply_scenario_to_section(self, scenario_id, section):
+        """Transform scenario coordinates from South corridor to target corridor"""
+        scenario = self.SCENARIOS[scenario_id]
+        transformed = []
+
+        for color, x_south, y_south in scenario:
+            if section == 'south':
+                # Already in correct coordinates
+                x, y = x_south, y_south
+            elif section == 'north':
+                # Mirror X, invert Y around center
+                x = x_south  # X stays same (1.0, 1.5, 2.0)
+                y = 3.0 - y_south  # Mirror Y: 0.4→2.6, 0.6→2.4
+            elif section == 'east':
+                # Swap and transform: South(X,Y) → East(3.0-Y, X)
+                x = 3.0 - y_south  # Y becomes X: 0.4→2.6, 0.6→2.4
+                y = x_south
+            elif section == 'west':
+                # Swap: South(X,Y) → West(Y, X)
+                x = y_south  # Y becomes X: 0.4→0.4, 0.6→0.6
+                y = x_south
+
+            transformed.append((color, x, y))
+
+        return transformed
+
+    def generate_sign_positions(self, num_signs=8, corridor_widths=None, exclude_section=None):
+        """Generate traffic sign positions using WRO 36 predefined scenarios"""
+
+        all_signs = []
+
+        # For each corridor (except excluded starting section), pick a random scenario
+        for section in self.sections:
+            if exclude_section and section == exclude_section:
+                continue
+
+            # Randomly pick one of 36 scenarios for this corridor
+            scenario_id = random.randint(1, 36)
+
+            # Get pillars for this scenario transformed to this corridor
+            pillars = self.apply_scenario_to_section(scenario_id, section)
+
+            for color, x, y in pillars:
+                all_signs.append({'x': x, 'y': y, 'color': color})
+
+        # Return positions and colors
+        positions = [(sign['x'], sign['y']) for sign in all_signs]
+        colors = []
+        for sign in all_signs:
+            color_name = sign['color']
+            # Get official WRO color RGB from randomization config
+            color_rgb = self.randomization['colors'][color_name]['mean']
+            colors.append((color_name, color_rgb))
+
+        return positions, colors
 
     def generate_obstacle_positions(self, num_obstacles=4, sign_positions=None):
         """Generate random positions for obstacles (obstacles challenge)"""
@@ -454,23 +562,11 @@ class ScenarioGenerator:
 
         if self.challenge_type == 'obstacles':
             # Generate traffic signs for obstacles challenge only
-            # Up to 7 red and 7 green per round (total 14 signs max)
-            num_signs = random.randint(6, 14) if randomize_all else 8
-            sign_positions = self.generate_sign_positions(num_signs)
-
-            for i in range(num_signs):
-                # WRO rules: Randomly assign RED or GREEN (up to 7 each per Spec 13.20)
-                if random.random() < 0.5:
-                    color_name = 'red'
-                else:
-                    color_name = 'green'
-
-                if randomize_all:
-                    color_rgb = self.randomize_color(color_name)
-                else:
-                    color_rgb = self.randomization['colors'][color_name]['mean']
-
-                sign_colors.append((color_name, color_rgb))
+            # Using WRO 36 predefined scenarios (1-36) per corridor
+            # Each corridor gets one random scenario, pillars placed at grid intersections
+            # Exclude starting section (where parking lot is)
+            starting_section = starting_conditions['section'].lower()
+            sign_positions, sign_colors = self.generate_sign_positions(num_signs=0, corridor_widths=corridor_widths, exclude_section=starting_section)
 
         # Add traffic signs to world (rectangular boxes per Spec 13.19)
         for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
@@ -504,17 +600,53 @@ class ScenarioGenerator:
         # The difference is in the navigation rules, not the physical objects.
         # Parking limitations (magenta blocks) only appear in obstacles challenge.
 
-        # Add parking limitations if obstacles challenge
+        # Add parking lot if obstacles challenge
+        # WRO Rule: Parking lot is always in the starting section
         if self.challenge_type == 'obstacles':
-            # WRO Spec 13.26: One parking lot with two parking lot limitations
-            # Position parking lot in a corner (example: northeast corner)
-            parking_x = 2.7
-            parking_y = 2.7
+            starting_section = starting_conditions['section'].lower()
 
-            # Parking limitation 1 (horizontal)
+            # Calculate parking lot position based on starting section
+            # Position it near one end of the corridor, away from center
+            if starting_section == 'south':
+                # South corridor: place at left end
+                parking_x = 1.2  # Left side
+                parking_y = 0.3  # Near outer wall
+                block1_yaw = 0  # First block horizontal
+                block2_yaw = 1.5708  # Second block perpendicular
+                block2_offset_x = 0
+                block2_offset_y = -0.11
+
+            elif starting_section == 'north':
+                # North corridor: place at right end
+                parking_x = 1.8  # Right side
+                parking_y = 2.7  # Near outer wall
+                block1_yaw = 0
+                block2_yaw = 1.5708
+                block2_offset_x = 0
+                block2_offset_y = 0.11
+
+            elif starting_section == 'east':
+                # East corridor: place at top end
+                parking_x = 2.7  # Near outer wall
+                parking_y = 1.8  # Top side
+                block1_yaw = 1.5708  # First block vertical
+                block2_yaw = 0  # Second block perpendicular
+                block2_offset_x = 0.11
+                block2_offset_y = 0
+
+            else:  # west
+                # West corridor: place at bottom end
+                parking_x = 0.3  # Near outer wall
+                parking_y = 1.2  # Bottom side
+                block1_yaw = 1.5708
+                block2_yaw = 0
+                block2_offset_x = -0.11
+                block2_offset_y = 0
+
+            # Parking limitation 1
             parking1 = ET.Element('model', name='parking_limitation_1')
             ET.SubElement(parking1, 'static').text = 'true'
-            ET.SubElement(parking1, 'pose').text = f'{parking_x} {parking_y} 0.05 0 0 0'  # 50mm height
+            ET.SubElement(parking1, 'pose').text = f'{parking_x} {parking_y} 0.05 0 0 {block1_yaw}'
 
             link1 = ET.SubElement(parking1, 'link', name='link')
             visual1 = ET.SubElement(link1, 'visual', name='visual')
@@ -533,10 +665,12 @@ class ScenarioGenerator:
 
             world.append(parking1)
 
-            # Parking limitation 2 (perpendicular)
+            # Parking limitation 2 (forms L-shape with first block)
             parking2 = ET.Element('model', name='parking_limitation_2')
             ET.SubElement(parking2, 'static').text = 'true'
-            ET.SubElement(parking2, 'pose').text = f'{parking_x - 0.11} {parking_y - 0.09} 0.05 0 0 1.5708'  # Rotated 90°
+            parking2_x = parking_x + block2_offset_x
+            parking2_y = parking_y + block2_offset_y
+            ET.SubElement(parking2, 'pose').text = f'{parking2_x} {parking2_y} 0.05 0 0 {block2_yaw}'
 
             link2 = ET.SubElement(parking2, 'link', name='link')
             visual2 = ET.SubElement(link2, 'visual', name='visual')
