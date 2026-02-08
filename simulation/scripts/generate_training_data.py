@@ -63,6 +63,9 @@ class ScenarioGenerator:
         # Track sections for starting position and corridor randomization
         self.sections = ['north', 'south', 'east', 'west']
 
+        # Robot dimensions (WRO Future Engineers typical size)
+        self.robot_width = 0.2  # 200mm width
+
         # Randomization parameters (WRO official colors - Spec 13.21-13.22)
         self.randomization = {
             'lighting': {
@@ -215,6 +218,94 @@ class ScenarioGenerator:
             transformed.append((color, x, y))
 
         return transformed
+
+    def generate_parking_lot_positions(self, starting_section):
+        """Generate parking lot positions at grid intersections
+
+        WRO Rules:
+        - Parking lot must be in starting section's corner
+        - Blocks perpendicular to corridor (rotated 90°)
+        - Blocks touching outer wall (one side against wall)
+        - First block positioned at one of 3 depth positions: 1.0, 1.5, or 2.0
+        - Second block spaced 1.5 × robot_width away (along depth axis)
+        - Both blocks must stay within 1000mm × 1000mm corner section
+        - For south section: X ∈ [1.0, 2.0], Y ∈ [0.0, 1.0]
+
+        Args:
+            starting_section: Section name ('north', 'south', 'east', 'west')
+
+        Returns:
+            dict with block1_pos, block2_pos, block1_yaw, block2_yaw
+        """
+        # Grid depth positions (same as traffic sign grid)
+        depth_positions = [1.0, 1.5, 2.0]
+
+        # Randomly select depth position for first block
+        depth = random.choice(depth_positions)
+
+        # Calculate spacing between blocks
+        spacing = 1.5 * self.robot_width  # 1.5 × 200mm = 300mm = 0.3m
+
+        # Calculate second block position based on depth
+        if depth == 1.0:
+            # Near edge: second block moves inward
+            depth2 = depth + spacing
+        elif depth == 2.0:
+            # Far edge: second block moves inward
+            depth2 = depth - spacing
+        else:
+            # Middle position: randomly choose direction
+            if random.random() < 0.5:
+                depth2 = depth + spacing
+            else:
+                depth2 = depth - spacing
+
+        # Blocks are 200mm long, perpendicular to corridor
+        # Position center at 0.1m (half of 200mm) from outer wall so block touches wall
+        wall_offset = 0.1  # Half of block length (200mm / 2)
+
+        # Now transform based on actual starting section
+        section = starting_section.lower()
+
+        if section == 'south':
+            # Blocks perpendicular to south corridor (standing along Y-axis)
+            # Touching outer wall at Y=0
+            block1_x, block1_y = depth, wall_offset
+            block2_x, block2_y = depth2, wall_offset
+            block1_yaw = 1.5708  # 90° (perpendicular to corridor)
+            block2_yaw = 1.5708  # Parallel to first block
+
+        elif section == 'north':
+            # Blocks perpendicular to north corridor (standing along Y-axis)
+            # Touching outer wall at Y=3.0
+            block1_x, block1_y = depth, 3.0 - wall_offset
+            block2_x, block2_y = depth2, 3.0 - wall_offset
+            block1_yaw = 1.5708  # 90° (perpendicular to corridor)
+            block2_yaw = 1.5708  # Parallel to first block
+
+        elif section == 'east':
+            # Blocks perpendicular to east corridor (standing along X-axis)
+            # Touching outer wall at X=3.0
+            block1_x, block1_y = 3.0 - wall_offset, depth
+            block2_x, block2_y = 3.0 - wall_offset, depth2
+            block1_yaw = 0  # 0° (perpendicular to corridor)
+            block2_yaw = 0  # Parallel to first block
+
+        else:  # west
+            # Blocks perpendicular to west corridor (standing along X-axis)
+            # Touching outer wall at X=0
+            block1_x, block1_y = wall_offset, depth
+            block2_x, block2_y = wall_offset, depth2
+            block1_yaw = 0  # 0° (perpendicular to corridor)
+            block2_yaw = 0  # Parallel to first block
+
+        return {
+            'block1_pos': (block1_x, block1_y),
+            'block2_pos': (block2_x, block2_y),
+            'block1_yaw': block1_yaw,
+            'block2_yaw': block2_yaw,
+            'depth': depth
+        }
 
     def generate_sign_positions(self, num_signs=8, corridor_widths=None, exclude_section=None):
         """Generate traffic sign positions using WRO 36 predefined scenarios"""
@@ -559,6 +650,7 @@ class ScenarioGenerator:
         # Open challenge has NO traffic signs
         sign_positions = []
         sign_colors = []
+        parking_config = None
 
         if self.challenge_type == 'obstacles':
             # Generate traffic signs for obstacles challenge only
@@ -605,48 +697,20 @@ class ScenarioGenerator:
         if self.challenge_type == 'obstacles':
             starting_section = starting_conditions['section'].lower()
 
-            # Calculate parking lot position based on starting section
-            # Position it near one end of the corridor, away from center
-            if starting_section == 'south':
-                # South corridor: place at left end
-                parking_x = 1.2  # Left side
-                parking_y = 0.3  # Near outer wall
-                block1_yaw = 0  # First block horizontal
-                block2_yaw = 1.5708  # Second block perpendicular
-                block2_offset_x = 0
-                block2_offset_y = -0.11
+            # Generate parking lot positions at grid intersections
+            # First block at depth 1.0, 1.5, or 2.0
+            # Second block spaced 1.5 × robot_width away
+            parking_config = self.generate_parking_lot_positions(starting_section)
 
-            elif starting_section == 'north':
-                # North corridor: place at right end
-                parking_x = 1.8  # Right side
-                parking_y = 2.7  # Near outer wall
-                block1_yaw = 0
-                block2_yaw = 1.5708
-                block2_offset_x = 0
-                block2_offset_y = 0.11
-
-            elif starting_section == 'east':
-                # East corridor: place at top end
-                parking_x = 2.7  # Near outer wall
-                parking_y = 1.8  # Top side
-                block1_yaw = 1.5708  # First block vertical
-                block2_yaw = 0  # Second block perpendicular
-                block2_offset_x = 0.11
-                block2_offset_y = 0
-
-            else:  # west
-                # West corridor: place at bottom end
-                parking_x = 0.3  # Near outer wall
-                parking_y = 1.2  # Bottom side
-                block1_yaw = 1.5708
-                block2_yaw = 0
-                block2_offset_x = -0.11
-                block2_offset_y = 0
+            block1_x, block1_y = parking_config['block1_pos']
+            block2_x, block2_y = parking_config['block2_pos']
+            block1_yaw = parking_config['block1_yaw']
+            block2_yaw = parking_config['block2_yaw']
 
             # Parking limitation 1
             parking1 = ET.Element('model', name='parking_limitation_1')
             ET.SubElement(parking1, 'static').text = 'true'
-            ET.SubElement(parking1, 'pose').text = f'{parking_x} {parking_y} 0.05 0 0 {block1_yaw}'
+            ET.SubElement(parking1, 'pose').text = f'{block1_x} {block1_y} 0.05 0 0 {block1_yaw}'
 
             link1 = ET.SubElement(parking1, 'link', name='link')
             visual1 = ET.SubElement(link1, 'visual', name='visual')
@@ -665,12 +729,10 @@ class ScenarioGenerator:
 
             world.append(parking1)
 
-            # Parking limitation 2 (forms L-shape with first block)
+            # Parking limitation 2 (parallel to first block)
             parking2 = ET.Element('model', name='parking_limitation_2')
             ET.SubElement(parking2, 'static').text = 'true'
-            parking2_x = parking_x + block2_offset_x
-            parking2_y = parking_y + block2_offset_y
-            ET.SubElement(parking2, 'pose').text = f'{parking2_x} {parking2_y} 0.05 0 0 {block2_yaw}'
+            ET.SubElement(parking2, 'pose').text = f'{block2_x} {block2_y} 0.05 0 0 {block2_yaw}'
 
             link2 = ET.SubElement(parking2, 'link', name='link')
             visual2 = ET.SubElement(link2, 'visual', name='visual')
@@ -837,7 +899,12 @@ class ScenarioGenerator:
             'num_signs': len(sign_positions),
             'has_parking_lot': self.challenge_type == 'obstacles',
             'sign_positions': [{'x': x, 'y': y, 'color': color}
-                              for (x, y), (color, _) in zip(sign_positions, sign_colors)]
+                              for (x, y), (color, _) in zip(sign_positions, sign_colors)],
+            'parking_lot': {
+                'block1_position': {'x': parking_config['block1_pos'][0], 'y': parking_config['block1_pos'][1]},
+                'block2_position': {'x': parking_config['block2_pos'][0], 'y': parking_config['block2_pos'][1]},
+                'depth': parking_config['depth']
+            } if parking_config else None
         }
 
         metadata_file = self.output_dir / f'scenario_{scenario_id:04d}_metadata.json'
