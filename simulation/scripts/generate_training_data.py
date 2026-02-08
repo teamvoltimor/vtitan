@@ -555,6 +555,129 @@ class ScenarioGenerator:
 
             world.append(parking2)
 
+        # Add starting zone visual marker (200×500mm grey rectangle, WRO Spec 13.10-13.11)
+        # Positioned in one of 6 sections per corridor (2 length × 3 width divisions)
+        starting_section = starting_conditions['section']
+
+        # Get corridor width for starting section to position zone correctly
+        start_corridor_width = corridor_widths[starting_section]['width']
+
+        # Each corridor has 6 sections (2 along length × 3 across width)
+        # Length sections: divided by centerline at 1.5 (for N/S) or 1.5 (for E/W)
+        # Width sections: outer (400mm), middle (200mm), inner (400mm)
+
+        # Define width section centers based on corridor divisions
+        # For 1000mm corridor: outer=0.2, middle=0.5, inner=0.8 (from outer edge)
+        # For 600mm corridor: only outer=0.2, middle=0.5 available (inner would exceed corridor)
+        width_sections = []
+        if start_corridor_width >= 1.0:
+            # Wide corridor: all 3 width sections available
+            width_sections = [0.2, 0.5, 0.8]  # Outer, middle, inner
+        else:
+            # Narrow corridor: only outer and middle sections (inner would collide with inner wall)
+            width_sections = [0.2, 0.4]  # Outer, middle (adjusted for 600mm)
+
+        # Randomly pick one of the width sections
+        width_offset = random.choice(width_sections)
+
+        # Randomly pick one of the 2 length sections (left/right or top/bottom)
+        # Length divided by centerline at 1.5
+        length_sections = [1.25, 1.75]  # Centers of [1.0-1.5] and [1.5-2.0]
+        length_offset = random.choice(length_sections)
+
+        # Calculate starting zone position and size based on section
+        # Starting zone is 200mm wide (across corridor) × 500mm long (along corridor)
+        if starting_section == 'north' or starting_section == 'south':
+            # Horizontal corridor: zone extends along X, width in Y
+            zone_size = '0.5 0.2 0.001'  # 500mm × 200mm × thin
+            zone_x = length_offset  # One of the 2 length sections
+            if starting_section == 'south':
+                zone_y = width_offset  # One of the 2-3 width sections
+            else:  # north
+                # Mirror for north: outer at 2.8, middle at 2.5, inner at 2.2
+                if start_corridor_width >= 1.0:
+                    zone_y = track_max - width_offset
+                else:
+                    # For narrow corridor, adjust
+                    zone_y = track_max - width_offset
+        else:  # east or west
+            # Vertical corridor: zone extends along Y, width in X
+            zone_size = '0.2 0.5 0.001'  # 200mm × 500mm × thin
+            zone_y = length_offset  # One of the 2 length sections
+            if starting_section == 'west':
+                zone_x = width_offset  # One of the 2-3 width sections
+            else:  # east
+                # Mirror for east
+                if start_corridor_width >= 1.0:
+                    zone_x = track_max - width_offset
+                else:
+                    zone_x = track_max - width_offset
+
+        # Remove existing starting zone from base world if it exists
+        existing_zones = world.findall(".//model[@name='starting_zone_south']")
+        for zone in existing_zones:
+            world.remove(zone)
+
+        # Create new starting zone at randomized position
+        starting_zone = ET.Element('model', name=f'starting_zone_{starting_section}')
+        ET.SubElement(starting_zone, 'static').text = 'true'
+        ET.SubElement(starting_zone, 'pose').text = f'{zone_x} {zone_y} 0.0002 0 0 0'
+
+        link_zone = ET.SubElement(starting_zone, 'link', name='link')
+
+        # Base rectangle (starting zone marker) - darker grey for better visibility
+        visual_zone = ET.SubElement(link_zone, 'visual', name='visual_base')
+        geom_zone = ET.SubElement(visual_zone, 'geometry')
+        box_zone = ET.SubElement(geom_zone, 'box')
+        ET.SubElement(box_zone, 'size').text = zone_size
+
+        material_zone = ET.SubElement(visual_zone, 'material')
+        ET.SubElement(material_zone, 'ambient').text = '0.5 0.5 0.5 1'  # Darker grey for better contrast
+        ET.SubElement(material_zone, 'diffuse').text = '0.5 0.5 0.5 1'
+
+        # Direction icon overlay (clockwise or counterclockwise)
+        import os
+        direction = starting_conditions['direction']
+
+        # Try PNG first (better Gazebo support), fall back to SVG
+        simulation_path = os.path.dirname(os.path.dirname(self.base_world_path))
+        png_path = os.path.join(simulation_path, f'{direction}.png')
+        svg_path = os.path.join(simulation_path, f'{direction}.svg')
+
+        if os.path.exists(png_path):
+            icon_path = png_path
+        elif os.path.exists(svg_path):
+            icon_path = svg_path
+        else:
+            icon_path = None  # No icon available
+
+        # Convert Windows path to forward slashes for Gazebo URI
+        if icon_path:
+            icon_path = icon_path.replace('\\', '/')
+
+        # Simple colored indicator for direction
+        # Blue for clockwise, Green for counterclockwise
+        direction = starting_conditions['direction']
+        if direction == 'clockwise':
+            indicator_color = '0.2 0.4 1.0 1'  # Blue
+        else:
+            indicator_color = '0.2 1.0 0.4 1'  # Green
+
+        # Circle indicator (cylinder viewed from top)
+        visual_indicator = ET.SubElement(link_zone, 'visual', name='visual_direction_indicator')
+        ET.SubElement(visual_indicator, 'pose').text = '0 0 0.004 0 0 0'
+        geom_indicator = ET.SubElement(visual_indicator, 'geometry')
+        cylinder_indicator = ET.SubElement(geom_indicator, 'cylinder')
+        ET.SubElement(cylinder_indicator, 'radius').text = '0.035'  # 35mm radius circle
+        ET.SubElement(cylinder_indicator, 'length').text = '0.001'  # 1mm thick disc
+
+        material_indicator = ET.SubElement(visual_indicator, 'material')
+        ET.SubElement(material_indicator, 'ambient').text = indicator_color
+        ET.SubElement(material_indicator, 'diffuse').text = indicator_color
+        ET.SubElement(material_indicator, 'emissive').text = indicator_color  # Make it glow
+
+        world.append(starting_zone)
+
         # Save world file
         world_file = self.output_dir / f'scenario_{scenario_id:04d}.sdf'
         tree.write(world_file, encoding='utf-8', xml_declaration=True)
