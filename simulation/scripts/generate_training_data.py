@@ -839,11 +839,36 @@ class ScenarioGenerator:
             if available_gap < zone_length:
                 zone_length = available_gap * 0.9  # Use 90% of available gap for safety margin
 
+        # For obstacles challenge, position starting zone between parking blocks
+        zone_center_along_depth = None
+        zone_width_position = None
+        if self.challenge_type == 'obstacles' and parking_config:
+            block1_pos = parking_config['block1_pos']
+            block2_pos = parking_config['block2_pos']
+
+            # Calculate center position between the two parking blocks (along depth)
+            # And get width position from parking blocks (same as parking area)
+            if starting_section == 'north' or starting_section == 'south':
+                # Zone extends along X-axis, calculate center X (depth)
+                zone_center_along_depth = (block1_pos[0] + block2_pos[0]) / 2
+                # Zone width in Y, use same Y as parking blocks
+                zone_width_position = block1_pos[1]  # Parking blocks Y position
+            else:  # east or west
+                # Zone extends along Y-axis, calculate center Y (depth)
+                zone_center_along_depth = (block1_pos[1] + block2_pos[1]) / 2
+                # Zone width in X, use same X as parking blocks
+                zone_width_position = block1_pos[0]  # Parking blocks X position
+
         if starting_section == 'north' or starting_section == 'south':
             # Horizontal corridor: zone extends along X, width in Y
             zone_size = f'{zone_length} 0.2 0.001'  # Length × 200mm × thin
-            zone_x = length_offset  # One of the 2 length sections
-            if starting_section == 'south':
+            # Position zone between parking blocks for obstacles, otherwise use random position
+            zone_x = zone_center_along_depth if zone_center_along_depth is not None else length_offset
+
+            # Position zone width at parking area for obstacles, otherwise use random position
+            if zone_width_position is not None:
+                zone_y = zone_width_position
+            elif starting_section == 'south':
                 zone_y = width_offset  # One of the 2-3 width sections
             else:  # north
                 # Mirror for north: outer at 2.8, middle at 2.5, inner at 2.2
@@ -855,8 +880,13 @@ class ScenarioGenerator:
         else:  # east or west
             # Vertical corridor: zone extends along Y, width in X
             zone_size = f'0.2 {zone_length} 0.001'  # 200mm × Length × thin
-            zone_y = length_offset  # One of the 2 length sections
-            if starting_section == 'west':
+            # Position zone between parking blocks for obstacles, otherwise use random position
+            zone_y = zone_center_along_depth if zone_center_along_depth is not None else length_offset
+
+            # Position zone width at parking area for obstacles, otherwise use random position
+            if zone_width_position is not None:
+                zone_x = zone_width_position
+            elif starting_section == 'west':
                 zone_x = width_offset  # One of the 2-3 width sections
             else:  # east
                 # Mirror for east
