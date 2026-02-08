@@ -656,11 +656,47 @@ class ScenarioGenerator:
             # Generate traffic signs for obstacles challenge only
             # Using WRO 36 predefined scenarios (1-36) per corridor
             # Each corridor gets one random scenario, pillars placed at grid intersections
-            # Exclude starting section (where parking lot is)
-            starting_section = starting_conditions['section'].lower()
-            sign_positions, sign_colors = self.generate_sign_positions(num_signs=0, corridor_widths=corridor_widths, exclude_section=starting_section)
+            # Note: Starting section will have signs, but they'll be moved away from parking blocks
+            sign_positions, sign_colors = self.generate_sign_positions(num_signs=0, corridor_widths=corridor_widths, exclude_section=None)
 
-        # Add traffic signs to world (rectangular boxes per Spec 13.19)
+            # Generate parking lot BEFORE adding signs so we can adjust sign positions
+            starting_section = starting_conditions['section'].lower()
+            parking_config = self.generate_parking_lot_positions(starting_section)
+
+            # Move traffic signs in parking section closer to inner wall to avoid collision
+            # Parking blocks are at 0.1m from outer wall, so move signs from outer position (0.4) to inner (0.6)
+            adjusted_signs = []
+            adjusted_colors = []
+
+            for (x, y), (color_name, color_rgb) in zip(sign_positions, sign_colors):
+                adjusted_x, adjusted_y = x, y
+
+                # Check if sign is in parking section and move to inner position if too close to outer wall
+                if starting_section == 'south':
+                    # South: parking at Y~0.1, move signs from Y=0.4 to Y=0.6
+                    if 1.0 <= x <= 2.0 and abs(y - 0.4) < 0.05:  # Sign at outer position
+                        adjusted_y = 0.6  # Move to inner position
+                elif starting_section == 'north':
+                    # North: parking at Y~2.9, move signs from Y=2.6 to Y=2.4
+                    if 1.0 <= x <= 2.0 and abs(y - 2.6) < 0.05:
+                        adjusted_y = 2.4
+                elif starting_section == 'east':
+                    # East: parking at X~2.9, move signs from X=2.6 to X=2.4
+                    if 1.0 <= y <= 2.0 and abs(x - 2.6) < 0.05:
+                        adjusted_x = 2.4
+                elif starting_section == 'west':
+                    # West: parking at X~0.1, move signs from X=0.4 to X=0.6
+                    if 1.0 <= y <= 2.0 and abs(x - 0.4) < 0.05:
+                        adjusted_x = 0.6
+
+                adjusted_signs.append((adjusted_x, adjusted_y))
+                adjusted_colors.append((color_name, color_rgb))
+
+            # Update sign positions with adjusted values
+            sign_positions = adjusted_signs
+            sign_colors = adjusted_colors
+
+        # Add traffic signs to world (rectangular boxes per Spec 19.19)
         for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
             sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
             ET.SubElement(sign_model, 'static').text = 'true'
@@ -694,14 +730,8 @@ class ScenarioGenerator:
 
         # Add parking lot if obstacles challenge
         # WRO Rule: Parking lot is always in the starting section
+        # Note: parking_config was already generated earlier when adjusting sign positions
         if self.challenge_type == 'obstacles':
-            starting_section = starting_conditions['section'].lower()
-
-            # Generate parking lot positions at grid intersections
-            # First block at depth 1.0, 1.5, or 2.0
-            # Second block spaced 1.5 × robot_width away
-            parking_config = self.generate_parking_lot_positions(starting_section)
-
             block1_x, block1_y = parking_config['block1_pos']
             block2_x, block2_y = parking_config['block2_pos']
             block1_yaw = parking_config['block1_yaw']
@@ -783,9 +813,35 @@ class ScenarioGenerator:
 
         # Calculate starting zone position and size based on section
         # Starting zone is 200mm wide (across corridor) × 500mm long (along corridor)
+        # For obstacles challenge, adjust length based on parking block spacing
+        zone_length = 0.5  # Default 500mm
+
+        if self.challenge_type == 'obstacles' and parking_config:
+            # Calculate available space between parking blocks
+            # Parking blocks are 20mm wide in the spacing direction
+            block_width_in_spacing_dir = 0.02  # 20mm
+
+            # Get the two depth positions
+            depth1 = parking_config['depth']
+            block1_pos = parking_config['block1_pos']
+            block2_pos = parking_config['block2_pos']
+
+            # Calculate spacing between blocks (center to center)
+            if starting_section == 'north' or starting_section == 'south':
+                spacing = abs(block2_pos[0] - block1_pos[0])
+            else:  # east or west
+                spacing = abs(block2_pos[1] - block1_pos[1])
+
+            # Available gap = spacing - block_width
+            available_gap = spacing - block_width_in_spacing_dir
+
+            # Shrink zone length to fit in gap (with small margin for safety)
+            if available_gap < zone_length:
+                zone_length = available_gap * 0.9  # Use 90% of available gap for safety margin
+
         if starting_section == 'north' or starting_section == 'south':
             # Horizontal corridor: zone extends along X, width in Y
-            zone_size = '0.5 0.2 0.001'  # 500mm × 200mm × thin
+            zone_size = f'{zone_length} 0.2 0.001'  # Length × 200mm × thin
             zone_x = length_offset  # One of the 2 length sections
             if starting_section == 'south':
                 zone_y = width_offset  # One of the 2-3 width sections
@@ -798,7 +854,7 @@ class ScenarioGenerator:
                     zone_y = track_max - width_offset
         else:  # east or west
             # Vertical corridor: zone extends along Y, width in X
-            zone_size = '0.2 0.5 0.001'  # 200mm × 500mm × thin
+            zone_size = f'0.2 {zone_length} 0.001'  # 200mm × Length × thin
             zone_y = length_offset  # One of the 2 length sections
             if starting_section == 'west':
                 zone_x = width_offset  # One of the 2-3 width sections
