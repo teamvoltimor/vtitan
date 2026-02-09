@@ -11,13 +11,19 @@ Usage:
 """
 
 import os
-import sys
-import time
 import random
 import argparse
-import subprocess
 import json
-import yaml
+
+# Import WRO constants
+from constants import (
+    TrackDimensions, WallSpecs, CorridorDimensions,
+    TrafficSignSpecs, ParkingLotSpecs, StartingZoneSpecs,
+    RobotSpecs, TrackMarkings, LightingSpecs,
+    ScenarioTypes, GridSections, FilePaths, RandomizationRanges,
+    DictKeys, WidthTypes, ColorNames, ModelNames, FileExtensions, FolderNames
+)
+from enums import Section, Direction
 from pathlib import Path
 from xml.etree import ElementTree as ET
 import cv2
@@ -44,111 +50,47 @@ class ScenarioGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.challenge_type = challenge_type
 
-        # WRO 2026 Track dimensions (3000mm x 3000mm inner track)
-        # Coordinate system: (0,0) at bottom-left, (3.0, 3.0) at top-right
+        # WRO 2026 Track dimensions (using constants)
         self.track_bounds = {
-            'min': 0.0,      # Minimum coordinate (bottom-left corner)
-            'max': 3.0,      # Maximum coordinate (top-right corner)
-            'center': 1.5,   # Center of track
-            'z_sign': 0.05,  # Half height of traffic sign (50mm)
+            DictKeys.MIN: TrackDimensions.MIN_COORD,
+            DictKeys.MAX: TrackDimensions.MAX_COORD,
+            DictKeys.CENTER: TrackDimensions.CENTER_COORD,
+            DictKeys.Z_SIGN: TrafficSignSpecs.Z_POSITION,
         }
 
-        # Corridor width options for OPEN challenge (randomized per section)
-        # WRO: Each section's corridor width is either 600mm or 1000mm (coin toss)
+        # Corridor width options for OPEN challenge
         self.corridor_widths = {
-            'narrow': 0.6,   # 600mm corridor
-            'wide': 1.0      # 1000mm corridor
+            WidthTypes.NARROW: CorridorDimensions.NARROW,
+            WidthTypes.WIDE: CorridorDimensions.WIDE
         }
 
-        # Track sections for starting position and corridor randomization
-        self.sections = ['north', 'south', 'east', 'west']
+        # Track sections
+        self.sections = GridSections.SECTIONS
 
-        # Robot dimensions (WRO Future Engineers typical size)
-        self.robot_width = 0.2  # 200mm width
+        # Robot dimensions
+        self.robot_width = RobotSpecs.WIDTH
 
-        # Randomization parameters (WRO official colors - Spec 13.21-13.22)
+        # Randomization parameters
         self.randomization = {
-            'lighting': {
-                'intensity_range': (0.5, 1.5),
-                'direction_variance': 0.3
+            DictKeys.LIGHTING: {
+                DictKeys.INTENSITY_RANGE: (LightingSpecs.SUN_INTENSITY_MIN, LightingSpecs.SUN_INTENSITY_MAX),
+                DictKeys.DIRECTION_VARIANCE: LightingSpecs.DIRECTION_VARIANCE
             },
-            'colors': {
-                # WRO Official Colors (Spec 13.21-13.22)
-                # Red: RGB(238, 39, 55) = (0.933, 0.153, 0.216)
-                # Green: RGB(68, 214, 44) = (0.267, 0.839, 0.173)
-                'red': {'mean': [0.933, 0.153, 0.216], 'std': [0.05, 0.02, 0.02]},
-                'green': {'mean': [0.267, 0.839, 0.173], 'std': [0.02, 0.05, 0.02]}
+            DictKeys.COLORS: {
+                ColorNames.RED: {
+                    DictKeys.MEAN: list(TrafficSignSpecs.RED_COLOR),
+                    DictKeys.STD: list(TrafficSignSpecs.RED_STD)
+                },
+                ColorNames.GREEN: {
+                    DictKeys.MEAN: list(TrafficSignSpecs.GREEN_COLOR),
+                    DictKeys.STD: list(TrafficSignSpecs.GREEN_STD)
+                }
             },
-            'physics': {
-                'friction_range': (0.6, 1.2),
-                'mass_variance': 0.1
+            DictKeys.PHYSICS: {
+                DictKeys.FRICTION_RANGE: (RandomizationRanges.FRICTION_MIN, RandomizationRanges.FRICTION_MAX),
+                DictKeys.MASS_VARIANCE: RandomizationRanges.MASS_VARIANCE
             }
         }
-
-    def get_corridor_grid_positions(self, section):
-        """Get 6 grid intersection positions for a corridor (2 width × 3 depth)
-
-        Positions are exactly at corridor division line intersections:
-        - Depth: Near (entry), Middle (centerline), Far (exit)
-        - Width: At the two division lines (0.4 and 0.6)
-        """
-        # Depth positions (along corridor length): at corners and centerline
-        near_pos = 1.0  # Entry (corner boundary)
-        middle_pos = 1.5  # Center (centerline)
-        far_pos = 2.0  # Exit (corner boundary)
-
-        # Width positions (across corridor width): at division lines
-        # Division lines at 0.4 and 0.6 create the 400-200-400mm pattern
-        outer_pos = 0.4  # First division line
-        inner_pos = 0.6  # Second division line
-
-        positions = []
-
-        if section == 'south':
-            # South corridor: X from 1.0 to 2.0 (depth), Y from 0.0 to 1.0 (width)
-            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
-                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
-                    positions.append({
-                        'x': depth_val,
-                        'y': width_val,
-                        'depth': depth_name,
-                        'width': width_name
-                    })
-
-        elif section == 'north':
-            # North corridor: X from 1.0 to 2.0 (depth), Y from 2.0 to 3.0 (width)
-            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
-                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
-                    positions.append({
-                        'x': depth_val,
-                        'y': 3.0 - width_val,  # Mirror: outer=2.8, inner=2.2
-                        'depth': depth_name,
-                        'width': width_name
-                    })
-
-        elif section == 'east':
-            # East corridor: X from 2.0 to 3.0 (width), Y from 1.0 to 2.0 (depth)
-            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
-                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
-                    positions.append({
-                        'x': 3.0 - width_val,  # Mirror: outer=2.8, inner=2.2
-                        'y': depth_val,
-                        'depth': depth_name,
-                        'width': width_name
-                    })
-
-        elif section == 'west':
-            # West corridor: X from 0.0 to 1.0 (width), Y from 1.0 to 2.0 (depth)
-            for depth_name, depth_val in [('near', near_pos), ('middle', middle_pos), ('far', far_pos)]:
-                for width_name, width_val in [('outer', outer_pos), ('inner', inner_pos)]:
-                    positions.append({
-                        'x': width_val,  # outer=0.2, inner=0.8
-                        'y': depth_val,
-                        'depth': depth_name,
-                        'width': width_name
-                    })
-
-        return positions
 
     # WRO 36 Predefined Scenarios (X, Y coordinates for South corridor)
     SCENARIOS = {
@@ -194,25 +136,30 @@ class ScenarioGenerator:
     }
 
     def apply_scenario_to_section(self, scenario_id, section):
-        """Transform scenario coordinates from South corridor to target corridor"""
+        """Transform scenario coordinates from South corridor to target corridor
+
+        Args:
+            scenario_id: Scenario ID (1-36)
+            section: Section enum (Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST)
+        """
         scenario = self.SCENARIOS[scenario_id]
         transformed = []
 
         for color, x_south, y_south in scenario:
-            if section == 'south':
+            if section == Section.SOUTH:
                 # Already in correct coordinates
                 x, y = x_south, y_south
-            elif section == 'north':
+            elif section == Section.NORTH:
                 # Mirror X, invert Y around center
-                x = x_south  # X stays same (1.0, 1.5, 2.0)
-                y = 3.0 - y_south  # Mirror Y: 0.4→2.6, 0.6→2.4
-            elif section == 'east':
-                # Swap and transform: South(X,Y) → East(3.0-Y, X)
-                x = 3.0 - y_south  # Y becomes X: 0.4→2.6, 0.6→2.4
+                x = x_south  # X stays same
+                y = TrackDimensions.MAX_COORD - y_south  # Mirror Y
+            elif section == Section.EAST:
+                # Swap and transform: South(X,Y) → East(MAX-Y, X)
+                x = TrackDimensions.MAX_COORD - y_south  # Y becomes X, mirrored
                 y = x_south
-            elif section == 'west':
+            elif section == Section.WEST:
                 # Swap: South(X,Y) → West(Y, X)
-                x = y_south  # Y becomes X: 0.4→0.4, 0.6→0.6
+                x = y_south  # Y becomes X
                 y = x_south
 
             transformed.append((color, x, y))
@@ -232,25 +179,29 @@ class ScenarioGenerator:
         - For south section: X ∈ [1.0, 2.0], Y ∈ [0.0, 1.0]
 
         Args:
-            starting_section: Section name ('north', 'south', 'east', 'west')
+            starting_section: Section enum (Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST)
 
         Returns:
             dict with block1_pos, block2_pos, block1_yaw, block2_yaw
         """
         # Grid depth positions (same as traffic sign grid)
-        depth_positions = [1.0, 1.5, 2.0]
+        depth_positions = [
+            TrafficSignSpecs.GRID_DEPTH_NEAR,
+            TrafficSignSpecs.GRID_DEPTH_MIDDLE,
+            TrafficSignSpecs.GRID_DEPTH_FAR
+        ]
 
         # Randomly select depth position for first block
         depth = random.choice(depth_positions)
 
         # Calculate spacing between blocks
-        spacing = 1.5 * self.robot_width  # 1.5 × 200mm = 300mm = 0.3m
+        spacing = ParkingLotSpecs.BLOCK_SPACING_FACTOR * self.robot_width
 
         # Calculate second block position based on depth
-        if depth == 1.0:
+        if depth == TrafficSignSpecs.GRID_DEPTH_NEAR:
             # Near edge: second block moves inward
             depth2 = depth + spacing
-        elif depth == 2.0:
+        elif depth == TrafficSignSpecs.GRID_DEPTH_FAR:
             # Far edge: second block moves inward
             depth2 = depth - spacing
         else:
@@ -260,14 +211,11 @@ class ScenarioGenerator:
             else:
                 depth2 = depth - spacing
 
-        # Blocks are 200mm long, perpendicular to corridor
-        # Position center at 0.1m (half of 200mm) from outer wall so block touches wall
-        wall_offset = 0.1  # Half of block length (200mm / 2)
+        # Blocks perpendicular to corridor, touching outer wall
+        wall_offset = ParkingLotSpecs.WALL_OFFSET
 
-        # Now transform based on actual starting section
-        section = starting_section.lower()
-
-        if section == 'south':
+        # Transform based on actual starting section
+        if starting_section == Section.SOUTH:
             # Blocks perpendicular to south corridor (standing along Y-axis)
             # Touching outer wall at Y=0
             block1_x, block1_y = depth, wall_offset
@@ -275,23 +223,23 @@ class ScenarioGenerator:
             block1_yaw = 1.5708  # 90° (perpendicular to corridor)
             block2_yaw = 1.5708  # Parallel to first block
 
-        elif section == 'north':
+        elif starting_section == Section.NORTH:
             # Blocks perpendicular to north corridor (standing along Y-axis)
-            # Touching outer wall at Y=3.0
-            block1_x, block1_y = depth, 3.0 - wall_offset
-            block2_x, block2_y = depth2, 3.0 - wall_offset
+            # Touching outer wall at Y=MAX
+            block1_x, block1_y = depth, TrackDimensions.MAX_COORD - wall_offset
+            block2_x, block2_y = depth2, TrackDimensions.MAX_COORD - wall_offset
             block1_yaw = 1.5708  # 90° (perpendicular to corridor)
             block2_yaw = 1.5708  # Parallel to first block
 
-        elif section == 'east':
+        elif starting_section == Section.EAST:
             # Blocks perpendicular to east corridor (standing along X-axis)
-            # Touching outer wall at X=3.0
-            block1_x, block1_y = 3.0 - wall_offset, depth
-            block2_x, block2_y = 3.0 - wall_offset, depth2
+            # Touching outer wall at X=MAX
+            block1_x, block1_y = TrackDimensions.MAX_COORD - wall_offset, depth
+            block2_x, block2_y = TrackDimensions.MAX_COORD - wall_offset, depth2
             block1_yaw = 0  # 0° (perpendicular to corridor)
             block2_yaw = 0  # Parallel to first block
 
-        else:  # west
+        else:  # Section.WEST
             # Blocks perpendicular to west corridor (standing along X-axis)
             # Touching outer wall at X=0
             block1_x, block1_y = wall_offset, depth
@@ -300,11 +248,11 @@ class ScenarioGenerator:
             block2_yaw = 0  # Parallel to first block
 
         return {
-            'block1_pos': (block1_x, block1_y),
-            'block2_pos': (block2_x, block2_y),
-            'block1_yaw': block1_yaw,
-            'block2_yaw': block2_yaw,
-            'depth': depth
+            DictKeys.BLOCK1_POS: (block1_x, block1_y),
+            DictKeys.BLOCK2_POS: (block2_x, block2_y),
+            DictKeys.BLOCK1_YAW: block1_yaw,
+            DictKeys.BLOCK2_YAW: block2_yaw,
+            DictKeys.DEPTH: depth
         }
 
     def generate_sign_positions(self, num_signs=8, corridor_widths=None, exclude_section=None):
@@ -324,58 +272,22 @@ class ScenarioGenerator:
             pillars = self.apply_scenario_to_section(scenario_id, section)
 
             for color, x, y in pillars:
-                all_signs.append({'x': x, 'y': y, 'color': color})
+                all_signs.append({DictKeys.X: x, DictKeys.Y: y, DictKeys.COLOR: color})
 
         # Return positions and colors
-        positions = [(sign['x'], sign['y']) for sign in all_signs]
+        positions = [(sign[DictKeys.X], sign[DictKeys.Y]) for sign in all_signs]
         colors = []
         for sign in all_signs:
-            color_name = sign['color']
+            color_name = sign[DictKeys.COLOR]
             # Get official WRO color RGB from randomization config
-            color_rgb = self.randomization['colors'][color_name]['mean']
+            color_rgb = self.randomization[DictKeys.COLORS][color_name][DictKeys.MEAN]
             colors.append((color_name, color_rgb))
 
         return positions, colors
 
-    def generate_obstacle_positions(self, num_obstacles=4, sign_positions=None):
-        """Generate random positions for obstacles (obstacles challenge)"""
-        positions = []
-        min_distance_to_sign = 0.2
-        min_distance_to_obstacle = 0.25
-
-        if sign_positions is None:
-            sign_positions = []
-
-        attempts = 0
-        max_attempts = 1000
-
-        while len(positions) < num_obstacles and attempts < max_attempts:
-            x = random.uniform(self.track_bounds['x_min'], self.track_bounds['x_max'])
-            y = random.uniform(self.track_bounds['y_min'], self.track_bounds['y_max'])
-
-            # Check distance from traffic signs
-            too_close = False
-            for px, py in sign_positions:
-                if np.sqrt((x - px)**2 + (y - py)**2) < min_distance_to_sign:
-                    too_close = True
-                    break
-
-            # Check distance from other obstacles
-            for ox, oy in positions:
-                if np.sqrt((x - ox)**2 + (y - oy)**2) < min_distance_to_obstacle:
-                    too_close = True
-                    break
-
-            if not too_close:
-                positions.append((x, y))
-
-            attempts += 1
-
-        return positions
-
     def randomize_lighting(self):
         """Generate randomized lighting parameters"""
-        intensity = random.uniform(*self.randomization['lighting']['intensity_range'])
+        intensity = random.uniform(*self.randomization[DictKeys.LIGHTING][DictKeys.INTENSITY_RANGE])
 
         # Randomize direction slightly
         direction = [
@@ -385,65 +297,73 @@ class ScenarioGenerator:
         ]
 
         return {
-            'intensity': intensity,
-            'direction': direction,
-            'ambient_intensity': intensity * 0.5
+            DictKeys.INTENSITY: intensity,
+            DictKeys.DIRECTION: direction,
+            DictKeys.AMBIENT_INTENSITY: intensity * 0.5
         }
 
     def randomize_corridor_widths(self):
-        """Randomize corridor width for each section (OPEN challenge only)"""
+        """Randomize corridor width for each section (OPEN challenge only)
+
+        Returns:
+            dict: Dictionary with Section enum keys, each containing type and width
+        """
         # WRO: Each section has corridor width either 600mm or 1000mm (coin toss)
         widths = {}
         for section in self.sections:
             # Coin toss: narrow (600mm) or wide (1000mm)
-            width_type = random.choice(['narrow', 'wide'])
+            width_type = random.choice([WidthTypes.NARROW, WidthTypes.WIDE])
             widths[section] = {
-                'type': width_type,
-                'width': self.corridor_widths[width_type]
+                DictKeys.TYPE: width_type,
+                DictKeys.WIDTH: self.corridor_widths[width_type]
             }
         return widths
 
     def randomize_starting_conditions(self, corridor_widths=None):
-        """Generate WRO-style randomized starting conditions"""
+        """Generate WRO-style randomized starting conditions
+
+        Returns:
+            dict: Starting conditions with direction (Direction enum), section (Section enum), etc.
+        """
         # Randomize direction (coin toss): clockwise or counterclockwise
-        direction = random.choice(['clockwise', 'counterclockwise'])
+        direction = random.choice(list(Direction))
 
         # Randomize starting section (one of four sides)
         starting_section = random.choice(self.sections)
 
         # Calculate starting position based on corridor width
         if corridor_widths and starting_section in corridor_widths:
-            corridor_width = corridor_widths[starting_section]['width']
+            corridor_width = corridor_widths[starting_section][DictKeys.WIDTH]
         else:
             corridor_width = 0.65  # Default center position
 
-        track_min = self.track_bounds['min']
-        track_max = self.track_bounds['max']
-        track_center = self.track_bounds['center']
+        track_min = self.track_bounds[DictKeys.MIN]
+        track_max = self.track_bounds[DictKeys.MAX]
+        track_center = self.track_bounds[DictKeys.CENTER]
 
         # Calculate center of corridor for starting position
-        if starting_section == 'north':
+        if starting_section == Section.NORTH:
             y_pos = track_max - corridor_width / 2
             start_positions = [
                 (track_center - 0.5, y_pos),  # Left
                 (track_center, y_pos),        # Center
                 (track_center + 0.5, y_pos)   # Right
             ]
-        elif starting_section == 'south':
+        elif starting_section == Section.SOUTH:
             y_pos = corridor_width / 2
             start_positions = [
                 (track_center - 0.5, y_pos),
                 (track_center, y_pos),
                 (track_center + 0.5, y_pos)
             ]
-        elif starting_section == 'east':
+        elif starting_section == Section.EAST:
             x_pos = track_max - corridor_width / 2
             start_positions = [
                 (x_pos, track_center - 0.5),
                 (x_pos, track_center),
                 (x_pos, track_center + 0.5)
             ]
-        else:  # west
+        else:  # Section.WEST
             x_pos = corridor_width / 2
             start_positions = [
                 (x_pos, track_center - 0.5),
@@ -455,26 +375,26 @@ class ScenarioGenerator:
 
         # Starting orientation based on direction and section
         yaw_map = {
-            'north': {'clockwise': -1.5708, 'counterclockwise': 1.5708},
-            'south': {'clockwise': 1.5708, 'counterclockwise': -1.5708},
-            'east': {'clockwise': 3.14159, 'counterclockwise': 0.0},
-            'west': {'clockwise': 0.0, 'counterclockwise': 3.14159}
+            Section.NORTH: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},
+            Section.SOUTH: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708},
+            Section.EAST: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},
+            Section.WEST: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159}
         }
 
         starting_yaw = yaw_map[starting_section][direction]
 
         return {
-            'direction': direction,
-            'section': starting_section,
-            'section_name': starting_section.capitalize(),
-            'position': starting_position,
-            'yaw': starting_yaw
+            DictKeys.DIRECTION: direction,
+            DictKeys.SECTION: starting_section,
+            DictKeys.SECTION_NAME: starting_section.capitalized,
+            DictKeys.POSITION: starting_position,
+            DictKeys.YAW: starting_yaw
         }
 
     def randomize_color(self, color_name):
         """Generate randomized color with Gaussian noise"""
-        params = self.randomization['colors'][color_name]
-        color = np.random.normal(params['mean'], params['std'])
+        params = self.randomization[DictKeys.COLORS][color_name]
+        color = np.random.normal(params[DictKeys.MEAN], params[DictKeys.STD])
         color = np.clip(color, 0.0, 1.0)
         return color.tolist()
 
@@ -485,36 +405,46 @@ class ScenarioGenerator:
         root = tree.getroot()
         world = root.find('world')
 
+        # Add Sensors system plugin (required for cameras in Gazebo Harmonic)
+        # Check if plugin already exists
+        existing_plugin = world.find(".//plugin[@name='gz::sim::systems::Sensors']")
+        if existing_plugin is None:
+            sensors_plugin = ET.Element('plugin',
+                                       filename='gz-sim-sensors-system',
+                                       name='gz::sim::systems::Sensors')
+            ET.SubElement(sensors_plugin, 'render_engine').text = 'ogre2'
+            world.insert(0, sensors_plugin)  # Insert at beginning of world
+
         # Randomize corridor widths for OPEN challenge (interior walls)
         # OBSTACLES challenge has fixed corridor width
         corridor_widths = None
-        if self.challenge_type == 'open' and randomize_all:
+        if self.challenge_type == ScenarioTypes.OPEN and randomize_all:
             corridor_widths = self.randomize_corridor_widths()
-        elif self.challenge_type == 'open':
+        elif self.challenge_type == ScenarioTypes.OPEN:
             # Default fixed widths for open challenge (800mm - middle value)
-            corridor_widths = {section: {'type': 'default', 'width': 0.8} for section in self.sections}
+            corridor_widths = {section: {DictKeys.TYPE: WidthTypes.DEFAULT, DictKeys.WIDTH: 0.8} for section in self.sections}
         else:
             # Obstacles challenge: fixed 1.0m corridor (creates 1.0m × 1.0m inner area)
-            corridor_widths = {section: {'type': 'fixed', 'width': 1.0} for section in self.sections}
+            corridor_widths = {section: {DictKeys.TYPE: WidthTypes.FIXED, DictKeys.WIDTH: 1.0} for section in self.sections}
 
         # Calculate interior wall positions for all sections
         # Each section's interior wall is offset from exterior based on corridor width
-        track_min = self.track_bounds['min']
-        track_max = self.track_bounds['max']
+        track_min = self.track_bounds[DictKeys.MIN]
+        track_max = self.track_bounds[DictKeys.MAX]
 
         # Interior wall positions:
         # North: y = track_max - corridor_width_north
         # South: y = corridor_width_south
         # East: x = track_max - corridor_width_east
         # West: x = corridor_width_west
-        north_interior_y = track_max - corridor_widths['north']['width']
-        south_interior_y = corridor_widths['south']['width']
-        east_interior_x = track_max - corridor_widths['east']['width']
-        west_interior_x = corridor_widths['west']['width']
+        north_interior_y = track_max - corridor_widths[Section.NORTH][DictKeys.WIDTH]
+        south_interior_y = corridor_widths[Section.SOUTH][DictKeys.WIDTH]
+        east_interior_x = track_max - corridor_widths[Section.EAST][DictKeys.WIDTH]
+        west_interior_x = corridor_widths[Section.WEST][DictKeys.WIDTH]
 
         # North interior wall (spans from west to east, thickness extends inward)
         # Wall positioned so outer face is at north_interior_y, inner face extends inward
-        wall_north = ET.Element('model', name='interior_wall_north')
+        wall_north = ET.Element('model', name=ModelNames.INTERIOR_WALL_NORTH)
         ET.SubElement(wall_north, 'static').text = 'true'
         north_length = east_interior_x - west_interior_x
         north_center_x = (east_interior_x + west_interior_x) / 2
@@ -540,7 +470,7 @@ class ScenarioGenerator:
 
         # South interior wall (spans from west to east, thickness extends inward)
         # Wall positioned so outer face is at south_interior_y, inner face extends inward
-        wall_south = ET.Element('model', name='interior_wall_south')
+        wall_south = ET.Element('model', name=ModelNames.INTERIOR_WALL_SOUTH)
         ET.SubElement(wall_south, 'static').text = 'true'
         south_length = east_interior_x - west_interior_x
         south_center_x = (east_interior_x + west_interior_x) / 2
@@ -566,7 +496,7 @@ class ScenarioGenerator:
 
         # East interior wall (spans from south to north, thickness extends inward)
         # Wall positioned so outer face is at east_interior_x, inner face extends inward
-        wall_east = ET.Element('model', name='interior_wall_east')
+        wall_east = ET.Element('model', name=ModelNames.INTERIOR_WALL_EAST)
         ET.SubElement(wall_east, 'static').text = 'true'
         east_length = north_interior_y - south_interior_y
         east_center_y = (north_interior_y + south_interior_y) / 2
@@ -592,7 +522,7 @@ class ScenarioGenerator:
 
         # West interior wall (spans from south to north, thickness extends inward)
         # Wall positioned so outer face is at west_interior_x, inner face extends inward
-        wall_west = ET.Element('model', name='interior_wall_west')
+        wall_west = ET.Element('model', name=ModelNames.INTERIOR_WALL_WEST)
         ET.SubElement(wall_west, 'static').text = 'true'
         west_length = north_interior_y - south_interior_y
         west_center_y = (north_interior_y + south_interior_y) / 2
@@ -618,10 +548,10 @@ class ScenarioGenerator:
 
         # Randomize starting conditions (WRO-style)
         starting_conditions = self.randomize_starting_conditions(corridor_widths) if randomize_all else {
-            'direction': 'clockwise',
-            'section': 'south',
+            'direction': Direction.CLOCKWISE,
+            'section': Section.SOUTH,
             'section_name': 'South',
-            'position': (0.0, -1.0),
+            'position': (1.5, 0.4),  # South corridor center, inside track (new coordinate system)
             'yaw': 1.5708
         }
 
@@ -630,20 +560,20 @@ class ScenarioGenerator:
             lighting = self.randomize_lighting()
 
             # Update sun light (clamp intensity to [0.0, 1.0] for valid SDF)
-            sun = world.find(".//light[@name='sun']")
+            sun = world.find(f".//light[@name='{ModelNames.SUN_LIGHT}']")
             if sun is not None:
                 diffuse = sun.find('diffuse')
-                intensity = min(1.0, max(0.0, lighting['intensity']))  # Clamp to [0.0, 1.0]
+                intensity = min(1.0, max(0.0, lighting[DictKeys.INTENSITY]))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{intensity} {intensity} {intensity} 1"
 
                 direction = sun.find('direction')
-                direction.text = f"{lighting['direction'][0]} {lighting['direction'][1]} {lighting['direction'][2]}"
+                direction.text = f"{lighting[DictKeys.DIRECTION][0]} {lighting[DictKeys.DIRECTION][1]} {lighting[DictKeys.DIRECTION][2]}"
 
             # Update ambient light (clamp to valid range)
-            ambient = world.find(".//light[@name='ambient_light']")
+            ambient = world.find(f".//light[@name='{ModelNames.AMBIENT_LIGHT}']")
             if ambient is not None:
                 diffuse = ambient.find('diffuse')
-                amb_intensity = min(1.0, max(0.0, lighting['ambient_intensity']))  # Clamp to [0.0, 1.0]
+                amb_intensity = min(1.0, max(0.0, lighting[DictKeys.AMBIENT_INTENSITY]))  # Clamp to [0.0, 1.0]
                 diffuse.text = f"{amb_intensity} {amb_intensity} {amb_intensity} 1"
 
         # WRO: Traffic signs ONLY in obstacles challenge (Spec 13.19-13.22)
@@ -652,7 +582,7 @@ class ScenarioGenerator:
         sign_colors = []
         parking_config = None
 
-        if self.challenge_type == 'obstacles':
+        if self.challenge_type == ScenarioTypes.OBSTACLES:
             # Generate traffic signs for obstacles challenge only
             # Using WRO 36 predefined scenarios (1-36) per corridor
             # Each corridor gets one random scenario, pillars placed at grid intersections
@@ -660,7 +590,7 @@ class ScenarioGenerator:
             sign_positions, sign_colors = self.generate_sign_positions(num_signs=0, corridor_widths=corridor_widths, exclude_section=None)
 
             # Generate parking lot BEFORE adding signs so we can adjust sign positions
-            starting_section = starting_conditions['section'].lower()
+            starting_section = starting_conditions[DictKeys.SECTION]
             parking_config = self.generate_parking_lot_positions(starting_section)
 
             # Move traffic signs in parking section closer to inner wall to avoid collision
@@ -672,19 +602,19 @@ class ScenarioGenerator:
                 adjusted_x, adjusted_y = x, y
 
                 # Check if sign is in parking section and move to inner position if too close to outer wall
-                if starting_section == 'south':
+                if starting_section == Section.SOUTH:
                     # South: parking at Y~0.1, move signs from Y=0.4 to Y=0.6
                     if 1.0 <= x <= 2.0 and abs(y - 0.4) < 0.05:  # Sign at outer position
                         adjusted_y = 0.6  # Move to inner position
-                elif starting_section == 'north':
+                elif starting_section == Section.NORTH:
                     # North: parking at Y~2.9, move signs from Y=2.6 to Y=2.4
                     if 1.0 <= x <= 2.0 and abs(y - 2.6) < 0.05:
                         adjusted_y = 2.4
-                elif starting_section == 'east':
+                elif starting_section == Section.EAST:
                     # East: parking at X~2.9, move signs from X=2.6 to X=2.4
                     if 1.0 <= y <= 2.0 and abs(x - 2.6) < 0.05:
                         adjusted_x = 2.4
-                elif starting_section == 'west':
+                elif starting_section == Section.WEST:
                     # West: parking at X~0.1, move signs from X=0.4 to X=0.6
                     if 1.0 <= y <= 2.0 and abs(x - 0.4) < 0.05:
                         adjusted_x = 0.6
@@ -696,19 +626,20 @@ class ScenarioGenerator:
             sign_positions = adjusted_signs
             sign_colors = adjusted_colors
 
-        # Add traffic signs to world (rectangular boxes per Spec 19.19)
+        # Add traffic signs to world (rectangular boxes per WRO Spec 13.19)
         for i, ((x, y), (color_name, color_rgb)) in enumerate(zip(sign_positions, sign_colors)):
-            sign_model = ET.Element('model', name=f'{color_name}_sign_{i}')
+            sign_prefix = ModelNames.RED_SIGN_PREFIX if color_name == ColorNames.RED else ModelNames.GREEN_SIGN_PREFIX
+            sign_model = ET.Element('model', name=f'{sign_prefix}{i}')
             ET.SubElement(sign_model, 'static').text = 'true'
-            ET.SubElement(sign_model, 'pose').text = f'{x} {y} 0.05 0 0 0'  # 50mm height (half of 100mm)
+            ET.SubElement(sign_model, 'pose').text = f'{x} {y} {TrafficSignSpecs.Z_POSITION} 0 0 0'
 
             link = ET.SubElement(sign_model, 'link', name='link')
 
-            # Visual (Rectangular parallelepiped 50×50×100mm per Spec 13.19)
+            # Visual (Rectangular parallelepiped per WRO Spec 13.19)
             visual = ET.SubElement(link, 'visual', name='visual')
             geom = ET.SubElement(visual, 'geometry')
             box = ET.SubElement(geom, 'box')
-            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'  # 50mm × 50mm × 100mm
+            ET.SubElement(box, 'size').text = f'{TrafficSignSpecs.WIDTH} {TrafficSignSpecs.DEPTH} {TrafficSignSpecs.HEIGHT}'
 
             material = ET.SubElement(visual, 'material')
             ET.SubElement(material, 'ambient').text = f'{color_rgb[0]} {color_rgb[1]} {color_rgb[2]} 1'
@@ -719,7 +650,7 @@ class ScenarioGenerator:
             collision = ET.SubElement(link, 'collision', name='collision')
             geom = ET.SubElement(collision, 'geometry')
             box = ET.SubElement(geom, 'box')
-            ET.SubElement(box, 'size').text = '0.05 0.05 0.10'
+            ET.SubElement(box, 'size').text = f'{TrafficSignSpecs.WIDTH} {TrafficSignSpecs.DEPTH} {TrafficSignSpecs.HEIGHT}'
 
             world.append(sign_model)
 
@@ -731,62 +662,63 @@ class ScenarioGenerator:
         # Add parking lot if obstacles challenge
         # WRO Rule: Parking lot is always in the starting section
         # Note: parking_config was already generated earlier when adjusting sign positions
-        if self.challenge_type == 'obstacles':
-            block1_x, block1_y = parking_config['block1_pos']
-            block2_x, block2_y = parking_config['block2_pos']
-            block1_yaw = parking_config['block1_yaw']
-            block2_yaw = parking_config['block2_yaw']
+        if self.challenge_type == ScenarioTypes.OBSTACLES:
+            block1_x, block1_y = parking_config[DictKeys.BLOCK1_POS]
+            block2_x, block2_y = parking_config[DictKeys.BLOCK2_POS]
+            block1_yaw = parking_config[DictKeys.BLOCK1_YAW]
+            block2_yaw = parking_config[DictKeys.BLOCK2_YAW]
 
             # Parking limitation 1
-            parking1 = ET.Element('model', name='parking_limitation_1')
+            parking1 = ET.Element('model', name=ModelNames.PARKING_LIMITATION_1)
             ET.SubElement(parking1, 'static').text = 'true'
-            ET.SubElement(parking1, 'pose').text = f'{block1_x} {block1_y} 0.05 0 0 {block1_yaw}'
+            ET.SubElement(parking1, 'pose').text = f'{block1_x} {block1_y} {ParkingLotSpecs.Z_POSITION} 0 0 {block1_yaw}'
 
             link1 = ET.SubElement(parking1, 'link', name='link')
             visual1 = ET.SubElement(link1, 'visual', name='visual')
             geom1 = ET.SubElement(visual1, 'geometry')
             box1 = ET.SubElement(geom1, 'box')
-            ET.SubElement(box1, 'size').text = '0.20 0.02 0.10'  # 200×20×100mm
+            ET.SubElement(box1, 'size').text = f'{ParkingLotSpecs.LENGTH} {ParkingLotSpecs.WIDTH} {ParkingLotSpecs.HEIGHT}'
 
             material1 = ET.SubElement(visual1, 'material')
-            ET.SubElement(material1, 'ambient').text = '1.0 0.0 1.0 1'  # Magenta
-            ET.SubElement(material1, 'diffuse').text = '1.0 0.0 1.0 1'
+            parking_color = ParkingLotSpecs.COLOR
+            ET.SubElement(material1, 'ambient').text = f'{parking_color[0]} {parking_color[1]} {parking_color[2]} 1'
+            ET.SubElement(material1, 'diffuse').text = f'{parking_color[0]} {parking_color[1]} {parking_color[2]} 1'
 
             collision1 = ET.SubElement(link1, 'collision', name='collision')
             geom1_col = ET.SubElement(collision1, 'geometry')
             box1_col = ET.SubElement(geom1_col, 'box')
-            ET.SubElement(box1_col, 'size').text = '0.20 0.02 0.10'
+            ET.SubElement(box1_col, 'size').text = f'{ParkingLotSpecs.LENGTH} {ParkingLotSpecs.WIDTH} {ParkingLotSpecs.HEIGHT}'
 
             world.append(parking1)
 
             # Parking limitation 2 (parallel to first block)
-            parking2 = ET.Element('model', name='parking_limitation_2')
+            parking2 = ET.Element('model', name=ModelNames.PARKING_LIMITATION_2)
             ET.SubElement(parking2, 'static').text = 'true'
-            ET.SubElement(parking2, 'pose').text = f'{block2_x} {block2_y} 0.05 0 0 {block2_yaw}'
+            ET.SubElement(parking2, 'pose').text = f'{block2_x} {block2_y} {ParkingLotSpecs.Z_POSITION} 0 0 {block2_yaw}'
 
             link2 = ET.SubElement(parking2, 'link', name='link')
             visual2 = ET.SubElement(link2, 'visual', name='visual')
             geom2 = ET.SubElement(visual2, 'geometry')
             box2 = ET.SubElement(geom2, 'box')
-            ET.SubElement(box2, 'size').text = '0.20 0.02 0.10'
+            ET.SubElement(box2, 'size').text = f'{ParkingLotSpecs.LENGTH} {ParkingLotSpecs.WIDTH} {ParkingLotSpecs.HEIGHT}'
 
             material2 = ET.SubElement(visual2, 'material')
-            ET.SubElement(material2, 'ambient').text = '1.0 0.0 1.0 1'
-            ET.SubElement(material2, 'diffuse').text = '1.0 0.0 1.0 1'
+            ET.SubElement(material2, 'ambient').text = f'{parking_color[0]} {parking_color[1]} {parking_color[2]} 1'
+            ET.SubElement(material2, 'diffuse').text = f'{parking_color[0]} {parking_color[1]} {parking_color[2]} 1'
 
             collision2 = ET.SubElement(link2, 'collision', name='collision')
             geom2_col = ET.SubElement(collision2, 'geometry')
             box2_col = ET.SubElement(geom2_col, 'box')
-            ET.SubElement(box2_col, 'size').text = '0.20 0.02 0.10'
+            ET.SubElement(box2_col, 'size').text = f'{ParkingLotSpecs.LENGTH} {ParkingLotSpecs.WIDTH} {ParkingLotSpecs.HEIGHT}'
 
             world.append(parking2)
 
         # Add starting zone visual marker (200×500mm grey rectangle, WRO Spec 13.10-13.11)
         # Positioned in one of 6 sections per corridor (2 length × 3 width divisions)
-        starting_section = starting_conditions['section']
+        starting_section = starting_conditions[DictKeys.SECTION]
 
         # Get corridor width for starting section to position zone correctly
-        start_corridor_width = corridor_widths[starting_section]['width']
+        start_corridor_width = corridor_widths[starting_section][DictKeys.WIDTH]
 
         # Each corridor has 6 sections (2 along length × 3 across width)
         # Length sections: divided by centerline at 1.5 (for N/S) or 1.5 (for E/W)
@@ -814,22 +746,22 @@ class ScenarioGenerator:
         # Calculate starting zone position and size based on section
         # Starting zone is 200mm wide (across corridor) × 500mm long (along corridor)
         # For obstacles challenge, adjust length based on parking block spacing
-        zone_length = 0.5  # Default 500mm
+        zone_length = StartingZoneSpecs.DEFAULT_LENGTH
 
-        if self.challenge_type == 'obstacles' and parking_config:
+        if self.challenge_type == ScenarioTypes.OBSTACLES and parking_config:
             # Calculate available space between parking blocks
             # Parking blocks are 20mm wide in the spacing direction
-            block_width_in_spacing_dir = 0.02  # 20mm
+            block_width_in_spacing_dir = ParkingLotSpecs.WIDTH
 
             # Get the two depth positions
-            depth1 = parking_config['depth']
-            block1_pos = parking_config['block1_pos']
-            block2_pos = parking_config['block2_pos']
+            depth1 = parking_config[DictKeys.DEPTH]
+            block1_pos = parking_config[DictKeys.BLOCK1_POS]
+            block2_pos = parking_config[DictKeys.BLOCK2_POS]
 
             # Calculate spacing between blocks (center to center)
-            if starting_section == 'north' or starting_section == 'south':
+            if starting_section == Section.NORTH or starting_section == Section.SOUTH:
                 spacing = abs(block2_pos[0] - block1_pos[0])
-            else:  # east or west
+            else:  # Section.EAST or Section.WEST
                 spacing = abs(block2_pos[1] - block1_pos[1])
 
             # Available gap = spacing - block_width
@@ -837,58 +769,58 @@ class ScenarioGenerator:
 
             # Shrink zone length to fit in gap (with small margin for safety)
             if available_gap < zone_length:
-                zone_length = available_gap * 0.9  # Use 90% of available gap for safety margin
+                zone_length = available_gap * StartingZoneSpecs.OBSTACLES_SIZE_FACTOR
 
         # For obstacles challenge, position starting zone between parking blocks
         zone_center_along_depth = None
         zone_width_position = None
-        if self.challenge_type == 'obstacles' and parking_config:
-            block1_pos = parking_config['block1_pos']
-            block2_pos = parking_config['block2_pos']
+        if self.challenge_type == ScenarioTypes.OBSTACLES and parking_config:
+            block1_pos = parking_config[DictKeys.BLOCK1_POS]
+            block2_pos = parking_config[DictKeys.BLOCK2_POS]
 
             # Calculate center position between the two parking blocks (along depth)
             # And get width position from parking blocks (same as parking area)
-            if starting_section == 'north' or starting_section == 'south':
+            if starting_section == Section.NORTH or starting_section == Section.SOUTH:
                 # Zone extends along X-axis, calculate center X (depth)
                 zone_center_along_depth = (block1_pos[0] + block2_pos[0]) / 2
                 # Zone width in Y, use same Y as parking blocks
                 zone_width_position = block1_pos[1]  # Parking blocks Y position
-            else:  # east or west
+            else:  # Section.EAST or Section.WEST
                 # Zone extends along Y-axis, calculate center Y (depth)
                 zone_center_along_depth = (block1_pos[1] + block2_pos[1]) / 2
                 # Zone width in X, use same X as parking blocks
                 zone_width_position = block1_pos[0]  # Parking blocks X position
 
-        if starting_section == 'north' or starting_section == 'south':
+        if starting_section == Section.NORTH or starting_section == Section.SOUTH:
             # Horizontal corridor: zone extends along X, width in Y
-            zone_size = f'{zone_length} 0.2 0.001'  # Length × 200mm × thin
+            zone_size = f'{zone_length} {StartingZoneSpecs.WIDTH} {StartingZoneSpecs.THICKNESS}'
             # Position zone between parking blocks for obstacles, otherwise use random position
             zone_x = zone_center_along_depth if zone_center_along_depth is not None else length_offset
 
             # Position zone width at parking area for obstacles, otherwise use random position
             if zone_width_position is not None:
                 zone_y = zone_width_position
-            elif starting_section == 'south':
+            elif starting_section == Section.SOUTH:
                 zone_y = width_offset  # One of the 2-3 width sections
-            else:  # north
+            else:  # Section.NORTH
                 # Mirror for north: outer at 2.8, middle at 2.5, inner at 2.2
                 if start_corridor_width >= 1.0:
                     zone_y = track_max - width_offset
                 else:
                     # For narrow corridor, adjust
                     zone_y = track_max - width_offset
-        else:  # east or west
+        else:  # Section.EAST or Section.WEST
             # Vertical corridor: zone extends along Y, width in X
-            zone_size = f'0.2 {zone_length} 0.001'  # 200mm × Length × thin
+            zone_size = f'{StartingZoneSpecs.WIDTH} {zone_length} {StartingZoneSpecs.THICKNESS}'
             # Position zone between parking blocks for obstacles, otherwise use random position
             zone_y = zone_center_along_depth if zone_center_along_depth is not None else length_offset
 
             # Position zone width at parking area for obstacles, otherwise use random position
             if zone_width_position is not None:
                 zone_x = zone_width_position
-            elif starting_section == 'west':
+            elif starting_section == Section.WEST:
                 zone_x = width_offset  # One of the 2-3 width sections
-            else:  # east
+            else:  # Section.EAST
                 # Mirror for east
                 if start_corridor_width >= 1.0:
                     zone_x = track_max - width_offset
@@ -901,7 +833,7 @@ class ScenarioGenerator:
             world.remove(zone)
 
         # Create new starting zone at randomized position
-        starting_zone = ET.Element('model', name=f'starting_zone_{starting_section}')
+        starting_zone = ET.Element('model', name=f'{ModelNames.STARTING_ZONE_PREFIX}{str(starting_section)}')
         ET.SubElement(starting_zone, 'static').text = 'true'
         ET.SubElement(starting_zone, 'pose').text = f'{zone_x} {zone_y} 0.0002 0 0 0'
 
@@ -914,17 +846,17 @@ class ScenarioGenerator:
         ET.SubElement(box_zone, 'size').text = zone_size
 
         material_zone = ET.SubElement(visual_zone, 'material')
-        ET.SubElement(material_zone, 'ambient').text = '0.5 0.5 0.5 1'  # Darker grey for better contrast
-        ET.SubElement(material_zone, 'diffuse').text = '0.5 0.5 0.5 1'
+        zone_color = StartingZoneSpecs.COLOR
+        ET.SubElement(material_zone, 'ambient').text = f'{zone_color[0]} {zone_color[1]} {zone_color[2]} 1'
+        ET.SubElement(material_zone, 'diffuse').text = f'{zone_color[0]} {zone_color[1]} {zone_color[2]} 1'
 
         # Direction icon overlay (clockwise or counterclockwise)
-        import os
-        direction = starting_conditions['direction']
+        direction = starting_conditions[DictKeys.DIRECTION]
 
         # Try PNG first (better Gazebo support), fall back to SVG
         simulation_path = os.path.dirname(os.path.dirname(self.base_world_path))
-        png_path = os.path.join(simulation_path, f'{direction}.png')
-        svg_path = os.path.join(simulation_path, f'{direction}.svg')
+        png_path = os.path.join(simulation_path, f'{str(direction)}{FileExtensions.PNG}')
+        svg_path = os.path.join(simulation_path, f'{str(direction)}{FileExtensions.SVG}')
 
         if os.path.exists(png_path):
             icon_path = png_path
@@ -940,18 +872,20 @@ class ScenarioGenerator:
         # Simple colored indicator for direction
         # Blue for clockwise, Green for counterclockwise
         direction = starting_conditions['direction']
-        if direction == 'clockwise':
-            indicator_color = '0.2 0.4 1.0 1'  # Blue
+        if direction == Direction.CLOCKWISE:
+            indicator_rgb = StartingZoneSpecs.CLOCKWISE_COLOR
         else:
-            indicator_color = '0.2 1.0 0.4 1'  # Green
+            indicator_rgb = StartingZoneSpecs.COUNTERCLOCKWISE_COLOR
+
+        indicator_color = f'{indicator_rgb[0]} {indicator_rgb[1]} {indicator_rgb[2]} 1'
 
         # Circle indicator (cylinder viewed from top)
         visual_indicator = ET.SubElement(link_zone, 'visual', name='visual_direction_indicator')
         ET.SubElement(visual_indicator, 'pose').text = '0 0 0.004 0 0 0'
         geom_indicator = ET.SubElement(visual_indicator, 'geometry')
         cylinder_indicator = ET.SubElement(geom_indicator, 'cylinder')
-        ET.SubElement(cylinder_indicator, 'radius').text = '0.035'  # 35mm radius circle
-        ET.SubElement(cylinder_indicator, 'length').text = '0.001'  # 1mm thick disc
+        ET.SubElement(cylinder_indicator, 'radius').text = str(StartingZoneSpecs.INDICATOR_RADIUS)
+        ET.SubElement(cylinder_indicator, 'length').text = str(StartingZoneSpecs.THICKNESS)
 
         material_indicator = ET.SubElement(visual_indicator, 'material')
         ET.SubElement(material_indicator, 'ambient').text = indicator_color
@@ -960,40 +894,76 @@ class ScenarioGenerator:
 
         world.append(starting_zone)
 
+        # Add camera for video recording - Robot POV
+        # Camera positioned at CENTER of starting zone (where robot would actually start)
+        start_yaw = starting_conditions[DictKeys.YAW]
+
+        # Use the exact same position as the starting zone center
+        camera_x = zone_x
+        camera_y = zone_y
+        camera_z = 0.12  # Robot camera height (12cm above ground, typical for WRO robots)
+        camera_pitch = 0.3  # 17 degrees downward tilt (to see track ahead)
+
+        camera_model = ET.Element('model', name='training_camera')
+        ET.SubElement(camera_model, 'static').text = 'true'
+        ET.SubElement(camera_model, 'pose').text = f'{camera_x} {camera_y} {camera_z} 0 {camera_pitch} {start_yaw}'
+
+        camera_link = ET.SubElement(camera_model, 'link', name='camera_link')
+
+        # Camera sensor
+        camera_sensor = ET.SubElement(camera_link, 'sensor', name='camera', type='camera')
+        ET.SubElement(camera_sensor, 'update_rate').text = '30'
+        ET.SubElement(camera_sensor, 'visualize').text = 'false'
+        ET.SubElement(camera_sensor, 'topic').text = 'camera/image_raw'
+
+        camera_elem = ET.SubElement(camera_sensor, 'camera')
+        ET.SubElement(camera_elem, 'horizontal_fov').text = '1.91'  # 110 degrees (slightly narrower, more realistic)
+
+        image_elem = ET.SubElement(camera_elem, 'image')
+        ET.SubElement(image_elem, 'width').text = '1280'  # HD resolution
+        ET.SubElement(image_elem, 'height').text = '720'   # 720p
+        ET.SubElement(image_elem, 'format').text = 'R8G8B8'
+
+        clip_elem = ET.SubElement(camera_elem, 'clip')
+        ET.SubElement(clip_elem, 'near').text = '0.05'
+        ET.SubElement(clip_elem, 'far').text = '10.0'
+
+        world.append(camera_model)
+
         # Save world file
-        world_file = self.output_dir / f'scenario_{scenario_id:04d}.sdf'
+        world_file = self.output_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.SDF}'
         tree.write(world_file, encoding='utf-8', xml_declaration=True)
 
         # Save metadata
         metadata = {
-            'scenario_id': scenario_id,
-            'challenge_type': self.challenge_type,
-            'world_file': str(world_file),
-            'corridor_widths': {
-                section: {
-                    'type': corridor_widths[section]['type'],
-                    'width_mm': int(corridor_widths[section]['width'] * 1000)
+            DictKeys.SCENARIO_ID: scenario_id,
+            DictKeys.CHALLENGE_TYPE: self.challenge_type,
+            DictKeys.WORLD_FILE: str(world_file),
+            DictKeys.CORRIDOR_WIDTHS: {
+                str(section): {
+                    DictKeys.TYPE: corridor_widths[section][DictKeys.TYPE],
+                    DictKeys.WIDTH_MM: int(corridor_widths[section][DictKeys.WIDTH] * 1000)
                 }
                 for section in self.sections
             } if corridor_widths else None,
-            'starting_conditions': {
-                'direction': starting_conditions['direction'],
-                'section': starting_conditions['section_name'],
-                'position': {'x': starting_conditions['position'][0], 'y': starting_conditions['position'][1]},
-                'yaw': starting_conditions['yaw']
+            DictKeys.STARTING_CONDITIONS: {
+                DictKeys.DIRECTION: str(starting_conditions[DictKeys.DIRECTION]),
+                DictKeys.SECTION: starting_conditions[DictKeys.SECTION_NAME],
+                DictKeys.POSITION: {DictKeys.X: starting_conditions[DictKeys.POSITION][0], DictKeys.Y: starting_conditions[DictKeys.POSITION][1]},
+                DictKeys.YAW: starting_conditions[DictKeys.YAW]
             },
-            'num_signs': len(sign_positions),
-            'has_parking_lot': self.challenge_type == 'obstacles',
-            'sign_positions': [{'x': x, 'y': y, 'color': color}
+            DictKeys.NUM_SIGNS: len(sign_positions),
+            DictKeys.HAS_PARKING_LOT: self.challenge_type == ScenarioTypes.OBSTACLES,
+            DictKeys.SIGN_POSITIONS: [{DictKeys.X: x, DictKeys.Y: y, DictKeys.COLOR: color}
                               for (x, y), (color, _) in zip(sign_positions, sign_colors)],
-            'parking_lot': {
-                'block1_position': {'x': parking_config['block1_pos'][0], 'y': parking_config['block1_pos'][1]},
-                'block2_position': {'x': parking_config['block2_pos'][0], 'y': parking_config['block2_pos'][1]},
-                'depth': parking_config['depth']
+            DictKeys.PARKING_LOT: {
+                DictKeys.BLOCK1_POSITION: {DictKeys.X: parking_config[DictKeys.BLOCK1_POS][0], DictKeys.Y: parking_config[DictKeys.BLOCK1_POS][1]},
+                DictKeys.BLOCK2_POSITION: {DictKeys.X: parking_config[DictKeys.BLOCK2_POS][0], DictKeys.Y: parking_config[DictKeys.BLOCK2_POS][1]},
+                DictKeys.DEPTH: parking_config[DictKeys.DEPTH]
             } if parking_config else None
         }
 
-        metadata_file = self.output_dir / f'scenario_{scenario_id:04d}_metadata.json'
+        metadata_file = self.output_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FilePaths.METADATA_SUFFIX}'
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
 
@@ -1031,7 +1001,7 @@ class VideoRecorder:
             return None
 
         # Save as video
-        video_file = self.output_dir / f'scenario_{self.scenario_id:04d}_video.mp4'
+        video_file = self.output_dir / f'{FilePaths.SCENARIO_PREFIX}{self.scenario_id:04d}_video{FileExtensions.MP4}'
 
         height, width = self.frames[0].shape[:2]
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -1045,12 +1015,12 @@ class VideoRecorder:
         print(f"Saved video: {video_file} ({len(self.frames)} frames)")
 
         # Also save sample frames for dataset
-        frames_dir = self.output_dir / 'frames' / f'scenario_{self.scenario_id:04d}'
+        frames_dir = self.output_dir / FolderNames.FRAMES / f'{FilePaths.SCENARIO_PREFIX}{self.scenario_id:04d}'
         frames_dir.mkdir(parents=True, exist_ok=True)
 
         # Save every 10th frame
         for i, frame in enumerate(self.frames[::10]):
-            frame_file = frames_dir / f'frame_{i:04d}.jpg'
+            frame_file = frames_dir / f'frame_{i:04d}{FileExtensions.JPG}'
             cv2.imwrite(str(frame_file), frame)
 
         return video_file
@@ -1081,7 +1051,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize generator (separate folders per challenge type)
-    challenge_output_dir = output_dir / args.challenge / 'scenarios'
+    challenge_output_dir = output_dir / args.challenge / FolderNames.SCENARIOS
     generator = ScenarioGenerator(
         base_world_path=args.base_world,
         output_dir=challenge_output_dir,
@@ -1103,9 +1073,9 @@ def main():
         )
 
         print(f"  World file: {world_file}")
-        print(f"  Traffic Signs: {metadata['num_signs']}")
-        print(f"  Starting: {metadata['starting_conditions']['section']} section, {metadata['starting_conditions']['direction']}")
-        print(f"  Parking Lot: {'Yes' if metadata['has_parking_lot'] else 'No'}")
+        print(f"  Traffic Signs: {metadata[DictKeys.NUM_SIGNS]}")
+        print(f"  Starting: {metadata[DictKeys.STARTING_CONDITIONS][DictKeys.SECTION]} section, {metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]}")
+        print(f"  Parking Lot: {'Yes' if metadata[DictKeys.HAS_PARKING_LOT] else 'No'}")
 
     print("\n" + "=" * 60)
     print("Scenario generation complete!")

@@ -1,2 +1,8 @@
 # Claude Code
 .claude
+
+# PyCache
+__pycache__
+
+# Traning data generated
+training_data/
