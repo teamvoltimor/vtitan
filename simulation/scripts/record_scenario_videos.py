@@ -1,0 +1,633 @@
+#!/usr/bin/env python3
+"""
+Complete Pipeline: Generate and Record WRO Training Videos
+
+This script automates the entire process:
+1. Generates randomized scenarios
+2. Launches each scenario in Gazebo
+3. Records robot POV camera as video
+4. Saves metadata for training
+
+Usage:
+    # Generate and record 10 open challenge scenarios
+    python3 record_scenario_videos.py --challenge open --num-scenarios 10 --duration 30
+
+    # Generate and record obstacles challenge with full randomization
+    python3 record_scenario_videos.py --challenge obstacles --num-scenarios 50 --duration 45 --randomize-all
+
+    # Only record existing scenarios (skip generation)
+    python3 record_scenario_videos.py --challenge open --skip-generation --scenarios-dir ~/wro_data/open/scenarios
+"""
+
+import os
+import sys
+import time
+import signal
+import argparse
+import subprocess
+import json
+from pathlib import Path
+
+# ROS2 imports
+try:
+    import rclpy
+    from rclpy.node import Node
+    from sensor_msgs.msg import Image
+    from cv_bridge import CvBridge
+    import cv2
+    import numpy as np
+    ROS2_AVAILABLE = True
+except ImportError:
+    ROS2_AVAILABLE = False
+    print("ERROR: ROS2 not available. This script requires ROS2 Humble or Jazzy.")
+    sys.exit(1)
+
+# Import scenario generator
+from generate_training_data import ScenarioGenerator
+from constants import DictKeys, FileExtensions, FolderNames, FilePaths
+from enums import Section, Direction
+
+
+class VideoRecorderNode(Node):
+    """ROS2 node that records camera feed to video file"""
+
+    def __init__(self, output_path, duration, fps=30):
+        super().__init__('video_recorder_node')
+
+        self.output_path = Path(output_path)
+        self.duration = duration
+        self.fps = fps
+
+        self.bridge = CvBridge()
+        self.frames = []
+        self.recording = True
+        self.start_time = time.time()
+
+        # Subscribe to camera (published by Gazebo camera sensor)
+        self.subscription = self.create_subscription(
+            Image,
+            '/camera/image_raw',
+            self.image_callback,
+            10
+        )
+
+        self.get_logger().info(f'Recording started. Duration: {duration}s, Output: {output_path}')
+
+        # Timer to check duration
+        self.timer = self.create_timer(0.5, self.check_duration)
+
+    def image_callback(self, msg):
+        """Callback for camera images"""
+        if self.recording:
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+                self.frames.append(cv_image)
+
+                # Log progress every 2 seconds
+                elapsed = time.time() - self.start_time
+                if len(self.frames) % (self.fps * 2) == 0:
+                    self.get_logger().info(f'Recording: {elapsed:.1f}s / {self.duration}s ({len(self.frames)} frames)')
+            except Exception as e:
+                self.get_logger().error(f'Error processing frame: {e}')
+
+    def check_duration(self):
+        """Check if recording duration has elapsed"""
+        elapsed = time.time() - self.start_time
+        if elapsed >= self.duration:
+            self.get_logger().info('Recording duration reached. Saving video...')
+            self.save_video()
+            self.recording = False
+            rclpy.shutdown()
+
+    def save_video(self):
+        """Save recorded frames as video"""
+        if len(self.frames) == 0:
+            self.get_logger().error('No frames recorded!')
+            return False
+
+        try:
+            # Create output directory
+            self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get frame dimensions
+            height, width = self.frames[0].shape[:2]
+
+            # Create video writer (H.264 codec for better compatibility)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter(
+                str(self.output_path),
+                fourcc,
+                self.fps,
+                (width, height)
+            )
+
+            # Write frames
+            for frame in self.frames:
+                video_writer.write(frame)
+
+            video_writer.release()
+
+            self.get_logger().info(f'Video saved: {self.output_path}')
+            self.get_logger().info(f'Total frames: {len(self.frames)}, Duration: {len(self.frames)/self.fps:.2f}s')
+
+            return True
+
+        except Exception as e:
+            self.get_logger().error(f'Error saving video: {e}')
+            return False
+
+
+class PipelineOrchestrator:
+    """Orchestrates the complete pipeline: generate scenarios -> record videos"""
+
+    def __init__(self, args):
+        self.args = args
+        self.output_dir = Path(args.output_dir)
+        self.challenge_type = args.challenge
+
+        # Create directory structure
+        self.scenarios_dir = self.output_dir / args.challenge / FolderNames.SCENARIOS
+        self.videos_dir = self.output_dir / args.challenge / 'videos'
+        self.frames_dir = self.output_dir / args.challenge / FolderNames.FRAMES
+
+        self.scenarios_dir.mkdir(parents=True, exist_ok=True)
+        self.videos_dir.mkdir(parents=True, exist_ok=True)
+        self.frames_dir.mkdir(parents=True, exist_ok=True)
+
+        self.gazebo_process = None
+        self.recorder_process = None
+        self.bridge_process = None
+
+    def generate_scenarios(self):
+        """Generate randomized scenarios"""
+        if self.args.skip_generation:
+            print("Skipping scenario generation (--skip-generation flag)")
+            return True
+
+        print(f"\n{'='*60}")
+        print(f"STEP 1: Generating {self.args.num_scenarios} scenarios")
+        print(f"Challenge: {self.challenge_type}")
+        print(f"Output: {self.scenarios_dir}")
+        print(f"{'='*60}\n")
+
+        # Find base world file
+        base_world = Path(__file__).parent.parent / 'worlds' / 'wro_track_2026.sdf'
+        if not base_world.exists():
+            print(f"ERROR: Base world file not found: {base_world}")
+            return False
+
+        # Create scenario generator
+        generator = ScenarioGenerator(
+            base_world_path=str(base_world),
+            output_dir=str(self.scenarios_dir),
+            challenge_type=self.challenge_type
+        )
+
+        # Generate scenarios
+        for i in range(self.args.num_scenarios):
+            print(f"Generating scenario {i+1}/{self.args.num_scenarios}...")
+
+            try:
+                world_file, metadata = generator.create_scenario_world(
+                    scenario_id=i,
+                    randomize_all=self.args.randomize_all
+                )
+
+                print(f"  ✓ World: {world_file.name}")
+                print(f"  ✓ Signs: {metadata[DictKeys.NUM_SIGNS]}")
+                print(f"  ✓ Start: {metadata[DictKeys.STARTING_CONDITIONS][DictKeys.SECTION]} ({metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]})")
+
+            except Exception as e:
+                print(f"  ✗ ERROR: {e}")
+                return False
+
+        print(f"\n✓ Successfully generated {self.args.num_scenarios} scenarios\n")
+        return True
+
+    def get_scenario_files(self):
+        """Get list of scenario files to process"""
+        scenario_files = sorted(self.scenarios_dir.glob(f'{FilePaths.SCENARIO_PREFIX}*{FileExtensions.SDF}'))
+
+        if len(scenario_files) == 0:
+            print(f"ERROR: No scenario files found in {self.scenarios_dir}")
+            return []
+
+        # If specific scenarios requested, filter
+        if hasattr(self.args, 'scenario_ids') and self.args.scenario_ids:
+            scenario_files = [f for f in scenario_files if self.get_scenario_id(f) in self.args.scenario_ids]
+
+        return scenario_files
+
+    def get_scenario_id(self, scenario_file):
+        """Extract scenario ID from filename"""
+        # scenario_0001.sdf -> 1
+        filename = scenario_file.stem  # scenario_0001
+        return int(filename.split('_')[-1])
+
+    def load_metadata(self, scenario_file):
+        """Load metadata for a scenario"""
+        # Construct metadata filename: scenario_0001.sdf -> scenario_0001_metadata.json
+        metadata_file = scenario_file.parent / f"{scenario_file.stem}{FilePaths.METADATA_SUFFIX}"
+
+        if not metadata_file.exists():
+            print(f"WARNING: Metadata not found for {scenario_file.name}")
+            return None
+
+        with open(metadata_file, 'r') as f:
+            return json.load(f)
+
+    def launch_gazebo(self, scenario_file):
+        """Launch Gazebo with scenario"""
+        print(f"  Launching Gazebo with {scenario_file.name}...")
+
+        # Set environment variables
+        env = os.environ.copy()
+        models_dir = Path(__file__).parent.parent / 'models'
+        env['GZ_SIM_RESOURCE_PATH'] = f"{env.get('GZ_SIM_RESOURCE_PATH', '')}:{models_dir}"
+
+        # Launch Gazebo headless (no GUI for faster processing)
+        # Use -s for headless, -r for run immediately
+        cmd = [
+            'gz', 'sim',
+            '-r',  # Run immediately
+            '-s',  # Headless (server only, no GUI)
+            str(scenario_file)
+        ]
+
+        # If GUI requested, remove -s flag
+        if self.args.show_gui:
+            cmd.remove('-s')
+
+        try:
+            self.gazebo_process = subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            # Wait for Gazebo to initialize
+            time.sleep(5 if self.args.show_gui else 3)
+
+            return True
+
+        except Exception as e:
+            print(f"  ✗ ERROR launching Gazebo: {e}")
+            return False
+
+    def launch_bridge(self):
+        """Launch ros_gz_bridge to connect Gazebo topics to ROS2"""
+        print(f"  Launching ros_gz_bridge...")
+
+        try:
+            # Launch parameter bridge for camera topic
+            # This bridges Gazebo topic to ROS2 topic
+            self.bridge_process = subprocess.Popen(
+                [
+                    'ros2', 'run', 'ros_gz_bridge', 'parameter_bridge',
+                    '/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                    '--ros-args', '--log-level', 'error'
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            # Wait for bridge to initialize
+            time.sleep(2)
+
+            print(f"  ✓ Bridge launched")
+            return True
+
+        except Exception as e:
+            print(f"  ✗ ERROR launching bridge: {e}")
+            return False
+
+    def spawn_robot(self, metadata):
+        """Spawn robot at starting position"""
+        print(f"  Spawning robot at starting position...")
+
+        # Get starting position from metadata
+        start_pos = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.POSITION]
+        start_yaw = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.YAW]
+
+        # URDF file path
+        urdf_file = Path(__file__).parent.parent / 'urdf' / 'wro_robot.urdf'
+
+        if not urdf_file.exists():
+            print(f"  WARNING: URDF file not found: {urdf_file}")
+            print(f"  Skipping robot spawn (recording will still work if robot exists in world)")
+            return True
+
+        # Spawn robot using gz service
+        cmd = [
+            'gz', 'service',
+            '-s', '/world/wro_track/create',
+            '--reqtype', 'gz.msgs.EntityFactory',
+            '--reptype', 'gz.msgs.Boolean',
+            '--timeout', '1000',
+            '--req', f'sdf_filename: "{urdf_file}", name: "wro_robot", pose: {{position: {{x: {start_pos[DictKeys.X]}, y: {start_pos[DictKeys.Y]}, z: 0.05}}, orientation: {{z: {start_yaw}}} }}'
+        ]
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                print(f"  ✓ Robot spawned at ({start_pos[DictKeys.X]:.2f}, {start_pos[DictKeys.Y]:.2f})")
+                time.sleep(2)  # Wait for robot to settle
+                return True
+            else:
+                print(f"  WARNING: Robot spawn failed (may already exist)")
+                return True  # Continue anyway
+
+        except Exception as e:
+            print(f"  WARNING: Error spawning robot: {e}")
+            return True  # Continue anyway
+
+    def record_video(self, scenario_id):
+        """Record video using ROS2 node"""
+        print(f"  Recording video for {self.args.duration} seconds...")
+
+        # Video output path
+        video_file = self.videos_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.MP4}'
+
+        # Initialize ROS2 (only if not already initialized)
+        if not rclpy.ok():
+            rclpy.init()
+
+        try:
+            # Create recorder node
+            recorder = VideoRecorderNode(
+                output_path=str(video_file),
+                duration=self.args.duration,
+                fps=self.args.fps
+            )
+
+            # Spin until recording completes
+            rclpy.spin(recorder)
+
+            # Cleanup
+            recorder.destroy_node()
+
+            return video_file
+
+        except Exception as e:
+            print(f"  ✗ ERROR recording video: {e}")
+            return None
+
+    def extract_sample_frames(self, video_file, scenario_id, num_frames=10):
+        """Extract sample frames from video for dataset"""
+        if not self.args.extract_frames:
+            return True
+
+        print(f"  Extracting {num_frames} sample frames...")
+
+        try:
+            # Open video
+            cap = cv2.VideoCapture(str(video_file))
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            if total_frames == 0:
+                print(f"  WARNING: No frames in video")
+                return False
+
+            # Calculate frame indices to extract (evenly spaced)
+            frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
+
+            # Create output directory
+            frames_output_dir = self.frames_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}'
+            frames_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract frames
+            extracted_count = 0
+            for idx in frame_indices:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+                ret, frame = cap.read()
+
+                if ret:
+                    frame_file = frames_output_dir / f'frame_{extracted_count:04d}{FileExtensions.JPG}'
+                    cv2.imwrite(str(frame_file), frame)
+                    extracted_count += 1
+
+            cap.release()
+
+            print(f"  ✓ Extracted {extracted_count} frames to {frames_output_dir}")
+            return True
+
+        except Exception as e:
+            print(f"  ✗ ERROR extracting frames: {e}")
+            return False
+
+    def cleanup(self):
+        """Cleanup processes"""
+        # Stop bridge
+        if self.bridge_process:
+            try:
+                self.bridge_process.terminate()
+                self.bridge_process.wait(timeout=5)
+            except:
+                try:
+                    self.bridge_process.kill()
+                except:
+                    pass
+
+        # Stop Gazebo
+        if self.gazebo_process:
+            try:
+                self.gazebo_process.terminate()
+                self.gazebo_process.wait(timeout=5)
+            except:
+                try:
+                    self.gazebo_process.kill()
+                except:
+                    pass
+
+        # Kill any lingering processes
+        try:
+            subprocess.run(['killall', '-9', 'gz', 'parameter_bridge'], stderr=subprocess.DEVNULL)
+        except:
+            pass
+
+    def process_scenario(self, scenario_file):
+        """Process a single scenario: launch, record, cleanup"""
+        scenario_id = self.get_scenario_id(scenario_file)
+
+        print(f"\n{'='*60}")
+        print(f"Processing Scenario {scenario_id}")
+        print(f"{'='*60}")
+
+        # Load metadata
+        metadata = self.load_metadata(scenario_file)
+        if metadata is None:
+            return False
+
+        try:
+            # Step 1: Launch Gazebo
+            if not self.launch_gazebo(scenario_file):
+                return False
+
+            # Step 2: Launch ros_gz_bridge
+            if not self.launch_bridge():
+                print(f"  WARNING: Bridge launch failed, recording may not work...")
+
+            # Step 3: Spawn robot
+            if not self.spawn_robot(metadata):
+                print(f"  WARNING: Robot spawn failed, continuing anyway...")
+
+            # Step 4: Record video
+            video_file = self.record_video(scenario_id)
+            if video_file is None:
+                return False
+
+            print(f"  ✓ Video saved: {video_file}")
+
+            # Step 5: Extract frames (optional)
+            if self.args.extract_frames:
+                self.extract_sample_frames(video_file, scenario_id, num_frames=self.args.num_frames)
+
+            print(f"\n✓ Scenario {scenario_id} completed successfully")
+            return True
+
+        except Exception as e:
+            print(f"\n✗ ERROR processing scenario {scenario_id}: {e}")
+            return False
+
+        finally:
+            # Cleanup
+            self.cleanup()
+            time.sleep(2)  # Wait before next scenario
+
+    def run(self):
+        """Run the complete pipeline"""
+        print(f"\n{'#'*60}")
+        print(f"# WRO Training Video Pipeline")
+        print(f"# Challenge: {self.challenge_type}")
+        print(f"# Output: {self.output_dir}")
+        print(f"{'#'*60}\n")
+
+        # Step 1: Generate scenarios
+        if not self.generate_scenarios():
+            print("\n✗ Pipeline failed at scenario generation")
+            return False
+
+        # Step 2: Get scenarios to process
+        print(f"\n{'='*60}")
+        print(f"STEP 2: Recording Videos")
+        print(f"{'='*60}\n")
+
+        scenario_files = self.get_scenario_files()
+
+        if len(scenario_files) == 0:
+            print("✗ No scenarios to process")
+            return False
+
+        print(f"Found {len(scenario_files)} scenarios to process")
+
+        # Step 3: Process each scenario
+        success_count = 0
+        failed_scenarios = []
+
+        for i, scenario_file in enumerate(scenario_files):
+            print(f"\n[{i+1}/{len(scenario_files)}]")
+
+            if self.process_scenario(scenario_file):
+                success_count += 1
+            else:
+                failed_scenarios.append(self.get_scenario_id(scenario_file))
+
+        # Summary
+        print(f"\n{'#'*60}")
+        print(f"# Pipeline Complete")
+        print(f"{'#'*60}")
+        print(f"Total scenarios: {len(scenario_files)}")
+        print(f"Successful: {success_count}")
+        print(f"Failed: {len(failed_scenarios)}")
+
+        if failed_scenarios:
+            print(f"Failed scenario IDs: {failed_scenarios}")
+
+        print(f"\nOutput directories:")
+        print(f"  Scenarios: {self.scenarios_dir}")
+        print(f"  Videos: {self.videos_dir}")
+        print(f"  Frames: {self.frames_dir}")
+
+        # Shutdown ROS2
+        if rclpy.ok():
+            rclpy.shutdown()
+
+        return len(failed_scenarios) == 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Complete pipeline: Generate scenarios and record training videos',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate and record 10 open challenge scenarios
+  python3 record_scenario_videos.py --challenge open --num-scenarios 10 --duration 30
+
+  # Generate and record obstacles with full randomization
+  python3 record_scenario_videos.py --challenge obstacles --num-scenarios 50 --duration 45 --randomize-all
+
+  # Only record existing scenarios (skip generation)
+  python3 record_scenario_videos.py --challenge open --skip-generation --duration 30
+
+  # Show Gazebo GUI while recording (slower but useful for debugging)
+  python3 record_scenario_videos.py --challenge open --num-scenarios 5 --show-gui
+        """
+    )
+
+    # Scenario generation options
+    parser.add_argument('--challenge', type=str, required=True,
+                       choices=['open', 'obstacles'],
+                       help='Challenge type: open or obstacles')
+    parser.add_argument('--num-scenarios', type=int, default=10,
+                       help='Number of scenarios to generate (default: 10)')
+    parser.add_argument('--output-dir', type=str, default='./training_data',
+                       help='Output directory for all data (default: ./training_data)')
+    parser.add_argument('--randomize-all', action='store_true',
+                       help='Enable full randomization (lighting, colors, physics)')
+    parser.add_argument('--skip-generation', action='store_true',
+                       help='Skip scenario generation, only record existing scenarios')
+
+    # Recording options
+    parser.add_argument('--duration', type=int, default=30,
+                       help='Recording duration per scenario in seconds (default: 30)')
+    parser.add_argument('--fps', type=int, default=30,
+                       help='Video frame rate (default: 30)')
+    parser.add_argument('--show-gui', action='store_true',
+                       help='Show Gazebo GUI (slower but useful for debugging)')
+
+    # Frame extraction options
+    parser.add_argument('--extract-frames', action='store_true',
+                       help='Extract sample frames from videos for dataset')
+    parser.add_argument('--num-frames', type=int, default=10,
+                       help='Number of frames to extract per video (default: 10)')
+
+    args = parser.parse_args()
+
+    # Check ROS2 availability
+    if not ROS2_AVAILABLE:
+        print("ERROR: ROS2 is required for this script")
+        print("Please install ROS2 Humble or Jazzy")
+        return 1
+
+    # Create and run pipeline
+    try:
+        pipeline = PipelineOrchestrator(args)
+        success = pipeline.run()
+
+        return 0 if success else 1
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user")
+        return 1
+    except Exception as e:
+        print(f"\n✗ Pipeline error: {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

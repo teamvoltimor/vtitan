@@ -1,0 +1,69 @@
+# Example Configuration for Video Recording Pipeline
+# You can use this as reference for creating batch processing scripts
+
+# Basic Configuration
+challenge: open  # or 'obstacles'
+num_scenarios: 50
+duration: 30  # seconds
+output_dir: ./training_data
+
+# Randomization
+randomize_all: true  # Full randomization (lighting, colors, physics)
+
+# Video Settings
+fps: 30
+show_gui: false  # Headless mode (faster)
+
+# Frame Extraction (optional)
+extract_frames: true
+num_frames: 10  # frames per video
+
+# Advanced Options
+# skip_generation: false  # Set to true to only record existing scenarios
+# scenarios_dir: /path/to/existing/scenarios  # If skip_generation is true
+
+# ---
+# Example Use Cases
+# ---
+
+# 1. Quick Test (1 scenario, 15 seconds)
+# python3 record_scenario_videos.py --challenge open --num-scenarios 1 --duration 15
+
+# 2. Small Dataset (10 scenarios, 30 seconds each)
+# python3 record_scenario_videos.py --challenge open --num-scenarios 10 --duration 30
+
+# 3. Medium Dataset (50 scenarios with frames)
+# python3 record_scenario_videos.py --challenge obstacles --num-scenarios 50 --duration 45 --extract-frames
+
+# 4. Large Dataset (500 scenarios, full randomization)
+# python3 record_scenario_videos.py --challenge open --num-scenarios 250 --duration 30 --randomize-all
+# python3 record_scenario_videos.py --challenge obstacles --num-scenarios 250 --duration 45 --randomize-all
+
+# 5. Record with GUI (for debugging)
+# python3 record_scenario_videos.py --challenge open --num-scenarios 5 --show-gui
+
+# 6. Record existing scenarios only
+# python3 record_scenario_videos.py --challenge open --skip-generation --duration 30
+
+# ---
+# Performance Estimates (i7, 16GB RAM, GTX 1660)
+# ---
+# 10 scenarios: ~10 minutes (headless)
+# 50 scenarios: ~50 minutes (headless)
+# 100 scenarios: ~1.7 hours (headless)
+# 500 scenarios: ~8 hours (headless)
+
+# Parallel processing (3 instances):
+# 500 scenarios: ~3 hours
+
+# ---
+# Disk Space Requirements
+# ---
+# Per video (30s @ 640x480): ~5-10 MB
+# 50 scenarios: ~250-500 MB
+# 100 scenarios: ~500 MB - 1 GB
+# 500 scenarios: ~2.5 - 5 GB
+
+# With frame extraction (10 frames per video):
+# Per scenario: ~1-2 MB additional
+# 100 scenarios: ~100-200 MB additional
