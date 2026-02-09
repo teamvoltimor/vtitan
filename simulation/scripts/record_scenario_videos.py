@@ -157,6 +157,7 @@ class PipelineOrchestrator:
         self.gazebo_process = None
         self.recorder_process = None
         self.bridge_process = None
+        self.driver_process = None
 
     def generate_scenarios(self):
         """Generate randomized scenarios"""
@@ -302,6 +303,37 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR launching bridge: {e}")
             return False
 
+    def launch_robot_driver(self, metadata):
+        """Launch robot driver to move the robot around the track"""
+        print(f"  Launching robot driver...")
+
+        try:
+            # Get direction from metadata
+            direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION].lower()
+
+            # Launch driver script
+            driver_script = Path(__file__).parent / 'simple_robot_driver.py'
+
+            self.driver_process = subprocess.Popen(
+                [
+                    'python3', str(driver_script),
+                    '--direction', direction,
+                    '--duration', str(self.args.duration)
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+
+            # Wait for driver to initialize
+            time.sleep(1)
+
+            print(f"  ✓ Robot driver launched ({direction} direction)")
+            return True
+
+        except Exception as e:
+            print(f"  ✗ ERROR launching robot driver: {e}")
+            return False
+
     def spawn_robot(self, metadata):
         """Spawn robot at starting position"""
         print(f"  Spawning robot at starting position...")
@@ -419,6 +451,17 @@ class PipelineOrchestrator:
 
     def cleanup(self):
         """Cleanup processes"""
+        # Stop robot driver
+        if self.driver_process:
+            try:
+                self.driver_process.terminate()
+                self.driver_process.wait(timeout=5)
+            except:
+                try:
+                    self.driver_process.kill()
+                except:
+                    pass
+
         # Stop bridge
         if self.bridge_process:
             try:
@@ -443,7 +486,7 @@ class PipelineOrchestrator:
 
         # Kill any lingering processes
         try:
-            subprocess.run(['killall', '-9', 'gz', 'parameter_bridge'], stderr=subprocess.DEVNULL)
+            subprocess.run(['killall', '-9', 'gz', 'parameter_bridge', 'python3'], stderr=subprocess.DEVNULL)
         except:
             pass
 
@@ -469,9 +512,9 @@ class PipelineOrchestrator:
             if not self.launch_bridge():
                 print(f"  WARNING: Bridge launch failed, recording may not work...")
 
-            # Step 3: Spawn robot
-            if not self.spawn_robot(metadata):
-                print(f"  WARNING: Robot spawn failed, continuing anyway...")
+            # Step 3: Launch robot driver (moves robot around track)
+            if not self.launch_robot_driver(metadata):
+                print(f"  WARNING: Robot driver failed, robot won't move...")
 
             # Step 4: Record video
             video_file = self.record_video(scenario_id)

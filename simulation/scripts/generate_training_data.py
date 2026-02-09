@@ -286,20 +286,79 @@ class ScenarioGenerator:
         return positions, colors
 
     def randomize_lighting(self):
-        """Generate randomized lighting parameters"""
-        intensity = random.uniform(*self.randomization[DictKeys.LIGHTING][DictKeys.INTENSITY_RANGE])
+        """Generate randomized lighting parameters with diverse scenarios
 
-        # Randomize direction slightly
-        direction = [
-            -0.5 + random.uniform(-0.3, 0.3),
-            -0.5 + random.uniform(-0.3, 0.3),
-            -1.0
-        ]
+        Creates realistic lighting conditions:
+        - Direct sunlight (bright, harsh shadows)
+        - Cloudy outdoor (diffuse, soft shadows)
+        - Indoor artificial (uniform, moderate brightness)
+        - Evening/dawn (warm tones, low angle)
+        - Mixed lighting (sun + indoor lights)
+        """
+        # Choose lighting scenario
+        scenarios = ['direct_sunlight', 'cloudy', 'indoor_bright', 'indoor_dim', 'evening', 'mixed']
+        scenario = random.choice(scenarios)
+
+        if scenario == 'direct_sunlight':
+            # Bright, harsh shadows, high contrast
+            sun_intensity = random.uniform(0.9, 1.0)
+            ambient_intensity = random.uniform(0.3, 0.4)
+            sun_direction = [
+                random.uniform(-0.7, -0.3),  # Varied angle
+                random.uniform(-0.7, -0.3),
+                -1.0
+            ]
+            cast_shadows = True
+
+        elif scenario == 'cloudy':
+            # Diffuse lighting, soft shadows
+            sun_intensity = random.uniform(0.6, 0.75)
+            ambient_intensity = random.uniform(0.5, 0.6)
+            sun_direction = [-0.5, -0.5, -1.0]  # Overhead
+            cast_shadows = True
+
+        elif scenario == 'indoor_bright':
+            # Bright artificial lighting, minimal shadows
+            sun_intensity = random.uniform(0.7, 0.85)
+            ambient_intensity = random.uniform(0.6, 0.7)
+            sun_direction = [0.0, 0.0, -1.0]  # Directly overhead
+            cast_shadows = False
+
+        elif scenario == 'indoor_dim':
+            # Dimmer indoor lighting
+            sun_intensity = random.uniform(0.5, 0.65)
+            ambient_intensity = random.uniform(0.4, 0.5)
+            sun_direction = [0.0, 0.0, -1.0]
+            cast_shadows = False
+
+        elif scenario == 'evening':
+            # Warm, low-angle lighting
+            sun_intensity = random.uniform(0.6, 0.8)
+            ambient_intensity = random.uniform(0.3, 0.4)
+            sun_direction = [
+                random.uniform(-0.9, -0.7),  # Low angle
+                random.uniform(-0.5, 0.5),
+                -0.3  # More horizontal
+            ]
+            cast_shadows = True
+
+        else:  # mixed
+            # Combination of sun and indoor lights
+            sun_intensity = random.uniform(0.7, 0.9)
+            ambient_intensity = random.uniform(0.5, 0.65)
+            sun_direction = [
+                random.uniform(-0.6, -0.4),
+                random.uniform(-0.6, -0.4),
+                -1.0
+            ]
+            cast_shadows = True
 
         return {
-            DictKeys.INTENSITY: intensity,
-            DictKeys.DIRECTION: direction,
-            DictKeys.AMBIENT_INTENSITY: intensity * 0.5
+            DictKeys.INTENSITY: sun_intensity,
+            DictKeys.DIRECTION: sun_direction,
+            DictKeys.AMBIENT_INTENSITY: ambient_intensity,
+            'cast_shadows': cast_shadows,
+            'scenario': scenario
         }
 
     def randomize_corridor_widths(self):
@@ -406,14 +465,14 @@ class ScenarioGenerator:
         world = root.find('world')
 
         # Add Sensors system plugin (required for cameras in Gazebo Harmonic)
-        # Check if plugin already exists
-        existing_plugin = world.find(".//plugin[@name='gz::sim::systems::Sensors']")
-        if existing_plugin is None:
+        # Note: DiffDrive plugin should NOT be added globally - it's attached to the robot model
+        existing_sensors = world.find(".//plugin[@name='gz::sim::systems::Sensors']")
+        if existing_sensors is None:
             sensors_plugin = ET.Element('plugin',
                                        filename='gz-sim-sensors-system',
                                        name='gz::sim::systems::Sensors')
             ET.SubElement(sensors_plugin, 'render_engine').text = 'ogre2'
-            world.insert(0, sensors_plugin)  # Insert at beginning of world
+            world.insert(0, sensors_plugin)
 
         # Randomize corridor widths for OPEN challenge (interior walls)
         # OBSTACLES challenge has fixed corridor width
@@ -568,6 +627,11 @@ class ScenarioGenerator:
 
                 direction = sun.find('direction')
                 direction.text = f"{lighting[DictKeys.DIRECTION][0]} {lighting[DictKeys.DIRECTION][1]} {lighting[DictKeys.DIRECTION][2]}"
+
+                # Update shadow casting based on scenario
+                cast_shadows = sun.find('cast_shadows')
+                if cast_shadows is not None:
+                    cast_shadows.text = 'true' if lighting.get('cast_shadows', True) else 'false'
 
             # Update ambient light (clamp to valid range)
             ambient = world.find(f".//light[@name='{ModelNames.AMBIENT_LIGHT}']")
@@ -929,6 +993,114 @@ class ScenarioGenerator:
         ET.SubElement(clip_elem, 'far').text = '10.0'
 
         world.append(camera_model)
+
+        # Add simple robot model for movement (differential drive)
+        # Robot positioned at same location as camera
+        robot_x = zone_x
+        robot_y = zone_y
+        robot_z = 0.035  # Half the wheel radius (wheels are 7cm diameter)
+
+        robot_model = ET.Element('model', name='wro_robot')
+        ET.SubElement(robot_model, 'pose').text = f'{robot_x} {robot_y} {robot_z} 0 0 {start_yaw}'
+
+        # Base link (chassis)
+        base_link = ET.SubElement(robot_model, 'link', name='base_link')
+
+        # Visual (blue box - robot body)
+        visual_robot = ET.SubElement(base_link, 'visual', name='visual')
+        geom_robot = ET.SubElement(visual_robot, 'geometry')
+        box_robot = ET.SubElement(geom_robot, 'box')
+        ET.SubElement(box_robot, 'size').text = '0.20 0.15 0.08'  # 20x15x8cm robot
+
+        material_robot = ET.SubElement(visual_robot, 'material')
+        ET.SubElement(material_robot, 'ambient').text = '0 0 0.8 1'  # Blue
+        ET.SubElement(material_robot, 'diffuse').text = '0 0 0.8 1'
+
+        # Collision
+        collision_robot = ET.SubElement(base_link, 'collision', name='collision')
+        geom_collision = ET.SubElement(collision_robot, 'geometry')
+        box_collision = ET.SubElement(geom_collision, 'box')
+        ET.SubElement(box_collision, 'size').text = '0.20 0.15 0.08'
+
+        # Inertial
+        inertial = ET.SubElement(base_link, 'inertial')
+        ET.SubElement(inertial, 'mass').text = '1.0'
+        inertia = ET.SubElement(inertial, 'inertia')
+        ET.SubElement(inertia, 'ixx').text = '0.00267'
+        ET.SubElement(inertia, 'iyy').text = '0.00417'
+        ET.SubElement(inertia, 'izz').text = '0.00533'
+
+        # Add differential drive plugin
+        plugin = ET.SubElement(robot_model, 'plugin',
+                              filename='gz-sim-diff-drive-system',
+                              name='gz::sim::systems::DiffDrive')
+        ET.SubElement(plugin, 'left_joint').text = 'left_wheel_joint'
+        ET.SubElement(plugin, 'right_joint').text = 'right_wheel_joint'
+        ET.SubElement(plugin, 'wheel_separation').text = '0.15'
+        ET.SubElement(plugin, 'wheel_radius').text = '0.035'
+        ET.SubElement(plugin, 'topic').text = '/wro_robot/cmd_vel'
+
+        # Left wheel
+        left_wheel_link = ET.SubElement(robot_model, 'link', name='left_wheel')
+        ET.SubElement(left_wheel_link, 'pose', relative_to='base_link').text = '0 0.0875 0 -1.5708 0 0'
+
+        visual_lw = ET.SubElement(left_wheel_link, 'visual', name='visual')
+        geom_lw = ET.SubElement(visual_lw, 'geometry')
+        cylinder_lw = ET.SubElement(geom_lw, 'cylinder')
+        ET.SubElement(cylinder_lw, 'radius').text = '0.035'
+        ET.SubElement(cylinder_lw, 'length').text = '0.025'
+
+        material_lw = ET.SubElement(visual_lw, 'material')
+        ET.SubElement(material_lw, 'ambient').text = '0.1 0.1 0.1 1'
+        ET.SubElement(material_lw, 'diffuse').text = '0.1 0.1 0.1 1'
+
+        collision_lw = ET.SubElement(left_wheel_link, 'collision', name='collision')
+        geom_lw_col = ET.SubElement(collision_lw, 'geometry')
+        cylinder_lw_col = ET.SubElement(geom_lw_col, 'cylinder')
+        ET.SubElement(cylinder_lw_col, 'radius').text = '0.035'
+        ET.SubElement(cylinder_lw_col, 'length').text = '0.025'
+
+        inertial_lw = ET.SubElement(left_wheel_link, 'inertial')
+        ET.SubElement(inertial_lw, 'mass').text = '0.1'
+
+        # Right wheel
+        right_wheel_link = ET.SubElement(robot_model, 'link', name='right_wheel')
+        ET.SubElement(right_wheel_link, 'pose', relative_to='base_link').text = '0 -0.0875 0 -1.5708 0 0'
+
+        visual_rw = ET.SubElement(right_wheel_link, 'visual', name='visual')
+        geom_rw = ET.SubElement(visual_rw, 'geometry')
+        cylinder_rw = ET.SubElement(geom_rw, 'cylinder')
+        ET.SubElement(cylinder_rw, 'radius').text = '0.035'
+        ET.SubElement(cylinder_rw, 'length').text = '0.025'
+
+        material_rw = ET.SubElement(visual_rw, 'material')
+        ET.SubElement(material_rw, 'ambient').text = '0.1 0.1 0.1 1'
+        ET.SubElement(material_rw, 'diffuse').text = '0.1 0.1 0.1 1'
+
+        collision_rw = ET.SubElement(right_wheel_link, 'collision', name='collision')
+        geom_rw_col = ET.SubElement(collision_rw, 'geometry')
+        cylinder_rw_col = ET.SubElement(geom_rw_col, 'cylinder')
+        ET.SubElement(cylinder_rw_col, 'radius').text = '0.035'
+        ET.SubElement(cylinder_rw_col, 'length').text = '0.025'
+
+        inertial_rw = ET.SubElement(right_wheel_link, 'inertial')
+        ET.SubElement(inertial_rw, 'mass').text = '0.1'
+
+        # Left wheel joint
+        left_joint = ET.SubElement(robot_model, 'joint', name='left_wheel_joint', type='revolute')
+        ET.SubElement(left_joint, 'parent').text = 'base_link'
+        ET.SubElement(left_joint, 'child').text = 'left_wheel'
+        axis_l = ET.SubElement(left_joint, 'axis')
+        ET.SubElement(axis_l, 'xyz').text = '0 0 1'
+
+        # Right wheel joint
+        right_joint = ET.SubElement(robot_model, 'joint', name='right_wheel_joint', type='revolute')
+        ET.SubElement(right_joint, 'parent').text = 'base_link'
+        ET.SubElement(right_joint, 'child').text = 'right_wheel'
+        axis_r = ET.SubElement(right_joint, 'axis')
+        ET.SubElement(axis_r, 'xyz').text = '0 0 1'
+
+        world.append(robot_model)
 
         # Save world file
         world_file = self.output_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.SDF}'
