@@ -434,14 +434,13 @@ class ScenarioGenerator:
         starting_position = random.choice(start_positions)
 
         # Starting orientation based on direction and section
-        # Yaw values to make robot face ALONG corridor (not perpendicular)
-        # Robot pointing perpendicular means we need to swap axes
-        # SWAPPED: Use North/South values for East/West corridors and vice versa
+        # Yaw values to make robot face ALONG corridor
+        # Corrected: Swapped clockwise/counterclockwise for South and North
         yaw_map = {
-            Section.SOUTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159},        # Drive East(0°) or West(180°) - SWAPPED
-            Section.NORTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},        # Drive West(180°) or East(0°) - SWAPPED
-            Section.EAST: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},      # Drive North(-90°) or South(90°) - SWAPPED
-            Section.WEST: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708}       # Drive South(90°) or North(-90°) - SWAPPED
+            Section.SOUTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},        # Clockwise=West, Counter=East (FIXED)
+            Section.NORTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159},        # Clockwise=East, Counter=West (FIXED)
+            Section.EAST: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},      # Clockwise=North, Counter=South
+            Section.WEST: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708}       # Clockwise=South, Counter=North
         }
 
         print(f'[DEBUG] Robot starting in {starting_section.capitalized} corridor, {direction} direction, yaw={yaw_map[starting_section][direction]:.2f} rad')
@@ -798,14 +797,15 @@ class ScenarioGenerator:
 
         # Define width section centers based on corridor divisions
         # For 1000mm corridor: outer=0.2, middle=0.5, inner=0.8 (from outer edge)
-        # For 600mm corridor: only outer=0.2, middle=0.5 available (inner would exceed corridor)
+        # For 600mm corridor: outer=0.2, inner=0.5 (zone edge at inner wall)
         width_sections = []
         if start_corridor_width >= 1.0:
             # Wide corridor: all 3 width sections available
             width_sections = [0.2, 0.5, 0.8]  # Outer, middle, inner
         else:
-            # Narrow corridor: only outer and middle sections (inner would collide with inner wall)
-            width_sections = [0.2, 0.4]  # Outer, middle (adjusted for 600mm)
+            # Narrow corridor: outer and inner (right against inner wall)
+            # Zone width is 0.2m, corridor is 0.6m, so inner position at 0.5m puts zone edge at 0.6m
+            width_sections = [0.2, 0.5]  # Outer, inner (zone edge touches inner wall)
 
         # Randomly pick one of the width sections
         width_offset = random.choice(width_sections)
