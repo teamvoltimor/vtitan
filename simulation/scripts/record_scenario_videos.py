@@ -64,9 +64,10 @@ class VideoRecorderNode(Node):
         self.start_time = time.time()
 
         # Subscribe to camera (published by Gazebo camera sensor)
+        # Using robot POV camera for training videos
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw',
+            '/robot/camera',  # Robot-mounted forward-looking camera
             self.image_callback,
             10
         )

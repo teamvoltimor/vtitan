@@ -39,9 +39,9 @@ class TrackNavigator(Node):
         self.current_pos = None
         self.current_yaw = None
 
-        # Control parameters
-        self.max_linear_speed = 0.4  # m/s
-        self.max_angular_speed = 1.0  # rad/s
+        # Control parameters (reduced to prevent flipping)
+        self.max_linear_speed = 0.25  # m/s (reduced from 0.4)
+        self.max_angular_speed = 0.6  # rad/s (reduced from 1.0)
         self.waypoint_threshold = 0.15  # meters - when to switch to next waypoint
 
         # Debug logging
