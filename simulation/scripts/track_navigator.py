@@ -39,10 +39,10 @@ class TrackNavigator(Node):
         self.current_pos = None
         self.current_yaw = None
 
-        # Control parameters (reduced to prevent flipping)
-        self.max_linear_speed = 0.25  # m/s (reduced from 0.4)
-        self.max_angular_speed = 0.6  # rad/s (reduced from 1.0)
-        self.waypoint_threshold = 0.15  # meters - when to switch to next waypoint
+        # Control parameters (tuned for accurate tracking)
+        self.max_linear_speed = 0.20  # m/s (reduced for better control)
+        self.max_angular_speed = 0.5  # rad/s (reduced for smoother turns)
+        self.waypoint_threshold = 0.12  # meters - tighter threshold for accuracy
 
         # Debug logging
         self.log_counter = 0
@@ -91,63 +91,89 @@ class TrackNavigator(Node):
         east_center_x = track_max - east_width / 2
         west_center_x = west_width / 2
 
-        # Define waypoints for clockwise direction
-        # Start from south, go east, north, west, back to south
-        waypoints_clockwise = [
-            # South corridor (3 points along X)
-            (track_center - 0.7, south_center_y),
-            (track_center, south_center_y),
-            (track_center + 0.7, south_center_y),
-
-            # Southeast corner transition
-            (track_max - 0.3, south_center_y),
-
-            # East corridor (3 points along Y)
-            (east_center_x, track_center - 0.7),
-            (east_center_x, track_center),
-            (east_center_x, track_center + 0.7),
-
-            # Northeast corner transition
-            (east_center_x, track_max - 0.3),
-
-            # North corridor (3 points along X)
-            (track_center + 0.7, north_center_y),
+        # Define corridor waypoint groups
+        # Clockwise goes: North->East->South->West
+        # North corridor: Enter from East, exit to West (X decreases)
+        north_corridor_cw = [
+            (track_max - 0.3, north_center_y),  # East end (enter here)
+            (track_center + 0.5, north_center_y),
             (track_center, north_center_y),
-            (track_center - 0.7, north_center_y),
-
-            # Northwest corner transition
-            (track_min + 0.3, north_center_y),
-
-            # West corridor (3 points along Y)
-            (west_center_x, track_center + 0.7),
-            (west_center_x, track_center),
-            (west_center_x, track_center - 0.7),
-
-            # Southwest corner transition
-            (west_center_x, track_min + 0.3),
+            (track_center - 0.5, north_center_y),
+            (track_min + 0.3, north_center_y),  # West end (exit here)
         ]
 
-        # For counterclockwise, reverse the waypoints
-        if direction == 'counterclockwise':
-            waypoints = list(reversed(waypoints_clockwise))
-        else:
-            waypoints = waypoints_clockwise
+        # East corridor: Enter from South, exit to North (Y increases)
+        east_corridor_cw = [
+            (east_center_x, track_min + 0.3),  # South end (enter here)
+            (east_center_x, track_center - 0.5),
+            (east_center_x, track_center),
+            (east_center_x, track_center + 0.5),
+            (east_center_x, track_max - 0.3),  # North end (exit here)
+        ]
 
-        # Find starting waypoint closest to robot's starting position
+        # South corridor: Enter from West, exit to East (X increases)
+        south_corridor_cw = [
+            (track_min + 0.3, south_center_y),  # West end (enter here)
+            (track_center - 0.5, south_center_y),
+            (track_center, south_center_y),
+            (track_center + 0.5, south_center_y),
+            (track_max - 0.3, south_center_y),  # East end (exit here)
+        ]
+
+        # West corridor: Enter from North, exit to South (Y decreases)
+        west_corridor_cw = [
+            (west_center_x, track_max - 0.3),  # North end (enter here)
+            (west_center_x, track_center + 0.5),
+            (west_center_x, track_center),
+            (west_center_x, track_center - 0.5),
+            (west_center_x, track_min + 0.3),  # South end (exit here)
+        ]
+
+        # Get starting section
+        start_section = self.metadata['starting_conditions']['section']
+
+        # Get starting position
         start_pos = self.metadata['starting_conditions']['position']
         start_x, start_y = start_pos['x'], start_pos['y']
 
-        # Find closest waypoint to start position
+        # Order corridors based on starting section and direction
+        if direction == 'clockwise':
+            if start_section == 'north':
+                all_corridors = [north_corridor_cw, east_corridor_cw, south_corridor_cw, west_corridor_cw]
+            elif start_section == 'east':
+                all_corridors = [east_corridor_cw, south_corridor_cw, west_corridor_cw, north_corridor_cw]
+            elif start_section == 'south':
+                all_corridors = [south_corridor_cw, west_corridor_cw, north_corridor_cw, east_corridor_cw]
+            else:  # west
+                all_corridors = [west_corridor_cw, north_corridor_cw, east_corridor_cw, south_corridor_cw]
+        else:  # counterclockwise: North->West->South->East
+            if start_section == 'north':
+                all_corridors = [list(reversed(north_corridor_cw)), list(reversed(west_corridor_cw)),
+                               list(reversed(south_corridor_cw)), list(reversed(east_corridor_cw))]
+            elif start_section == 'west':
+                all_corridors = [list(reversed(west_corridor_cw)), list(reversed(south_corridor_cw)),
+                               list(reversed(east_corridor_cw)), list(reversed(north_corridor_cw))]
+            elif start_section == 'south':
+                all_corridors = [list(reversed(south_corridor_cw)), list(reversed(east_corridor_cw)),
+                               list(reversed(north_corridor_cw)), list(reversed(west_corridor_cw))]
+            else:  # east
+                all_corridors = [list(reversed(east_corridor_cw)), list(reversed(north_corridor_cw)),
+                               list(reversed(west_corridor_cw)), list(reversed(south_corridor_cw))]
+
+        # Find closest waypoint in the FIRST corridor (starting corridor)
+        first_corridor = all_corridors[0]
         min_dist = float('inf')
         start_idx = 0
-        for i, (wx, wy) in enumerate(waypoints):
+        for i, (wx, wy) in enumerate(first_corridor):
             dist = math.sqrt((wx - start_x)**2 + (wy - start_y)**2)
             if dist < min_dist:
                 min_dist = dist
                 start_idx = i
 
-        # Reorder waypoints to start from closest one
-        waypoints = waypoints[start_idx:] + waypoints[:start_idx]
+        # Build final waypoint list: start from closest point in first corridor, then rest of corridors
+        waypoints = first_corridor[start_idx:] + first_corridor[:start_idx]  # Reorder first corridor
+        for corridor in all_corridors[1:]:  # Add remaining corridors in order
+            waypoints.extend(corridor)
 
         # Repeat waypoints for number of laps
         waypoints = waypoints * self.num_laps
@@ -230,7 +256,7 @@ class TrackNavigator(Node):
             vel_msg.linear.x *= 0.7
 
         # Angular velocity (proportional to angle error)
-        kp_angular = 2.0  # Proportional gain
+        kp_angular = 1.5  # Proportional gain (reduced for smoother control)
         vel_msg.angular.z = np.clip(kp_angular * angle_error,
                                     -self.max_angular_speed,
                                     self.max_angular_speed)

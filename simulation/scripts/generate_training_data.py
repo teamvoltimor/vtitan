@@ -1034,9 +1034,9 @@ class ScenarioGenerator:
         ET.SubElement(plugin, 'frame_id').text = 'odom'
         ET.SubElement(plugin, 'child_frame_id').text = 'base_link'
 
-        # Left wheel (simplified as sphere - no rotation issues)
+        # Left wheel (rear, powered) - simplified as sphere
         left_wheel_link = ET.SubElement(robot_model, 'link', name='left_wheel')
-        ET.SubElement(left_wheel_link, 'pose', relative_to='base_link').text = '0 0.0875 0 0 0 0'
+        ET.SubElement(left_wheel_link, 'pose', relative_to='base_link').text = '-0.05 0.0875 0 0 0 0'  # Moved back 5cm
 
         visual_lw = ET.SubElement(left_wheel_link, 'visual', name='visual')
         geom_lw = ET.SubElement(visual_lw, 'geometry')
@@ -1052,12 +1052,19 @@ class ScenarioGenerator:
         sphere_lw_col = ET.SubElement(geom_lw_col, 'sphere')
         ET.SubElement(sphere_lw_col, 'radius').text = '0.035'
 
-        # Add friction to wheel surface
+        # Add friction and contact damping to wheel surface
         surface_lw = ET.SubElement(collision_lw, 'surface')
         friction_lw = ET.SubElement(surface_lw, 'friction')
         ode_lw = ET.SubElement(friction_lw, 'ode')
         ET.SubElement(ode_lw, 'mu').text = '1.0'
         ET.SubElement(ode_lw, 'mu2').text = '1.0'
+        # Add contact parameters to reduce bouncing
+        contact_lw = ET.SubElement(surface_lw, 'contact')
+        ode_contact_lw = ET.SubElement(contact_lw, 'ode')
+        ET.SubElement(ode_contact_lw, 'kp').text = '1e7'  # Increased stiffness (stiffer contact)
+        ET.SubElement(ode_contact_lw, 'kd').text = '500'  # Increased damping (less bouncing)
+        ET.SubElement(ode_contact_lw, 'max_vel').text = '0.01'  # Limit contact penetration velocity
+        ET.SubElement(ode_contact_lw, 'min_depth').text = '0.001'  # Minimum contact depth
 
         inertial_lw = ET.SubElement(left_wheel_link, 'inertial')
         ET.SubElement(inertial_lw, 'mass').text = '0.5'
@@ -1068,9 +1075,9 @@ class ScenarioGenerator:
         ET.SubElement(inertia_lw, 'iyy').text = '0.000245'
         ET.SubElement(inertia_lw, 'izz').text = '0.000245'
 
-        # Right wheel (simplified as sphere - no rotation issues)
+        # Right wheel (rear, powered) - simplified as sphere
         right_wheel_link = ET.SubElement(robot_model, 'link', name='right_wheel')
-        ET.SubElement(right_wheel_link, 'pose', relative_to='base_link').text = '0 -0.0875 0 0 0 0'
+        ET.SubElement(right_wheel_link, 'pose', relative_to='base_link').text = '-0.05 -0.0875 0 0 0 0'  # Moved back 5cm
 
         visual_rw = ET.SubElement(right_wheel_link, 'visual', name='visual')
         geom_rw = ET.SubElement(visual_rw, 'geometry')
@@ -1086,12 +1093,19 @@ class ScenarioGenerator:
         sphere_rw_col = ET.SubElement(geom_rw_col, 'sphere')
         ET.SubElement(sphere_rw_col, 'radius').text = '0.035'
 
-        # Add friction to wheel surface
+        # Add friction and contact damping to wheel surface
         surface_rw = ET.SubElement(collision_rw, 'surface')
         friction_rw = ET.SubElement(surface_rw, 'friction')
         ode_rw = ET.SubElement(friction_rw, 'ode')
         ET.SubElement(ode_rw, 'mu').text = '1.0'
         ET.SubElement(ode_rw, 'mu2').text = '1.0'
+        # Add contact parameters to reduce bouncing
+        contact_rw = ET.SubElement(surface_rw, 'contact')
+        ode_contact_rw = ET.SubElement(contact_rw, 'ode')
+        ET.SubElement(ode_contact_rw, 'kp').text = '1e7'  # Increased stiffness (stiffer contact)
+        ET.SubElement(ode_contact_rw, 'kd').text = '500'  # Increased damping (less bouncing)
+        ET.SubElement(ode_contact_rw, 'max_vel').text = '0.01'  # Limit contact penetration velocity
+        ET.SubElement(ode_contact_rw, 'min_depth').text = '0.001'  # Minimum contact depth
 
         inertial_rw = ET.SubElement(right_wheel_link, 'inertial')
         ET.SubElement(inertial_rw, 'mass').text = '0.5'
@@ -1114,6 +1128,7 @@ class ScenarioGenerator:
         ET.SubElement(limit_l, 'upper').text = '1e16'
         dynamics_l = ET.SubElement(axis_l, 'dynamics')
         ET.SubElement(dynamics_l, 'friction').text = '0.1'
+        ET.SubElement(dynamics_l, 'damping').text = '1.0'  # Add damping to reduce bouncing
 
         # Right wheel joint (revolute with large limits for unlimited rotation)
         right_joint = ET.SubElement(robot_model, 'joint', name='right_wheel_joint', type='revolute')
@@ -1128,6 +1143,79 @@ class ScenarioGenerator:
         ET.SubElement(limit_r, 'upper').text = '1e16'
         dynamics_r = ET.SubElement(axis_r, 'dynamics')
         ET.SubElement(dynamics_r, 'friction').text = '0.1'
+        ET.SubElement(dynamics_r, 'damping').text = '1.0'  # Add damping to reduce bouncing
+
+        # Front caster wheels (passive, for stability)
+        # Left front caster
+        left_caster = ET.SubElement(robot_model, 'link', name='left_caster')
+        ET.SubElement(left_caster, 'pose', relative_to='base_link').text = '0.07 0.06 -0.015 0 0 0'  # Front, slightly narrower
+
+        visual_lc = ET.SubElement(left_caster, 'visual', name='visual')
+        geom_lc = ET.SubElement(visual_lc, 'geometry')
+        sphere_lc = ET.SubElement(geom_lc, 'sphere')
+        ET.SubElement(sphere_lc, 'radius').text = '0.02'  # Smaller caster
+
+        material_lc = ET.SubElement(visual_lc, 'material')
+        ET.SubElement(material_lc, 'ambient').text = '0.2 0.2 0.2 1'
+        ET.SubElement(material_lc, 'diffuse').text = '0.2 0.2 0.2 1'
+
+        collision_lc = ET.SubElement(left_caster, 'collision', name='collision')
+        geom_lc_col = ET.SubElement(collision_lc, 'geometry')
+        sphere_lc_col = ET.SubElement(geom_lc_col, 'sphere')
+        ET.SubElement(sphere_lc_col, 'radius').text = '0.02'
+
+        surface_lc = ET.SubElement(collision_lc, 'surface')
+        friction_lc = ET.SubElement(surface_lc, 'friction')
+        ode_lc = ET.SubElement(friction_lc, 'ode')
+        ET.SubElement(ode_lc, 'mu').text = '0.3'  # Low friction for free rolling
+        ET.SubElement(ode_lc, 'mu2').text = '0.3'
+
+        inertial_lc = ET.SubElement(left_caster, 'inertial')
+        ET.SubElement(inertial_lc, 'mass').text = '0.1'
+        inertia_lc = ET.SubElement(inertial_lc, 'inertia')
+        ET.SubElement(inertia_lc, 'ixx').text = '0.00004'
+        ET.SubElement(inertia_lc, 'iyy').text = '0.00004'
+        ET.SubElement(inertia_lc, 'izz').text = '0.00004'
+
+        # Right front caster
+        right_caster = ET.SubElement(robot_model, 'link', name='right_caster')
+        ET.SubElement(right_caster, 'pose', relative_to='base_link').text = '0.07 -0.06 -0.015 0 0 0'  # Front, slightly narrower
+
+        visual_rc = ET.SubElement(right_caster, 'visual', name='visual')
+        geom_rc = ET.SubElement(visual_rc, 'geometry')
+        sphere_rc = ET.SubElement(geom_rc, 'sphere')
+        ET.SubElement(sphere_rc, 'radius').text = '0.02'
+
+        material_rc = ET.SubElement(visual_rc, 'material')
+        ET.SubElement(material_rc, 'ambient').text = '0.2 0.2 0.2 1'
+        ET.SubElement(material_rc, 'diffuse').text = '0.2 0.2 0.2 1'
+
+        collision_rc = ET.SubElement(right_caster, 'collision', name='collision')
+        geom_rc_col = ET.SubElement(collision_rc, 'geometry')
+        sphere_rc_col = ET.SubElement(geom_rc_col, 'sphere')
+        ET.SubElement(sphere_rc_col, 'radius').text = '0.02'
+
+        surface_rc = ET.SubElement(collision_rc, 'surface')
+        friction_rc = ET.SubElement(surface_rc, 'friction')
+        ode_rc = ET.SubElement(friction_rc, 'ode')
+        ET.SubElement(ode_rc, 'mu').text = '0.3'
+        ET.SubElement(ode_rc, 'mu2').text = '0.3'
+
+        inertial_rc = ET.SubElement(right_caster, 'inertial')
+        ET.SubElement(inertial_rc, 'mass').text = '0.1'
+        inertia_rc = ET.SubElement(inertial_rc, 'inertia')
+        ET.SubElement(inertia_rc, 'ixx').text = '0.00004'
+        ET.SubElement(inertia_rc, 'iyy').text = '0.00004'
+        ET.SubElement(inertia_rc, 'izz').text = '0.00004'
+
+        # Caster joints (fixed to base)
+        left_caster_joint = ET.SubElement(robot_model, 'joint', name='left_caster_joint', type='fixed')
+        ET.SubElement(left_caster_joint, 'parent').text = 'base_link'
+        ET.SubElement(left_caster_joint, 'child').text = 'left_caster'
+
+        right_caster_joint = ET.SubElement(robot_model, 'joint', name='right_caster_joint', type='fixed')
+        ET.SubElement(right_caster_joint, 'parent').text = 'base_link'
+        ET.SubElement(right_caster_joint, 'child').text = 'right_caster'
 
         # Camera on robot (now that robot is oriented correctly, camera just looks forward)
         camera_link = ET.SubElement(robot_model, 'link', name='camera_link')
@@ -1155,6 +1243,33 @@ class ScenarioGenerator:
         camera_joint = ET.SubElement(robot_model, 'joint', name='camera_joint', type='fixed')
         ET.SubElement(camera_joint, 'parent').text = 'base_link'
         ET.SubElement(camera_joint, 'child').text = 'camera_link'
+
+        # Add LIDAR sensor for wall detection
+        lidar_link = ET.SubElement(robot_model, 'link', name='lidar_link')
+        ET.SubElement(lidar_link, 'pose', relative_to='base_link').text = '0 0 0.03 0 0 0'  # 60mm from ground (30mm above base_link at 35mm)
+
+        lidar_sensor = ET.SubElement(lidar_link, 'sensor', name='lidar', type='gpu_lidar')
+        ET.SubElement(lidar_sensor, 'update_rate').text = '10'
+        ET.SubElement(lidar_sensor, 'visualize').text = 'true'
+        ET.SubElement(lidar_sensor, 'topic').text = 'lidar'
+        ET.SubElement(lidar_sensor, 'always_on').text = 'true'
+
+        lidar_elem = ET.SubElement(lidar_sensor, 'lidar')
+        scan_elem = ET.SubElement(lidar_elem, 'scan')
+        horizontal = ET.SubElement(scan_elem, 'horizontal')
+        ET.SubElement(horizontal, 'samples').text = '360'  # 360 rays (1 degree resolution)
+        ET.SubElement(horizontal, 'resolution').text = '1.0'
+        ET.SubElement(horizontal, 'min_angle').text = '0'
+        ET.SubElement(horizontal, 'max_angle').text = '6.28319'  # 2*pi (full circle)
+
+        range_elem = ET.SubElement(lidar_elem, 'range')
+        ET.SubElement(range_elem, 'min').text = '0.05'  # 5cm minimum
+        ET.SubElement(range_elem, 'max').text = '3.0'  # 3m maximum (track size)
+        ET.SubElement(range_elem, 'resolution').text = '0.01'  # 1cm resolution
+
+        lidar_joint = ET.SubElement(robot_model, 'joint', name='lidar_joint', type='fixed')
+        ET.SubElement(lidar_joint, 'parent').text = 'base_link'
+        ET.SubElement(lidar_joint, 'child').text = 'lidar_link'
 
         world.append(robot_model)
 
