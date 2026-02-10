@@ -15,12 +15,14 @@ Six realistic lighting conditions for diverse training data:
 | **Evening** | Warm tones, low-angle light | Dawn/dusk conditions |
 | **Mixed** | Sun + indoor lights | Semi-outdoor venues |
 
-### 2. **Autonomous Robot Movement** 🚗
+### 2. **Autonomous Robot Navigation** 🚗🏁
 
-- Robot now **drives around the track** autonomously
-- Simple forward + turn behavior
+- Robot now **completes the full challenge** (3 laps)
+- **Waypoint-based navigation** system
+- Adapts to **corridor widths** from metadata
 - Respects **clockwise/counterclockwise** direction
-- Camera captures **realistic motion** from robot POV
+- **Proportional control** for smooth waypoint following
+- Camera captures **realistic competition runs** from robot POV
 
 ---
 
@@ -54,7 +56,7 @@ source /opt/ros/humble/setup.bash
 python3 record_scenario_videos.py \
     --challenge open \
     --num-scenarios 10 \
-    --duration 30 \
+    --duration 120 \
     --randomize-all
 ```
 
@@ -64,9 +66,9 @@ python3 record_scenario_videos.py \
 
 1. **Generates scenario** with random lighting scenario
 2. **Launches Gazebo** with the track
-3. **Launches robot driver** - robot starts moving
-4. **Records 30 seconds** of robot driving around track
-5. **Saves 720p HD video** with motion and varied lighting
+3. **Launches track navigator** - robot completes 3 laps
+4. **Records 120 seconds** (2 minutes) of robot completing the challenge
+5. **Saves 720p HD video** with full competition run and varied lighting
 
 ---
 
@@ -128,21 +130,24 @@ Angle: Varied (sun + artificial)
 
 ---
 
-## 🤖 Robot Movement Details
+## 🤖 Robot Navigation Details
 
-### Simple Autonomous Driver
+### Waypoint-Based Navigation System
 
-The robot uses a simple state machine:
+The robot uses intelligent waypoint following to complete 3 laps:
 
 ```
-State: FORWARD (3 seconds)
-  → Drive straight at 0.3 m/s
+1. Load scenario metadata (corridor widths, starting position, direction)
+2. Calculate 16 waypoints around track (adapts to corridor widths)
+3. Navigate to each waypoint using proportional control
+4. Complete 3 full laps (48 waypoints total)
+5. Stop at finish
 
-State: TURNING (1.5 seconds)
-  → Turn (right for clockwise, left for counterclockwise)
-  → Slower speed (0.15 m/s)
-
-Repeat...
+Navigation Features:
+  → Speed: 0.4 m/s max (slows in turns and near waypoints)
+  → Steering: Proportional control (smooth angle correction)
+  → Waypoint threshold: 0.15m (when to advance to next waypoint)
+  → Adapts to variable corridor widths (600mm or 1000mm)
 ```
 
 ### Robot Specifications
@@ -184,7 +189,7 @@ Repeat...
 python3 record_scenario_videos.py \
     --challenge obstacles \
     --num-scenarios 100 \
-    --duration 45 \
+    --duration 120 \
     --randomize-all \
     --extract-frames
 ```
@@ -199,9 +204,9 @@ This creates:
 
 ### Output Size Estimate
 
-- **Per video** (30s, 720p, moving robot): ~8-12 MB
-- **100 videos**: ~1 GB
-- **With frames** (20 frames/video): ~2 GB total
+- **Per video** (120s / 2 minutes, 720p, 3 laps): ~30-40 MB
+- **100 videos**: ~3-4 GB
+- **With frames** (20 frames/video): ~4-5 GB total
 
 ---
 
@@ -209,22 +214,27 @@ This creates:
 
 ### Adjust Robot Speed
 
-Edit `simple_robot_driver.py`:
+Edit `track_navigator.py`:
 
 ```python
-self.forward_speed = 0.5  # Faster (50 cm/s)
-self.angular_speed = 0.8  # Faster turning
+self.max_linear_speed = 0.5  # Faster (50 cm/s)
+self.max_angular_speed = 1.5  # Faster turning
 ```
 
-### Change Driving Pattern
+### Change Number of Laps
 
-Edit state machine in `control_loop()`:
+Edit `record_scenario_videos.py` in `launch_robot_driver()`:
 
 ```python
-if self.state == 'forward':
-    # Change duration
-    if self.state_timer >= 5.0:  # Drive longer
-        ...
+'--laps', '5'  # Complete 5 laps instead of 3
+```
+
+### Adjust Waypoint Threshold
+
+Edit `track_navigator.py`:
+
+```python
+self.waypoint_threshold = 0.10  # Tighter waypoint following (10cm)
 ```
 
 ### Add More Lighting Scenarios
@@ -247,9 +257,9 @@ gz topic -l | grep cmd_vel
 # Should see: /wro_robot/cmd_vel
 ```
 
-**Check 2**: Is driver running?
+**Check 2**: Is navigator running?
 ```bash
-ps aux | grep simple_robot_driver
+ps aux | grep track_navigator
 ```
 
 ### Lighting Looks Same
@@ -287,15 +297,15 @@ source /opt/ros/humble/setup.bash
 python3 record_scenario_videos.py \
     --challenge open \
     --num-scenarios 20 \
-    --duration 30 \
+    --duration 120 \
     --randomize-all
 
 # Expected output:
-# 20 videos with:
+# 20 videos (2 minutes each) with:
 #   - Different lighting (randomly selected from 6 scenarios)
-#   - Robot driving around track
+#   - Robot completing 3 laps around track
 #   - Different starting positions/directions
-#   - Different corridor layouts
+#   - Different corridor layouts (adapts to corridor widths)
 ```
 
 ---

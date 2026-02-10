@@ -389,6 +389,7 @@ class ScenarioGenerator:
 
         # Randomize starting section (one of four sides)
         starting_section = random.choice(self.sections)
+        print(f'[DEBUG] Available sections: {[str(s) for s in self.sections]}, Selected: {starting_section}')
 
         # Calculate starting position based on corridor width
         if corridor_widths and starting_section in corridor_widths:
@@ -433,12 +434,17 @@ class ScenarioGenerator:
         starting_position = random.choice(start_positions)
 
         # Starting orientation based on direction and section
+        # Yaw values to make robot face ALONG corridor (not perpendicular)
+        # Robot pointing perpendicular means we need to swap axes
+        # SWAPPED: Use North/South values for East/West corridors and vice versa
         yaw_map = {
-            Section.NORTH: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},
-            Section.SOUTH: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708},
-            Section.EAST: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},
-            Section.WEST: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159}
+            Section.SOUTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159},        # Drive East(0°) or West(180°) - SWAPPED
+            Section.NORTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},        # Drive West(180°) or East(0°) - SWAPPED
+            Section.EAST: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},      # Drive North(-90°) or South(90°) - SWAPPED
+            Section.WEST: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708}       # Drive South(90°) or North(-90°) - SWAPPED
         }
+
+        print(f'[DEBUG] Robot starting in {starting_section.capitalized} corridor, {direction} direction, yaw={yaw_map[starting_section][direction]:.2f} rad')
 
         starting_yaw = yaw_map[starting_section][direction]
 
@@ -459,6 +465,8 @@ class ScenarioGenerator:
 
     def create_scenario_world(self, scenario_id, randomize_all=True):
         """Create a randomized world SDF file"""
+        print(f'\n[DEBUG] create_scenario_world called with randomize_all={randomize_all}')
+
         # Parse base world
         tree = ET.parse(self.base_world_path)
         root = tree.getroot()
@@ -958,44 +966,9 @@ class ScenarioGenerator:
 
         world.append(starting_zone)
 
-        # Add camera for video recording - Robot POV
-        # Camera positioned at CENTER of starting zone (where robot would actually start)
+        # Add robot model with integrated camera (moves with robot for POV video)
         start_yaw = starting_conditions[DictKeys.YAW]
 
-        # Use the exact same position as the starting zone center
-        camera_x = zone_x
-        camera_y = zone_y
-        camera_z = 0.12  # Robot camera height (12cm above ground, typical for WRO robots)
-        camera_pitch = 0.3  # 17 degrees downward tilt (to see track ahead)
-
-        camera_model = ET.Element('model', name='training_camera')
-        ET.SubElement(camera_model, 'static').text = 'true'
-        ET.SubElement(camera_model, 'pose').text = f'{camera_x} {camera_y} {camera_z} 0 {camera_pitch} {start_yaw}'
-
-        camera_link = ET.SubElement(camera_model, 'link', name='camera_link')
-
-        # Camera sensor
-        camera_sensor = ET.SubElement(camera_link, 'sensor', name='camera', type='camera')
-        ET.SubElement(camera_sensor, 'update_rate').text = '30'
-        ET.SubElement(camera_sensor, 'visualize').text = 'false'
-        ET.SubElement(camera_sensor, 'topic').text = 'camera/image_raw'
-
-        camera_elem = ET.SubElement(camera_sensor, 'camera')
-        ET.SubElement(camera_elem, 'horizontal_fov').text = '1.91'  # 110 degrees (slightly narrower, more realistic)
-
-        image_elem = ET.SubElement(camera_elem, 'image')
-        ET.SubElement(image_elem, 'width').text = '1280'  # HD resolution
-        ET.SubElement(image_elem, 'height').text = '720'   # 720p
-        ET.SubElement(image_elem, 'format').text = 'R8G8B8'
-
-        clip_elem = ET.SubElement(camera_elem, 'clip')
-        ET.SubElement(clip_elem, 'near').text = '0.05'
-        ET.SubElement(clip_elem, 'far').text = '10.0'
-
-        world.append(camera_model)
-
-        # Add simple robot model for movement (differential drive)
-        # Robot positioned at same location as camera
         robot_x = zone_x
         robot_y = zone_y
         robot_z = 0.035  # Half the wheel radius (wheels are 7cm diameter)
@@ -1016,6 +989,17 @@ class ScenarioGenerator:
         ET.SubElement(material_robot, 'ambient').text = '0 0 0.8 1'  # Blue
         ET.SubElement(material_robot, 'diffuse').text = '0 0 0.8 1'
 
+        # Add RED indicator at front of robot to show which way it's facing
+        visual_front = ET.SubElement(base_link, 'visual', name='front_indicator')
+        ET.SubElement(visual_front, 'pose').text = '0.12 0 0 0 0 0'  # At front of robot
+        geom_front = ET.SubElement(visual_front, 'geometry')
+        box_front = ET.SubElement(geom_front, 'box')
+        ET.SubElement(box_front, 'size').text = '0.04 0.04 0.10'  # Small red box
+
+        material_front = ET.SubElement(visual_front, 'material')
+        ET.SubElement(material_front, 'ambient').text = '1 0 0 1'  # RED
+        ET.SubElement(material_front, 'diffuse').text = '1 0 0 1'
+
         # Collision
         collision_robot = ET.SubElement(base_link, 'collision', name='collision')
         geom_collision = ET.SubElement(collision_robot, 'geometry')
@@ -1030,6 +1014,8 @@ class ScenarioGenerator:
         ET.SubElement(inertia, 'iyy').text = '0.00417'
         ET.SubElement(inertia, 'izz').text = '0.00533'
 
+        # No camera on base_link - will add as separate link below
+
         # Add differential drive plugin
         plugin = ET.SubElement(robot_model, 'plugin',
                               filename='gz-sim-diff-drive-system',
@@ -1039,6 +1025,10 @@ class ScenarioGenerator:
         ET.SubElement(plugin, 'wheel_separation').text = '0.15'
         ET.SubElement(plugin, 'wheel_radius').text = '0.035'
         ET.SubElement(plugin, 'topic').text = '/wro_robot/cmd_vel'
+        ET.SubElement(plugin, 'odom_topic').text = '/wro_robot/odom'
+        ET.SubElement(plugin, 'odom_publish_frequency').text = '50'
+        ET.SubElement(plugin, 'frame_id').text = 'odom'
+        ET.SubElement(plugin, 'child_frame_id').text = 'base_link'
 
         # Left wheel
         left_wheel_link = ET.SubElement(robot_model, 'link', name='left_wheel')
@@ -1100,7 +1090,61 @@ class ScenarioGenerator:
         axis_r = ET.SubElement(right_joint, 'axis')
         ET.SubElement(axis_r, 'xyz').text = '0 0 1'
 
+        # Camera on robot (now that robot is oriented correctly, camera just looks forward)
+        camera_link = ET.SubElement(robot_model, 'link', name='camera_link')
+        # Camera at front of robot, looking straight ahead (robot is now oriented correctly!)
+        ET.SubElement(camera_link, 'pose', relative_to='base_link').text = '0.10 0 0.065 0 0 0'
+
+        camera_sensor = ET.SubElement(camera_link, 'sensor', name='robot_camera', type='camera')
+        ET.SubElement(camera_sensor, 'update_rate').text = '30'
+        ET.SubElement(camera_sensor, 'visualize').text = 'false'
+        ET.SubElement(camera_sensor, 'topic').text = 'robot/camera'
+        ET.SubElement(camera_sensor, 'always_on').text = 'true'
+
+        camera_elem = ET.SubElement(camera_sensor, 'camera')
+        ET.SubElement(camera_elem, 'horizontal_fov').text = '1.91'
+
+        image_elem = ET.SubElement(camera_elem, 'image')
+        ET.SubElement(image_elem, 'width').text = '1280'
+        ET.SubElement(image_elem, 'height').text = '720'
+        ET.SubElement(image_elem, 'format').text = 'R8G8B8'
+
+        clip_elem = ET.SubElement(camera_elem, 'clip')
+        ET.SubElement(clip_elem, 'near').text = '0.05'
+        ET.SubElement(clip_elem, 'far').text = '10.0'
+
+        camera_joint = ET.SubElement(robot_model, 'joint', name='camera_joint', type='fixed')
+        ET.SubElement(camera_joint, 'parent').text = 'base_link'
+        ET.SubElement(camera_joint, 'child').text = 'camera_link'
+
         world.append(robot_model)
+
+        # DEBUG: Add static overhead camera
+        debug_camera = ET.Element('model', name='debug_camera')
+        ET.SubElement(debug_camera, 'static').text = 'true'
+        ET.SubElement(debug_camera, 'pose').text = '1.5 1.5 2.5 0 0 0'  # Center of track, 2.5m high, looking down
+
+        debug_cam_link = ET.SubElement(debug_camera, 'link', name='link')
+
+        debug_sensor = ET.SubElement(debug_cam_link, 'sensor', name='camera', type='camera')
+        ET.SubElement(debug_sensor, 'update_rate').text = '30'
+        ET.SubElement(debug_sensor, 'visualize').text = 'true'  # Show in GUI
+        ET.SubElement(debug_sensor, 'topic').text = 'camera/image_raw'
+        ET.SubElement(debug_sensor, 'always_on').text = 'true'
+
+        debug_cam_elem = ET.SubElement(debug_sensor, 'camera')
+        ET.SubElement(debug_cam_elem, 'horizontal_fov').text = '1.57'  # 90 degrees
+
+        debug_image = ET.SubElement(debug_cam_elem, 'image')
+        ET.SubElement(debug_image, 'width').text = '1280'
+        ET.SubElement(debug_image, 'height').text = '720'
+        ET.SubElement(debug_image, 'format').text = 'R8G8B8'
+
+        debug_clip = ET.SubElement(debug_cam_elem, 'clip')
+        ET.SubElement(debug_clip, 'near').text = '0.1'
+        ET.SubElement(debug_clip, 'far').text = '10.0'
+
+        world.append(debug_camera)
 
         # Save world file
         world_file = self.output_dir / f'{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.SDF}'

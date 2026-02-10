@@ -281,12 +281,15 @@ class PipelineOrchestrator:
         print(f"  Launching ros_gz_bridge...")
 
         try:
-            # Launch parameter bridge for camera topic
-            # This bridges Gazebo topic to ROS2 topic
+            # Launch parameter bridge for camera and odometry topics
+            # This bridges Gazebo topics to ROS2 topics
             self.bridge_process = subprocess.Popen(
                 [
                     'ros2', 'run', 'ros_gz_bridge', 'parameter_bridge',
-                    '/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                    '/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',  # Overhead debug camera
+                    '/robot/camera@sensor_msgs/msg/Image[gz.msgs.Image',      # Robot POV camera
+                    '/wro_robot/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
+                    '/wro_robot/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
                     '--ros-args', '--log-level', 'error'
                 ],
                 stdout=subprocess.PIPE,
@@ -296,42 +299,40 @@ class PipelineOrchestrator:
             # Wait for bridge to initialize
             time.sleep(2)
 
-            print(f"  ✓ Bridge launched")
+            print(f"  ✓ Bridge launched (camera, cmd_vel, odom)")
             return True
 
         except Exception as e:
             print(f"  ✗ ERROR launching bridge: {e}")
             return False
 
-    def launch_robot_driver(self, metadata):
-        """Launch robot driver to move the robot around the track"""
-        print(f"  Launching robot driver...")
+    def launch_robot_driver(self, metadata, metadata_path):
+        """Launch robot driver to complete the challenge"""
+        print(f"  Launching track navigator...")
 
         try:
-            # Get direction from metadata
-            direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION].lower()
-
-            # Launch driver script
-            driver_script = Path(__file__).parent / 'simple_robot_driver.py'
+            # Launch track navigator script (completes 3 laps using waypoint navigation)
+            navigator_script = Path(__file__).parent / 'track_navigator.py'
 
             self.driver_process = subprocess.Popen(
                 [
-                    'python3', str(driver_script),
-                    '--direction', direction,
-                    '--duration', str(self.args.duration)
+                    'python3', str(navigator_script),
+                    '--metadata', str(metadata_path),
+                    '--laps', '3'  # WRO requirement: 3 laps
                 ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdout=None,  # Show output in terminal
+                stderr=None   # Show errors in terminal
             )
 
-            # Wait for driver to initialize
-            time.sleep(1)
+            # Wait for navigator to initialize
+            time.sleep(2)
 
-            print(f"  ✓ Robot driver launched ({direction} direction)")
+            direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]
+            print(f"  ✓ Track navigator launched ({direction} direction, 3 laps)")
             return True
 
         except Exception as e:
-            print(f"  ✗ ERROR launching robot driver: {e}")
+            print(f"  ✗ ERROR launching track navigator: {e}")
             return False
 
     def spawn_robot(self, metadata):
@@ -503,6 +504,9 @@ class PipelineOrchestrator:
         if metadata is None:
             return False
 
+        # Construct metadata file path
+        metadata_path = scenario_file.parent / f"{scenario_file.stem}{FilePaths.METADATA_SUFFIX}"
+
         try:
             # Step 1: Launch Gazebo
             if not self.launch_gazebo(scenario_file):
@@ -512,9 +516,9 @@ class PipelineOrchestrator:
             if not self.launch_bridge():
                 print(f"  WARNING: Bridge launch failed, recording may not work...")
 
-            # Step 3: Launch robot driver (moves robot around track)
-            if not self.launch_robot_driver(metadata):
-                print(f"  WARNING: Robot driver failed, robot won't move...")
+            # Step 3: Launch track navigator (completes 3 laps)
+            if not self.launch_robot_driver(metadata, metadata_path):
+                print(f"  WARNING: Track navigator failed, robot won't move...")
 
             # Step 4: Record video
             video_file = self.record_video(scenario_id)
