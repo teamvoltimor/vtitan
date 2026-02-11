@@ -332,8 +332,9 @@ class LidarGUI:
                 valid_angles = angles[valid_mask]
 
                 for angle, dist in zip(valid_angles, valid_ranges):
-                    # Convert polar to Cartesian (Y forward, X right)
-                    x = dist * np.sin(angle) * self.scale
+                    # Convert polar to Cartesian (Y forward, X left/right)
+                    # Negate X to flip left/right (sin gives right as positive, we want left as positive)
+                    x = -dist * np.sin(angle) * self.scale  # Negative: left is positive X on display
                     y = -dist * np.cos(angle) * self.scale  # Negative because canvas Y increases downward
 
                     # Color based on distance (green=far, red=close)

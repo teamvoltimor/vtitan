@@ -120,9 +120,10 @@ def main():
         line_polar.set_data(valid_angles, valid_ranges)
 
         # Convert to Cartesian coordinates for top-down view
-        # Robot faces forward (+Y), LIDAR angle 0 is also forward
-        x = valid_ranges * np.sin(valid_angles)  # X is left/right
-        y = valid_ranges * np.cos(valid_angles)  # Y is forward/back
+        # Robot faces forward (+Y), LIDAR angle 0 is forward
+        # Negate X so left appears on left side of plot
+        x = -valid_ranges * np.sin(valid_angles)  # X: negative for correct left/right
+        y = valid_ranges * np.cos(valid_angles)   # Y: forward/back
         line_cart.set_data(x, y)
 
         # Calculate statistics
