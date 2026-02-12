@@ -102,14 +102,14 @@ cd simulation/scripts
 python3 generate_training_data.py --challenge open --num-scenarios 1
 
 # Find the metadata file
-ls ../output/open/scenarios/
+ls training_data/open/scenarios/
 
 # Launch Gazebo with the scenario
-gz sim ../output/open/scenarios/scenario_0000.sdf
+gz sim training_data/open/scenarios/scenario_0000.sdf
 
 # In another terminal, run the navigator
 source /opt/ros/humble/setup.bash
-python3 track_navigator.py --metadata ../output/open/scenarios/scenario_0000_metadata.json --laps 3
+python3 track_navigator.py --metadata training_data/open/scenarios/scenario_0000_metadata.json --laps 3
 ```
 
 ### Integrated in Video Recording Pipeline

@@ -625,7 +625,7 @@ class ScenarioGenerator:
             'section': Section.SOUTH,
             'section_name': 'South',
             'position': (1.5, 0.4),  # South corridor center, inside track (new coordinate system)
-            'yaw': 1.5708
+            'yaw': 3.14159  # π = facing West (along corridor for clockwise lap)
         }
 
         # Randomize lighting
