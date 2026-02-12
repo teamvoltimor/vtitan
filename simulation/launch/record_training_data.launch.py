@@ -40,6 +40,13 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
+    # Zenoh router (must start before any ROS 2 nodes using rmw_zenoh_cpp)
+    zenoh_router = ExecuteProcess(
+        cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'],
+        name='zenoh_router',
+        output='screen'
+    )
+
     # Launch arguments
     scenario_file_arg = DeclareLaunchArgument(
         'scenario_file',
@@ -157,6 +164,9 @@ def generate_launch_description():
         output_video_arg,
         output_bag_arg,
         headless_arg,
+
+        # Zenoh router (before other ROS 2 processes)
+        zenoh_router,
 
         # Processes
         gazebo,

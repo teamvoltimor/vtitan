@@ -2,7 +2,8 @@
 """
 WRO Simulation Launch File
 
-Launches Gazebo with a WRO track scenario and spawns the robot.
+Launches Gazebo Ionic with a WRO track scenario and spawns the Ackermann robot.
+Starts Zenoh router for rmw_zenoh_cpp middleware.
 
 Usage:
     ros2 launch wro_simulation wro_simulation.launch.py
@@ -13,7 +14,7 @@ import os
 from pathlib import Path
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -67,11 +68,17 @@ def generate_launch_description():
         LaunchConfiguration('world')
     ])
 
-    urdf_file = PathJoinSubstitution([
-        pkg_share,
-        'urdf',
-        'wro_robot.urdf.xacro'
-    ])
+    urdf_xacro_file = os.path.join(pkg_share, 'urdf', 'wro_robot.urdf.xacro')
+
+    # Process xacro to produce robot_description
+    robot_description_content = Command(['xacro ', urdf_xacro_file])
+
+    # Zenoh router (must start before any ROS 2 nodes using rmw_zenoh_cpp)
+    zenoh_router = ExecuteProcess(
+        cmd=['ros2', 'run', 'rmw_zenoh_cpp', 'rmw_zenohd'],
+        name='zenoh_router',
+        output='screen'
+    )
 
     # Gazebo launch
     gazebo = IncludeLaunchDescription(
@@ -88,7 +95,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # Robot State Publisher
+    # Robot State Publisher (receives processed xacro content)
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
@@ -96,7 +103,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'use_sim_time': LaunchConfiguration('use_sim_time'),
-            'robot_description': urdf_file
+            'robot_description': robot_description_content
         }]
     )
 
@@ -106,7 +113,7 @@ def generate_launch_description():
         executable='create',
         arguments=[
             '-name', 'wro_robot',
-            '-file', urdf_file,
+            '-string', robot_description_content,
             '-x', LaunchConfiguration('robot_x'),
             '-y', LaunchConfiguration('robot_y'),
             '-z', LaunchConfiguration('robot_z'),
@@ -159,6 +166,7 @@ def generate_launch_description():
         robot_y_arg,
         robot_z_arg,
         robot_yaw_arg,
+        zenoh_router,
         gazebo,
         robot_state_publisher,
         spawn_robot,

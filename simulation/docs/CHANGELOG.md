@@ -1,7 +1,59 @@
 # WRO 2026 Simulation Improvements Summary
 
+---
+
+## 2026-02-11: Ackermann Steering, Zenoh Middleware, Hardware-Matched Sensors
+
+**Status:** Complete
+
+### Breaking Changes
+
+- **Robot model rewritten**: Differential drive replaced with Ackermann steering (4 wheels, front steering hinge joints, rear drive wheels). The `left_wheel`, `right_wheel`, and `caster_wheel` links/joints are removed.
+- **Middleware**: Default DDS replaced with Zenoh (`rmw_zenoh_cpp`). A Zenoh router (`rmw_zenohd`) is now launched before all other ROS 2 nodes.
+- **ROS 2 distribution**: Humble/Jazzy references replaced with **Kilted Kaiju**.
+- **Gazebo version**: Harmonic references replaced with **Ionic**.
+- **Control semantics**: `angular.z` in Twist messages now represents **steering angle** (rad), not angular velocity. Ackermann cannot pivot in place; forward speed is required to turn.
+
+### Robot Model Updates
+
+- Chassis: 280x150x100mm (was 200x150x80mm), mass 0.8kg (was 1.0kg)
+- Wheels: 4 wheels, radius 21.6mm (was 35mm), width 20mm (was 25mm)
+- Ackermann geometry: wheelbase 170mm, track width 105mm, max steering 30 deg
+- Plugin: `gz-sim-ackermann-steering-system` replaces `libgazebo_ros_diff_drive.so`
+
+### Sensor Updates
+
+- **Camera**: RPi Camera 3 Wide -- FOV 102 deg (was 120 deg), resolution 1536x864 (was 640x480)
+- **LIDAR**: Slamtec C1 -- min range 0.05m (was 0.2m), 500 samples (was 720), noise stddev 0.03 (was 0.01)
+- **IMU**: BNO085 -- added physical dimensions (25.6x22.7x4.6mm), gyro noise 0.054 rad/s, accel noise 0.3 m/s^2
+
+### Navigation Updates
+
+- `track_navigator.py`: Uses `RobotSpecs` constants, `compute_steering_angle()` method, minimum forward speed enforcement, reduced predictive turn magnitudes, side corrections reduced from 0.2 to 0.1
+- `simple_robot_driver.py`: Steering angle 0.35 rad instead of angular velocity 0.5 rad/s, forward speed maintained during turns, turn duration increased to 2.0s
+- `test_robot_movement.py`: All turn tests include forward speed, docstring updated
+
+### Launch File Updates
+
+- `wro_simulation.launch.py`: Zenoh router added, xacro processed to string for `robot_description` and spawn
+- `record_training_data.launch.py`: Zenoh router added
+
+### Pipeline Updates
+
+- `automated_pipeline.sh`: Sources `/opt/ros/kilted/setup.bash`, exports `RMW_IMPLEMENTATION=rmw_zenoh_cpp`, starts/stops Zenoh router
+- `record_scenario_videos.py`: Error messages reference Kilted Kaiju
+
+### New Documentation
+
+- `docs/HARDWARE_ARCHITECTURE.md`: Full hardware system diagram, sensor specs, Zenoh setup
+- `docs/ACKERMANN_STEERING.md`: Diff drive vs Ackermann comparison, control semantics, geometry
+
+---
+
+## 2026-02-06: WRO 2026 Specifications Update
+
 **Date:** 2026-02-06
-**Status:** ✅ Complete and Ready to Use
+**Status:** Complete
 
 ---
 

@@ -88,7 +88,10 @@ echo ""
 
 # Step 2: Setup ROS2 environment
 echo "[2/5] Setting up ROS2 environment..."
-source /opt/ros/humble/setup.bash
+source /opt/ros/kilted/setup.bash
+
+# Use Zenoh middleware
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
 # Check if workspace exists
 if [ -d "$HOME/wro_ws/install" ]; then
@@ -101,6 +104,13 @@ fi
 
 # Set Gazebo model path
 export GZ_SIM_RESOURCE_PATH="$GZ_SIM_RESOURCE_PATH:$(pwd)/../models"
+
+# Start Zenoh router
+echo "  Starting Zenoh router..."
+ros2 run rmw_zenoh_cpp rmw_zenohd &
+ZENOH_PID=$!
+sleep 2
+echo "  ✓ Zenoh router started (PID: $ZENOH_PID)"
 
 echo ""
 
@@ -209,6 +219,10 @@ echo "[5/5] Creating YOLO dataset..."
 
 # Dataset already created by extract_frames_and_annotate.py
 YOLO_DATASET="$OUTPUT_DIR/yolo_dataset"
+
+# Cleanup Zenoh router
+echo "Stopping Zenoh router..."
+kill $ZENOH_PID 2>/dev/null || true
 
 echo ""
 echo "=========================================="

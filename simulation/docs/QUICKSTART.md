@@ -40,7 +40,7 @@ If you don't have ROS2 installed, you can still use the generated worlds:
 ### 1. Install Gazebo Standalone
 
 ```bash
-# Install Gazebo Harmonic
+# Install Gazebo Ionic
 sudo apt-get update
 sudo apt-get install lsb-release wget gnupg
 
@@ -48,7 +48,7 @@ sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/p
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 
 sudo apt-get update
-sudo apt-get install gz-harmonic
+sudo apt-get install gz-ionic
 ```
 
 ### 2. Launch a World
@@ -91,7 +91,7 @@ sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | 
 sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
 
 sudo apt update
-sudo apt install ros-humble-desktop-full
+sudo apt install ros-kilted-desktop-full
 ```
 
 Or use the automated script:
@@ -104,12 +104,26 @@ Or use the automated script:
 ### 2. Install Gazebo + ROS2 Integration
 
 ```bash
-sudo apt install ros-humble-ros-gz \
-                 ros-humble-gazebo-ros-pkgs \
-                 ros-humble-cv-bridge
+sudo apt install ros-kilted-ros-gz \
+                 ros-kilted-gazebo-ros-pkgs \
+                 ros-kilted-cv-bridge \
+                 ros-kilted-rmw-zenoh-cpp
 ```
 
-### 3. Run Automated Pipeline
+### 3. Configure Zenoh Middleware
+
+```bash
+# Set Zenoh as the default RMW implementation
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+
+# Add to ~/.bashrc for persistence
+echo 'export RMW_IMPLEMENTATION=rmw_zenoh_cpp' >> ~/.bashrc
+
+# Start the Zenoh router (required before launching ROS 2 nodes)
+ros2 run rmw_zenoh_cpp rmw_zenohd &
+```
+
+### 4. Run Automated Pipeline
 
 ```bash
 # Navigate to scripts
@@ -149,9 +163,10 @@ gz sim ~/wro_single_test/scenarios/scenario_0000.sdf
 ```
 
 You should see:
-- A 3m × 3m track with black walls
+- A 3m x 3m track with black walls
 - Random colored pillars (red/green)
-- Gray ground plane
+- White ground plane
+- 4-wheel Ackermann robot (if spawned)
 
 ## Generate Production Dataset
 

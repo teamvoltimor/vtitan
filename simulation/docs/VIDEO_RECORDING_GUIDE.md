@@ -18,18 +18,23 @@ Complete guide for generating artificial training videos from Gazebo simulations
 ### Prerequisites
 
 ```bash
-# Install ROS2 (if not already installed)
-sudo apt install ros-humble-desktop
+# Install ROS2 Kilted (if not already installed)
+sudo apt install ros-kilted-desktop
 
 # Install required packages
 sudo apt install \
-    ros-humble-ros-gz-sim \
-    ros-humble-ros-gz-bridge \
-    ros-humble-rosbag2 \
-    ros-humble-cv-bridge
+    ros-kilted-ros-gz-sim \
+    ros-kilted-ros-gz-bridge \
+    ros-kilted-rosbag2 \
+    ros-kilted-cv-bridge \
+    ros-kilted-rmw-zenoh-cpp
 
 # Install Python dependencies
 pip3 install opencv-python numpy
+
+# Configure Zenoh middleware
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+ros2 run rmw_zenoh_cpp rmw_zenohd &
 ```
 
 ### One-Command Pipeline
@@ -206,8 +211,8 @@ python3 convert_bags_to_videos.py \
 ### Gazebo Not Found
 
 ```bash
-# Install Gazebo Harmonic
-sudo apt-get install gz-harmonic
+# Install Gazebo Ionic
+sudo apt-get install gz-ionic
 
 # Or Gazebo Classic
 sudo apt-get install gazebo11 gazebo11-plugin-base
@@ -217,10 +222,11 @@ sudo apt-get install gazebo11 gazebo11-plugin-base
 
 ```bash
 # Install bridge packages
-sudo apt install ros-humble-ros-gz-sim ros-humble-ros-gz-bridge
+sudo apt install ros-kilted-ros-gz-sim ros-kilted-ros-gz-bridge
 
 # Source ROS2
-source /opt/ros/humble/setup.bash
+source /opt/ros/kilted/setup.bash
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 ```
 
 ### No Camera Topic

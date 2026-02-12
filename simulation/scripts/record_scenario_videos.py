@@ -39,7 +39,7 @@ try:
     ROS2_AVAILABLE = True
 except ImportError:
     ROS2_AVAILABLE = False
-    print("ERROR: ROS2 not available. This script requires ROS2 Humble or Jazzy.")
+    print("ERROR: ROS2 not available. This script requires ROS2 Kilted Kaiju.")
     sys.exit(1)
 
 # Import scenario generator
@@ -657,7 +657,7 @@ Examples:
     # Check ROS2 availability
     if not ROS2_AVAILABLE:
         print("ERROR: ROS2 is required for this script")
-        print("Please install ROS2 Humble or Jazzy")
+        print("Please install ROS2 Kilted Kaiju")
         return 1
 
     # Create and run pipeline

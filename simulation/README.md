@@ -1,6 +1,6 @@
 # WRO 2026 Gazebo Simulation
 
-Complete Gazebo Harmonic simulation for generating robot POV training data for the **WRO Future Engineers 2026** competition.
+Complete Gazebo Ionic simulation for generating robot POV training data for the **WRO Future Engineers 2026** competition. Uses an Ackermann steering robot model matched to the real LEGO Buggy Bolide hardware, with Zenoh middleware on ROS 2 Kilted.
 
 ## Features
 
@@ -98,6 +98,14 @@ All specifications are defined in `scripts/constants.py` for easy reference and 
 - **Starting zone**: Resized and positioned between parking blocks
 
 ## Architecture
+
+### Robot Model (`urdf/wro_robot.urdf.xacro`)
+
+Ackermann steering robot with 4 wheels:
+- 2 front wheels with revolute steering hinge joints (limited to +/-30 deg)
+- 2 rear wheels as continuous drive joints
+- `gz-sim-ackermann-steering-system` Gazebo plugin
+- Hardware-matched sensors: Slamtec C1 LIDAR, RPi Camera 3 Wide, BNO085 IMU
 
 ### Constants (`scripts/constants.py`)
 
@@ -234,24 +242,45 @@ python3 generate_training_data.py \
 }
 ```
 
+## Robot Architecture
+
+The simulated robot matches the real LEGO Bugatti Bolide hardware:
+
+- **Steering**: Ackermann (4 wheels, front steering, rear drive)
+- **Chassis**: 280x150x100mm, 0.8kg
+- **Wheelbase**: 170mm | **Track width**: 105mm | **Max steering**: 30 deg
+- **LIDAR**: Slamtec C1 (0.05-12m, 500 samples, 360 deg)
+- **Camera**: RPi Camera 3 Wide (102 deg HFOV, 1536x864)
+- **IMU**: BNO085 (9-DOF)
+- **Middleware**: Zenoh (rmw_zenoh_cpp)
+
+See [docs/HARDWARE_ARCHITECTURE.md](docs/HARDWARE_ARCHITECTURE.md) and [docs/ACKERMANN_STEERING.md](docs/ACKERMANN_STEERING.md) for details.
+
 ## Requirements
 
 ### System
-- Ubuntu 22.04 or 24.04
+- Ubuntu 24.04
 - Python 3.10+
 - 8GB+ RAM
 
 ### Software
-- Gazebo Harmonic (or Gazebo Classic 11)
-- ROS2 Humble/Jazzy (optional, for robot integration)
+- Gazebo Ionic
+- ROS 2 Kilted Kaiju
+- Zenoh middleware (`ros-kilted-rmw-zenoh-cpp`)
 - Python packages: `numpy`, `pyyaml`
 
 ### Installation
 
 ```bash
-# Install Gazebo Harmonic
+# Install Gazebo Ionic
 sudo apt-get update
-sudo apt-get install gz-harmonic
+sudo apt-get install gz-ionic
+
+# Install ROS 2 Kilted + Zenoh
+sudo apt install ros-kilted-desktop ros-kilted-rmw-zenoh-cpp
+
+# Configure Zenoh middleware
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
 # Install Python dependencies
 pip3 install numpy pyyaml
@@ -262,6 +291,8 @@ export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$(pwd)/models
 
 ## Documentation
 
+- **[HARDWARE_ARCHITECTURE.md](docs/HARDWARE_ARCHITECTURE.md)** - Hardware system diagram, sensor specs, Zenoh setup
+- **[ACKERMANN_STEERING.md](docs/ACKERMANN_STEERING.md)** - Ackermann vs diff drive, control semantics, geometry
 - **[VIDEO_RECORDING_GUIDE.md](docs/VIDEO_RECORDING_GUIDE.md)** - Complete guide for recording training videos
 - **[QUICKSTART.md](docs/QUICKSTART.md)** - Get started in 5 minutes
 - **[WRO_SPECIFICATIONS.md](docs/WRO_SPECIFICATIONS.md)** - Complete WRO 2026 technical reference
@@ -304,4 +335,4 @@ This simulation follows official WRO Future Engineers 2026 competition specifica
 
 **Official WRO Rules**: https://wro-association.org/
 **Simulation**: WRO 2026 Training Data Generator
-**Last Updated**: 2026-02-08
+**Last Updated**: 2026-02-11

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Simple Robot Driver for Training Video Recording
+Simple Robot Driver for Training Video Recording (Ackermann Steering)
 
-Drives the robot around the WRO track using simple wall-following behavior.
+Drives the robot around the WRO track using simple timed behavior.
 Designed to work with the training_camera (static camera at starting position).
+Sends steering angles via angular.z (Ackermann convention).
 
 Usage:
     python3 simple_robot_driver.py --direction clockwise --duration 30
@@ -16,9 +17,11 @@ import math
 import time
 import argparse
 
+from constants import RobotSpecs
+
 
 class SimpleRobotDriver(Node):
-    """Simple robot driver that drives forward with basic control"""
+    """Simple robot driver using Ackermann steering angles"""
 
     def __init__(self, direction='clockwise', duration=30):
         super().__init__('simple_robot_driver')
@@ -35,8 +38,8 @@ class SimpleRobotDriver(Node):
         )
 
         # Control parameters
-        self.forward_speed = 0.3  # m/s (30 cm/s - slow and steady)
-        self.angular_speed = 0.5  # rad/s for turning
+        self.forward_speed = 0.3  # m/s
+        self.steering_angle = 0.35  # rad (~20 deg) for turns
 
         # Simple state machine
         self.state = 'forward'
@@ -61,8 +64,6 @@ class SimpleRobotDriver(Node):
         # Create velocity command
         vel_msg = Twist()
 
-        # Simple behavior: drive forward, turn at intervals
-        # This simulates going around the track
         self.state_timer += 0.02
 
         if self.state == 'forward':
@@ -75,16 +76,17 @@ class SimpleRobotDriver(Node):
                 self.state_timer = 0
 
         elif self.state == 'turning':
-            # Turn for 1.5 seconds
-            vel_msg.linear.x = self.forward_speed * 0.5  # Slow down while turning
+            # Ackermann needs forward speed to turn (no pivot)
+            vel_msg.linear.x = self.forward_speed * 0.5
 
-            # Turn direction based on clockwise/counterclockwise
+            # Steering angle based on direction
             if self.direction == 'clockwise':
-                vel_msg.angular.z = -self.angular_speed  # Turn right
+                vel_msg.angular.z = -self.steering_angle  # Steer right
             else:
-                vel_msg.angular.z = self.angular_speed   # Turn left
+                vel_msg.angular.z = self.steering_angle   # Steer left
 
-            if self.state_timer >= 1.5:
+            # Slightly longer turn for Ackermann (wider turning radius)
+            if self.state_timer >= 2.0:
                 self.state = 'forward'
                 self.state_timer = 0
 
@@ -113,19 +115,15 @@ def main():
     rclpy.init()
 
     try:
-        # Create and run driver
         driver = SimpleRobotDriver(
             direction=args.direction,
             duration=args.duration
         )
-
-        # Spin until duration expires
         rclpy.spin(driver)
 
     except KeyboardInterrupt:
         pass
     finally:
-        # Cleanup
         try:
             driver.destroy_node()
         except:

@@ -121,9 +121,27 @@ class StartingZoneSpecs:
     INDICATOR_RADIUS = 0.035    # 35mm radius
 
 class RobotSpecs:
-    """Standard WRO Future Engineers robot dimensions"""
+    """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann)"""
 
-    WIDTH = 0.2                 # 200mm typical robot width
+    # Chassis dimensions
+    LENGTH = 0.28               # 280mm chassis length
+    WIDTH = 0.15                # 150mm chassis width
+    HEIGHT = 0.10               # 100mm chassis height
+
+    # Ackermann geometry
+    WHEELBASE = 0.17            # 170mm axle-to-axle distance
+    TRACK_WIDTH = 0.105         # 105mm wheel-to-wheel distance
+    WHEEL_RADIUS = 0.0216       # 21.6mm LEGO Technic wheel radius
+    MAX_STEERING_ANGLE = 0.5236 # ~30 degrees max front wheel angle
+
+    # LIDAR (Slamtec C1)
+    LIDAR_MIN_RANGE = 0.05      # 50mm minimum detection range
+    LIDAR_MAX_RANGE = 12.0      # 12m maximum detection range
+
+    # Camera (RPi Camera 3 Wide)
+    CAMERA_HFOV = 1.7802        # 102 degrees horizontal FOV (radians)
+    CAMERA_WIDTH = 1536         # Horizontal resolution (pixels)
+    CAMERA_HEIGHT = 864         # Vertical resolution (pixels)
 
 class TrackMarkings:
     """Corner lines and other track markings"""
