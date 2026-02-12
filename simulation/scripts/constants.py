@@ -134,14 +134,25 @@ class RobotSpecs:
     WHEEL_RADIUS = 0.0216       # 21.6mm LEGO Technic wheel radius
     MAX_STEERING_ANGLE = 0.5236 # ~30 degrees max front wheel angle
 
+    # Wheel details
+    WHEEL_WIDTH = 0.020         # 20mm LEGO Technic wheel width
+    WHEEL_MASS = 0.05           # 50g per wheel
+    CHASSIS_MASS = 0.8          # 800g total chassis
+
     # LIDAR (Slamtec C1)
     LIDAR_MIN_RANGE = 0.05      # 50mm minimum detection range
     LIDAR_MAX_RANGE = 12.0      # 12m maximum detection range
+    LIDAR_SAMPLES = 500         # Slamtec C1 horizontal samples
+    LIDAR_UPDATE_RATE = 10.0    # 10 Hz scan rate
+    LIDAR_NOISE_STDDEV = 0.03   # 30mm noise
 
     # Camera (RPi Camera 3 Wide)
     CAMERA_HFOV = 1.7802        # 102 degrees horizontal FOV (radians)
     CAMERA_WIDTH = 1536         # Horizontal resolution (pixels)
     CAMERA_HEIGHT = 864         # Vertical resolution (pixels)
+    CAMERA_UPDATE_RATE = 30.0   # 30 FPS
+    CAMERA_NEAR_CLIP = 0.05     # 50mm near clip
+    CAMERA_FAR_CLIP = 10.0      # 10m far clip
 
 class TrackMarkings:
     """Corner lines and other track markings"""
@@ -190,7 +201,7 @@ class FilePaths:
     """Default file paths and templates"""
 
     BASE_WORLD_TEMPLATE = "worlds/wro_track_2026.sdf"
-    OUTPUT_DIR_DEFAULT = "~/wro_training_data"
+    OUTPUT_DIR_DEFAULT = "training_data"
     SCENARIO_PREFIX = "scenario_"
     METADATA_SUFFIX = "_metadata.json"
 

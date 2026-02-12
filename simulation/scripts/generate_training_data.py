@@ -973,476 +973,326 @@ class ScenarioGenerator:
 
         world.append(starting_zone)
 
-        # Add robot model with integrated camera (moves with robot for POV video)
+        # Add robot model with integrated sensors (Ackermann steering, URDF-matched)
         start_yaw = starting_conditions[DictKeys.YAW]
 
         robot_x = zone_x
         robot_y = zone_y
-        robot_z = 0.035  # Half the wheel radius (wheels are 7cm diameter)
+        robot_z = RobotSpecs.WHEEL_RADIUS  # Spawn at wheel radius height
+
+        # Pre-compute derived dimensions
+        half_wheelbase = RobotSpecs.WHEELBASE / 2   # 0.085
+        half_track = RobotSpecs.TRACK_WIDTH / 2      # 0.0525
+        half_height = RobotSpecs.HEIGHT / 2           # 0.05
+        wheel_r = RobotSpecs.WHEEL_RADIUS             # 0.0216
+        wheel_w = RobotSpecs.WHEEL_WIDTH               # 0.020
+
+        # Chassis inertia (solid box: I = (1/12)*m*(a^2+b^2))
+        cm = RobotSpecs.CHASSIS_MASS
+        chassis_ixx = (1/12) * cm * (RobotSpecs.WIDTH**2 + RobotSpecs.HEIGHT**2)
+        chassis_iyy = (1/12) * cm * (RobotSpecs.LENGTH**2 + RobotSpecs.HEIGHT**2)
+        chassis_izz = (1/12) * cm * (RobotSpecs.LENGTH**2 + RobotSpecs.WIDTH**2)
+
+        # Wheel inertia (solid cylinder, axis along Y after rotation)
+        wm = RobotSpecs.WHEEL_MASS
+        wheel_ixx = (1/12) * wm * (3 * wheel_r**2 + wheel_w**2)
+        wheel_iyy = 0.5 * wm * wheel_r**2
+        wheel_izz = wheel_ixx
+
+        # Yellow stripe dimensions (scaled proportionally to wheel radius)
+        stripe_offset = round(wheel_r * 0.314, 4)
+        stripe_x = round(0.004 * wheel_r / 0.035, 4)
+        stripe_y = round(0.050 * wheel_r / 0.035, 4)
+        stripe_z = round(0.008 * wheel_r / 0.035, 4)
 
         robot_model = ET.Element('model', name='wro_robot')
         ET.SubElement(robot_model, 'pose').text = f'{robot_x} {robot_y} {robot_z} 0 0 {start_yaw}'
 
-        # Base link (chassis)
+        # ── Base link (chassis) ──────────────────────────────────────────
         base_link = ET.SubElement(robot_model, 'link', name='base_link')
 
-        # Visual (blue box - robot body)
-        # Offset UP so chassis doesn't drag on ground (clearance + half_height)
+        # Visual (blue box - robot body), raised so chassis clears ground
         visual_robot = ET.SubElement(base_link, 'visual', name='visual')
-        ET.SubElement(visual_robot, 'pose').text = '0 0 0.05 0 0 0'  # Raised 50mm (10mm clearance + 40mm half-height)
+        ET.SubElement(visual_robot, 'pose').text = f'0 0 {half_height} 0 0 0'
         geom_robot = ET.SubElement(visual_robot, 'geometry')
         box_robot = ET.SubElement(geom_robot, 'box')
-        ET.SubElement(box_robot, 'size').text = '0.20 0.15 0.08'  # 20x15x8cm robot
+        ET.SubElement(box_robot, 'size').text = f'{RobotSpecs.LENGTH} {RobotSpecs.WIDTH} {RobotSpecs.HEIGHT}'
 
         material_robot = ET.SubElement(visual_robot, 'material')
-        ET.SubElement(material_robot, 'ambient').text = '0 0 0.8 1'  # Blue
+        ET.SubElement(material_robot, 'ambient').text = '0 0 0.8 1'
         ET.SubElement(material_robot, 'diffuse').text = '0 0 0.8 1'
 
-        # Add RED indicator at front of robot to show which way it's facing
+        # RED front indicator to show heading
         visual_front = ET.SubElement(base_link, 'visual', name='front_indicator')
-        ET.SubElement(visual_front, 'pose').text = '0.12 0 0.05 0 0 0'  # At front, same height as chassis
+        ET.SubElement(visual_front, 'pose').text = f'{RobotSpecs.LENGTH / 2} 0 {half_height} 0 0 0'
         geom_front = ET.SubElement(visual_front, 'geometry')
         box_front = ET.SubElement(geom_front, 'box')
-        ET.SubElement(box_front, 'size').text = '0.04 0.04 0.10'  # Small red box
+        ET.SubElement(box_front, 'size').text = '0.04 0.04 0.10'
 
         material_front = ET.SubElement(visual_front, 'material')
-        ET.SubElement(material_front, 'ambient').text = '1 0 0 1'  # RED
+        ET.SubElement(material_front, 'ambient').text = '1 0 0 1'
         ET.SubElement(material_front, 'diffuse').text = '1 0 0 1'
 
-        # Collision (also raised to match visual)
+        # Collision (same raise as visual)
         collision_robot = ET.SubElement(base_link, 'collision', name='collision')
-        ET.SubElement(collision_robot, 'pose').text = '0 0 0.05 0 0 0'  # Same offset as visual
+        ET.SubElement(collision_robot, 'pose').text = f'0 0 {half_height} 0 0 0'
         geom_collision = ET.SubElement(collision_robot, 'geometry')
         box_collision = ET.SubElement(geom_collision, 'box')
-        ET.SubElement(box_collision, 'size').text = '0.20 0.15 0.08'
+        ET.SubElement(box_collision, 'size').text = f'{RobotSpecs.LENGTH} {RobotSpecs.WIDTH} {RobotSpecs.HEIGHT}'
 
-        # Inertial (increased mass and inertia to prevent flipping)
+        # Inertial
         inertial = ET.SubElement(base_link, 'inertial')
-        ET.SubElement(inertial, 'mass').text = '5.0'  # Increased from 1.0 to 5.0 kg
+        ET.SubElement(inertial, 'mass').text = f'{RobotSpecs.CHASSIS_MASS}'
         inertia = ET.SubElement(inertial, 'inertia')
-        # Increased inertia values (5x to match mass increase)
-        ET.SubElement(inertia, 'ixx').text = '0.01335'  # 5x increase
-        ET.SubElement(inertia, 'iyy').text = '0.02085'  # 5x increase
-        ET.SubElement(inertia, 'izz').text = '0.02665'  # 5x increase
+        ET.SubElement(inertia, 'ixx').text = f'{chassis_ixx:.6f}'
+        ET.SubElement(inertia, 'iyy').text = f'{chassis_iyy:.6f}'
+        ET.SubElement(inertia, 'izz').text = f'{chassis_izz:.6f}'
 
-        # No camera on base_link - will add as separate link below
-
-        # WRO Competition Requirement: Ackermann Steering (NOT differential drive!)
-        # Ackermann plugin for realistic car steering
+        # ── Ackermann steering plugin ────────────────────────────────────
         plugin = ET.SubElement(robot_model, 'plugin',
                               filename='gz-sim-ackermann-steering-system',
                               name='gz::sim::systems::AckermannSteering')
-        # Rear axle (powered wheels - differential)
-        ET.SubElement(plugin, 'left_joint').text = 'left_wheel_joint'
-        ET.SubElement(plugin, 'right_joint').text = 'right_wheel_joint'
-        # Front steering
-        ET.SubElement(plugin, 'left_steering_joint').text = 'left_steering_joint'
-        ET.SubElement(plugin, 'right_steering_joint').text = 'right_steering_joint'
-        # Vehicle geometry
-        ET.SubElement(plugin, 'wheel_separation').text = '0.175'  # Track width
-        ET.SubElement(plugin, 'kingpin_width').text = '0.175'  # Same as wheel separation
-        ET.SubElement(plugin, 'wheel_base').text = '0.12'  # Front-to-rear wheelbase
-        ET.SubElement(plugin, 'wheel_radius').text = '0.035'
-        # Steering limits
-        ET.SubElement(plugin, 'min_steering_angle').text = '-0.5'  # ~-28.6 degrees
-        ET.SubElement(plugin, 'max_steering_angle').text = '0.5'   # ~+28.6 degrees
-        # Control
+        ET.SubElement(plugin, 'left_joint').text = 'rear_left_wheel_joint'
+        ET.SubElement(plugin, 'right_joint').text = 'rear_right_wheel_joint'
+        ET.SubElement(plugin, 'left_steering_joint').text = 'front_left_steering_joint'
+        ET.SubElement(plugin, 'right_steering_joint').text = 'front_right_steering_joint'
+        ET.SubElement(plugin, 'wheel_separation').text = f'{RobotSpecs.TRACK_WIDTH}'
+        ET.SubElement(plugin, 'kingpin_width').text = f'{RobotSpecs.TRACK_WIDTH}'
+        ET.SubElement(plugin, 'wheel_base').text = f'{RobotSpecs.WHEELBASE}'
+        ET.SubElement(plugin, 'wheel_radius').text = f'{RobotSpecs.WHEEL_RADIUS}'
+        ET.SubElement(plugin, 'min_steering_angle').text = f'-{RobotSpecs.MAX_STEERING_ANGLE}'
+        ET.SubElement(plugin, 'max_steering_angle').text = f'{RobotSpecs.MAX_STEERING_ANGLE}'
         ET.SubElement(plugin, 'topic').text = '/wro_robot/cmd_vel'
         ET.SubElement(plugin, 'odom_topic').text = '/wro_robot/odom'
         ET.SubElement(plugin, 'odom_publish_frequency').text = '50'
         ET.SubElement(plugin, 'frame_id').text = 'odom'
         ET.SubElement(plugin, 'child_frame_id').text = 'base_link'
 
-        # Left wheel (rear, powered) - CYLINDER like LEGO wheel with visible rotation
-        left_wheel_link = ET.SubElement(robot_model, 'link', name='left_wheel')
-        # Position only - NO rotation (joint will handle rotation)
-        ET.SubElement(left_wheel_link, 'pose', relative_to='base_link').text = '-0.05 0.0875 0 0 0 0'
+        # ── Helper: build a wheel link ───────────────────────────────────
+        def _add_wheel_link(parent, name, pose_text, mu1='0.8', mu2='0.5'):
+            """Create a wheel link with visual, collision, and inertia."""
+            link = ET.SubElement(parent, 'link', name=name)
+            ET.SubElement(link, 'pose', relative_to='base_link').text = pose_text
 
-        # Main wheel visual: dark grey cylinder
-        # Rotate visual 90° so cylinder axis is along Y (left-right) for proper rolling
-        visual_lw = ET.SubElement(left_wheel_link, 'visual', name='visual')
-        ET.SubElement(visual_lw, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate visual only
-        geom_lw = ET.SubElement(visual_lw, 'geometry')
-        cyl_lw = ET.SubElement(geom_lw, 'cylinder')
-        ET.SubElement(cyl_lw, 'radius').text = '0.035'  # 70mm diameter
-        ET.SubElement(cyl_lw, 'length').text = '0.025'  # 25mm width (LEGO-like)
+            # Main visual: dark grey cylinder (rotated so axis is along Y)
+            vis = ET.SubElement(link, 'visual', name='visual')
+            ET.SubElement(vis, 'pose').text = '0 0 0 1.5708 0 0'
+            g = ET.SubElement(vis, 'geometry')
+            c = ET.SubElement(g, 'cylinder')
+            ET.SubElement(c, 'radius').text = f'{wheel_r}'
+            ET.SubElement(c, 'length').text = f'{wheel_w}'
+            mat = ET.SubElement(vis, 'material')
+            ET.SubElement(mat, 'ambient').text = '0.1 0.1 0.1 1'
+            ET.SubElement(mat, 'diffuse').text = '0.1 0.1 0.1 1'
 
-        material_lw = ET.SubElement(visual_lw, 'material')
-        ET.SubElement(material_lw, 'ambient').text = '0.1 0.1 0.1 1'
-        ET.SubElement(material_lw, 'diffuse').text = '0.1 0.1 0.1 1'
+            # Yellow stripe for rotation visibility
+            sv = ET.SubElement(link, 'visual', name='stripe')
+            ET.SubElement(sv, 'pose').text = f'{stripe_offset} 0 0 1.5708 0 0'
+            sg = ET.SubElement(sv, 'geometry')
+            sb = ET.SubElement(sg, 'box')
+            ET.SubElement(sb, 'size').text = f'{stripe_x} {stripe_y} {stripe_z}'
+            sm = ET.SubElement(sv, 'material')
+            ET.SubElement(sm, 'ambient').text = '1.0 1.0 0.0 1'
+            ET.SubElement(sm, 'diffuse').text = '1.0 1.0 0.0 1'
 
-        # Yellow stripe to make rotation visible
-        visual_stripe_lw = ET.SubElement(left_wheel_link, 'visual', name='stripe')
-        ET.SubElement(visual_stripe_lw, 'pose').text = '0.011 0 0 1.5708 0 0'  # Match wheel rotation
-        geom_stripe_lw = ET.SubElement(visual_stripe_lw, 'geometry')
-        box_stripe_lw = ET.SubElement(geom_stripe_lw, 'box')
-        ET.SubElement(box_stripe_lw, 'size').text = '0.004 0.050 0.008'
-        material_stripe_lw = ET.SubElement(visual_stripe_lw, 'material')
-        ET.SubElement(material_stripe_lw, 'ambient').text = '1.0 1.0 0.0 1'
-        ET.SubElement(material_stripe_lw, 'diffuse').text = '1.0 1.0 0.0 1'
+            # Collision cylinder (rotated to match visual)
+            col = ET.SubElement(link, 'collision', name='collision')
+            ET.SubElement(col, 'pose').text = '0 0 0 1.5708 0 0'
+            cg = ET.SubElement(col, 'geometry')
+            cc = ET.SubElement(cg, 'cylinder')
+            ET.SubElement(cc, 'radius').text = f'{wheel_r}'
+            ET.SubElement(cc, 'length').text = f'{wheel_w}'
 
-        # Collision: cylinder (rotated to match visual)
-        collision_lw = ET.SubElement(left_wheel_link, 'collision', name='collision')
-        ET.SubElement(collision_lw, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate collision too
-        geom_lw_col = ET.SubElement(collision_lw, 'geometry')
-        cyl_lw_col = ET.SubElement(geom_lw_col, 'cylinder')
-        ET.SubElement(cyl_lw_col, 'radius').text = '0.035'
-        ET.SubElement(cyl_lw_col, 'length').text = '0.025'
+            # Surface friction and contact
+            surface = ET.SubElement(col, 'surface')
+            friction = ET.SubElement(surface, 'friction')
+            ode = ET.SubElement(friction, 'ode')
+            ET.SubElement(ode, 'mu').text = mu1
+            ET.SubElement(ode, 'mu2').text = mu2
+            contact = ET.SubElement(surface, 'contact')
+            ode_c = ET.SubElement(contact, 'ode')
+            ET.SubElement(ode_c, 'kp').text = '1e7'
+            ET.SubElement(ode_c, 'kd').text = '500'
+            ET.SubElement(ode_c, 'max_vel').text = '0.01'
+            ET.SubElement(ode_c, 'min_depth').text = '0.001'
 
-        # Add friction and contact damping to wheel surface
-        # For differential drive: need balanced friction
-        # Too high (1.0) = can't turn, too low (0.1) = can't move forward
-        surface_lw = ET.SubElement(collision_lw, 'surface')
-        friction_lw = ET.SubElement(surface_lw, 'friction')
-        ode_lw = ET.SubElement(friction_lw, 'ode')
-        ET.SubElement(ode_lw, 'mu').text = '0.8'  # Forward/backward traction
-        ET.SubElement(ode_lw, 'mu2').text = '0.5'  # Lower lateral for easier turning
-        # Add contact parameters to reduce bouncing
-        contact_lw = ET.SubElement(surface_lw, 'contact')
-        ode_contact_lw = ET.SubElement(contact_lw, 'ode')
-        ET.SubElement(ode_contact_lw, 'kp').text = '1e7'  # Increased stiffness (stiffer contact)
-        ET.SubElement(ode_contact_lw, 'kd').text = '500'  # Increased damping (less bouncing)
-        ET.SubElement(ode_contact_lw, 'max_vel').text = '0.01'  # Limit contact penetration velocity
-        ET.SubElement(ode_contact_lw, 'min_depth').text = '0.001'  # Minimum contact depth
+            # Inertial
+            iner = ET.SubElement(link, 'inertial')
+            ET.SubElement(iner, 'mass').text = f'{RobotSpecs.WHEEL_MASS}'
+            ix = ET.SubElement(iner, 'inertia')
+            ET.SubElement(ix, 'ixx').text = f'{wheel_ixx:.8f}'
+            ET.SubElement(ix, 'iyy').text = f'{wheel_iyy:.8f}'
+            ET.SubElement(ix, 'izz').text = f'{wheel_izz:.8f}'
+            return link
 
-        inertial_lw = ET.SubElement(left_wheel_link, 'inertial')
-        ET.SubElement(inertial_lw, 'mass').text = '0.5'
-        # Inertia for cylinder: I_axis = (1/2)*m*r^2, I_perp = (1/12)*m*(3*r^2 + h^2)
-        # r=0.035, h=0.025, m=0.5 → I_axis=0.00030625, I_perp=0.000208
-        inertia_lw = ET.SubElement(inertial_lw, 'inertia')
-        ET.SubElement(inertia_lw, 'ixx').text = '0.000208'  # Perpendicular to axis
-        ET.SubElement(inertia_lw, 'iyy').text = '0.00030625'  # Around rolling axis
-        ET.SubElement(inertia_lw, 'izz').text = '0.000208'  # Perpendicular to axis
+        # ── Rear wheels (powered) ────────────────────────────────────────
+        _add_wheel_link(robot_model, 'rear_left_wheel',
+                        f'{-half_wheelbase} {half_track} 0 0 0 0')
+        _add_wheel_link(robot_model, 'rear_right_wheel',
+                        f'{-half_wheelbase} {-half_track} 0 0 0 0')
 
-        # Right wheel (rear, powered) - CYLINDER like LEGO wheel with visible rotation
-        right_wheel_link = ET.SubElement(robot_model, 'link', name='right_wheel')
-        # Position only - NO rotation (joint will handle rotation)
-        ET.SubElement(right_wheel_link, 'pose', relative_to='base_link').text = '-0.05 -0.0875 0 0 0 0'
+        # Rear wheel joints (revolute, unlimited rotation)
+        for jname, child in [('rear_left_wheel_joint', 'rear_left_wheel'),
+                             ('rear_right_wheel_joint', 'rear_right_wheel')]:
+            jt = ET.SubElement(robot_model, 'joint', name=jname, type='revolute')
+            ET.SubElement(jt, 'parent').text = 'base_link'
+            ET.SubElement(jt, 'child').text = child
+            ax = ET.SubElement(jt, 'axis')
+            ET.SubElement(ax, 'xyz').text = '0 1 0'
+            lim = ET.SubElement(ax, 'limit')
+            ET.SubElement(lim, 'lower').text = '-1e16'
+            ET.SubElement(lim, 'upper').text = '1e16'
+            ET.SubElement(lim, 'effort').text = '10.0'
+            ET.SubElement(lim, 'velocity').text = '100.0'
+            dyn = ET.SubElement(ax, 'dynamics')
+            ET.SubElement(dyn, 'friction').text = '0.01'
+            ET.SubElement(dyn, 'damping').text = '0.01'
 
-        # Main wheel visual: dark grey cylinder
-        # Rotate visual 90° so cylinder axis is along Y (left-right) for proper rolling
-        visual_rw = ET.SubElement(right_wheel_link, 'visual', name='visual')
-        ET.SubElement(visual_rw, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate visual only
-        geom_rw = ET.SubElement(visual_rw, 'geometry')
-        cyl_rw = ET.SubElement(geom_rw, 'cylinder')
-        ET.SubElement(cyl_rw, 'radius').text = '0.035'
-        ET.SubElement(cyl_rw, 'length').text = '0.025'
+        # ── Front steering assembly ──────────────────────────────────────
+        # Each front corner: steering_link (Z-axis hinge) → wheel_link (Y-axis roll)
+        for side, y_sign in [('left', 1), ('right', -1)]:
+            y_pos = y_sign * half_track
 
-        material_rw = ET.SubElement(visual_rw, 'material')
-        ET.SubElement(material_rw, 'ambient').text = '0.1 0.1 0.1 1'
-        ET.SubElement(material_rw, 'diffuse').text = '0.1 0.1 0.1 1'
+            # Steering link (minimal inertia hinge)
+            steer_name = f'front_{side}_steering'
+            steer_link = ET.SubElement(robot_model, 'link', name=steer_name)
+            ET.SubElement(steer_link, 'pose', relative_to='base_link').text = \
+                f'{half_wheelbase} {y_pos} 0 0 0 0'
+            si = ET.SubElement(steer_link, 'inertial')
+            ET.SubElement(si, 'mass').text = '0.001'
+            six = ET.SubElement(si, 'inertia')
+            ET.SubElement(six, 'ixx').text = '0.00001'
+            ET.SubElement(six, 'iyy').text = '0.00001'
+            ET.SubElement(six, 'izz').text = '0.00001'
 
-        # Yellow stripe to make rotation visible
-        visual_stripe_rw = ET.SubElement(right_wheel_link, 'visual', name='stripe')
-        ET.SubElement(visual_stripe_rw, 'pose').text = '0.011 0 0 1.5708 0 0'  # Match wheel rotation
-        geom_stripe_rw = ET.SubElement(visual_stripe_rw, 'geometry')
-        box_stripe_rw = ET.SubElement(geom_stripe_rw, 'box')
-        ET.SubElement(box_stripe_rw, 'size').text = '0.004 0.050 0.008'
-        material_stripe_rw = ET.SubElement(visual_stripe_rw, 'material')
-        ET.SubElement(material_stripe_rw, 'ambient').text = '1.0 1.0 0.0 1'
-        ET.SubElement(material_stripe_rw, 'diffuse').text = '1.0 1.0 0.0 1'
+            # Front wheel (attached to steering link)
+            wheel_name = f'front_{side}_wheel'
+            fw_link = ET.SubElement(robot_model, 'link', name=wheel_name)
+            ET.SubElement(fw_link, 'pose', relative_to=steer_name).text = '0 0 0 0 0 0'
 
-        # Collision: cylinder (rotated to match visual)
-        collision_rw = ET.SubElement(right_wheel_link, 'collision', name='collision')
-        ET.SubElement(collision_rw, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate collision too
-        geom_rw_col = ET.SubElement(collision_rw, 'geometry')
-        cyl_rw_col = ET.SubElement(geom_rw_col, 'cylinder')
-        ET.SubElement(cyl_rw_col, 'radius').text = '0.035'
-        ET.SubElement(cyl_rw_col, 'length').text = '0.025'
+            # Wheel visual
+            vis = ET.SubElement(fw_link, 'visual', name='visual')
+            ET.SubElement(vis, 'pose').text = '0 0 0 1.5708 0 0'
+            g = ET.SubElement(vis, 'geometry')
+            c = ET.SubElement(g, 'cylinder')
+            ET.SubElement(c, 'radius').text = f'{wheel_r}'
+            ET.SubElement(c, 'length').text = f'{wheel_w}'
+            mat = ET.SubElement(vis, 'material')
+            ET.SubElement(mat, 'ambient').text = '0.1 0.1 0.1 1'
+            ET.SubElement(mat, 'diffuse').text = '0.1 0.1 0.1 1'
 
-        # Add friction and contact damping to wheel surface
-        # For differential drive: need balanced friction
-        # Too high (1.0) = can't turn, too low (0.1) = can't move forward
-        surface_rw = ET.SubElement(collision_rw, 'surface')
-        friction_rw = ET.SubElement(surface_rw, 'friction')
-        ode_rw = ET.SubElement(friction_rw, 'ode')
-        ET.SubElement(ode_rw, 'mu').text = '0.8'  # Forward/backward traction
-        ET.SubElement(ode_rw, 'mu2').text = '0.5'  # Lower lateral for easier turning
-        # Add contact parameters to reduce bouncing
-        contact_rw = ET.SubElement(surface_rw, 'contact')
-        ode_contact_rw = ET.SubElement(contact_rw, 'ode')
-        ET.SubElement(ode_contact_rw, 'kp').text = '1e7'  # Increased stiffness (stiffer contact)
-        ET.SubElement(ode_contact_rw, 'kd').text = '500'  # Increased damping (less bouncing)
-        ET.SubElement(ode_contact_rw, 'max_vel').text = '0.01'  # Limit contact penetration velocity
-        ET.SubElement(ode_contact_rw, 'min_depth').text = '0.001'  # Minimum contact depth
+            # Yellow stripe
+            sv = ET.SubElement(fw_link, 'visual', name='stripe')
+            ET.SubElement(sv, 'pose').text = f'{stripe_offset} 0 0 1.5708 0 0'
+            sg = ET.SubElement(sv, 'geometry')
+            sb = ET.SubElement(sg, 'box')
+            ET.SubElement(sb, 'size').text = f'{stripe_x} {stripe_y} {stripe_z}'
+            sm = ET.SubElement(sv, 'material')
+            ET.SubElement(sm, 'ambient').text = '1.0 1.0 0.0 1'
+            ET.SubElement(sm, 'diffuse').text = '1.0 1.0 0.0 1'
 
-        inertial_rw = ET.SubElement(right_wheel_link, 'inertial')
-        ET.SubElement(inertial_rw, 'mass').text = '0.5'
-        # Inertia for cylinder: I_axis = (1/2)*m*r^2, I_perp = (1/12)*m*(3*r^2 + h^2)
-        # r=0.035, h=0.025, m=0.5 → I_axis=0.00030625, I_perp=0.000208
-        inertia_rw = ET.SubElement(inertial_rw, 'inertia')
-        ET.SubElement(inertia_rw, 'ixx').text = '0.000208'  # Perpendicular to axis
-        ET.SubElement(inertia_rw, 'iyy').text = '0.00030625'  # Around rolling axis
-        ET.SubElement(inertia_rw, 'izz').text = '0.000208'  # Perpendicular to axis
+            # Collision
+            col = ET.SubElement(fw_link, 'collision', name='collision')
+            ET.SubElement(col, 'pose').text = '0 0 0 1.5708 0 0'
+            cg = ET.SubElement(col, 'geometry')
+            cc = ET.SubElement(cg, 'cylinder')
+            ET.SubElement(cc, 'radius').text = f'{wheel_r}'
+            ET.SubElement(cc, 'length').text = f'{wheel_w}'
+            surface = ET.SubElement(col, 'surface')
+            friction = ET.SubElement(surface, 'friction')
+            ode = ET.SubElement(friction, 'ode')
+            ET.SubElement(ode, 'mu').text = '0.4'
+            ET.SubElement(ode, 'mu2').text = '0.4'
 
-        # Left wheel joint (revolute with large limits for unlimited rotation)
-        left_joint = ET.SubElement(robot_model, 'joint', name='left_wheel_joint', type='revolute')
-        ET.SubElement(left_joint, 'parent').text = 'base_link'
-        ET.SubElement(left_joint, 'child').text = 'left_wheel'
-        axis_l = ET.SubElement(left_joint, 'axis')
-        # Y axis - wheels rotate around Y to roll forward/backward
-        ET.SubElement(axis_l, 'xyz').text = '0 1 0'
-        # Large limits to allow unlimited rotation
-        limit_l = ET.SubElement(axis_l, 'limit')
-        ET.SubElement(limit_l, 'lower').text = '-1e16'
-        ET.SubElement(limit_l, 'upper').text = '1e16'
-        ET.SubElement(limit_l, 'effort').text = '10.0'  # Maximum torque (N·m) - CRITICAL for turning!
-        ET.SubElement(limit_l, 'velocity').text = '100.0'  # Maximum velocity (rad/s)
-        dynamics_l = ET.SubElement(axis_l, 'dynamics')
-        ET.SubElement(dynamics_l, 'friction').text = '0.01'  # Very low friction for free spinning
-        ET.SubElement(dynamics_l, 'damping').text = '0.01'  # Very low damping to allow DiffDrive control
+            # Inertial
+            iner = ET.SubElement(fw_link, 'inertial')
+            ET.SubElement(iner, 'mass').text = f'{RobotSpecs.WHEEL_MASS}'
+            ix = ET.SubElement(iner, 'inertia')
+            ET.SubElement(ix, 'ixx').text = f'{wheel_ixx:.8f}'
+            ET.SubElement(ix, 'iyy').text = f'{wheel_iyy:.8f}'
+            ET.SubElement(ix, 'izz').text = f'{wheel_izz:.8f}'
 
-        # Right wheel joint (revolute with large limits for unlimited rotation)
-        right_joint = ET.SubElement(robot_model, 'joint', name='right_wheel_joint', type='revolute')
-        ET.SubElement(right_joint, 'parent').text = 'base_link'
-        ET.SubElement(right_joint, 'child').text = 'right_wheel'
-        axis_r = ET.SubElement(right_joint, 'axis')
-        # Y axis - wheels rotate around Y to roll forward/backward
-        ET.SubElement(axis_r, 'xyz').text = '0 1 0'
-        # Large limits to allow unlimited rotation
-        limit_r = ET.SubElement(axis_r, 'limit')
-        ET.SubElement(limit_r, 'lower').text = '-1e16'
-        ET.SubElement(limit_r, 'upper').text = '1e16'
-        ET.SubElement(limit_r, 'effort').text = '10.0'  # Maximum torque (N·m) - CRITICAL for turning!
-        ET.SubElement(limit_r, 'velocity').text = '100.0'  # Maximum velocity (rad/s)
-        dynamics_r = ET.SubElement(axis_r, 'dynamics')
-        ET.SubElement(dynamics_r, 'friction').text = '0.01'  # Very low friction for free spinning
-        ET.SubElement(dynamics_r, 'damping').text = '0.01'  # Very low damping to allow DiffDrive control
+            # Steering joint (base_link → steering_link, Z-axis)
+            sj = ET.SubElement(robot_model, 'joint',
+                               name=f'front_{side}_steering_joint', type='revolute')
+            ET.SubElement(sj, 'parent').text = 'base_link'
+            ET.SubElement(sj, 'child').text = steer_name
+            sa = ET.SubElement(sj, 'axis')
+            ET.SubElement(sa, 'xyz').text = '0 0 1'
+            sl = ET.SubElement(sa, 'limit')
+            ET.SubElement(sl, 'lower').text = f'-{RobotSpecs.MAX_STEERING_ANGLE}'
+            ET.SubElement(sl, 'upper').text = f'{RobotSpecs.MAX_STEERING_ANGLE}'
+            ET.SubElement(sl, 'effort').text = '5.0'
+            ET.SubElement(sl, 'velocity').text = '5.0'
+            sd = ET.SubElement(sa, 'dynamics')
+            ET.SubElement(sd, 'damping').text = '0.1'
+            ET.SubElement(sd, 'friction').text = '0.1'
 
-        # Front wheels (steerable) - IDENTICAL appearance to rear wheels
-        # Ackermann steering requires 2-level joint structure:
-        # base_link → steering_link (Z-axis steering) → wheel_link (Y-axis rolling)
+            # Wheel rolling joint (steering_link → wheel, Y-axis)
+            wj = ET.SubElement(robot_model, 'joint',
+                               name=f'front_{side}_wheel_joint', type='revolute')
+            ET.SubElement(wj, 'parent').text = steer_name
+            ET.SubElement(wj, 'child').text = wheel_name
+            wa = ET.SubElement(wj, 'axis')
+            ET.SubElement(wa, 'xyz').text = '0 1 0'
+            wl = ET.SubElement(wa, 'limit')
+            ET.SubElement(wl, 'lower').text = '-1e16'
+            ET.SubElement(wl, 'upper').text = '1e16'
+            ET.SubElement(wl, 'effort').text = '10.0'
+            ET.SubElement(wl, 'velocity').text = '100.0'
+            wd = ET.SubElement(wa, 'dynamics')
+            ET.SubElement(wd, 'damping').text = '0.01'
+            ET.SubElement(wd, 'friction').text = '0.01'
 
-        # Left front steering link (intermediate link for steering axis)
-        left_front_steering = ET.SubElement(robot_model, 'link', name='left_front_steering_link')
-        # Position at front wheel location
-        ET.SubElement(left_front_steering, 'pose', relative_to='base_link').text = '0.07 0.0875 0 0 0 0'
-        # Minimal inertia (invisible link, just for kinematics)
-        inertial_lfs = ET.SubElement(left_front_steering, 'inertial')
-        ET.SubElement(inertial_lfs, 'mass').text = '0.01'
-        inertia_lfs = ET.SubElement(inertial_lfs, 'inertia')
-        ET.SubElement(inertia_lfs, 'ixx').text = '0.00001'
-        ET.SubElement(inertia_lfs, 'iyy').text = '0.00001'
-        ET.SubElement(inertia_lfs, 'izz').text = '0.00001'
-
-        # Left front wheel (attached to steering link, not base_link)
-        left_caster = ET.SubElement(robot_model, 'link', name='left_caster')
-        # Position relative to steering link (0,0,0 since steering link is already positioned)
-        ET.SubElement(left_caster, 'pose', relative_to='left_front_steering_link').text = '0 0 0 0 0 0'
-
-        # Main wheel: dark grey cylinder
-        visual_lc = ET.SubElement(left_caster, 'visual', name='visual')
-        ET.SubElement(visual_lc, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate visual only
-        geom_lc = ET.SubElement(visual_lc, 'geometry')
-        cyl_lc = ET.SubElement(geom_lc, 'cylinder')
-        ET.SubElement(cyl_lc, 'radius').text = '0.035'
-        ET.SubElement(cyl_lc, 'length').text = '0.025'
-
-        material_lc = ET.SubElement(visual_lc, 'material')
-        ET.SubElement(material_lc, 'ambient').text = '0.1 0.1 0.1 1'
-        ET.SubElement(material_lc, 'diffuse').text = '0.1 0.1 0.1 1'
-
-        # Yellow stripe
-        stripe_lc = ET.SubElement(left_caster, 'visual', name='stripe')
-        ET.SubElement(stripe_lc, 'pose').text = '0.011 0 0 1.5708 0 0'  # Match wheel rotation
-        geom_stripe_lc = ET.SubElement(stripe_lc, 'geometry')
-        box_stripe_lc = ET.SubElement(geom_stripe_lc, 'box')
-        ET.SubElement(box_stripe_lc, 'size').text = '0.004 0.050 0.008'
-        mat_stripe_lc = ET.SubElement(stripe_lc, 'material')
-        ET.SubElement(mat_stripe_lc, 'ambient').text = '1.0 1.0 0.0 1'
-        ET.SubElement(mat_stripe_lc, 'diffuse').text = '1.0 1.0 0.0 1'
-
-        # Collision
-        collision_lc = ET.SubElement(left_caster, 'collision', name='collision')
-        ET.SubElement(collision_lc, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate collision too
-        geom_lc_col = ET.SubElement(collision_lc, 'geometry')
-        cyl_lc_col = ET.SubElement(geom_lc_col, 'cylinder')
-        ET.SubElement(cyl_lc_col, 'radius').text = '0.035'
-        ET.SubElement(cyl_lc_col, 'length').text = '0.025'
-
-        surface_lc = ET.SubElement(collision_lc, 'surface')
-        friction_lc = ET.SubElement(surface_lc, 'friction')
-        ode_lc = ET.SubElement(friction_lc, 'ode')
-        ET.SubElement(ode_lc, 'mu').text = '0.4'
-        ET.SubElement(ode_lc, 'mu2').text = '0.4'
-
-        inertial_lc = ET.SubElement(left_caster, 'inertial')
-        ET.SubElement(inertial_lc, 'mass').text = '0.5'
-        inertia_lc = ET.SubElement(inertial_lc, 'inertia')
-        ET.SubElement(inertia_lc, 'ixx').text = '0.000208'
-        ET.SubElement(inertia_lc, 'iyy').text = '0.00030625'
-        ET.SubElement(inertia_lc, 'izz').text = '0.000208'
-
-        # Right front steering link (intermediate link for steering axis)
-        right_front_steering = ET.SubElement(robot_model, 'link', name='right_front_steering_link')
-        # Position at front wheel location
-        ET.SubElement(right_front_steering, 'pose', relative_to='base_link').text = '0.07 -0.0875 0 0 0 0'
-        # Minimal inertia (invisible link, just for kinematics)
-        inertial_rfs = ET.SubElement(right_front_steering, 'inertial')
-        ET.SubElement(inertial_rfs, 'mass').text = '0.01'
-        inertia_rfs = ET.SubElement(inertial_rfs, 'inertia')
-        ET.SubElement(inertia_rfs, 'ixx').text = '0.00001'
-        ET.SubElement(inertia_rfs, 'iyy').text = '0.00001'
-        ET.SubElement(inertia_rfs, 'izz').text = '0.00001'
-
-        # Right front wheel (attached to steering link, not base_link)
-        right_caster = ET.SubElement(robot_model, 'link', name='right_caster')
-        # Position relative to steering link (0,0,0 since steering link is already positioned)
-        ET.SubElement(right_caster, 'pose', relative_to='right_front_steering_link').text = '0 0 0 0 0 0'
-
-        visual_rc = ET.SubElement(right_caster, 'visual', name='visual')
-        ET.SubElement(visual_rc, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate visual only
-        geom_rc = ET.SubElement(visual_rc, 'geometry')
-        cyl_rc = ET.SubElement(geom_rc, 'cylinder')
-        ET.SubElement(cyl_rc, 'radius').text = '0.035'
-        ET.SubElement(cyl_rc, 'length').text = '0.025'
-
-        material_rc = ET.SubElement(visual_rc, 'material')
-        ET.SubElement(material_rc, 'ambient').text = '0.1 0.1 0.1 1'
-        ET.SubElement(material_rc, 'diffuse').text = '0.1 0.1 0.1 1'
-
-        # Yellow stripe
-        stripe_rc = ET.SubElement(right_caster, 'visual', name='stripe')
-        ET.SubElement(stripe_rc, 'pose').text = '0.011 0 0 1.5708 0 0'  # Match wheel rotation
-        geom_stripe_rc = ET.SubElement(stripe_rc, 'geometry')
-        box_stripe_rc = ET.SubElement(geom_stripe_rc, 'box')
-        ET.SubElement(box_stripe_rc, 'size').text = '0.004 0.050 0.008'
-        mat_stripe_rc = ET.SubElement(stripe_rc, 'material')
-        ET.SubElement(mat_stripe_rc, 'ambient').text = '1.0 1.0 0.0 1'
-        ET.SubElement(mat_stripe_rc, 'diffuse').text = '1.0 1.0 0.0 1'
-
-        # Collision
-        collision_rc = ET.SubElement(right_caster, 'collision', name='collision')
-        ET.SubElement(collision_rc, 'pose').text = '0 0 0 1.5708 0 0'  # Rotate collision too
-        geom_rc_col = ET.SubElement(collision_rc, 'geometry')
-        cyl_rc_col = ET.SubElement(geom_rc_col, 'cylinder')
-        ET.SubElement(cyl_rc_col, 'radius').text = '0.035'
-        ET.SubElement(cyl_rc_col, 'length').text = '0.025'
-
-        surface_rc = ET.SubElement(collision_rc, 'surface')
-        friction_rc = ET.SubElement(surface_rc, 'friction')
-        ode_rc = ET.SubElement(friction_rc, 'ode')
-        ET.SubElement(ode_rc, 'mu').text = '0.4'
-        ET.SubElement(ode_rc, 'mu2').text = '0.4'
-
-        inertial_rc = ET.SubElement(right_caster, 'inertial')
-        ET.SubElement(inertial_rc, 'mass').text = '0.5'
-        inertia_rc = ET.SubElement(inertial_rc, 'inertia')
-        ET.SubElement(inertia_rc, 'ixx').text = '0.000208'
-        ET.SubElement(inertia_rc, 'iyy').text = '0.00030625'
-        ET.SubElement(inertia_rc, 'izz').text = '0.000208'
-
-        # ACKERMANN STEERING: 2-level joint structure for proper steering
-        # Level 1: Steering joint (base_link → steering_link, Z-axis for left/right steering)
-        left_steering_joint = ET.SubElement(robot_model, 'joint', name='left_steering_joint', type='revolute')
-        ET.SubElement(left_steering_joint, 'parent').text = 'base_link'
-        ET.SubElement(left_steering_joint, 'child').text = 'left_front_steering_link'
-        steering_axis_l = ET.SubElement(left_steering_joint, 'axis')
-        ET.SubElement(steering_axis_l, 'xyz').text = '0 0 1'  # Z-axis (vertical) for steering
-        steering_limit_l = ET.SubElement(steering_axis_l, 'limit')
-        ET.SubElement(steering_limit_l, 'lower').text = '-0.5'  # -28.6 degrees
-        ET.SubElement(steering_limit_l, 'upper').text = '0.5'   # +28.6 degrees
-        ET.SubElement(steering_limit_l, 'effort').text = '5.0'
-        ET.SubElement(steering_limit_l, 'velocity').text = '5.0'
-        steering_dynamics_l = ET.SubElement(steering_axis_l, 'dynamics')
-        ET.SubElement(steering_dynamics_l, 'damping').text = '0.1'
-        ET.SubElement(steering_dynamics_l, 'friction').text = '0.1'
-
-        # Level 2: Wheel rolling joint (steering_link → wheel, Y-axis for rolling)
-        left_front_wheel_joint = ET.SubElement(robot_model, 'joint', name='left_front_wheel_joint', type='revolute')
-        ET.SubElement(left_front_wheel_joint, 'parent').text = 'left_front_steering_link'
-        ET.SubElement(left_front_wheel_joint, 'child').text = 'left_caster'
-        wheel_axis_lf = ET.SubElement(left_front_wheel_joint, 'axis')
-        ET.SubElement(wheel_axis_lf, 'xyz').text = '0 1 0'  # Y-axis for rolling
-        wheel_limit_lf = ET.SubElement(wheel_axis_lf, 'limit')
-        ET.SubElement(wheel_limit_lf, 'lower').text = '-1e16'
-        ET.SubElement(wheel_limit_lf, 'upper').text = '1e16'
-        ET.SubElement(wheel_limit_lf, 'effort').text = '10.0'
-        ET.SubElement(wheel_limit_lf, 'velocity').text = '100.0'
-        wheel_dynamics_lf = ET.SubElement(wheel_axis_lf, 'dynamics')
-        ET.SubElement(wheel_dynamics_lf, 'damping').text = '0.01'
-        ET.SubElement(wheel_dynamics_lf, 'friction').text = '0.01'
-
-        # Right steering joint (base_link → steering_link, Z-axis)
-        right_steering_joint = ET.SubElement(robot_model, 'joint', name='right_steering_joint', type='revolute')
-        ET.SubElement(right_steering_joint, 'parent').text = 'base_link'
-        ET.SubElement(right_steering_joint, 'child').text = 'right_front_steering_link'
-        steering_axis_r = ET.SubElement(right_steering_joint, 'axis')
-        ET.SubElement(steering_axis_r, 'xyz').text = '0 0 1'  # Z-axis for steering
-        steering_limit_r = ET.SubElement(steering_axis_r, 'limit')
-        ET.SubElement(steering_limit_r, 'lower').text = '-0.5'
-        ET.SubElement(steering_limit_r, 'upper').text = '0.5'
-        ET.SubElement(steering_limit_r, 'effort').text = '5.0'
-        ET.SubElement(steering_limit_r, 'velocity').text = '5.0'
-        steering_dynamics_r = ET.SubElement(steering_axis_r, 'dynamics')
-        ET.SubElement(steering_dynamics_r, 'damping').text = '0.1'
-        ET.SubElement(steering_dynamics_r, 'friction').text = '0.1'
-
-        # Right wheel rolling joint (steering_link → wheel, Y-axis)
-        right_front_wheel_joint = ET.SubElement(robot_model, 'joint', name='right_front_wheel_joint', type='revolute')
-        ET.SubElement(right_front_wheel_joint, 'parent').text = 'right_front_steering_link'
-        ET.SubElement(right_front_wheel_joint, 'child').text = 'right_caster'
-        wheel_axis_rf = ET.SubElement(right_front_wheel_joint, 'axis')
-        ET.SubElement(wheel_axis_rf, 'xyz').text = '0 1 0'  # Y-axis for rolling
-        wheel_limit_rf = ET.SubElement(wheel_axis_rf, 'limit')
-        ET.SubElement(wheel_limit_rf, 'lower').text = '-1e16'
-        ET.SubElement(wheel_limit_rf, 'upper').text = '1e16'
-        ET.SubElement(wheel_limit_rf, 'effort').text = '10.0'
-        ET.SubElement(wheel_limit_rf, 'velocity').text = '100.0'
-        wheel_dynamics_rf = ET.SubElement(wheel_axis_rf, 'dynamics')
-        ET.SubElement(wheel_dynamics_rf, 'damping').text = '0.01'
-        ET.SubElement(wheel_dynamics_rf, 'friction').text = '0.01'
-
-        # Camera on robot (now that robot is oriented correctly, camera just looks forward)
+        # ── Camera link ──────────────────────────────────────────────────
         camera_link = ET.SubElement(robot_model, 'link', name='camera_link')
-        # Camera at front of robot, looking straight ahead (robot is now oriented correctly!)
-        ET.SubElement(camera_link, 'pose', relative_to='base_link').text = '0.10 0 0.065 0 0 0'
+        # Position matches URDF: front of chassis, slightly above center
+        cam_x = RobotSpecs.LENGTH / 2 - 0.02   # 0.12
+        cam_z = half_height + 0.01               # 0.06
+        ET.SubElement(camera_link, 'pose', relative_to='base_link').text = \
+            f'{cam_x} 0 {cam_z} 0 0.2 0'
 
         camera_sensor = ET.SubElement(camera_link, 'sensor', name='robot_camera', type='camera')
-        ET.SubElement(camera_sensor, 'update_rate').text = '30'
+        ET.SubElement(camera_sensor, 'update_rate').text = f'{RobotSpecs.CAMERA_UPDATE_RATE}'
         ET.SubElement(camera_sensor, 'visualize').text = 'false'
         ET.SubElement(camera_sensor, 'topic').text = 'robot/camera'
         ET.SubElement(camera_sensor, 'always_on').text = 'true'
 
         camera_elem = ET.SubElement(camera_sensor, 'camera')
-        ET.SubElement(camera_elem, 'horizontal_fov').text = '1.91'
+        ET.SubElement(camera_elem, 'horizontal_fov').text = f'{RobotSpecs.CAMERA_HFOV}'
 
         image_elem = ET.SubElement(camera_elem, 'image')
-        ET.SubElement(image_elem, 'width').text = '1280'
-        ET.SubElement(image_elem, 'height').text = '720'
+        ET.SubElement(image_elem, 'width').text = f'{RobotSpecs.CAMERA_WIDTH}'
+        ET.SubElement(image_elem, 'height').text = f'{RobotSpecs.CAMERA_HEIGHT}'
         ET.SubElement(image_elem, 'format').text = 'R8G8B8'
 
         clip_elem = ET.SubElement(camera_elem, 'clip')
-        ET.SubElement(clip_elem, 'near').text = '0.05'
-        ET.SubElement(clip_elem, 'far').text = '10.0'
+        ET.SubElement(clip_elem, 'near').text = f'{RobotSpecs.CAMERA_NEAR_CLIP}'
+        ET.SubElement(clip_elem, 'far').text = f'{RobotSpecs.CAMERA_FAR_CLIP}'
 
         camera_joint = ET.SubElement(robot_model, 'joint', name='camera_joint', type='fixed')
         ET.SubElement(camera_joint, 'parent').text = 'base_link'
         ET.SubElement(camera_joint, 'child').text = 'camera_link'
 
-        # Add LIDAR sensor for wall detection
-        # RPLIDAR C1: CRITICAL - Must be BELOW 100mm wall height to detect walls!
-        # Position way in front to avoid detecting robot body
+        # ── LIDAR link (Slamtec C1) ──────────────────────────────────────
         lidar_link = ET.SubElement(robot_model, 'link', name='lidar_link')
-        # Robot is 20cm long (±10cm from center)
-        # Place LIDAR at X=0.12 (just beyond front, easy to mount)
-        # Height: 50mm (middle of 100mm walls for optimal detection)
-        ET.SubElement(lidar_link, 'pose', relative_to='base_link').text = '0.12 0 0.015 0 0 0'  # Front, 50mm height (15mm offset from 35mm base)
+        # Center-top mount matching URDF (x=0, z=chassis_height/2 + 0.025)
+        lidar_z = half_height + 0.025  # 0.075
+        ET.SubElement(lidar_link, 'pose', relative_to='base_link').text = \
+            f'0 0 {lidar_z} 0 0 0'
 
-        # Add small visual marker for LIDAR position (helps debug)
+        # Slamtec C1 visual: 27.8mm radius, 41.3mm height
         lidar_visual = ET.SubElement(lidar_link, 'visual', name='lidar_marker')
         lidar_geom = ET.SubElement(lidar_visual, 'geometry')
         lidar_cyl = ET.SubElement(lidar_geom, 'cylinder')
-        ET.SubElement(lidar_cyl, 'radius').text = '0.02'  # 2cm radius
-        ET.SubElement(lidar_cyl, 'length').text = '0.01'  # 1cm tall
+        ET.SubElement(lidar_cyl, 'radius').text = '0.0278'
+        ET.SubElement(lidar_cyl, 'length').text = '0.0413'
         lidar_mat = ET.SubElement(lidar_visual, 'material')
-        ET.SubElement(lidar_mat, 'ambient').text = '0 1 1 0.5'  # Cyan, semi-transparent
+        ET.SubElement(lidar_mat, 'ambient').text = '0 1 1 0.5'
         ET.SubElement(lidar_mat, 'diffuse').text = '0 1 1 0.5'
 
-        # SLAMTEC RPLIDAR C1 Configuration
-        # Specs: 12m range, 0.72° resolution, 10Hz scan rate, DTOF technology
         lidar_sensor = ET.SubElement(lidar_link, 'sensor', name='lidar', type='gpu_lidar')
-        ET.SubElement(lidar_sensor, 'update_rate').text = '20'  # 20Hz for faster response
+        ET.SubElement(lidar_sensor, 'update_rate').text = f'{RobotSpecs.LIDAR_UPDATE_RATE}'
         ET.SubElement(lidar_sensor, 'visualize').text = 'true'
         ET.SubElement(lidar_sensor, 'topic').text = 'lidar'
         ET.SubElement(lidar_sensor, 'always_on').text = 'true'
@@ -1450,15 +1300,20 @@ class ScenarioGenerator:
         lidar_elem = ET.SubElement(lidar_sensor, 'lidar')
         scan_elem = ET.SubElement(lidar_elem, 'scan')
         horizontal = ET.SubElement(scan_elem, 'horizontal')
-        ET.SubElement(horizontal, 'samples').text = '720'  # Higher density for better coverage (0.5° resolution)
+        ET.SubElement(horizontal, 'samples').text = f'{RobotSpecs.LIDAR_SAMPLES}'
         ET.SubElement(horizontal, 'resolution').text = '1.0'
-        ET.SubElement(horizontal, 'min_angle').text = '-3.14159'  # -π (full 360° coverage)
-        ET.SubElement(horizontal, 'max_angle').text = '3.14159'   # +π
+        ET.SubElement(horizontal, 'min_angle').text = '-3.14159'
+        ET.SubElement(horizontal, 'max_angle').text = '3.14159'
 
         range_elem = ET.SubElement(lidar_elem, 'range')
-        ET.SubElement(range_elem, 'min').text = '0.04'  # 40mm minimum for closer detection
-        ET.SubElement(range_elem, 'max').text = '12.0'  # 12m maximum (C1 spec)
-        ET.SubElement(range_elem, 'resolution').text = '0.001'  # 1mm resolution (C1: millimeter-level)
+        ET.SubElement(range_elem, 'min').text = f'{RobotSpecs.LIDAR_MIN_RANGE}'
+        ET.SubElement(range_elem, 'max').text = f'{RobotSpecs.LIDAR_MAX_RANGE}'
+        ET.SubElement(range_elem, 'resolution').text = '0.001'
+
+        noise_elem = ET.SubElement(lidar_elem, 'noise')
+        ET.SubElement(noise_elem, 'type').text = 'gaussian'
+        ET.SubElement(noise_elem, 'mean').text = '0.0'
+        ET.SubElement(noise_elem, 'stddev').text = f'{RobotSpecs.LIDAR_NOISE_STDDEV}'
 
         lidar_joint = ET.SubElement(robot_model, 'joint', name='lidar_joint', type='fixed')
         ET.SubElement(lidar_joint, 'parent').text = 'base_link'

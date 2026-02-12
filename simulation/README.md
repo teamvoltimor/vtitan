@@ -43,7 +43,7 @@ python3 generate_training_data.py --challenge obstacles --num-scenarios 10 --ran
 
 # Launch a scenario
 export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$(pwd)/../models
-gz sim ~/wro_training_data/open/scenarios/scenario_0000.sdf
+gz sim training_data/open/scenarios/scenario_0000.sdf
 ```
 
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for detailed instructions.
