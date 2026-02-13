@@ -256,7 +256,7 @@ class LidarGUI:
                 # Calculate directional distances
                 forward = self.get_min_distance(valid_angles, valid_ranges, 0, 0.26)
                 left = self.get_min_distance(valid_angles, valid_ranges, np.pi/2, 0.26)
-                right = self.get_min_distance(valid_angles, valid_ranges, 3*np.pi/2, 0.26)
+                right = self.get_min_distance(valid_angles, valid_ranges, -np.pi/2, 0.26)
                 back = self.get_min_distance(valid_angles, valid_ranges, np.pi, 0.26)
 
                 stats = f"{'='*30}\n"

@@ -43,9 +43,15 @@ class TrackNavigator(Node):
         self.current_waypoint_idx = 0
         self.laps_completed = 0
 
-        # Robot state
+        # Robot state (world frame)
         self.current_pos = None
         self.current_yaw = None
+
+        # Odom→World transform: odom starts at (0,0,yaw=0), but robot spawns at (start_x, start_y, start_yaw)
+        start_cond = self.metadata['starting_conditions']
+        self.start_x = start_cond['position']['x']
+        self.start_y = start_cond['position']['y']
+        self.start_yaw = start_cond['yaw']
 
         # LIDAR data for collision avoidance (Slamtec C1: 0.05-12m range)
         self.lidar_ranges = None
@@ -200,12 +206,35 @@ class TrackNavigator(Node):
         )
 
         # Get starting section
-        start_section = self.metadata['starting_conditions']['section']
+        start_section = self.metadata['starting_conditions']['section'].lower()
         start_pos = self.metadata['starting_conditions']['position']
         start_x, start_y = start_pos['x'], start_pos['y']
 
         # Order corridors and corners based on starting section and direction
+        # NOTE: The *_corridor_cw lists are ordered for CCW traversal (W→E, S→N, etc.)
+        # For actual CW traversal, we reverse them. Variable names kept for compatibility.
         if direction == 'clockwise':
+            if start_section == 'north':
+                all_corridors = [list(reversed(north_corridor_cw)), [east_to_north_corner],
+                               list(reversed(east_corridor_cw)), [south_to_east_corner],
+                               list(reversed(south_corridor_cw)), [west_to_south_corner],
+                               list(reversed(west_corridor_cw)), [north_to_west_corner]]
+            elif start_section == 'east':
+                all_corridors = [list(reversed(east_corridor_cw)), [south_to_east_corner],
+                               list(reversed(south_corridor_cw)), [west_to_south_corner],
+                               list(reversed(west_corridor_cw)), [north_to_west_corner],
+                               list(reversed(north_corridor_cw)), [east_to_north_corner]]
+            elif start_section == 'south':
+                all_corridors = [list(reversed(south_corridor_cw)), [west_to_south_corner],
+                               list(reversed(west_corridor_cw)), [north_to_west_corner],
+                               list(reversed(north_corridor_cw)), [east_to_north_corner],
+                               list(reversed(east_corridor_cw)), [south_to_east_corner]]
+            else:  # west
+                all_corridors = [list(reversed(west_corridor_cw)), [north_to_west_corner],
+                               list(reversed(north_corridor_cw)), [east_to_north_corner],
+                               list(reversed(east_corridor_cw)), [south_to_east_corner],
+                               list(reversed(south_corridor_cw)), [west_to_south_corner]]
+        else:  # counterclockwise
             if start_section == 'north':
                 all_corridors = [north_corridor_cw, [north_to_west_corner], west_corridor_cw,
                                [west_to_south_corner], south_corridor_cw, [south_to_east_corner],
@@ -222,27 +251,6 @@ class TrackNavigator(Node):
                 all_corridors = [west_corridor_cw, [west_to_south_corner], south_corridor_cw,
                                [south_to_east_corner], east_corridor_cw, [east_to_north_corner],
                                north_corridor_cw, [north_to_west_corner]]
-        else:  # counterclockwise
-            if start_section == 'north':
-                all_corridors = [list(reversed(north_corridor_cw)), [east_to_north_corner],
-                               list(reversed(east_corridor_cw)), [south_to_east_corner],
-                               list(reversed(south_corridor_cw)), [west_to_south_corner],
-                               list(reversed(west_corridor_cw)), [north_to_west_corner]]
-            elif start_section == 'west':
-                all_corridors = [list(reversed(west_corridor_cw)), [north_to_west_corner],
-                               list(reversed(north_corridor_cw)), [east_to_north_corner],
-                               list(reversed(east_corridor_cw)), [south_to_east_corner],
-                               list(reversed(south_corridor_cw)), [west_to_south_corner]]
-            elif start_section == 'south':
-                all_corridors = [list(reversed(south_corridor_cw)), [west_to_south_corner],
-                               list(reversed(west_corridor_cw)), [north_to_west_corner],
-                               list(reversed(north_corridor_cw)), [east_to_north_corner],
-                               list(reversed(east_corridor_cw)), [south_to_east_corner]]
-            else:  # east
-                all_corridors = [list(reversed(east_corridor_cw)), [south_to_east_corner],
-                               list(reversed(south_corridor_cw)), [west_to_south_corner],
-                               list(reversed(west_corridor_cw)), [north_to_west_corner],
-                               list(reversed(north_corridor_cw)), [east_to_north_corner]]
 
         # Find closest waypoint in the FIRST corridor (starting corridor)
         first_corridor = all_corridors[0]
@@ -254,23 +262,45 @@ class TrackNavigator(Node):
                 min_dist = dist
                 start_idx = i
 
-        # Build final waypoint list
-        waypoints = first_corridor[start_idx:] + first_corridor[:start_idx]
+        # Build final waypoint list (no wrap-around in first corridor)
+        # Partial first corridor: from start position to corridor end
+        waypoints = list(first_corridor[start_idx:])
+
+        # Rest of first lap: corners and remaining corridors
         for corridor in all_corridors[1:]:
             waypoints.extend(corridor)
 
-        # Repeat waypoints for number of laps
-        waypoints = waypoints * self.num_laps
+        # Full loops for additional laps
+        full_loop = []
+        for corridor in all_corridors:
+            full_loop.extend(corridor)
+
+        for _ in range(self.num_laps - 1):
+            waypoints.extend(full_loop)
+
+        # Complete final lap: traverse the skipped start of first corridor
+        if start_idx > 0:
+            waypoints.extend(first_corridor[:start_idx])
 
         return waypoints
 
     def odom_callback(self, msg):
-        """Update robot position from odometry"""
-        self.current_pos = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        """Update robot position from odometry, transformed to world frame"""
+        odom_x = msg.pose.pose.position.x
+        odom_y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-        self.current_yaw = math.atan2(siny_cosp, cosy_cosp)
+        odom_yaw = math.atan2(siny_cosp, cosy_cosp)
+
+        # Transform odom → world: rotate by start_yaw then translate by start position
+        cos_sy = math.cos(self.start_yaw)
+        sin_sy = math.sin(self.start_yaw)
+        self.current_pos = (
+            self.start_x + odom_x * cos_sy - odom_y * sin_sy,
+            self.start_y + odom_x * sin_sy + odom_y * cos_sy,
+        )
+        self.current_yaw = odom_yaw + self.start_yaw
 
     def lidar_callback(self, msg):
         """Update LIDAR data for collision avoidance (Slamtec C1)"""
@@ -310,8 +340,8 @@ class TrackNavigator(Node):
             }
 
         forward_dist = self.get_min_distance_in_direction(0, tolerance=0.5)
-        left_dist = self.get_min_distance_in_direction(3*math.pi/2, tolerance=0.4)
-        right_dist = self.get_min_distance_in_direction(math.pi/2, tolerance=0.4)
+        left_dist = self.get_min_distance_in_direction(math.pi/2, tolerance=0.4)
+        right_dist = self.get_min_distance_in_direction(-math.pi/2, tolerance=0.4)
 
         distances = {
             'forward': forward_dist,
@@ -390,17 +420,22 @@ class TrackNavigator(Node):
         vel_msg = Twist()
 
         # ESCAPE MODE: reverse with steering
+        # NOTE: Ackermann reverse inverts the steering effect on yaw.
+        # Reverse + left steer → nose swings RIGHT; reverse + right steer → nose swings LEFT.
+        # So steer TOWARD the close wall while reversing to swing nose AWAY from it.
         if self.escape_mode:
             self.escape_counter += 1
             left_space = distances['left']
             right_space = distances['right']
 
             if left_space > right_space:
-                turn_dir = "LEFT"
-                vel_msg.angular.z = self.max_steering_angle * 0.8
-            else:
+                # Wall on right → steer right while reversing → nose goes left (away from right wall)
                 turn_dir = "RIGHT"
                 vel_msg.angular.z = -self.max_steering_angle * 0.8
+            else:
+                # Wall on left → steer left while reversing → nose goes right (away from left wall)
+                turn_dir = "LEFT"
+                vel_msg.angular.z = self.max_steering_angle * 0.8
 
             self.get_logger().warn(
                 f'ESCAPE MODE [{self.escape_counter}/{self.escape_duration}]: '
@@ -429,10 +464,10 @@ class TrackNavigator(Node):
         elif risk_level == 'side_critical':
             if distances['left'] < self.critical_distance:
                 self.get_logger().warn(f'Side collision risk: LEFT {distances["left"]:.2f}m')
-                correction = 0.15
+                correction = -0.15  # Steer right (away from left wall)
             else:
                 self.get_logger().warn(f'Side collision risk: RIGHT {distances["right"]:.2f}m')
-                correction = -0.15
+                correction = 0.15   # Steer left (away from right wall)
 
             vel_msg.linear.x = self.max_linear_speed * 0.5
             steer = self.compute_steering_angle(angle_error) + correction
@@ -492,9 +527,9 @@ class TrackNavigator(Node):
             side_correction = 0.0
             if risk_level == 'side_warning':
                 if left_dist < self.safe_distance:
-                    side_correction = 0.1
+                    side_correction = -0.1   # Steer right (away from left wall)
                 elif right_dist < self.safe_distance:
-                    side_correction = -0.1
+                    side_correction = 0.1    # Steer left (away from right wall)
 
             # Steering angle: combine waypoint + predictive + side correction
             waypoint_steer = self.compute_steering_angle(angle_error)

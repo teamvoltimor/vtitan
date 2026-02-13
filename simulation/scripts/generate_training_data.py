@@ -435,12 +435,12 @@ class ScenarioGenerator:
 
         # Starting orientation based on direction and section
         # Yaw values to make robot face ALONG corridor
-        # Corrected: Swapped clockwise/counterclockwise for South and North
+        # CW lap (viewed from above): N→E→S→W→N  (right at top, down at right, left at bottom, up at left)
         yaw_map = {
-            Section.SOUTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},        # Clockwise=West, Counter=East (FIXED)
-            Section.NORTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159},        # Clockwise=East, Counter=West (FIXED)
-            Section.EAST: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},      # Clockwise=North, Counter=South
-            Section.WEST: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708}       # Clockwise=South, Counter=North
+            Section.SOUTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},        # CW=West(-X), CCW=East(+X)
+            Section.NORTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: 3.14159},        # CW=East(+X), CCW=West(-X)
+            Section.EAST: {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},      # CW=South(-Y), CCW=North(+Y)
+            Section.WEST: {Direction.CLOCKWISE: 1.5708, Direction.COUNTERCLOCKWISE: -1.5708}       # CW=North(+Y), CCW=South(-Y)
         }
 
         print(f'[DEBUG] Robot starting in {starting_section.capitalized} corridor, {direction} direction, yaw={yaw_map[starting_section][direction]:.2f} rad')
@@ -625,7 +625,7 @@ class ScenarioGenerator:
             'section': Section.SOUTH,
             'section_name': 'South',
             'position': (1.5, 0.4),  # South corridor center, inside track (new coordinate system)
-            'yaw': 3.14159  # π = facing West (along corridor for clockwise lap)
+            'yaw': 3.14159  # π = facing West (CW in South corridor: S→W corner)
         }
 
         # Randomize lighting
@@ -1022,12 +1022,12 @@ class ScenarioGenerator:
         ET.SubElement(material_robot, 'ambient').text = '0 0 0.8 1'
         ET.SubElement(material_robot, 'diffuse').text = '0 0 0.8 1'
 
-        # RED front indicator to show heading
+        # RED front indicator (thin top-mounted marker, above LIDAR scan plane)
         visual_front = ET.SubElement(base_link, 'visual', name='front_indicator')
-        ET.SubElement(visual_front, 'pose').text = f'{RobotSpecs.LENGTH / 2} 0 {half_height} 0 0 0'
+        ET.SubElement(visual_front, 'pose').text = f'{RobotSpecs.LENGTH / 2 - 0.02} 0 {RobotSpecs.HEIGHT + 0.003} 0 0 0'
         geom_front = ET.SubElement(visual_front, 'geometry')
         box_front = ET.SubElement(geom_front, 'box')
-        ET.SubElement(box_front, 'size').text = '0.04 0.04 0.10'
+        ET.SubElement(box_front, 'size').text = '0.04 0.04 0.005'
 
         material_front = ET.SubElement(visual_front, 'material')
         ET.SubElement(material_front, 'ambient').text = '1 0 0 1'
@@ -1251,6 +1251,13 @@ class ScenarioGenerator:
         cam_z = half_height + 0.01               # 0.06
         ET.SubElement(camera_link, 'pose', relative_to='base_link').text = \
             f'{cam_x} 0 {cam_z} 0 0.2 0'
+        # Explicit lightweight inertial (prevents gz-sim auto-calculating heavy default)
+        cam_inertial = ET.SubElement(camera_link, 'inertial')
+        ET.SubElement(cam_inertial, 'mass').text = '0.005'
+        cam_ix = ET.SubElement(cam_inertial, 'inertia')
+        ET.SubElement(cam_ix, 'ixx').text = '0.00001'
+        ET.SubElement(cam_ix, 'iyy').text = '0.00001'
+        ET.SubElement(cam_ix, 'izz').text = '0.00001'
 
         camera_sensor = ET.SubElement(camera_link, 'sensor', name='robot_camera', type='camera')
         ET.SubElement(camera_sensor, 'update_rate').text = f'{RobotSpecs.CAMERA_UPDATE_RATE}'
@@ -1275,21 +1282,35 @@ class ScenarioGenerator:
         ET.SubElement(camera_joint, 'child').text = 'camera_link'
 
         # ── LIDAR link (Slamtec C1) ──────────────────────────────────────
+        # IMPORTANT: gpu_lidar renders ALL visuals, including the robot's own body.
+        # Position OUTSIDE the chassis to avoid self-detection.
+        # Front-mounted, just beyond chassis edge, low for wall detection.
         lidar_link = ET.SubElement(robot_model, 'link', name='lidar_link')
-        # Center-top mount matching URDF (x=0, z=chassis_height/2 + 0.025)
-        lidar_z = half_height + 0.025  # 0.075
+        lidar_x = RobotSpecs.LENGTH / 2 + 0.03  # 30mm beyond front edge
+        # Must be above chassis visual (top at z=HEIGHT=0.10) but below wall height
+        # (walls are 0.1m tall from ground, LIDAR ground height = WHEEL_RADIUS + lidar_z)
+        # Wall top = 0.1m, LIDAR ground height = 0.0216 + lidar_z
+        # Need: 0.0216 + lidar_z < 0.1 → lidar_z < 0.0784
+        # Also need: lidar_z > HEIGHT (0.10) to clear chassis... impossible!
+        # Solution: keep LIDAR inside chassis height range but offset far enough forward
+        # that backward rays miss. At x=0.17 (30mm beyond front), backward rays need
+        # to travel ~0.03m in X before hitting chassis face at x=0.14.
+        # Rays at ±90° don't intersect. Rays at ~170° hit at ~0.03/cos(10°)≈0.031m < min_range.
+        # This is acceptable — only near-backward rays read inf, not side rays.
+        lidar_z = 0.06  # 60mm above base_link, below wall top (0.1 - 0.0216 = 0.0784m max)
         ET.SubElement(lidar_link, 'pose', relative_to='base_link').text = \
-            f'0 0 {lidar_z} 0 0 0'
+            f'{lidar_x} 0 {lidar_z} 0 0 0'
 
-        # Slamtec C1 visual: 27.8mm radius, 41.3mm height
-        lidar_visual = ET.SubElement(lidar_link, 'visual', name='lidar_marker')
-        lidar_geom = ET.SubElement(lidar_visual, 'geometry')
-        lidar_cyl = ET.SubElement(lidar_geom, 'cylinder')
-        ET.SubElement(lidar_cyl, 'radius').text = '0.0278'
-        ET.SubElement(lidar_cyl, 'length').text = '0.0413'
-        lidar_mat = ET.SubElement(lidar_visual, 'material')
-        ET.SubElement(lidar_mat, 'ambient').text = '0 1 1 0.5'
-        ET.SubElement(lidar_mat, 'diffuse').text = '0 1 1 0.5'
+        # Explicit lightweight inertial (prevents gz-sim auto-calculating heavy default)
+        lidar_inertial = ET.SubElement(lidar_link, 'inertial')
+        ET.SubElement(lidar_inertial, 'mass').text = '0.110'
+        lidar_ix = ET.SubElement(lidar_inertial, 'inertia')
+        ET.SubElement(lidar_ix, 'ixx').text = '0.00005'
+        ET.SubElement(lidar_ix, 'iyy').text = '0.00005'
+        ET.SubElement(lidar_ix, 'izz').text = '0.00004'
+
+        # NOTE: No visual on lidar_link — gpu_lidar renders ALL visuals (including
+        # same-link), and a surrounding cylinder causes self-detection → inf readings.
 
         lidar_sensor = ET.SubElement(lidar_link, 'sensor', name='lidar', type='gpu_lidar')
         ET.SubElement(lidar_sensor, 'update_rate').text = f'{RobotSpecs.LIDAR_UPDATE_RATE}'
