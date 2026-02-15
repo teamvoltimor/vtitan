@@ -23,9 +23,9 @@ class LidarGUI:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("LIDAR Distance Visualizer")
+        self.root.title("WRO LIDAR Visualizer")
         self.root.geometry("1200x800")
-        self.root.configure(bg='#2b2b2b')
+        self.root.configure(bg='#0d1117')
 
         # Initialize ROS2 in background thread
         self.ros_thread = None
@@ -38,13 +38,20 @@ class LidarGUI:
         self.angles = None
         self.range_max = 3.0
 
-        # Colors
-        self.bg_color = '#2b2b2b'
-        self.canvas_bg = '#1e1e1e'
-        self.grid_color = '#404040'
-        self.robot_color = '#ff4444'
-        self.lidar_color = '#00ff00'
-        self.text_color = '#ffffff'
+        # Theme colors
+        self.bg_color = '#0d1117'
+        self.panel_bg = '#161b22'
+        self.canvas_bg = '#0d1117'
+        self.grid_color = '#1f3a5f'
+        self.grid_label_color = '#3a7bd5'
+        self.robot_color = '#e94560'
+        self.accent_color = '#58a6ff'
+        self.text_color = '#c9d1d9'
+        self.text_muted = '#8b949e'
+        self.btn_bg = '#21262d'
+        self.btn_hover = '#30363d'
+        self.border_color = '#30363d'
+        self.warning_color = '#d29922'
 
         self.setup_ui()
         self.start_ros()
@@ -53,88 +60,102 @@ class LidarGUI:
         """Set up the GUI layout"""
         # Main container
         main_frame = tk.Frame(self.root, bg=self.bg_color)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
         # Left panel - Controls and stats
-        left_panel = tk.Frame(main_frame, bg=self.bg_color, width=300)
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        left_panel = tk.Frame(main_frame, bg=self.panel_bg, width=300,
+                              highlightbackground=self.border_color,
+                              highlightthickness=1)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
         left_panel.pack_propagate(False)
 
+        # Inner padding for left panel
+        left_inner = tk.Frame(left_panel, bg=self.panel_bg)
+        left_inner.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+
         # Title
-        title = tk.Label(left_panel, text="LIDAR Control Panel",
-                        font=('Arial', 16, 'bold'),
-                        bg=self.bg_color, fg=self.text_color)
-        title.pack(pady=(0, 20))
+        title = tk.Label(left_inner, text="LIDAR Control",
+                        font=('Consolas', 15, 'bold'),
+                        bg=self.panel_bg, fg=self.accent_color)
+        title.pack(anchor=tk.W, pady=(0, 16))
 
         # Status indicator
-        self.status_frame = tk.Frame(left_panel, bg=self.bg_color)
-        self.status_frame.pack(pady=10)
+        self.status_frame = tk.Frame(left_inner, bg=self.panel_bg)
+        self.status_frame.pack(fill=tk.X, pady=(0, 12))
 
-        tk.Label(self.status_frame, text="Status:", font=('Arial', 12),
-                bg=self.bg_color, fg=self.text_color).pack(side=tk.LEFT, padx=5)
+        tk.Label(self.status_frame, text="STATUS", font=('Consolas', 9),
+                bg=self.panel_bg, fg=self.text_muted).pack(side=tk.LEFT, padx=(0, 8))
 
-        self.status_indicator = tk.Canvas(self.status_frame, width=20, height=20,
-                                         bg=self.bg_color, highlightthickness=0)
-        self.status_indicator.pack(side=tk.LEFT, padx=5)
-        self.status_circle = self.status_indicator.create_oval(2, 2, 18, 18, fill='gray')
+        self.status_indicator = tk.Canvas(self.status_frame, width=12, height=12,
+                                         bg=self.panel_bg, highlightthickness=0)
+        self.status_indicator.pack(side=tk.LEFT, padx=(0, 6))
+        self.status_circle = self.status_indicator.create_oval(1, 1, 11, 11, fill=self.border_color)
 
-        self.status_label = tk.Label(self.status_frame, text="Waiting...",
-                                     font=('Arial', 10),
-                                     bg=self.bg_color, fg='gray')
-        self.status_label.pack(side=tk.LEFT, padx=5)
+        self.status_label = tk.Label(self.status_frame, text="Waiting",
+                                     font=('Consolas', 10),
+                                     bg=self.panel_bg, fg=self.text_muted)
+        self.status_label.pack(side=tk.LEFT)
 
         # Control buttons
-        button_frame = tk.Frame(left_panel, bg=self.bg_color)
-        button_frame.pack(pady=10, fill=tk.X)
+        button_frame = tk.Frame(left_inner, bg=self.panel_bg)
+        button_frame.pack(fill=tk.X, pady=(0, 16))
 
-        self.pause_button = tk.Button(button_frame, text="⏸ Pause",
+        self.pause_button = tk.Button(button_frame, text="PAUSE",
                                       command=self.toggle_pause,
-                                      font=('Arial', 12),
-                                      bg='#444444', fg=self.text_color,
-                                      activebackground='#555555',
-                                      width=15, height=2)
-        self.pause_button.pack(pady=5)
+                                      font=('Consolas', 10, 'bold'),
+                                      bg=self.btn_bg, fg=self.text_color,
+                                      activebackground=self.btn_hover,
+                                      activeforeground=self.text_color,
+                                      relief=tk.FLAT, bd=0, pady=8,
+                                      cursor='hand2')
+        self.pause_button.pack(fill=tk.X, pady=(0, 4))
 
-        tk.Button(button_frame, text="🔄 Reset View",
+        tk.Button(button_frame, text="RESET VIEW",
                  command=self.reset_view,
-                 font=('Arial', 12),
-                 bg='#444444', fg=self.text_color,
-                 activebackground='#555555',
-                 width=15, height=2).pack(pady=5)
+                 font=('Consolas', 10, 'bold'),
+                 bg=self.btn_bg, fg=self.text_color,
+                 activebackground=self.btn_hover,
+                 activeforeground=self.text_color,
+                 relief=tk.FLAT, bd=0, pady=8,
+                 cursor='hand2').pack(fill=tk.X)
 
-        # Separator
-        ttk.Separator(left_panel, orient='horizontal').pack(fill=tk.X, pady=20)
+        # Divider
+        tk.Frame(left_inner, bg=self.border_color, height=1).pack(fill=tk.X, pady=16)
 
-        # Statistics display
-        stats_label = tk.Label(left_panel, text="Distance Statistics",
-                              font=('Arial', 14, 'bold'),
-                              bg=self.bg_color, fg=self.text_color)
-        stats_label.pack(pady=(0, 10))
+        # Statistics header
+        stats_label = tk.Label(left_inner, text="Distance Stats",
+                              font=('Consolas', 13, 'bold'),
+                              bg=self.panel_bg, fg=self.accent_color)
+        stats_label.pack(anchor=tk.W, pady=(0, 8))
 
-        # Stats frame with better formatting
-        stats_frame = tk.Frame(left_panel, bg='#333333', relief=tk.RIDGE, bd=2)
-        stats_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Stats text area
+        stats_frame = tk.Frame(left_inner, bg=self.border_color, bd=1, relief=tk.FLAT)
+        stats_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.stats_text = tk.Text(stats_frame, font=('Courier', 10),
-                                  bg='#1e1e1e', fg='#00ff00',
+        self.stats_text = tk.Text(stats_frame, font=('Consolas', 9),
+                                  bg=self.bg_color, fg=self.text_color,
                                   height=20, relief=tk.FLAT,
-                                  padx=10, pady=10)
-        self.stats_text.pack(fill=tk.BOTH, expand=True)
+                                  padx=8, pady=8,
+                                  insertbackground=self.accent_color,
+                                  selectbackground=self.grid_color)
+        self.stats_text.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         self.stats_text.config(state=tk.DISABLED)
 
         # Right panel - Visualization canvas
-        right_panel = tk.Frame(main_frame, bg=self.canvas_bg, relief=tk.SUNKEN, bd=2)
+        right_panel = tk.Frame(main_frame, bg=self.panel_bg,
+                               highlightbackground=self.border_color,
+                               highlightthickness=1)
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        canvas_label = tk.Label(right_panel, text="Top-Down View (Robot at Center)",
-                               font=('Arial', 12, 'bold'),
-                               bg=self.canvas_bg, fg=self.text_color)
-        canvas_label.pack(pady=5)
+        canvas_label = tk.Label(right_panel, text="Top-Down View",
+                               font=('Consolas', 11, 'bold'),
+                               bg=self.panel_bg, fg=self.text_muted)
+        canvas_label.pack(pady=(8, 4))
 
         # Main visualization canvas
         self.canvas = tk.Canvas(right_panel, bg=self.canvas_bg,
                                highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.canvas.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
         # Bind resize event
         self.canvas.bind('<Configure>', self.on_canvas_resize)
@@ -161,9 +182,9 @@ class LidarGUI:
         """Toggle pause state"""
         self.paused = not self.paused
         if self.paused:
-            self.pause_button.config(text="▶ Resume")
+            self.pause_button.config(text="RESUME")
         else:
-            self.pause_button.config(text="⏸ Pause")
+            self.pause_button.config(text="PAUSE")
 
     def reset_view(self):
         """Reset visualization"""
@@ -195,9 +216,9 @@ class LidarGUI:
             )
             # Distance labels
             self.canvas.create_text(
-                center_x, center_y - radius - 15,
-                text=f'{dist}m', fill=self.grid_color,
-                font=('Arial', 9)
+                center_x, center_y - radius - 12,
+                text=f'{dist}m', fill=self.grid_label_color,
+                font=('Consolas', 8)
             )
 
         # Draw axes
@@ -210,39 +231,39 @@ class LidarGUI:
 
         # Direction labels
         self.canvas.create_text(center_x, center_y - max_size//2 + 20,
-                               text='↑ FORWARD', fill=self.text_color,
-                               font=('Arial', 11, 'bold'))
+                               text='FORWARD', fill=self.text_muted,
+                               font=('Consolas', 10, 'bold'))
         self.canvas.create_text(center_x + max_size//2 - 40, center_y,
-                               text='RIGHT →', fill=self.text_color,
-                               font=('Arial', 11, 'bold'))
-        self.canvas.create_text(center_x - max_size//2 + 40, center_y,
-                               text='← LEFT', fill=self.text_color,
-                               font=('Arial', 11, 'bold'))
+                               text='RIGHT', fill=self.text_muted,
+                               font=('Consolas', 10, 'bold'))
+        self.canvas.create_text(center_x - max_size//2 + 30, center_y,
+                               text='LEFT', fill=self.text_muted,
+                               font=('Consolas', 10, 'bold'))
         self.canvas.create_text(center_x, center_y + max_size//2 - 20,
-                               text='↓ BACK', fill=self.text_color,
-                               font=('Arial', 11, 'bold'))
+                               text='BACK', fill=self.text_muted,
+                               font=('Consolas', 10, 'bold'))
 
     def draw_robot(self, center_x, center_y):
         """Draw robot at center"""
-        size = 20
+        size = 18
         # Triangle pointing forward
         points = [
-            center_x, center_y - size,      # Top point (forward)
+            center_x, center_y - size,        # Top point (forward)
             center_x - size, center_y + size,  # Bottom left
             center_x + size, center_y + size   # Bottom right
         ]
         self.canvas.create_polygon(points, fill=self.robot_color,
-                                   outline='white', width=2)
+                                   outline=self.accent_color, width=2)
 
     def update_statistics(self):
         """Update statistics display"""
-        if self.node is None or self.node.ranges is None:
+        if self.node is None or self.node.ranges is None or self.node.angles is None:
             stats = "Waiting for LIDAR data...\n\n"
             stats += "Status: No data received\n"
-            stats += "\nMake sure:\n"
-            stats += "• Gazebo is running\n"
-            stats += "• ROS bridge is active\n"
-            stats += "• /lidar topic exists\n"
+            stats += "\nCheck:\n"
+            stats += "  - Gazebo is running\n"
+            stats += "  - ROS bridge is active\n"
+            stats += "  - /lidar topic exists\n"
         else:
             ranges = self.node.ranges
             angles = self.node.angles
@@ -259,30 +280,30 @@ class LidarGUI:
                 right = self.get_min_distance(valid_angles, valid_ranges, -np.pi/2, 0.26)
                 back = self.get_min_distance(valid_angles, valid_ranges, np.pi, 0.26)
 
-                stats = f"{'='*30}\n"
+                stats = f"{'='*28}\n"
                 stats += f"  LIDAR MEASUREMENTS\n"
-                stats += f"{'='*30}\n\n"
-                stats += f"Points Detected: {len(valid_ranges)}/{len(ranges)}\n\n"
+                stats += f"{'='*28}\n\n"
+                stats += f"Points: {len(valid_ranges)}/{len(ranges)}\n\n"
                 stats += f"Overall:\n"
                 stats += f"  Min:  {np.min(valid_ranges):.3f} m\n"
                 stats += f"  Max:  {np.max(valid_ranges):.3f} m\n"
                 stats += f"  Mean: {np.mean(valid_ranges):.3f} m\n\n"
-                stats += f"{'─'*30}\n\n"
-                stats += f"Directional Distances:\n\n"
-                stats += f"  ↑ Forward: {forward:.3f} m\n"
-                stats += f"  ← Left:    {left:.3f} m\n"
-                stats += f"  → Right:   {right:.3f} m\n"
-                stats += f"  ↓ Back:    {back:.3f} m\n\n"
-                stats += f"{'─'*30}\n\n"
+                stats += f"{'-'*28}\n\n"
+                stats += f"Directional:\n\n"
+                stats += f"  Forward: {forward:.3f} m\n"
+                stats += f"  Left:    {left:.3f} m\n"
+                stats += f"  Right:   {right:.3f} m\n"
+                stats += f"  Back:    {back:.3f} m\n\n"
+                stats += f"{'-'*28}\n\n"
 
                 # Warnings for close obstacles
                 warnings = []
                 if forward < 0.3:
-                    warnings.append("⚠ FRONT OBSTACLE!")
+                    warnings.append("[!] FRONT OBSTACLE")
                 if left < 0.2:
-                    warnings.append("⚠ LEFT WALL CLOSE!")
+                    warnings.append("[!] LEFT WALL CLOSE")
                 if right < 0.2:
-                    warnings.append("⚠ RIGHT WALL CLOSE!")
+                    warnings.append("[!] RIGHT WALL CLOSE")
 
                 if warnings:
                     stats += "WARNINGS:\n"
@@ -318,13 +339,13 @@ class LidarGUI:
             center_y = height // 2
 
             # Draw LIDAR points
-            if self.node and self.node.ranges is not None:
+            if self.node and self.node.ranges is not None and self.node.angles is not None:
                 ranges = self.node.ranges
                 angles = self.node.angles
 
                 # Update status
-                self.status_indicator.itemconfig(self.status_circle, fill='#00ff00')
-                self.status_label.config(text='Active', fg='#00ff00')
+                self.status_indicator.itemconfig(self.status_circle, fill='#3fb950')
+                self.status_label.config(text='Active', fg='#3fb950')
 
                 # Filter and convert to canvas coordinates
                 valid_mask = (ranges >= self.node.range_min) & (ranges <= self.node.range_max)
@@ -337,9 +358,21 @@ class LidarGUI:
                     x = -dist * np.sin(angle) * self.scale  # Negative: left is positive X on display
                     y = -dist * np.cos(angle) * self.scale  # Negative because canvas Y increases downward
 
-                    # Color based on distance (green=far, red=close)
-                    color_intensity = min(255, int(255 * dist / self.range_max))
-                    color = f'#{255-color_intensity:02x}{color_intensity:02x}00'
+                    # Color based on distance: cyan (far) -> yellow (mid) -> red (close)
+                    ratio = min(1.0, dist / self.range_max)
+                    if ratio > 0.5:
+                        # Cyan to yellow
+                        t = (ratio - 0.5) * 2
+                        r = int(255 * (1 - t))
+                        g = int(255 * (1 - t * 0.2))
+                        b = int(255 * t)
+                    else:
+                        # Yellow to red
+                        t = ratio * 2
+                        r = 255
+                        g = int(255 * t)
+                        b = 0
+                    color = f'#{r:02x}{g:02x}{b:02x}'
 
                     # Draw point
                     size = 3

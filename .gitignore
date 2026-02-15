@@ -6,3 +6,9 @@ __pycache__
 
 # Traning data generated
 training_data/
+
+# Calib data
+hailo/calib_data/
+hailo/calib_data_*/
+hailo/calib_output/
+hailo/calib_output_*/

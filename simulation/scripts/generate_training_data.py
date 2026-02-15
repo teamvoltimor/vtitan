@@ -494,8 +494,8 @@ class ScenarioGenerator:
         if self.challenge_type == ScenarioTypes.OPEN and randomize_all:
             corridor_widths = self.randomize_corridor_widths()
         elif self.challenge_type == ScenarioTypes.OPEN:
-            # Default fixed widths for open challenge (800mm - middle value)
-            corridor_widths = {section: {DictKeys.TYPE: WidthTypes.DEFAULT, DictKeys.WIDTH: 0.8} for section in self.sections}
+            # Default fixed widths for open challenge (1000mm wide corridors)
+            corridor_widths = {section: {DictKeys.TYPE: WidthTypes.WIDE, DictKeys.WIDTH: CorridorDimensions.WIDE} for section in self.sections}
         else:
             # Obstacles challenge: fixed 1.0m corridor (creates 1.0m × 1.0m inner area)
             corridor_widths = {section: {DictKeys.TYPE: WidthTypes.FIXED, DictKeys.WIDTH: 1.0} for section in self.sections}
@@ -1069,7 +1069,7 @@ class ScenarioGenerator:
         ET.SubElement(plugin, 'child_frame_id').text = 'base_link'
 
         # ── Helper: build a wheel link ───────────────────────────────────
-        def _add_wheel_link(parent, name, pose_text, mu1='0.8', mu2='0.5'):
+        def _add_wheel_link(parent, name, pose_text, mu1='1.0', mu2='1.0'):
             """Create a wheel link with visual, collision, and inertia."""
             link = ET.SubElement(parent, 'link', name=name)
             ET.SubElement(link, 'pose', relative_to='base_link').text = pose_text
@@ -1201,8 +1201,8 @@ class ScenarioGenerator:
             surface = ET.SubElement(col, 'surface')
             friction = ET.SubElement(surface, 'friction')
             ode = ET.SubElement(friction, 'ode')
-            ET.SubElement(ode, 'mu').text = '0.4'
-            ET.SubElement(ode, 'mu2').text = '0.4'
+            ET.SubElement(ode, 'mu').text = '1.0'
+            ET.SubElement(ode, 'mu2').text = '1.0'
 
             # Inertial
             iner = ET.SubElement(fw_link, 'inertial')
@@ -1329,7 +1329,7 @@ class ScenarioGenerator:
         range_elem = ET.SubElement(lidar_elem, 'range')
         ET.SubElement(range_elem, 'min').text = f'{RobotSpecs.LIDAR_MIN_RANGE}'
         ET.SubElement(range_elem, 'max').text = f'{RobotSpecs.LIDAR_MAX_RANGE}'
-        ET.SubElement(range_elem, 'resolution').text = '0.001'
+        ET.SubElement(range_elem, 'resolution').text = '0.01'
 
         noise_elem = ET.SubElement(lidar_elem, 'noise')
         ET.SubElement(noise_elem, 'type').text = 'gaussian'
@@ -1339,6 +1339,55 @@ class ScenarioGenerator:
         lidar_joint = ET.SubElement(robot_model, 'joint', name='lidar_joint', type='fixed')
         ET.SubElement(lidar_joint, 'parent').text = 'base_link'
         ET.SubElement(lidar_joint, 'child').text = 'lidar_link'
+
+        # ── IMU link (Adafruit BNO085) ────────────────────────────────────
+        imu_link = ET.SubElement(robot_model, 'link', name='imu_link')
+        ET.SubElement(imu_link, 'pose', relative_to='base_link').text = '0 0 0.01 0 0 0'
+
+        # Inertial
+        imu_inertial = ET.SubElement(imu_link, 'inertial')
+        ET.SubElement(imu_inertial, 'mass').text = f'{RobotSpecs.IMU_MASS}'
+        imu_ix = ET.SubElement(imu_inertial, 'inertia')
+        for tag in ['ixx', 'iyy', 'izz']:
+            ET.SubElement(imu_ix, tag).text = '0.00001'
+        for tag in ['ixy', 'ixz', 'iyz']:
+            ET.SubElement(imu_ix, tag).text = '0'
+
+        # Visual (small green PCB)
+        imu_vis = ET.SubElement(imu_link, 'visual', name='visual')
+        imu_geom = ET.SubElement(imu_vis, 'geometry')
+        imu_box = ET.SubElement(imu_geom, 'box')
+        ET.SubElement(imu_box, 'size').text = \
+            f'{RobotSpecs.IMU_SIZE[0]} {RobotSpecs.IMU_SIZE[1]} {RobotSpecs.IMU_SIZE[2]}'
+        imu_mat = ET.SubElement(imu_vis, 'material')
+        ET.SubElement(imu_mat, 'ambient').text = '0.0 0.4 0.0 1'
+        ET.SubElement(imu_mat, 'diffuse').text = '0.0 0.4 0.0 1'
+
+        # IMU sensor
+        imu_sensor = ET.SubElement(imu_link, 'sensor', name='imu', type='imu')
+        ET.SubElement(imu_sensor, 'always_on').text = 'true'
+        ET.SubElement(imu_sensor, 'update_rate').text = f'{RobotSpecs.IMU_UPDATE_RATE}'
+        ET.SubElement(imu_sensor, 'topic').text = 'imu'
+
+        imu_elem = ET.SubElement(imu_sensor, 'imu')
+        angular_vel = ET.SubElement(imu_elem, 'angular_velocity')
+        for axis in ['x', 'y', 'z']:
+            ax = ET.SubElement(angular_vel, axis)
+            noise = ET.SubElement(ax, 'noise', type='gaussian')
+            ET.SubElement(noise, 'mean').text = '0.0'
+            ET.SubElement(noise, 'stddev').text = f'{RobotSpecs.IMU_GYRO_NOISE}'
+
+        linear_accel = ET.SubElement(imu_elem, 'linear_acceleration')
+        for axis in ['x', 'y', 'z']:
+            ax = ET.SubElement(linear_accel, axis)
+            noise = ET.SubElement(ax, 'noise', type='gaussian')
+            ET.SubElement(noise, 'mean').text = '0.0'
+            ET.SubElement(noise, 'stddev').text = f'{RobotSpecs.IMU_ACCEL_NOISE}'
+
+        # Fixed joint
+        imu_joint = ET.SubElement(robot_model, 'joint', name='imu_joint', type='fixed')
+        ET.SubElement(imu_joint, 'parent').text = 'base_link'
+        ET.SubElement(imu_joint, 'child').text = 'imu_link'
 
         world.append(robot_model)
 

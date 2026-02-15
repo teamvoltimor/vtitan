@@ -146,6 +146,13 @@ class RobotSpecs:
     LIDAR_UPDATE_RATE = 10.0    # 10 Hz scan rate
     LIDAR_NOISE_STDDEV = 0.03   # 30mm noise
 
+    # IMU (Adafruit BNO085)
+    IMU_UPDATE_RATE = 100.0         # 100 Hz update rate
+    IMU_GYRO_NOISE = 0.054          # rad/s gyroscope noise stddev
+    IMU_ACCEL_NOISE = 0.3           # m/s² accelerometer noise stddev
+    IMU_MASS = 0.0025               # 2.5g board mass
+    IMU_SIZE = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
+
     # Camera (RPi Camera 3 Wide)
     CAMERA_HFOV = 1.7802        # 102 degrees horizontal FOV (radians)
     CAMERA_WIDTH = 1536         # Horizontal resolution (pixels)
