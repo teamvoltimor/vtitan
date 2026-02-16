@@ -538,7 +538,14 @@ class ScenarioGenerator:
         collision_n = ET.SubElement(link_n, 'collision', name='collision')
         geom_n_col = ET.SubElement(collision_n, 'geometry')
         box_n_col = ET.SubElement(geom_n_col, 'box')
-        ET.SubElement(box_n_col, 'size').text = f"{north_length} 0.1 0.1"
+        ET.SubElement(box_n_col, 'size').text = f"{north_length} {WallSpecs.COLLISION_THICKNESS} 0.1"
+        surf_n = ET.SubElement(collision_n, 'surface')
+        cont_n = ET.SubElement(surf_n, 'contact')
+        ode_n = ET.SubElement(cont_n, 'ode')
+        ET.SubElement(ode_n, 'kp').text = '1e8'
+        ET.SubElement(ode_n, 'kd').text = '1000'
+        ET.SubElement(ode_n, 'max_vel').text = '0.0'
+        ET.SubElement(ode_n, 'min_depth').text = '0.0'
         world.append(wall_north)
 
         # South interior wall (spans from west to east, thickness extends inward)
@@ -564,7 +571,14 @@ class ScenarioGenerator:
         collision_s = ET.SubElement(link_s, 'collision', name='collision')
         geom_s_col = ET.SubElement(collision_s, 'geometry')
         box_s_col = ET.SubElement(geom_s_col, 'box')
-        ET.SubElement(box_s_col, 'size').text = f"{south_length} 0.1 0.1"
+        ET.SubElement(box_s_col, 'size').text = f"{south_length} {WallSpecs.COLLISION_THICKNESS} 0.1"
+        surf_s = ET.SubElement(collision_s, 'surface')
+        cont_s = ET.SubElement(surf_s, 'contact')
+        ode_s = ET.SubElement(cont_s, 'ode')
+        ET.SubElement(ode_s, 'kp').text = '1e8'
+        ET.SubElement(ode_s, 'kd').text = '1000'
+        ET.SubElement(ode_s, 'max_vel').text = '0.0'
+        ET.SubElement(ode_s, 'min_depth').text = '0.0'
         world.append(wall_south)
 
         # East interior wall (spans from south to north, thickness extends inward)
@@ -590,7 +604,14 @@ class ScenarioGenerator:
         collision_e = ET.SubElement(link_e, 'collision', name='collision')
         geom_e_col = ET.SubElement(collision_e, 'geometry')
         box_e_col = ET.SubElement(geom_e_col, 'box')
-        ET.SubElement(box_e_col, 'size').text = f"0.1 {east_length} 0.1"
+        ET.SubElement(box_e_col, 'size').text = f"{WallSpecs.COLLISION_THICKNESS} {east_length} 0.1"
+        surf_e = ET.SubElement(collision_e, 'surface')
+        cont_e = ET.SubElement(surf_e, 'contact')
+        ode_e = ET.SubElement(cont_e, 'ode')
+        ET.SubElement(ode_e, 'kp').text = '1e8'
+        ET.SubElement(ode_e, 'kd').text = '1000'
+        ET.SubElement(ode_e, 'max_vel').text = '0.0'
+        ET.SubElement(ode_e, 'min_depth').text = '0.0'
         world.append(wall_east)
 
         # West interior wall (spans from south to north, thickness extends inward)
@@ -616,7 +637,14 @@ class ScenarioGenerator:
         collision_w = ET.SubElement(link_w, 'collision', name='collision')
         geom_w_col = ET.SubElement(collision_w, 'geometry')
         box_w_col = ET.SubElement(geom_w_col, 'box')
-        ET.SubElement(box_w_col, 'size').text = f"0.1 {west_length} 0.1"
+        ET.SubElement(box_w_col, 'size').text = f"{WallSpecs.COLLISION_THICKNESS} {west_length} 0.1"
+        surf_w = ET.SubElement(collision_w, 'surface')
+        cont_w = ET.SubElement(surf_w, 'contact')
+        ode_w = ET.SubElement(cont_w, 'ode')
+        ET.SubElement(ode_w, 'kp').text = '1e8'
+        ET.SubElement(ode_w, 'kd').text = '1000'
+        ET.SubElement(ode_w, 'max_vel').text = '0.0'
+        ET.SubElement(ode_w, 'min_depth').text = '0.0'
         world.append(wall_west)
 
         # Randomize starting conditions (WRO-style)
@@ -1327,7 +1355,7 @@ class ScenarioGenerator:
         ET.SubElement(horizontal, 'max_angle').text = '3.14159'
 
         range_elem = ET.SubElement(lidar_elem, 'range')
-        ET.SubElement(range_elem, 'min').text = f'{RobotSpecs.LIDAR_MIN_RANGE}'
+        ET.SubElement(range_elem, 'min').text = f'{RobotSpecs.LIDAR_SIM_MIN_RANGE}'
         ET.SubElement(range_elem, 'max').text = f'{RobotSpecs.LIDAR_MAX_RANGE}'
         ET.SubElement(range_elem, 'resolution').text = '0.01'
 

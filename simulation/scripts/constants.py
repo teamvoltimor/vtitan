@@ -32,7 +32,11 @@ class WallSpecs:
     """Wall dimensions and positioning"""
 
     HEIGHT = 0.1                # 100mm wall height
-    THICKNESS = 0.1             # 100mm wall thickness
+    THICKNESS = 0.1             # 100mm wall thickness (visual)
+    # Collision extends 40mm per side past visual to prevent LIDAR pass-through.
+    # LIDAR is 30mm ahead of chassis front, so 40mm buffer ensures the LIDAR
+    # stays ≥10mm outside the visual wall face even at full contact.
+    COLLISION_THICKNESS = 0.18  # 100mm visual + 40mm per side
 
     # Wall positioning offsets
     EXTERIOR_OFFSET = 0.05      # Half thickness for exterior walls
@@ -140,7 +144,8 @@ class RobotSpecs:
     CHASSIS_MASS = 0.8          # 800g total chassis
 
     # LIDAR (Slamtec C1)
-    LIDAR_MIN_RANGE = 0.05      # 50mm minimum detection range
+    LIDAR_MIN_RANGE = 0.05      # 50mm minimum detection range (real sensor)
+    LIDAR_SIM_MIN_RANGE = 0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
     LIDAR_MAX_RANGE = 12.0      # 12m maximum detection range
     LIDAR_SAMPLES = 500         # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE = 10.0    # 10 Hz scan rate
