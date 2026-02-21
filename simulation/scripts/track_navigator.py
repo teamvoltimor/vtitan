@@ -47,6 +47,9 @@ class TrackNavigator(Node):
         self.current_pos = None
         self.current_yaw = None
 
+        # Challenge type: 'open' (no traffic signs) or 'obstacles' (has traffic signs)
+        self.is_open_challenge = self.metadata.get('challenge_type', 'open') == 'open'
+
         # Odom→World transform: odom starts at (0,0,yaw=0), but robot spawns at (start_x, start_y, start_yaw)
         start_cond = self.metadata['starting_conditions']
         self.start_x = start_cond['position']['x']
@@ -58,19 +61,39 @@ class TrackNavigator(Node):
         self.lidar_angles = None
         self.lidar_max_range = RobotSpecs.LIDAR_MAX_RANGE
 
-        # Collision avoidance parameters (tuned for 600mm narrow corridors)
+        # Collision avoidance parameters
         self.danger_distance = 0.20  # meters - start slowing down
-        self.critical_distance = 0.12  # meters - emergency maneuver (only when boxed in)
+        self.critical_distance = 0.07  # meters - escape only at near-contact
         self.safe_distance = 0.15  # meters - side wall warning
 
-        # Three-point turn escape state
+        # Wall escape state: reverse-only bump with steering.
+        # No FWD phase — in all observed cases the FWD phase drives back into
+        # the wall, undoing rotational/lateral progress from the REV phase.
         self.escape_mode = False
         self.escape_counter = 0
-        self.escape_duration = 15  # total frames (~0.75s at 20Hz)
+        self.escape_duration = 10  # total frames (~0.5s at 20Hz)
         self.escape_steer_sign = 1  # +1 or -1, chosen at escape start based on LIDAR
 
-        # Obstacle avoidance sticky direction: prevents flip-flopping when L≈R
-        self.obstacle_steer_sign = None  # None = not in obstacle mode, +1/-1 = committed direction
+        # Obstacle escape state: committed multi-frame maneuver (mini K-turn for traffic signs)
+        # Prevents the rapid REVERSE↔STEER oscillation that occurs when F hovers around threshold.
+        self.obstacle_escape = False
+        self.obstacle_escape_counter = 0
+        self.obstacle_escape_duration = 12  # total frames (~0.6s at 20Hz)
+        self.obstacle_escape_sign = 0  # +1 (nose right) or -1 (nose left), chosen on entry
+
+        # Repeated-obstacle detection: if robot triggers obstacle escape N times
+        # near the same position, skip the current waypoint (it's behind the sign).
+        self.obstacle_escape_positions = []  # list of (x,y) where escapes triggered
+        self.obstacle_repeat_radius = 0.15  # same-spot threshold (meters)
+        self.obstacle_repeat_limit = 2  # skip waypoint after this many escapes
+
+        # Repeated-critical detection: if robot keeps hitting the SAME wall
+        # (backs up → drives forward → same wall), skip the current waypoint.
+        # Each escape backs up ~12cm; if the robot returns to the same wall 3×
+        # it is clearly stuck and the waypoint is unreachable from this angle.
+        self.critical_escape_positions = []  # list of (x,y) where critical triggered
+        self.critical_repeat_radius = 0.25   # same-wall threshold (meters)
+        self.critical_repeat_limit = 3       # skip waypoint after this many wall hits
 
         # Control parameters (Ackermann)
         self.max_linear_speed = 0.50  # m/s
@@ -369,8 +392,15 @@ class TrackNavigator(Node):
                 return float(np.min(valid_ranges))
         return float('inf')
 
-    def check_collision_risk(self):
-        """Check for collision risk using LIDAR data"""
+    def check_collision_risk(self, angle_error=0.0):
+        """Check for collision risk using LIDAR data.
+
+        Args:
+            angle_error: Current heading error to steer target (radians).
+                Large values indicate the robot is actively turning. During turns,
+                close forward readings are walls (not obstacles) since the robot
+                is heading into a corridor side/end wall while turning.
+        """
         if self.lidar_ranges is None:
             return 'safe', {
                 'forward': float('inf'),
@@ -378,7 +408,7 @@ class TrackNavigator(Node):
                 'right': float('inf')
             }
 
-        forward_dist = self.get_min_distance_in_direction(0, tolerance=0.4)
+        forward_dist = self.get_min_distance_in_direction(0, tolerance=0.25)
         # Side: filter_self_detection=True because gpu_lidar side rays clip the
         # robot's own chassis at ~0.05m. Forward doesn't need filtering because
         # the LIDAR is mounted ahead of the chassis front face.
@@ -405,28 +435,44 @@ class TrackNavigator(Node):
                 f'WALL CLIP: F={forward_dist:.1f}m (impossible in 3m track)')
             return 'critical', distances
 
-        # Determine if robot is boxed in (wall/corner) vs obstacle in path.
-        # Boxed in: both sides < 0.25m → K-turn needed.
-        # Obstacle: sides have room → steer around it.
-        side_room = max(left_dist, right_dist)
-        boxed_in = side_room < 0.25
+        # Determine if robot is actively turning based on heading error.
+        # Used only for obstacle vs wall classification (obstacles challenge).
+        abs_err = abs(angle_error)
+        turning = abs_err > 0.25  # ~14 degrees
+
+        # Determine if robot is boxed in (wall/corner) vs free-standing obstacle.
+        # Use MIN side: if the closer wall is < 0.28m, the robot is in a corridor
+        # near a wall/corner → K-turn needed. Only classify as 'obstacle' when
+        # BOTH sides have room (traffic sign in wide corridor).
+        # 600mm corridor with 0.05m outer-wall bias: near side ≈ 0.25m → boxed_in.
+        # 1000mm corridor: near side ≈ 0.45m → obstacle escape (traffic sign).
+        near_side = min(left_dist, right_dist)
+        boxed_in = near_side < 0.28
+
+        # In the open challenge there are no traffic signs — every forward
+        # obstruction is a wall/corner. Always use 'critical' (K-turn/bump).
+        # 'obstacle' classification is only for the obstacles challenge where
+        # traffic signs can appear in wide corridors with room on both sides.
+        can_be_obstacle = (not self.is_open_challenge
+                           and not boxed_in and not turning)
 
         if forward_dist <= RobotSpecs.LIDAR_MIN_RANGE + 0.01:
-            if boxed_in:
-                self.get_logger().warning(
-                    f'WALL CONTACT: F={forward_dist:.3f}m (boxed in)')
-                return 'critical', distances
-            else:
+            if can_be_obstacle:
                 self.get_logger().warning(
                     f'OBSTACLE CONTACT: F={forward_dist:.3f}m '
                     f'(L={left_dist:.2f} R={right_dist:.2f})')
                 return 'obstacle', distances
+            else:
+                self.get_logger().warning(
+                    f'WALL CONTACT: F={forward_dist:.3f}m '
+                    f'(boxed_in={boxed_in} turning={turning})')
+                return 'critical', distances
 
         if forward_dist < self.critical_distance:
-            if boxed_in:
-                return 'critical', distances
-            elif forward_dist < 0.08:
+            if can_be_obstacle:
                 return 'obstacle', distances
+            else:
+                return 'critical', distances
 
         return 'safe', distances
 
@@ -453,20 +499,33 @@ class TrackNavigator(Node):
                 if moved < 0.03:
                     self.stuck_seconds += 1
                     if self.stuck_seconds >= 2 and not self.escape_mode:
-                        # Use LIDAR to choose K-turn direction
+                        # Use current-waypoint heading for escape direction.
+                        # The robot is stuck near the target, so rotating toward
+                        # it is more likely to free it than the L/R room heuristic.
                         left_d = self.get_min_distance_in_direction(
                             math.pi/2, tolerance=0.25, filter_self_detection=True)
                         right_d = self.get_min_distance_in_direction(
                             -math.pi/2, tolerance=0.25, filter_self_detection=True)
-                        self.escape_steer_sign = 1 if right_d > left_d else -1
-                        self.obstacle_steer_sign = None  # K-turn invalidates obstacle direction
+                        if self.current_waypoint_idx < len(self.waypoints):
+                            wp_x, wp_y = self.waypoints[self.current_waypoint_idx]
+                            stuck_wp_angle = math.atan2(wp_y - robot_y, wp_x - robot_x)
+                            stuck_wp_err = stuck_wp_angle - self.current_yaw
+                            while stuck_wp_err > math.pi: stuck_wp_err -= 2 * math.pi
+                            while stuck_wp_err < -math.pi: stuck_wp_err += 2 * math.pi
+                            if abs(stuck_wp_err) > 0.1:
+                                self.escape_steer_sign = -1 if stuck_wp_err > 0 else 1
+                            else:
+                                self.escape_steer_sign = 1 if right_d > left_d else -1
+                        else:
+                            self.escape_steer_sign = 1 if right_d > left_d else -1
+                        self.obstacle_escape = False  # overrides obstacle escape
                         self.get_logger().warning(
                             f'STUCK DETECTED ({robot_x:.2f},{robot_y:.2f}) '
-                            f'for {self.stuck_seconds}s - K-TURN '
+                            f'for {self.stuck_seconds}s - ESCAPE '
                             f'(L={left_d:.2f} R={right_d:.2f})')
                         self.escape_mode = True
                         self.escape_counter = 0
-                        self.escape_duration = 25  # ~1.25s K-turn
+                        self.escape_duration = 15  # ~0.75s (longer for stuck)
                         self.stuck_seconds = 0
                 else:
                     self.stuck_seconds = 0
@@ -484,6 +543,8 @@ class TrackNavigator(Node):
             self.current_waypoint_idx += 1
             self.prev_waypoint_dist = float('inf')
             self.dist_increasing_count = 0
+            self.obstacle_escape_positions.clear()
+            self.critical_escape_positions.clear()
             wp_total = len(self.waypoints)
             self.get_logger().info(
                 f'{reason} waypoint {self.current_waypoint_idx}/{wp_total} '
@@ -561,102 +622,177 @@ class TrackNavigator(Node):
         )
 
         # Check for collision risk using LIDAR
-        risk_level, distances = self.check_collision_risk()
+        risk_level, distances = self.check_collision_risk(angle_error)
 
         vel_msg = Twist()
 
-        # K-TURN ESCAPE: two-phase maneuver when facing a wall.
-        # Phase 1 (reverse): back up with full steering toward the open side.
-        #   Ackermann reverse: steer LEFT → nose swings RIGHT, steer RIGHT → nose swings LEFT.
-        #   We want nose to swing toward MORE room, so steer OPPOSITE to open side.
-        # Phase 2 (forward): drive forward with opposite steering to straighten out.
+        # WALL ESCAPE: reverse-only bump when facing a wall/corner.
+        # Back up with strong steering toward the side with more room.
+        # Ackermann reverse: steer LEFT → nose swings RIGHT, steer RIGHT → nose swings LEFT.
         if self.escape_mode:
             self.escape_counter += 1
-            steer = self.escape_steer_sign * self.max_steering_angle * 0.5
-            reverse_frames = int(self.escape_duration * 0.7)
 
-            if self.escape_counter <= reverse_frames:
-                # Phase 1: reverse with steering
-                vel_msg.linear.x = -0.20
-                vel_msg.angular.z = steer
-                phase = 'REV'
-            else:
-                # Phase 2: forward with opposite steering to center
-                vel_msg.linear.x = 0.15
-                vel_msg.angular.z = -steer * 0.6
-                phase = 'FWD'
+            # Reverse-only with strong steering. No FWD phase — it always
+            # drives back into the wall, undoing all rotational/lateral progress.
+            # After this, waypoint steering resumes and guides the robot onward.
+            steer = self.escape_steer_sign * self.max_steering_angle * 0.8
+            vel_msg.linear.x = -0.20
+            vel_msg.angular.z = steer
 
             self.get_logger().warning(
-                f'K-TURN {phase} [{self.escape_counter}/{self.escape_duration}]: '
+                f'ESCAPE REV [{self.escape_counter}/{self.escape_duration}]: '
                 f'v={vel_msg.linear.x:.2f}, steer={vel_msg.angular.z:.2f}')
 
             if self.escape_counter >= self.escape_duration:
                 self.escape_mode = False
                 self.escape_counter = 0
-                self.escape_duration = 15  # reset to default
-                self.get_logger().info('K-turn complete')
+                self.escape_duration = 10  # reset to default
+                self.get_logger().info('Escape complete')
+
+        # OBSTACLE ESCAPE: committed multi-frame maneuver for traffic signs.
+        # Phase 1 (70% frames): reverse at high speed with steering to create gap.
+        # Phase 2 (30% frames): forward with opposite steering to re-orient.
+        # Runs to completion regardless of per-frame LIDAR readings.
+        elif self.obstacle_escape:
+            self.obstacle_escape_counter += 1
+            steer = self.obstacle_escape_sign * self.max_steering_angle * 0.7
+            reverse_frames = int(self.obstacle_escape_duration * 0.7)
+
+            if self.obstacle_escape_counter <= reverse_frames:
+                # Phase 1: reverse with steering (Ackermann: steer LEFT → nose RIGHT)
+                vel_msg.linear.x = -0.25
+                vel_msg.angular.z = steer
+                phase = 'REV'
+            else:
+                # Phase 2: forward with opposite steering to straighten
+                vel_msg.linear.x = 0.15
+                vel_msg.angular.z = -steer * 0.5
+                phase = 'FWD'
+
+            self.get_logger().warning(
+                f'OBS-ESCAPE {phase} [{self.obstacle_escape_counter}/{self.obstacle_escape_duration}]: '
+                f'v={vel_msg.linear.x:.2f}, steer={vel_msg.angular.z:.2f}')
+
+            if self.obstacle_escape_counter >= self.obstacle_escape_duration:
+                self.obstacle_escape = False
+                self.obstacle_escape_counter = 0
+                # Check if we've been escaping from the same spot repeatedly.
+                # If so, the target waypoint is behind/past the obstacle — skip it.
+                nearby = sum(
+                    1 for ox, oy in self.obstacle_escape_positions
+                    if math.sqrt((robot_x - ox)**2 + (robot_y - oy)**2)
+                    < self.obstacle_repeat_radius)
+                if nearby >= self.obstacle_repeat_limit:
+                    self.get_logger().warning(
+                        f'Obstacle loop detected ({nearby} escapes near '
+                        f'({robot_x:.2f},{robot_y:.2f})) — skipping waypoint '
+                        f'{self.current_waypoint_idx}')
+                    self.current_waypoint_idx += 1
+                    self.prev_waypoint_dist = float('inf')
+                    self.dist_increasing_count = 0
+                    self.obstacle_escape_positions.clear()
+                else:
+                    self.get_logger().info(
+                        f'Obstacle escape complete ({nearby + 1} at this spot)')
 
         # COLLISION AVOIDANCE LOGIC
         elif risk_level == 'critical':
-            # Boxed in (wall/corner) — initiate K-turn escape.
-            # Choose steering direction based on LIDAR: rotate nose toward more room.
+            # Wall/corner collision — choose escape strategy based on context.
             left_d = distances.get('left', 0)
             right_d = distances.get('right', 0)
-            if right_d > left_d:
+            abs_err = abs(angle_error)
+
+            # Determine escape direction using CURRENT WAYPOINT angle, not the
+            # lookahead. The lookahead often points into/past the corner arc,
+            # giving the wrong rotation direction.
+            #
+            # Example: at the NE corner, lookahead angle points NNW (toward the
+            # arc and north corridor) → escape LEFT → robot drifts west into the
+            # inner wall. But the current waypoint (2.75, 2.07) is to the NNE →
+            # escape RIGHT → robot rotates back toward east and drives clear ✓
+            #
+            # For K-turn RIGHT (escape_steer_sign=+1):
+            #   REV: angular.z = +0.42 (LEFT steer) → Ackermann reverse → nose CW
+            #   → heading decreases → robot faces toward target (to the right) ✓
+            # For K-turn LEFT (escape_steer_sign=-1):
+            #   REV: angular.z = -0.42 (RIGHT steer) → Ackermann reverse → nose CCW
+            #   → heading increases → robot faces toward target (to the left) ✓
+            current_wp_angle = math.atan2(dy, dx)
+            current_wp_err = current_wp_angle - self.current_yaw
+            while current_wp_err > math.pi: current_wp_err -= 2 * math.pi
+            while current_wp_err < -math.pi: current_wp_err += 2 * math.pi
+
+            if abs(current_wp_err) > 0.1:
+                # Rotate toward current waypoint heading
+                self.escape_steer_sign = -1 if current_wp_err > 0 else 1
+            elif right_d > left_d:
                 self.escape_steer_sign = 1
             else:
                 self.escape_steer_sign = -1
 
-            self.obstacle_steer_sign = None  # K-turn overrides obstacle steering
+            self.obstacle_escape = False  # escape overrides obstacle maneuver
+
+            # Repeated-critical detection: robot backs up N cm then drives
+            # straight into the same wall again — the waypoint is unreachable
+            # from this angle. Record position and escalate response.
+            self.critical_escape_positions.append((robot_x, robot_y))
+            nearby_critical = sum(
+                1 for ox, oy in self.critical_escape_positions
+                if math.sqrt((robot_x - ox)**2 + (robot_y - oy)**2)
+                < self.critical_repeat_radius)
+
+            # Escalate escape duration on repeated contacts at the same wall.
+            if nearby_critical >= 2:
+                self.escape_duration = 20  # ~1.0s — more lateral displacement
+            elif abs_err > 0.25:
+                self.escape_duration = 8   # ~0.4s (corner, waypoint steering handles rest)
+            else:
+                self.escape_duration = 12  # ~0.6s (straight/slight correction)
+
+            # After N escapes from the same wall, skip the current waypoint.
+            # The target is behind the wall from the robot's angle — advance
+            # to the next waypoint which should be past the corner junction.
+            if nearby_critical >= self.critical_repeat_limit:
+                self.get_logger().warning(
+                    f'CRITICAL LOOP ({nearby_critical} escapes near '
+                    f'({robot_x:.2f},{robot_y:.2f})) — skipping waypoint '
+                    f'{self.current_waypoint_idx}')
+                self.current_waypoint_idx += 1
+                self.prev_waypoint_dist = float('inf')
+                self.dist_increasing_count = 0
+                self.critical_escape_positions.clear()
+
             self.get_logger().warning(
-                f'CRITICAL: F={distances["forward"]:.2f}m - K-TURN '
-                f'(L={left_d:.2f} R={right_d:.2f} → {"RIGHT" if self.escape_steer_sign > 0 else "LEFT"})')
+                f'CRITICAL #{nearby_critical}: F={distances["forward"]:.2f}m - ESCAPE '
+                f'(L={left_d:.2f} R={right_d:.2f} look_err={math.degrees(angle_error):.0f}° '
+                f'wp_err={math.degrees(current_wp_err):.0f}° '
+                f'→ {"RIGHT/CW" if self.escape_steer_sign > 0 else "LEFT/CCW"} '
+                f'dur={self.escape_duration})')
             self.escape_mode = True
             self.escape_counter = 0
             vel_msg.linear.x = -0.20
             vel_msg.angular.z = 0.0
 
         elif risk_level == 'obstacle':
-            # Obstacle ahead but sides have room — steer around it.
-            # Direction is "sticky": chosen once when entering obstacle mode,
-            # maintained until obstacle clears. Prevents flip-flopping when L≈R.
+            # Obstacle ahead with room on sides — initiate obstacle escape maneuver.
+            # This is a committed multi-frame sequence, not per-frame reactive.
             left_d = distances.get('left', 0)
             right_d = distances.get('right', 0)
-            forward_d = distances.get('forward', 0)
-
-            # Commit to a direction on first obstacle frame
-            if self.obstacle_steer_sign is None:
-                self.obstacle_steer_sign = 1 if right_d > left_d else -1
-                self.get_logger().info(
-                    f'OBSTACLE DIR LOCK: {"RIGHT" if self.obstacle_steer_sign > 0 else "LEFT"} '
-                    f'(L={left_d:.2f} R={right_d:.2f})')
-
-            if forward_d <= RobotSpecs.LIDAR_MIN_RANGE + 0.01:
-                # Touching obstacle — reverse while steering to create clearance.
-                # Ackermann reverse: steer LEFT → nose swings RIGHT.
-                vel_msg.linear.x = -0.15
-                vel_msg.angular.z = self.obstacle_steer_sign * self.max_steering_angle * 0.7
-                direction = "RIGHT" if self.obstacle_steer_sign > 0 else "LEFT"
-                self.get_logger().warning(
-                    f'OBSTACLE REVERSE: F={forward_d:.2f}m → nose {direction} '
-                    f'(L={left_d:.2f} R={right_d:.2f})')
-            else:
-                # Approaching obstacle — steer around while moving forward slowly.
-                vel_msg.linear.x = 0.10
-                vel_msg.angular.z = -self.obstacle_steer_sign * self.max_steering_angle * 0.7
-                direction = "RIGHT" if self.obstacle_steer_sign > 0 else "LEFT"
-                self.get_logger().warning(
-                    f'OBSTACLE STEER: F={forward_d:.2f}m → {direction} '
-                    f'(L={left_d:.2f} R={right_d:.2f})')
+            self.obstacle_escape_sign = 1 if right_d > left_d else -1
+            direction = "RIGHT" if self.obstacle_escape_sign > 0 else "LEFT"
+            # Record position for repeated-obstacle detection
+            self.obstacle_escape_positions.append((robot_x, robot_y))
+            self.get_logger().warning(
+                f'OBSTACLE → ESCAPE {direction} '
+                f'(F={distances["forward"]:.2f} L={left_d:.2f} R={right_d:.2f}) '
+                f'[attempt {len(self.obstacle_escape_positions)}]')
+            self.obstacle_escape = True
+            self.obstacle_escape_counter = 0
+            # Start reversing immediately
+            vel_msg.linear.x = -0.25
+            vel_msg.angular.z = self.obstacle_escape_sign * self.max_steering_angle * 0.7
 
         else:
-            # Clear obstacle sticky direction only when well clear of obstacle.
-            # Hysteresis: enter obstacle at F<0.08, but don't unlock direction
-            # until F>0.20. Prevents rapid lock/unlock cycling when reversing
-            # just barely clears the obstacle threshold.
-            if self.obstacle_steer_sign is not None and distances['forward'] > 0.20:
-                self.get_logger().info('OBSTACLE DIR UNLOCK: cleared (F>0.20m)')
-                self.obstacle_steer_sign = None
 
             # ── WAYPOINT-BASED NAVIGATION ──────────────────────────────
             # Arc waypoints handle corners; LIDAR only modulates speed and
@@ -718,10 +854,11 @@ class TrackNavigator(Node):
 
             # Forward obstacle avoidance: when something is close ahead and
             # sides have room, steer toward the more open side. Stronger as
-            # the obstacle gets closer. Only activates when sides aren't also
-            # blocked (to avoid fighting side correction near walls).
+            # the obstacle gets closer. Only activates on straights (low
+            # heading error) to avoid fighting waypoint steering during turns.
             obstacle_correction = 0.0
-            if forward_dist < 0.20 and max(left_dist, right_dist) > 0.25:
+            if forward_dist < 0.20 and max(left_dist, right_dist) > 0.25 \
+                    and abs(angle_error) < 0.4:
                 urgency = 1.0 - forward_dist / 0.20  # 0→1 as obstacle approaches
                 steer_strength = 0.3 * urgency
                 if right_dist > left_dist:

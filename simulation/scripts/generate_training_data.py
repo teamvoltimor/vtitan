@@ -1008,6 +1008,13 @@ class ScenarioGenerator:
         robot_y = zone_y
         robot_z = RobotSpecs.WHEEL_RADIUS  # Spawn at wheel radius height
 
+        # Sync metadata starting position with actual robot spawn position.
+        # randomize_starting_conditions() calculates a corridor-center position,
+        # but the robot spawns on the starting zone (zone_x, zone_y). The
+        # navigator uses the metadata position for its odom→world transform,
+        # so they MUST match or all world positions will be offset.
+        starting_conditions[DictKeys.POSITION] = (robot_x, robot_y)
+
         # Pre-compute derived dimensions
         half_wheelbase = RobotSpecs.WHEELBASE / 2   # 0.085
         half_track = RobotSpecs.TRACK_WIDTH / 2      # 0.0525
