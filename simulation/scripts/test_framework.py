@@ -486,6 +486,18 @@ def find_metadata(scenario_id: int, challenge: str, search_dirs: list[Path]) -> 
             return p
     return None
 
+
+def challenge_search_dirs(challenge: str) -> list[Path]:
+    """Return candidate metadata directories based on challenge type."""
+    training_root = SCRIPTS_DIR / 'training_data'
+    challenges = ['open', 'obstacles'] if challenge == 'all' else [challenge]
+    dirs = []
+    for ch in challenges:
+        dirs.append(training_root / ch / 'scenarios')
+    # Fallbacks
+    dirs += [SCRIPTS_DIR, SCRIPTS_DIR.parent / 'worlds', SCRIPTS_DIR.parent, Path.cwd()]
+    return dirs
+
 # ---------------------------------------------------------------------------
 # Navigator subprocess management
 # ---------------------------------------------------------------------------
@@ -540,14 +552,7 @@ class TestFramework:
         self.args = args
         self.tuner = ParameterTuner()
         self.reporter = Reporter()
-
-        # Candidate metadata directories
-        self.search_dirs = [
-            SCRIPTS_DIR,
-            SCRIPTS_DIR.parent / 'worlds',
-            SCRIPTS_DIR.parent,
-            Path.cwd(),
-        ]
+        self.search_dirs = challenge_search_dirs(args.challenge)
 
     # ------------------------------------------------------------------
     # Scenario runner
