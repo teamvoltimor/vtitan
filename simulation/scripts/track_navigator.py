@@ -66,6 +66,15 @@ class TrackNavigator(Node):
         self.critical_distance = 0.07  # meters - escape only at near-contact
         self.safe_distance = 0.15  # meters - side wall warning
 
+        # Debounce counter for forward critical distance.
+        # GPU LIDAR artifacts near inner corner junctions produce single-reading
+        # spikes at F=0.05-0.07m where no physical wall exists (verified by SDF).
+        # Require 2 consecutive LIDAR readings below critical_distance before
+        # triggering any escape maneuver. A single dip → slow down only (speed
+        # scaling still applies). Two+ readings → real obstacle, escape fires.
+        self.fwd_critical_lidar_count = 0
+        self.fwd_critical_lidar_threshold = 2  # consecutive readings required
+
         # Wall escape state: reverse-only bump with steering.
         # No FWD phase — in all observed cases the FWD phase drives back into
         # the wall, undoing rotational/lateral progress from the REV phase.
@@ -129,9 +138,36 @@ class TrackNavigator(Node):
         # Control loop timer (20 Hz)
         self.timer = self.create_timer(0.05, self.control_loop)
 
+        # Load parameter overrides from navigator_params.json (if present)
+        self._load_params()
+
         self.get_logger().info(f'Navigator initialized: {len(self.waypoints)} waypoints, {num_laps} laps')
         self.get_logger().info(f'Starting section: {self.metadata["starting_conditions"]["section"]}')
         self.get_logger().info(f'Direction: {self.metadata["starting_conditions"]["direction"]}')
+
+    def _load_params(self):
+        """Load tunable parameters from navigator_params.json if present."""
+        import os
+        params_path = os.path.join(os.path.dirname(__file__), 'navigator_params.json')
+        if not os.path.exists(params_path):
+            return
+        with open(params_path) as f:
+            p = json.load(f)
+        if 'critical_distance' in p:
+            self.critical_distance = p['critical_distance']
+        if 'fwd_critical_lidar_threshold' in p:
+            self.fwd_critical_lidar_threshold = p['fwd_critical_lidar_threshold']
+        if 'critical_repeat_limit' in p:
+            self.critical_repeat_limit = p['critical_repeat_limit']
+        if 'critical_repeat_radius' in p:
+            self.critical_repeat_radius = p['critical_repeat_radius']
+        if 'waypoint_threshold' in p:
+            self.waypoint_threshold = p['waypoint_threshold']
+        if 'escape_duration_base' in p:
+            self.escape_duration_base = p['escape_duration_base']
+        if 'max_linear_speed' in p:
+            self.max_linear_speed = p['max_linear_speed']
+        self.get_logger().info(f'Loaded navigator_params.json: {p}')
 
     def load_metadata(self, metadata_path):
         """Load scenario metadata"""
@@ -362,6 +398,14 @@ class TrackNavigator(Node):
             throttle_duration_sec=2.0
         )
 
+        # Update forward-critical debounce counter on every LIDAR update.
+        # Increments when F < critical_distance, resets otherwise.
+        fwd_now = self.get_min_distance_in_direction(0, tolerance=0.25)
+        if fwd_now < self.critical_distance:
+            self.fwd_critical_lidar_count += 1
+        else:
+            self.fwd_critical_lidar_count = 0
+
     def get_min_distance_in_direction(self, target_angle, tolerance=0.3,
                                       filter_self_detection=False):
         """Get minimum LIDAR distance in a specific direction (in robot frame)
@@ -457,6 +501,11 @@ class TrackNavigator(Node):
                            and not boxed_in and not turning)
 
         if forward_dist <= RobotSpecs.LIDAR_MIN_RANGE + 0.01:
+            if self.fwd_critical_lidar_count < self.fwd_critical_lidar_threshold:
+                # Single-reading spike: could be GPU LIDAR artifact at an inner
+                # corner junction. Speed scaling (F<0.10m→0.15 factor) keeps the
+                # robot slow. Wait for a second consecutive reading to confirm.
+                return 'safe', distances
             if can_be_obstacle:
                 self.get_logger().warning(
                     f'OBSTACLE CONTACT: F={forward_dist:.3f}m '
@@ -469,6 +518,9 @@ class TrackNavigator(Node):
                 return 'critical', distances
 
         if forward_dist < self.critical_distance:
+            if self.fwd_critical_lidar_count < self.fwd_critical_lidar_threshold:
+                # Single-reading spike — see note above.
+                return 'safe', distances
             if can_be_obstacle:
                 return 'obstacle', distances
             else:
@@ -518,6 +570,16 @@ class TrackNavigator(Node):
                                 self.escape_steer_sign = 1 if right_d > left_d else -1
                         else:
                             self.escape_steer_sign = 1 if right_d > left_d else -1
+                        # Safety override: waypoint-angle heuristic may choose an
+                        # escape direction that curves the robot body TOWARD a very
+                        # close lateral wall (e.g., SW corner deadlock: sign=+1 → body
+                        # curves LEFT into L=0.14m inner wall → robot immovable).
+                        # If the chosen curve-side wall is < 0.18m AND the opposite
+                        # side has more room, flip to curve away from the close wall.
+                        _esc_side = left_d if self.escape_steer_sign > 0 else right_d
+                        _other_side = right_d if self.escape_steer_sign > 0 else left_d
+                        if _esc_side < 0.18 and _other_side > _esc_side:
+                            self.escape_steer_sign = -self.escape_steer_sign
                         self.obstacle_escape = False  # overrides obstacle escape
                         self.get_logger().warning(
                             f'STUCK DETECTED ({robot_x:.2f},{robot_y:.2f}) '
@@ -550,38 +612,44 @@ class TrackNavigator(Node):
                 f'{reason} waypoint {self.current_waypoint_idx}/{wp_total} '
                 f'at ({target_x:.2f}, {target_y:.2f})')
 
-        if distance < self.waypoint_threshold:
-            advance_waypoint('Reached')
+        # Closest-approach tracking: always update so the counter is current
+        # when escape ends. reset on escape exit (see escape_mode handler).
+        if distance > self.prev_waypoint_dist + 0.01:
+            self.dist_increasing_count += 1
         else:
-            # 1. Skip if waypoint is behind robot (angle > 90°) and next is closer
-            target_angle_check = math.atan2(dy, dx)
-            err = target_angle_check - self.current_yaw
-            while err > math.pi:
-                err -= 2 * math.pi
-            while err < -math.pi:
-                err += 2 * math.pi
+            self.dist_increasing_count = 0
+        self.prev_waypoint_dist = distance
 
-            should_skip = False
-            if abs(err) > math.pi / 2:  # > 90° — waypoint is behind
-                if self.current_waypoint_idx + 1 < len(self.waypoints):
-                    next_x, next_y = self.waypoints[self.current_waypoint_idx + 1]
-                    next_dist = math.sqrt((next_x - robot_x)**2 + (next_y - robot_y)**2)
-                    if next_dist < distance:
-                        should_skip = True
-
-            # 2. Closest-approach detection: if distance has been increasing
-            #    for several frames, we've passed the waypoint
-            if distance > self.prev_waypoint_dist + 0.01:
-                self.dist_increasing_count += 1
+        # Waypoint advancement: freeze during active escape maneuvers.
+        # The robot reverses during escape and may pass waypoints incidentally;
+        # advancing then resets critical_escape_positions and breaks repeat
+        # detection — the core cause of the NW-corner escape loop failure.
+        if not self.escape_mode and not self.obstacle_escape:
+            if distance < self.waypoint_threshold:
+                advance_waypoint('Reached')
             else:
-                self.dist_increasing_count = 0
-            self.prev_waypoint_dist = distance
+                # 1. Skip if waypoint is behind robot (angle > 90°) and next is closer
+                target_angle_check = math.atan2(dy, dx)
+                err = target_angle_check - self.current_yaw
+                while err > math.pi:
+                    err -= 2 * math.pi
+                while err < -math.pi:
+                    err += 2 * math.pi
 
-            if self.dist_increasing_count >= 10 and distance > self.waypoint_threshold:
-                should_skip = True
+                should_skip = False
+                if abs(err) > math.pi / 2:  # > 90° — waypoint is behind
+                    if self.current_waypoint_idx + 1 < len(self.waypoints):
+                        next_x, next_y = self.waypoints[self.current_waypoint_idx + 1]
+                        next_dist = math.sqrt((next_x - robot_x)**2 + (next_y - robot_y)**2)
+                        if next_dist < distance:
+                            should_skip = True
 
-            if should_skip:
-                advance_waypoint('Skipped (passed)')
+                # 2. Closest-approach detection: if distance increasing for N frames
+                if self.dist_increasing_count >= 10 and distance > self.waypoint_threshold:
+                    should_skip = True
+
+                if should_skip:
+                    advance_waypoint('Skipped (passed)')
 
         if self.current_waypoint_idx < len(self.waypoints):
             target_x, target_y = self.waypoints[self.current_waypoint_idx]
@@ -590,10 +658,20 @@ class TrackNavigator(Node):
             distance = math.sqrt(dx**2 + dy**2)
 
         # Distance-based steering lookahead (pure pursuit): steer toward a
-        # point ~0.7m ahead along the waypoint path. This adapts to waypoint
+        # point ahead along the waypoint path. This adapts to waypoint
         # density — on dense arc sections it looks many waypoints ahead,
         # on sparse straights fewer — giving consistent corner anticipation.
-        lookahead_dist = 0.7  # meters along path
+        #
+        # Adaptive lookahead distance: shorten when approaching a tight corner
+        # (forward clearance < 0.25m). A long 0.7m lookahead overshoots past
+        # the arc, targeting waypoints on the far side of the inner corner wall.
+        # This collapses the steer error to near-zero exactly when the robot
+        # needs to turn hardest, causing it to drift into the corner wall.
+        # A 0.3m lookahead targets the nearest arc waypoint instead, keeping
+        # the steer error large enough to drive the robot around the corner.
+        fwd_for_look = self.get_min_distance_in_direction(0, tolerance=0.25) \
+            if self.lidar_ranges is not None else float('inf')
+        lookahead_dist = 0.3 if fwd_for_look < 0.15 else 0.7
         steer_idx = self.current_waypoint_idx
         cumulative = 0.0
         while steer_idx + 1 < len(self.waypoints) and cumulative < lookahead_dist:
@@ -647,6 +725,11 @@ class TrackNavigator(Node):
                 self.escape_mode = False
                 self.escape_counter = 0
                 self.escape_duration = 10  # reset to default
+                # Reset closest-approach counter: during escape the robot reversed,
+                # so dist_increasing_count accumulated and would trigger a spurious
+                # waypoint skip on the very first post-escape control cycle.
+                self.prev_waypoint_dist = float('inf')
+                self.dist_increasing_count = 0
                 self.get_logger().info('Escape complete')
 
         # OBSTACLE ESCAPE: committed multi-frame maneuver for traffic signs.
@@ -676,6 +759,8 @@ class TrackNavigator(Node):
             if self.obstacle_escape_counter >= self.obstacle_escape_duration:
                 self.obstacle_escape = False
                 self.obstacle_escape_counter = 0
+                self.prev_waypoint_dist = float('inf')
+                self.dist_increasing_count = 0
                 # Check if we've been escaping from the same spot repeatedly.
                 # If so, the target waypoint is behind/past the obstacle — skip it.
                 nearby = sum(
@@ -722,7 +807,22 @@ class TrackNavigator(Node):
             while current_wp_err > math.pi: current_wp_err -= 2 * math.pi
             while current_wp_err < -math.pi: current_wp_err += 2 * math.pi
 
-            if abs(current_wp_err) > 0.1:
+            # Repeated-critical detection: record position and count nearby
+            # escapes BEFORE choosing direction so the count is available below.
+            self.critical_escape_positions.append((robot_x, robot_y))
+            nearby_critical = sum(
+                1 for ox, oy in self.critical_escape_positions
+                if math.sqrt((robot_x - ox)**2 + (robot_y - oy)**2)
+                < self.critical_repeat_radius)
+
+            # First escape: wp_err-based direction turns nose toward the waypoint.
+            # 2nd+ escape from the same spot: the wp_err direction failed (the
+            # waypoint is PAST the blocking corner, so turning toward it aims the
+            # nose at the wall). Switch to room-based: escape AWAY from the wall
+            # toward the side with more clearance.
+            # Example: NE corner (CCW), L=1.2m R=0.3m, wp_err=-30° → 1st escape
+            # CW (nose east) fails; 2nd escape CCW (nose NW) clears the corner.
+            if abs(current_wp_err) > 0.1 and nearby_critical < 2:
                 # Rotate toward current waypoint heading
                 self.escape_steer_sign = -1 if current_wp_err > 0 else 1
             elif right_d > left_d:
@@ -730,24 +830,34 @@ class TrackNavigator(Node):
             else:
                 self.escape_steer_sign = -1
 
+            # Safety override (1st escape only): if the chosen direction curves
+            # the robot body TOWARD a very close lateral wall (e.g., SW corner:
+            # sign=+1 → body curves LEFT into L=0.14m inner wall → immovable),
+            # flip to curve away from the close wall instead.
+            # Skipped on 2nd+ escape (nearby_critical >= 2): by that point the
+            # direction is room-based and the override would revert it to the
+            # wp_err direction that already failed. The wall_limited duration
+            # already caps the reverse to limit contact with the close wall.
+            if nearby_critical < 2:
+                _esc_side = left_d if self.escape_steer_sign > 0 else right_d
+                _other_side = right_d if self.escape_steer_sign > 0 else left_d
+                if _esc_side < 0.18 and _other_side > _esc_side:
+                    self.escape_steer_sign = -self.escape_steer_sign
+
             self.obstacle_escape = False  # escape overrides obstacle maneuver
 
-            # Repeated-critical detection: robot backs up N cm then drives
-            # straight into the same wall again — the waypoint is unreachable
-            # from this angle. Record position and escalate response.
-            self.critical_escape_positions.append((robot_x, robot_y))
-            nearby_critical = sum(
-                1 for ox, oy in self.critical_escape_positions
-                if math.sqrt((robot_x - ox)**2 + (robot_y - oy)**2)
-                < self.critical_repeat_radius)
-
-            # Escalate escape duration on repeated contacts at the same wall.
-            if nearby_critical >= 2:
-                self.escape_duration = 20  # ~1.0s — more lateral displacement
-            elif abs_err > 0.25:
-                self.escape_duration = 8   # ~0.4s (corner, waypoint steering handles rest)
+            # Escape duration capped by lateral clearance on the side the robot
+            # curves TOWARD during the reverse maneuver:
+            #   escape_steer_sign=+1 → nose CW → body curves LEFT  → cap by left_d
+            #   escape_steer_sign=-1 → nose CCW → body curves RIGHT → cap by right_d
+            # Factor ≈ 3× because the curved path sweeps more wall distance than
+            # straight-line reverse: safe_frames ≈ side_d / (0.20 m/s × 0.05s × 3).
+            escape_side_d = left_d if self.escape_steer_sign > 0 else right_d
+            wall_limited = max(6, min(12, int(escape_side_d / 0.03)))
+            if abs_err > 0.25:
+                self.escape_duration = min(8, wall_limited)  # corner: short bump
             else:
-                self.escape_duration = 12  # ~0.6s (straight/slight correction)
+                self.escape_duration = wall_limited           # straight: up to 12
 
             # After N escapes from the same wall, skip the current waypoint.
             # The target is behind the wall from the robot's angle — advance
