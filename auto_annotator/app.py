@@ -394,15 +394,14 @@ def add_class(name: str, color: str, state: dict):
     if not name:
         gr.Warning("Class name cannot be empty.")
         choices = [c["name"] for c in state["classes"]]
-        return gr.update(choices=choices), state, color
+        return gr.update(choices=choices), state, color, gr.update(choices=choices)
 
-    db_id = db.upsert_class(name, color)
+    db.upsert_class(name, color)
     state["classes"] = db.get_classes()
 
     choices = [c["name"] for c in state["classes"]]
-    # Advance palette for next pick
     next_color = _PALETTE_HEX[len(state["classes"]) % len(_PALETTE_HEX)]
-    return gr.update(choices=choices, value=name), state, next_color
+    return gr.update(choices=choices, value=name), state, next_color, gr.update(choices=choices)
 
 
 def handle_click(evt: gr.SelectData, state: dict, point_type: str, active_class: str | None):
@@ -642,10 +641,42 @@ def refresh_browse(state: dict):
     return data, stats_html()
 
 
+def prefill_edit_color(class_name: str, state: dict):
+    """Pre-fill the edit color picker with the class's current color."""
+    cls = next((c for c in state["classes"] if c["name"] == class_name), None)
+    if cls:
+        return gr.update(value=cls["color"])
+    return gr.update()
+
+
+def update_class_color(class_name: str, new_color: str, state: dict):
+    """Update an existing class's color in the DB and re-render the image."""
+    if not class_name:
+        return state, render_state_image(state), "Select a class to edit."
+    db.upsert_class(class_name, new_color)
+    state["classes"] = db.get_classes()
+    for ann in state["annotations"]:
+        if ann["class_name"] == class_name:
+            ann["class_color"] = new_color
+    rendered = render_state_image(state)
+    return state, rendered, f"Color updated for '{class_name}'."
+
+
+def scan_folder(state: dict):
+    """Rescan data/pending/ for new images and refresh the browse table."""
+    db.init_db()
+    rows = db.get_all_images()
+    data = [[r["id"], r["filename"], r["status"], r["format"], r["updated_at"]] for r in rows]
+    return data, stats_html()
+
+
 def load_first_image(state: dict):
     """Called on app startup to auto-load the first pending image."""
     db.init_db()
     state["classes"] = db.get_classes()
+
+    choices = [c["name"] for c in state["classes"]]
+    dd_update = gr.update(choices=choices, value=choices[0] if choices else None)
 
     record = db.get_next()
     if record is None:
@@ -653,17 +684,20 @@ def load_first_image(state: dict):
             render_state_image(state), state,
             "No pending images. Drop files into data/pending/ and restart.",
             stats_html(), "", _ann_summary([]),
-            [c["name"] for c in state["classes"]],
+            dd_update, gr.update(choices=choices),
         )
 
     rendered, label, stats = _load_image(record, state)
-    choices = [c["name"] for c in state["classes"]]
-    return rendered, state, f"Loaded: {label}", stats, label, _ann_summary(state["annotations"]), choices
+    return (
+        rendered, state, f"Loaded: {label}", stats, label,
+        _ann_summary(state["annotations"]),
+        dd_update, gr.update(choices=choices),
+    )
 
 
 # ── Gradio UI ─────────────────────────────────────────────────────────────────
 
-with gr.Blocks(title="SAM2 Annotator V2", theme=gr.themes.Base()) as demo:
+with gr.Blocks(title="SAM2 Annotator V2") as demo:
     state = gr.State(initial_state())
 
     stats_bar = gr.HTML(value=stats_html())
@@ -672,58 +706,72 @@ with gr.Blocks(title="SAM2 Annotator V2", theme=gr.themes.Base()) as demo:
         # ── Annotate tab ──────────────────────────────────────────────────────
         with gr.Tab("Annotate"):
             with gr.Row():
-                # Left panel
-                with gr.Column(scale=1, min_width=300):
-                    gr.Markdown("### Classes")
-                    with gr.Row():
-                        class_input = gr.Textbox(
-                            label="Name", placeholder="e.g. red_prism",
-                            scale=3, container=False,
+                # ── Left control panel ────────────────────────────────────────
+                with gr.Column(scale=1, min_width=260):
+
+                    with gr.Accordion("Classes", open=True):
+                        with gr.Row():
+                            class_input = gr.Textbox(
+                                label="Name", placeholder="e.g. red_prism",
+                                scale=3, container=False,
+                            )
+                            color_picker = gr.ColorPicker(
+                                value=_PALETTE_HEX[0], label="Color",
+                                scale=1, container=False,
+                            )
+                        add_btn = gr.Button("Add class", variant="secondary", size="sm")
+                        class_dropdown = gr.Dropdown(
+                            label="Active class", choices=[], value=None,
+                            interactive=True,
                         )
-                        color_picker = gr.ColorPicker(
-                            value=_PALETTE_HEX[0], label="Color",
-                            scale=1, container=False,
+
+                    with gr.Accordion("Edit Class Color", open=False):
+                        edit_class_dd = gr.Dropdown(
+                            label="Class", choices=[], value=None,
+                            interactive=True,
                         )
-                        add_btn = gr.Button("Add", scale=1, variant="secondary")
+                        edit_color_picker = gr.ColorPicker(
+                            value=_PALETTE_HEX[0], label="New color",
+                        )
+                        update_color_btn = gr.Button(
+                            "Update Color", variant="secondary", size="sm",
+                        )
 
-                    class_dropdown = gr.Dropdown(
-                        label="Active class", choices=[], interactive=True,
-                    )
+                    with gr.Accordion("Points & SAM", open=True):
+                        point_type = gr.Radio(
+                            ["Positive", "Negative"], value="Positive",
+                            label="Point type", interactive=True,
+                        )
+                        with gr.Row():
+                            run_sam_btn = gr.Button("Run SAM", variant="primary", size="sm")
+                            accept_btn  = gr.Button(
+                                "Accept Mask", variant="secondary",
+                                size="sm", interactive=False,
+                            )
+                        with gr.Row():
+                            clear_pts_btn = gr.Button("Clear Points", size="sm")
+                            undo_btn      = gr.Button("Undo Last", size="sm")
 
-                    gr.Markdown("### Points")
-                    point_type = gr.Radio(
-                        ["Positive", "Negative"], value="Positive",
-                        label="Point type", interactive=True,
-                    )
+                    with gr.Accordion("Navigate & Save", open=True):
+                        with gr.Row():
+                            prev_btn      = gr.Button("← Prev",  size="sm")
+                            next_btn      = gr.Button("→ Next",  size="sm")
+                            skip_btn      = gr.Button("Skip",    size="sm")
+                            save_next_btn = gr.Button(
+                                "✓ Save", variant="primary", size="sm",
+                            )
+                        export_fmt = gr.Radio(
+                            ["Segmentation", "Detection"], value="Segmentation",
+                            label="Export format", interactive=True,
+                        )
 
-                    with gr.Row():
-                        run_sam_btn   = gr.Button("Run SAM",    variant="primary")
-                        accept_btn    = gr.Button("Accept Mask", variant="secondary", interactive=False)
+                    with gr.Accordion("Annotations", open=True):
+                        ann_box = gr.Textbox(
+                            value="(none)", lines=5,
+                            interactive=False, show_label=False,
+                        )
 
-                    with gr.Row():
-                        clear_pts_btn = gr.Button("Clear Points")
-                        undo_btn      = gr.Button("Undo Last")
-
-                    gr.Markdown("### Navigation")
-                    with gr.Row():
-                        prev_btn      = gr.Button("← Prev")
-                        next_btn      = gr.Button("→ Next")
-                        skip_btn      = gr.Button("Skip")
-                        save_next_btn = gr.Button("✓ Save & Next", variant="primary")
-
-                    gr.Markdown("### Export format")
-                    export_fmt = gr.Radio(
-                        ["Segmentation", "Detection"], value="Segmentation",
-                        label="Format", interactive=True,
-                    )
-
-                    gr.Markdown("### Annotations")
-                    ann_box = gr.Textbox(
-                        label="Summary", value="(none)",
-                        lines=6, interactive=False,
-                    )
-
-                # Right panel
+                # ── Right display panel ───────────────────────────────────────
                 with gr.Column(scale=2):
                     img_label = gr.Textbox(
                         label="Current image", value="", interactive=False,
@@ -732,29 +780,35 @@ with gr.Blocks(title="SAM2 Annotator V2", theme=gr.themes.Base()) as demo:
                         label="Click to add points",
                         type="numpy", interactive=False, height=640,
                     )
-                    status_box = gr.Textbox(
-                        label="Status", interactive=False,
-                    )
+                    status_box = gr.Textbox(label="Status", interactive=False)
 
         # ── Browse tab ────────────────────────────────────────────────────────
         with gr.Tab("Browse"):
-            refresh_btn = gr.Button("Refresh")
-            browse_df   = gr.Dataframe(
+            with gr.Row():
+                refresh_btn     = gr.Button("Refresh")
+                scan_folder_btn = gr.Button(
+                    "Scan Pending Folder", variant="secondary",
+                )
+            browse_df = gr.Dataframe(
                 headers=["id", "filename", "status", "format", "updated_at"],
                 interactive=False,
             )
 
     # ── Event wiring ──────────────────────────────────────────────────────────
 
-    add_btn.click(
-        add_class,
-        inputs=[class_input, color_picker, state],
-        outputs=[class_dropdown, state, color_picker],
+    _add_class_outputs = [class_dropdown, state, color_picker, edit_class_dd]
+    add_btn.click(add_class, [class_input, color_picker, state], _add_class_outputs)
+    class_input.submit(add_class, [class_input, color_picker, state], _add_class_outputs)
+
+    edit_class_dd.change(
+        prefill_edit_color,
+        inputs=[edit_class_dd, state],
+        outputs=[edit_color_picker],
     )
-    class_input.submit(
-        add_class,
-        inputs=[class_input, color_picker, state],
-        outputs=[class_dropdown, state, color_picker],
+    update_color_btn.click(
+        update_class_color,
+        inputs=[edit_class_dd, edit_color_picker, state],
+        outputs=[state, display_img, status_box],
     )
 
     display_img.select(
@@ -762,68 +816,51 @@ with gr.Blocks(title="SAM2 Annotator V2", theme=gr.themes.Base()) as demo:
         inputs=[state, point_type, class_dropdown],
         outputs=[display_img, state, status_box, accept_btn],
     )
-
     run_sam_btn.click(
         run_sam,
         inputs=[state, class_dropdown],
         outputs=[display_img, state, status_box, accept_btn],
     )
-
     accept_btn.click(
         accept_mask,
         inputs=[state, class_dropdown],
         outputs=[display_img, state, status_box, ann_box],
     )
-
     clear_pts_btn.click(
         clear_points,
         inputs=[state],
         outputs=[display_img, state, status_box],
     )
-
     undo_btn.click(
         undo_last,
         inputs=[state],
         outputs=[display_img, state, status_box, ann_box],
     )
 
-    save_next_btn.click(
-        save_and_next,
-        inputs=[state, export_fmt],
-        outputs=[display_img, state, status_box, stats_bar, img_label, ann_box],
-    )
+    _nav_outputs = [display_img, state, status_box, stats_bar, img_label, ann_box]
+    save_next_btn.click(save_and_next, [state, export_fmt], _nav_outputs)
+    skip_btn.click(skip_image,      [state], _nav_outputs)
+    prev_btn.click(go_prev,         [state], _nav_outputs)
+    next_btn.click(go_next_pending, [state], _nav_outputs)
 
-    skip_btn.click(
-        skip_image,
-        inputs=[state],
-        outputs=[display_img, state, status_box, stats_bar, img_label, ann_box],
-    )
-
-    prev_btn.click(
-        go_prev,
-        inputs=[state],
-        outputs=[display_img, state, status_box, stats_bar, img_label, ann_box],
-    )
-
-    next_btn.click(
-        go_next_pending,
-        inputs=[state],
-        outputs=[display_img, state, status_box, stats_bar, img_label, ann_box],
-    )
-
-    refresh_btn.click(
-        refresh_browse,
-        inputs=[state],
-        outputs=[browse_df, stats_bar],
-    )
+    refresh_btn.click(refresh_browse, [state], [browse_df, stats_bar])
+    scan_folder_btn.click(scan_folder, [state], [browse_df, stats_bar])
 
     # Auto-load first pending image on startup
     demo.load(
         load_first_image,
         inputs=[state],
-        outputs=[display_img, state, status_box, stats_bar, img_label, ann_box, class_dropdown],
+        outputs=[
+            display_img, state, status_box, stats_bar,
+            img_label, ann_box, class_dropdown, edit_class_dd,
+        ],
     )
 
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        theme=gr.themes.Base(),
+    )
