@@ -54,14 +54,30 @@ _PALETTE_HEX: list[str] = [
 
 
 def _hex_to_bgr(h: str) -> tuple[int, int, int]:
+    if h.startswith("rgb"):
+        # simple parser for rgb(r, g, b) or rgba(r, g, b, a)
+        parts = h.split("(")[1].split(")")[0].split(",")
+        r, g, b = int(float(parts[0])), int(float(parts[1])), int(float(parts[2]))
+        return (b, g, r)
     h = h.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    return (b, g, r)
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return (b, g, r)
+    except ValueError:
+        # fallback for malformed hex
+        return (0, 0, 255)
 
 
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+    if h.startswith("rgb"):
+        parts = h.split("(")[1].split(")")[0].split(",")
+        return int(float(parts[0])), int(float(parts[1])), int(float(parts[2]))
     h = h.lstrip("#")
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        # fallback for malformed hex
+        return (255, 0, 0)
 
 
 # ── Device + autocast ─────────────────────────────────────────────────────────
@@ -230,18 +246,27 @@ def render_state_image(state: dict) -> np.ndarray:
 
     # ── 4: Point buffer ───────────────────────────────────────────────────────
 
-    # Get the pending class color if available
-    pending_color_rgb = (0, 255, 0)  # Default green
+    # Create a quick lookup for class colors
+    class_colors_map = {c["id"]: c["color"] for c in state.get("classes", [])}
+
+    # Fallback/default logic for compatibility with old points that lack "class_id"
+    default_pending_color = (0, 255, 0)
     pending_class_id = state.get("pending_class_db_id")
     if pending_class_id is not None:
-        cls_map = {c["id"]: c["color"] for c in state["classes"]}
-        p_color_hex = cls_map.get(pending_class_id, "#00ff00")
-        pending_color_rgb = _hex_to_rgb(p_color_hex)
+        p_hex = class_colors_map.get(pending_class_id, "#00ff00")
+        default_pending_color = _hex_to_rgb(p_hex)
 
     for pt in state.get("point_buffer", []):
         px, py = int(pt["x"]), int(pt["y"])
+
+        # Determine color for this specific point
+        pt_color = default_pending_color
+        if "class_id" in pt and pt["class_id"] in class_colors_map:
+            pt_hex = class_colors_map[pt["class_id"]]
+            pt_color = _hex_to_rgb(pt_hex)
+
         if pt["label"] == 1:
-            cv2.circle(result_u8, (px, py), 6, pending_color_rgb, -1)
+            cv2.circle(result_u8, (px, py), 6, pt_color, -1)
             cv2.circle(result_u8, (px, py), 6, (255, 255, 255), 1)
         else:
             cv2.circle(result_u8, (px, py), 6, (0, 0, 255), -1)
@@ -507,7 +532,9 @@ def handle_click(
 
     x, y = int(evt.index[0]), int(evt.index[1])
     label = 1 if point_type == "Positive" else 0
-    state["point_buffer"].append({"x": x, "y": y, "label": label})
+    state["point_buffer"].append(
+        {"x": x, "y": y, "label": label, "class_id": cls_info["id"]}
+    )
     state["pending_class_db_id"] = cls_info["id"]
 
     n_pos = sum(1 for p in state["point_buffer"] if p["label"] == 1)
@@ -561,7 +588,26 @@ def run_sam(state: dict, active_class: str | None):
                     point_labels=labels,
                     multimask_output=True,
                 )
-            best_mask: np.ndarray = masks[int(np.argmax(scores))].astype(bool)
+
+            # --- CHANGE: Pick the best mask based on score, but favor the one
+            # that is most likely the 'object' level mask (index 0 usually,
+            # or the one with highest score if ambiguous).
+            # SAM 2 returns 3 masks: usually [sub-part, object, surrounding].
+            # We sort by score and pick the highest confident one.
+            # However, sometimes SAM 2's "highest score" is a tiny sub-part.
+            # If you find it picking parts too often, you can force index 1 or 2.
+            # For now, let's trust the score but log shapes for debugging if needed.
+
+            # scores is shape (3,) or (1, 3) -> flatten it
+            scores = scores.flatten()
+            best_idx = int(np.argmax(scores))
+
+            # Optional tweak: if the best score is index 0 (often "sub-part")
+            # and index 1 (often "whole object") is very close in score, prefer 1.
+            # But stick to argmax for now to match standard behavior.
+
+            # NOTE: masks shape is (3, H, W). We take the one at best_idx.
+            best_mask: np.ndarray = masks[best_idx].astype(bool)
 
         else:
             pos_pts = [[p["x"], p["y"]] for p in pts if p["label"] == 1]
@@ -939,25 +985,33 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                 # ── Left Image Panel ──────────────────────────────────────────
                 with gr.Column(scale=3):
                     img_label = gr.Textbox(
-                        label="Current image", value="", interactive=False,
+                        label="Current image",
+                        value="",
+                        interactive=False,
                     )
                     display_img = gr.Image(
                         label="Click to add points",
-                        type="numpy", interactive=False, height=640,
+                        type="numpy",
+                        interactive=False,
+                        height=640,
                     )
-                    
+
                     # Navigation under image
                     with gr.Accordion("Navigate & Save", open=True):
                         with gr.Row():
-                            prev_btn      = gr.Button("← Prev",  size="sm")
-                            next_btn      = gr.Button("→ Next",  size="sm")
-                            skip_btn      = gr.Button("Skip",    size="sm")
+                            prev_btn = gr.Button("← Prev", size="sm")
+                            next_btn = gr.Button("→ Next", size="sm")
+                            skip_btn = gr.Button("Skip", size="sm")
                             save_next_btn = gr.Button(
-                                "✓ Save", variant="primary", size="sm",
+                                "✓ Save",
+                                variant="primary",
+                                size="sm",
                             )
                         export_fmt = gr.Radio(
-                            ["Segmentation", "Detection"], value="Segmentation",
-                            label="Export format", interactive=True,
+                            ["Segmentation", "Detection"],
+                            value="Segmentation",
+                            label="Export format",
+                            interactive=True,
                         )
 
                 # ── Right Control Panel ───────────────────────────────────────
@@ -967,58 +1021,78 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                     with gr.Accordion("Classes", open=True):
                         with gr.Row():
                             class_input = gr.Textbox(
-                                label="Name", placeholder="e.g. red_prism",
-                                scale=3, container=False,
+                                label="Name",
+                                placeholder="e.g. red_prism",
+                                scale=3,
+                                container=False,
                             )
                             color_picker = gr.ColorPicker(
-                                value=_PALETTE_HEX[0], label="Color",
-                                scale=1, container=False,
+                                value=_PALETTE_HEX[0],
+                                label="Color",
+                                scale=1,
+                                container=False,
                             )
                         add_btn = gr.Button("Add class", variant="secondary", size="sm")
                         class_dropdown = gr.Dropdown(
-                            label="Active class", choices=[], value=None,
+                            label="Active class",
+                            choices=[],
+                            value=None,
                             interactive=True,
                         )
 
                     with gr.Accordion("Edit Class Color", open=False):
                         edit_class_dd = gr.Dropdown(
-                            label="Class", choices=[], value=None,
+                            label="Class",
+                            choices=[],
+                            value=None,
                             interactive=True,
                         )
                         edit_color_picker = gr.ColorPicker(
-                            value=_PALETTE_HEX[0], label="New color",
+                            value=_PALETTE_HEX[0],
+                            label="New color",
                         )
                         update_color_btn = gr.Button(
-                            "Update Color", variant="secondary", size="sm",
+                            "Update Color",
+                            variant="secondary",
+                            size="sm",
                         )
 
                     with gr.Accordion("Points & SAM", open=True):
                         point_type = gr.Radio(
-                            ["Positive", "Negative"], value="Positive",
-                            label="Point type", interactive=True,
+                            ["Positive", "Negative"],
+                            value="Positive",
+                            label="Point type",
+                            interactive=True,
                         )
                         with gr.Row():
-                            run_sam_btn = gr.Button("Run SAM", variant="primary", size="sm")
-                            accept_btn  = gr.Button(
-                                "Accept Mask", variant="secondary",
-                                size="sm", interactive=False,
+                            run_sam_btn = gr.Button(
+                                "Run SAM", variant="primary", size="sm"
+                            )
+                            accept_btn = gr.Button(
+                                "Accept Mask",
+                                variant="secondary",
+                                size="sm",
+                                interactive=False,
                             )
                         with gr.Row():
                             clear_pts_btn = gr.Button("Clear Points", size="sm")
-                            undo_btn      = gr.Button("Undo Last", size="sm")
+                            undo_btn = gr.Button("Undo Last", size="sm")
 
                     with gr.Accordion("Annotations", open=True):
                         ann_box = gr.Textbox(
-                            value="(none)", lines=5,
-                            interactive=False, show_label=False,
+                            value="(none)",
+                            lines=5,
+                            interactive=False,
+                            show_label=False,
                         )
 
         # ── Browse tab ────────────────────────────────────────────────────────
         with gr.Tab("Browse"):
             with gr.Row():
-                refresh_btn     = gr.Button("Refresh")
+                refresh_btn = gr.Button("Refresh")
                 scan_folder_btn = gr.Button(
-                    "Scan Pending Folder", variant="secondary",
+                    "Scan Pending Folder",
+                    variant="secondary",
                 )
             browse_df = gr.Dataframe(
                 headers=["id", "filename", "status", "format", "updated_at"],
@@ -1029,7 +1103,9 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
 
     _add_class_outputs = [class_dropdown, state, color_picker, edit_class_dd]
     add_btn.click(add_class, [class_input, color_picker, state], _add_class_outputs)
-    class_input.submit(add_class, [class_input, color_picker, state], _add_class_outputs)
+    class_input.submit(
+        add_class, [class_input, color_picker, state], _add_class_outputs
+    )
 
     edit_class_dd.change(
         prefill_edit_color,
@@ -1070,15 +1146,23 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
 
     _nav_outputs = [display_img, state, status_box, stats_bar, img_label, ann_box]
     save_next_btn.click(save_and_next, [state, export_fmt], _nav_outputs)
-    skip_btn.click(skip_image,      [state], _nav_outputs)
-    prev_btn.click(go_prev,         [state], _nav_outputs)
+    skip_btn.click(skip_image, [state], _nav_outputs)
+    prev_btn.click(go_prev, [state], _nav_outputs)
     next_btn.click(go_next_pending, [state], _nav_outputs)
 
     refresh_btn.click(refresh_browse, [state], [browse_df, stats_bar])
     scan_folder_btn.click(
-        scan_folder, 
-        inputs=[state], 
-        outputs=[browse_df, stats_bar, display_img, state, status_box, img_label, ann_box]
+        scan_folder,
+        inputs=[state],
+        outputs=[
+            browse_df,
+            stats_bar,
+            display_img,
+            state,
+            status_box,
+            img_label,
+            ann_box,
+        ],
     )
 
     # Auto-load first pending image on startup
@@ -1086,8 +1170,14 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
         load_first_image,
         inputs=[state],
         outputs=[
-            display_img, state, status_box, stats_bar,
-            img_label, ann_box, class_dropdown, edit_class_dd,
+            display_img,
+            state,
+            status_box,
+            stats_bar,
+            img_label,
+            ann_box,
+            class_dropdown,
+            edit_class_dd,
         ],
     )
 
