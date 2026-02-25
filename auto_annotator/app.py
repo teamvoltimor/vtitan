@@ -460,6 +460,7 @@ def initial_state() -> dict:
         "image_set": False,
         "point_buffer": [],
         "pending_mask": None,
+        "pending_masks": [],   # all 3 SAM candidate masks
         "pending_class_db_id": None,
         "annotations": [],
     }
@@ -562,33 +563,25 @@ def handle_click(
     return rendered, state, status, gr.update(interactive=False)
 
 
+_MASK_LABELS = ["Precise (0)", "Object (1)", "Broad (2)"]
+
 def run_sam(state: dict, active_class: str | None):
+    _err = lambda msg: (
+        render_state_image(state), state, msg,
+        gr.update(interactive=False), gr.update(visible=False),
+    )
+
     img = state.get("current_image")
     if img is None:
-        return (
-            render_state_image(state),
-            state,
-            "No image loaded.",
-            gr.update(interactive=False),
-        )
+        return _err("No image loaded.")
     if not state["point_buffer"]:
-        return (
-            render_state_image(state),
-            state,
-            "Add points first.",
-            gr.update(interactive=False),
-        )
+        return _err("Add points first.")
     if predictor is None:
-        return (
-            render_state_image(state),
-            state,
-            "SAM model not loaded.",
-            gr.update(interactive=False),
-        )
+        return _err("SAM model not loaded.")
 
-    pts = state["point_buffer"]
+    pts    = state["point_buffer"]
     coords = np.array([[p["x"], p["y"]] for p in pts], dtype=np.float32)
-    labels = np.array([p["label"] for p in pts], dtype=np.int32)
+    labels = np.array([p["label"] for p in pts],       dtype=np.int32)
 
     try:
         if USE_NATIVE:
@@ -604,66 +597,58 @@ def run_sam(state: dict, active_class: str | None):
                     multimask_output=True,
                 )
 
-            # --- CHANGE: Pick the best mask based on score, but favor the one
-            # that is most likely the 'object' level mask (index 0 usually,
-            # or the one with highest score if ambiguous).
-            # SAM 2 returns 3 masks: usually [sub-part, object, surrounding].
-            # We sort by score and pick the highest confident one.
-            # However, sometimes SAM 2's "highest score" is a tiny sub-part.
-            # If you find it picking parts too often, you can force index 1 or 2.
-            # For now, let's trust the score but log shapes for debugging if needed.
+            # SAM2 returns 3 masks (fine → coarse): [sub-part, object, context]
+            scores_flat = scores.flatten()
+            best_idx    = int(np.argmax(scores_flat))
 
-            # scores is shape (3,) or (1, 3) -> flatten it
-            scores = scores.flatten()
-            best_idx = int(np.argmax(scores))
-
-            # Optional tweak: if the best score is index 0 (often "sub-part")
-            # and index 1 (often "whole object") is very close in score, prefer 1.
-            # But stick to argmax for now to match standard behavior.
-
-            # NOTE: masks shape is (3, H, W). We take the one at best_idx.
-            best_mask: np.ndarray = masks[best_idx].astype(bool)
+            all_masks = [masks[i].astype(bool) for i in range(len(masks))]
 
         else:
             pos_pts = [[p["x"], p["y"]] for p in pts if p["label"] == 1]
             pos_lbl = [1] * len(pos_pts)
             results = predictor(img, points=[pos_pts], labels=[pos_lbl])
             if not results or results[0].masks is None:
-                return (
-                    render_state_image(state),
-                    state,
-                    "SAM returned no mask.",
-                    gr.update(interactive=False),
-                )
-            best_mask = results[0].masks.data[0].cpu().numpy().astype(bool)
+                return _err("SAM returned no mask.")
+            all_masks = [results[0].masks.data[0].cpu().numpy().astype(bool)]
+            best_idx  = 0
 
     except torch.cuda.OutOfMemoryError:
         _empty_cache()
-        return (
-            render_state_image(state),
-            state,
-            "CUDA OOM — try a smaller image.",
-            gr.update(interactive=False),
-        )
+        return _err("CUDA OOM — try a smaller image.")
     except Exception as e:
         _empty_cache()
-        return (
-            render_state_image(state),
-            state,
-            f"Inference error: {e}",
-            gr.update(interactive=False),
-        )
+        return _err(f"Inference error: {e}")
     finally:
         _empty_cache()
 
-    state["pending_mask"] = best_mask
+    state["pending_masks"] = all_masks
+    state["pending_mask"]  = all_masks[best_idx]
+
+    best_label  = _MASK_LABELS[best_idx] if best_idx < len(_MASK_LABELS) else _MASK_LABELS[0]
+    show_picker = len(all_masks) > 1
+
     rendered = render_state_image(state)
+    scores_str = "  ".join(
+        f"{_MASK_LABELS[i]}: {scores_flat[i]:.3f}" for i in range(len(all_masks))
+    ) if USE_NATIVE else ""
+    status = f"Mask ready ({best_label} selected by score). {scores_str}"
+
     return (
-        rendered,
-        state,
-        "Mask ready — click Accept to keep it.",
+        rendered, state, status,
         gr.update(interactive=True),
+        gr.update(visible=show_picker, value=best_label),
     )
+
+
+def select_mask_level(level_str: str, state: dict):
+    """Switch the displayed pending mask without re-running SAM."""
+    level_map = {lbl: i for i, lbl in enumerate(_MASK_LABELS)}
+    level     = level_map.get(level_str, 1)
+    masks     = state.get("pending_masks", [])
+    if not masks or level >= len(masks):
+        return render_state_image(state), state
+    state["pending_mask"] = masks[level]
+    return render_state_image(state), state
 
 
 def accept_mask(state: dict, active_class: str | None):
@@ -711,26 +696,28 @@ def accept_mask(state: dict, active_class: str | None):
         }
     )
 
-    state["pending_mask"] = None
-    state["pending_class_db_id"] = None
-    state["point_buffer"] = []
+    state["pending_mask"]          = None
+    state["pending_masks"]         = []
+    state["pending_class_db_id"]   = None
+    state["point_buffer"]          = []
 
     rendered = render_state_image(state)
     n = len(state["annotations"])
     return (
-        rendered,
-        state,
+        rendered, state,
         f"{n} annotation(s) accepted.",
         _ann_summary(state["annotations"]),
+        gr.update(visible=False),
     )
 
 
 def clear_points(state: dict):
-    state["point_buffer"] = []
-    state["pending_mask"] = None
+    state["point_buffer"]        = []
+    state["pending_mask"]        = None
+    state["pending_masks"]       = []
     state["pending_class_db_id"] = None
     rendered = render_state_image(state)
-    return rendered, state, "Points cleared."
+    return rendered, state, "Points cleared.", gr.update(visible=False)
 
 
 def undo_last(state: dict):
@@ -1075,6 +1062,14 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                                 "Accept Mask", variant="secondary",
                                 size="sm", interactive=False,
                             )
+                        # Shown only after Run SAM — lets you pick among the 3
+                        # granularity levels SAM2 always returns:
+                        #   Precise (0) = sub-part   Object (1) = whole object   Broad (2) = context
+                        mask_level_radio = gr.Radio(
+                            _MASK_LABELS, value="Object (1)",
+                            label="Mask granularity",
+                            interactive=True, visible=False,
+                        )
                         with gr.Row():
                             clear_pts_btn = gr.Button("Clear Points", size="sm")
                             undo_btn      = gr.Button("Undo Last",    size="sm")
@@ -1134,17 +1129,22 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
     run_sam_btn.click(
         run_sam,
         inputs=[state, class_dropdown],
-        outputs=[display_img, state, status_box, accept_btn],
+        outputs=[display_img, state, status_box, accept_btn, mask_level_radio],
+    )
+    mask_level_radio.change(
+        select_mask_level,
+        inputs=[mask_level_radio, state],
+        outputs=[display_img, state],
     )
     accept_btn.click(
         accept_mask,
         inputs=[state, class_dropdown],
-        outputs=[display_img, state, status_box, ann_box],
+        outputs=[display_img, state, status_box, ann_box, mask_level_radio],
     )
     clear_pts_btn.click(
         clear_points,
         inputs=[state],
-        outputs=[display_img, state, status_box],
+        outputs=[display_img, state, status_box, mask_level_radio],
     )
     undo_btn.click(
         undo_last,
