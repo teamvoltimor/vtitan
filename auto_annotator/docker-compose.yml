@@ -5,10 +5,11 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - DB_PATH=/app/data/manifest.db
+      - MODELS_DIR=/app/models
+      - MODELS_CONFIG=/app/config/models.toml
     ports:
       - "7860:7860"
     volumes:
-      - ./data/pending:/app/data/pending:ro
-      - ./data/labels:/app/data/labels:rw
+      - ./data:/app/data:rw
       - ./models:/app/models:rw
-      - ./manifest.db:/app/manifest.db:rw

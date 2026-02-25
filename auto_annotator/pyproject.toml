@@ -15,6 +15,7 @@ dependencies = [
     "python-dotenv",
     "transformers>=4.50.0",
     "accelerate",
+    "ruff>=0.15.2",
 ]
 
 [[tool.uv.index]]

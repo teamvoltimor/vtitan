@@ -1,31 +1,16 @@
-"""
-db.py – SQLite persistence layer for the SAM2 batch annotator.
-
-Tables
-------
-classes : per-project class registry (name → colour)
-images  : image queue with status tracking
-"""
+"""src.db – SQLite persistence layer for the SAM2 batch annotator."""
 
 import sqlite3
-import os
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
-BASE_DIR     = Path(__file__).parent
-PENDING_DIR  = BASE_DIR / "data" / "pending"
-LABELS_DIR   = BASE_DIR / "data" / "labels"
-DB_PATH      = Path(os.environ.get("DB_PATH", BASE_DIR / "manifest.db"))
-
-VALID_EXTS   = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-
-# Status constants
-STATUS_PENDING  = 0
-STATUS_DONE     = 1
-STATUS_SKIPPED  = 2
+from src.constants import DB_PATH, LABELS_DIR, PENDING_DIR, VALID_EXTS
+from src.enums import Status
+from src.schema import DDL, DEFAULT_CLASSES
 
 
 # ── Connection helper ──────────────────────────────────────────────────────────
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
@@ -35,39 +20,26 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
-# ── Schema ────────────────────────────────────────────────────────────────────
-
-_DDL = """
-CREATE TABLE IF NOT EXISTS classes (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT UNIQUE NOT NULL,
-    color      TEXT DEFAULT '#dc322f',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS images (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    path        TEXT UNIQUE NOT NULL,
-    status      INTEGER DEFAULT 0,
-    format_used TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP
-);
-"""
-
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
+
 def init_db() -> None:
-    """
-    Create tables if needed, scan data/pending/ for new images, create dirs.
-    """
+    """Create tables if needed, scan data/pending/ for new images, seed defaults."""
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     LABELS_DIR.mkdir(parents=True, exist_ok=True)
 
     with _connect() as conn:
-        conn.executescript(_DDL)
+        conn.executescript(DDL)
         conn.commit()
+
+        # Seed default classes if the table is empty
+        count = conn.execute("SELECT COUNT(*) FROM classes").fetchone()[0]
+        if count == 0:
+            conn.executemany(
+                "INSERT OR IGNORE INTO classes (name, color) VALUES (?, ?)",
+                DEFAULT_CLASSES,
+            )
+            conn.commit()
 
         # Scan pending dir and insert new image paths
         existing = {
@@ -75,7 +47,7 @@ def init_db() -> None:
             for row in conn.execute("SELECT path FROM images").fetchall()
         }
 
-        new_rows = []
+        new_rows: list[tuple[str]] = []
         for f in sorted(PENDING_DIR.iterdir()):
             if f.suffix.lower() in VALID_EXTS:
                 path_str = str(f)
@@ -88,31 +60,23 @@ def init_db() -> None:
 
 
 def get_next(after_id: int | None = None) -> sqlite3.Row | None:
-    """
-    Return the next pending image.
-    - If after_id is given: first pending with id > after_id.
-    - If nothing found after that id, wraps to the very first pending image.
-    - Returns None if no pending images exist at all.
-    """
+    """Return the next pending image, wrapping around if needed."""
     with _connect() as conn:
         if after_id is not None:
             row = conn.execute(
                 "SELECT * FROM images WHERE status=? AND id>? ORDER BY id ASC LIMIT 1",
-                (STATUS_PENDING, after_id),
+                (Status.PENDING, after_id),
             ).fetchone()
             if row:
                 return row
-        # wrap-around / initial load
         return conn.execute(
             "SELECT * FROM images WHERE status=? ORDER BY id ASC LIMIT 1",
-            (STATUS_PENDING,),
+            (Status.PENDING,),
         ).fetchone()
 
 
 def get_prev(before_id: int) -> sqlite3.Row | None:
-    """
-    Return the image with the largest id strictly less than before_id (any status).
-    """
+    """Return the image with the largest id strictly less than before_id (any status)."""
     with _connect() as conn:
         return conn.execute(
             "SELECT * FROM images WHERE id<? ORDER BY id DESC LIMIT 1",
@@ -132,7 +96,7 @@ def mark_done(image_id: int, fmt: str) -> None:
     with _connect() as conn:
         conn.execute(
             "UPDATE images SET status=?, format_used=?, updated_at=? WHERE id=?",
-            (STATUS_DONE, fmt, now, image_id),
+            (Status.DONE, fmt, now, image_id),
         )
         conn.commit()
 
@@ -142,7 +106,7 @@ def mark_skipped(image_id: int) -> None:
     with _connect() as conn:
         conn.execute(
             "UPDATE images SET status=?, updated_at=? WHERE id=?",
-            (STATUS_SKIPPED, now, image_id),
+            (Status.SKIPPED, now, image_id),
         )
         conn.commit()
 
@@ -153,20 +117,20 @@ def get_stats() -> dict:
             "SELECT status, COUNT(*) AS cnt FROM images GROUP BY status"
         ).fetchall()
 
-    counts = {STATUS_PENDING: 0, STATUS_DONE: 0, STATUS_SKIPPED: 0}
+    counts = {Status.PENDING: 0, Status.DONE: 0, Status.SKIPPED: 0}
     for row in rows:
         counts[row["status"]] = row["cnt"]
 
-    total   = sum(counts.values())
-    done    = counts[STATUS_DONE]
-    pct     = round(done / total * 100, 1) if total else 0.0
+    total = sum(counts.values())
+    done = counts[Status.DONE]
+    pct = round(done / total * 100, 1) if total else 0.0
 
     return {
-        "pending": counts[STATUS_PENDING],
-        "done":    done,
-        "skipped": counts[STATUS_SKIPPED],
-        "total":   total,
-        "pct":     pct,
+        "pending": counts[Status.PENDING],
+        "done": done,
+        "skipped": counts[Status.SKIPPED],
+        "total": total,
+        "pct": pct,
     }
 
 
@@ -176,23 +140,25 @@ def get_all_images() -> list[dict]:
             "SELECT id, path, status, format_used, updated_at FROM images ORDER BY id ASC"
         ).fetchall()
 
-    status_names = {STATUS_PENDING: "pending", STATUS_DONE: "done", STATUS_SKIPPED: "skipped"}
-    result = []
-    for row in rows:
-        result.append({
-            "id":         row["id"],
-            "filename":   Path(row["path"]).name,
-            "status":     status_names.get(row["status"], str(row["status"])),
-            "format":     row["format_used"] or "",
+    status_names = {
+        Status.PENDING: "pending",
+        Status.DONE: "done",
+        Status.SKIPPED: "skipped",
+    }
+    return [
+        {
+            "id": row["id"],
+            "filename": Path(row["path"]).name,
+            "status": status_names.get(row["status"], str(row["status"])),
+            "format": row["format_used"] or "",
             "updated_at": row["updated_at"] or "",
-        })
-    return result
+        }
+        for row in rows
+    ]
 
 
 def upsert_class(name: str, color: str) -> int:
-    """
-    Insert or update a class by name. Returns the class db id.
-    """
+    """Insert or update a class by name.  Returns the class DB id."""
     with _connect() as conn:
         conn.execute(
             """
@@ -207,7 +173,7 @@ def upsert_class(name: str, color: str) -> int:
 
 
 def get_classes() -> list[dict]:
-    """Return all classes ordered by db id ascending."""
+    """Return all classes ordered by DB id ascending."""
     with _connect() as conn:
         rows = conn.execute(
             "SELECT id, name, color FROM classes ORDER BY id ASC"
@@ -216,37 +182,20 @@ def get_classes() -> list[dict]:
 
 
 def classes_to_yolo_map() -> dict[int, int]:
-    """
-    Return {db_id: yolo_index} where yolo_index is 0-based, stable,
-    ordered by db id.
-    """
+    """Return {db_id: yolo_index} (0-based, stable, ordered by db id)."""
     classes = get_classes()
     return {cls["id"]: idx for idx, cls in enumerate(classes)}
 
 
-def add_images_from_folder(folder_path: str) -> tuple[int, int]:
-    """
-    Register all valid images found in folder_path (non-recursive).
-    Returns (inserted, skipped_existing).
-    """
-    folder = Path(folder_path)
-    if not folder.is_dir():
-        return 0, 0
-
+def add_images_from_paths(paths: list[str]) -> int:
+    """Register image paths in the DB.  Returns count of newly inserted rows."""
     with _connect() as conn:
         existing = {
             row["path"]
             for row in conn.execute("SELECT path FROM images").fetchall()
         }
-        new_rows = []
-        for f in sorted(folder.iterdir()):
-            if f.suffix.lower() in VALID_EXTS:
-                path_str = str(f.resolve())
-                if path_str not in existing:
-                    new_rows.append((path_str,))
-
+        new_rows = [(p,) for p in paths if p not in existing]
         if new_rows:
             conn.executemany("INSERT OR IGNORE INTO images (path) VALUES (?)", new_rows)
             conn.commit()
-
-    return len(new_rows), 0
+    return len(new_rows)

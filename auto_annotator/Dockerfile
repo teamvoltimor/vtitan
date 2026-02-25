@@ -18,7 +18,10 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv sync --no-dev
 
-COPY *.py .
+COPY src/ src/
+COPY server/ server/
+COPY config/ config/
+COPY app.py model_server.py ./
 
 EXPOSE 7860
 

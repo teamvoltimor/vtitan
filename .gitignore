@@ -1,5 +1,10 @@
+# IDEs
+.idea/
+.vscode/
+
 # Claude Code
 .claude
+*/.claude/
 
 # PyCache
 __pycache__
@@ -12,3 +17,19 @@ hailo/calib_data/
 hailo/calib_data_*/
 hailo/calib_output/
 hailo/calib_output_*/
+
+# Auto Annotator data
+auto_annotator/data/labels/
+auto_annotator/data/pending/
+
+# Auto Annotator models
+auto_annotator/models/
+
+# Auto Annotator database
+auto_annotator/data/manifest.db
+auto_annotator/manifest.db
+
+# Environment variables
+.env
+**/*/.env
+*/.env
