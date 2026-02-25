@@ -190,9 +190,8 @@ def render_state_image(state: dict) -> np.ndarray:
         return np.zeros((480, 640, 3), dtype=np.uint8)
 
     result = img.astype(np.float32)
-    H, W = img.shape[:2]
 
-    # ── 1 & 2: Accepted annotations ───────────────────────────────────────────
+    # ── 1: Accepted annotation fills (bottom layer) ────────────────────────────
     for ann in state["annotations"]:
         color_rgb = _hex_to_rgb(ann["class_color"])
         mask = ann["mask"]
@@ -200,8 +199,20 @@ def render_state_image(state: dict) -> np.ndarray:
         colored[mask] = color_rgb
         result = np.where(mask[:, :, None], 0.55 * result + 0.45 * colored, result)
 
+    # ── 2: Pending mask fill (above accepted fills, below all contours) ────────
+    pending_mask = state.get("pending_mask")
+    pending_class = state.get("pending_class_db_id")
+    if pending_mask is not None and pending_class is not None:
+        cls_map = {c["id"]: c["color"] for c in state["classes"]}
+        p_color_hex = cls_map.get(pending_class, "#ffffff")
+        p_color_rgb = _hex_to_rgb(p_color_hex)
+        colored = np.zeros_like(result)
+        colored[pending_mask] = p_color_rgb
+        result = np.where(pending_mask[:, :, None], 0.55 * result + 0.45 * colored, result)
+
     result_u8 = result.clip(0, 255).astype(np.uint8)
 
+    # ── 3: Accepted annotation contour outlines ────────────────────────────────
     for ann in state["annotations"]:
         color_rgb = _hex_to_rgb(ann["class_color"])
         contours, _ = cv2.findContours(
@@ -209,40 +220,22 @@ def render_state_image(state: dict) -> np.ndarray:
         )
         cv2.drawContours(result_u8, contours, -1, color_rgb, thickness=2)
 
-    # ── 3: Pending mask ───────────────────────────────────────────────────────
-    pending_mask = state.get("pending_mask")
-    pending_class = state.get("pending_class_db_id")
+    # ── 4: Pending mask dashed white outline ───────────────────────────────────
     if pending_mask is not None and pending_class is not None:
-        # find color for the pending class
-        cls_map = {c["id"]: c["color"] for c in state["classes"]}
-        p_color_hex = cls_map.get(pending_class, "#ffffff")
-        p_color_rgb = _hex_to_rgb(p_color_hex)
-
-        overlay = result_u8.astype(np.float32)
-        colored = np.zeros_like(overlay)
-        colored[pending_mask] = p_color_rgb
-        blended = np.where(
-            pending_mask[:, :, None], 0.70 * overlay + 0.30 * colored, overlay
-        )
-        result_u8 = blended.clip(0, 255).astype(np.uint8)
-
-        # Dashed white outline
         pmask_u8 = pending_mask.astype(np.uint8) * 255
         contours_p, _ = cv2.findContours(
             pmask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
+        dash_on = 10
+        period  = 18
         for cnt in contours_p:
-            pts_flat = cnt.reshape(-1, 2)
-            n_pts = len(pts_flat)
-            dash_on = 8
-            dash_off = 5
-            i = 0
-            while i < n_pts:
-                if (i // (dash_on + dash_off)) % 2 == 0:
-                    p1 = tuple(pts_flat[i])
-                    p2 = tuple(pts_flat[min(i + dash_on - 1, n_pts - 1)])
-                    cv2.line(result_u8, p1, p2, (255, 255, 255), 1, cv2.LINE_AA)
-                i += 1
+            pts = cnt.reshape(-1, 2)
+            n   = len(pts)
+            for j in range(0, n, period):
+                for k in range(j, min(j + dash_on, n)):
+                    p1 = (int(pts[k][0]),           int(pts[k][1]))
+                    p2 = (int(pts[(k + 1) % n][0]), int(pts[(k + 1) % n][1]))
+                    cv2.line(result_u8, p1, p2, (255, 255, 255), 2, cv2.LINE_AA)
 
     # ── 4: Point buffer ───────────────────────────────────────────────────────
 
@@ -475,12 +468,33 @@ def initial_state() -> dict:
 # ── Event handlers ────────────────────────────────────────────────────────────
 
 
+def _swatch_html(color: str, name: str = "") -> str:
+    """Small HTML badge: coloured square + hex + optional name."""
+    label = f"{name}  {color}" if name else color
+    return (
+        f'<div style="display:flex;align-items:center;gap:6px;'
+        f'padding:3px 8px;border-radius:4px;background:#313244;'
+        f'font-family:monospace;font-size:12px">'
+        f'<div style="width:14px;height:14px;border-radius:3px;'
+        f'background:{color};border:1px solid #45475a;flex-shrink:0"></div>'
+        f'<span style="color:#cdd6f4">{label}</span>'
+        f'</div>'
+    )
+
+
+def class_color_swatch(class_name: str | None, state: dict) -> str:
+    if not class_name:
+        return ""
+    cls = next((c for c in state["classes"] if c["name"] == class_name), None)
+    return _swatch_html(cls["color"], class_name) if cls else ""
+
+
 def add_class(name: str, color: str, state: dict):
     name = name.strip()
     if not name:
         gr.Warning("Class name cannot be empty.")
         choices = [c["name"] for c in state["classes"]]
-        return gr.update(choices=choices), state, color, gr.update(choices=choices)
+        return gr.update(choices=choices), state, color, gr.update(choices=choices), ""
 
     db.upsert_class(name, color)
     state["classes"] = db.get_classes()
@@ -492,6 +506,7 @@ def add_class(name: str, color: str, state: dict):
         state,
         next_color,
         gr.update(choices=choices),
+        _swatch_html(color, name),
     )
 
 
@@ -937,6 +952,18 @@ def scan_folder(state: dict):
     return data, stats_html(), rendered, state, status_msg, label_txt, ann_txt
 
 
+def import_folder(folder_path: str, state: dict):
+    """Register all images from an arbitrary folder path and refresh browse."""
+    folder_path = folder_path.strip()
+    if not folder_path:
+        return gr.update(), stats_html(), "Enter a folder path first."
+    inserted, _ = db.add_images_from_folder(folder_path)
+    rows = db.get_all_images()
+    data = [[r["id"], r["filename"], r["status"], r["format"], r["updated_at"]] for r in rows]
+    msg = f"Added {inserted} new image(s) from {folder_path}" if inserted else "No new images found (all already registered)."
+    return data, stats_html(), msg
+
+
 def load_first_image(state: dict):
     """Called on app startup to auto-load the first pending image."""
     db.init_db()
@@ -982,118 +1009,95 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
         # ── Annotate tab ──────────────────────────────────────────────────────
         with gr.Tab("Annotate"):
             with gr.Row():
-                # ── Left Image Panel ──────────────────────────────────────────
+                # ── Left: image + navigation ──────────────────────────────────
                 with gr.Column(scale=3):
                     img_label = gr.Textbox(
-                        label="Current image",
-                        value="",
-                        interactive=False,
+                        label="Current image", value="", interactive=False,
                     )
                     display_img = gr.Image(
                         label="Click to add points",
-                        type="numpy",
-                        interactive=False,
-                        height=640,
+                        type="numpy", interactive=False, height=640,
                     )
-
-                    # Navigation under image
-                    with gr.Accordion("Navigate & Save", open=True):
-                        with gr.Row():
-                            prev_btn = gr.Button("← Prev", size="sm")
-                            next_btn = gr.Button("→ Next", size="sm")
-                            skip_btn = gr.Button("Skip", size="sm")
-                            save_next_btn = gr.Button(
-                                "✓ Save",
-                                variant="primary",
-                                size="sm",
-                            )
+                    with gr.Row():
+                        prev_btn      = gr.Button("← Prev",  size="sm")
+                        next_btn      = gr.Button("→ Next",  size="sm")
+                        skip_btn      = gr.Button("Skip",    size="sm")
+                        save_next_btn = gr.Button("✓ Save", variant="primary", size="sm")
+                    with gr.Row():
                         export_fmt = gr.Radio(
-                            ["Segmentation", "Detection"],
-                            value="Segmentation",
-                            label="Export format",
-                            interactive=True,
+                            ["Segmentation", "Detection"], value="Segmentation",
+                            label="Export format", interactive=True,
+                        )
+                        status_box = gr.Textbox(
+                            label="Status", interactive=False, scale=2,
                         )
 
-                # ── Right Control Panel ───────────────────────────────────────
+                # ── Right: controls ───────────────────────────────────────────
                 with gr.Column(scale=1, min_width=260):
-                    status_box = gr.Textbox(label="Status", interactive=False)
 
                     with gr.Accordion("Classes", open=True):
                         with gr.Row():
                             class_input = gr.Textbox(
-                                label="Name",
-                                placeholder="e.g. red_prism",
-                                scale=3,
-                                container=False,
+                                label="Name", placeholder="e.g. red_prism",
+                                scale=3, container=False,
                             )
                             color_picker = gr.ColorPicker(
-                                value=_PALETTE_HEX[0],
-                                label="Color",
-                                scale=1,
-                                container=False,
+                                value=_PALETTE_HEX[0], label="Color",
+                                scale=1, container=False,
                             )
                         add_btn = gr.Button("Add class", variant="secondary", size="sm")
                         class_dropdown = gr.Dropdown(
-                            label="Active class",
-                            choices=[],
-                            value=None,
+                            label="Active class", choices=[], value=None,
                             interactive=True,
                         )
+                        # Colour swatch for the currently selected class
+                        class_swatch = gr.HTML(value="")
 
                     with gr.Accordion("Edit Class Color", open=False):
                         edit_class_dd = gr.Dropdown(
-                            label="Class",
-                            choices=[],
-                            value=None,
-                            interactive=True,
+                            label="Class", choices=[], value=None, interactive=True,
                         )
                         edit_color_picker = gr.ColorPicker(
-                            value=_PALETTE_HEX[0],
-                            label="New color",
+                            value=_PALETTE_HEX[0], label="New color",
                         )
                         update_color_btn = gr.Button(
-                            "Update Color",
-                            variant="secondary",
-                            size="sm",
+                            "Update Color", variant="secondary", size="sm",
                         )
 
                     with gr.Accordion("Points & SAM", open=True):
                         point_type = gr.Radio(
-                            ["Positive", "Negative"],
-                            value="Positive",
-                            label="Point type",
-                            interactive=True,
+                            ["Positive", "Negative"], value="Positive",
+                            label="Point type", interactive=True,
                         )
                         with gr.Row():
-                            run_sam_btn = gr.Button(
-                                "Run SAM", variant="primary", size="sm"
-                            )
-                            accept_btn = gr.Button(
-                                "Accept Mask",
-                                variant="secondary",
-                                size="sm",
-                                interactive=False,
+                            run_sam_btn = gr.Button("Run SAM", variant="primary", size="sm")
+                            accept_btn  = gr.Button(
+                                "Accept Mask", variant="secondary",
+                                size="sm", interactive=False,
                             )
                         with gr.Row():
                             clear_pts_btn = gr.Button("Clear Points", size="sm")
-                            undo_btn = gr.Button("Undo Last", size="sm")
+                            undo_btn      = gr.Button("Undo Last",    size="sm")
 
                     with gr.Accordion("Annotations", open=True):
                         ann_box = gr.Textbox(
-                            value="(none)",
-                            lines=5,
-                            interactive=False,
-                            show_label=False,
+                            value="(none)", lines=5,
+                            interactive=False, show_label=False,
                         )
 
         # ── Browse tab ────────────────────────────────────────────────────────
         with gr.Tab("Browse"):
             with gr.Row():
-                refresh_btn = gr.Button("Refresh")
-                scan_folder_btn = gr.Button(
-                    "Scan Pending Folder",
-                    variant="secondary",
+                refresh_btn     = gr.Button("Refresh")
+                scan_folder_btn = gr.Button("Scan Pending Folder", variant="secondary")
+            with gr.Row():
+                folder_input = gr.Textbox(
+                    label="Import folder path",
+                    placeholder="/path/to/my/images",
+                    scale=4,
                 )
+                import_folder_btn = gr.Button("Import Folder", variant="primary", scale=1)
+            browse_status = gr.Textbox(label="", interactive=False, show_label=False)
             browse_df = gr.Dataframe(
                 headers=["id", "filename", "status", "format", "updated_at"],
                 interactive=False,
@@ -1101,10 +1105,14 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
 
     # ── Event wiring ──────────────────────────────────────────────────────────
 
-    _add_class_outputs = [class_dropdown, state, color_picker, edit_class_dd]
-    add_btn.click(add_class, [class_input, color_picker, state], _add_class_outputs)
-    class_input.submit(
-        add_class, [class_input, color_picker, state], _add_class_outputs
+    _add_class_outs = [class_dropdown, state, color_picker, edit_class_dd, class_swatch]
+    add_btn.click(add_class, [class_input, color_picker, state], _add_class_outs)
+    class_input.submit(add_class, [class_input, color_picker, state], _add_class_outs)
+
+    class_dropdown.change(
+        class_color_swatch,
+        inputs=[class_dropdown, state],
+        outputs=[class_swatch],
     )
 
     edit_class_dd.change(
@@ -1146,23 +1154,20 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
 
     _nav_outputs = [display_img, state, status_box, stats_bar, img_label, ann_box]
     save_next_btn.click(save_and_next, [state, export_fmt], _nav_outputs)
-    skip_btn.click(skip_image, [state], _nav_outputs)
-    prev_btn.click(go_prev, [state], _nav_outputs)
+    skip_btn.click(skip_image,      [state], _nav_outputs)
+    prev_btn.click(go_prev,         [state], _nav_outputs)
     next_btn.click(go_next_pending, [state], _nav_outputs)
 
     refresh_btn.click(refresh_browse, [state], [browse_df, stats_bar])
     scan_folder_btn.click(
         scan_folder,
         inputs=[state],
-        outputs=[
-            browse_df,
-            stats_bar,
-            display_img,
-            state,
-            status_box,
-            img_label,
-            ann_box,
-        ],
+        outputs=[browse_df, stats_bar, display_img, state, status_box, img_label, ann_box],
+    )
+    import_folder_btn.click(
+        import_folder,
+        inputs=[folder_input, state],
+        outputs=[browse_df, stats_bar, browse_status],
     )
 
     # Auto-load first pending image on startup
@@ -1170,14 +1175,8 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
         load_first_image,
         inputs=[state],
         outputs=[
-            display_img,
-            state,
-            status_box,
-            stats_bar,
-            img_label,
-            ann_box,
-            class_dropdown,
-            edit_class_dd,
+            display_img, state, status_box, stats_bar,
+            img_label, ann_box, class_dropdown, edit_class_dd,
         ],
     )
 

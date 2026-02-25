@@ -224,3 +224,31 @@ def classes_to_yolo_map() -> dict[int, int]:
     """
     classes = get_classes()
     return {cls["id"]: idx for idx, cls in enumerate(classes)}
+
+
+def add_images_from_folder(folder_path: str) -> tuple[int, int]:
+    """
+    Register all valid images found in folder_path (non-recursive).
+    Returns (inserted, skipped_existing).
+    """
+    folder = Path(folder_path)
+    if not folder.is_dir():
+        return 0, 0
+
+    with _connect() as conn:
+        existing = {
+            row["path"]
+            for row in conn.execute("SELECT path FROM images").fetchall()
+        }
+        new_rows = []
+        for f in sorted(folder.iterdir()):
+            if f.suffix.lower() in VALID_EXTS:
+                path_str = str(f.resolve())
+                if path_str not in existing:
+                    new_rows.append((path_str,))
+
+        if new_rows:
+            conn.executemany("INSERT OR IGNORE INTO images (path) VALUES (?)", new_rows)
+            conn.commit()
+
+    return len(new_rows), 0
