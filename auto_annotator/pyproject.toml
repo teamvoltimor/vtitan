@@ -12,6 +12,7 @@ dependencies = [
     "opencv-python",
     "numpy",
     "pillow",
+    "python-dotenv",
 ]
 
 [[tool.uv.index]]

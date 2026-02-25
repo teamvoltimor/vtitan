@@ -13,6 +13,11 @@ Usage:
 import time as _time
 _APP_START = _time.monotonic()
 
+import os as _os
+from pathlib import Path as _Path
+from dotenv import load_dotenv
+load_dotenv(_Path(__file__).parent / ".env")   # no-op if file doesn't exist
+
 import colorsys
 import contextlib
 import os

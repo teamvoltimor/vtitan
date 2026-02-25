@@ -46,6 +46,8 @@ import threading
 import time as _time
 _SERVER_START = _time.monotonic()
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent / ".env")   # no-op if file doesn't exist
 
 import numpy as np
 import torch
