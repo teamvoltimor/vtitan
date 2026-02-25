@@ -10,8 +10,12 @@ Usage:
     # or inside Docker via docker-compose up
 """
 
+import colorsys
 import contextlib
 import os
+import pickle
+import socket
+import struct
 from pathlib import Path
 
 import cv2
@@ -27,30 +31,22 @@ MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path(__file__).parent / "models")
 LOCAL_CKPT = MODELS_DIR / "sam2.1_l.pt"
 LABELS_DIR = db.LABELS_DIR
 
-# ── Colour palette (20 visually distinct hex strings) ─────────────────────────
+# ── Colour palette — golden-ratio HSV stepping ────────────────────────────────
+# Successive hues are separated by ~137.5° (the golden angle), which gives the
+# maximum perceptual distance between any two adjacent colours regardless of n.
+# Saturation=0.88, Value=0.96 → vivid, bright colours readable on dark & light.
 
-_PALETTE_HEX: list[str] = [
-    "#dc322f",
-    "#2aa12a",
-    "#268bd2",
-    "#b58900",
-    "#d33682",
-    "#2aa198",
-    "#cb4b16",
-    "#6c71c4",
-    "#859900",
-    "#008080",
-    "#ffa500",
-    "#00ff7f",
-    "#ff1493",
-    "#40e0d0",
-    "#ffd700",
-    "#8a2be2",
-    "#ff7f50",
-    "#00bfff",
-    "#9acd32",
-    "#ff6347",
-]
+def _build_palette(n: int = 24) -> list[str]:
+    golden = 0.6180339887498949
+    h = 0.0
+    out = []
+    for _ in range(n):
+        r, g, b = colorsys.hsv_to_rgb(h, 0.88, 0.96)
+        out.append(f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}")
+        h = (h + golden) % 1.0
+    return out
+
+_PALETTE_HEX: list[str] = _build_palette(24)
 
 
 def _hex_to_bgr(h: str) -> tuple[int, int, int]:
@@ -96,12 +92,74 @@ def _empty_cache():
         torch.cuda.empty_cache()
 
 
-# ── SAM 2.1 initialisation ────────────────────────────────────────────────────
+# ── Model-server client (optional) ────────────────────────────────────────────
+# If model_server.py is running, app.py uses it instead of loading the model
+# directly.  Restarting app.py then costs ~0 s instead of the full load time.
+
+_MODEL_SERVER_PORT = int(os.environ.get("MODEL_SERVER_PORT", 8765))
+
+
+def _sock_recv_all(sock: socket.socket, n: int) -> bytes:
+    buf = b""
+    while len(buf) < n:
+        chunk = sock.recv(min(65536, n - len(buf)))
+        if not chunk:
+            raise ConnectionError("Model server disconnected")
+        buf += chunk
+    return buf
+
+
+class _ModelServerClient:
+    def __init__(self, port: int = _MODEL_SERVER_PORT):
+        self.addr = ("127.0.0.1", port)
+
+    def _call(self, msg: dict) -> dict:
+        data = pickle.dumps(msg)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(120)
+            s.connect(self.addr)
+            s.sendall(struct.pack(">I", len(data)) + data)
+            resp_len = struct.unpack(">I", _sock_recv_all(s, 4))[0]
+            return pickle.loads(_sock_recv_all(s, resp_len))
+
+    def ping(self) -> bool:
+        try:
+            return self._call({"cmd": "ping"}).get("ok", False)
+        except Exception:
+            return False
+
+    def set_image(self, image: np.ndarray) -> None:
+        resp = self._call({"cmd": "set_image", "image": image})
+        if "error" in resp:
+            raise RuntimeError(resp["error"])
+
+    def predict(self, coords: np.ndarray, labels: np.ndarray):
+        resp = self._call({"cmd": "predict", "coords": coords, "labels": labels})
+        if "error" in resp:
+            raise RuntimeError(resp["error"])
+        return resp["masks"], resp["scores"]
+
+
+# Try to connect; fall back silently to direct loading if server isn't running
+model_client: _ModelServerClient | None = None
+_probe = _ModelServerClient()
+if _probe.ping():
+    model_client = _probe
+    print(f"[app] Connected to model server on port {_MODEL_SERVER_PORT} — "
+          "model stays loaded across restarts.")
+else:
+    print(f"[app] No model server on port {_MODEL_SERVER_PORT} — loading model directly.")
+
+
+# ── SAM 2.1 initialisation (skipped when model_client is active) ──────────────
 
 predictor = None
 USE_NATIVE = False
 
 try:
+    if model_client is not None:
+        raise RuntimeError("model_server active — skipping direct load")
+
     from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore
 
     if LOCAL_CKPT.exists():
@@ -212,15 +270,17 @@ def render_state_image(state: dict) -> np.ndarray:
 
     result_u8 = result.clip(0, 255).astype(np.uint8)
 
-    # ── 3: Accepted annotation contour outlines ────────────────────────────────
+    # ── 3: Accepted annotation contour outlines (shadow + colour) ─────────────
     for ann in state["annotations"]:
         color_rgb = _hex_to_rgb(ann["class_color"])
         contours, _ = cv2.findContours(
             ann["mask"].astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        cv2.drawContours(result_u8, contours, -1, color_rgb, thickness=2)
+        # Dark halo first so the coloured line pops on any background
+        cv2.drawContours(result_u8, contours, -1, (0, 0, 0),   thickness=4)
+        cv2.drawContours(result_u8, contours, -1, color_rgb,    thickness=2)
 
-    # ── 4: Pending mask dashed white outline ───────────────────────────────────
+    # ── 4: Pending mask dashed outline (shadow + white) ────────────────────────
     if pending_mask is not None and pending_class is not None:
         pmask_u8 = pending_mask.astype(np.uint8) * 255
         contours_p, _ = cv2.findContours(
@@ -235,6 +295,7 @@ def render_state_image(state: dict) -> np.ndarray:
                 for k in range(j, min(j + dash_on, n)):
                     p1 = (int(pts[k][0]),           int(pts[k][1]))
                     p2 = (int(pts[(k + 1) % n][0]), int(pts[(k + 1) % n][1]))
+                    cv2.line(result_u8, p1, p2, (0,   0,   0),   3, cv2.LINE_AA)
                     cv2.line(result_u8, p1, p2, (255, 255, 255), 2, cv2.LINE_AA)
 
     # ── 4: Point buffer ───────────────────────────────────────────────────────
@@ -430,14 +491,20 @@ def _load_image(record, state: dict) -> tuple[np.ndarray, str, str]:
     state["image_set"] = False
 
     # Pre-compute SAM embedding
-    if USE_NATIVE and predictor is not None:
+    if model_client is not None:
+        try:
+            model_client.set_image(rgb)
+            state["image_set"] = True
+        except Exception as e:
+            print(f"[app] model_client.set_image failed: {e}")
+    elif USE_NATIVE and predictor is not None:
         try:
             with torch.inference_mode(), _autocast_ctx():
                 predictor.set_image(rgb)
             state["image_set"] = True
         except Exception as e:
             print(f"[SAM2] set_image failed: {e}")
-    _empty_cache()
+        _empty_cache()
 
     # Restore prior annotations
     state["annotations"] = _restore_annotations(record["id"], rgb, state["classes"])
@@ -511,80 +578,38 @@ def add_class(name: str, color: str, state: dict):
     )
 
 
-def handle_click(
-    evt: gr.SelectData, state: dict, point_type: str, active_class: str | None
-):
-    img = state.get("current_image")
-    if img is None:
-        return (
-            render_state_image(state),
-            state,
-            "No image loaded.",
-            gr.update(interactive=False),
-        )
-    if not state["classes"]:
-        return (
-            render_state_image(state),
-            state,
-            "Add at least one class first.",
-            gr.update(interactive=False),
-        )
-    if active_class is None:
-        return (
-            render_state_image(state),
-            state,
-            "Select an active class.",
-            gr.update(interactive=False),
-        )
-
-    cls_info = next((c for c in state["classes"] if c["name"] == active_class), None)
-    if cls_info is None:
-        return (
-            render_state_image(state),
-            state,
-            f"Class '{active_class}' not found in DB.",
-            gr.update(interactive=False),
-        )
-
-    x, y = int(evt.index[0]), int(evt.index[1])
-    label = 1 if point_type == "Positive" else 0
-    state["point_buffer"].append(
-        {"x": x, "y": y, "label": label, "class_id": cls_info["id"]}
-    )
-    state["pending_class_db_id"] = cls_info["id"]
-
-    n_pos = sum(1 for p in state["point_buffer"] if p["label"] == 1)
-    n_neg = sum(1 for p in state["point_buffer"] if p["label"] == 0)
-    status = (
-        f"Point buffer: {n_pos} positive, {n_neg} negative — click Run SAM to segment."
-    )
-
-    rendered = render_state_image(state)
-    return rendered, state, status, gr.update(interactive=False)
-
-
 _MASK_LABELS = ["Precise (0)", "Object (1)", "Broad (2)"]
 
-def run_sam(state: dict, active_class: str | None):
-    _err = lambda msg: (
-        render_state_image(state), state, msg,
-        gr.update(interactive=False), gr.update(visible=False),
-    )
 
+def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
+    """
+    Run SAM on the current point buffer.
+    Returns (all_masks, best_idx, scores_str, error_msg).
+    error_msg is '' on success.
+    """
     img = state.get("current_image")
     if img is None:
-        return _err("No image loaded.")
+        return None, 0, "", "No image loaded."
     if not state["point_buffer"]:
-        return _err("Add points first.")
+        return None, 0, "", "No points in buffer."
     if predictor is None:
-        return _err("SAM model not loaded.")
+        return None, 0, "", "SAM model not loaded."
 
     pts    = state["point_buffer"]
     coords = np.array([[p["x"], p["y"]] for p in pts], dtype=np.float32)
     labels = np.array([p["label"] for p in pts],       dtype=np.int32)
 
     try:
-        if USE_NATIVE:
+        if model_client is not None:
+            # ── Model server path ──────────────────────────────────────────────
+            if not state["image_set"]:
+                model_client.set_image(img)
+                state["image_set"] = True
+            all_masks, scores_list = model_client.predict(coords, labels)
+            scores_flat = np.array(scores_list)
+
+        elif USE_NATIVE:
+            # ── Direct SAM2 path ───────────────────────────────────────────────
             if not state["image_set"]:
                 with torch.inference_mode(), _autocast_ctx():
                     predictor.set_image(img)
@@ -596,48 +621,102 @@ def run_sam(state: dict, active_class: str | None):
                     point_labels=labels,
                     multimask_output=True,
                 )
-
-            # SAM2 returns 3 masks (fine → coarse): [sub-part, object, context]
             scores_flat = scores.flatten()
-            best_idx    = int(np.argmax(scores_flat))
-
-            all_masks = [masks[i].astype(bool) for i in range(len(masks))]
+            all_masks   = [masks[i].astype(bool) for i in range(len(masks))]
 
         else:
+            # ── Ultralytics fallback ───────────────────────────────────────────
             pos_pts = [[p["x"], p["y"]] for p in pts if p["label"] == 1]
             pos_lbl = [1] * len(pos_pts)
             results = predictor(img, points=[pos_pts], labels=[pos_lbl])
             if not results or results[0].masks is None:
-                return _err("SAM returned no mask.")
-            all_masks = [results[0].masks.data[0].cpu().numpy().astype(bool)]
-            best_idx  = 0
+                return None, 0, "", "SAM returned no mask."
+            all_masks   = [results[0].masks.data[0].cpu().numpy().astype(bool)]
+            scores_flat = np.array([1.0])
 
     except torch.cuda.OutOfMemoryError:
         _empty_cache()
-        return _err("CUDA OOM — try a smaller image.")
+        return None, 0, "", "CUDA OOM — try a smaller image."
     except Exception as e:
         _empty_cache()
-        return _err(f"Inference error: {e}")
+        return None, 0, "", f"Inference error: {e}"
     finally:
-        _empty_cache()
+        if model_client is None:
+            _empty_cache()
 
+    best_idx   = int(np.argmax(scores_flat))
+    scores_str = "  ".join(
+        f"{_MASK_LABELS[i]}: {scores_flat[i]:.3f}"
+        for i in range(len(all_masks))
+    )
+    return all_masks, best_idx, scores_str, ""
+
+
+def _apply_sam_result(state: dict, all_masks: list, best_idx: int, scores_str: str):
+    """Store inference result in state and return the 5-tuple Gradio output."""
     state["pending_masks"] = all_masks
     state["pending_mask"]  = all_masks[best_idx]
 
     best_label  = _MASK_LABELS[best_idx] if best_idx < len(_MASK_LABELS) else _MASK_LABELS[0]
     show_picker = len(all_masks) > 1
+    n_pos = sum(1 for p in state["point_buffer"] if p["label"] == 1)
+    n_neg = sum(1 for p in state["point_buffer"] if p["label"] == 0)
+    status = f"{n_pos}+ {n_neg}−  |  {best_label}  {scores_str}"
 
     rendered = render_state_image(state)
-    scores_str = "  ".join(
-        f"{_MASK_LABELS[i]}: {scores_flat[i]:.3f}" for i in range(len(all_masks))
-    ) if USE_NATIVE else ""
-    status = f"Mask ready ({best_label} selected by score). {scores_str}"
-
     return (
         rendered, state, status,
         gr.update(interactive=True),
         gr.update(visible=show_picker, value=best_label),
     )
+
+
+def handle_click(
+    evt: gr.SelectData, state: dict, point_type: str, active_class: str | None
+):
+    """Add a point then immediately run SAM with the full buffer."""
+    def _err(msg):
+        return render_state_image(state), state, msg, gr.update(interactive=False), gr.update(visible=False)
+
+    if state.get("current_image") is None:
+        return _err("No image loaded.")
+    if not state["classes"]:
+        return _err("Add at least one class first.")
+    if active_class is None:
+        return _err("Select an active class.")
+
+    cls_info = next((c for c in state["classes"] if c["name"] == active_class), None)
+    if cls_info is None:
+        return _err(f"Class '{active_class}' not found in DB.")
+
+    x, y  = int(evt.index[0]), int(evt.index[1])
+    label = 1 if point_type == "Positive" else 0
+    state["point_buffer"].append({"x": x, "y": y, "label": label, "class_id": cls_info["id"]})
+    state["pending_class_db_id"] = cls_info["id"]
+
+    # Immediately run inference with the updated buffer
+    all_masks, best_idx, scores_str, err = _run_sam_inference(state)
+    if err:
+        n_pos = sum(1 for p in state["point_buffer"] if p["label"] == 1)
+        n_neg = sum(1 for p in state["point_buffer"] if p["label"] == 0)
+        rendered = render_state_image(state)
+        return rendered, state, f"{n_pos}+ {n_neg}−  |  {err}", gr.update(interactive=False), gr.update(visible=False)
+
+    return _apply_sam_result(state, all_masks, best_idx, scores_str)
+
+
+def run_sam(state: dict, active_class: str | None):
+    """Manual re-run — useful after toggling point type or adding more points."""
+    def _err(msg):
+        return render_state_image(state), state, msg, gr.update(interactive=False), gr.update(visible=False)
+
+    if not state["point_buffer"]:
+        return _err("Add at least one point first.")
+
+    all_masks, best_idx, scores_str, err = _run_sam_inference(state)
+    if err:
+        return _err(err)
+    return _apply_sam_result(state, all_masks, best_idx, scores_str)
 
 
 def select_mask_level(level_str: str, state: dict):
@@ -1057,7 +1136,7 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                             label="Point type", interactive=True,
                         )
                         with gr.Row():
-                            run_sam_btn = gr.Button("Run SAM", variant="primary", size="sm")
+                            run_sam_btn = gr.Button("Re-run SAM", variant="secondary", size="sm")
                             accept_btn  = gr.Button(
                                 "Accept Mask", variant="secondary",
                                 size="sm", interactive=False,
@@ -1124,7 +1203,7 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
     display_img.select(
         handle_click,
         inputs=[state, point_type, class_dropdown],
-        outputs=[display_img, state, status_box, accept_btn],
+        outputs=[display_img, state, status_box, accept_btn, mask_level_radio],
     )
     run_sam_btn.click(
         run_sam,
