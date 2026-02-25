@@ -43,6 +43,8 @@ import pickle
 import socket
 import struct
 import threading
+import time as _time
+_SERVER_START = _time.monotonic()
 from pathlib import Path
 
 import numpy as np
@@ -173,7 +175,8 @@ def main():
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((HOST, PORT))
     srv.listen(16)
-    print(f"[server] Ready on {HOST}:{PORT}  device={DEVICE}  "
+    print(f"[server] Ready in {_time.monotonic() - _SERVER_START:.2f}s  "
+          f"on {HOST}:{PORT}  device={DEVICE}  "
           f"model={'loaded' if predictor is not None else 'FAILED'}")
     print("[server] Leave this running and restart app.py freely.")
 

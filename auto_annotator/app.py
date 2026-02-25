@@ -10,6 +10,9 @@ Usage:
     # or inside Docker via docker-compose up
 """
 
+import time as _time
+_APP_START = _time.monotonic()
+
 import colorsys
 import contextlib
 import os
@@ -20,7 +23,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
 import gradio as gr
 
 import db
@@ -78,23 +80,10 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
 
 # ── Device + autocast ─────────────────────────────────────────────────────────
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-
-def _autocast_ctx():
-    if DEVICE == "cuda":
-        return torch.autocast("cuda", dtype=torch.bfloat16)
-    return contextlib.nullcontext()
-
-
-def _empty_cache():
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-
 # ── Model-server client (optional) ────────────────────────────────────────────
 # If model_server.py is running, app.py uses it instead of loading the model
 # directly.  Restarting app.py then costs ~0 s instead of the full load time.
+# torch is only imported when the server is NOT available (saves ~2-3 s).
 
 _MODEL_SERVER_PORT = int(os.environ.get("MODEL_SERVER_PORT", 8765))
 
@@ -149,6 +138,30 @@ if _probe.ping():
           "model stays loaded across restarts.")
 else:
     print(f"[app] No model server on port {_MODEL_SERVER_PORT} — loading model directly.")
+
+# ── Torch setup (only when running without model server) ──────────────────────
+# Skipping this import saves ~2-3 s every time app.py is restarted.
+
+_OOM_ERROR = None   # set below when torch is available
+
+if model_client is None:
+    import torch  # noqa: PLC0415  (intentional deferred import)
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    _OOM_ERROR = torch.cuda.OutOfMemoryError
+else:
+    torch  = None   # type: ignore[assignment]
+    DEVICE = "server"
+
+
+def _autocast_ctx():
+    if torch is not None and DEVICE == "cuda":
+        return torch.autocast("cuda", dtype=torch.bfloat16)
+    return contextlib.nullcontext()
+
+
+def _empty_cache():
+    if torch is not None and torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 # ── SAM 2.1 initialisation (skipped when model_client is active) ──────────────
@@ -634,10 +647,10 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
             all_masks   = [results[0].masks.data[0].cpu().numpy().astype(bool)]
             scores_flat = np.array([1.0])
 
-    except torch.cuda.OutOfMemoryError:
-        _empty_cache()
-        return None, 0, "", "CUDA OOM — try a smaller image."
     except Exception as e:
+        if _OOM_ERROR and isinstance(e, _OOM_ERROR):
+            _empty_cache()
+            return None, 0, "", "CUDA OOM — try a smaller image."
         _empty_cache()
         return None, 0, "", f"Inference error: {e}"
     finally:
@@ -1261,6 +1274,7 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
 
 
 if __name__ == "__main__":
+    print(f"[app] Ready in {_time.monotonic() - _APP_START:.2f}s")
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
