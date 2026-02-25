@@ -13,6 +13,8 @@ dependencies = [
     "numpy",
     "pillow",
     "python-dotenv",
+    "transformers>=4.50.0",
+    "accelerate",
 ]
 
 [[tool.uv.index]]

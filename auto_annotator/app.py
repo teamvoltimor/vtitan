@@ -142,6 +142,20 @@ class _ModelServerClient:
             raise RuntimeError(resp["error"])
         return resp["masks"], resp["scores"], resp.get("logits")
 
+    def list_models(self) -> list[dict]:
+        resp = self._call({"cmd": "list_models"})
+        return resp.get("models", [])
+
+    def set_model(self, model_id: str) -> dict:
+        return self._call({"cmd": "set_model", "model_id": model_id})
+
+    def predict_text(self, image: np.ndarray, class_names: list[str]) -> list[dict]:
+        resp = self._call({"cmd": "predict_text", "image": image,
+                           "class_names": class_names})
+        if "error" in resp:
+            raise RuntimeError(resp["error"])
+        return resp["results"]
+
 
 # Try to connect; fall back silently to direct loading if server isn't running
 model_client: _ModelServerClient | None = None
@@ -178,42 +192,40 @@ def _empty_cache():
         torch.cuda.empty_cache()
 
 
-# ── SAM 2.1 initialisation (skipped when model_client is active) ──────────────
+# ── SAM initialisation (skipped entirely when model_client is active) ─────────
 
 predictor = None
 USE_NATIVE = False
 
-try:
-    if model_client is not None:
-        raise RuntimeError("model_server active — skipping direct load")
-
-    from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore
-
-    if LOCAL_CKPT.exists():
-        from sam2.build_sam import build_sam2  # type: ignore
-        import sam2 as _sam2_pkg
-
-        _cfg_dir = Path(_sam2_pkg.__file__).parent / "configs" / "sam2.1"
-        _cfg = str(_cfg_dir / "sam2.1_hiera_l.yaml")
-        _model = build_sam2(_cfg, str(LOCAL_CKPT), device=DEVICE)
-        predictor = SAM2ImagePredictor(_model)
-        print(f"[SAM2] Loaded local checkpoint: {LOCAL_CKPT}")
-    else:
-        predictor = SAM2ImagePredictor.from_pretrained("facebook/sam2.1-hiera-large")
-        print("[SAM2] Loaded from HuggingFace: facebook/sam2.1-hiera-large")
-
-    USE_NATIVE = True
-
-except Exception as _sam2_err:
-    print(f"[SAM2] Native sam2 unavailable ({_sam2_err}), trying Ultralytics.")
+if model_client is not None:
+    print("[app] Using model server — skipping local SAM load.")
+else:
     try:
-        from ultralytics import SAM as _UltSAM  # type: ignore
+        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore
 
-        predictor = _UltSAM("sam2.1_l.pt")
-        USE_NATIVE = False
-        print("[SAM2] Loaded via Ultralytics SAM API.")
-    except Exception as _ult_err:
-        print(f"[SAM2] FATAL: no SAM2 backend available. {_ult_err}")
+        if LOCAL_CKPT.exists():
+            from sam2.build_sam import build_sam2  # type: ignore
+
+            _cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+            _model = build_sam2(_cfg, str(LOCAL_CKPT), device=DEVICE)
+            predictor = SAM2ImagePredictor(_model)
+            print(f"[SAM2] Loaded local checkpoint: {LOCAL_CKPT}")
+        else:
+            predictor = SAM2ImagePredictor.from_pretrained("facebook/sam2.1-hiera-large")
+            print("[SAM2] Loaded from HuggingFace: facebook/sam2.1-hiera-large")
+
+        USE_NATIVE = True
+
+    except Exception as _sam2_err:
+        print(f"[SAM2] Native sam2 unavailable ({_sam2_err}), trying Ultralytics.")
+        try:
+            from ultralytics import SAM as _UltSAM  # type: ignore
+
+            predictor = _UltSAM("sam2.1_l.pt")
+            USE_NATIVE = False
+            print("[SAM2] Loaded via Ultralytics SAM API.")
+        except Exception as _ult_err:
+            print(f"[SAM2] FATAL: no SAM2 backend available. {_ult_err}")
 
 
 # ── Pure geometry helpers ─────────────────────────────────────────────────────
@@ -259,6 +271,30 @@ def mask_to_yolo_bbox(mask: np.ndarray) -> list[float]:
 # ── Render ────────────────────────────────────────────────────────────────────
 
 
+_OUTLINE_MODES = ["Class color", "High contrast", "Black", "White"]
+
+
+def _resolve_outline_color(
+    ann: dict, img_u8: np.ndarray, mode: str
+) -> tuple[int, int, int]:
+    """Return the RGB outline color for one annotation given the current mode."""
+    if mode == "Class color":
+        return _hex_to_rgb(ann["class_color"])
+    if mode == "Black":
+        return (0, 0, 0)
+    if mode == "White":
+        return (255, 255, 255)
+    # "High contrast": sample the image along the mask border and pick
+    # whichever of black/white has higher contrast against that background.
+    mask    = ann["mask"].astype(np.uint8)
+    border  = cv2.dilate(mask, np.ones((5, 5), np.uint8)) - mask
+    pixels  = img_u8[border.astype(bool)]
+    if len(pixels) == 0:
+        return (255, 255, 255)
+    luminance = float(np.dot(pixels.mean(axis=0), [0.299, 0.587, 0.114]))
+    return (0, 0, 0) if luminance > 128 else (255, 255, 255)
+
+
 def render_state_image(state: dict) -> np.ndarray:
     """
     Composite all layers onto the current image and return an RGB uint8 array.
@@ -295,35 +331,27 @@ def render_state_image(state: dict) -> np.ndarray:
         colored[pending_mask] = p_color_rgb
         result = np.where(pending_mask[:, :, None], 0.55 * result + 0.45 * colored, result)
 
-    result_u8 = result.clip(0, 255).astype(np.uint8)
+    result_u8    = result.clip(0, 255).astype(np.uint8)
+    outline_mode = state.get("outline_color", "Class color")
 
-    # ── 3: Accepted annotation contour outlines (shadow + colour) ─────────────
+    # ── 3: Accepted annotation contour outlines ────────────────────────────────
     for ann in state["annotations"]:
-        color_rgb = _hex_to_rgb(ann["class_color"])
+        outline_rgb = _resolve_outline_color(ann, result_u8, outline_mode)
         contours, _ = cv2.findContours(
             ann["mask"].astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        # Dark halo first so the coloured line pops on any background
-        cv2.drawContours(result_u8, contours, -1, (0, 0, 0),   thickness=4)
-        cv2.drawContours(result_u8, contours, -1, color_rgb,    thickness=2)
+        cv2.drawContours(result_u8, contours, -1, (0, 0, 0),    thickness=4)
+        cv2.drawContours(result_u8, contours, -1, outline_rgb,   thickness=2)
 
-    # ── 4: Pending mask dashed outline (shadow + white) ────────────────────────
+    # ── 4: Pending mask outline — solid white + shadow ─────────────────────────
+    # White distinguishes pending from accepted (class-coloured). Both are solid.
     if pending_mask is not None and pending_class is not None:
-        pmask_u8 = pending_mask.astype(np.uint8) * 255
+        pmask_u8   = pending_mask.astype(np.uint8) * 255
         contours_p, _ = cv2.findContours(
             pmask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        dash_on = 10
-        period  = 18
-        for cnt in contours_p:
-            pts = cnt.reshape(-1, 2)
-            n   = len(pts)
-            for j in range(0, n, period):
-                for k in range(j, min(j + dash_on, n)):
-                    p1 = (int(pts[k][0]),           int(pts[k][1]))
-                    p2 = (int(pts[(k + 1) % n][0]), int(pts[(k + 1) % n][1]))
-                    cv2.line(result_u8, p1, p2, (0,   0,   0),   3, cv2.LINE_AA)
-                    cv2.line(result_u8, p1, p2, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.drawContours(result_u8, contours_p, -1, (0,   0,   0),   4, cv2.LINE_AA)
+        cv2.drawContours(result_u8, contours_p, -1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # ── 4: Point buffer ───────────────────────────────────────────────────────
 
@@ -552,6 +580,9 @@ def initial_state() -> dict:
     classes = db.get_classes()
     return {
         "classes": classes,
+        "outline_color": "Class color",   # "Class color"|"High contrast"|"Black"|"White"
+        "active_model_id": None,
+        "model_supports_text": False,
         "current_image_id": None,
         "current_image": None,
         "image_set": False,
@@ -676,10 +707,16 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
     coords = np.array([[p["x"], p["y"]] for p in pts], dtype=np.float32)
     labels = np.array([p["label"] for p in pts],       dtype=np.int32)
 
-    # Build mask_input from the previously selected mask's logits
-    prev_logits  = state.get("pending_logits")
-    prev_idx     = state.get("pending_mask_idx", 0)
-    mask_input   = prev_logits[prev_idx] if prev_logits is not None else None
+    # Build mask_input from the previously selected mask's logits.
+    # SAM2 returns logits as (N, 256, 256) — no channel dim — so indexing gives
+    # (256, 256).  SAM2's predict() expects mask_input to be (1, H', W'), so we
+    # add the missing axis when needed.
+    prev_logits = state.get("pending_logits")
+    prev_idx    = state.get("pending_mask_idx", 0)
+    mask_input  = None
+    if prev_logits is not None:
+        raw = prev_logits[prev_idx]
+        mask_input = raw[None] if raw.ndim == 2 else raw   # ensure (1, H', W')
 
     logits_out = None
 
@@ -1083,6 +1120,97 @@ def update_class_color(class_name: str, new_color: str, state: dict):
     return state, rendered, f"Color updated for '{class_name}'."
 
 
+def switch_model(model_id: str, state: dict):
+    """Load a different SAM model on the server and reset image state."""
+    if model_client is None:
+        return state, "Model server not connected.", gr.update(visible=False)
+    if not model_id:
+        return state, "Select a model first.", gr.update(visible=False)
+
+    resp = model_client.set_model(model_id)
+    if "error" in resp:
+        return state, f"Error: {resp['error']}", gr.update(visible=False)
+
+    # Clear image state — new model needs fresh set_image
+    state["image_set"]        = False
+    state["point_buffer"]     = []
+    state["pending_mask"]     = None
+    state["pending_masks"]    = []
+    state["pending_logits"]   = None
+    state["pending_mask_idx"] = 0
+
+    # Update model metadata in state
+    state["active_model_id"] = model_id
+    models = model_client.list_models()
+    active_cfg = next((m for m in models if m["id"] == model_id), {})
+    state["model_supports_text"] = active_cfg.get("supports_text", False)
+
+    return (
+        state,
+        f"Model loaded: {active_cfg.get('label', model_id)}",
+        gr.update(visible=state["model_supports_text"]),
+    )
+
+
+def auto_annotate(state: dict):
+    """Run SAM3 text-prompted segmentation for every defined class."""
+    if model_client is None:
+        return render_state_image(state), state, "Model server not connected.", gr.update()
+
+    img = state.get("current_image")
+    if img is None:
+        return render_state_image(state), state, "No image loaded.", gr.update()
+
+    if not state["classes"]:
+        return render_state_image(state), state, "Add at least one class first.", gr.update()
+
+    class_names = [c["name"] for c in state["classes"]]
+    try:
+        results = model_client.predict_text(img, class_names)
+    except Exception as e:
+        return render_state_image(state), state, f"Error: {e}", gr.update()
+
+    yolo_map   = db.classes_to_yolo_map()
+    cls_by_name = {c["name"]: c for c in state["classes"]}
+    added = 0
+
+    for result in results:
+        if result.get("error"):
+            print(f"[app] auto_annotate skipped '{result['class_name']}': {result['error']}")
+            continue
+
+        cname    = result["class_name"]
+        cls_info = cls_by_name.get(cname)
+        if cls_info is None:
+            continue
+
+        for mask in result.get("masks", []):
+            if not mask.any():
+                continue
+            polygon = mask_to_yolo_polygon(mask)
+            bbox    = mask_to_yolo_bbox(mask)
+            if not polygon:
+                continue
+            state["annotations"].append({
+                "class_db_id":  cls_info["id"],
+                "class_name":   cname,
+                "class_color":  cls_info["color"],
+                "yolo_class_id": yolo_map.get(cls_info["id"], 0),
+                "polygon":      polygon,
+                "bbox":         bbox,
+                "mask":         mask,
+            })
+            added += 1
+
+    n_cls = len([r for r in results if not r.get("error")])
+    return (
+        render_state_image(state),
+        state,
+        f"Auto-annotated: {added} mask(s) from {n_cls} class(es).",
+        _ann_summary(state["annotations"]),
+    )
+
+
 def scan_folder(state: dict):
     """Rescan data/pending/ for new images and refresh the browse table."""
     db.init_db()
@@ -1129,13 +1257,39 @@ def import_folder(folder_path: str, state: dict):
     return data, stats_html(), msg
 
 
+def _model_dropdown_update() -> tuple[gr.update, gr.update]:
+    """
+    Returns (model_dropdown_update, auto_ann_accordion_update).
+    Queries the server for available models; safe to call when server is down.
+    """
+    if model_client is None:
+        return gr.update(choices=[], value=None), gr.update(visible=False)
+
+    models = model_client.list_models()
+    choices = [(m["label"], m["id"]) for m in models if m["available"]]
+    active  = next((m["id"] for m in models if m["active"]), None)
+    supports_text = next((m["supports_text"] for m in models if m["active"]), False)
+    return (
+        gr.update(choices=choices, value=active),
+        gr.update(visible=supports_text),
+    )
+
+
 def load_first_image(state: dict):
     """Called on app startup to auto-load the first pending image."""
     db.init_db()
     state["classes"] = db.get_classes()
 
-    choices = [c["name"] for c in state["classes"]]
+    # Sync model state from server
+    if model_client is not None:
+        models = model_client.list_models()
+        active_cfg = next((m for m in models if m["active"]), {})
+        state["active_model_id"]    = active_cfg.get("id")
+        state["model_supports_text"] = active_cfg.get("supports_text", False)
+
+    choices   = [c["name"] for c in state["classes"]]
     dd_update = gr.update(choices=choices, value=choices[0] if choices else None)
+    model_dd_update, auto_ann_update = _model_dropdown_update()
 
     record = db.get_next()
     if record is None:
@@ -1148,6 +1302,8 @@ def load_first_image(state: dict):
             _ann_summary([]),
             dd_update,
             gr.update(choices=choices),
+            model_dd_update,
+            auto_ann_update,
         )
 
     rendered, label, stats = _load_image(record, state)
@@ -1160,6 +1316,8 @@ def load_first_image(state: dict):
         _ann_summary(state["annotations"]),
         dd_update,
         gr.update(choices=choices),
+        model_dd_update,
+        auto_ann_update,
     )
 
 
@@ -1200,6 +1358,27 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                 # ── Right: controls ───────────────────────────────────────────
                 with gr.Column(scale=1, min_width=260):
 
+                    with gr.Accordion("Model", open=True):
+                        model_dropdown = gr.Dropdown(
+                            label="Active model", choices=[], value=None,
+                            interactive=True,
+                        )
+                        load_model_btn  = gr.Button("Load Model", variant="secondary", size="sm")
+                        model_status_box = gr.Textbox(
+                            label="", interactive=False, show_label=False,
+                            placeholder="—",
+                        )
+
+                    # Visible only when the active model supports text prompts (SAM3)
+                    auto_ann_accordion = gr.Accordion(
+                        "Auto-annotate (text mode)", open=True, visible=False
+                    )
+                    with auto_ann_accordion:
+                        auto_ann_btn    = gr.Button("Run Auto-annotate", variant="primary", size="sm")
+                        auto_ann_status = gr.Textbox(
+                            label="", interactive=False, show_label=False,
+                        )
+
                     with gr.Accordion("Classes", open=True):
                         with gr.Row():
                             class_input = gr.Textbox(
@@ -1227,6 +1406,12 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
                         )
                         update_color_btn = gr.Button(
                             "Update Color", variant="secondary", size="sm",
+                        )
+
+                    with gr.Accordion("Display", open=False):
+                        outline_color_radio = gr.Radio(
+                            _OUTLINE_MODES, value="Class color",
+                            label="Outline color", interactive=True,
                         )
 
                     with gr.Accordion("Points & SAM", open=True):
@@ -1263,11 +1448,19 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
             with gr.Row():
                 refresh_btn     = gr.Button("Refresh")
                 scan_folder_btn = gr.Button("Scan Pending Folder", variant="secondary")
+            folder_explorer = gr.FileExplorer(
+                label="Browse for import folder",
+                glob="**",
+                file_count="single",
+                root_dir="/",
+                height=220,
+            )
             with gr.Row():
                 folder_input = gr.Textbox(
-                    label="Import folder path",
+                    label="Selected path (editable)",
                     placeholder="/path/to/my/images",
                     scale=4,
+                    interactive=True,
                 )
                 import_folder_btn = gr.Button("Import Folder", variant="primary", scale=1)
             browse_status = gr.Textbox(label="", interactive=False, show_label=False)
@@ -1277,6 +1470,27 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
             )
 
     # ── Event wiring ──────────────────────────────────────────────────────────
+
+    def _set_outline(mode: str, state: dict):
+        state["outline_color"] = mode
+        return render_state_image(state), state
+
+    outline_color_radio.change(
+        _set_outline,
+        inputs=[outline_color_radio, state],
+        outputs=[display_img, state],
+    )
+
+    load_model_btn.click(
+        switch_model,
+        inputs=[model_dropdown, state],
+        outputs=[state, model_status_box, auto_ann_accordion],
+    )
+    auto_ann_btn.click(
+        auto_annotate,
+        inputs=[state],
+        outputs=[display_img, state, auto_ann_status, ann_box],
+    )
 
     _add_class_outs = [class_dropdown, state, color_picker, edit_class_dd, class_swatch]
     add_btn.click(add_class, [class_input, color_picker, state], _add_class_outs)
@@ -1336,6 +1550,20 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
     prev_btn.click(go_prev,         [state], _nav_outputs)
     next_btn.click(go_next_pending, [state], _nav_outputs)
 
+    def _explorer_to_folder(path):
+        """Populate the folder textbox from the FileExplorer selection.
+        If the user picks a file, use its parent directory instead."""
+        if not path:
+            return gr.update()
+        p = Path(path)
+        return str(p) if p.is_dir() else str(p.parent)
+
+    folder_explorer.change(
+        _explorer_to_folder,
+        inputs=[folder_explorer],
+        outputs=[folder_input],
+    )
+
     refresh_btn.click(refresh_browse, [state], [browse_df, stats_bar])
     scan_folder_btn.click(
         scan_folder,
@@ -1355,6 +1583,7 @@ with gr.Blocks(title="SAM2 Annotator V2") as demo:
         outputs=[
             display_img, state, status_box, stats_bar,
             img_label, ann_box, class_dropdown, edit_class_dd,
+            model_dropdown, auto_ann_accordion,
         ],
     )
 
