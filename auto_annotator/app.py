@@ -33,6 +33,10 @@ MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path(__file__).parent / "models")
 LOCAL_CKPT = MODELS_DIR / "sam2.1_l.pt"
 LABELS_DIR = db.LABELS_DIR
 
+# Point HuggingFace cache at the shared models/ dir so both app.py and
+# model_server.py use the same on-disk weights (no double download).
+os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
+
 # ── Colour palette — golden-ratio HSV stepping ────────────────────────────────
 # Successive hues are separated by ~137.5° (the golden angle), which gives the
 # maximum perceptual distance between any two adjacent colours regardless of n.
@@ -114,7 +118,8 @@ class _ModelServerClient:
     def ping(self) -> bool:
         try:
             return self._call({"cmd": "ping"}).get("ok", False)
-        except Exception:
+        except Exception as e:
+            print(f"[app] Model server probe failed: {type(e).__name__}: {e}")
             return False
 
     def set_image(self, image: np.ndarray) -> None:
@@ -122,11 +127,15 @@ class _ModelServerClient:
         if "error" in resp:
             raise RuntimeError(resp["error"])
 
-    def predict(self, coords: np.ndarray, labels: np.ndarray):
-        resp = self._call({"cmd": "predict", "coords": coords, "labels": labels})
+    def predict(self, coords: np.ndarray, labels: np.ndarray,
+                mask_input: np.ndarray | None = None):
+        resp = self._call({
+            "cmd": "predict", "coords": coords, "labels": labels,
+            "mask_input": mask_input,
+        })
         if "error" in resp:
             raise RuntimeError(resp["error"])
-        return resp["masks"], resp["scores"]
+        return resp["masks"], resp["scores"], resp.get("logits")
 
 
 # Try to connect; fall back silently to direct loading if server isn't running
@@ -496,12 +505,15 @@ def _load_image(record, state: dict) -> tuple[np.ndarray, str, str]:
 
     rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
-    state["current_image_id"] = record["id"]
-    state["current_image"] = rgb
-    state["point_buffer"] = []
-    state["pending_mask"] = None
+    state["current_image_id"]   = record["id"]
+    state["current_image"]      = rgb
+    state["point_buffer"]       = []
+    state["pending_mask"]       = None
+    state["pending_masks"]      = []
+    state["pending_logits"]     = None
+    state["pending_mask_idx"]   = 0
     state["pending_class_db_id"] = None
-    state["image_set"] = False
+    state["image_set"]          = False
 
     # Pre-compute SAM embedding
     if model_client is not None:
@@ -540,7 +552,9 @@ def initial_state() -> dict:
         "image_set": False,
         "point_buffer": [],
         "pending_mask": None,
-        "pending_masks": [],   # all 3 SAM candidate masks
+        "pending_masks": [],      # all 3 SAM candidate masks (filtered)
+        "pending_logits": None,   # raw SAM logits (N,1,H',W') for mask_input refinement
+        "pending_mask_idx": 0,    # which of the 3 masks is currently displayed
         "pending_class_db_id": None,
         "annotations": [],
     }
@@ -594,9 +608,54 @@ def add_class(name: str, color: str, state: dict):
 _MASK_LABELS = ["Precise (0)", "Object (1)", "Broad (2)"]
 
 
+def _filter_cc(mask: np.ndarray, positive_pts: list[dict]) -> np.ndarray:
+    """
+    Keep only connected components in `mask` that contain at least one
+    positive click point.  Falls back to the original mask if no positive
+    point lands on any mask pixel (e.g. very small mask with imprecise click).
+    """
+    if not mask.any():
+        return mask
+
+    mask_u8 = mask.astype(np.uint8)
+    n_labels, label_map = cv2.connectedComponents(mask_u8)
+
+    keep = set()
+    for pt in positive_pts:
+        if pt.get("label") != 1:
+            continue
+        px = int(round(pt["x"]))
+        py = int(round(pt["y"]))
+        py = max(0, min(py, mask.shape[0] - 1))
+        px = max(0, min(px, mask.shape[1] - 1))
+        lbl = label_map[py, px]
+        if lbl != 0:
+            keep.add(lbl)
+
+    if not keep:
+        return mask  # fallback: no positive point landed on mask pixel
+
+    result = np.zeros_like(mask)
+    for lbl in keep:
+        result |= (label_map == lbl)
+    return result
+
+
 def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
     """
     Run SAM on the current point buffer.
+
+    Two quality improvements over a plain predict() call:
+
+    1. Iterative refinement — if the state already has `pending_logits` from
+       a previous call, they are fed back as `mask_input`.  SAM2 uses them as
+       a spatial prior and produces sharper, more stable masks on each added
+       point rather than starting from scratch.
+
+    2. Connected-component filtering — after receiving the masks, only the
+       component(s) that contain at least one positive click are kept.  This
+       eliminates stray blobs that SAM sometimes attaches to the main object.
+
     Returns (all_masks, best_idx, scores_str, error_msg).
     error_msg is '' on success.
     """
@@ -605,12 +664,19 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
         return None, 0, "", "No image loaded."
     if not state["point_buffer"]:
         return None, 0, "", "No points in buffer."
-    if predictor is None:
+    if model_client is None and predictor is None:
         return None, 0, "", "SAM model not loaded."
 
     pts    = state["point_buffer"]
     coords = np.array([[p["x"], p["y"]] for p in pts], dtype=np.float32)
     labels = np.array([p["label"] for p in pts],       dtype=np.int32)
+
+    # Build mask_input from the previously selected mask's logits
+    prev_logits  = state.get("pending_logits")
+    prev_idx     = state.get("pending_mask_idx", 0)
+    mask_input   = prev_logits[prev_idx] if prev_logits is not None else None
+
+    logits_out = None
 
     try:
         if model_client is not None:
@@ -618,7 +684,9 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
             if not state["image_set"]:
                 model_client.set_image(img)
                 state["image_set"] = True
-            all_masks, scores_list = model_client.predict(coords, labels)
+            all_masks, scores_list, logits_out = model_client.predict(
+                coords, labels, mask_input=mask_input
+            )
             scores_flat = np.array(scores_list)
 
         elif USE_NATIVE:
@@ -629,16 +697,17 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
                 state["image_set"] = True
 
             with torch.inference_mode(), _autocast_ctx():
-                masks, scores, _ = predictor.predict(
+                masks, scores, logits_out = predictor.predict(
                     point_coords=coords,
                     point_labels=labels,
+                    mask_input=mask_input,
                     multimask_output=True,
                 )
             scores_flat = scores.flatten()
             all_masks   = [masks[i].astype(bool) for i in range(len(masks))]
 
         else:
-            # ── Ultralytics fallback ───────────────────────────────────────────
+            # ── Ultralytics fallback (no mask_input support) ───────────────────
             pos_pts = [[p["x"], p["y"]] for p in pts if p["label"] == 1]
             pos_lbl = [1] * len(pos_pts)
             results = predictor(img, points=[pos_pts], labels=[pos_lbl])
@@ -657,6 +726,12 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
         if model_client is None:
             _empty_cache()
 
+    # Store logits for next refinement iteration
+    state["pending_logits"] = logits_out
+
+    # Connected-component filtering: drop blobs not touching any positive click
+    all_masks = [_filter_cc(m, pts) for m in all_masks]
+
     best_idx   = int(np.argmax(scores_flat))
     scores_str = "  ".join(
         f"{_MASK_LABELS[i]}: {scores_flat[i]:.3f}"
@@ -667,8 +742,9 @@ def _run_sam_inference(state: dict) -> tuple[list | None, int, str, str]:
 
 def _apply_sam_result(state: dict, all_masks: list, best_idx: int, scores_str: str):
     """Store inference result in state and return the 5-tuple Gradio output."""
-    state["pending_masks"] = all_masks
-    state["pending_mask"]  = all_masks[best_idx]
+    state["pending_masks"]    = all_masks
+    state["pending_mask"]     = all_masks[best_idx]
+    state["pending_mask_idx"] = best_idx   # track for next mask_input
 
     best_label  = _MASK_LABELS[best_idx] if best_idx < len(_MASK_LABELS) else _MASK_LABELS[0]
     show_picker = len(all_masks) > 1
@@ -739,7 +815,8 @@ def select_mask_level(level_str: str, state: dict):
     masks     = state.get("pending_masks", [])
     if not masks or level >= len(masks):
         return render_state_image(state), state
-    state["pending_mask"] = masks[level]
+    state["pending_mask"]     = masks[level]
+    state["pending_mask_idx"] = level   # next refinement starts from this mask
     return render_state_image(state), state
 
 
@@ -790,6 +867,8 @@ def accept_mask(state: dict, active_class: str | None):
 
     state["pending_mask"]          = None
     state["pending_masks"]         = []
+    state["pending_logits"]        = None
+    state["pending_mask_idx"]      = 0
     state["pending_class_db_id"]   = None
     state["point_buffer"]          = []
 
@@ -807,6 +886,8 @@ def clear_points(state: dict):
     state["point_buffer"]        = []
     state["pending_mask"]        = None
     state["pending_masks"]       = []
+    state["pending_logits"]      = None
+    state["pending_mask_idx"]    = 0
     state["pending_class_db_id"] = None
     rendered = render_state_image(state)
     return rendered, state, "Points cleared.", gr.update(visible=False)

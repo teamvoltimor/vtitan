@@ -58,6 +58,10 @@ MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path(__file__).parent / "models")
 LOCAL_CKPT = MODELS_DIR / "sam2.1_l.pt"
 DEVICE     = "cuda" if torch.cuda.is_available() else "cpu"
 
+# Cache HuggingFace downloads inside models/ so app.py and model_server.py
+# share the same weights and never download the model twice.
+os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -131,12 +135,14 @@ def _dispatch(msg: dict) -> dict:
         return {"ok": True}
 
     if cmd == "predict":
-        coords = msg["coords"]   # float32 (N, 2)
-        labels = msg["labels"]   # int32   (N,)
+        coords     = msg["coords"]              # float32 (N, 2)
+        labels     = msg["labels"]              # int32   (N,)
+        mask_input = msg.get("mask_input")      # float32 (1, H', W') or None
         with torch.inference_mode(), _autocast_ctx():
-            masks, scores, _ = predictor.predict(
+            masks, scores, logits = predictor.predict(
                 point_coords=coords,
                 point_labels=labels,
+                mask_input=mask_input,
                 multimask_output=True,
             )
         _empty_cache()
@@ -144,6 +150,7 @@ def _dispatch(msg: dict) -> dict:
         return {
             "masks":  [masks[i].astype(bool) for i in range(len(masks))],
             "scores": scores_flat.tolist(),
+            "logits": logits,   # (N, 1, H', W') – for iterative refinement
         }
 
     return {"error": f"Unknown command: {cmd!r}"}
