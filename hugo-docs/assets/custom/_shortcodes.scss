@@ -1,0 +1,204 @@
+// SHORTCODES / ALERTS
+// ============================================================================
+
+.book-hint {
+    position: relative;
+    padding: var(--space-lg) var(--space-lg) var(--space-lg) 4rem;
+    margin: var(--space-xl) 0;
+    border-left: 4px solid;
+    border-radius: var(--radius-lg);
+    background-color: var(--gray-100);
+    box-shadow: var(--shadow-sm);
+    transition:
+        box-shadow var(--transition-base),
+        transform var(--transition-base);
+
+    &:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+    }
+
+    // Icon positioned on the LEFT side
+    &::before {
+        content: "ℹ";
+        position: absolute;
+        left: 1rem;
+        top: var(--space-lg);
+        width: 2rem;
+        height: 2rem;
+        line-height: 2rem;
+        text-align: center;
+        font-size: var(--text-lg);
+        font-weight: var(--font-bold);
+        border-radius: 50%;
+        background: var(--body-background);
+        color: var(--gray-500);
+        box-shadow: var(--shadow-xs);
+    }
+
+    strong {
+        display: block;
+        margin-bottom: var(--space-sm);
+        font-weight: var(--font-bold);
+        font-size: var(--text-lg);
+    }
+
+    p:last-child {
+        margin-bottom: 0;
+    }
+
+    &.note {
+        border-color: var(--color-accent-note);
+        background-color: var(--color-accent-note-tint);
+
+        &::before {
+            content: "ℹ";
+            color: var(--color-accent-note);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-note);
+        }
+    }
+
+    &.info {
+        border-color: var(--color-accent-info);
+        background-color: var(--color-accent-info-tint);
+
+        &::before {
+            content: "ⓘ";
+            color: var(--color-accent-info);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-info);
+        }
+    }
+
+    &.tip {
+        border-color: var(--color-accent-tip);
+        background-color: var(--color-accent-tip-tint);
+
+        &::before {
+            content: "✓";
+            color: var(--color-accent-tip);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-tip);
+        }
+    }
+
+    &.warning {
+        border-color: var(--color-accent-warning);
+        background-color: var(--color-accent-warning-tint);
+
+        &::before {
+            content: "⚠";
+            color: var(--color-accent-warning);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-warning);
+        }
+    }
+
+    &.danger {
+        border-color: var(--color-accent-danger);
+        background-color: var(--color-accent-danger-tint);
+
+        &::before {
+            content: "✕";
+            color: var(--color-accent-danger);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-danger);
+        }
+    }
+
+    &.example {
+        border-color: var(--color-accent-info);
+        background-color: var(--color-accent-info-tint);
+
+        &::before {
+            content: "📘";
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-info);
+        }
+    }
+
+    &.question {
+        border-color: var(--color-accent-important);
+        background-color: var(--color-accent-important-tint);
+
+        &::before {
+            content: "❓";
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-important);
+        }
+    }
+
+    &.success {
+        border-color: var(--color-accent-success);
+        background-color: var(--color-accent-success-tint);
+
+        &::before {
+            content: "✓";
+            color: var(--color-accent-success);
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-success);
+        }
+    }
+
+    &.important {
+        border-color: var(--color-accent-important);
+        background-color: var(--color-accent-important-tint);
+
+        &::before {
+            content: "⭐";
+            background: var(--body-background);
+        }
+
+        strong {
+            color: var(--color-accent-important);
+        }
+    }
+}
+
+// Responsive adjustments for hint boxes
+@media (max-width: 600px) {
+    .book-hint {
+        padding: var(--space-md) var(--space-md) var(--space-md) 3.5rem;
+        font-size: var(--text-sm);
+
+        &::before {
+            left: 0.75rem;
+            top: var(--space-md);
+            width: 1.75rem;
+            height: 1.75rem;
+            line-height: 1.75rem;
+            font-size: var(--text-base);
+        }
+
+        strong {
+            font-size: var(--text-base);
+        }
+    }
+}
+
+// ============================================================================

@@ -1,0 +1,46 @@
+// 5. LINKS
+// ============================================================================
+
+// Links
+.book-article a {
+    color: var(--color-link);
+    text-decoration: none;
+    transition:
+        color var(--transition-base),
+        text-decoration-color var(--transition-base);
+    position: relative;
+
+    &:hover {
+        color: var(--color-link-hover);
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 2px;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--color-link);
+        outline-offset: 2px;
+        border-radius: 2px;
+    }
+
+    &:visited {
+        color: var(--color-visited-link);
+    }
+}
+
+// Content links with animated underline
+.markdown a:not(.book-btn) {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0% 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 2px;
+    transition: background-size var(--transition-slow);
+    text-decoration: none;
+
+    &:hover {
+        background-size: 100% 2px;
+        text-decoration: none;
+    }
+}
+
+// ============================================================================

@@ -1,0 +1,78 @@
+// 4. TYPOGRAPHY
+// ============================================================================
+
+// Typography
+.book-article h1,
+.book-article h2,
+.book-article h3,
+.book-article h4,
+.book-article h5,
+.book-article h6 {
+    font-family: var(--font-sans);
+    line-height: var(--leading-tight);
+    color: var(--body-font-color);
+}
+
+h1 {
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    margin-top: 0;
+    margin-bottom: var(--space-lg);
+}
+
+h2 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    margin-top: var(--space-xl);
+    margin-bottom: var(--space-md);
+}
+
+h3 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-semibold);
+    margin-top: var(--space-lg);
+    margin-bottom: var(--space-sm);
+}
+
+h4 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-sm);
+}
+
+h5 {
+    font-size: var(--text-base);
+    font-weight: var(--font-medium);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-xs);
+}
+
+.book-article h6 {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-sm);
+}
+
+// Heading anchor - minimal, just scroll offset
+h1, h2, h3, h4, h5, h6 {
+    &[id] {
+        scroll-margin-top: var(--space-xl);
+    }
+}
+
+p {
+    margin-bottom: var(--space-md);
+    line-height: var(--leading-relaxed);
+    color: var(--body-font-color);
+
+    & + p {
+        margin-top: var(--space-lg);
+    }
+}
+
+// ============================================================================

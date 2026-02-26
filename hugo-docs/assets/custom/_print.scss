@@ -1,0 +1,84 @@
+// 21. PRINT STYLES
+// ============================================================================
+
+@media print {
+    // Hide non-essential elements
+    .book-header-custom,
+    .book-menu,
+    .book-toc,
+    .theme-toggle,
+    .book-search,
+    .book-tree-parent-nav,
+    nav,
+    aside {
+        display: none ;
+    }
+
+    // Reset colors and backgrounds
+    * {
+        background: white ;
+        color: black ;
+        box-shadow: none ;
+        text-shadow: none ;
+    }
+
+    // Ensure content takes full width
+    .book-page {
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+
+    .markdown {
+        max-width: 100%;
+    }
+
+    // Better link display
+    a {
+        text-decoration: underline;
+
+        &[href^="http"]::after {
+            content: " (" attr(href) ")";
+            font-size: 0.875em;
+            color: var(--gray-500);
+        }
+    }
+
+    // Ensure headings stay with content
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+    }
+
+    // Prevent awkward breaks
+    pre,
+    blockquote,
+    table,
+    img,
+    figure {
+        page-break-inside: avoid;
+    }
+
+    // Add page numbers
+    @page {
+        margin: 2cm;
+    }
+
+    // Better table printing
+    table {
+        border: 1px solid var(--color-black);
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tr {
+        page-break-inside: avoid;
+    }
+}

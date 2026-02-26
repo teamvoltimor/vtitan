@@ -1,0 +1,181 @@
+// 17. RESPONSIVE
+// ============================================================================
+
+@media screen and (max-width: 56rem) {
+    .book-page {
+        padding: var(--space-md);
+    }
+
+    .markdown {
+        font-size: 0.9375rem;
+    }
+
+    h1 {
+        font-size: 2rem;
+        letter-spacing: -0.01em;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+        margin-top: var(--space-xl);
+    }
+
+    h3 {
+        font-size: 1.25rem;
+    }
+
+    h4 {
+        font-size: 1.0625rem;
+    }
+
+    .book-page-header {
+        .book-page-title {
+            font-size: 2rem;
+        }
+
+        .book-page-description {
+            font-size: 1rem;
+        }
+
+        .book-breadcrumb {
+            font-size: 0.75rem;
+        }
+    }
+
+    table {
+        font-size: 0.8125rem;
+
+        thead th,
+        tbody td {
+            padding: 0.625rem 0.875rem;
+        }
+    }
+
+    pre {
+        padding: var(--space-md);
+        font-size: 0.8125rem;
+        border-radius: 0.5rem;
+    }
+
+    .book-hint {
+        padding: var(--space-md);
+    }
+
+    blockquote {
+        padding: var(--space-md);
+    }
+}
+
+// Extra small devices
+@media screen and (max-width: 36rem) {
+    .book-page-header {
+        .book-page-title {
+            font-size: 1.75rem;
+        }
+    }
+
+    .book-brand-wrapper {
+        .book-brand a {
+            font-size: 0.9375rem;
+        }
+
+        .theme-toggle {
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+    }
+}
+
+// ============================================================================
+// 17. MOBILE ENHANCEMENTS
+// ============================================================================
+
+// Improved touch targets for mobile
+@media (max-width: 768px) {
+    // Minimum touch target size of 44x44px (Apple HIG)
+    button,
+    a,
+    .code-copy-button,
+    .book-menu a,
+    .book-toc a,
+    input[type="checkbox"] {
+        min-height: 44px;
+        min-width: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    // Better spacing for mobile
+    .markdown {
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: var(--space-xl);
+        }
+
+        p {
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        ul, ol {
+            padding-left: 1.5rem;
+
+            li {
+                margin-bottom: var(--space-md);
+            }
+        }
+    }
+
+    // Larger tap targets for interactive elements
+    .book-hint {
+        padding: var(--space-lg);
+        font-size: var(--text-base);
+    }
+
+    // Better table scrolling on mobile
+    table {
+        font-size: 0.875rem;
+
+        th, td {
+            padding: var(--space-sm) var(--space-md);
+        }
+    }
+
+    // Improved code block readability
+    pre {
+        font-size: 0.8125rem;
+        padding: var(--space-md);
+    }
+
+    // Better badge sizing
+    .badge {
+        font-size: 0.6875rem;
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+// Prevent text selection on double-tap
+@media (pointer: coarse) {
+    .book-menu label,
+    .book-toc a,
+    button {
+        -webkit-tap-highlight-color: rgba(var(--color-link-rgb), 0.1);
+        user-select: none;
+    }
+}
+
+// Better mobile navigation
+@media (max-width: 600px) {
+    .book-menu {
+        nav {
+            padding-bottom: 5rem; // Extra space for thumb zone
+        }
+    }
+
+    // Sticky footer padding for mobile
+    .book-page {
+        padding-bottom: 3rem;
+    }
+}
+
+// ============================================================================

@@ -1,0 +1,106 @@
+// 17.5 FOOTER & COPYRIGHT
+// ============================================================================
+
+.book-footer {
+    margin-top: var(--space-3xl);
+    padding-top: var(--space-xl);
+    border-top: 2px solid var(--gray-200);
+    color: var(--gray-600);
+    font-size: var(--text-sm);
+
+    a {
+        color: var(--gray-600) ;
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        transition: all var(--transition-base);
+
+        &:hover {
+            color: var(--color-link) ;
+            text-decoration-color: currentColor;
+        }
+    }
+}
+
+.book-copyright {
+    margin-top: var(--space-lg);
+    padding: var(--space-lg) 0;
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--gray-500);
+    border-top: 1px solid var(--gray-200);
+
+    p {
+        margin: 0;
+        line-height: var(--leading-relaxed);
+    }
+
+    a {
+        color: var(--gray-600) ;
+        font-weight: var(--font-medium);
+
+        &:hover {
+            color: var(--color-link) ;
+        }
+    }
+}
+
+// Multi-column footer layout
+.book-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-xl);
+    margin-bottom: var(--space-xl);
+
+    .footer-column {
+        h4 {
+            font-size: var(--text-base);
+            font-weight: var(--font-semibold);
+            margin-bottom: var(--space-md);
+            color: var(--body-font-color);
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+
+            li {
+                margin-bottom: var(--space-sm);
+            }
+        }
+    }
+
+    @media (max-width: 768px) {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+}
+
+// Social links in footer
+.footer-social {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: center;
+    margin: var(--space-lg) 0;
+
+    a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        background: var(--gray-100);
+        color: var(--gray-600) ;
+        transition: all var(--transition-base);
+        text-decoration: none ;
+
+        &:hover {
+            background: var(--color-link);
+            color: var(--color-white) ;
+            transform: translateY(-2px);
+        }
+    }
+}
+
+// ============================================================================

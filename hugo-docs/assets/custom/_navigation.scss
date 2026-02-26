@@ -1,0 +1,203 @@
+// 8. SIDEBAR & NAVIGATION
+// ============================================================================
+
+// Global Scrollbar Styles
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--body-background);
+    border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 10px;
+    border: 2px solid var(--body-background);
+    transition: background var(--transition-base);
+
+    &:hover {
+        background: var(--gray-400);
+    }
+
+    &:active {
+        background: var(--gray-500);
+    }
+}
+
+*::-webkit-scrollbar-corner {
+    background: var(--body-background);
+}
+
+// Custom Scrollbar Styles (Sidebar, TOC, etc.)
+.book-menu,
+.book-toc,
+.book-toc-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) var(--sidebar-bg);
+
+    &::-webkit-scrollbar {
+        width: 8px;
+        background: var(--sidebar-bg);
+    }
+    &::-webkit-scrollbar-thumb {
+        background: var(--gray-300);
+        border-radius: 6px;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+        background: var(--gray-400);
+    }
+    &::-webkit-scrollbar-corner {
+        background: var(--sidebar-bg);
+    }
+}
+
+// ============================================================================
+// Minimalist Sidebar Navigation
+// ============================================================================
+
+.book-menu {
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+
+    .book-menu-content {
+        padding: var(--space-md);
+    }
+
+    // Navigation links - minimal
+    a {
+        display: block;
+        padding: var(--space-xs) var(--space-sm);
+        color: var(--body-font-color);
+        font-size: var(--text-sm);
+        border-radius: var(--radius-sm);
+
+        &:hover {
+            background-color: var(--hover-bg);
+            text-decoration: none;
+        }
+
+        &.active {
+            background-color: var(--active-bg);
+            color: var(--color-link);
+            font-weight: var(--font-medium);
+        }
+    }
+
+    // Tree structure - minimal indentation
+    ul {
+        list-style: none;
+        padding-left: var(--space-sm);
+        margin: 0;
+
+        ul {
+            padding-left: var(--space-md);
+        }
+    }
+
+    li {
+        margin: 2px 0;
+    }
+
+    // Section labels
+    label {
+        display: block;
+        padding: var(--space-xs) var(--space-sm);
+        font-size: var(--text-sm);
+        font-weight: var(--font-semibold);
+        color: var(--body-font-color);
+        cursor: pointer;
+    }
+}
+
+html:not(.dark):not([data-theme="dark"]) .book-menu,
+html:not(.dark):not([data-theme="dark"]) .book-menu-content,
+html:not(.dark):not([data-theme="dark"]) .book-toc,
+html:not(.dark):not([data-theme="dark"]) .book-toc-content {
+    background-color: var(--sidebar-bg);
+}
+
+// ============================================================================
+// Minimalist TOC (Table of Contents)
+// ============================================================================
+
+.book-toc {
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+
+    // Navigation links - minimal
+    nav a {
+        display: block;
+        padding: 3px 0;
+        color: var(--gray-500);
+        border-left: none;
+
+        &:hover {
+            color: var(--color-link);
+            background: none;
+        }
+
+        &.active {
+            color: var(--color-link);
+            font-weight: var(--font-medium);
+        }
+    }
+
+    // Nested TOC items - subtle indentation
+    ul {
+        padding-left: var(--space-sm);
+
+        ul {
+            padding-left: var(--space-md);
+        }
+    }
+
+    li {
+        margin: 2px 0;
+    }
+}
+
+// ============================================================================
+// Theme Switcher with rotate on hover
+// ============================================================================
+
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: transform var(--transition-base);
+
+    &:hover {
+        transform: rotate(15deg);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--color-link);
+        outline-offset: 2px;
+    }
+
+    .theme-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        color: var(--body-font-color);
+        display: none;
+    }
+}
+
+// ============================================================================

@@ -1,0 +1,382 @@
+// 14. LISTS
+// ============================================================================
+
+ul,
+ol {
+    padding-left: 2rem;
+    margin-bottom: var(--space-lg);
+    line-height: var(--leading-relaxed);
+
+    li {
+        margin-bottom: var(--space-md);
+        color: var(--body-font-color) ;
+        padding-left: var(--space-sm);
+        position: relative;
+
+        &::marker {
+            color: var(--color-link);
+            font-weight: var(--font-semibold);
+        }
+
+        // Hover effect for list items
+        &:hover::marker {
+            color: var(--color-link-hover);
+        }
+
+        // Nested lists
+        ul,
+        ol {
+            margin-top: var(--space-md);
+            margin-bottom: var(--space-sm);
+            padding-left: 1.5rem;
+        }
+
+        // Paragraphs within list items
+        p {
+            margin-top: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        // Code within list items
+        code {
+            font-size: 0.85em;
+        }
+
+        // Links in list items
+        a {
+            font-weight: var(--font-medium);
+        }
+    }
+}
+
+// Specific styling for unordered lists
+ul {
+    list-style-type: none;
+
+    > li {
+        &::before {
+            content: "●";
+            position: absolute;
+            left: -1.25rem;
+            color: var(--color-link);
+            font-size: 0.75em;
+            line-height: 1.5;
+            transition: transform var(--transition-base);
+        }
+
+        &:hover::before {
+            transform: scale(1.3);
+        }
+
+        // Second level
+        ul > li::before {
+            content: "○";
+            font-size: 0.7em;
+        }
+
+        // Third level
+        ul > li ul > li::before {
+            content: "■";
+            font-size: 0.6em;
+        }
+    }
+}
+
+// Ordered lists with better numbering
+ol {
+    counter-reset: list-counter;
+
+    > li {
+        counter-increment: list-counter;
+
+        &::marker {
+            content: counter(list-counter) ". ";
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
+        }
+    }
+}
+
+// Task lists (checkboxes)
+.markdown {
+    ul.task-list,
+    ul[class*="contains-task-list"] {
+        list-style: none;
+        padding-left: 0;
+
+        li {
+            padding-left: 0;
+            position: relative;
+
+            &::marker {
+                content: none;
+            }
+
+            input[type="checkbox"] {
+                margin-right: var(--space-sm);
+                accent-color: var(--color-link);
+                cursor: pointer;
+                width: 1.125rem;
+                height: 1.125rem;
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 14.2 BADGES & LABELS
+// ============================================================================
+
+.badge,
+.label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: var(--font-semibold);
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    white-space: nowrap;
+    transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-base);
+
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+    }
+}
+
+// Badge variants
+.badge-new,
+.badge-beta {
+    background: var(--color-accent-tip-tint);
+    color: var(--color-accent-tip);
+    border: 1px solid var(--color-accent-tip);
+}
+
+.badge-deprecated,
+.badge-warning {
+    background: var(--color-accent-warning-tint);
+    color: var(--color-accent-warning);
+    border: 1px solid var(--color-accent-warning);
+}
+
+.badge-danger,
+.badge-breaking {
+    background: var(--color-accent-danger-tint);
+    color: var(--color-accent-danger);
+    border: 1px solid var(--color-accent-danger);
+}
+
+.badge-info {
+    background: var(--color-accent-info-tint);
+    color: var(--color-accent-info);
+    border: 1px solid var(--color-accent-info);
+}
+
+.badge-success {
+    background: var(--color-accent-success-tint);
+    color: var(--color-accent-success);
+    border: 1px solid var(--color-accent-success);
+}
+
+.badge-default {
+    background: var(--gray-100);
+    color: var(--body-font-color);
+    border: 1px solid var(--gray-300);
+}
+
+// Pill variant
+.badge-pill {
+    border-radius: 1rem;
+    padding: 0.3rem 0.75rem;
+}
+
+// With icon
+.badge-icon {
+    &::before {
+        content: "●";
+        font-size: 0.5em;
+        margin-right: 0.25em;
+    }
+}
+
+// ============================================================================
+// 14.4 DETAILS/SUMMARY (Collapsible Sections)
+// ============================================================================
+
+details {
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid var(--color-link);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-base);
+
+    &[open] {
+        box-shadow: var(--shadow-md);
+
+        summary {
+            margin-bottom: var(--space-md);
+            color: var(--color-link);
+
+            &::marker {
+                color: var(--color-link);
+            }
+        }
+    }
+
+    summary {
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 1.0625rem;
+        color: var(--body-font-color);
+        padding: var(--space-sm);
+        margin: calc(var(--space-md) * -1);
+        margin-bottom: 0;
+        border-radius: 0.75rem 0.75rem 0 0;
+        transition: all var(--transition-base);
+        user-select: none;
+        list-style-position: outside;
+
+        &:hover {
+            background: var(--hover-bg);
+            color: var(--color-link);
+        }
+
+        &::marker {
+            color: var(--gray-500);
+            font-size: 1.125em;
+        }
+
+        &::-webkit-details-marker {
+            color: var(--gray-500);
+        }
+    }
+
+    p:last-child {
+        margin-bottom: 0;
+    }
+}
+
+// ============================================================================
+// 14.5 DEFINITION LISTS
+// ============================================================================
+
+dl {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg);
+    background: var(--gray-100);
+    border-radius: 0.75rem;
+    border-left: 4px solid var(--color-link);
+
+    dt {
+        font-weight: 700;
+        color: var(--body-font-color);
+        margin-top: var(--space-md);
+        font-size: 1.05rem;
+
+        &:first-child {
+            margin-top: 0;
+        }
+    }
+
+    dd {
+        margin-left: var(--space-lg);
+        margin-top: var(--space-xs);
+        margin-bottom: var(--space-md);
+        color: var(--body-font-color);
+        line-height: 1.7;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+}
+
+// ============================================================================
+// 14.6 KEYBOARD SHORTCUTS & BADGES
+// ============================================================================
+
+kbd {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-none);
+    color: var(--body-font-color);
+    background-color: var(--gray-100);
+    border: 1px solid var(--gray-300);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 -1px 0 var(--gray-300);
+    transition:
+        background var(--transition-base),
+        border-color var(--transition-base);
+}
+
+mark {
+    background-color: var(--color-accent-warning-tint);
+    color: var(--body-font-color);
+    padding: 0.125em 0.375em;
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-medium);
+}
+
+// Footnotes
+.footnotes {
+    margin-top: var(--space-2xl);
+    padding-top: var(--space-xl);
+    border-top: 2px solid var(--gray-200);
+    font-size: 0.875rem;
+
+    ol {
+        padding-left: 1.5rem;
+
+        li {
+            margin-bottom: var(--space-md);
+
+            p {
+                margin-bottom: var(--space-sm);
+            }
+        }
+    }
+
+    .footnote-backref {
+        margin-left: var(--space-xs);
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--color-link) ;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+// Footnote references in text
+sup.footnote-ref {
+    a {
+        font-weight: 700;
+        text-decoration: none;
+        color: var(--color-link) ;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        background: var(--color-accent-note-tint);
+        transition: all var(--transition-base);
+
+        &:hover {
+            background: var(--color-link);
+            color: white ;
+        }
+    }
+}
+
+// ============================================================================

@@ -1,0 +1,97 @@
+// 7. TABLES
+// ============================================================================
+
+// Tables
+.book-article table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: auto;
+    max-width: 100%;
+    margin: var(--space-xl) 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-base);
+    display: table;
+
+    &:hover {
+        box-shadow: var(--shadow-md);
+    }
+
+    thead {
+        background: linear-gradient(to bottom, var(--gray-100), var(--gray-50));
+
+        th {
+            font-weight: var(--font-semibold);
+            padding: var(--space-md) var(--space-lg);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+            color: var(--body-font-color);
+            font-size: var(--text-sm);
+            text-transform: uppercase;
+            letter-spacing: var(--tracking-wide);
+
+            &:first-child {
+                border-top-left-radius: var(--radius-lg);
+            }
+
+            &:last-child {
+                border-top-right-radius: var(--radius-lg);
+            }
+        }
+    }
+
+    tbody {
+        tr {
+            background-color: var(--body-background);
+            transition:
+                background-color var(--transition-base),
+                box-shadow var(--transition-base);
+
+            &:not(:first-child) td {
+                border-top: 1px solid var(--gray-200);
+            }
+
+            &:nth-child(2n) {
+                background-color: var(--gray-50);
+            }
+
+            &:hover {
+                background-color: var(--hover-bg);
+                box-shadow: inset 0 0 0 1px var(--gray-300);
+            }
+
+            &:last-child {
+                td:first-child {
+                    border-bottom-left-radius: var(--radius-lg);
+                }
+                td:last-child {
+                    border-bottom-right-radius: var(--radius-lg);
+                }
+            }
+
+            td {
+                padding: var(--space-md) var(--space-lg);
+                color: var(--body-font-color);
+                font-size: var(--text-sm);
+
+                &:not(:last-child) {
+                    border-right: 1px solid var(--gray-200);
+                }
+
+                code {
+                    font-size: 0.8125em;
+                }
+            }
+        }
+    }
+
+    // Responsive tables
+    @media (max-width: 768px) {
+        display: block;
+        overflow-x: auto;
+        width: 100%;
+    }
+}
+
+// ============================================================================

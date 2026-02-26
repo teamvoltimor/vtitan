@@ -1,0 +1,49 @@
+// 16. BRAND/LOGO
+// ============================================================================
+
+// Brand section with integrated theme switcher
+.book-brand-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--gray-200);
+
+    .book-brand {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+        flex: 1;
+        min-width: 0;
+
+        a {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--body-font-color) ;
+            transition: color var(--transition-base);
+
+            &:hover {
+                color: var(--color-link) ;
+                text-decoration: none;
+            }
+        }
+    }
+
+    .book-brand-theme {
+        flex-shrink: 0;
+
+        .theme-toggle {
+            margin: 0;
+        }
+    }
+}
+
+.book-brand {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+// ============================================================================

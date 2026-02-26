@@ -1,0 +1,56 @@
+// 18. ACCESSIBILITY
+// ============================================================================
+
+// Enhanced focus states for accessibility
+*:focus-visible {
+    outline: 3px solid var(--color-link) ;
+    outline-offset: 3px;
+    border-radius: 0.25rem;
+}
+
+// Specific focus states for interactive elements
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 3px solid var(--color-link) ;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(var(--color-link-rgb), 0.1);
+}
+
+// Remove default focus for mouse users
+*:focus:not(:focus-visible) {
+    outline: none;
+}
+
+// Skip to content link
+.skip-to-content {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--color-link);
+    color: white;
+    padding: var(--space-md) var(--space-lg);
+    text-decoration: none;
+    border-radius: 0 0 0.5rem 0;
+    font-weight: 600;
+    z-index: 1000;
+    transition: top var(--transition-slow);
+
+    &:focus {
+        top: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms ;
+        animation-iteration-count: 1 ;
+        transition-duration: 0.01ms ;
+    }
+}
+
+// ============================================================================
