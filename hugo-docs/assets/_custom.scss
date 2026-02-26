@@ -556,61 +556,61 @@ details .markdown-inner {
 // ============================================================================
 
 :root {
-    // === CORE COLORS ===
-    --body-background: #ffffff !important;
-    --body-font-color: #1f2937 !important;
-    --color-link: #2563eb !important;
-    --color-link-rgb: 37, 99, 235;
-    --color-visited-link: #7c3aed !important;
+    // === CORE COLORS - Distinctive Palette ===
+    --body-background: #ffffff;
+    --body-font-color: #1a1a2e;
+    --color-link: #6366f1;
+    --color-link-rgb: 99, 102, 241;
+    --color-visited-link: #8b5cf6;
 
     // === GRAYS (Softer palette) ===
-    --gray-50: #f9fafb !important;
-    --gray-100: #f3f4f6 !important;
-    --gray-200: #e5e7eb !important;
-    --gray-300: #d1d5db !important;
-    --gray-400: #9ca3af !important;
-    --gray-500: #6b7280 !important;
-    --gray-600: #4b5563 !important;
-    --gray-700: #374151 !important;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
 
     // === UI ELEMENTS ===
-    --color-border: #e5e7eb !important;
-    --icon-filter: none !important;
+    --color-border: #e2e8f0;
+    --icon-filter: none;
 
     // === CODE ===
-    --code-bg: #f3f4f6 !important;
-    --code-color: #dc2626 !important;
-    --code-block-bg: #f9fafb !important;
+    --code-bg: #f1f5f9;
+    --code-color: #dc2626;
+    --code-block-bg: #f8fafc;
 
     // === SEMANTIC COLORS (Enhanced) ===
-    --color-accent-note: #2563eb !important;
-    --color-accent-note-tint: #dbeafe !important;
-    --color-accent-info: #0ea5e9 !important;
-    --color-accent-info-tint: #e0f2fe !important;
-    --color-accent-tip: #16a34a !important;
-    --color-accent-tip-tint: #dcfce7 !important;
-    --color-accent-success: #16a34a !important;
-    --color-accent-success-tint: #dcfce7 !important;
-    --color-accent-warning: #f59e0b !important;
-    --color-accent-warning-tint: #fef3c7 !important;
-    --color-accent-danger: #dc2626 !important;
-    --color-accent-danger-tint: #fee2e2 !important;
-    --color-accent-caution: #ea580c !important;
-    --color-accent-caution-tint: #ffedd5 !important;
-    --color-accent-default: #6b7280 !important;
-    --color-accent-default-tint: #f3f4f6 !important;
-    --color-accent-important: #7c3aed !important;
-    --color-accent-important-tint: #f3e8ff !important;
+    --color-accent-note: #6366f1;
+    --color-accent-note-tint: #eef2ff;
+    --color-accent-info: #0ea5e9;
+    --color-accent-info-tint: #e0f2fe;
+    --color-accent-tip: #10b981;
+    --color-accent-tip-tint: #d1fae5;
+    --color-accent-success: #10b981;
+    --color-accent-success-tint: #d1fae5;
+    --color-accent-warning: #f59e0b;
+    --color-accent-warning-tint: #fef3c7;
+    --color-accent-danger: #ef4444;
+    --color-accent-danger-tint: #fee2e2;
+    --color-accent-caution: #f97316;
+    --color-accent-caution-tint: #ffedd5;
+    --color-accent-default: #64748b;
+    --color-accent-default-tint: #f1f5f9;
+    --color-accent-important: #8b5cf6;
+    --color-accent-important-tint: #ede9fe;
 
     // === UTILITY COLORS ===
-    --color-white: #ffffff !important;
-    --color-black: #000000 !important;
-    --color-link-hover: #1d4ed8 !important;
+    --color-white: #ffffff;
+    --color-black: #0f172a;
+    --color-link-hover: #4f46e5;
 
     // Light theme specific
-    --sidebar-bg: #ffffff !important;
-    --hover-bg: #f9fafb !important;
-    --active-bg: #eff6ff !important;
+    --sidebar-bg: #ffffff;
+    --hover-bg: #f8fafc;
+    --active-bg: #eef2ff;
 
     // === SPACING SYSTEM (Enhanced rhythm) ===
     --space-xs: 0.25rem;
@@ -641,7 +641,7 @@ details .markdown-inner {
     --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
     // === TYPOGRAPHY ===
-    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
     // Font sizes
@@ -685,61 +685,61 @@ html.dark,
 html[data-theme="dark"],
 body.dark,
 [data-theme="dark"] {
-    // === CORE COLORS ===
-    --body-background: #0d1117 !important;
-    --body-font-color: #e6edf3 !important;
-    --color-link: #58a6ff !important;
-    --color-link-rgb: 88, 166, 255;
-    --color-visited-link: #b392f0 !important;
+    // === CORE COLORS - Distinctive Dark Palette ===
+    --body-background: #0c0c17;
+    --body-font-color: #e2e8f0;
+    --color-link: #818cf8;
+    --color-link-rgb: 129, 140, 248;
+    --color-visited-link: #a78bfa;
 
     // === GRAYS (Refined dark palette) ===
-    --gray-50: #161b22 !important;
-    --gray-100: #21262d !important;
-    --gray-200: #30363d !important;
-    --gray-300: #484f58 !important;
-    --gray-400: #6e7681 !important;
-    --gray-500: #8b949e !important;
-    --gray-600: #b1bac4 !important;
-    --gray-700: #c9d1d9 !important;
+    --gray-50: #1e1e2e;
+    --gray-100: #1e1e2e;
+    --gray-200: #2d2d3f;
+    --gray-300: #3d3d52;
+    --gray-400: #52526b;
+    --gray-500: #6b6b80;
+    --gray-600: #8b8b9e;
+    --gray-700: #b4b4c4;
 
     // === UI ELEMENTS ===
-    --color-border: #373e47 !important;
-    --icon-filter: brightness(0) invert(1) !important;
+    --color-border: #2d2d3f;
+    --icon-filter: brightness(0) invert(1);
 
     // === CODE ===
-    --code-bg: #21262d !important;
-    --code-color: #ffa198 !important;
-    --code-block-bg: #161b22 !important;
+    --code-bg: #1e1e2e;
+    --code-color: #f87171;
+    --code-block-bg: #13131f;
 
     // === SEMANTIC COLORS (Enhanced for dark mode) ===
-    --color-accent-note: #60a5fa !important;
-    --color-accent-note-tint: rgba(96, 165, 250, 0.15) !important;
-    --color-accent-info: #38bdf8 !important;
-    --color-accent-info-tint: rgba(56, 189, 248, 0.15) !important;
-    --color-accent-tip: #4ade80 !important;
-    --color-accent-tip-tint: rgba(74, 222, 128, 0.15) !important;
-    --color-accent-success: #4ade80 !important;
-    --color-accent-success-tint: rgba(74, 222, 128, 0.15) !important;
-    --color-accent-warning: #fbbf24 !important;
-    --color-accent-warning-tint: rgba(251, 191, 36, 0.15) !important;
-    --color-accent-danger: #f87171 !important;
-    --color-accent-danger-tint: rgba(248, 113, 113, 0.15) !important;
-    --color-accent-caution: #fb923c !important;
-    --color-accent-caution-tint: rgba(251, 146, 60, 0.15) !important;
-    --color-accent-default: #768390 !important;
-    --color-accent-default-tint: rgba(118, 131, 144, 0.15) !important;
-    --color-accent-important: #a78bfa !important;
-    --color-accent-important-tint: rgba(167, 139, 250, 0.15) !important;
+    --color-accent-note: #818cf8;
+    --color-accent-note-tint: rgba(129, 140, 248, 0.15);
+    --color-accent-info: #38bdf8;
+    --color-accent-info-tint: rgba(56, 189, 248, 0.15);
+    --color-accent-tip: #34d399;
+    --color-accent-tip-tint: rgba(52, 211, 153, 0.15);
+    --color-accent-success: #34d399;
+    --color-accent-success-tint: rgba(52, 211, 153, 0.15);
+    --color-accent-warning: #fbbf24;
+    --color-accent-warning-tint: rgba(251, 191, 36, 0.15);
+    --color-accent-danger: #f87171;
+    --color-accent-danger-tint: rgba(248, 113, 113, 0.15);
+    --color-accent-caution: #fb923c;
+    --color-accent-caution-tint: rgba(251, 146, 60, 0.15);
+    --color-accent-default: #8b8b9e;
+    --color-accent-default-tint: rgba(139, 139, 158, 0.15);
+    --color-accent-important: #a78bfa;
+    --color-accent-important-tint: rgba(167, 139, 250, 0.15);
 
     // === UTILITY COLORS ===
-    --color-white: #ffffff !important;
-    --color-black: #000000 !important;
-    --color-link-hover: #3b82f6 !important;
+    --color-white: #ffffff;
+    --color-black: #000000;
+    --color-link-hover: #6366f1;
 
     // Dark theme specific
-    --sidebar-bg: #0d1117 !important;
-    --hover-bg: #161b22 !important;
-    --active-bg: #21262d !important;
+    --sidebar-bg: #0c0c17;
+    --hover-bg: #1e1e2e;
+    --active-bg: #2d2d3f;
 
     // === SHADOWS (Refined for dark mode) ===
     --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
@@ -761,7 +761,7 @@ body.dark,
     --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
     // === TYPOGRAPHY (same as light) ===
-    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
     // Font sizes (same as light)
@@ -800,8 +800,8 @@ body.dark,
 // Force background on html and body
 html.dark,
 html.dark body {
-    background-color: var(--body-background) !important;
-    color: var(--body-font-color) !important;
+    background-color: var(--body-background);
+    color: var(--body-font-color);
 }
 
 // ============================================================================

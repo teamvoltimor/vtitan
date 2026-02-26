@@ -1,8 +1,12 @@
 (function() {
   'use strict';
 
+  // Configuration constants
   const THEMES = ['light', 'dark', 'auto'];
   const STORAGE_KEY = 'theme-preference';
+  const DARK_MODE_MEDIA_QUERY = '(prefers-color-scheme: dark)';
+  const THEME_TOGGLE_ID = 'theme-toggle';
+  const THEME_ICON_CLASS = 'theme-icon';
 
   // Debug logging - enabled via window.themeDebug = true or BookDebug param
   function debug() {
@@ -11,20 +15,27 @@
     }
   }
 
+  // Check if dark mode is preferred by system
+  function isSystemDarkMode() {
+    return window.matchMedia && window.matchMedia(DARK_MODE_MEDIA_QUERY).matches;
+  }
+
   // Get system preference
   function getSystemTheme() {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
+    return isSystemDarkMode() ? 'dark' : 'light';
+  }
+
+  // Validate theme against allowed themes
+  function isValidTheme(theme) {
+    return THEMES.includes(theme);
   }
 
   // Get current theme preference from localStorage
   function getStoredTheme() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return THEMES.includes(stored) ? stored : 'auto';
-    } catch (e) {
+      return isValidTheme(stored) ? stored : 'auto';
+    } catch {
       return 'auto';
     }
   }
@@ -40,13 +51,10 @@
 
   // Get effective theme (resolves 'auto' to actual theme)
   function getEffectiveTheme(preference) {
-    if (preference === 'auto') {
-      return getSystemTheme();
-    }
-    return preference;
+    return preference === 'auto' ? getSystemTheme() : preference;
   }
 
-  // Apply theme to document - FORCE it
+  // Apply theme to document
   function applyTheme(preference) {
     const effectiveTheme = getEffectiveTheme(preference);
     const html = document.documentElement;
@@ -54,7 +62,7 @@
 
     debug('Applying theme:', effectiveTheme, 'from preference:', preference);
 
-    // Remove ALL theme classes first
+    // Remove all theme classes
     html.classList.remove('light', 'dark');
     body.classList.remove('light', 'dark');
 
@@ -69,29 +77,44 @@
     // Force style recalculation
     void html.offsetWidth;
 
-    // Update button state
     updateButtonState(preference);
-    
+
     debug('Theme applied. HTML classes:', html.className, 'Body classes:', body.className);
+  }
+
+  // Hide all theme icons
+  function hideAllIcons(button) {
+    const icons = button.querySelectorAll('.' + THEME_ICON_CLASS);
+    icons.forEach((icon) => {
+      icon.style.display = 'none';
+    });
+  }
+
+  // Show active theme icon
+  function showActiveIcon(button, preference) {
+    const activeIcon = button.querySelector('.theme-icon-' + preference);
+    if (activeIcon) {
+      activeIcon.style.display = 'block';
+    }
   }
 
   // Update theme toggle button state
   function updateButtonState(preference) {
-    const button = document.getElementById('theme-toggle');
+    const button = document.getElementById(THEME_TOGGLE_ID);
     if (!button) return;
 
-    const icons = button.querySelectorAll('.theme-icon');
-    icons.forEach(icon => {
-      icon.style.display = 'none';
-    });
+    hideAllIcons(button);
+    showActiveIcon(button, preference);
 
-    const activeIcon = button.querySelector(`.theme-icon-${preference}`);
-    if (activeIcon) {
-      activeIcon.style.display = 'block';
-    }
+    button.setAttribute('aria-label', 'Current theme: ' + preference + '. Click to change.');
+    button.setAttribute('title', 'Theme: ' + preference + ' (click to change)');
+  }
 
-    button.setAttribute('aria-label', `Current theme: ${preference}. Click to change.`);
-    button.setAttribute('title', `Theme: ${preference} (click to change)`);
+  // Get next theme in cycle
+  function getNextTheme(currentTheme) {
+    const currentIndex = THEMES.indexOf(currentTheme);
+    const nextIndex = (currentIndex + 1) % THEMES.length;
+    return THEMES[nextIndex];
   }
 
   // Cycle to next theme
@@ -101,9 +124,7 @@
     }
 
     const currentPreference = getStoredTheme();
-    const currentIndex = THEMES.indexOf(currentPreference);
-    const nextIndex = (currentIndex + 1) % THEMES.length;
-    const nextTheme = THEMES[nextIndex];
+    const nextTheme = getNextTheme(currentPreference);
 
     debug('Cycling from', currentPreference, 'to', nextTheme);
 
@@ -111,30 +132,31 @@
     applyTheme(nextTheme);
   }
 
+  // Handle system theme change
+  function handleSystemThemeChange() {
+    const preference = getStoredTheme();
+    if (preference === 'auto') {
+      debug('System theme changed, reapplying auto theme');
+      applyTheme('auto');
+    }
+  }
+
   // Listen for system theme changes when in auto mode
   function watchSystemTheme() {
     if (!window.matchMedia) return;
 
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const handleChange = () => {
-      const preference = getStoredTheme();
-      if (preference === 'auto') {
-        debug('System theme changed, reapplying auto theme');
-        applyTheme('auto');
-      }
-    };
+    const mediaQuery = window.matchMedia(DARK_MODE_MEDIA_QUERY);
 
     if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
+      mediaQuery.addEventListener('change', handleSystemThemeChange);
     } else if (mediaQuery.addListener) {
-      mediaQuery.addListener(handleChange);
+      mediaQuery.addListener(handleSystemThemeChange);
     }
   }
 
   // Setup event listeners
   function setupListeners() {
-    const button = document.getElementById('theme-toggle');
+    const button = document.getElementById(THEME_TOGGLE_ID);
     if (button) {
       button.addEventListener('click', cycleTheme);
       debug('Theme toggle button listener attached');

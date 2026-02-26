@@ -1,0 +1,19 @@
+{{- $type := .Get "type" | default "note" -}}
+{{- $title := .Get "title" -}}
+{{- $icon := .Get "icon" -}}
+
+{{- $icons := dict "note" "📝" "info" "ℹ️" "tip" "💡" "warning" "⚠️" "danger" "🚨" "success" "✅" "important" "⭐" "question" "❓" "example" "📘" -}}
+{{- $defaultTitle := dict "note" "Note" "info" "Info" "tip" "Tip" "warning" "Warning" "danger" "Danger" "success" "Success" "important" "Important" "question" "Question" "example" "Example" -}}
+
+{{- $displayIcon := index $icons $type -}}
+{{- if $icon }}{{ $displayIcon = $icon }}{{ end -}}
+
+{{- $displayTitle := index $defaultTitle $type -}}
+{{- if $title }}{{ $displayTitle = $title }}{{ end -}}
+
+<div class="book-hint {{ $type }}">
+  <strong>{{ $displayIcon }} {{ $displayTitle }}:</strong>
+  <div>
+    {{ .Inner | markdownify }}
+  </div>
+</div>
