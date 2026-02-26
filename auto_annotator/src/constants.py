@@ -38,7 +38,7 @@ ENV_MODEL_SERVER_PORT: str = "MODEL_SERVER_PORT"
 ENV_HF_HUB_CACHE: str = "HF_HUB_CACHE"
 """Environment variable: HuggingFace hub cache directory."""
 
-ENV_HF_TOKEN: str = "HF_TOKEN"  # noqa: S105
+ENV_HF_TOKEN: str = "HF_TOKEN"
 """Environment variable: HuggingFace API token (required for gated models)."""
 
 ENV_DEFAULT_MODEL: str = "DEFAULT_MODEL"

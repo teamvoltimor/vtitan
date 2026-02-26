@@ -33,7 +33,8 @@ class ClickRunResponse:
     accept_btn_update: Any
     mask_level_update: Any
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (
             self.display_img,
             self.state,
@@ -58,7 +59,8 @@ class AcceptUndoResponse:
     ann_summary: Any
     mask_level_update: Any
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (
             self.display_img,
             self.state,
@@ -80,7 +82,8 @@ class ClearPointsResponse:
     log_str: str
     mask_level_update: Any
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.display_img, self.state, self.log_str, self.mask_level_update)
 
 
@@ -94,7 +97,8 @@ class SelectMaskResponse:
     display_img: np.ndarray
     state: AppState
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.display_img, self.state)
 
 
@@ -112,7 +116,8 @@ class NavigationResponse:
     image_label: str
     ann_summary: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (
             self.display_img,
             self.state,
@@ -133,7 +138,8 @@ class BrowseResponse:
     df_data: list[list]
     stats_html: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.df_data, self.stats_html)
 
 
@@ -148,7 +154,8 @@ class ImportResponse:
     stats_html: str
     status_msg: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.df_data, self.stats_html, self.status_msg)
 
 
@@ -163,7 +170,8 @@ class SwitchModelResponse:
     status_msg: str
     auto_btn_update: Any
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.state, self.status_msg, self.auto_btn_update)
 
 
@@ -179,7 +187,8 @@ class AutoAnnotateResponse:
     status_msg: str
     ann_box_update: Any
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.display_img, self.state, self.status_msg, self.ann_box_update)
 
 
@@ -200,7 +209,8 @@ class StartupResponse:
     browse_df: list[list]
     browse_stats_html: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (
             self.display_img,
             self.state,
@@ -226,7 +236,8 @@ class AddClassResponse:
     edit_dd_update: Any
     swatch_html: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (
             self.class_dd_update,
             self.state,
@@ -247,5 +258,6 @@ class UpdateColorResponse:
     display_img: np.ndarray
     status_msg: str
 
-    def to_gradio(self) -> tuple:  # noqa: D102
+    def to_gradio(self) -> tuple:
+        """Unpack to the positional output tuple for Gradio wiring."""
         return (self.state, self.display_img, self.status_msg)

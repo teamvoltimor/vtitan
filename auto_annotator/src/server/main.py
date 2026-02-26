@@ -30,13 +30,16 @@ from src.constants import CONFIG_FILE, MODELS_DIR, SERVER_HOST, SERVER_PORT
 from src.server.context import ServerContext
 from src.server.dispatch import dispatch
 from src.server.loader import initial_load
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 _RECV_CHUNK = 65536
 
 
 def _load_config() -> list[dict]:
     if not CONFIG_FILE.exists():
-        print(f"[server] Warning: {CONFIG_FILE} not found — no models configured.")  # noqa: T201
+        logger.warning("Config not found, no models configured: %s", CONFIG_FILE)
         return []
     with CONFIG_FILE.open("rb") as f:
         return tomllib.load(f).get("models", [])
@@ -57,16 +60,16 @@ def _handle_client(conn: socket.socket, ctx: ServerContext, lock: threading.Lock
     with conn:
         try:
             msg_len = struct.unpack(">I", _recv_all(conn, 4))[0]
-            msg = pickle.loads(_recv_all(conn, msg_len))  # noqa: S301
+            msg = pickle.loads(_recv_all(conn, msg_len))
             with lock:
                 resp = dispatch(msg, ctx)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             resp = {"error": str(exc)}
 
         try:
             payload = pickle.dumps(resp)
             conn.sendall(struct.pack(">I", len(payload)) + payload)
-        except Exception:  # noqa: BLE001, S110
+        except Exception:  # noqa: S110
             pass
 
 
@@ -88,12 +91,15 @@ def run_server() -> None:
     srv.listen(16)
 
     elapsed = time.monotonic() - start
-    print(  # noqa: T201
-        f"[server] Ready in {elapsed:.2f}s  "
-        f"on {SERVER_HOST}:{SERVER_PORT}  device={device}  "
-        f"model={ctx.model_id or 'FAILED'}",
+    logger.info(
+        "Ready in %.2fs on %s:%s device=%s model=%s",
+        elapsed,
+        SERVER_HOST,
+        SERVER_PORT,
+        device,
+        ctx.model_id or "FAILED",
     )
-    print("[server] Leave this running and restart main.py app freely.")  # noqa: T201
+    logger.info("Leave this running and restart main.py app freely.")
 
     while True:
         conn, _ = srv.accept()

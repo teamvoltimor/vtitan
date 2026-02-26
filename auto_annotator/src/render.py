@@ -84,7 +84,7 @@ def _resolve_outline_color(
     return COLOR_BLACK_RGB if luminance > CANVAS_LUMINANCE_THRESHOLD else COLOR_WHITE_RGB
 
 
-def render_state_image(state: AppState) -> np.ndarray:  # noqa: C901
+def render_state_image(state: AppState) -> np.ndarray:
     """Composite all annotation layers onto the current image and return RGB uint8.
 
     Returns a black ``CANVAS_PLACEHOLDER_HEIGHT × CANVAS_PLACEHOLDER_WIDTH``

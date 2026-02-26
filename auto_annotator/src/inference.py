@@ -14,6 +14,7 @@ which is passed explicitly through every function.  No global state is used.
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import cv2
@@ -82,8 +83,7 @@ def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext
     if client is not None:
         return
 
-    import torch  # noqa: PLC0415
-
+    import torch
     ctx.torch_module = torch
     ctx.oom_error = torch.cuda.OutOfMemoryError
     device = DEVICE_CUDA if torch.cuda.is_available() else DEVICE_CPU
@@ -91,24 +91,21 @@ def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext
     local_ckpt = MODELS_DIR / SAM2_LOCAL_CHECKPOINT_FILENAME
 
     try:
-        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]  # noqa: PLC0415
-
+        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]
         if local_ckpt.exists():
-            from sam2.build_sam import build_sam2  # type: ignore[import-untyped]  # noqa: PLC0415
-
+            from sam2.build_sam import build_sam2  # type: ignore[import-untyped]
             _model = build_sam2(SAM2_DEFAULT_HIERA_CONFIG, str(local_ckpt), device=device)
             ctx.predictor = SAM2ImagePredictor(_model)
         else:
             ctx.predictor = SAM2ImagePredictor.from_pretrained(SAM2_DEFAULT_HF_REPO)
         ctx.use_native = True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.info("SAM2 native unavailable", extra={"_extra": {"err": str(e)}})
         try:
-            from ultralytics import SAM as _UltSAM  # type: ignore[import-untyped]  # noqa: PLC0415
-
+            from ultralytics import SAM as _UltSAM  # type: ignore[import-untyped]
             ctx.predictor = _UltSAM(SAM2_LOCAL_CHECKPOINT_FILENAME)
             ctx.use_native = False
-        except Exception as e2:  # noqa: BLE001
+        except Exception as e2:
             logger.info("No SAM backend available", extra={"_extra": {"err": str(e2)}})
 
 
@@ -159,14 +156,12 @@ def _log_entry(state: AppState, msg: str) -> None:
         state: Mutable session state to update.
         msg:   Message text to prepend.
     """
-    from datetime import UTC, datetime  # noqa: PLC0415
-
     ts = datetime.now(UTC).strftime("%H:%M:%S")
     state.log_entries.insert(0, f"[{ts}] {msg}")
     state.log_entries = state.log_entries[:INFERENCE_LOG_MAX_ENTRIES]
 
 
-def run_sam_inference(  # noqa: C901, PLR0911, PLR0912, PLR0915
+def run_sam_inference(
     state: AppState,
     client: ModelServerClient | None,
     ctx: InferenceContext,
@@ -242,7 +237,7 @@ def run_sam_inference(  # noqa: C901, PLR0911, PLR0912, PLR0915
             all_masks = [results[0].masks.data[0].cpu().numpy().astype(bool)]
             scores_flat = np.array([INFERENCE_DEFAULT_MASK_SCORE])
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         if ctx.oom_error and isinstance(e, ctx.oom_error):
             _empty_cache(ctx)
             return InferenceResult(masks=None, best_idx=0, scores_str="", error="CUDA OOM — try a smaller image.")

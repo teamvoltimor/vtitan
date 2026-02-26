@@ -19,8 +19,9 @@ from src.inference import initialize_inference
 from src.models import AppContext, AppState
 from src.sam_client import ModelServerClient
 from src.ui import annotate_tab, browse_tab, settings_tab
+from src.utils import get_logger
 
-# ── Custom CSS (Catppuccin Mocha + Terminal Precision aesthetic) ──────────────
+# Custom CSS (Catppuccin Mocha + Terminal Precision aesthetic)
 _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700&display=swap');
 
@@ -140,17 +141,19 @@ _HEADER_HTML = """
 </div>
 """
 
+logger = get_logger(__name__)
+
 
 def _connect_to_server() -> ModelServerClient | None:
     """Return a connected ModelServerClient, or None if the server is unreachable."""
     probe = ModelServerClient()
     if probe.ping():
-        print(  # noqa: T201
-            f"[app] Connected to model server on port {SERVER_PORT} — "
-            "model stays loaded across restarts.",
+        logger.info(
+            "Connected to model server on port %s — model stays loaded across restarts.",
+            SERVER_PORT,
         )
         return probe
-    print(f"[app] No model server on port {SERVER_PORT} — loading model directly.")  # noqa: T201
+    logger.info("No model server on port %s — loading model directly.", SERVER_PORT)
     return None
 
 
@@ -183,7 +186,8 @@ def build_demo(app_ctx: AppContext) -> gr.Blocks:
                 active_label = next((m["label"] for m in models if m.get("active")), None)
                 label_to_id = dict(zip(choices, ids, strict=True))
                 return gr.update(choices=list(label_to_id.keys()), value=active_label)
-            except Exception:  # noqa: BLE001
+            except Exception as exc:
+                logger.warning("Failed to init model dropdown", extra={"_extra": {"err": str(exc)}})
                 return gr.update()
 
         def _init_class_dds(st: AppState) -> tuple:
@@ -231,4 +235,4 @@ def run_app() -> None:
     initialize_inference(app_ctx.client, app_ctx.inference)
 
     demo = build_demo(app_ctx)
-    demo.launch(server_name="0.0.0.0", server_port=7860)  # noqa: S104
+    demo.launch(server_name="0.0.0.0", server_port=7860)

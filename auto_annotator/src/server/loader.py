@@ -7,7 +7,6 @@ All config-dict key and model-type strings come from :mod:`src.server.constants`
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,9 +25,12 @@ from src.server.constants import (
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
 from src.server.sam3 import load_sam3
+from src.utils import get_logger
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
+
+logger = get_logger(__name__)
 
 
 def _resolve(p: str | None, base: Path) -> Path | None:
@@ -112,7 +114,7 @@ def load_model(model_id: str, ctx: ServerContext) -> str | None:
             return f"Unknown model type: {mtype!r}"
 
         ctx.model_id = model_id
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return f"Failed to load {model_id}: {e}"
     else:
         return None
@@ -141,4 +143,4 @@ def initial_load(ctx: ServerContext, default_model: str = "") -> None:
             if err is None:
                 return
 
-    print("[server] FATAL: no models could be loaded.", file=sys.stderr)  # noqa: T201
+    logger.critical("No models could be loaded")

@@ -254,8 +254,6 @@ ignore = [
     "D213",    # Multi-line docstring summary should start at second line
 
     # Type annotation rules (can be too strict)
-    "ANN101",  # Missing type annotation for self
-    "ANN102",  # Missing type annotation for cls
     "ANN401",  # Dynamically typed expressions (Any)
 
     # Boolean traps (sometimes necessary)
@@ -343,7 +341,39 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 ]
 
 # Root-level entrypoints (not in a package)
-"main.py" = ["INP001"]
+"main.py" = [
+    "INP001",
+    "PLC0415",  # lazy mode imports inside _run_app / _run_server are intentional
+]
+
+# Inference pipeline: heavy imports are deferred; function complexity is domain-driven
+"src/inference.py" = ["PLC0415", "BLE001", "C901", "PLR0911", "PLR0912", "PLR0915"]
+
+# Rendering: single complex function by design (many overlay layers)
+"src/render.py" = ["C901"]
+
+# ENV_HF_TOKEN is a key name string, not a hardcoded secret value
+"src/constants.py" = ["S105"]
+
+# pickle is the intentional wire protocol for the TCP model server
+"src/sam_client.py" = ["S301"]
+
+# model_ctrl defers numpy import to avoid heavy startup cost
+"src/handlers/model_ctrl.py" = ["PLC0415"]
+
+# TCP server: pickle protocol; broad catch is intentional server robustness
+"src/server/main.py" = ["S301", "BLE001"]
+
+# Broad catch in load_model is intentional — ML loading can fail in arbitrary ways
+"src/server/loader.py" = ["BLE001"]
+
+# ML backends defer all framework imports until the model is actually loaded
+"src/server/sam1.py" = ["PLC0415"]
+"src/server/sam2.py" = ["PLC0415"]
+"src/server/sam3.py" = ["PLC0415", "BLE001"]
+
+# Broad catch in model-dropdown init is a UI fallback; S104 bind-all is intentional for Docker
+"src/app.py" = ["BLE001", "S104"]
 
 "src/*.py" = []
 

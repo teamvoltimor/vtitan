@@ -72,7 +72,7 @@ def _append_mask_annotation(
         ``True`` when the annotation was appended; ``False`` when the mask was
         empty or too small to produce a valid polygon.
     """
-    import numpy as np  # noqa: PLC0415 – avoid top-level heavy import
+    import numpy as np
 
     mask_arr = np.asarray(mask)
     if not mask_arr.any():

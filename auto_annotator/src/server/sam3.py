@@ -95,7 +95,7 @@ class SAM3Predictor:
             return_tensors="pt",
         )
         if mask_input is not None:
-            import contextlib as _ctx  # noqa: PLC0415
+            import contextlib as _ctx
             with _ctx.suppress(Exception):
                 proc_kwargs["input_masks"] = [[mask_input]]
 
@@ -110,9 +110,8 @@ class SAM3Predictor:
                 inputs["original_sizes"],
                 inputs["reshaped_input_sizes"],
             )[0]
-        except Exception:  # noqa: BLE001
-            import torch.nn.functional as _F  # noqa: PLC0415
-
+        except Exception:
+            import torch.nn.functional as _F
             H, W = self._orig_hw
             raw = outputs.pred_masks[0, :, 0:1].float()
             masks_t = (_F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0)
@@ -146,13 +145,11 @@ class SAM3TextSegmenter:
 
     def __init__(self, hf_repo: str, device: str) -> None:
         try:
-            from transformers import Sam3Model, Sam3Processor  # type: ignore[import-untyped]  # noqa: PLC0415
-
+            from transformers import Sam3Model, Sam3Processor  # type: ignore[import-untyped]
             self.processor = Sam3Processor.from_pretrained(hf_repo)
             self.model = Sam3Model.from_pretrained(hf_repo).to(device)
         except (ImportError, AttributeError):
-            from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]  # noqa: PLC0415
-
+            from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
             self.processor = AutoProcessor.from_pretrained(hf_repo)
             self.model = AutoModel.from_pretrained(hf_repo).to(device)
         self.device = device
@@ -195,9 +192,8 @@ class SAM3TextSegmenter:
                         inputs["original_sizes"],
                         inputs["reshaped_input_sizes"],
                     )[0]
-                except Exception:  # noqa: BLE001
-                    import torch.nn.functional as _F  # noqa: PLC0415
-
+                except Exception:
+                    import torch.nn.functional as _F
                     raw = outputs.pred_masks[0, :, 0:1].float()
                     masks_t = (_F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0)
 
@@ -228,7 +224,7 @@ class SAM3TextSegmenter:
                     "scores": scores,
                     "boxes": boxes,
                 })
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 results.append({
                     "class_name": class_name,
                     "masks": [],
@@ -255,13 +251,11 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
     hf_repo = cfg[CFG_KEY_HF_REPO]
 
     try:
-        from transformers import Sam3TrackerModel, Sam3TrackerProcessor  # type: ignore[import-untyped]  # noqa: PLC0415
-
+        from transformers import Sam3TrackerModel, Sam3TrackerProcessor  # type: ignore[import-untyped]
         tracker = Sam3TrackerModel.from_pretrained(hf_repo).to(ctx.device)
         tracker_proc = Sam3TrackerProcessor.from_pretrained(hf_repo)
     except (ImportError, AttributeError):
-        from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]  # noqa: PLC0415
-
+        from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
         tracker = AutoModel.from_pretrained(hf_repo).to(ctx.device)
         tracker_proc = AutoProcessor.from_pretrained(hf_repo)
 
@@ -269,6 +263,6 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
     ctx.text_seg = None
 
     if cfg.get(CFG_KEY_SUPPORTS_TEXT):
-        import contextlib as _ctx  # noqa: PLC0415
+        import contextlib as _ctx
         with _ctx.suppress(Exception):
             ctx.text_seg = SAM3TextSegmenter(hf_repo, ctx.device)

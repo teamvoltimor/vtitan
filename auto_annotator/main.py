@@ -19,21 +19,24 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.utils import get_logger
+
 load_dotenv(Path(__file__).parent / ".env")
 
 _START = time.monotonic()
+logger = get_logger(__name__)
 
 
 def _run_app() -> None:
-    from src.app import run_app  # noqa: PLC0415
+    from src.app import run_app
 
     run_app()
     elapsed = time.monotonic() - _START
-    print(f"[main] App built in {elapsed:.2f}s")  # noqa: T201
+    logger.info("App built in %.2fs", elapsed)
 
 
 def _run_server() -> None:
-    from src.server.main import run_server  # noqa: PLC0415
+    from src.server.main import run_server
 
     run_server()
 

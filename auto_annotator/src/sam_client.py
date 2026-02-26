@@ -197,7 +197,7 @@ class ModelServerClient:
             s.connect(self.addr)
             s.sendall(struct.pack(">I", len(data)) + data)
             resp_len = struct.unpack(">I", _recv_all(s, 4))[0]
-            return pickle.loads(_recv_all(s, resp_len))  # noqa: S301
+            return pickle.loads(_recv_all(s, resp_len))
 
     def ping(self) -> bool:
         """Check whether the model server is reachable and responding.

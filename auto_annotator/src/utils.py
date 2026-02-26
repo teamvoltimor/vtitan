@@ -151,4 +151,4 @@ def _hex_to_bgr(h: str) -> tuple[int, int, int]:
         Three-element tuple of integer channel values in BGR order.
     """
     r, g, b = _hex_to_rgb(h)
-    return (b, g, r)
+    return b, g, r

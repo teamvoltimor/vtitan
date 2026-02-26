@@ -33,7 +33,7 @@ def load_sam1(cfg: dict, ctx: ServerContext) -> None:
         ValueError: When the config does not specify a checkpoint path.
         ImportError: When ``segment_anything`` is not installed.
     """
-    from segment_anything import SamPredictor, sam_model_registry  # type: ignore[import-untyped]  # noqa: PLC0415
+    from segment_anything import SamPredictor, sam_model_registry  # type: ignore[import-untyped]
 
     ckpt_str = cfg.get(CFG_KEY_CHECKPOINT)
     if not ckpt_str:
