@@ -39,6 +39,15 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+_MODEL_LOADERS: dict[str, Callable[[dict, ServerContext], None]] = {
+    MODEL_TYPE_SAM1: load_sam1,
+    MODEL_TYPE_SAM2: load_sam2,
+    MODEL_TYPE_SAM3: load_sam3,
+    MODEL_TYPE_YOLOE: load_yoloe,
+    MODEL_TYPE_GROUNDING_DINO: load_grounding_dino,
+}
+
+
 def _resolve(p: str | None, base: Path) -> Path | None:
     """Resolve a config path string relative to *base* when it is not absolute.
 
@@ -110,17 +119,9 @@ def load_model(model_id: str, ctx: ServerContext) -> str | None:
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    loaders: dict[str, Callable[[dict, ServerContext], None]] = {
-        MODEL_TYPE_SAM1: load_sam1,
-        MODEL_TYPE_SAM2: load_sam2,
-        MODEL_TYPE_SAM3: load_sam3,
-        MODEL_TYPE_YOLOE: load_yoloe,
-        MODEL_TYPE_GROUNDING_DINO: load_grounding_dino,
-    }
-
     try:
         mtype = cfg.get(CFG_KEY_TYPE, "")
-        loader = loaders.get(mtype)
+        loader = _MODEL_LOADERS.get(mtype)
         if loader is None:
             return f"Unknown model type: {mtype!r}"
 
