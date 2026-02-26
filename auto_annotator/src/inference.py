@@ -1,98 +1,142 @@
-"""src.inference – SAM inference helpers (server or local fallback)."""
+"""src.inference – SAM inference helpers (model-server or local fallback).
+
+Iterative refinement: if ``pending_logits`` exist from a previous call they are
+fed back as ``mask_input``, giving SAM a spatial prior for sharper successive masks.
+
+Connected-component filtering: only blobs that contain at least one positive
+click are kept, eliminating stray background regions.
+
+All previously module-level globals (``_predictor``, ``_use_native``,
+``_oom_error``, ``_torch``) are now fields on :class:`~src.models.InferenceContext`
+which is passed explicitly through every function.  No global state is used.
+"""
 
 from __future__ import annotations
 
 import contextlib
+from typing import TYPE_CHECKING
 
+import cv2
 import numpy as np
 
-from src.constants import MASK_LABELS
-from src.models import AppState
-from src.sam_client import ModelServerClient
+from src.constants import (
+    DEVICE_CPU,
+    DEVICE_CUDA,
+    INFERENCE_DEFAULT_MASK_SCORE,
+    INFERENCE_LOG_MAX_ENTRIES,
+    MASK_LABELS,
+    MODELS_DIR,
+    SAM2_DEFAULT_HF_REPO,
+    SAM2_DEFAULT_HIERA_CONFIG,
+    SAM2_LOCAL_CHECKPOINT_FILENAME,
+)
+from src.models import AppState, InferenceContext, InferenceResult, Point
+
+if TYPE_CHECKING:
+    from src.sam_client import ModelServerClient
 from src.utils import get_logger
 
-logger = get_logger("inference")
-
-# ── Module-level model state (for local / fallback mode) ──────────────────────
-
-_predictor = None       # SAM2ImagePredictor or equivalent
-_use_native = False     # True → SAM2 native; False → Ultralytics fallback
-_oom_error = None       # torch OOM error class (set when torch is imported)
-_torch = None           # torch module (imported lazily)
+logger = get_logger(__name__)
 
 
-def initialize_inference(client: ModelServerClient | None) -> None:
+def _empty_cache(ctx: InferenceContext) -> None:
+    """Free the CUDA memory cache when a CUDA-capable torch module is loaded.
+
+    Args:
+        ctx: Inference context holding the lazy-loaded ``torch_module``.
     """
-    When *client* is None, attempt to load SAM2 directly (local mode).
-    Called once from app.py after probing the model server.
-    """
-    global _predictor, _use_native, _oom_error, _torch
+    if ctx.torch_module is not None and ctx.torch_module.cuda.is_available():
+        ctx.torch_module.cuda.empty_cache()
 
+
+def _autocast_ctx(ctx: InferenceContext) -> contextlib.AbstractContextManager:
+    """Return a ``torch.autocast`` context for CUDA, or a no-op on CPU.
+
+    Args:
+        ctx: Inference context holding the lazy-loaded ``torch_module``.
+
+    Returns:
+        Context manager suitable for use in a ``with`` block.
+    """
+    if ctx.torch_module is not None and ctx.torch_module.cuda.is_available():
+        return ctx.torch_module.autocast(DEVICE_CUDA, dtype=ctx.torch_module.bfloat16)
+    return contextlib.nullcontext()
+
+
+def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext) -> None:
+    """Load SAM locally into *ctx* when no model server is reachable.
+
+    Tries the native ``sam2`` package first (preferred), then falls back to the
+    ``ultralytics`` SAM wrapper.  Does nothing when *client* is not ``None``
+    (server mode is active) or when *ctx* already has a predictor loaded.
+
+    The ML framework imports (``torch``, ``sam2``, ``ultralytics``) remain lazy
+    inside this function so that importing ``src.inference`` does not trigger
+    heavy library loading on the application side.
+
+    Args:
+        client: Active :class:`~src.sam_client.ModelServerClient`, or ``None``
+                when running without a model server.
+        ctx:    :class:`~src.models.InferenceContext` to populate in-place.
+    """
     if client is not None:
-        return  # model server handles everything
+        return
 
     import torch  # noqa: PLC0415
 
-    _torch = torch
-    _oom_error = torch.cuda.OutOfMemoryError
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    ctx.torch_module = torch
+    ctx.oom_error = torch.cuda.OutOfMemoryError
+    device = DEVICE_CUDA if torch.cuda.is_available() else DEVICE_CPU
 
-    import os  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
-
-    models_dir = Path(os.environ.get("MODELS_DIR", Path(__file__).parent.parent / "models"))
-    local_ckpt = models_dir / "sam2.1_l.pt"
+    local_ckpt = MODELS_DIR / SAM2_LOCAL_CHECKPOINT_FILENAME
 
     try:
-        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore  # noqa: PLC0415
+        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]  # noqa: PLC0415
 
         if local_ckpt.exists():
-            from sam2.build_sam import build_sam2  # type: ignore  # noqa: PLC0415
+            from sam2.build_sam import build_sam2  # type: ignore[import-untyped]  # noqa: PLC0415
 
-            _cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
-            _model = build_sam2(_cfg, str(local_ckpt), device=device)
-            _predictor = SAM2ImagePredictor(_model)
+            _model = build_sam2(SAM2_DEFAULT_HIERA_CONFIG, str(local_ckpt), device=device)
+            ctx.predictor = SAM2ImagePredictor(_model)
         else:
-            _predictor = SAM2ImagePredictor.from_pretrained("facebook/sam2.1-hiera-large")
-        _use_native = True
+            ctx.predictor = SAM2ImagePredictor.from_pretrained(SAM2_DEFAULT_HF_REPO)
+        ctx.use_native = True
     except Exception as e:  # noqa: BLE001
-        logger.info("SAM2 native unavailable; trying Ultralytics", extra={"_extra": {"err": str(e)}})
+        logger.info("SAM2 native unavailable", extra={"_extra": {"err": str(e)}})
         try:
-            from ultralytics import SAM as _UltSAM  # type: ignore  # noqa: PLC0415
+            from ultralytics import SAM as _UltSAM  # type: ignore[import-untyped]  # noqa: PLC0415
 
-            _predictor = _UltSAM("sam2.1_l.pt")
-            _use_native = False
+            ctx.predictor = _UltSAM(SAM2_LOCAL_CHECKPOINT_FILENAME)
+            ctx.use_native = False
         except Exception as e2:  # noqa: BLE001
             logger.info("No SAM backend available", extra={"_extra": {"err": str(e2)}})
 
 
-def _empty_cache() -> None:
-    if _torch is not None and _torch.cuda.is_available():
-        _torch.cuda.empty_cache()
+def _filter_cc(mask: np.ndarray, positive_pts: list[Point]) -> np.ndarray:
+    """Keep only connected components that contain at least one positive click.
 
+    This eliminates stray background blobs that SAM may include in the mask
+    when the user has not placed points in those regions.
 
-def _autocast_ctx():
-    if _torch is not None and _torch.cuda.is_available():
-        return _torch.autocast("cuda", dtype=_torch.bfloat16)
-    return contextlib.nullcontext()
+    Args:
+        mask:          Boolean H×W mask array from SAM.
+        positive_pts:  Points with ``label == 1`` (positive clicks).
 
-
-def _filter_cc(mask: np.ndarray, positive_pts) -> np.ndarray:
-    """Keep only connected components that contain at least one positive click."""
-    import cv2  # noqa: PLC0415
-
+    Returns:
+        Filtered boolean H×W mask containing only components touched by a positive click.
+        Returns *mask* unchanged when no components are selected (safety fallback).
+    """
     if not mask.any():
         return mask
 
-    mask_u8 = mask.astype(np.uint8)
-    n_labels, label_map = cv2.connectedComponents(mask_u8)
-
+    _n_labels, label_map = cv2.connectedComponents(mask.astype(np.uint8))
     keep: set[int] = set()
+
     for pt in positive_pts:
         if pt.label != 1:
             continue
-        px = max(0, min(int(round(pt.x)), mask.shape[1] - 1))
-        py = max(0, min(int(round(pt.y)), mask.shape[0] - 1))
+        px = max(0, min(pt.x, mask.shape[1] - 1))
+        py = max(0, min(pt.y, mask.shape[0] - 1))
         lbl = label_map[py, px]
         if lbl != 0:
             keep.add(lbl)
@@ -106,37 +150,61 @@ def _filter_cc(mask: np.ndarray, positive_pts) -> np.ndarray:
     return result
 
 
-def run_sam_inference(
+def _log_entry(state: AppState, msg: str) -> None:
+    """Insert a timestamped entry at the front of ``state.log_entries``.
+
+    Trims the list to :data:`~src.constants.INFERENCE_LOG_MAX_ENTRIES` entries.
+
+    Args:
+        state: Mutable session state to update.
+        msg:   Message text to prepend.
+    """
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    ts = datetime.now(UTC).strftime("%H:%M:%S")
+    state.log_entries.insert(0, f"[{ts}] {msg}")
+    state.log_entries = state.log_entries[:INFERENCE_LOG_MAX_ENTRIES]
+
+
+def run_sam_inference(  # noqa: C901, PLR0911, PLR0912, PLR0915
     state: AppState,
     client: ModelServerClient | None,
-) -> tuple[list | None, int, str, str]:
-    """
-    Run SAM on the current point buffer.
+    ctx: InferenceContext,
+) -> InferenceResult:
+    """Run SAM on the current point buffer and return a structured result.
 
-    Returns (all_masks, best_idx, scores_str, error_msg).
-    error_msg is '' on success.
+    Feeds ``state.pending_logits`` back as ``mask_input`` for iterative
+    refinement when available.  Applies connected-component filtering to remove
+    stray background blobs.
+
+    Args:
+        state:  Current :class:`~src.models.AppState` with image and point buffer.
+        client: Active server client, or ``None`` for local inference.
+        ctx:    Local inference context (predictor, torch, OOM class).
+
+    Returns:
+        :class:`~src.models.InferenceResult` with ``ok == True`` on success.
     """
     img = state.current_image
     if img is None:
-        return None, 0, "", "No image loaded."
+        return InferenceResult(masks=None, best_idx=0, scores_str="", error="No image loaded.")
     if not state.point_buffer:
-        return None, 0, "", "No points in buffer."
-    if client is None and _predictor is None:
-        return None, 0, "", "SAM model not loaded."
+        return InferenceResult(masks=None, best_idx=0, scores_str="", error="No points in buffer.")
+    if client is None and ctx.predictor is None:
+        return InferenceResult(masks=None, best_idx=0, scores_str="", error="SAM model not loaded.")
 
     pts = state.point_buffer
     coords = np.array([[p.x, p.y] for p in pts], dtype=np.float32)
     labels = np.array([p.label for p in pts], dtype=np.int32)
 
     prev_logits = state.pending_logits
-    prev_idx = state.pending_mask_idx
     mask_input = None
     if prev_logits is not None:
-        raw = prev_logits[prev_idx]
+        raw = prev_logits[state.pending_mask_idx]
         mask_input = raw[None] if raw.ndim == 2 else raw
 
     logits_out = None
-    all_masks: list
+    all_masks: list[np.ndarray]
     scores_flat: np.ndarray
 
     try:
@@ -144,17 +212,18 @@ def run_sam_inference(
             if not state.image_set:
                 client.set_image(img)
                 state.image_set = True
-            all_masks, scores_list, logits_out = client.predict(coords, labels, mask_input=mask_input)
+            all_masks, scores_list, logits_out = client.predict(
+                coords, labels, mask_input=mask_input,
+            )
             scores_flat = np.array(scores_list)
 
-        elif _use_native:
+        elif ctx.use_native:
             if not state.image_set:
-                with _torch.inference_mode(), _autocast_ctx():
-                    _predictor.set_image(img)
+                with ctx.torch_module.inference_mode(), _autocast_ctx(ctx):
+                    ctx.predictor.set_image(img)
                 state.image_set = True
-
-            with _torch.inference_mode(), _autocast_ctx():
-                masks, scores, logits_out = _predictor.predict(
+            with ctx.torch_module.inference_mode(), _autocast_ctx(ctx):
+                masks, scores, logits_out = ctx.predictor.predict(
                     point_coords=coords,
                     point_labels=labels,
                     mask_input=mask_input,
@@ -164,23 +233,24 @@ def run_sam_inference(
             all_masks = [masks[i].astype(bool) for i in range(len(masks))]
 
         else:
+            # Ultralytics fallback: positive points only, single mask output.
             pos_pts = [[p.x, p.y] for p in pts if p.label == 1]
             pos_lbl = [1] * len(pos_pts)
-            results = _predictor(img, points=[pos_pts], labels=[pos_lbl])
+            results = ctx.predictor(img, points=[pos_pts], labels=[pos_lbl])
             if not results or results[0].masks is None:
-                return None, 0, "", "SAM returned no mask."
+                return InferenceResult(masks=None, best_idx=0, scores_str="", error="SAM returned no mask.")
             all_masks = [results[0].masks.data[0].cpu().numpy().astype(bool)]
-            scores_flat = np.array([1.0])
+            scores_flat = np.array([INFERENCE_DEFAULT_MASK_SCORE])
 
     except Exception as e:  # noqa: BLE001
-        if _oom_error and isinstance(e, _oom_error):
-            _empty_cache()
-            return None, 0, "", "CUDA OOM — try a smaller image."
-        _empty_cache()
-        return None, 0, "", f"Inference error: {e}"
+        if ctx.oom_error and isinstance(e, ctx.oom_error):
+            _empty_cache(ctx)
+            return InferenceResult(masks=None, best_idx=0, scores_str="", error="CUDA OOM — try a smaller image.")
+        _empty_cache(ctx)
+        return InferenceResult(masks=None, best_idx=0, scores_str="", error=f"Inference error: {e}")
     finally:
         if client is None:
-            _empty_cache()
+            _empty_cache(ctx)
 
     state.pending_logits = logits_out
 
@@ -191,4 +261,4 @@ def run_sam_inference(
     scores_str = "  ".join(
         f"{MASK_LABELS[i]}: {scores_flat[i]:.3f}" for i in range(len(all_masks))
     )
-    return all_masks, best_idx, scores_str, ""
+    return InferenceResult(masks=all_masks, best_idx=best_idx, scores_str=scores_str, error="")

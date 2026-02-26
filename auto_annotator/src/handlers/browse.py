@@ -7,31 +7,36 @@ from pathlib import Path
 
 from src import db
 from src.constants import PENDING_DIR, VALID_EXTS
+from src.handlers.responses import BrowseResponse, ImportResponse
 from src.html import stats_html
 from src.utils import get_logger
 
 logger = get_logger("browse")
 
 
-def refresh_browse():
-    """Rescan data/pending/ and return updated dataframe rows + stats."""
-    db.init_db()  # registers any new files in data/pending/
+def _build_df_data() -> list[list]:
     rows = db.get_all_images()
-    data = [
-        [r["id"], r["filename"], r["status"], r["format"], r["updated_at"]]
-        for r in rows
-    ]
-    return data, stats_html()
+    return [[r.id, r.filename, r.status, r.format, r.updated_at] for r in rows]
 
 
-def import_images(files):
-    """
-    Copy uploaded files to data/pending/ and register them in the DB.
+def refresh_browse() -> BrowseResponse:
+    """Rescan data/pending/ and return updated dataframe rows + stats."""
+    db.init_db()
+    return BrowseResponse(df_data=_build_df_data(), stats_html=stats_html())
+
+
+def import_images(files: list) -> ImportResponse:
+    """Copy uploaded files to data/pending/ and register them in the DB.
+
     *files* is a list of NamedString / temp-file-path objects from gr.UploadButton.
-    Returns (dataframe_data, stats_html, status_message).
     """
     if not files:
-        return *refresh_browse(), "No files selected."
+        browse = refresh_browse()
+        return ImportResponse(
+            df_data=browse.df_data,
+            stats_html=browse.stats_html,
+            status_msg="No files selected.",
+        )
 
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     copied = 0
@@ -49,11 +54,9 @@ def import_images(files):
         else:
             skipped += 1
 
-    db.init_db()  # pick up newly copied files
-    rows = db.get_all_images()
-    data = [
-        [r["id"], r["filename"], r["status"], r["format"], r["updated_at"]]
-        for r in rows
-    ]
-    msg = f"Imported {copied} image(s) ({skipped} skipped)."
-    return data, stats_html(), msg
+    db.init_db()
+    return ImportResponse(
+        df_data=_build_df_data(),
+        stats_html=stats_html(),
+        status_msg=f"Imported {copied} image(s) ({skipped} skipped).",
+    )

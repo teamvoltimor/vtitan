@@ -5,15 +5,15 @@
 .PHONY: run model-server lint format docker-build docker-run docker-dev \
         docker-up docker-upd docker-down help
 
-# ── Local dev ──────────────────────────────────────────────────────────────────
+# Local dev
 
 run:
-	uv run python app.py
+	uv run python main.py app
 
 model-server:
-	uv run python model_server.py
+	uv run python main.py server
 
-# ── Code quality ───────────────────────────────────────────────────────────────
+# Code quality
 
 lint:
 	uv run ruff check .
@@ -21,7 +21,7 @@ lint:
 format:
 	uv run ruff check --fix . && uv run ruff format .
 
-# ── Docker ────────────────────────────────────────────────────────────────────
+# Docker
 
 docker-build:
 	docker build -t auto-annotator .
@@ -44,12 +44,12 @@ docker-upd:
 docker-down:
 	docker-compose down
 
-# ── Help ──────────────────────────────────────────────────────────────────────
+# Help
 
 help:
 	@echo "Auto-Annotator Makefile targets:"
-	@echo "  run            Start the Gradio app (uv run python app.py)"
-	@echo "  model-server   Start the SAM model server"
+	@echo "  run            Start the Gradio app (uv run python main.py app)"
+	@echo "  model-server   Start the SAM model server (uv run python main.py server)"
 	@echo "  lint           Run ruff linter"
 	@echo "  format         Run ruff fix + format"
 	@echo "  docker-build   Build Docker image"
