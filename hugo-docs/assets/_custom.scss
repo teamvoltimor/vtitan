@@ -1,246 +1,109 @@
 // ============================================================================
-// Hugo Book Theme - Professional GitHub-Style Customization
+// Minimalist Hugo Book Theme
 // ============================================================================
 
 // ============================================================================
-// TOC Scroll Spy Styles
+// TOC Scroll Spy Styles (Simplified)
 // ============================================================================
 .book-toc nav a.active {
     color: var(--color-link);
     font-weight: var(--font-bold);
-    background: var(--gray-100);
-    border-left: 4px solid var(--color-link);
-    padding-left: 0.75em;
-    transition:
-        background var(--transition-base),
-        color var(--transition-base),
-        border-color var(--transition-base);
 }
-.book-toc nav a {
-    transition:
-        background var(--transition-base),
-        color var(--transition-base),
-        border-color var(--transition-base),
-        padding-left var(--transition-base);
 
-    &:hover {
-        background: var(--hover-bg);
-        border-left: 2px solid var(--gray-300);
-        padding-left: 0.5em;
-    }
-}
 .book-toc-content {
     scroll-behavior: smooth;
 }
 
 // ============================================================================
-// Back-to-Top Button Styles
+// Back-to-Top Button (Minimal)
 // ============================================================================
 #back-to-top {
     display: none;
     position: fixed;
-    bottom: var(--space-xl);
-    right: var(--space-xl);
+    bottom: var(--space-lg);
+    right: var(--space-lg);
     z-index: 1000;
-    width: 3rem;
-    height: 3rem;
+    width: 2.5rem;
+    height: 2.5rem;
     border: none;
-    border-radius: 50%;
-    background: var(--color-link);
-    color: var(--color-white);
+    border-radius: var(--radius-md);
+    background: var(--body-background);
+    color: var(--body-font-color);
     box-shadow: var(--shadow-md);
     cursor: pointer;
-    transition:
-        background var(--transition-base),
-        box-shadow var(--transition-base),
-        transform var(--transition-base);
+    transition: background var(--transition-base);
     outline: none;
-    display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
 
     &:hover,
     &:focus-visible {
-        background: var(--color-link-hover);
-        box-shadow: var(--shadow-lg);
-        transform: translateY(-3px);
-    }
-
-    &:active {
-        transform: translateY(-1px);
+        background: var(--hover-bg);
     }
 
     svg {
-        pointer-events: none;
-    }
-}
-
-#back-to-top-progress {
-    stroke: rgba(255, 255, 255, 0.2);
-    stroke-width: 2;
-}
-
-#back-to-top-progress-bar {
-    stroke: var(--color-white);
-    stroke-width: 2;
-    transition: stroke-dashoffset var(--transition-base);
-}
-
-@media (max-width: 600px) {
-    #back-to-top {
-        bottom: var(--space-md);
-        right: var(--space-md);
-        width: 3rem;
-        height: 3rem;
+        width: 1.25rem;
+        height: 1.25rem;
     }
 }
 
 // ============================================================================
-// 1. LIGHT THEME (Default)
-// ============================================================================
-// Code Copy Button Styles
-// ============================================================================
-// Reading Progress Bar Styles
-// ============================================================================
-.reading-progress-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 3px;
-    background: linear-gradient(
-        90deg,
-        var(--color-link) 0%,
-        var(--color-link) 100%
-    );
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-    z-index: 2000;
-    pointer-events: none;
-    transition: background-size var(--transition-base);
-    opacity: 0.85;
-}
-.reading-progress-bar[hidden] {
-    display: none !important;
-}
-
-@media (max-width: 600px) {
-    .reading-progress-bar {
-        height: 2px;
-    }
-}
-
-// ============================================================================
-// Toast Notification Styles
+// Toast Notification (Minimal)
 // ============================================================================
 #toast-container {
     position: fixed;
-    bottom: var(--space-xl);
-    right: var(--space-xl);
+    bottom: var(--space-lg);
+    right: var(--space-lg);
     z-index: 3000;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: var(--space-md);
+    gap: var(--space-sm);
     pointer-events: none;
 }
 
 .toast {
-    min-width: 220px;
-    max-width: 340px;
     background: var(--body-background);
     color: var(--body-font-color);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-md) var(--space-lg);
-    font-family: var(--font-sans);
-    font-size: var(--text-base);
-    font-weight: var(--font-medium);
-    margin: 0;
-    opacity: 0;
-    transform: translateY(20px) scale(0.96);
-    transition:
-        opacity var(--transition-slow),
-        transform var(--transition-slow);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-sm);
     pointer-events: auto;
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-}
-
-.toast.toast-show {
-    opacity: 1;
-    transform: translateY(0) scale(1);
 }
 
 .toast.toast-success {
-    border-left: 4px solid var(--color-accent-success);
-    background: var(--color-accent-success-tint);
+    border-left: 3px solid var(--color-accent-success);
 }
 
 .toast.toast-error {
-    border-left: 4px solid var(--color-accent-danger);
-    background: var(--color-accent-danger-tint);
-}
-
-.toast.toast-info {
-    border-left: 4px solid var(--color-accent-info);
-    background: var(--color-accent-info-tint);
-}
-
-.toast .toast-close {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: inherit;
-    font-size: var(--text-xl);
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity var(--transition-base);
-    padding: 0 var(--space-xs);
-    line-height: var(--leading-none);
-}
-
-.toast .toast-close:hover,
-.toast .toast-close:focus-visible {
-    opacity: 1;
-}
-
-@media (max-width: 600px) {
-    #toast-container {
-        bottom: var(--space-md);
-        right: var(--space-md);
-        max-width: 90vw;
-    }
-    .toast {
-        min-width: 140px;
-        max-width: 95vw;
-        font-size: var(--text-sm);
-        padding: var(--space-sm) var(--space-md);
-    }
+    border-left: 3px solid var(--color-accent-danger);
 }
 
 // ============================================================================
-// Micro-interactions
+// Minimal Micro-interactions
 // ============================================================================
 
-// Button press: scale down slightly on active
+// Button focus
 button,
 input[type="button"],
 input[type="submit"],
 input[type="reset"],
 .code-copy-button {
-    transition:
-        background var(--transition-base),
-        color var(--transition-base),
-        opacity var(--transition-base),
-        box-shadow var(--transition-base),
-        transform var(--transition-fast);
+    &:focus-visible {
+        outline: 2px solid var(--color-link);
+        outline-offset: 2px;
+    }
+}
+
+// Minimal link styles
+a {
+    color: var(--color-link);
+    text-decoration: none;
 
     &:hover {
-        opacity: 0.9;
+        color: var(--color-link-hover);
+        text-decoration: underline;
     }
 
     &:focus-visible {
@@ -248,68 +111,8 @@ input[type="reset"],
         outline-offset: 2px;
     }
 }
-button:active,
-input[type="button"]:active,
-input[type="submit"]:active,
-input[type="reset"]:active,
-.code-copy-button:active {
-    transform: scale(0.97);
-}
 
-// Link hover: animated underline slides in
-a,
-.link-underline {
-    position: relative;
-    color: var(--color-link);
-    text-decoration: none;
-    transition: color var(--transition-base);
-}
-a::after,
-.link-underline::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -2px;
-    width: 100%;
-    height: 2px;
-    background: currentColor;
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform var(--transition-slow);
-    opacity: 0.7;
-    pointer-events: none;
-}
-a:hover::after,
-a:focus-visible::after,
-.link-underline:hover::after,
-.link-underline:focus-visible::after {
-    transform: scaleX(1);
-}
-
-// Card hover: slight lift with shadow
-.card,
-.book-post,
-.book-toc-content,
-.book-sidebar {
-    transition:
-        box-shadow var(--transition-base),
-        transform var(--transition-base);
-}
-.card:hover,
-.card:focus-within,
-.book-post:hover,
-.book-post:focus-within,
-.book-toc-content:hover,
-.book-toc-content:focus-within,
-.book-sidebar:hover,
-.book-sidebar:focus-within {
-    box-shadow:
-        0 8px 32px rgba(37, 99, 235, 0.1),
-        0 1.5px 6px rgba(0, 0, 0, 0.04);
-    transform: translateY(-2px) scale(1.01);
-}
-
-// Form inputs: base styles
+// Form inputs
 input[type="text"],
 input[type="search"],
 input[type="email"],
@@ -339,7 +142,7 @@ select {
     }
 }
 
-// Form focus: gentle glow pulse
+// Form focus
 input[type="text"]:focus,
 input[type="search"]:focus,
 input[type="email"]:focus,
@@ -349,23 +152,10 @@ input[type="number"]:focus,
 textarea:focus,
 select:focus {
     border-color: var(--color-link);
-    box-shadow:
-        0 0 0 3px rgba(var(--color-link-rgb), 0.12),
-        var(--shadow-sm);
-    outline: none;
+    outline: 2px solid var(--color-link);
+    outline-offset: 0;
 }
 
-@keyframes glow-pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(var(--color-link-rgb), 0.18);
-    }
-    60% {
-        box-shadow: 0 0 0 6px rgba(var(--color-link-rgb), 0.08);
-    }
-    100% {
-        box-shadow: 0 0 0 3px rgba(var(--color-link-rgb), 0.12);
-    }
-}
 // Tabs Component Styles
 // ============================================================================
 
@@ -787,67 +577,7 @@ html {
     }
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes slideInLeft {
-    from {
-        opacity: 0;
-        transform: translateX(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
-
-.book-page {
-    animation: fadeIn var(--animation-duration-page) ease-out;
-}
-
-// Stagger animation for lists
-.markdown {
-    ul > li,
-    ol > li {
-        animation: fadeInUp var(--animation-duration-base) ease-out backwards;
-
-        @for $i from 1 through 10 {
-            &:nth-child(#{$i}) {
-                animation-delay: #{$i * 0.05}s;
-            }
-        }
-    }
-}
-
-// Loading state (can be added via JS)
+// Loading state
 .loading {
     position: relative;
     pointer-events: none;
@@ -964,47 +694,38 @@ small {
 }
 
 h1 {
-    font-size: var(--text-4xl);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-tighter);
-    border-bottom: 2px solid var(--color-border);
-    padding-bottom: var(--space-md);
-    margin-top: 0;
-    margin-bottom: var(--space-xl);
-}
-
-h2 {
     font-size: var(--text-3xl);
     font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-tight);
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-sm);
-    margin-top: var(--space-2xl);
+    margin-top: 0;
     margin-bottom: var(--space-lg);
 }
 
-h3 {
+h2 {
     font-size: var(--text-2xl);
-    font-weight: var(--font-semibold);
-    letter-spacing: var(--tracking-tight);
+    font-weight: var(--font-bold);
     margin-top: var(--space-xl);
     margin-bottom: var(--space-md);
 }
 
-h4 {
+h3 {
     font-size: var(--text-xl);
     font-weight: var(--font-semibold);
-    letter-spacing: var(--tracking-normal);
     margin-top: var(--space-lg);
-    margin-bottom: var(--space-md);
+    margin-bottom: var(--space-sm);
+}
+
+h4 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-sm);
 }
 
 h5 {
-    font-size: var(--text-lg);
+    font-size: var(--text-base);
     font-weight: var(--font-medium);
-    letter-spacing: var(--tracking-normal);
-    margin-top: var(--space-lg);
-    margin-bottom: var(--space-sm);
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-xs);
 }
 
 .book-article h6 {
@@ -1017,39 +738,10 @@ h5 {
     margin-bottom: var(--space-sm);
 }
 
-// Heading anchor links
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+// Heading anchor - minimal, just scroll offset
+h1, h2, h3, h4, h5, h6 {
     &[id] {
-        position: relative;
         scroll-margin-top: var(--space-xl);
-
-        &::before {
-            content: "#";
-            position: absolute;
-            left: -1.5rem;
-            color: var(--gray-300);
-            font-weight: 400;
-            opacity: 0;
-            transition: opacity var(--transition-base);
-        }
-
-        &:hover::before {
-            opacity: 1;
-        }
-
-        a.anchor {
-            color: inherit;
-            text-decoration: none;
-
-            &:hover {
-                text-decoration: none;
-            }
-        }
     }
 }
 
