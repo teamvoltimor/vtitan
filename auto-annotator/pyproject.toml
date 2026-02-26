@@ -16,6 +16,9 @@ dependencies = [
     "transformers>=4.50.0",
     "accelerate",
     "ruff>=0.15.2",
+    "ultralytics>=8.4.14",
+    "autodistill==0.1.29",
+    "autodistill-grounded-sam==0.1.2",
 ]
 
 [[tool.uv.index]]

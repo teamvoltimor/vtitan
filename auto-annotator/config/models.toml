@@ -7,12 +7,25 @@
 # ───────────────────────────
 #   id            – unique key used in the API and UI
 #   label         – human-readable name shown in the app
-#   type          – "sam1" | "sam2" | "sam3"
+#   type          – "sam1" | "sam2" | "sam3" | "yoloe" | "grounding_dino"
 #   checkpoint    – local .pt path (relative to project root); takes priority
 #   hiera_config  – Hydra config path for sam2 builds (relative, passed to build_sam2)
 #   hf_repo       – HuggingFace repo; used when checkpoint is absent
 #   variant       – SAM1 only: "vit_h" | "vit_l" | "vit_b"
-#   supports_text – SAM3 only: enables text-prompted auto-annotation
+#   supports_text – SAM3/YOLOE/Grounding DINO: enables text-prompted auto-annotation
+
+[[models]]
+id            = "yoloe-26l"
+label         = "YOLOE 26L (Auto-detect)"
+type          = "yoloe"
+checkpoint    = "models/yoloe-26l-seg.pt"
+supports_text = true
+
+[[models]]
+id            = "grounding-dino-sam"
+label         = "Grounding DINO + SAM"
+type          = "grounding_dino"
+supports_text = true
 
 [[models]]
 id           = "sam2.1-large"

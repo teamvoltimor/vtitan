@@ -17,14 +17,18 @@ from src.server.constants import (
     CFG_KEY_HF_REPO,
     CFG_KEY_ID,
     CFG_KEY_TYPE,
+    MODEL_TYPE_GROUNDING_DINO,
     MODEL_TYPE_SAM1,
     MODEL_TYPE_SAM2,
     MODEL_TYPE_SAM3,
+    MODEL_TYPE_YOLOE,
     PROJECT_ROOT,
 )
+from src.server.grounding_dino import load_grounding_dino
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
 from src.server.sam3 import load_sam3
+from src.server.yoloe import load_yoloe
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -74,6 +78,10 @@ def is_available(cfg: dict, base: Path) -> bool:
         return bool(hf) or (ckpt is not None and ckpt.exists())
     if mtype == MODEL_TYPE_SAM3:
         return bool(hf)
+    if mtype == MODEL_TYPE_YOLOE:
+        return ckpt is not None and ckpt.exists()
+    if mtype == MODEL_TYPE_GROUNDING_DINO:
+        return True
     return False
 
 
@@ -110,6 +118,10 @@ def load_model(model_id: str, ctx: ServerContext) -> str | None:
             load_sam2(cfg, ctx)
         elif mtype == MODEL_TYPE_SAM3:
             load_sam3(cfg, ctx)
+        elif mtype == MODEL_TYPE_YOLOE:
+            load_yoloe(cfg, ctx)
+        elif mtype == MODEL_TYPE_GROUNDING_DINO:
+            load_grounding_dino(cfg, ctx)
         else:
             return f"Unknown model type: {mtype!r}"
 
