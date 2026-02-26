@@ -9,35 +9,34 @@
   <input type="checkbox" class="hidden toggle" id="menu-control" />
   <input type="checkbox" class="hidden toggle" id="toc-control" />
   <main class="container flex">
-    {{ template "menu-container" . }} <!-- Left menu -->
+    {{ template "menu-container" . }}
 
     <div class="book-page">
       <header class="book-header hidden">
-        {{ template "header" . }} <!-- Mobile layout header -->
+        {{ template "header" . }}
       </header>
 
       {{ partial "docs/inject/content-before" . }}
 
-      {{/* Page header with breadcrumb and title */}}
       {{ if not .IsHome }}
         {{ partial "docs/page-header" . }}
       {{ end }}
 
-      {{ template "main" . }} <!-- Page Content -->
+      {{ template "main" . }}
       {{ partial "docs/inject/content-after" . }}
 
       <footer class="book-footer">
-        {{ template "footer" . }} <!-- Footer under page content -->
-        {{ template "comments" . }} <!-- Comments block -->
+        {{ template "footer" . }}
+        {{ template "comments" . }}
         {{ partial "docs/inject/footer" . }}
-        {{ template "copyright" . }} <!-- Copyright block -->
+        {{ template "copyright" . }}
         {{ template "clipboard" . }}
       </footer>
 
       <label for="menu-control" class="hidden book-menu-overlay"></label>
     </div>
 
-    {{ template "toc-container" . }} <!-- Table of Contents -->
+    {{ template "toc-container" . }}
   </main>
 
   {{ partial "docs/inject/body" . }}
@@ -57,50 +56,24 @@
   <!-- Reading Progress Bar -->
   <div class="reading-progress-bar" id="reading-progress-bar" hidden></div>
 
-  <script>
-  (function() {
-    const btn = document.getElementById('back-to-top');
-    const progressBar = document.getElementById('back-to-top-progress-bar');
-    const circumference = 2 * Math.PI * 10; // r=10 for your SVG
+  <!-- Load external JavaScript files -->
+  {{ $scrollUtils := resources.Get "scroll-utils.js" }}
+  {{ if $scrollUtils }}
+    {{ $scrollUtils = $scrollUtils | resources.Minify }}
+    <script>{{ $scrollUtils.Content | safeJS }}</script>
+  {{ end }}
 
-    function updateButton() {
-      const scrollY = window.scrollY || window.pageYOffset;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const percent = docHeight > 0 ? Math.min(scrollY / docHeight, 1) : 0;
-      if (progressBar) {
-        progressBar.setAttribute('stroke-dashoffset', circumference * (1 - percent));
-      }
-      btn.style.display = scrollY > 300 ? 'flex' : 'none';
-    }
+  {{ $lightbox := resources.Get "lightbox.js" }}
+  {{ if $lightbox }}
+    {{ $lightbox = $lightbox | resources.Minify }}
+    <script>{{ $lightbox.Content | safeJS }}</script>
+  {{ end }}
 
-    if (btn) {
-      btn.addEventListener('click', function() {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-
-      // Keyboard accessibility: Enter/Space triggers scroll
-      btn.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          btn.click();
-        }
-      });
-    }
-
-    window.addEventListener('scroll', updateButton, { passive: true });
-    window.addEventListener('resize', updateButton);
-    document.addEventListener('DOMContentLoaded', updateButton);
-  })();
-  </script>
-  <!-- Toast Notification Container -->
-  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
-
-  <!-- Image Lightbox Container -->
-  <div id="image-lightbox" class="image-lightbox" tabindex="-1" aria-modal="true" aria-hidden="true" style="display:none;">
-    <div class="image-lightbox-backdrop"></div>
-    <img class="image-lightbox-img" src="" alt="Zoomed image" />
-    <button class="image-lightbox-close" aria-label="Close">&times;</button>
-  </div>
+  {{ $toast := resources.Get "toast.js" }}
+  {{ if $toast }}
+    {{ $toast = $toast | resources.Minify }}
+    <script>{{ $toast.Content | safeJS }}</script>
+  {{ end }}
 
   {{ $codeCopy := resources.Get "code-copy.js" }}
   {{ if $codeCopy }}
@@ -119,105 +92,6 @@
     {{ $tabs = $tabs | resources.Minify }}
     <script>{{ $tabs.Content | safeJS }}</script>
   {{ end }}
-
-    <script>
-      // Image Lightbox/Zoom
-      (function() {
-        const lightbox = document.getElementById('image-lightbox');
-        const lightboxImg = lightbox ? lightbox.querySelector('.image-lightbox-img') : null;
-        const closeBtn = lightbox ? lightbox.querySelector('.image-lightbox-close') : null;
-        let lastActiveImg = null;
-
-        function openLightbox(src, alt, imgEl) {
-          if (!lightbox || !lightboxImg) return;
-          lightboxImg.src = src;
-          lightboxImg.alt = alt || '';
-          lightbox.style.display = 'flex';
-          lightbox.setAttribute('aria-hidden', 'false');
-          lightbox.focus();
-          document.body.style.overflow = 'hidden';
-          lastActiveImg = imgEl;
-        }
-
-        function closeLightbox() {
-          if (!lightbox || !lightboxImg) return;
-          lightbox.style.display = 'none';
-          lightbox.setAttribute('aria-hidden', 'true');
-          lightboxImg.src = '';
-          document.body.style.overflow = '';
-          if (lastActiveImg) lastActiveImg.focus();
-        }
-
-        function handleImageClick(e) {
-          const img = e.target;
-          if (img.tagName === 'IMG' && !img.closest('.image-lightbox')) {
-            openLightbox(img.src, img.alt, img);
-          }
-        }
-
-        function handleKeyDown(e) {
-          if (e.key === 'Escape') {
-            closeLightbox();
-          }
-        }
-
-        if (lightbox && lightboxImg) {
-          document.body.addEventListener('click', handleImageClick);
-
-          closeBtn && closeBtn.addEventListener('click', closeLightbox);
-
-          lightbox.addEventListener('click', function(e) {
-            if (e.target === lightbox || e.target.classList.contains('image-lightbox-backdrop')) {
-              closeLightbox();
-            }
-          });
-
-          lightbox.addEventListener('keydown', handleKeyDown);
-        }
-      })();
-    </script>
-  <script>
-    (function() {
-      // Reading Progress Bar
-      const progressBar = document.getElementById('reading-progress-bar');
-      function updateProgressBar() {
-        const scrollY = window.scrollY || window.pageYOffset;
-        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-        const percent = docHeight > 0 ? Math.min(scrollY / docHeight, 1) : 0;
-        if (progressBar) {
-          progressBar.style.backgroundSize = `${percent * 100}% 100%`;
-          progressBar.hidden = docHeight < 100;
-        }
-      }
-      window.addEventListener('scroll', updateProgressBar, { passive: true });
-      window.addEventListener('resize', updateProgressBar);
-      document.addEventListener('DOMContentLoaded', updateProgressBar);
-    })();
-
-    // Toast Notification Utility
-    window.showToast = function(message, type = "info", duration = 3500) {
-      const container = document.getElementById("toast-container");
-      if (!container) return;
-      const toast = document.createElement("div");
-      toast.className = `toast toast-${type}`;
-      toast.setAttribute("role", "status");
-      toast.setAttribute("aria-live", "polite");
-      toast.innerHTML = `<span>${message}</span><button class="toast-close" aria-label="Close">&times;</button>`;
-      // Close button
-      toast.querySelector(".toast-close").onclick = () => {
-        toast.classList.remove("toast-show");
-        setTimeout(() => toast.remove(), 300);
-      };
-      container.appendChild(toast);
-      // Animate in
-      setTimeout(() => toast.classList.add("toast-show"), 10);
-      // Auto-dismiss
-      setTimeout(() => {
-        toast.classList.remove("toast-show");
-        setTimeout(() => toast.remove(), 300);
-      }, duration);
-    };
-  </script>
 </body>
 </html>
 
@@ -244,7 +118,6 @@
 {{ end }}
 
 {{ define "clipboard" }}
-  <!-- Clipboard functionality handled by code-copy.js -->
 {{ end }}
 
 {{ define "copyright" }}

@@ -554,6 +554,8 @@ details .markdown-inner {
 // Code Copy Button Styles (defined later - see line ~1473)
 
 // ============================================================================
+// Light Theme Variables
+// ============================================================================
 
 :root {
     // === CORE COLORS - Distinctive Palette ===
@@ -675,6 +677,12 @@ details .markdown-inner {
     --font-medium: 500;
     --font-semibold: 600;
     --font-bold: 700;
+
+    // === ANIMATIONS ===
+    --animation-duration-fast: 150ms;
+    --animation-duration-base: 200ms;
+    --animation-duration-slow: 300ms;
+    --animation-duration-page: 400ms;
 }
 
 // ============================================================================
@@ -748,53 +756,6 @@ body.dark,
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
     --shadow-sidebar: 2px 0 10px 0 rgba(0, 0, 0, 0.4);
-
-    // === BORDER RADIUS (same as light) ===
-    --radius-sm: 0.375rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.75rem;
-    --radius-xl: 1rem;
-
-    // === TRANSITIONS (same as light) ===
-    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
-
-    // === TYPOGRAPHY (same as light) ===
-    --font-sans: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-
-    // Font sizes (same as light)
-    --text-xs: 0.75rem;
-    --text-sm: 0.875rem;
-    --text-base: 1rem;
-    --text-lg: 1.125rem;
-    --text-xl: 1.25rem;
-    --text-2xl: 1.5rem;
-    --text-3xl: 1.875rem;
-    --text-4xl: 2.25rem;
-    --text-5xl: 3rem;
-
-    // Line heights (same as light)
-    --leading-none: 1;
-    --leading-tight: 1.25;
-    --leading-snug: 1.375;
-    --leading-normal: 1.5;
-    --leading-relaxed: 1.625;
-    --leading-loose: 1.75;
-
-    // Letter spacing (same as light)
-    --tracking-tighter: -0.03em;
-    --tracking-tight: -0.015em;
-    --tracking-normal: 0;
-    --tracking-wide: 0.025em;
-    --tracking-wider: 0.05em;
-
-    // Font weights (same as light)
-    --font-normal: 400;
-    --font-medium: 500;
-    --font-semibold: 600;
-    --font-bold: 700;
 }
 
 // Force background on html and body
@@ -819,9 +780,9 @@ html {
     *,
     *::before,
     *::after {
-        animation-duration: 0.01ms !important;
+        animation-duration: var(--animation-duration-fast) !important;
         animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+        transition-duration: var(--animation-duration-fast) !important;
         scroll-behavior: auto !important;
     }
 }
@@ -869,14 +830,14 @@ html {
 }
 
 .book-page {
-    animation: fadeIn var(--transition-slow) ease-out;
+    animation: fadeIn var(--animation-duration-page) ease-out;
 }
 
 // Stagger animation for lists
 .markdown {
     ul > li,
     ol > li {
-        animation: fadeInUp 0.3s ease-out backwards;
+        animation: fadeInUp var(--animation-duration-base) ease-out backwards;
 
         @for $i from 1 through 10 {
             &:nth-child(#{$i}) {
@@ -913,12 +874,13 @@ html {
     }
 }
 
-body {
+// Body base styles
+body.book-body {
     font-family: var(--font-sans);
     font-size: var(--text-base);
     line-height: var(--leading-relaxed);
-    background-color: var(--body-background) !important;
-    color: var(--body-font-color) !important;
+    background-color: var(--body-background);
+    color: var(--body-font-color);
     font-weight: var(--font-normal);
 }
 
@@ -989,15 +951,16 @@ small {
 // 4. TYPOGRAPHY
 // ============================================================================
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+// Typography
+.book-article h1,
+.book-article h2,
+.book-article h3,
+.book-article h4,
+.book-article h5,
+.book-article h6 {
     font-family: var(--font-sans);
     line-height: var(--leading-tight);
-    color: var(--body-font-color) !important;
+    color: var(--body-font-color);
 }
 
 h1 {
@@ -1044,10 +1007,10 @@ h5 {
     margin-bottom: var(--space-sm);
 }
 
-h6 {
+.book-article h6 {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
-    color: var(--gray-500) !important;
+    color: var(--gray-500);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wider);
     margin-top: var(--space-md);
@@ -1104,8 +1067,9 @@ p {
 // 5. LINKS
 // ============================================================================
 
-a {
-    color: var(--color-link) !important;
+// Links
+.book-article a {
+    color: var(--color-link);
     text-decoration: none;
     transition:
         color var(--transition-base),
@@ -1113,7 +1077,7 @@ a {
     position: relative;
 
     &:hover {
-        color: var(--color-link-hover) !important;
+        color: var(--color-link-hover);
         text-decoration: underline;
         text-decoration-thickness: 2px;
         text-underline-offset: 2px;
@@ -1126,7 +1090,7 @@ a {
     }
 
     &:visited {
-        color: var(--color-visited-link) !important;
+        color: var(--color-visited-link);
     }
 }
 
@@ -1186,13 +1150,12 @@ html[data-theme="dark"] {
 
 // ============================================================================
 
-code {
-    font-family:
-        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-        "Liberation Mono", monospace;
+// Inline code
+.book-article code:not(pre code) {
+    font-family: var(--font-mono);
     font-size: 0.875em;
-    background-color: var(--code-bg) !important;
-    color: var(--code-color) !important;
+    background-color: var(--code-bg);
+    color: var(--code-color);
     padding: 0.2em 0.45em;
     border-radius: var(--radius-sm);
     border: 1px solid var(--color-border);
@@ -1200,14 +1163,15 @@ code {
     transition: background var(--transition-fast), border-color var(--transition-fast);
 
     &:hover {
-        background-color: var(--gray-100) !important;
+        background-color: var(--gray-100);
     }
 }
 
-pre {
+// Code blocks
+.book-article pre {
     position: relative;
-    background-color: var(--chroma-bg) !important;
-    border: 1px solid var(--color-border) !important;
+    background-color: var(--chroma-bg);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
     overflow-x: auto;
@@ -1245,16 +1209,16 @@ pre {
     }
 
     code {
-        background-color: transparent !important;
+        background-color: transparent;
         padding: 0;
-        color: var(--chroma-color) !important;
+        color: var(--chroma-color);
         font-size: 0.875rem;
         border: none;
         font-weight: normal;
         transition: none;
 
         &:hover {
-            background-color: transparent !important;
+            background-color: transparent;
         }
     }
 
@@ -1660,7 +1624,8 @@ div.highlight[data-lang]::before ~ pre .code-copy-button {
 // 7. TABLES
 // ============================================================================
 
-table {
+// Tables
+.book-article table {
     border-collapse: separate;
     border-spacing: 0;
     width: auto;
@@ -1677,14 +1642,14 @@ table {
     }
 
     thead {
-        background: linear-gradient(to bottom, var(--gray-100), var(--gray-50)) !important;
+        background: linear-gradient(to bottom, var(--gray-100), var(--gray-50));
 
         th {
             font-weight: var(--font-semibold);
             padding: var(--space-md) var(--space-lg);
             text-align: left;
-            border-bottom: 1px solid var(--gray-200) !important;
-            color: var(--body-font-color) !important;
+            border-bottom: 1px solid var(--gray-200);
+            color: var(--body-font-color);
             font-size: var(--text-sm);
             text-transform: uppercase;
             letter-spacing: var(--tracking-wide);
@@ -1701,7 +1666,7 @@ table {
 
     tbody {
         tr {
-            background-color: var(--body-background) !important;
+            background-color: var(--body-background);
             transition:
                 background-color var(--transition-base),
                 box-shadow var(--transition-base);
@@ -1711,11 +1676,11 @@ table {
             }
 
             &:nth-child(2n) {
-                background-color: var(--gray-50) !important;
+                background-color: var(--gray-50);
             }
 
             &:hover {
-                background-color: var(--hover-bg) !important;
+                background-color: var(--hover-bg);
                 box-shadow: inset 0 0 0 1px var(--gray-300);
             }
 
@@ -1730,7 +1695,7 @@ table {
 
             td {
                 padding: var(--space-md) var(--space-lg);
-                color: var(--body-font-color) !important;
+                color: var(--body-font-color);
                 font-size: var(--text-sm);
 
                 &:not(:last-child) {
@@ -1815,8 +1780,8 @@ table {
 }
 
 .book-menu {
-    background-color: var(--sidebar-bg) !important;
-    border-right: 1px solid var(--gray-200) !important;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--gray-200);
     box-shadow: var(--shadow-sidebar);
     position: sticky;
     top: 0;
@@ -1824,7 +1789,7 @@ table {
     overflow-y: auto;
 
     .book-menu-content {
-        background-color: var(--sidebar-bg) !important;
+        background-color: var(--sidebar-bg);
         padding: var(--space-lg);
     }
 
@@ -1837,22 +1802,22 @@ table {
         margin: var(--space-xs) 0;
         border-radius: var(--radius-md);
         border-left: 3px solid transparent;
-        color: var(--body-font-color) !important;
+        color: var(--body-font-color);
         transition: all var(--transition-base);
         font-size: var(--text-sm);
 
         &:hover {
-            background-color: var(--hover-bg) !important;
+            background-color: var(--hover-bg);
             border-left-color: var(--gray-300);
             transform: translateX(2px);
             text-decoration: none;
         }
 
         &.active {
-            background-color: var(--active-bg) !important;
+            background-color: var(--active-bg);
             border-left-color: var(--color-link);
             font-weight: 600;
-            color: var(--color-link) !important;
+            color: var(--color-link);
         }
     }
 
@@ -1884,14 +1849,14 @@ table {
         margin: var(--space-xs) 0;
         border-radius: var(--radius-md);
         border-left: 3px solid transparent;
-        color: var(--body-font-color) !important;
+        color: var(--body-font-color);
         font-size: var(--text-sm);
         font-weight: var(--font-semibold);
         cursor: pointer;
         transition: all var(--transition-base);
 
         &:hover {
-            background-color: var(--hover-bg) !important;
+            background-color: var(--hover-bg);
             border-left-color: var(--gray-300);
             transform: translateX(2px);
         }
@@ -1902,6 +1867,7 @@ table {
 // 9. SEARCH BAR
 // ============================================================================
 
+// Search Bar
 .book-search {
     position: relative;
     margin: 0 0 var(--space-md) 0;
@@ -1911,18 +1877,18 @@ table {
     input {
         width: 100%;
         padding: 0.625rem 0.875rem;
-        background-color: var(--gray-100) !important;
-        border: 2px solid transparent !important;
+        background-color: var(--gray-100);
+        border: 2px solid transparent;
         border-radius: 0.5rem;
-        color: var(--body-font-color) !important;
+        color: var(--body-font-color);
         font-size: 0.875rem;
         transition: all var(--transition-base);
         box-shadow: var(--shadow-sm);
 
         &:focus {
             outline: none;
-            background-color: var(--body-background) !important;
-            border-color: var(--color-link) !important;
+            background-color: var(--body-background);
+            border-color: var(--color-link);
             box-shadow:
                 0 0 0 3px rgba(var(--color-link-rgb), 0.1),
                 var(--shadow-md);
@@ -1930,7 +1896,7 @@ table {
         }
 
         &:hover:not(:focus) {
-            border-color: var(--gray-300) !important;
+            border-color: var(--gray-300);
         }
 
         &::placeholder {
@@ -1943,6 +1909,7 @@ table {
 // 10. THEME SWITCHER
 // ============================================================================
 
+// Theme Switcher
 .theme-toggle {
     position: relative;
     display: flex;
@@ -1952,16 +1919,16 @@ table {
     height: 2.75rem;
     margin: 0;
     padding: 0.5rem;
-    background-color: var(--gray-100) !important;
-    border: 2px solid var(--gray-200) !important;
+    background-color: var(--gray-100);
+    border: 2px solid var(--gray-200);
     border-radius: 0.75rem;
     cursor: pointer;
     transition: all var(--transition-slow);
     box-shadow: var(--shadow-sm);
 
     &:hover {
-        background-color: var(--hover-bg) !important;
-        border-color: var(--color-link) !important;
+        background-color: var(--hover-bg);
+        border-color: var(--color-link);
         transform: rotate(15deg) scale(1.1);
         box-shadow: var(--shadow-md);
     }
