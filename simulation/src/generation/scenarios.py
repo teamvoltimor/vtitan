@@ -4,6 +4,8 @@ Each scenario defines pillar placement in the South corridor template.
 Coordinates are transformed to other corridors via apply_scenario_to_section().
 """
 
+from __future__ import annotations
+
 from src.config.constants import TrackDimensions
 from src.config.enums import Section
 

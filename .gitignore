@@ -19,15 +19,18 @@ hailo/calib_output/
 hailo/calib_output_*/
 
 # Auto Annotator data
-auto_annotator/data/labels/
-auto_annotator/data/pending/
+auto-annotator/data/labels/
+auto-annotator/data/pending/
 
 # Auto Annotator models
-auto_annotator/models/
+auto-annotator/models/
 
 # Auto Annotator database
-auto_annotator/data/manifest.db
-auto_annotator/manifest.db
+auto-annotator/data/manifest.db
+auto-annotator/manifest.db
+
+# Simulation train report
+simulation/scripts/train_report.md
 
 # Environment variables
 .env

@@ -199,11 +199,11 @@ class ScenarioTypes:
 class GridSections:
     """Track section definitions"""
 
-    # All sections as list of enums
-    SECTIONS = [Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST]
+    # All sections as a tuple (immutable — never append to this at runtime)
+    SECTIONS = (Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST)
 
-    # Sections as strings (for backward compatibility)
-    SECTION_NAMES = [s.value for s in SECTIONS]
+    # Sections as strings (for JSON serialization)
+    SECTION_NAMES = tuple(s.value for s in SECTIONS)
 
     # Length section centers (for starting zone randomization)
     LENGTH_SECTION_LEFT = 1.25  # Center of [1.0-1.5] section

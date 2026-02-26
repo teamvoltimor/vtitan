@@ -11,6 +11,16 @@ from __future__ import annotations
 
 import math
 
+from src.config.constants import DictKeys, RobotSpecs, TrackDimensions
+
+# Arc radius for corners. Must exceed the Ackermann minimum turning radius
+# (~0.294 m). 0.45 m starts corners early enough to clear inner-wall junctions.
+_ARC_RADIUS = 0.45
+
+# Bias corridor centres toward the outer wall. Compensates for the robot's
+# chassis width so the planned path stays clear of the inner-wall face.
+_OUTER_WALL_BIAS = 0.05
+
 
 def calculate_waypoints(
     metadata: dict,
@@ -30,38 +40,34 @@ def calculate_waypoints(
         Ordered list of (x, y) world-frame waypoints starting near the robot's
         spawn position, covering num_laps full loops.
     """
-    corridor_widths = metadata["corridor_widths"]
-    direction = metadata["starting_conditions"]["direction"]
+    corridor_widths = metadata[DictKeys.CORRIDOR_WIDTHS]
+    starting = metadata[DictKeys.STARTING_CONDITIONS]
+    direction = starting[DictKeys.DIRECTION]
 
     # Convert corridor widths from mm to meters
-    north_width = corridor_widths["north"]["width_mm"] / 1000.0
-    south_width = corridor_widths["south"]["width_mm"] / 1000.0
-    east_width = corridor_widths["east"]["width_mm"] / 1000.0
-    west_width = corridor_widths["west"]["width_mm"] / 1000.0
+    mm_to_m = 1.0 / 1000.0
+    north_width = corridor_widths["north"][DictKeys.WIDTH_MM] * mm_to_m
+    south_width = corridor_widths["south"][DictKeys.WIDTH_MM] * mm_to_m
+    east_width = corridor_widths["east"][DictKeys.WIDTH_MM] * mm_to_m
+    west_width = corridor_widths["west"][DictKeys.WIDTH_MM] * mm_to_m
 
-    track_max = 3.0
-    # Bias corridor centers toward outer walls for inner-wall clearance
-    outer_bias = 0.05
-    north_cy = track_max - north_width / 2 + outer_bias
-    south_cy = south_width / 2 - outer_bias
-    east_cx = track_max - east_width / 2 + outer_bias
-    west_cx = west_width / 2 - outer_bias
-
-    # Arc radius must exceed the robot's minimum turning radius (~0.294 m).
-    # 0.45 m starts corners early enough to clear inner-wall junctions.
-    arc_radius = 0.45
+    track_max = TrackDimensions.MAX_COORD
+    north_cy = track_max - north_width / 2 + _OUTER_WALL_BIAS
+    south_cy = south_width / 2 - _OUTER_WALL_BIAS
+    east_cx = track_max - east_width / 2 + _OUTER_WALL_BIAS
+    west_cx = west_width / 2 - _OUTER_WALL_BIAS
 
     segments = _build_all_segments(
-        north_cy, south_cy, east_cx, west_cx, arc_radius, direction
+        north_cy, south_cy, east_cx, west_cx, _ARC_RADIUS, direction
     )
 
     order = _build_corridor_order(direction)
-    start_section = metadata["starting_conditions"]["section"].lower()
+    start_section = starting[DictKeys.SECTION].lower()
     order = _rotate_to_start(order, start_section)
 
     full_loop = _assemble_loop(order, segments)
-    start_pos = metadata["starting_conditions"]["position"]
-    start_x, start_y = start_pos["x"], start_pos["y"]
+    start_pos = starting[DictKeys.POSITION]
+    start_x, start_y = start_pos[DictKeys.X], start_pos[DictKeys.Y]
 
     return _build_waypoint_sequence(
         full_loop, segments, order, start_x, start_y, num_laps

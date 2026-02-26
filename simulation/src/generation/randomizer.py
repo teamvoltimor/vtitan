@@ -6,6 +6,7 @@ conditions, parking lot positions, and traffic sign placement.
 
 from __future__ import annotations
 
+import math
 import random
 from typing import Any
 
@@ -147,14 +148,16 @@ class ScenarioRandomizer:
         """Place traffic signs using the WRO 36-scenario system.
 
         Args:
-            corridor_widths: Per-section width data (reserved for future
-                constraint checks).
+            corridor_widths: Per-section width data. Currently unused — kept
+                in the signature so callers do not need to change when narrow-
+                corridor sign-exclusion logic is added.
             exclude_section: Section to skip (usually the starting section).
 
         Returns:
             Tuple (positions, colors). positions is [(x, y), ...].
             colors is [(color_name, color_rgb), ...].
         """
+        _ = corridor_widths  # reserved for future narrow-corridor constraints
         all_signs: list[dict[str, Any]] = []
         for section in self._sections:
             if section == exclude_section:
@@ -251,11 +254,12 @@ def _pick_start_position(
 
 def _compute_starting_yaw(section: Section, direction: Direction) -> float:
     """Return the robot's initial heading angle (radians) for a given corridor/direction."""
+    half_pi = math.pi / 2
     yaw_map: dict[Section, dict[Direction, float]] = {
-        Section.SOUTH: {Direction.CLOCKWISE: 3.14159, Direction.COUNTERCLOCKWISE: 0.0},
-        Section.NORTH: {Direction.CLOCKWISE: 0.0,     Direction.COUNTERCLOCKWISE: 3.14159},
-        Section.EAST:  {Direction.CLOCKWISE: -1.5708, Direction.COUNTERCLOCKWISE: 1.5708},
-        Section.WEST:  {Direction.CLOCKWISE: 1.5708,  Direction.COUNTERCLOCKWISE: -1.5708},
+        Section.SOUTH: {Direction.CLOCKWISE: math.pi,  Direction.COUNTERCLOCKWISE: 0.0},
+        Section.NORTH: {Direction.CLOCKWISE: 0.0,       Direction.COUNTERCLOCKWISE: math.pi},
+        Section.EAST:  {Direction.CLOCKWISE: -half_pi,  Direction.COUNTERCLOCKWISE: half_pi},
+        Section.WEST:  {Direction.CLOCKWISE: half_pi,   Direction.COUNTERCLOCKWISE: -half_pi},
     }
     return yaw_map[section][direction]
 

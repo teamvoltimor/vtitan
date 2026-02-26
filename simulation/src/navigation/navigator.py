@@ -467,7 +467,11 @@ class TrackNavigator(Node):
         dx: float,
         dy: float,
     ) -> float:
-        """Scale linear speed by forward clearance and heading error."""
+        """Scale linear speed by forward clearance and heading error.
+
+        Only called after the None-guard in _control_loop — yaw is always set.
+        """
+        assert self._current_yaw is not None  # narrowed by _control_loop guard
         if forward_dist < _FWD_CONTACT_DIST:
             speed_fwd = 0.15
         elif forward_dist < _FWD_SLOW_DIST:
@@ -507,7 +511,11 @@ class TrackNavigator(Node):
         target_x: float,
         target_y: float,
     ) -> tuple[float, float, float, float, float]:
-        """Advance the waypoint index if reached or passed; return updated geometry."""
+        """Advance the waypoint index if reached or passed; return updated geometry.
+
+        Only called after the None-guard in _control_loop — yaw is always set.
+        """
+        assert self._current_yaw is not None  # narrowed by _control_loop guard
         if self._escape_mode or self._obstacle_escape:
             return distance, dx, dy, target_x, target_y
 
@@ -553,7 +561,11 @@ class TrackNavigator(Node):
         robot_y: float,
         distance: float,
     ) -> tuple[float, int]:
-        """Compute pure-pursuit heading error and the lookahead waypoint index."""
+        """Compute pure-pursuit heading error and the lookahead waypoint index.
+
+        Only called after the None-guard in _control_loop — yaw is always set.
+        """
+        assert self._current_yaw is not None  # narrowed by _control_loop guard
         fwd_dist = float("inf")
         if self._lidar_ranges is not None:
             fwd_dist = measure_distance_in_direction(

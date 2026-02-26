@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import time
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
+
+logger = logging.getLogger(__name__)
 
 from src.config.constants import (
     ColorNames,
@@ -50,7 +53,7 @@ try:
     ROS2_AVAILABLE = True
 except ImportError:
     ROS2_AVAILABLE = False
-    print("WARNING: ROS2 not available. Running in standalone mode.")
+    logging.getLogger(__name__).warning("ROS2 not available — running in standalone mode")
 
 
 class ScenarioGenerator:
@@ -397,17 +400,22 @@ def main() -> None:
         challenge_type=args.challenge,
     )
 
-    print(f"Generating {args.num_scenarios} '{args.challenge}' scenarios → {challenge_output_dir}")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    logger.info(
+        "Generating %d '%s' scenarios → %s",
+        args.num_scenarios, args.challenge, challenge_output_dir,
+    )
     for index in range(args.num_scenarios):
         world_file, metadata = generator.create_scenario_world(
             index, randomize_all=args.randomize_all
         )
-        print(
-            f"  [{index + 1}/{args.num_scenarios}] "
-            f"{world_file.name}  signs={metadata[DictKeys.NUM_SIGNS]}"
+        logger.info(
+            "[%d/%d] %s  signs=%d",
+            index + 1, args.num_scenarios,
+            world_file.name, metadata[DictKeys.NUM_SIGNS],
         )
 
-    print("Done.")
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
