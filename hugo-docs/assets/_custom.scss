@@ -814,12 +814,6 @@ html {
     scroll-padding-top: var(--space-xl);
 }
 
-// Page load animation
-// Smooth scrolling for the whole page
-html {
-    scroll-behavior: smooth;
-}
-
 // Reduce motion for users who prefer it
 @media (prefers-reduced-motion: reduce) {
     *,

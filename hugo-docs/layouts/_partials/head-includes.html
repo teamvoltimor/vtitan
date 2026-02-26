@@ -5,6 +5,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
+{{- /* Debug mode flag - enable via window.themeDebug = true in console or BookDebug param */ -}}
+{{- $debug := default false .Site.Params.BookDebug -}}
+{{- if $debug }}
+<script>window.themeDebug = true;</script>
+{{- end }}
+
 {{- /* Inline theme initialization to prevent flash */ -}}
 <script>
     (function () {

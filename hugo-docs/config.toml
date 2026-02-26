@@ -1,6 +1,6 @@
-baseURL = "http://example.org/"
+baseURL = "https://klevor.teamsteelbot.com/"
 languageCode = "en-us"
-title = "My Docs"
+title = "Klevor Docs"
 theme = "hugo-book"
 defaultContentLanguage = "en"
 enableGitInfo = true
@@ -10,9 +10,9 @@ contentDir = "content/v1"
 BookTheme = "auto"
 BookToC = true
 BookSearch = true
-BookRepo = "https://github.com/your/repo"
-BookLogo = "logo.png"
+BookRepo = "https://github.com/teamsteelbot/klevor"
 BookSection = "*"
+BookDebug = false
 
 
 

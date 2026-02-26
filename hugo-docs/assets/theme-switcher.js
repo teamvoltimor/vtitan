@@ -4,6 +4,13 @@
   const THEMES = ['light', 'dark', 'auto'];
   const STORAGE_KEY = 'theme-preference';
 
+  // Debug logging - enabled via window.themeDebug = true or BookDebug param
+  function debug() {
+    if (window.themeDebug) {
+      console.apply(console, ['[Theme]'].concat(Array.from(arguments)));
+    }
+  }
+
   // Get system preference
   function getSystemTheme() {
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -27,7 +34,7 @@
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch (e) {
-      console.warn('Could not store theme preference:', e);
+      debug('Could not store theme preference:', e);
     }
   }
 
@@ -45,7 +52,7 @@
     const html = document.documentElement;
     const body = document.body;
 
-    console.log('Applying theme:', effectiveTheme, 'from preference:', preference);
+    debug('Applying theme:', effectiveTheme, 'from preference:', preference);
 
     // Remove ALL theme classes first
     html.classList.remove('light', 'dark');
@@ -64,8 +71,8 @@
 
     // Update button state
     updateButtonState(preference);
-
-    console.log('Theme applied. HTML classes:', html.className, 'Body classes:', body.className);
+    
+    debug('Theme applied. HTML classes:', html.className, 'Body classes:', body.className);
   }
 
   // Update theme toggle button state
@@ -98,7 +105,7 @@
     const nextIndex = (currentIndex + 1) % THEMES.length;
     const nextTheme = THEMES[nextIndex];
 
-    console.log('Cycling from', currentPreference, 'to', nextTheme);
+    debug('Cycling from', currentPreference, 'to', nextTheme);
 
     storeTheme(nextTheme);
     applyTheme(nextTheme);
@@ -113,7 +120,7 @@
     const handleChange = () => {
       const preference = getStoredTheme();
       if (preference === 'auto') {
-        console.log('System theme changed, reapplying auto theme');
+        debug('System theme changed, reapplying auto theme');
         applyTheme('auto');
       }
     };
@@ -130,16 +137,16 @@
     const button = document.getElementById('theme-toggle');
     if (button) {
       button.addEventListener('click', cycleTheme);
-      console.log('Theme toggle button listener attached');
+      debug('Theme toggle button listener attached');
     } else {
-      console.warn('Theme toggle button not found!');
+      debug('Theme toggle button not found!');
     }
   }
 
   // Initialize on DOM ready
   function init() {
     const preference = getStoredTheme();
-    console.log('Initializing theme system with preference:', preference);
+    debug('Initializing theme system with preference:', preference);
     applyTheme(preference);
     setupListeners();
     watchSystemTheme();
