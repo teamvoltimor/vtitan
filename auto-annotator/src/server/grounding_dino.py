@@ -15,16 +15,19 @@ Two classes are provided:
 from __future__ import annotations
 
 import tempfile
+from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
-import numpy as np
 
 from src.server.constants import CFG_KEY_SUPPORTS_TEXT
+from src.server.yoloe import _NoopPredictor
 from src.utils import get_logger
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from src.server.context import ServerContext
 
 logger = get_logger(__name__)
@@ -46,12 +49,15 @@ class GroundingDINOTextSegmenter:
 
     def __init__(self, device: str) -> None:
         self.device = device
-        self._model: object | None = None
+        self._model: Any | None = None
         self._ontology_classes: list[str] = []
 
     def _build_model(self, class_names: list[str]) -> None:
-        from autodistill.detection import CaptionOntology  # type: ignore[import-untyped]
-        from autodistill_grounded_sam import GroundedSAM  # type: ignore[import-untyped]
+        autodistill_detection = import_module("autodistill.detection")
+        autodistill_grounded_sam = import_module("autodistill_grounded_sam")
+
+        CaptionOntology = autodistill_detection.CaptionOntology
+        GroundedSAM = autodistill_grounded_sam.GroundedSAM
 
         ontology = CaptionOntology({name: name for name in class_names})
         self._model = GroundedSAM(ontology=ontology)
@@ -78,8 +84,7 @@ class GroundingDINOTextSegmenter:
             self._build_model(class_names)
 
         per_class: dict[str, dict] = {
-            name: {"class_name": name, "masks": [], "scores": [], "boxes": []}
-            for name in class_names
+            name: {"class_name": name, "masks": [], "scores": [], "boxes": []} for name in class_names
         }
 
         tmp_path: str | None = None
@@ -90,8 +95,8 @@ class GroundingDINOTextSegmenter:
             bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             cv2.imwrite(tmp_path, bgr)
 
-            detections = self._model.predict(tmp_path)
-        except Exception as exc:
+            detections = self._predict(tmp_path)
+        except (OSError, RuntimeError, ValueError) as exc:
             logger.warning(
                 "Grounding DINO predict failed",
                 extra={"_extra": {"err": str(exc)}},
@@ -104,6 +109,27 @@ class GroundingDINOTextSegmenter:
         if detections is None:
             return list(per_class.values())
 
+        self._merge_detections(per_class, class_names, detections)
+
+        return list(per_class.values())
+
+    def _ensure_model(self) -> Any:
+        model = self._model
+        if model is None:
+            err_msg = "Grounding DINO model is not initialised"
+            raise RuntimeError(err_msg)
+        return model
+
+    def _predict(self, path: str) -> Any:
+        model = self._ensure_model()
+        return model.predict(path)
+
+    def _merge_detections(
+        self,
+        per_class: dict[str, dict],
+        class_names: list[str],
+        detections: Any,
+    ) -> None:
         n = len(detections) if hasattr(detections, "__len__") else 0
         masks = getattr(detections, "mask", None)
         confidences = getattr(detections, "confidence", None)
@@ -111,25 +137,43 @@ class GroundingDINOTextSegmenter:
         xyxy = getattr(detections, "xyxy", None)
 
         for i in range(n):
-            cls_idx = int(class_ids[i]) if class_ids is not None else 0
-            if cls_idx >= len(class_names):
-                continue
+            self._append_detection(
+                per_class,
+                class_names,
+                masks,
+                confidences,
+                class_ids,
+                xyxy,
+                i,
+            )
 
-            cls_name = class_names[cls_idx]
+    def _append_detection(
+        self,
+        per_class: dict[str, dict],
+        class_names: list[str],
+        masks: Any | None,
+        confidences: Any | None,
+        class_ids: Any | None,
+        xyxy: Any | None,
+        index: int,
+    ) -> None:
+        cls_idx = int(class_ids[index]) if class_ids is not None else 0
+        if cls_idx >= len(class_names):
+            return
 
-            if masks is not None and i < len(masks):
-                mask_bool = masks[i].astype(bool)
-                per_class[cls_name]["masks"].append(mask_bool)
-            else:
-                continue
+        cls_name = class_names[cls_idx]
 
-            if confidences is not None and i < len(confidences):
-                per_class[cls_name]["scores"].append(float(confidences[i]))
+        if masks is None or index >= len(masks):
+            return
 
-            if xyxy is not None and i < len(xyxy):
-                per_class[cls_name]["boxes"].append(xyxy[i].tolist())
+        mask_bool = masks[index].astype(bool)
+        per_class[cls_name]["masks"].append(mask_bool)
 
-        return list(per_class.values())
+        if confidences is not None and index < len(confidences):
+            per_class[cls_name]["scores"].append(float(confidences[index]))
+
+        if xyxy is not None and index < len(xyxy):
+            per_class[cls_name]["boxes"].append(xyxy[index].tolist())
 
 
 def load_grounding_dino(cfg: dict, ctx: ServerContext) -> None:
@@ -146,8 +190,6 @@ def load_grounding_dino(cfg: dict, ctx: ServerContext) -> None:
         cfg: Model config dict from ``models.toml``; optionally contains ``supports_text``.
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
-    from src.server.yoloe import _NoopPredictor
-
     ctx.predictor = _NoopPredictor()
     ctx.text_seg = None
 

@@ -32,6 +32,8 @@ from src.server.yoloe import load_yoloe
 from src.utils import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from src.server.context import ServerContext
 
 logger = get_logger(__name__)
@@ -80,9 +82,7 @@ def is_available(cfg: dict, base: Path) -> bool:
         return bool(hf)
     if mtype == MODEL_TYPE_YOLOE:
         return ckpt is not None and ckpt.exists()
-    if mtype == MODEL_TYPE_GROUNDING_DINO:
-        return True
-    return False
+    return mtype == MODEL_TYPE_GROUNDING_DINO
 
 
 def load_model(model_id: str, ctx: ServerContext) -> str | None:
@@ -110,20 +110,21 @@ def load_model(model_id: str, ctx: ServerContext) -> str | None:
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+    loaders: dict[str, Callable[[dict, ServerContext], None]] = {
+        MODEL_TYPE_SAM1: load_sam1,
+        MODEL_TYPE_SAM2: load_sam2,
+        MODEL_TYPE_SAM3: load_sam3,
+        MODEL_TYPE_YOLOE: load_yoloe,
+        MODEL_TYPE_GROUNDING_DINO: load_grounding_dino,
+    }
+
     try:
         mtype = cfg.get(CFG_KEY_TYPE, "")
-        if mtype == MODEL_TYPE_SAM1:
-            load_sam1(cfg, ctx)
-        elif mtype == MODEL_TYPE_SAM2:
-            load_sam2(cfg, ctx)
-        elif mtype == MODEL_TYPE_SAM3:
-            load_sam3(cfg, ctx)
-        elif mtype == MODEL_TYPE_YOLOE:
-            load_yoloe(cfg, ctx)
-        elif mtype == MODEL_TYPE_GROUNDING_DINO:
-            load_grounding_dino(cfg, ctx)
-        else:
+        loader = loaders.get(mtype)
+        if loader is None:
             return f"Unknown model type: {mtype!r}"
+
+        loader(cfg, ctx)
 
         ctx.model_id = model_id
     except Exception as e:

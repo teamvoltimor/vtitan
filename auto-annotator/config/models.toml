@@ -14,6 +14,8 @@
 #   variant       – SAM1 only: "vit_h" | "vit_l" | "vit_b"
 #   supports_text – SAM3/YOLOE/Grounding DINO: enables text-prompted auto-annotation
 
+default_model = "sam2.1-large"
+
 [[models]]
 id            = "yoloe-26l"
 label         = "YOLOE 26L (Auto-detect)"

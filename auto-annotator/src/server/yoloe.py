@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
-from src.server.constants import CFG_KEY_CHECKPOINT, CFG_KEY_SUPPORTS_TEXT
+from src.server.constants import CFG_KEY_CHECKPOINT, CFG_KEY_SUPPORTS_TEXT, PROJECT_ROOT
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -48,6 +48,13 @@ class _NoopPredictor:
         raise NotImplementedError(msg)
 
 
+try:
+    from ultralytics.yolo import YOLO as YOLOE  # type: ignore[import-untyped]
+except ModuleNotFoundError as exc:
+    error_msg = "ultralytics is required to load YOLOETextSegmenter"
+    raise RuntimeError(error_msg) from exc
+
+
 class YOLOETextSegmenter:
     """Open-vocabulary text-prompted segmenter powered by YOLOE.
 
@@ -60,8 +67,6 @@ class YOLOETextSegmenter:
     """
 
     def __init__(self, checkpoint: str, device: str) -> None:
-        from ultralytics import YOLOE  # type: ignore[import-untyped]
-
         self.model = YOLOE(checkpoint)
         self.device = device
         if device == "cuda":
@@ -89,8 +94,7 @@ class YOLOETextSegmenter:
         results = self.model.predict(image, verbose=False)
 
         per_class: dict[str, dict] = {
-            name: {"class_name": name, "masks": [], "scores": [], "boxes": []}
-            for name in class_names
+            name: {"class_name": name, "masks": [], "scores": [], "boxes": []} for name in class_names
         }
 
         if not results:
@@ -142,7 +146,6 @@ def load_yoloe(cfg: dict, ctx: ServerContext) -> None:
     """
     ckpt = Path(cfg[CFG_KEY_CHECKPOINT])
     if not ckpt.is_absolute():
-        from src.server.constants import PROJECT_ROOT
         ckpt = PROJECT_ROOT / ckpt
 
     logger.info("Loading YOLOE from %s", ckpt)

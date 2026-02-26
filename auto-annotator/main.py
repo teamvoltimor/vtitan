@@ -35,10 +35,10 @@ def _run_app() -> None:
     logger.info("App built in %.2fs", elapsed)
 
 
-def _run_server() -> None:
+def _run_server(default_model: str | None) -> None:
     from src.server.main import run_server
 
-    run_server()
+    run_server(default_model)
 
 
 def main() -> None:
@@ -52,12 +52,18 @@ def main() -> None:
         choices=["app", "server"],
         help="'app' starts the Gradio UI; 'server' starts the SAM model server.",
     )
+    parser.add_argument(
+        "--model",
+        dest="default_model",
+        help="When launching in server mode, override the default model ID.",
+        default=None,
+    )
     args = parser.parse_args()
 
     if args.mode == "app":
         _run_app()
     else:
-        _run_server()
+        _run_server(args.default_model)
 
 
 if __name__ == "__main__":

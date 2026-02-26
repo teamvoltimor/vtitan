@@ -73,16 +73,16 @@ def _handle_client(conn: socket.socket, ctx: ServerContext, lock: threading.Lock
             pass
 
 
-def run_server() -> None:
+def run_server(default_model: str | None = None) -> None:
     """Initialise the model and start the TCP server loop."""
     start = time.monotonic()
 
     os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
-    default_model = os.environ.get("DEFAULT_MODEL", "")
+    resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     ctx = ServerContext(models_config=_load_config(), device=device)
-    initial_load(ctx, default_model)
+    initial_load(ctx, resolved_default)
 
     lock = threading.Lock()
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

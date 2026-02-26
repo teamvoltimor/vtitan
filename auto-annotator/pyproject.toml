@@ -19,6 +19,7 @@ dependencies = [
     "ultralytics>=8.4.14",
     "autodistill==0.1.29",
     "autodistill-grounded-sam==0.1.2",
+    "dotenv>=0.9.9",
 ]
 
 [[tool.uv.index]]
