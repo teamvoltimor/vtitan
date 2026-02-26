@@ -8,7 +8,7 @@ Official Source: WRO Future Engineers Competition Rules 2026
 Last Updated: 2026-02-08
 """
 
-from enums import Section
+from src.config.enums import Section
 
 
 class TrackDimensions:

@@ -14,6 +14,7 @@ from src.render import render_state_image
 
 def switch_model(model_id: str, state: AppState, app_ctx: AppContext) -> SwitchModelResponse:
     """Load a different SAM model on the server and reset image state."""
+    # Guard: server connection and a selected model id are both required.
     if app_ctx.client is None:
         return SwitchModelResponse(
             state=state,
@@ -35,6 +36,7 @@ def switch_model(model_id: str, state: AppState, app_ctx: AppContext) -> SwitchM
             auto_btn_update=gr.update(visible=False),
         )
 
+    # Reset per-image state so the new model starts clean.
     state.image_set = False
     state.point_buffer = []
     state.pending_mask = None
@@ -43,6 +45,7 @@ def switch_model(model_id: str, state: AppState, app_ctx: AppContext) -> SwitchM
     state.pending_mask_idx = 0
     state.active_model_id = model_id
 
+    # Query the server for updated model capabilities (e.g. text-seg support).
     models = app_ctx.client.list_models()
     active_cfg = next((m for m in models if m["id"] == model_id), {})
     state.model_supports_text = active_cfg.get("supports_text", False)
@@ -99,6 +102,7 @@ def _append_mask_annotation(
 
 def auto_annotate(state: AppState, app_ctx: AppContext) -> AutoAnnotateResponse:
     """Run SAM3 text-prompted segmentation for every defined class."""
+    # Guard: server, loaded image, and at least one class are all required.
     if app_ctx.client is None:
         return AutoAnnotateResponse(
             display_img=render_state_image(state),
@@ -123,6 +127,7 @@ def auto_annotate(state: AppState, app_ctx: AppContext) -> AutoAnnotateResponse:
             ann_box_update=gr.update(),
         )
 
+    # Send all class names to the server for text-prompted segmentation.
     class_names = [c.name for c in state.classes]
     try:
         results = app_ctx.client.predict_text(state.current_image, class_names)
@@ -134,6 +139,7 @@ def auto_annotate(state: AppState, app_ctx: AppContext) -> AutoAnnotateResponse:
             ann_box_update=gr.update(),
         )
 
+    # Convert valid server masks to local Annotation objects.
     yolo_map = db.classes_to_yolo_map()
     classes_by_name = {c.name: c for c in state.classes}
     added_count = 0

@@ -83,6 +83,7 @@ def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext
     if client is not None:
         return
 
+    # Lazy-import torch and capture the OOM error class for later detection.
     import torch
     ctx.torch_module = torch
     ctx.oom_error = torch.cuda.OutOfMemoryError
@@ -90,6 +91,7 @@ def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext
 
     local_ckpt = MODELS_DIR / SAM2_LOCAL_CHECKPOINT_FILENAME
 
+    # Try the native sam2 package first; prefer a local checkpoint over HuggingFace download.
     try:
         from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]
         if local_ckpt.exists():
@@ -101,6 +103,7 @@ def initialize_inference(client: ModelServerClient | None, ctx: InferenceContext
         ctx.use_native = True
     except Exception as e:
         logger.info("SAM2 native unavailable", extra={"_extra": {"err": str(e)}})
+        # Ultralytics SAM is a lighter fallback that sacrifices multi-mask output.
         try:
             from ultralytics import SAM as _UltSAM  # type: ignore[import-untyped]
             ctx.predictor = _UltSAM(SAM2_LOCAL_CHECKPOINT_FILENAME)
@@ -180,6 +183,7 @@ def run_sam_inference(
     Returns:
         :class:`~src.models.InferenceResult` with ``ok == True`` on success.
     """
+    # Guard: require image, points, and at least one active backend.
     img = state.current_image
     if img is None:
         return InferenceResult(masks=None, best_idx=0, scores_str="", error="No image loaded.")
@@ -188,6 +192,7 @@ def run_sam_inference(
     if client is None and ctx.predictor is None:
         return InferenceResult(masks=None, best_idx=0, scores_str="", error="SAM model not loaded.")
 
+    # Convert point buffer to arrays and carry over previous logits for iterative refinement.
     pts = state.point_buffer
     coords = np.array([[p.x, p.y] for p in pts], dtype=np.float32)
     labels = np.array([p.label for p in pts], dtype=np.int32)
@@ -204,6 +209,7 @@ def run_sam_inference(
 
     try:
         if client is not None:
+            # Server mode: delegate inference to the model server process.
             if not state.image_set:
                 client.set_image(img)
                 state.image_set = True
@@ -213,6 +219,7 @@ def run_sam_inference(
             scores_flat = np.array(scores_list)
 
         elif ctx.use_native:
+            # Native SAM2: pre-load the image on first call, then predict with autocast.
             if not state.image_set:
                 with ctx.torch_module.inference_mode(), _autocast_ctx(ctx):
                     ctx.predictor.set_image(img)
@@ -247,8 +254,10 @@ def run_sam_inference(
         if client is None:
             _empty_cache(ctx)
 
+    # Store logits for iterative refinement on the next click.
     state.pending_logits = logits_out
 
+    # Filter stray background blobs then select the highest-scoring mask.
     positive_pts = [p for p in pts if p.label == 1]
     all_masks = [_filter_cc(m, positive_pts) for m in all_masks]
 

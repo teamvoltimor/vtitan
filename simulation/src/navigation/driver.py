@@ -17,7 +17,7 @@ import math
 import time
 import argparse
 
-from constants import RobotSpecs
+from src.config.constants import RobotSpecs
 
 
 class SimpleRobotDriver(Node):

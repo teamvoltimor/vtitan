@@ -43,9 +43,9 @@ except ImportError:
     sys.exit(1)
 
 # Import scenario generator
-from generate_training_data import ScenarioGenerator
-from constants import DictKeys, FileExtensions, FolderNames, FilePaths
-from enums import Section, Direction
+from src.generation.generator import ScenarioGenerator
+from src.config.constants import DictKeys, FileExtensions, FolderNames, FilePaths
+from src.config.enums import Section, Direction
 
 
 class VideoRecorderNode(Node):

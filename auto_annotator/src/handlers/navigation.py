@@ -32,11 +32,13 @@ def _restore_annotations(
     if not label_file.exists():
         return []
 
+    # Build class maps for translating YOLO indices ↔ DB class ids.
     image_h, image_w = image.shape[:2]
     yolo_map = _db.classes_to_yolo_map()
     reverse_yolo_map = {v: k for k, v in yolo_map.items()}
     classes_by_id = {c.id: c for c in classes}
 
+    # Parse each line into an Annotation; skip malformed or unrecognised entries.
     annotations: list[Annotation] = []
     for line in label_file.read_text().splitlines():
         parts = line.strip().split()
@@ -71,17 +73,21 @@ def _parse_yolo_seg_line(
         A fully populated :class:`Annotation`, or ``None`` when the line is
         malformed or the class is not recognised.
     """
+    # Parse class index and flat normalised coordinate list.
     try:
         yolo_class_id = int(parts[0])
         coords = [float(v) for v in parts[1:]]
     except ValueError:
         return None
 
+    # Map YOLO class index → DB class id → ClassInfo.
     db_class_id = reverse_yolo_map.get(yolo_class_id)
     if db_class_id is None or db_class_id not in classes_by_id:
         return None
 
     class_info = classes_by_id[db_class_id]
+
+    # Denormalise coordinates from [0, 1] to pixel space and rasterise the polygon.
     xs_norm = coords[0::2]
     ys_norm = coords[1::2]
     polygon_pixels = np.array(
@@ -111,6 +117,7 @@ def _load_image(
     labels_dir: Path,
 ) -> tuple[np.ndarray, str, str]:
     """Load image from an ImageRecord into state.  Returns (rendered, label, stats_html)."""
+    # Read file and convert from OpenCV BGR to RGB.
     image_path = Path(record.path)
     bgr = cv2.imread(str(image_path))
     if bgr is None:
@@ -118,6 +125,7 @@ def _load_image(
 
     rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
+    # Reset all per-image state fields before populating.
     state.current_image_id = record.id
     state.current_image = rgb
     state.point_buffer = []
@@ -128,6 +136,7 @@ def _load_image(
     state.pending_class_db_id = None
     state.image_set = False
 
+    # Pre-load the image on the model server to avoid the round-trip on first click.
     if app_ctx.client is not None:
         try:
             app_ctx.client.set_image(rgb)
@@ -135,6 +144,7 @@ def _load_image(
         except Exception:  # noqa: BLE001, S110
             pass
 
+    # Restore previously saved annotations from the YOLO label file.
     state.annotations = _restore_annotations(record.id, rgb, state.classes, labels_dir)
 
     return render_state_image(state), image_path.name, stats_html()
@@ -148,6 +158,7 @@ def _write_labels(state: AppState, export_format: str, labels_dir: Path) -> bool
     if record is None:
         return False
 
+    # Build one YOLO line per annotation, skipping entries with missing geometry.
     label_file = labels_dir / (Path(record.path).stem + ".txt")
     lines: list[str] = []
 

@@ -151,6 +151,7 @@ def select_mask_level(level_str: str, state: AppState) -> SelectMaskResponse:
 
 def accept_mask(state: AppState) -> AcceptUndoResponse:
     """Accept the pending mask using the class that was active when the mask was created."""
+    # Guard: require a pending mask and a registered class.
     pending = state.pending_mask
     if pending is None:
         return _err_accept_undo(state, "No pending mask.")
@@ -160,6 +161,7 @@ def accept_mask(state: AppState) -> AcceptUndoResponse:
     if cls_info is None:
         return _err_accept_undo(state, "No class selected.")
 
+    # Convert the pending mask to YOLO polygon and bounding-box coordinates.
     yolo_map = _db.classes_to_yolo_map()
     yolo_cls_id = yolo_map.get(cls_id, 0)
     polygon = mask_to_yolo_polygon(pending)
@@ -175,6 +177,7 @@ def accept_mask(state: AppState) -> AcceptUndoResponse:
             mask_level_update=gr.update(visible=False),
         )
 
+    # Commit the annotation then wipe pending state and point buffer.
     state.annotations.append(
         Annotation(
             class_db_id=cls_id,
@@ -202,10 +205,12 @@ def accept_mask(state: AppState) -> AcceptUndoResponse:
 
 def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
     """Undo with priority: point → clear mask → annotation."""
+    # Priority 1: pop the last click point.
     if state.point_buffer:
         state.point_buffer.pop()
 
         if state.point_buffer:
+            # Points remain — re-run SAM to refresh the pending mask.
             result = run_sam_inference(state, app_ctx.client, app_ctx.inference)
             if not result.ok:
                 return _err_accept_undo(state, result.error)
@@ -222,6 +227,7 @@ def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
                 mask_level_update=gr.update(visible=len(result.masks) > 1, value=best_label),
             )
 
+        # No points left — discard the pending mask entirely.
         _clear_pending(state)
         _log(state, "Undo: cleared points and pending mask")
         return AcceptUndoResponse(
@@ -232,6 +238,7 @@ def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
             mask_level_update=gr.update(visible=False),
         )
 
+    # Priority 2: clear the pending mask with no points to re-run.
     if state.pending_mask is not None:
         _clear_pending(state)
         _log(state, "Undo: cleared pending mask")
@@ -243,6 +250,7 @@ def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
             mask_level_update=gr.update(visible=False),
         )
 
+    # Priority 3: remove the last accepted annotation.
     if state.annotations:
         removed = state.annotations.pop()
         _log(state, f"Undo: removed {removed.class_name}")
@@ -254,6 +262,7 @@ def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
             mask_level_update=gr.update(visible=False),
         )
 
+    # Priority 4: nothing to undo.
     _log(state, "Nothing to undo")
     return AcceptUndoResponse(
         display_img=render_state_image(state),

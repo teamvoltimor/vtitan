@@ -1,5 +1,5 @@
-from constants import TrafficSignSpecs
-from enums import Direction, Section
+from src.config.constants import TrafficSignSpecs
+from src.config.enums import Direction, Section
 
 def rgb_to_normalized(r, g, b):
     """Convert RGB(0-255) to normalized RGB(0-1)
