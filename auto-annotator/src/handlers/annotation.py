@@ -53,8 +53,8 @@ def _sam_response(state: AppState, all_masks: list, best_idx: int, scores_str: s
     state.pending_mask_idx = best_idx
 
     best_label = MASK_LABELS[best_idx] if best_idx < len(MASK_LABELS) else MASK_LABELS[0]
-    n_pos = sum(1 for p in state.point_buffer if p.label == 1)
-    n_neg = sum(1 for p in state.point_buffer if p.label == 0)
+    n_pos = sum(p.label for p in state.point_buffer)
+    n_neg = len(state.point_buffer) - n_pos
     _log(state, f"{n_pos}+ {n_neg}\u2212  {best_label}  {scores_str}")
 
     return ClickRunResponse(
@@ -77,8 +77,7 @@ def _err_click(state: AppState, msg: str) -> ClickRunResponse:
     )
 
 
-def _err_accept_undo(state: AppState, msg: str) -> AcceptUndoResponse:
-    _log(state, msg)
+def _build_undo_response(state: AppState) -> AcceptUndoResponse:
     return AcceptUndoResponse(
         display_img=render_state_image(state),
         state=state,
@@ -88,7 +87,13 @@ def _err_accept_undo(state: AppState, msg: str) -> AcceptUndoResponse:
     )
 
 
+def _err_accept_undo(state: AppState, msg: str) -> AcceptUndoResponse:
+    _log(state, msg)
+    return _build_undo_response(state)
+
+
 def _clear_pending(state: AppState) -> None:
+    state.point_buffer = []
     state.pending_mask = None
     state.pending_masks = []
     state.pending_logits = None
@@ -169,13 +174,7 @@ def accept_mask(state: AppState) -> AcceptUndoResponse:
 
     if not polygon:
         _log(state, "Mask too small to polygonise.")
-        return AcceptUndoResponse(
-            display_img=render_state_image(state),
-            state=state,
-            log_str=_log_str(state),
-            ann_summary=format_annotations_summary(state.annotations),
-            mask_level_update=gr.update(visible=False),
-        )
+        return _build_undo_response(state)
 
     # Commit the annotation then wipe pending state and point buffer.
     state.annotations.append(
@@ -192,15 +191,8 @@ def accept_mask(state: AppState) -> AcceptUndoResponse:
     _log(state, f"Accepted mask #{len(state.annotations)} \u2013 {cls_info.name}")
 
     _clear_pending(state)
-    state.point_buffer = []
 
-    return AcceptUndoResponse(
-        display_img=render_state_image(state),
-        state=state,
-        log_str=_log_str(state),
-        ann_summary=format_annotations_summary(state.annotations),
-        mask_level_update=gr.update(visible=False),
-    )
+    return _build_undo_response(state)
 
 
 def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
@@ -230,52 +222,27 @@ def undo_last(state: AppState, app_ctx: AppContext) -> AcceptUndoResponse:
         # No points left — discard the pending mask entirely.
         _clear_pending(state)
         _log(state, "Undo: cleared points and pending mask")
-        return AcceptUndoResponse(
-            display_img=render_state_image(state),
-            state=state,
-            log_str=_log_str(state),
-            ann_summary=format_annotations_summary(state.annotations),
-            mask_level_update=gr.update(visible=False),
-        )
+        return _build_undo_response(state)
 
     # Priority 2: clear the pending mask with no points to re-run.
     if state.pending_mask is not None:
         _clear_pending(state)
         _log(state, "Undo: cleared pending mask")
-        return AcceptUndoResponse(
-            display_img=render_state_image(state),
-            state=state,
-            log_str=_log_str(state),
-            ann_summary=format_annotations_summary(state.annotations),
-            mask_level_update=gr.update(visible=False),
-        )
+        return _build_undo_response(state)
 
     # Priority 3: remove the last accepted annotation.
     if state.annotations:
         removed = state.annotations.pop()
         _log(state, f"Undo: removed {removed.class_name}")
-        return AcceptUndoResponse(
-            display_img=render_state_image(state),
-            state=state,
-            log_str=_log_str(state),
-            ann_summary=format_annotations_summary(state.annotations),
-            mask_level_update=gr.update(visible=False),
-        )
+        return _build_undo_response(state)
 
     # Priority 4: nothing to undo.
     _log(state, "Nothing to undo")
-    return AcceptUndoResponse(
-        display_img=render_state_image(state),
-        state=state,
-        log_str=_log_str(state),
-        ann_summary=format_annotations_summary(state.annotations),
-        mask_level_update=gr.update(visible=False),
-    )
+    return _build_undo_response(state)
 
 
 def clear_points(state: AppState) -> ClearPointsResponse:
     """Clear all points and the pending mask."""
-    state.point_buffer = []
     _clear_pending(state)
     _log(state, "Points cleared")
     return ClearPointsResponse(

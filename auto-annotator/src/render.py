@@ -47,7 +47,8 @@ from src.enums import OutlineMode
 
 if TYPE_CHECKING:
     from src.models import AppState
-from src.utils import _hex_to_rgb
+
+from src.utils import hex_to_rgb
 
 
 def _resolve_outline_color(
@@ -68,7 +69,7 @@ def _resolve_outline_color(
         ``(R, G, B)`` int tuple for the outline colour.
     """
     if mode == OutlineMode.CLASS_COLOR:
-        return _hex_to_rgb(class_color)
+        return hex_to_rgb(class_color)
     if mode == OutlineMode.BLACK:
         return COLOR_BLACK_RGB
     if mode == OutlineMode.WHITE:
@@ -104,7 +105,7 @@ def render_state_image(state: AppState) -> np.ndarray:
 
     # Layer 1: accepted annotation fills.
     for ann in state.annotations:
-        color_rgb = _hex_to_rgb(ann.class_color)
+        color_rgb = hex_to_rgb(ann.class_color)
         mask = ann.mask
         colored = np.zeros_like(result)
         colored[mask] = color_rgb
@@ -119,7 +120,7 @@ def render_state_image(state: AppState) -> np.ndarray:
     pending_class = state.pending_class_db_id
     if pending_mask is not None and pending_class is not None:
         cls_map = {c.id: c.color for c in state.classes}
-        p_color_rgb = _hex_to_rgb(cls_map.get(pending_class, COLOR_WHITE_HEX))
+        p_color_rgb = hex_to_rgb(cls_map.get(pending_class, COLOR_WHITE_HEX))
         colored = np.zeros_like(result)
         colored[pending_mask] = p_color_rgb
         result = np.where(
@@ -154,16 +155,17 @@ def render_state_image(state: AppState) -> np.ndarray:
 
     # Layer 5: click-point circles.
     class_colors_map = {c.id: c.color for c in state.classes}
-    default_point_color: tuple[int, int, int] = _hex_to_rgb(
-        class_colors_map.get(state.pending_class_db_id, COLOR_GREEN_HEX)
-        if state.pending_class_db_id is not None
+    pending_class_id = state.pending_class_db_id
+    default_point_color: tuple[int, int, int] = hex_to_rgb(
+        class_colors_map[pending_class_id]
+        if pending_class_id is not None and pending_class_id in class_colors_map
         else COLOR_GREEN_HEX,
     )
 
     for pt in state.point_buffer:
         px, py = pt.x, pt.y
         pt_color = (
-            _hex_to_rgb(class_colors_map[pt.class_id])
+            hex_to_rgb(class_colors_map[pt.class_id])
             if pt.class_id in class_colors_map
             else default_point_color
         )
@@ -188,7 +190,7 @@ def render_state_image(state: AppState) -> np.ndarray:
 
     y = CANVAS_LEGEND_START_Y
     for _cid, (cname, chex) in sorted(seen.items()):
-        color_rgb = _hex_to_rgb(chex)
+        color_rgb = hex_to_rgb(chex)
         cv2.rectangle(
             result_u8,
             (CANVAS_LEGEND_SWATCH_X1, y),

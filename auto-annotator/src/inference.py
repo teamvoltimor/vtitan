@@ -14,7 +14,6 @@ which is passed explicitly through every function.  No global state is used.
 from __future__ import annotations
 
 import contextlib
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import cv2
@@ -24,7 +23,6 @@ from src.constants import (
     DEVICE_CPU,
     DEVICE_CUDA,
     INFERENCE_DEFAULT_MASK_SCORE,
-    INFERENCE_LOG_MAX_ENTRIES,
     MASK_LABELS,
     MODELS_DIR,
     SAM2_DEFAULT_HF_REPO,
@@ -35,6 +33,7 @@ from src.models import AppState, InferenceContext, InferenceResult, Point
 
 if TYPE_CHECKING:
     from src.sam_client import ModelServerClient
+
 from src.utils import get_logger
 
 logger = get_logger(__name__)
@@ -148,20 +147,6 @@ def _filter_cc(mask: np.ndarray, positive_pts: list[Point]) -> np.ndarray:
     for lbl in keep:
         result |= label_map == lbl
     return result
-
-
-def _log_entry(state: AppState, msg: str) -> None:
-    """Insert a timestamped entry at the front of ``state.log_entries``.
-
-    Trims the list to :data:`~src.constants.INFERENCE_LOG_MAX_ENTRIES` entries.
-
-    Args:
-        state: Mutable session state to update.
-        msg:   Message text to prepend.
-    """
-    ts = datetime.now(UTC).strftime("%H:%M:%S")
-    state.log_entries.insert(0, f"[{ts}] {msg}")
-    state.log_entries = state.log_entries[:INFERENCE_LOG_MAX_ENTRIES]
 
 
 def run_sam_inference(

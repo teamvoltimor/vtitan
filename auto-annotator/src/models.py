@@ -8,10 +8,12 @@ instead of raw tuples or plain dicts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     import numpy as np
+
+    from src.types import ClassId, ImageId, ModelId, YoloClassId
 
 
 @runtime_checkable
@@ -40,7 +42,7 @@ class SAMClientProtocol(Protocol):
         coords: np.ndarray,
         labels: np.ndarray,
         mask_input: np.ndarray | None = None,
-    ) -> tuple[list, list, object]:
+    ) -> tuple[list[np.ndarray], list[float], np.ndarray | None]:
         """Run point-prompted mask prediction.
 
         Args:
@@ -49,7 +51,9 @@ class SAMClientProtocol(Protocol):
             mask_input: Optional logit mask for iterative refinement.
 
         Returns:
-            Three-tuple ``(masks, scores, logits)``.
+            Three-tuple ``(masks, scores, logits)`` where masks is a list of
+            boolean H×W arrays, scores is a list of confidence floats, and
+            logits is the raw SAM output for iterative refinement (or ``None``).
         """
         ...
 
@@ -61,7 +65,7 @@ class SAMClientProtocol(Protocol):
         """
         ...
 
-    def set_model(self, model_id: str) -> dict:
+    def set_model(self, model_id: ModelId) -> dict:
         """Load a different model by *model_id*.
 
         Args:
@@ -95,7 +99,7 @@ class ClassInfo:
         color: CSS hex colour string (e.g. ``"#ee2737"``).
     """
 
-    id: int
+    id: ClassId
     name: str
     color: str
 
@@ -107,14 +111,14 @@ class Point:
     Attributes:
         x:        Pixel x-coordinate on the displayed canvas.
         y:        Pixel y-coordinate on the displayed canvas.
-        label:    1 = positive (include), 0 = negative (exclude).
+        label:    ``1`` = positive (include), ``0`` = negative (exclude).
         class_id: DB id of the class active at click time.
     """
 
     x: int
     y: int
-    label: int
-    class_id: int
+    label: Literal[0, 1]
+    class_id: ClassId
 
 
 @dataclass
@@ -131,10 +135,10 @@ class Annotation:
         mask:          Boolean H×W numpy array of the accepted mask.
     """
 
-    class_db_id: int
+    class_db_id: ClassId
     class_name: str
     class_color: str
-    yolo_class_id: int
+    yolo_class_id: YoloClassId
     polygon: list[float]
     bbox: list[float]
     mask: np.ndarray
@@ -152,7 +156,7 @@ class ImageRecord:
         updated_at:  ISO-8601 timestamp of the last status change, or ``None``.
     """
 
-    id: int
+    id: ImageId
     path: str
     status: int
     format_used: str | None
@@ -213,7 +217,7 @@ class BrowseRow:
         updated_at: ISO-8601 timestamp of the last status change, or ``""`` if never updated.
     """
 
-    id: int
+    id: ImageId
     filename: str
     status: str
     format: str
@@ -284,9 +288,9 @@ class AppState:
 
     classes: list[ClassInfo] = field(default_factory=list)
     outline_color: str = "Class color"
-    active_model_id: str | None = None
+    active_model_id: ModelId | None = None
     model_supports_text: bool = False
-    current_image_id: int | None = None
+    current_image_id: ImageId | None = None
     current_image: np.ndarray | None = None
     image_set: bool = False
     point_buffer: list[Point] = field(default_factory=list)
@@ -294,6 +298,6 @@ class AppState:
     pending_masks: list[np.ndarray] = field(default_factory=list)
     pending_logits: np.ndarray | None = None
     pending_mask_idx: int = 0
-    pending_class_db_id: int | None = None
+    pending_class_db_id: ClassId | None = None
     annotations: list[Annotation] = field(default_factory=list)
     log_entries: list[str] = field(default_factory=list)

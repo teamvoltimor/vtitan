@@ -49,7 +49,7 @@ class _NoopPredictor:
 
 
 try:
-    from ultralytics.yolo import YOLO as YOLOE  # type: ignore[import-untyped]
+    from ultralytics import YOLO as YOLOE  # type: ignore[import-untyped]
 except ModuleNotFoundError as exc:
     error_msg = "ultralytics is required to load YOLOETextSegmenter"
     raise RuntimeError(error_msg) from exc

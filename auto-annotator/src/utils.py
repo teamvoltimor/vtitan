@@ -116,7 +116,7 @@ Used by the Settings tab to suggest colours when adding new annotation classes.
 """
 
 
-def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+def hex_to_rgb(h: str) -> tuple[int, int, int]:
     """Parse a CSS hex or ``rgb()`` string to an ``(R, G, B)`` int tuple.
 
     Accepts both ``"#rrggbb"`` and ``"rgb(r, g, b)"`` formats.  Returns
@@ -138,10 +138,10 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
         return COLOR_RED_RGB
 
 
-def _hex_to_bgr(h: str) -> tuple[int, int, int]:
+def hex_to_bgr(h: str) -> tuple[int, int, int]:
     """Parse a CSS hex or ``rgb()`` string to a ``(B, G, R)`` int tuple (OpenCV order).
 
-    Convenience wrapper around :func:`_hex_to_rgb` that reverses the channel order
+    Convenience wrapper around :func:`hex_to_rgb` that reverses the channel order
     for use with OpenCV functions that expect BGR rather than RGB.
 
     Args:
@@ -150,5 +150,5 @@ def _hex_to_bgr(h: str) -> tuple[int, int, int]:
     Returns:
         Three-element tuple of integer channel values in BGR order.
     """
-    r, g, b = _hex_to_rgb(h)
+    r, g, b = hex_to_rgb(h)
     return b, g, r

@@ -8,16 +8,18 @@ import cv2
 import numpy as np
 
 from src import db as _db
+from src.constants import GEOMETRY_MINIMUM_POLYGON_POINTS
+from src.enums import ExportFormat
 from src.geometry import mask_to_yolo_bbox
 from src.handlers.responses import NavigationResponse
 from src.handlers.utils import format_annotations_summary
 from src.html import stats_html
 from src.models import Annotation, AppContext, AppState, ClassInfo, ImageRecord
 from src.render import render_state_image
+from src.ui.constants import DEFAULT_EXPORT_FMT
 
-# Minimum parts on a YOLO segmentation line: 1 class-id + 3 x/y pairs = 7 tokens.
-# Derived from GEOMETRY_MINIMUM_POLYGON_POINTS * 2 + 1.
-_YOLO_SEG_MIN_TOKENS: int = 7
+# Minimum tokens on a YOLO segmentation line: 1 class-id + 3 x/y pairs.
+_YOLO_SEG_MIN_TOKENS: int = GEOMETRY_MINIMUM_POLYGON_POINTS * 2 + 1
 
 
 def _restore_annotations(
@@ -25,7 +27,7 @@ def _restore_annotations(
 ) -> list[Annotation]:
     """Restore annotations from a YOLO .txt file when the image was saved as 'seg'."""
     record = _db.get_by_id(image_id)
-    if record is None or record.format_used != "seg":
+    if record is None or record.format_used != ExportFormat.SEG:
         return []
 
     label_file = labels_dir / (Path(record.path).stem + ".txt")
@@ -164,7 +166,7 @@ def _write_labels(state: AppState, export_format: str, labels_dir: Path) -> bool
 
     for ann in state.annotations:
         yolo_class_id = ann.yolo_class_id
-        if export_format == "seg":
+        if export_format == ExportFormat.SEG:
             if not ann.polygon:
                 continue
             coords = " ".join(f"{v:.6f}" for v in ann.polygon)
@@ -235,7 +237,7 @@ def save_and_next(
 ) -> NavigationResponse:
     """Write labels, mark image done, and load the next pending image."""
     image_id = state.current_image_id
-    normalized_format = "seg" if export_fmt == "Segmentation" else "det"
+    normalized_format = ExportFormat.SEG if export_fmt == DEFAULT_EXPORT_FMT else ExportFormat.DET
 
     if image_id is not None and _write_labels(state, normalized_format, labels_dir):
         _db.mark_done(image_id, normalized_format)
