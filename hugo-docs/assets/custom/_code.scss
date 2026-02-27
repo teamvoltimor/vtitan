@@ -1,11 +1,11 @@
 // CODE BLOCKS & SYNTAX HIGHLIGHTING
 // ============================================================================
 
-// Chroma Syntax Highlighting - Light Theme (Muted)
+// Chroma Syntax Highlighting - Light Theme
 :root {
-    --chroma-bg: #fafaf9;
-    --chroma-color: #44403c;
-    --chroma-comment: #78716c;
+    --chroma-bg: #f4f7fb;
+    --chroma-color: #1e293b;
+    --chroma-comment: #5e6b78;
     --chroma-keyword: #b91c1c;
     --chroma-string: #15803d;
     --chroma-number: #1d4ed8;
@@ -76,7 +76,7 @@ html[data-theme="dark"] {
 
     // Line numbers support
     .ln {
-        color: var(--gray-400);
+        color: var(--gray-500);
         user-select: none;
         margin-right: var(--space-md);
         padding-right: var(--space-md);
@@ -394,7 +394,7 @@ div.highlight[data-lang]::before ~ pre .code-copy-button {
     // Line numbers
     .ln,
     .linenos {
-        color: var(--gray-400);
+        color: var(--gray-500);
         user-select: none;
         padding-right: var(--space-md);
         margin-right: var(--space-md);

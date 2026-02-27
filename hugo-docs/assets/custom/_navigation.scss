@@ -4,23 +4,23 @@
 // Global Scrollbar Styles
 * {
     scrollbar-width: thin;
-    scrollbar-color: var(--gray-300) transparent;
+    scrollbar-color: var(--text-muted) transparent;
 }
 
 *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
 }
 
 *::-webkit-scrollbar-track {
-    background: var(--body-background);
+    background: var(--surface-muted);
     border-radius: 10px;
 }
 
 *::-webkit-scrollbar-thumb {
-    background: var(--gray-300);
+    background: var(--text-muted);
     border-radius: 10px;
-    border: 2px solid var(--body-background);
+    border: 2px solid var(--surface-muted);
     transition: background var(--transition-base);
 
     &:hover {
@@ -33,7 +33,7 @@
 }
 
 *::-webkit-scrollbar-corner {
-    background: var(--body-background);
+    background: var(--surface-muted);
 }
 
 // Custom Scrollbar Styles (Sidebar, TOC, etc.)
@@ -41,7 +41,7 @@
 .book-toc,
 .book-toc-content {
     scrollbar-width: thin;
-    scrollbar-color: var(--gray-300) var(--sidebar-bg);
+    scrollbar-color: var(--text-muted) var(--sidebar-bg);
 
     &::-webkit-scrollbar {
         width: 8px;
@@ -65,7 +65,7 @@
 
 .book-menu {
     background-color: var(--sidebar-bg);
-    border-right: 1px solid var(--color-border);
+    border-right: 1px solid var(--sidebar-border);
     position: sticky;
     top: 0;
     height: 100vh;
@@ -82,7 +82,7 @@
         color: var(--body-font-color);
         font-size: var(--text-sm);
         border-radius: var(--radius-sm);
-
+        
         &:hover {
             background-color: var(--hover-bg);
             text-decoration: none;
@@ -140,7 +140,7 @@ html:not(.dark):not([data-theme="dark"]) .book-toc-content {
     nav a {
         display: block;
         padding: 3px 0;
-        color: var(--gray-500);
+        color: var(--text-muted);
         border-left: none;
 
         &:hover {

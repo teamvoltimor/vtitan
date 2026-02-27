@@ -45,7 +45,7 @@
       "**/.idea/**",
       "**/public/**",
       "**/static/**",
-      "**/assets/**"
+      "**/themes/**"
     ],
     "maxSize": 10485760
   },

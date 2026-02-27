@@ -9,7 +9,7 @@
     gap: var(--space-md);
     margin-bottom: var(--space-md);
     padding-bottom: var(--space-md);
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--divider-color);
 
     .book-brand {
         margin-bottom: 0;
@@ -21,7 +21,7 @@
         a {
             font-size: 1rem;
             font-weight: 600;
-            color: var(--body-font-color) ;
+            color: var(--body-font-color);
             transition: color var(--transition-base);
 
             &:hover {

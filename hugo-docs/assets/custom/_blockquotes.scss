@@ -4,20 +4,11 @@
 blockquote {
     position: relative;
     margin: var(--space-xl) 0;
-    padding: var(--space-lg) var(--space-lg);
-    border-left: 4px solid var(--gray-300);
-    background-color: var(--gray-100);
-    border-radius: var(--radius-lg);
-    color: var(--gray-500);
-    box-shadow: var(--shadow-sm);
-    transition:
-        box-shadow var(--transition-base),
-        transform var(--transition-base);
-
-    &:hover {
-        box-shadow: var(--shadow-md);
-        transform: translateY(-2px);
-    }
+    padding: var(--space-md) var(--space-lg);
+    border-left: 3px solid var(--color-border);
+    background-color: var(--gray-50);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    color: var(--text-muted);
 
     > :first-child {
         margin-top: 0;

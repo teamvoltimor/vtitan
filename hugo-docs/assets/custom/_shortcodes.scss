@@ -7,15 +7,12 @@
     margin: var(--space-xl) 0;
     border-left: 4px solid;
     border-radius: var(--radius-lg);
-    background-color: var(--gray-100);
+    background-color: var(--surface-muted);
     box-shadow: var(--shadow-sm);
-    transition:
-        box-shadow var(--transition-base),
-        transform var(--transition-base);
+    transition: box-shadow var(--transition-base);
 
     &:hover {
         box-shadow: var(--shadow-md);
-        transform: translateY(-1px);
     }
 
     // Icon positioned on the LEFT side
@@ -32,8 +29,7 @@
         font-weight: var(--font-bold);
         border-radius: 50%;
         background: var(--body-background);
-        color: var(--gray-500);
-        box-shadow: var(--shadow-xs);
+        color: var(--text-muted);
     }
 
     strong {
