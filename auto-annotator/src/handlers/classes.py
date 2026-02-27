@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import gradio as gr
 
@@ -14,6 +14,8 @@ from src.utils import PALETTE_HEX
 
 if TYPE_CHECKING:
     from src.models import AppState
+else:
+    AppState = Any
 
 
 def add_class(name: str, color: str, state: AppState) -> AddClassResponse:

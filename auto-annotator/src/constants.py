@@ -11,7 +11,9 @@ src.db.constants, not here, to keep concerns separated.
 from __future__ import annotations
 
 import os
+import tomllib
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -32,8 +34,14 @@ ENV_DB_PATH: str = "DB_PATH"
 ENV_MODELS_CONFIG: str = "MODELS_CONFIG"
 """Environment variable: path to the models.toml configuration file."""
 
+ENV_SERVER_CONFIG: str = "SERVER_CONFIG"
+"""Environment variable: path to the server config TOML file."""
+
 ENV_MODEL_SERVER_PORT: str = "MODEL_SERVER_PORT"
-"""Environment variable: TCP port the model server listens on."""
+"""Legacy environment variable used to override the model server port, kept for compatibility."""
+
+ENV_SERVER_PORT: str = "SERVER_PORT"
+"""Environment variable used to override the port specified in the server config file."""
 
 ENV_HF_HUB_CACHE: str = "HF_HUB_CACHE"
 """Environment variable: HuggingFace hub cache directory."""
@@ -63,13 +71,53 @@ CONFIG_FILE: Path = Path(
 )
 """Path to the TOML models configuration file (overridable via ENV_MODELS_CONFIG)."""
 
+SERVER_CONFIG_FILE: Path = Path(
+    os.environ.get(ENV_SERVER_CONFIG, str(BASE_DIR / "config" / "server.toml")),
+)
+"""Path to the TOML server configuration file (overridable via ENV_SERVER_CONFIG)."""
+
+
+def _load_server_config() -> dict[str, Any]:
+    if not SERVER_CONFIG_FILE.exists():
+        return {}
+    with SERVER_CONFIG_FILE.open("rb") as fp:
+        try:
+            return tomllib.load(fp).get("server", {})
+        except (tomllib.TOMLDecodeError, OSError):  # pragma: no cover - best-effort config parsing
+            return {}
+
+
+SERVER_CONFIG: dict[str, Any] = _load_server_config()
+"""Contents of the server configuration file (empty when the file is absent or invalid)."""
+
+DEFAULT_SERVER_PORT: int = 8765
+"""Fallback TCP port for the server when no config or environment overrides are provided."""
+
 # Model server network settings.
 
 SERVER_HOST: str = "127.0.0.1"
 """Localhost address used by both the model server and the TCP client."""
 
-SERVER_PORT: int = int(os.environ.get(ENV_MODEL_SERVER_PORT, "8765"))
-"""TCP port the model server binds to (overridable via ENV_MODEL_SERVER_PORT)."""
+_env_port = os.environ.get(ENV_SERVER_PORT)
+_legacy_env_port = os.environ.get(ENV_MODEL_SERVER_PORT)
+_config_port = SERVER_CONFIG.get("port")
+if _env_port is not None:
+    _resolved_port = _env_port
+    _port_origin = f"env:{ENV_SERVER_PORT}"
+elif _legacy_env_port is not None:
+    _resolved_port = _legacy_env_port
+    _port_origin = f"env:{ENV_MODEL_SERVER_PORT}"
+elif _config_port is not None:
+    _resolved_port = _config_port
+    _port_origin = f"config:{SERVER_CONFIG_FILE.name}"
+else:
+    _resolved_port = DEFAULT_SERVER_PORT
+    _port_origin = "default"
+SERVER_PORT: int = int(_resolved_port)
+"""TCP port the model server binds to; resolved from envs, config file, or default."""
+
+SERVER_PORT_SOURCE: str = _port_origin
+"""Description of where the current server port value originated."""
 
 RECV_CHUNK_SIZE: int = 65536
 """Maximum number of bytes read per socket recv() call in the TCP client and server."""

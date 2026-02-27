@@ -69,11 +69,18 @@ Place images in `data/pending/`. They are auto-registered on startup.
 
 Labels are written to `data/labels/<stem>.txt` on Save.
 
+## Configuration
+
+- `config/models.toml`: describes each SAM / YOLO model (ids, checkpoints, metadata).
+- `config/server.toml`: controls model-server runtime settings.  Only `server.port` is read today, with `SERVER_PORT` and the legacy `MODEL_SERVER_PORT` environment variables taking priority.
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `MODEL_SERVER_PORT` | `8765` | TCP port for model server |
+| `SERVER_CONFIG` | `./config/server.toml` | TOML file used by the model server (overrides `server.port`). |
+| `SERVER_PORT` | `8765` | Port the model server listens on (overrides both `server.toml` and the legacy `MODEL_SERVER_PORT`). |
+| `MODEL_SERVER_PORT` | `8765` | Legacy port override (kept for backwards compatibility). |
 | `MODELS_DIR` | `./models` | Directory for SAM checkpoints |
 | `MODELS_CONFIG` | `./config/models.toml` | Model configuration file |
 | `DB_PATH` | `./data/manifest.db` | SQLite database path |

@@ -53,10 +53,10 @@ class _JsonFormatter(logging.Formatter):
             Single-line JSON string representing the log entry.
         """
         payload: dict[str, Any] = {
-            "ts": datetime.now(UTC).isoformat(),
-            "lvl": record.levelname,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
             "logger": record.name,
-            "msg": record.getMessage(),
+            "message": record.getMessage(),
         }
         extra = getattr(record, "_extra", None)
         if extra:

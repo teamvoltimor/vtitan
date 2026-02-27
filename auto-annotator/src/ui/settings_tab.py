@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import gradio as gr
 
@@ -13,9 +13,6 @@ from src.handlers import (
 )
 from src.render import render_state_image
 from src.ui.components import AnnotateTabComponents, SettingsTabComponents
-
-if TYPE_CHECKING:
-    from src.models import AppContext, AppState
 from src.ui.constants import (
     ACCORDION_CLASSES,
     ACCORDION_DISPLAY,
@@ -40,11 +37,16 @@ from src.ui.constants import (
 )
 from src.utils import PALETTE_HEX
 
+if TYPE_CHECKING:
+    from src.models import AppContext, AppState
+else:
+    AppContext = Any
+    AppState = Any
+
 
 def build() -> SettingsTabComponents:
     """Build the Settings tab and return a typed component dataclass."""
     with gr.Tab(TAB_SETTINGS):
-
         with gr.Accordion(ACCORDION_MODEL, open=True):
             model_dropdown = gr.Dropdown(
                 label=LABEL_SAM_MODEL,
@@ -73,7 +75,9 @@ def build() -> SettingsTabComponents:
             gr.Markdown(HEADING_EDIT_CLASS_COLOR)
             with gr.Row():
                 edit_class_dd = gr.Dropdown(
-                    label=LABEL_CLASS_TO_EDIT, choices=[], interactive=True,
+                    label=LABEL_CLASS_TO_EDIT,
+                    choices=[],
+                    interactive=True,
                 )
                 edit_color_picker = gr.ColorPicker(label=LABEL_NEW_COLOR)
             update_color_btn = gr.Button(BTN_UPDATE_COLOR)

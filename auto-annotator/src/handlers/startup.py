@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src import db
-from src.handlers.navigation import _ann_summary, _load_image
+from src.handlers.navigation import _load_image
 from src.handlers.responses import StartupResponse
+from src.handlers.utils import format_annotations_summary
 from src.html import stats_html
 from src.render import render_state_image
 
@@ -17,7 +18,9 @@ if TYPE_CHECKING:
 
 
 def load_first_image(
-    state: AppState, app_ctx: AppContext, labels_dir: Path,
+    state: AppState,
+    app_ctx: AppContext,
+    labels_dir: Path,
 ) -> StartupResponse:
     """Called by demo.load() on page load.
 
@@ -60,7 +63,7 @@ def load_first_image(
         status_msg=f"Loaded: {label}",
         stats_html=html,
         image_label=label,
-        ann_summary=_ann_summary(state.annotations),
+        ann_summary=format_annotations_summary(state.annotations),
         browse_df=browse_data,
         browse_stats_html=stats_html(),
     )

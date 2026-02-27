@@ -8,8 +8,9 @@ services:
       - DB_PATH=/app/data/manifest.db
       - MODELS_DIR=/app/models
       - MODELS_CONFIG=/app/config/models.toml
+      - SERVER_PORT=${SERVER_PORT:-8765}
     ports:
-      - "7860:7860"
+      - "${SERVER_PORT:-8765}:${SERVER_PORT:-8765}"
     volumes:
       - ./data:/app/data:rw
       - ./models:/app/models:rw

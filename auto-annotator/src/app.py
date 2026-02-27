@@ -13,7 +13,7 @@ from pathlib import Path
 import gradio as gr
 
 from src import db
-from src.constants import LABELS_DIR, MODELS_DIR, SERVER_PORT
+from src.constants import LABELS_DIR, MODELS_DIR, SERVER_PORT, SERVER_PORT_SOURCE
 from src.handlers.startup import load_first_image
 from src.inference import initialize_inference
 from src.models import AppContext, AppState
@@ -149,11 +149,16 @@ def _connect_to_server() -> ModelServerClient | None:
     probe = ModelServerClient()
     if probe.ping():
         logger.info(
-            "Connected to model server on port %s — model stays loaded across restarts.",
+            "Connected to model server on port %s (%s) — model stays loaded across restarts.",
             SERVER_PORT,
+            SERVER_PORT_SOURCE,
         )
         return probe
-    logger.info("No model server on port %s — loading model directly.", SERVER_PORT)
+    logger.info(
+        "No model server on port %s (%s) — loading model directly.",
+        SERVER_PORT,
+        SERVER_PORT_SOURCE,
+    )
     return None
 
 
