@@ -1,72 +1,122 @@
-import { Box, Button, Chip, Stack, Typography, useTheme } from '@mui/material'
-import { useAppState } from '../state/appState'
+import { Box, Button, Divider, Stack, Typography, useTheme } from '@mui/material';
+import { useAppState } from '../state/appState';
 
-const heroStats = (galleryLength: number, statsSummary: { processed: string; skipped: string; labels: string }) => [
+const heroStats = (
+  galleryLength: number,
+  statsSummary: { processed: string; skipped: string; labels: string }
+) => [
   { label: 'Images ready', value: `${galleryLength}` },
   { label: 'Processed', value: statsSummary.processed },
   { label: 'Labels', value: statsSummary.labels },
-]
+];
 
-type HeroHeaderProps = {
-  onLaunchAnnotate?: () => void
-}
+type HeroHeaderProps = { onLaunchAnnotate?: () => void };
 
 const HeroHeader = ({ onLaunchAnnotate }: HeroHeaderProps) => {
-  const theme = useTheme()
-  const { stats, gallery } = useAppState()
+  const theme = useTheme();
+  const mode = theme.palette.mode;
+  const { stats, gallery } = useAppState();
 
   return (
-    <Box
-      sx={{
-        borderRadius: 0,
-        border: `1px solid rgba(255,255,255,0.12)`,
-        background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, rgba(9, 10, 18, 0.9) 65%)`,
-        px: { xs: 3, sm: 4 },
-        py: { xs: 3, sm: 4 },
-        color: '#fff',
-        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.55)',
-      }}
-    >
-      <Stack direction={{ xs: 'column', md: 'row' }} alignItems="flex-start" justifyContent="space-between" gap={2}>
-        <Stack spacing={1} maxWidth={460}>
-          <Typography variant="overline" letterSpacing={1} fontWeight={600} color="rgba(255,255,255,0.8)">
-            Auto Annotator
+    <Box sx={{ mb: 5 }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        alignItems={{ xs: 'flex-start', md: 'flex-end' }}
+        justifyContent="space-between"
+        gap={2}
+        mb={3}
+      >
+        <Stack spacing={1.25}>
+          {/* Badge-style overline */}
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: 1,
+              py: 0.375,
+              borderRadius: '4px',
+              bgcolor: mode === 'dark' ? 'rgba(94,106,210,0.12)' : 'rgba(79,92,200,0.08)',
+              border: `1px solid ${
+                mode === 'dark' ? 'rgba(94,106,210,0.25)' : 'rgba(79,92,200,0.18)'
+              }`,
+              alignSelf: 'flex-start',
+            }}
+          >
+            <Box
+              sx={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                bgcolor: theme.palette.primary.main,
+                flexShrink: 0,
+              }}
+            />
+            <Typography
+              sx={{
+                fontSize: '0.625rem',
+                fontWeight: 600,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                color: mode === 'dark' ? 'rgba(165,180,252,0.9)' : theme.palette.primary.main,
+                lineHeight: 1,
+              }}
+            >
+              Annotation workspace
+            </Typography>
+          </Box>
+
+          <Typography variant="h4" sx={{ color: 'text.primary' }}>
+            Label with precision.
           </Typography>
-          <Typography variant="h4" fontWeight={700} sx={{ lineHeight: 1.2 }}>
-            Tight canvas controls, laser-focused gallery, and settings that feel like Linear.
+          <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 380 }}>
+            Curate datasets, configure zoom, and publish exports without leaving the workflow.
           </Typography>
-          <Typography variant="body2" color="rgba(255,255,255,0.85)">
-            Curate datasets, dial in zoom, and publish exports without leaving the minimalist workflow.
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            <Chip label="Catppuccin" size="small" color="secondary" />
-            <Chip label="Zoom aware" size="small" color="secondary" />
-            <Chip label="Scroll-friendly canvas" size="small" color="secondary" />
-          </Stack>
         </Stack>
-        <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ width: { xs: '100%', md: 'auto' } }}>
-          <Button variant="contained" onClick={onLaunchAnnotate} size="large" disableElevation>
+
+        <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+          <Button variant="contained" onClick={onLaunchAnnotate} size="small">
             Launch Annotate
           </Button>
-          <Button variant="outlined" size="large" sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.7)' }}>
-            View Gallery
+          <Button variant="outlined" size="small">
+            Browse Gallery
           </Button>
         </Stack>
       </Stack>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={3}>
+
+      <Stack
+        direction="row"
+        divider={<Divider orientation="vertical" flexItem />}
+        sx={{
+          borderTop: `1px solid ${theme.palette.divider}`,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          py: 2.5,
+        }}
+      >
         {heroStats(gallery.length, stats).map((stat) => (
-          <Box key={stat.label} sx={{ flex: 1, p: 2, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.2)' }}>
-            <Typography variant="caption" color="rgba(255,255,255,0.8)">
-              {stat.label}
-            </Typography>
-            <Typography variant="h5" fontWeight={700}>
+          <Box key={stat.label} sx={{ px: 3, '&:first-of-type': { pl: 0 } }}>
+            <Typography
+              variant="h5"
+              sx={{
+                color: 'text.primary',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.2,
+              }}
+            >
               {stat.value}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.disabled', display: 'block', mt: 0.5 }}
+            >
+              {stat.label}
             </Typography>
           </Box>
         ))}
       </Stack>
     </Box>
-  )
-}
+  );
+};
 
-export default HeroHeader
+export default HeroHeader;

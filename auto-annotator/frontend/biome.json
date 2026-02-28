@@ -1,0 +1,145 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+  "files": {
+    "includes": [
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.json",
+      "**/*.jsonc",
+      "!!**/node_modules",
+      "!!**/bower_components",
+      "!!**/dist",
+      "!!**/build",
+      "!!**/out",
+      "!!**/.next",
+      "!!**/.nuxt",
+      "!!**/.cache",
+      "!!**/.parcel-cache",
+      "!!**/.turbo",
+      "!!**/coverage",
+      "!!**/.nyc_output",
+      "!!**/test-results",
+      "!!**/.env",
+      "!!**/.env.*",
+      "!!**/package-lock.json",
+      "!!**/yarn.lock",
+      "!!**/pnpm-lock.yaml",
+      "!!**/bun.lockb",
+      "!!**/*.min.js",
+      "!!**/*.bundle.js",
+      "!!**/*.d.ts",
+      "!!**/generated",
+      "!!**/__generated__",
+      "!!**/.git",
+      "!!**/.vscode",
+      "!!**/.idea",
+      "!!**/public",
+      "!!**/static",
+      "!!**/assets"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf",
+    "formatWithErrors": false
+  },
+  "javascript": {
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "trailingCommas": "es5",
+      "semicolons": "always",
+      "arrowParentheses": "always",
+      "bracketSpacing": true,
+      "bracketSameLine": false,
+      "attributePosition": "auto"
+    },
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 2,
+      "lineWidth": 100,
+      "trailingCommas": "none"
+    },
+    "parser": {
+      "allowComments": true,
+      "allowTrailingCommas": false
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/test/**",
+        "**/tests/**",
+        "**/__tests__/**"
+      ],
+      "linter": {
+        "rules": {
+          "recommended": true
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/*.config.js",
+        "**/*.config.ts",
+        "**/vite.config.*",
+        "**/vitest.config.*",
+        "**/webpack.config.*",
+        "**/rollup.config.*",
+        "**/jest.config.*",
+        "**/.eslintrc.js"
+      ],
+      "linter": {
+        "rules": {
+          "recommended": true
+        }
+      }
+    },
+    {
+      "includes": ["**/scripts/**", "**/bin/**", "**/tools/**"],
+      "linter": {
+        "rules": {
+          "recommended": true
+        }
+      }
+    },
+    {
+      "includes": ["**/*.json", "**/*.jsonc"],
+      "formatter": {
+        "indentWidth": 2
+      },
+      "linter": {
+        "rules": {
+          "recommended": true
+        }
+      }
+    }
+  ]
+}

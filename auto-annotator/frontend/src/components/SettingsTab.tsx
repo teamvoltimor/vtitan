@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   Card,
   FormControl,
@@ -8,11 +9,13 @@ import {
   Stack,
   Switch,
   Typography,
-} from '@mui/material'
-import { useAppState } from '../state/appState'
-import type { OutlineMode } from '../state/appState'
+  useTheme,
+} from '@mui/material';
+import type { OutlineMode } from '../state/appState';
+import { useAppState } from '../state/appState';
 
 const SettingsTab = () => {
+  const theme = useTheme();
   const {
     models,
     selectedModel,
@@ -24,16 +27,17 @@ const SettingsTab = () => {
     updateClassColor,
     outlineMode,
     setOutlineMode,
-  } = useAppState()
+  } = useAppState();
 
   return (
-    <Stack spacing={3} sx={{ height: '100%' }}>
-      <Card variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
+    <Stack spacing={2.5} sx={{ height: '100%' }}>
+      {/* Models */}
+      <Card variant="outlined" sx={{ p: 3 }}>
         <Stack spacing={2}>
-          <Typography variant="subtitle2" fontWeight={600}>
-            Models
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            SAM Model
           </Typography>
-          <FormControl sx={{ minWidth: 240 }}>
+          <FormControl sx={{ minWidth: 240 }} size="small">
             <InputLabel>Model</InputLabel>
             <Select
               value={selectedModel}
@@ -50,37 +54,73 @@ const SettingsTab = () => {
           <Typography variant="body2" color="text.secondary">
             {modelStatus}
           </Typography>
-          <Switch defaultChecked />
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Switch defaultChecked size="small" />
+            <Typography variant="body2" color="text.secondary">
+              Auto-load on startup
+            </Typography>
+          </Stack>
         </Stack>
       </Card>
-      <Card variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
+
+      {/* Classes */}
+      <Card variant="outlined" sx={{ p: 3 }}>
         <Stack spacing={2}>
-          <Typography variant="subtitle2" fontWeight={600}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
             Classes
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             {classes.map((cls) => (
-              <Button key={cls} size="small" sx={{ backgroundColor: classColors[cls], color: '#000' }}>
-                {cls}
-              </Button>
+              <Box
+                key={cls}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: '6px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  bgcolor: 'background.default',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: classColors[cls] ?? theme.palette.primary.main,
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
+                  {cls}
+                </Typography>
+              </Box>
             ))}
           </Stack>
           <Stack direction="row" spacing={1}>
-            <Button size="small" onClick={() => addClass('New class')}>
+            <Button size="small" variant="outlined" onClick={() => addClass('New class')}>
               Add class
             </Button>
-            <Button size="small" onClick={() => updateClassColor(classes[0] ?? 'Foreground', '#f38ba8')}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => updateClassColor(classes[0] ?? 'Foreground', '#f38ba8')}
+            >
               Update color
             </Button>
           </Stack>
         </Stack>
       </Card>
-      <Card variant="outlined" sx={{ p: 3, borderRadius: 3, flex: 1 }}>
+
+      {/* Display */}
+      <Card variant="outlined" sx={{ p: 3, flex: 1 }}>
         <Stack spacing={2}>
-          <Typography variant="subtitle2" fontWeight={600}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
             Display
           </Typography>
-          <FormControl sx={{ minWidth: 240 }}>
+          <FormControl sx={{ minWidth: 240 }} size="small">
             <InputLabel>Outline mode</InputLabel>
             <Select
               value={outlineMode}
@@ -94,7 +134,7 @@ const SettingsTab = () => {
         </Stack>
       </Card>
     </Stack>
-  )
-}
+  );
+};
 
-export default SettingsTab
+export default SettingsTab;

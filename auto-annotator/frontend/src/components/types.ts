@@ -1,3 +1,3 @@
 export interface TabContentProps {
-  onNavigate?: (tabIndex: number) => void
+  onNavigate?: (tabIndex: number) => void;
 }
