@@ -1,11 +1,10 @@
-import { Box, Card, Chip, Divider, Stack, Typography, useTheme } from '@mui/material';
+import { Box, Card, Divider, Stack, Typography, useTheme } from '@mui/material';
 import { useAppState } from '../state/appState';
 
 const AnnotateInsights = () => {
   const theme = useTheme();
   const mode = theme.palette.mode;
-  const { selectedGalleryItem, pointType, exportFormat, zoom, classes, classColors, logEntries } =
-    useAppState();
+  const { pointType, exportFormat, zoom, classes, classColors, logEntries } = useAppState();
 
   const detailRows = [
     { label: 'Point mode', value: pointType },
@@ -16,27 +15,11 @@ const AnnotateInsights = () => {
   return (
     <Card variant="outlined" sx={{ px: 3, py: 2, flex: 1 }}>
       <Stack spacing={1.5}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            Session highlights
-          </Typography>
-          <Chip
-            size="small"
-            label={selectedGalleryItem ? 'Drawing ready' : 'Awaiting'}
-            color={selectedGalleryItem ? 'success' : 'default'}
-          />
-        </Stack>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+          Session
+        </Typography>
 
         <Divider />
-
-        <Stack spacing={0.5}>
-          <Typography variant="caption" color="text.secondary">
-            Current focus
-          </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            {selectedGalleryItem ? selectedGalleryItem.label : 'Select a gallery image to begin'}
-          </Typography>
-        </Stack>
 
         <Stack direction="row" spacing={3} flexWrap="wrap">
           {detailRows.map((row) => (
@@ -46,7 +29,11 @@ const AnnotateInsights = () => {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ fontWeight: 600, fontFamily: '"JetBrains Mono", monospace' }}
+                sx={{
+                  fontWeight: 600,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
               >
                 {row.value}
               </Typography>
@@ -54,11 +41,17 @@ const AnnotateInsights = () => {
           ))}
         </Stack>
 
-        <Stack spacing={1}>
+        <Stack spacing={0.75}>
           <Typography variant="caption" color="text.secondary">
             Classes
           </Typography>
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ maxHeight: 72, overflowY: 'auto' }}
+          >
             {classes.map((cls) => (
               <Box
                 key={cls}
@@ -93,7 +86,7 @@ const AnnotateInsights = () => {
         {logEntries.length > 0 && (
           <Stack spacing={0.5}>
             <Typography variant="caption" color="text.secondary">
-              Recent log
+              Log
             </Typography>
             {logEntries.map((entry) => (
               <Typography

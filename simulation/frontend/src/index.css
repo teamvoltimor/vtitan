@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --font-display: 'Chakra Petch', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+
+  --color-bg: #050b12;
+  --color-panel: #0a1525;
+  --color-surface: rgba(255, 255, 255, 0.02);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
+  --color-text: #e5e9f0;
+  --color-text-muted: rgba(255, 255, 255, 0.55);
+  --color-accent-teal: #5fdde5;
+  --color-accent-orange: #ff8a65;
+  --color-accent-teal-fade: rgba(95, 221, 229, 0.08);
+  --color-accent-orange-fade: rgba(255, 138, 101, 0.08);
+
+  font-family: var(--font-display);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg);
+}

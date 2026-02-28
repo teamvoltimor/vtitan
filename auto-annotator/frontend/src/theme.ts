@@ -29,19 +29,19 @@ const light = {
 };
 
 export const makeTheme = (mode: PaletteMode) => {
-  const t = mode === 'dark' ? dark : light;
+  const tokens = mode === 'dark' ? dark : light;
 
   return createTheme({
     palette: {
       mode,
-      background: { default: t.bg, paper: t.bgEl },
-      primary: { main: t.accent, contrastText: '#ffffff' },
+      background: { default: tokens.bg, paper: tokens.bgEl },
+      primary: { main: tokens.accent, contrastText: '#ffffff' },
       secondary: {
-        main: t.textHi,
-        contrastText: mode === 'dark' ? t.bg : '#ffffff',
+        main: tokens.textHi,
+        contrastText: mode === 'dark' ? tokens.bg : '#ffffff',
       },
-      text: { primary: t.textHi, secondary: t.textMid, disabled: t.textLo },
-      divider: t.border,
+      text: { primary: tokens.textHi, secondary: tokens.textMid, disabled: tokens.textLo },
+      divider: tokens.border,
       action: {
         hover: mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)',
         selected: mode === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
@@ -82,8 +82,8 @@ export const makeTheme = (mode: PaletteMode) => {
       MuiCssBaseline: {
         styleOverrides: {
           body: {
-            backgroundColor: t.bg,
-            color: t.textHi,
+            backgroundColor: tokens.bg,
+            color: tokens.textHi,
             fontFamily: '"Instrument Sans", "DM Sans", system-ui, -apple-system, sans-serif',
           },
         },
@@ -93,8 +93,8 @@ export const makeTheme = (mode: PaletteMode) => {
         styleOverrides: {
           root: {
             backgroundImage: 'none',
-            backgroundColor: t.bgEl,
-            border: `1px solid ${t.border}`,
+            backgroundColor: tokens.bgEl,
+            border: `1px solid ${tokens.border}`,
             boxShadow: 'none',
           },
         },
@@ -104,8 +104,8 @@ export const makeTheme = (mode: PaletteMode) => {
         styleOverrides: {
           root: {
             backgroundImage: 'none',
-            backgroundColor: t.bgEl,
-            border: `1px solid ${t.border}`,
+            backgroundColor: tokens.bgEl,
+            border: `1px solid ${tokens.border}`,
             boxShadow: 'none',
           },
         },
@@ -119,58 +119,62 @@ export const makeTheme = (mode: PaletteMode) => {
             fontSize: '0.8125rem',
             fontWeight: 500,
             boxShadow: 'none',
-            transition: 'background-color 100ms ease, border-color 100ms ease, opacity 100ms ease',
+            transition:
+              'background-color 100ms ease, border-color 100ms ease, opacity 100ms ease, transform 80ms ease',
+            '&:active': {
+              transform: 'scale(0.97)',
+            },
           },
           containedPrimary: {
-            backgroundColor: t.accent,
+            backgroundColor: tokens.accent,
             color: '#ffffff',
-            '&:hover': { backgroundColor: t.accentHover, boxShadow: 'none' },
+            '&:hover': { backgroundColor: tokens.accentHover, boxShadow: 'none' },
           },
           outlined: {
-            borderColor: t.border,
-            color: t.textHi,
-            '&:hover': { backgroundColor: t.bgHover, borderColor: t.borderStr },
+            borderColor: tokens.border,
+            color: tokens.textHi,
+            '&:hover': { backgroundColor: tokens.bgHover, borderColor: tokens.borderStr },
           },
           text: {
-            color: t.textMid,
-            '&:hover': { backgroundColor: t.bgHover, color: t.textHi },
+            color: tokens.textMid,
+            '&:hover': { backgroundColor: tokens.bgHover, color: tokens.textHi },
           },
         },
       },
       MuiButtonGroup: {
         styleOverrides: {
           root: { boxShadow: 'none' },
-          grouped: { '&:not(:last-of-type)': { borderRightColor: t.border } },
+          grouped: { '&:not(:last-of-type)': { borderRightColor: tokens.border } },
         },
       },
       MuiIconButton: {
         styleOverrides: {
           root: {
-            color: t.textMid,
+            color: tokens.textMid,
             borderRadius: 6,
             padding: 6,
             transition: 'background-color 100ms ease, color 100ms ease',
-            '&:hover': { backgroundColor: t.bgHover, color: t.textHi },
+            '&:hover': { backgroundColor: tokens.bgHover, color: tokens.textHi },
           },
         },
       },
       MuiTab: {
         styleOverrides: {
           root: {
-            color: t.textMid,
+            color: tokens.textMid,
             fontSize: '0.8125rem',
             fontWeight: 500,
             textTransform: 'none',
             minHeight: 40,
             letterSpacing: '-0.005em',
             padding: '6px 14px',
-            '&.Mui-selected': { color: t.textHi, fontWeight: 600 },
+            '&.Mui-selected': { color: tokens.textHi, fontWeight: 600 },
           },
         },
       },
       MuiTabs: {
         styleOverrides: {
-          indicator: { height: 1, backgroundColor: t.textHi },
+          indicator: { height: 1, backgroundColor: tokens.textHi },
           root: { minHeight: 40 },
         },
       },
@@ -178,8 +182,8 @@ export const makeTheme = (mode: PaletteMode) => {
         styleOverrides: {
           root: {
             backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-            border: `1px solid ${t.border}`,
-            color: t.textMid,
+            border: `1px solid ${tokens.border}`,
+            color: tokens.textMid,
             fontSize: '0.6875rem',
             fontWeight: 500,
             height: 22,
@@ -201,61 +205,66 @@ export const makeTheme = (mode: PaletteMode) => {
             color: mode === 'dark' ? '#e6a817' : '#b45309',
           },
           colorSecondary: {
-            backgroundColor: t.accentFade,
+            backgroundColor: tokens.accentFade,
             borderColor: mode === 'dark' ? 'rgba(94,106,210,0.25)' : 'rgba(79,92,200,0.15)',
-            color: mode === 'dark' ? '#a5b4fc' : t.accent,
+            color: mode === 'dark' ? '#a5b4fc' : tokens.accent,
           },
         },
       },
       MuiDivider: {
-        styleOverrides: { root: { borderColor: t.border } },
+        styleOverrides: { root: { borderColor: tokens.border } },
       },
       MuiInputLabel: {
         styleOverrides: {
-          root: { color: t.textMid, fontSize: '0.8125rem' },
+          root: { color: tokens.textMid, fontSize: '0.8125rem' },
         },
       },
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
             fontSize: '0.8125rem',
-            '& .MuiOutlinedInput-notchedOutline': { borderColor: t.border },
-            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: t.borderStr },
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: tokens.border },
+            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: tokens.borderStr },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: t.accent,
+              borderColor: tokens.accent,
               borderWidth: 1,
             },
           },
         },
       },
       MuiSelect: {
-        styleOverrides: { icon: { color: t.textLo } },
+        styleOverrides: { icon: { color: tokens.textLo } },
       },
       MuiMenuItem: {
         styleOverrides: {
           root: {
             fontSize: '0.8125rem',
-            '&:hover': { backgroundColor: t.bgHover },
+            '&:hover': { backgroundColor: tokens.bgHover },
             '&.Mui-selected': {
-              backgroundColor: t.accentFade,
-              '&:hover': { backgroundColor: t.accentFade },
+              backgroundColor: tokens.accentFade,
+              '&:hover': { backgroundColor: tokens.accentFade },
             },
           },
         },
       },
       MuiSlider: {
         styleOverrides: {
-          root: { color: t.accent, height: 2 },
+          root: { color: tokens.accent, height: 2 },
           thumb: {
             width: 14,
             height: 14,
             boxShadow: 'none',
-            '&:hover, &.Mui-focusVisible': { boxShadow: `0 0 0 6px ${t.accentFade}` },
+            '&:hover, &.Mui-focusVisible': { boxShadow: `0 0 0 6px ${tokens.accentFade}` },
           },
           track: { height: 2, border: 'none' },
           rail: { height: 2, opacity: 0.2 },
           mark: { display: 'none' },
-          markLabel: { fontSize: '0.625rem', color: t.textLo },
+          markLabel: { fontSize: '0.625rem', color: tokens.textLo },
+        },
+      },
+      MuiCircularProgress: {
+        styleOverrides: {
+          root: { color: tokens.accent },
         },
       },
       MuiLinearProgress: {
@@ -267,7 +276,7 @@ export const makeTheme = (mode: PaletteMode) => {
           },
           bar: {
             borderRadius: 1,
-            backgroundColor: t.accent,
+            backgroundColor: tokens.accent,
           },
         },
       },
@@ -279,7 +288,7 @@ export const makeTheme = (mode: PaletteMode) => {
             '&.Mui-checked': {
               transform: 'translateX(16px)',
               '& + .MuiSwitch-track': {
-                backgroundColor: t.accent,
+                backgroundColor: tokens.accent,
                 opacity: 1,
                 border: 0,
               },
@@ -296,14 +305,14 @@ export const makeTheme = (mode: PaletteMode) => {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            backgroundColor: '#1e1e26',
-            color: '#e8e8ec',
+            backgroundColor: dark.bgHover,
+            color: dark.textHi,
             fontSize: '0.6875rem',
-            border: '1px solid #2e2e3a',
+            border: `1px solid ${dark.borderStr}`,
             borderRadius: 4,
             padding: '4px 8px',
           },
-          arrow: { color: '#1e1e26' },
+          arrow: { color: dark.bgHover },
         },
       },
     },

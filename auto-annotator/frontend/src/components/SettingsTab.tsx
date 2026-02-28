@@ -55,7 +55,7 @@ const SettingsTab = () => {
             {modelStatus}
           </Typography>
           <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Switch defaultChecked size="small" />
+            <Switch defaultChecked />
             <Typography variant="body2" color="text.secondary">
               Auto-load on startup
             </Typography>

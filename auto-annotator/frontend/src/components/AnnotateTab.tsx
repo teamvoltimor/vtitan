@@ -6,6 +6,7 @@ import {
   ButtonGroup,
   Card,
   Chip,
+  CircularProgress,
   Divider,
   FormControl,
   InputLabel,
@@ -37,7 +38,6 @@ const statsRows = ['processed', 'skipped', 'labels'] as const;
 
 const AnnotateTab = () => {
   const theme = useTheme();
-  const mode = theme.palette.mode;
   const {
     zoom,
     setZoom,
@@ -54,7 +54,6 @@ const AnnotateTab = () => {
     autoAnnotate,
     timeline,
     recordAction,
-    logEntries,
     stats,
     selectedGalleryItem,
     annotationPoints,
@@ -72,7 +71,6 @@ const AnnotateTab = () => {
   const zoomLabel = useMemo(() => `${Math.round(zoom * 100)}%`, [zoom]);
   const classLabel = activeClass ?? classes[0] ?? 'No class';
 
-  const statusChipLabel = selectedGalleryItem ? 'Drawing ready' : 'Awaiting selection';
   const segmentationStatusColor =
     segmentationStatus === 'ready'
       ? 'success'
@@ -107,114 +105,136 @@ const AnnotateTab = () => {
 
   return (
     <Stack spacing={2.5} sx={{ height: '100%' }}>
-      {/* Zoom row */}
-      <Stack gap={2} direction={{ xs: 'column', sm: 'row' }} alignItems="center">
-        <Stack spacing={1} sx={{ flex: 1 }}>
-          <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
-            Zoom{' '}
-            <Box
-              component="span"
-              sx={{ fontFamily: '"JetBrains Mono", monospace', color: 'text.primary' }}
-            >
-              {zoomLabel}
-            </Box>
-          </Typography>
-          <Slider
-            value={zoom}
-            onChange={(_, value) => {
-              setZoom(value as number);
-              recordAction(`Set zoom to ${Math.round((value as number) * 100)}%`);
-            }}
-            min={0.5}
-            max={2}
-            step={0.05}
-            marks={[
-              { value: 0.5, label: '50%' },
-              { value: 1, label: '100%' },
-              { value: 1.5, label: '150%' },
-            ]}
-          />
+      {/* Toolbar — zoom + controls unified */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          p: 1.5,
+          borderRadius: '6px',
+          border: `1px solid ${theme.palette.divider}`,
+          bgcolor: 'background.paper',
+        }}
+      >
+        <Stack gap={2} direction={{ xs: 'column', sm: 'row' }} alignItems="center">
+          <Stack spacing={0.5} sx={{ flex: 1 }}>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Zoom{' '}
+              <Box
+                component="span"
+                sx={{
+                  fontFamily: '"JetBrains Mono", monospace',
+                  color: 'text.primary',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {zoomLabel}
+              </Box>
+            </Typography>
+            <Slider
+              value={zoom}
+              onChange={(_, value) => {
+                setZoom(value as number);
+                recordAction(`Set zoom to ${Math.round((value as number) * 100)}%`);
+              }}
+              min={0.5}
+              max={2}
+              step={0.05}
+              marks={[
+                { value: 0.5, label: '50%' },
+                { value: 1, label: '100%' },
+                { value: 1.5, label: '150%' },
+              ]}
+            />
+          </Stack>
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{ flexShrink: 0 }}
+            onClick={() => setZoom(1)}
+          >
+            Reset
+          </Button>
         </Stack>
-        <Button variant="outlined" sx={{ height: 36, flexShrink: 0 }} onClick={() => setZoom(1)}>
-          Reset
-        </Button>
-      </Stack>
 
-      {/* Form controls */}
-      <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5} flexWrap="wrap">
-        <FormControl sx={{ minWidth: 160 }} size="small">
-          <InputLabel>Point type</InputLabel>
-          <Select
-            value={pointType}
-            label="Point type"
-            onChange={(event: SelectChangeEvent<PointType>) =>
-              setPointType(event.target.value as PointType)
-            }
-          >
-            {pointOptions.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl sx={{ minWidth: 160 }} size="small">
-          <InputLabel>Mask granularity</InputLabel>
-          <Select
-            value={maskLevel}
-            label="Mask granularity"
-            onChange={(event: SelectChangeEvent<string>) => setMaskLevel(event.target.value)}
-          >
-            <MenuItem value="Object (1)">Object (1)</MenuItem>
-            <MenuItem value="Instance">Instance</MenuItem>
-            <MenuItem value="Fine detail">Fine detail</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl sx={{ minWidth: 160 }} size="small">
-          <InputLabel>Export format</InputLabel>
-          <Select
-            value={exportFormat}
-            label="Export format"
-            onChange={(event: SelectChangeEvent<'segmentation' | 'detection'>) =>
-              setExportFormat(event.target.value as 'segmentation' | 'detection')
-            }
-          >
-            {exportOptions.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl sx={{ minWidth: 160 }} size="small">
-          <InputLabel>Active class</InputLabel>
-          <Select
-            value={classLabel}
-            label="Active class"
-            onChange={(event: SelectChangeEvent<string>) => {
-              setActiveClass(event.target.value);
-              recordAction(`Switched to class ${event.target.value}`);
-            }}
-          >
-            {classes.map((cls) => (
-              <MenuItem key={cls} value={cls}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      backgroundColor: classColors[cls] ?? 'transparent',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Typography variant="body2">{cls}</Typography>
-                </Stack>
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
+        <Divider />
+
+        <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5} flexWrap="wrap">
+          <FormControl sx={{ minWidth: 160 }} size="small">
+            <InputLabel>Point type</InputLabel>
+            <Select
+              value={pointType}
+              label="Point type"
+              onChange={(event: SelectChangeEvent<PointType>) =>
+                setPointType(event.target.value as PointType)
+              }
+            >
+              {pointOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 160 }} size="small">
+            <InputLabel>Mask granularity</InputLabel>
+            <Select
+              value={maskLevel}
+              label="Mask granularity"
+              onChange={(event: SelectChangeEvent<string>) => setMaskLevel(event.target.value)}
+            >
+              <MenuItem value="Object (1)">Object (1)</MenuItem>
+              <MenuItem value="Instance">Instance</MenuItem>
+              <MenuItem value="Fine detail">Fine detail</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 160 }} size="small">
+            <InputLabel>Export format</InputLabel>
+            <Select
+              value={exportFormat}
+              label="Export format"
+              onChange={(event: SelectChangeEvent<'segmentation' | 'detection'>) =>
+                setExportFormat(event.target.value as 'segmentation' | 'detection')
+              }
+            >
+              {exportOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 160 }} size="small">
+            <InputLabel>Active class</InputLabel>
+            <Select
+              value={classLabel}
+              label="Active class"
+              onChange={(event: SelectChangeEvent<string>) => {
+                setActiveClass(event.target.value);
+                recordAction(`Switched to class ${event.target.value}`);
+              }}
+            >
+              {classes.map((cls) => (
+                <MenuItem key={cls} value={cls}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: classColors[cls] ?? 'transparent',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Typography variant="body2">{cls}</Typography>
+                  </Stack>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+      </Box>
 
       {/* Action row — canvas ops left, navigation right */}
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -230,8 +250,13 @@ const AnnotateTab = () => {
             annotationPoints.length === 0 ||
             !selectedGalleryItem
           }
+          startIcon={
+            segmentationStatus === 'pending' ? (
+              <CircularProgress size={11} color="inherit" />
+            ) : null
+          }
         >
-          Generate mask
+          {segmentationStatus === 'pending' ? 'Running…' : 'Generate mask'}
         </Button>
         <Button
           variant="outlined"
@@ -249,10 +274,10 @@ const AnnotateTab = () => {
 
         <Box sx={{ flex: 1 }} />
 
-        <Button variant="text" size="small" sx={{ color: 'text.secondary' }}>
+        <Button variant="text" size="small">
           Previous
         </Button>
-        <Button variant="text" size="small" sx={{ color: 'text.secondary' }}>
+        <Button variant="text" size="small">
           Skip
         </Button>
         <Button variant="contained" size="small">
@@ -261,17 +286,7 @@ const AnnotateTab = () => {
       </Stack>
 
       {/* Canvas */}
-      <Card
-        variant="outlined"
-        sx={{
-          flex: 1,
-          overflow: 'hidden',
-          bgcolor: 'background.paper',
-          borderColor: 'divider',
-          boxShadow: 'none',
-          position: 'relative',
-        }}
-      >
+      <Card variant="outlined" sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <Box
           sx={{
             height: '100%',
@@ -290,11 +305,9 @@ const AnnotateTab = () => {
             height={560}
             onClick={handleCanvasClick}
             sx={{
-              borderRadius: 0,
               backgroundColor: 'background.default',
               width: '100%',
               maxWidth: 960,
-              border: `1px solid ${theme.palette.divider}`,
               cursor: 'crosshair',
             }}
           />
@@ -325,95 +338,70 @@ const AnnotateTab = () => {
         )}
       </Card>
 
-      {/* Status card — trimmed */}
-      <Card variant="outlined" sx={{ p: 3 }}>
-        <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Stack spacing={0.5}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                Annotation status
+      {/* Compact status row — filename · stats · SAM chip */}
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ sm: 'center' }}
+        spacing={2}
+        useFlexGap
+        flexWrap="wrap"
+        sx={{ borderTop: `1px solid ${theme.palette.divider}`, pt: 1.5 }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            color: 'text.disabled',
+            fontFamily: '"JetBrains Mono", monospace',
+            flex: 1,
+            minWidth: 0,
+          }}
+          noWrap
+        >
+          {selectedGalleryItem ? selectedGalleryItem.label : 'No image selected'}
+        </Typography>
+
+        <Stack direction="row" spacing={3} sx={{ flexShrink: 0 }}>
+          {statsRows.map((key) => (
+            <Stack key={key} direction="row" alignItems="baseline" spacing={0.75}>
+              <Typography variant="caption" color="text.disabled">
+                {key}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {selectedGalleryItem ? selectedGalleryItem.label : 'No image selected'}
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {stats[key]}
               </Typography>
             </Stack>
-            <Chip
-              label={statusChipLabel}
-              color={selectedGalleryItem ? 'success' : 'default'}
-              size="small"
-            />
-          </Stack>
+          ))}
+        </Stack>
 
-          <Divider />
-
-          <Stack direction="row" spacing={3} flexWrap="wrap">
-            {statsRows.map((key) => (
-              <Stack key={key} spacing={0.5}>
-                <Typography variant="caption" color="text.secondary">
-                  {key}
-                </Typography>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontWeight: 600,
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {stats[key]}
-                </Typography>
-              </Stack>
-            ))}
-          </Stack>
-
-          <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-            <Chip
-              label={`SAM · ${segmentationStatus}`}
-              size="small"
-              color={
-                segmentationStatusColor as
-                  | 'default'
-                  | 'primary'
-                  | 'secondary'
-                  | 'error'
-                  | 'info'
-                  | 'success'
-                  | 'warning'
-              }
-            />
-            {segmentationMessage && (
-              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }} noWrap>
-                {segmentationMessage}
-              </Typography>
-            )}
-          </Stack>
-
-          {logEntries.length > 0 && (
-            <>
-              <Divider />
-              <Stack spacing={0.75}>
-                <Typography variant="caption" color="text.secondary">
-                  Recent log
-                </Typography>
-                {logEntries.map((entry) => (
-                  <Typography
-                    key={entry}
-                    variant="caption"
-                    sx={{
-                      color: 'text.secondary',
-                      fontFamily: '"JetBrains Mono", monospace',
-                      display: 'block',
-                    }}
-                    noWrap
-                  >
-                    {entry}
-                  </Typography>
-                ))}
-              </Stack>
-            </>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ flexShrink: 0 }}>
+          <Chip
+            label={`SAM · ${segmentationStatus}`}
+            size="small"
+            color={
+              segmentationStatusColor as
+                | 'default'
+                | 'primary'
+                | 'secondary'
+                | 'error'
+                | 'info'
+                | 'success'
+                | 'warning'
+            }
+          />
+          {segmentationMessage && (
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+              {segmentationMessage}
+            </Typography>
           )}
         </Stack>
-      </Card>
+      </Stack>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
         <AnnotateInsights />

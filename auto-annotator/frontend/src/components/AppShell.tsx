@@ -65,9 +65,15 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
         flexDirection: 'column',
         backgroundImage:
           mode === 'dark'
-            ? 'radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px)'
-            : 'radial-gradient(circle, rgba(0,0,0,0.038) 1px, transparent 1px)',
-        backgroundSize: '20px 20px',
+            ? [
+                'radial-gradient(ellipse 70% 240px at 55% 0px, rgba(94,106,210,0.07), transparent)',
+                'radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px)',
+              ].join(', ')
+            : [
+                'radial-gradient(ellipse 70% 240px at 55% 0px, rgba(79,92,200,0.04), transparent)',
+                'radial-gradient(circle, rgba(0,0,0,0.038) 1px, transparent 1px)',
+              ].join(', '),
+        backgroundSize: 'auto, 20px 20px',
       }}
     >
       {/* Top bar — frosted glass */}
@@ -177,7 +183,7 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                     onClick={() => setActive(index)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && setActive(index)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActive(index)}
                     sx={{
                       position: 'relative',
                       display: 'flex',
@@ -264,6 +270,30 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                 );
               })}
             </Stack>
+
+            {/* Sidebar footer */}
+            <Box sx={{ mt: 'auto', px: 1.5, pt: 2 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+              sx={{ px: 1 }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                    color: 'text.disabled',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: '0.5625rem',
+                  }}
+                >
+                  auto-annotator
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                  ready
+                </Typography>
+              </Stack>
+            </Box>
           </Box>
         )}
 
@@ -310,11 +340,11 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
             <HeroHeader onLaunchAnnotate={() => setActive(0)} />
 
             <Box sx={{ mt: 4 }}>
-              {tabRows.map((tab, index) => (
-                <Box key={tab.label} hidden={active !== index}>
-                  {active === index && <tab.Component onNavigate={(to) => setActive(to)} />}
-                </Box>
-              ))}
+              {tabRows.map((tab, index) =>
+                active === index ? (
+                  <tab.Component key={tab.label} onNavigate={(to) => setActive(to)} />
+                ) : null,
+              )}
             </Box>
           </Box>
         </Box>
