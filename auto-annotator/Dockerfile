@@ -23,8 +23,9 @@ RUN uv sync --no-dev
 
 COPY backend/src/ src/
 COPY backend/config/ config/
+COPY backend/models/ models/
 COPY backend/main.py .
 
 EXPOSE ${SERVER_PORT}
 
-CMD ["uv", "run", "python", "main.py", "app"]
+CMD ["sh", "-c", "uv run python main.py server --model \"${DEFAULT_MODEL:-}\""]
