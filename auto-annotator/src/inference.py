@@ -143,10 +143,7 @@ def _filter_cc(mask: np.ndarray, positive_pts: list[Point]) -> np.ndarray:
     if not keep:
         return mask
 
-    result = np.zeros_like(mask)
-    for lbl in keep:
-        result |= label_map == lbl
-    return result
+    return np.isin(label_map, list(keep))
 
 
 def run_sam_inference(

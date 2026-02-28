@@ -19,6 +19,7 @@ undo_last priority order
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 import gradio as gr
 
@@ -35,6 +36,7 @@ from src.handlers.utils import format_annotations_summary
 from src.inference import run_sam_inference
 from src.models import Annotation, AppContext, AppState, Point
 from src.render import render_state_image
+from src.ui.constants import DEFAULT_POINT_TYPE
 
 
 def _log(state: AppState, msg: str) -> None:
@@ -121,7 +123,7 @@ def handle_click(
         return _err_click(state, f"Class '{active_class}' not found in DB.")
 
     x, y = int(evt.index[0]), int(evt.index[1])
-    label = 1 if point_type == "Positive" else 0
+    label: Literal[0, 1] = 1 if point_type == DEFAULT_POINT_TYPE else 0
 
     state.point_buffer.append(Point(x=x, y=y, label=label, class_id=cls_info.id))
     state.pending_class_db_id = cls_info.id

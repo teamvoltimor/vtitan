@@ -74,10 +74,7 @@ def init_db() -> None:
             conn.executemany(QUERY_INSERT_CLASS_DEFAULT_IGNORE, DEFAULT_CLASSES)
             conn.commit()
 
-        existing: set[str] = {
-            row[COL_PATH]
-            for row in conn.execute(QUERY_SELECT_ALL_IMAGE_PATHS).fetchall()
-        }
+        existing: set[str] = {row[COL_PATH] for row in conn.execute(QUERY_SELECT_ALL_IMAGE_PATHS).fetchall()}
         new_rows: list[tuple[str]] = [
             (str(f),)
             for f in sorted(PENDING_DIR.iterdir())
@@ -93,7 +90,7 @@ def _row_to_image_record(row: sqlite3.Row) -> ImageRecord:
     return ImageRecord(
         id=row[COL_ID],
         path=row[COL_PATH],
-        status=row[COL_STATUS],
+        status=Status(row[COL_STATUS]),
         format_used=row[COL_FORMAT_USED],
         updated_at=row[COL_UPDATED_AT],
     )
@@ -115,7 +112,8 @@ def get_next(after_id: int | None = None) -> ImageRecord | None:
     with _connect() as conn:
         if after_id is not None:
             row = conn.execute(
-                QUERY_SELECT_NEXT_PENDING_AFTER_ID, (Status.PENDING, after_id),
+                QUERY_SELECT_NEXT_PENDING_AFTER_ID,
+                (Status.PENDING, after_id),
             ).fetchone()
             if row:
                 return _row_to_image_record(row)
@@ -215,16 +213,17 @@ def get_all_images() -> list[BrowseRow]:
     with _connect() as conn:
         rows = conn.execute(QUERY_SELECT_ALL_IMAGES_FOR_BROWSE).fetchall()
 
-    return [
-        BrowseRow(
-            id=row[COL_ID],
-            filename=Path(row[COL_PATH]).name,
-            status=STATUS_NAMES.get(row[COL_STATUS], str(row[COL_STATUS])),
-            format=row[COL_FORMAT_USED] or "",
-            updated_at=row[COL_UPDATED_AT] or "",
-        )
-        for row in rows
-    ]
+        return [
+            BrowseRow(
+                id=row[COL_ID],
+                filename=Path(row[COL_PATH]).name,
+                status=STATUS_NAMES.get(row[COL_STATUS], str(row[COL_STATUS])),
+                format=row[COL_FORMAT_USED] or "",
+                updated_at=row[COL_UPDATED_AT] or "",
+                path=str(row[COL_PATH]),
+            )
+            for row in rows
+        ]
 
 
 def upsert_class(name: str, color: str) -> int:
@@ -255,10 +254,7 @@ def get_classes() -> list[ClassInfo]:
     """
     with _connect() as conn:
         rows = conn.execute(QUERY_SELECT_ALL_CLASSES).fetchall()
-    return [
-        ClassInfo(id=row[COL_ID], name=row[COL_NAME], color=row[COL_COLOR])
-        for row in rows
-    ]
+    return [ClassInfo(id=row[COL_ID], name=row[COL_NAME], color=row[COL_COLOR]) for row in rows]
 
 
 def classes_to_yolo_map() -> dict[int, int]:
@@ -286,10 +282,7 @@ def add_images_from_paths(paths: list[str]) -> int:
         Number of newly inserted rows (0 if all paths already existed).
     """
     with _connect() as conn:
-        existing: set[str] = {
-            row[COL_PATH]
-            for row in conn.execute(QUERY_SELECT_ALL_IMAGE_PATHS).fetchall()
-        }
+        existing: set[str] = {row[COL_PATH] for row in conn.execute(QUERY_SELECT_ALL_IMAGE_PATHS).fetchall()}
         new_rows = [(p,) for p in paths if p not in existing]
         if new_rows:
             conn.executemany(QUERY_INSERT_IMAGE_IGNORE, new_rows)

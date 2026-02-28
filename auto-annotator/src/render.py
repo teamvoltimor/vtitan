@@ -44,11 +44,11 @@ from src.constants import (
     DILATION_KERNEL,
 )
 from src.enums import OutlineMode
+from src.ui.constants import DEFAULT_ZOOM, ZOOM_MAX, ZOOM_MIN
+from src.utils import hex_to_rgb
 
 if TYPE_CHECKING:
     from src.models import AppState
-
-from src.utils import hex_to_rgb
 
 
 def _resolve_outline_color(
@@ -101,6 +101,7 @@ def render_state_image(state: AppState) -> np.ndarray:
     if img is None:
         return np.zeros((CANVAS_PLACEHOLDER_HEIGHT, CANVAS_PLACEHOLDER_WIDTH, 3), dtype=np.uint8)
 
+    class_colors_map: dict[int, str] = {c.id: c.color for c in state.classes}
     result = img.astype(np.float32)
 
     # Layer 1: accepted annotation fills.
@@ -119,8 +120,7 @@ def render_state_image(state: AppState) -> np.ndarray:
     pending_mask = state.pending_mask
     pending_class = state.pending_class_db_id
     if pending_mask is not None and pending_class is not None:
-        cls_map = {c.id: c.color for c in state.classes}
-        p_color_rgb = hex_to_rgb(cls_map.get(pending_class, COLOR_WHITE_HEX))
+        p_color_rgb = hex_to_rgb(class_colors_map.get(pending_class, COLOR_WHITE_HEX))
         colored = np.zeros_like(result)
         colored[pending_mask] = p_color_rgb
         result = np.where(
@@ -136,7 +136,9 @@ def render_state_image(state: AppState) -> np.ndarray:
     for ann in state.annotations:
         outline_rgb = _resolve_outline_color(ann.class_color, ann.mask, result_u8, outline_mode)
         contours, _ = cv2.findContours(
-            ann.mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+            ann.mask.astype(np.uint8),
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,
         )
         # Black shadow drawn first; coloured outline drawn on top.
         cv2.drawContours(result_u8, contours, -1, COLOR_BLACK_RGB, CANVAS_CONTOUR_SHADOW_THICKNESS)
@@ -147,14 +149,23 @@ def render_state_image(state: AppState) -> np.ndarray:
         pmask_u8 = pending_mask.astype(np.uint8) * 255
         contours_p, _ = cv2.findContours(pmask_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(
-            result_u8, contours_p, -1, COLOR_BLACK_RGB, CANVAS_CONTOUR_SHADOW_THICKNESS, cv2.LINE_AA,
+            result_u8,
+            contours_p,
+            -1,
+            COLOR_BLACK_RGB,
+            CANVAS_CONTOUR_SHADOW_THICKNESS,
+            cv2.LINE_AA,
         )
         cv2.drawContours(
-            result_u8, contours_p, -1, COLOR_WHITE_RGB, CANVAS_CONTOUR_OUTLINE_THICKNESS, cv2.LINE_AA,
+            result_u8,
+            contours_p,
+            -1,
+            COLOR_WHITE_RGB,
+            CANVAS_CONTOUR_OUTLINE_THICKNESS,
+            cv2.LINE_AA,
         )
 
     # Layer 5: click-point circles.
-    class_colors_map = {c.id: c.color for c in state.classes}
     pending_class_id = state.pending_class_db_id
     default_point_color: tuple[int, int, int] = hex_to_rgb(
         class_colors_map[pending_class_id]
@@ -164,11 +175,7 @@ def render_state_image(state: AppState) -> np.ndarray:
 
     for pt in state.point_buffer:
         px, py = pt.x, pt.y
-        pt_color = (
-            hex_to_rgb(class_colors_map[pt.class_id])
-            if pt.class_id in class_colors_map
-            else default_point_color
-        )
+        pt_color = hex_to_rgb(class_colors_map[pt.class_id]) if pt.class_id in class_colors_map else default_point_color
         if pt.label == 1:
             # Positive point: filled circle in class colour with white border.
             cv2.circle(result_u8, (px, py), CANVAS_POINT_RADIUS, pt_color, -1)
@@ -178,8 +185,12 @@ def render_state_image(state: AppState) -> np.ndarray:
             cv2.circle(result_u8, (px, py), CANVAS_POINT_RADIUS, COLOR_BLUE_RGB, -1)
             cv2.circle(result_u8, (px, py), CANVAS_POINT_RADIUS, COLOR_WHITE_RGB, CANVAS_POINT_BORDER_THICKNESS)
             sz = CANVAS_NEGATIVE_CROSS_SIZE
-            cv2.line(result_u8, (px - sz, py - sz), (px + sz, py + sz), COLOR_WHITE_RGB, CANVAS_CONTOUR_OUTLINE_THICKNESS)
-            cv2.line(result_u8, (px + sz, py - sz), (px - sz, py + sz), COLOR_WHITE_RGB, CANVAS_CONTOUR_OUTLINE_THICKNESS)
+            cv2.line(
+                result_u8, (px - sz, py - sz), (px + sz, py + sz), COLOR_WHITE_RGB, CANVAS_CONTOUR_OUTLINE_THICKNESS,
+            )
+            cv2.line(
+                result_u8, (px + sz, py - sz), (px - sz, py + sz), COLOR_WHITE_RGB, CANVAS_CONTOUR_OUTLINE_THICKNESS,
+            )
 
     # Layer 6: top-left class legend.
     # Collect unique classes from accepted annotations to show in the legend.
@@ -210,4 +221,10 @@ def render_state_image(state: AppState) -> np.ndarray:
         )
         y += CANVAS_LEGEND_ROW_STEP_Y
 
+    zoom = state.zoom or DEFAULT_ZOOM
+    zoom = max(ZOOM_MIN, min(ZOOM_MAX, zoom))
+    if zoom != 1.0:
+        height = max(int(result_u8.shape[0] * zoom), 1)
+        width = max(int(result_u8.shape[1] * zoom), 1)
+        result_u8 = cv2.resize(result_u8, (width, height), interpolation=cv2.INTER_LINEAR)
     return result_u8

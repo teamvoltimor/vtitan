@@ -132,15 +132,18 @@ class NavigationResponse:
 class BrowseResponse:
     """Response from ``refresh_browse``.
 
-    Outputs: ``[browse_df, browse_stats]``
+    Outputs: ``[browse_df, browse_stats, gallery_items]``
+
+    Gallery items contain absolute paths used to populate :class:`gr.Gallery`.
     """
 
     df_data: list[list]
     stats_html: str
+    gallery_items: list[str]
 
     def to_gradio(self) -> tuple:
         """Unpack to the positional output tuple for Gradio wiring."""
-        return (self.df_data, self.stats_html)
+        return (self.df_data, self.stats_html, self.gallery_items)
 
 
 @dataclass
@@ -153,10 +156,11 @@ class ImportResponse:
     df_data: list[list]
     stats_html: str
     status_msg: str
+    gallery_items: list[str]
 
     def to_gradio(self) -> tuple:
         """Unpack to the positional output tuple for Gradio wiring."""
-        return (self.df_data, self.stats_html, self.status_msg)
+        return (self.df_data, self.stats_html, self.status_msg, self.gallery_items)
 
 
 @dataclass
@@ -208,6 +212,7 @@ class StartupResponse:
     ann_summary: str
     browse_df: list[list]
     browse_stats_html: str
+    browse_gallery: list[str]
 
     def to_gradio(self) -> tuple:
         """Unpack to the positional output tuple for Gradio wiring."""
@@ -220,6 +225,7 @@ class StartupResponse:
             self.ann_summary,
             self.browse_df,
             self.browse_stats_html,
+            self.browse_gallery,
         )
 
 

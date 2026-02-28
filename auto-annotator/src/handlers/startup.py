@@ -42,6 +42,7 @@ def load_first_image(
 
     rows = db.get_all_images()
     browse_data = [[r.id, r.filename, r.status, r.format, r.updated_at] for r in rows]
+    gallery_items = [r.path for r in rows]
 
     record = db.get_next()
     if record is None:
@@ -54,6 +55,7 @@ def load_first_image(
             ann_summary="(none)",
             browse_df=browse_data,
             browse_stats_html=stats_html(),
+            browse_gallery=gallery_items,
         )
 
     rendered, label, html = _load_image(record, state, app_ctx, labels_dir)
@@ -66,4 +68,5 @@ def load_first_image(
         ann_summary=format_annotations_summary(state.annotations),
         browse_df=browse_data,
         browse_stats_html=stats_html(),
+        browse_gallery=gallery_items,
     )

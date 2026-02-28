@@ -350,7 +350,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "src/inference.py" = ["PLC0415", "BLE001", "C901", "PLR0911", "PLR0912", "PLR0915"]
 
 # Rendering: single complex function by design (many overlay layers)
-"src/render.py" = ["C901"]
+"src/render.py" = ["C901", "PLR0915"]
 
 # ENV_HF_TOKEN is a key name string, not a hardcoded secret value
 "src/constants.py" = ["S105"]
@@ -374,6 +374,9 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 # Broad catch in model-dropdown init is a UI fallback; S104 bind-all is intentional for Docker
 "src/app.py" = ["BLE001", "S104"]
+
+# File(...) in default args is the standard FastAPI pattern for multipart upload declarations
+"src/api/app.py" = ["B008"]
 
 "src/*.py" = []
 

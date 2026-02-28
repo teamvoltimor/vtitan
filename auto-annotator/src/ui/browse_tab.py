@@ -33,26 +33,33 @@ from src.ui.constants import (
 def build() -> BrowseTabComponents:
     """Build the Browse tab and return a typed component dataclass."""
     with gr.Tab(TAB_BROWSE):
-        with gr.Row():
-            refresh_btn = gr.Button(BTN_REFRESH, variant="secondary")
+        with gr.Column(elem_classes="aa-browse-toolbar"):
+            refresh_btn = gr.Button(BTN_REFRESH, variant="secondary", elem_classes="aa-toolbar-button")
             import_btn = gr.UploadButton(
                 BTN_IMPORT,
                 file_count="multiple",
                 file_types=["image"],
                 variant="primary",
+                elem_classes="aa-toolbar-button",
             )
-            view_toggle = gr.Radio(RADIO_VIEW_OPTIONS, value=DEFAULT_VIEW, label=LABEL_VIEW)
-
-        import_status = gr.Textbox(label=LABEL_IMPORT_STATUS, interactive=False, visible=False)
-        browse_stats = gr.HTML()
-
-        browse_df = gr.Dataframe(
-            headers=BROWSE_DF_HEADERS,
-            datatype=BROWSE_DF_DATATYPES,
-            interactive=False,
-            label=LABEL_IMAGES,
-            visible=True,
-        )
+            view_toggle = gr.Radio(
+                RADIO_VIEW_OPTIONS,
+                value=DEFAULT_VIEW,
+                label=LABEL_VIEW,
+                elem_classes="aa-view-toggle",
+            )
+            import_status = gr.Textbox(
+                label=LABEL_IMPORT_STATUS, interactive=False, visible=False, elem_classes="aa-browse-toolbar",
+            )
+            browse_stats = gr.HTML(elem_classes="aa-browse-toolbar")
+            browse_df = gr.Dataframe(
+                headers=list(BROWSE_DF_HEADERS),
+                datatype=list(BROWSE_DF_DATATYPES),
+                interactive=False,
+                label=LABEL_IMAGES,
+                visible=True,
+                elem_classes="aa-browse-toolbar",
+            )
 
         browse_gallery = gr.Gallery(
             label=LABEL_IMAGES,
@@ -113,6 +120,7 @@ def _open_modal(idx: int) -> tuple:
 
 def wire_events(c: BrowseTabComponents) -> None:
     """Wire all Gradio events for the Browse tab."""
+
     def _toggle_view(view: str) -> tuple:
         return gr.update(visible=view == "List"), gr.update(visible=view == "Grid")
 
@@ -137,13 +145,23 @@ def wire_events(c: BrowseTabComponents) -> None:
         outputs=[c.browse_df, c.browse_stats, c.import_status],
     )
 
+    def _handle_df_select(evt: gr.SelectData | None) -> tuple:
+        if evt is None or evt.index is None:
+            return gr.update(visible=False), None, "", None
+        return _open_modal(evt.index[0])
+
+    def _handle_gallery_select(evt: gr.SelectData | None) -> tuple:
+        if evt is None or evt.index is None:
+            return gr.update(visible=False), None, "", None
+        return _open_modal(evt.index)
+
     c.browse_df.select(
-        fn=lambda evt: _open_modal(evt.index[0]),
+        fn=_handle_df_select,
         outputs=[c.modal_row, c.modal_img, c.modal_info, c.modal_idx_state],
     )
 
     c.browse_gallery.select(
-        fn=lambda evt: _open_modal(evt.index),
+        fn=_handle_gallery_select,
         outputs=[c.modal_row, c.modal_img, c.modal_info, c.modal_idx_state],
     )
 

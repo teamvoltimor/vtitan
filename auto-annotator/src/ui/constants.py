@@ -5,7 +5,7 @@ headings, and dataframe configuration strings are centralised here so the UI
 builder modules never embed bare string literals.
 """
 
-from __future__ import annotations
+from typing import Literal
 
 # Tab names
 
@@ -28,6 +28,7 @@ BTN_CLEAR_POINTS: str = "Clear points \u2715"
 BTN_SAVE_NEXT: str = "Save & Next \u2192"
 BTN_SKIP: str = "Skip \u23ed"
 BTN_PREV: str = "\u2190 Prev"
+BTN_RESET_ZOOM: str = "Reset zoom"
 BTN_REFRESH: str = "Refresh"
 BTN_IMPORT: str = "Import Images"
 BTN_ADD_CLASS: str = "Add / update class"
@@ -51,6 +52,10 @@ DEFAULT_EXPORT_FMT: str = "Segmentation"
 DEFAULT_MASK_LEVEL: str = "Object (1)"
 DEFAULT_VIEW: str = "List"
 DEFAULT_OUTLINE_MODE: str = "Class color"
+ZOOM_MIN: float = 0.5
+ZOOM_MAX: float = 3.0
+ZOOM_STEP: float = 0.1
+DEFAULT_ZOOM: float = 1.0
 
 # Component labels
 
@@ -74,6 +79,7 @@ LABEL_IMAGES: str = "Images"
 LABEL_IMPORT_STATUS: str = "Import status"
 LABEL_VIEW: str = "View"
 LABEL_PREVIEW: str = "Preview"
+LABEL_ZOOM: str = "Canvas zoom"
 
 # Placeholder text
 
@@ -99,13 +105,22 @@ STATUS_ICONS: dict[str, str] = {
 
 # Browse dataframe configuration
 
-BROWSE_DF_HEADERS: list[str] = ["ID", "Filename", "Status", "Format", "Updated"]
-BROWSE_DF_DATATYPES: list[str] = ["number", "str", "str", "str", "str"]
+DataType = Literal["number", "str", "bool", "date", "markdown", "html"]
+
+
+BROWSE_DF_HEADERS: tuple[str, str, str, str, str] = ("ID", "Filename", "Status", "Format", "Updated")
+BROWSE_DF_DATATYPES: tuple[DataType, DataType, DataType, DataType, DataType] = (
+    "number",
+    "str",
+    "str",
+    "str",
+    "str",
+)
 
 # Gallery display settings
 
 GALLERY_COLUMNS: int = 4
-GALLERY_OBJECT_FIT: str = "contain"
+GALLERY_OBJECT_FIT: Literal["contain", "cover", "fill", "none", "scale-down"] = "contain"
 GALLERY_HEIGHT: str = "auto"
 
 # Canvas elem_id used for CSS targeting

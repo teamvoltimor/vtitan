@@ -18,12 +18,13 @@ const HeroHeader = ({ onLaunchAnnotate }: HeroHeaderProps) => {
   return (
     <Box
       sx={{
-        borderRadius: 3,
-        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 55%, rgba(255,255,255,0) 100%)`,
+        borderRadius: 0,
+        border: `1px solid rgba(255,255,255,0.12)`,
+        background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, rgba(9, 10, 18, 0.9) 65%)`,
         px: { xs: 3, sm: 4 },
         py: { xs: 3, sm: 4 },
         color: '#fff',
-        boxShadow: '0 25px 60px rgba(14, 14, 44, 0.55)',
+        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.55)',
       }}
     >
       <Stack direction={{ xs: 'column', md: 'row' }} alignItems="flex-start" justifyContent="space-between" gap={2}>

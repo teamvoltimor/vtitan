@@ -10,9 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
+from src.enums import OutlineMode
+
 if TYPE_CHECKING:
     import numpy as np
 
+    from src.enums import Status
     from src.types import ClassId, ImageId, ModelId, YoloClassId
 
 
@@ -89,7 +92,7 @@ class SAMClientProtocol(Protocol):
         ...
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ClassInfo:
     """A single annotation class, mirroring a row from the ``classes`` DB table.
 
@@ -104,7 +107,7 @@ class ClassInfo:
     color: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Point:
     """A single click point added to the annotation buffer.
 
@@ -144,7 +147,7 @@ class Annotation:
     mask: np.ndarray
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ImageRecord:
     """A row from the ``images`` DB table.
 
@@ -158,7 +161,7 @@ class ImageRecord:
 
     id: ImageId
     path: str
-    status: int
+    status: Status
     format_used: str | None
     updated_at: str | None
 
@@ -186,7 +189,7 @@ class InferenceResult:
         return not self.error
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StatsResult:
     """Aggregate image status counts returned by :func:`src.db.get_stats`.
 
@@ -205,7 +208,7 @@ class StatsResult:
     pct: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BrowseRow:
     """A single row in the browse-view dataframe, as returned by :func:`src.db.get_all_images`.
 
@@ -215,6 +218,7 @@ class BrowseRow:
         status:     Human-readable status string: ``"pending"``, ``"done"``, or ``"skipped"``.
         format:     Export format string (``"seg"``, ``"det"``, or ``""`` if not yet saved).
         updated_at: ISO-8601 timestamp of the last status change, or ``""`` if never updated.
+        path:       Absolute path to the source image file.
     """
 
     id: ImageId
@@ -222,6 +226,7 @@ class BrowseRow:
     status: str
     format: str
     updated_at: str
+    path: str
 
 
 @dataclass
@@ -287,7 +292,7 @@ class AppState:
     """
 
     classes: list[ClassInfo] = field(default_factory=list)
-    outline_color: str = "Class color"
+    outline_color: OutlineMode = OutlineMode.CLASS_COLOR
     active_model_id: ModelId | None = None
     model_supports_text: bool = False
     current_image_id: ImageId | None = None
@@ -301,3 +306,4 @@ class AppState:
     pending_class_db_id: ClassId | None = None
     annotations: list[Annotation] = field(default_factory=list)
     log_entries: list[str] = field(default_factory=list)
+    zoom: float = 1.0

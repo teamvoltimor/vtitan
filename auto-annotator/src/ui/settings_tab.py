@@ -52,36 +52,46 @@ def build() -> SettingsTabComponents:
                 label=LABEL_SAM_MODEL,
                 choices=[],
                 interactive=True,
+                elem_classes="aa-settings-control",
             )
-            load_model_btn = gr.Button(BTN_LOAD_MODEL, variant="primary")
+            load_model_btn = gr.Button(BTN_LOAD_MODEL, variant="primary", elem_classes="aa-settings-button")
             model_status_box = gr.Textbox(
                 label=LABEL_MODEL_STATUS,
                 interactive=False,
                 placeholder=PLACEHOLDER_MODEL_STATUS,
+                elem_classes="aa-settings-control",
             )
             auto_annotate_btn = gr.Button(
                 BTN_AUTO_ANNOTATE,
                 visible=False,
                 variant="secondary",
+                elem_classes="aa-settings-button",
             )
 
         with gr.Accordion(ACCORDION_CLASSES, open=True):
-            with gr.Row():
-                class_input = gr.Textbox(label=LABEL_NEW_CLASS, placeholder=PLACEHOLDER_CLASS_NAME)
-                color_picker = gr.ColorPicker(label=LABEL_COLOR, value=PALETTE_HEX[0])
-            add_class_btn = gr.Button(BTN_ADD_CLASS, variant="primary")
-            class_swatch = gr.HTML()
+            with gr.Column(elem_classes="aa-settings-control"):
+                class_input = gr.Textbox(
+                    label=LABEL_NEW_CLASS,
+                    placeholder=PLACEHOLDER_CLASS_NAME,
+                    elem_classes="aa-settings-control",
+                )
+                color_picker = gr.ColorPicker(
+                    label=LABEL_COLOR, value=PALETTE_HEX[0], elem_classes="aa-settings-control",
+                )
+            add_class_btn = gr.Button(BTN_ADD_CLASS, variant="primary", elem_classes="aa-settings-button")
+            class_swatch = gr.HTML(elem_classes="aa-settings-control")
 
             gr.Markdown(HEADING_EDIT_CLASS_COLOR)
-            with gr.Row():
+            with gr.Column(elem_classes="aa-settings-control"):
                 edit_class_dd = gr.Dropdown(
                     label=LABEL_CLASS_TO_EDIT,
                     choices=[],
                     interactive=True,
+                    elem_classes="aa-settings-control",
                 )
-                edit_color_picker = gr.ColorPicker(label=LABEL_NEW_COLOR)
-            update_color_btn = gr.Button(BTN_UPDATE_COLOR)
-            edit_status = gr.Textbox(label=LABEL_EDIT_STATUS, interactive=False)
+                edit_color_picker = gr.ColorPicker(label=LABEL_NEW_COLOR, elem_classes="aa-settings-control")
+            update_color_btn = gr.Button(BTN_UPDATE_COLOR, elem_classes="aa-settings-button")
+            edit_status = gr.Textbox(label=LABEL_EDIT_STATUS, interactive=False, elem_classes="aa-settings-control")
 
         with gr.Accordion(ACCORDION_DISPLAY, open=False):
             outline_color_dd = gr.Dropdown(
@@ -89,6 +99,7 @@ def build() -> SettingsTabComponents:
                 value=DEFAULT_OUTLINE_MODE,
                 label=LABEL_OUTLINE_MODE,
                 interactive=True,
+                elem_classes="aa-settings-control",
             )
 
     return SettingsTabComponents(

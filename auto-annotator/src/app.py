@@ -108,6 +108,99 @@ button.secondary {
 }
 button.secondary:hover { border-color: var(--ctp-blue) !important; color: var(--ctp-blue) !important; }
 
+/* ── Layout tweaks ── */
+.gr-row,
+.gr-column,
+.gradio-row,
+.gradio-column {
+  gap: 10px !important;
+}
+.gr-row.aa-button-row,
+.gr-row.aa-toolbar-row,
+.gradio-row.aa-button-row,
+.gradio-row.aa-toolbar-row {
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+}
+button {
+  min-width: 80px;
+  padding: 8px 14px !important;
+  width: auto !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+button.primary,
+button.secondary {
+  height: 36px !important;
+}
+.gradio-container .gradio-block {
+  padding: 18px !important;
+  border-radius: 8px !important;
+}
+.aa-canvas-column {
+  padding: 4px !important;
+}
+.aa-canvas-wrapper {
+  border: 1px solid var(--ctp-surface0) !important;
+  border-radius: 10px !important;
+  padding: 10px !important;
+  background: var(--ctp-surface0) !important;
+  max-height: 600px !important;
+  overflow: auto !important;
+}
+.aa-canvas-wrapper .gr-image {
+  max-width: none !important;
+  width: auto !important;
+}
+.aa-annotate-controls {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+.aa-action-row {
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+.aa-action-row button {
+  font-size: 0.9rem !important;
+  padding: 6px 12px !important;
+}
+.aa-browse-toolbar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  width: 100% !important;
+}
+.aa-toolbar-row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+.aa-toolbar-actions .aa-button-row button,
+.aa-browse-toolbar .aa-button-row button {
+  flex: none !important;
+}
+.aa-input-select .wrap {
+  max-width: 260px !important;
+  width: 100% !important;
+}
+.aa-reset-zoom {
+  align-self: flex-start !important;
+}
+.aa-settings-control .wrap,
+.aa-settings-control .colorpicker,
+.aa-settings-control input,
+.aa-settings-control select,
+.aa-settings-control .gradio-slider {
+  max-width: 280px !important;
+}
+.aa-settings-button {
+  max-width: 180px !important;
+  min-width: 0 !important;
+}
+
 /* ── Dropdowns ── */
 .wrap { background: var(--ctp-base) !important; border: 1px solid var(--ctp-surface1) !important; border-radius: 4px !important; }
 
@@ -166,7 +259,7 @@ def build_demo(app_ctx: AppContext) -> gr.Blocks:
     """Construct and return the Gradio Blocks application."""
     db.init_db()
 
-    with gr.Blocks(title="Auto-Annotator", theme=gr.themes.Base(), css=_CSS) as demo:
+    with gr.Blocks(title="Auto-Annotator") as demo:
         gr.HTML(_HEADER_HTML)
         state = gr.State(value=AppState())
 
@@ -211,6 +304,7 @@ def build_demo(app_ctx: AppContext) -> gr.Blocks:
                 ann_c.ann_box,
                 browse_c.browse_df,
                 browse_c.browse_stats,
+                browse_c.browse_gallery,
             ],
         )
 
@@ -240,4 +334,9 @@ def run_app() -> None:
     initialize_inference(app_ctx.client, app_ctx.inference)
 
     demo = build_demo(app_ctx)
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        theme=gr.themes.Base(),
+        css=_CSS,
+    )

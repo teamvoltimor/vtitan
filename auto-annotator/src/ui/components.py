@@ -33,6 +33,8 @@ class AnnotateTabComponents:
     status_box: gr.Textbox
     ann_box: gr.Textbox
     stats_box: gr.HTML
+    zoom_slider: gr.Slider
+    reset_zoom_btn: gr.Button
 
 
 @dataclass

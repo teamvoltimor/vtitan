@@ -49,6 +49,12 @@ ENV_HF_HUB_CACHE: str = "HF_HUB_CACHE"
 ENV_HF_TOKEN: str = "HF_TOKEN"
 """Environment variable: HuggingFace API token (required for gated models)."""
 
+ENV_API_PORT: str = "API_PORT"
+"""HTTP API server port (run via ``python main.py api`` or ``uvicorn src.api.app:app``)."""
+
+ENV_API_PUBLIC_URL: str = "API_PUBLIC_URL"
+"""Base URL exposed to clients when building image URLs."""
+
 ENV_DEFAULT_MODEL: str = "DEFAULT_MODEL"
 """Environment variable: model ID to load on server startup."""
 
@@ -118,6 +124,18 @@ SERVER_PORT: int = int(_resolved_port)
 
 SERVER_PORT_SOURCE: str = _port_origin
 """Description of where the current server port value originated."""
+
+DEFAULT_API_PORT: int = 8000
+"""Port used by the HTTP API when no override is provided."""
+
+API_PORT: int = int(os.environ.get(ENV_API_PORT, DEFAULT_API_PORT))
+"""Port that ``uvicorn src.api.app:app`` listens on by default."""
+
+DEFAULT_API_PUBLIC_URL: str = f"http://localhost:{API_PORT}"
+"""Default base URL returned to React for image downloads (can be overridden for reverse proxies)."""
+
+API_PUBLIC_URL: str = os.environ.get(ENV_API_PUBLIC_URL, DEFAULT_API_PUBLIC_URL)
+"""Base URL used when building ``GalleryItem.src`` responses."""
 
 RECV_CHUNK_SIZE: int = 65536
 """Maximum number of bytes read per socket recv() call in the TCP client and server."""
