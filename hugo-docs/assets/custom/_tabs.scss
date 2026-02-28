@@ -16,8 +16,8 @@
 
 .tabs-header {
     display: flex;
-    background: var(--gray-50);
-    border-bottom: 2px solid var(--color-border);
+    background: var(--surface-panel);
+    border-bottom: 1px solid var(--color-border);
     overflow-x: auto;
     scrollbar-width: none; // Firefox
 
@@ -31,7 +31,7 @@
     padding: var(--space-md) var(--space-lg);
     background: transparent;
     border: none;
-    border-bottom: 3px solid transparent;
+    border-bottom: 2px solid transparent;
     color: var(--gray-500);
     font-family: var(--font-sans);
     font-size: var(--text-base);

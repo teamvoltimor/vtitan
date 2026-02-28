@@ -15,7 +15,7 @@ button:not(.theme-toggle):not([type="checkbox"]) {
     line-height: 1.5;
     text-decoration: none;
     border: 1px solid var(--divider-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition:
         background var(--transition-base),

@@ -2,12 +2,9 @@
 // ============================================================================
 
 blockquote {
-    position: relative;
     margin: var(--space-xl) 0;
-    padding: var(--space-md) var(--space-lg);
-    border-left: 3px solid var(--color-border);
-    background-color: var(--gray-50);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    padding: var(--space-xs) var(--space-lg);
+    border-left: 2px solid var(--gray-300);
     color: var(--text-muted);
 
     > :first-child {
@@ -18,7 +15,7 @@ blockquote {
     }
 
     p {
-        color: var(--body-font-color) ;
+        color: var(--text-muted);
     }
 }
 

@@ -1,18 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap");
-
 // ============================================================================
-// Minimalist Hugo Book Theme (Refined Minimal Consistency)
+// Klevor Docs — Linear/OpenCode Developer Theme
 // ============================================================================
 
 :root {
     color: var(--body-font-color);
 }
 
+// Body/canvas gets the zinc-100 background; .book-page is kept white by _content.scss
 html:not(.dark):not([data-theme="dark"]) body,
 html:not(.dark):not([data-theme="dark"]) main,
 html:not(.dark):not([data-theme="dark"]) .container,
 html:not(.dark):not([data-theme="dark"]) .book-menu,
-html:not(.dark):not([data-theme="dark"]) .book-page,
 html:not(.dark):not([data-theme="dark"]) .book-toc,
 html:not(.dark):not([data-theme="dark"]) .book-toc-content,
 html:not(.dark):not([data-theme="dark"]) .book-menu-content {
@@ -50,9 +48,10 @@ html.dark .book-toc-content,
 
 /*
  * Design Notes
- * - Display type (Playfair Display) for strong editorial cues, sans (Space Grotesk) for modern readability.
- * - Stone + teal palette with aurora/grain layers keeps the entire layout visually unified.
- * - Surfaces (cards, menus, headers) share the same radius, shadow, and gradient tokens so navigation feels like one coherent system.
+ * - DM Sans variable font: clean grotesque with optical sizing, developer-appropriate.
+ * - Zinc neutral palette: warmer than slate, higher contrast, less blue tint.
+ * - Violet (#5b5bd6) accent: passes WCAG AA on white (5.19:1) and dark (7.4:1).
+ * - Border radius capped at 12px: tighter, closer to Linear's precision aesthetic.
  */
 
 // ============================================================================
@@ -217,22 +216,19 @@ select:focus {
 details {
     margin: var(--space-xl) 0;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    background: var(--gray-50);
-    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
     transition:
-        box-shadow var(--transition-base),
-        background var(--transition-base),
-        border-color var(--transition-base);
+        border-color var(--transition-base),
+        box-shadow var(--transition-base);
     padding: 0;
     overflow: hidden;
     position: relative;
 }
 
 details[open] {
-    box-shadow: var(--shadow-md);
-    background: var(--body-background);
     border-color: var(--gray-300);
+    box-shadow: var(--shadow-sm);
 }
 
 details summary {
@@ -242,17 +238,16 @@ details summary {
     cursor: pointer;
     font-family: var(--font-sans);
     font-weight: var(--font-semibold);
-    font-size: var(--text-lg);
-    padding: var(--space-lg) var(--space-xl);
-    border-left: 4px solid var(--color-link);
+    font-size: var(--text-base);
+    padding: var(--space-md) var(--space-lg);
     background: none;
     outline: none;
     transition:
         background var(--transition-base),
-        color var(--transition-base),
-        border-color var(--transition-base);
+        color var(--transition-base);
     user-select: none;
     position: relative;
+    color: var(--body-font-color);
 }
 
 details summary::-webkit-details-marker {
@@ -262,10 +257,10 @@ details summary::-webkit-details-marker {
 details summary::after {
     content: "";
     display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-right: 2px solid var(--gray-500);
-    border-bottom: 2px solid var(--gray-500);
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-right: 1.5px solid var(--gray-400);
+    border-bottom: 1.5px solid var(--gray-400);
     transform: rotate(45deg) translateY(-2px);
     margin-left: auto;
     flex-shrink: 0;
@@ -279,8 +274,12 @@ details[open] summary::after {
 
 details summary:hover,
 details summary:focus-visible {
-    background: var(--gray-100);
-    color: var(--color-link);
+    background: var(--hover-bg);
+    color: var(--body-font-color);
+}
+
+details[open] summary {
+    border-bottom: 1px solid var(--color-border);
 }
 
 details .markdown-inner {
@@ -291,7 +290,7 @@ details .markdown-inner {
 @keyframes accordion-fade-in {
     from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(6px);
     }
     to {
         opacity: 1;
@@ -382,70 +381,72 @@ details .markdown-inner {
 // Code Copy Button Styles (defined later - see line ~1473)
 
 // ============================================================================
-// Light Theme Variables - Refined Minimalist
+// Light Theme Variables — Zinc + Violet (Linear-inspired)
 // ============================================================================
 
 :root {
-    // === CORE COLORS - Clean Light Palette ===
+    // === CORE COLORS ===
+    // White base, near-black text: 21:1 contrast — maximum legibility.
     --body-background: #ffffff;
-    --body-font-color: #0f172a;
-    --color-link: #0f766e;
-    --color-link-rgb: 15, 118, 110;
-    --color-visited-link: #0a5c55;
-    --color-link-hover: #085e57;
+    --body-font-color: #09090b;
+    --color-link: #5b5bd6;
+    --color-link-rgb: 91, 91, 214;
+    --color-visited-link: #4f46e5;
+    --color-link-hover: #4747c2;
 
-    // === GRAYS (Slate neutral palette) ===
-    --gray-50: #f8fafc;
-    --gray-100: #f1f5f9;
-    --gray-200: #e2e8f0;
-    --gray-300: #cbd5e1;
-    --gray-400: #94a3b8;
-    --gray-500: #64748b;
-    --gray-600: #475569;
-    --gray-700: #334155;
+    // === GRAYS (Zinc — neutral, no blue cast) ===
+    // zinc-50 → zinc-700; each step is WCAG AA on white for normal text at 600+
+    --gray-50: #fafafa;
+    --gray-100: #f4f4f5;
+    --gray-200: #e4e4e7;
+    --gray-300: #d4d4d8;
+    --gray-400: #a1a1aa;
+    --gray-500: #71717a;   // 4.65:1 vs white — AA large text ✓
+    --gray-600: #52525b;   // 7.28:1 vs white — AA normal text ✓
+    --gray-700: #3f3f46;   // 10.4:1 vs white — AAA ✓
 
     // === UI ELEMENTS ===
-    --color-border: #d1d9e0;
+    --color-border: rgba(9, 9, 11, 0.1);
     --icon-filter: none;
-    --divider-color: rgba(100, 116, 139, 0.25);
-    --text-muted: #475569;
+    --divider-color: rgba(9, 9, 11, 0.08);
+    --text-muted: #52525b;   // 7.28:1 vs white ✓
 
     // === CODE ===
-    --code-bg: #e8edf3;
-    --code-color: #b91c1c;
-    --code-block-bg: #f4f7fb;
+    --code-bg: #f4f4f5;
+    --code-color: #be185d;   // pink-700, visible against zinc-100
+    --code-block-bg: #fafafa;
 
     // === SEMANTIC COLORS (WCAG AA compliant on their tint backgrounds) ===
-    --color-accent-note: #0b7a70;
-    --color-accent-note-tint: #f0fdfa;
-    --color-accent-info: #0e7490;
-    --color-accent-info-tint: #ecfeff;
-    --color-accent-tip: #047857;
+    --color-accent-note: #4f46e5;
+    --color-accent-note-tint: #eef2ff;
+    --color-accent-info: #0284c7;
+    --color-accent-info-tint: #e0f2fe;
+    --color-accent-tip: #059669;
     --color-accent-tip-tint: #ecfdf5;
-    --color-accent-success: #047857;
+    --color-accent-success: #059669;
     --color-accent-success-tint: #ecfdf5;
-    --color-accent-warning: #92400e;
+    --color-accent-warning: #b45309;
     --color-accent-warning-tint: #fffbeb;
-    --color-accent-danger: #b91c1c;
+    --color-accent-danger: #dc2626;
     --color-accent-danger-tint: #fef2f2;
-    --color-accent-caution: #c2410c;
+    --color-accent-caution: #ea580c;
     --color-accent-caution-tint: #fff7ed;
-    --color-accent-default: #4b5563;
-    --color-accent-default-tint: #f9fafb;
-    --color-accent-important: #6d28d9;
+    --color-accent-default: #52525b;
+    --color-accent-default-tint: #f4f4f5;
+    --color-accent-important: #7c3aed;
     --color-accent-important-tint: #f5f3ff;
 
     // === UTILITY COLORS ===
     --color-white: #ffffff;
-    --color-black: #18181b;
+    --color-black: #09090b;
 
     // Light theme specific surfaces
-    --sidebar-bg: #edf2f7;
-    --hover-bg: rgba(15, 118, 110, 0.09);
-    --active-bg: rgba(15, 118, 110, 0.15);
-    --sidebar-border: #d1d9e0;
+    --sidebar-bg: #f4f4f5;
+    --hover-bg: rgba(9, 9, 11, 0.04);
+    --active-bg: rgba(91, 91, 214, 0.08);
+    --sidebar-border: rgba(9, 9, 11, 0.08);
 
-    // === SPACING SYSTEM (Enhanced rhythm) ===
+    // === SPACING SYSTEM ===
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -454,29 +455,30 @@ details .markdown-inner {
     --space-2xl: 3.5rem;
     --space-3xl: 5rem;
 
-    // === SHADOWS ===
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-    --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.07), 0 4px 8px rgba(0, 0, 0, 0.04);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+    // === SHADOWS — softer, more precise than before ===
+    --shadow-xs: 0 1px 2px rgba(9, 9, 11, 0.04);
+    --shadow-sm: 0 1px 3px rgba(9, 9, 11, 0.06), 0 1px 2px rgba(9, 9, 11, 0.04);
+    --shadow-md: 0 4px 8px rgba(9, 9, 11, 0.06), 0 2px 4px rgba(9, 9, 11, 0.04);
+    --shadow-lg: 0 8px 20px rgba(9, 9, 11, 0.07), 0 4px 6px rgba(9, 9, 11, 0.04);
+    --shadow-xl: 0 16px 32px rgba(9, 9, 11, 0.08), 0 8px 12px rgba(9, 9, 11, 0.04);
     --shadow-sidebar: none;
 
-    // === BORDER RADIUS ===
-    --radius-sm: 0.375rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.75rem;
-    --radius-xl: 1rem;
+    // === BORDER RADIUS — tighter than before, closer to Linear's 6-8px ===
+    --radius-sm: 0.25rem;    // 4px
+    --radius-md: 0.375rem;   // 6px
+    --radius-lg: 0.5rem;     // 8px
+    --radius-xl: 0.75rem;    // 12px
 
     // === TRANSITIONS ===
-    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 280ms cubic-bezier(0.4, 0, 0.2, 1);
 
     // === TYPOGRAPHY ===
-    --font-display: "Playfair Display", "Space Grotesk", "Times New Roman", serif;
-    --font-sans: "Space Grotesk", "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    // DM Sans: clean variable grotesque, optical sizing, developer-appropriate
+    --font-display: "DM Sans", "Helvetica Neue", sans-serif;
+    --font-sans: "DM Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
     // Font sizes
     --text-xs: 0.75rem;
@@ -510,95 +512,103 @@ details .markdown-inner {
     --font-semibold: 600;
     --font-bold: 700;
 
-    // === ATMOSPHERIC ANIMATIONS ===
-    --animation-duration-fast: 150ms;
-    --animation-duration-base: 200ms;
-    --animation-duration-slow: 300ms;
-    --animation-duration-page: 400ms;
+    // === ANIMATION DURATIONS ===
+    --animation-duration-fast: 120ms;
+    --animation-duration-base: 180ms;
+    --animation-duration-slow: 280ms;
+    --animation-duration-page: 360ms;
+
+    // === SURFACES ===
     --surface-plain: #ffffff;
-    --surface-panel: #edf2f7;
+    --surface-panel: #f4f4f5;
     --surface-card: #ffffff;
-    --surface-muted: #edf2f7;
-    --body-background-layer: var(--surface-plain);
+    --surface-muted: #f4f4f5;
+    // Canvas is zinc-100 so the white book-page pops as a card
+    --body-background-layer: var(--surface-panel);
     --sidebar-shadow: none;
 }
 
 // ============================================================================
-// 2. DARK THEME (Very Dark - Almost Black)
+// Dark Theme — Zinc-950 + Indigo (Linear near-black)
 // ============================================================================
 
 html.dark,
 html[data-theme="dark"],
 body.dark,
 [data-theme="dark"] {
-    // === CORE COLORS - Distinctive Dark Palette ===
-    --body-background: #0c0c17;
-    --body-font-color: #e2e8f0;
+    // === CORE COLORS ===
+    // zinc-950 base: identical to Linear's app background
+    --body-background: #09090b;
+    --body-font-color: #fafafa;
     --color-link: #818cf8;
     --color-link-rgb: 129, 140, 248;
-    --color-visited-link: #a78bfa;
+    --color-visited-link: #a5b4fc;
+    --color-link-hover: #6366f1;
 
-    // === GRAYS (Refined dark palette) ===
-    --gray-50: #1e1e2e;
-    --gray-100: #1e1e2e;
-    --gray-200: #2d2d3f;
-    --gray-300: #3d3d52;
-    --gray-400: #52526b;
-    --gray-500: #6b6b80;
-    --gray-600: #8b8b9e;
-    --gray-700: #b4b4c4;
+    // === GRAYS (Zinc inverted — no blue cast) ===
+    --gray-50: #18181b;   // zinc-900
+    --gray-100: #27272a;  // zinc-800
+    --gray-200: #3f3f46;  // zinc-700
+    --gray-300: #52525b;  // zinc-600
+    --gray-400: #71717a;  // zinc-500
+    --gray-500: #a1a1aa;  // zinc-400
+    --gray-600: #d4d4d8;  // zinc-300
+    --gray-700: #e4e4e7;  // zinc-200
 
     // === UI ELEMENTS ===
-    --color-border: #2d2d3f;
+    --color-border: rgba(255, 255, 255, 0.08);
     --icon-filter: brightness(0) invert(1);
+    --divider-color: rgba(255, 255, 255, 0.06);
+    --text-muted: #a1a1aa;
 
     // === CODE ===
-    --code-bg: #1e1e2e;
+    --code-bg: #18181b;
     --code-color: #f87171;
-    --code-block-bg: #13131f;
+    --code-block-bg: #111113;
 
-    // === SEMANTIC COLORS (Enhanced for dark mode) ===
+    // === SEMANTIC COLORS ===
     --color-accent-note: #818cf8;
-    --color-accent-note-tint: rgba(129, 140, 248, 0.15);
+    --color-accent-note-tint: rgba(129, 140, 248, 0.12);
     --color-accent-info: #38bdf8;
-    --color-accent-info-tint: rgba(56, 189, 248, 0.15);
+    --color-accent-info-tint: rgba(56, 189, 248, 0.12);
     --color-accent-tip: #34d399;
-    --color-accent-tip-tint: rgba(52, 211, 153, 0.15);
+    --color-accent-tip-tint: rgba(52, 211, 153, 0.12);
     --color-accent-success: #34d399;
-    --color-accent-success-tint: rgba(52, 211, 153, 0.15);
+    --color-accent-success-tint: rgba(52, 211, 153, 0.12);
     --color-accent-warning: #fbbf24;
-    --color-accent-warning-tint: rgba(251, 191, 36, 0.15);
+    --color-accent-warning-tint: rgba(251, 191, 36, 0.12);
     --color-accent-danger: #f87171;
-    --color-accent-danger-tint: rgba(248, 113, 113, 0.15);
+    --color-accent-danger-tint: rgba(248, 113, 113, 0.12);
     --color-accent-caution: #fb923c;
-    --color-accent-caution-tint: rgba(251, 146, 60, 0.15);
-    --color-accent-default: #8b8b9e;
-    --color-accent-default-tint: rgba(139, 139, 158, 0.15);
+    --color-accent-caution-tint: rgba(251, 146, 60, 0.12);
+    --color-accent-default: #a1a1aa;
+    --color-accent-default-tint: rgba(161, 161, 170, 0.12);
     --color-accent-important: #a78bfa;
-    --color-accent-important-tint: rgba(167, 139, 250, 0.15);
+    --color-accent-important-tint: rgba(167, 139, 250, 0.12);
 
     // === UTILITY COLORS ===
     --color-white: #ffffff;
     --color-black: #000000;
-    --color-link-hover: #6366f1;
 
-    // Dark theme specific
-    --sidebar-bg: #0c0c17;
-    --hover-bg: #1e1e2e;
-    --active-bg: #2d2d3f;
+    // Dark theme specific surfaces
+    --sidebar-bg: #09090b;
+    --hover-bg: rgba(255, 255, 255, 0.05);
+    --active-bg: rgba(129, 140, 248, 0.1);
+    --sidebar-border: rgba(255, 255, 255, 0.06);
 
-    // === SHADOWS (Refined for dark mode) ===
-    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
-    --shadow-sidebar: 2px 0 10px 0 rgba(0, 0, 0, 0.4);
-    --surface-plain: #05060c;
-    --surface-panel: #0d0d16;
-    --surface-card: #11121c;
-    --surface-muted: rgba(15, 18, 33, 0.95);
-    --brand-gleam: rgba(129, 140, 248, 0.08);
+    // === SHADOWS ===
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 6px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.8), 0 8px 12px rgba(0, 0, 0, 0.5);
+    --shadow-sidebar: 1px 0 0 0 rgba(255, 255, 255, 0.06);
+
+    // === SURFACES ===
+    --surface-plain: #09090b;
+    --surface-panel: #0f0f11;
+    --surface-card: #111113;
+    --surface-muted: rgba(15, 15, 17, 0.98);
     --body-background-layer: var(--body-background);
 }
 

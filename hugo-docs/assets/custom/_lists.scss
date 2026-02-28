@@ -144,10 +144,6 @@ ol {
         transform var(--transition-fast),
         box-shadow var(--transition-base);
 
-    &:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow-sm);
-    }
 }
 
 // Badge variants
@@ -206,81 +202,24 @@ ol {
 }
 
 // ============================================================================
-// 14.4 DETAILS/SUMMARY (Collapsible Sections)
-// ============================================================================
-
-details {
-    margin: var(--space-lg) 0;
-    padding: var(--space-md);
-    background: var(--gray-100);
-    border: 1px solid var(--gray-200);
-    border-left: 4px solid var(--color-link);
-    border-radius: 0.75rem;
-    box-shadow: var(--shadow-sm);
-    transition: all var(--transition-base);
-
-    &[open] {
-        box-shadow: var(--shadow-md);
-
-        summary {
-            margin-bottom: var(--space-md);
-            color: var(--color-link);
-
-            &::marker {
-                color: var(--color-link);
-            }
-        }
-    }
-
-    summary {
-        cursor: pointer;
-        font-weight: 700;
-        font-size: 1.0625rem;
-        color: var(--body-font-color);
-        padding: var(--space-sm);
-        margin: calc(var(--space-md) * -1);
-        margin-bottom: 0;
-        border-radius: 0.75rem 0.75rem 0 0;
-        transition: all var(--transition-base);
-        user-select: none;
-        list-style-position: outside;
-
-        &:hover {
-            background: var(--hover-bg);
-            color: var(--color-link);
-        }
-
-        &::marker {
-            color: var(--gray-500);
-            font-size: 1.125em;
-        }
-
-        &::-webkit-details-marker {
-            color: var(--gray-500);
-        }
-    }
-
-    p:last-child {
-        margin-bottom: 0;
-    }
-}
-
-// ============================================================================
 // 14.5 DEFINITION LISTS
 // ============================================================================
 
 dl {
     margin: var(--space-xl) 0;
-    padding: var(--space-lg);
-    background: var(--gray-100);
-    border-radius: 0.75rem;
-    border-left: 4px solid var(--color-link);
+    padding: var(--space-md) var(--space-lg);
+    background: var(--surface-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
 
     dt {
-        font-weight: 700;
+        font-weight: var(--font-semibold);
         color: var(--body-font-color);
         margin-top: var(--space-md);
-        font-size: 1.05rem;
+        font-size: var(--text-sm);
+        text-transform: uppercase;
+        letter-spacing: var(--tracking-wide);
+        color: var(--text-muted);
 
         &:first-child {
             margin-top: 0;
@@ -292,7 +231,7 @@ dl {
         margin-top: var(--space-xs);
         margin-bottom: var(--space-md);
         color: var(--body-font-color);
-        line-height: 1.7;
+        line-height: var(--leading-relaxed);
 
         &:last-child {
             margin-bottom: 0;
@@ -334,7 +273,7 @@ mark {
 .footnotes {
     margin-top: var(--space-2xl);
     padding-top: var(--space-xl);
-    border-top: 2px solid var(--gray-200);
+    border-top: 1px solid var(--color-border);
     font-size: 0.875rem;
 
     ol {
