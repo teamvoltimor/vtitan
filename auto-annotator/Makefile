@@ -8,18 +8,18 @@
 # Local dev
 
 run:
-	uv run python main.py app
+	cd backend && uv run python main.py app
 
 model-server:
-	uv run python main.py server
+	cd backend && uv run python main.py server
 
 # Code quality
 
 lint:
-	uv run ruff check .
+	cd backend && uv run ruff check .
 
 format:
-	uv run ruff check --fix . && uv run ruff format .
+	cd backend && uv run ruff check --fix . && uv run ruff format .
 
 # Docker
 
@@ -31,8 +31,8 @@ docker-run:
 
 docker-dev:
 	docker run --gpus all -p 7860:7860 \
-	  -v "$(CURDIR)/data:/app/data" \
-	  -v "$(CURDIR)/models:/app/models" \
+	  -v "$(CURDIR)/backend/data:/app/data" \
+	  -v "$(CURDIR)/backend/models:/app/models" \
 	  auto-annotator
 
 docker-up:

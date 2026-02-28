@@ -15,8 +15,8 @@ services:
     ports:
       - "${API_PORT:-8000}:${API_PORT:-8000}"
     volumes:
-      - ./data:/app/data:rw
-      - ./models:/app/models:rw
+      - ./backend/data:/app/data:rw
+      - ./backend/models:/app/models:rw
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${API_PORT:-8000}/gallery"]
       interval: 30s

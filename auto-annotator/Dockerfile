@@ -18,12 +18,12 @@ RUN pip3 install uv
 
 WORKDIR /app
 
-COPY pyproject.toml .
+COPY backend/pyproject.toml .
 RUN uv sync --no-dev
 
-COPY src/ src/
-COPY config/ config/
-COPY main.py .
+COPY backend/src/ src/
+COPY backend/config/ config/
+COPY backend/main.py .
 
 EXPOSE ${SERVER_PORT}
 
