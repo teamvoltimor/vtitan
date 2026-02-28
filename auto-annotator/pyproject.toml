@@ -20,6 +20,7 @@ dependencies = [
     "autodistill==0.1.29",
     "autodistill-grounded-sam==0.1.2",
     "dotenv>=0.9.9",
+    "fastapi[standard]>=0.115.0",
 ]
 
 [[tool.uv.index]]

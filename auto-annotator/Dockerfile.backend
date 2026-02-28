@@ -1,11 +1,13 @@
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
 
 ARG SERVER_PORT=8765
+ARG API_PORT=8000
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TORCH_CUDA_ARCH_LIST="8.9" \
     HF_HUB_CACHE=/app/models \
-    SERVER_PORT=${SERVER_PORT}
+    SERVER_PORT=${SERVER_PORT} \
+    API_PORT=${API_PORT}
 
 RUN apt-get update && apt-get install -y \
     python3.12 \
@@ -21,10 +23,13 @@ WORKDIR /app
 COPY pyproject.toml .
 RUN uv sync --no-dev
 
-COPY src/ src/
-COPY config/ config/
 COPY main.py .
+COPY config/ config/
+COPY src/ src/
 
-EXPOSE ${SERVER_PORT}
+COPY scripts/start_backend.sh /usr/local/bin/start_backend.sh
+RUN chmod +x /usr/local/bin/start_backend.sh
 
-CMD ["uv", "run", "python", "main.py", "app"]
+EXPOSE ${SERVER_PORT} ${API_PORT}
+
+CMD ["start_backend.sh"]
