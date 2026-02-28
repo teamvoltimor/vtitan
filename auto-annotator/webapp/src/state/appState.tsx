@@ -1,18 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 export type PointType = 'positive' | 'negative'
 export type ExportFormat = 'segmentation' | 'detection'
 export type ViewMode = 'List' | 'Grid'
 export type OutlineMode = 'Class color' | 'Neutral'
 
-export interface GalleryItem {
-  id: string
-  label: string
-  src: string
-  format: string
-  status: 'pending' | 'done' | 'skipped'
-  updated: string
-}
+import {
+  type GalleryItem as ApiGalleryItem,
+  type GalleryResponse,
+  type SegmentationPoint,
+  getGallery,
+  importGalleryImages,
+  segmentImage,
+} from '../api/client'
+
+/* eslint-disable react-refresh/only-export-components */
+export type GalleryItem = ApiGalleryItem
 
 export interface TimelineEvent {
   time: string
@@ -22,6 +25,22 @@ export interface TimelineEvent {
 export interface ModelOption {
   id: string
   label: string
+}
+
+export type SegmentationStatus = 'idle' | 'pending' | 'ready' | 'error'
+
+export type AnnotationPoint = {
+  x: number
+  y: number
+  pointType: PointType
+  className: string
+  color: string
+}
+
+export interface SegmentationPreviewShape {
+  id: string
+  className: string
+  points: { x: number; y: number }[]
 }
 
 interface AppStateContextValue {
@@ -60,6 +79,15 @@ interface AppStateContextValue {
   modelStatus: string
   loadModel: (modelId: string) => void
   autoAnnotate: () => void
+  annotationPoints: AnnotationPoint[]
+  addAnnotationPoint: (point: AnnotationPoint) => void
+  clearAnnotationPoints: () => void
+  undoAnnotationPoint: () => void
+  segmentationPreview: SegmentationPreviewShape[]
+  segmentationStatus: SegmentationStatus
+  segmentationMessage: string
+  runSegmentationTest: () => Promise<void>
+  clearSegmentationPreview: () => void
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null)
@@ -69,17 +97,6 @@ const modelOptions: ModelOption[] = [
   { id: 'sam_vit_l', label: 'SAM ViT-L' },
   { id: 'sam_vit_h', label: 'SAM ViT-H' },
 ]
-
-const galleryStatus: Array<'pending' | 'done' | 'skipped'> = ['done', 'pending', 'skipped']
-const makeGallery = (srcSeed: string): GalleryItem[] =>
-  Array.from({ length: 6 }).map((_, index) => ({
-    id: `img-${index}`,
-    label: `Sample ${index + 1}`,
-    src: `https://picsum.photos/seed/${srcSeed}-${index}/400/280`,
-    format: index % 2 === 0 ? 'png' : 'jpeg',
-    status: galleryStatus[index % galleryStatus.length],
-    updated: `${index + 2}m ago`,
-  }))
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [zoom, setZoom] = useState(1)
@@ -93,17 +110,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     Background: '#cba6f7',
   })
   const [logEntries, setLogEntries] = useState<string[]>(['Ready.'])
-  const [stats, setStats] = useState({ processed: '12', skipped: '1', labels: '4' })
-  const [gallery, setGallery] = useState<GalleryItem[]>(makeGallery('auto'))
-  const [selectedGalleryItem, setSelectedGalleryItem] = useState<GalleryItem | null>(gallery[0] ?? null)
+  const [stats, setStats] = useState({ processed: '0', skipped: '0', labels: '0' })
+  const [gallery, setGallery] = useState<GalleryItem[]>([])
+  const [selectedGalleryItem, setSelectedGalleryItem] = useState<GalleryItem | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('List')
   const [outlineMode, setOutlineMode] = useState<OutlineMode>('Class color')
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([
-    { time: '09:18', label: 'Gallery seeded' },
-    { time: '09:20', label: 'Loaded demo set' },
-  ])
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [selectedModel, setSelectedModel] = useState(modelOptions[0].id)
   const [modelStatus, setModelStatus] = useState('No model loaded')
+  const [annotationPoints, setAnnotationPoints] = useState<AnnotationPoint[]>([])
+  const [segmentationPreview, setSegmentationPreview] = useState<SegmentationPreviewShape[]>([])
+  const [segmentationStatus, setSegmentationStatus] = useState<SegmentationStatus>('idle')
+  const [segmentationMessage, setSegmentationMessage] = useState('')
 
   const pushLog = useCallback((entry: string) => {
     setLogEntries((prev) => [entry, ...prev].slice(0, 5))
@@ -140,35 +158,47 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     [recordAction],
   )
 
-  const refreshGallery = useCallback(() => {
-    setGallery(makeGallery('refresh'))
+  const _handleGalleryResponse = useCallback((response: GalleryResponse) => {
+    setGallery(response.items)
+    setStats({
+      processed: response.stats.done.toString(),
+      skipped: response.stats.skipped.toString(),
+      labels: response.stats.total.toString(),
+    })
+    setSelectedGalleryItem((current) => current ?? response.items[0] ?? null)
+  }, [])
+
+  const refreshGallery = useCallback(async () => {
+    setSegmentationPreview([])
+    setSegmentationStatus('idle')
+    setSegmentationMessage('')
+    const response = await getGallery()
+    _handleGalleryResponse(response)
     recordAction('Gallery refreshed')
-    setStats((prev) => ({ ...prev, processed: (parseInt(prev.processed, 10) + 3).toString() }))
-  }, [recordAction])
+  }, [recordAction, _handleGalleryResponse])
 
   const importImages = useCallback(
-    (files: FileList | null) => {
+    async (files: FileList | null) => {
       if (!files || files.length === 0) {
         return
       }
-      const imported: GalleryItem[] = Array.from(files).map((file, index) => ({
-        id: `import-${Date.now()}-${index}`,
-        label: file.name,
-        src: `https://picsum.photos/seed/import-${Date.now()}-${index}/400/280`,
-        format: file.type.split('/')[1] || 'jpg',
-        status: 'pending',
-        updated: 'just now',
-      }))
-      setGallery((prev) => [...imported, ...prev])
-      recordAction(`Imported ${files.length} image${files.length > 1 ? 's' : ''}`)
-      setStats((prev) => ({
-        ...prev,
-        processed: (parseInt(prev.processed, 10) + files.length).toString(),
-        labels: (parseInt(prev.labels, 10) + files.length).toString(),
-      }))
+      try {
+        const response = await importGalleryImages(files)
+        _handleGalleryResponse(response)
+        recordAction(`Imported ${files.length} image${files.length > 1 ? 's' : ''}`)
+      } catch (error) {
+        recordAction(`Import failed: ${(error as Error).message}`)
+      }
     },
-    [recordAction],
+    [recordAction, _handleGalleryResponse],
   )
+
+  useEffect(() => {
+    const load = async () => {
+      await refreshGallery()
+    }
+    void load()
+  }, [refreshGallery])
 
   const loadModel = useCallback(
     (modelId: string) => {
@@ -180,8 +210,60 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   )
 
   const autoAnnotate = useCallback(() => {
-    recordAction('Auto-annotated current image')
-    setStats((prev) => ({ ...prev, labels: (parseInt(prev.labels, 10) + 2).toString() }))
+    recordAction('Auto-annotated current image (stub)')
+  }, [recordAction])
+
+  const addAnnotationPoint = useCallback(
+    (point: AnnotationPoint) => {
+      setAnnotationPoints((prev) => [...prev, point])
+    },
+    [setAnnotationPoints],
+  )
+
+  const clearAnnotationPoints = useCallback(() => {
+    setAnnotationPoints([])
+    setSegmentationPreview([])
+    recordAction('Cleared point buffer')
+  }, [recordAction])
+
+  const undoAnnotationPoint = useCallback(() => {
+    setAnnotationPoints((prev) => prev.slice(0, -1))
+    recordAction('Removed last point')
+  }, [recordAction])
+
+  const runSegmentationTest = useCallback(async () => {
+    if (!selectedGalleryItem || annotationPoints.length === 0) {
+      setSegmentationStatus('error')
+      setSegmentationMessage('Select an image and place at least one point')
+      return
+    }
+    setSegmentationStatus('pending')
+    setSegmentationMessage('Running SAM ...')
+    try {
+      const payloadPoints: SegmentationPoint[] = annotationPoints.map(({ x, y, pointType, className }) => ({
+        x,
+        y,
+        pointType,
+        className,
+      }))
+      const response = await segmentImage(selectedGalleryItem.id, payloadPoints)
+      setSegmentationStatus(response.state)
+      setSegmentationMessage(response.message)
+      if (response.shapes.length > 0) {
+        setSegmentationPreview(response.shapes)
+      }
+      recordAction('Segmentation inference completed')
+    } catch (error) {
+      setSegmentationStatus('error')
+      setSegmentationMessage((error as Error).message)
+    }
+  }, [annotationPoints, recordAction, selectedGalleryItem])
+
+  const clearSegmentationPreview = useCallback(() => {
+    setSegmentationPreview([])
+    setSegmentationStatus('idle')
+    setSegmentationMessage('')
+    recordAction('Cleared segmentation preview')
   }, [recordAction])
 
   const value = useMemo(
@@ -221,6 +303,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       modelStatus,
       loadModel,
       autoAnnotate,
+      annotationPoints,
+      addAnnotationPoint,
+      clearAnnotationPoints,
+      undoAnnotationPoint,
+      segmentationPreview,
+      segmentationStatus,
+      segmentationMessage,
+      runSegmentationTest,
+      clearSegmentationPreview,
     }),
     [
       zoom,
@@ -239,6 +330,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       timeline,
       selectedModel,
       modelStatus,
+      annotationPoints,
+      segmentationPreview,
+      segmentationStatus,
+      segmentationMessage,
       addClass,
       updateClassColor,
       pushLog,
@@ -251,6 +346,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       recordAction,
       loadModel,
       autoAnnotate,
+      addAnnotationPoint,
+      clearAnnotationPoints,
+      undoAnnotationPoint,
+      runSegmentationTest,
+      clearSegmentationPreview,
     ],
   )
 
