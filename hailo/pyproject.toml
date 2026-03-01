@@ -1,0 +1,17 @@
+[project]
+name = "hailo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fiftyone>=1.13.0",
+    "numpy>=2.4.2",
+    "onnx>=1.20.1",
+    "onnxruntime>=1.24.1",
+    "opencv-python>=4.13.0.92",
+    "ultralytics>=8.4.14",
+]
+
+[project.scripts]
+hailo = "main:main"

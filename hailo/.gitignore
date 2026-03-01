@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Model weights and compiled artifacts — large binaries, all regeneratable
+data/
+
+# Docker staging volume — ephemeral, never source-controlled
+shared_with_docker/
+
+# Calibration datasets — large, re-downloadable via `hailo calib download`
+calib_data/
+calib_data_npy/
+
+# Inference test outputs
+test_output/
+calib_output*/
+
+# Hailo visualisation exports
+*.svg
+*.html
+
+# Logs
+*.log
