@@ -10,6 +10,7 @@ All functions are pure — they accept data and return results without I/O.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from src.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from src.config.enums import Direction
@@ -24,7 +25,7 @@ _OUTER_WALL_BIAS = 0.05
 
 
 def calculate_waypoints(
-    metadata: dict,
+    metadata: dict[str, Any],
     num_laps: int,
 ) -> list[tuple[float, float]]:
     """Build the full multi-lap waypoint sequence for a scenario.

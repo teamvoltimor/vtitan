@@ -17,7 +17,7 @@ from src.telemetry.api import router as telemetry_router
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
-    telemetry_api._recorder.close()
+    telemetry_api.shutdown()
 
 
 app = FastAPI(

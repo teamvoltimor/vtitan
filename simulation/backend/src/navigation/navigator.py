@@ -25,8 +25,6 @@ from sensor_msgs.msg import LaserScan
 
 from src.config.constants import DictKeys, RobotSpecs
 from src.config.enums import ScenarioType
-
-logger = logging.getLogger(__name__)
 from src.navigation.collision import (
     assess_collision_risk,
     clamp_lidar_scan,
@@ -34,6 +32,8 @@ from src.navigation.collision import (
     update_fwd_critical_count,
 )
 from src.navigation.waypoints import calculate_waypoints
+
+logger = logging.getLogger(__name__)
 
 # ── Navigation tuning ─────────────────────────────────────────────────────────
 
@@ -87,6 +87,17 @@ _SPEED_ERR_MEDIUM = 0.55  # moderate heading error
 _ESCAPE_DUR_MIN = 6          # minimum escape frames
 _ESCAPE_DUR_MAX = 12         # maximum escape frames
 _ESCAPE_DUR_DIST_STEP = 0.03  # metres per escape frame
+
+# Pure-pursuit steering P-gain.
+_STEER_KP = 1.5
+
+# Forward clearance below this uses _LOOKAHEAD_SHORT (approaching a corner).
+_FWD_SHORT_LOOKAHEAD_DIST = 0.15
+
+# Obstacle correction thresholds (function _compute_obstacle_correction).
+_OBS_STRAIGHT_THRESHOLD = 0.4   # heading error below this = travelling straight (~23°)
+_OBS_CLEAR_SIDES_DIST = 0.25    # side clearance above this = open corridor
+_OBS_ACTIVE_FWD_DIST = 0.20     # forward dist below this = obstacle correction fires
 
 
 class TrackNavigator(Node):
@@ -495,7 +506,6 @@ class TrackNavigator(Node):
 
         Only called after the None-guard in _control_loop — yaw is always set.
         """
-        assert self._current_yaw is not None  # narrowed by _control_loop guard
         if forward_dist < _FWD_CONTACT_DIST:
             speed_fwd = _SPEED_CONTACT
         elif forward_dist < _FWD_SLOW_DIST:
@@ -540,7 +550,6 @@ class TrackNavigator(Node):
 
         Only called after the None-guard in _control_loop — yaw is always set.
         """
-        assert self._current_yaw is not None  # narrowed by _control_loop guard
         target_angle = math.atan2(dy, dx)
         heading_err = _wrap_angle(target_angle - self._current_yaw)
         if abs(heading_err) <= math.pi / 2:
@@ -566,7 +575,6 @@ class TrackNavigator(Node):
 
         Only called after the None-guard in _control_loop — yaw is always set.
         """
-        assert self._current_yaw is not None  # narrowed by _control_loop guard
         if self._escape_mode or self._obstacle_escape:
             return distance, dx, dy, target_x, target_y
 
@@ -604,13 +612,12 @@ class TrackNavigator(Node):
 
         Only called after the None-guard in _control_loop — yaw is always set.
         """
-        assert self._current_yaw is not None  # narrowed by _control_loop guard
         fwd_dist = float("inf")
         if self._lidar_ranges is not None:
             fwd_dist = measure_distance_in_direction(
                 self._lidar_ranges, self._lidar_angles, target_angle=0.0,
             )
-        lookahead = _LOOKAHEAD_SHORT if fwd_dist < 0.15 else _LOOKAHEAD_LONG
+        lookahead = _LOOKAHEAD_SHORT if fwd_dist < _FWD_SHORT_LOOKAHEAD_DIST else _LOOKAHEAD_LONG
 
         steer_idx = self._waypoint_index
         cumulative = 0.0
@@ -735,8 +742,7 @@ def _wrap_angle(angle: float) -> float:
 
 def _proportional_steer(angle_error: float, max_angle: float) -> float:
     """P-controller for Ackermann steering angle."""
-    kp = 1.5
-    return float(np.clip(kp * angle_error, -max_angle, max_angle))
+    return float(np.clip(_STEER_KP * angle_error, -max_angle, max_angle))
 
 
 def _compute_side_correction(
@@ -756,11 +762,11 @@ def _compute_obstacle_correction(
     forward_dist: float, left_dist: float, right_dist: float, angle_error: float,
 ) -> float:
     """Steer toward the open side when an obstacle is close ahead on a straight."""
-    is_straight = abs(angle_error) < 0.4
-    sides_clear = max(left_dist, right_dist) > 0.25
-    if forward_dist >= 0.20 or not sides_clear or not is_straight:
+    is_straight = abs(angle_error) < _OBS_STRAIGHT_THRESHOLD
+    sides_clear = max(left_dist, right_dist) > _OBS_CLEAR_SIDES_DIST
+    if forward_dist >= _OBS_ACTIVE_FWD_DIST or not sides_clear or not is_straight:
         return 0.0
-    urgency = 1.0 - forward_dist / 0.20
+    urgency = 1.0 - forward_dist / _OBS_ACTIVE_FWD_DIST
     strength = _OBSTACLE_GAIN * urgency
     # Negative angular.z = steer right; positive = steer left.
     return -strength if right_dist > left_dist else strength

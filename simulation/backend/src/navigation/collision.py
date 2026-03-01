@@ -36,6 +36,15 @@ _SIDE_TOLERANCE = 0.25
 # ≤ 0.08m are self-reflections, not real obstacles.
 _SELF_DETECTION_THRESHOLD = 0.08
 
+# Near-side clearance below which the robot is boxed in by a wall.
+# 600 mm corridor with outer-bias puts the near wall at ~0.25 m, so 0.28 m
+# is the threshold that separates a wall corner from a free-standing sign.
+_BOXED_IN_NEAR_SIDE = 0.28
+
+# Heading error (radians) above which the robot is considered to be actively
+# turning rather than tracking a straight corridor (~14°).
+_TURNING_HEADING_THRESHOLD = 0.25
+
 
 def measure_distance_in_direction(
     lidar_ranges: np.ndarray,
@@ -138,8 +147,8 @@ def assess_collision_risk(
     # 600 mm corridor with outer-bias: near side ≈ 0.25 m → boxed_in.
     # 1000 mm corridor: near side ≈ 0.45 m → can classify as obstacle.
     near_side = min(left_dist, right_dist)
-    boxed_in = near_side < 0.28
-    turning = abs(angle_error) > 0.25  # ~14°
+    boxed_in = near_side < _BOXED_IN_NEAR_SIDE
+    turning = abs(angle_error) > _TURNING_HEADING_THRESHOLD
     can_be_obstacle = not is_open_challenge and not boxed_in and not turning
 
     contact = forward_dist <= RobotSpecs.LIDAR_MIN_RANGE + _CONTACT_BUFFER

@@ -14,6 +14,7 @@ import importlib
 import importlib.util
 import json
 import logging
+import math
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
@@ -162,7 +163,7 @@ class ScenarioGenerator:
             DictKeys.SECTION: Section.SOUTH,
             DictKeys.SECTION_NAME: "South",
             DictKeys.POSITION: (1.5, 0.4),
-            DictKeys.YAW: 3.14159,
+            DictKeys.YAW: math.pi,
         }
 
     def _resolve_obstacles(
@@ -383,14 +384,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
     challenge_output_dir = Path(args.output_dir) / args.challenge / FolderNames.SCENARIOS
     generator = ScenarioGenerator(
         base_world_path=args.base_world,
         output_dir=challenge_output_dir,
         challenge_type=ScenarioType(args.challenge),
     )
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     logger.info(
         "Generating %d '%s' scenarios → %s",
         args.num_scenarios,

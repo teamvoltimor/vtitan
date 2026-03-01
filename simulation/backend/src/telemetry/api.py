@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.telemetry.generator import TelemetryGenerator
@@ -10,12 +12,18 @@ from src.telemetry.recorder import ReplaySessionInfo, TelemetryRecorder
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
-_recorder = TelemetryRecorder(base_dir="./telemetry_sessions")
+_sessions_dir = os.environ.get("TELEMETRY_SESSIONS_DIR", "./telemetry_sessions")
+_recorder = TelemetryRecorder(base_dir=_sessions_dir)
 _generator = TelemetryGenerator(recorder=_recorder)
 
 
 def get_recorder() -> TelemetryRecorder:
     return _recorder
+
+
+def shutdown() -> None:
+    """Release recorder resources — called by the FastAPI lifespan hook."""
+    _recorder.close()
 
 
 @router.get("/latest", response_model=SimulationSnapshot)
