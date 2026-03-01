@@ -27,6 +27,8 @@ auto-annotator/backend/models/
 
 # Auto Annotator database
 auto-annotator/backend/data/manifest.db
+auto-annotator/backend/data/manifest.db-shm
+auto-annotator/backend/data/manifest.db-wal
 
 # Simulation train report
 simulation/scripts/train_report.md

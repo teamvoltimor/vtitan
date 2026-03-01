@@ -9,11 +9,14 @@ ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 # Copy manifests first so the npm ci layer is cached until they change.
-COPY frontend/package.json frontend/package-lock.json ./
+# Wildcard on the lockfile makes the COPY non-fatal when it is absent.
+COPY frontend/package.json frontend/package-lock.json* ./
 
-# Cache npm's download cache across builds with BuildKit.
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+# Point npm's cache to a separate directory so the BuildKit cache mount
+# does not overlap with npm's own metadata under /root/.npm, which causes
+# permission errors on Docker Desktop for Windows.
+RUN --mount=type=cache,target=/tmp/npm-cache \
+    npm ci --cache /tmp/npm-cache
 
 COPY frontend/ .
 RUN npm run build

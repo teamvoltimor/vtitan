@@ -1,8 +1,10 @@
 """src.server.main – SAM inference microserver runner.
 
-Loads one SAM model at a time and keeps running so app.py can restart freely
-without reloading the model.  Called from the root ``main.py`` when invoked in
-``server`` mode.
+Loads one SAM model at a time and keeps running so the FastAPI API can
+connect while the model is still loading.  The socket is bound *before*
+model loading begins so callers can connect immediately; requests that
+arrive before the model is ready receive a structured "No model loaded"
+error rather than a connection-refused.
 
 Environment variables
 ---------------------
@@ -56,13 +58,13 @@ def _recv_all(sock: socket.socket, n: int) -> bytes:
     return buf
 
 
-def _handle_client(conn: socket.socket, ctx: ServerContext, lock: threading.Lock) -> None:
+def _handle_client(conn: socket.socket, context: ServerContext, lock: threading.Lock) -> None:
     with conn:
         try:
             msg_len = struct.unpack(">I", _recv_all(conn, 4))[0]
             msg = pickle.loads(_recv_all(conn, msg_len))
             with lock:
-                resp = dispatch(msg, ctx)
+                resp = dispatch(msg, context)
         except Exception as exc:
             resp = {"error": str(exc)}
 
@@ -74,37 +76,46 @@ def _handle_client(conn: socket.socket, ctx: ServerContext, lock: threading.Lock
 
 
 def run_server(default_model: str | None = None) -> None:
-    """Initialise the model and start the TCP server loop."""
+    """Bind the TCP socket immediately, then load the SAM model in the background.
+
+    Binding first means the FastAPI API can connect and start serving
+    non-inference requests (gallery, ping, etc.) while the model loads.
+    Inference commands that arrive before loading completes are answered
+    with a structured ``"No model loaded"`` error (see :func:`dispatch`).
+    """
     start = time.monotonic()
 
     os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
-    resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    ctx = ServerContext(models_config=_load_config(), device=device)
-    initial_load(ctx, resolved_default)
 
     lock = threading.Lock()
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((SERVER_HOST, SERVER_PORT))
     srv.listen(16)
+    logger.info("TCP socket bound on %s:%s – loading model in background.", SERVER_HOST, SERVER_PORT)
 
-    elapsed = time.monotonic() - start
-    logger.info(
-        "Ready in %.2fs on %s:%s device=%s model=%s",
-        elapsed,
-        SERVER_HOST,
-        SERVER_PORT,
-        device,
-        ctx.model_id or "FAILED",
-    )
-    logger.info("Leave this running and restart main.py app freely.")
+    resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
+    context = ServerContext(models_config=_load_config(), device=device)
+
+    def _load_model() -> None:
+        initial_load(context, resolved_default)
+        elapsed = time.monotonic() - start
+        logger.info(
+            "Model ready in %.2fs on %s:%s device=%s model=%s",
+            elapsed,
+            SERVER_HOST,
+            SERVER_PORT,
+            device,
+            context.model_id or "FAILED",
+        )
+
+    threading.Thread(target=_load_model, daemon=True, name="model-loader").start()
 
     while True:
         conn, _ = srv.accept()
         threading.Thread(
             target=_handle_client,
-            args=(conn, ctx, lock),
+            args=(conn, context, lock),
             daemon=True,
         ).start()
