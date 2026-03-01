@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import os
+import random
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -23,6 +24,9 @@ from src.config.constants import (
     WallSpecs,
 )
 from src.config.enums import Direction, ScenarioType, Section
+
+# Cylinder geometry requires a 90° roll to align the cylinder axis with Y (wheel roll axis).
+_WHEEL_ROLL_POSE = f"0 0 0 {math.pi / 2:.6f} 0 0"
 
 
 class SDFBuilder:
@@ -436,7 +440,6 @@ def _compute_zone_placement(
 
     # Open challenge: random position within corridor
     width_sections = [0.2, 0.5, 0.8] if corridor_width >= 1.0 else [0.2, 0.5]
-    import random
     width_offset = random.choice(width_sections)
     length_offset = random.choice([1.25, 1.75])
 
@@ -576,7 +579,7 @@ def _build_wheel_link(
 
     # Main dark-grey cylinder
     vis = ET.SubElement(link, "visual", name="visual")
-    ET.SubElement(vis, "pose").text = "0 0 0 1.5708 0 0"
+    ET.SubElement(vis, "pose").text = _WHEEL_ROLL_POSE
     cyl = ET.SubElement(ET.SubElement(vis, "geometry"), "cylinder")
     ET.SubElement(cyl, "radius").text = str(wheel_r)
     ET.SubElement(cyl, "length").text = str(wheel_w)
@@ -586,7 +589,7 @@ def _build_wheel_link(
 
     # Yellow rotation stripe
     sv = ET.SubElement(link, "visual", name="stripe")
-    ET.SubElement(sv, "pose").text = f"{stripe_offset} 0 0 1.5708 0 0"
+    ET.SubElement(sv, "pose").text = f"{stripe_offset} 0 0 {math.pi / 2:.6f} 0 0"
     sb = ET.SubElement(ET.SubElement(sv, "geometry"), "box")
     ET.SubElement(sb, "size").text = f"{stripe_dims[0]} {stripe_dims[1]} {stripe_dims[2]}"
     sm = ET.SubElement(sv, "material")
@@ -595,7 +598,7 @@ def _build_wheel_link(
 
     # Collision cylinder
     col = ET.SubElement(link, "collision", name="collision")
-    ET.SubElement(col, "pose").text = "0 0 0 1.5708 0 0"
+    ET.SubElement(col, "pose").text = _WHEEL_ROLL_POSE
     cc = ET.SubElement(ET.SubElement(col, "geometry"), "cylinder")
     ET.SubElement(cc, "radius").text = str(wheel_r)
     ET.SubElement(cc, "length").text = str(wheel_w)
@@ -688,9 +691,6 @@ def _build_front_steering(robot_model: ET.Element) -> None:
         )
         si = ET.SubElement(steer_link, "inertial")
         ET.SubElement(si, "mass").text = "0.001"
-        for tag in ("ixx", "iyy", "izz"):
-            ET.SubElement(ET.SubElement(si, "inertia"), tag,  # type: ignore
-                          ).text if False else None
         six = ET.SubElement(si, "inertia")
         for tag in ("ixx", "iyy", "izz"):
             ET.SubElement(six, tag).text = "0.00001"
@@ -788,8 +788,8 @@ def _build_lidar_link(robot_model: ET.Element) -> None:
     horizontal = ET.SubElement(ET.SubElement(lidar, "scan"), "horizontal")
     ET.SubElement(horizontal, "samples").text = str(RobotSpecs.LIDAR_SAMPLES)
     ET.SubElement(horizontal, "resolution").text = "1.0"
-    ET.SubElement(horizontal, "min_angle").text = "-3.14159"
-    ET.SubElement(horizontal, "max_angle").text = "3.14159"
+    ET.SubElement(horizontal, "min_angle").text = str(-math.pi)
+    ET.SubElement(horizontal, "max_angle").text = str(math.pi)
     rng = ET.SubElement(lidar, "range")
     ET.SubElement(rng, "min").text = str(RobotSpecs.LIDAR_SIM_MIN_RANGE)
     ET.SubElement(rng, "max").text = str(RobotSpecs.LIDAR_MAX_RANGE)

@@ -292,11 +292,12 @@ def _parking_positions_for_section(
     """Return ((block1_x, block1_y), (block2_x, block2_y), yaw) for a section."""
     track_max = TrackDimensions.MAX_COORD
 
+    half_pi = math.pi / 2
     if section is Section.SOUTH:
-        return (depth, wall_offset), (depth2, wall_offset), 1.5708
+        return (depth, wall_offset), (depth2, wall_offset), half_pi
     if section is Section.NORTH:
         y = track_max - wall_offset
-        return (depth, y), (depth2, y), 1.5708
+        return (depth, y), (depth2, y), half_pi
     if section is Section.EAST:
         x = track_max - wall_offset
         return (x, depth), (x, depth2), 0.0

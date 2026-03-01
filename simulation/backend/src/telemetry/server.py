@@ -21,7 +21,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Klevor Simulation Telemetry",
+    title="Klevor Telemetry",
     version="0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",

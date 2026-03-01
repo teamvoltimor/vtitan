@@ -214,7 +214,7 @@ function Sidebar({
       <div className="log-panel">
         <div className="log-header">
           <p>Event Feed</p>
-          <span>ROS Bridge</span>
+          <span>Node Bridge</span>
         </div>
         <ul>
           {snapshot.logs.map((log) => (

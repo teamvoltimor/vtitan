@@ -11,9 +11,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 from pathlib import Path
 from xml.etree import ElementTree as ET
+
+logger = logging.getLogger(__name__)
 
 # ── WRO 2026 track constants ───────────────────────────────────────────────────
 
@@ -254,38 +257,38 @@ def _add_corridor_subdivision_lines(world: ET.Element) -> None:
 
 def _add_subdivision_north(world: ET.Element, span: float) -> None:
     _corridor_line(world, "corridor_north_center",
-                   cx=1.5, cy=2.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=1.5, cy=2.5, width=0.001, height=span)
     _corridor_line(world, "corridor_north_width1",
-                   cx=1.5, cy=2.4, width=span, height=0.001, is_vertical_box=False)
+                   cx=1.5, cy=2.4, width=span, height=0.001)
     _corridor_line(world, "corridor_north_width2",
-                   cx=1.5, cy=2.6, width=span, height=0.001, is_vertical_box=False)
+                   cx=1.5, cy=2.6, width=span, height=0.001)
 
 
 def _add_subdivision_south(world: ET.Element, span: float) -> None:
     _corridor_line(world, "corridor_south_center",
-                   cx=1.5, cy=0.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=1.5, cy=0.5, width=0.001, height=span)
     _corridor_line(world, "corridor_south_width1",
-                   cx=1.5, cy=0.4, width=span, height=0.001, is_vertical_box=False)
+                   cx=1.5, cy=0.4, width=span, height=0.001)
     _corridor_line(world, "corridor_south_width2",
-                   cx=1.5, cy=0.6, width=span, height=0.001, is_vertical_box=False)
+                   cx=1.5, cy=0.6, width=span, height=0.001)
 
 
 def _add_subdivision_east(world: ET.Element, span: float) -> None:
     _corridor_line(world, "corridor_east_center",
-                   cx=2.5, cy=1.5, width=span, height=0.001, is_vertical_box=False)
+                   cx=2.5, cy=1.5, width=span, height=0.001)
     _corridor_line(world, "corridor_east_width1",
-                   cx=2.4, cy=1.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=2.4, cy=1.5, width=0.001, height=span)
     _corridor_line(world, "corridor_east_width2",
-                   cx=2.6, cy=1.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=2.6, cy=1.5, width=0.001, height=span)
 
 
 def _add_subdivision_west(world: ET.Element, span: float) -> None:
     _corridor_line(world, "corridor_west_center",
-                   cx=0.5, cy=1.5, width=span, height=0.001, is_vertical_box=False)
+                   cx=0.5, cy=1.5, width=span, height=0.001)
     _corridor_line(world, "corridor_west_width1",
-                   cx=0.4, cy=1.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=0.4, cy=1.5, width=0.001, height=span)
     _corridor_line(world, "corridor_west_width2",
-                   cx=0.6, cy=1.5, width=0.001, height=span, is_vertical_box=False)
+                   cx=0.6, cy=1.5, width=0.001, height=span)
 
 
 def _corridor_line(
@@ -295,7 +298,6 @@ def _corridor_line(
     cy: float,
     width: float,
     height: float,
-    is_vertical_box: bool,
 ) -> None:
     model = _static_model(world, name, pose=f"{cx} {cy} {_GRID_Z} 0 0 0")
     link = ET.SubElement(model, "link", name="link")
@@ -368,8 +370,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     output_path = generate_track_sdf(args.output)
-    print(f"Track SDF written → {output_path}")
+    logger.info("Track SDF written → %s", output_path)
 
 
 if __name__ == "__main__":
