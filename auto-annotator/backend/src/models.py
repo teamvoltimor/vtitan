@@ -1,8 +1,8 @@
-"""src.models – Application dataclasses stored in gr.State or returned from helpers.
+"""src.models – Application dataclasses for request state and inference results.
 
-All mutable session state, annotation data, inference context, and structured
-return values are represented as dataclasses so callers receive typed objects
-instead of raw tuples or plain dicts.
+All mutable per-request state, inference context, and structured return values
+are represented as dataclasses so callers receive typed objects instead of raw
+tuples or plain dicts.
 """
 
 from __future__ import annotations
@@ -10,13 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
-from src.enums import OutlineMode
-
 if TYPE_CHECKING:
     import numpy as np
 
     from src.enums import Status
-    from src.types import ClassId, ImageId, ModelId, YoloClassId
+    from src.types import ClassId, ImageId, ModelId
 
 
 @runtime_checkable
@@ -123,28 +121,6 @@ class Point:
     label: Literal[0, 1]
     class_id: ClassId
 
-
-@dataclass
-class Annotation:
-    """One accepted annotation consisting of a mask, polygon, and class metadata.
-
-    Attributes:
-        class_db_id:   Database id of the associated class.
-        class_name:    Human-readable class name.
-        class_color:   CSS hex colour string for rendering.
-        yolo_class_id: 0-based YOLO class index (derived from class order in DB).
-        polygon:       Flat normalised YOLO polygon coords ``[x0, y0, x1, y1, ...]``.
-        bbox:          Normalised bounding box ``[xc, yc, w, h]``.
-        mask:          Boolean H×W numpy array of the accepted mask.
-    """
-
-    class_db_id: ClassId
-    class_name: str
-    class_color: str
-    yolo_class_id: YoloClassId
-    polygon: list[float]
-    bbox: list[float]
-    mask: np.ndarray
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,8 +230,7 @@ class InferenceContext:
 class AppContext:
     """Application-level context holding the server client and local inference state.
 
-    Passed through UI closures and handler functions instead of module-level
-    global variables.  Replaces the ``_client_ref: list`` pattern.
+    Passed into FastAPI endpoint handlers instead of module-level global variables.
 
     Attributes:
         client:    Active :class:`~src.sam_client.ModelServerClient`, or ``None`` when
@@ -269,41 +244,24 @@ class AppContext:
 
 @dataclass
 class AppState:
-    """All mutable per-session state stored in a Gradio ``gr.State``.
-
-    Stored server-side via pickle; numpy arrays are fully supported.
+    """Per-request inference state passed through SAM inference helpers.
 
     Attributes:
         classes:             List of annotation classes loaded from the DB.
-        outline_color:       Current outline colour mode (see ``OUTLINE_MODES``).
-        active_model_id:     ID of the currently loaded SAM model, or ``None``.
-        model_supports_text: Whether the active model supports text-prompted segmentation.
-        current_image_id:    DB id of the image currently displayed, or ``None``.
+        current_image_id:    DB id of the image being segmented, or ``None``.
         current_image:       RGB numpy array of the current image, or ``None``.
         image_set:           Whether SAM has been initialised with the current image.
-        point_buffer:        Ordered list of click points added since the last accept.
-        pending_mask:        The mask currently proposed for acceptance, or ``None``.
-        pending_masks:       All granularity masks from the last SAM call.
-        pending_logits:      Raw SAM logits fed back as ``mask_input`` on the next call.
-        pending_mask_idx:    Index of the selected mask in *pending_masks*.
+        point_buffer:        Ordered list of click points for the current inference call.
+        pending_logits:      Raw SAM logits fed back as ``mask_input`` for iterative refinement.
+        pending_mask_idx:    Index into ``pending_logits`` for the selected granularity level.
         pending_class_db_id: DB id of the class assigned to the in-progress annotation.
-        annotations:         List of all accepted annotations for the current image.
-        log_entries:         Timestamped log lines shown in the status textbox (newest first).
     """
 
     classes: list[ClassInfo] = field(default_factory=list)
-    outline_color: OutlineMode = OutlineMode.CLASS_COLOR
-    active_model_id: ModelId | None = None
-    model_supports_text: bool = False
     current_image_id: ImageId | None = None
     current_image: np.ndarray | None = None
     image_set: bool = False
     point_buffer: list[Point] = field(default_factory=list)
-    pending_mask: np.ndarray | None = None
-    pending_masks: list[np.ndarray] = field(default_factory=list)
     pending_logits: np.ndarray | None = None
     pending_mask_idx: int = 0
     pending_class_db_id: ClassId | None = None
-    annotations: list[Annotation] = field(default_factory=list)
-    log_entries: list[str] = field(default_factory=list)
-    zoom: float = 1.0

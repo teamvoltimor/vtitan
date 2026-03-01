@@ -24,22 +24,3 @@ class ExportFormat(StrEnum):
     DET = "det"
     """Detection format: one bounding box per annotation."""
 
-
-class OutlineMode(StrEnum):
-    """Annotation contour outline colour modes shown in the Settings accordion.
-
-    Because this is a StrEnum the values compare equal to plain strings,
-    so ``"Class color" == OutlineMode.CLASS_COLOR`` is ``True``.
-    """
-
-    CLASS_COLOR = "Class color"
-    """Draw the outline in the annotation class's own colour."""
-
-    HIGH_CONTRAST = "High contrast"
-    """Automatically choose black or white to maximise contrast with the background."""
-
-    BLACK = "Black"
-    """Always draw the outline in pure black."""
-
-    WHITE = "White"
-    """Always draw the outline in pure white."""

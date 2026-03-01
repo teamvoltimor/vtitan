@@ -53,7 +53,7 @@ type AppShellProps = { onToggleTheme: () => void };
 const AppShell = ({ onToggleTheme }: AppShellProps) => {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
-  const [active, setActive] = useState(0);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const mode = theme.palette.mode;
 
   return (
@@ -176,14 +176,14 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
 
             <Stack spacing={0.25} sx={{ px: 1.5 }}>
               {tabRows.map((tab, index) => {
-                const isActive = active === index;
+                const isActive = activeTabIndex === index;
                 return (
                   <Box
                     key={tab.label}
-                    onClick={() => setActive(index)}
+                    onClick={() => setActiveTabIndex(index)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActive(index)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveTabIndex(index)}
                     sx={{
                       position: 'relative',
                       display: 'flex',
@@ -314,17 +314,17 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                     key={tab.label}
                     size="small"
                     startIcon={tab.icon}
-                    onClick={() => setActive(index)}
+                    onClick={() => setActiveTabIndex(index)}
                     sx={{
-                      color: active === index ? 'text.primary' : 'text.secondary',
+                      color: activeTabIndex === index ? 'text.primary' : 'text.secondary',
                       bgcolor:
-                        active === index
+                        activeTabIndex === index
                           ? mode === 'dark'
                             ? 'rgba(255,255,255,0.07)'
                             : 'rgba(0,0,0,0.05)'
                           : 'transparent',
-                      border: `1px solid ${active === index ? theme.palette.divider : 'transparent'}`,
-                      fontWeight: active === index ? 500 : 400,
+                      border: `1px solid ${activeTabIndex === index ? theme.palette.divider : 'transparent'}`,
+                      fontWeight: activeTabIndex === index ? 500 : 400,
                       '&:hover': {
                         bgcolor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
                         color: 'text.primary',
@@ -337,12 +337,12 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
               </Stack>
             )}
 
-            <HeroHeader onLaunchAnnotate={() => setActive(0)} />
+            <HeroHeader onLaunchAnnotate={() => setActiveTabIndex(0)} />
 
             <Box sx={{ mt: 4 }}>
               {tabRows.map((tab, index) =>
-                active === index ? (
-                  <tab.Component key={tab.label} onNavigate={(to) => setActive(to)} />
+                activeTabIndex === index ? (
+                  <tab.Component key={tab.label} onNavigate={(to) => setActiveTabIndex(to)} />
                 ) : null,
               )}
             </Box>

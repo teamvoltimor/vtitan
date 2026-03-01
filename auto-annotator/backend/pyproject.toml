@@ -8,19 +8,21 @@ dependencies = [
     "torch>=2.3.0",
     "torchvision",
     "sam2",
-    "gradio>=4.44.0",
     "opencv-python",
     "numpy",
     "pillow",
     "python-dotenv",
     "transformers>=4.50.0",
     "accelerate",
-    "ruff>=0.15.2",
     "ultralytics>=8.4.14",
     "autodistill==0.1.29",
     "autodistill-grounded-sam==0.1.2",
-    "dotenv>=0.9.9",
     "fastapi[standard]>=0.115.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.2",
 ]
 
 [[tool.uv.index]]

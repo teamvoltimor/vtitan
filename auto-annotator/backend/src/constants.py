@@ -17,8 +17,6 @@ from typing import Any
 
 import numpy as np
 
-from src.enums import OutlineMode
-
 # Absolute path to the project root directory (parent of src/).
 BASE_DIR: Path = Path(__file__).parent.parent
 
@@ -144,11 +142,6 @@ RECV_CHUNK_SIZE: int = 65536
 
 VALID_EXTS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".webp"})
 """Lowercase image file extensions that the annotator will import."""
-
-# UI display option lists used to populate Gradio Radio and Dropdown components.
-
-OUTLINE_MODES: list[str] = [mode.value for mode in OutlineMode]
-"""Available outline colour modes derived from OutlineMode; shown in the Display accordion."""
 
 MASK_LABELS: list[str] = ["Precise (0)", "Object (1)", "Broad (2)"]
 """Human-readable labels for SAM's three mask granularity outputs (index 0–2)."""

@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import mimetypes
 import shutil
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import uuid4
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image
@@ -26,7 +30,18 @@ from src.inference import initialize_inference, run_sam_inference
 from src.model_server import connect_to_model_server
 from src.models import AppContext, AppState, ImageRecord, Point
 
-app = FastAPI(title="Auto-Annotator HTTP API")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Initialise shared resources once on startup and clean up on shutdown."""
+    ctx = AppContext(client=connect_to_model_server())
+    initialize_inference(ctx.client, ctx.inference)
+    db.init_db()
+    app.state.ctx = ctx
+    yield
+
+
+app = FastAPI(title="Auto-Annotator HTTP API", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +49,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _get_context(request: Request) -> AppContext:
+    """FastAPI dependency: return the application-level inference context."""
+    return request.app.state.ctx  # type: ignore[no-any-return]
+
+
+AppContextDep = Annotated[AppContext, Depends(_get_context)]
 
 
 class GalleryStats(BaseModel):
@@ -101,11 +124,6 @@ class SegmentationResponse(BaseModel):
     state: Literal["idle", "pending", "ready", "error"]
     message: str
     shapes: list[SegmentationShape]
-
-
-app_ctx = AppContext(client=connect_to_model_server())
-initialize_inference(app_ctx.client, app_ctx.inference)
-db.init_db()
 
 
 def _build_gallery_response() -> GalleryResponse:
@@ -206,12 +224,12 @@ def serve_image(image_id: int) -> FileResponse:
 
 
 @app.post("/segment", response_model=SegmentationResponse)
-def run_segmentation(req: SegmentationRequest) -> SegmentationResponse:
+def run_segmentation(payload: SegmentationRequest, app_context: AppContextDep) -> SegmentationResponse:
     """Run SAM inference for the provided click points and return the best mask as a polygon."""
-    if not req.points:
+    if not payload.points:
         raise HTTPException(status_code=400, detail="Add at least one point first")
 
-    record = _validate_image_id(req.imageId)
+    record = _validate_image_id(payload.imageId)
     image = Image.open(record.path).convert("RGB")
     image_np = np.array(image)
     width, height = image.width, image.height
@@ -221,32 +239,32 @@ def run_segmentation(req: SegmentationRequest) -> SegmentationResponse:
 
     annotated_points: list[Point] = []
     mask_class = None
-    for point in req.points:
-        cls_info = class_map.get(point.className)
+    for click in payload.points:
+        cls_info = class_map.get(click.className)
         if cls_info is None:
-            raise HTTPException(status_code=400, detail=f"Unknown class '{point.className}'")
-        if point.pointType == "positive" and mask_class is None:
+            raise HTTPException(status_code=400, detail=f"Unknown class '{click.className}'")
+        if click.pointType == "positive" and mask_class is None:
             mask_class = cls_info
 
-        x = int(min(max(point.x, 0.0), 1.0) * (width - 1))
-        y = int(min(max(point.y, 0.0), 1.0) * (height - 1))
-        label = 1 if point.pointType == "positive" else 0
+        x = int(min(max(click.x, 0.0), 1.0) * (width - 1))
+        y = int(min(max(click.y, 0.0), 1.0) * (height - 1))
+        label = 1 if click.pointType == "positive" else 0
         annotated_points.append(Point(x=x, y=y, label=label, class_id=cls_info.id))
 
     if mask_class is None:
-        mask_class = class_map.get(req.points[0].className)
+        mask_class = class_map.get(payload.points[0].className)
         if mask_class is None:
             raise HTTPException(status_code=400, detail="No valid class found for points")
 
-    state = AppState()
-    state.current_image = image_np
-    state.current_image_id = record.id
-    state.classes = classes
-    state.point_buffer = annotated_points
-    state.image_set = False
-    state.pending_class_db_id = mask_class.id
+    state = AppState(
+        current_image=image_np,
+        current_image_id=record.id,
+        classes=classes,
+        point_buffer=annotated_points,
+        pending_class_db_id=mask_class.id,
+    )
 
-    result = run_sam_inference(state, app_ctx.client, app_ctx.inference)
+    result = run_sam_inference(state, app_context.client, app_context.inference)
     if not result.ok or result.masks is None:
         raise HTTPException(status_code=500, detail=result.error or "Inference failed")
 

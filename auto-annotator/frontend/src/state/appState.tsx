@@ -360,9 +360,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const useAppState = () => {
-  const ctx = useContext(AppStateContext);
-  if (!ctx) {
+  const stateContext = useContext(AppStateContext);
+  if (!stateContext) {
     throw new Error('useAppState must be used within AppProvider');
   }
-  return ctx;
+  return stateContext;
 };

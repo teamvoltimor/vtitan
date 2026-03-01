@@ -53,7 +53,7 @@ export const makeTheme = (mode: PaletteMode) => {
       error: { main: mode === 'dark' ? '#f87171' : '#dc2626' },
     },
     typography: {
-      fontFamily: '"Instrument Sans", "DM Sans", system-ui, -apple-system, sans-serif',
+      fontFamily: '"IBM Plex Sans", "IBM Plex Sans", system-ui, -apple-system, sans-serif',
       h1: { fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1 },
       h2: { fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15 },
       h3: { fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.2 },
@@ -84,7 +84,7 @@ export const makeTheme = (mode: PaletteMode) => {
           body: {
             backgroundColor: tokens.bg,
             color: tokens.textHi,
-            fontFamily: '"Instrument Sans", "DM Sans", system-ui, -apple-system, sans-serif',
+            fontFamily: '"IBM Plex Sans", "IBM Plex Sans", system-ui, -apple-system, sans-serif',
           },
         },
       },
