@@ -183,7 +183,9 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                     onClick={() => setActiveTabIndex(index)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveTabIndex(index)}
+                    onKeyDown={(e) =>
+                      (e.key === 'Enter' || e.key === ' ') && setActiveTabIndex(index)
+                    }
                     sx={{
                       position: 'relative',
                       display: 'flex',
@@ -273,15 +275,15 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
 
             {/* Sidebar footer */}
             <Box sx={{ mt: 'auto', px: 1.5, pt: 2 }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ px: 1 }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ px: 1 }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
                     color: 'text.disabled',
                     fontFamily: '"JetBrains Mono", monospace',
                     fontSize: '0.5625rem',
@@ -343,7 +345,7 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
               {tabRows.map((tab, index) =>
                 activeTabIndex === index ? (
                   <tab.Component key={tab.label} onNavigate={(to) => setActiveTabIndex(to)} />
-                ) : null,
+                ) : null
               )}
             </Box>
           </Box>

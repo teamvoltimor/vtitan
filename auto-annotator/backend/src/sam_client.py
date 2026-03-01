@@ -208,7 +208,7 @@ class ModelServerClient:
         try:
             return self._call(PingRequest()).get(RESP_KEY_OK, False)
         except Exception as e:  # noqa: BLE001
-            logger.info("Model server probe failed", extra={"_extra": {"err": str(e)}})
+            logger.debug("Model server probe failed", extra={"_extra": {"err": str(e)}})
             return False
 
     def set_image(self, image: np.ndarray) -> None:

@@ -148,12 +148,7 @@ const AnnotateTab = () => {
               ]}
             />
           </Stack>
-          <Button
-            variant="outlined"
-            size="small"
-            sx={{ flexShrink: 0 }}
-            onClick={() => setZoom(1)}
-          >
+          <Button variant="outlined" size="small" sx={{ flexShrink: 0 }} onClick={() => setZoom(1)}>
             Reset
           </Button>
         </Stack>
@@ -251,9 +246,7 @@ const AnnotateTab = () => {
             !selectedGalleryItem
           }
           startIcon={
-            segmentationStatus === 'pending' ? (
-              <CircularProgress size={11} color="inherit" />
-            ) : null
+            segmentationStatus === 'pending' ? <CircularProgress size={11} color="inherit" /> : null
           }
         >
           {segmentationStatus === 'pending' ? 'Running…' : 'Generate mask'}
