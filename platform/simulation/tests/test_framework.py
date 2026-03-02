@@ -21,15 +21,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
-import os
 import re
-import signal
 import subprocess
 import sys
 import time
+from argparse import Namespace
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 SCRIPTS_DIR = Path(__file__).parent
 PARAMS_FILE = SCRIPTS_DIR / "navigator_params.json"
@@ -38,13 +37,15 @@ PARAMS_FILE = SCRIPTS_DIR / "navigator_params.json"
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class EscapeEvent:
     pos: tuple[float, float]
     corner: str
-    direction: str          # 'CW', 'CCW', or ''
+    direction: str  # 'CW', 'CCW', or ''
     forward_dist: float
-    count: int              # escape number at that location
+    count: int  # escape number at that location
+
 
 @dataclass
 class LoopEvent:
@@ -52,11 +53,13 @@ class LoopEvent:
     corner: str
     repeat_count: int
 
+
 @dataclass
 class StuckEvent:
     pos: tuple[float, float]
     corner: str
     duration_s: float
+
 
 @dataclass
 class SkipEvent:
@@ -64,25 +67,28 @@ class SkipEvent:
     pos: tuple[float, float]
     reason: str
 
+
 @dataclass
 class ScenarioResult:
     scenario_id: int
     challenge_type: str
-    corridor_widths: dict
+    corridor_widths: dict[str, Any]
     laps_completed: int
     target_laps: int
     timed_out: bool
     duration_s: float
-    escape_events: list = field(default_factory=list)
-    loop_events: list = field(default_factory=list)
-    stuck_events: list = field(default_factory=list)
-    waypoint_skips: list = field(default_factory=list)
-    params_used: dict = field(default_factory=dict)
+    escape_events: list[EscapeEvent] = field(default_factory=list)
+    loop_events: list[LoopEvent] = field(default_factory=list)
+    stuck_events: list[StuckEvent] = field(default_factory=list)
+    waypoint_skips: list[SkipEvent] = field(default_factory=list)
+    params_used: dict[str, Any] = field(default_factory=dict)
     passed: bool = False
+
 
 # ---------------------------------------------------------------------------
 # LogParser
 # ---------------------------------------------------------------------------
+
 
 class LogParser:
     """Parse navigator stdout/stderr for structured events."""
@@ -121,7 +127,7 @@ class LogParser:
         r"escape: (CW|CCW)|→ (RIGHT/CW|LEFT/CCW)",
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.escape_events: list[EscapeEvent] = []
         self.loop_events: list[LoopEvent] = []
         self.stuck_events: list[StuckEvent] = []
@@ -130,7 +136,7 @@ class LogParser:
         self._last_pos: tuple[float, float] = (0.0, 0.0)
         self._pending_skip_wp: int | None = None
 
-    def feed(self, line: str, classifier: CornerClassifier):
+    def feed(self, line: str, classifier: CornerClassifier) -> None:
         """Process a single log line."""
         line = line.strip()
 
@@ -158,10 +164,15 @@ class LogParser:
             if m.group(5):
                 direction = "CW" if "CW" in m.group(5) else "CCW"
             corner = classifier.classify(pos)
-            self.escape_events.append(EscapeEvent(
-                pos=pos, corner=corner, direction=direction,
-                forward_dist=fwd, count=count,
-            ))
+            self.escape_events.append(
+                EscapeEvent(
+                    pos=pos,
+                    corner=corner,
+                    direction=direction,
+                    forward_dist=fwd,
+                    count=count,
+                )
+            )
             return
 
         # Wall contact (alternate log format)
@@ -176,10 +187,15 @@ class LogParser:
                 raw = dm.group(1) or dm.group(2) or ""
                 direction = "CW" if "CW" in raw else ("CCW" if "CCW" in raw else "")
             corner = classifier.classify(pos)
-            self.escape_events.append(EscapeEvent(
-                pos=pos, corner=corner, direction=direction,
-                forward_dist=fwd, count=len(self.escape_events) + 1,
-            ))
+            self.escape_events.append(
+                EscapeEvent(
+                    pos=pos,
+                    corner=corner,
+                    direction=direction,
+                    forward_dist=fwd,
+                    count=len(self.escape_events) + 1,
+                )
+            )
             return
 
         # Critical loop
@@ -188,9 +204,13 @@ class LogParser:
             repeat = int(m.group(1))
             pos = (float(m.group(2)), float(m.group(3)))
             corner = classifier.classify(pos)
-            self.loop_events.append(LoopEvent(
-                pos=pos, corner=corner, repeat_count=repeat,
-            ))
+            self.loop_events.append(
+                LoopEvent(
+                    pos=pos,
+                    corner=corner,
+                    repeat_count=repeat,
+                )
+            )
             return
 
         # Obstacle loop
@@ -199,9 +219,13 @@ class LogParser:
             repeat = int(m.group(1))
             pos = (float(m.group(2)), float(m.group(3)))
             corner = classifier.classify(pos)
-            self.loop_events.append(LoopEvent(
-                pos=pos, corner=corner, repeat_count=repeat,
-            ))
+            self.loop_events.append(
+                LoopEvent(
+                    pos=pos,
+                    corner=corner,
+                    repeat_count=repeat,
+                )
+            )
             return
 
         # Stuck detection
@@ -210,9 +234,13 @@ class LogParser:
             pos = (float(m.group(1)), float(m.group(2)))
             duration = float(m.group(3))
             corner = classifier.classify(pos)
-            self.stuck_events.append(StuckEvent(
-                pos=pos, corner=corner, duration_s=duration,
-            ))
+            self.stuck_events.append(
+                StuckEvent(
+                    pos=pos,
+                    corner=corner,
+                    duration_s=duration,
+                )
+            )
             return
 
         # Waypoint skip
@@ -221,18 +249,24 @@ class LogParser:
             wp_id = int(m.group(1))
             pos = self._last_pos
             reason = "loop" if "loop" in line.lower() else "passed"
-            self.waypoint_skips.append(SkipEvent(
-                waypoint_id=wp_id, pos=pos, reason=reason,
-            ))
+            self.waypoint_skips.append(
+                SkipEvent(
+                    waypoint_id=wp_id,
+                    pos=pos,
+                    reason=reason,
+                )
+            )
+
 
 # ---------------------------------------------------------------------------
 # CornerClassifier
 # ---------------------------------------------------------------------------
 
+
 class CornerClassifier:
     """Classify (x, y) positions into track corners or corridor segments."""
 
-    def __init__(self, corridor_widths: dict):
+    def __init__(self, corridor_widths: dict) -> None:
         """
         corridor_widths: dict with keys 'north', 'south', 'east', 'west',
                          each having 'width_mm'.
@@ -273,11 +307,13 @@ class CornerClassifier:
             "E": abs(x - 3.0),
             "W": abs(x - 0.0),
         }
-        return min(dists, key=dists.get)
+        return min(dists, key=lambda direction: dists[direction])
+
 
 # ---------------------------------------------------------------------------
 # ParameterTuner
 # ---------------------------------------------------------------------------
+
 
 class ParameterTuner:
     """Apply heuristic rules to suggest parameter patches for failed scenarios."""
@@ -298,8 +334,7 @@ class ParameterTuner:
         # R1: GPU artifact — escapes at corner with very low forward dist and
         #     no prior real-wall contact (count=1 escapes only)
         artifact_escapes = [
-            e for e in result.escape_events
-            if e.forward_dist < 0.08 and e.count == 1
+            e for e in result.escape_events if e.forward_dist < 0.08 and e.count == 1
         ]
         if artifact_escapes:
             cur = params.get("fwd_critical_lidar_threshold", 2)
@@ -316,8 +351,11 @@ class ParameterTuner:
                 patches["_rule"] = "R2: Corner loop → critical_repeat_radius+0.05"
 
         # R3: Frequent stuck
-        if len(result.stuck_events) > 3 and "escape_duration_base" not in patches \
-                and "_rule" not in patches:
+        if (
+            len(result.stuck_events) > 3
+            and "escape_duration_base" not in patches
+            and "_rule" not in patches
+        ):
             cur = params.get("escape_duration_base", 10)
             if cur < 20:
                 patches["escape_duration_base"] = cur + 2
@@ -325,11 +363,9 @@ class ParameterTuner:
 
         # R4: Many real wall crashes in narrow corridors
         narrow_corridors = any(
-            w.get("width_mm", 1000) < 650
-            for w in result.corridor_widths.values()
+            w.get("width_mm", 1000) < 650 for w in result.corridor_widths.values()
         )
-        if len(result.escape_events) > 10 and narrow_corridors \
-                and "_rule" not in patches:
+        if len(result.escape_events) > 10 and narrow_corridors and "_rule" not in patches:
             cur = params.get("critical_distance", 0.07)
             if cur < 0.12:
                 patches["critical_distance"] = round(cur + 0.01, 3)
@@ -346,17 +382,23 @@ class ParameterTuner:
             return None
         return patches
 
+
 # ---------------------------------------------------------------------------
 # Reporter
 # ---------------------------------------------------------------------------
 
+
 class Reporter:
     """Generate markdown report from scenario results."""
 
-    def write_markdown(self, results: list[ScenarioResult], output_path: str,
-                       param_history: list[dict] | None = None):
+    def write_markdown(
+        self,
+        results: list[ScenarioResult],
+        output_path: str,
+        param_history: list[dict[str, Any]] | None = None,
+    ) -> None:
         lines = ["# WRO 2026 Navigator Test Report\n"]
-        lines.append(f'Generated: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
+        lines.append(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
         lines.append(f"Scenarios: {len(results)}\n")
 
         # Summary table
@@ -366,9 +408,9 @@ class Reporter:
         for r in results:
             status = "PASS" if r.passed else ("TIMEOUT" if r.timed_out else "FAIL")
             lines.append(
-                f'| {r.scenario_id:04d} | {r.challenge_type} | '
-                f'{r.laps_completed}/{r.target_laps} | {r.duration_s:.1f} | '
-                f'{"yes" if r.timed_out else "no"} | **{status}** |',
+                f"| {r.scenario_id:04d} | {r.challenge_type} | "
+                f"{r.laps_completed}/{r.target_laps} | {r.duration_s:.1f} | "
+                f"{'yes' if r.timed_out else 'no'} | **{status}** |",
             )
 
         # Per-scenario sections
@@ -380,13 +422,16 @@ class Reporter:
             lines.append("| Corridor | Width (mm) |")
             lines.append("|----------|------------|")
             for side, info in r.corridor_widths.items():
-                lines.append(f'| {side.capitalize()} | {info.get("width_mm", "?")} |')
+                lines.append(f"| {side.capitalize()} | {info.get('width_mm', '?')} |")
 
             # Params used
             lines.append("\n### Parameters Used\n")
             lines.append("```json")
-            lines.append(json.dumps({k: v for k, v in r.params_used.items()
-                                      if not k.startswith("_")}, indent=2))
+            lines.append(
+                json.dumps(
+                    {k: v for k, v in r.params_used.items() if not k.startswith("_")}, indent=2
+                )
+            )
             lines.append("```")
 
             # Escape events
@@ -396,8 +441,8 @@ class Reporter:
                 lines.append("|---|--------|-----------|-------|----------|")
                 for i, e in enumerate(r.escape_events, 1):
                     lines.append(
-                        f'| {i} | {e.corner} | {e.direction or "-"} | '
-                        f'{e.forward_dist:.3f} | ({e.pos[0]:.2f}, {e.pos[1]:.2f}) |',
+                        f"| {i} | {e.corner} | {e.direction or '-'} | "
+                        f"{e.forward_dist:.3f} | ({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
                     )
 
             # Loop events
@@ -407,8 +452,7 @@ class Reporter:
                 lines.append("|--------|--------------|----------|")
                 for e in r.loop_events:
                     lines.append(
-                        f"| {e.corner} | {e.repeat_count} | "
-                        f"({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
+                        f"| {e.corner} | {e.repeat_count} | ({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
                     )
 
             # Stuck events
@@ -418,8 +462,7 @@ class Reporter:
                 lines.append("|--------|--------------|----------|")
                 for e in r.stuck_events:
                     lines.append(
-                        f"| {e.corner} | {e.duration_s:.1f} | "
-                        f"({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
+                        f"| {e.corner} | {e.duration_s:.1f} | ({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
                     )
 
             # Waypoint skips
@@ -429,8 +472,7 @@ class Reporter:
                 lines.append("|----|--------|----------|")
                 for e in r.waypoint_skips:
                     lines.append(
-                        f"| {e.waypoint_id} | {e.reason} | "
-                        f"({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
+                        f"| {e.waypoint_id} | {e.reason} | ({e.pos[0]:.2f}, {e.pos[1]:.2f}) |",
                     )
 
         # Parameter evolution (train mode)
@@ -440,17 +482,18 @@ class Reporter:
             lines.append("|---------|------|-----------|-----|-----|")
             for entry in param_history:
                 lines.append(
-                    f'| {entry["attempt"]} | {entry.get("rule", "-")} | '
-                    f'{entry.get("param", "-")} | {entry.get("old", "-")} | '
-                    f'{entry.get("new", "-")} |',
+                    f"| {entry['attempt']} | {entry.get('rule', '-')} | "
+                    f"{entry.get('param', '-')} | {entry.get('old', '-')} | "
+                    f"{entry.get('new', '-')} |",
                 )
 
             # Final recommended params
             lines.append("\n### Recommended `navigator_params.json`\n")
             lines.append("```json")
             if results:
-                final_params = {k: v for k, v in results[-1].params_used.items()
-                                if not k.startswith("_")}
+                final_params = {
+                    k: v for k, v in results[-1].params_used.items() if not k.startswith("_")
+                }
                 lines.append(json.dumps(final_params, indent=2))
             lines.append("```")
 
@@ -459,9 +502,11 @@ class Reporter:
             f.write(content)
         print(f"Report written to: {output_path}")
 
+
 # ---------------------------------------------------------------------------
 # Scenario discovery helpers
 # ---------------------------------------------------------------------------
+
 
 def parse_scenario_range(spec: str) -> list[int]:
     """Parse '0-9' or '0,2,5' into a list of ints."""
@@ -497,17 +542,21 @@ def challenge_search_dirs(challenge: str) -> list[Path]:
     dirs += [SCRIPTS_DIR, SCRIPTS_DIR.parent / "worlds", SCRIPTS_DIR.parent, Path.cwd()]
     return dirs
 
+
 # ---------------------------------------------------------------------------
 # Navigator subprocess management
 # ---------------------------------------------------------------------------
+
 
 def launch_navigator(metadata_path: Path, laps: int) -> subprocess.Popen:
     """Start navigator subprocess, returning the Popen object."""
     cmd = [
         sys.executable,
         str(SCRIPTS_DIR / "track_navigator.py"),
-        "--metadata", str(metadata_path),
-        "--laps", str(laps),
+        "--metadata",
+        str(metadata_path),
+        "--laps",
+        str(laps),
     ]
     return subprocess.Popen(
         cmd,
@@ -518,7 +567,7 @@ def launch_navigator(metadata_path: Path, laps: int) -> subprocess.Popen:
     )
 
 
-def kill_subprocess(proc: subprocess.Popen):
+def kill_subprocess(proc: subprocess.Popen) -> None:
     """Terminate subprocess cleanly, then SIGKILL if needed."""
     if proc.poll() is not None:
         return
@@ -529,25 +578,27 @@ def kill_subprocess(proc: subprocess.Popen):
         proc.kill()
         proc.wait()
 
+
 # ---------------------------------------------------------------------------
 # TestFramework
 # ---------------------------------------------------------------------------
 
-def load_params() -> dict:
+
+def load_params() -> dict[str, Any]:
     if PARAMS_FILE.exists():
         with open(PARAMS_FILE) as f:
             return json.load(f)
     return {}
 
 
-def save_params(params: dict):
+def save_params(params: dict[str, Any]) -> None:
     with open(PARAMS_FILE, "w") as f:
         json.dump(params, f, indent=2)
         f.write("\n")
 
 
 class TestFramework:
-    def __init__(self, args):
+    def __init__(self, args: Namespace) -> None:
         self.args = args
         self.tuner = ParameterTuner()
         self.reporter = Reporter()
@@ -557,15 +608,17 @@ class TestFramework:
     # Scenario runner
     # ------------------------------------------------------------------
 
-    def run_scenario(self, scenario_id: int, metadata_path: Path,
-                     prompt_prefix: str = "") -> ScenarioResult:
+    def run_scenario(
+        self, scenario_id: int, metadata_path: Path, prompt_prefix: str = ""
+    ) -> ScenarioResult:
         """Prompt user, launch navigator, collect result."""
-        prompt = f"{prompt_prefix}Press Enter when Gazebo is ready for scenario {scenario_id:04d} > "
+        prompt = (
+            f"{prompt_prefix}Press Enter when Gazebo is ready for scenario {scenario_id:04d} > "
+        )
         input(prompt)
 
         # Load current params snapshot
-        params_snapshot = {k: v for k, v in load_params().items()
-                           if not k.startswith("_")}
+        params_snapshot = {k: v for k, v in load_params().items() if not k.startswith("_")}
 
         # Load metadata for corridor widths
         with open(metadata_path) as f:
@@ -579,6 +632,8 @@ class TestFramework:
         proc = launch_navigator(metadata_path, self.args.laps)
         start_time = time.time()
         timed_out = False
+        stdout = proc.stdout
+        assert stdout is not None, "navigator stdout not captured"
 
         try:
             while proc.poll() is None:
@@ -589,7 +644,7 @@ class TestFramework:
                     break
 
                 # Read lines with a short timeout via readline
-                line = proc.stdout.readline()
+                line = stdout.readline()
                 if line:
                     print(f"  NAV: {line}", end="")
                     parser.feed(line, classifier)
@@ -599,10 +654,10 @@ class TestFramework:
                         # Drain remaining output briefly
                         time.sleep(0.5)
                         while True:
-                            l = proc.stdout.readline()
-                            if not l:
+                            line_tail = stdout.readline()
+                            if not line_tail:
                                 break
-                            parser.feed(l, classifier)
+                            parser.feed(line_tail, classifier)
                         break
         finally:
             kill_subprocess(proc)
@@ -641,10 +696,12 @@ class TestFramework:
             result = self.run_scenario(sid, metadata)
             results.append(result)
             status = "PASS" if result.passed else ("TIMEOUT" if result.timed_out else "FAIL")
-            print(f"  → {status}: {result.laps_completed}/{result.target_laps} laps, "
-                  f"{result.duration_s:.1f}s, "
-                  f"{len(result.escape_events)} escapes, "
-                  f"{len(result.loop_events)} loops")
+            print(
+                f"  → {status}: {result.laps_completed}/{result.target_laps} laps, "
+                f"{result.duration_s:.1f}s, "
+                f"{len(result.escape_events)} escapes, "
+                f"{len(result.loop_events)} loops"
+            )
         return results
 
     # ------------------------------------------------------------------
@@ -670,8 +727,10 @@ class TestFramework:
                 all_results.append(result)
 
                 status = "PASS" if result.passed else ("TIMEOUT" if result.timed_out else "FAIL")
-                print(f"  → {status}: {result.laps_completed}/{result.target_laps} laps, "
-                      f"{result.duration_s:.1f}s")
+                print(
+                    f"  → {status}: {result.laps_completed}/{result.target_laps} laps, "
+                    f"{result.duration_s:.1f}s"
+                )
 
                 if result.passed:
                     break
@@ -689,14 +748,16 @@ class TestFramework:
                 for k, v in patch.items():
                     old_val = current.get(k, "?")
                     current[k] = v
-                    param_history.append({
-                        "attempt": attempt + 1,
-                        "scenario": sid,
-                        "rule": rule,
-                        "param": k,
-                        "old": old_val,
-                        "new": v,
-                    })
+                    param_history.append(
+                        {
+                            "attempt": attempt + 1,
+                            "scenario": sid,
+                            "rule": rule,
+                            "param": k,
+                            "old": old_val,
+                            "new": v,
+                        }
+                    )
                     print(f"    {k}: {old_val} → {v}")
                 save_params(current)
 
@@ -708,11 +769,13 @@ class TestFramework:
     # Entry point
     # ------------------------------------------------------------------
 
-    def run(self):
+    def run(self) -> None:
         scenario_ids = parse_scenario_range(self.args.scenarios)
-        print(f"Mode: {self.args.mode} | Challenge: {self.args.challenge} | "
-              f"Scenarios: {scenario_ids} | Laps: {self.args.laps} | "
-              f"Timeout: {self.args.timeout}s")
+        print(
+            f"Mode: {self.args.mode} | Challenge: {self.args.challenge} | "
+            f"Scenarios: {scenario_ids} | Laps: {self.args.laps} | "
+            f"Timeout: {self.args.timeout}s"
+        )
 
         if self.args.mode == "report":
             results = self.run_report(scenario_ids)
@@ -726,22 +789,26 @@ class TestFramework:
 # CLI
 # ---------------------------------------------------------------------------
 
-def main():
+
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Autonomous test framework for WRO 2026 navigator",
     )
     parser.add_argument("--mode", choices=["report", "train"], required=True)
-    parser.add_argument("--challenge", choices=["open", "obstacles", "all"],
-                        default="open")
-    parser.add_argument("--scenarios", type=str, default="0",
-                        help='Range like "0-9" or list like "0,2,5"')
+    parser.add_argument("--challenge", choices=["open", "obstacles", "all"], default="open")
+    parser.add_argument(
+        "--scenarios", type=str, default="0", help='Range like "0-9" or list like "0,2,5"'
+    )
     parser.add_argument("--laps", type=int, default=3)
-    parser.add_argument("--timeout", type=int, default=120,
-                        help="Seconds before navigator subprocess is killed")
-    parser.add_argument("--max-retries", type=int, default=5,
-                        help="Train mode: max retry attempts per scenario")
-    parser.add_argument("--output", type=str, default="report.md",
-                        help="Output markdown report file")
+    parser.add_argument(
+        "--timeout", type=int, default=120, help="Seconds before navigator subprocess is killed"
+    )
+    parser.add_argument(
+        "--max-retries", type=int, default=5, help="Train mode: max retry attempts per scenario"
+    )
+    parser.add_argument(
+        "--output", type=str, default="report.md", help="Output markdown report file"
+    )
     args = parser.parse_args()
 
     framework = TestFramework(args)

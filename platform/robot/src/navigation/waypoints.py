@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from src.config.constants import DictKeys, RobotSpecs, TrackDimensions
+from src.config.constants import DictKeys, TrackDimensions
 from src.config.enums import Direction
 
 # Arc radius for corners. Must exceed the Ackermann minimum turning radius
@@ -62,7 +62,12 @@ def calculate_waypoints(
     west_cx = west_width / 2 - _OUTER_WALL_BIAS
 
     segments = _build_all_segments(
-        north_cy, south_cy, east_cx, west_cx, _ARC_RADIUS, direction,
+        north_cy,
+        south_cy,
+        east_cx,
+        west_cx,
+        _ARC_RADIUS,
+        direction,
     )
 
     order = _build_corridor_order(direction)
@@ -75,11 +80,17 @@ def calculate_waypoints(
     start_x, start_y = start_pos[DictKeys.X], start_pos[DictKeys.Y]
 
     return _build_waypoint_sequence(
-        full_loop, segments, order, start_x, start_y, num_laps,
+        full_loop,
+        segments,
+        order,
+        start_x,
+        start_y,
+        num_laps,
     )
 
 
 # ── Segment builders ──────────────────────────────────────────────────────────
+
 
 def _build_all_segments(
     north_cy: float,
@@ -109,16 +120,16 @@ def _build_all_segments(
 
     if direction is Direction.CLOCKWISE:
         return {
-            "east":  east_straight + se_cw,
+            "east": east_straight + se_cw,
             "south": south_straight + sw_cw,
-            "west":  west_straight + nw_cw,
+            "west": west_straight + nw_cw,
             "north": north_straight + ne_cw,
         }
     # Counter-clockwise: reverse each segment
     return {
-        "east":  list(reversed(east_straight)) + list(reversed(ne_cw)),
+        "east": list(reversed(east_straight)) + list(reversed(ne_cw)),
         "south": list(reversed(south_straight)) + list(reversed(se_cw)),
-        "west":  list(reversed(west_straight)) + list(reversed(sw_cw)),
+        "west": list(reversed(west_straight)) + list(reversed(sw_cw)),
         "north": list(reversed(north_straight)) + list(reversed(nw_cw)),
     }
 
@@ -204,6 +215,7 @@ def _deduplicate_consecutive(
 
 # ── Geometry helpers ──────────────────────────────────────────────────────────
 
+
 def _arc_with_endpoints(
     center: tuple[float, float],
     radius: float,
@@ -222,7 +234,7 @@ def _arc_with_endpoints(
         round(cy + radius * math.sin(theta_end), 3),
     )
     intermediates = _arc_intermediate_points(cx, cy, radius, theta_start, theta_end, num_intermediate)
-    return [entry] + intermediates + [exit_pt]
+    return [entry, *intermediates, exit_pt]
 
 
 def _arc_intermediate_points(
@@ -238,10 +250,12 @@ def _arc_intermediate_points(
     for step in range(1, count + 1):
         fraction = step / (count + 1)
         theta = theta_start + fraction * (theta_end - theta_start)
-        points.append((
-            round(cx + radius * math.cos(theta), 3),
-            round(cy + radius * math.sin(theta), 3),
-        ))
+        points.append(
+            (
+                round(cx + radius * math.cos(theta), 3),
+                round(cy + radius * math.sin(theta), 3),
+            ),
+        )
     return points
 
 

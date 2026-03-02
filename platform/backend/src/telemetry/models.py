@@ -8,7 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
-class NodeHealth(str, enum.Enum):
+class NodeHealth(enum.StrEnum):
+    """Enumerates the telemetry node health states sent to the UI."""
+
     NOMINAL = "nominal"
     WATCHDOG = "watchdog"
     REPLANNING = "replanning"

@@ -17,10 +17,10 @@ import logging
 import math
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any
+from xml.etree.ElementTree import Element, ElementTree
 
 from defusedxml.ElementTree import parse as defused_parse
-from xml.etree.ElementTree import Element, ElementTree
 
 from src.config.constants import (
     ColorNames,
@@ -45,7 +45,7 @@ CvBridge: type[Any] | None = None
 ROS2_AVAILABLE = False
 if importlib.util.find_spec("cv2") and importlib.util.find_spec("cv_bridge"):
     cv2 = importlib.import_module("cv2")
-    CvBridge = getattr(importlib.import_module("cv_bridge"), "CvBridge")
+    CvBridge = importlib.import_module("cv_bridge").CvBridge
     ROS2_AVAILABLE = True
 else:
     logger.warning("ROS2 not available — running in standalone mode")
@@ -105,7 +105,11 @@ class ScenarioGenerator:
 
         starting_conditions = self._resolve_starting_conditions(randomize_all, corridor_widths)
 
-        sign_positions, sign_colors, parking_config = self._resolve_obstacles(corridor_widths, starting_conditions)
+        (
+            sign_positions,
+            sign_colors,
+            parking_config,
+        ) = self._resolve_obstacles(corridor_widths, starting_conditions)
 
         self._builder.add_interior_walls(world, corridor_widths)
         self._builder.add_traffic_signs(world, sign_positions, sign_colors)
@@ -143,12 +147,22 @@ class ScenarioGenerator:
     ) -> dict[Section, dict[str, Any]]:
         if self._challenge_type == ScenarioType.OBSTACLES:
             # Obstacles: fixed 1.0 m corridor on all sides
-            return {s: {DictKeys.TYPE: WidthTypes.FIXED, DictKeys.WIDTH: 1.0} for s in GridSections.SECTIONS}
+            return {
+                s: {
+                    DictKeys.TYPE: WidthTypes.FIXED,
+                    DictKeys.WIDTH: 1.0,
+                }
+                for s in GridSections.SECTIONS
+            }
         if randomize_all:
             return self._randomizer.randomize_corridor_widths()
         # Open with no randomization: default wide corridors
         return {
-            s: {DictKeys.TYPE: WidthTypes.WIDE, DictKeys.WIDTH: CorridorDimensions.WIDE} for s in GridSections.SECTIONS
+            s: {
+                DictKeys.TYPE: WidthTypes.WIDE,
+                DictKeys.WIDTH: CorridorDimensions.WIDE,
+            }
+            for s in GridSections.SECTIONS
         }
 
     def _resolve_starting_conditions(
@@ -180,7 +194,8 @@ class ScenarioGenerator:
 
         starting_section: Section = starting_conditions[DictKeys.SECTION]
         sign_positions, sign_colors = self._randomizer.generate_sign_positions(
-            corridor_widths, exclude_section=starting_section,
+            corridor_widths,
+            exclude_section=starting_section,
         )
         parking_config = self._randomizer.generate_parking_lot_positions(starting_section)
         sign_positions, sign_colors = _adjust_signs_for_parking(
@@ -189,12 +204,18 @@ class ScenarioGenerator:
         return sign_positions, sign_colors, parking_config
 
     def _save_world(self, tree: ElementTree, scenario_index: int) -> Path:
-        world_file = self._output_dir / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FileExtensions.SDF}"
+        world_file = (
+            self._output_dir
+            / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FileExtensions.SDF}"
+        )
         tree.write(world_file, encoding="utf-8", xml_declaration=True)
         return world_file
 
     def _save_metadata(self, metadata: dict[str, Any], scenario_index: int) -> None:
-        metadata_file = self._output_dir / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FilePaths.METADATA_SUFFIX}"
+        metadata_file = (
+            self._output_dir
+            / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FilePaths.METADATA_SUFFIX}"
+        )
         with metadata_file.open("w", encoding="utf-8") as fh:
             json.dump(metadata, fh, indent=2)
 
@@ -275,7 +296,9 @@ class VideoRecorder:
         if not self._frames:
             return None
 
-        video_file = self._output_dir / f"{FilePaths.SCENARIO_PREFIX}{self._scenario_index:04d}{FileExtensions.MP4}"
+        video_file = self._output_dir / (
+            f"{FilePaths.SCENARIO_PREFIX}{self._scenario_index:04d}{FileExtensions.MP4}"
+        )
         height, width = self._frames[0].shape[:2]
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(video_file), fourcc, 30.0, (width, height))
@@ -354,7 +377,9 @@ def _serialize_parking(parking_config: dict[str, Any] | None) -> dict[str, Any] 
 
 def main() -> None:
     """CLI entry point for batch scenario generation."""
-    parser = argparse.ArgumentParser(description="Generate randomized WRO 2026 Gazebo scenario SDF files.")
+    parser = argparse.ArgumentParser(
+        description=("Generate randomized WRO 2026 Gazebo scenario SDF files.")
+    )
     parser.add_argument(
         "--challenge",
         choices=["open", "obstacles"],
@@ -399,7 +424,9 @@ def main() -> None:
         challenge_output_dir,
     )
     for index in range(args.num_scenarios):
-        world_file, metadata = generator.create_scenario_world(index, randomize_all=args.randomize_all)
+        world_file, metadata = generator.create_scenario_world(
+            index, randomize_all=args.randomize_all
+        )
         logger.info(
             "[%d/%d] %s  signs=%d",
             index + 1,

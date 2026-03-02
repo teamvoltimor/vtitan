@@ -1,34 +1,36 @@
 #!/usr/bin/env python3
 """
-Convert ROS2 bags to videos
+Convert ROS2 bags to videos.
 
-Extracts image messages from ROS2 bags and saves as MP4 videos.
+Extracts image messages from ROS2 bags and saves them as MP4 videos.
 
-Usage:
+Usage examples:
     # Convert a single bag
-    python3 convert_bags_to_videos.py --bag-file ~/wro_recordings/recording_0.db3 --output-dir ~/videos
+    python3 convert_bags_to_videos.py --bag-file ~/wro_recordings/recording_0.db3 \
+        --output-dir ~/videos
 
     # Convert all bags in directory
-    python3 convert_bags_to_videos.py --bag-dir ~/wro_recordings --output-dir ~/videos
+    python3 convert_bags_to_videos.py --bag-dir ~/wro_recordings \
+        --output-dir ~/videos
 
     # Convert with custom frame rate
-    python3 convert_bags_to_videos.py --bag-dir ~/wro_recordings --output-dir ~/videos --fps 30
+    python3 convert_bags_to_videos.py --bag-dir ~/wro_recordings \
+        --output-dir ~/videos --fps 30
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 try:
     import cv2
-    import rclpy
     from cv_bridge import CvBridge
     from rclpy.serialization import deserialize_message
     from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
     from sensor_msgs.msg import Image
+
     ROS2_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - dependencies optional
     ROS2_AVAILABLE = False
     print("ERROR: Required packages not found")
     print("Install: sudo apt install ros-humble-rosbag2-py ros-humble-cv-bridge")
@@ -39,12 +41,16 @@ except ImportError:
 class BagToVideoConverter:
     """Converts ROS2 bag files to MP4 videos"""
 
-    def __init__(self, topic="/camera/image_raw", fps=30):
+    def __init__(self, topic: str = "/camera/image_raw", fps: int = 30) -> None:
         self.topic = topic
         self.fps = fps
         self.bridge = CvBridge()
 
-    def convert_bag(self, bag_path, output_video_path):
+    def convert_bag(
+        self,
+        bag_path: Path | str,
+        output_video_path: Path | str,
+    ) -> bool:
         """Convert a single bag file to video"""
         bag_path = Path(bag_path)
         output_video_path = Path(output_video_path)
@@ -128,10 +134,15 @@ class BagToVideoConverter:
         except Exception as e:
             print(f"  ✗ ERROR: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
-    def convert_directory(self, bag_dir, output_dir):
+    def convert_directory(
+        self,
+        bag_dir: Path | str,
+        output_dir: Path | str,
+    ) -> bool:
         """Convert all bags in a directory"""
         bag_dir = Path(bag_dir)
         output_dir = Path(output_dir)
@@ -177,17 +188,17 @@ class BagToVideoConverter:
                 failed_count += 1
 
         # Summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("Conversion complete:")
         print(f"  Successful: {success_count}")
         print(f"  Failed: {failed_count}")
         print(f"  Output directory: {output_dir}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         return failed_count == 0
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Convert ROS2 bags to MP4 videos",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -195,20 +206,24 @@ def main():
 
     # Input options
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument("--bag-file", type=str,
-                            help="Path to single bag file or folder")
-    input_group.add_argument("--bag-dir", type=str,
-                            help="Directory containing multiple bags")
+    input_group.add_argument("--bag-file", type=str, help="Path to single bag file or folder")
+    input_group.add_argument("--bag-dir", type=str, help="Directory containing multiple bags")
 
     # Output options
-    parser.add_argument("--output-dir", type=str, required=True,
-                       help="Output directory for videos")
+    parser.add_argument(
+        "--output-dir", type=str, required=True, help="Output directory for videos"
+    )
 
     # Conversion options
-    parser.add_argument("--topic", type=str, default="/camera/image_raw",
-                       help="Image topic to extract (default: /camera/image_raw)")
-    parser.add_argument("--fps", type=int, default=30,
-                       help="Output video frame rate (default: 30)")
+    parser.add_argument(
+        "--topic",
+        type=str,
+        default="/camera/image_raw",
+        help="Image topic to extract (default: /camera/image_raw)",
+    )
+    parser.add_argument(
+        "--fps", type=int, default=30, help="Output video frame rate (default: 30)"
+    )
 
     args = parser.parse_args()
 

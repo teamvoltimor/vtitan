@@ -18,7 +18,11 @@ _generator = TelemetryGenerator(recorder=_recorder)
 
 
 def get_recorder() -> TelemetryRecorder:
+    """Return the singleton recorder that services the router."""
     return _recorder
+
+
+RECORDER_DEPENDENCY = Depends(get_recorder)
 
 
 def shutdown() -> None:
@@ -41,22 +45,27 @@ def get_history(limit: int = Query(60, ge=10, le=360)) -> list[RobotSnapshot]:
 @router.post("/record", response_model=None)
 def record_snapshot(
     snapshot: RobotSnapshot,
-    recorder: TelemetryRecorder = Depends(get_recorder),
+    recorder: TelemetryRecorder = RECORDER_DEPENDENCY,
 ) -> None:
+    """Persist a snapshot for later replay."""
     recorder.record(snapshot)
 
 
 @router.get("/sessions", response_model=list[ReplaySessionInfo])
-def list_sessions(recorder: TelemetryRecorder = Depends(get_recorder)) -> list[ReplaySessionInfo]:
+def list_sessions(
+    recorder: TelemetryRecorder = RECORDER_DEPENDENCY,
+) -> list[ReplaySessionInfo]:
+    """List replay sessions currently stored on disk."""
     return list(recorder.list_sessions())
 
 
 @router.get("/sessions/{session_id}", response_model=list[RobotSnapshot])
 def load_session(
     session_id: str,
-    recorder: TelemetryRecorder = Depends(get_recorder),
+    recorder: TelemetryRecorder = RECORDER_DEPENDENCY,
 ) -> list[RobotSnapshot]:
+    """Return the snapshots recorded under ``session_id``."""
     try:
         return list(recorder.load_session(session_id))
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

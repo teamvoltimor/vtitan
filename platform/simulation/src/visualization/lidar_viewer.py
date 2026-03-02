@@ -11,18 +11,19 @@ Usage:
 
 import math
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # type: ignore[import]
 import numpy as np
-import rclpy
-from matplotlib.animation import FuncAnimation
-from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
+import rclpy  # type: ignore[import]
+from matplotlib.animation import FuncAnimation  # type: ignore[import]
+from matplotlib.lines import Line2D  # type: ignore[import]
+from rclpy.node import Node  # type: ignore[import]
+from sensor_msgs.msg import LaserScan  # type: ignore[import]
 
 
 class LidarVisualizer(Node):
     """Visualize LIDAR scan data in real-time"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("lidar_visualizer")
 
         # Subscribe to LIDAR topic
@@ -43,7 +44,7 @@ class LidarVisualizer(Node):
 
         self.get_logger().info("LIDAR Visualizer started. Waiting for LIDAR data...")
 
-    def lidar_callback(self, msg):
+    def lidar_callback(self, msg: LaserScan) -> None:
         """Process incoming LIDAR scan data"""
         self.ranges = np.array(msg.ranges)
         self.angle_min = msg.angle_min
@@ -56,7 +57,7 @@ class LidarVisualizer(Node):
         self.ranges[np.isinf(self.ranges)] = self.range_max
 
 
-def main():
+def main() -> None:
     # Initialize ROS2
     rclpy.init()
 
@@ -65,7 +66,11 @@ def main():
 
     # Set up matplotlib figure
     fig, (ax_polar, ax_cart) = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle("LIDAR Visualization - Real-time Distance Measurements", fontsize=14, fontweight="bold")
+    fig.suptitle(
+        "LIDAR Visualization - Real-time Distance Measurements",
+        fontsize=14,
+        fontweight="bold",
+    )
 
     # Polar plot (left side) - shows LIDAR rays
     ax_polar.set_theta_zero_location("N")  # 0 degrees at top
@@ -73,7 +78,7 @@ def main():
     ax_polar.set_ylim(0, 3.5)
     ax_polar.set_title("Polar View (Robot at Center)", fontsize=12)
     ax_polar.grid(True, alpha=0.3)
-    line_polar, = ax_polar.plot([], [], "b.", markersize=2, alpha=0.6)
+    (line_polar,) = ax_polar.plot([], [], "b.", markersize=2, alpha=0.6)
 
     # Cartesian plot (right side) - top-down view
     ax_cart.set_xlim(-3.5, 3.5)
@@ -87,19 +92,26 @@ def main():
     ax_cart.axvline(x=0, color="k", linewidth=0.5, alpha=0.3)
 
     # Robot indicator (red triangle pointing forward)
-    robot_triangle = plt.Polygon([[0, 0.15], [-0.1, -0.1], [0.1, -0.1]],
-                                  color="red", alpha=0.7, label="Robot")
+    robot_triangle = plt.Polygon(
+        [[0, 0.15], [-0.1, -0.1], [0.1, -0.1]], color="red", alpha=0.7, label="Robot"
+    )
     ax_cart.add_patch(robot_triangle)
 
-    line_cart, = ax_cart.plot([], [], "b.", markersize=3, alpha=0.6, label="LIDAR points")
+    (line_cart,) = ax_cart.plot([], [], "b.", markersize=3, alpha=0.6, label="LIDAR points")
     ax_cart.legend(loc="upper right", fontsize=9)
 
     # Text for statistics
-    stats_text = ax_cart.text(0.02, 0.98, "", transform=ax_cart.transAxes,
-                               verticalalignment="top", fontsize=9,
-                               bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
+    stats_text = ax_cart.text(
+        0.02,
+        0.98,
+        "",
+        transform=ax_cart.transAxes,
+        verticalalignment="top",
+        fontsize=9,
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
 
-    def update_plot(frame):
+    def update_plot(frame: int) -> tuple[Line2D, Line2D, plt.Text]:
         """Update plot with latest LIDAR data"""
         # Spin ROS2 to get latest data
         rclpy.spin_once(visualizer, timeout_sec=0.01)
@@ -112,8 +124,9 @@ def main():
         angles = np.linspace(visualizer.angle_min, visualizer.angle_max, num_points)
 
         # Filter valid ranges
-        valid_mask = (visualizer.ranges >= visualizer.range_min) & \
-                     (visualizer.ranges <= visualizer.range_max)
+        valid_mask = (visualizer.ranges >= visualizer.range_min) & (
+            visualizer.ranges <= visualizer.range_max
+        )
         valid_angles = angles[valid_mask]
         valid_ranges = visualizer.ranges[valid_mask]
 
@@ -124,7 +137,7 @@ def main():
         # Robot faces forward (+Y), LIDAR angle 0 is forward
         # Negate X so left appears on left side of plot
         x = -valid_ranges * np.sin(valid_angles)  # X: negative for correct left/right
-        y = valid_ranges * np.cos(valid_angles)   # Y: forward/back
+        y = valid_ranges * np.cos(valid_angles)  # Y: forward/back
         line_cart.set_data(x, y)
 
         # Calculate statistics
@@ -135,15 +148,19 @@ def main():
 
             # Find closest obstacles in each direction
             # Forward (around 0°, ±15°)
-            forward_mask = (np.abs(valid_angles) < 0.26) | (np.abs(valid_angles - 2*np.pi) < 0.26)
-            forward_dist = np.min(valid_ranges[forward_mask]) if np.any(forward_mask) else float("inf")
+            forward_mask = (np.abs(valid_angles) < 0.26) | (
+                np.abs(valid_angles - 2 * np.pi) < 0.26
+            )
+            forward_dist = (
+                np.min(valid_ranges[forward_mask]) if np.any(forward_mask) else float("inf")
+            )
 
             # Left (around 90°, π/2)
-            left_mask = np.abs(valid_angles - np.pi/2) < 0.26
+            left_mask = np.abs(valid_angles - np.pi / 2) < 0.26
             left_dist = np.min(valid_ranges[left_mask]) if np.any(left_mask) else float("inf")
 
             # Right (around 270°, 3π/2)
-            right_mask = np.abs(valid_angles - 3*np.pi/2) < 0.26
+            right_mask = np.abs(valid_angles - 3 * np.pi / 2) < 0.26
             right_dist = np.min(valid_ranges[right_mask]) if np.any(right_mask) else float("inf")
 
             # Back (around 180°, π)
@@ -165,7 +182,7 @@ def main():
         return line_polar, line_cart, stats_text
 
     # Set up animation
-    ani = FuncAnimation(fig, update_plot, interval=50, blit=False, cache_frame_data=False)
+    _ani = FuncAnimation(fig, update_plot, interval=50, blit=False, cache_frame_data=False)
 
     # Show plot
     plt.tight_layout()

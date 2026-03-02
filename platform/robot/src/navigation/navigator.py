@@ -50,11 +50,11 @@ _ERR_MEDIUM = 0.4
 
 # Pure-pursuit lookahead distances (metres).
 _LOOKAHEAD_SHORT = 0.30  # close to a corner (forward clearance < 0.15 m)
-_LOOKAHEAD_LONG = 0.70   # normal straight driving
+_LOOKAHEAD_LONG = 0.70  # normal straight driving
 
 # Escape maneuver constants.
-_ESCAPE_REV_SPEED = -0.20   # m/s during wall K-turn reverse phase
-_ESCAPE_STEER_SCALE = 0.8   # fraction of max_steering_angle
+_ESCAPE_REV_SPEED = -0.20  # m/s during wall K-turn reverse phase
+_ESCAPE_STEER_SCALE = 0.8  # fraction of max_steering_angle
 _OBS_REV_SPEED = -0.25
 _OBS_FWD_SPEED = 0.15
 _OBS_STEER_SCALE = 0.70
@@ -68,24 +68,24 @@ _OBSTACLE_GAIN = 0.30
 
 # Stuck detection parameters.
 _STUCK_MOVE_THRESHOLD = 0.03  # metres — less than this → robot is stuck
-_STUCK_ESCAPE_DURATION = 15   # frames (~0.75 s)
-_STUCK_CLOSE_WALL = 0.18      # metres — escape direction safety override
+_STUCK_ESCAPE_DURATION = 15  # frames (~0.75 s)
+_STUCK_CLOSE_WALL = 0.18  # metres — escape direction safety override
 
 # Speed fractions applied when forward clearance is in each zone.
-_SPEED_CONTACT = 0.15   # very close (< _FWD_CONTACT_DIST) — creep forward
-_SPEED_SLOW = 0.35      # slow zone
-_SPEED_MEDIUM = 0.50    # medium zone
-_SPEED_FAST = 0.70      # fast zone
-_SPEED_FULL = 1.00      # clear path
+_SPEED_CONTACT = 0.15  # very close (< _FWD_CONTACT_DIST) — creep forward
+_SPEED_SLOW = 0.35  # slow zone
+_SPEED_MEDIUM = 0.50  # medium zone
+_SPEED_FAST = 0.70  # fast zone
+_SPEED_FULL = 1.00  # clear path
 
 # Speed fractions applied when heading error is large.
-_SPEED_ERR_CRAWL = 0.25   # worst-case misalignment
-_SPEED_ERR_SLOW = 0.35    # large heading error
+_SPEED_ERR_CRAWL = 0.25  # worst-case misalignment
+_SPEED_ERR_SLOW = 0.35  # large heading error
 _SPEED_ERR_MEDIUM = 0.55  # moderate heading error
 
 # Escape duration clamping when computing wall-limited frames.
-_ESCAPE_DUR_MIN = 6          # minimum escape frames
-_ESCAPE_DUR_MAX = 12         # maximum escape frames
+_ESCAPE_DUR_MIN = 6  # minimum escape frames
+_ESCAPE_DUR_MAX = 12  # maximum escape frames
 _ESCAPE_DUR_DIST_STEP = 0.03  # metres per escape frame
 
 # Pure-pursuit steering P-gain.
@@ -95,9 +95,9 @@ _STEER_KP = 1.5
 _FWD_SHORT_LOOKAHEAD_DIST = 0.15
 
 # Obstacle correction thresholds (function _compute_obstacle_correction).
-_OBS_STRAIGHT_THRESHOLD = 0.4   # heading error below this = travelling straight (~23°)
-_OBS_CLEAR_SIDES_DIST = 0.25    # side clearance above this = open corridor
-_OBS_ACTIVE_FWD_DIST = 0.20     # forward dist below this = obstacle correction fires
+_OBS_STRAIGHT_THRESHOLD = 0.4  # heading error below this = travelling straight (~23°)
+_OBS_CLEAR_SIDES_DIST = 0.25  # side clearance above this = open corridor
+_OBS_ACTIVE_FWD_DIST = 0.20  # forward dist below this = obstacle correction fires
 
 
 class TrackNavigator(Node):
@@ -120,9 +120,7 @@ class TrackNavigator(Node):
 
         self._metadata = _load_json(metadata_path)
         self._num_laps = num_laps
-        self._is_open_challenge = (
-            self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
-        )
+        self._is_open_challenge = self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
         # ── Ackermann geometry ────────────────────────────────────────
         self._max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE
@@ -173,7 +171,8 @@ class TrackNavigator(Node):
 
         # ── Waypoint tracking ─────────────────────────────────────────
         self._waypoints: list[tuple[float, float]] = calculate_waypoints(
-            self._metadata, num_laps,
+            self._metadata,
+            num_laps,
         )
         self._waypoint_index: int = 0
         self._prev_waypoint_dist: float = float("inf")
@@ -188,13 +187,21 @@ class TrackNavigator(Node):
 
         # ── ROS2 interfaces ───────────────────────────────────────────
         self._vel_publisher = self.create_publisher(
-            Twist, "/wro_robot/cmd_vel", 10,
+            Twist,
+            "/wro_robot/cmd_vel",
+            10,
         )
         self.create_subscription(
-            Odometry, "/wro_robot/odom", self._odom_callback, 10,
+            Odometry,
+            "/wro_robot/odom",
+            self._odom_callback,
+            10,
         )
         self.create_subscription(
-            LaserScan, "/lidar", self._lidar_callback, 10,
+            LaserScan,
+            "/lidar",
+            self._lidar_callback,
+            10,
         )
         self.create_timer(0.05, self._control_loop)  # 20 Hz
 
@@ -229,7 +236,9 @@ class TrackNavigator(Node):
         raw = np.array(msg.ranges)
         self._lidar_ranges = clamp_lidar_scan(raw, RobotSpecs.LIDAR_MAX_RANGE)
         self._lidar_angles = np.linspace(
-            msg.angle_min, msg.angle_max, len(self._lidar_ranges),
+            msg.angle_min,
+            msg.angle_max,
+            len(self._lidar_ranges),
         )
         self._fwd_critical_lidar_count = update_fwd_critical_count(
             self._lidar_ranges,
@@ -267,11 +276,18 @@ class TrackNavigator(Node):
         self._prev_waypoint_dist = distance
 
         distance, dx, dy, target_x, target_y = self._maybe_advance_waypoint(
-            robot_x, robot_y, distance, dx, dy, target_x, target_y,
+            robot_x,
+            robot_y,
+            distance,
+            dx,
+            dy,
+            target_x,
+            target_y,
         )
 
         angle_error, steer_index = self._compute_lookahead_error(
-            robot_x, robot_y, distance,
+            robot_x,
+            robot_y,
         )
 
         steer_x, steer_y = self._waypoints[steer_index]
@@ -285,7 +301,11 @@ class TrackNavigator(Node):
         )
 
         vel_msg = self._build_velocity_command(
-            robot_x, robot_y, dx, dy, distance, angle_error,
+            robot_x,
+            robot_y,
+            dx,
+            dy,
+            angle_error,
         )
         self._vel_publisher.publish(vel_msg)
         self._log_counter += 1
@@ -298,11 +318,10 @@ class TrackNavigator(Node):
         robot_y: float,
         dx: float,
         dy: float,
-        distance: float,
         angle_error: float,
     ) -> Twist:
         """Select escape maneuver or normal navigation and build Twist message."""
-        if self._lidar_ranges is None:
+        if self._lidar_ranges is None or self._lidar_angles is None:
             return _make_twist(self._min_forward_speed, 0.0)
 
         risk_level, distances = assess_collision_risk(
@@ -316,14 +335,19 @@ class TrackNavigator(Node):
         )
 
         if self._escape_mode:
-            return self._execute_wall_escape(robot_x, robot_y)
+            return self._execute_wall_escape()
 
         if self._obstacle_escape:
             return self._execute_obstacle_escape(robot_x, robot_y)
 
         if risk_level == "critical":
             return self._enter_wall_escape(
-                robot_x, robot_y, dx, dy, distances, angle_error,
+                robot_x,
+                robot_y,
+                dx,
+                dy,
+                distances,
+                angle_error,
             )
 
         if risk_level == "obstacle":
@@ -333,13 +357,12 @@ class TrackNavigator(Node):
 
     # ── Escape maneuver logic ──────────────────────────────────────────────────
 
-    def _execute_wall_escape(self, robot_x: float, robot_y: float) -> Twist:
+    def _execute_wall_escape(self) -> Twist:
         """Reverse-only K-turn away from a wall."""
         self._escape_counter += 1
         steer = self._escape_steer_sign * self._max_steering_angle * _ESCAPE_STEER_SCALE
         self.get_logger().warning(
-            f"ESCAPE REV [{self._escape_counter}/{self._escape_duration}]: "
-            f"steer={steer:.2f}",
+            f"ESCAPE REV [{self._escape_counter}/{self._escape_duration}]: steer={steer:.2f}",
         )
         if self._escape_counter >= self._escape_duration:
             self._escape_mode = False
@@ -392,20 +415,28 @@ class TrackNavigator(Node):
 
         self._critical_escape_positions.append((robot_x, robot_y))
         nearby_count = _count_nearby(
-            self._critical_escape_positions, robot_x, robot_y,
+            self._critical_escape_positions,
+            robot_x,
+            robot_y,
             self._critical_repeat_radius,
         )
 
         self._escape_steer_sign = _choose_escape_sign(
-            dx, dy, self._current_yaw, left_dist, right_dist, nearby_count,
+            dx,
+            dy,
+            self._current_yaw,
+            left_dist,
+            right_dist,
+            nearby_count,
         )
         self._escape_steer_sign = _apply_wall_safety_override(
-            self._escape_steer_sign, left_dist, right_dist, nearby_count,
+            self._escape_steer_sign,
+            left_dist,
+            right_dist,
+            nearby_count,
         )
 
-        escape_side_dist = (
-            left_dist if self._escape_steer_sign > 0 else right_dist
-        )
+        escape_side_dist = left_dist if self._escape_steer_sign > 0 else right_dist
         wall_limited = max(
             _ESCAPE_DUR_MIN,
             min(_ESCAPE_DUR_MAX, int(escape_side_dist / _ESCAPE_DUR_DIST_STEP)),
@@ -441,7 +472,9 @@ class TrackNavigator(Node):
         return _make_twist(_OBS_REV_SPEED, steer)
 
     def _finish_obstacle_escape(
-        self, robot_x: float, robot_y: float,
+        self,
+        robot_x: float,
+        robot_y: float,
     ) -> None:
         """Finalise obstacle escape and skip waypoint if looping."""
         self._obstacle_escape = False
@@ -450,13 +483,14 @@ class TrackNavigator(Node):
         self._dist_increasing_count = 0
 
         nearby = _count_nearby(
-            self._obstacle_escape_positions, robot_x, robot_y,
+            self._obstacle_escape_positions,
+            robot_x,
+            robot_y,
             self._obstacle_repeat_radius,
         )
         if nearby >= self._obstacle_repeat_limit:
             self.get_logger().warning(
-                f"Obstacle loop ({nearby} escapes) — skipping waypoint "
-                f"{self._waypoint_index}",
+                f"Obstacle loop ({nearby} escapes) — skipping waypoint {self._waypoint_index}",
             )
             self._waypoint_index += 1
             self._obstacle_escape_positions.clear()
@@ -479,20 +513,28 @@ class TrackNavigator(Node):
 
         speed = self._compute_speed(forward_dist, angle_error, dx, dy)
         waypoint_steer = _proportional_steer(
-            angle_error, self._max_steering_angle,
+            angle_error,
+            self._max_steering_angle,
         )
         side_correction = _compute_side_correction(
-            left_dist, right_dist, self._safe_distance,
+            left_dist,
+            right_dist,
+            self._safe_distance,
         )
         obstacle_correction = _compute_obstacle_correction(
-            forward_dist, left_dist, right_dist, angle_error,
+            forward_dist,
+            left_dist,
+            right_dist,
+            angle_error,
         )
 
-        total_steer = float(np.clip(
-            waypoint_steer + side_correction + obstacle_correction,
-            -self._max_steering_angle,
-            self._max_steering_angle,
-        ))
+        total_steer = float(
+            np.clip(
+                waypoint_steer + side_correction + obstacle_correction,
+                -self._max_steering_angle,
+                self._max_steering_angle,
+            ),
+        )
         return _make_twist(speed, total_steer)
 
     def _compute_speed(
@@ -606,7 +648,6 @@ class TrackNavigator(Node):
         self,
         robot_x: float,
         robot_y: float,
-        distance: float,
     ) -> tuple[float, int]:
         """Compute pure-pursuit heading error and the lookahead waypoint index.
 
@@ -615,7 +656,9 @@ class TrackNavigator(Node):
         fwd_dist = float("inf")
         if self._lidar_ranges is not None:
             fwd_dist = measure_distance_in_direction(
-                self._lidar_ranges, self._lidar_angles, target_angle=0.0,
+                self._lidar_ranges,
+                self._lidar_angles,
+                target_angle=0.0,
             )
         lookahead = _LOOKAHEAD_SHORT if fwd_dist < _FWD_SHORT_LOOKAHEAD_DIST else _LOOKAHEAD_LONG
 
@@ -624,7 +667,7 @@ class TrackNavigator(Node):
         while steer_idx + 1 < len(self._waypoints) and cumulative < lookahead:
             wx, wy = self._waypoints[steer_idx]
             nx, ny = self._waypoints[steer_idx + 1]
-            cumulative += math.sqrt((nx - wx)**2 + (ny - wy)**2)
+            cumulative += math.sqrt((nx - wx) ** 2 + (ny - wy) ** 2)
             steer_idx += 1
 
         steer_x, steer_y = self._waypoints[steer_idx]
@@ -640,8 +683,7 @@ class TrackNavigator(Node):
 
         if self._stuck_check_pos is not None:
             moved = math.sqrt(
-                (robot_x - self._stuck_check_pos[0])**2
-                + (robot_y - self._stuck_check_pos[1])**2,
+                (robot_x - self._stuck_check_pos[0]) ** 2 + (robot_y - self._stuck_check_pos[1]) ** 2,
             )
             if moved < _STUCK_MOVE_THRESHOLD:
                 self._stuck_seconds += 1
@@ -657,20 +699,32 @@ class TrackNavigator(Node):
         left_dist = right_dist = float("inf")
         if self._lidar_ranges is not None:
             left_dist = measure_distance_in_direction(
-                self._lidar_ranges, self._lidar_angles,
-                math.pi / 2, filter_self_detection=True,
+                self._lidar_ranges,
+                self._lidar_angles,
+                math.pi / 2,
+                filter_self_detection=True,
             )
             right_dist = measure_distance_in_direction(
-                self._lidar_ranges, self._lidar_angles,
-                -math.pi / 2, filter_self_detection=True,
+                self._lidar_ranges,
+                self._lidar_angles,
+                -math.pi / 2,
+                filter_self_detection=True,
             )
 
         self._escape_steer_sign = _choose_escape_sign_from_waypoint(
-            robot_x, robot_y, self._waypoint_index, self._waypoints,
-            self._current_yaw, left_dist, right_dist,
+            robot_x,
+            robot_y,
+            self._waypoint_index,
+            self._waypoints,
+            self._current_yaw,
+            left_dist,
+            right_dist,
         )
         self._escape_steer_sign = _apply_wall_safety_override(
-            self._escape_steer_sign, left_dist, right_dist, nearby_count=0,
+            self._escape_steer_sign,
+            left_dist,
+            right_dist,
+            nearby_count=0,
         )
 
         self._obstacle_escape = False
@@ -723,8 +777,10 @@ class TrackNavigator(Node):
 
 # ── Pure helper functions ──────────────────────────────────────────────────────
 
+
 def _load_json(path: str | Path) -> dict[str, Any]:
-    with open(path) as fh:
+    path_obj = path if isinstance(path, Path) else Path(path)
+    with path_obj.open() as fh:
         return json.load(fh)
 
 
@@ -746,7 +802,9 @@ def _proportional_steer(angle_error: float, max_angle: float) -> float:
 
 
 def _compute_side_correction(
-    left_dist: float, right_dist: float, safe_distance: float,
+    left_dist: float,
+    right_dist: float,
+    safe_distance: float,
 ) -> float:
     """Return a mild angular correction that pushes robot away from close walls."""
     if left_dist < safe_distance:
@@ -759,7 +817,10 @@ def _compute_side_correction(
 
 
 def _compute_obstacle_correction(
-    forward_dist: float, left_dist: float, right_dist: float, angle_error: float,
+    forward_dist: float,
+    left_dist: float,
+    right_dist: float,
+    angle_error: float,
 ) -> float:
     """Steer toward the open side when an obstacle is close ahead on a straight."""
     is_straight = abs(angle_error) < _OBS_STRAIGHT_THRESHOLD
@@ -779,10 +840,7 @@ def _count_nearby(
     radius: float,
 ) -> int:
     """Count how many stored positions are within radius of the robot."""
-    return sum(
-        1 for px, py in positions
-        if math.sqrt((robot_x - px)**2 + (robot_y - py)**2) < radius
-    )
+    return sum(1 for px, py in positions if math.sqrt((robot_x - px) ** 2 + (robot_y - py) ** 2) < radius)
 
 
 def _choose_escape_sign(
@@ -846,17 +904,21 @@ def _apply_wall_safety_override(
 
 # ── CLI entry point ────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     """Parse arguments and run the TrackNavigator node."""
     parser = argparse.ArgumentParser(
         description="Navigate the WRO robot using waypoint following.",
     )
     parser.add_argument(
-        "--metadata", required=True,
+        "--metadata",
+        required=True,
         help="Path to the scenario metadata JSON file.",
     )
     parser.add_argument(
-        "--laps", type=int, default=3,
+        "--laps",
+        type=int,
+        default=3,
         help="Number of laps to complete (default: 3).",
     )
     parser.add_argument(

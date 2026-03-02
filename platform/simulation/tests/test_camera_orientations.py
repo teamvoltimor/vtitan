@@ -10,9 +10,6 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-import xml.etree.ElementTree as ET
-
-from generate_training_data import TrainingDataGenerator
 
 # Test orientations (Roll, Pitch, Yaw in radians)
 TEST_ORIENTATIONS = {
@@ -41,9 +38,12 @@ print("\n" + "=" * 60)
 print("\nTo test an orientation, edit generate_training_data.py:")
 print("Find the camera_link pose line and change the rotation values.")
 print("\nExample:")
-print("  ET.SubElement(camera_link, 'pose', relative_to='base_link').text = '0.10 0 0.065 0 1.5708 0'")
-print("                                                                                      ^  ^      ^")
-print("                                                                                    Roll Pitch Yaw")
+print(
+    "  ET.SubElement(camera_link, 'pose', relative_to='base_link').text = "
+    "'0.10 0 0.065 0 1.5708 0'",
+)
+print(" " * 54 + "^  ^      ^")
+print(" " * 52 + "Roll Pitch Yaw")
 print("\nThen generate a test video and note what you see.")
 print("\nDescribe the view for each test:")
 print("  - Is track visible?")

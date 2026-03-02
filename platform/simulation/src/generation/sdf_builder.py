@@ -8,7 +8,6 @@ never reads files or randomizes values.
 from __future__ import annotations
 
 import math
-import os
 import random
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -171,18 +170,14 @@ class SDFBuilder:
             sign_colors: Parallel list of (color_name, rgb_list) tuples.
         """
         for index, ((x, y), (color_name, color_rgb)) in enumerate(
-            zip(sign_positions, sign_colors),
+            zip(sign_positions, sign_colors, strict=True),
         ):
             prefix = (
-                ModelNames.RED_SIGN_PREFIX
-                if color_name == "red"
-                else ModelNames.GREEN_SIGN_PREFIX
+                ModelNames.RED_SIGN_PREFIX if color_name == "red" else ModelNames.GREEN_SIGN_PREFIX
             )
             model = ET.Element("model", name=f"{prefix}{index}")
             ET.SubElement(model, "static").text = "true"
-            ET.SubElement(model, "pose").text = (
-                f"{x} {y} {TrafficSignSpecs.Z_POSITION} 0 0 0"
-            )
+            ET.SubElement(model, "pose").text = f"{x} {y} {TrafficSignSpecs.Z_POSITION} 0 0 0"
             link = ET.SubElement(model, "link", name="link")
             _add_box_visual(
                 link,
@@ -223,9 +218,7 @@ class SDFBuilder:
             yaw = parking_config[yaw_key]
             model = ET.Element("model", name=name_key)
             ET.SubElement(model, "static").text = "true"
-            ET.SubElement(model, "pose").text = (
-                f"{bx} {by} {ParkingLotSpecs.Z_POSITION} 0 0 {yaw}"
-            )
+            ET.SubElement(model, "pose").text = f"{bx} {by} {ParkingLotSpecs.Z_POSITION} 0 0 {yaw}"
             link = ET.SubElement(model, "link", name="link")
             _add_box_visual(link, *block_dims, parking_color)
             _add_box_collision(link, *block_dims)
@@ -258,7 +251,10 @@ class SDFBuilder:
         corridor_width = corridor_widths[starting_section][DictKeys.WIDTH]
 
         zone_length, zone_x, zone_y = _compute_zone_placement(
-            starting_section, corridor_width, parking_config, track_max,
+            starting_section,
+            corridor_width,
+            parking_config,
+            track_max,
         )
 
         # Remove existing static zone from base template
@@ -330,9 +326,7 @@ class SDFBuilder:
         robot_z = RobotSpecs.WHEEL_RADIUS
 
         robot_model = ET.Element("model", name="wro_robot")
-        ET.SubElement(robot_model, "pose").text = (
-            f"{robot_x} {robot_y} {robot_z} 0 0 {start_yaw}"
-        )
+        ET.SubElement(robot_model, "pose").text = f"{robot_x} {robot_y} {robot_z} 0 0 {start_yaw}"
 
         _build_chassis(robot_model)
         _build_ackermann_plugin(robot_model)
@@ -347,6 +341,7 @@ class SDFBuilder:
 
 
 # ── Private XML helpers ───────────────────────────────────────────────────────
+
 
 def _build_wall_model(
     name: str,
@@ -408,9 +403,7 @@ def _set_box_size(
     size_y: float,
     size_z: float,
 ) -> None:
-    ET.SubElement(ET.SubElement(geom, "box"), "size").text = (
-        f"{size_x} {size_y} {size_z}"
-    )
+    ET.SubElement(ET.SubElement(geom, "box"), "size").text = f"{size_x} {size_y} {size_z}"
 
 
 def _add_contact_surface(col: ET.Element) -> None:
@@ -434,7 +427,10 @@ def _compute_zone_placement(
     is_obstacles_with_parking = parking_config is not None
     if is_obstacles_with_parking:
         zone_length, zone_x, zone_y = _zone_from_parking(
-            starting_section, parking_config, zone_length, track_max,
+            starting_section,
+            parking_config,
+            zone_length,
+            track_max,
         )
         return zone_length, zone_x, zone_y
 
@@ -446,16 +442,10 @@ def _compute_zone_placement(
     is_ns = starting_section in (Section.NORTH, Section.SOUTH)
     if is_ns:
         zone_x = length_offset
-        zone_y = (
-            width_offset if starting_section is Section.SOUTH
-            else track_max - width_offset
-        )
+        zone_y = width_offset if starting_section is Section.SOUTH else track_max - width_offset
     else:
         zone_y = length_offset
-        zone_x = (
-            width_offset if starting_section is Section.WEST
-            else track_max - width_offset
-        )
+        zone_x = width_offset if starting_section is Section.WEST else track_max - width_offset
     return zone_length, zone_x, zone_y
 
 
@@ -490,6 +480,7 @@ def _zone_from_parking(
 
 # ── Robot model sub-builders ──────────────────────────────────────────────────
 
+
 def _build_chassis(robot_model: ET.Element) -> None:
     half_h = RobotSpecs.HEIGHT / 2
     cm = RobotSpecs.CHASSIS_MASS
@@ -503,7 +494,9 @@ def _build_chassis(robot_model: ET.Element) -> None:
     ET.SubElement(vis, "pose").text = f"0 0 {half_h} 0 0 0"
     _set_box_size(
         ET.SubElement(vis, "geometry"),
-        RobotSpecs.LENGTH, RobotSpecs.WIDTH, RobotSpecs.HEIGHT,
+        RobotSpecs.LENGTH,
+        RobotSpecs.WIDTH,
+        RobotSpecs.HEIGHT,
     )
     mat = ET.SubElement(vis, "material")
     ET.SubElement(mat, "ambient").text = "0 0 0.8 1"
@@ -511,9 +504,9 @@ def _build_chassis(robot_model: ET.Element) -> None:
 
     # Red front indicator (above LIDAR scan plane)
     front = ET.SubElement(base, "visual", name="front_indicator")
-    ET.SubElement(front, "pose").text = (
-        f"{RobotSpecs.LENGTH / 2 - 0.02} 0 {RobotSpecs.HEIGHT + 0.003} 0 0 0"
-    )
+    ET.SubElement(
+        front, "pose"
+    ).text = f"{RobotSpecs.LENGTH / 2 - 0.02} 0 {RobotSpecs.HEIGHT + 0.003} 0 0 0"
     _set_box_size(ET.SubElement(front, "geometry"), 0.04, 0.04, 0.005)
     fm = ET.SubElement(front, "material")
     ET.SubElement(fm, "ambient").text = "1 0 0 1"
@@ -523,7 +516,9 @@ def _build_chassis(robot_model: ET.Element) -> None:
     ET.SubElement(col, "pose").text = f"0 0 {half_h} 0 0 0"
     _set_box_size(
         ET.SubElement(col, "geometry"),
-        RobotSpecs.LENGTH, RobotSpecs.WIDTH, RobotSpecs.HEIGHT,
+        RobotSpecs.LENGTH,
+        RobotSpecs.WIDTH,
+        RobotSpecs.HEIGHT,
     )
 
     inertial = ET.SubElement(base, "inertial")
@@ -639,13 +634,19 @@ def _build_wheels(robot_model: ET.Element) -> None:
 
     for name, y_sign in [("rear_left_wheel", 1), ("rear_right_wheel", -1)]:
         _build_wheel_link(
-            robot_model, name,
+            robot_model,
+            name,
             f"{-half_wb} {y_sign * half_track} 0 0 0 0",
-            wheel_r, wheel_w, stripe_offset, stripe_dims,
-            wm, wheel_ixx, wheel_iyy,
+            wheel_r,
+            wheel_w,
+            stripe_offset,
+            stripe_dims,
+            wm,
+            wheel_ixx,
+            wheel_iyy,
         )
 
-    for wheel_name, joint_name, y_sign in [
+    for wheel_name, joint_name, _y_sign in [
         ("rear_left_wheel", "rear_left_wheel_joint", 1),
         ("rear_right_wheel", "rear_right_wheel_joint", -1),
     ]:
@@ -686,9 +687,9 @@ def _build_front_steering(robot_model: ET.Element) -> None:
 
         # Steering hinge link (near-zero inertia)
         steer_link = ET.SubElement(robot_model, "link", name=steer_name)
-        ET.SubElement(steer_link, "pose", relative_to="base_link").text = (
-            f"{half_wb} {y_pos} 0 0 0 0"
-        )
+        ET.SubElement(
+            steer_link, "pose", relative_to="base_link"
+        ).text = f"{half_wb} {y_pos} 0 0 0 0"
         si = ET.SubElement(steer_link, "inertial")
         ET.SubElement(si, "mass").text = "0.001"
         six = ET.SubElement(si, "inertia")
@@ -699,8 +700,10 @@ def _build_front_steering(robot_model: ET.Element) -> None:
 
         # Steering joint (Z-axis, ±max_steering_angle)
         sj = ET.SubElement(
-            robot_model, "joint",
-            name=f"front_{side}_steering_joint", type="revolute",
+            robot_model,
+            "joint",
+            name=f"front_{side}_steering_joint",
+            type="revolute",
         )
         ET.SubElement(sj, "parent").text = "base_link"
         ET.SubElement(sj, "child").text = steer_name
@@ -715,16 +718,24 @@ def _build_front_steering(robot_model: ET.Element) -> None:
         # Wheel link attached to steering hinge
         wheel_name = f"front_{side}_wheel"
         _build_wheel_link(
-            robot_model, wheel_name,
+            robot_model,
+            wheel_name,
             f"{half_wb} {y_pos} 0 0 0 0",
-            wheel_r, wheel_w, stripe_offset, stripe_dims,
-            wm, wheel_ixx, wheel_iyy,
+            wheel_r,
+            wheel_w,
+            stripe_offset,
+            stripe_dims,
+            wm,
+            wheel_ixx,
+            wheel_iyy,
         )
 
         # Wheel roll joint
         wj = ET.SubElement(
-            robot_model, "joint",
-            name=f"front_{side}_wheel_joint", type="revolute",
+            robot_model,
+            "joint",
+            name=f"front_{side}_wheel_joint",
+            type="revolute",
         )
         ET.SubElement(wj, "parent").text = steer_name
         ET.SubElement(wj, "child").text = wheel_name
@@ -739,9 +750,9 @@ def _build_front_steering(robot_model: ET.Element) -> None:
 
 def _build_camera_link(robot_model: ET.Element) -> None:
     cam_link = ET.SubElement(robot_model, "link", name="camera_link")
-    ET.SubElement(cam_link, "pose", relative_to="base_link").text = (
-        f"{RobotSpecs.LENGTH / 2} 0 {RobotSpecs.HEIGHT} 0 0 0"
-    )
+    ET.SubElement(
+        cam_link, "pose", relative_to="base_link"
+    ).text = f"{RobotSpecs.LENGTH / 2} 0 {RobotSpecs.HEIGHT} 0 0 0"
     ci = ET.SubElement(cam_link, "inertial")
     ET.SubElement(ci, "mass").text = "0.01"
     cix = ET.SubElement(ci, "inertia")
@@ -770,9 +781,9 @@ def _build_camera_link(robot_model: ET.Element) -> None:
 
 def _build_lidar_link(robot_model: ET.Element) -> None:
     lidar_link = ET.SubElement(robot_model, "link", name="lidar_link")
-    ET.SubElement(lidar_link, "pose", relative_to="base_link").text = (
-        f"0 0 {RobotSpecs.HEIGHT + 0.02} 0 0 0"
-    )
+    ET.SubElement(
+        lidar_link, "pose", relative_to="base_link"
+    ).text = f"0 0 {RobotSpecs.HEIGHT + 0.02} 0 0 0"
     li = ET.SubElement(lidar_link, "inertial")
     ET.SubElement(li, "mass").text = "0.05"
     lix = ET.SubElement(li, "inertia")

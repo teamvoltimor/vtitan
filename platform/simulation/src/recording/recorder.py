@@ -13,29 +13,38 @@ Usage:
     python3 record_scenario_videos.py --challenge open --num-scenarios 10 --duration 30
 
     # Generate and record obstacles challenge with full randomization
-    python3 record_scenario_videos.py --challenge obstacles --num-scenarios 50 --duration 45 --randomize-all
+    python3 record_scenario_videos.py \
+        --challenge obstacles --num-scenarios 50 --duration 45 --randomize-all
 
     # Only record existing scenarios (skip generation)
-    python3 record_scenario_videos.py --challenge open --skip-generation --scenarios-dir ~/wro_data/open/scenarios
+    python3 record_scenario_videos.py \
+        --challenge open --skip-generation --scenarios-dir ~/wro_data/open/scenarios
 """
 
 import argparse
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
+from argparse import Namespace
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 # ROS2 imports
+if TYPE_CHECKING:
+    from cv_bridge import CvBridge  # type: ignore[import]
+    from rclpy.node import Node  # type: ignore[import]
+    from sensor_msgs.msg import Image  # type: ignore[import]
+
 try:
-    import cv2
-    import numpy as np
-    import rclpy
-    from cv_bridge import CvBridge
-    from rclpy.node import Node
-    from sensor_msgs.msg import Image
+    import cv2  # type: ignore[import]
+    import numpy as np  # type: ignore[import]
+    import rclpy  # type: ignore[import]
+    from cv_bridge import CvBridge  # type: ignore[import]
+    from rclpy.node import Node  # type: ignore[import]
+    from sensor_msgs.msg import Image  # type: ignore[import]
+
     ROS2_AVAILABLE = True
 except ImportError:
     ROS2_AVAILABLE = False
@@ -44,14 +53,18 @@ except ImportError:
 
 # Import scenario generator
 from src.config.constants import DictKeys, FileExtensions, FilePaths, FolderNames
-from src.config.enums import Direction, Section
 from src.generation.generator import ScenarioGenerator
 
 
 class VideoRecorderNode(Node):
     """ROS2 node that records camera feed to video file"""
 
-    def __init__(self, output_path, duration, fps=30):
+    def __init__(
+        self,
+        output_path: Path | str,
+        duration: float,
+        fps: int = 30,
+    ) -> None:
         super().__init__("video_recorder_node")
 
         self.output_path = Path(output_path)
@@ -77,7 +90,7 @@ class VideoRecorderNode(Node):
         # Timer to check duration
         self.timer = self.create_timer(0.5, self.check_duration)
 
-    def image_callback(self, msg):
+    def image_callback(self, msg: Image) -> None:
         """Callback for camera images"""
         if self.recording:
             try:
@@ -87,11 +100,13 @@ class VideoRecorderNode(Node):
                 # Log progress every 2 seconds
                 elapsed = time.time() - self.start_time
                 if len(self.frames) % (self.fps * 2) == 0:
-                    self.get_logger().info(f"Recording: {elapsed:.1f}s / {self.duration}s ({len(self.frames)} frames)")
+                    self.get_logger().info(
+                        f"Recording: {elapsed:.1f}s / {self.duration}s ({len(self.frames)} frames)"
+                    )
             except Exception as e:
                 self.get_logger().error(f"Error processing frame: {e}")
 
-    def check_duration(self):
+    def check_duration(self) -> None:
         """Check if recording duration has elapsed"""
         elapsed = time.time() - self.start_time
         if elapsed >= self.duration:
@@ -100,7 +115,7 @@ class VideoRecorderNode(Node):
             self.recording = False
             rclpy.shutdown()
 
-    def save_video(self):
+    def save_video(self) -> bool:
         """Save recorded frames as video"""
         if len(self.frames) == 0:
             self.get_logger().error("No frames recorded!")
@@ -114,7 +129,7 @@ class VideoRecorderNode(Node):
             height, width = self.frames[0].shape[:2]
 
             # Create video writer (H.264 codec for better compatibility)
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
             video_writer = cv2.VideoWriter(
                 str(self.output_path),
                 fourcc,
@@ -129,7 +144,9 @@ class VideoRecorderNode(Node):
             video_writer.release()
 
             self.get_logger().info(f"Video saved: {self.output_path}")
-            self.get_logger().info(f"Total frames: {len(self.frames)}, Duration: {len(self.frames)/self.fps:.2f}s")
+            self.get_logger().info(
+                f"Total frames: {len(self.frames)}, Duration: {len(self.frames) / self.fps:.2f}s"
+            )
 
             return True
 
@@ -141,7 +158,7 @@ class VideoRecorderNode(Node):
 class PipelineOrchestrator:
     """Orchestrates the complete pipeline: generate scenarios -> record videos"""
 
-    def __init__(self, args):
+    def __init__(self, args: Namespace) -> None:
         self.args = args
         self.output_dir = Path(args.output_dir)
         self.challenge_type = args.challenge
@@ -160,17 +177,17 @@ class PipelineOrchestrator:
         self.bridge_process = None
         self.driver_process = None
 
-    def generate_scenarios(self):
+    def generate_scenarios(self) -> bool:
         """Generate randomized scenarios"""
         if self.args.skip_generation:
             print("Skipping scenario generation (--skip-generation flag)")
             return True
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"STEP 1: Generating {self.args.num_scenarios} scenarios")
         print(f"Challenge: {self.challenge_type}")
         print(f"Output: {self.scenarios_dir}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         # Find base world file
         base_world = Path(__file__).parent.parent / "worlds" / "wro_track_2026.sdf"
@@ -187,17 +204,19 @@ class PipelineOrchestrator:
 
         # Generate scenarios
         for i in range(self.args.num_scenarios):
-            print(f"Generating scenario {i+1}/{self.args.num_scenarios}...")
+            print(f"Generating scenario {i + 1}/{self.args.num_scenarios}...")
 
             try:
                 world_file, metadata = generator.create_scenario_world(
-                    scenario_id=i,
+                    scenario_index=i,
                     randomize_all=self.args.randomize_all,
                 )
 
+                start_section = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.SECTION]
+                start_direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]
                 print(f"  ✓ World: {world_file.name}")
                 print(f"  ✓ Signs: {metadata[DictKeys.NUM_SIGNS]}")
-                print(f"  ✓ Start: {metadata[DictKeys.STARTING_CONDITIONS][DictKeys.SECTION]} ({metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]})")
+                print(f"  ✓ Start: {start_section} ({start_direction})")
 
             except Exception as e:
                 print(f"  ✗ ERROR: {e}")
@@ -206,9 +225,11 @@ class PipelineOrchestrator:
         print(f"\n✓ Successfully generated {self.args.num_scenarios} scenarios\n")
         return True
 
-    def get_scenario_files(self):
+    def get_scenario_files(self) -> list[Path]:
         """Get list of scenario files to process"""
-        scenario_files = sorted(self.scenarios_dir.glob(f"{FilePaths.SCENARIO_PREFIX}*{FileExtensions.SDF}"))
+        scenario_files = sorted(
+            self.scenarios_dir.glob(f"{FilePaths.SCENARIO_PREFIX}*{FileExtensions.SDF}")
+        )
 
         if len(scenario_files) == 0:
             print(f"ERROR: No scenario files found in {self.scenarios_dir}")
@@ -216,17 +237,19 @@ class PipelineOrchestrator:
 
         # If specific scenarios requested, filter
         if hasattr(self.args, "scenario_ids") and self.args.scenario_ids:
-            scenario_files = [f for f in scenario_files if self.get_scenario_id(f) in self.args.scenario_ids]
+            scenario_files = [
+                f for f in scenario_files if self.get_scenario_id(f) in self.args.scenario_ids
+            ]
 
         return scenario_files
 
-    def get_scenario_id(self, scenario_file):
+    def get_scenario_id(self, scenario_file: Path) -> int:
         """Extract scenario ID from filename"""
         # scenario_0001.sdf -> 1
         filename = scenario_file.stem  # scenario_0001
         return int(filename.split("_")[-1])
 
-    def load_metadata(self, scenario_file):
+    def load_metadata(self, scenario_file: Path) -> dict[str, Any] | None:
         """Load metadata for a scenario"""
         # Construct metadata filename: scenario_0001.sdf -> scenario_0001_metadata.json
         metadata_file = scenario_file.parent / f"{scenario_file.stem}{FilePaths.METADATA_SUFFIX}"
@@ -238,7 +261,7 @@ class PipelineOrchestrator:
         with open(metadata_file) as f:
             return json.load(f)
 
-    def launch_gazebo(self, scenario_file):
+    def launch_gazebo(self, scenario_file: Path) -> bool:
         """Launch Gazebo with scenario"""
         print(f"  Launching Gazebo with {scenario_file.name}...")
 
@@ -250,7 +273,8 @@ class PipelineOrchestrator:
         # Launch Gazebo headless (no GUI for faster processing)
         # Use -s for headless, -r for run immediately
         cmd = [
-            "gz", "sim",
+            "gz",
+            "sim",
             "-r",  # Run immediately
             "-s",  # Headless (server only, no GUI)
             str(scenario_file),
@@ -277,22 +301,31 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR launching Gazebo: {e}")
             return False
 
-    def launch_bridge(self):
+    def launch_bridge(self) -> bool:
         """Launch ros_gz_bridge to connect Gazebo topics to ROS2"""
         print("  Launching ros_gz_bridge...")
 
         try:
             # Launch parameter bridge for camera and odometry topics
             # This bridges Gazebo topics to ROS2 topics
+            camera_topic = "/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image"
+            robot_camera_topic = "/robot/camera@sensor_msgs/msg/Image[gz.msgs.Image"
+            bridge_cmd = [
+                "ros2",
+                "run",
+                "ros_gz_bridge",
+                "parameter_bridge",
+                camera_topic,
+                robot_camera_topic,
+                "/wro_robot/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
+                "/wro_robot/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry",
+                "--ros-args",
+                "--log-level",
+                "error",
+            ]
+
             self.bridge_process = subprocess.Popen(
-                [
-                    "ros2", "run", "ros_gz_bridge", "parameter_bridge",
-                    "/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",  # Overhead debug camera
-                    "/robot/camera@sensor_msgs/msg/Image[gz.msgs.Image",      # Robot POV camera
-                    "/wro_robot/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
-                    "/wro_robot/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry",
-                    "--ros-args", "--log-level", "error",
-                ],
+                bridge_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -307,7 +340,7 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR launching bridge: {e}")
             return False
 
-    def launch_robot_driver(self, metadata, metadata_path):
+    def launch_robot_driver(self, metadata: dict[str, Any], metadata_path: Path) -> bool:
         """Launch robot driver to complete the challenge"""
         print("  Launching track navigator...")
 
@@ -317,12 +350,15 @@ class PipelineOrchestrator:
 
             self.driver_process = subprocess.Popen(
                 [
-                    "python3", str(navigator_script),
-                    "--metadata", str(metadata_path),
-                    "--laps", "3",  # WRO requirement: 3 laps
+                    "python3",
+                    str(navigator_script),
+                    "--metadata",
+                    str(metadata_path),
+                    "--laps",
+                    "3",  # WRO requirement: 3 laps
                 ],
                 stdout=None,  # Show output in terminal
-                stderr=None,   # Show errors in terminal
+                stderr=None,  # Show errors in terminal
             )
 
             # Wait for navigator to initialize
@@ -336,7 +372,7 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR launching track navigator: {e}")
             return False
 
-    def spawn_robot(self, metadata):
+    def spawn_robot(self, metadata: dict[str, Any]) -> bool:
         """Spawn robot at starting position"""
         print("  Spawning robot at starting position...")
 
@@ -353,20 +389,37 @@ class PipelineOrchestrator:
             return True
 
         # Spawn robot using gz service
+        position_payload = f"x: {start_pos[DictKeys.X]}, y: {start_pos[DictKeys.Y]}, z: 0.05"
+        orientation_payload = f"z: {start_yaw}"
+        request_payload = (
+            f'sdf_filename: "{urdf_file}", name: "wro_robot", '
+            f"pose: {{position: {{{position_payload}}}, "
+            f"orientation: {{{orientation_payload}}}}}"
+        )
+
         cmd = [
-            "gz", "service",
-            "-s", "/world/wro_track/create",
-            "--reqtype", "gz.msgs.EntityFactory",
-            "--reptype", "gz.msgs.Boolean",
-            "--timeout", "1000",
-            "--req", f'sdf_filename: "{urdf_file}", name: "wro_robot", pose: {{position: {{x: {start_pos[DictKeys.X]}, y: {start_pos[DictKeys.Y]}, z: 0.05}}, orientation: {{z: {start_yaw}}} }}',
+            "gz",
+            "service",
+            "-s",
+            "/world/wro_track/create",
+            "--reqtype",
+            "gz.msgs.EntityFactory",
+            "--reptype",
+            "gz.msgs.Boolean",
+            "--timeout",
+            "1000",
+            "--req",
+            request_payload,
         ]
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
 
             if result.returncode == 0:
-                print(f"  ✓ Robot spawned at ({start_pos[DictKeys.X]:.2f}, {start_pos[DictKeys.Y]:.2f})")
+                print(
+                    "  ✓ Robot spawned at "
+                    f"({start_pos[DictKeys.X]:.2f}, {start_pos[DictKeys.Y]:.2f})"
+                )
                 time.sleep(2)  # Wait for robot to settle
                 return True
             print("  WARNING: Robot spawn failed (may already exist)")
@@ -376,12 +429,14 @@ class PipelineOrchestrator:
             print(f"  WARNING: Error spawning robot: {e}")
             return True  # Continue anyway
 
-    def record_video(self, scenario_id):
+    def record_video(self, scenario_id: int) -> Path | None:
         """Record video using ROS2 node"""
         print(f"  Recording video for {self.args.duration} seconds...")
 
         # Video output path
-        video_file = self.videos_dir / f"{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.MP4}"
+        video_file = (
+            self.videos_dir / f"{FilePaths.SCENARIO_PREFIX}{scenario_id:04d}{FileExtensions.MP4}"
+        )
 
         # Initialize ROS2 (only if not already initialized)
         if not rclpy.ok():
@@ -407,7 +462,12 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR recording video: {e}")
             return None
 
-    def extract_sample_frames(self, video_file, scenario_id, num_frames=10):
+    def extract_sample_frames(
+        self,
+        video_file: Path | str,
+        scenario_id: int,
+        num_frames: int = 10,
+    ) -> bool:
         """Extract sample frames from video for dataset"""
         if not self.args.extract_frames:
             return True
@@ -437,7 +497,9 @@ class PipelineOrchestrator:
                 ret, frame = cap.read()
 
                 if ret:
-                    frame_file = frames_output_dir / f"frame_{extracted_count:04d}{FileExtensions.JPG}"
+                    frame_file = (
+                        frames_output_dir / f"frame_{extracted_count:04d}{FileExtensions.JPG}"
+                    )
                     cv2.imwrite(str(frame_file), frame)
                     extracted_count += 1
 
@@ -450,17 +512,17 @@ class PipelineOrchestrator:
             print(f"  ✗ ERROR extracting frames: {e}")
             return False
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup processes"""
         # Stop robot driver
         if self.driver_process:
             try:
                 self.driver_process.terminate()
                 self.driver_process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self.driver_process.kill()
-                except:
+                except Exception:
                     pass
 
         # Stop bridge
@@ -468,10 +530,10 @@ class PipelineOrchestrator:
             try:
                 self.bridge_process.terminate()
                 self.bridge_process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self.bridge_process.kill()
-                except:
+                except Exception:
                     pass
 
         # Stop Gazebo
@@ -479,25 +541,27 @@ class PipelineOrchestrator:
             try:
                 self.gazebo_process.terminate()
                 self.gazebo_process.wait(timeout=5)
-            except:
+            except Exception:
                 try:
                     self.gazebo_process.kill()
-                except:
+                except Exception:
                     pass
 
         # Kill any lingering processes
         try:
-            subprocess.run(["killall", "-9", "gz", "parameter_bridge", "python3"], stderr=subprocess.DEVNULL)
-        except:
+            subprocess.run(
+                ["killall", "-9", "gz", "parameter_bridge", "python3"], stderr=subprocess.DEVNULL
+            )
+        except Exception:
             pass
 
-    def process_scenario(self, scenario_file):
+    def process_scenario(self, scenario_file: Path) -> bool:
         """Process a single scenario: launch, record, cleanup"""
         scenario_id = self.get_scenario_id(scenario_file)
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Processing Scenario {scenario_id}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Load metadata
         metadata = self.load_metadata(scenario_file)
@@ -529,7 +593,9 @@ class PipelineOrchestrator:
 
             # Step 5: Extract frames (optional)
             if self.args.extract_frames:
-                self.extract_sample_frames(video_file, scenario_id, num_frames=self.args.num_frames)
+                self.extract_sample_frames(
+                    video_file, scenario_id, num_frames=self.args.num_frames
+                )
 
             print(f"\n✓ Scenario {scenario_id} completed successfully")
             return True
@@ -543,13 +609,13 @@ class PipelineOrchestrator:
             self.cleanup()
             time.sleep(2)  # Wait before next scenario
 
-    def run(self):
+    def run(self) -> bool:
         """Run the complete pipeline"""
-        print(f"\n{'#'*60}")
+        print(f"\n{'#' * 60}")
         print("# WRO Training Video Pipeline")
         print(f"# Challenge: {self.challenge_type}")
         print(f"# Output: {self.output_dir}")
-        print(f"{'#'*60}\n")
+        print(f"{'#' * 60}\n")
 
         # Step 1: Generate scenarios
         if not self.generate_scenarios():
@@ -557,9 +623,9 @@ class PipelineOrchestrator:
             return False
 
         # Step 2: Get scenarios to process
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("STEP 2: Recording Videos")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         scenario_files = self.get_scenario_files()
 
@@ -574,7 +640,7 @@ class PipelineOrchestrator:
         failed_scenarios = []
 
         for i, scenario_file in enumerate(scenario_files):
-            print(f"\n[{i+1}/{len(scenario_files)}]")
+            print(f"\n[{i + 1}/{len(scenario_files)}]")
 
             if self.process_scenario(scenario_file):
                 success_count += 1
@@ -582,9 +648,9 @@ class PipelineOrchestrator:
                 failed_scenarios.append(self.get_scenario_id(scenario_file))
 
         # Summary
-        print(f"\n{'#'*60}")
+        print(f"\n{'#' * 60}")
         print("# Pipeline Complete")
-        print(f"{'#'*60}")
+        print(f"{'#' * 60}")
         print(f"Total scenarios: {len(scenario_files)}")
         print(f"Successful: {success_count}")
         print(f"Failed: {len(failed_scenarios)}")
@@ -604,7 +670,7 @@ class PipelineOrchestrator:
         return len(failed_scenarios) == 0
 
 
-def main():
+def main() -> int | None:
     parser = argparse.ArgumentParser(
         description="Complete pipeline: Generate scenarios and record training videos",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -614,7 +680,8 @@ Examples:
   python3 record_scenario_videos.py --challenge open --num-scenarios 10 --duration 30
 
   # Generate and record obstacles with full randomization
-  python3 record_scenario_videos.py --challenge obstacles --num-scenarios 50 --duration 45 --randomize-all
+  python3 record_scenario_videos.py --challenge obstacles \
+      --num-scenarios 50 --duration 45 --randomize-all
 
   # Only record existing scenarios (skip generation)
   python3 record_scenario_videos.py --challenge open --skip-generation --duration 30
@@ -625,31 +692,60 @@ Examples:
     )
 
     # Scenario generation options
-    parser.add_argument("--challenge", type=str, required=True,
-                       choices=["open", "obstacles"],
-                       help="Challenge type: open or obstacles")
-    parser.add_argument("--num-scenarios", type=int, default=10,
-                       help="Number of scenarios to generate (default: 10)")
-    parser.add_argument("--output-dir", type=str, default="./training_data",
-                       help="Output directory for all data (default: ./training_data)")
-    parser.add_argument("--randomize-all", action="store_true",
-                       help="Enable full randomization (lighting, colors, physics)")
-    parser.add_argument("--skip-generation", action="store_true",
-                       help="Skip scenario generation, only record existing scenarios")
+    parser.add_argument(
+        "--challenge",
+        type=str,
+        required=True,
+        choices=["open", "obstacles"],
+        help="Challenge type: open or obstacles",
+    )
+    parser.add_argument(
+        "--num-scenarios",
+        type=int,
+        default=10,
+        help="Number of scenarios to generate (default: 10)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="./training_data",
+        help="Output directory for all data (default: ./training_data)",
+    )
+    parser.add_argument(
+        "--randomize-all",
+        action="store_true",
+        help="Enable full randomization (lighting, colors, physics)",
+    )
+    parser.add_argument(
+        "--skip-generation",
+        action="store_true",
+        help="Skip scenario generation, only record existing scenarios",
+    )
 
     # Recording options
-    parser.add_argument("--duration", type=int, default=30,
-                       help="Recording duration per scenario in seconds (default: 30)")
-    parser.add_argument("--fps", type=int, default=30,
-                       help="Video frame rate (default: 30)")
-    parser.add_argument("--show-gui", action="store_true",
-                       help="Show Gazebo GUI (slower but useful for debugging)")
+    parser.add_argument(
+        "--duration",
+        type=int,
+        default=30,
+        help="Recording duration per scenario in seconds (default: 30)",
+    )
+    parser.add_argument("--fps", type=int, default=30, help="Video frame rate (default: 30)")
+    parser.add_argument(
+        "--show-gui", action="store_true", help="Show Gazebo GUI (slower but useful for debugging)"
+    )
 
     # Frame extraction options
-    parser.add_argument("--extract-frames", action="store_true",
-                       help="Extract sample frames from videos for dataset")
-    parser.add_argument("--num-frames", type=int, default=10,
-                       help="Number of frames to extract per video (default: 10)")
+    parser.add_argument(
+        "--extract-frames",
+        action="store_true",
+        help="Extract sample frames from videos for dataset",
+    )
+    parser.add_argument(
+        "--num-frames",
+        type=int,
+        default=10,
+        help="Number of frames to extract per video (default: 10)",
+    )
 
     args = parser.parse_args()
 
@@ -672,6 +768,7 @@ Examples:
     except Exception as e:
         print(f"\n✗ Pipeline error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

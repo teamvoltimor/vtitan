@@ -14,30 +14,42 @@ Usage:
 import argparse
 import json
 import os
-import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
 
 # ROS2 bag imports
-try:
-    import rclpy
-    from cv_bridge import CvBridge
-    from rclpy.serialization import deserialize_message
-    from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
-    from sensor_msgs.msg import Image
-    ROS2_AVAILABLE = True
-except ImportError:
-    ROS2_AVAILABLE = False
-    print("WARNING: ROS2 not available. Some features disabled.")
+ROS2_AVAILABLE = False
+
+if TYPE_CHECKING:  # pragma: no cover - type-checking only
+    from cv_bridge import CvBridge  # type: ignore[import]
+    from rclpy.serialization import deserialize_message  # type: ignore[import]
+    from rosbag2_py import (  # type: ignore[import]
+        ConverterOptions,
+        SequentialReader,
+        StorageOptions,
+    )
+    from sensor_msgs.msg import Image  # type: ignore[import]
+else:
+    try:
+        from cv_bridge import CvBridge
+        from rclpy.serialization import deserialize_message
+        from rosbag2_py import ConverterOptions, SequentialReader, StorageOptions
+        from sensor_msgs.msg import Image
+
+        ROS2_AVAILABLE = True
+    except ImportError:  # pragma: no cover - optional runtime dependency
+        ROS2_AVAILABLE = False
+        print("WARNING: ROS2 not available. Some features disabled.")
 
 
 class YOLOAnnotator:
     """Generates YOLO format annotations from simulation metadata"""
 
-    def __init__(self, image_width=640, image_height=480):
+    def __init__(self, image_width: int = 640, image_height: int = 480) -> None:
         self.image_width = image_width
         self.image_height = image_height
 
@@ -48,7 +60,13 @@ class YOLOAnnotator:
             "obstacle": 2,  # For obstacles challenge
         }
 
-    def project_3d_to_2d(self, x, y, z, camera_params):
+    def project_3d_to_2d(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        camera_params: dict[str, Any],
+    ) -> tuple[int | None, int | None]:
         """
         Project 3D world coordinates to 2D image coordinates
 
@@ -92,7 +110,14 @@ class YOLOAnnotator:
             return u, v
         return None, None
 
-    def estimate_bounding_box(self, x, y, z, object_radius, camera_params):
+    def estimate_bounding_box(
+        self,
+        x: float,
+        y: float,
+        z: float,
+        object_radius: float,
+        camera_params: dict[str, Any],
+    ) -> tuple[float, float, float, float] | None:
         """
         Estimate 2D bounding box for a cylindrical object
 
@@ -102,12 +127,13 @@ class YOLOAnnotator:
         # Project center point
         u_center, v_center = self.project_3d_to_2d(x, y, z, camera_params)
 
-        if u_center is None:
+        if u_center is None or v_center is None:
             return None  # Not visible
 
         # Estimate apparent size based on distance
-        distance = np.sqrt((x - camera_params["pose"]["x"])**2 +
-                          (y - camera_params["pose"]["y"])**2)
+        distance = np.sqrt(
+            (x - camera_params["pose"]["x"]) ** 2 + (y - camera_params["pose"]["y"]) ** 2
+        )
 
         if distance < 0.1:
             return None  # Too close
@@ -132,7 +158,11 @@ class YOLOAnnotator:
 
         return x_center_norm, y_center_norm, width_norm, height_norm
 
-    def generate_annotation(self, metadata, camera_params):
+    def generate_annotation(
+        self,
+        metadata: dict[str, Any],
+        camera_params: dict[str, Any],
+    ) -> list[list[float]]:
         """
         Generate YOLO annotation for a scenario
 
@@ -168,16 +198,21 @@ class YOLOAnnotator:
 
         return annotations
 
-    def save_yolo_annotation(self, annotations, output_file):
+    def save_yolo_annotation(
+        self,
+        annotations: Sequence[Sequence[float | int]],
+        output_file: Path | str,
+    ) -> None:
         """Save annotations to YOLO format text file"""
         with open(output_file, "w") as f:
             for ann in annotations:
                 class_id, x_center, y_center, width, height = ann
-                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} "
-                       f"{width:.6f} {height:.6f}\n")
+                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
 
 
-def extract_frames_from_bag(bag_path, output_dir, frame_skip=10):
+def extract_frames_from_bag(
+    bag_path: Path | str, output_dir: Path | str, frame_skip: int = 10
+) -> list[dict[str, Any]]:
     """Extract frames from ROS2 bag"""
     if not ROS2_AVAILABLE:
         print("ERROR: ROS2 required for bag extraction")
@@ -216,11 +251,13 @@ def extract_frames_from_bag(bag_path, output_dir, frame_skip=10):
             frame_file = output_dir / f"frame_{saved_count:05d}.jpg"
             cv2.imwrite(str(frame_file), cv_image)
 
-            frames.append({
-                "file": frame_file,
-                "timestamp": timestamp,
-                "frame_id": saved_count,
-            })
+            frames.append(
+                {
+                    "file": frame_file,
+                    "timestamp": timestamp,
+                    "frame_id": saved_count,
+                }
+            )
 
             saved_count += 1
 
@@ -231,7 +268,11 @@ def extract_frames_from_bag(bag_path, output_dir, frame_skip=10):
     return frames
 
 
-def create_yolo_dataset(metadata_dir, frames_dir, output_dir):
+def create_yolo_dataset(
+    metadata_dir: Path | str,
+    frames_dir: Path | str,
+    output_dir: Path | str,
+) -> None:
     """Create complete YOLO dataset with train/val split"""
     output_dir = Path(output_dir)
     images_dir = output_dir / "images"
@@ -250,9 +291,9 @@ def create_yolo_dataset(metadata_dir, frames_dir, output_dir):
     # Camera parameters (from robot URDF)
     camera_params = {
         "pose": {
-            "x": 0.08,   # Forward offset
+            "x": 0.08,  # Forward offset
             "y": 0.0,
-            "z": 0.05,   # Height offset
+            "z": 0.05,  # Height offset
             "pitch": 0.2,  # Downward tilt (radians)
         },
         "fov": 2.094,  # 120 degrees horizontal FOV
@@ -329,19 +370,26 @@ epochs: 100
     print(f"  yolo task=detect mode=train model=yolo26n.pt data={data_yaml}")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Extract frames and generate YOLO annotations")
-    parser.add_argument("--metadata-dir", type=str, required=True,
-                       help="Directory containing scenario metadata JSON files")
-    parser.add_argument("--frames-dir", type=str, required=True,
-                       help="Directory containing extracted frames")
-    parser.add_argument("--output-dir", type=str, required=True,
-                       help="Output directory for YOLO dataset")
-    parser.add_argument("--bag-dir", type=str,
-                       help="Optional: Directory with ROS2 bags to extract frames from")
-    parser.add_argument("--frame-skip", type=int, default=10,
-                       help="Extract every Nth frame from bags")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Extract frames and generate YOLO annotations")
+    parser.add_argument(
+        "--metadata-dir",
+        type=str,
+        required=True,
+        help="Directory containing scenario metadata JSON files",
+    )
+    parser.add_argument(
+        "--frames-dir", type=str, required=True, help="Directory containing extracted frames"
+    )
+    parser.add_argument(
+        "--output-dir", type=str, required=True, help="Output directory for YOLO dataset"
+    )
+    parser.add_argument(
+        "--bag-dir", type=str, help="Optional: Directory with ROS2 bags to extract frames from"
+    )
+    parser.add_argument(
+        "--frame-skip", type=int, default=10, help="Extract every Nth frame from bags"
+    )
 
     args = parser.parse_args()
 

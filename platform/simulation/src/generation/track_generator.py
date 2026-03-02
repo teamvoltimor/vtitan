@@ -21,22 +21,22 @@ logger = logging.getLogger(__name__)
 # ── WRO 2026 track constants ───────────────────────────────────────────────────
 
 # Mat and track dimensions (metres)
-_MAT_SIZE = 3.2      # full mat (including border)
-_TRACK_SIZE = 3.0    # inner track (wall-to-wall)
+_MAT_SIZE = 3.2  # full mat (including border)
+_TRACK_SIZE = 3.0  # inner track (wall-to-wall)
 _TRACK_CENTER = 1.5  # world-frame track centre
 
 # Wall specs
-_WALL_HEIGHT = 0.10         # 100 mm (WRO Spec 13.3)
-_WALL_THICKNESS = 0.10      # visual thickness
+_WALL_HEIGHT = 0.10  # 100 mm (WRO Spec 13.3)
+_WALL_THICKNESS = 0.10  # visual thickness
 _WALL_COLLISION_PAD = 0.08  # extra thickness for collision box only
-_WALL_CENTER_Z = 0.05       # half-height above ground
+_WALL_CENTER_Z = 0.05  # half-height above ground
 
 # Corner line specs
-_CORNER_INNER = 1.0   # inner corner X/Y
-_CORNER_OUTER = 3.0   # outer wall X/Y
+_CORNER_INNER = 1.0  # inner corner X/Y
+_CORNER_OUTER = 3.0  # outer wall X/Y
 _LINE_LENGTH = 1.156  # diagonal line length (sqrt((3-2)²+(2.58-2)²) ≈ 1.156m)
 _LINE_THICKNESS = 0.02
-_LINE_Z = 0.0001      # flat on ground
+_LINE_Z = 0.0001  # flat on ground
 
 # Corridor grid line Z-offset
 _GRID_Z = 0.0001
@@ -87,9 +87,9 @@ def generate_track_sdf(output_path: str | Path = "worlds/wro_track_2026.sdf") ->
 
 # ── Section builders ───────────────────────────────────────────────────────────
 
+
 def _add_physics(world: ET.Element) -> None:
-    physics = ET.SubElement(world, "physics", name="default_physics",
-                            default="true", type="ode")
+    physics = ET.SubElement(world, "physics", name="default_physics", default="true", type="ode")
     _text(ET.SubElement(physics, "max_step_size"), "0.001")
     _text(ET.SubElement(physics, "real_time_factor"), "1.0")
     _text(ET.SubElement(physics, "real_time_update_rate"), "1000")
@@ -118,8 +118,7 @@ def _add_ambient_light(world: ET.Element) -> None:
 
 def _add_ground_plane(world: ET.Element) -> None:
     """White 3200×3200 mm mat (WRO Spec 13.1–13.2)."""
-    model = _static_model(world, "ground",
-                          pose=f"{_TRACK_CENTER} {_TRACK_CENTER} 0 0 0 0")
+    model = _static_model(world, "ground", pose=f"{_TRACK_CENTER} {_TRACK_CENTER} 0 0 0 0")
     link = ET.SubElement(model, "link", name="link")
 
     vis = ET.SubElement(link, "visual", name="visual")
@@ -133,18 +132,29 @@ def _add_ground_plane(world: ET.Element) -> None:
 
 def _add_exterior_walls(world: ET.Element) -> None:
     """Four BLACK 100 mm-high walls enclosing the 3000×3000 mm track (WRO Spec 13.3–13.4)."""
-    half = _TRACK_SIZE / 2  # 1.5 m from centre
     offset = _WALL_THICKNESS / 2  # wall extends outward
 
     walls = [
-        ("north", f"{_TRACK_CENTER} {_TRACK_SIZE + offset} {_WALL_CENTER_Z} 0 0 0",
-         (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT)),
-        ("south", f"{_TRACK_CENTER} {-offset} {_WALL_CENTER_Z} 0 0 0",
-         (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT)),
-        ("east",  f"{_TRACK_SIZE + offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
-         (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT)),
-        ("west",  f"{-offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
-         (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT)),
+        (
+            "north",
+            f"{_TRACK_CENTER} {_TRACK_SIZE + offset} {_WALL_CENTER_Z} 0 0 0",
+            (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT),
+        ),
+        (
+            "south",
+            f"{_TRACK_CENTER} {-offset} {_WALL_CENTER_Z} 0 0 0",
+            (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT),
+        ),
+        (
+            "east",
+            f"{_TRACK_SIZE + offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
+            (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT),
+        ),
+        (
+            "west",
+            f"{-offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
+            (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT),
+        ),
     ]
     for name, pose, (sx, sy, sz) in walls:
         model = _static_model(world, f"exterior_wall_{name}", pose=pose)
@@ -168,17 +178,17 @@ def _add_corner_lines(world: ET.Element) -> None:
     # (model_name, cx, cy, angle_deg, colour)
     corners = [
         # NE corner (inner corner at 2.0, 2.0)
-        ("corner_ne_blue",   2.50, 2.29,  30.0, _BLUE),
-        ("corner_ne_orange", 2.29, 2.50,  60.0, _ORANGE),
+        ("corner_ne_blue", 2.50, 2.29, 30.0, _BLUE),
+        ("corner_ne_orange", 2.29, 2.50, 60.0, _ORANGE),
         # SE corner (inner corner at 2.0, 1.0)
         ("corner_se_orange", 2.50, 0.71, -30.0, _ORANGE),
-        ("corner_se_blue",   2.29, 0.50, -60.0, _BLUE),
+        ("corner_se_blue", 2.29, 0.50, -60.0, _BLUE),
         # SW corner (inner corner at 1.0, 1.0)
-        ("corner_sw_blue",   0.50, 0.71, -150.0, _BLUE),
+        ("corner_sw_blue", 0.50, 0.71, -150.0, _BLUE),
         ("corner_sw_orange", 0.71, 0.50, -120.0, _ORANGE),
         # NW corner (inner corner at 1.0, 2.0)
-        ("corner_nw_orange", 0.50, 2.29,  150.0, _ORANGE),
-        ("corner_nw_blue",   0.71, 2.50,  120.0, _BLUE),
+        ("corner_nw_orange", 0.50, 2.29, 150.0, _ORANGE),
+        ("corner_nw_blue", 0.71, 2.50, 120.0, _BLUE),
     ]
     for name, cx, cy, angle_deg, colour in corners:
         angle_rad = math.radians(angle_deg)
@@ -196,8 +206,7 @@ def _add_example_starting_zone(world: ET.Element) -> None:
     The generator replaces this with a dynamically positioned zone per scenario.
     This serves as a visual reference in the base template.
     """
-    model = _static_model(world, "starting_zone_south",
-                          pose=f"1.5 0.5 {_GRID_Z_UPPER} 0 0 0")
+    model = _static_model(world, "starting_zone_south", pose=f"1.5 0.5 {_GRID_Z_UPPER} 0 0 0")
     link = ET.SubElement(model, "link", name="link")
     vis = ET.SubElement(link, "visual", name="visual")
     _box_geometry(vis, 0.50, 0.20, 0.001)
@@ -206,8 +215,7 @@ def _add_example_starting_zone(world: ET.Element) -> None:
 
 def _add_central_logo(world: ET.Element) -> None:
     """800×800 mm light-grey central logo reference area."""
-    model = _static_model(world, "central_logo",
-                          pose=f"1.5 1.5 {_GRID_Z} 0 0 0")
+    model = _static_model(world, "central_logo", pose=f"1.5 1.5 {_GRID_Z} 0 0 0")
     link = ET.SubElement(model, "link", name="link")
     vis = ET.SubElement(link, "visual", name="visual")
     _box_geometry(vis, 0.8, 0.8, 0.001)
@@ -256,39 +264,27 @@ def _add_corridor_subdivision_lines(world: ET.Element) -> None:
 
 
 def _add_subdivision_north(world: ET.Element, span: float) -> None:
-    _corridor_line(world, "corridor_north_center",
-                   cx=1.5, cy=2.5, width=0.001, height=span)
-    _corridor_line(world, "corridor_north_width1",
-                   cx=1.5, cy=2.4, width=span, height=0.001)
-    _corridor_line(world, "corridor_north_width2",
-                   cx=1.5, cy=2.6, width=span, height=0.001)
+    _corridor_line(world, "corridor_north_center", cx=1.5, cy=2.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_north_width1", cx=1.5, cy=2.4, width=span, height=0.001)
+    _corridor_line(world, "corridor_north_width2", cx=1.5, cy=2.6, width=span, height=0.001)
 
 
 def _add_subdivision_south(world: ET.Element, span: float) -> None:
-    _corridor_line(world, "corridor_south_center",
-                   cx=1.5, cy=0.5, width=0.001, height=span)
-    _corridor_line(world, "corridor_south_width1",
-                   cx=1.5, cy=0.4, width=span, height=0.001)
-    _corridor_line(world, "corridor_south_width2",
-                   cx=1.5, cy=0.6, width=span, height=0.001)
+    _corridor_line(world, "corridor_south_center", cx=1.5, cy=0.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_south_width1", cx=1.5, cy=0.4, width=span, height=0.001)
+    _corridor_line(world, "corridor_south_width2", cx=1.5, cy=0.6, width=span, height=0.001)
 
 
 def _add_subdivision_east(world: ET.Element, span: float) -> None:
-    _corridor_line(world, "corridor_east_center",
-                   cx=2.5, cy=1.5, width=span, height=0.001)
-    _corridor_line(world, "corridor_east_width1",
-                   cx=2.4, cy=1.5, width=0.001, height=span)
-    _corridor_line(world, "corridor_east_width2",
-                   cx=2.6, cy=1.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_east_center", cx=2.5, cy=1.5, width=span, height=0.001)
+    _corridor_line(world, "corridor_east_width1", cx=2.4, cy=1.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_east_width2", cx=2.6, cy=1.5, width=0.001, height=span)
 
 
 def _add_subdivision_west(world: ET.Element, span: float) -> None:
-    _corridor_line(world, "corridor_west_center",
-                   cx=0.5, cy=1.5, width=span, height=0.001)
-    _corridor_line(world, "corridor_west_width1",
-                   cx=0.4, cy=1.5, width=0.001, height=span)
-    _corridor_line(world, "corridor_west_width2",
-                   cx=0.6, cy=1.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_west_center", cx=0.5, cy=1.5, width=span, height=0.001)
+    _corridor_line(world, "corridor_west_width1", cx=0.4, cy=1.5, width=0.001, height=span)
+    _corridor_line(world, "corridor_west_width2", cx=0.6, cy=1.5, width=0.001, height=span)
 
 
 def _corridor_line(
@@ -307,6 +303,7 @@ def _corridor_line(
 
 
 # ── XML construction helpers ───────────────────────────────────────────────────
+
 
 def _static_model(parent: ET.Element, name: str, pose: str) -> ET.Element:
     model = ET.SubElement(parent, "model", name=name)
@@ -359,13 +356,15 @@ def _contact_surface(parent: ET.Element) -> None:
 
 # ── CLI entry point ────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     """Generate the base WRO 2026 track SDF file."""
     parser = argparse.ArgumentParser(
         description="Generate the base WRO 2026 Gazebo track SDF.",
     )
     parser.add_argument(
-        "--output", default="worlds/wro_track_2026.sdf",
+        "--output",
+        default="worlds/wro_track_2026.sdf",
         help="Output SDF file path (default: worlds/wro_track_2026.sdf).",
     )
     args = parser.parse_args()

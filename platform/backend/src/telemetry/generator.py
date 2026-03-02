@@ -6,14 +6,17 @@ import math
 import random
 import time
 from collections import deque
+from typing import TYPE_CHECKING
 
 from src.telemetry.models import NodeHealth, Position3D, RobotSnapshot, TelemetryMetrics
-from src.telemetry.recorder import TelemetryRecorder
+
+if TYPE_CHECKING:
+    from src.telemetry.recorder import TelemetryRecorder
 
 _RNG_SEED = 0
-_ORBIT_PERIOD = 60   # frames per full orbit
+_ORBIT_PERIOD = 60  # frames per full orbit
 _STAGE_DURATION = 18  # frames per navigation stage
-_LOG_COUNT = 3        # log entries emitted per snapshot
+_LOG_COUNT = 3  # log entries emitted per snapshot
 
 _STAGES = ("start", "acceleration", "cornering", "straightaway", "finish")
 
@@ -29,7 +32,7 @@ _HEALTH_CYCLE = (NodeHealth.NOMINAL, NodeHealth.WATCHDOG, NodeHealth.REPLANNING)
 
 
 class TelemetryGenerator:
-    """Produces a continuous sequence of telemetry frames and keeps a rolling history."""
+    """Produces deterministic telemetry frames seeded through `random.Random`."""
 
     def __init__(
         self,
@@ -41,7 +44,7 @@ class TelemetryGenerator:
         self._path: deque[Position3D] = deque(maxlen=history_length)
         self._frame = 0
         self._lidar_resolution = lidar_resolution
-        self._rng = random.Random(_RNG_SEED)
+        self._rng = random.Random(_RNG_SEED)  # noqa: S311
         self._recorder = recorder
         self._advance_snapshot()
 
@@ -63,7 +66,7 @@ class TelemetryGenerator:
         robot_position = self._calc_robot_position(orientation)
         self._path.append(robot_position)
         lidar_points = self._generate_lidar_points(robot_position)
-        metrics = self._build_metrics(timestamp, robot_position, orientation)
+        metrics = self._build_metrics(timestamp, orientation)
         logs = self._build_logs(metrics)
         snapshot = RobotSnapshot(
             timestamp=timestamp,
@@ -71,7 +74,7 @@ class TelemetryGenerator:
             robot_position=robot_position,
             robot_orientation=orientation,
             lidar_points=lidar_points,
-            path_history=tuple(self._path),
+            path_history=list(self._path),
             logs=logs,
             metrics=metrics,
         )
@@ -87,11 +90,12 @@ class TelemetryGenerator:
         return (x, y, 0.0)
 
     def _generate_lidar_points(self, robot_position: Position3D) -> list[Position3D]:
+        """Simulate lidar sweep points with seeded turbulence from `random.Random`."""
         x0, y0, _ = robot_position
         points: list[Position3D] = []
         for index in range(self._lidar_resolution):
             angle = (index / self._lidar_resolution) * math.tau
-            turbulence = math.sin(index * 0.08 + self._frame * 0.03) * 0.08
+            turbulence = math.sin(index * 0.08 + self._frame * 0.03) * 0.08 + self._rng.random() * 0.02
             radius = 1.2 + turbulence + 0.2 * math.cos(angle * 4)
             x = x0 + radius * math.cos(angle)
             y = y0 + radius * math.sin(angle)
@@ -102,9 +106,9 @@ class TelemetryGenerator:
     def _build_metrics(
         self,
         timestamp: float,
-        robot_position: Position3D,
         orientation: float,
     ) -> TelemetryMetrics:
+        """Construct metrics for the current frame using the provided orientation."""
         stage = _STAGES[(self._frame // _STAGE_DURATION) % len(_STAGES)]
         node_health = self._compute_node_health()
         speed = max(0.3, 0.6 + 0.2 * math.cos(self._frame * 0.04))
@@ -123,7 +127,8 @@ class TelemetryGenerator:
             stage=stage,
         )
 
-    def _build_logs(self, metrics: TelemetryMetrics) -> tuple[str, ...]:
+    def _build_logs(self, metrics: TelemetryMetrics) -> list[str]:
+        """Generate log messages that reflect the current metrics with jitter."""
         entries: list[str] = []
         for index in range(_LOG_COUNT):
             template = _EVENT_TEMPLATES[(self._frame + index) % len(_EVENT_TEMPLATES)]
@@ -131,15 +136,15 @@ class TelemetryGenerator:
                 template.format(
                     frequency=12 + math.sin(self._frame * 0.02) * 2,
                     stage=metrics.stage,
-                    percent=50 + (self._frame % 50),
+                    percent=50 + (self._frame % 50) + self._rng.uniform(-2, 2),
                     points=metrics.points_captured,
                     obstacle=0.2 + abs(math.sin(self._frame * 0.05)) * 0.2,
                     health=metrics.node_health.value,
                     speed=metrics.speed,
                     entries=len(self._history),
-                )
+                ),
             )
-        return tuple(entries)
+        return entries
 
     def _compute_node_health(self) -> NodeHealth:
         return _HEALTH_CYCLE[(self._frame // _ORBIT_PERIOD) % len(_HEALTH_CYCLE)]

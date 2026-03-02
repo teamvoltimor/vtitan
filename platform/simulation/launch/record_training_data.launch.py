@@ -22,7 +22,14 @@ Usage:
         duration:=30
 """
 
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, LogInfo, RegisterEventHandler, Shutdown, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    LogInfo,
+    RegisterEventHandler,
+    Shutdown,
+    TimerAction,
+)
 from launch.event_handlers import OnProcessStart
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node

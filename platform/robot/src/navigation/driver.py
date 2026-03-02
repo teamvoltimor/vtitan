@@ -19,9 +19,8 @@ from typing import Literal
 
 import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.exceptions import RCLError
 from rclpy.node import Node
-
-from src.config.constants import RobotSpecs
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +90,7 @@ class SimpleRobotDriver(Node):
         else:  # turning
             vel_msg.linear.x = self._forward_speed * _TURNING_SPEED_FRACTION
             # Ackermann convention: negative angular.z steers right (CW).
-            vel_msg.angular.z = (
-                -_STEERING_ANGLE if self._direction == "clockwise" else _STEERING_ANGLE
-            )
+            vel_msg.angular.z = -_STEERING_ANGLE if self._direction == "clockwise" else _STEERING_ANGLE
             if self._state_timer >= _TURNING_PHASE_DURATION:
                 self._state = "forward"
                 self._state_timer = 0.0
@@ -134,11 +131,11 @@ def main() -> None:
         if driver is not None:
             try:
                 driver.destroy_node()
-            except Exception:
+            except (RCLError, RuntimeError):
                 logger.warning("Exception during node teardown", exc_info=True)
         try:
             rclpy.shutdown()
-        except Exception:
+        except (RCLError, RuntimeError):
             logger.warning("Exception during rclpy shutdown", exc_info=True)
 
 

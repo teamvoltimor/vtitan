@@ -8,7 +8,7 @@ provides IDE autocomplete throughout the codebase.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
 
 
 class Section(Enum):
@@ -78,7 +78,7 @@ class Direction(Enum):
             raise ValueError(error_message) from err
 
 
-class ScenarioType(str, Enum):
+class ScenarioType(StrEnum):
     """WRO 2026 challenge type.
 
     Inherits from ``str`` so values compare equal to their string

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import TYPE_CHECKING
 
 import uvicorn
 from fastapi import FastAPI
@@ -13,9 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.telemetry import api as telemetry_api
 from src.telemetry.api import router as telemetry_router
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Yield until shutdown and then stop the recorder."""
     yield
     telemetry_api.shutdown()
 
@@ -39,6 +43,7 @@ app.include_router(telemetry_router)
 
 
 def main() -> None:
+    """Bootstrap the FastAPI server that exposes telemetry APIs."""
     port = int(os.environ.get("TELEMETRY_PORT", "8010"))
     uvicorn.run(
         "src.telemetry.server:app",
