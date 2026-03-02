@@ -1,0 +1,26 @@
+[project]
+name = "klevor-robot"
+version = "0.1.0"
+description = "WRO 2026 Future Engineers — ROS2 navigation for physical robot and simulation"
+requires-python = ">=3.11"
+
+dependencies = [
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+navigate-track = "src.navigation.navigator:main"
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN"]
+ignore = ["ANN101", "ANN102", "ANN401"]

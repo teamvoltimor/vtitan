@@ -31,7 +31,6 @@ default = { features = [], solve-group = "default" }
 dev     = { features = ["dev"], solve-group = "default" }
 
 [tasks]
-navigate = "python -m src.navigation.navigator"
-record   = "python -m src.recording.recorder"
-test     = "pytest tests/ -v"
-lint     = "ruff check src/ tests/"
+record = "python -m src.recording.recorder"
+test   = "pytest tests/ -v"
+lint   = "ruff check src/ tests/"

@@ -1,0 +1,29 @@
+[project]
+name = "klevor-robot"
+version = "0.1.0"
+description = "WRO 2026 Future Engineers — ROS2 navigation runtime (hardware + simulation)"
+channels = ["robostack-kilted", "conda-forge"]
+platforms = ["linux-64", "linux-aarch64"]
+
+[dependencies]
+# ROS2 Kilted base (via RoboStack: https://github.com/RoboStack/ros-kilted)
+ros-kilted-ros-base      = "*"
+ros-kilted-geometry-msgs = "*"
+ros-kilted-nav-msgs      = "*"
+ros-kilted-sensor-msgs   = "*"
+
+# Python runtime
+python = ">=3.11"
+numpy  = ">=1.26"
+
+[feature.dev.dependencies]
+pytest = ">=8.0"
+ruff   = ">=0.4"
+
+[environments]
+default = { features = [], solve-group = "default" }
+dev     = { features = ["dev"], solve-group = "default" }
+
+[tasks]
+navigate = "python -m src.navigation.navigator"
+lint     = "ruff check src/"
