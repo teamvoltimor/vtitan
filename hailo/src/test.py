@@ -1,10 +1,9 @@
 """Inference testing across all backends (PyTorch, ONNX, Ultralytics+ONNX)."""
 from __future__ import annotations
 
-import os
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -21,6 +20,19 @@ from src.common import (
     scale_coords,
     unletterbox_mask,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None  # type: ignore[assignment, misc]
+
+try:
+    import onnxruntime as ort
+except ImportError:
+    ort = None  # type: ignore[assignment]
 
 log = get_logger(__name__)
 
@@ -55,14 +67,13 @@ def run(config: TestConfig) -> None:
     Raises:
         HailoError: For unsupported backend/task combinations or import failures.
     """
-    os.makedirs(config.output, exist_ok=True)
+    Path(config.output).mkdir(parents=True, exist_ok=True)
     task = config.task or infer_task(config.model)
 
     handler = _DISPATCH.get((config.backend, task))
     if handler is None:
-        raise HailoError(
-            f"No handler for backend={config.backend!r}, task={task!r}."
-        )
+        msg = f"No handler for backend={config.backend!r}, task={task!r}."
+        raise HailoError(msg)
     handler(config, task)
 
 
@@ -70,10 +81,9 @@ def run(config: TestConfig) -> None:
 
 def _run_pt(config: TestConfig, _task: Task) -> None:
     """Run inference with the Ultralytics PyTorch backend."""
-    try:
-        from ultralytics import YOLO
-    except ImportError as exc:
-        raise HailoError("ultralytics is not installed.") from exc
+    if YOLO is None:
+        msg = "ultralytics is not installed."
+        raise HailoError(msg)
 
     model = YOLO(config.model)
     count = 0
@@ -85,34 +95,32 @@ def _run_pt(config: TestConfig, _task: Task) -> None:
             scores = results[0].boxes.conf.cpu().numpy()
             classes = results[0].boxes.cls.cpu().numpy()
             draw_boxes(orig, boxes, scores, classes)
-        cv2.imwrite(os.path.join(config.output, fname), orig)
+        cv2.imwrite(str(Path(config.output) / fname), orig)
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)
 
 
 def _run_ultraonnx(config: TestConfig, _task: Task) -> None:
     """Run inference with the Ultralytics API over an ONNX model."""
-    try:
-        from ultralytics import YOLO
-    except ImportError as exc:
-        raise HailoError("ultralytics is not installed.") from exc
+    if YOLO is None:
+        msg = "ultralytics is not installed."
+        raise HailoError(msg)
 
     model = YOLO(config.model)
     count = 0
     for fname, img_path in iter_images(config.input):
         results = model(img_path)
         # Ultralytics handles mask + box rendering for both tasks
-        results[0].save(filename=os.path.join(config.output, fname))
+        results[0].save(filename=str(Path(config.output) / fname))
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)
 
 
 def _run_onnx_detect(config: TestConfig, _task: Task) -> None:
     """Run detection inference via raw ONNXRuntime."""
-    try:
-        import onnxruntime as ort
-    except ImportError as exc:
-        raise HailoError("onnxruntime is not installed.") from exc
+    if ort is None:
+        msg = "onnxruntime is not installed."
+        raise HailoError(msg)
 
     session = ort.InferenceSession(config.model)
     input_name = session.get_inputs()[0].name
@@ -132,7 +140,7 @@ def _run_onnx_detect(config: TestConfig, _task: Task) -> None:
                 xyxy = scale_coords(xyxy, ratio, dw, dh, orig.shape)
                 draw_boxes(orig, xyxy, scores, classes)
 
-        cv2.imwrite(os.path.join(config.output, fname), orig)
+        cv2.imwrite(str(Path(config.output) / fname), orig)
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)
 
@@ -143,10 +151,9 @@ def _run_onnx_segment(config: TestConfig, _task: Task) -> None:
     Saves per-channel masks, an argmax composite, and a blended overlay
     for each input image.
     """
-    try:
-        import onnxruntime as ort
-    except ImportError as exc:
-        raise HailoError("onnxruntime is not installed.") from exc
+    if ort is None:
+        msg = "onnxruntime is not installed."
+        raise HailoError(msg)
 
     session = ort.InferenceSession(config.model)
     input_name = session.get_inputs()[0].name
@@ -172,13 +179,13 @@ def _run_onnx_segment(config: TestConfig, _task: Task) -> None:
                 ch = (mask_raw[i] > 0.5).astype(np.uint8) * 255
                 ch = unletterbox_mask(ch, orig.shape, ratio, dw, dh)
                 cv2.imwrite(
-                    os.path.join(config.output, f"mask_ch{i}_{fname}"), ch
+                    str(Path(config.output) / f"mask_ch{i}_{fname}"), ch,
                 )
             # Argmax composite shows the dominant class per pixel
             argmax = np.argmax(mask_raw, axis=0).astype(np.uint8) * 255
             argmax = unletterbox_mask(argmax, orig.shape, ratio, dw, dh)
             cv2.imwrite(
-                os.path.join(config.output, f"mask_argmax_{fname}"), argmax
+                str(Path(config.output) / f"mask_argmax_{fname}"), argmax,
             )
             # Green overlay on the primary mask channel for the main output
             mask_img = (mask_raw[0] > 0.5).astype(np.uint8) * 255
@@ -195,7 +202,7 @@ def _run_onnx_segment(config: TestConfig, _task: Task) -> None:
                 xyxy = scale_coords(xyxy, ratio, dw, dh, orig.shape)
                 draw_boxes(overlay, xyxy, scores, classes)
 
-        cv2.imwrite(os.path.join(config.output, fname), overlay)
+        cv2.imwrite(str(Path(config.output) / fname), overlay)
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)
 

@@ -1,9 +1,9 @@
 """Hailo YOLO pipeline — export, calibrate, inspect, test, compile."""
 
 __all__ = [
-    "export",
     "calib",
+    "export",
     "graph",
-    "test",
     "hailomz",
+    "test",
 ]

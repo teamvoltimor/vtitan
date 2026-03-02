@@ -1,12 +1,12 @@
 """Shared types, enums, exceptions, model registry, logger, and image utilities."""
+
 from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, NewType
 
@@ -20,10 +20,11 @@ FilePath = NewType("FilePath", str)
 
 # Logging
 
+
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, str] = {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "ts": datetime.now(UTC).isoformat(timespec="seconds"),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
@@ -63,7 +64,8 @@ def configure_logging(level: str = "INFO") -> None:
 
 # Enums
 
-class Backend(str, Enum):
+
+class Backend(StrEnum):
     """Inference backend for the ``test`` command."""
 
     PT = "pt"
@@ -74,7 +76,7 @@ class Backend(str, Enum):
         return self.value
 
 
-class Task(str, Enum):
+class Task(StrEnum):
     """Inference task type."""
 
     DETECT = "detect"
@@ -84,7 +86,7 @@ class Task(str, Enum):
         return self.value
 
 
-class HWArch(str, Enum):
+class HWArch(StrEnum):
     """Hailo target hardware architecture."""
 
     HAILO8 = "hailo8"
@@ -95,6 +97,7 @@ class HWArch(str, Enum):
 
 
 # Exceptions
+
 
 class HailoError(Exception):
     """Base error for the Hailo pipeline."""
@@ -124,6 +127,7 @@ DOCKER_IMAGE = "hailo8_ai_sw_suite_2025-10:1"
 
 
 # Model registry
+
 
 @dataclass(slots=True, frozen=True)
 class ModelEntry:
@@ -207,29 +211,95 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
 # COCO labels
 
 COCO_CLASSES: list[str] = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
-    "truck", "boat", "traffic light", "fire hydrant", "stop sign",
-    "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag",
-    "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
-    "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
-    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana",
-    "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
-    "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table",
-    "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock",
-    "vase", "scissors", "teddy bear", "hair drier", "toothbrush",
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
 ]
 
 # Seeded so colours are stable across runs
 _rng = np.random.default_rng(42)
-COLORS: list[tuple[int, ...]] = [
-    tuple(int(x) for x in _rng.integers(0, 255, 3))
-    for _ in range(len(COCO_CLASSES))
-]
+COLORS: list[tuple[int, ...]] = [tuple(int(x) for x in _rng.integers(0, 255, 3)) for _ in range(len(COCO_CLASSES))]
 
 
 # Image utilities
+
 
 def letterbox(
     img: np.ndarray,
@@ -248,7 +318,7 @@ def letterbox(
     """
     h, w = img.shape[:2]
     ratio = min(new_shape[0] / h, new_shape[1] / w)
-    new_unpad = (int(round(w * ratio)), int(round(h * ratio)))
+    new_unpad = (round(w * ratio), round(h * ratio))
     dw = (new_shape[1] - new_unpad[0]) / 2
     dh = (new_shape[0] - new_unpad[1]) / 2
 
@@ -256,7 +326,13 @@ def letterbox(
     top, bottom = int(np.floor(dh)), int(np.ceil(dh))
     left, right = int(np.floor(dw)), int(np.ceil(dw))
     img = cv2.copyMakeBorder(
-        img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=pad_color
+        img,
+        top,
+        bottom,
+        left,
+        right,
+        cv2.BORDER_CONSTANT,
+        value=pad_color,
     )
     # Final resize ensures exact target dimensions despite float rounding
     img = cv2.resize(img, new_shape[::-1], interpolation=cv2.INTER_LINEAR)
@@ -264,7 +340,8 @@ def letterbox(
 
 
 def preprocess(
-    img_path: str, size: int = 640
+    img_path: str,
+    size: int = 640,
 ) -> tuple[np.ndarray, float, float, float, np.ndarray]:
     """Load, letterbox, and normalise an image for ONNX inference.
 
@@ -325,26 +402,27 @@ def draw_boxes(
         scores: ``(N,)`` confidence scores.
         classes: ``(N,)`` class indices.
     """
-    for box, score, cls in zip(boxes, scores, classes):
+    for box, score, cls in zip(boxes, scores, classes, strict=False):
         x1, y1, x2, y2 = map(int, box)
         class_id = int(cls)
         color = COLORS[class_id % len(COLORS)]
-        label = (
-            f"{COCO_CLASSES[class_id]} {score:.2f}"
-            if class_id < len(COCO_CLASSES)
-            else f"{class_id} {score:.2f}"
-        )
+        label = f"{COCO_CLASSES[class_id]} {score:.2f}" if class_id < len(COCO_CLASSES) else f"{class_id} {score:.2f}"
         cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
-            image, label, (x1, max(y1 - 10, 0)),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2,
+            image,
+            label,
+            (x1, max(y1 - 10, 0)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            color,
+            2,
         )
 
 
 def unletterbox_mask(
     mask: np.ndarray,
     orig_shape: tuple[int, ...],
-    ratio: float,
+    _ratio: float,
     dw: float,
     dh: float,
 ) -> np.ndarray:
@@ -370,7 +448,9 @@ def unletterbox_mask(
         # Padding fully consumed the mask — fall back to the full letterboxed mask
         cropped = mask
     return cv2.resize(
-        cropped, (orig_shape[1], orig_shape[0]), interpolation=cv2.INTER_NEAREST
+        cropped,
+        (orig_shape[1], orig_shape[0]),
+        interpolation=cv2.INTER_NEAREST,
     )
 
 
@@ -396,6 +476,6 @@ def iter_images(directory: str):
     Yields:
         ``(fname, abs_path)`` tuples.
     """
-    for fname in os.listdir(directory):
-        if fname.lower().endswith((".jpg", ".jpeg", ".png")):
-            yield fname, os.path.join(directory, fname)
+    for path in Path(directory).iterdir():
+        if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+            yield path.name, str(path)

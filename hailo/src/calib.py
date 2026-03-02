@@ -1,7 +1,6 @@
 """Calibration data management: COCO download and image → .npy conversion."""
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +13,13 @@ from src.common import (
     get_logger,
     iter_images,
 )
+
+try:
+    from fiftyone.types import ImageDirectory
+    from fiftyone.zoo import load_zoo_dataset
+except ImportError:
+    ImageDirectory = None  # type: ignore[assignment, misc]
+    load_zoo_dataset = None  # type: ignore[assignment]
 
 log = get_logger(__name__)
 
@@ -55,13 +61,9 @@ def download(config: DownloadConfig) -> None:
     Raises:
         HailoError: If ``fiftyone`` is not installed.
     """
-    try:
-        from fiftyone.zoo import load_zoo_dataset
-        from fiftyone.types import ImageDirectory
-    except ImportError as exc:
-        raise HailoError(
-            "fiftyone is not installed. Add it to pyproject.toml and run `uv sync`."
-        ) from exc
+    if load_zoo_dataset is None:
+        msg = "fiftyone is not installed. Add it to pyproject.toml and run `uv sync`."
+        raise HailoError(msg)
 
     log.info(
         "Downloading %d COCO 2017 validation images → %s",
@@ -90,7 +92,7 @@ def convert(config: ConvertConfig) -> None:
     Raises:
         CalibrationDataError: If no images are found in ``config.input``.
     """
-    os.makedirs(config.output, exist_ok=True)
+    Path(config.output).mkdir(parents=True, exist_ok=True)
 
     count = 0
     for fname, img_path in iter_images(config.input):
@@ -106,9 +108,7 @@ def convert(config: ConvertConfig) -> None:
         count += 1
 
     if count == 0:
-        raise CalibrationDataError(
-            f"No images found in {config.input!r}. "
-            "Run `hailo calib download` first."
-        )
+        msg = f"No images found in {config.input!r}. Run `hailo calib download` first."
+        raise CalibrationDataError(msg)
 
     log.info("Converted %d images → %s", count, config.output)

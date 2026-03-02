@@ -23,10 +23,10 @@ from src.common import (
     DOCKER_CONTAINER,
     DOCKER_IMAGE,
     DOCKER_SHARED_MOUNT,
-    HWArch,
     MODEL_REGISTRY,
     SHARED_WITH_DOCKER,
     HailoError,
+    HWArch,
     get_logger,
 )
 
@@ -137,10 +137,8 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
     entry = MODEL_REGISTRY.get(model)
     if entry and entry.zoo_name:
         return entry.zoo_name
-    raise HailoError(
-        f"Model {model!r} has no Hailo Model Zoo name. "
-        "Supply --zoo-name explicitly (e.g. --zoo-name yolov11s)."
-    )
+    msg = f"Model {model!r} has no Hailo Model Zoo name. Supply --zoo-name explicitly (e.g. --zoo-name yolov11s)."
+    raise HailoError(msg)
 
 
 def _run_or_print(cmd: list[str], docker: str | None) -> None:
@@ -153,11 +151,11 @@ def _run_or_print(cmd: list[str], docker: str | None) -> None:
     if docker:
         full = ["docker", "exec", docker, *cmd]
         log.info("Running: %s", " ".join(full))
-        subprocess.run(full, check=True)
+        subprocess.run(full, check=True)  # noqa: S603
     else:
         pretty = " \\\n  ".join(cmd)
         log.info("Paste inside Docker:\n%s", pretty)
-        print(pretty)
+        log.info("%s", pretty)
 
 
 # Public commands
@@ -174,17 +172,13 @@ def stage(config: StageConfig) -> None:
     """
     entry = MODEL_REGISTRY.get(config.model)
     if entry is None:
-        raise HailoError(
-            f"Unknown model {config.model!r}. "
-            f"Valid options: {list(MODEL_REGISTRY)}"
-        )
+        msg = f"Unknown model {config.model!r}. Valid options: {list(MODEL_REGISTRY)}"
+        raise HailoError(msg)
 
     onnx_src = Path(entry.onnx_file)
     if not onnx_src.exists():
-        raise HailoError(
-            f"ONNX file not found: {onnx_src}. "
-            "Run `hailo export` first."
-        )
+        msg = f"ONNX file not found: {onnx_src}. Run `hailo export` first."
+        raise HailoError(msg)
 
     shared = Path(config.shared_dir)
     shared.mkdir(parents=True, exist_ok=True)
@@ -196,10 +190,8 @@ def stage(config: StageConfig) -> None:
     if config.calib:
         calib_src = Path(config.calib)
         if not calib_src.exists():
-            raise HailoError(
-                f"Calibration directory not found: {calib_src}. "
-                "Run `hailo calib download` first."
-            )
+            msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
+            raise HailoError(msg)
         calib_dest = shared / "calib_data"
         shutil.copytree(str(calib_src), str(calib_dest), dirs_exist_ok=True)
         log.info("Staged calibration data → %s", calib_dest)
@@ -320,8 +312,8 @@ def docker_run(config: DockerRunConfig) -> None:
         "-v", "/lib/modules:/lib/modules",
         "-v", "/lib/udev/rules.d:/lib/udev/rules.d",
         "-v", "/usr/src:/usr/src",
-        "-v", "/tmp/hailo_docker.xauth:/home/hailo/.Xauthority",
-        "-v", "/tmp/.X11-unix/:/tmp/.X11-unix/",
+        "-v", "/tmp/hailo_docker.xauth:/home/hailo/.Xauthority",  # noqa: S108
+        "-v", "/tmp/.X11-unix/:/tmp/.X11-unix/",  # noqa: S108
         "--name", config.container,
         "-v", "/var/run/docker.sock:/var/run/docker.sock",
         "-v", "/etc/machine-id:/etc/machine-id:ro",
@@ -336,7 +328,7 @@ def docker_run(config: DockerRunConfig) -> None:
     if config.dry_run:
         pretty = " \\\n  ".join(cmd)
         log.info("Docker run command:\n%s", pretty)
-        print(pretty)
+        log.info("%s", pretty)
     else:
         log.info("Starting container %s from image %s", config.container, DOCKER_IMAGE)
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True)  # noqa: S603

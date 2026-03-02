@@ -2,14 +2,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from src.common import (
     MODEL_REGISTRY,
-    ModelName,
     HailoError,
+    ModelName,
     ModelNotFoundError,
     get_logger,
 )
+
+try:
+    from ultralytics import YOLO
+except ImportError:
+    YOLO = None  # type: ignore[assignment, misc]
 
 log = get_logger(__name__)
 
@@ -42,24 +48,21 @@ def run(config: ExportConfig) -> None:
         HailoError: If ``config.model`` is not in the registry.
         ModelNotFoundError: If the ``.pt`` checkpoint is missing on disk.
     """
-    try:
-        from ultralytics import YOLO
-    except ImportError as exc:
-        raise HailoError("ultralytics is not installed.") from exc
+    if YOLO is None:
+        msg = "ultralytics is not installed."
+        raise HailoError(msg)
 
     entry = MODEL_REGISTRY.get(config.model)
     if entry is None:
-        raise HailoError(
-            f"Unknown model {config.model!r}. "
-            f"Valid options: {list(MODEL_REGISTRY)}"
-        )
+        msg = f"Unknown model {config.model!r}. Valid options: {list(MODEL_REGISTRY)}"
+        raise HailoError(msg)
 
-    from pathlib import Path
     if not Path(entry.pt_file).exists():
-        raise ModelNotFoundError(
+        msg = (
             f"Checkpoint not found: {entry.pt_file}. "
             "Download it or place it in the working directory."
         )
+        raise ModelNotFoundError(msg)
 
     opset = config.opset if config.opset is not None else entry.opset
     extra = entry.extra_kwargs()
