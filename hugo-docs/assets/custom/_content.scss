@@ -215,9 +215,9 @@
     .book-page-title {
         font-family: var(--font-sans);
         font-size: var(--text-5xl);
-        font-weight: var(--font-bold);
+        font-weight: 800;
         line-height: var(--leading-tight);
-        letter-spacing: var(--tracking-tighter);
+        letter-spacing: -0.04em;
         margin: 0;
         padding: 0;
         border: none;
@@ -232,6 +232,7 @@
         margin-top: var(--space-md);
         margin-bottom: 0;
         line-height: var(--leading-relaxed);
+        letter-spacing: -0.005em;
     }
 }
 

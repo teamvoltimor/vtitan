@@ -3,7 +3,7 @@
 
 // Chroma Syntax Highlighting - Light Theme (zinc + developer palette)
 :root {
-    --chroma-bg: #fafafa;
+    --chroma-bg: #f5f5f8;
     --chroma-color: #18181b;
     --chroma-comment: #71717a;
     --chroma-keyword: #c01a5e;
@@ -21,7 +21,7 @@
 // Chroma Syntax Highlighting - Dark Theme
 html.dark,
 html[data-theme="dark"] {
-    --chroma-bg: #161b22;
+    --chroma-bg: #0d1117;
     --chroma-color: #e6edf3;
     --chroma-comment: #8b949e;
     --chroma-keyword: #ff7b72;

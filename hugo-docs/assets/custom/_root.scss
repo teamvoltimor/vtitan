@@ -26,7 +26,7 @@ html:not(.dark):not([data-theme="dark"]) .book-toc-content {
 }
 
 html:not(.dark):not([data-theme="dark"]) {
-    --sidebar-bg: var(--surface-panel);
+    --sidebar-bg: #e8e8ec;
     --hover-bg: var(--surface-muted);
     --active-bg: var(--surface-card);
 }
@@ -36,9 +36,6 @@ html.dark body,
 html.dark main,
 html.dark .container,
 html.dark .book-page,
-html.dark .book-menu,
-html.dark .book-toc,
-html.dark .book-toc-content,
 [data-theme="dark"] body,
 [data-theme="dark"] main,
 [data-theme="dark"] .container {
@@ -46,12 +43,26 @@ html.dark .book-toc-content,
     color: var(--body-font-color);
 }
 
+html.dark .book-menu,
+html.dark .book-menu-content,
+html.dark .book-toc,
+html.dark .book-toc-content,
+[data-theme="dark"] .book-menu,
+[data-theme="dark"] .book-menu-content,
+[data-theme="dark"] .book-toc,
+[data-theme="dark"] .book-toc-content {
+    background: var(--sidebar-bg);
+    color: var(--body-font-color);
+}
+
 /*
  * Design Notes
- * - DM Sans variable font: clean grotesque with optical sizing, developer-appropriate.
- * - Zinc neutral palette: warmer than slate, higher contrast, less blue tint.
- * - Violet (#5b5bd6) accent: passes WCAG AA on white (5.19:1) and dark (7.4:1).
- * - Border radius capped at 12px: tighter, closer to Linear's precision aesthetic.
+ * - Plus Jakarta Sans: geometric grotesque, modern developer aesthetic, 200–800 weight axis.
+ * - Zinc neutral palette: warmer than slate, higher contrast, no blue cast.
+ * - Violet (#5b5bd6) accent light / Indigo (#818cf8) dark: both pass WCAG AA.
+ * - Light sidebar: #e8e8ec vs canvas #f5f5f7 — subtle but perceptible depth.
+ * - Dark sidebar: #0d0d10 vs body #09090b — clear separation without harsh contrast.
+ * - Border radius capped at 12px: tighter, precision-first aesthetic.
  */
 
 // ============================================================================
@@ -406,15 +417,15 @@ details .markdown-inner {
     --gray-700: #3f3f46;   // 10.4:1 vs white — AAA ✓
 
     // === UI ELEMENTS ===
-    --color-border: rgba(9, 9, 11, 0.1);
+    --color-border: rgba(9, 9, 11, 0.12);
     --icon-filter: none;
-    --divider-color: rgba(9, 9, 11, 0.08);
+    --divider-color: rgba(9, 9, 11, 0.09);
     --text-muted: #52525b;   // 7.28:1 vs white ✓
 
     // === CODE ===
-    --code-bg: #f4f4f5;
+    --code-bg: #f0f0f3;
     --code-color: #be185d;   // pink-700, visible against zinc-100
-    --code-block-bg: #fafafa;
+    --code-block-bg: #f5f5f8;
 
     // === SEMANTIC COLORS (WCAG AA compliant on their tint backgrounds) ===
     --color-accent-note: #4f46e5;
@@ -441,10 +452,10 @@ details .markdown-inner {
     --color-black: #09090b;
 
     // Light theme specific surfaces
-    --sidebar-bg: #f4f4f5;
+    --sidebar-bg: #e8e8ec;
     --hover-bg: rgba(9, 9, 11, 0.04);
     --active-bg: rgba(91, 91, 214, 0.08);
-    --sidebar-border: rgba(9, 9, 11, 0.08);
+    --sidebar-border: rgba(9, 9, 11, 0.13);
 
     // === SPACING SYSTEM ===
     --space-xs: 0.25rem;
@@ -475,9 +486,9 @@ details .markdown-inner {
     --transition-slow: 280ms cubic-bezier(0.4, 0, 0.2, 1);
 
     // === TYPOGRAPHY ===
-    // DM Sans: clean variable grotesque, optical sizing, developer-appropriate
-    --font-display: "DM Sans", "Helvetica Neue", sans-serif;
-    --font-sans: "DM Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+    // Plus Jakarta Sans: geometric grotesque, modern developer aesthetic
+    --font-display: "Plus Jakarta Sans", "Helvetica Neue", sans-serif;
+    --font-sans: "Plus Jakarta Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
     // Font sizes
@@ -500,8 +511,8 @@ details .markdown-inner {
     --leading-loose: 1.75;
 
     // Letter spacing
-    --tracking-tighter: -0.03em;
-    --tracking-tight: -0.015em;
+    --tracking-tighter: -0.04em;
+    --tracking-tight: -0.02em;
     --tracking-normal: 0;
     --tracking-wide: 0.025em;
     --tracking-wider: 0.05em;
@@ -520,9 +531,9 @@ details .markdown-inner {
 
     // === SURFACES ===
     --surface-plain: #ffffff;
-    --surface-panel: #f4f4f5;
+    --surface-panel: #f5f5f7;
     --surface-card: #ffffff;
-    --surface-muted: #f4f4f5;
+    --surface-muted: #f5f5f7;
     // Canvas is zinc-100 so the white book-page pops as a card
     --body-background-layer: var(--surface-panel);
     --sidebar-shadow: none;
@@ -556,15 +567,15 @@ body.dark,
     --gray-700: #e4e4e7;  // zinc-200
 
     // === UI ELEMENTS ===
-    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border: rgba(255, 255, 255, 0.11);
     --icon-filter: brightness(0) invert(1);
-    --divider-color: rgba(255, 255, 255, 0.06);
+    --divider-color: rgba(255, 255, 255, 0.08);
     --text-muted: #a1a1aa;
 
     // === CODE ===
-    --code-bg: #18181b;
+    --code-bg: #16161a;
     --code-color: #f87171;
-    --code-block-bg: #111113;
+    --code-block-bg: #0d1117;
 
     // === SEMANTIC COLORS ===
     --color-accent-note: #818cf8;
@@ -591,24 +602,24 @@ body.dark,
     --color-black: #000000;
 
     // Dark theme specific surfaces
-    --sidebar-bg: #09090b;
+    --sidebar-bg: #0d0d10;
     --hover-bg: rgba(255, 255, 255, 0.05);
-    --active-bg: rgba(129, 140, 248, 0.1);
-    --sidebar-border: rgba(255, 255, 255, 0.06);
+    --active-bg: rgba(129, 140, 248, 0.12);
+    --sidebar-border: rgba(255, 255, 255, 0.12);
 
     // === SHADOWS ===
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.7), 0 4px 6px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.8), 0 8px 12px rgba(0, 0, 0, 0.5);
-    --shadow-sidebar: 1px 0 0 0 rgba(255, 255, 255, 0.06);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.6);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.8), 0 4px 6px rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.9), 0 8px 12px rgba(0, 0, 0, 0.6);
+    --shadow-sidebar: 1px 0 0 0 rgba(255, 255, 255, 0.10);
 
     // === SURFACES ===
     --surface-plain: #09090b;
-    --surface-panel: #0f0f11;
-    --surface-card: #111113;
-    --surface-muted: rgba(15, 15, 17, 0.98);
+    --surface-panel: #0f0f12;
+    --surface-card: #131316;
+    --surface-muted: #0d0d10;
     --body-background-layer: var(--body-background);
 }
 

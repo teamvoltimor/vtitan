@@ -79,12 +79,14 @@
     a {
         display: block;
         padding: var(--space-xs) var(--space-sm);
-        color: var(--body-font-color);
+        color: var(--text-muted);
         font-size: var(--text-sm);
         border-radius: var(--radius-sm);
-        
+        transition: color var(--transition-fast), background-color var(--transition-fast);
+
         &:hover {
             background-color: var(--hover-bg);
+            color: var(--body-font-color);
             text-decoration: none;
         }
 
@@ -136,15 +138,16 @@ html:not(.dark):not([data-theme="dark"]) .book-toc-content {
     font-size: var(--text-xs);
     color: var(--gray-500);
 
-    // Navigation links - minimal
+    // Navigation links — default uses text-muted, active uses accent
     nav a {
         display: block;
         padding: 3px 0;
         color: var(--text-muted);
         border-left: none;
+        transition: color var(--transition-base);
 
         &:hover {
-            color: var(--color-link);
+            color: var(--body-font-color);
             background: none;
         }
 

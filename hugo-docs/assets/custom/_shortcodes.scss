@@ -3,29 +3,25 @@
 
 .book-hint {
     position: relative;
-    padding: var(--space-lg) var(--space-lg) var(--space-lg) 4rem;
+    padding: var(--space-md) var(--space-lg) var(--space-md) 3.75rem;
     margin: var(--space-xl) 0;
-    border-left: 4px solid;
+    border-left: 3px solid;
     border-radius: var(--radius-lg);
     background-color: var(--surface-muted);
     box-shadow: var(--shadow-sm);
     transition: box-shadow var(--transition-base);
-
-    &:hover {
-        box-shadow: var(--shadow-md);
-    }
 
     // Icon positioned on the LEFT side
     &::before {
         content: "ℹ";
         position: absolute;
         left: 1rem;
-        top: var(--space-lg);
-        width: 2rem;
-        height: 2rem;
-        line-height: 2rem;
+        top: var(--space-md);
+        width: 1.75rem;
+        height: 1.75rem;
+        line-height: 1.75rem;
         text-align: center;
-        font-size: var(--text-lg);
+        font-size: var(--text-base);
         font-weight: var(--font-bold);
         border-radius: 50%;
         background: var(--body-background);
@@ -179,20 +175,20 @@
 // Responsive adjustments for hint boxes
 @media (max-width: 600px) {
     .book-hint {
-        padding: var(--space-md) var(--space-md) var(--space-md) 3.5rem;
+        padding: var(--space-sm) var(--space-md) var(--space-sm) 3.25rem;
         font-size: var(--text-sm);
 
         &::before {
-            left: 0.75rem;
-            top: var(--space-md);
-            width: 1.75rem;
-            height: 1.75rem;
-            line-height: 1.75rem;
-            font-size: var(--text-base);
+            left: 0.625rem;
+            top: var(--space-sm);
+            width: 1.5rem;
+            height: 1.5rem;
+            line-height: 1.5rem;
+            font-size: var(--text-sm);
         }
 
         strong {
-            font-size: var(--text-base);
+            font-size: var(--text-sm);
         }
     }
 }

@@ -16,6 +16,7 @@
 h1 {
     font-size: var(--text-3xl);
     font-weight: var(--font-bold);
+    letter-spacing: -0.025em;
     margin-top: 0;
     margin-bottom: var(--space-lg);
 }
@@ -23,6 +24,7 @@ h1 {
 h2 {
     font-size: var(--text-2xl);
     font-weight: var(--font-bold);
+    letter-spacing: -0.018em;
     margin-top: var(--space-xl);
     margin-bottom: var(--space-md);
 }
@@ -30,6 +32,7 @@ h2 {
 h3 {
     font-size: var(--text-xl);
     font-weight: var(--font-semibold);
+    letter-spacing: -0.012em;
     margin-top: var(--space-lg);
     margin-bottom: var(--space-sm);
 }
@@ -37,6 +40,7 @@ h3 {
 h4 {
     font-size: var(--text-lg);
     font-weight: var(--font-semibold);
+    letter-spacing: -0.008em;
     margin-top: var(--space-md);
     margin-bottom: var(--space-sm);
 }
