@@ -8,16 +8,14 @@ dependencies = [
     "torch>=2.3.0",
     "torchvision",
     "sam2",
-    "opencv-python",
+    "opencv-python-headless",
     "numpy",
     "pillow",
     "python-dotenv",
-    "transformers>=4.50.0",
-    "accelerate",
     "ultralytics>=8.4.14",
-    "autodistill==0.1.29",
-    "autodistill-grounded-sam==0.1.2",
-    "fastapi[standard]>=0.115.0",
+    "fastapi>=0.115.0",
+    "python-multipart>=0.0.9",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [dependency-groups]

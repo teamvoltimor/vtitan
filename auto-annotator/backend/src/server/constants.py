@@ -27,9 +27,6 @@ MODEL_TYPE_SAM3: str = "sam3"
 MODEL_TYPE_YOLOE: str = "yoloe"
 """Model family identifier for YOLOE open-vocabulary detection + segmentation (Ultralytics)."""
 
-MODEL_TYPE_GROUNDING_DINO: str = "grounding_dino"
-"""Model family identifier for Grounding DINO + SAM auto-annotation (autodistill)."""
-
 # Model config dictionary keys.
 # Used when reading ``cfg`` dicts parsed from models.toml [[models]] entries.
 

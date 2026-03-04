@@ -5,9 +5,10 @@ FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive \
     TORCH_CUDA_ARCH_LIST="8.9"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 python3.12-dev python3.12-venv git curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 python3.12-dev python3.12-venv git curl
 
 # Install uv from its official image – no pip bootstrap needed.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -35,9 +36,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 libgl1 libglib2.0-0 curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 libglib2.0-0 curl
 
 WORKDIR /app
 

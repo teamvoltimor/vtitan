@@ -17,14 +17,12 @@ from src.server.constants import (
     CFG_KEY_HF_REPO,
     CFG_KEY_ID,
     CFG_KEY_TYPE,
-    MODEL_TYPE_GROUNDING_DINO,
     MODEL_TYPE_SAM1,
     MODEL_TYPE_SAM2,
     MODEL_TYPE_SAM3,
     MODEL_TYPE_YOLOE,
     PROJECT_ROOT,
 )
-from src.server.grounding_dino import load_grounding_dino
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
 from src.server.sam3 import load_sam3
@@ -44,7 +42,6 @@ _MODEL_LOADERS: dict[str, Callable[[dict, ServerContext], None]] = {
     MODEL_TYPE_SAM2: load_sam2,
     MODEL_TYPE_SAM3: load_sam3,
     MODEL_TYPE_YOLOE: load_yoloe,
-    MODEL_TYPE_GROUNDING_DINO: load_grounding_dino,
 }
 
 
@@ -91,7 +88,7 @@ def is_available(cfg: dict, base: Path) -> bool:
         return bool(hf)
     if mtype == MODEL_TYPE_YOLOE:
         return ckpt is not None and ckpt.exists()
-    return mtype == MODEL_TYPE_GROUNDING_DINO
+    return False
 
 
 def load_model(model_id: str, ctx: ServerContext) -> str | None:
