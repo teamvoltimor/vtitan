@@ -155,7 +155,6 @@ def _run_or_print(cmd: list[str], docker: str | None) -> None:
     else:
         pretty = " \\\n  ".join(cmd)
         log.info("Paste inside Docker:\n%s", pretty)
-        log.info("%s", pretty)
 
 
 # Public commands
@@ -184,7 +183,7 @@ def stage(config: StageConfig) -> None:
     shared.mkdir(parents=True, exist_ok=True)
 
     dest = shared / onnx_src.name
-    shutil.copy2(str(onnx_src), str(dest))
+    shutil.copy2(onnx_src, dest)
     log.info("Staged %s → %s", onnx_src, dest)
 
     if config.calib:
@@ -193,7 +192,7 @@ def stage(config: StageConfig) -> None:
             msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
             raise HailoError(msg)
         calib_dest = shared / "calib_data"
-        shutil.copytree(str(calib_src), str(calib_dest), dirs_exist_ok=True)
+        shutil.copytree(calib_src, calib_dest, dirs_exist_ok=True)
         log.info("Staged calibration data → %s", calib_dest)
 
     log.info(
@@ -328,7 +327,6 @@ def docker_run(config: DockerRunConfig) -> None:
     if config.dry_run:
         pretty = " \\\n  ".join(cmd)
         log.info("Docker run command:\n%s", pretty)
-        log.info("%s", pretty)
     else:
         log.info("Starting container %s from image %s", config.container, DOCKER_IMAGE)
         subprocess.run(cmd, check=True)  # noqa: S603

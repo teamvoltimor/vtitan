@@ -92,7 +92,8 @@ def convert(config: ConvertConfig) -> None:
     Raises:
         CalibrationDataError: If no images are found in ``config.input``.
     """
-    Path(config.output).mkdir(parents=True, exist_ok=True)
+    output_path = Path(config.output)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     count = 0
     for fname, img_path in iter_images(config.input):
@@ -103,7 +104,7 @@ def convert(config: ConvertConfig) -> None:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (config.size, config.size))
         img = img.astype(np.float32) / 255.0  # HWC, [0, 1] — expected by Hailo DFC
-        npy_path = Path(config.output) / (Path(fname).stem + ".npy")
+        npy_path = output_path / (Path(fname).stem + ".npy")
         np.save(str(npy_path), img)
         count += 1
 

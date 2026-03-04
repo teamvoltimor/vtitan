@@ -79,6 +79,25 @@ def run(config: TestConfig) -> None:
 
 # Private backend handlers
 
+def _apply_boxes(
+    raw: np.ndarray | None,
+    conf: float,
+    ratio: float,
+    dw: float,
+    dh: float,
+    image: np.ndarray,
+) -> None:
+    """Filter by confidence, scale, and draw detected boxes onto image in-place."""
+    if raw is None or raw.shape[0] == 0:
+        return
+    xyxy, scores, classes = raw[:, :4], raw[:, 4], raw[:, 5]
+    keep = scores > conf
+    xyxy, scores, classes = xyxy[keep], scores[keep], classes[keep]
+    if len(xyxy):
+        xyxy = scale_coords(xyxy, ratio, dw, dh, image.shape)
+        draw_boxes(image, xyxy, scores, classes)
+
+
 def _run_pt(config: TestConfig, _task: Task) -> None:
     """Run inference with the Ultralytics PyTorch backend."""
     if YOLO is None:
@@ -89,7 +108,7 @@ def _run_pt(config: TestConfig, _task: Task) -> None:
     count = 0
     for fname, img_path in iter_images(config.input):
         results = model(img_path)
-        orig = cv2.imread(img_path)
+        orig = results[0].orig_img  # BGR array already loaded by ultralytics
         if results[0].boxes is not None:
             boxes = results[0].boxes.xyxy.cpu().numpy()
             scores = results[0].boxes.conf.cpu().numpy()
@@ -131,15 +150,7 @@ def _run_onnx_detect(config: TestConfig, _task: Task) -> None:
         img_input, ratio, dw, dh, orig = preprocess(img_path)
         outputs = session.run(output_names, {input_name: img_input})
 
-        raw = outputs[0][0] if outputs else None
-        if raw is not None and raw.shape[0] > 0:
-            xyxy, scores, classes = raw[:, :4], raw[:, 4], raw[:, 5]
-            keep = scores > config.conf
-            xyxy, scores, classes = xyxy[keep], scores[keep], classes[keep]
-            if len(xyxy):
-                xyxy = scale_coords(xyxy, ratio, dw, dh, orig.shape)
-                draw_boxes(orig, xyxy, scores, classes)
-
+        _apply_boxes(outputs[0][0] if outputs else None, config.conf, ratio, dw, dh, orig)
         cv2.imwrite(str(Path(config.output) / fname), orig)
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)
@@ -164,7 +175,7 @@ def _run_onnx_segment(config: TestConfig, _task: Task) -> None:
         img_input, ratio, dw, dh, orig = preprocess(img_path)
         outputs = session.run(output_names, {input_name: img_input})
 
-        boxes_raw = outputs[0][0] if len(outputs) > 0 else None
+        boxes_raw = outputs[0][0] if outputs else None
         mask_raw = outputs[1][0] if len(outputs) > 1 else None
 
         overlay = orig.copy()
@@ -194,14 +205,7 @@ def _run_onnx_segment(config: TestConfig, _task: Task) -> None:
             color_mask[:, :, 1] = mask_img
             overlay = cv2.addWeighted(orig, 0.7, color_mask, 0.3, 0)
 
-        if boxes_raw is not None and boxes_raw.shape[0] > 0:
-            xyxy, scores, classes = boxes_raw[:, :4], boxes_raw[:, 4], boxes_raw[:, 5]
-            keep = scores > config.conf
-            xyxy, scores, classes = xyxy[keep], scores[keep], classes[keep]
-            if len(xyxy):
-                xyxy = scale_coords(xyxy, ratio, dw, dh, orig.shape)
-                draw_boxes(overlay, xyxy, scores, classes)
-
+        _apply_boxes(boxes_raw, config.conf, ratio, dw, dh, overlay)
         cv2.imwrite(str(Path(config.output) / fname), overlay)
         count += 1
     log.info("Saved %d annotated images → %s", count, config.output)

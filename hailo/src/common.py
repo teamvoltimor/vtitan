@@ -15,7 +15,6 @@ import numpy as np
 
 # Domain types
 ModelName = NewType("ModelName", str)
-FilePath = NewType("FilePath", str)
 
 
 # Logging
@@ -72,9 +71,6 @@ class Backend(StrEnum):
     ONNX = "onnx"
     ULTRAONNX = "ultraonnx"
 
-    def __str__(self) -> str:
-        return self.value
-
 
 class Task(StrEnum):
     """Inference task type."""
@@ -82,18 +78,12 @@ class Task(StrEnum):
     DETECT = "detect"
     SEGMENT = "segment"
 
-    def __str__(self) -> str:
-        return self.value
-
 
 class HWArch(StrEnum):
     """Hailo target hardware architecture."""
 
     HAILO8 = "hailo8"
     HAILO8L = "hailo8l"
-
-    def __str__(self) -> str:
-        return self.value
 
 
 # Exceptions
@@ -431,7 +421,7 @@ def unletterbox_mask(
     Args:
         mask: ``(H, W)`` binary or greyscale mask in letterboxed space.
         orig_shape: ``(H, W, ...)`` of the original image.
-        ratio: Scale ratio from :func:`letterbox`.
+        _ratio: Unused; kept for call-site symmetry with :func:`preprocess`.
         dw: Horizontal padding from :func:`letterbox`.
         dh: Vertical padding from :func:`letterbox`.
 
