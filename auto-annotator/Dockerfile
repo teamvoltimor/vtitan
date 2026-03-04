@@ -42,7 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy the virtual environment built in the builder stage.
-COPY --from=builder /app/.venv .venv
+# --link makes this an independent snapshot layer, avoiding the UtimesNanoAt
+# crash in Docker Desktop for Windows with the containerd snapshotter.
+COPY --link --from=builder /app/.venv .venv
 
 # Copy application source (models are mounted as a volume at runtime).
 COPY backend/main.py .

@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    restart: unless-stopped
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
@@ -28,6 +29,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:

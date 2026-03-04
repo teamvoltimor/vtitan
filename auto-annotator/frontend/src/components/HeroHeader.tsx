@@ -7,7 +7,7 @@ const heroStats = (
 ) => [
   { label: 'Images ready', value: `${galleryLength}` },
   { label: 'Processed', value: statsSummary.processed },
-  { label: 'Labels', value: statsSummary.labels },
+  { label: 'Total', value: statsSummary.labels },
 ];
 
 type HeroHeaderProps = { onLaunchAnnotate?: () => void };

@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 export type PointType = 'positive' | 'negative';
 export type ExportFormat = 'segmentation' | 'detection';
 export type ViewMode = 'List' | 'Grid';
 export type OutlineMode = 'Class color' | 'Neutral';
+export type AnnotationMode = 'auto' | 'manual';
 
 import {
   type GalleryItem as ApiGalleryItem,
@@ -79,6 +80,8 @@ interface AppStateContextValue {
   modelStatus: string;
   loadModel: (modelId: string) => void;
   autoAnnotate: () => void;
+  annotationMode: AnnotationMode;
+  setAnnotationMode: (mode: AnnotationMode) => void;
   annotationPoints: AnnotationPoint[];
   addAnnotationPoint: (point: AnnotationPoint) => void;
   clearAnnotationPoints: () => void;
@@ -87,6 +90,7 @@ interface AppStateContextValue {
   segmentationStatus: SegmentationStatus;
   segmentationMessage: string;
   runSegmentationTest: () => Promise<void>;
+  segmentFromPoints: (points: AnnotationPoint[]) => Promise<void>;
   clearSegmentationPreview: () => void;
 }
 
@@ -104,10 +108,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [exportFormat, setExportFormat] = useState<ExportFormat>('segmentation');
   const [maskLevel, setMaskLevel] = useState('Object (1)');
   const [activeClass, setActiveClass] = useState<string | null>(null);
-  const [classes, setClasses] = useState(['Foreground', 'Background']);
+  const [classes, setClasses] = useState(['red_prism', 'green_prism', 'magenta_prism']);
   const [classColors, setClassColors] = useState<Record<string, string>>({
-    Foreground: '#89b4fa',
-    Background: '#cba6f7',
+    red_prism: '#ee2737',
+    green_prism: '#44d62c',
+    magenta_prism: '#ff00ff',
   });
   const [logEntries, setLogEntries] = useState<string[]>(['Ready.']);
   const [stats, setStats] = useState({ processed: '0', skipped: '0', labels: '0' });
@@ -118,10 +123,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [selectedModel, setSelectedModel] = useState(modelOptions[0].id);
   const [modelStatus, setModelStatus] = useState('No model loaded');
+  const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('auto');
   const [annotationPoints, setAnnotationPoints] = useState<AnnotationPoint[]>([]);
   const [segmentationPreview, setSegmentationPreview] = useState<SegmentationPreviewShape[]>([]);
   const [segmentationStatus, setSegmentationStatus] = useState<SegmentationStatus>('idle');
   const [segmentationMessage, setSegmentationMessage] = useState('');
+  const pendingSegmentationRequests = useRef(0);
 
   const pushLog = useCallback((entry: string) => {
     setLogEntries((prev) => [entry, ...prev].slice(0, 5));
@@ -138,6 +145,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       pushTimeline({ time, label });
     },
     [pushLog, pushTimeline]
+  );
+
+  const startSegmentationRequest = useCallback(() => {
+    pendingSegmentationRequests.current += 1;
+    setSegmentationStatus('pending');
+    setSegmentationMessage('Running SAM ...');
+  }, []);
+
+  const completeSegmentationRequest = useCallback(
+    (state: SegmentationStatus, message: string) => {
+      pendingSegmentationRequests.current = Math.max(pendingSegmentationRequests.current - 1, 0);
+      setSegmentationMessage(message);
+      if (pendingSegmentationRequests.current === 0) {
+        setSegmentationStatus(state);
+      }
+    },
+    []
   );
 
   const addClass = useCallback(
@@ -217,14 +241,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     (point: AnnotationPoint) => {
       setAnnotationPoints((prev) => [...prev, point]);
     },
-    [setAnnotationPoints]
+    []
   );
 
-  const clearAnnotationPoints = useCallback(() => {
-    setAnnotationPoints([]);
-    setSegmentationPreview([]);
-    recordAction('Cleared point buffer');
-  }, [recordAction]);
+    const clearAnnotationPoints = useCallback(() => {
+      setAnnotationPoints([]);
+      recordAction('Cleared point buffer');
+    }, [recordAction]);
 
   const undoAnnotationPoint = useCallback(() => {
     setAnnotationPoints((prev) => prev.slice(0, -1));
@@ -237,8 +260,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setSegmentationMessage('Select an image and place at least one point');
       return;
     }
-    setSegmentationStatus('pending');
-    setSegmentationMessage('Running SAM ...');
+    startSegmentationRequest();
     try {
       const payloadPoints: SegmentationPoint[] = annotationPoints.map(
         ({ x, y, pointType, className }) => ({
@@ -249,17 +271,41 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         })
       );
       const response = await segmentImage(selectedGalleryItem.id, payloadPoints);
-      setSegmentationStatus(response.state);
-      setSegmentationMessage(response.message);
       if (response.shapes.length > 0) {
-        setSegmentationPreview(response.shapes);
+        setSegmentationPreview((prev) => [...prev, ...response.shapes]);
+        setAnnotationPoints([]);
       }
       recordAction('Segmentation inference completed');
+      completeSegmentationRequest(response.state, response.message);
     } catch (error) {
-      setSegmentationStatus('error');
-      setSegmentationMessage((error as Error).message);
+      completeSegmentationRequest('error', (error as Error).message);
     }
-  }, [annotationPoints, recordAction, selectedGalleryItem]);
+  }, [annotationPoints, completeSegmentationRequest, recordAction, selectedGalleryItem, startSegmentationRequest]);
+
+  const segmentFromPoints = useCallback(
+    async (points: AnnotationPoint[]) => {
+      if (!selectedGalleryItem || points.length === 0) return;
+      startSegmentationRequest();
+      try {
+        const payloadPoints: SegmentationPoint[] = points.map(({ x, y, pointType, className }) => ({
+          x,
+          y,
+          pointType,
+          className,
+        }));
+        const response = await segmentImage(selectedGalleryItem.id, payloadPoints);
+        if (response.shapes.length > 0) {
+          setSegmentationPreview((prev) => [...prev, ...response.shapes]);
+          setAnnotationPoints([]);
+        }
+        recordAction('Segmentation inference completed');
+        completeSegmentationRequest(response.state, response.message);
+      } catch (error) {
+        completeSegmentationRequest('error', (error as Error).message);
+      }
+    },
+    [completeSegmentationRequest, recordAction, selectedGalleryItem, startSegmentationRequest]
+  );
 
   const clearSegmentationPreview = useCallback(() => {
     setSegmentationPreview([]);
@@ -305,6 +351,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       modelStatus,
       loadModel,
       autoAnnotate,
+      annotationMode,
+      setAnnotationMode,
       annotationPoints,
       addAnnotationPoint,
       clearAnnotationPoints,
@@ -313,6 +361,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       segmentationStatus,
       segmentationMessage,
       runSegmentationTest,
+      segmentFromPoints,
       clearSegmentationPreview,
     }),
     [
@@ -332,6 +381,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       timeline,
       selectedModel,
       modelStatus,
+      annotationMode,
       annotationPoints,
       segmentationPreview,
       segmentationStatus,
@@ -341,9 +391,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       pushLog,
       refreshGallery,
       importImages,
-      setSelectedGalleryItem,
-      setViewMode,
-      setOutlineMode,
       pushTimeline,
       recordAction,
       loadModel,
@@ -352,6 +399,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       clearAnnotationPoints,
       undoAnnotationPoint,
       runSegmentationTest,
+      segmentFromPoints,
       clearSegmentationPreview,
     ]
   );

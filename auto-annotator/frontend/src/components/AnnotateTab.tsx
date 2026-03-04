@@ -34,7 +34,11 @@ const exportOptions: { label: string; value: 'segmentation' | 'detection' }[] = 
   { label: 'Detection', value: 'detection' },
 ];
 
-const statsRows = ['processed', 'skipped', 'labels'] as const;
+const statsRows: { key: 'processed' | 'skipped' | 'labels'; label: string }[] = [
+  { key: 'processed', label: 'Processed' },
+  { key: 'skipped', label: 'Skipped' },
+  { key: 'labels', label: 'Total' },
+];
 
 const AnnotateTab = () => {
   const theme = useTheme();
@@ -56,10 +60,13 @@ const AnnotateTab = () => {
     recordAction,
     stats,
     selectedGalleryItem,
+    annotationMode,
+    setAnnotationMode,
     annotationPoints,
     addAnnotationPoint,
     segmentationPreview,
     runSegmentationTest,
+    segmentFromPoints,
     clearSegmentationPreview,
     clearAnnotationPoints,
     undoAnnotationPoint,
@@ -94,13 +101,17 @@ const AnnotateTab = () => {
       return;
     const normalizedX = relativeX / bounds.width;
     const normalizedY = relativeY / bounds.height;
-    addAnnotationPoint({
+    const point = {
       x: normalizedX,
       y: normalizedY,
       pointType,
       className: classLabel,
       color: classColors[classLabel] ?? '#ffffff',
-    });
+    };
+    addAnnotationPoint(point);
+    if (annotationMode === 'auto' && segmentationStatus !== 'pending') {
+      void segmentFromPoints([point]);
+    }
   };
 
   return (
@@ -237,20 +248,35 @@ const AnnotateTab = () => {
           Auto annotate
         </Button>
         <Button
-          variant="outlined"
+          variant={annotationMode === 'manual' ? 'contained' : 'outlined'}
           size="small"
-          onClick={runSegmentationTest}
-          disabled={
-            segmentationStatus === 'pending' ||
-            annotationPoints.length === 0 ||
-            !selectedGalleryItem
-          }
-          startIcon={
-            segmentationStatus === 'pending' ? <CircularProgress size={11} color="inherit" /> : null
-          }
+          onClick={() => {
+            const next = annotationMode === 'manual' ? 'auto' : 'manual';
+            setAnnotationMode(next);
+            if (next === 'auto') clearAnnotationPoints();
+          }}
         >
-          {segmentationStatus === 'pending' ? 'Running…' : 'Generate mask'}
+          Manual
         </Button>
+        {annotationMode === 'manual' && (
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={runSegmentationTest}
+            disabled={
+              segmentationStatus === 'pending' ||
+              annotationPoints.length === 0 ||
+              !selectedGalleryItem
+            }
+            startIcon={
+              segmentationStatus === 'pending' ? (
+                <CircularProgress size={11} color="inherit" />
+              ) : null
+            }
+          >
+            {segmentationStatus === 'pending' ? 'Running…' : 'Generate mask'}
+          </Button>
+        )}
         <Button
           variant="outlined"
           size="small"
@@ -261,8 +287,8 @@ const AnnotateTab = () => {
         </Button>
         <ButtonGroup size="small" sx={{ ml: 0.5 }}>
           <Button onClick={() => recordAction('Accepted mask')}>Accept</Button>
-          <Button onClick={undoAnnotationPoint}>Undo</Button>
-          <Button onClick={clearAnnotationPoints}>Clear</Button>
+          <Button onClick={undoAnnotationPoint} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Undo</Button>
+          <Button onClick={clearAnnotationPoints} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Clear</Button>
         </ButtonGroup>
 
         <Box sx={{ flex: 1 }} />
@@ -354,10 +380,10 @@ const AnnotateTab = () => {
         </Typography>
 
         <Stack direction="row" spacing={3} sx={{ flexShrink: 0 }}>
-          {statsRows.map((key) => (
+          {statsRows.map(({ key, label }) => (
             <Stack key={key} direction="row" alignItems="baseline" spacing={0.75}>
               <Typography variant="caption" color="text.disabled">
-                {key}
+                {label}
               </Typography>
               <Typography
                 variant="body2"
