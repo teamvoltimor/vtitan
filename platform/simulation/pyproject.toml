@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
     "opencv-python>=4.9",
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]
@@ -16,8 +17,7 @@ dev = [
 ]
 
 [project.scripts]
-generate-track     = "src.generation.track_generator:main"
-generate-scenarios = "src.generation.generator:main"
+simulate = "main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

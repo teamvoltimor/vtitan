@@ -15,7 +15,7 @@ dev = [
 ]
 
 [project.scripts]
-navigate-track = "src.navigation.navigator:main"
+navigate-track = "main:main"
 
 [tool.ruff]
 line-length = 99

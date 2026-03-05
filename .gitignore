@@ -31,7 +31,10 @@ auto-annotator/backend/data/manifest.db-shm
 auto-annotator/backend/data/manifest.db-wal
 
 # Simulation train report
-simulation/scripts/train_report.md
+platform/simulation/scripts/train_report.md
+
+# Simulation Backend Telemtry Sessions
+platform/backend/telemetry_sessions/
 
 # Environment variables
 .env

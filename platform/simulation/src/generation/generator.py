@@ -9,7 +9,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import importlib
 import importlib.util
 import json
@@ -375,68 +374,3 @@ def _serialize_parking(parking_config: dict[str, Any] | None) -> dict[str, Any] 
     }
 
 
-def main() -> None:
-    """CLI entry point for batch scenario generation."""
-    parser = argparse.ArgumentParser(
-        description=("Generate randomized WRO 2026 Gazebo scenario SDF files.")
-    )
-    parser.add_argument(
-        "--challenge",
-        choices=["open", "obstacles"],
-        default="open",
-        help="Challenge type (default: open).",
-    )
-    parser.add_argument(
-        "--num-scenarios",
-        type=int,
-        default=10,
-        help="Number of scenarios to generate (default: 10).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        default="./training_data",
-        help="Root output directory (default: ./training_data).",
-    )
-    parser.add_argument(
-        "--base-world",
-        default="../worlds/wro_track_2026.sdf",
-        help="Base world SDF template path.",
-    )
-    parser.add_argument(
-        "--randomize-all",
-        action="store_true",
-        help="Enable full randomization (lighting, widths, starting position).",
-    )
-    args = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-
-    challenge_output_dir = Path(args.output_dir) / args.challenge / FolderNames.SCENARIOS
-    generator = ScenarioGenerator(
-        base_world_path=args.base_world,
-        output_dir=challenge_output_dir,
-        challenge_type=ScenarioType(args.challenge),
-    )
-    logger.info(
-        "Generating %d '%s' scenarios → %s",
-        args.num_scenarios,
-        args.challenge,
-        challenge_output_dir,
-    )
-    for index in range(args.num_scenarios):
-        world_file, metadata = generator.create_scenario_world(
-            index, randomize_all=args.randomize_all
-        )
-        logger.info(
-            "[%d/%d] %s  signs=%d",
-            index + 1,
-            args.num_scenarios,
-            world_file.name,
-            metadata[DictKeys.NUM_SIGNS],
-        )
-
-    logger.info("Done.")
-
-
-if __name__ == "__main__":
-    main()

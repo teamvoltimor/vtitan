@@ -9,7 +9,7 @@
 
 SCENARIOS      ?= 10
 CHALLENGE      ?= open
-OUTPUT_DIR     ?= ./training_data
+OUTPUT_DIR     ?= ../training_data
 BASE_WORLD     ?= ./worlds/wro_track_2026.sdf
 METADATA       ?= $(OUTPUT_DIR)/$(CHALLENGE)/scenarios/scenario_0000_metadata.json
 LAPS           ?= 3

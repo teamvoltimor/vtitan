@@ -10,7 +10,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import logging
 import math
 from pathlib import Path
@@ -354,25 +353,3 @@ def _contact_surface(parent: ET.Element) -> None:
     _text(ET.SubElement(ode, "min_depth"), "0.0")
 
 
-# ── CLI entry point ────────────────────────────────────────────────────────────
-
-
-def main() -> None:
-    """Generate the base WRO 2026 track SDF file."""
-    parser = argparse.ArgumentParser(
-        description="Generate the base WRO 2026 Gazebo track SDF.",
-    )
-    parser.add_argument(
-        "--output",
-        default="worlds/wro_track_2026.sdf",
-        help="Output SDF file path (default: worlds/wro_track_2026.sdf).",
-    )
-    args = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    output_path = generate_track_sdf(args.output)
-    logger.info("Track SDF written → %s", output_path)
-
-
-if __name__ == "__main__":
-    main()
