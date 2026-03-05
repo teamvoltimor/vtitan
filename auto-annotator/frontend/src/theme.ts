@@ -223,6 +223,7 @@ export const makeTheme = (mode: PaletteMode) => {
         styleOverrides: {
           root: {
             fontSize: '0.8125rem',
+            backgroundColor: mode === 'dark' ? tokens.bgEl : tokens.bgHover,
             '& .MuiOutlinedInput-notchedOutline': { borderColor: tokens.border },
             '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: tokens.borderStr },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {

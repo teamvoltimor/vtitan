@@ -19,8 +19,12 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Use a BuildKit cache mount so uv's wheel cache persists across builds.
+# --no-build-isolation-package sam2: sam2's build-system.requires pulls nvidia-cudnn-cu12
+# (~800 MB) into an isolated env before compiling. The CUDA base image already has cuDNN
+# as a system library, so we skip the isolated env and build against the current venv instead.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-dev --frozen --python /usr/bin/python3.12
+    uv sync --no-dev --frozen --python /usr/bin/python3.12 \
+        --no-build-isolation-package sam2
 
 
 # Runtime stage – much smaller: no build tools, no CUDA headers.
@@ -39,7 +43,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 libglib2.0-0 curl
+        python3.12 libglib2.0-0 libgl1 libxcb1 curl
 
 WORKDIR /app
 

@@ -14,13 +14,15 @@ import {
   Select,
   Slider,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   useTheme,
 } from '@mui/material';
 import type { MouseEvent } from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useCanvasRender } from '../hooks/useCanvasRender';
-import { type PointType, useAppState } from '../state/appState';
+import { type AnnotationPoint, type PointType, useAppState } from '../state/appState';
 import AnnotateInsights from './AnnotateInsights';
 import TimelinePanel from './TimelinePanel';
 
@@ -75,6 +77,25 @@ const AnnotateTab = () => {
   } = useAppState();
   const { canvasRef, imageBounds } = useCanvasRender(annotationPoints, segmentationPreview);
 
+  // Queue for clicks that arrive while an inference is in-flight (auto mode only).
+  // Stored in a ref so queuing never triggers a re-render.
+  const clickQueue = useRef<AnnotationPoint[]>([]);
+
+  // Clear the queue whenever the user switches to a different image.
+  useEffect(() => {
+    clickQueue.current = [];
+  }, [selectedGalleryItem]);
+
+  // When inference finishes, drain the next queued click.
+  useEffect(() => {
+    if (segmentationStatus === 'pending') return;
+    const next = clickQueue.current.shift();
+    if (next) {
+      addAnnotationPoint(next);
+      void segmentFromPoints([next]);
+    }
+  }, [segmentationStatus, addAnnotationPoint, segmentFromPoints]);
+
   const zoomLabel = useMemo(() => `${Math.round(zoom * 100)}%`, [zoom]);
   const classLabel = activeClass ?? classes[0] ?? 'No class';
 
@@ -108,9 +129,16 @@ const AnnotateTab = () => {
       className: classLabel,
       color: classColors[classLabel] ?? '#ffffff',
     };
-    addAnnotationPoint(point);
-    if (annotationMode === 'auto' && segmentationStatus !== 'pending') {
-      void segmentFromPoints([point]);
+    if (annotationMode === 'auto') {
+      if (segmentationStatus === 'pending') {
+        // Queue the click — no dot added so no phantom polygon is drawn.
+        clickQueue.current.push(point);
+      } else {
+        addAnnotationPoint(point);
+        void segmentFromPoints([point]);
+      }
+    } else {
+      addAnnotationPoint(point);
     }
   };
 
@@ -247,17 +275,24 @@ const AnnotateTab = () => {
         <Button variant="outlined" size="small" onClick={autoAnnotate}>
           Auto annotate
         </Button>
-        <Button
-          variant={annotationMode === 'manual' ? 'contained' : 'outlined'}
+        <ToggleButtonGroup
+          value={annotationMode}
+          exclusive
           size="small"
-          onClick={() => {
-            const next = annotationMode === 'manual' ? 'auto' : 'manual';
-            setAnnotationMode(next);
-            if (next === 'auto') clearAnnotationPoints();
+          onChange={(_, value: 'auto' | 'manual' | null) => {
+            if (value === null) return;
+            setAnnotationMode(value);
+            if (value === 'auto') clearAnnotationPoints();
           }}
+          sx={{ height: 30 }}
         >
-          Manual
-        </Button>
+          <ToggleButton value="auto" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
+            Auto
+          </ToggleButton>
+          <ToggleButton value="manual" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
+            Manual
+          </ToggleButton>
+        </ToggleButtonGroup>
         {annotationMode === 'manual' && (
           <Button
             variant="outlined"
