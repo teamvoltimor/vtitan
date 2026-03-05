@@ -20,7 +20,7 @@ import {
   useTheme,
 } from '@mui/material';
 import type { MouseEvent } from 'react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCanvasRender } from '../hooks/useCanvasRender';
 import { type AnnotationPoint, type PointType, useAppState } from '../state/appState';
 import AnnotateInsights from './AnnotateInsights';
@@ -75,22 +75,26 @@ const AnnotateTab = () => {
     segmentationStatus,
     segmentationMessage,
   } = useAppState();
-  const { canvasRef, imageBounds } = useCanvasRender(annotationPoints, segmentationPreview);
-
   // Queue for clicks that arrive while an inference is in-flight (auto mode only).
-  // Stored in a ref so queuing never triggers a re-render.
+  // Ref holds the authoritative queue; state mirrors it for canvas rendering.
   const clickQueue = useRef<AnnotationPoint[]>([]);
+  const [queuedPoints, setQueuedPoints] = useState<AnnotationPoint[]>([]);
+  const { canvasRef, imageBounds } = useCanvasRender(annotationPoints, segmentationPreview, queuedPoints);
 
   // Clear the queue whenever the user switches to a different image.
   useEffect(() => {
+    const galleryKey = selectedGalleryItem?.src ?? selectedGalleryItem?.label ?? '';
     clickQueue.current = [];
-  }, [selectedGalleryItem]);
+    setQueuedPoints([]);
+    void galleryKey;
+  }, [selectedGalleryItem?.src, selectedGalleryItem?.label]);
 
   // When inference finishes, drain the next queued click.
   useEffect(() => {
     if (segmentationStatus === 'pending') return;
     const next = clickQueue.current.shift();
     if (next) {
+      setQueuedPoints([...clickQueue.current]);
       addAnnotationPoint(next);
       void segmentFromPoints([next]);
     }
@@ -133,6 +137,7 @@ const AnnotateTab = () => {
       if (segmentationStatus === 'pending') {
         // Queue the click — no dot added so no phantom polygon is drawn.
         clickQueue.current.push(point);
+        setQueuedPoints([...clickQueue.current]);
       } else {
         addAnnotationPoint(point);
         void segmentFromPoints([point]);

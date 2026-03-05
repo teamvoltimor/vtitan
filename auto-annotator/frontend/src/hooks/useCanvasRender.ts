@@ -11,7 +11,8 @@ interface ImageBounds {
 
 export const useCanvasRender = (
   annotationPoints: AnnotationPoint[],
-  segmentationPreview: SegmentationPreviewShape[]
+  segmentationPreview: SegmentationPreviewShape[],
+  queuedPoints: AnnotationPoint[] = []
 ) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { zoom, selectedGalleryItem, classColors } = useAppState();
@@ -83,6 +84,30 @@ export const useCanvasRender = (
       });
     },
     [classColors, segmentationPreview]
+  );
+
+  const drawQueuedPoints = useCallback(
+    (ctx: CanvasRenderingContext2D, bounds: ImageBounds | null) => {
+      if (!bounds || queuedPoints.length === 0) return;
+      queuedPoints.forEach((point) => {
+        const x = bounds.x + point.x * bounds.width;
+        const y = bounds.y + point.y * bounds.height;
+        const radius = 12;
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.fillStyle = `${point.color}33`;
+        ctx.strokeStyle = point.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      });
+    },
+    [queuedPoints]
   );
 
   const drawMockMask = useCallback(
@@ -166,8 +191,9 @@ export const useCanvasRender = (
       drawSegmentationPreview(ctx, imageBoundsRef.current);
       drawMockMask(ctx, imageBoundsRef.current);
       drawAnnotations(ctx, imageBoundsRef.current);
+      drawQueuedPoints(ctx, imageBoundsRef.current);
     },
-    [zoom, drawSegmentationPreview, drawMockMask, drawAnnotations]
+    [zoom, drawSegmentationPreview, drawMockMask, drawAnnotations, drawQueuedPoints]
   );
 
   useEffect(() => {
@@ -198,7 +224,7 @@ export const useCanvasRender = (
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx || !imageRef.current) return;
     drawCanvas(ctx, imageRef.current);
-  }, [annotationPoints, zoom, selectedGalleryItem, classColors, segmentationPreview, drawCanvas]);
+  }, [annotationPoints, queuedPoints, zoom, selectedGalleryItem, classColors, segmentationPreview, drawCanvas]);
 
   useEffect(() => {
     if (segmentationPreview.length === 0) {
@@ -227,7 +253,7 @@ export const useCanvasRender = (
         animationFrame.current = null;
       }
     };
-  }, [segmentationPreview, annotationPoints, zoom, selectedGalleryItem, classColors, drawCanvas]);
+  }, [segmentationPreview, annotationPoints, queuedPoints, zoom, selectedGalleryItem, classColors, drawCanvas]);
 
   return { canvasRef, imageBounds: imageBoundsRef };
 };
