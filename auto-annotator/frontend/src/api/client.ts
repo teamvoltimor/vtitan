@@ -77,3 +77,25 @@ export const segmentImage = async (
   });
   return handleResponse<SegmentationResponse>(response);
 };
+
+export const saveAnnotations = async (
+  imageId: number,
+  exportFormat: 'segmentation' | 'detection',
+  shapes: SegmentationShape[]
+): Promise<GalleryResponse> => {
+  const response = await fetch(`${API_BASE_URL}/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId, exportFormat, shapes }),
+  });
+  return handleResponse<GalleryResponse>(response);
+};
+
+export const skipImage = async (imageId: number): Promise<GalleryResponse> => {
+  const response = await fetch(`${API_BASE_URL}/skip`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageId }),
+  });
+  return handleResponse<GalleryResponse>(response);
+};

@@ -74,6 +74,8 @@ const AnnotateTab = () => {
     undoAnnotationPoint,
     segmentationStatus,
     segmentationMessage,
+    saveAndNext,
+    skipAndNext,
   } = useAppState();
   // Queue for clicks that arrive while an inference is in-flight (auto mode only).
   // Ref holds the authoritative queue; state mirrors it for canvas rendering.
@@ -333,14 +335,16 @@ const AnnotateTab = () => {
 
         <Box sx={{ flex: 1 }} />
 
-        <Button variant="text" size="small">
-          Previous
-        </Button>
-        <Button variant="text" size="small">
+        <Button variant="text" size="small" onClick={() => void skipAndNext()} disabled={!selectedGalleryItem}>
           Skip
         </Button>
-        <Button variant="contained" size="small">
-          Save & next
+        <Button
+          variant="contained"
+          size="small"
+          onClick={() => void saveAndNext()}
+          disabled={!selectedGalleryItem || segmentationPreview.length === 0}
+        >
+          Save &amp; next
         </Button>
       </Stack>
 

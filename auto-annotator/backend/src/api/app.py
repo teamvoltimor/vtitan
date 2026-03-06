@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import uuid4
 
+
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
@@ -24,11 +25,14 @@ from PIL import Image
 from pydantic import BaseModel
 
 from src import db
-from src.constants import API_PUBLIC_URL, PENDING_DIR
+from src.constants import API_PUBLIC_URL, DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
 from src.inference import initialize_inference, run_sam_inference
 from src.model_server import connect_to_model_server
 from src.models import AppContext, AppState, ImageRecord, Point
+from src.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -274,3 +278,102 @@ def run_segmentation(payload: SegmentationRequest, app_context: AppContextDep) -
         return SegmentationResponse(state="error", message="Mask too small to render", shapes=[])
 
     return SegmentationResponse(state="ready", message="Model mask ready", shapes=[shape])
+
+
+def _write_data_yaml() -> None:
+    """Regenerate data.yaml from current DB classes and existing image subdirectories."""
+    classes = db.get_classes()
+    if not classes:
+        return
+
+    class_dirs = [IMAGES_DIR / cls.name for cls in classes if (IMAGES_DIR / cls.name).is_dir()]
+    if not class_dirs:
+        return
+
+    IMAGES_DIR.parent.mkdir(parents=True, exist_ok=True)
+
+    train_lines = "\n".join(f"  - images/{cls.name}" for cls in classes if (IMAGES_DIR / cls.name).is_dir())
+    names_lines = "\n".join(f"  - {cls.name}" for cls in classes)
+
+    yaml_content = (
+        f"path: {IMAGES_DIR.parent.resolve()}\n"
+        f"train:\n{train_lines}\n\n"
+        f"nc: {len(classes)}\n"
+        f"names:\n{names_lines}\n"
+    )
+
+    DATA_YAML_PATH.write_text(yaml_content, encoding="utf-8")
+    logger.info("data_yaml_written", path=str(DATA_YAML_PATH))
+
+
+class SaveAnnotationsRequest(BaseModel):
+    """Payload for ``POST /save``."""
+
+    imageId: int
+    exportFormat: Literal["segmentation", "detection"]
+    shapes: list[SegmentationShape]
+
+
+class SkipRequest(BaseModel):
+    """Payload for ``POST /skip``."""
+
+    imageId: int
+
+
+@app.post("/save", response_model=GalleryResponse)
+def save_annotations(payload: SaveAnnotationsRequest) -> GalleryResponse:
+    """Write label file and image copy under per-class subdirectories, then mark done."""
+    if not payload.shapes:
+        raise HTTPException(status_code=400, detail="No shapes to save")
+
+    record = _validate_image_id(payload.imageId)
+
+    classes = db.get_classes()
+    name_to_yolo: dict[str, int] = {cls.name: idx for idx, cls in enumerate(classes)}
+
+    primary_class = payload.shapes[0].className
+    if primary_class not in name_to_yolo:
+        raise HTTPException(status_code=400, detail=f"Unknown class '{primary_class}'")
+
+    img_class_dir = IMAGES_DIR / primary_class
+    lbl_class_dir = LABELS_DIR / primary_class
+    img_class_dir.mkdir(parents=True, exist_ok=True)
+    lbl_class_dir.mkdir(parents=True, exist_ok=True)
+
+    src_path = Path(record.path)
+    dest_image = img_class_dir / src_path.name
+    shutil.copy2(src_path, dest_image)
+
+    label_lines: list[str] = []
+    for shape in payload.shapes:
+        yolo_idx = name_to_yolo.get(shape.className)
+        if yolo_idx is None:
+            continue
+        if payload.exportFormat == "segmentation":
+            coords = " ".join(f"{p.x:.6f} {p.y:.6f}" for p in shape.points)
+            label_lines.append(f"{yolo_idx} {coords}")
+        else:
+            xs = [p.x for p in shape.points]
+            ys = [p.y for p in shape.points]
+            xc = (min(xs) + max(xs)) / 2
+            yc = (min(ys) + max(ys)) / 2
+            w = max(xs) - min(xs)
+            h = max(ys) - min(ys)
+            label_lines.append(f"{yolo_idx} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}")
+
+    label_path = lbl_class_dir / (src_path.stem + ".txt")
+    label_path.write_text("\n".join(label_lines), encoding="utf-8")
+
+    _write_data_yaml()
+    db.mark_done(payload.imageId, payload.exportFormat)
+    logger.info("image_saved", image_id=payload.imageId, primary_class=primary_class, shapes=len(payload.shapes))
+
+    return _build_gallery_response()
+
+
+@app.post("/skip", response_model=GalleryResponse)
+def skip_image(payload: SkipRequest) -> GalleryResponse:
+    """Mark an image as skipped and return the updated gallery."""
+    _validate_image_id(payload.imageId)
+    db.mark_skipped(payload.imageId)
+    return _build_gallery_response()

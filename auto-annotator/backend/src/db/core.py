@@ -11,7 +11,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from src.constants import DB_PATH, LABELS_DIR, PENDING_DIR, VALID_EXTS
+from src.constants import DB_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR, VALID_EXTS
 from src.db.constants import (
     COL_COLOR,
     COL_FORMAT_USED,
@@ -64,6 +64,7 @@ def init_db() -> None:
     """
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     LABELS_DIR.mkdir(parents=True, exist_ok=True)
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
     with _connect() as conn:
         conn.executescript(DDL)

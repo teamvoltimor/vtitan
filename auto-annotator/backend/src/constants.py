@@ -67,6 +67,12 @@ PENDING_DIR: Path = BASE_DIR / "data" / "pending"
 LABELS_DIR: Path = BASE_DIR / "data" / "labels"
 """Directory where YOLO .txt label files are written on save."""
 
+IMAGES_DIR: Path = BASE_DIR / "data" / "images"
+"""Directory where annotated images are copied, organised by class subfolder."""
+
+DATA_YAML_PATH: Path = BASE_DIR / "data" / "data.yaml"
+"""Path to the YOLO data.yaml generated after each save."""
+
 DB_PATH: Path = Path(os.environ.get(ENV_DB_PATH, str(BASE_DIR / "data" / "manifest.db")))
 """Path to the SQLite manifest database (overridable via ENV_DB_PATH)."""
 
