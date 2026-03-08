@@ -13,7 +13,8 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAppState } from '../state/appState';
 import AnnotateTab from './AnnotateTab';
 import BrowseTab from './BrowseTab';
 import HeroHeader from './HeroHeader';
@@ -55,6 +56,19 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const mode = theme.palette.mode;
+  const { modelStatus } = useAppState();
+
+  useEffect(() => {
+    const shortcuts: Record<string, number> = { a: 0, b: 1, s: 2 };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      const index = shortcuts[e.key.toLowerCase()];
+      if (index !== undefined) setActiveTabIndex(index);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <Box
@@ -291,8 +305,8 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                 >
                   auto-annotator
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
-                  ready
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }} noWrap>
+                  {modelStatus}
                 </Typography>
               </Stack>
             </Box>

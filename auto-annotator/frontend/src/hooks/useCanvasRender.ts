@@ -224,7 +224,7 @@ export const useCanvasRender = (
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx || !imageRef.current) return;
     drawCanvas(ctx, imageRef.current);
-  }, [annotationPoints, queuedPoints, zoom, selectedGalleryItem, classColors, segmentationPreview, drawCanvas]);
+  }, [annotationPoints, queuedPoints, zoom, classColors, segmentationPreview, drawCanvas]);
 
   useEffect(() => {
     if (segmentationPreview.length === 0) {
@@ -253,7 +253,7 @@ export const useCanvasRender = (
         animationFrame.current = null;
       }
     };
-  }, [segmentationPreview, annotationPoints, queuedPoints, zoom, selectedGalleryItem, classColors, drawCanvas]);
+  }, [segmentationPreview, annotationPoints, queuedPoints, zoom, classColors, drawCanvas]);
 
   return { canvasRef, imageBounds: imageBoundsRef };
 };
