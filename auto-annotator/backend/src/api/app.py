@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import mimetypes
 import shutil
+import tomllib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
@@ -407,8 +408,6 @@ class ModelItem(BaseModel):
 @app.get("/models", response_model=list[ModelItem])
 def list_models() -> list[ModelItem]:
     """Return all configured models from models.toml."""
-    import tomllib  # noqa: PLC0415 — intentional lazy import, already in stdlib (3.11+)
-
     if not CONFIG_FILE.exists():
         return []
     with CONFIG_FILE.open("rb") as fp:

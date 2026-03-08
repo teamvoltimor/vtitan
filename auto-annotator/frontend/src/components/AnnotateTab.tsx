@@ -87,11 +87,9 @@ const AnnotateTab = () => {
 
   // Clear the queue whenever the user switches to a different image.
   useEffect(() => {
-    const galleryKey = selectedGalleryItem?.src ?? selectedGalleryItem?.label ?? '';
     clickQueue.current = [];
     setQueuedPoints([]);
-    void galleryKey;
-  }, [selectedGalleryItem?.src, selectedGalleryItem?.label]);
+  }, [selectedGalleryItem?.id]);
 
   // When inference finishes, drain the next queued click.
   useEffect(() => {
@@ -182,10 +180,10 @@ const AnnotateTab = () => {
             </Typography>
             <Slider
               value={zoom}
-              onChange={(_, value) => {
-                setZoom(value as number);
-                recordAction(`Set zoom to ${Math.round((value as number) * 100)}%`);
-              }}
+              onChange={(_, value) => setZoom(value as number)}
+              onChangeCommitted={(_, value) =>
+                recordAction(`Set zoom to ${Math.round((value as number) * 100)}%`)
+              }
               min={0.5}
               max={2}
               step={0.05}

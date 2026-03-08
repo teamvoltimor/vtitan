@@ -273,35 +273,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     recordAction('Removed last point');
   }, [recordAction]);
 
-  const runSegmentationTest = useCallback(async () => {
-    if (!selectedGalleryItem || annotationPoints.length === 0) {
-      setSegmentationStatus('error');
-      setSegmentationMessage('Select an image and place at least one point');
-      return;
-    }
-    startSegmentationRequest();
-    try {
-      const payloadPoints: SegmentationPoint[] = annotationPoints.map(
-        ({ x, y, pointType, className }) => ({
-          x,
-          y,
-          pointType,
-          className,
-        })
-      );
-      const response = await segmentImage(selectedGalleryItem.id, payloadPoints);
-      if (response.shapes.length > 0) {
-        setSegmentationPreview((prev) => [...prev, ...response.shapes]);
-        setAnnotationPoints([]);
-      }
-      recordAction('Segmentation inference completed');
-      completeSegmentationRequest(response.state, response.message);
-    } catch (error) {
-      completeSegmentationRequest('error', (error as Error).message);
-    }
-  }, [annotationPoints, completeSegmentationRequest, recordAction, selectedGalleryItem, startSegmentationRequest]);
-
-  const segmentFromPoints = useCallback(
+  const _runSegmentation = useCallback(
     async (points: AnnotationPoint[]) => {
       if (!selectedGalleryItem || points.length === 0) return;
       startSegmentationRequest();
@@ -324,6 +296,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
     },
     [completeSegmentationRequest, recordAction, selectedGalleryItem, startSegmentationRequest]
+  );
+
+  const runSegmentationTest = useCallback(async () => {
+    if (annotationPoints.length === 0) {
+      setSegmentationStatus('error');
+      setSegmentationMessage('Select an image and place at least one point');
+      return;
+    }
+    await _runSegmentation(annotationPoints);
+  }, [annotationPoints, _runSegmentation]);
+
+  const segmentFromPoints = useCallback(
+    (points: AnnotationPoint[]) => _runSegmentation(points),
+    [_runSegmentation]
   );
 
   const clearSegmentationPreview = useCallback(() => {
@@ -481,6 +467,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       goToPrev,
       acceptMask,
       _advanceNext,
+      _runSegmentation,
     ]
   );
 
