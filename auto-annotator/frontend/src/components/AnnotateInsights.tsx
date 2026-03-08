@@ -88,9 +88,9 @@ const AnnotateInsights = () => {
             <Typography variant="caption" color="text.secondary">
               Log
             </Typography>
-            {logEntries.map((entry) => (
+            {logEntries.map((entry, i) => (
               <Typography
-                key={entry}
+                key={i}
                 variant="caption"
                 sx={{
                   color: 'text.secondary',

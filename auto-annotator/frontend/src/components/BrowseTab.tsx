@@ -145,7 +145,7 @@ const BrowseTab = () => {
                         }}
                       />
                       <Typography variant="caption" color="text.disabled">
-                        {item.format.toUpperCase()} · {item.status}
+                        {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
                       </Typography>
                     </Stack>
                   </Stack>
@@ -217,7 +217,7 @@ const BrowseTab = () => {
                         }}
                       />
                       <Typography variant="caption" color="text.disabled">
-                        {item.format.toUpperCase()} · {item.status}
+                        {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
                       </Typography>
                     </Stack>
                   </Stack>

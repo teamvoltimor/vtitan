@@ -229,10 +229,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const load = async () => {
-      await refreshGallery();
-      const [classItems, modelItems] = await Promise.all([getClasses(), getModels()]);
-      _applyClasses(classItems);
-      setModels(modelItems.map((m: ModelItem) => ({ id: m.id, label: m.label })));
+      try {
+        await refreshGallery();
+        const [classItems, modelItems] = await Promise.all([getClasses(), getModels()]);
+        _applyClasses(classItems);
+        const opts = modelItems.map((m: ModelItem) => ({ id: m.id, label: m.label }));
+        setModels(opts);
+        if (opts.length > 0) setSelectedModel(opts[0].id);
+      } catch (error) {
+        recordAction(`Startup failed: ${(error as Error).message}`);
+      }
     };
     void load();
   }, [refreshGallery]);
@@ -257,10 +263,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     []
   );
 
-    const clearAnnotationPoints = useCallback(() => {
-      setAnnotationPoints([]);
-      recordAction('Cleared point buffer');
-    }, [recordAction]);
+  const clearAnnotationPoints = useCallback(() => {
+    setAnnotationPoints([]);
+    recordAction('Cleared point buffer');
+  }, [recordAction]);
 
   const undoAnnotationPoint = useCallback(() => {
     setAnnotationPoints((prev) => prev.slice(0, -1));
