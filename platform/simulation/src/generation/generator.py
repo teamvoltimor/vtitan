@@ -9,13 +9,10 @@ Usage:
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
 import json
 import logging
 import math
 from pathlib import Path
-from types import ModuleType
 from typing import Any
 from xml.etree.ElementTree import Element, ElementTree
 
@@ -38,16 +35,6 @@ from src.generation.randomizer import ScenarioRandomizer
 from src.generation.sdf_builder import SDFBuilder
 
 logger = logging.getLogger(__name__)
-
-cv2: ModuleType | None = None
-CvBridge: type[Any] | None = None
-ROS2_AVAILABLE = False
-if importlib.util.find_spec("cv2") and importlib.util.find_spec("cv_bridge"):
-    cv2 = importlib.import_module("cv2")
-    CvBridge = importlib.import_module("cv_bridge").CvBridge
-    ROS2_AVAILABLE = True
-else:
-    logger.warning("ROS2 not available — running in standalone mode")
 
 
 class ScenarioGenerator:
@@ -255,57 +242,6 @@ class ScenarioGenerator:
         }
 
 
-class VideoRecorder:
-    """Records camera frames from a ROS2 topic and saves as MP4.
-
-    Args:
-        output_dir: Directory for the output video file.
-        scenario_index: Used to name the output video.
-    """
-
-    def __init__(self, output_dir: str | Path, scenario_index: int) -> None:
-        if not ROS2_AVAILABLE or cv2 is None or CvBridge is None:
-            raise RuntimeError("VideoRecorder requires ROS2 and cv2.")
-        self._output_dir = Path(output_dir)
-        self._scenario_index = scenario_index
-        self._bridge = CvBridge()
-        self._frames: list[Any] = []
-        self.is_recording = False
-
-    def start(self) -> None:
-        """Begin accumulating frames."""
-        self._frames.clear()
-        self.is_recording = True
-
-    def handle_image(self, msg: Any) -> None:
-        """ROS2 image callback — appends the decoded frame if recording."""
-        if not self.is_recording:
-            return
-        frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-        self._frames.append(frame)
-
-    def stop_and_save(self) -> Path | None:
-        """Stop recording and write frames to an MP4 file.
-
-        Returns:
-            Path to the saved video, or None if no frames were captured.
-        """
-        self.is_recording = False
-        if not self._frames:
-            return None
-
-        video_file = self._output_dir / (
-            f"{FilePaths.SCENARIO_PREFIX}{self._scenario_index:04d}{FileExtensions.MP4}"
-        )
-        height, width = self._frames[0].shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(str(video_file), fourcc, 30.0, (width, height))
-        try:
-            for frame in self._frames:
-                writer.write(frame)
-        finally:
-            writer.release()
-        return video_file
 
 
 # Private helpers

@@ -4,13 +4,6 @@ Test different camera orientations to find the correct one.
 Generates scenarios with different camera poses to test.
 """
 
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-
 # Test orientations (Roll, Pitch, Yaw in radians)
 TEST_ORIENTATIONS = {
     "default": "0 0 0",

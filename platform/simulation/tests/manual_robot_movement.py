@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""
-Quick test to verify robot Ackermann steering is working
-Sends simple movement commands to test steering and forward motion.
-Ackermann requires forward speed to turn (no in-place pivot).
+"""Manual Gazebo integration script — verifies Ackermann steering over ROS2.
+
+Requires a live Gazebo session with the robot model loaded.
+Run with: pixi run python simulation/tests/manual_robot_movement.py
+
+NOT a pytest test — does not run in CI.
 """
 
 import time

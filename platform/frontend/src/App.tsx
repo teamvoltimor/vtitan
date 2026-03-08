@@ -246,6 +246,7 @@ function App() {
   const [liveMode, setLiveMode] = useState(true)
   const [sessions, setSessions] = useState<ReplaySessionInfo[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
   const liveInterval = useRef<number | null>(null)
 
   useEffect(() => {
@@ -262,6 +263,7 @@ function App() {
         setHistory(historyPayload)
         setSessions(recordedSessions)
         setTimelineIndex(historyPayload.length - 1)
+        setError(null)
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : 'Unable to load telemetry')
@@ -271,7 +273,7 @@ function App() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [retryCount])
 
   useEffect(() => {
     if (liveInterval.current) {
@@ -329,7 +331,12 @@ function App() {
   }
 
   if (error) {
-    return <div className="shell-loading">{error}</div>
+    return (
+      <div className="shell-loading">
+        <p>{error}</p>
+        <button type="button" onClick={() => setRetryCount((c) => c + 1)}>Retry</button>
+      </div>
+    )
   }
 
   if (!snapshot) {

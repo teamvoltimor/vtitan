@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 SCRIPTS_DIR = Path(__file__).parent
+PLATFORM_DIR = SCRIPTS_DIR.parent.parent
 PARAMS_FILE = SCRIPTS_DIR / "navigator_params.json"
 
 # ---------------------------------------------------------------------------
@@ -533,7 +534,7 @@ def find_metadata(scenario_id: int, challenge: str, search_dirs: list[Path]) -> 
 
 def challenge_search_dirs(challenge: str) -> list[Path]:
     """Return candidate metadata directories based on challenge type."""
-    training_root = SCRIPTS_DIR / "training_data"
+    training_root = PLATFORM_DIR / "training_data"
     challenges = ["open", "obstacles"] if challenge == "all" else [challenge]
     dirs = []
     for ch in challenges:
@@ -552,7 +553,8 @@ def launch_navigator(metadata_path: Path, laps: int) -> subprocess.Popen:
     """Start navigator subprocess, returning the Popen object."""
     cmd = [
         sys.executable,
-        str(SCRIPTS_DIR / "track_navigator.py"),
+        str(PLATFORM_DIR / "robot" / "main.py"),
+        "navigate",
         "--metadata",
         str(metadata_path),
         "--laps",

@@ -31,6 +31,9 @@ Telemetry API server — exposes robot state snapshots over HTTP.
 cd backend
 uv sync               # first time only
 uv run python main.py
+
+# Run tests
+uv run --extra dev pytest
 ```
 
 Runs on `http://localhost:8010`. Environment variables:
@@ -129,7 +132,9 @@ pixi install          # first time only — installs ROS2 Kilted via RoboStack
 ### Run the navigator
 
 ```bash
-pixi run python main.py --metadata ../training_data/open/scenarios/scenario_0000_metadata.json
+pixi run navigate
+# or explicitly:
+pixi run python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json
 ```
 
 | Flag | Default | Description |
@@ -137,6 +142,20 @@ pixi run python main.py --metadata ../training_data/open/scenarios/scenario_0000
 | `--metadata` | required | Path to scenario metadata JSON |
 | `--laps` | `3` | Number of laps to complete |
 | `--params` | none | Optional `navigator_params.json` for runtime overrides |
+
+### Run the simple driver
+
+```bash
+pixi run drive
+# or explicitly:
+pixi run python main.py drive --direction clockwise --duration 30
+```
+
+### Run tests (no ROS2 needed)
+
+```bash
+pixi run test
+```
 
 ---
 
@@ -156,5 +175,5 @@ cd ../backend && uv run python main.py
 cd ../frontend && npm run dev
 
 # 5. Run the navigator on a scenario (separate terminal)
-cd ../robot && pixi run python main.py --metadata ../training_data/open/scenarios/scenario_0000_metadata.json
+cd ../robot && pixi run navigate
 ```

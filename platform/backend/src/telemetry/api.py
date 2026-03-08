@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -12,8 +13,13 @@ from src.telemetry.recorder import ReplaySessionInfo, TelemetryRecorder
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
-_sessions_dir = os.environ.get("TELEMETRY_SESSIONS_DIR", "./telemetry_sessions")
-_recorder = TelemetryRecorder(base_dir=_sessions_dir)
+_BACKEND_ROOT = Path(__file__).parent.parent.parent
+_sessions_dir = Path(os.environ.get(
+    "TELEMETRY_SESSIONS_DIR",
+    str(_BACKEND_ROOT / "telemetry_sessions"),
+))
+_max_sessions = int(os.environ.get("TELEMETRY_MAX_SESSIONS", "20"))
+_recorder = TelemetryRecorder(base_dir=_sessions_dir, max_sessions=_max_sessions)
 _generator = TelemetryGenerator(recorder=_recorder)
 
 

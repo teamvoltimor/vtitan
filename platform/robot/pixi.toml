@@ -25,5 +25,7 @@ default = { features = [], solve-group = "default" }
 dev     = { features = ["dev"], solve-group = "default" }
 
 [tasks]
-navigate = "python main.py --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
+navigate = "python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
+drive    = "python main.py drive"
 lint     = "ruff check src/"
+test     = { cmd = "pytest tests/", env = { PYTHONPATH = "." } }
