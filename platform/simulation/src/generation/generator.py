@@ -138,8 +138,7 @@ class ScenarioGenerator:
 
         return world_file, metadata
 
-    # ── Private helpers ───────────────────────────────────────────────────
-
+    # Private helpers
     def _resolve_corridor_widths(
         self,
         randomize_all: bool,
@@ -309,9 +308,7 @@ class VideoRecorder:
         return video_file
 
 
-# ── Private helpers ───────────────────────────────────────────────────────────
-
-
+# Private helpers
 def _build_randomization_config() -> dict[str, Any]:
     return {
         DictKeys.COLORS: {

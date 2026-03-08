@@ -19,7 +19,6 @@ from typing import Literal
 
 import rclpy
 from geometry_msgs.msg import Twist
-from rclpy.exceptions import RCLError
 from rclpy.node import Node
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class SimpleRobotDriver(Node):
 
         self.create_timer(_LOOP_PERIOD, self._control_loop)
         self.get_logger().info(
-            f"Robot driver started: {direction} direction, {duration}s duration",
+            "Robot driver started: %s direction, %ss duration", direction, duration,
         )
 
     def _control_loop(self) -> None:
@@ -131,11 +130,11 @@ def main() -> None:
         if driver is not None:
             try:
                 driver.destroy_node()
-            except (RCLError, RuntimeError):
+            except RuntimeError:
                 logger.warning("Exception during node teardown", exc_info=True)
         try:
             rclpy.shutdown()
-        except (RCLError, RuntimeError):
+        except RuntimeError:
             logger.warning("Exception during rclpy shutdown", exc_info=True)
 
 

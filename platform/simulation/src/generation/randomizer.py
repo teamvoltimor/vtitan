@@ -176,8 +176,7 @@ class ScenarioRandomizer:
         return positions, colors
 
 
-# ── Private pure helpers ──────────────────────────────────────────────────────
-
+# Private pure helpers
 def _build_width_entry(width_type: str) -> dict[str, Any]:
     width = ScenarioRandomizer.CORRIDOR_WIDTH_MAP[width_type]
     return {DictKeys.TYPE: width_type, DictKeys.WIDTH: width}

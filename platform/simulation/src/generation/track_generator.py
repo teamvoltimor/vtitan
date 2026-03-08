@@ -17,8 +17,7 @@ from xml.etree import ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
-# ── WRO 2026 track constants ───────────────────────────────────────────────────
-
+# WRO 2026 track constants
 # Mat and track dimensions (metres)
 _MAT_SIZE = 3.2  # full mat (including border)
 _TRACK_SIZE = 3.0  # inner track (wall-to-wall)
@@ -84,9 +83,7 @@ def generate_track_sdf(output_path: str | Path = "worlds/wro_track_2026.sdf") ->
     return output_path.resolve()
 
 
-# ── Section builders ───────────────────────────────────────────────────────────
-
-
+# Section builders
 def _add_physics(world: ET.Element) -> None:
     physics = ET.SubElement(world, "physics", name="default_physics", default="true", type="ode")
     _text(ET.SubElement(physics, "max_step_size"), "0.001")
@@ -301,9 +298,7 @@ def _corridor_line(
     _material(vis, _GREY_SUBDIV)
 
 
-# ── XML construction helpers ───────────────────────────────────────────────────
-
-
+# XML construction helpers
 def _static_model(parent: ET.Element, name: str, pose: str) -> ET.Element:
     model = ET.SubElement(parent, "model", name=name)
     _text(ET.SubElement(model, "static"), "true")

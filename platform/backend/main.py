@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 import uvicorn
 
-from src.telemetry.server import app
-
 
 def main() -> None:
     """Bootstrap the FastAPI server that exposes telemetry APIs."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s %(message)s",
+    )
     port = int(os.environ.get("TELEMETRY_PORT", "8010"))
     uvicorn.run(
         "src.telemetry.server:app",

@@ -38,8 +38,7 @@ class SDFBuilder:
     def __init__(self, challenge_type: ScenarioType) -> None:
         self._challenge_type = challenge_type
 
-    # ── System plugins ────────────────────────────────────────────────────
-
+    # System plugins
     def add_system_plugins(self, world: ET.Element) -> None:
         """Inject Sensors and Physics system plugins if not already present.
 
@@ -63,8 +62,7 @@ class SDFBuilder:
             )
             world.insert(1, physics)
 
-    # ── Lighting ──────────────────────────────────────────────────────────
-
+    # Lighting
     def apply_lighting(
         self,
         world: ET.Element,
@@ -91,8 +89,7 @@ class SDFBuilder:
             amb = max(0.0, min(1.0, lighting[DictKeys.AMBIENT_INTENSITY]))
             ambient.find("diffuse").text = f"{amb} {amb} {amb} 1"
 
-    # ── Interior walls ────────────────────────────────────────────────────
-
+    # Interior walls
     def add_interior_walls(
         self,
         world: ET.Element,
@@ -154,8 +151,7 @@ class SDFBuilder:
                 _build_wall_model(name, cx, cy, vis_x, vis_y, col_x, col_y),
             )
 
-    # ── Traffic signs ─────────────────────────────────────────────────────
-
+    # Traffic signs
     def add_traffic_signs(
         self,
         world: ET.Element,
@@ -194,8 +190,7 @@ class SDFBuilder:
             )
             world.append(model)
 
-    # ── Parking lot ───────────────────────────────────────────────────────
-
+    # Parking lot
     def add_parking_lot(
         self,
         world: ET.Element,
@@ -224,8 +219,7 @@ class SDFBuilder:
             _add_box_collision(link, *block_dims)
             world.append(model)
 
-    # ── Starting zone ─────────────────────────────────────────────────────
-
+    # Starting zone
     def add_starting_zone(
         self,
         world: ET.Element,
@@ -308,8 +302,7 @@ class SDFBuilder:
         # Sync starting position with actual spawn point
         starting_conditions[DictKeys.POSITION] = (zone_x, zone_y)
 
-    # ── Robot model ───────────────────────────────────────────────────────
-
+    # Robot model
     def add_robot_model(
         self,
         world: ET.Element,
@@ -340,9 +333,7 @@ class SDFBuilder:
         world.append(robot_model)
 
 
-# ── Private XML helpers ───────────────────────────────────────────────────────
-
-
+# Private XML helpers
 def _build_wall_model(
     name: str,
     cx: float,
@@ -478,9 +469,7 @@ def _zone_from_parking(
     return zone_length, zone_x, zone_y
 
 
-# ── Robot model sub-builders ──────────────────────────────────────────────────
-
-
+# Robot model sub-builders
 def _build_chassis(robot_model: ET.Element) -> None:
     half_h = RobotSpecs.HEIGHT / 2
     cm = RobotSpecs.CHASSIS_MASS

@@ -31,17 +31,27 @@ class ReplaySessionInfo(BaseModel):
     )
 
 
+_DEFAULT_MAX_SESSIONS = 20
+
+
 class TelemetryRecorder:
     """Persist telemetry frames to disk and enumerate replay history."""
 
-    def __init__(self, base_dir: Path | str, session_id: str | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: Path | str,
+        session_id: str | None = None,
+        max_sessions: int = _DEFAULT_MAX_SESSIONS,
+    ) -> None:
         base_dir = Path(base_dir)
         base_dir.mkdir(parents=True, exist_ok=True)
         self._base_dir = base_dir
+        self._max_sessions = max_sessions
         self._session_id = session_id or f"session_{int(time.time())}"
         self._file_path = self._base_dir / f"{self._session_id}.jsonl"
         self._entry_count = self._count_lines(self._file_path)
         self._file: IO[str] = self._file_path.open("a", encoding="utf-8")
+        self._evict_old_sessions()
 
     def __enter__(self) -> Self:
         """Return the recorder while entering the context manager."""
@@ -71,6 +81,12 @@ class TelemetryRecorder:
     def close(self) -> None:
         """Close the associated file handle."""
         self._file.close()
+
+    def _evict_old_sessions(self) -> None:
+        """Delete the oldest sessions when the total exceeds max_sessions."""
+        sessions = sorted(self._base_dir.glob("session_*.jsonl"))
+        for path in sessions[: max(0, len(sessions) - self._max_sessions)]:
+            path.unlink(missing_ok=True)
 
     def list_sessions(self) -> Sequence[ReplaySessionInfo]:
         """Return metadata for every recorded session in the base directory."""
@@ -109,8 +125,7 @@ class TelemetryRecorder:
 
     @staticmethod
     def _count_lines(path: Path) -> int:
-        """Return the number of lines in *path* if it exists."""
+        """Return the number of non-empty lines in *path* if it exists."""
         if not path.exists():
             return 0
-        with path.open("r", encoding="utf-8") as fh:
-            return sum(1 for _ in fh)
+        return path.read_bytes().count(b"\n")

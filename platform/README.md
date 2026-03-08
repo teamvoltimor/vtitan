@@ -33,7 +33,15 @@ uv sync               # first time only
 uv run python main.py
 ```
 
-Runs on `http://localhost:8010`. Override port with `TELEMETRY_PORT=<port>`.
+Runs on `http://localhost:8010`. Environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TELEMETRY_PORT` | `8010` | Server port |
+| `TELEMETRY_SESSIONS_DIR` | `./telemetry_sessions` | Session storage directory |
+| `TELEMETRY_RELOAD` | `0` | Set to `1` to enable hot-reload (dev only) |
+
+Sessions are kept up to a maximum of 20 (oldest evicted automatically).
 
 **Endpoints**
 
@@ -57,6 +65,13 @@ npm run dev
 ```
 
 Runs on `http://localhost:5173`.
+
+The frontend reads configuration from `frontend/.env.development` (already committed):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_TELEMETRY_BASE` | `http://localhost:8010` | Backend URL |
+| `VITE_POLL_INTERVAL_MS` | `2500` | Live telemetry poll interval (ms) |
 
 ---
 

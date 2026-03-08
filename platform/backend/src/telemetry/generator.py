@@ -84,9 +84,9 @@ class TelemetryGenerator:
         return snapshot
 
     def _calc_robot_position(self, orientation: float) -> Position3D:
-        radius = 1.5 + math.sin(self._frame * 0.08) * 0.4
-        x = radius * math.cos(orientation)
-        y = radius * math.sin(orientation)
+        radius = 0.9 + math.sin(self._frame * 0.08) * 0.2
+        x = 1.5 + radius * math.cos(orientation)
+        y = 1.5 + radius * math.sin(orientation)
         return (x, y, 0.0)
 
     def _generate_lidar_points(self, robot_position: Position3D) -> list[Position3D]:

@@ -25,5 +25,5 @@ default = { features = [], solve-group = "default" }
 dev     = { features = ["dev"], solve-group = "default" }
 
 [tasks]
-navigate = "python -m src.navigation.navigator"
+navigate = "python main.py --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
 lint     = "ruff check src/"

@@ -12,6 +12,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import numpy as np
+
 from src.config.constants import DictKeys, TrackDimensions
 from src.config.enums import Direction
 
@@ -48,12 +50,14 @@ def calculate_waypoints(
     # convert at the boundary so all helpers receive the typed enum.
     direction = Direction.from_string(starting[DictKeys.DIRECTION])
 
-    # Convert corridor widths from mm to meters
-    mm_to_m = 1.0 / 1000.0
-    north_width = corridor_widths["north"][DictKeys.WIDTH_MM] * mm_to_m
-    south_width = corridor_widths["south"][DictKeys.WIDTH_MM] * mm_to_m
-    east_width = corridor_widths["east"][DictKeys.WIDTH_MM] * mm_to_m
-    west_width = corridor_widths["west"][DictKeys.WIDTH_MM] * mm_to_m
+    widths = {
+        side: corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0
+        for side in ("north", "south", "east", "west")
+    }
+    north_width = widths["north"]
+    south_width = widths["south"]
+    east_width = widths["east"]
+    west_width = widths["west"]
 
     track_max = TrackDimensions.MAX_COORD
     north_cy = track_max - north_width / 2 + _OUTER_WALL_BIAS
@@ -89,9 +93,7 @@ def calculate_waypoints(
     )
 
 
-# ── Segment builders ──────────────────────────────────────────────────────────
-
-
+# Segment builders
 def _build_all_segments(
     north_cy: float,
     south_cy: float,
@@ -189,14 +191,9 @@ def _nearest_waypoint_index(
     x: float,
     y: float,
 ) -> int:
-    min_dist = float("inf")
-    nearest_index = 0
-    for index, (wx, wy) in enumerate(waypoints):
-        dist = math.sqrt((wx - x) ** 2 + (wy - y) ** 2)
-        if dist < min_dist:
-            min_dist = dist
-            nearest_index = index
-    return nearest_index
+    pts = np.array(waypoints)
+    deltas = pts - np.array([x, y])
+    return int(np.argmin((deltas ** 2).sum(axis=1)))
 
 
 def _deduplicate_consecutive(
@@ -213,9 +210,7 @@ def _deduplicate_consecutive(
     return deduped
 
 
-# ── Geometry helpers ──────────────────────────────────────────────────────────
-
-
+# Geometry helpers
 def _arc_with_endpoints(
     center: tuple[float, float],
     radius: float,

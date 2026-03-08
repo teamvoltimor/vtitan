@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Pixi environment
+.pixi/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Generated data (created by simulation, consumed by robot)
+training_data/
+
+# Runtime data (created by backend at runtime)
+telemetry_sessions/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment overrides (keep .env.development as it's safe to commit)
+.env
+.env.local
+.env.*.local

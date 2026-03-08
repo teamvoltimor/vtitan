@@ -4,7 +4,7 @@ Navigates the robot around the WRO 2026 track for a configurable number of
 laps using pure-pursuit waypoint following and LIDAR-based collision avoidance.
 
 Usage:
-    python -m src.navigation.navigator --metadata scenario_0000_metadata.json --laps 3
+    python main.py --metadata scenario_0000_metadata.json --laps 3
 """
 
 from __future__ import annotations
@@ -34,8 +34,7 @@ from src.navigation.waypoints import calculate_waypoints
 
 logger = logging.getLogger(__name__)
 
-# ── Navigation tuning ─────────────────────────────────────────────────────────
-
+# Navigation tuning
 # Forward clearance thresholds for speed scaling (metres).
 _FWD_CONTACT_DIST = 0.10
 _FWD_SLOW_DIST = 0.25
@@ -121,45 +120,45 @@ class TrackNavigator(Node):
         self._num_laps = num_laps
         self._is_open_challenge = self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
-        # ── Ackermann geometry ────────────────────────────────────────
+        # Ackermann geometry
         self._max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE
         self._max_linear_speed: float = 0.50
         self._min_forward_speed: float = 0.08
         self._waypoint_threshold: float = 0.20
 
-        # ── World-frame origin (odometry starts at 0,0 each run) ──────
+        # World-frame origin (odometry starts at 0,0 each run)
         start_cond = self._metadata[DictKeys.STARTING_CONDITIONS]
         self._start_x: float = start_cond[DictKeys.POSITION][DictKeys.X]
         self._start_y: float = start_cond[DictKeys.POSITION][DictKeys.Y]
         self._start_yaw: float = start_cond[DictKeys.YAW]
 
-        # ── Robot state ───────────────────────────────────────────────
+        # Robot state
         self._current_pos: tuple[float, float] | None = None
         self._current_yaw: float | None = None
 
-        # ── LIDAR state ───────────────────────────────────────────────
+        # LIDAR state
         self._lidar_ranges: np.ndarray | None = None
         self._lidar_angles: np.ndarray | None = None
 
-        # ── Collision avoidance parameters ────────────────────────────
+        # Collision avoidance parameters
         self._critical_distance: float = 0.07
         self._safe_distance: float = 0.15
         self._fwd_critical_lidar_count: int = 0
         self._fwd_critical_lidar_threshold: int = 2
 
-        # ── Wall escape state ─────────────────────────────────────────
+        # Wall escape state
         self._escape_mode: bool = False
         self._escape_counter: int = 0
         self._escape_duration: int = 10
         self._escape_steer_sign: int = 1
 
-        # ── Obstacle escape state ─────────────────────────────────────
+        # Obstacle escape state
         self._obstacle_escape: bool = False
         self._obstacle_escape_counter: int = 0
         self._obstacle_escape_duration: int = 12
         self._obstacle_escape_sign: int = 0
 
-        # ── Repeat-escape detection ───────────────────────────────────
+        # Repeat-escape detection
         self._obstacle_escape_positions: list[tuple[float, float]] = []
         self._obstacle_repeat_radius: float = 0.15
         self._obstacle_repeat_limit: int = 2
@@ -168,7 +167,7 @@ class TrackNavigator(Node):
         self._critical_repeat_radius: float = 0.25
         self._critical_repeat_limit: int = 3
 
-        # ── Waypoint tracking ─────────────────────────────────────────
+        # Waypoint tracking
         self._waypoints: list[tuple[float, float]] = calculate_waypoints(
             self._metadata,
             num_laps,
@@ -177,14 +176,14 @@ class TrackNavigator(Node):
         self._prev_waypoint_dist: float = float("inf")
         self._dist_increasing_count: int = 0
 
-        # ── Stuck detection ───────────────────────────────────────────
+        # Stuck detection
         self._stuck_check_pos: tuple[float, float] | None = None
         self._stuck_seconds: int = 0
 
-        # ── Debug counter ─────────────────────────────────────────────
+        # Debug counter
         self._log_counter: int = 0
 
-        # ── ROS2 interfaces ───────────────────────────────────────────
+        # ROS2 interfaces
         self._vel_publisher = self.create_publisher(
             Twist,
             "/wro_robot/cmd_vel",
@@ -211,8 +210,7 @@ class TrackNavigator(Node):
             f"Navigator ready: {len(self._waypoints)} waypoints, {num_laps} lap(s)",
         )
 
-    # ── ROS2 callbacks ─────────────────────────────────────────────────────────
-
+    # ROS2 callbacks
     def _odom_callback(self, msg: Odometry) -> None:
         """Transform odometry from robot frame to world frame."""
         odom_x = msg.pose.pose.position.x
@@ -246,8 +244,7 @@ class TrackNavigator(Node):
             self._fwd_critical_lidar_count,
         )
 
-    # ── Control loop ───────────────────────────────────────────────────────────
-
+    # Control loop
     def _control_loop(self) -> None:
         """20 Hz control loop: waypoint following + collision avoidance."""
         if self._current_pos is None or self._current_yaw is None:
@@ -309,8 +306,7 @@ class TrackNavigator(Node):
         self._vel_publisher.publish(vel_msg)
         self._log_counter += 1
 
-    # ── Velocity command builder ────────────────────────────────────────────────
-
+    # Velocity command builder
     def _build_velocity_command(
         self,
         robot_x: float,
@@ -354,8 +350,7 @@ class TrackNavigator(Node):
 
         return self._navigate_normally(dx, dy, distances, angle_error)
 
-    # ── Escape maneuver logic ──────────────────────────────────────────────────
-
+    # Escape maneuver logic
     def _execute_wall_escape(self) -> Twist:
         """Reverse-only K-turn away from a wall."""
         self._escape_counter += 1
@@ -496,8 +491,7 @@ class TrackNavigator(Node):
         else:
             self.get_logger().info(f"Obstacle escape complete ({nearby + 1} at spot)")
 
-    # ── Normal navigation ──────────────────────────────────────────────────────
-
+    # Normal navigation
     def _navigate_normally(
         self,
         dx: float,
@@ -574,8 +568,7 @@ class TrackNavigator(Node):
         raw_speed = self._max_linear_speed * min(speed_fwd, speed_angle)
         return max(raw_speed, self._min_forward_speed)
 
-    # ── Waypoint tracking helpers ──────────────────────────────────────────────
-
+    # Waypoint tracking helpers
     def _has_passed_waypoint(
         self,
         robot_x: float,
@@ -746,8 +739,7 @@ class TrackNavigator(Node):
         self._dist_increasing_count = 0
         self._critical_escape_positions.clear()
 
-    # ── Stop and parameter helpers ─────────────────────────────────────────────
-
+    # Stop and parameter helpers
     def _publish_stop(self) -> None:
         """Publish a zero-velocity Twist."""
         self._vel_publisher.publish(_make_twist(0.0, 0.0))
@@ -774,9 +766,7 @@ class TrackNavigator(Node):
         self.get_logger().info(f"Loaded param overrides: {overrides}")
 
 
-# ── Pure helper functions ──────────────────────────────────────────────────────
-
-
+# Pure helper functions
 def _load_json(path: str | Path) -> dict[str, Any]:
     path_obj = path if isinstance(path, Path) else Path(path)
     with path_obj.open() as fh:

@@ -4,8 +4,16 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import './App.css'
 
-import type { ReplaySessionInfo, RobotSnapshot } from './types'
+import type { Position3D, ReplaySessionInfo, RobotSnapshot } from './types'
 import { fetchLatestTelemetry, fetchHistory, fetchSession, fetchSessions } from './api/telemetry'
+
+/**
+ * Map simulation coords (origin bottom-left, 0–3 range) to Three.js (XZ floor, Y up).
+ * Subtracts the track centre (1.5, 1.5) so the floor mesh centred at origin lines up.
+ */
+const simToThree = ([x, y, z]: Position3D): [number, number, number] => [x - 1.5, z, -(y - 1.5)]
+
+const POLL_INTERVAL_MS = Number(import.meta.env.VITE_POLL_INTERVAL_MS ?? 2500)
 
 const colors = {
   background: '#050b12',
@@ -17,7 +25,8 @@ const colors = {
 function LiDARPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
   const positions = useMemo(() => {
     const data = new Float32Array(snapshot.lidarPoints.length * 3)
-    snapshot.lidarPoints.forEach(([x, y, z], index) => {
+    snapshot.lidarPoints.forEach((pt, index) => {
+      const [x, y, z] = simToThree(pt)
       data[index * 3 + 0] = x
       data[index * 3 + 1] = y
       data[index * 3 + 2] = z
@@ -40,7 +49,10 @@ function LiDARPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
 function RobotPath({ snapshot }: { snapshot: RobotSnapshot }) {
   const curve = useMemo(
     () => {
-      const pts = snapshot.pathHistory.map(([x, y]) => new THREE.Vector3(x, y, 0.03))
+      const pts = snapshot.pathHistory.map((pt) => {
+        const [x, y, z] = simToThree(pt)
+        return new THREE.Vector3(x, y + 0.03, z)
+      })
       return pts.length >= 2 ? new THREE.CatmullRomCurve3(pts) : null
     },
     [snapshot]
@@ -63,8 +75,8 @@ function RobotPath({ snapshot }: { snapshot: RobotSnapshot }) {
 
 function Robot({ snapshot }: { snapshot: RobotSnapshot }) {
   return (
-    <mesh position={snapshot.robotPosition} rotation={[0, 0, snapshot.robotOrientation]}>
-      <boxGeometry args={[0.2, 0.14, 0.08]} />
+    <mesh position={simToThree(snapshot.robotPosition)} rotation={[0, -snapshot.robotOrientation, 0]}>
+      <boxGeometry args={[0.2, 0.08, 0.14]} />
       <meshStandardMaterial color="#f3c677" emissive="#e57f2e" />
     </mesh>
   )
@@ -73,8 +85,8 @@ function Robot({ snapshot }: { snapshot: RobotSnapshot }) {
 function TrackFloor() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[6, 6]} />
-      <meshStandardMaterial color="#111b27" metalness={0.4} roughness={0.7} />
+      <planeGeometry args={[3.2, 3.2]} />
+      <meshStandardMaterial color="#111b27" metalness={0.4} roughness={0.7} side={THREE.DoubleSide} />
     </mesh>
   )
 }
@@ -89,8 +101,8 @@ function SceneCanvas({ snapshot }: { snapshot: RobotSnapshot }) {
       <LiDARPointCloud snapshot={snapshot} />
       <RobotPath snapshot={snapshot} />
       <Robot snapshot={snapshot} />
-      <PerspectiveCamera makeDefault position={[0, -4, 2.4]} fov={45} />
-      <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2.4} />
+      <PerspectiveCamera makeDefault position={[0, 5, 3]} fov={45} />
+      <OrbitControls enablePan={false} maxPolarAngle={Math.PI / 2.1} />
     </Canvas>
   )
 }
@@ -217,8 +229,8 @@ function Sidebar({
           <span>Node Bridge</span>
         </div>
         <ul>
-          {snapshot.logs.map((log) => (
-            <li key={log}>{log}</li>
+          {snapshot.logs.map((log, i) => (
+            <li key={i}>{log}</li>
           ))}
         </ul>
       </div>
@@ -269,9 +281,13 @@ function App() {
 
     if (liveMode) {
       liveInterval.current = window.setInterval(async () => {
-        const fresh = await fetchLatestTelemetry()
+        const [fresh, updatedSessions] = await Promise.all([
+          fetchLatestTelemetry(),
+          fetchSessions(),
+        ])
         setSnapshot(fresh)
-      }, 2500)
+        setSessions(updatedSessions)
+      }, POLL_INTERVAL_MS)
     }
 
     return () => {
@@ -300,12 +316,16 @@ function App() {
   }
 
   const loadSession = async (sessionId: string) => {
-    const sessionSnapshots = await fetchSession(sessionId)
-    setHistory(sessionSnapshots)
-    setTimelineIndex(sessionSnapshots.length - 1)
-    setSelectedSessionId(sessionId)
-    setLiveMode(false)
-    setSnapshot(sessionSnapshots[sessionSnapshots.length - 1])
+    try {
+      const sessionSnapshots = await fetchSession(sessionId)
+      setHistory(sessionSnapshots)
+      setTimelineIndex(sessionSnapshots.length - 1)
+      setSelectedSessionId(sessionId)
+      setLiveMode(false)
+      setSnapshot(sessionSnapshots[sessionSnapshots.length - 1])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to load session ${sessionId}`)
+    }
   }
 
   if (error) {
