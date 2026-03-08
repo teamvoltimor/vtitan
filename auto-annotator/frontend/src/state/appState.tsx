@@ -15,6 +15,11 @@ import {
   skipImage as apiSkipImage,
   type SegmentationPoint,
   segmentImage,
+  getClasses,
+  upsertClass,
+  getModels,
+  type ClassItem,
+  type ModelItem,
 } from '../api/client';
 
 /* eslint-disable react-refresh/only-export-components */
@@ -59,8 +64,8 @@ interface AppStateContextValue {
   setActiveClass: (value: string | null) => void;
   classes: string[];
   classColors: Record<string, string>;
-  addClass: (name: string) => void;
-  updateClassColor: (name: string, color: string) => void;
+  addClass: (name: string, color: string) => Promise<void>;
+  updateClassColor: (name: string, color: string) => Promise<void>;
   logEntries: string[];
   pushLog: (entry: string) => void;
   stats: { processed: string; skipped: string; labels: string };
@@ -96,15 +101,11 @@ interface AppStateContextValue {
   clearSegmentationPreview: () => void;
   saveAndNext: () => Promise<void>;
   skipAndNext: () => Promise<void>;
+  goToPrev: () => void;
+  acceptMask: () => void;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
-
-const modelOptions: ModelOption[] = [
-  { id: 'sam_vit_b', label: 'SAM ViT-B' },
-  { id: 'sam_vit_l', label: 'SAM ViT-L' },
-  { id: 'sam_vit_h', label: 'SAM ViT-H' },
-];
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [zoom, setZoom] = useState(1);
@@ -112,12 +113,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [exportFormat, setExportFormat] = useState<ExportFormat>('segmentation');
   const [maskLevel, setMaskLevel] = useState('Object (1)');
   const [activeClass, setActiveClass] = useState<string | null>(null);
-  const [classes, setClasses] = useState(['red_prism', 'green_prism', 'magenta_prism']);
-  const [classColors, setClassColors] = useState<Record<string, string>>({
-    red_prism: '#ee2737',
-    green_prism: '#44d62c',
-    magenta_prism: '#ff00ff',
-  });
+  const [classes, setClasses] = useState<string[]>([]);
+  const [classColors, setClassColors] = useState<Record<string, string>>({});
   const [logEntries, setLogEntries] = useState<string[]>(['Ready.']);
   const [stats, setStats] = useState({ processed: '0', skipped: '0', labels: '0' });
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
@@ -125,7 +122,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('List');
   const [outlineMode, setOutlineMode] = useState<OutlineMode>('Class color');
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
-  const [selectedModel, setSelectedModel] = useState(modelOptions[0].id);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
   const [modelStatus, setModelStatus] = useState('No model loaded');
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>('auto');
   const [annotationPoints, setAnnotationPoints] = useState<AnnotationPoint[]>([]);
@@ -168,22 +166,30 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     []
   );
 
+  const _applyClasses = useCallback((items: ClassItem[]) => {
+    setClasses(items.map((c) => c.name));
+    setClassColors(
+      Object.fromEntries(items.map((c) => [c.name, c.color]))
+    );
+  }, []);
+
   const addClass = useCallback(
-    (name: string) => {
-      setClasses((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    async (name: string, color: string) => {
+      const items = await upsertClass(name, color);
+      _applyClasses(items);
       setActiveClass(name);
-      setClassColors((prev) => ({ ...prev, [name]: '#fe9664' }));
       recordAction(`Created class ${name}`);
     },
-    [recordAction]
+    [_applyClasses, recordAction],
   );
 
   const updateClassColor = useCallback(
-    (name: string, color: string) => {
-      setClassColors((prev) => ({ ...prev, [name]: color }));
+    async (name: string, color: string) => {
+      const items = await upsertClass(name, color);
+      _applyClasses(items);
       recordAction(`Updated color for ${name}`);
     },
-    [recordAction]
+    [_applyClasses, recordAction],
   );
 
   const _handleGalleryResponse = useCallback((response: GalleryResponse) => {
@@ -224,6 +230,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const load = async () => {
       await refreshGallery();
+      const [classItems, modelItems] = await Promise.all([getClasses(), getModels()]);
+      _applyClasses(classItems);
+      setModels(modelItems.map((m: ModelItem) => ({ id: m.id, label: m.label })));
     };
     void load();
   }, [refreshGallery]);
@@ -319,13 +328,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }, [recordAction]);
 
   const _advanceNext = useCallback(
-    (response: GalleryResponse, actionLabel: string) => {
+    (response: GalleryResponse, currentId: number, actionLabel: string) => {
       _handleGalleryResponse(response);
       setSegmentationPreview([]);
       setAnnotationPoints([]);
       setSegmentationStatus('idle');
       setSegmentationMessage('');
-      const nextItem = response.items.find((item) => item.status === 'pending');
+      const nextItem =
+        response.items.find((item) => item.status === 'pending' && item.id > currentId) ??
+        response.items.find((item) => item.status === 'pending');
       setSelectedGalleryItem(nextItem ?? null);
       recordAction(actionLabel);
     },
@@ -334,9 +345,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const saveAndNext = useCallback(async () => {
     if (!selectedGalleryItem || segmentationPreview.length === 0) return;
+    const currentId = selectedGalleryItem.id;
     try {
       const response = await saveAnnotations(selectedGalleryItem.id, exportFormat, segmentationPreview);
-      _advanceNext(response, `Saved ${selectedGalleryItem.label}`);
+      _advanceNext(response, currentId, `Saved ${selectedGalleryItem.label}`);
     } catch (error) {
       recordAction(`Save failed: ${(error as Error).message}`);
     }
@@ -344,13 +356,27 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const skipAndNext = useCallback(async () => {
     if (!selectedGalleryItem) return;
+    const currentId = selectedGalleryItem.id;
     try {
       const response = await apiSkipImage(selectedGalleryItem.id);
-      _advanceNext(response, `Skipped ${selectedGalleryItem.label}`);
+      _advanceNext(response, currentId, `Skipped ${selectedGalleryItem.label}`);
     } catch (error) {
       recordAction(`Skip failed: ${(error as Error).message}`);
     }
   }, [selectedGalleryItem, _advanceNext, recordAction]);
+
+  const goToPrev = useCallback(() => {
+    if (!selectedGalleryItem) return;
+    const prev = [...gallery].reverse().find((item) => item.id < selectedGalleryItem.id);
+    if (prev) setSelectedGalleryItem(prev);
+  }, [selectedGalleryItem, gallery]);
+
+  const acceptMask = useCallback(() => {
+    setAnnotationPoints([]);
+    setSegmentationStatus('idle');
+    setSegmentationMessage('');
+    recordAction('Accepted mask');
+  }, [recordAction]);
 
   const value = useMemo(
     () => ({
@@ -384,7 +410,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       timeline,
       pushTimeline,
       recordAction,
-      models: modelOptions,
+      models,
       selectedModel,
       modelStatus,
       loadModel,
@@ -403,6 +429,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       clearSegmentationPreview,
       saveAndNext,
       skipAndNext,
+      goToPrev,
+      acceptMask,
     }),
     [
       zoom,
@@ -419,6 +447,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       viewMode,
       outlineMode,
       timeline,
+      models,
       selectedModel,
       modelStatus,
       annotationMode,
@@ -443,6 +472,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       clearSegmentationPreview,
       saveAndNext,
       skipAndNext,
+      goToPrev,
+      acceptMask,
       _advanceNext,
     ]
   );

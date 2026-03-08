@@ -24,7 +24,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from src import db
-from src.constants import API_PUBLIC_URL, DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR
+from src.constants import API_PUBLIC_URL, CONFIG_FILE, DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon, polygon_to_yolo_bbox
 from src.inference import initialize_inference, run_sam_inference
 from src.model_server import connect_to_model_server
@@ -294,6 +294,7 @@ def _write_data_yaml(classes: list[ClassInfo]) -> None:
     yaml_content = (
         f"path: {IMAGES_DIR.parent.resolve()}\n"
         f"train:\n{train_lines}\n\n"
+        f"val:\n{train_lines}\n\n"
         f"nc: {len(classes)}\n"
         f"names:\n{names_lines}\n"
     )
@@ -366,3 +367,50 @@ def skip_image(payload: SkipRequest) -> GalleryResponse:
     _validate_image_id(payload.imageId)
     db.mark_skipped(payload.imageId)
     return _build_gallery_response()
+
+
+class ClassItem(BaseModel):
+    """A single annotation class."""
+
+    id: int
+    name: str
+    color: str
+
+
+class UpsertClassRequest(BaseModel):
+    """Payload for ``POST /classes``."""
+
+    name: str
+    color: str
+
+
+@app.get("/classes", response_model=list[ClassItem])
+def list_classes() -> list[ClassItem]:
+    """Return all annotation classes ordered by id."""
+    return [ClassItem(id=cls.id, name=cls.name, color=cls.color) for cls in db.get_classes()]
+
+
+@app.post("/classes", response_model=list[ClassItem])
+def upsert_class(payload: UpsertClassRequest) -> list[ClassItem]:
+    """Insert or update a class by name and return the full updated list."""
+    db.upsert_class(payload.name, payload.color)
+    return [ClassItem(id=cls.id, name=cls.name, color=cls.color) for cls in db.get_classes()]
+
+
+class ModelItem(BaseModel):
+    """A model entry from models.toml."""
+
+    id: str
+    label: str
+
+
+@app.get("/models", response_model=list[ModelItem])
+def list_models() -> list[ModelItem]:
+    """Return all configured models from models.toml."""
+    import tomllib  # noqa: PLC0415 — intentional lazy import, already in stdlib (3.11+)
+
+    if not CONFIG_FILE.exists():
+        return []
+    with CONFIG_FILE.open("rb") as fp:
+        config = tomllib.load(fp)
+    return [ModelItem(id=m["id"], label=m.get("label", m["id"])) for m in config.get("models", [])]

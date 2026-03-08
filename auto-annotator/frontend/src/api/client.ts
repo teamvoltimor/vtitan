@@ -84,3 +84,23 @@ export const saveAnnotations = (
 
 export const skipImage = (imageId: number): Promise<GalleryResponse> =>
   postJSON('/skip', { imageId });
+
+export interface ClassItem {
+  id: number;
+  name: string;
+  color: string;
+}
+
+export interface ModelItem {
+  id: string;
+  label: string;
+}
+
+export const getClasses = (): Promise<ClassItem[]> =>
+  fetch(`${API_BASE_URL}/classes`).then((r) => handleResponse<ClassItem[]>(r));
+
+export const upsertClass = (name: string, color: string): Promise<ClassItem[]> =>
+  postJSON('/classes', { name, color });
+
+export const getModels = (): Promise<ModelItem[]> =>
+  fetch(`${API_BASE_URL}/models`).then((r) => handleResponse<ModelItem[]>(r));

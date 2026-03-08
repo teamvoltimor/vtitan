@@ -76,6 +76,8 @@ const AnnotateTab = () => {
     segmentationMessage,
     saveAndNext,
     skipAndNext,
+    goToPrev,
+    acceptMask,
   } = useAppState();
   // Queue for clicks that arrive while an inference is in-flight (auto mode only).
   // Ref holds the authoritative queue; state mirrors it for canvas rendering.
@@ -328,13 +330,16 @@ const AnnotateTab = () => {
           Clear masks
         </Button>
         <ButtonGroup size="small" sx={{ ml: 0.5 }}>
-          <Button onClick={() => recordAction('Accepted mask')}>Accept</Button>
+          <Button onClick={acceptMask}>Accept</Button>
           <Button onClick={undoAnnotationPoint} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Undo</Button>
           <Button onClick={clearAnnotationPoints} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Clear</Button>
         </ButtonGroup>
 
         <Box sx={{ flex: 1 }} />
 
+        <Button variant="text" size="small" onClick={goToPrev} disabled={!selectedGalleryItem}>
+          Previous
+        </Button>
         <Button variant="text" size="small" onClick={() => void skipAndNext()} disabled={!selectedGalleryItem}>
           Skip
         </Button>

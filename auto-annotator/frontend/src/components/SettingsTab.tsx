@@ -8,14 +8,18 @@ import {
   Select,
   Stack,
   Switch,
+  TextField,
   Typography,
   useTheme,
 } from '@mui/material';
+import { useState } from 'react';
 import type { OutlineMode } from '../state/appState';
 import { useAppState } from '../state/appState';
 
 const SettingsTab = () => {
   const theme = useTheme();
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassColor, setNewClassColor] = useState('#fe9664');
   const {
     models,
     selectedModel,
@@ -69,46 +73,59 @@ const SettingsTab = () => {
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
             Classes
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+
+          {/* Existing classes */}
+          <Stack spacing={1}>
             {classes.map((cls) => (
-              <Box
-                key={cls}
-                sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 1.5,
-                  py: 0.75,
-                  borderRadius: '6px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  bgcolor: 'background.default',
-                }}
-              >
+              <Stack key={cls} direction="row" alignItems="center" spacing={1.5}>
                 <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    bgcolor: classColors[cls] ?? theme.palette.primary.main,
-                    flexShrink: 0,
-                  }}
+                  component="input"
+                  type="color"
+                  value={classColors[cls] ?? '#ffffff'}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    void updateClassColor(cls, e.target.value)
+                  }
+                  sx={{ width: 28, height: 28, border: 'none', p: 0, cursor: 'pointer', borderRadius: '4px', bgcolor: 'transparent' }}
                 />
-                <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
+                <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
                   {cls}
                 </Typography>
-              </Box>
+              </Stack>
             ))}
           </Stack>
-          <Stack direction="row" spacing={1}>
-            <Button size="small" variant="outlined" onClick={() => addClass('New class')}>
-              Add class
-            </Button>
+
+          {/* Add new class */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box
+              component="input"
+              type="color"
+              value={newClassColor}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewClassColor(e.target.value)}
+              sx={{ width: 28, height: 28, border: 'none', p: 0, cursor: 'pointer', borderRadius: '4px', bgcolor: 'transparent' }}
+            />
+            <TextField
+              size="small"
+              placeholder="Class name"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newClassName.trim()) {
+                  void addClass(newClassName.trim(), newClassColor);
+                  setNewClassName('');
+                }
+              }}
+              sx={{ flex: 1 }}
+            />
             <Button
               size="small"
               variant="outlined"
-              onClick={() => updateClassColor(classes[0] ?? 'Foreground', '#f38ba8')}
+              disabled={!newClassName.trim()}
+              onClick={() => {
+                void addClass(newClassName.trim(), newClassColor);
+                setNewClassName('');
+              }}
             >
-              Update color
+              Add
             </Button>
           </Stack>
         </Stack>
