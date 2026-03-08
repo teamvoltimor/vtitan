@@ -10,6 +10,13 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
   return response.json();
 };
 
+const postJSON = <T>(path: string, body: unknown): Promise<T> =>
+  fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then((r) => handleResponse<T>(r));
+
 export interface GalleryItem {
   id: number;
   label: string;
@@ -66,36 +73,14 @@ export const importGalleryImages = async (files: FileList): Promise<GalleryRespo
   return handleResponse<GalleryResponse>(response);
 };
 
-export const segmentImage = async (
-  imageId: number,
-  points: SegmentationPoint[]
-): Promise<SegmentationResponse> => {
-  const response = await fetch(`${API_BASE_URL}/segment`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageId, points }),
-  });
-  return handleResponse<SegmentationResponse>(response);
-};
+export const segmentImage = (imageId: number, points: SegmentationPoint[]): Promise<SegmentationResponse> =>
+  postJSON('/segment', { imageId, points });
 
-export const saveAnnotations = async (
+export const saveAnnotations = (
   imageId: number,
   exportFormat: 'segmentation' | 'detection',
-  shapes: SegmentationShape[]
-): Promise<GalleryResponse> => {
-  const response = await fetch(`${API_BASE_URL}/save`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageId, exportFormat, shapes }),
-  });
-  return handleResponse<GalleryResponse>(response);
-};
+  shapes: SegmentationShape[],
+): Promise<GalleryResponse> => postJSON('/save', { imageId, exportFormat, shapes });
 
-export const skipImage = async (imageId: number): Promise<GalleryResponse> => {
-  const response = await fetch(`${API_BASE_URL}/skip`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageId }),
-  });
-  return handleResponse<GalleryResponse>(response);
-};
+export const skipImage = (imageId: number): Promise<GalleryResponse> =>
+  postJSON('/skip', { imageId });

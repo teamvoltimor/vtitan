@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import uuid4
 
-
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
@@ -26,10 +25,10 @@ from pydantic import BaseModel
 
 from src import db
 from src.constants import API_PUBLIC_URL, DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR
-from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
+from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon, polygon_to_yolo_bbox
 from src.inference import initialize_inference, run_sam_inference
 from src.model_server import connect_to_model_server
-from src.models import AppContext, AppState, ImageRecord, Point
+from src.models import AppContext, AppState, ClassInfo, ImageRecord, Point
 from src.utils import get_logger
 
 logger = get_logger(__name__)
@@ -280,19 +279,16 @@ def run_segmentation(payload: SegmentationRequest, app_context: AppContextDep) -
     return SegmentationResponse(state="ready", message="Model mask ready", shapes=[shape])
 
 
-def _write_data_yaml() -> None:
-    """Regenerate data.yaml from current DB classes and existing image subdirectories."""
-    classes = db.get_classes()
+def _write_data_yaml(classes: list[ClassInfo]) -> None:
+    """Regenerate data.yaml from the supplied classes and existing image subdirectories."""
     if not classes:
         return
 
-    class_dirs = [IMAGES_DIR / cls.name for cls in classes if (IMAGES_DIR / cls.name).is_dir()]
-    if not class_dirs:
+    existing = [cls for cls in classes if (IMAGES_DIR / cls.name).is_dir()]
+    if not existing:
         return
 
-    IMAGES_DIR.parent.mkdir(parents=True, exist_ok=True)
-
-    train_lines = "\n".join(f"  - images/{cls.name}" for cls in classes if (IMAGES_DIR / cls.name).is_dir())
+    train_lines = "\n".join(f"  - images/{cls.name}" for cls in existing)
     names_lines = "\n".join(f"  - {cls.name}" for cls in classes)
 
     yaml_content = (
@@ -341,8 +337,7 @@ def save_annotations(payload: SaveAnnotationsRequest) -> GalleryResponse:
     lbl_class_dir.mkdir(parents=True, exist_ok=True)
 
     src_path = Path(record.path)
-    dest_image = img_class_dir / src_path.name
-    shutil.copy2(src_path, dest_image)
+    shutil.copy2(src_path, img_class_dir / src_path.name)
 
     label_lines: list[str] = []
     for shape in payload.shapes:
@@ -353,18 +348,12 @@ def save_annotations(payload: SaveAnnotationsRequest) -> GalleryResponse:
             coords = " ".join(f"{p.x:.6f} {p.y:.6f}" for p in shape.points)
             label_lines.append(f"{yolo_idx} {coords}")
         else:
-            xs = [p.x for p in shape.points]
-            ys = [p.y for p in shape.points]
-            xc = (min(xs) + max(xs)) / 2
-            yc = (min(ys) + max(ys)) / 2
-            w = max(xs) - min(xs)
-            h = max(ys) - min(ys)
+            xc, yc, w, h = polygon_to_yolo_bbox([(p.x, p.y) for p in shape.points])
             label_lines.append(f"{yolo_idx} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}")
 
-    label_path = lbl_class_dir / (src_path.stem + ".txt")
-    label_path.write_text("\n".join(label_lines), encoding="utf-8")
+    (lbl_class_dir / (src_path.stem + ".txt")).write_text("\n".join(label_lines), encoding="utf-8")
 
-    _write_data_yaml()
+    _write_data_yaml(classes)
     db.mark_done(payload.imageId, payload.exportFormat)
     logger.info("image_saved", image_id=payload.imageId, primary_class=primary_class, shapes=len(payload.shapes))
 

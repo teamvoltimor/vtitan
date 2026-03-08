@@ -318,10 +318,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     recordAction('Cleared segmentation preview');
   }, [recordAction]);
 
-  const saveAndNext = useCallback(async () => {
-    if (!selectedGalleryItem || segmentationPreview.length === 0) return;
-    try {
-      const response = await saveAnnotations(selectedGalleryItem.id, exportFormat, segmentationPreview);
+  const _advanceNext = useCallback(
+    (response: GalleryResponse, actionLabel: string) => {
       _handleGalleryResponse(response);
       setSegmentationPreview([]);
       setAnnotationPoints([]);
@@ -329,28 +327,30 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setSegmentationMessage('');
       const nextItem = response.items.find((item) => item.status === 'pending');
       setSelectedGalleryItem(nextItem ?? null);
-      recordAction(`Saved ${selectedGalleryItem.label}`);
+      recordAction(actionLabel);
+    },
+    [_handleGalleryResponse, recordAction],
+  );
+
+  const saveAndNext = useCallback(async () => {
+    if (!selectedGalleryItem || segmentationPreview.length === 0) return;
+    try {
+      const response = await saveAnnotations(selectedGalleryItem.id, exportFormat, segmentationPreview);
+      _advanceNext(response, `Saved ${selectedGalleryItem.label}`);
     } catch (error) {
       recordAction(`Save failed: ${(error as Error).message}`);
     }
-  }, [selectedGalleryItem, segmentationPreview, exportFormat, _handleGalleryResponse, recordAction]);
+  }, [selectedGalleryItem, segmentationPreview, exportFormat, _advanceNext, recordAction]);
 
   const skipAndNext = useCallback(async () => {
     if (!selectedGalleryItem) return;
     try {
       const response = await apiSkipImage(selectedGalleryItem.id);
-      _handleGalleryResponse(response);
-      setSegmentationPreview([]);
-      setAnnotationPoints([]);
-      setSegmentationStatus('idle');
-      setSegmentationMessage('');
-      const nextItem = response.items.find((item) => item.status === 'pending');
-      setSelectedGalleryItem(nextItem ?? null);
-      recordAction(`Skipped ${selectedGalleryItem.label}`);
+      _advanceNext(response, `Skipped ${selectedGalleryItem.label}`);
     } catch (error) {
       recordAction(`Skip failed: ${(error as Error).message}`);
     }
-  }, [selectedGalleryItem, _handleGalleryResponse, recordAction]);
+  }, [selectedGalleryItem, _advanceNext, recordAction]);
 
   const value = useMemo(
     () => ({
@@ -443,6 +443,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       clearSegmentationPreview,
       saveAndNext,
       skipAndNext,
+      _advanceNext,
     ]
   );
 

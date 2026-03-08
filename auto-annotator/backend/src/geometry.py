@@ -57,6 +57,24 @@ def mask_to_yolo_polygon(
     return pts.clip(0.0, 1.0).flatten().tolist()
 
 
+def polygon_to_yolo_bbox(points: list[tuple[float, float]]) -> list[float]:
+    """Convert normalised polygon points to a YOLO bounding box.
+
+    Args:
+        points: List of ``(x, y)`` tuples with coordinates normalised to [0, 1].
+
+    Returns:
+        ``[xc, yc, w, h]`` normalised bounding box, or ``[]`` if *points* is empty.
+    """
+    if not points:
+        return []
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    return [(x_min + x_max) / 2, (y_min + y_max) / 2, x_max - x_min, y_max - y_min]
+
+
 def mask_to_yolo_bbox(mask: np.ndarray) -> list[float]:
     """Convert a boolean H×W mask to a normalised YOLO bounding-box list.
 
