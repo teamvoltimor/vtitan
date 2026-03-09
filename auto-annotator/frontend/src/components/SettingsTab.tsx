@@ -10,14 +10,12 @@ import {
   Switch,
   TextField,
   Typography,
-  useTheme,
 } from '@mui/material';
 import { useState } from 'react';
 import type { OutlineMode } from '../state/appState';
 import { useAppState } from '../state/appState';
 
 const SettingsTab = () => {
-  const theme = useTheme();
   const [newClassName, setNewClassName] = useState('');
   const [newClassColor, setNewClassColor] = useState('#fe9664');
   const {
