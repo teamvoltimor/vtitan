@@ -1,0 +1,444 @@
+"""
+Tests for ROS2 BNO085 IMU RVC node.
+
+Run with: python -m pytest tests/ros2/test_imu_uart_rvc_node.py -v
+"""
+
+import logging
+import sys
+import unittest.mock as mock
+from dataclasses import dataclass
+
+import pytest
+import rclpy
+from sensor_msgs.msg import Imu
+
+logger = logging.getLogger(__name__)
+
+
+# Define IMU_RVCData locally to avoid circular imports
+@dataclass
+class IMU_RVCData:
+    """IMU RVC sensor data."""
+
+    yaw_deg: float
+    pitch_deg: float
+    roll_deg: float
+    x_accel: float
+    y_accel: float
+    z_accel: float
+    quaternion: tuple[float, float, float, float]
+
+
+@pytest.fixture(autouse=True)
+def mock_buildhat():
+    """Mock buildhat before importing node."""
+    sys.modules["buildhat"] = mock.MagicMock()
+    yield
+    if "buildhat" in sys.modules:
+        del sys.modules["buildhat"]
+
+
+@pytest.fixture
+def ros_context():
+    """Initialize and cleanup ROS2 context for each test."""
+    # Check if ROS2 can be initialized
+    try:
+        rclpy.init()
+        yield
+        rclpy.shutdown()
+    except Exception as e:
+        pytest.skip(f"ROS2 initialization failed: {e}")
+
+
+@pytest.fixture
+def imu_rvc_node_class():
+    """Import IMU_RVCNode with mocked dependencies."""
+    with mock.patch("src.hardware.imu.UART_RVC") as mock_uart_rvc:
+        # Create a mock driver class
+        mock_uart_rvc.return_value = mock.MagicMock()
+
+        # Import the node class
+        from src.ros2.imu.bno08x.mcp2221.uart_rvc_node import IMU_RVCNode
+
+        yield IMU_RVCNode, mock_uart_rvc
+
+
+class TestIMU_RVCNodeInit:
+    """Test IMU RVC node initialization."""
+
+    def test_node_initialization(self, ros_context, imu_rvc_node_class):
+        """Test node initializes correctly."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        assert node.get_name() == "bno08x_rvc_node"
+        assert node.publisher_ is not None
+        assert node.driver is not None
+        node.destroy_node()
+
+    def test_node_creates_publisher(self, ros_context, imu_rvc_node_class):
+        """Test node creates IMU publisher."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        assert node.publisher_ is not None
+        # Check topic name
+        topic_names = [topic_name for topic_name, _ in node.get_publications()]
+        assert any("imu/data" in topic_name for topic_name in topic_names)
+        node.destroy_node()
+
+    def test_node_calls_driver_connect(self, ros_context, imu_rvc_node_class):
+        """Test node calls driver connect during init."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        mock_driver_instance.connect.assert_called_once()
+        node.destroy_node()
+
+    def test_node_calls_driver_start_polling(self, ros_context, imu_rvc_node_class):
+        """Test node calls driver start_polling during init."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        mock_driver_instance.start_polling.assert_called_once()
+        node.destroy_node()
+
+    def test_node_creates_timer(self, ros_context, imu_rvc_node_class):
+        """Test node creates publish timer."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        timers = [timer for timer in node.timers]
+        assert len(timers) > 0
+        node.destroy_node()
+
+    def test_node_fails_if_driver_connect_fails(self, ros_context, imu_rvc_node_class):
+        """Test node fails if driver cannot connect."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_instance.connect.side_effect = RuntimeError("Connection failed")
+        mock_driver_cls.return_value = mock_driver_instance
+
+        with pytest.raises(RuntimeError, match="Connection failed"):
+            IMU_RVCNode()
+
+    def test_node_fails_if_driver_polling_fails(self, ros_context, imu_rvc_node_class):
+        """Test node fails if driver polling fails."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_instance.start_polling.side_effect = RuntimeError("Polling failed")
+        mock_driver_cls.return_value = mock_driver_instance
+
+        with pytest.raises(RuntimeError, match="Polling failed"):
+            IMU_RVCNode()
+
+
+class TestIMU_RVCNodePublishing:
+    """Test IMU RVC node data publishing."""
+
+    def test_publish_imu_with_valid_data(self, ros_context, imu_rvc_node_class):
+        """Test publishing IMU message with valid data."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+
+        # Create mock sensor data
+        mock_data = IMU_RVCData(
+            yaw_deg=45.0,
+            pitch_deg=10.0,
+            roll_deg=-5.0,
+            x_accel=0.1,
+            y_accel=0.2,
+            z_accel=9.8,
+            quaternion=(0.0, 0.0, 0.707, 0.707),
+        )
+        mock_driver_instance.get_data.return_value = mock_data
+
+        # Mock the publisher to capture published messages
+        published_messages = []
+
+        def capture_publish(msg):
+            published_messages.append(msg)
+
+        node.publisher_.publish = capture_publish
+
+        # Call publish method
+        node.publish_imu()
+
+        # Verify message was published
+        assert len(published_messages) == 1
+        msg = published_messages[0]
+
+        # Verify message type
+        assert isinstance(msg, Imu)
+
+        # Verify orientation (quaternion)
+        assert msg.orientation.x == 0.0
+        assert msg.orientation.y == 0.0
+        assert msg.orientation.z == 0.707
+        assert msg.orientation.w == 0.707
+
+        # Verify linear acceleration
+        assert msg.linear_acceleration.x == 0.1
+        assert msg.linear_acceleration.y == 0.2
+        assert msg.linear_acceleration.z == 9.8
+
+        # Verify header
+        assert msg.header.frame_id == "imu_link"
+
+        node.destroy_node()
+
+    def test_publish_imu_with_none_data(self, ros_context, imu_rvc_node_class):
+        """Test publish_imu returns early if no data available."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        mock_driver_instance.get_data.return_value = None
+
+        # Mock the publisher to track calls
+        node.publisher_.publish = mock.MagicMock()
+
+        # Call publish method
+        node.publish_imu()
+
+        # Verify message was NOT published
+        node.publisher_.publish.assert_not_called()
+
+        node.destroy_node()
+
+    def test_publish_imu_sets_timestamp(self, ros_context, imu_rvc_node_class):
+        """Test publish_imu sets message timestamp."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+
+        mock_data = IMU_RVCData(
+            yaw_deg=0.0,
+            pitch_deg=0.0,
+            roll_deg=0.0,
+            x_accel=0.0,
+            y_accel=0.0,
+            z_accel=0.0,
+            quaternion=(0.0, 0.0, 0.0, 1.0),
+        )
+        mock_driver_instance.get_data.return_value = mock_data
+
+        published_messages = []
+
+        def capture_publish(msg):
+            published_messages.append(msg)
+
+        node.publisher_.publish = capture_publish
+
+        node.publish_imu()
+
+        assert len(published_messages) == 1
+        msg = published_messages[0]
+
+        # Verify timestamp is set
+        assert msg.header.stamp is not None
+
+        node.destroy_node()
+
+    def test_publish_imu_sets_angular_velocity_covariance(self, ros_context, imu_rvc_node_class):
+        """Test publish_imu sets angular velocity covariance to -1."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+
+        mock_data = IMU_RVCData(
+            yaw_deg=0.0,
+            pitch_deg=0.0,
+            roll_deg=0.0,
+            x_accel=0.0,
+            y_accel=0.0,
+            z_accel=0.0,
+            quaternion=(0.0, 0.0, 0.0, 1.0),
+        )
+        mock_driver_instance.get_data.return_value = mock_data
+
+        published_messages = []
+
+        def capture_publish(msg):
+            published_messages.append(msg)
+
+        node.publisher_.publish = capture_publish
+
+        node.publish_imu()
+
+        assert len(published_messages) == 1
+        msg = published_messages[0]
+
+        # Verify angular velocity covariance is set to -1 (indicates data is not available)
+        assert msg.angular_velocity_covariance[0] == -1.0
+
+        node.destroy_node()
+
+    def test_publish_imu_multiple_iterations(self, ros_context, imu_rvc_node_class):
+        """Test publish_imu works correctly over multiple calls."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+
+        mock_data_1 = IMU_RVCData(
+            yaw_deg=10.0,
+            pitch_deg=5.0,
+            roll_deg=2.0,
+            x_accel=0.5,
+            y_accel=1.5,
+            z_accel=9.8,
+            quaternion=(0.1, 0.2, 0.3, 0.9),
+        )
+        mock_data_2 = IMU_RVCData(
+            yaw_deg=20.0,
+            pitch_deg=10.0,
+            roll_deg=4.0,
+            x_accel=1.0,
+            y_accel=2.0,
+            z_accel=9.9,
+            quaternion=(0.2, 0.3, 0.4, 0.8),
+        )
+
+        mock_driver_instance.get_data.side_effect = [mock_data_1, mock_data_2]
+
+        published_messages = []
+
+        def capture_publish(msg):
+            published_messages.append(msg)
+
+        node.publisher_.publish = capture_publish
+
+        # First publish
+        node.publish_imu()
+        # Second publish
+        node.publish_imu()
+
+        assert len(published_messages) == 2
+
+        # Verify first message
+        msg1 = published_messages[0]
+        assert msg1.orientation.x == 0.1
+        assert msg1.linear_acceleration.z == 9.8
+
+        # Verify second message
+        msg2 = published_messages[1]
+        assert msg2.orientation.x == 0.2
+        assert msg2.linear_acceleration.z == 9.9
+
+        node.destroy_node()
+
+
+class TestIMU_RVCNodeCleanup:
+    """Test IMU RVC node cleanup."""
+
+    def test_node_calls_driver_close_on_destroy(self, ros_context, imu_rvc_node_class):
+        """Test node closes driver on destroy."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+        node.destroy_node()
+        mock_driver_instance.close.assert_called_once()
+
+    def test_node_cleanup_sequence(self, ros_context, imu_rvc_node_class):
+        """Test node cleanup sequence is correct."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_RVCNode()
+
+        # Reset the mock to clear init calls
+        mock_driver_instance.reset_mock()
+
+        # Destroy node
+        node.destroy_node()
+
+        # Verify driver.close() was called
+        mock_driver_instance.close.assert_called_once()
+
+        # Verify it's called before the node is destroyed
+        # (this is implicit if close succeeds)
+
+
+class TestIMU_RVCNodeIntegration:
+    """Integration tests for IMU RVC node."""
+
+    def test_node_full_lifecycle(self, ros_context, imu_rvc_node_class):
+        """Test complete node lifecycle from init to destroy."""
+        IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        # Create and setup mock data
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_cls.return_value = mock_driver_instance
+
+        mock_data = IMU_RVCData(
+            yaw_deg=45.0,
+            pitch_deg=10.0,
+            roll_deg=-5.0,
+            x_accel=0.1,
+            y_accel=0.2,
+            z_accel=9.8,
+            quaternion=(0.0, 0.0, 0.707, 0.707),
+        )
+        mock_driver_instance.get_data.return_value = mock_data
+
+        # Create node
+        node = IMU_RVCNode()
+
+        # Verify initialization
+        assert node.get_name() == "bno08x_rvc_node"
+        assert mock_driver_instance.connect.called
+        assert mock_driver_instance.start_polling.called
+
+        # Publish data
+        published_messages = []
+
+        def capture_publish(msg):
+            published_messages.append(msg)
+
+        node.publisher_.publish = capture_publish
+        node.publish_imu()
+
+        # Verify publishing
+        assert len(published_messages) == 1
+
+        # Cleanup
+        node.destroy_node()
+        mock_driver_instance.close.assert_called_once()

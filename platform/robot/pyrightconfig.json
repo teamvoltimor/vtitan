@@ -1,0 +1,14 @@
+{
+  "include": ["."],
+  "exclude": ["**/node_modules", "**/__pycache__", ".pixi"],
+  "venvPath": ".pixi/envs",
+  "venv": "default",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "./.pixi/envs/default/lib/python3.12/site-packages" 
+      ]
+    }
+  ]
+}
