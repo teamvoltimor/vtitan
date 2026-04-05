@@ -21,8 +21,8 @@ from src.logger.payload import LogPayload
 
 __all__ = [
     "COMPETITION_MODE",
-    "JSONFormatter",
     "LOG_LEVEL",
+    "JSONFormatter",
     "LogPayload",
     "configure_json_logging",
     "is_competition_mode",

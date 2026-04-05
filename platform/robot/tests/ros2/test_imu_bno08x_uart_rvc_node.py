@@ -39,7 +39,7 @@ def mock_buildhat():
         del sys.modules["buildhat"]
 
 
-@pytest.fixture
+@pytest.fixture()
 def ros_context():
     """Initialize and cleanup ROS2 context for each test."""
     # Check if ROS2 can be initialized
@@ -51,10 +51,10 @@ def ros_context():
         pytest.skip(f"ROS2 initialization failed: {e}")
 
 
-@pytest.fixture
+@pytest.fixture()
 def imu_rvc_node_class():
     """Import IMU_RVCNode with mocked dependencies."""
-    with mock.patch("src.hardware.imu.UART_RVC") as mock_uart_rvc:
+    with mock.patch("src.hardware.imu.bno08x.mcp2221.UART_RVCDriver") as mock_uart_rvc:
         # Create a mock driver class
         mock_uart_rvc.return_value = mock.MagicMock()
 
@@ -67,7 +67,7 @@ def imu_rvc_node_class():
 class TestIMU_RVCNodeInit:
     """Test IMU RVC node initialization."""
 
-    def test_node_initialization(self, ros_context, imu_rvc_node_class):
+    def test_node_initialization(self, _ros_context, imu_rvc_node_class):
         """Test node initializes correctly."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -80,7 +80,7 @@ class TestIMU_RVCNodeInit:
         assert node.driver is not None
         node.destroy_node()
 
-    def test_node_creates_publisher(self, ros_context, imu_rvc_node_class):
+    def test_node_creates_publisher(self, _ros_context, imu_rvc_node_class):
         """Test node creates IMU publisher."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -94,7 +94,7 @@ class TestIMU_RVCNodeInit:
         assert any("imu/data" in topic_name for topic_name in topic_names)
         node.destroy_node()
 
-    def test_node_calls_driver_connect(self, ros_context, imu_rvc_node_class):
+    def test_node_calls_driver_connect(self, _ros_context, imu_rvc_node_class):
         """Test node calls driver connect during init."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -105,7 +105,7 @@ class TestIMU_RVCNodeInit:
         mock_driver_instance.connect.assert_called_once()
         node.destroy_node()
 
-    def test_node_calls_driver_start_polling(self, ros_context, imu_rvc_node_class):
+    def test_node_calls_driver_start_polling(self, _ros_context, imu_rvc_node_class):
         """Test node calls driver start_polling during init."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -116,7 +116,7 @@ class TestIMU_RVCNodeInit:
         mock_driver_instance.start_polling.assert_called_once()
         node.destroy_node()
 
-    def test_node_creates_timer(self, ros_context, imu_rvc_node_class):
+    def test_node_creates_timer(self, _ros_context, imu_rvc_node_class):
         """Test node creates publish timer."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -128,7 +128,7 @@ class TestIMU_RVCNodeInit:
         assert len(timers) > 0
         node.destroy_node()
 
-    def test_node_fails_if_driver_connect_fails(self, ros_context, imu_rvc_node_class):
+    def test_node_fails_if_driver_connect_fails(self, _ros_context, imu_rvc_node_class):
         """Test node fails if driver cannot connect."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -139,7 +139,7 @@ class TestIMU_RVCNodeInit:
         with pytest.raises(RuntimeError, match="Connection failed"):
             IMU_RVCNode()
 
-    def test_node_fails_if_driver_polling_fails(self, ros_context, imu_rvc_node_class):
+    def test_node_fails_if_driver_polling_fails(self, _ros_context, imu_rvc_node_class):
         """Test node fails if driver polling fails."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -154,7 +154,7 @@ class TestIMU_RVCNodeInit:
 class TestIMU_RVCNodePublishing:
     """Test IMU RVC node data publishing."""
 
-    def test_publish_imu_with_valid_data(self, ros_context, imu_rvc_node_class):
+    def test_publish_imu_with_valid_data(self, _ros_context, imu_rvc_node_class):
         """Test publishing IMU message with valid data."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -209,7 +209,7 @@ class TestIMU_RVCNodePublishing:
 
         node.destroy_node()
 
-    def test_publish_imu_with_none_data(self, ros_context, imu_rvc_node_class):
+    def test_publish_imu_with_none_data(self, _ros_context, imu_rvc_node_class):
         """Test publish_imu returns early if no data available."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -230,7 +230,7 @@ class TestIMU_RVCNodePublishing:
 
         node.destroy_node()
 
-    def test_publish_imu_sets_timestamp(self, ros_context, imu_rvc_node_class):
+    def test_publish_imu_sets_timestamp(self, _ros_context, imu_rvc_node_class):
         """Test publish_imu sets message timestamp."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -267,7 +267,7 @@ class TestIMU_RVCNodePublishing:
 
         node.destroy_node()
 
-    def test_publish_imu_sets_angular_velocity_covariance(self, ros_context, imu_rvc_node_class):
+    def test_publish_imu_sets_angular_velocity_covariance(self, _ros_context, imu_rvc_node_class):
         """Test publish_imu sets angular velocity covariance to -1."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -304,7 +304,7 @@ class TestIMU_RVCNodePublishing:
 
         node.destroy_node()
 
-    def test_publish_imu_multiple_iterations(self, ros_context, imu_rvc_node_class):
+    def test_publish_imu_multiple_iterations(self, _ros_context, imu_rvc_node_class):
         """Test publish_imu works correctly over multiple calls."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -364,7 +364,7 @@ class TestIMU_RVCNodePublishing:
 class TestIMU_RVCNodeCleanup:
     """Test IMU RVC node cleanup."""
 
-    def test_node_calls_driver_close_on_destroy(self, ros_context, imu_rvc_node_class):
+    def test_node_calls_driver_close_on_destroy(self, _ros_context, imu_rvc_node_class):
         """Test node closes driver on destroy."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -375,7 +375,7 @@ class TestIMU_RVCNodeCleanup:
         node.destroy_node()
         mock_driver_instance.close.assert_called_once()
 
-    def test_node_cleanup_sequence(self, ros_context, imu_rvc_node_class):
+    def test_node_cleanup_sequence(self, _ros_context, imu_rvc_node_class):
         """Test node cleanup sequence is correct."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 
@@ -400,7 +400,7 @@ class TestIMU_RVCNodeCleanup:
 class TestIMU_RVCNodeIntegration:
     """Integration tests for IMU RVC node."""
 
-    def test_node_full_lifecycle(self, ros_context, imu_rvc_node_class):
+    def test_node_full_lifecycle(self, _ros_context, imu_rvc_node_class):
         """Test complete node lifecycle from init to destroy."""
         IMU_RVCNode, mock_driver_cls = imu_rvc_node_class
 

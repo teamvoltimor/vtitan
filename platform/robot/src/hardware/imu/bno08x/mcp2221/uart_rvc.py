@@ -54,6 +54,11 @@ IMU_UART_RVC_MCP2221_PID = EnvVar[int](
 USB Product ID (PID) for the MCP2221 USB bridge. Default is 0x00DD, which is the PID for the MCP2221.
 """
 
+EULER_SEQUENCE = "xyz"
+"""
+The sequence of Euler angles used by the BNO08x RVC library. The library provides heading data in the order of yaw (Z), pitch (Y), and roll (X), so we will use the "zyx" sequence when converting to quaternions.
+"""
+
 
 @dataclass
 class Config:
@@ -146,8 +151,18 @@ class Driver(ABC_RVCDriver):
                     break
                 yaw_deg, pitch_deg, roll_deg, x_accel, y_accel, z_accel = self._rvc.heading
 
+                # Diagnostic Fixes:
+                # 1. Negate 'y' for ROS 2 CCW-positive Yaw.
+                # 2. Negate 'p' if Pitch is inverted (Nose up = Model down).
+                # 3. Negate 'r' if Roll is inverted (Bank right = Model left).
+                corrected_yaw_deg = -yaw_deg  # <--- Negate yaw for ROS 2 CCW-positive convention
+                corrected_pitch_deg = pitch_deg  # <--- Negate pitch if needed (depends on mounting orientation)
+                corrected_roll_def = -roll_deg  # <--- Negate roll if needed (depends on mounting orientation)
+
                 # Convert Euler angles to quaternion using scipy.spatial.transform.Rotation
-                r = R.from_euler("xyz", [roll_deg, pitch_deg, yaw_deg], degrees=True)
+                r = R.from_euler(
+                    EULER_SEQUENCE, [corrected_roll_def, corrected_pitch_deg, corrected_yaw_deg], degrees=True,
+                )
 
                 # The adafruit_bno08x_rvc library does not provide quaternion data directly, but we can convert from Euler angles.
                 qx, qy, qz, qw = cast("tuple[float, float, float, float]", cast("object", r.as_quat()))

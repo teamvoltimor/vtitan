@@ -1,21 +1,18 @@
-"""
-Hardware driver for RPi Camera Module 3 Wide.
-
-Used by: Raspberry Pi 5
-"""
+"""RPi Camera Module 3 Wide driver implementation."""
 
 import logging
 import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 
 from src.env import EnvVar
+from src.hardware.camera.base import Config as BaseConfig
+from src.hardware.camera.base import Driver as CameraDriver
+from src.hardware.camera.base import Frame
 from src.logger import configure_json_logging
 
 configure_json_logging()
-
 
 CAMERA_DEVICE = EnvVar[str](key="CAMERA_DEVICE", default="/dev/video0")
 CAMERA_WIDTH = EnvVar[int](key="CAMERA_WIDTH", default=1536, cast=int)
@@ -24,8 +21,8 @@ CAMERA_FPS = EnvVar[int](key="CAMERA_FPS", default=30, cast=int)
 
 
 @dataclass
-class CameraConfig:
-    """Camera configuration."""
+class Config(BaseConfig):
+    """Camera configuration for RPi Camera Module 3."""
 
     device: str = CAMERA_DEVICE.value
     width: int = CAMERA_WIDTH.value
@@ -33,25 +30,15 @@ class CameraConfig:
     fps: int = CAMERA_FPS.value
 
 
-@dataclass
-class CameraFrame:
-    """Captured camera frame."""
-
-    frame: np.ndarray
-    timestamp: float
-    width: int
-    height: int
-
-
-class CameraDriver:
+class Driver(CameraDriver):
     """Driver for RPi Camera Module 3 Wide."""
 
-    def __init__(self, config: Optional[CameraConfig] = None):
-        self.config = config or CameraConfig()
+    def __init__(self, config: Config | None = None):
+        self.config = config or Config()
         self._capture = None
         self.logger = logging.getLogger(__name__)
 
-    def open(self) -> None:
+    def connect(self) -> None:
         """Open camera device."""
         import cv2
 
@@ -71,10 +58,10 @@ class CameraDriver:
     def capture(self):
         """Get capture instance."""
         if self._capture is None:
-            self.open()
+            self.connect()
         return self._capture
 
-    def capture_frame(self) -> CameraFrame:
+    def capture_frame(self) -> Frame:
         """Capture a single frame."""
         ret, frame = self.capture.read()
 
@@ -85,9 +72,9 @@ class CameraDriver:
         height, width = frame.shape[:2]
 
         self.logger.debug("Frame captured", extra={"details": {"width": width, "height": height}})
-        return CameraFrame(frame=frame, timestamp=timestamp, width=width, height=height)
+        return Frame(frame=frame, timestamp=timestamp, width=width, height=height)
 
-    def get_resolution(self) -> Tuple[int, int]:
+    def get_resolution(self) -> tuple[int, int]:
         """Get current resolution."""
         frame = self.capture_frame()
         return frame.width, frame.height

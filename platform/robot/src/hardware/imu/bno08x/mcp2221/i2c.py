@@ -1,14 +1,14 @@
-"""
-Hardware driver for BNO08x IMU via MCP2221A I2C bridge.
-"""
+"""Hardware driver for BNO08x IMU via MCP2221A I2C bridge."""
 
 import logging
 import time
 from dataclasses import dataclass
 from typing import override
 
-import serial
-import serial.tools.list_ports
+from adafruit_bno08x import BNO08X, BNO_REPORT_ACCELEROMETER, BNO_REPORT_GAME_ROTATION_VECTOR, BNO_REPORT_GYROSCOPE, BNO_REPORT_LINEAR_ACCELERATION, BNO_REPORT_MAGNETOMETER, BNO_REPORT_ROTATION_VECTOR
+import board
+import busio
+from adafruit_bno08x.i2c import BNO08X_I2C
 
 from src.env import EnvVar
 from src.hardware.imu.base import (
@@ -25,13 +25,10 @@ IMU_I2C_ADDRESS = EnvVar[int](
     default=0x4A,
     cast=lambda x: int(x, 0) if x.startswith("0x") else int(x),
 )
-IMU_I2C_PORT = EnvVar[str](key="IMU_I2C_PORT", default="")
-IMU_I2C_MCP2221_VID = EnvVar[int](
-    key="IMU_I2C_MCP2221_VID", default=0x04D8, cast=lambda x: int(x, 0) if x.startswith("0x") else int(x)
-)
-IMU_I2C_MCP2221_PID = EnvVar[int](
-    key="IMU_I2C_MCP2221_PID", default=0x00DD, cast=lambda x: int(x, 0) if x.startswith("0x") else int(x)
-)
+"""
+I2C address for the BNO08x IMU. The default address is 0x4A when the ADR pin is high, and 0x4B when the ADR pin is low.
+Ensure that the ADR pin on your BNO08x board is set accordingly to match this address.
+"""
 
 
 @dataclass
@@ -39,9 +36,6 @@ class Config:
     """Configuration for BNO08x via MCP2221A I2C."""
 
     i2c_address: int = IMU_I2C_ADDRESS.value
-    port: str = IMU_I2C_PORT.value
-    mcp2221_vid: int = IMU_I2C_MCP2221_VID.value
-    mcp2221_pid: int = IMU_I2C_MCP2221_PID.value
 
 
 class Driver(ABC_Driver):
@@ -53,45 +47,21 @@ class Driver(ABC_Driver):
         self._i2c = None
         self.logger = logging.getLogger(__name__)
 
-    def find_mcp2221_port(self) -> str | None:
-        """Auto-detect MCP2221 USB bridge port."""
-        ports = serial.tools.list_ports.comports()
-        for port in ports:
-            if port.vid == self.config.mcp2221_vid and port.pid == self.config.mcp2221_pid:
-                self.logger.info("Found MCP2221", extra={"details": {"port": port.device}})
-                return port.device
-        return None
-
     def connect(self) -> None:
-        """Connect to IMU via MCP2221A I2C."""
-        try:
-            from pyftdi.i2c import I2cController
-        except ImportError:
-            self.logger.error("pyftdi not installed. Install with: pip install pyftdi")
-            raise
-
-        port = self.config.port
-        if not port:
-            port = self.find_mcp2221_port()
-            if not port:
-                self.logger.warning("MCP2221 auto-detect failed, using /dev/ttyACM0")
-                port = "/dev/ttyACM0"
-
+        """Connect to IMU via MCP2221A I2C using Blinka."""
         self.logger.info(
-            "Connecting to BNO08x via MCP2221",
-            extra={"details": {"port": port, "i2c_address": hex(self.config.i2c_address)}},
+            "Connecting to BNO08x via MCP2221A I2C (Blinka)",
+            extra={"details": {"i2c_address": hex(self.config.i2c_address)}},
         )
 
         try:
-            # Initialize I2C controller via MCP2221
-            i2c_controller = I2cController()
-            i2c_controller.configure(port)
-            self._i2c = i2c_controller.get_port(self.config.i2c_address)
+            # Blinka automatically detects and uses MCP2221A via USB HID
+            # Create I2C bus using Blinka (handles MCP2221A USB communication)
+            self._i2c = busio.I2C(board.SCL, board.SDA)
 
-            from adafruit_bno08x import BNO08X_I2C
-
-            self._imu = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
-            self.logger.info("Connected to BNO08x IMU")
+            # Initialize BNO08x with the I2C bus
+            self._imu: BNO08X = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
+            self.logger.info("Connected to BNO08x IMU via MCP2221A I2C")
         except Exception as e:
             self.logger.error(f"Failed to connect to IMU: {e}")
             raise
@@ -106,12 +76,17 @@ class Driver(ABC_Driver):
     @override
     def enable_sensors(self) -> None:
         """Enable all sensors."""
-        self.imu.enable_accel()
-        self.imu.enable_gyro()
-        self.imu.enable_mag()
-        self.imu.enable_quaternion()
-        self.imu.enable_game_rotation_vector()
-        self.imu.enable_linear_accel()
+        if self.imu is None:
+            self.logger.warning("IMU not connected, cannot enable sensors")
+            return
+
+        self.imu.enable_feature(BNO_REPORT_ACCELEROMETER)
+        self.imu.enable_feature(BNO_REPORT_GYROSCOPE)
+        self.imu.enable_feature(BNO_REPORT_MAGNETOMETER)
+        self.imu.enable_feature(BNO_REPORT_ROTATION_VECTOR) # Standard Quaternion
+        self.imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR) # Z-axis gravity removed
+        self.imu.enable_feature(BNO_REPORT_LINEAR_ACCELERATION)
+
         time.sleep(0.1)
         self.logger.info("Sensors enabled")
 
@@ -138,14 +113,16 @@ class Driver(ABC_Driver):
 
     @override
     def get_quaternion(self) -> tuple[float, float, float, float]:
-        """Get fused quaternion (w, x, y, z)."""
-        quat = self.imu.quaternion
-        w, x, y, z = quat
-        magnitude = (w**2 + x**2 + y**2 + z**2) ** 0.5
+        """Get fused quaternion (x, y, z, w)."""
+        # Unpack correctly based on Adafruit's return order
+        x, y, z, w = self.imu.quaternion
+
         self.logger.debug(
-            "Quaternion read", extra={"details": {"w": w, "x": x, "y": y, "z": z, "magnitude": magnitude}}
+            "Quaternion read",
+            extra={"details": {"x": x, "y": y, "z": z, "w": w}},
         )
-        return tuple(quat)
+        # Return explicitly in the ROS 2 expected order
+        return (x, y, z, w)
 
     @override
     def get_euler(self) -> tuple[float, float, float]:

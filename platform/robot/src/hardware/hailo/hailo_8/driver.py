@@ -1,19 +1,16 @@
-"""
-Hardware driver for Hailo 8 NPU.
-
-Used by: Raspberry Pi 5
-"""
+"""Hailo 8 NPU driver implementation."""
 
 import logging
-import os
 import time
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 from src.env import EnvVar
+from src.hardware.hailo.base import Config as BaseConfig
+from src.hardware.hailo.base import Driver as HailoDriver
+from src.hardware.hailo.base import InferenceResult
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -23,26 +20,18 @@ HAILO_BENCHMARK_ITERATIONS = EnvVar[int](key="HAILO_BENCHMARK_ITERATIONS", defau
 
 
 @dataclass
-class HailoConfig:
-    """Hailo NPU configuration."""
+class Config(BaseConfig):
+    """Hailo 8 NPU configuration."""
 
     model_path: str = HAILO_MODEL_PATH.value
     benchmark_iterations: int = HAILO_BENCHMARK_ITERATIONS.value
 
 
-@dataclass
-class InferenceResult:
-    """YOLO inference result."""
-
-    detections: List[Dict[str, Any]]
-    latency_ms: float
-
-
-class HailoDriver:
+class Driver(HailoDriver):
     """Driver for Hailo 8 NPU."""
 
-    def __init__(self, config: Optional[HailoConfig] = None):
-        self.config = config or HailoConfig()
+    def __init__(self, config: Config | None = None):
+        self.config = config or Config()
         self._device = None
         self._network = None
         self.logger = logging.getLogger(__name__)
@@ -62,7 +51,7 @@ class HailoDriver:
             self.connect()
         return self._device
 
-    def load_model(self, model_path: Optional[str] = None) -> None:
+    def load_model(self, model_path: str | None = None) -> None:
         """Load a .hef model."""
         path = model_path or self.config.model_path
         self.logger.info("Loading HEF model", extra={"details": {"model_path": path}})
@@ -76,11 +65,11 @@ class HailoDriver:
             self.load_model()
         return self._network
 
-    def get_input_shape(self) -> Tuple[int, ...]:
+    def get_input_shape(self) -> tuple[int, ...]:
         """Get model input shape."""
         return self.network.get_input_shape()
 
-    def get_output_shape(self) -> Tuple[int, ...]:
+    def get_output_shape(self) -> tuple[int, ...]:
         """Get model output shape."""
         return self.network.get_output_shape()
 
@@ -97,7 +86,7 @@ class HailoDriver:
         self.logger.info("Inference completed", extra={"details": {"latency_ms": latency_ms}})
         return InferenceResult(detections=[], latency_ms=latency_ms)
 
-    def benchmark_latency(self, num_iterations: Optional[int] = None) -> float:
+    def benchmark_latency(self, num_iterations: int | None = None) -> float:
         """Benchmark inference latency."""
         import numpy as np
 
@@ -113,11 +102,12 @@ class HailoDriver:
 
         avg_latency = sum(latencies) / len(latencies)
         self.logger.info(
-            "Latency benchmark", extra={"details": {"avg_latency_ms": avg_latency, "iterations": iterations}}
+            "Latency benchmark",
+            extra={"details": {"avg_latency_ms": avg_latency, "iterations": iterations}},
         )
         return avg_latency
 
-    def get_temperature(self) -> Optional[float]:
+    def get_temperature(self) -> float | None:
         """Get NPU temperature in Celsius."""
         try:
             temp = self.device.get_device_temperature()
@@ -126,7 +116,7 @@ class HailoDriver:
         except AttributeError:
             return None
 
-    def get_power_usage(self) -> Optional[int]:
+    def get_power_usage(self) -> int | None:
         """Get power usage in mW."""
         try:
             power = self.device.get_power_usage()

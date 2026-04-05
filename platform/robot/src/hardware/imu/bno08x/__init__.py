@@ -16,6 +16,6 @@ from src.hardware.imu.bno08x.mcp2221 import (
 __all__ = [
     "MCP2221_I2CConfig",
     "MCP2221_I2CDriver",
-    "MCP2221_UART_RVCDriver",
     "MCP2221_UART_RVCConfig",
+    "MCP2221_UART_RVCDriver",
 ]

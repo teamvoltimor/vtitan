@@ -3,7 +3,7 @@
 Run on: Raspberry Pi 5
 
 Usage:
-    ros2 run klevor_robot uart_rvc_node
+    ros2 run klevor_robot bno08x_uart_rvc_node
 
 Topics:
     Published: imu/data (sensor_msgs.msg.Imu)

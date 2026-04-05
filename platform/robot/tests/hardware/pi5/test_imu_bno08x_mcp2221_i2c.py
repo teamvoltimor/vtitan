@@ -1,9 +1,13 @@
 """
-Tests for BNO085 I2C driver.
+Tests for BNO085 I2C driver (via MCP2221A using Blinka).
 
 Run on: Raspberry Pi 5
 
-Run with: python -m pytest tests/hardware/pi5/test_imu.py -v
+Run with: python -m pytest tests/hardware/pi5/test_imu_bno08x_mcp2221_i2c.py -v
+
+Requirements:
+    - Blinka: pip install blinka adafruit-circuitpython-bno08x
+    - MCP2221A connected via USB
 """
 
 import logging
@@ -12,7 +16,7 @@ import time
 
 import pytest
 
-from src.hardware.imu import I2C as IMU_I2CDriver, I2CConfig
+from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver, Config as I2CConfig
 from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
 
 _log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
@@ -24,7 +28,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def driver():
     """Create driver instance."""
-    config = IMU_I2CConfig(i2c_address=0x4A)
+    config = I2CConfig(i2c_address=0x4A)
     return IMU_I2CDriver(config=config)
 
 
@@ -32,11 +36,11 @@ class TestIMUConnection:
     """Test IMU connection."""
 
     def test_connect(self, driver):
-        """Connect to IMU."""
+        """Connect to IMU via Blinka."""
         try:
             driver.connect()
             assert driver._imu is not None
-            logger.info("IMU connection test passed")
+            logger.info("IMU I2C connection test passed (Blinka)")
         except Exception as e:
             pytest.skip(f"Cannot connect to IMU: {e}")
 
@@ -127,12 +131,12 @@ def stream_imu():
     Stream IMU data.
 
     Usage:
-        python -c "from tests.hardware.pi5.test_imu import stream_imu; stream_imu()"
+        python -c "from tests.hardware.pi5.test_imu_bno08x_mcp2221_i2c import stream_imu; stream_imu()"
     """
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger(__name__)
 
-    config = IMU_I2CConfig()
+    config = I2CConfig()
     driver = IMU_I2CDriver(config=config)
 
     try:
@@ -158,4 +162,4 @@ def stream_imu():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("Run tests with: python -m pytest tests/hardware/pi5/test_imu.py -v")
+    logger.info("Run tests with: python -m pytest tests/hardware/pi5/test_imu_bno08x_mcp2221_i2c.py -v")

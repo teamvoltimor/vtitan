@@ -3,7 +3,7 @@ Tests for BNO085 RVC driver (via MCP2221A UART).
 
 Run on: Raspberry Pi 5
 
-Run with: python -m pytest tests/hardware/pi5/test_imu_rvc.py -v
+Run with: python -m pytest tests/hardware/pi5/test_imu_bno08x_mcp2221_uart_rvc.py -v
 """
 
 import logging
@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from src.hardware.imu import UART_RVC as IMU_RVCDriver, RVCConfig
+from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_RVCDriver, Config as RVCConfig
 from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
 
 _log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def driver():
     """Create driver instance."""
-    config = IMU_RVCConfig()
+    config = RVCConfig()
     return IMU_RVCDriver(config=config)
 
 
@@ -111,12 +111,12 @@ def stream_imu_rvc():
     Stream IMU RVC data.
 
     Usage:
-        python -c "from tests.hardware.pi5.test_imu_rvc import stream_imu_rvc; stream_imu_rvc()"
+        python -c "from tests.hardware.pi5.test_imu_bno08x_mcp2221_uart_rvc import stream_imu_rvc; stream_imu_rvc()"
     """
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger(__name__)
 
-    config = IMU_RVCConfig()
+    config = RVCConfig()
     driver = IMU_RVCDriver(config=config)
 
     try:
@@ -145,4 +145,4 @@ def stream_imu_rvc():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("Run tests with: python -m pytest tests/hardware/pi5/test_imu_rvc.py -v")
+    logger.info("Run tests with: python -m pytest tests/hardware/pi5/test_imu_bno08x_mcp2221_uart_rvc.py -v")

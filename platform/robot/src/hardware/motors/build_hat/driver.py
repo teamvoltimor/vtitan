@@ -1,21 +1,18 @@
-"""
-Hardware driver for LEGO motors via Build HAT.
-
-Used by: Raspberry Pi Zero (motor controller)
-"""
+"""Build HAT motor driver implementation."""
 
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from buildhat import Motor
 
 from src.env import EnvVar
+from src.hardware.motors.base import CalibrationData
+from src.hardware.motors.base import Config as BaseConfig
+from src.hardware.motors.base import Driver as MotorDriver
 from src.logger import configure_json_logging
 
 configure_json_logging()
-
 
 STEERING_PORT = EnvVar[str](key="MOTOR_STEERING_PORT", default="A")
 DRIVE_PORT = EnvVar[str](key="MOTOR_DRIVE_PORT", default="B")
@@ -24,8 +21,8 @@ TEST_DURATION = EnvVar[float](key="MOTOR_TEST_DURATION", default=1.5, cast=float
 
 
 @dataclass
-class MotorConfig:
-    """Motor configuration."""
+class Config(BaseConfig):
+    """Build HAT motor configuration."""
 
     steering_port: str = STEERING_PORT.value
     drive_port: str = DRIVE_PORT.value
@@ -33,23 +30,14 @@ class MotorConfig:
     test_duration: float = TEST_DURATION.value
 
 
-@dataclass
-class CalibrationData:
-    """Steering calibration data."""
-
-    left_limit: float
-    right_limit: float
-    center: float = 0.0
-
-
-class BuildHatDriver:
+class Driver(MotorDriver):
     """Driver for Build HAT motor control."""
 
-    def __init__(self, config: Optional[MotorConfig] = None):
-        self.config = config or MotorConfig()
-        self._steering: Optional[Motor] = None
-        self._drive: Optional[Motor] = None
-        self._calibration: Optional[CalibrationData] = None
+    def __init__(self, config: Config | None = None):
+        self.config = config or Config()
+        self._steering: Motor | None = None
+        self._drive: Motor | None = None
+        self._calibration: CalibrationData | None = None
         self.logger = logging.getLogger(__name__)
 
     def connect(self) -> None:
@@ -92,13 +80,13 @@ class BuildHatDriver:
         """Get current drive speed in degrees/s."""
         return self.drive.get_speed()
 
-    def run_drive_forward(self, speed: Optional[int] = None) -> None:
+    def run_drive_forward(self, speed: int | None = None) -> None:
         """Run drive motor forward."""
         s = speed or self.config.default_speed
         self.logger.info("Starting drive forward", extra={"details": {"speed": s}})
         self.drive.start(s)
 
-    def run_drive_reverse(self, speed: Optional[int] = None) -> None:
+    def run_drive_reverse(self, speed: int | None = None) -> None:
         """Run drive motor in reverse."""
         s = speed or self.config.default_speed
         self.logger.info("Starting drive reverse", extra={"details": {"speed": -s}})
@@ -118,10 +106,10 @@ class BuildHatDriver:
         """Center steering wheels."""
         self.move_steering_to(0.0)
 
-    def load_calibration(self, calibration_file: Optional[Path] = None) -> CalibrationData:
+    def load_calibration(self, calibration_file: Path | None = None) -> CalibrationData:
         """Load calibration from file."""
         if calibration_file is None:
-            calibration_file = Path(__file__).parent.parent / "config" / "calibration.json"
+            calibration_file = Path(__file__).parent.parent.parent / "config" / "calibration.json"
 
         if not calibration_file.exists():
             self.logger.warning("Calibration file not found", extra={"details": {"file": str(calibration_file)}})
@@ -141,10 +129,10 @@ class BuildHatDriver:
         self.logger.info("Calibration loaded", extra={"details": {"calibration": self._calibration.__dict__}})
         return self._calibration
 
-    def save_calibration(self, left_limit: float, right_limit: float, calibration_file: Optional[Path] = None) -> None:
+    def save_calibration(self, left_limit: float, right_limit: float, calibration_file: Path | None = None) -> None:
         """Save calibration to file."""
         if calibration_file is None:
-            calibration_file = Path(__file__).parent.parent / "config" / "calibration.json"
+            calibration_file = Path(__file__).parent.parent.parent / "config" / "calibration.json"
 
         calibration_file.parent.mkdir(parents=True, exist_ok=True)
 
