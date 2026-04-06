@@ -7,7 +7,33 @@ from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from shared.config.constants import RobotSpecs
 
+from src.hardware.exceptions import MotorCalibrationError, MotorConnectionError
 from src.hardware.motors import BuildHatDriver
+from src.ros2.params import declare_and_get_str_param
+
+
+class SimulatedMotorDriver:
+    """Fallback simulated motor driver for graceful degradation."""
+
+    def stop_drive(self) -> None:
+        """No-op drive stop."""
+        pass
+
+    def center_steering(self) -> None:
+        """No-op steering center."""
+        pass
+
+    def run_drive_forward(self, speed: int | None = None) -> None:
+        """No-op forward."""
+        pass
+
+    def run_drive_reverse(self, speed: int | None = None) -> None:
+        """No-op reverse."""
+        pass
+
+    def move_steering_to(self, position: float, speed: int = 20) -> None:
+        """No-op steering movement."""
+        pass
 
 
 class BuildHatNode(Node):
@@ -16,18 +42,35 @@ class BuildHatNode(Node):
     def __init__(self) -> None:
         super().__init__("build_hat_node")
 
-        self.declare_parameter("cmd_vel_topic", "/wro_robot/cmd_vel")
-        cmd_vel_topic = self.get_parameter("cmd_vel_topic").get_parameter_value().string_value
+        cmd_vel_topic = declare_and_get_str_param(self, "cmd_vel_topic", "/wro_robot/cmd_vel")
 
         self.driver = BuildHatDriver()
+        self._hardware_ready = False
+
+        # Phase 1: Connect to motors
         try:
             self.driver.connect()
+            self.get_logger().info("Build HAT motors connected.")
+            self._hardware_ready = True
+        except MotorConnectionError as e:
+            self.get_logger().error(
+                f"Motor hardware missing (using simulated driver): {e}",
+                extra={"details": {"error": str(e), "port": e.port}},
+            )
+            self.driver = SimulatedMotorDriver()
+            return
+
+        # Phase 2: Load calibration (recoverable error)
+        try:
             self.driver.load_calibration()
             self.driver.center_steering()
-            self.get_logger().info("Build HAT motors connected and calibrated.")
-        except Exception as e:
-            self.get_logger().error(f"Failed to initialize Build HAT driver: {e}")
-            raise
+            self.get_logger().info("Build HAT motors calibrated and centered.")
+        except MotorCalibrationError as e:
+            self.get_logger().warning(
+                f"Using default calibration (file missing): {e}",
+                extra={"details": {"error": str(e)}},
+            )
+            # Continue with defaults — not fatal
 
         self.subscription = self.create_subscription(Twist, cmd_vel_topic, self.cmd_vel_callback, 10)
 

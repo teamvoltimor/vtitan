@@ -150,9 +150,7 @@ class RobotSpecs:
 
     # LIDAR (Slamtec C1)
     LIDAR_MIN_RANGE = 0.05  # 50mm minimum detection range (real sensor)
-    LIDAR_SIM_MIN_RANGE = (
-        0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
-    )
+    LIDAR_SIM_MIN_RANGE = 0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
     LIDAR_MAX_RANGE = 12.0  # 12m maximum detection range
     LIDAR_SAMPLES = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE = 10.0  # 10 Hz scan rate
@@ -198,6 +196,72 @@ class LightingSpecs:
 
     # Direction variance (radians)
     DIRECTION_VARIANCE = 0.3
+
+
+class LightingScenarios:
+    """Table-driven lighting scenario specifications.
+
+    Each scenario defines the ranges for intensity, ambient intensity,
+    direction, and shadow casting behavior. This table-driven approach
+    eliminates 50+ lines of duplicated branching code.
+    """
+
+    SPECS = {
+        "direct_sunlight": {
+            "intensity": (0.9, 1.0),
+            "ambient": (0.3, 0.4),
+            "direction": ((-0.7, -0.3), (-0.7, -0.3), -1.0),
+            "cast_shadows": True,
+        },
+        "cloudy": {
+            "intensity": (0.6, 0.75),
+            "ambient": (0.5, 0.6),
+            "direction": ((-0.5, -0.5), (-0.5, -0.5), -1.0),
+            "cast_shadows": True,
+        },
+        "indoor_bright": {
+            "intensity": (0.7, 0.85),
+            "ambient": (0.6, 0.7),
+            "direction": ((0.0, 0.0), (0.0, 0.0), -1.0),
+            "cast_shadows": False,
+        },
+        "indoor_dim": {
+            "intensity": (0.5, 0.65),
+            "ambient": (0.4, 0.5),
+            "direction": ((0.0, 0.0), (0.0, 0.0), -1.0),
+            "cast_shadows": False,
+        },
+        "evening": {
+            "intensity": (0.6, 0.8),
+            "ambient": (0.3, 0.4),
+            "direction": ((-0.9, -0.7), (-0.5, 0.5), -0.3),
+            "cast_shadows": True,
+        },
+        "mixed": {
+            "intensity": (0.7, 0.9),
+            "ambient": (0.5, 0.65),
+            "direction": ((-0.6, -0.4), (-0.6, -0.4), -1.0),
+            "cast_shadows": True,
+        },
+    }
+
+
+class ZLayers:
+    """Z-axis positioning for visual layering and collision.
+
+    Centralizes all Z-position constants to prevent scattered magic
+    numbers throughout the codebase. These values ensure proper layering
+    and prevent rendering artifacts.
+    """
+
+    TRACK_FLOOR = 0.00001  # Lowest level: track surface
+    GRID_LINES = 0.0001  # Grid lines on track
+    STARTING_ZONE_BASE = 0.0002  # Starting zone visual marker
+    DIRECTION_INDICATOR = 0.004  # Direction indicator on starting zone
+    TRAFFIC_SIGN = 0.05  # Traffic signs (half their height)
+    PARKING_BLOCK = 0.05  # Parking blocks (half their height)
+    COLLISION_SURFACE = 0.05  # Collision detection surface
+    ROBOT_BASE = None  # Computed from RobotSpecs.WHEEL_RADIUS (dynamic)
 
 
 class GridSections:
@@ -291,6 +355,8 @@ class DictKeys:
     MASS_VARIANCE = "mass_variance"
     INTENSITY = "intensity"
     AMBIENT_INTENSITY = "ambient_intensity"
+    CAST_SHADOWS = "cast_shadows"
+    SCENARIO = "scenario"
 
     # Track bounds keys
     MIN = "min"

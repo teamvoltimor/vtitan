@@ -108,9 +108,7 @@ class ScenarioType(StrEnum):
             return cls(value.lower())
         except ValueError as err:
             options = tuple(s.value for s in cls)
-            error_message = (
-                f"Invalid scenario type: {value!r}. Expected one of {options}"
-            )
+            error_message = f"Invalid scenario type: {value!r}. Expected one of {options}"
             raise ValueError(error_message) from err
 
 
@@ -124,6 +122,24 @@ class RiskLevel(StrEnum):
     SAFE = "safe"
     CRITICAL = "critical"
     OBSTACLE = "obstacle"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class LightingScenario(StrEnum):
+    """Realistic lighting scenarios for simulation.
+
+    Each scenario represents different environmental lighting conditions
+    with specific intensity, direction, and shadow characteristics.
+    """
+
+    DIRECT_SUNLIGHT = "direct_sunlight"
+    CLOUDY = "cloudy"
+    INDOOR_BRIGHT = "indoor_bright"
+    INDOOR_DIM = "indoor_dim"
+    EVENING = "evening"
+    MIXED = "mixed"
 
     def __str__(self) -> str:
         return self.value

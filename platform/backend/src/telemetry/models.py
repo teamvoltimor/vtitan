@@ -9,6 +9,25 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
+class TelemetryBaseModel(BaseModel):
+    """Base model for all telemetry data with consistent serialization.
+
+    Ensures all telemetry models:
+    - Are frozen (immutable)
+    - Use camelCase for JSON serialization
+    - Accept both camelCase and snake_case in deserialization
+
+    This DRY approach (Logic-Cleaner Rule 5: No magic values) eliminates
+    repetition of model_config across 8+ models.
+    """
+
+    model_config = ConfigDict(
+        frozen=True,
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+
 class NodeHealth(enum.StrEnum):
     """Enumerates the telemetry node health states sent to the UI."""
 
@@ -20,7 +39,7 @@ class NodeHealth(enum.StrEnum):
 Position3D = tuple[float, float, float]
 
 
-class TopicUpdate(BaseModel):
+class TopicUpdate(TelemetryBaseModel):
     """Single raw topic update with message data."""
 
     topic_name: str
@@ -29,61 +48,39 @@ class TopicUpdate(BaseModel):
     update_rate_hz: float  # Calculated from message frequency
     data: dict  # Raw message fields as nested dict
 
-    model_config = ConfigDict(frozen=True, alias_generator=to_camel)
 
-
-class TopicsSnapshot(BaseModel):
+class TopicsSnapshot(TelemetryBaseModel):
     """Collection of all active topic updates."""
 
     timestamp: float
     topics: list[TopicUpdate]
 
-    model_config = ConfigDict(frozen=True, alias_generator=to_camel)
 
-
-class ImuData(BaseModel):
+class ImuData(TelemetryBaseModel):
     """IMU sensor data from BNO085."""
 
     linear_acceleration: tuple[float, float, float]  # m/s² (x, y, z)
     angular_velocity: tuple[float, float, float]  # rad/s (roll, pitch, yaw)
     orientation_quaternion: tuple[float, float, float, float]  # (x, y, z, w)
 
-    model_config = ConfigDict(
-        frozen=True,
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
-
-class Detection(BaseModel):
+class Detection(TelemetryBaseModel):
     """YOLO object detection (traffic sign)."""
 
     class_name: str  # "red_sign" | "green_sign"
     confidence: float  # 0.0 - 1.0
     bbox: tuple[float, float, float, float]  # (x, y, w, h) normalized
 
-    model_config = ConfigDict(
-        frozen=True,
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
-
-class MotorState(BaseModel):
+class MotorState(TelemetryBaseModel):
     """Motor telemetry from BuildHAT."""
 
     steering_angle: float  # radians
     drive_speed: float  # motor speed (0-100 scale)
     encoder_position: int  # encoder ticks
 
-    model_config = ConfigDict(
-        frozen=True,
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
-
-class TelemetryMetrics(BaseModel):
+class TelemetryMetrics(TelemetryBaseModel):
     """Aggregated statistics emitted from the ROS bridge."""
 
     timestamp: float = Field(..., description="Unix timestamp (seconds).")
@@ -109,14 +106,8 @@ class TelemetryMetrics(BaseModel):
     camera_available: bool = Field(default=False)
     odometry_available: bool = Field(default=False)
 
-    model_config = ConfigDict(
-        frozen=True,
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
-
-class RobotSnapshot(BaseModel):
+class RobotSnapshot(TelemetryBaseModel):
     """Complete payload that the frontend consumes."""
 
     timestamp: float
@@ -137,9 +128,3 @@ class RobotSnapshot(BaseModel):
     imu_data: Optional[ImuData] = None
     vision_detections: Optional[list[Detection]] = None
     motor_state: Optional[MotorState] = None
-
-    model_config = ConfigDict(
-        frozen=True,
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )

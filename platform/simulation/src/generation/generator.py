@@ -16,6 +16,7 @@ import random
 from pathlib import Path
 from typing import Any
 from xml.etree.ElementTree import Element, ElementTree
+from xml.etree.ElementTree import ParseError
 
 import numpy as np
 from defusedxml.ElementTree import parse as defused_parse
@@ -34,6 +35,11 @@ from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.types import StartingConditions
 
 from src.generation.randomizer import ScenarioRandomizer
+from src.generation.randomization_strategy import (
+    DeterministicDefaults,
+    FullRandomization,
+    RandomizationStrategy,
+)
 from src.generation.sdf_builder import SDFBuilder
 
 logger = logging.getLogger(__name__)
@@ -55,6 +61,7 @@ class ScenarioGenerator:
         output_dir: str | Path,
         challenge_type: ScenarioType = ScenarioType.OPEN,
         seed: int | None = None,
+        randomization_strategy: RandomizationStrategy | None = None,
     ) -> None:
         self._base_world_path = base_world_path
         self._output_dir = Path(output_dir)
@@ -68,6 +75,7 @@ class ScenarioGenerator:
             np.random.seed(seed)
 
         self._randomizer = ScenarioRandomizer(_build_randomization_config())
+        self._strategy = randomization_strategy or FullRandomization(self._randomizer)
         self._builder = SDFBuilder(challenge_type)
 
     def create_scenario_world(
@@ -84,8 +92,18 @@ class ScenarioGenerator:
 
         Returns:
             Tuple of (world_file_path, metadata_dict).
+
+        Raises:
+            ValueError: If base world SDF is malformed or missing required elements.
+            IOError: If unable to parse input XML or write output files.
         """
-        tree = defused_parse(self._base_world_path)
+        try:
+            tree = defused_parse(self._base_world_path)
+        except ParseError as e:
+            raise IOError(f"Failed to parse base world SDF '{self._base_world_path}': {e}") from e
+        except FileNotFoundError as e:
+            raise IOError(f"Base world SDF not found at '{self._base_world_path}': {e}") from e
+
         root: Element = tree.getroot()
         world = root.find("world")
         if world is None:
@@ -96,7 +114,7 @@ class ScenarioGenerator:
         corridor_widths = self._resolve_corridor_widths(randomize_all)
 
         if randomize_all:
-            lighting = self._randomizer.randomize_lighting()
+            lighting = self._strategy.randomize_lighting()
             self._builder.apply_lighting(world, lighting)
 
         starting_conditions = self._resolve_starting_conditions(randomize_all, corridor_widths)
@@ -157,15 +175,10 @@ class ScenarioGenerator:
                 for s in GridSections.SECTIONS
             }
         if randomize_all:
-            return self._randomizer.randomize_corridor_widths()
-        # Open with no randomization: default wide corridors
-        return {
-            s: {
-                DictKeys.TYPE: WidthTypes.WIDE,
-                DictKeys.WIDTH: CorridorDimensions.WIDE,
-            }
-            for s in GridSections.SECTIONS
-        }
+            return self._strategy.randomize_corridor_widths()
+        # Open with no randomization: use deterministic defaults
+        defaults = DeterministicDefaults()
+        return defaults.randomize_corridor_widths()
 
     def _resolve_starting_conditions(
         self,
@@ -173,14 +186,9 @@ class ScenarioGenerator:
         corridor_widths: dict[Section, dict[str, Any]],
     ) -> StartingConditions:
         if randomize_all:
-            return self._randomizer.randomize_starting_conditions(corridor_widths)
-        return {
-            "direction": Direction.CLOCKWISE,
-            "section": Section.SOUTH,
-            "section_name": "South",
-            "position": (1.5, 0.4),
-            "yaw": math.pi,
-        }
+            return self._strategy.randomize_starting_conditions(corridor_widths)
+        defaults = DeterministicDefaults()
+        return defaults.randomize_starting_conditions(corridor_widths)
 
     def _resolve_obstacles(
         self,
@@ -206,20 +214,53 @@ class ScenarioGenerator:
         return sign_positions, sign_colors, parking_config
 
     def _save_world(self, tree: ElementTree, scenario_index: int) -> Path:
+        """Save SDF world to disk.
+
+        Args:
+            tree: ElementTree containing the world SDF.
+            scenario_index: Scenario index for filename.
+
+        Returns:
+            Path to the saved world file.
+
+        Raises:
+            IOError: If unable to write to disk (permissions, disk full, etc).
+        """
         world_file = (
             self._output_dir
             / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FileExtensions.SDF}"
         )
-        tree.write(world_file, encoding="utf-8", xml_declaration=True)
+        try:
+            tree.write(world_file, encoding="utf-8", xml_declaration=True)
+        except (OSError, IOError) as e:
+            raise IOError(
+                f"Failed to write world SDF to '{world_file}': {e} "
+                "(check disk space and write permissions)"
+            ) from e
         return world_file
 
     def _save_metadata(self, metadata: dict[str, Any], scenario_index: int) -> None:
+        """Save scenario metadata to JSON file.
+
+        Args:
+            metadata: Scenario metadata dictionary.
+            scenario_index: Scenario index for filename.
+
+        Raises:
+            IOError: If unable to write metadata file.
+        """
         metadata_file = (
             self._output_dir
             / f"{FilePaths.SCENARIO_PREFIX}{scenario_index:04d}{FilePaths.METADATA_SUFFIX}"
         )
-        with metadata_file.open("w", encoding="utf-8") as fh:
-            json.dump(metadata, fh, indent=2)
+        try:
+            with metadata_file.open("w", encoding="utf-8") as fh:
+                json.dump(metadata, fh, indent=2)
+        except (OSError, IOError, json.JSONDecodeError) as e:
+            raise IOError(
+                f"Failed to write metadata to '{metadata_file}': {e} "
+                "(check disk space and write permissions)"
+            ) from e
 
     def _build_metadata(
         self,

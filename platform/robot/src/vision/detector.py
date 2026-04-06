@@ -1,9 +1,23 @@
 """Vision and YOLO detection module."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from enum import Enum
 
 import cv2
 import numpy as np
+
+
+class TrafficSignColor(Enum):
+    """Enumerated traffic sign colors for type-safe detection."""
+
+    RED = "red"
+    GREEN = "green"
+    MAGENTA = "magenta"
+
+    def __str__(self) -> str:
+        """Return the string value of the color."""
+        return self.value
 
 
 class SignDetection:
@@ -13,7 +27,7 @@ class SignDetection:
         """Initialize a detection.
 
         Args:
-            color: 'red', 'green', or 'magenta'
+            color: 'red', 'green', or 'magenta' (from TrafficSignColor)
             bbox: (x1, y1, x2, y2)
             confidence: 0.0 to 1.0
         """
@@ -31,6 +45,29 @@ class SignDetection:
         }
 
 
+@dataclass(frozen=True)
+class DetectorConfig:
+    """Configuration for detector initialization.
+
+    This dataclass injects model path and class-to-color mapping,
+    decoupling the model from hardcoded color names.
+    """
+
+    model_path: str
+    class_to_color: dict[int, TrafficSignColor]
+
+    def get_color(self, class_id: int) -> TrafficSignColor | None:
+        """Get color for a class ID.
+
+        Args:
+            class_id: Model output class ID.
+
+        Returns:
+            TrafficSignColor if mapping exists, None otherwise.
+        """
+        return self.class_to_color.get(class_id)
+
+
 class DetectorBase(ABC):
     """Base class for vision detectors."""
 
@@ -42,14 +79,27 @@ class DetectorBase(ABC):
 class LocalYoloDetector(DetectorBase):
     """Local YOLO detector using ultralytics (for simulation/dev)."""
 
-    def __init__(self, model_path: str = "yolov8n.pt"):
+    def __init__(self, config: DetectorConfig | None = None):
+        """Initialize YOLO detector with injected configuration.
+
+        Args:
+            config: DetectorConfig with model path and class mappings.
+                If None, uses defaults.
+        """
         from ultralytics import YOLO  # noqa: PLC0415
 
-        self.model = YOLO(model_path)
+        if config is None:
+            config = DetectorConfig(
+                model_path="yolov8n.pt",
+                class_to_color={
+                    0: TrafficSignColor.RED,
+                    1: TrafficSignColor.GREEN,
+                    2: TrafficSignColor.MAGENTA,
+                },
+            )
 
-        # Mapping from class id to string color.
-        # This will depend on the trained model. Assuming 0=red, 1=green, 2=magenta.
-        self.class_names = {0: "red", 1: "green", 2: "magenta"}
+        self.config = config
+        self.model = YOLO(config.model_path)
 
     def detect(self, image: np.ndarray) -> list[SignDetection]:
         """Detect objects using Ultralytics YOLO."""
@@ -65,9 +115,9 @@ class LocalYoloDetector(DetectorBase):
             conf = float(box.conf[0].item())
             x1, y1, x2, y2 = box.xyxy[0].tolist()
 
-            color = self.class_names.get(class_id, "unknown")
-            if color != "unknown":
-                detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
+            color = self.config.get_color(class_id)
+            if color is not None:
+                detections.append(SignDetection(color.value, (x1, y1, x2, y2), conf))
 
         return detections
 
@@ -75,7 +125,13 @@ class LocalYoloDetector(DetectorBase):
 class HailoDetector(DetectorBase):
     """Hailo 8 NPU detector using HailoRT Python API."""
 
-    def __init__(self, hef_path: str):
+    def __init__(self, hef_path: str, config: DetectorConfig | None = None):
+        """Initialize Hailo detector with injected configuration.
+
+        Args:
+            hef_path: Path to Hailo HEF model file.
+            config: DetectorConfig with class mappings. If None, uses defaults.
+        """
         try:
             from hailo_platform import (  # noqa: PLC0415
                 HEF,
@@ -90,6 +146,17 @@ class HailoDetector(DetectorBase):
             msg = "hailo_platform module not found. Are you running on the Raspberry Pi 5 with HailoRT installed?"
             raise ImportError(msg) from e
 
+        if config is None:
+            config = DetectorConfig(
+                model_path=hef_path,
+                class_to_color={
+                    0: TrafficSignColor.RED,
+                    1: TrafficSignColor.GREEN,
+                    2: TrafficSignColor.MAGENTA,
+                },
+            )
+
+        self.config = config
         self.hef = HEF(hef_path)
         self.target = VDevice()
 
@@ -112,9 +179,6 @@ class HailoDetector(DetectorBase):
         self.input_stream_info = self.hef.get_input_vstream_infos()[0]
         # (height, width, channels) expected by the network
         self.input_shape = self.input_stream_info.shape
-
-        # Mapping from class id to string color (assuming 0=red, 1=green, 2=magenta)
-        self.class_names = {0: "red", 1: "green", 2: "magenta"}
 
     def detect(self, image: np.ndarray) -> list[SignDetection]:
         """Detect objects using Hailo 8 NPU."""
@@ -147,8 +211,8 @@ class HailoDetector(DetectorBase):
                     continue
 
                 class_id = int(box[5])
-                color = self.class_names.get(class_id, "unknown")
-                if color == "unknown":
+                color = self.config.get_color(class_id)
+                if color is None:
                     continue
 
                 # Convert normalized coords back to original image size
@@ -162,6 +226,6 @@ class HailoDetector(DetectorBase):
                     scale_x = image.shape[1] / self.input_shape[2]
                     y1, x1, y2, x2 = box[0] * scale_y, box[1] * scale_x, box[2] * scale_y, box[3] * scale_x
 
-                detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
+                detections.append(SignDetection(color.value, (x1, y1, x2, y2), conf))
 
         return detections

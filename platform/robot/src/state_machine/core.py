@@ -99,7 +99,19 @@ class StateMachine:
             try:
                 callback(transition)
             except Exception as e:
-                self.logger.error(f"Transition callback error: {e}")
+                self.logger.critical(
+                    "State transition callback FAILED — triggering emergency stop",
+                    extra={
+                        "details": {
+                            "error": str(e),
+                            "callback": getattr(callback, "__name__", str(callback)),
+                        },
+                    },
+                    exc_info=True,
+                )
+                # Force safe state
+                self._current_state = RobotState.FINISHED
+                raise
 
         return True
 

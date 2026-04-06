@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-import os
 
 import uvicorn
+
+from src.telemetry.config import ServerConfig
 
 
 def main() -> None:
@@ -14,13 +15,13 @@ def main() -> None:
         level=logging.INFO,
         format="%(levelname)s %(name)s %(message)s",
     )
-    port = int(os.environ.get("TELEMETRY_PORT", "8010"))
+    config = ServerConfig.from_env()
     uvicorn.run(
-        "src.telemetry.server:app",
+        "src.telemetry.app:app",
         host="0.0.0.0",  # noqa: S104
-        port=port,
+        port=config.telemetry_port,
         log_level="info",
-        reload=os.environ.get("TELEMETRY_RELOAD", "0") == "1",
+        reload=config.telemetry_reload,
     )
 
 

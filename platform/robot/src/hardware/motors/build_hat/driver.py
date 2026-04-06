@@ -1,12 +1,14 @@
 """Build HAT motor driver implementation."""
 
 import logging
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 
 from buildhat import Motor
 
 from src.env import EnvVar
+from src.hardware.exceptions import MotorCalibrationError, MotorConnectionError, MotorTimeoutError
 from src.hardware.motors.base import (
     CalibrationData,
     Config as BaseConfig,
@@ -20,6 +22,7 @@ STEERING_PORT = EnvVar[str](key="MOTOR_STEERING_PORT", default="A")
 DRIVE_PORT = EnvVar[str](key="MOTOR_DRIVE_PORT", default="B")
 DEFAULT_SPEED = EnvVar[int](key="MOTOR_DEFAULT_SPEED", default=15, cast=int)
 TEST_DURATION = EnvVar[float](key="MOTOR_TEST_DURATION", default=1.5, cast=float)
+MOTOR_CONNECTION_TIMEOUT = EnvVar[int](key="MOTOR_CONNECTION_TIMEOUT", default=5, cast=int)
 
 
 @dataclass
@@ -30,6 +33,31 @@ class Config(BaseConfig):
     drive_port: str = DRIVE_PORT.value
     default_speed: int = DEFAULT_SPEED.value
     test_duration: float = TEST_DURATION.value
+    connection_timeout: int = MOTOR_CONNECTION_TIMEOUT.value
+
+
+class _TimeoutHandler:
+    """Context manager for connection timeout handling."""
+
+    def __init__(self, timeout_seconds: int):
+        self.timeout_seconds = timeout_seconds
+        self._original_handler = None
+
+    def __enter__(self):
+        """Set timeout alarm."""
+
+        def _timeout_handler(signum, frame):
+            raise MotorTimeoutError("Motor connection timeout")
+
+        self._original_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(self.timeout_seconds)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Cancel timeout alarm."""
+        signal.alarm(0)
+        if self._original_handler is not None:
+            signal.signal(signal.SIGALRM, self._original_handler)
 
 
 class Driver(MotorDriver):
@@ -43,10 +71,38 @@ class Driver(MotorDriver):
         self.logger = logging.getLogger(__name__)
 
     def connect(self) -> None:
-        """Connect to motors."""
+        """Connect to motors with timeout protection.
+
+        Raises:
+            MotorConnectionError: If motor connection fails or times out.
+        """
         self.logger.info("Connecting to Build HAT motors")
-        self._steering = Motor(self.config.steering_port)
-        self._drive = Motor(self.config.drive_port)
+
+        try:
+            with _TimeoutHandler(self.config.connection_timeout):
+                self._steering = Motor(self.config.steering_port)
+                self._drive = Motor(self.config.drive_port)
+        except MotorTimeoutError as e:
+            raise MotorConnectionError(
+                self.config.steering_port,
+                "Connection timeout (hardware not responding)",
+            ) from e
+        except FileNotFoundError as e:
+            raise MotorConnectionError(
+                self.config.steering_port,
+                "Motor not found (USB disconnected?)",
+            ) from e
+        except PermissionError as e:
+            raise MotorConnectionError(
+                self.config.steering_port,
+                "Permission denied (not running as root?)",
+            ) from e
+        except Exception as e:
+            raise MotorConnectionError(
+                self.config.steering_port,
+                f"Unexpected connection error: {type(e).__name__}",
+            ) from e
+
         self.logger.info(
             "Connected",
             extra={"details": {"steering": self.config.steering_port, "drive": self.config.drive_port}},
@@ -109,7 +165,17 @@ class Driver(MotorDriver):
         self.move_steering_to(0.0)
 
     def load_calibration(self, calibration_file: Path | None = None) -> CalibrationData:
-        """Load calibration from file."""
+        """Load calibration from file.
+
+        Args:
+            calibration_file: Path to calibration JSON file. If None, uses default location.
+
+        Returns:
+            CalibrationData: Loaded calibration data (or defaults if file missing).
+
+        Raises:
+            MotorCalibrationError: If calibration file is invalid.
+        """
         if calibration_file is None:
             calibration_file = Path(__file__).parent.parent.parent / "config" / "calibration.json"
 
@@ -119,17 +185,20 @@ class Driver(MotorDriver):
 
         import json
 
-        with open(calibration_file) as f:
-            data = json.load(f)
+        try:
+            with open(calibration_file) as f:
+                data = json.load(f)
 
-        self._calibration = CalibrationData(
-            left_limit=data["steering"]["left_limit"],
-            right_limit=data["steering"]["right_limit"],
-            center=data["steering"].get("center", 0.0),
-        )
+            self._calibration = CalibrationData(
+                left_limit=data["steering"]["left_limit"],
+                right_limit=data["steering"]["right_limit"],
+                center=data["steering"].get("center", 0.0),
+            )
 
-        self.logger.info("Calibration loaded", extra={"details": {"calibration": self._calibration.__dict__}})
-        return self._calibration
+            self.logger.info("Calibration loaded", extra={"details": {"calibration": self._calibration.__dict__}})
+            return self._calibration
+        except (KeyError, json.JSONDecodeError, ValueError) as e:
+            raise MotorCalibrationError(f"Invalid calibration file format: {e}") from e
 
     def save_calibration(self, left_limit: float, right_limit: float, calibration_file: Path | None = None) -> None:
         """Save calibration to file."""

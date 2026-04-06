@@ -514,47 +514,58 @@ class PipelineOrchestrator:
             return False
 
     def cleanup(self) -> None:
-        """Cleanup processes"""
-        # Stop robot driver
-        if self.driver_process:
-            try:
-                self.driver_process.terminate()
-                self.driver_process.wait(timeout=5)
-            except Exception:
-                try:
-                    self.driver_process.kill()
-                except Exception:
-                    pass
+        """Cleanup processes with controlled fallback strategy."""
+        self._terminate_process("driver", self.driver_process)
+        self._terminate_process("bridge", self.bridge_process)
+        self._terminate_process("gazebo", self.gazebo_process)
+        self._kill_lingering_processes()
 
-        # Stop bridge
-        if self.bridge_process:
-            try:
-                self.bridge_process.terminate()
-                self.bridge_process.wait(timeout=5)
-            except Exception:
-                try:
-                    self.bridge_process.kill()
-                except Exception:
-                    pass
+    def _terminate_process(self, process_name: str, process: Any) -> None:
+        """Terminate a process with fallback to kill if terminate fails.
 
-        # Stop Gazebo
-        if self.gazebo_process:
-            try:
-                self.gazebo_process.terminate()
-                self.gazebo_process.wait(timeout=5)
-            except Exception:
-                try:
-                    self.gazebo_process.kill()
-                except Exception:
-                    pass
+        Args:
+            process_name: Human-readable name for logging.
+            process: The subprocess.Popen object to terminate.
+        """
+        if not process:
+            return
 
-        # Kill any lingering processes
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+            print(f"  ✓ {process_name} terminated cleanly")
+        except subprocess.TimeoutExpired:
+            print(f"  ⚠ {process_name} did not terminate, forcing kill...")
+            try:
+                process.kill()
+                process.wait(timeout=2)
+                print(f"  ✓ {process_name} killed")
+            except Exception as e:
+                print(f"  ✗ Failed to kill {process_name}: {e}")
+        except Exception as e:
+            print(f"  ⚠ Failed to terminate {process_name}: {e}. Attempting kill...")
+            try:
+                process.kill()
+                print(f"  ✓ {process_name} killed")
+            except Exception as kill_error:
+                print(f"  ✗ Failed to kill {process_name}: {kill_error}")
+
+    def _kill_lingering_processes(self) -> None:
+        """Kill any leftover processes from previous runs."""
         try:
             subprocess.run(
-                ["killall", "-9", "gz", "parameter_bridge", "python3"], stderr=subprocess.DEVNULL
+                ["killall", "-9", "gz", "parameter_bridge", "python3"],
+                stderr=subprocess.DEVNULL,
+                timeout=5,
             )
-        except Exception:
-            pass
+            print("  ✓ Lingering processes killed")
+        except subprocess.TimeoutExpired:
+            print("  ⚠ killall command timed out")
+        except FileNotFoundError:
+            # killall not available (e.g., on some Windows systems)
+            print("  ⚠ killall command not available on this system")
+        except Exception as e:
+            print(f"  ⚠ Error killing lingering processes: {e}")
 
     def process_scenario(self, scenario_file: Path) -> bool:
         """Process a single scenario: launch, record, cleanup"""

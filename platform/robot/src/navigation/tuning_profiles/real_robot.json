@@ -1,0 +1,50 @@
+{
+  "clearance": {
+    "contact_dist": 0.10,
+    "slow_dist": 0.25,
+    "medium_dist": 0.50,
+    "fast_dist": 1.00
+  },
+  "heading_error": {
+    "crawl": 1.0,
+    "slow": 0.7,
+    "medium": 0.4
+  },
+  "speed": {
+    "contact": 0.15,
+    "slow": 0.35,
+    "medium": 0.50,
+    "fast": 0.70,
+    "full": 1.00,
+    "err_crawl": 0.25,
+    "err_slow": 0.35,
+    "err_medium": 0.55
+  },
+  "lookahead": {
+    "short": 0.20,
+    "long": 0.40,
+    "threshold": 0.30
+  },
+  "escape": {
+    "rev_speed": -0.20,
+    "steer_scale": 0.8,
+    "obs_rev_speed": -0.25,
+    "obs_fwd_speed": 0.15,
+    "obs_steer_scale": 0.70,
+    "obs_fwd_steer_scale": 0.50,
+    "obs_reverse_fraction": 0.70
+  },
+  "stuck": {
+    "move_threshold": 0.03,
+    "escape_duration": 15,
+    "close_wall_dist": 0.18
+  },
+  "collision": {
+    "side_gain": 0.08,
+    "obstacle_gain": 0.30,
+    "active_fwd_dist": 0.35
+  },
+  "steering": {
+    "kp": 1.5
+  }
+}

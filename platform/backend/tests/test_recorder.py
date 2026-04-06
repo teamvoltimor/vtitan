@@ -9,6 +9,7 @@ import pytest
 
 from src.telemetry.models import NodeHealth, RobotSnapshot, TelemetryMetrics
 from src.telemetry.recorder import TelemetryRecorder
+from src.telemetry.exceptions import SessionNotFoundError
 
 
 def _make_snapshot(timestamp: float = 1.0) -> RobotSnapshot:
@@ -63,7 +64,7 @@ def test_multiple_records(tmp_path: Path) -> None:
 
 def test_load_missing_session_raises(tmp_path: Path) -> None:
     rec = TelemetryRecorder(base_dir=tmp_path, session_id="s")
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(SessionNotFoundError):
         list(rec.load_session("nonexistent"))
     rec.close()
 

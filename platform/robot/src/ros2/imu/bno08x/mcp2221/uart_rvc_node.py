@@ -4,7 +4,9 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
 
+from src.hardware.exceptions import IMUConnectionError
 from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_UART_RVCDriver
+from src.ros2.params import declare_and_get_float_param, declare_and_get_str_param
 
 
 class IMU_UART_RVCNode(Node):
@@ -13,24 +15,33 @@ class IMU_UART_RVCNode(Node):
     def __init__(self) -> None:
         super().__init__("bno08x_uart_rvc_node")
 
-        # Declare parameters
-        self.declare_parameter("publish_rate", 100.0)  # Hz
-        self.declare_parameter("frame_id", "imu_link")
-        self.declare_parameter("topic", "imu/data")
-
-        publish_rate = self.get_parameter("publish_rate").get_parameter_value().double_value
-        self.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
-        topic = self.get_parameter("topic").get_parameter_value().string_value
+        # Declare and get parameters
+        publish_rate = declare_and_get_float_param(self, "publish_rate", 100.0)
+        self.frame_id = declare_and_get_str_param(self, "frame_id", "imu_link")
+        topic = declare_and_get_str_param(self, "topic", "imu/data")
 
         # Initialize hardware driver
         self.driver = IMU_UART_RVCDriver()
+        self._hardware_ready = False
+
         try:
             self.driver.connect()
             self.driver.start_polling()
             self.get_logger().info("IMU driver connected and polling started.")
+            self._hardware_ready = True
+        except IMUConnectionError as e:
+            self.get_logger().error(
+                f"IMU hardware not available: {e}",
+                extra={"details": {"error": str(e), "port": e.port}},
+            )
+            # Continue gracefully — IMU data is not critical for motor control
         except Exception as e:
-            self.get_logger().error(f"Failed to initialize IMU driver: {e}")
-            raise
+            self.get_logger().error(
+                f"Unexpected IMU initialization error: {e}",
+                extra={"details": {"error": str(e)}},
+                exc_info=True,
+            )
+            # Continue — let operator decide if IMU is essential
 
         # Setup publisher
         self.publisher_ = self.create_publisher(Imu, topic, 10)
@@ -46,6 +57,9 @@ class IMU_UART_RVCNode(Node):
 
     def publish_imu(self) -> None:
         """Read data from driver and publish as sensor_msgs/Imu."""
+        if not self._hardware_ready:
+            return
+
         data = self.driver.get_data()
         if data is None:
             return
