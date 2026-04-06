@@ -10,8 +10,8 @@ import math
 from typing import TypedDict
 
 import numpy as np
-
-from src.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs
+from shared.config.enums import RiskLevel
 
 
 class DistancesDict(TypedDict):
@@ -20,6 +20,7 @@ class DistancesDict(TypedDict):
     forward: float
     left: float
     right: float
+
 
 # Minimum distance (m) before the robot contacts the obstacle.
 # Kept slightly above zero so a reading at exactly LIDAR_MIN_RANGE
@@ -92,15 +93,16 @@ def assess_collision_risk(
     fwd_critical_threshold: int,
     is_open_challenge: bool,
     angle_error: float = 0.0,
-) -> tuple[str, DistancesDict]:
+    is_simulation: bool = False,
+) -> tuple[RiskLevel, DistancesDict]:
     """Classify the current collision risk from LIDAR data.
 
     Returns a risk label and the three measured distances.
 
     Risk levels:
-    - ``"safe"``: no imminent contact.
-    - ``"critical"``: wall or corner contact — K-turn escape required.
-    - ``"obstacle"``: free-standing traffic sign with room on both sides
+    - ``RiskLevel.SAFE``: no imminent contact.
+    - ``RiskLevel.CRITICAL``: wall or corner contact — K-turn escape required.
+    - ``RiskLevel.OBSTACLE``: free-standing traffic sign with room on both sides
       (obstacles challenge only).
 
     Args:
@@ -117,16 +119,23 @@ def assess_collision_risk(
         ``DistancesDict`` with keys ``forward``, ``left``, ``right``.
     """
     forward_dist = measure_distance_in_direction(
-        lidar_ranges, lidar_angles, target_angle=0.0, tolerance=_SIDE_TOLERANCE,
+        lidar_ranges,
+        lidar_angles,
+        target_angle=0.0,
+        tolerance=_SIDE_TOLERANCE,
     )
     left_dist = measure_distance_in_direction(
-        lidar_ranges, lidar_angles,
-        target_angle=math.pi / 2, tolerance=_SIDE_TOLERANCE,
+        lidar_ranges,
+        lidar_angles,
+        target_angle=math.pi / 2,
+        tolerance=_SIDE_TOLERANCE,
         filter_self_detection=True,
     )
     right_dist = measure_distance_in_direction(
-        lidar_ranges, lidar_angles,
-        target_angle=-math.pi / 2, tolerance=_SIDE_TOLERANCE,
+        lidar_ranges,
+        lidar_angles,
+        target_angle=-math.pi / 2,
+        tolerance=_SIDE_TOLERANCE,
         filter_self_detection=True,
     )
 
@@ -138,8 +147,8 @@ def assess_collision_risk(
 
     # Forward > 4 m is impossible inside the 3×3 m track — the ray passed
     # through a thin wall mesh into open space (GPU LIDAR wall-clipping).
-    if forward_dist > 4.0:
-        return "critical", distances
+    if is_simulation and forward_dist > 4.0:
+        return RiskLevel.CRITICAL, distances
 
     debounced = fwd_critical_count >= fwd_critical_threshold
 
@@ -157,12 +166,12 @@ def assess_collision_risk(
         if not debounced:
             # Single-reading spike (GPU LIDAR artifact at inner-corner junction).
             # Speed scaling still applies; wait for a second reading to confirm.
-            return "safe", distances
+            return RiskLevel.SAFE, distances
         if can_be_obstacle:
-            return "obstacle", distances
-        return "critical", distances
+            return RiskLevel.OBSTACLE, distances
+        return RiskLevel.CRITICAL, distances
 
-    return "safe", distances
+    return RiskLevel.SAFE, distances
 
 
 def update_fwd_critical_count(
@@ -186,7 +195,10 @@ def update_fwd_critical_count(
         Updated counter (non-negative integer).
     """
     forward_dist = measure_distance_in_direction(
-        lidar_ranges, lidar_angles, target_angle=0.0, tolerance=_SIDE_TOLERANCE,
+        lidar_ranges,
+        lidar_angles,
+        target_angle=0.0,
+        tolerance=_SIDE_TOLERANCE,
     )
     if forward_dist < critical_distance:
         return current_count + 1

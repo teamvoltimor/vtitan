@@ -8,11 +8,10 @@ never reads files or randomizes values.
 from __future__ import annotations
 
 import math
-import random
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from src.config.constants import (
+from shared.config.constants import (
     DictKeys,
     ModelNames,
     ParkingLotSpecs,
@@ -22,7 +21,7 @@ from src.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
-from src.config.enums import Direction, ScenarioType, Section
+from shared.config.enums import Direction, ScenarioType, Section
 
 # Cylinder geometry requires a 90° roll to align the cylinder axis with Y (wheel roll axis).
 _WHEEL_ROLL_POSE = f"0 0 0 {math.pi / 2:.6f} 0 0"
@@ -240,16 +239,10 @@ class SDFBuilder:
             parking_config: Parking lot positions (obstacles challenge) or None.
             base_world_path: Path to the base world SDF (used to locate icon files).
         """
-        track_max = TrackDimensions.MAX_COORD
         starting_section: Section = starting_conditions[DictKeys.SECTION]
-        corridor_width = corridor_widths[starting_section][DictKeys.WIDTH]
 
-        zone_length, zone_x, zone_y = _compute_zone_placement(
-            starting_section,
-            corridor_width,
-            parking_config,
-            track_max,
-        )
+        sz = starting_conditions["starting_zone"]
+        zone_length, zone_x, zone_y = sz["length"], sz["x"], sz["y"]
 
         # Remove existing static zone from base template
         for existing in world.findall(".//model[@name='starting_zone_south']"):
@@ -406,70 +399,6 @@ def _add_contact_surface(col: ET.Element) -> None:
     ET.SubElement(ode, "min_depth").text = "0.0"
 
 
-def _compute_zone_placement(
-    starting_section: Section,
-    corridor_width: float,
-    parking_config: dict[str, Any] | None,
-    track_max: float,
-) -> tuple[float, float, float]:
-    """Return (zone_length, zone_x, zone_y) for the starting zone."""
-    zone_length = StartingZoneSpecs.DEFAULT_LENGTH
-
-    is_obstacles_with_parking = parking_config is not None
-    if is_obstacles_with_parking:
-        zone_length, zone_x, zone_y = _zone_from_parking(
-            starting_section,
-            parking_config,
-            zone_length,
-            track_max,
-        )
-        return zone_length, zone_x, zone_y
-
-    # Open challenge: random position within corridor
-    width_sections = [0.2, 0.5, 0.8] if corridor_width >= 1.0 else [0.2, 0.5]
-    width_offset = random.choice(width_sections)
-    length_offset = random.choice([1.25, 1.75])
-
-    is_ns = starting_section in (Section.NORTH, Section.SOUTH)
-    if is_ns:
-        zone_x = length_offset
-        zone_y = width_offset if starting_section is Section.SOUTH else track_max - width_offset
-    else:
-        zone_y = length_offset
-        zone_x = width_offset if starting_section is Section.WEST else track_max - width_offset
-    return zone_length, zone_x, zone_y
-
-
-def _zone_from_parking(
-    section: Section,
-    parking_config: dict[str, Any],
-    default_length: float,
-    track_max: float,
-) -> tuple[float, float, float]:
-    """Compute zone placement centered between the two parking blocks."""
-    b1 = parking_config[DictKeys.BLOCK1_POS]
-    b2 = parking_config[DictKeys.BLOCK2_POS]
-
-    is_ns = section in (Section.NORTH, Section.SOUTH)
-    if is_ns:
-        spacing = abs(b2[0] - b1[0])
-        zone_x = (b1[0] + b2[0]) / 2
-        zone_y = b1[1]
-    else:
-        spacing = abs(b2[1] - b1[1])
-        zone_y = (b1[1] + b2[1]) / 2
-        zone_x = b1[0]
-
-    available_gap = spacing - ParkingLotSpecs.WIDTH
-    zone_length = (
-        min(default_length, available_gap * StartingZoneSpecs.OBSTACLES_SIZE_FACTOR)
-        if available_gap < default_length
-        else default_length
-    )
-    return zone_length, zone_x, zone_y
-
-
-# Robot model sub-builders
 def _build_chassis(robot_model: ET.Element) -> None:
     half_h = RobotSpecs.HEIGHT / 2
     cm = RobotSpecs.CHASSIS_MASS

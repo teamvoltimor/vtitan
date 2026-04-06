@@ -11,18 +11,19 @@ import random
 from typing import Any
 
 import numpy as np
-
-from src.config.constants import (
+from shared.config.constants import (
     CorridorDimensions,
     DictKeys,
     GridSections,
     ParkingLotSpecs,
     RobotSpecs,
+    StartingZoneSpecs,
     TrackDimensions,
     TrafficSignSpecs,
     WidthTypes,
 )
-from src.config.enums import Direction, Section
+from shared.config.enums import Direction, Section
+
 from src.generation.scenarios import apply_scenario_to_section
 
 
@@ -63,10 +64,16 @@ class ScenarioRandomizer:
             Dict with keys: intensity, direction, ambient_intensity,
             cast_shadows, scenario.
         """
-        scenario = random.choice([
-            "direct_sunlight", "cloudy", "indoor_bright",
-            "indoor_dim", "evening", "mixed",
-        ])
+        scenario = random.choice(
+            [
+                "direct_sunlight",
+                "cloudy",
+                "indoor_bright",
+                "indoor_dim",
+                "evening",
+                "mixed",
+            ]
+        )
         return _build_lighting_config(scenario)
 
     def randomize_corridor_widths(self) -> dict[Section, dict[str, Any]]:
@@ -95,7 +102,8 @@ class ScenarioRandomizer:
         direction = random.choice(list(Direction))
         starting_section = random.choice(self._sections)
         corridor_width = corridor_widths.get(
-            starting_section, {DictKeys.WIDTH: 0.65},
+            starting_section,
+            {DictKeys.WIDTH: 0.65},
         )[DictKeys.WIDTH]
         starting_position = _pick_start_position(starting_section, corridor_width)
         starting_yaw = _compute_starting_yaw(starting_section, direction)
@@ -130,7 +138,10 @@ class ScenarioRandomizer:
         depth2 = _compute_second_block_depth(depth, spacing)
         wall_offset = ParkingLotSpecs.WALL_OFFSET
         block1_pos, block2_pos, yaw = _parking_positions_for_section(
-            starting_section, depth, depth2, wall_offset,
+            starting_section,
+            depth,
+            depth2,
+            wall_offset,
         )
         return {
             DictKeys.BLOCK1_POS: block1_pos,
@@ -139,6 +150,43 @@ class ScenarioRandomizer:
             DictKeys.BLOCK2_YAW: yaw,
             DictKeys.DEPTH: depth,
         }
+
+    def generate_starting_zone(
+        self,
+        starting_section: Section,
+        corridor_width: float,
+        parking_config: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Compute the starting zone rectangle dimensions and position."""
+        track_max = TrackDimensions.MAX_COORD
+        zone_length = StartingZoneSpecs.DEFAULT_LENGTH
+
+        is_obstacles_with_parking = parking_config is not None
+        if is_obstacles_with_parking:
+            zone_length, zone_x, zone_y = _zone_from_parking(
+                starting_section,
+                parking_config,
+                zone_length,
+                track_max,
+            )
+            return {"length": zone_length, "x": zone_x, "y": zone_y}
+
+        # Open challenge: random position within corridor
+        width_sections = [0.2, 0.5, 0.8] if corridor_width >= 1.0 else [0.2, 0.5]
+        width_offset = random.choice(width_sections)
+        length_offset = random.choice([1.25, 1.75])
+
+        is_ns = starting_section in (Section.NORTH, Section.SOUTH)
+        if is_ns:
+            zone_x = length_offset
+            zone_y = (
+                width_offset if starting_section is Section.SOUTH else track_max - width_offset
+            )
+        else:
+            zone_y = length_offset
+            zone_x = width_offset if starting_section is Section.WEST else track_max - width_offset
+
+        return {"length": zone_length, "x": zone_x, "y": zone_y}
 
     def generate_sign_positions(
         self,
@@ -261,10 +309,10 @@ def _compute_starting_yaw(section: Section, direction: Direction) -> float:
     """Return the robot's initial heading angle (radians) for a given corridor/direction."""
     half_pi = math.pi / 2
     yaw_map: dict[Section, dict[Direction, float]] = {
-        Section.SOUTH: {Direction.CLOCKWISE: math.pi,  Direction.COUNTERCLOCKWISE: 0.0},
-        Section.NORTH: {Direction.CLOCKWISE: 0.0,       Direction.COUNTERCLOCKWISE: math.pi},
-        Section.EAST:  {Direction.CLOCKWISE: -half_pi,  Direction.COUNTERCLOCKWISE: half_pi},
-        Section.WEST:  {Direction.CLOCKWISE: half_pi,   Direction.COUNTERCLOCKWISE: -half_pi},
+        Section.SOUTH: {Direction.CLOCKWISE: math.pi, Direction.COUNTERCLOCKWISE: 0.0},
+        Section.NORTH: {Direction.CLOCKWISE: 0.0, Direction.COUNTERCLOCKWISE: math.pi},
+        Section.EAST: {Direction.CLOCKWISE: -half_pi, Direction.COUNTERCLOCKWISE: half_pi},
+        Section.WEST: {Direction.CLOCKWISE: half_pi, Direction.COUNTERCLOCKWISE: -half_pi},
     }
     return yaw_map[section][direction]
 
@@ -302,3 +350,33 @@ def _parking_positions_for_section(
         return (x, depth), (x, depth2), 0.0
     # Section.WEST
     return (wall_offset, depth), (wall_offset, depth2), 0.0
+
+
+def _zone_from_parking(
+    section: Section,
+    parking_config: dict[str, Any],
+    default_length: float,
+    track_max: float,
+) -> tuple[float, float, float]:
+    """Compute zone placement centered between the two parking blocks."""
+    b1 = parking_config[DictKeys.BLOCK1_POS]
+    b2 = parking_config[DictKeys.BLOCK2_POS]
+
+    is_ns = section in (Section.NORTH, Section.SOUTH)
+    if is_ns:
+        spacing = abs(b2[0] - b1[0])
+        zone_x = (b1[0] + b2[0]) / 2
+        zone_y = b1[1]
+    else:
+        spacing = abs(b2[1] - b1[1])
+        zone_y = (b1[1] + b2[1]) / 2
+        zone_x = b1[0]
+
+    available_gap = spacing - ParkingLotSpecs.WIDTH
+    zone_length = (
+        min(default_length, available_gap * StartingZoneSpecs.OBSTACLES_SIZE_FACTOR)
+        if available_gap < default_length
+        else default_length
+    )
+
+    return zone_length, zone_x, zone_y

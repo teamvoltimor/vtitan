@@ -7,9 +7,11 @@ from pathlib import Path
 from buildhat import Motor
 
 from src.env import EnvVar
-from src.hardware.motors.base import CalibrationData
-from src.hardware.motors.base import Config as BaseConfig
-from src.hardware.motors.base import Driver as MotorDriver
+from src.hardware.motors.base import (
+    CalibrationData,
+    Config as BaseConfig,
+    Driver as MotorDriver,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()

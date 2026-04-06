@@ -56,7 +56,11 @@ class SimpleRobotDriver(Node):
         self._duration = duration
         self._start_time = time.time()
 
-        self._vel_publisher = self.create_publisher(Twist, "/wro_robot/cmd_vel", 10)
+        self.declare_parameter("cmd_vel_topic", "/wro_robot/cmd_vel")
+        self.shutdown_requested = False
+        cmd_vel_topic = self.get_parameter("cmd_vel_topic").get_parameter_value().string_value
+
+        self._vel_publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
 
         self._forward_speed: float = 0.3  # m/s
         self._state: Literal["forward", "turning"] = "forward"
@@ -64,7 +68,9 @@ class SimpleRobotDriver(Node):
 
         self.create_timer(_LOOP_PERIOD, self._control_loop)
         self.get_logger().info(
-            "Robot driver started: %s direction, %ss duration", direction, duration,
+            "Robot driver started: %s direction, %ss duration",
+            direction,
+            duration,
         )
 
     def _control_loop(self) -> None:
@@ -73,7 +79,7 @@ class SimpleRobotDriver(Node):
         if elapsed >= self._duration:
             self._stop_robot()
             self.get_logger().info("Driving duration reached, stopping")
-            rclpy.shutdown()
+            self.shutdown_requested = True
             return
 
         vel_msg = Twist()
@@ -123,7 +129,8 @@ def main() -> None:
     driver: SimpleRobotDriver | None = None
     try:
         driver = SimpleRobotDriver(direction=args.direction, duration=args.duration)
-        rclpy.spin(driver)
+        while rclpy.ok() and not getattr(driver, "shutdown_requested", False):
+            rclpy.spin_once(driver, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:

@@ -15,20 +15,11 @@ import math
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from shared.config.constants import TrackDimensions, WallSpecs
+
 logger = logging.getLogger(__name__)
 
 # WRO 2026 track constants
-# Mat and track dimensions (metres)
-_MAT_SIZE = 3.2  # full mat (including border)
-_TRACK_SIZE = 3.0  # inner track (wall-to-wall)
-_TRACK_CENTER = 1.5  # world-frame track centre
-
-# Wall specs
-_WALL_HEIGHT = 0.10  # 100 mm (WRO Spec 13.3)
-_WALL_THICKNESS = 0.10  # visual thickness
-_WALL_COLLISION_PAD = 0.08  # extra thickness for collision box only
-_WALL_CENTER_Z = 0.05  # half-height above ground
-
 # Corner line specs
 _CORNER_INNER = 1.0  # inner corner X/Y
 _CORNER_OUTER = 3.0  # outer wall X/Y
@@ -114,42 +105,64 @@ def _add_ambient_light(world: ET.Element) -> None:
 
 def _add_ground_plane(world: ET.Element) -> None:
     """White 3200×3200 mm mat (WRO Spec 13.1–13.2)."""
-    model = _static_model(world, "ground", pose=f"{_TRACK_CENTER} {_TRACK_CENTER} 0 0 0 0")
+    model = _static_model(
+        world,
+        "ground",
+        pose=f"{TrackDimensions.CENTER_COORD} {TrackDimensions.CENTER_COORD} 0 0 0 0",
+    )
     link = ET.SubElement(model, "link", name="link")
 
     vis = ET.SubElement(link, "visual", name="visual")
-    _plane_geometry(vis, _MAT_SIZE, _MAT_SIZE)
+    _plane_geometry(vis, TrackDimensions.MAT_SIZE, TrackDimensions.MAT_SIZE)
     _material(vis, _WHITE)
 
     col = ET.SubElement(link, "collision", name="collision")
-    _plane_geometry(col, _MAT_SIZE, _MAT_SIZE)
+    _plane_geometry(col, TrackDimensions.MAT_SIZE, TrackDimensions.MAT_SIZE)
     _friction_surface(col, mu=0.8)
 
 
 def _add_exterior_walls(world: ET.Element) -> None:
     """Four BLACK 100 mm-high walls enclosing the 3000×3000 mm track (WRO Spec 13.3–13.4)."""
-    offset = _WALL_THICKNESS / 2  # wall extends outward
+    offset = WallSpecs.THICKNESS / 2  # wall extends outward
 
     walls = [
         (
             "north",
-            f"{_TRACK_CENTER} {_TRACK_SIZE + offset} {_WALL_CENTER_Z} 0 0 0",
-            (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT),
+            f"{TrackDimensions.CENTER_COORD} {TrackDimensions.TRACK_SIZE + offset} "
+            f"{(WallSpecs.HEIGHT / 2)} 0 0 0",
+            (
+                TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS,
+                WallSpecs.THICKNESS,
+                WallSpecs.HEIGHT,
+            ),
         ),
         (
             "south",
-            f"{_TRACK_CENTER} {-offset} {_WALL_CENTER_Z} 0 0 0",
-            (_MAT_SIZE + _WALL_THICKNESS, _WALL_THICKNESS, _WALL_HEIGHT),
+            f"{TrackDimensions.CENTER_COORD} {-offset} {(WallSpecs.HEIGHT / 2)} 0 0 0",
+            (
+                TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS,
+                WallSpecs.THICKNESS,
+                WallSpecs.HEIGHT,
+            ),
         ),
         (
             "east",
-            f"{_TRACK_SIZE + offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
-            (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT),
+            f"{TrackDimensions.TRACK_SIZE + offset} {TrackDimensions.CENTER_COORD} "
+            f"{(WallSpecs.HEIGHT / 2)} 0 0 0",
+            (
+                WallSpecs.THICKNESS,
+                TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS,
+                WallSpecs.HEIGHT,
+            ),
         ),
         (
             "west",
-            f"{-offset} {_TRACK_CENTER} {_WALL_CENTER_Z} 0 0 0",
-            (_WALL_THICKNESS, _MAT_SIZE + _WALL_THICKNESS, _WALL_HEIGHT),
+            f"{-offset} {TrackDimensions.CENTER_COORD} {(WallSpecs.HEIGHT / 2)} 0 0 0",
+            (
+                WallSpecs.THICKNESS,
+                TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS,
+                WallSpecs.HEIGHT,
+            ),
         ),
     ]
     for name, pose, (sx, sy, sz) in walls:
@@ -161,7 +174,12 @@ def _add_exterior_walls(world: ET.Element) -> None:
         _material(vis, _BLACK)
 
         col = ET.SubElement(link, "collision", name="collision")
-        _box_geometry(col, sx + _WALL_COLLISION_PAD, sy + _WALL_COLLISION_PAD, sz)
+        _box_geometry(
+            col,
+            sx + (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS),
+            sy + (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS),
+            sz,
+        )
         _contact_surface(col)
 
 
@@ -222,18 +240,22 @@ def _add_grid_lines(world: ET.Element) -> None:
     """Four grey reference lines dividing the track into a 3×3 section grid."""
     # Vertical lines (constant X, span full Y)
     for name, x in [("grid_line_v1", 1.0), ("grid_line_v2", 2.0)]:
-        model = _static_model(world, name, pose=f"{x} {_TRACK_CENTER} {_GRID_Z} 0 0 0")
+        model = _static_model(
+            world, name, pose=f"{x} {TrackDimensions.CENTER_COORD} {_GRID_Z} 0 0 0"
+        )
         link = ET.SubElement(model, "link", name="link")
         vis = ET.SubElement(link, "visual", name="visual")
-        _box_geometry(vis, 0.001, _TRACK_SIZE, 0.001)
+        _box_geometry(vis, 0.001, TrackDimensions.TRACK_SIZE, 0.001)
         _material(vis, _GREY_GRID)
 
     # Horizontal lines (constant Y, span full X)
     for name, y in [("grid_line_h1", 1.0), ("grid_line_h2", 2.0)]:
-        model = _static_model(world, name, pose=f"{_TRACK_CENTER} {y} {_GRID_Z} 0 0 0")
+        model = _static_model(
+            world, name, pose=f"{TrackDimensions.CENTER_COORD} {y} {_GRID_Z} 0 0 0"
+        )
         link = ET.SubElement(model, "link", name="link")
         vis = ET.SubElement(link, "visual", name="visual")
-        _box_geometry(vis, _TRACK_SIZE, 0.001, 0.001)
+        _box_geometry(vis, TrackDimensions.TRACK_SIZE, 0.001, 0.001)
         _material(vis, _GREY_GRID)
 
 
@@ -346,5 +368,3 @@ def _contact_surface(parent: ET.Element) -> None:
     _text(ET.SubElement(ode, "kd"), "1000")
     _text(ET.SubElement(ode, "max_vel"), "0.0")
     _text(ET.SubElement(ode, "min_depth"), "0.0")
-
-

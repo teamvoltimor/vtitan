@@ -12,14 +12,20 @@ Requirements:
 
 import logging
 import os
+import sys
 import time
+import unittest.mock as mock
 
 import pytest
 
-from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver, Config as I2CConfig
-from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
+sys.modules["board"] = mock.MagicMock()
+sys.modules["busio"] = mock.MagicMock()
+sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
-_log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
+from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver, Config as I2CConfig
+from src.logger import LOG_LEVEL, configure_json_logging
+
+_log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
 configure_json_logging(level=_log_level)
 
 logger = logging.getLogger(__name__)

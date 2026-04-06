@@ -52,7 +52,8 @@ except ImportError:
     sys.exit(1)
 
 # Import scenario generator
-from src.config.constants import DictKeys, FileExtensions, FilePaths, FolderNames
+from shared.config.constants import DictKeys, FileExtensions, FilePaths, FolderNames
+
 from src.generation.generator import ScenarioGenerator
 
 

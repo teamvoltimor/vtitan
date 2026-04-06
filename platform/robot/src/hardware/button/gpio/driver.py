@@ -77,7 +77,7 @@ class Driver(BaseDriver):
                     "gpio_pin": self.config.gpio_pin,
                     "pull_up": self.config.pull_up,
                     "debounce_ms": self.config.debounce_ms,
-                }
+                },
             },
         )
 
@@ -112,12 +112,12 @@ class Driver(BaseDriver):
             if press_duration >= self.config.long_press_threshold_sec:
                 self._last_event = ButtonEvent.LONG_PRESS
                 self.logger.info(
-                    "Button long press detected", extra={"details": {"duration": round(press_duration, 2)}}
+                    "Button long press detected", extra={"details": {"duration": round(press_duration, 2)}},
                 )
             else:
                 self._last_event = ButtonEvent.SHORT_PRESS
                 self.logger.debug(
-                    "Button short press detected", extra={"details": {"duration": round(press_duration, 2)}}
+                    "Button short press detected", extra={"details": {"duration": round(press_duration, 2)}},
                 )
 
             self._press_start_time = None

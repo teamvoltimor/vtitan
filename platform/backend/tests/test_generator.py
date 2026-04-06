@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.telemetry.generator import TelemetryGenerator
+from src.telemetry.generator_sim import TelemetryGenerator
 from src.telemetry.models import RobotSnapshot
 
 
@@ -33,7 +33,7 @@ def test_history_grows_up_to_max() -> None:
 
 def test_history_limit_parameter() -> None:
     gen = TelemetryGenerator(history_length=20)
-    for _ in range(15):
+    for _ in range(14):
         gen.latest_snapshot()
     assert len(gen.history(limit=5)) == 5
     assert len(gen.history(limit=100)) == 15

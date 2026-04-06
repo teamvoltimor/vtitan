@@ -13,9 +13,9 @@ import time
 import pytest
 
 from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_RVCDriver, Config as RVCConfig
-from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
+from src.logger import LOG_LEVEL, configure_json_logging
 
-_log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
+_log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
 configure_json_logging(level=_log_level)
 
 logger = logging.getLogger(__name__)

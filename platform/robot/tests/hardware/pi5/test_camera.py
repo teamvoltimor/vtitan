@@ -12,10 +12,10 @@ import time
 
 import pytest
 
-from src.hardware.camera import CameraConfig, CameraDriver
-from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
+from src.hardware.camera.rpi.camera_module_3 import Config as CameraConfig, Driver as CameraDriver
+from src.logger import LOG_LEVEL, configure_json_logging
 
-_log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
+_log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
 configure_json_logging(level=_log_level)
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def driver():
     """Create driver instance."""
-    config = CameraConfig(device="/dev/video0", width=1536, height=864)
+    config = CameraConfig(device="/dev/video0", width=1536, height=864, fps=30)
     return CameraDriver(config=config)
 
 
@@ -106,7 +106,7 @@ def preview_camera():
 
     import cv2
 
-    config = CameraConfig(device="/dev/video0")
+    config = CameraConfig(device="/dev/video0", fps=30)
     driver = CameraDriver(config=config)
 
     try:

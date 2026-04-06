@@ -13,9 +13,8 @@ import math
 from typing import Any
 
 import numpy as np
-
-from src.config.constants import DictKeys, TrackDimensions
-from src.config.enums import Direction
+from shared.config.constants import DictKeys, TrackDimensions
+from shared.config.enums import Direction, Section
 
 # Arc radius for corners. Must exceed the Ackermann minimum turning radius
 # (~0.294 m). 0.45 m starts corners early enough to clear inner-wall junctions.
@@ -51,13 +50,13 @@ def calculate_waypoints(
     direction = Direction.from_string(starting[DictKeys.DIRECTION])
 
     widths = {
-        side: corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0
+        Section.from_string(side): corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0
         for side in ("north", "south", "east", "west")
     }
-    north_width = widths["north"]
-    south_width = widths["south"]
-    east_width = widths["east"]
-    west_width = widths["west"]
+    north_width = widths[Section.NORTH]
+    south_width = widths[Section.SOUTH]
+    east_width = widths[Section.EAST]
+    west_width = widths[Section.WEST]
 
     track_max = TrackDimensions.MAX_COORD
     north_cy = track_max - north_width / 2 + _OUTER_WALL_BIAS
@@ -76,7 +75,7 @@ def calculate_waypoints(
 
     order = _build_corridor_order(direction)
 
-    start_section = starting[DictKeys.SECTION].lower()
+    start_section = Section.from_string(starting[DictKeys.SECTION])
     order = _rotate_to_start(order, start_section)
 
     full_loop = _assemble_loop(order, segments)
@@ -101,7 +100,7 @@ def _build_all_segments(
     west_cx: float,
     arc_radius: float,
     direction: Direction,
-) -> dict[str, list[tuple[float, float]]]:
+) -> dict[Section, list[tuple[float, float]]]:
     """Construct per-corridor waypoint lists (straights + corner arcs) for both directions."""
     # Corner arc ICR positions and arc angle ranges (CW direction)
     se_icr = (east_cx - arc_radius, south_cy + arc_radius)
@@ -122,27 +121,27 @@ def _build_all_segments(
 
     if direction is Direction.CLOCKWISE:
         return {
-            "east": east_straight + se_cw,
-            "south": south_straight + sw_cw,
-            "west": west_straight + nw_cw,
-            "north": north_straight + ne_cw,
+            Section.EAST: east_straight + se_cw,
+            Section.SOUTH: south_straight + sw_cw,
+            Section.WEST: west_straight + nw_cw,
+            Section.NORTH: north_straight + ne_cw,
         }
     # Counter-clockwise: reverse each segment
     return {
-        "east": list(reversed(east_straight)) + list(reversed(ne_cw)),
-        "south": list(reversed(south_straight)) + list(reversed(se_cw)),
-        "west": list(reversed(west_straight)) + list(reversed(sw_cw)),
-        "north": list(reversed(north_straight)) + list(reversed(nw_cw)),
+        Section.EAST: list(reversed(east_straight)) + list(reversed(ne_cw)),
+        Section.SOUTH: list(reversed(south_straight)) + list(reversed(se_cw)),
+        Section.WEST: list(reversed(west_straight)) + list(reversed(sw_cw)),
+        Section.NORTH: list(reversed(north_straight)) + list(reversed(nw_cw)),
     }
 
 
-def _build_corridor_order(direction: Direction) -> list[str]:
+def _build_corridor_order(direction: Direction) -> list[Section]:
     if direction is Direction.CLOCKWISE:
-        return ["east", "south", "west", "north"]
-    return ["east", "north", "west", "south"]
+        return [Section.EAST, Section.SOUTH, Section.WEST, Section.NORTH]
+    return [Section.EAST, Section.NORTH, Section.WEST, Section.SOUTH]
 
 
-def _rotate_to_start(order: list[str], start_section: str) -> list[str]:
+def _rotate_to_start(order: list[Section], start_section: Section) -> list[Section]:
     """Rotate the corridor order so start_section comes first."""
     rotated = list(order)
     while rotated[0] != start_section:
@@ -151,8 +150,8 @@ def _rotate_to_start(order: list[str], start_section: str) -> list[str]:
 
 
 def _assemble_loop(
-    order: list[str],
-    segments: dict[str, list[tuple[float, float]]],
+    order: list[Section],
+    segments: dict[Section, list[tuple[float, float]]],
 ) -> list[tuple[float, float]]:
     loop: list[tuple[float, float]] = []
     for section in order:
@@ -162,8 +161,8 @@ def _assemble_loop(
 
 def _build_waypoint_sequence(
     full_loop: list[tuple[float, float]],
-    segments: dict[str, list[tuple[float, float]]],
-    order: list[str],
+    segments: dict[Section, list[tuple[float, float]]],
+    order: list[Section],
     start_x: float,
     start_y: float,
     num_laps: int,
@@ -193,7 +192,7 @@ def _nearest_waypoint_index(
 ) -> int:
     pts = np.array(waypoints)
     deltas = pts - np.array([x, y])
-    return int(np.argmin((deltas ** 2).sum(axis=1)))
+    return int(np.argmin((deltas**2).sum(axis=1)))
 
 
 def _deduplicate_consecutive(

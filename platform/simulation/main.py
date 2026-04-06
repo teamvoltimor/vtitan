@@ -46,6 +46,12 @@ def main() -> None:
         action="store_true",
         help="Enable full randomization (lighting, widths, starting position).",
     )
+    gen.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible scenario generation (default: None for random).",
+    )
 
     # generate-track subcommand
     track = subparsers.add_parser("generate-track", help="Generate the base track SDF.")
@@ -60,8 +66,8 @@ def main() -> None:
     logger = logging.getLogger(__name__)
 
     if args.command == "generate":
-        from src.config.constants import DictKeys, FolderNames
-        from src.config.enums import ScenarioType
+        from shared.config.constants import DictKeys, FolderNames
+        from shared.config.enums import ScenarioType
         from src.generation.generator import ScenarioGenerator
 
         challenge_output_dir = Path(args.output_dir) / args.challenge / FolderNames.SCENARIOS
@@ -69,7 +75,10 @@ def main() -> None:
             base_world_path=args.base_world,
             output_dir=challenge_output_dir,
             challenge_type=ScenarioType(args.challenge),
+            seed=args.seed,
         )
+        if args.seed is not None:
+            logger.info("Using random seed: %d", args.seed)
         logger.info(
             "Generating %d '%s' scenarios → %s",
             args.num_scenarios,

@@ -5,12 +5,17 @@ Run with: python -m pytest tests/ros2/test_imu_i2c_node.py -v
 """
 
 import logging
+import sys
 import unittest.mock as mock
 from dataclasses import dataclass
 
 import pytest
 import rclpy
 from sensor_msgs.msg import Imu
+
+sys.modules["board"] = mock.MagicMock()
+sys.modules["busio"] = mock.MagicMock()
+sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
 from src.ros2.imu.bno08x.mcp2221.i2c_node import IMU_I2CNode
 
@@ -61,7 +66,7 @@ class TestIMU_I2CNodeInit:
         node = IMU_I2CNode()
         assert node.publisher_ is not None
         # Check topic name
-        topic_names = [topic_name for topic_name, _ in node.get_publications()]
+        topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
         assert any("imu/data" in topic_name for topic_name in topic_names)
         node.destroy_node()
 

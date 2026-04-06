@@ -215,5 +215,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Simulation Backend Telemtry Sessions
+telemetry_sessions/
+
 # Claude Code
 .claude/

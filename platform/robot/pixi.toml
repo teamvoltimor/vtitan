@@ -24,6 +24,8 @@ numpy  = ">=1.26"
 scipy = ">=1.17.1,<2"
 pyserial = ">=3.5,<4"
 scipy-stubs = ">=1.17.1.3,<2"
+opencv = ">=4.9.0,<5"
+ros-kilted-std-msgs = "*"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"
@@ -82,7 +84,9 @@ graph = "ros2 run rqt_graph rqt_graph.exe"
 viz   = "ros2 run rviz2 rviz2.exe"
 
 [pypi-dependencies]
+klevor-shared = { path = "../shared", editable = true }
 adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
 buildhat = ">=0.9.0, <0.10"
 adafruit-blinka = ">=9.0.4, <10"
 adafruit-circuitpython-bno08x = ">=1.3.2, <2"
+ultralytics = ">=8.1.0,<9"

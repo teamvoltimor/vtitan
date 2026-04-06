@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,9 @@ if TYPE_CHECKING:
 @asynccontextmanager
 async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Yield until shutdown and then stop the recorder."""
+    sim_task = asyncio.create_task(telemetry_api.run_simulation_loop())
     yield
+    sim_task.cancel()
     telemetry_api.shutdown()
 
 

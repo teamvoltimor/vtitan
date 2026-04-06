@@ -125,6 +125,10 @@ class TelemetryGenerator:
             back=0.3 + abs(math.cos(self._frame * 0.09)) * 0.25,
             speed=speed,
             stage=stage,
+            lidar_available=True,
+            odometry_available=True,
+            imu_available=False,
+            camera_available=False,
         )
 
     def _build_logs(self, metrics: TelemetryMetrics) -> list[str]:

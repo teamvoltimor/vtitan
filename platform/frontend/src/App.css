@@ -78,8 +78,68 @@
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0 1.5rem;
+}
+
+.sensor-health {
+  margin: 1.5rem 0;
+  padding: 0 0;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.sensor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.sensor-item.online {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.sensor-item.offline {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.sensor-icon {
+  font-size: 1.25rem;
+}
+
+.sensor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sensor-info strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.status-ok {
+  font-size: 0.7rem;
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.status-error {
+  font-size: 0.7rem;
+  color: #f44336;
+  font-weight: 600;
 }
 
 .metrics-grid > div {
@@ -133,6 +193,20 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--color-text);
+}
+
+.inspector-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(100% - 360px); /* 360px is sidebar width based on shell grid */
+  height: 300px;
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
 }
 
 .log-panel {

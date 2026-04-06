@@ -16,14 +16,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import Imu, LaserScan
+from shared.config.constants import DictKeys, RobotSpecs
+from shared.config.enums import RiskLevel, ScenarioType
+from std_msgs.msg import String
 
-from src.config.constants import DictKeys, RobotSpecs
-from src.config.enums import ScenarioType
 from src.navigation.collision import (
     assess_collision_risk,
     clamp_lidar_scan,
@@ -90,12 +90,15 @@ _ESCAPE_DUR_DIST_STEP = 0.03  # metres per escape frame
 _STEER_KP = 1.5
 
 # Forward clearance below this uses _LOOKAHEAD_SHORT (approaching a corner).
-_FWD_SHORT_LOOKAHEAD_DIST = 0.15
+_FWD_SHORT_LOOKAHEAD_DIST = 0.30
+_LOOKAHEAD_SHORT = 0.20
+_LOOKAHEAD_LONG = 0.40
 
-# Obstacle correction thresholds (function _compute_obstacle_correction).
-_OBS_STRAIGHT_THRESHOLD = 0.4  # heading error below this = travelling straight (~23°)
-_OBS_CLEAR_SIDES_DIST = 0.25  # side clearance above this = open corridor
-_OBS_ACTIVE_FWD_DIST = 0.20  # forward dist below this = obstacle correction fires
+# Obstacle logic params
+_OBS_ACTIVE_FWD_DIST = 0.35  # forward dist below this = obstacle correction fires
+_OBS_STRAIGHT_THRESHOLD = 0.2
+_OBS_CLEAR_SIDES_DIST = 0.4
+_OBS_STEER_SCALE = 1.0  # multiplier for max steering angle during K-turn escape
 
 
 class TrackNavigator(Node):
@@ -140,6 +143,9 @@ class TrackNavigator(Node):
         self._lidar_ranges: np.ndarray | None = None
         self._lidar_angles: np.ndarray | None = None
 
+        # Vision state
+        self._latest_detections: list[dict[str, Any]] = []
+
         # Collision avoidance parameters
         self._critical_distance: float = 0.07
         self._safe_distance: float = 0.15
@@ -182,23 +188,60 @@ class TrackNavigator(Node):
 
         # Debug counter
         self._log_counter: int = 0
+        self._last_stuck_check_time = None
+
+        # Parking state
+        self._parking_mode: bool = False
+        self._parking_state: str = "SEARCHING"
+
+        self.shutdown_requested: bool = False
+
+        # Topic parameters for sim-to-real portability
+        self.declare_parameter("cmd_vel_topic", "/wro_robot/cmd_vel")
+        self.declare_parameter("odom_topic", "/wro_robot/odom")
+        self.declare_parameter("lidar_topic", "/lidar")
+        self.declare_parameter("vision_topic", "/vision/detections")
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("is_simulation", False)
+
+        cmd_vel_topic = self.get_parameter("cmd_vel_topic").get_parameter_value().string_value
+        odom_topic = self.get_parameter("odom_topic").get_parameter_value().string_value
+        lidar_topic = self.get_parameter("lidar_topic").get_parameter_value().string_value
+        vision_topic = self.get_parameter("vision_topic").get_parameter_value().string_value
+        imu_topic = self.get_parameter("imu_topic").get_parameter_value().string_value
+        self._is_simulation = self.get_parameter("is_simulation").get_parameter_value().bool_value
+
+        self._imu_yaw: float | None = None
+        self._imu_yaw_offset: float | None = None
 
         # ROS2 interfaces
         self._vel_publisher = self.create_publisher(
             Twist,
-            "/wro_robot/cmd_vel",
+            cmd_vel_topic,
             10,
         )
         self.create_subscription(
             Odometry,
-            "/wro_robot/odom",
+            odom_topic,
             self._odom_callback,
             10,
         )
         self.create_subscription(
             LaserScan,
-            "/lidar",
+            lidar_topic,
             self._lidar_callback,
+            10,
+        )
+        self.create_subscription(
+            String,
+            vision_topic,
+            self._vision_callback,
+            10,
+        )
+        self.create_subscription(
+            Imu,
+            imu_topic,
+            self._imu_callback,
             10,
         )
         self.create_timer(0.05, self._control_loop)  # 20 Hz
@@ -211,6 +254,18 @@ class TrackNavigator(Node):
         )
 
     # ROS2 callbacks
+    def _imu_callback(self, msg: Imu) -> None:
+        """Extract yaw from IMU."""
+        q = msg.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        raw_yaw = math.atan2(siny_cosp, cosy_cosp)
+
+        if self._imu_yaw_offset is None:
+            self._imu_yaw_offset = raw_yaw
+
+        self._imu_yaw = _wrap_angle(raw_yaw - self._imu_yaw_offset)
+
     def _odom_callback(self, msg: Odometry) -> None:
         """Transform odometry from robot frame to world frame."""
         odom_x = msg.pose.pose.position.x
@@ -226,7 +281,15 @@ class TrackNavigator(Node):
             self._start_x + odom_x * cos_sy - odom_y * sin_sy,
             self._start_y + odom_x * sin_sy + odom_y * cos_sy,
         )
-        self._current_yaw = odom_yaw + self._start_yaw
+
+        if self._imu_yaw is not None:
+            # Manual yaw fusion: 10% odom, 90% IMU
+            alpha = 0.1
+            diff = _wrap_angle(odom_yaw - self._imu_yaw)
+            fused_relative_yaw = _wrap_angle(self._imu_yaw + alpha * diff)
+            self._current_yaw = _wrap_angle(fused_relative_yaw + self._start_yaw)
+        else:
+            self._current_yaw = _wrap_angle(odom_yaw + self._start_yaw)
 
     def _lidar_callback(self, msg: LaserScan) -> None:
         """Clamp raw LIDAR scan and update forward-critical counter."""
@@ -244,6 +307,13 @@ class TrackNavigator(Node):
             self._fwd_critical_lidar_count,
         )
 
+    def _vision_callback(self, msg: String) -> None:
+        """Update the latest vision detections."""
+        try:
+            self._latest_detections = json.loads(msg.data)
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f"Failed to parse vision detections: {e}")
+
     # Control loop
     def _control_loop(self) -> None:
         """20 Hz control loop: waypoint following + collision avoidance."""
@@ -251,9 +321,16 @@ class TrackNavigator(Node):
             return
 
         if self._waypoint_index >= len(self._waypoints):
-            self.get_logger().info(f"Completed {self._num_laps} lap(s). Stopping.")
-            self._publish_stop()
-            rclpy.shutdown()
+            if self._is_open_challenge:
+                self.get_logger().info(f"Completed {self._num_laps} lap(s). Stopping.")
+                self._publish_stop()
+                self.shutdown_requested = True
+                return
+            if not self._parking_mode:
+                self.get_logger().info("Laps complete. Entering PARKING mode.")
+                self._parking_mode = True
+
+            self._execute_parking()
             return
 
         robot_x, robot_y = self._current_pos
@@ -280,6 +357,9 @@ class TrackNavigator(Node):
             target_x,
             target_y,
         )
+
+        if self._waypoint_index >= len(self._waypoints):
+            return
 
         angle_error, steer_index = self._compute_lookahead_error(
             robot_x,
@@ -324,9 +404,10 @@ class TrackNavigator(Node):
             self._lidar_angles,
             self._critical_distance,
             self._fwd_critical_lidar_count,
-            self._fwd_critical_lidar_threshold,
+            self._fwd_critical_threshold,
             self._is_open_challenge,
             angle_error,
+            is_simulation=self._is_simulation,
         )
 
         if self._escape_mode:
@@ -335,7 +416,7 @@ class TrackNavigator(Node):
         if self._obstacle_escape:
             return self._execute_obstacle_escape(robot_x, robot_y)
 
-        if risk_level == "critical":
+        if risk_level == RiskLevel.CRITICAL:
             return self._enter_wall_escape(
                 robot_x,
                 robot_y,
@@ -345,12 +426,69 @@ class TrackNavigator(Node):
                 angle_error,
             )
 
-        if risk_level == "obstacle":
+        if risk_level == RiskLevel.OBSTACLE:
             return self._enter_obstacle_escape(distances)
 
         return self._navigate_normally(dx, dy, distances, angle_error)
 
     # Escape maneuver logic
+    def _execute_parking(self) -> None:
+        """State machine for parking between two magenta blocks."""
+        magenta_blocks = [det for det in self._latest_detections if det.get("color") == "magenta"]
+
+        velocity = 0.15
+        steer = 0.0
+
+        if not magenta_blocks:
+            self.get_logger().info("PARKING: Searching for magenta blocks...", throttle_duration_sec=1.0)
+            # Simple collision avoidance so we don't hit a wall while searching
+            if self._lidar_ranges is not None and self._lidar_angles is not None:
+                fwd_dist = measure_distance_in_direction(
+                    self._lidar_ranges,
+                    self._lidar_angles,
+                    target_angle=0.0,
+                )
+                if fwd_dist < 0.20:
+                    self._publish_stop()
+                    self.get_logger().info("PARKING: Reached wall without finding blocks. Stopping.")
+                    self.shutdown_requested = True
+                return
+        else:
+            centers_x = []
+            for b in magenta_blocks:
+                bbox = b["bbox"]
+                center_x = (bbox[0] + bbox[2]) / 2.0
+                centers_x.append(center_x)
+
+            avg_x = sum(centers_x) / len(centers_x)
+
+            # Assume 640 image width for default YOLO inference
+            img_width_guess = 640.0
+            error_x = avg_x - (img_width_guess / 2.0)
+
+            # Proportional steering towards the blocks
+            steer = -(error_x / (img_width_guess / 2.0)) * self._max_steering_angle * 0.5
+
+            self.get_logger().info(
+                f"PARKING: Approaching {len(magenta_blocks)} block(s). error_x={error_x:.1f}, steer={steer:.2f}",
+                throttle_duration_sec=1.0,
+            )
+
+            # Stop when close
+            if self._lidar_ranges is not None and self._lidar_angles is not None:
+                fwd_dist = measure_distance_in_direction(
+                    self._lidar_ranges,
+                    self._lidar_angles,
+                    target_angle=0.0,
+                )
+                if fwd_dist < 0.15:
+                    self._publish_stop()
+                    self.get_logger().info("PARKING: Successfully parked. Stopping.")
+                    self.shutdown_requested = True
+                return
+
+        self._vel_publisher.publish(_make_twist(velocity, steer))
+
     def _execute_wall_escape(self) -> Twist:
         """Reverse-only K-turn away from a wall."""
         self._escape_counter += 1
@@ -408,6 +546,8 @@ class TrackNavigator(Node):
         right_dist = distances["right"]
 
         self._critical_escape_positions.append((robot_x, robot_y))
+        # Keep only the last 20 to prevent unbounded growth (N10)
+        self._critical_escape_positions = self._critical_escape_positions[-20:]
         nearby_count = _count_nearby(
             self._critical_escape_positions,
             robot_x,
@@ -454,13 +594,27 @@ class TrackNavigator(Node):
         """Trigger an obstacle escape and return the initial Twist."""
         left_dist = distances["left"]
         right_dist = distances["right"]
-        self._obstacle_escape_sign = 1 if right_dist > left_dist else -1
+
+        detected_color = None
+        for det in self._latest_detections:
+            if det.get("color") in ("red", "green"):
+                detected_color = det["color"]
+                break
+
+        if detected_color == "green":
+            self._obstacle_escape_sign = 1  # Steer right (pass green on right)
+        elif detected_color == "red":
+            self._obstacle_escape_sign = -1  # Steer left (pass red on left)
+        else:
+            self._obstacle_escape_sign = 1 if right_dist > left_dist else -1
+
         self._obstacle_escape_positions.append(self._current_pos)
+        self._obstacle_escape_positions = self._obstacle_escape_positions[-20:]
         self._obstacle_escape = True
         self._obstacle_escape_counter = 0
         steer = self._obstacle_escape_sign * self._max_steering_angle * _OBS_STEER_SCALE
         self.get_logger().warning(
-            f"OBSTACLE → {'RIGHT' if self._obstacle_escape_sign > 0 else 'LEFT'} escape "
+            f"OBSTACLE ({detected_color or 'unknown'}) → {'RIGHT' if self._obstacle_escape_sign > 0 else 'LEFT'} escape "
             f"(F={distances['forward']:.2f} L={left_dist:.2f} R={right_dist:.2f})",
         )
         return _make_twist(_OBS_REV_SPEED, steer)
@@ -514,11 +668,18 @@ class TrackNavigator(Node):
             right_dist,
             self._safe_distance,
         )
+        detected_color = None
+        for det in self._latest_detections:
+            if det.get("color") in ("red", "green"):
+                detected_color = det["color"]
+                break
+
         obstacle_correction = _compute_obstacle_correction(
             forward_dist,
             left_dist,
             right_dist,
             angle_error,
+            detected_color,
         )
 
         total_steer = float(
@@ -537,33 +698,30 @@ class TrackNavigator(Node):
         dx: float,
         dy: float,
     ) -> float:
-        """Scale linear speed by forward clearance and heading error.
+        """Scale linear speed smoothly based on forward clearance and heading error.
 
+        Uses linear interpolation (N2) to avoid jerky discrete speed steps.
         Only called after the None-guard in _control_loop — yaw is always set.
         """
-        if forward_dist < _FWD_CONTACT_DIST:
-            speed_fwd = _SPEED_CONTACT
-        elif forward_dist < _FWD_SLOW_DIST:
-            speed_fwd = _SPEED_SLOW
-        elif forward_dist < _FWD_MEDIUM_DIST:
-            speed_fwd = _SPEED_MEDIUM
-        elif forward_dist < _FWD_FAST_DIST:
-            speed_fwd = _SPEED_FAST
-        else:
-            speed_fwd = _SPEED_FULL
+        speed_fwd = float(
+            np.interp(
+                forward_dist,
+                [0.0, _FWD_CONTACT_DIST, _FWD_SLOW_DIST, _FWD_MEDIUM_DIST, _FWD_FAST_DIST, _FWD_FAST_DIST + 0.5],
+                [0.0, _SPEED_CONTACT, _SPEED_SLOW, _SPEED_MEDIUM, _SPEED_FAST, _SPEED_FULL],
+            ),
+        )
 
         current_angle = math.atan2(dy, dx)
         current_err = _wrap_angle(current_angle - self._current_yaw)
         worst_err = max(abs(angle_error), abs(current_err))
 
-        if worst_err > _ERR_CRAWL:
-            speed_angle = _SPEED_ERR_CRAWL
-        elif worst_err > _ERR_SLOW:
-            speed_angle = _SPEED_ERR_SLOW
-        elif worst_err > _ERR_MEDIUM:
-            speed_angle = _SPEED_ERR_MEDIUM
-        else:
-            speed_angle = _SPEED_FULL
+        speed_angle = float(
+            np.interp(
+                worst_err,
+                [0.0, _ERR_MEDIUM, _ERR_SLOW, _ERR_CRAWL, _ERR_CRAWL + 0.5],
+                [_SPEED_FULL, _SPEED_ERR_MEDIUM, _SPEED_ERR_SLOW, _SPEED_ERR_CRAWL, _SPEED_ERR_CRAWL / 2.0],
+            ),
+        )
 
         raw_speed = self._max_linear_speed * min(speed_fwd, speed_angle)
         return max(raw_speed, self._min_forward_speed)
@@ -670,8 +828,11 @@ class TrackNavigator(Node):
 
     def _check_stuck(self, robot_x: float, robot_y: float) -> None:
         """Detect and escape physics-stuck situations (embedded in wall)."""
-        if self._log_counter % 20 != 0:
-            return
+        now = self.get_clock().now()
+        if self._last_stuck_check_time is not None:
+            if (now - self._last_stuck_check_time).nanoseconds < 1e9:  # 1 second
+                return
+        self._last_stuck_check_time = now
 
         if self._stuck_check_pos is not None:
             moved = math.sqrt(
@@ -796,13 +957,14 @@ def _compute_side_correction(
     safe_distance: float,
 ) -> float:
     """Return a mild angular correction that pushes robot away from close walls."""
+    correction = 0.0
     if left_dist < safe_distance:
         ratio = 1.0 - left_dist / safe_distance
-        return -_SIDE_GAIN * ratio
+        correction -= _SIDE_GAIN * ratio
     if right_dist < safe_distance:
         ratio = 1.0 - right_dist / safe_distance
-        return _SIDE_GAIN * ratio
-    return 0.0
+        correction += _SIDE_GAIN * ratio
+    return correction
 
 
 def _compute_obstacle_correction(
@@ -810,15 +972,22 @@ def _compute_obstacle_correction(
     left_dist: float,
     right_dist: float,
     angle_error: float,
+    detected_color: str | None = None,
 ) -> float:
-    """Steer toward the open side when an obstacle is close ahead on a straight."""
+    """Steer toward the correct side when an obstacle is close ahead on a straight."""
     is_straight = abs(angle_error) < _OBS_STRAIGHT_THRESHOLD
     sides_clear = max(left_dist, right_dist) > _OBS_CLEAR_SIDES_DIST
     if forward_dist >= _OBS_ACTIVE_FWD_DIST or not sides_clear or not is_straight:
         return 0.0
     urgency = 1.0 - forward_dist / _OBS_ACTIVE_FWD_DIST
     strength = _OBSTACLE_GAIN * urgency
+
     # Negative angular.z = steer right; positive = steer left.
+    if detected_color == "green":
+        return -strength  # Steer right
+    if detected_color == "red":
+        return strength  # Steer left
+
     return -strength if right_dist > left_dist else strength
 
 
@@ -889,5 +1058,3 @@ def _apply_wall_safety_override(
     if curve_side < _STUCK_CLOSE_WALL and other_side > curve_side:
         return -escape_sign
     return escape_sign
-
-

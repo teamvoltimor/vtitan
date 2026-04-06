@@ -27,7 +27,8 @@ def _run_navigate(args: argparse.Namespace) -> None:
             num_laps=args.laps,
             params_path=args.params,
         )
-        rclpy.spin(navigator)
+        while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
+            rclpy.spin_once(navigator, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:
@@ -43,7 +44,8 @@ def _run_drive(args: argparse.Namespace) -> None:
     driver: SimpleRobotDriver | None = None
     try:
         driver = SimpleRobotDriver(direction=args.direction, duration=args.duration)
-        rclpy.spin(driver)
+        while rclpy.ok() and not getattr(driver, "shutdown_requested", False):
+            rclpy.spin_once(driver, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:

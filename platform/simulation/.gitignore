@@ -28,11 +28,9 @@ qtcreator-*
 COLCON_IGNORE
 AMENT_IGNORE
 
-# Generated data (created by simulation, consumed by robot)
-training_data/
-
-# Runtime data (created by backend at runtime)
-telemetry_sessions/
+# Simulation train report
+scripts/train_report.md
 
 # Claude Code
 .claude/
+

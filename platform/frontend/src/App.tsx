@@ -1,19 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import './App.css'
 
-import type { Position3D, ReplaySessionInfo, RobotSnapshot } from './types'
-import { fetchLatestTelemetry, fetchHistory, fetchSession, fetchSessions } from './api/telemetry'
+import { NodeHealth, type Position3D, type ReplaySessionInfo, type RobotSnapshot, type TopicsSnapshot } from './types'
+import { fetchLatestTelemetry, fetchHistory, fetchSession, fetchSessions, fetchRawTopics, connectTelemetryWS, updateRobotSpeed } from './api/telemetry'
+import { TopicInspector } from './components/TopicInspector'
 
 /**
  * Map simulation coords (origin bottom-left, 0–3 range) to Three.js (XZ floor, Y up).
  * Subtracts the track centre (1.5, 1.5) so the floor mesh centred at origin lines up.
  */
 const simToThree = ([x, y, z]: Position3D): [number, number, number] => [x - 1.5, z, -(y - 1.5)]
-
-const POLL_INTERVAL_MS = Number(import.meta.env.VITE_POLL_INTERVAL_MS ?? 2500)
 
 const colors = {
   background: '#050b12',
@@ -24,6 +23,10 @@ const colors = {
 
 function LiDARPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
   const positions = useMemo(() => {
+    if (!snapshot.metrics.lidarAvailable || snapshot.lidarPoints.length === 0) {
+      return new Float32Array(0)
+    }
+    
     const data = new Float32Array(snapshot.lidarPoints.length * 3)
     snapshot.lidarPoints.forEach((pt, index) => {
       const [x, y, z] = simToThree(pt)
@@ -34,14 +37,27 @@ function LiDARPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
     return data
   }, [snapshot])
 
-  if (positions.length === 0) return null
+  if (positions.length === 0) {
+    return (
+      <mesh position={[0, 0.5, 0]}>
+        <sphereGeometry args={[0.05, 8, 8]} />
+        <meshStandardMaterial color="#ff0000" emissive="#ff0000" />
+      </mesh>
+    )
+  }
 
   return (
     <points>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.03} color={colors.highlight} transparent opacity={0.9} depthTest={false} />
+      <pointsMaterial 
+        size={0.03} 
+        color={colors.highlight} 
+        transparent 
+        opacity={snapshot.metrics.lidarAvailable ? 0.9 : 0.3} 
+        depthTest={false} 
+      />
     </points>
   )
 }
@@ -49,11 +65,12 @@ function LiDARPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
 function RobotPath({ snapshot }: { snapshot: RobotSnapshot }) {
   const curve = useMemo(
     () => {
+      if (!snapshot.pathHistory || snapshot.pathHistory.length < 2) return null;
       const pts = snapshot.pathHistory.map((pt) => {
         const [x, y, z] = simToThree(pt)
         return new THREE.Vector3(x, y + 0.03, z)
       })
-      return pts.length >= 2 ? new THREE.CatmullRomCurve3(pts) : null
+      return new THREE.CatmullRomCurve3(pts)
     },
     [snapshot]
   )
@@ -74,10 +91,22 @@ function RobotPath({ snapshot }: { snapshot: RobotSnapshot }) {
 }
 
 function Robot({ snapshot }: { snapshot: RobotSnapshot }) {
+  const position = snapshot.robotPosition ?? [1.5, 1.5, 0.1]
+  const orientation = snapshot.robotOrientation ?? 0
+  const available = snapshot.metrics.odometryAvailable
+
   return (
-    <mesh position={simToThree(snapshot.robotPosition)} rotation={[0, -snapshot.robotOrientation, 0]}>
+    <mesh 
+      position={simToThree(position as Position3D)} 
+      rotation={[0, -orientation, 0]}
+    >
       <boxGeometry args={[0.2, 0.08, 0.14]} />
-      <meshStandardMaterial color="#f3c677" emissive="#e57f2e" />
+      <meshStandardMaterial 
+        color={available ? "#f3c677" : "#666666"} 
+        emissive={available ? "#e57f2e" : "#333333"}
+        opacity={available ? 1.0 : 0.5}
+        transparent={!available}
+      />
     </mesh>
   )
 }
@@ -107,6 +136,34 @@ function SceneCanvas({ snapshot }: { snapshot: RobotSnapshot }) {
   )
 }
 
+function SensorHealthPanel({ metrics }: { metrics: import('./types').TelemetryMetrics }) {
+  const sensors = [
+    { name: 'LiDAR', available: metrics.lidarAvailable, icon: '📡' },
+    { name: 'IMU', available: metrics.imuAvailable, icon: '🧭' },
+    { name: 'Camera', available: metrics.cameraAvailable, icon: '📷' },
+    { name: 'Odometry', available: metrics.odometryAvailable, icon: '⚙️' },
+  ]
+  
+  return (
+    <div className="sensor-health">
+      <p className="label">SENSOR STATUS</p>
+      <div className="sensor-grid">
+        {sensors.map(({ name, available, icon }) => (
+          <div key={name} className={`sensor-item ${available ? 'online' : 'offline'}`}>
+            <span className="sensor-icon">{icon}</span>
+            <div className="sensor-info">
+              <strong>{name}</strong>
+              <span className={available ? 'status-ok' : 'status-error'}>
+                {available ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface SidebarProps {
   snapshot: RobotSnapshot
   history: RobotSnapshot[]
@@ -133,21 +190,29 @@ function Sidebar({
   selectedSessionId,
 }: SidebarProps) {
   const metrics = snapshot.metrics
-  const statRows: [string, number][] = [
+
+  const formatMetric = (value: number | null | undefined, unit: string = 'm') => {
+    if (value === null || value === undefined) return 'N/A'
+    return `${value.toFixed(2)} ${unit}`
+  }
+
+  const statRows: [string, number | null | undefined][] = [
     ['Forward', metrics.forward],
     ['Left', metrics.left],
     ['Right', metrics.right],
     ['Back', metrics.back],
   ]
 
-  const telemetryEntries: Array<[string, string | number]> = [
+  const telemetryEntries: Array<[string, string]> = [
     ['Node Health', metrics.nodeHealth],
-    ['Stage', metrics.stage],
-    ['Speed', `${metrics.speed.toFixed(2)} m/s`],
-    ['Range Min', `${metrics.rangeMin.toFixed(2)} m`],
-    ['Range Mean', `${metrics.rangeMean.toFixed(2)} m`],
-    ['Range Max', `${metrics.rangeMax.toFixed(2)} m`],
-    ['Points', metrics.pointsCaptured],
+    ['Stage', metrics.stage ?? 'unknown'],
+    ['Speed', metrics.speed !== null && metrics.speed !== undefined 
+      ? `${metrics.speed.toFixed(2)} m/s` 
+      : 'N/A'],
+    ['Range Min', formatMetric(metrics.rangeMin)],
+    ['Range Mean', formatMetric(metrics.rangeMean)],
+    ['Range Max', formatMetric(metrics.rangeMax)],
+    ['Points', metrics.pointsCaptured?.toString() ?? '0'],
   ]
 
   const hasHistory = history.length > 0
@@ -162,19 +227,40 @@ function Sidebar({
         <h1>{snapshot.missionName}</h1>
         <p className="label">Updated {new Date(snapshot.timestamp * 1000).toLocaleTimeString()}</p>
       </div>
+
+      <SensorHealthPanel metrics={metrics} />
+
       <div className="metrics-grid">
         {statRows.map(([label, value]) => (
           <div key={label}>
             <p>{label}</p>
-            <strong>{`${value.toFixed(2)} m`}</strong>
+            <strong>{formatMetric(value as number | null)}</strong>
           </div>
         ))}
       </div>
+
+      <div className="speed-control">
+        <p className="label">MAX LINEAR SPEED</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '16px' }}>
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.1"
+            disabled={!liveMode || metrics.nodeHealth !== NodeHealth.NOMINAL}
+            defaultValue={1.0}
+            onChange={(e) => updateRobotSpeed(parseFloat(e.target.value))}
+            style={{ flex: 1 }}
+          />
+          <span style={{ minWidth: '60px' }}>{metrics.speed !== null && metrics.speed !== undefined ? metrics.speed.toFixed(2) : '1.00'} m/s</span>
+        </div>
+      </div>
+
       <div className="telemetry-list">
         {telemetryEntries.map(([label, value]) => (
           <div key={label}>
             <span>{label}</span>
-            <strong>{typeof value === 'number' ? value.toFixed(2) : value}</strong>
+            <strong>{value}</strong>
           </div>
         ))}
       </div>
@@ -240,6 +326,7 @@ function Sidebar({
 
 function App() {
   const [snapshot, setSnapshot] = useState<RobotSnapshot | null>(null)
+  const [topics, setTopics] = useState<TopicsSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<RobotSnapshot[]>([])
   const [timelineIndex, setTimelineIndex] = useState(0)
@@ -247,19 +334,20 @@ function App() {
   const [sessions, setSessions] = useState<ReplaySessionInfo[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
-  const liveInterval = useRef<number | null>(null)
 
   useEffect(() => {
     let mounted = true
     const fetchMeta = async () => {
       try {
-        const [latest, historyPayload, recordedSessions] = await Promise.all([
+        const [latest, rawTopics, historyPayload, recordedSessions] = await Promise.all([
           fetchLatestTelemetry(),
+          fetchRawTopics(),
           fetchHistory(),
           fetchSessions(),
         ])
         if (!mounted) return
         setSnapshot(latest)
+        setTopics(rawTopics)
         setHistory(historyPayload)
         setSessions(recordedSessions)
         setTimelineIndex(historyPayload.length - 1)
@@ -276,26 +364,27 @@ function App() {
   }, [retryCount])
 
   useEffect(() => {
-    if (liveInterval.current) {
-      clearInterval(liveInterval.current)
-      liveInterval.current = null
-    }
+    if (!liveMode) return
 
-    if (liveMode) {
-      liveInterval.current = window.setInterval(async () => {
-        const [fresh, updatedSessions] = await Promise.all([
-          fetchLatestTelemetry(),
-          fetchSessions(),
-        ])
+    const disconnectWS = connectTelemetryWS((data) => {
+      // The payload might just be the snapshot, or it might contain both snapshot and topics.
+      // We'll handle both cases to be robust.
+      const fresh: RobotSnapshot = data.snapshot || data
+      const rawTopics: TopicsSnapshot | undefined = data.topics
+
+      if (fresh && fresh.timestamp) {
         setSnapshot(fresh)
-        setSessions(updatedSessions)
-      }, POLL_INTERVAL_MS)
-    }
+        setHistory((prev) => [...prev.slice(-59), fresh])
+        setTimelineIndex((prev) => Math.min(prev + 1, 59))
+      }
+
+      if (rawTopics) {
+        setTopics(rawTopics)
+      }
+    })
 
     return () => {
-      if (liveInterval.current) {
-        clearInterval(liveInterval.current)
-      }
+      disconnectWS()
     }
   }, [liveMode])
 
@@ -360,7 +449,9 @@ function App() {
         loadSession={loadSession}
         selectedSessionId={selectedSessionId}
       />
-      <div className="atmosphere" />
+      <div className="inspector-panel">
+        <TopicInspector topics={topics} />
+      </div>
     </div>
   )
 }

@@ -7,9 +7,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.env import EnvVar
-from src.hardware.camera.base import Config as BaseConfig
-from src.hardware.camera.base import Driver as CameraDriver
-from src.hardware.camera.base import Frame
+from src.hardware.camera.base import (
+    Config as BaseConfig,
+    Driver as CameraDriver,
+    Frame,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()

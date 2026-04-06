@@ -8,9 +8,11 @@ from typing import Any
 import numpy as np
 
 from src.env import EnvVar
-from src.hardware.hailo.base import Config as BaseConfig
-from src.hardware.hailo.base import Driver as HailoDriver
-from src.hardware.hailo.base import InferenceResult
+from src.hardware.hailo.base import (
+    Config as BaseConfig,
+    Driver as HailoDriver,
+    InferenceResult,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()

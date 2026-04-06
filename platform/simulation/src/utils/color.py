@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.config.constants import TrafficSignSpecs
-from src.config.enums import Direction, Section
+from shared.config.constants import TrafficSignSpecs
+from shared.config.enums import Direction, Section
 
 
 def rgb_to_normalized(r: int, g: int, b: int) -> tuple[float, float, float]:

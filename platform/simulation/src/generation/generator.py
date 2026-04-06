@@ -12,25 +12,27 @@ from __future__ import annotations
 import json
 import logging
 import math
+import random
 from pathlib import Path
 from typing import Any
 from xml.etree.ElementTree import Element, ElementTree
 
+import numpy as np
 from defusedxml.ElementTree import parse as defused_parse
-
-from src.config.constants import (
+from shared.config.constants import (
     ColorNames,
     CorridorDimensions,
     DictKeys,
     FileExtensions,
     FilePaths,
-    FolderNames,
     GridSections,
     TrackDimensions,
     TrafficSignSpecs,
     WidthTypes,
 )
-from src.config.enums import Direction, ScenarioType, Section
+from shared.config.enums import Direction, ScenarioType, Section
+from shared.config.types import StartingConditions
+
 from src.generation.randomizer import ScenarioRandomizer
 from src.generation.sdf_builder import SDFBuilder
 
@@ -44,6 +46,7 @@ class ScenarioGenerator:
         base_world_path: Path to the base WRO track SDF template.
         output_dir: Directory to write generated scenario files.
         challenge_type: ScenarioType.OPEN or ScenarioType.OBSTACLES.
+        seed: Optional random seed for reproducible generation.
     """
 
     def __init__(
@@ -51,11 +54,18 @@ class ScenarioGenerator:
         base_world_path: str,
         output_dir: str | Path,
         challenge_type: ScenarioType = ScenarioType.OPEN,
+        seed: int | None = None,
     ) -> None:
         self._base_world_path = base_world_path
         self._output_dir = Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._challenge_type = challenge_type
+        self._seed = seed
+
+        # Set random seeds for reproducibility
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
 
         self._randomizer = ScenarioRandomizer(_build_randomization_config())
         self._builder = SDFBuilder(challenge_type)
@@ -96,6 +106,13 @@ class ScenarioGenerator:
             sign_colors,
             parking_config,
         ) = self._resolve_obstacles(corridor_widths, starting_conditions)
+
+        starting_zone_config = self._randomizer.generate_starting_zone(
+            starting_conditions["section"],
+            corridor_widths[starting_conditions["section"]][DictKeys.WIDTH],
+            parking_config,
+        )
+        starting_conditions["starting_zone"] = starting_zone_config
 
         self._builder.add_interior_walls(world, corridor_widths)
         self._builder.add_traffic_signs(world, sign_positions, sign_colors)
@@ -154,21 +171,21 @@ class ScenarioGenerator:
         self,
         randomize_all: bool,
         corridor_widths: dict[Section, dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> StartingConditions:
         if randomize_all:
             return self._randomizer.randomize_starting_conditions(corridor_widths)
         return {
-            DictKeys.DIRECTION: Direction.CLOCKWISE,
-            DictKeys.SECTION: Section.SOUTH,
-            DictKeys.SECTION_NAME: "South",
-            DictKeys.POSITION: (1.5, 0.4),
-            DictKeys.YAW: math.pi,
+            "direction": Direction.CLOCKWISE,
+            "section": Section.SOUTH,
+            "section_name": "South",
+            "position": (1.5, 0.4),
+            "yaw": math.pi,
         }
 
     def _resolve_obstacles(
         self,
         corridor_widths: dict[Section, dict[str, Any]],
-        starting_conditions: dict[str, Any],
+        starting_conditions: StartingConditions,
     ) -> tuple[
         list[tuple[float, float]],
         list[tuple[str, list[float]]],
@@ -177,7 +194,7 @@ class ScenarioGenerator:
         if self._challenge_type != ScenarioType.OBSTACLES:
             return [], [], None
 
-        starting_section: Section = starting_conditions[DictKeys.SECTION]
+        starting_section: Section = starting_conditions["section"]
         sign_positions, sign_colors = self._randomizer.generate_sign_positions(
             corridor_widths,
             exclude_section=starting_section,
@@ -208,12 +225,12 @@ class ScenarioGenerator:
         self,
         scenario_index: int,
         corridor_widths: dict[Section, dict[str, Any]],
-        starting_conditions: dict[str, Any],
+        starting_conditions: StartingConditions,
         sign_positions: list[tuple[float, float]],
         sign_colors: list[tuple[str, list[float]]],
         parking_config: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        return {
+        metadata = {
             DictKeys.SCENARIO_ID: scenario_index,
             DictKeys.CHALLENGE_TYPE: self._challenge_type,
             DictKeys.CORRIDOR_WIDTHS: {
@@ -224,13 +241,13 @@ class ScenarioGenerator:
                 for section in GridSections.SECTIONS
             },
             DictKeys.STARTING_CONDITIONS: {
-                DictKeys.DIRECTION: str(starting_conditions[DictKeys.DIRECTION]),
-                DictKeys.SECTION: starting_conditions[DictKeys.SECTION_NAME],
+                DictKeys.DIRECTION: str(starting_conditions["direction"]),
+                DictKeys.SECTION: starting_conditions["section_name"],
                 DictKeys.POSITION: {
-                    DictKeys.X: starting_conditions[DictKeys.POSITION][0],
-                    DictKeys.Y: starting_conditions[DictKeys.POSITION][1],
+                    DictKeys.X: starting_conditions["position"][0],
+                    DictKeys.Y: starting_conditions["position"][1],
                 },
-                DictKeys.YAW: starting_conditions[DictKeys.YAW],
+                DictKeys.YAW: starting_conditions["yaw"],
             },
             DictKeys.NUM_SIGNS: len(sign_positions),
             DictKeys.HAS_PARKING_LOT: self._challenge_type == ScenarioType.OBSTACLES,
@@ -240,8 +257,10 @@ class ScenarioGenerator:
             ],
             DictKeys.PARKING_LOT: _serialize_parking(parking_config),
         }
-
-
+        # Add seed if one was used
+        if self._seed is not None:
+            metadata["seed"] = self._seed
+        return metadata
 
 
 # Private helpers
@@ -305,5 +324,3 @@ def _serialize_parking(parking_config: dict[str, Any] | None) -> dict[str, Any] 
         },
         DictKeys.DEPTH: parking_config[DictKeys.DEPTH],
     }
-
-

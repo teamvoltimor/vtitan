@@ -8,7 +8,7 @@ Official Source: WRO Future Engineers Competition Rules 2026
 Last Updated: 2026-02-08
 """
 
-from src.config.enums import Section
+from shared.config.enums import Section
 
 
 class TrackDimensions:
@@ -150,7 +150,9 @@ class RobotSpecs:
 
     # LIDAR (Slamtec C1)
     LIDAR_MIN_RANGE = 0.05  # 50mm minimum detection range (real sensor)
-    LIDAR_SIM_MIN_RANGE = 0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
+    LIDAR_SIM_MIN_RANGE = (
+        0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
+    )
     LIDAR_MAX_RANGE = 12.0  # 12m maximum detection range
     LIDAR_SAMPLES = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE = 10.0  # 10 Hz scan rate

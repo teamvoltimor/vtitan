@@ -9,7 +9,17 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        ("share/" + package_name + "/launch", ["launch/lidar_launch.py", "launch/wro_state_machine_launch.py"]),
+        (
+            "share/" + package_name + "/launch",
+            [
+                "launch/lidar_launch.py",
+                "launch/wro_state_machine_launch.py",
+                "launch/telemetry_bridge_launch.py",
+                "launch/rpi5_nodes.launch.py",
+                "launch/rpi_zero_nodes.launch.py",
+                "launch/simulator.launch.py",
+            ],
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -22,6 +32,7 @@ setup(
             "state_machine_node = klevor_robot.state_machine_node:main",
             "oled_display_node = klevor_robot.oled_display_node:main",
             "ackermann_motor_node = klevor_robot.motors.ackermann_motor_node:main",
+            "telemetry_bridge_node = klevor_robot.telemetry_bridge_node:main",
         ],
     },
 )

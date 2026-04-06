@@ -1,8 +1,8 @@
 """State machine core logic and state transition manager."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from src.logger import configure_json_logging
 from src.state_machine.types import RobotState, StateTransitionReason
@@ -71,7 +71,7 @@ class StateMachine:
                         "from": self._current_state.value,
                         "to": new_state.value,
                         "reason": reason.value,
-                    }
+                    },
                 },
             )
             return False
@@ -87,7 +87,7 @@ class StateMachine:
                     "from": self._current_state.value,
                     "to": new_state.value,
                     "reason": reason.value,
-                }
+                },
             },
         )
 

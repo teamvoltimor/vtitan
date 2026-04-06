@@ -215,5 +215,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Generated data (created by simulation, consumed by robot)
+training_data/
+
 # Claude Code
 .claude/

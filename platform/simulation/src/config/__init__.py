@@ -1,6 +1,6 @@
 """Public API for the config package."""
 
-from src.config.constants import (
+from shared.config.constants import (
     ColorNames,
     CorridorDimensions,
     DictKeys,
@@ -20,7 +20,7 @@ from src.config.constants import (
     WallSpecs,
     WidthTypes,
 )
-from src.config.enums import Direction, ScenarioType, Section
+from shared.config.enums import Direction, ScenarioType, Section
 
 __all__ = [
     "ColorNames",

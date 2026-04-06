@@ -20,7 +20,10 @@ except ImportError:
     LIBRARIES_AVAILABLE = False
 
 from src.env import EnvVar
-from src.hardware.display.base import Config as BaseConfig, Driver as BaseDriver
+from src.hardware.display.base import (
+    Config as BaseConfig,
+    Driver as BaseDriver,
+)
 from src.logger import configure_json_logging
 
 if TYPE_CHECKING:
@@ -36,7 +39,7 @@ DISPLAY_HEIGHT = EnvVar[int](key="DISPLAY_HEIGHT", default=64, cast=int)
 """Display height in pixels. Default is 64 for SSD1306."""
 
 DISPLAY_I2C_ADDRESS = EnvVar[int](
-    key="DISPLAY_I2C_ADDRESS", default=0x3C, cast=lambda x: int(x, 0) if isinstance(x, str) else int(x)
+    key="DISPLAY_I2C_ADDRESS", default=0x3C, cast=lambda x: int(x, 0) if isinstance(x, str) else int(x),
 )
 """I2C address of the display. Default is 0x3C."""
 
@@ -64,7 +67,7 @@ class Driver(BaseDriver):
     def __init__(self, config: Config | None = None):
         if not LIBRARIES_AVAILABLE:
             raise ImportError(
-                "Required libraries not available. Install with: pip install adafruit-circuitpython-ssd1306 pillow"
+                "Required libraries not available. Install with: pip install adafruit-circuitpython-ssd1306 pillow",
             )
 
         self.config: Config = config or Config()
@@ -83,7 +86,7 @@ class Driver(BaseDriver):
                     "height": self.config.height,
                     "i2c_address": hex(self.config.i2c_address),
                     "i2c_bus": self.config.i2c_bus,
-                }
+                },
             },
         )
 
@@ -133,7 +136,7 @@ class Driver(BaseDriver):
                     "details": {
                         "image_size": image.size,
                         "display_size": (self.config.width, self.config.height),
-                    }
+                    },
                 },
             )
             # Resize image to fit display

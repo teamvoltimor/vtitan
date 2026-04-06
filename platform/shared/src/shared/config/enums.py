@@ -108,5 +108,22 @@ class ScenarioType(StrEnum):
             return cls(value.lower())
         except ValueError as err:
             options = tuple(s.value for s in cls)
-            error_message = f"Invalid scenario type: {value!r}. Expected one of {options}"
+            error_message = (
+                f"Invalid scenario type: {value!r}. Expected one of {options}"
+            )
             raise ValueError(error_message) from err
+
+
+class RiskLevel(StrEnum):
+    """Collision risk classification for navigation logic.
+
+    Inherits from ``str`` so values compare equal to their string
+    representations.
+    """
+
+    SAFE = "safe"
+    CRITICAL = "critical"
+    OBSTACLE = "obstacle"
+
+    def __str__(self) -> str:
+        return self.value

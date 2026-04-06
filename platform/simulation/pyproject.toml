@@ -8,7 +8,11 @@ dependencies = [
     "numpy>=1.26",
     "opencv-python>=4.9",
     "defusedxml>=0.7",
+    "klevor-shared",
 ]
+
+[tool.uv.sources]
+klevor-shared = { path = "../shared" }
 
 [project.optional-dependencies]
 dev = [
