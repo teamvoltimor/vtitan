@@ -174,8 +174,9 @@ class ScenarioRandomizer:
                     f"got {type(width_value).__name__}: {width_value}"
                 )
 
-            # Validate width is within reasonable bounds
-            min_width, max_width = 0.5, 1.5
+            # Validate width is within reasonable bounds (from shared constants)
+            min_width = CorridorDimensions.MIN_WIDTH
+            max_width = CorridorDimensions.MAX_WIDTH
             if not (min_width <= width_value <= max_width):
                 raise ValueError(
                     f"Section {section} width {width_value}m is out of valid range "
@@ -292,6 +293,9 @@ class ScenarioRandomizer:
 
 # Private pure helpers
 def _build_width_entry(width_type: str) -> dict[str, Any]:
+    if width_type not in ScenarioRandomizer.CORRIDOR_WIDTH_MAP:
+        valid_types = tuple(ScenarioRandomizer.CORRIDOR_WIDTH_MAP.keys())
+        raise ValueError(f"Unknown width type '{width_type}'. Valid types: {valid_types}")
     width = ScenarioRandomizer.CORRIDOR_WIDTH_MAP[width_type]
     return {DictKeys.TYPE: width_type, DictKeys.WIDTH: width}
 

@@ -57,6 +57,47 @@ from shared.config.constants import DictKeys, FileExtensions, FilePaths, FolderN
 from src.generation.generator import ScenarioGenerator
 
 
+# Custom exceptions for specific error scenarios
+class RecordingError(Exception):
+    """Base exception for recording-related errors."""
+
+
+class FrameProcessingError(RecordingError):
+    """Error processing camera frame."""
+
+
+class VideoSaveError(RecordingError):
+    """Error saving video file."""
+
+
+class GazeboError(RecordingError):
+    """Error launching or communicating with Gazebo."""
+
+
+class BridgeError(RecordingError):
+    """Error launching or communicating with ros_gz_bridge."""
+
+
+class NavigatorError(RecordingError):
+    """Error launching or communicating with robot navigator."""
+
+
+class RobotSpawnError(RecordingError):
+    """Error spawning robot in simulation."""
+
+
+class FrameExtractionError(RecordingError):
+    """Error extracting frames from video."""
+
+
+class ScenarioGenerationError(RecordingError):
+    """Error generating scenario."""
+
+
+class ProcessTerminationError(RecordingError):
+    """Error terminating subprocess."""
+
+
 class VideoRecorderNode(Node):
     """ROS2 node that records camera feed to video file"""
 
@@ -104,7 +145,11 @@ class VideoRecorderNode(Node):
                     self.get_logger().info(
                         f"Recording: {elapsed:.1f}s / {self.duration}s ({len(self.frames)} frames)"
                     )
-            except Exception as e:
+             except (
+                RuntimeError,
+                OSError,
+                TypeError,
+            ) as e:
                 self.get_logger().error(f"Error processing frame: {e}")
 
     def check_duration(self) -> None:
@@ -151,9 +196,12 @@ class VideoRecorderNode(Node):
 
             return True
 
-        except Exception as e:
-            self.get_logger().error(f"Error saving video: {e}")
-            return False
+         except (OSError, cv2.error) as e:  # type: ignore[attr-defined]
+             self.get_logger().error(f"Error saving video: {e}")
+             return False
+         except Exception as e:
+             self.get_logger().error(f"Unexpected error saving video: {e}")
+             return False
 
 
 class PipelineOrchestrator:
@@ -173,10 +221,14 @@ class PipelineOrchestrator:
         self.videos_dir.mkdir(parents=True, exist_ok=True)
         self.frames_dir.mkdir(parents=True, exist_ok=True)
 
-        self.gazebo_process = None
-        self.recorder_process = None
-        self.bridge_process = None
-        self.driver_process = None
+         self.gazebo_process = None
+         self.recorder_process = None
+         self.bridge_process = None
+         self.driver_process = None
+         
+         # Gazebo operation timeout (seconds)
+         self._gazebo_launch_timeout = 30  # Max time to wait for Gazebo to launch
+         self._gazebo_start_time: float | None = None
 
     def generate_scenarios(self) -> bool:
         """Generate randomized scenarios"""
@@ -219,8 +271,14 @@ class PipelineOrchestrator:
                 print(f"  ✓ Signs: {metadata[DictKeys.NUM_SIGNS]}")
                 print(f"  ✓ Start: {start_section} ({start_direction})")
 
-            except Exception as e:
+            except ScenarioGenerationError as e:
                 print(f"  ✗ ERROR: {e}")
+                return False
+            except (OSError, ValueError, KeyError) as e:
+                print(f"  ✗ ERROR: Failed to generate scenario: {e}")
+                return False
+            except Exception as e:
+                print(f"  ✗ UNEXPECTED ERROR: {e}")
                 return False
 
         print(f"\n✓ Successfully generated {self.args.num_scenarios} scenarios\n")
@@ -263,7 +321,7 @@ class PipelineOrchestrator:
             return json.load(f)
 
     def launch_gazebo(self, scenario_file: Path) -> bool:
-        """Launch Gazebo with scenario"""
+        """Launch Gazebo with scenario with timeout protection."""
         print(f"  Launching Gazebo with {scenario_file.name}...")
 
         # Set environment variables
@@ -292,15 +350,52 @@ class PipelineOrchestrator:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
+            
+            # Track launch time for timeout detection
+            self._gazebo_start_time = time.time()
 
-            # Wait for Gazebo to initialize
-            time.sleep(5 if self.args.show_gui else 3)
+            # Wait for Gazebo to initialize (with timeout protection)
+            init_wait = 5 if self.args.show_gui else 3
+            time.sleep(init_wait)
+            
+            # Check if process is still alive after initialization
+            if self.gazebo_process.poll() is not None:
+                print(f"  ✗ ERROR: Gazebo process crashed during initialization (exit code: {self.gazebo_process.returncode})")
+                return False
 
             return True
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            print(f"  ✗ ERROR launching Gazebo: Gazebo executable not found: {e}")
+            return False
+        except (OSError, PermissionError) as e:
             print(f"  ✗ ERROR launching Gazebo: {e}")
             return False
+        except Exception as e:
+            print(f"  ✗ UNEXPECTED ERROR launching Gazebo: {e}")
+            return False
+    
+    def _check_gazebo_timeout(self) -> bool:
+        """Check if Gazebo has exceeded maximum runtime.
+        
+        Returns:
+            True if Gazebo is still running and within timeout, False otherwise.
+        """
+        if self.gazebo_process is None or self._gazebo_start_time is None:
+            return True
+        
+        # Check if process has crashed
+        if self.gazebo_process.poll() is not None:
+            print("  ⚠ WARNING: Gazebo process has terminated unexpectedly")
+            return False
+        
+        # Check if exceeded timeout
+        elapsed = time.time() - self._gazebo_start_time
+        if elapsed > self._gazebo_launch_timeout:
+            print(f"  ⚠ WARNING: Gazebo operation exceeded timeout ({elapsed:.1f}s > {self._gazebo_launch_timeout}s)")
+            return False
+        
+        return True
 
     def launch_bridge(self) -> bool:
         """Launch ros_gz_bridge to connect Gazebo topics to ROS2"""
@@ -337,8 +432,14 @@ class PipelineOrchestrator:
             print("  ✓ Bridge launched (camera, cmd_vel, odom)")
             return True
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            print(f"  ✗ ERROR launching bridge: ros_gz_bridge not found: {e}")
+            return False
+        except (OSError, PermissionError) as e:
             print(f"  ✗ ERROR launching bridge: {e}")
+            return False
+        except Exception as e:
+            print(f"  ✗ UNEXPECTED ERROR launching bridge: {e}")
             return False
 
     def launch_robot_driver(self, metadata: dict[str, Any], metadata_path: Path) -> bool:
@@ -369,8 +470,14 @@ class PipelineOrchestrator:
             print(f"  ✓ Track navigator launched ({direction} direction, 3 laps)")
             return True
 
-        except Exception as e:
+        except FileNotFoundError as e:
+            print(f"  ✗ ERROR launching track navigator: Python script not found: {e}")
+            return False
+        except (OSError, PermissionError) as e:
             print(f"  ✗ ERROR launching track navigator: {e}")
+            return False
+        except Exception as e:
+            print(f"  ✗ UNEXPECTED ERROR launching track navigator: {e}")
             return False
 
     def spawn_robot(self, metadata: dict[str, Any]) -> bool:
@@ -426,13 +533,24 @@ class PipelineOrchestrator:
             print("  WARNING: Robot spawn failed (may already exist)")
             return True  # Continue anyway
 
-        except Exception as e:
+        except subprocess.TimeoutExpired:
+            print(f"  WARNING: Robot spawn command timed out (may already exist)")
+            return True  # Continue anyway
+        except (FileNotFoundError, PermissionError) as e:
             print(f"  WARNING: Error spawning robot: {e}")
+            return True  # Continue anyway
+        except Exception as e:
+            print(f"  WARNING: Unexpected error spawning robot: {e}")
             return True  # Continue anyway
 
     def record_video(self, scenario_id: int) -> Path | None:
-        """Record video using ROS2 node"""
+        """Record video using ROS2 node with Gazebo timeout protection."""
         print(f"  Recording video for {self.args.duration} seconds...")
+        
+        # Check Gazebo health before recording
+        if not self._check_gazebo_timeout():
+            print("  ✗ ERROR: Gazebo not running or exceeded timeout, skipping video recording")
+            return None
 
         # Video output path
         video_file = (
@@ -451,7 +569,8 @@ class PipelineOrchestrator:
                 fps=self.args.fps,
             )
 
-            # Spin until recording completes
+            # Spin until recording completes (with timeout protection)
+            # The VideoRecorderNode has its own timeout via check_duration timer
             rclpy.spin(recorder)
 
             # Cleanup
@@ -459,8 +578,14 @@ class PipelineOrchestrator:
 
             return video_file
 
+        except RuntimeError as e:
+            print(f"  ✗ ERROR recording video: ROS2 runtime error: {e}")
+            return None
+        except (OSError, IOError) as e:
+            print(f"  ✗ ERROR recording video: File I/O error: {e}")
+            return None
         except Exception as e:
-            print(f"  ✗ ERROR recording video: {e}")
+            print(f"  ✗ UNEXPECTED ERROR recording video: {e}")
             return None
 
     def extract_sample_frames(
@@ -509,8 +634,14 @@ class PipelineOrchestrator:
             print(f"  ✓ Extracted {extracted_count} frames to {frames_output_dir}")
             return True
 
+        except (FileNotFoundError, IOError) as e:
+            print(f"  ✗ ERROR extracting frames: File error: {e}")
+            return False
+        except (OSError, cv2.error) as e:  # type: ignore[attr-defined]
+            print(f"  ✗ ERROR extracting frames: OpenCV error: {e}")
+            return False
         except Exception as e:
-            print(f"  ✗ ERROR extracting frames: {e}")
+            print(f"  ✗ UNEXPECTED ERROR extracting frames: {e}")
             return False
 
     def cleanup(self) -> None:
@@ -540,9 +671,18 @@ class PipelineOrchestrator:
                 process.kill()
                 process.wait(timeout=2)
                 print(f"  ✓ {process_name} killed")
-            except Exception as e:
+            except OSError as e:
+                print(f"  ✗ Failed to kill {process_name}: OS error: {e}")
+            except ProcessTerminationError as e:
                 print(f"  ✗ Failed to kill {process_name}: {e}")
-        except Exception as e:
+        except OSError as e:
+            print(f"  ⚠ Failed to terminate {process_name}: OS error: {e}. Attempting kill...")
+            try:
+                process.kill()
+                print(f"  ✓ {process_name} killed")
+            except OSError as kill_error:
+                print(f"  ✗ Failed to kill {process_name}: {kill_error}")
+        except ProcessTerminationError as e:
             print(f"  ⚠ Failed to terminate {process_name}: {e}. Attempting kill...")
             try:
                 process.kill()
@@ -564,8 +704,8 @@ class PipelineOrchestrator:
         except FileNotFoundError:
             # killall not available (e.g., on some Windows systems)
             print("  ⚠ killall command not available on this system")
-        except Exception as e:
-            print(f"  ⚠ Error killing lingering processes: {e}")
+        except (OSError, PermissionError) as e:
+            print(f"  ⚠ Error killing lingering processes: OS error: {e}")
 
     def process_scenario(self, scenario_file: Path) -> bool:
         """Process a single scenario: launch, record, cleanup"""
@@ -612,8 +752,14 @@ class PipelineOrchestrator:
             print(f"\n✓ Scenario {scenario_id} completed successfully")
             return True
 
-        except Exception as e:
+        except (GazeboError, BridgeError, NavigatorError, VideoSaveError) as e:
             print(f"\n✗ ERROR processing scenario {scenario_id}: {e}")
+            return False
+        except (FileNotFoundError, OSError) as e:
+            print(f"\n✗ ERROR processing scenario {scenario_id}: File error: {e}")
+            return False
+        except Exception as e:
+            print(f"\n✗ UNEXPECTED ERROR processing scenario {scenario_id}: {e}")
             return False
 
         finally:
@@ -776,6 +922,14 @@ Examples:
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
+        return 1
+    except (RecordingError, GazeboError, BridgeError, NavigatorError) as e:
+        print(f"\n✗ Pipeline error: {e}")
+        return 1
+    except (FileNotFoundError, OSError) as e:
+        print(f"\n✗ Pipeline file error: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
     except Exception as e:
         print(f"\n✗ Pipeline error: {e}")

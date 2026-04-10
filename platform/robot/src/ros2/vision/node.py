@@ -82,8 +82,10 @@ class VisionNode(Node):
             out_msg.data = json.dumps(data)
             self._publisher.publish(out_msg)
 
+        except (RuntimeError, ValueError, TypeError) as e:
+            self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
-            self.get_logger().error(f"Error processing image: {e}")
+            self.get_logger().error(f"Unexpected error processing image: {e}", exc_info=True)
 
 
 def main(args: list[str] | None = None) -> None:

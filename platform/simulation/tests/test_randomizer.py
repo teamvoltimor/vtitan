@@ -1,15 +1,17 @@
 """Unit tests for ScenarioRandomizer."""
 
-import pytest
 import math
-from shared.config.constants import DictKeys, TrackDimensions
-from shared.config.enums import Section, Direction
+
+import pytest
+from shared.config.constants import DictKeys
+from shared.config.enums import Direction, Section
+
 from src.generation.randomizer import (
     ScenarioRandomizer,
-    _pick_start_position,
-    _compute_starting_yaw,
     _compute_second_block_depth,
+    _compute_starting_yaw,
     _parking_positions_for_section,
+    _pick_start_position,
     _zone_from_parking,
 )
 

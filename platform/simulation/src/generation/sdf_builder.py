@@ -54,6 +54,7 @@ class SDFBuilder:
         self,
         world: ET.Element,
         scenario_data: dict[str, Any],
+        base_world_path: str = "",
     ) -> None:
         """Build complete world from scenario data.
 
@@ -66,6 +67,7 @@ class SDFBuilder:
                 - sign_positions: Traffic sign locations
                 - sign_colors: Traffic sign colors
                 - parking_lot: Parking config (obstacles only)
+            base_world_path: Path to base world sdf
         """
         # Stage 1: Inject system plugins
         self._plugins.add_system_plugins(world)

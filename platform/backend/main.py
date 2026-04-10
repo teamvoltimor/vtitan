@@ -19,9 +19,9 @@ def main() -> None:
     uvicorn.run(
         "src.telemetry.app:app",
         host="0.0.0.0",  # noqa: S104
-        port=config.telemetry_port,
+        port=config.port,
         log_level="info",
-        reload=config.telemetry_reload,
+        reload=config.reload,
     )
 
 

@@ -8,50 +8,77 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 
+from src.telemetry.config import ServerConfig
 from src.telemetry.dependencies import (
     get_connection_manager,
     get_generator,
     get_recorder,
 )
 from src.telemetry.exceptions import SessionNotFoundError
-from src.telemetry.generator_sim import TelemetryGenerator
 from src.telemetry.models import RobotSnapshot, TopicsSnapshot
 from src.telemetry.recorder import ReplaySessionInfo, TelemetryRecorder
-from src.telemetry.ws.manager import ConnectionManager
+
+if TYPE_CHECKING:
+    from src.telemetry.generator_sim import TelemetryGenerator
+    from src.telemetry.ws.manager import ConnectionManager
+    from shared.config.types import (
+        HealthCheckResponseDict,
+        ConfigResponseDict,
+        SpeedUpdateResponseDict,
+    )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
+_SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+_API_STATUS_OK = "ok"
+_SPEED_PROFILES = ["normal", "fast", "slow"]
+_DEFAULT_PROFILE = "normal"
+
 
 @router.get("/health", response_model=dict)
-def health_check(request: Request) -> dict:
+def health_check(request: Request) -> HealthCheckResponseDict:
     """Backend health check endpoint.
 
     Returns:
-        Dictionary with status, version, and uptime.
+        HealthCheckResponseDict with status, uptime, and node count.
     """
+    try:
+        uptime = time.time() - request.app.state.telemetry.server_start_time
+    except AttributeError:
+        uptime = 0.0
+
     return {
-        "status": "ok",
+        "status": _API_STATUS_OK,
+        "uptime_seconds": uptime,
+        "active_nodes": 1,
         "version": "0.3.0",
-        "uptime_seconds": time.time() - request.app.state.telemetry.server_start_time,
     }
 
 
 @router.get("/config", response_model=dict)
-def get_config(request: Request) -> dict:
-    """Return current backend configuration."""
+def get_config(request: Request) -> ConfigResponseDict:
+    """Return current backend configuration.
+
+    Returns:
+        ConfigResponseDict with speed profiles and parameters.
+    """
     state = request.app.state.telemetry
     return {
-        "max_sessions": state.recorder._max_sessions,
-        "sessions_dir": str(state.recorder._base_dir),
-        "poll_interval_ms": 2500,
+        "speed_profiles": _SPEED_PROFILES,
+        "current_profile": _DEFAULT_PROFILE,
+        "max_sessions": state.recorder.max_sessions,
+        "sessions_dir": str(state.recorder.sessions_dir),
+        "poll_interval_ms": ServerConfig().poll_interval_ms,
     }
 
 
@@ -100,7 +127,7 @@ async def record_snapshot(
         recorder: Injected TelemetryRecorder dependency.
         manager: Injected ConnectionManager dependency.
     """
-    recorder.record(snapshot)
+    await asyncio.to_thread(recorder.record, snapshot)
     await manager.broadcast(snapshot.model_dump_json())
 
 
@@ -111,14 +138,14 @@ class SpeedConfigUpdate(BaseModel):
 
 
 @router.post("/robot/config/speed")
-async def update_robot_speed(config: SpeedConfigUpdate) -> dict:
+async def update_robot_speed(config: SpeedConfigUpdate) -> SpeedUpdateResponseDict:
     """Update robot's maximum linear speed configuration.
 
     Args:
         config: New speed configuration.
 
     Returns:
-        Confirmation of the update.
+        SpeedUpdateResponseDict confirming the update.
     """
     logger.info(f"Received speed config update: {config.max_linear_speed}")
     # In a real system, you would broadcast this to the robot via ROS/WebSocket
@@ -213,8 +240,14 @@ def load_session(
         List of RobotSnapshot objects from the session.
 
     Raises:
-        HTTPException: If session not found (404).
+        HTTPException: If session not found (404) or invalid session_id format.
     """
+    if not _SESSION_ID_PATTERN.match(session_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid session_id format. Use only alphanumeric, underscore, or hyphen.",
+        )
+
     try:
         return list(recorder.load_session(session_id))
     except SessionNotFoundError as exc:

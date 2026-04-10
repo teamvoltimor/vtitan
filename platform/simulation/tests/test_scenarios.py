@@ -2,7 +2,8 @@
 
 import pytest
 from shared.config.enums import Section
-from src.generation.scenarios import apply_scenario_to_section, SCENARIOS
+
+from src.generation.scenarios import apply_scenario_to_section
 
 
 def test_apply_scenario_to_south():

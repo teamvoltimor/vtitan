@@ -65,7 +65,7 @@ class ConnectionManager:
             )
 
     async def broadcast(self, data: str) -> None:
-        """Broadcast JSON string to all connected clients with typed error handling.
+        """Broadcast JSON string to all connected clients concurrently using asyncio.TaskGroup.
 
         Handles timeouts, disconnections, and unexpected errors with specific
         logging for observability (Error Handling Pillar).
@@ -73,11 +73,13 @@ class ConnectionManager:
         Args:
             data: JSON string to broadcast.
         """
+        if not self.active_connections:
+            return
+
         disconnected: list[WebSocket] = []
 
-        for connection in list(self.active_connections):
+        async def _send_to_client(connection: WebSocket) -> None:
             try:
-                # Timeout prevents hanging on slow clients (Error Handling: Resiliency)
                 await asyncio.wait_for(
                     connection.send_text(data),
                     timeout=5.0,
@@ -89,9 +91,7 @@ class ConnectionManager:
                 )
                 disconnected.append(connection)
                 self._metrics["broadcast_timeouts"] += 1
-
             except RuntimeError as exc:
-                # Guard clause: specific error detection (Logic-Cleaner Rule 1)
                 if "connection is not established" in str(exc):
                     logger.debug("Client already disconnected")
                     disconnected.append(connection)
@@ -104,9 +104,7 @@ class ConnectionManager:
                     )
                     disconnected.append(connection)
                     self._metrics["broadcast_failures"] += 1
-
             except Exception as exc:
-                # Catch-all with detailed logging (not silent)
                 logger.error(
                     "Unexpected error broadcasting to client",
                     exc_info=exc,
@@ -114,6 +112,13 @@ class ConnectionManager:
                 )
                 disconnected.append(connection)
                 self._metrics["broadcast_failures"] += 1
+
+        try:
+            async with asyncio.TaskGroup() as tg:
+                for connection in list(self.active_connections):
+                    tg.create_task(_send_to_client(connection))
+        except Exception as exc:
+            logger.error("Error in broadcast task group", exc_info=exc)
 
         # Clean up disconnected clients (single responsibility)
         for connection in disconnected:

@@ -11,6 +11,7 @@ from typing import IO, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
+from src.telemetry.config import RecorderConfig
 from src.telemetry.exceptions import RecorderError, SessionNotFoundError
 from src.telemetry.models import RobotSnapshot
 
@@ -35,9 +36,6 @@ class ReplaySessionInfo(BaseModel):
     )
 
 
-_DEFAULT_MAX_SESSIONS = 20
-
-
 class TelemetryRecorder:
     """Persist telemetry frames to disk and enumerate replay history."""
 
@@ -45,7 +43,7 @@ class TelemetryRecorder:
         self,
         base_dir: Path | str,
         session_id: str | None = None,
-        max_sessions: int = _DEFAULT_MAX_SESSIONS,
+        max_sessions: int = RecorderConfig.DEFAULT_MAX_SESSIONS,
     ) -> None:
         base_dir = Path(base_dir)
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -68,6 +66,16 @@ class TelemetryRecorder:
     def session_id(self) -> str:
         """Return the active replay session identifier."""
         return self._session_id
+
+    @property
+    def max_sessions(self) -> int:
+        """Return the maximum number of sessions to retain."""
+        return self._max_sessions
+
+    @property
+    def sessions_dir(self) -> Path:
+        """Return the base directory for session storage."""
+        return self._base_dir
 
     @property
     def entry_count(self) -> int:

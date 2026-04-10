@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -12,7 +11,6 @@ from shared.config.constants import (
     ParkingLotSpecs,
     RobotSpecs,
     TrafficSignSpecs,
-    ZLayers,
 )
 from shared.config.enums import ScenarioType
 
@@ -132,7 +130,7 @@ class ObjectBuilder:
 
         # Collision (as bounding box)
         collision = ET.SubElement(chassis_link, "collision", name="collision")
-        pose_col = ET.SubElement(collision, "pose").text = "0 0 0.05 0 0 0"
+        ET.SubElement(collision, "pose").text = "0 0 0.05 0 0 0"
         geom = ET.SubElement(ET.SubElement(collision, "geometry"), "box")
         ET.SubElement(
             geom, "size"

@@ -68,6 +68,7 @@ def main() -> None:
     if args.command == "generate":
         from shared.config.constants import DictKeys, FolderNames
         from shared.config.enums import ScenarioType
+
         from src.generation.generator import ScenarioGenerator
 
         challenge_output_dir = Path(args.output_dir) / args.challenge / FolderNames.SCENARIOS

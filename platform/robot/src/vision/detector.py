@@ -23,11 +23,16 @@ class TrafficSignColor(Enum):
 class SignDetection:
     """Represents a detected traffic sign or parking block."""
 
-    def __init__(self, color: str, bbox: tuple[float, float, float, float], confidence: float):
+    def __init__(
+        self,
+        color: TrafficSignColor,
+        bbox: tuple[float, float, float, float],
+        confidence: float,
+    ):
         """Initialize a detection.
 
         Args:
-            color: 'red', 'green', or 'magenta' (from TrafficSignColor)
+            color: TrafficSignColor enum (red, green, or magenta)
             bbox: (x1, y1, x2, y2)
             confidence: 0.0 to 1.0
         """
@@ -39,7 +44,7 @@ class SignDetection:
     def to_dict(self) -> dict:
         """Convert detection to a dictionary for JSON serialization."""
         return {
-            "color": self.color,
+            "color": str(self.color),
             "bbox": self.bbox,
             "confidence": self.confidence,
         }
@@ -117,7 +122,7 @@ class LocalYoloDetector(DetectorBase):
 
             color = self.config.get_color(class_id)
             if color is not None:
-                detections.append(SignDetection(color.value, (x1, y1, x2, y2), conf))
+                detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
 
         return detections
 
@@ -226,6 +231,6 @@ class HailoDetector(DetectorBase):
                     scale_x = image.shape[1] / self.input_shape[2]
                     y1, x1, y2, x2 = box[0] * scale_y, box[1] * scale_x, box[2] * scale_y, box[3] * scale_x
 
-                detections.append(SignDetection(color.value, (x1, y1, x2, y2), conf))
+                detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
 
         return detections

@@ -70,8 +70,11 @@ class Driver(ABC_Driver):
             # Initialize BNO08x with the I2C bus
             self._imu: BNO08X = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
             self.logger.info("Connected to BNO08x IMU via MCP2221A I2C")
+        except (RuntimeError, OSError) as e:
+            self.logger.error(f"Failed to connect to IMU: {type(e).__name__}: {e}")
+            raise
         except Exception as e:
-            self.logger.error(f"Failed to connect to IMU: {e}")
+            self.logger.error(f"Unexpected error connecting to IMU: {e}", exc_info=True)
             raise
 
     @property
@@ -91,8 +94,8 @@ class Driver(ABC_Driver):
         self.imu.enable_feature(BNO_REPORT_ACCELEROMETER)
         self.imu.enable_feature(BNO_REPORT_GYROSCOPE)
         self.imu.enable_feature(BNO_REPORT_MAGNETOMETER)
-        self.imu.enable_feature(BNO_REPORT_ROTATION_VECTOR) # Standard Quaternion
-        self.imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR) # Z-axis gravity removed
+        self.imu.enable_feature(BNO_REPORT_ROTATION_VECTOR)  # Standard Quaternion
+        self.imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR)  # Z-axis gravity removed
         self.imu.enable_feature(BNO_REPORT_LINEAR_ACCELERATION)
 
         time.sleep(0.1)

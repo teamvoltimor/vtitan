@@ -11,18 +11,15 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import random
 from pathlib import Path
 from typing import Any
-from xml.etree.ElementTree import Element, ElementTree
-from xml.etree.ElementTree import ParseError
+from xml.etree.ElementTree import Element, ElementTree, ParseError
 
 import numpy as np
 from defusedxml.ElementTree import parse as defused_parse
 from shared.config.constants import (
     ColorNames,
-    CorridorDimensions,
     DictKeys,
     FileExtensions,
     FilePaths,
@@ -31,15 +28,15 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WidthTypes,
 )
-from shared.config.enums import Direction, ScenarioType, Section
+from shared.config.enums import ScenarioType, Section
 from shared.config.types import StartingConditions
 
-from src.generation.randomizer import ScenarioRandomizer
 from src.generation.randomization_strategy import (
     DeterministicDefaults,
     FullRandomization,
     RandomizationStrategy,
 )
+from src.generation.randomizer import ScenarioRandomizer
 from src.generation.sdf_builder import SDFBuilder
 
 logger = logging.getLogger(__name__)
@@ -100,9 +97,9 @@ class ScenarioGenerator:
         try:
             tree = defused_parse(self._base_world_path)
         except ParseError as e:
-            raise IOError(f"Failed to parse base world SDF '{self._base_world_path}': {e}") from e
+            raise OSError(f"Failed to parse base world SDF '{self._base_world_path}': {e}") from e
         except FileNotFoundError as e:
-            raise IOError(f"Base world SDF not found at '{self._base_world_path}': {e}") from e
+            raise OSError(f"Base world SDF not found at '{self._base_world_path}': {e}") from e
 
         root: Element = tree.getroot()
         world = root.find("world")
@@ -232,8 +229,8 @@ class ScenarioGenerator:
         )
         try:
             tree.write(world_file, encoding="utf-8", xml_declaration=True)
-        except (OSError, IOError) as e:
-            raise IOError(
+        except OSError as e:
+            raise OSError(
                 f"Failed to write world SDF to '{world_file}': {e} "
                 "(check disk space and write permissions)"
             ) from e
@@ -256,8 +253,8 @@ class ScenarioGenerator:
         try:
             with metadata_file.open("w", encoding="utf-8") as fh:
                 json.dump(metadata, fh, indent=2)
-        except (OSError, IOError, json.JSONDecodeError) as e:
-            raise IOError(
+        except (OSError, json.JSONDecodeError) as e:
+            raise OSError(
                 f"Failed to write metadata to '{metadata_file}': {e} "
                 "(check disk space and write permissions)"
             ) from e

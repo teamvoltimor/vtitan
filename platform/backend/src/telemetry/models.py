@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import enum
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+# Import NodeHealth and types from shared (single source of truth)
+from shared.config.enums import NodeHealth
 
 
 class TelemetryBaseModel(BaseModel):
@@ -28,25 +30,21 @@ class TelemetryBaseModel(BaseModel):
     )
 
 
-class NodeHealth(enum.StrEnum):
-    """Enumerates the telemetry node health states sent to the UI."""
-
-    NOMINAL = "nominal"
-    WATCHDOG = "watchdog"
-    REPLANNING = "replanning"
-
-
 Position3D = tuple[float, float, float]
 
 
 class TopicUpdate(TelemetryBaseModel):
-    """Single raw topic update with message data."""
+    """Single raw topic update with message data.
+
+    The `data` field structure varies by message type. For structured types,
+    use shared.config.types.TopicUpdateDict as reference.
+    """
 
     topic_name: str
     message_type: str  # e.g., "sensor_msgs/LaserScan"
     timestamp: float
     update_rate_hz: float  # Calculated from message frequency
-    data: dict  # Raw message fields as nested dict
+    data: dict  # Raw message fields as nested dict (structure varies by message_type)
 
 
 class TopicsSnapshot(TelemetryBaseModel):

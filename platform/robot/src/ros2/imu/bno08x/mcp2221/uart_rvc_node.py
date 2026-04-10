@@ -35,7 +35,7 @@ class IMU_UART_RVCNode(Node):
                 extra={"details": {"error": str(e), "port": e.port}},
             )
             # Continue gracefully — IMU data is not critical for motor control
-        except Exception as e:
+        except (RuntimeError, ValueError, ImportError, OSError, TimeoutError, AttributeError) as e:
             self.get_logger().error(
                 f"Unexpected IMU initialization error: {e}",
                 extra={"details": {"error": str(e)}},

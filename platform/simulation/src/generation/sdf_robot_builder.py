@@ -13,7 +13,7 @@ import math
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from shared.config.constants import RobotSpecs, DictKeys
+from shared.config.constants import DictKeys, RobotSpecs
 
 # Cylinder geometry requires a 90° roll to align the cylinder axis with Y (wheel roll axis).
 _WHEEL_ROLL_POSE = f"0 0 0 {math.pi / 2:.6f} 0 0"

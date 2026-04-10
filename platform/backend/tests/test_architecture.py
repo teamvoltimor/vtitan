@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from pydantic import ValidationError
+
 from src.telemetry.config import ServerConfig
 from src.telemetry.dependencies import create_app_state
 from src.telemetry.exceptions import TelemetryError
@@ -52,12 +54,12 @@ class TestConfigurationValidation:
 
     def test_port_must_be_in_valid_range(self) -> None:
         """Port validation rejects out-of-range values."""
-        with pytest.raises(ValueError, match="out of valid range"):
-            ServerConfig(telemetry_port=70000)
+        with pytest.raises(ValidationError):
+            ServerConfig(port=70000)
 
     def test_max_sessions_must_be_positive(self) -> None:
         """max_sessions validation rejects non-positive values."""
-        with pytest.raises(ValueError, match="must be >= 1"):
+        with pytest.raises(ValidationError):
             ServerConfig(max_sessions=0)
 
 

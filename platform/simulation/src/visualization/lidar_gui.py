@@ -11,6 +11,8 @@ import rclpy  # type: ignore[import]
 from rclpy.node import Node  # type: ignore[import]
 from sensor_msgs.msg import LaserScan  # type: ignore[import]
 
+from src.navigation.controllers import CollisionAvoidanceController
+
 
 class LidarGUI:
     """Interactive LIDAR visualization GUI"""
@@ -31,6 +33,8 @@ class LidarGUI:
         self.ranges = None
         self.angles = None
         self.range_max = 3.0
+
+        self.collision_controller = CollisionAvoidanceController()
 
         # Theme colors
         self.bg_color = "#0d1117"
@@ -354,11 +358,14 @@ class LidarGUI:
             valid_angles = angles[valid_mask]
 
             if len(valid_ranges) > 0:
-                # Calculate directional distances
-                forward = self.get_min_distance(valid_angles, valid_ranges, 0, 0.26)
+                # Calculate directional distances using shared controller
+                forward = self.collision_controller.compute_forward_clearance(ranges)
                 left = self.get_min_distance(valid_angles, valid_ranges, np.pi / 2, 0.26)
                 right = self.get_min_distance(valid_angles, valid_ranges, -np.pi / 2, 0.26)
                 back = self.get_min_distance(valid_angles, valid_ranges, np.pi, 0.26)
+
+                risk = self.collision_controller.assess_risk(ranges)
+                threat_dir = self.collision_controller.detect_threat_direction(ranges)
 
                 stats = f"{'=' * 28}\n"
                 stats += "  LIDAR MEASUREMENTS\n"
@@ -375,15 +382,17 @@ class LidarGUI:
                 stats += f"  Right:   {right:.3f} m\n"
                 stats += f"  Back:    {back:.3f} m\n\n"
                 stats += f"{'-' * 28}\n\n"
+                stats += "Collision Risk:\n\n"
+                stats += f"  Status: {risk.name}\n"
+                stats += f"  Threat Dir: {threat_dir.upper()}\n\n"
+                stats += f"{'-' * 28}\n\n"
 
                 # Warnings for close obstacles
                 warnings = []
-                if forward < 0.3:
-                    warnings.append("[!] FRONT OBSTACLE")
-                if left < 0.2:
-                    warnings.append("[!] LEFT WALL CLOSE")
-                if right < 0.2:
-                    warnings.append("[!] RIGHT WALL CLOSE")
+                if risk.name == "CRITICAL":
+                    warnings.append(f"[!] CRITICAL: {threat_dir.upper()}")
+                elif risk.name == "OBSTACLE":
+                    warnings.append(f"[!] OBSTACLE: {threat_dir.upper()}")
 
                 if warnings:
                     stats += "WARNINGS:\n"

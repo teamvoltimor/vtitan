@@ -8,25 +8,20 @@ import time
 from collections import deque
 from typing import TYPE_CHECKING
 
+from src.telemetry.config import SimulationConstants
 from src.telemetry.models import NodeHealth, Position3D, RobotSnapshot, TelemetryMetrics
 
 if TYPE_CHECKING:
     from src.telemetry.recorder import TelemetryRecorder
 
-_RNG_SEED = 0
-_ORBIT_PERIOD = 60  # frames per full orbit
-_STAGE_DURATION = 18  # frames per navigation stage
-_LOG_COUNT = 3  # log entries emitted per snapshot
+_RNG_SEED = SimulationConstants.RNG_SEED
+_ORBIT_PERIOD = SimulationConstants.ORBIT_PERIOD_FRAMES
+_STAGE_DURATION = SimulationConstants.STAGE_DURATION_FRAMES
+_LOG_COUNT = SimulationConstants.LOG_ENTRIES_PER_SNAPSHOT
 
-_STAGES = ("start", "acceleration", "cornering", "straightaway", "finish")
+_STAGES = SimulationConstants.STAGE_NAMES
 
-_EVENT_TEMPLATES = (
-    "ROS bridge: synchronized · {frequency:.1f} Hz",
-    "Navigator: {stage} segment · {percent:.0f}% complete",
-    "LIDAR: captured {points} points · obstacle {obstacle:.2f} m ahead",
-    "Telemetry node {health} · speed {speed:.2f} m/s",
-    "Replay buffer: {entries} snapshots stored",
-)
+_EVENT_TEMPLATES = SimulationConstants.LOG_TEMPLATES
 
 _HEALTH_CYCLE = (NodeHealth.NOMINAL, NodeHealth.WATCHDOG, NodeHealth.REPLANNING)
 

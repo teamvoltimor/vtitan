@@ -52,7 +52,7 @@ class HardwareNode(Node, ABC):
                 extra={"details": {"driver": self.driver.__class__.__name__}},
             )
             return True
-        except Exception as e:
+        except (RuntimeError, ValueError, ImportError, OSError, TimeoutError) as e:
             self.get_logger().error(
                 f"{self.__class__.__name__} hardware initialization failed: {type(e).__name__}",
                 extra={"details": {"error": str(e), "error_type": type(e).__name__}},

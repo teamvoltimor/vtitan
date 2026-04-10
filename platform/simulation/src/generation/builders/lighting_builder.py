@@ -8,6 +8,12 @@ from xml.etree import ElementTree as ET
 from shared.config.constants import DictKeys, ModelNames
 
 
+class LightingValidationError(ValueError):
+    """Raised when lighting configuration is invalid."""
+
+    pass
+
+
 class LightingBuilder:
     """Handles sun and ambient light configuration.
 
@@ -28,7 +34,12 @@ class LightingBuilder:
             world: The <world> ET element to modify in-place.
             lighting: Dict with intensity, direction, ambient_intensity,
                      cast_shadows, and scenario keys.
+
+        Raises:
+            LightingValidationError: If required keys are missing.
         """
+        LightingBuilder._validate_lighting(lighting)
+
         sun = world.find(f".//light[@name='{ModelNames.SUN_LIGHT}']")
         if sun is not None:
             intensity = max(0.0, min(1.0, lighting[DictKeys.INTENSITY]))
@@ -44,3 +55,23 @@ class LightingBuilder:
         if ambient is not None:
             amb = max(0.0, min(1.0, lighting[DictKeys.AMBIENT_INTENSITY]))
             ambient.find("diffuse").text = f"{amb} {amb} {amb} 1"
+
+    @staticmethod
+    def _validate_lighting(lighting: dict[str, Any]) -> None:
+        """Validate lighting config has required keys.
+
+        Raises:
+            LightingValidationError: If validation fails.
+        """
+        required_keys = [
+            DictKeys.INTENSITY,
+            DictKeys.AMBIENT_INTENSITY,
+            DictKeys.DIRECTION,
+        ]
+        missing = [k for k in required_keys if k not in lighting]
+        if missing:
+            raise LightingValidationError(f"Missing required lighting keys: {missing}")
+
+        direction = lighting[DictKeys.DIRECTION]
+        if not isinstance(direction, list) or len(direction) != 3:
+            raise LightingValidationError(f"Direction must be a list of 3 floats, got {direction}")

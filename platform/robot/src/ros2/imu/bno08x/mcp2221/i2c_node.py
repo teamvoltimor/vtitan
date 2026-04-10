@@ -28,8 +28,11 @@ class IMU_I2CNode(Node):
             self.driver.connect()
             self.driver.enable_sensors()
             self.get_logger().info("IMU driver connected and sensors enabled.")
+        except (RuntimeError, OSError) as e:
+            self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
+            raise
         except Exception as e:
-            self.get_logger().error(f"Failed to initialize IMU driver: {e}")
+            self.get_logger().error(f"Unexpected error initializing IMU driver: {e}", exc_info=True)
             raise
 
         # Setup publisher
@@ -43,8 +46,11 @@ class IMU_I2CNode(Node):
         """Read data from driver and publish as sensor_msgs/Imu."""
         try:
             data = self.driver.get_all_data()
+        except (RuntimeError, OSError, ValueError) as e:
+            self.get_logger().warning(f"Failed to read IMU data: {type(e).__name__}: {e}")
+            return
         except Exception as e:
-            self.get_logger().warning(f"Failed to read IMU data: {e}")
+            self.get_logger().warning(f"Unexpected error reading IMU data: {e}")
             return
 
         msg = Imu()

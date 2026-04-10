@@ -108,7 +108,9 @@ class ScenarioType(StrEnum):
             return cls(value.lower())
         except ValueError as err:
             options = tuple(s.value for s in cls)
-            error_message = f"Invalid scenario type: {value!r}. Expected one of {options}"
+            error_message = (
+                f"Invalid scenario type: {value!r}. Expected one of {options}"
+            )
             raise ValueError(error_message) from err
 
 
@@ -143,3 +145,87 @@ class LightingScenario(StrEnum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class RobotState(StrEnum):
+    """Robot state machine states.
+
+    Represents the primary operational states of the robot throughout
+    its lifecycle from boot through completion.
+
+    States flow: BOOT_CHECK → READY → RACING → FINISHED
+
+    Attributes:
+        BOOT_CHECK: Hardware verification and self-tests in progress
+        READY: Robot ready for race, waiting for start signal (button press)
+        RACING: Autonomous navigation in progress, actively following track
+        FINISHED: Race complete, results displayed, ready for next run
+    """
+
+    BOOT_CHECK = "boot_check"
+    READY = "ready"
+    RACING = "racing"
+    FINISHED = "finished"
+
+    def __str__(self) -> str:
+        return self.value
+
+    @classmethod
+    def from_string(cls, value: str) -> RobotState:
+        """Look up a RobotState by its string value (case-insensitive).
+
+        Args:
+            value: String representation (e.g. "boot_check", "RACING").
+
+        Returns:
+            Matching RobotState enum member.
+
+        Raises:
+            ValueError: If value does not match any RobotState.
+        """
+        try:
+            return cls(value.lower())
+        except ValueError as err:
+            options = tuple(s.value for s in cls)
+            error_message = f"Invalid robot state: {value!r}. Expected one of {options}"
+            raise ValueError(error_message) from err
+
+
+class NodeHealth(StrEnum):
+    """Telemetry node health status.
+
+    Indicates the operational health of the telemetry/navigation node.
+    Used for real-time diagnostics and failure detection.
+
+    Attributes:
+        NOMINAL: All systems operating within normal parameters
+        WATCHDOG: Watchdog timer triggered, recovery in progress
+        REPLANNING: Path replanning active due to obstacle or deviation
+    """
+
+    NOMINAL = "nominal"
+    WATCHDOG = "watchdog"
+    REPLANNING = "replanning"
+
+    def __str__(self) -> str:
+        return self.value
+
+    @classmethod
+    def from_string(cls, value: str) -> NodeHealth:
+        """Look up NodeHealth by its string value (case-insensitive).
+
+        Args:
+            value: String representation (e.g. "nominal", "WATCHDOG").
+
+        Returns:
+            Matching NodeHealth enum member.
+
+        Raises:
+            ValueError: If value does not match any NodeHealth.
+        """
+        try:
+            return cls(value.lower())
+        except ValueError as err:
+            options = tuple(n.value for n in cls)
+            error_message = f"Invalid node health: {value!r}. Expected one of {options}"
+            raise ValueError(error_message) from err

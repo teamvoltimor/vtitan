@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from src.telemetry.config import ServerConfig, SimulationConstants
 
@@ -37,12 +38,12 @@ class TestServerConfigDefaults:
     def test_default_port_is_8010(self) -> None:
         """Default port matches expected value."""
         config = ServerConfig()
-        assert config.telemetry_port == 8010
+        assert config.port == 8010
 
     def test_default_reload_is_false(self) -> None:
         """Default reload flag is disabled."""
         config = ServerConfig()
-        assert config.telemetry_reload is False
+        assert config.reload is False
 
     def test_default_max_sessions_is_20(self) -> None:
         """Default max sessions is 20."""
@@ -60,24 +61,24 @@ class TestServerConfigValidation:
 
     def test_port_must_be_in_valid_range(self) -> None:
         """Port must be between 1 and 65535."""
-        with pytest.raises(ValueError):
-            ServerConfig(telemetry_port=0)
+        with pytest.raises(ValidationError):
+            ServerConfig(port=0)
 
-        with pytest.raises(ValueError):
-            ServerConfig(telemetry_port=65536)
+        with pytest.raises(ValidationError):
+            ServerConfig(port=65536)
 
     def test_max_sessions_must_be_positive(self) -> None:
         """max_sessions must be >= 1."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             ServerConfig(max_sessions=0)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             ServerConfig(max_sessions=-1)
 
     def test_valid_port_accepted(self) -> None:
         """Valid ports are accepted."""
-        config = ServerConfig(telemetry_port=9000)
-        assert config.telemetry_port == 9000
+        config = ServerConfig(port=9000)
+        assert config.port == 9000
 
 
 class TestServerConfigFromEnv:
@@ -91,21 +92,21 @@ class TestServerConfigFromEnv:
         monkeypatch.delenv("TELEMETRY_MAX_SESSIONS", raising=False)
 
         config = ServerConfig.from_env()
-        assert config.telemetry_port == 8010
-        assert config.telemetry_reload is False
+        assert config.port == 8010
+        assert config.reload is False
         assert config.max_sessions == 20
 
     def test_from_env_reads_port(self, monkeypatch) -> None:
         """from_env reads TELEMETRY_PORT from environment."""
         monkeypatch.setenv("TELEMETRY_PORT", "9000")
         config = ServerConfig.from_env()
-        assert config.telemetry_port == 9000
+        assert config.port == 9000
 
     def test_from_env_reads_reload_flag(self, monkeypatch) -> None:
         """from_env reads TELEMETRY_RELOAD from environment."""
         monkeypatch.setenv("TELEMETRY_RELOAD", "1")
         config = ServerConfig.from_env()
-        assert config.telemetry_reload is True
+        assert config.reload is True
 
     def test_from_env_reads_max_sessions(self, monkeypatch) -> None:
         """from_env reads TELEMETRY_MAX_SESSIONS from environment."""
@@ -116,11 +117,11 @@ class TestServerConfigFromEnv:
     def test_from_env_handles_invalid_port(self, monkeypatch) -> None:
         """ServerConfig.from_env validates port from environment."""
         monkeypatch.setenv("TELEMETRY_PORT", "invalid")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             ServerConfig.from_env()
 
     def test_from_env_handles_invalid_max_sessions(self, monkeypatch) -> None:
         """ServerConfig.from_env validates max_sessions from environment."""
         monkeypatch.setenv("TELEMETRY_MAX_SESSIONS", "-5")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             ServerConfig.from_env()

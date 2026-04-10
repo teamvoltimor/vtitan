@@ -19,6 +19,8 @@ from matplotlib.lines import Line2D  # type: ignore[import]
 from rclpy.node import Node  # type: ignore[import]
 from sensor_msgs.msg import LaserScan  # type: ignore[import]
 
+from src.navigation.controllers import CollisionAvoidanceController
+
 
 class LidarVisualizer(Node):
     """Visualize LIDAR scan data in real-time"""
@@ -41,6 +43,8 @@ class LidarVisualizer(Node):
         self.angle_increment = 0
         self.range_min = 0.05
         self.range_max = 3.0
+
+        self.collision_controller = CollisionAvoidanceController()
 
         self.get_logger().info("LIDAR Visualizer started. Waiting for LIDAR data...")
 
@@ -146,26 +150,11 @@ def main() -> None:
             max_dist = np.max(valid_ranges)
             mean_dist = np.mean(valid_ranges)
 
-            # Find closest obstacles in each direction
-            # Forward (around 0°, ±15°)
-            forward_mask = (np.abs(valid_angles) < 0.26) | (
-                np.abs(valid_angles - 2 * np.pi) < 0.26
+            forward_dist = visualizer.collision_controller.compute_forward_clearance(
+                visualizer.ranges
             )
-            forward_dist = (
-                np.min(valid_ranges[forward_mask]) if np.any(forward_mask) else float("inf")
-            )
-
-            # Left (around 90°, π/2)
-            left_mask = np.abs(valid_angles - np.pi / 2) < 0.26
-            left_dist = np.min(valid_ranges[left_mask]) if np.any(left_mask) else float("inf")
-
-            # Right (around 270°, 3π/2)
-            right_mask = np.abs(valid_angles - 3 * np.pi / 2) < 0.26
-            right_dist = np.min(valid_ranges[right_mask]) if np.any(right_mask) else float("inf")
-
-            # Back (around 180°, π)
-            back_mask = np.abs(valid_angles - np.pi) < 0.26
-            back_dist = np.min(valid_ranges[back_mask]) if np.any(back_mask) else float("inf")
+            threat_dir = visualizer.collision_controller.detect_threat_direction(visualizer.ranges)
+            risk = visualizer.collision_controller.assess_risk(visualizer.ranges)
 
             stats_text.set_text(
                 f"Statistics:\n"
@@ -173,10 +162,9 @@ def main() -> None:
                 f"Range: {min_dist:.2f}m - {max_dist:.2f}m\n"
                 f"Mean: {mean_dist:.2f}m\n\n"
                 f"Distances:\n"
-                f"Forward: {forward_dist:.2f}m\n"
-                f"Left: {left_dist:.2f}m\n"
-                f"Right: {right_dist:.2f}m\n"
-                f"Back: {back_dist:.2f}m",
+                f"Forward Clearance: {forward_dist:.2f}m\n"
+                f"Threat Direction: {threat_dir.upper()}\n"
+                f"Risk Level: {risk.name}",
             )
 
         return line_polar, line_cart, stats_text
