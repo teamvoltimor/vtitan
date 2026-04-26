@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -l \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/gmr/labeled.zip\")",
+      "Bash(unzip -l \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/g/labeled.zip\")",
+      "Bash(unzip -l \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/r/labeled.zip\")",
+      "Bash(unzip -l \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/m/labeled.zip\")",
+      "Read(//c/tmp/**)",
+      "Bash(rm -rf gmr_peek)",
+      "Bash(mkdir gmr_peek)",
+      "Bash(unzip -p \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/gmr/labeled.zip\" labeled/classes.txt)",
+      "Bash(unzip -p \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/gmr/labeled.zip\" labeled/notes.json)",
+      "Bash(unzip -p \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/gmr/labeled.zip\" labeled/processed/labels/ff056ed6-00015IMG_00015_BURST20250513162608.txt)",
+      "Bash(unzip -p \"C:/Users/ralva/OneDrive/Documents/private/projects/archived/teamsteelbot/klevor/devices/raspberry-pi-5/legacy/python/src/yolo/dataset/gmr/labeled.zip\" labeled/processed/labels/ffe4cd5b-00006IMG_00006_BURST20250513162927.txt)",
+      "Bash(UV_LINK_MODE=copy uv run python scripts/import_legacy.py --zip \"C:\\\\Users\\\\ralva\\\\OneDrive\\\\Documents\\\\private\\\\projects\\\\archived\\\\teamsteelbot\\\\klevor\\\\devices\\\\raspberry-pi-5\\\\legacy\\\\python\\\\src\\\\yolo\\\\dataset\\\\gmr\\\\labeled.zip\" --dry-run)",
+      "Bash(rm -rf .venv)",
+      "Bash(UV_LINK_MODE=copy uv sync)"
+    ]
+  }
+}

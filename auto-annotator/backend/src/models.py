@@ -133,6 +133,7 @@ class ImageRecord:
         status:      Integer status code (see :class:`src.enums.Status`).
         format_used: Export format used when the image was last saved, or ``None``.
         updated_at:  ISO-8601 timestamp of the last status change, or ``None``.
+        parent_id:   FK to parent image id (None for originals), or ``None``.
     """
 
     id: ImageId
@@ -140,6 +141,7 @@ class ImageRecord:
     status: Status
     format_used: str | None
     updated_at: str | None
+    parent_id: int | None = None
 
 
 @dataclass
@@ -182,6 +184,29 @@ class StatsResult:
     skipped: int
     total: int
     pct: float
+
+
+@dataclass(frozen=True, slots=True)
+class GroupedRow:
+    """A parent image row with augmentation count for grouped views.
+
+    Attributes:
+        id:         Database primary key.
+        filename:   Image file name (basename only).
+        status:     Human-readable status string.
+        format:     Export format string.
+        updated_at: ISO-8601 timestamp of the last status change.
+        path:       Absolute path to the source image file.
+        aug_count:  Number of augmented copies of this image.
+    """
+
+    id: ImageId
+    filename: str
+    status: str
+    format: str
+    updated_at: str
+    path: str
+    aug_count: int
 
 
 @dataclass(frozen=True, slots=True)

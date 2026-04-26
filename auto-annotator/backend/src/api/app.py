@@ -6,12 +6,15 @@ and a segmentation endpoint that delegates to the existing SAM inference stack.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import mimetypes
 import shutil
+import threading
 import tomllib
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -20,19 +23,40 @@ if TYPE_CHECKING:
 import numpy as np
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from PIL import Image
 from pydantic import BaseModel
 
 from src import db
+from src.augment import run_augmentation_job
 from src.constants import API_PUBLIC_URL, CONFIG_FILE, DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR, PENDING_DIR
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon, polygon_to_yolo_bbox
 from src.inference import initialize_inference, run_sam_inference
 from src.model_server import connect_to_model_server
 from src.models import AppContext, AppState, ClassInfo, ImageRecord, Point
+from src.train_service import run_training_job
 from src.utils import get_logger
 
 logger = get_logger(__name__)
+
+# Module-level job state for augmentation and training SSE streams.
+_jobs: dict[str, dict[str, Any]] = {
+    "augment": {"running": False, "subscribers": [], "loop": None},
+    "train": {"running": False, "subscribers": [], "loop": None},
+}
+
+
+def _emit(job_key: str, event: dict) -> None:
+    """Send event to all SSE subscribers for a job. Thread-safe."""
+    job = _jobs[job_key]
+    loop: asyncio.AbstractEventLoop | None = job.get("loop")
+    if loop is None:
+        return
+    for q in list(job["subscribers"]):
+        try:
+            loop.call_soon_threadsafe(q.put_nowait, event)
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -82,6 +106,7 @@ class GalleryItem(BaseModel):
     format: str
     status: str
     updated: str
+    annotations: list[SegmentationShape]
 
 
 class GalleryResponse(BaseModel):
@@ -134,17 +159,53 @@ def _build_gallery_response() -> GalleryResponse:
     rows = db.get_all_images()
     stats = db.get_stats()
 
-    items = [
-        GalleryItem(
-            id=row.id,
-            label=row.filename,
-            src=f"{API_PUBLIC_URL}/images/{row.id}",
-            format=row.format or "",
-            status=row.status,
-            updated=row.updated_at or "",
+    classes = db.get_classes()
+    idx_to_name: dict[int, str] = {idx: cls.name for idx, cls in enumerate(classes)}
+
+    items = []
+    for row in rows:
+        annotations: list[SegmentationShape] = []
+        if row.status == "done" and row.format:
+            img_path = Path(row.path)
+            class_dir = img_path.parent.name
+            label_path = LABELS_DIR / class_dir / (img_path.stem + ".txt")
+
+            if label_path.exists():
+                fmt = row.format
+                for i, raw in enumerate(label_path.read_text(encoding="utf-8").splitlines()):
+                    parts = raw.strip().split()
+                    if not parts:
+                        continue
+                    cls_name = idx_to_name.get(int(parts[0]), f"class_{parts[0]}")
+                    coords = [float(v) for v in parts[1:]]
+
+                    if fmt == "det" and len(coords) == 4:
+                        xc, yc, w, h = coords
+                        hw, hh = w / 2, h / 2
+                        points = [
+                            NormalizedPoint(x=xc - hw, y=yc - hh),
+                            NormalizedPoint(x=xc + hw, y=yc - hh),
+                            NormalizedPoint(x=xc + hw, y=yc + hh),
+                            NormalizedPoint(x=xc - hw, y=yc + hh),
+                        ]
+                    elif len(coords) >= 4 and len(coords) % 2 == 0:
+                        points = [NormalizedPoint(x=coords[j], y=coords[j + 1]) for j in range(0, len(coords), 2)]
+                    else:
+                        continue
+
+                    annotations.append(SegmentationShape(id=f"loaded-{row.id}-{i}", className=cls_name, points=points))
+
+        items.append(
+            GalleryItem(
+                id=row.id,
+                label=row.filename,
+                src=f"{API_PUBLIC_URL}/images/{row.id}",
+                format=row.format or "",
+                status=row.status,
+                updated=row.updated_at or "",
+                annotations=annotations,
+            )
         )
-        for row in rows
-    ]
 
     return GalleryResponse(
         items=items,
@@ -225,6 +286,53 @@ def serve_image(image_id: int) -> FileResponse:
     record = _validate_image_id(image_id)
     media_type, _ = mimetypes.guess_type(record.path)
     return FileResponse(record.path, media_type=media_type)
+
+
+@app.get("/annotations/{image_id}", response_model=list[SegmentationShape])
+def get_annotations(image_id: int) -> list[SegmentationShape]:
+    """Return saved annotation shapes for a done image by reading its label file."""
+    from src.enums import Status
+
+    record = _validate_image_id(image_id)
+    if record.status != Status.DONE or not record.format_used:
+        return []
+
+    img_path = Path(record.path)
+    class_dir = img_path.parent.name
+    label_path = LABELS_DIR / class_dir / (img_path.stem + ".txt")
+
+    if not label_path.exists():
+        return []
+
+    classes = db.get_classes()
+    idx_to_name: dict[int, str] = {idx: cls.name for idx, cls in enumerate(classes)}
+    fmt = record.format_used
+
+    shapes: list[SegmentationShape] = []
+    for i, raw in enumerate(label_path.read_text(encoding="utf-8").splitlines()):
+        parts = raw.strip().split()
+        if not parts:
+            continue
+        cls_name = idx_to_name.get(int(parts[0]), f"class_{parts[0]}")
+        coords = [float(v) for v in parts[1:]]
+
+        if fmt == "det" and len(coords) == 4:
+            xc, yc, w, h = coords
+            hw, hh = w / 2, h / 2
+            points = [
+                NormalizedPoint(x=xc - hw, y=yc - hh),
+                NormalizedPoint(x=xc + hw, y=yc - hh),
+                NormalizedPoint(x=xc + hw, y=yc + hh),
+                NormalizedPoint(x=xc - hw, y=yc + hh),
+            ]
+        elif len(coords) >= 4 and len(coords) % 2 == 0:
+            points = [NormalizedPoint(x=coords[j], y=coords[j + 1]) for j in range(0, len(coords), 2)]
+        else:
+            continue
+
+        shapes.append(SegmentationShape(id=f"loaded-{image_id}-{i}", className=cls_name, points=points))
+
+    return shapes
 
 
 @app.post("/segment", response_model=SegmentationResponse)
@@ -413,3 +521,196 @@ def list_models() -> list[ModelItem]:
     with CONFIG_FILE.open("rb") as fp:
         config = tomllib.load(fp)
     return [ModelItem(id=m["id"], label=m.get("label", m["id"])) for m in config.get("models", [])]
+
+
+class DeleteImagesRequest(BaseModel):
+    """Payload for ``POST /delete``."""
+
+    imageIds: list[int]
+
+
+@app.post("/delete", response_model=GalleryResponse)
+def delete_images(payload: DeleteImagesRequest) -> GalleryResponse:
+    """Delete images by id and return the updated gallery."""
+    if not payload.imageIds:
+        raise HTTPException(status_code=400, detail="No images to delete")
+
+    for image_id in payload.imageIds:
+        record = _validate_image_id(image_id)
+        Path(record.path).unlink(missing_ok=True)
+        db.delete_image(image_id)
+
+    logger.info("images_deleted", extra={"count": len(payload.imageIds)})
+    return _build_gallery_response()
+
+
+# Grouped gallery
+
+
+class GroupedGalleryItem(BaseModel):
+    """A parent image with augmentation count."""
+
+    id: int
+    label: str
+    src: str
+    format: str
+    status: str
+    updated_at: str
+    aug_count: int
+
+
+@app.get("/gallery/grouped", response_model=list[GroupedGalleryItem])
+def get_grouped_gallery() -> list[GroupedGalleryItem]:
+    """Return parent (original) images with their augmentation counts."""
+    rows = db.get_grouped_images()
+    return [
+        GroupedGalleryItem(
+            id=row.id,
+            label=row.filename,
+            src=f"{API_PUBLIC_URL}/images/{row.id}",
+            format=row.format,
+            status=row.status,
+            updated_at=row.updated_at,
+            aug_count=row.aug_count,
+        )
+        for row in rows
+    ]
+
+
+# Augmentation job
+
+
+class AugmentRequest(BaseModel):
+    """Payload for ``POST /augment``."""
+
+    imageIds: list[int]
+    numAugmentations: int = 9
+
+
+class JobStatusResponse(BaseModel):
+    running: bool
+    message: str = ""
+
+
+@app.get("/augment/status", response_model=JobStatusResponse)
+def augment_status() -> JobStatusResponse:
+    return JobStatusResponse(running=_jobs["augment"]["running"])
+
+
+@app.post("/augment/start", response_model=JobStatusResponse)
+async def start_augment(payload: AugmentRequest) -> JobStatusResponse:
+    """Start an augmentation job in the background."""
+    if _jobs["augment"]["running"]:
+        raise HTTPException(status_code=409, detail="Augmentation already running")
+    if not payload.imageIds:
+        raise HTTPException(status_code=400, detail="No images specified")
+
+    loop = asyncio.get_event_loop()
+    _jobs["augment"]["loop"] = loop
+    _jobs["augment"]["running"] = True
+    _jobs["augment"]["subscribers"] = []
+
+    def _job() -> None:
+        try:
+            run_augmentation_job(
+                payload.imageIds,
+                payload.numAugmentations,
+                lambda evt: _emit("augment", evt),
+            )
+        finally:
+            _jobs["augment"]["running"] = False
+            _emit("augment", {"finished": True})
+
+    threading.Thread(target=_job, daemon=True).start()
+    return JobStatusResponse(running=True, message="Augmentation started")
+
+
+@app.get("/augment/stream")
+async def augment_stream() -> StreamingResponse:
+    """SSE stream for augmentation progress."""
+    q: asyncio.Queue = asyncio.Queue()
+    _jobs["augment"]["subscribers"].append(q)
+
+    async def generator():
+        try:
+            while True:
+                evt = await asyncio.wait_for(q.get(), timeout=30.0)
+                yield f"data: {json.dumps(evt)}\n\n"
+                if evt.get("finished") or evt.get("error"):
+                    break
+        except asyncio.TimeoutError:
+            yield "data: {\"heartbeat\": true}\n\n"
+        finally:
+            subs = _jobs["augment"]["subscribers"]
+            if q in subs:
+                subs.remove(q)
+
+    return StreamingResponse(generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# Training job
+
+
+class TrainRequest(BaseModel):
+    """Payload for ``POST /train/start``."""
+
+    modelName: str = "yolo11s.pt"
+    epochs: int = 50
+    batch: int = 16
+    imgsz: int = 640
+
+
+@app.get("/train/status", response_model=JobStatusResponse)
+def train_status() -> JobStatusResponse:
+    return JobStatusResponse(running=_jobs["train"]["running"])
+
+
+@app.post("/train/start", response_model=JobStatusResponse)
+async def start_train(payload: TrainRequest) -> JobStatusResponse:
+    """Start a YOLO training job in the background."""
+    if _jobs["train"]["running"]:
+        raise HTTPException(status_code=409, detail="Training already running")
+
+    loop = asyncio.get_event_loop()
+    _jobs["train"]["loop"] = loop
+    _jobs["train"]["running"] = True
+    _jobs["train"]["subscribers"] = []
+
+    def _job() -> None:
+        try:
+            run_training_job(
+                model_name=payload.modelName,
+                epochs=payload.epochs,
+                batch=payload.batch,
+                imgsz=payload.imgsz,
+                on_progress=lambda evt: _emit("train", evt),
+            )
+        finally:
+            _jobs["train"]["running"] = False
+            _emit("train", {"finished": True})
+
+    threading.Thread(target=_job, daemon=True).start()
+    return JobStatusResponse(running=True, message="Training started")
+
+
+@app.get("/train/stream")
+async def train_stream() -> StreamingResponse:
+    """SSE stream for training progress."""
+    q: asyncio.Queue = asyncio.Queue()
+    _jobs["train"]["subscribers"].append(q)
+
+    async def generator():
+        try:
+            while True:
+                evt = await asyncio.wait_for(q.get(), timeout=30.0)
+                yield f"data: {json.dumps(evt)}\n\n"
+                if evt.get("finished") or evt.get("error"):
+                    break
+        except asyncio.TimeoutError:
+            yield "data: {\"heartbeat\": true}\n\n"
+        finally:
+            subs = _jobs["train"]["subscribers"]
+            if q in subs:
+                subs.remove(q)
+
+    return StreamingResponse(generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

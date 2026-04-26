@@ -24,6 +24,7 @@ export interface GalleryItem {
   format: string;
   status: string;
   updated: string;
+  annotations: SegmentationShape[];
 }
 
 interface GalleryStats {
@@ -104,3 +105,46 @@ export const upsertClass = (name: string, color: string): Promise<ClassItem[]> =
 
 export const getModels = (): Promise<ModelItem[]> =>
   fetch(`${API_BASE_URL}/models`).then((r) => handleResponse<ModelItem[]>(r));
+
+export const getAnnotations = (imageId: number): Promise<SegmentationShape[]> =>
+  fetch(`${API_BASE_URL}/annotations/${imageId}`).then((r) => handleResponse<SegmentationShape[]>(r));
+
+export const deleteImages = (imageIds: number[]): Promise<GalleryResponse> =>
+  postJSON('/delete', { imageIds });
+
+export interface GroupedGalleryItem {
+  id: number;
+  label: string;
+  src: string;
+  format: string;
+  status: string;
+  updated_at: string;
+  aug_count: number;
+}
+
+export interface JobStatusResponse {
+  running: boolean;
+  message: string;
+}
+
+export const getGroupedGallery = (): Promise<GroupedGalleryItem[]> =>
+  fetch(`${API_BASE_URL}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));
+
+export const startAugment = (imageIds: number[], numAugmentations: number): Promise<JobStatusResponse> =>
+  postJSON('/augment/start', { imageIds, numAugmentations });
+
+export const getAugmentStatus = (): Promise<JobStatusResponse> =>
+  fetch(`${API_BASE_URL}/augment/status`).then((r) => handleResponse<JobStatusResponse>(r));
+
+export const startTrain = (params: {
+  modelName: string;
+  epochs: number;
+  batch: number;
+  imgsz: number;
+}): Promise<JobStatusResponse> => postJSON('/train/start', params);
+
+export const getTrainStatus = (): Promise<JobStatusResponse> =>
+  fetch(`${API_BASE_URL}/train/status`).then((r) => handleResponse<JobStatusResponse>(r));
+
+export const augmentStreamUrl = (): string => `${API_BASE_URL}/augment/stream`;
+export const trainStreamUrl = (): string => `${API_BASE_URL}/train/stream`;

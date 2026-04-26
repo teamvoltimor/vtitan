@@ -87,3 +87,36 @@ QUERY_UPDATE_IMAGE_SKIPPED: str = (
     "UPDATE images SET status=?, updated_at=? WHERE id=?"
 )
 """Mark an image as skipped and record the timestamp."""
+
+QUERY_DELETE_IMAGE: str = "DELETE FROM images WHERE id=?"
+"""Delete an image row by its primary key."""
+
+QUERY_INSERT_AUGMENTED_IMAGE: str = (
+    "INSERT OR IGNORE INTO images (path, status, format_used, parent_id, updated_at) VALUES (?, ?, ?, ?, ?)"
+)
+"""Insert an augmented image row with a parent reference."""
+
+QUERY_SELECT_DONE_ORIGINALS: str = (
+    "SELECT id, path, status, format_used, parent_id, updated_at FROM images "
+    "WHERE status = 1 AND parent_id IS NULL ORDER BY id ASC"
+)
+"""All done images that are original (no parent)."""
+
+QUERY_SELECT_CHILDREN_BY_PARENT: str = (
+    "SELECT id, path, status, format_used, parent_id, updated_at FROM images WHERE parent_id = ?"
+)
+"""All augmented copies of a given parent image."""
+
+QUERY_COUNT_CHILDREN_BY_PARENT: str = (
+    "SELECT COUNT(*) FROM images WHERE parent_id = ?"
+)
+"""Count augmented copies for a parent image."""
+
+QUERY_SELECT_ALL_IMAGES_GROUPED: str = (
+    "SELECT i.id, i.path, i.status, i.format_used, i.updated_at, "
+    "COUNT(c.id) as aug_count "
+    "FROM images i LEFT JOIN images c ON c.parent_id = i.id "
+    "WHERE i.parent_id IS NULL "
+    "GROUP BY i.id ORDER BY i.id ASC"
+)
+"""Parent images with augmentation count (for grouped gallery)."""

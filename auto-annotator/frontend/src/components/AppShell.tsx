@@ -1,7 +1,9 @@
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import BrushIcon from '@mui/icons-material/Brush';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import GridViewIcon from '@mui/icons-material/GridView';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
 import {
   Box,
@@ -16,9 +18,11 @@ import {
 import { useEffect, useState } from 'react';
 import { useAppState } from '../state/appState';
 import AnnotateTab from './AnnotateTab';
+import AugmentTab from './AugmentTab';
 import BrowseTab from './BrowseTab';
 import HeroHeader from './HeroHeader';
 import SettingsTab from './SettingsTab';
+import TrainTab from './TrainTab';
 import type { TabContentProps } from './types';
 
 type TabConfig = {
@@ -42,6 +46,18 @@ const tabRows: TabConfig[] = [
     shortcut: 'B',
   },
   {
+    label: 'Augment',
+    Component: AugmentTab,
+    icon: <AutoFixHighIcon sx={{ fontSize: 14 }} />,
+    shortcut: 'U',
+  },
+  {
+    label: 'Train',
+    Component: TrainTab,
+    icon: <ModelTrainingIcon sx={{ fontSize: 14 }} />,
+    shortcut: 'T',
+  },
+  {
     label: 'Settings',
     Component: SettingsTab,
     icon: <SettingsSuggestIcon sx={{ fontSize: 14 }} />,
@@ -59,7 +75,7 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
   const { modelStatus } = useAppState();
 
   useEffect(() => {
-    const shortcuts: Record<string, number> = { a: 0, b: 1, s: 2 };
+    const shortcuts: Record<string, number> = { a: 0, b: 1, u: 2, t: 3, s: 4 };
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;

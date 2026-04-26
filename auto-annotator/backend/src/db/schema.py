@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS images (
     path        TEXT UNIQUE NOT NULL,
     status      INTEGER DEFAULT 0,
     format_used TEXT,
+    parent_id   INTEGER REFERENCES images(id) ON DELETE CASCADE,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP
 );

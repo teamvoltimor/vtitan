@@ -1,3 +1,4 @@
+import DeleteIcon from '@mui/icons-material/Delete';
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
 import GridViewIcon from '@mui/icons-material/GridView';
 import ImageIcon from '@mui/icons-material/Image';
@@ -6,13 +7,17 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Divider,
   LinearProgress,
+  Pagination,
   Stack,
   Typography,
   useTheme,
 } from '@mui/material';
+import { useCanvasRender } from '../hooks/useCanvasRender';
 import { useAppState } from '../state/appState';
+import AnnotatedThumbnail from './AnnotatedThumbnail';
 
 const statusDot: Record<string, string> = {
   done: '#36b37e',
@@ -31,7 +36,15 @@ const BrowseTab = () => {
     selectedGalleryItem,
     setSelectedGalleryItem,
     stats,
+    segmentationPreview,
+    selectedGalleryIds,
+    toggleGallerySelection,
+    currentPage,
+    setCurrentPage,
+    itemsPerPage,
+    deleteSelectedImages,
   } = useAppState();
+  const { canvasRef } = useCanvasRender([], segmentationPreview);
 
   const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     importImages(event.target.files);
@@ -41,6 +54,12 @@ const BrowseTab = () => {
     (parseInt(stats.processed) / Math.max(gallery.length, 1)) * 100,
     100
   );
+
+  const paginatedGallery = gallery.slice(
+    currentPage * itemsPerPage,
+    (currentPage + 1) * itemsPerPage
+  );
+  const totalPages = Math.ceil(gallery.length / itemsPerPage);
 
   return (
     <Stack spacing={2.5} sx={{ height: '100%' }}>
@@ -65,6 +84,17 @@ const BrowseTab = () => {
               Upload
               <input type="file" hidden multiple accept="image/*" onChange={handleUpload} />
             </Button>
+            {selectedGalleryIds.size > 0 && (
+              <Button
+                variant="outlined"
+                size="small"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={deleteSelectedImages}
+              >
+                Delete ({selectedGalleryIds.size})
+              </Button>
+            )}
           </Stack>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Button
@@ -112,120 +142,179 @@ const BrowseTab = () => {
               </Typography>
             </Stack>
           ) : viewMode === 'Grid' ? (
-            <Stack direction="row" flexWrap="wrap" gap={1.5}>
-              {gallery.map((item) => (
-                <Card
-                  key={item.id}
-                  variant="outlined"
-                  sx={{
-                    width: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(33% - 12px)' },
-                    cursor: 'pointer',
-                    borderColor: selectedGalleryItem?.id === item.id ? 'primary.main' : 'divider',
-                    transition: 'border-color 100ms ease',
-                  }}
-                  onClick={() => setSelectedGalleryItem(item)}
-                >
-                  <img
-                    src={item.src}
-                    alt={item.label}
-                    style={{ width: '100%', display: 'block', borderRadius: '6px 6px 0 0' }}
-                  />
-                  <Stack px={1.5} py={1} spacing={0.25}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                      {item.label}
-                    </Typography>
-                    <Stack direction="row" alignItems="center" spacing={0.75}>
-                      <Box
-                        sx={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          bgcolor: statusDot[item.status] ?? statusDot.pending,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Typography variant="caption" color="text.disabled">
-                        {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
-                      </Typography>
-                    </Stack>
-                  </Stack>
-                </Card>
-              ))}
-            </Stack>
-          ) : (
-            <Stack spacing={0.5}>
-              {gallery.map((item) => (
-                <Box
-                  key={item.id}
-                  onClick={() => setSelectedGalleryItem(item)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2,
-                    px: 1.5,
-                    py: 1,
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    border: `1px solid ${selectedGalleryItem?.id === item.id ? theme.palette.primary.main : 'transparent'}`,
-                    bgcolor:
-                      selectedGalleryItem?.id === item.id
-                        ? theme.palette.mode === 'dark'
-                          ? 'rgba(94,106,210,0.08)'
-                          : 'rgba(79,92,200,0.05)'
-                        : 'transparent',
-                    transition: 'background-color 80ms ease, border-color 80ms ease',
-                    '&:hover': {
-                      bgcolor:
-                        theme.palette.mode === 'dark'
-                          ? 'rgba(255,255,255,0.04)'
-                          : 'rgba(0,0,0,0.03)',
-                    },
-                  }}
-                >
+            <Stack spacing={2}>
+              <Stack direction="row" flexWrap="wrap" gap={1.5}>
+                {paginatedGallery.map((item) => (
                   <Box
+                    key={item.id}
                     sx={{
-                      width: 56,
-                      height: 36,
-                      flexShrink: 0,
-                      borderRadius: '4px',
-                      overflow: 'hidden',
+                      width: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(33% - 12px)' },
+                      position: 'relative',
                     }}
                   >
-                    <img
-                      src={item.src}
-                      alt={item.label}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        display: 'block',
+                    <Checkbox
+                      checked={selectedGalleryIds.has(item.id)}
+                      onChange={() => toggleGallerySelection(item.id)}
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        zIndex: 1,
+                        bgcolor: 'background.paper',
+                        borderRadius: '4px',
                       }}
                     />
-                  </Box>
-                  <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                      {item.label}
-                    </Typography>
-                    <Stack direction="row" alignItems="center" spacing={0.75}>
-                      <Box
-                        sx={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          bgcolor: statusDot[item.status] ?? statusDot.pending,
-                          flexShrink: 0,
-                        }}
+                    <Card
+                      variant="outlined"
+                      sx={{
+                        cursor: 'pointer',
+                        borderColor:
+                          selectedGalleryIds.has(item.id)
+                            ? 'primary.main'
+                            : selectedGalleryItem?.id === item.id
+                              ? 'primary.main'
+                              : 'divider',
+                        transition: 'border-color 100ms ease',
+                        opacity: selectedGalleryIds.has(item.id) ? 0.7 : 1,
+                      }}
+                      onClick={() => setSelectedGalleryItem(item)}
+                    >
+                      <AnnotatedThumbnail
+                        src={item.src}
+                        alt={item.label}
+                        annotations={item.annotations}
+                        borderRadius="6px 6px 0 0"
                       />
-                      <Typography variant="caption" color="text.disabled">
-                        {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
+                      <Stack px={1.5} py={1} spacing={0.25}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                          {item.label}
+                        </Typography>
+                        <Stack direction="row" alignItems="center" spacing={0.75}>
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              bgcolor: statusDot[item.status] ?? statusDot.pending,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <Typography variant="caption" color="text.disabled">
+                            {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
+                          </Typography>
+                        </Stack>
+                      </Stack>
+                    </Card>
+                  </Box>
+                ))}
+              </Stack>
+              {totalPages > 1 && (
+                <Stack alignItems="center" pt={1}>
+                  <Pagination
+                    count={totalPages}
+                    page={currentPage + 1}
+                    onChange={(_, page) => setCurrentPage(page - 1)}
+                    size="small"
+                  />
+                </Stack>
+              )}
+            </Stack>
+          ) : (
+            <Stack spacing={2}>
+              <Stack spacing={0.5}>
+                {paginatedGallery.map((item) => (
+                  <Box
+                    key={item.id}
+                    onClick={() => setSelectedGalleryItem(item)}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      border: `1px solid ${
+                        selectedGalleryIds.has(item.id) || selectedGalleryItem?.id === item.id
+                          ? theme.palette.primary.main
+                          : 'transparent'
+                      }`,
+                      bgcolor:
+                        selectedGalleryIds.has(item.id)
+                          ? theme.palette.mode === 'dark'
+                            ? 'rgba(94,106,210,0.15)'
+                            : 'rgba(79,92,200,0.08)'
+                          : selectedGalleryItem?.id === item.id
+                            ? theme.palette.mode === 'dark'
+                              ? 'rgba(94,106,210,0.08)'
+                              : 'rgba(79,92,200,0.05)'
+                            : 'transparent',
+                      transition: 'background-color 80ms ease, border-color 80ms ease',
+                      '&:hover': {
+                        bgcolor:
+                          theme.palette.mode === 'dark'
+                            ? 'rgba(255,255,255,0.04)'
+                            : 'rgba(0,0,0,0.03)',
+                      },
+                    }}
+                  >
+                    <Checkbox
+                      checked={selectedGalleryIds.has(item.id)}
+                      onChange={() => toggleGallerySelection(item.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      size="small"
+                    />
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 36,
+                        flexShrink: 0,
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <AnnotatedThumbnail
+                        src={item.src}
+                        alt={item.label}
+                        annotations={item.annotations}
+                        borderRadius="4px"
+                      />
+                    </Box>
+                    <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                        {item.label}
                       </Typography>
+                      <Stack direction="row" alignItems="center" spacing={0.75}>
+                        <Box
+                          sx={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            bgcolor: statusDot[item.status] ?? statusDot.pending,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <Typography variant="caption" color="text.disabled">
+                          {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
+                        </Typography>
+                      </Stack>
                     </Stack>
-                  </Stack>
-                  <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
-                    {item.updated}
-                  </Typography>
-                </Box>
-              ))}
+                    <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
+                      {item.updated}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+              {totalPages > 1 && (
+                <Stack alignItems="center" pt={1}>
+                  <Pagination
+                    count={totalPages}
+                    page={currentPage + 1}
+                    onChange={(_, page) => setCurrentPage(page - 1)}
+                    size="small"
+                  />
+                </Stack>
+              )}
             </Stack>
           )}
         </Stack>
@@ -241,25 +330,26 @@ const BrowseTab = () => {
           {selectedGalleryItem && (
             <Typography variant="caption" color="text.disabled" noWrap sx={{ maxWidth: 200 }}>
               {selectedGalleryItem.label}
+              {selectedGalleryItem.format ? ` · ${selectedGalleryItem.format.toUpperCase()}` : ''}
             </Typography>
           )}
         </Stack>
         <Box
           sx={{
-            minHeight: 140,
+            position: 'relative',
+            minHeight: 180,
             borderRadius: '6px',
-            bgcolor: 'action.hover',
+            bgcolor: '#10101a',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
           }}
         >
           {selectedGalleryItem ? (
-            <img
-              src={selectedGalleryItem.src}
-              alt={selectedGalleryItem.label}
-              style={{ width: '100%', display: 'block', borderRadius: 6 }}
+            <canvas
+              ref={canvasRef}
+              style={{ width: '100%', height: '100%', display: 'block', minHeight: 180 }}
             />
           ) : (
             <Typography variant="caption" color="text.disabled">

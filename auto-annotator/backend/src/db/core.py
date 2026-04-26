@@ -17,6 +17,7 @@ from src.db.constants import (
     COL_FORMAT_USED,
     COL_ID,
     COL_NAME,
+    COL_PARENT_ID,
     COL_PATH,
     COL_STATUS,
     COL_UPDATED_AT,
@@ -25,6 +26,9 @@ from src.db.constants import (
 )
 from src.db.queries import (
     QUERY_COUNT_CLASSES,
+    QUERY_COUNT_CHILDREN_BY_PARENT,
+    QUERY_DELETE_IMAGE,
+    QUERY_INSERT_AUGMENTED_IMAGE,
     QUERY_INSERT_CLASS_DEFAULT_IGNORE,
     QUERY_INSERT_IMAGE_IGNORE,
     QUERY_PRAGMA_FOREIGN_KEYS,
@@ -32,7 +36,10 @@ from src.db.queries import (
     QUERY_SELECT_ALL_CLASSES,
     QUERY_SELECT_ALL_IMAGE_PATHS,
     QUERY_SELECT_ALL_IMAGES_FOR_BROWSE,
+    QUERY_SELECT_ALL_IMAGES_GROUPED,
+    QUERY_SELECT_CHILDREN_BY_PARENT,
     QUERY_SELECT_CLASS_ID_BY_NAME,
+    QUERY_SELECT_DONE_ORIGINALS,
     QUERY_SELECT_FIRST_PENDING,
     QUERY_SELECT_IMAGE_BY_ID,
     QUERY_SELECT_NEXT_PENDING_AFTER_ID,
@@ -44,7 +51,7 @@ from src.db.queries import (
 )
 from src.db.schema import DDL, DEFAULT_CLASSES
 from src.enums import Status
-from src.models import BrowseRow, ClassInfo, ImageRecord, StatsResult
+from src.models import BrowseRow, ClassInfo, GroupedRow, ImageRecord, StatsResult
 
 
 def _connect() -> sqlite3.Connection:
@@ -54,6 +61,14 @@ def _connect() -> sqlite3.Connection:
     conn.execute(QUERY_PRAGMA_WAL)
     conn.execute(QUERY_PRAGMA_FOREIGN_KEYS)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply schema migrations that can't use CREATE TABLE IF NOT EXISTS."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(images)").fetchall()}
+    if "parent_id" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN parent_id INTEGER REFERENCES images(id) ON DELETE CASCADE")
+        conn.commit()
 
 
 def init_db() -> None:
@@ -69,6 +84,7 @@ def init_db() -> None:
     with _connect() as conn:
         conn.executescript(DDL)
         conn.commit()
+        _migrate(conn)
 
         count = conn.execute(QUERY_COUNT_CLASSES).fetchone()[0]
         if count == 0:
@@ -94,6 +110,7 @@ def _row_to_image_record(row: sqlite3.Row) -> ImageRecord:
         status=Status(row[COL_STATUS]),
         format_used=row[COL_FORMAT_USED],
         updated_at=row[COL_UPDATED_AT],
+        parent_id=row[COL_PARENT_ID] if COL_PARENT_ID in row.keys() else None,
     )
 
 
@@ -289,3 +306,70 @@ def add_images_from_paths(paths: list[str]) -> int:
             conn.executemany(QUERY_INSERT_IMAGE_IGNORE, new_rows)
             conn.commit()
     return len(new_rows)
+
+
+def delete_image(image_id: int) -> None:
+    """Delete an image row by its primary key.
+
+    Args:
+        image_id: Primary key of the image to delete.
+    """
+    with _connect() as conn:
+        conn.execute(QUERY_DELETE_IMAGE, (image_id,))
+        conn.commit()
+
+
+def register_augmented_image(path: str, format_used: str, parent_id: int) -> int:
+    """Insert an augmented image row and return its id.
+
+    Args:
+        path:        Absolute path to the augmented image file.
+        format_used: Export format of the parent (``"seg"`` or ``"det"``).
+        parent_id:   DB id of the original image.
+
+    Returns:
+        Integer primary-key id of the inserted row.
+    """
+    now = datetime.now(UTC).isoformat()
+    with _connect() as conn:
+        cursor = conn.execute(QUERY_INSERT_AUGMENTED_IMAGE, (path, Status.DONE, format_used, parent_id, now))
+        conn.commit()
+        return cursor.lastrowid or 0
+
+
+def get_done_originals() -> list[ImageRecord]:
+    """Return all done images that are original (no parent)."""
+    with _connect() as conn:
+        rows = conn.execute(QUERY_SELECT_DONE_ORIGINALS).fetchall()
+    return [_row_to_image_record(row) for row in rows]
+
+
+def get_children(parent_id: int) -> list[ImageRecord]:
+    """Return all augmented copies of a parent image."""
+    with _connect() as conn:
+        rows = conn.execute(QUERY_SELECT_CHILDREN_BY_PARENT, (parent_id,)).fetchall()
+    return [_row_to_image_record(row) for row in rows]
+
+
+def get_aug_count(parent_id: int) -> int:
+    """Return augmentation count for a parent image."""
+    with _connect() as conn:
+        return int(conn.execute(QUERY_COUNT_CHILDREN_BY_PARENT, (parent_id,)).fetchone()[0])
+
+
+def get_grouped_images() -> list[GroupedRow]:
+    """Return parent images with their augmentation counts."""
+    with _connect() as conn:
+        rows = conn.execute(QUERY_SELECT_ALL_IMAGES_GROUPED).fetchall()
+    return [
+        GroupedRow(
+            id=row[COL_ID],
+            filename=Path(row[COL_PATH]).name,
+            status=STATUS_NAMES.get(row[COL_STATUS], str(row[COL_STATUS])),
+            format=row[COL_FORMAT_USED] or "",
+            updated_at=row[COL_UPDATED_AT] or "",
+            path=str(row[COL_PATH]),
+            aug_count=row["aug_count"],
+        )
+        for row in rows
+    ]

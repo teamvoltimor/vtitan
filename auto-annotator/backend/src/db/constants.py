@@ -37,6 +37,9 @@ COL_CREATED_AT: str = "created_at"
 COL_UPDATED_AT: str = "updated_at"
 """Last-modified timestamp column: ``updated_at``."""
 
+COL_PARENT_ID: str = "parent_id"
+"""Parent image FK column: ``parent_id`` (NULL for original images)."""
+
 # SQL aggregate alias used in QUERY_SELECT_STATUS_COUNTS.
 # The query writes "COUNT(*) AS cnt" so rows are accessed with this key.
 

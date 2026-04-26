@@ -13,6 +13,7 @@ dependencies = [
     "pillow",
     "python-dotenv",
     "ultralytics>=8.4.14",
+    "albumentations>=1.4.0",
     "fastapi>=0.115.0",
     "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.30.0",
