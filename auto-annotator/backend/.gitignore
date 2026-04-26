@@ -218,8 +218,13 @@ __marimo__/
 # Claude Code
 .claude/
 
-# Models
-backend/models/
+# Backend models
+models/
 
-# Data
-data/
+# Backend data 
+data/labels/
+data/pending/
+data/manifest.db
+data/manifest.db-shm
+data/manifest.db-wal
+

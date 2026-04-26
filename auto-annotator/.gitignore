@@ -215,15 +215,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Models
-models/
-
-# Data
-data/labels/
-data/pending/
-data/manifest.db
-data/manifest.db-shm
-data/manifest.db-wal
-
 # Claude Code
 .claude/
