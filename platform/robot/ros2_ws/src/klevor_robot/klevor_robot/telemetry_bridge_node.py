@@ -9,8 +9,13 @@ import requests
 from collections import deque
 from typing import Optional
 
+_BACKOFF_INITIAL = 1.0    # seconds
+_BACKOFF_MAX = 30.0       # seconds
+
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from shared.config.coordinate_transform import quaternion_to_yaw
 from sensor_msgs.msg import LaserScan, Imu, JointState
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
@@ -53,14 +58,17 @@ class TelemetryBridgeNode(Node):
         self._rate = self.get_parameter("publish_rate_hz").value
         self._max_history = self.get_parameter("max_path_history").value
 
-        # Subscriptions
-        self.create_subscription(LaserScan, RosTopic.SCAN, self._scan_callback, 10)
+        # Subscriptions — sensor topics use qos_profile_sensor_data to match
+        # the BEST_EFFORT QoS that hardware drivers publish with.
+        self.create_subscription(LaserScan, RosTopic.SCAN, self._scan_callback, qos_profile_sensor_data)
         self.create_subscription(Odometry, RosTopic.ODOM, self._odom_callback, 10)
-        self.create_subscription(Imu, RosTopic.IMU, self._imu_callback, 10)
+        self.create_subscription(Imu, RosTopic.IMU, self._imu_callback, qos_profile_sensor_data)
         self.create_subscription(String, RosTopic.STATE, self._state_callback, 10)
         self.create_subscription(Twist, RosTopic.CMD_VEL, self._cmd_vel_callback, 10)
         self.create_subscription(JointState, RosTopic.JOINT_STATES, self._joint_callback, 10)
-        self.create_subscription(Detection2DArray, RosTopic.HAILO_DETECTIONS, self._vision_callback, 10)
+        self.create_subscription(
+            Detection2DArray, RosTopic.HAILO_DETECTIONS, self._vision_callback, qos_profile_sensor_data
+        )
 
         # Latest data cache
         self._latest_scan: Optional[LaserScan] = None
@@ -76,6 +84,16 @@ class TelemetryBridgeNode(Node):
 
         self._path_history: deque = deque(maxlen=self._max_history)
         self._logs: deque = deque(maxlen=10)
+
+        # Backend-status publisher (reuses system_status topic).
+        from diagnostic_msgs.msg import DiagnosticArray
+        self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", 10)
+
+        # HTTP: single session for connection pooling; backoff state.
+        self._session = requests.Session()
+        self._backend_down = False
+        self._next_retry_time: float = 0.0
+        self._backoff_delay: float = _BACKOFF_INITIAL
 
         # Timer for publishing
         self.create_timer(1.0 / self._rate, self._publish_telemetry)
@@ -166,27 +184,56 @@ class TelemetryBridgeNode(Node):
         }
 
     def _publish_telemetry(self):
-        """Aggregate data and POST to backend."""
+        """Aggregate data and POST to backend with exponential backoff."""
+        now = time.monotonic()
+        if self._backend_down and now < self._next_retry_time:
+            return
+
         snapshot = self._build_snapshot()
         topics_snapshot = self._build_topics_snapshot()
 
         try:
-            response = requests.post(
+            r = self._session.post(
                 f"{self._backend_url}/telemetry/record",
                 json=snapshot,
                 timeout=1.0,
             )
-            if response.status_code != 200:
-                self.get_logger().warning(f"Backend returned {response.status_code}")
+            if r.status_code != 200:
+                self.get_logger().warning(f"Backend returned {r.status_code}")
 
-            requests.post(
+            self._session.post(
                 f"{self._backend_url}/telemetry/topics/update",
                 json=topics_snapshot,
                 timeout=1.0,
             )
+
+            if self._backend_down:
+                self.get_logger().info("Backend reconnected — telemetry resumed")
+                self._publish_backend_status("connected")
+            self._backend_down = False
+            self._backoff_delay = _BACKOFF_INITIAL
+
         except requests.exceptions.RequestException as exc:
-            # Avoid spamming errors if backend is down
-            pass
+            if not self._backend_down:
+                self.get_logger().warning(f"Backend unreachable: {exc}")
+                self._publish_backend_status("disconnected")
+            self._backend_down = True
+            self._next_retry_time = now + self._backoff_delay
+            self._backoff_delay = min(self._backoff_delay * 2, _BACKOFF_MAX)
+
+    def _publish_backend_status(self, status: str) -> None:
+        """Publish backend connectivity state to /system_status."""
+        from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+        msg = DiagnosticArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        entry = DiagnosticStatus()
+        entry.name = "TelemetryBackend"
+        entry.level = DiagnosticStatus.OK if status == "connected" else DiagnosticStatus.ERROR
+        entry.message = f"backend {status}"
+        entry.values.append(KeyValue(key="url", value=self._backend_url))
+        msg.status.append(entry)
+        if hasattr(self, "_system_status_pub"):
+            self._system_status_pub.publish(msg)
 
     def _build_snapshot(self) -> dict:
         """Build RobotSnapshot dict from latest sensor data."""
@@ -365,11 +412,8 @@ class TelemetryBridgeNode(Node):
             points.append([x_world, y_world, 0.05])
         return points
 
-    def _quaternion_to_yaw(self, x, y, z, w) -> float:
-        """Extract yaw angle from quaternion."""
-        siny_cosp = 2 * (w * z + x * y)
-        cosy_cosp = 1 - 2 * (y * y + z * z)
-        return math.atan2(siny_cosp, cosy_cosp)
+    def _quaternion_to_yaw(self, x: float, y: float, z: float, w: float) -> float:
+        return quaternion_to_yaw(x, y, z, w)
 
 
 def main(args=None):

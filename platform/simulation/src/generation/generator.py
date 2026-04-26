@@ -38,6 +38,7 @@ from src.generation.randomization_strategy import (
 )
 from src.generation.randomizer import ScenarioRandomizer
 from src.generation.sdf_builder import SDFBuilder
+from src.generation.validation import WorldContext, validate_scenario
 
 logger = logging.getLogger(__name__)
 
@@ -114,13 +115,36 @@ class ScenarioGenerator:
             lighting = self._strategy.randomize_lighting()
             self._builder.apply_lighting(world, lighting)
 
-        starting_conditions = self._resolve_starting_conditions(randomize_all, corridor_widths)
+        max_retries = 10
+        for attempt in range(max_retries):
+            starting_conditions = self._resolve_starting_conditions(randomize_all, corridor_widths)
+            (
+                sign_positions,
+                sign_colors,
+                parking_config,
+            ) = self._resolve_obstacles(corridor_widths, starting_conditions)
 
-        (
-            sign_positions,
-            sign_colors,
-            parking_config,
-        ) = self._resolve_obstacles(corridor_widths, starting_conditions)
+            ctx = WorldContext(
+                corridor_widths=corridor_widths,
+                sign_positions=sign_positions,
+                sign_colors=sign_colors,
+                parking_config=parking_config,
+                starting_conditions=starting_conditions,
+            )
+            violations = validate_scenario(ctx)
+            if not violations:
+                break
+            logger.warning(
+                "Scenario geometry invalid (attempt %d/%d): %s — regenerating",
+                attempt + 1,
+                max_retries,
+                [v.message for v in violations],
+            )
+        else:
+            raise ValueError(
+                f"Could not generate valid scenario after {max_retries} attempts. "
+                f"Last violations: {[v.message for v in violations]}"
+            )
 
         starting_zone_config = self._randomizer.generate_starting_zone(
             starting_conditions["section"],

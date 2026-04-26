@@ -58,6 +58,7 @@ class SpeedFractions:
     err_crawl: float = 0.25  # worst-case heading misalignment
     err_slow: float = 0.35  # large heading error
     err_medium: float = 0.55  # moderate heading error
+    max_accel_mps2: float = 2.0  # maximum acceleration for JerkLimiter (m/s²)
 
 
 @dataclass(frozen=True)
@@ -95,9 +96,27 @@ class StuckDetection:
 class CollisionAvoidance:
     """LIDAR-based collision avoidance gains and thresholds."""
 
-    side_gain: float = 0.08  # mild wall push away from close walls
+    side_gain: float = 0.08  # lateral push gain (proportional)
     obstacle_gain: float = 0.30  # forward obstacle correction strength
     active_fwd_dist: float = 0.35  # forward distance threshold for obstacle avoidance
+    critical_dist: float = 0.05  # imminent collision threshold (m)
+    warning_dist: float = 0.15  # high-risk threshold — activate escape (m)
+    caution_dist: float = 0.35  # moderate-risk threshold — reduce speed (m)
+    lidar_clamp_dist: float = 3.0  # max range used for collision avoidance (m)
+
+
+@dataclass(frozen=True)
+class WaypointConfig:
+    """Waypoint generation geometry parameters."""
+
+    arc_radius: float = 0.45  # corner arc radius (m); must exceed Ackermann min turn radius
+
+
+@dataclass(frozen=True)
+class VisionConfig:
+    """Vision pipeline configuration."""
+
+    min_confidence: float = 0.25  # minimum detection confidence to accept
 
 
 @dataclass(frozen=True)
@@ -124,6 +143,8 @@ class NavigationConfig:
     stuck: StuckDetection
     collision: CollisionAvoidance
     steering: SteeringControl
+    waypoints: WaypointConfig = WaypointConfig()
+    vision: VisionConfig = VisionConfig()
 
     @staticmethod
     def load_profile(profile: DrivingProfile) -> "NavigationConfig":
@@ -162,6 +183,8 @@ class NavigationConfig:
                 stuck=StuckDetection(**data["stuck"]),
                 collision=CollisionAvoidance(**data["collision"]),
                 steering=SteeringControl(**data["steering"]),
+                waypoints=WaypointConfig(**data.get("waypoints", {})),
+                vision=VisionConfig(**data.get("vision", {})),
             )
         except KeyError as e:
             raise KeyError(f"Navigation profile missing required field: {e}") from e
@@ -182,4 +205,6 @@ class NavigationConfig:
             stuck=StuckDetection(),
             collision=CollisionAvoidance(),
             steering=SteeringControl(),
+            waypoints=WaypointConfig(),
+            vision=VisionConfig(),
         )

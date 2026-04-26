@@ -60,6 +60,7 @@ class DetectorConfig:
 
     model_path: str
     class_to_color: dict[int, TrafficSignColor]
+    min_confidence: float = 0.25
 
     def get_color(self, class_id: int) -> TrafficSignColor | None:
         """Get color for a class ID.
@@ -212,7 +213,7 @@ class HailoDetector(DetectorBase):
             # The embedded NMS output is usually [y_min, x_min, y_max, x_max, confidence, class_id]
             for box in output_data:
                 conf = float(box[4])
-                if conf < 0.25:  # Confidence threshold
+                if conf < self.config.min_confidence:
                     continue
 
                 class_id = int(box[5])

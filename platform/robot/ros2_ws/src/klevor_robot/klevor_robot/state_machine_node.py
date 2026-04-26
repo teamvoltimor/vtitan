@@ -28,9 +28,30 @@ from typing import TYPE_CHECKING, override
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Float32, String
+
+# Latched QoS for state/diagnostics — late-joining nodes see the last value immediately.
+_QOS_TRANSIENT = QoSProfile(
+    depth=1,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+)
+
+# Reliable + 200 ms deadline for motor commands — missed deadlines surface as warnings.
+_QOS_ACKERMANN = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    deadline=Duration(nanoseconds=200_000_000),
+)
 
 from src.hardware.button.gpio import Driver as ButtonDriver
 from src.state_machine import (
@@ -91,19 +112,27 @@ class StateMachineNode(Node):
             self.get_logger().error(f"Failed to connect button driver: {e}")
             self.button_driver = None  # type: ignore
 
-        # Publishers
-        self.state_pub: Publisher[String] = self.create_publisher(String, "/robot_state", 10)
+        # Publishers — robot_state and system_status are TRANSIENT_LOCAL so late
+        # subscribers (RViz, dashboard) receive the last value without waiting.
+        self.state_pub: Publisher[String] = self.create_publisher(String, "/robot_state", _QOS_TRANSIENT)
         self.ackermann_pub: Publisher[AckermannDriveStamped] = self.create_publisher(
-            AckermannDriveStamped, "/ackermann_cmd", 10
+            AckermannDriveStamped, "/ackermann_cmd", _QOS_ACKERMANN
         )
-        self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(DiagnosticArray, "/system_status", 10)
+        self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(
+            DiagnosticArray, "/system_status", _QOS_TRANSIENT
+        )
         self.metrics_pub: Publisher[String] = self.create_publisher(String, "/race_metrics", 10)
 
-        # Subscribers
-        self.imu_sub: Subscription[Imu] = self.create_subscription(Imu, "/imu/data", self._imu_callback, 10)
-        self.lidar_sub: Subscription[LaserScan] = self.create_subscription(LaserScan, "/scan", self._lidar_callback, 10)
+        # Subscribers — sensor topics use qos_profile_sensor_data (BEST_EFFORT +
+        # VOLATILE, depth=10) to match the publisher QoS on sensor drivers.
+        self.imu_sub: Subscription[Imu] = self.create_subscription(
+            Imu, "/imu/data", self._imu_callback, qos_profile_sensor_data
+        )
+        self.lidar_sub: Subscription[LaserScan] = self.create_subscription(
+            LaserScan, "/scan", self._lidar_callback, qos_profile_sensor_data
+        )
         self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
-            Float32, "/hailo/fps", self._hailo_fps_callback, 10
+            Float32, "/hailo/fps", self._hailo_fps_callback, qos_profile_sensor_data
         )
 
         # Sensor status tracking
@@ -122,6 +151,7 @@ class StateMachineNode(Node):
         self.current_velocity: float = 0.0
         self.current_steering: float = 0.0
         self.gyro_yaw: float = 0.0
+        self.current_corridor: str = ""
 
         # Async executor for non-blocking operations
         self.executor = ThreadPoolExecutor(max_workers=2)
@@ -172,7 +202,9 @@ class StateMachineNode(Node):
 
         # Extract yaw from quaternion (simplified - proper conversion needed)
         # For now, just track that we're receiving data
-        self.gyro_yaw = 0.0  # TODO: Convert quaternion to yaw
+        # Day 8 (review plan): wire CoreNavigator into RACING handler; extract
+        # yaw from IMU quaternion here using quaternion_to_yaw() from shared.
+        self.gyro_yaw = 0.0
 
     def _lidar_callback(self, msg: LaserScan) -> None:
         """Handle LiDAR scan data."""
@@ -360,6 +392,7 @@ class StateMachineNode(Node):
             current_velocity=self.current_velocity,
             current_steering=self.current_steering,
             gyro_yaw=self.gyro_yaw,
+            current_corridor=self.current_corridor,
         )
 
         msg = String()
@@ -370,6 +403,7 @@ class StateMachineNode(Node):
                 "current_velocity": round(metrics.current_velocity, 2),
                 "current_steering": round(metrics.current_steering, 2),
                 "gyro_yaw": round(metrics.gyro_yaw, 2),
+                "current_corridor": metrics.current_corridor,
             }
         )
         self.metrics_pub.publish(msg)

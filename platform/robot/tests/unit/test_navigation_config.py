@@ -15,41 +15,39 @@ class TestNavigationConfig:
         config = NavigationConfig.default()
 
         assert config is not None
-        assert hasattr(config, "driving_profile")
-        assert config.driving_profile == DrivingProfile.REAL_ROBOT
+        assert hasattr(config, "profile")
+        assert config.profile == DrivingProfile.REAL_ROBOT
 
     def test_config_has_clearance_zones(self):
         """Test that config has clearance zone thresholds."""
         config = NavigationConfig.default()
-        assert hasattr(config, "clearance_zones")
-        zones = config.clearance_zones
+        assert hasattr(config, "clearance")
+        zones = config.clearance
 
-        assert hasattr(zones, "contact")
-        assert hasattr(zones, "slow")
-        assert hasattr(zones, "medium")
-        assert hasattr(zones, "fast")
+        assert hasattr(zones, "contact_dist")
+        assert hasattr(zones, "slow_dist")
+        assert hasattr(zones, "medium_dist")
+        assert hasattr(zones, "fast_dist")
 
     def test_clearance_zones_increasing(self):
         """Test clearance zone thresholds increase with distance."""
         config = NavigationConfig.default()
-        zones = config.clearance_zones
+        zones = config.clearance
 
-        # Check thresholds increase with distance
-        assert zones.contact < zones.slow
-        assert zones.slow < zones.medium
-        assert zones.medium < zones.fast
+        assert zones.contact_dist < zones.slow_dist
+        assert zones.slow_dist < zones.medium_dist
+        assert zones.medium_dist < zones.fast_dist
 
-        # All should be positive
-        assert zones.contact > 0
-        assert zones.slow > 0
-        assert zones.medium > 0
-        assert zones.fast > 0
+        assert zones.contact_dist > 0
+        assert zones.slow_dist > 0
+        assert zones.medium_dist > 0
+        assert zones.fast_dist > 0
 
     def test_config_has_heading_error_zones(self):
         """Test that config has heading error zones."""
         config = NavigationConfig.default()
-        assert hasattr(config, "heading_error_zones")
-        zones = config.heading_error_zones
+        assert hasattr(config, "heading_error")
+        zones = config.heading_error
 
         assert hasattr(zones, "crawl")
         assert hasattr(zones, "slow")
@@ -58,13 +56,11 @@ class TestNavigationConfig:
     def test_heading_error_zones_increasing(self):
         """Test heading error zones are reasonable."""
         config = NavigationConfig.default()
-        zones = config.heading_error_zones
+        zones = config.heading_error
 
-        # Check thresholds increase with angle
-        assert zones.crawl < zones.slow
-        assert zones.slow < zones.medium
+        assert zones.medium < zones.slow
+        assert zones.slow < zones.crawl
 
-        # All should be positive
         assert zones.crawl > 0
         assert zones.slow > 0
         assert zones.medium > 0
@@ -72,8 +68,8 @@ class TestNavigationConfig:
     def test_config_has_speed_fractions(self):
         """Test that config has speed fraction parameters."""
         config = NavigationConfig.default()
-        assert hasattr(config, "speed_fractions")
-        speeds = config.speed_fractions
+        assert hasattr(config, "speed")
+        speeds = config.speed
 
         assert hasattr(speeds, "contact")
         assert hasattr(speeds, "slow")
@@ -84,7 +80,7 @@ class TestNavigationConfig:
     def test_speed_fractions_valid(self):
         """Test speed fractions are between 0 and 1."""
         config = NavigationConfig.default()
-        speeds = config.speed_fractions
+        speeds = config.speed
 
         assert 0 < speeds.contact <= 1.0
         assert 0 < speeds.slow <= 1.0
@@ -92,7 +88,6 @@ class TestNavigationConfig:
         assert 0 < speeds.fast <= 1.0
         assert speeds.full == 1.0
 
-        # Check fractions increase
         assert speeds.contact < speeds.slow
         assert speeds.slow < speeds.medium
         assert speeds.medium < speeds.fast
@@ -100,8 +95,8 @@ class TestNavigationConfig:
     def test_config_has_lookahead_distances(self):
         """Test that config has lookahead distances."""
         config = NavigationConfig.default()
-        assert hasattr(config, "lookahead_distances")
-        lookahead = config.lookahead_distances
+        assert hasattr(config, "lookahead")
+        lookahead = config.lookahead
 
         assert hasattr(lookahead, "short")
         assert hasattr(lookahead, "long")
@@ -109,7 +104,7 @@ class TestNavigationConfig:
     def test_lookahead_distances_valid(self):
         """Test lookahead distances are reasonable."""
         config = NavigationConfig.default()
-        lookahead = config.lookahead_distances
+        lookahead = config.lookahead
 
         assert lookahead.short > 0
         assert lookahead.long > 0
@@ -118,44 +113,39 @@ class TestNavigationConfig:
     def test_config_has_escape_maneuvers(self):
         """Test that config has escape maneuver parameters."""
         config = NavigationConfig.default()
-        assert hasattr(config, "escape_maneuvers")
-        escape = config.escape_maneuvers
+        assert hasattr(config, "escape")
+        escape = config.escape
 
-        assert hasattr(escape, "reverse_speed")
-        assert hasattr(escape, "forward_speed")
+        assert hasattr(escape, "rev_speed")
+        assert hasattr(escape, "obs_fwd_speed")
         assert hasattr(escape, "steer_scale")
 
     def test_escape_config_valid(self):
         """Test escape configuration contains valid parameters."""
         config = NavigationConfig.default()
-        escape = config.escape_maneuvers
+        escape = config.escape
 
-        # Reverse speed should be negative
-        assert escape.reverse_speed < 0
-
-        # Forward speed should be positive
-        assert escape.forward_speed > 0
-
-        # Scale should be reasonable
+        assert escape.rev_speed < 0
+        assert escape.obs_fwd_speed > 0
         assert 0 < escape.steer_scale <= 1.0
 
     def test_config_has_collision_avoidance(self):
         """Test that config has collision avoidance parameters."""
         config = NavigationConfig.default()
-        assert hasattr(config, "collision_avoidance")
-        collision = config.collision_avoidance
+        assert hasattr(config, "collision")
+        collision = config.collision
 
-        assert hasattr(collision, "critical_distance")
-        assert hasattr(collision, "safe_distance")
+        assert hasattr(collision, "critical_dist")
+        assert hasattr(collision, "caution_dist")
 
     def test_collision_avoidance_valid(self):
         """Test collision avoidance parameters are valid."""
         config = NavigationConfig.default()
-        collision = config.collision_avoidance
+        collision = config.collision
 
-        assert collision.critical_distance > 0
-        assert collision.safe_distance > 0
-        assert collision.critical_distance < collision.safe_distance
+        assert collision.critical_dist > 0
+        assert collision.caution_dist > 0
+        assert collision.critical_dist < collision.caution_dist
 
     def test_driving_profile_enum_values(self):
         """Test DrivingProfile enum has expected values."""
@@ -168,22 +158,22 @@ class TestNavigationConfig:
         config = NavigationConfig.load_profile(DrivingProfile.REAL_ROBOT)
 
         assert config is not None
-        assert config.driving_profile == DrivingProfile.REAL_ROBOT
-        assert hasattr(config, "clearance_zones")
+        assert config.profile == DrivingProfile.REAL_ROBOT
+        assert hasattr(config, "clearance")
 
     def test_load_profile_simulation(self):
         """Test loading simulation profile."""
         config = NavigationConfig.load_profile(DrivingProfile.SIMULATION)
 
         assert config is not None
-        assert config.driving_profile == DrivingProfile.SIMULATION
+        assert config.profile == DrivingProfile.SIMULATION
 
     def test_load_profile_conservative(self):
         """Test loading conservative profile."""
         config = NavigationConfig.load_profile(DrivingProfile.CONSERVATIVE)
 
         assert config is not None
-        assert config.driving_profile == DrivingProfile.CONSERVATIVE
+        assert config.profile == DrivingProfile.CONSERVATIVE
 
     def test_all_profiles_are_different(self):
         """Test that different profiles exist and are loadable."""
@@ -191,24 +181,21 @@ class TestNavigationConfig:
         simulation = NavigationConfig.load_profile(DrivingProfile.SIMULATION)
         conservative = NavigationConfig.load_profile(DrivingProfile.CONSERVATIVE)
 
-        # All should be valid configs
         assert real_robot is not None
         assert simulation is not None
         assert conservative is not None
 
-        # All should have the same structure
-        assert hasattr(real_robot, "clearance_zones")
-        assert hasattr(simulation, "clearance_zones")
-        assert hasattr(conservative, "clearance_zones")
+        assert hasattr(real_robot, "clearance")
+        assert hasattr(simulation, "clearance")
+        assert hasattr(conservative, "clearance")
 
     def test_config_access_nested_values(self):
         """Test that we can access nested configuration values."""
         config = NavigationConfig.default()
 
-        # Should be able to access nested values
-        assert config.clearance_zones.contact > 0
-        assert config.heading_error_zones.crawl > 0
-        assert config.speed_fractions.contact > 0
-        assert config.lookahead_distances.short > 0
-        assert config.escape_maneuvers.forward_speed > 0
-        assert config.collision_avoidance.critical_distance > 0
+        assert config.clearance.contact_dist > 0
+        assert config.heading_error.crawl > 0
+        assert config.speed.contact > 0
+        assert config.lookahead.short > 0
+        assert config.escape.obs_fwd_speed > 0
+        assert config.collision.critical_dist > 0

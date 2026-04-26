@@ -51,11 +51,11 @@ class CollisionAssessor:
 
         fwd_clear = self.measure_clearance(lidar_ranges, lidar_angles, direction="forward")
 
-        if fwd_clear < self.config.collision.side_gain:
+        if fwd_clear < self.config.collision.critical_dist:
             return RiskLevel.CRITICAL
-        elif fwd_clear < 0.15:
+        elif fwd_clear < self.config.collision.warning_dist:
             return RiskLevel.WARNING
-        elif fwd_clear < 0.35:
+        elif fwd_clear < self.config.collision.caution_dist:
             return RiskLevel.CAUTION
         else:
             return RiskLevel.CLEAR
@@ -80,30 +80,7 @@ class CollisionAssessor:
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return float("inf")
-
-        # Normalize angles to [-π, π]
-        angles = np.array(lidar_angles)
-        angles = np.where(angles > math.pi, angles - 2 * math.pi, angles)
-        angles = np.where(angles < -math.pi, angles + 2 * math.pi, angles)
-
-        fov_rad = math.radians(fov_degrees / 2)
-
-        # Select angle range for direction
-        if direction == "forward":
-            mask = np.abs(angles) <= fov_rad
-        elif direction == "left":
-            mask = (angles >= (math.pi / 2 - fov_rad)) & (angles <= (math.pi / 2 + fov_rad))
-        elif direction == "right":
-            mask = (angles >= (-math.pi / 2 - fov_rad)) & (angles <= (-math.pi / 2 + fov_rad))
-        elif direction == "reverse":
-            mask = (angles >= (math.pi - fov_rad)) | (angles <= (-math.pi + fov_rad))
-        else:
-            return float("inf")
-
-        if not np.any(mask):
-            return float("inf")
-
-        return float(np.min(lidar_ranges[mask]))
+        return _clearance_in_direction(lidar_ranges, lidar_angles, direction, fov_degrees)
 
     def detect_stuck_robot(
         self,
@@ -223,10 +200,9 @@ def compute_cost_map(
     costs = {}
 
     for direction in ["forward", "left", "right"]:
-        clearance = _measure_direction_clearance(lidar_ranges, lidar_angles, direction)
+        clearance = _clearance_in_direction(lidar_ranges, lidar_angles, direction, fov_degrees=45.0)
 
         if clearance < cost_threshold:
-            # Exponential cost as range decreases
             costs[direction] = 1.0 - (clearance / cost_threshold) ** 2
         else:
             costs[direction] = 0.0
@@ -234,14 +210,27 @@ def compute_cost_map(
     return costs
 
 
-def _measure_direction_clearance(
+def _clearance_in_direction(
     lidar_ranges: np.ndarray,
     lidar_angles: np.ndarray,
     direction: str,
-    fov_degrees: float = 45.0,
+    fov_degrees: float = 60.0,
 ) -> float:
-    """Helper to measure clearance in a direction."""
-    angles = np.array(lidar_angles)
+    """Minimum LIDAR range within an angular cone centred on a cardinal direction.
+
+    Single implementation shared by CollisionAssessor.measure_clearance and
+    compute_cost_map.
+
+    Args:
+        lidar_ranges: Range array (metres).
+        lidar_angles: Angle array (radians, 0 = forward).
+        direction: "forward", "left", "right", or "reverse".
+        fov_degrees: Full cone width in degrees.
+
+    Returns:
+        Minimum range inside cone, or inf if cone is empty.
+    """
+    angles = np.array(lidar_angles, dtype=float)
     angles = np.where(angles > math.pi, angles - 2 * math.pi, angles)
     angles = np.where(angles < -math.pi, angles + 2 * math.pi, angles)
 
@@ -253,6 +242,8 @@ def _measure_direction_clearance(
         mask = (angles >= (math.pi / 2 - fov_rad)) & (angles <= (math.pi / 2 + fov_rad))
     elif direction == "right":
         mask = (angles >= (-math.pi / 2 - fov_rad)) & (angles <= (-math.pi / 2 + fov_rad))
+    elif direction == "reverse":
+        mask = (angles >= (math.pi - fov_rad)) | (angles <= (-math.pi + fov_rad))
     else:
         return float("inf")
 

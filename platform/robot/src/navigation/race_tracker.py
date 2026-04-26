@@ -11,7 +11,97 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from shared.config.enums import Direction, Section
+
 logger = logging.getLogger(__name__)
+
+
+# Travel direction unit vectors for each (section, direction) combination.
+# Used by LapDetector as the finish-line normal.
+_TRAVEL_DIRS: dict[tuple[Section, Direction], tuple[float, float]] = {
+    (Section.SOUTH, Direction.CLOCKWISE):        (-1.0,  0.0),
+    (Section.NORTH, Direction.CLOCKWISE):        ( 1.0,  0.0),
+    (Section.EAST,  Direction.CLOCKWISE):        ( 0.0, -1.0),
+    (Section.WEST,  Direction.CLOCKWISE):        ( 0.0,  1.0),
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ( 1.0,  0.0),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): (-1.0,  0.0),
+    (Section.EAST,  Direction.COUNTERCLOCKWISE): ( 0.0,  1.0),
+    (Section.WEST,  Direction.COUNTERCLOCKWISE): ( 0.0, -1.0),
+}
+
+
+class LapDetector:
+    """Geometric start/finish-line detector with waypoint-index corroboration.
+
+    A lap is counted only when BOTH conditions hold:
+    1. **Geometric**: robot crosses the start/finish line in the forward direction
+       (dot product changes from negative to non-negative).
+    2. **Waypoint**: the waypoint sequence has wrapped at least once since the
+       last confirmed lap (i.e., the robot has made meaningful progress).
+
+    This prevents double-counting from overshoot, stuck-loops, or waypoint
+    skips near the finish line.
+
+    Args:
+        start_pos: (x, y) world position of the starting zone centre.
+        start_section: Which corridor the starting zone is in.
+        direction: CW or CCW traversal direction.
+    """
+
+    def __init__(
+        self,
+        start_pos: tuple[float, float],
+        start_section: Section,
+        direction: Direction,
+    ) -> None:
+        self._origin: tuple[float, float] = start_pos
+        self._normal: tuple[float, float] = _TRAVEL_DIRS[(start_section, direction)]
+        self._start_section = start_section
+        self._prev_dot: float | None = None
+        self._waypoint_pending: bool = False
+
+    def notify_waypoint_wrapped(self) -> None:
+        """Call this when the waypoint sequence index wraps to 0."""
+        self._waypoint_pending = True
+
+    def update(
+        self,
+        robot_pos: tuple[float, float],
+        current_section: Section,
+    ) -> bool:
+        """Check whether a valid lap crossing occurred at this position.
+
+        Args:
+            robot_pos: Current robot (x, y) in world frame.
+            current_section: Corridor section determined from robot position.
+
+        Returns:
+            True if a confirmed lap was just completed; False otherwise.
+        """
+        ox, oy = self._origin
+        nx, ny = self._normal
+        rx, ry = robot_pos
+        dot = (rx - ox) * nx + (ry - oy) * ny
+
+        geometric_cross = (
+            self._prev_dot is not None
+            and self._prev_dot < 0.0
+            and dot >= 0.0
+            and current_section is self._start_section
+        )
+
+        # After a crossing reset prev_dot so the next lap must first retreat
+        # to negative-dot territory before another crossing counts.
+        if geometric_cross:
+            self._prev_dot = dot  # keep current (positive) value
+        else:
+            self._prev_dot = dot
+
+        if geometric_cross and self._waypoint_pending:
+            self._waypoint_pending = False
+            return True
+
+        return False
 
 
 @dataclass
@@ -28,6 +118,7 @@ class RaceMetrics:
     escape_maneuvers: int = 0
     stuck_detections: int = 0
     collision_warnings: int = 0
+    lap_splits: list[float] = field(default_factory=list)  # elapsed time at each lap completion
     extra_data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -43,6 +134,7 @@ class RaceMetrics:
             "escape_maneuvers": self.escape_maneuvers,
             "stuck_detections": self.stuck_detections,
             "collision_warnings": self.collision_warnings,
+            "lap_splits": list(self.lap_splits),
             "extra": self.extra_data,
         }
 
@@ -106,15 +198,23 @@ class RaceTracker:
         """
         self.metrics.completed_laps += 1
         self.metrics.current_lap = self.metrics.completed_laps + 1
+        split_time = time.time() - self._start_time
+        self.metrics.lap_splits.append(round(split_time, 3))
         logger.info(
             f"Lap {self.metrics.completed_laps}/{self.num_laps} completed",
             extra={
                 "details": {
                     "elapsed": f"{self.metrics.elapsed_time:.1f}s",
+                    "lap_split": f"{split_time:.2f}s",
                     "distance": f"{self.metrics.total_distance:.2f}m",
                 }
             },
         )
+        if self.metrics.completed_laps >= self.num_laps:
+            logger.info(
+                "Race FINISHED",
+                extra={"details": {"lap_splits": self.metrics.lap_splits}},
+            )
 
     def record_escape_maneuver(self) -> None:
         """Record execution of escape maneuver (K-turn, etc.)."""

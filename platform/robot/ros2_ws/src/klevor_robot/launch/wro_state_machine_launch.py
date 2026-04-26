@@ -34,6 +34,11 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(os.path.join(klevor_robot_dir, "launch", "lidar_launch.py"))
     )
 
+    # Static TF publishers for sensor frames
+    static_tfs = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(klevor_robot_dir, "launch", "static_tfs.launch.py"))
+    )
+
     # State machine controller node
     state_machine_node = Node(
         package="klevor_robot",
@@ -97,6 +102,7 @@ def generate_launch_description():
         [
             use_sim_time_arg,
             lidar_launch,
+            static_tfs,
             state_machine_node,
             oled_display_node,
             imu_node,

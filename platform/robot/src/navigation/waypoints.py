@@ -13,12 +13,16 @@ import math
 from typing import Any
 
 import numpy as np
-from shared.config.constants import DictKeys, TrackDimensions
+from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
+from src.navigation.config import WaypointConfig
+
+_INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
+_INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
 # Arc radius for corners. Must exceed the Ackermann minimum turning radius
-# (~0.294 m). 0.45 m starts corners early enough to clear inner-wall junctions.
-_ARC_RADIUS = 0.45
+# (~0.294 m). Configured via WaypointConfig.arc_radius (tuning profiles).
+_ARC_RADIUS = WaypointConfig().arc_radius
 
 # Bias corridor centres toward the outer wall. Compensates for the robot's
 # chassis width so the planned path stays clear of the inner-wall face.
@@ -48,6 +52,19 @@ def calculate_waypoints(
     # Metadata stores direction as a plain string after JSON serialisation;
     # convert at the boundary so all helpers receive the typed enum.
     direction = Direction.from_string(starting[DictKeys.DIRECTION])
+
+    # Safety assertion: chassis half-width + arc-radius must fit the narrowest corridor.
+    min_width_mm = min(
+        cw[DictKeys.WIDTH_MM] for cw in corridor_widths.values()
+    )
+    min_width_m = min_width_mm / 1000.0
+    required = RobotSpecs.WIDTH / 2 + _ARC_RADIUS
+    if required > min_width_m:
+        raise ValueError(
+            f"Corridor too narrow: required {required:.3f} m "
+            f"(chassis_half={RobotSpecs.WIDTH / 2:.3f} + arc_radius={_ARC_RADIUS:.3f}), "
+            f"got {min_width_m:.3f} m"
+        )
 
     widths = {
         Section.from_string(side): corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0
@@ -281,3 +298,44 @@ def _straight_waypoints(
         else:
             points.append((round(varying, 3), round(fixed_coord, 3)))
     return points
+
+
+def corridor_for_position(x: float, y: float) -> Section:
+    """Classify which corridor section the robot is currently in.
+
+    Uses the fixed inner-square boundaries (1.0–2.0 in both axes) to assign
+    a cardinal section. In corner zones (both x and y outside the inner square
+    range simultaneously), the nearest boundary face determines the section.
+
+    Args:
+        x: Robot world X position (metres).
+        y: Robot world Y position (metres).
+
+    Returns:
+        Section enum for the current corridor.
+    """
+    in_x = _INNER_MIN <= x <= _INNER_MAX
+    in_y = _INNER_MIN <= y <= _INNER_MAX
+
+    if y < _INNER_MIN and in_x:
+        return Section.SOUTH
+    if y > _INNER_MAX and in_x:
+        return Section.NORTH
+    if x > _INNER_MAX and in_y:
+        return Section.EAST
+    if x < _INNER_MIN and in_y:
+        return Section.WEST
+
+    # Corner: classify by nearest inner-boundary face.
+    dist_s = abs(y - _INNER_MIN)
+    dist_n = abs(y - _INNER_MAX)
+    dist_e = abs(x - _INNER_MAX)
+    dist_w = abs(x - _INNER_MIN)
+    nearest = min(dist_s, dist_n, dist_e, dist_w)
+    if nearest == dist_s:
+        return Section.SOUTH
+    if nearest == dist_n:
+        return Section.NORTH
+    if nearest == dist_e:
+        return Section.EAST
+    return Section.WEST

@@ -14,6 +14,7 @@ from src.navigation.waypoints import (
     _rotate_to_start,
     _straight_waypoints,
     calculate_waypoints,
+    corridor_for_position,
 )
 
 
@@ -163,3 +164,49 @@ def sample_metadata_obstacles():
             "yaw": 3.14,
         },
     }
+
+
+class TestCorridorForPosition:
+    """Tests for corridor_for_position()."""
+
+    def test_south_corridor(self):
+        assert corridor_for_position(1.5, 0.5) == Section.SOUTH
+
+    def test_north_corridor(self):
+        assert corridor_for_position(1.5, 2.5) == Section.NORTH
+
+    def test_east_corridor(self):
+        assert corridor_for_position(2.5, 1.5) == Section.EAST
+
+    def test_west_corridor(self):
+        assert corridor_for_position(0.5, 1.5) == Section.WEST
+
+    def test_south_boundary(self):
+        assert corridor_for_position(1.5, 0.99) == Section.SOUTH
+
+    def test_north_boundary(self):
+        assert corridor_for_position(1.5, 2.01) == Section.NORTH
+
+    def test_east_boundary(self):
+        assert corridor_for_position(2.01, 1.5) == Section.EAST
+
+    def test_west_boundary(self):
+        assert corridor_for_position(0.99, 1.5) == Section.WEST
+
+    def test_sw_corner_classifies_to_nearest(self):
+        # Point (0.5, 0.5): dist_s=0.5, dist_w=0.5 → tie goes to south (checked first)
+        result = corridor_for_position(0.5, 0.5)
+        assert result in (Section.SOUTH, Section.WEST)
+
+    def test_ne_corner_classifies_to_nearest(self):
+        result = corridor_for_position(2.5, 2.5)
+        assert result in (Section.NORTH, Section.EAST)
+
+    def test_all_four_sections_reachable(self):
+        results = {
+            corridor_for_position(1.5, 0.3),
+            corridor_for_position(1.5, 2.7),
+            corridor_for_position(2.7, 1.5),
+            corridor_for_position(0.3, 1.5),
+        }
+        assert results == {Section.SOUTH, Section.NORTH, Section.EAST, Section.WEST}

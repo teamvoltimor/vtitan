@@ -14,12 +14,17 @@ from typing import Any
 from shared.domain.models import Velocity
 from shared.domain.enums import RiskLevel
 
+from shared.config.enums import Section
 from src.hardware.gateway import HardwareGateway
 from src.navigation.controllers import (
     CollisionAvoidanceController,
     StuckDetector,
     WaypointController,
 )
+from src.navigation.parking import ParkController
+from src.navigation.race_tracker import LapDetector
+from src.navigation.sign_router import SignRouter, SignSpec
+from src.navigation.waypoints import corridor_for_position
 from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
@@ -36,15 +41,22 @@ class CoreNavigator:
         waypoints: list[tuple[float, float]],
         num_laps: int = 3,
         tuning: NavigationTuning | None = None,
+        sign_router: SignRouter | None = None,
+        lap_detector: LapDetector | None = None,
+        park_controller: ParkController | None = None,
     ) -> None:
         self._gateway = gateway
         self._waypoints = waypoints
         self._num_laps = num_laps
         self._tuning = tuning or NavigationTuning()
+        self._sign_router = sign_router
+        self._lap_detector = lap_detector
 
         self._waypoint_index = 0
         self._laps_completed = 0
         self._waypoint_threshold = 0.20
+        self._current_corridor: Section | None = None
+        self._park_controller = park_controller
 
         # Controllers
         self._waypoint_controller = WaypointController(
@@ -70,6 +82,11 @@ class CoreNavigator:
             timeout_frames=self._tuning.escape.STUCK_TIMEOUT_FRAMES,
         )
 
+    @property
+    def current_corridor(self) -> Section | None:
+        """Current track corridor derived from robot position. None before first step."""
+        return self._current_corridor
+
     def step(self) -> None:
         """Execute one control step.
 
@@ -80,14 +97,19 @@ class CoreNavigator:
         if not pose:
             return  # No pose available yet
 
-        # Guard: check lap completion
+        # Guard: check lap completion — hand off to parking if available.
         if self._laps_completed >= self._num_laps:
+            if self._park_controller is not None and not self._park_controller.is_done:
+                cmd = self._park_controller.update((robot_x, robot_y), robot_yaw)
+                self._gateway.publish_velocity(Velocity(linear=cmd.linear, angular=cmd.steering))
+                return
             self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
-            logger.info("All laps complete!")
             return
 
         robot_x, robot_y = pose.x, pose.y
         robot_yaw = pose.yaw
+
+        self._current_corridor = corridor_for_position(robot_x, robot_y)
 
         # Update stuck detector
         self._stuck_detector.update((robot_x, robot_y))
@@ -96,15 +118,36 @@ class CoreNavigator:
             self._gateway.publish_velocity(Velocity(linear=-0.2, angular=0.5))
             return
 
-        # Get current target waypoint
+        # Waypoint-wrap detection: signal LapDetector and reset index.
         if self._waypoint_index >= len(self._waypoints):
-            self._laps_completed += 1
             self._waypoint_index = 0
             self._stuck_detector.reset()
-            logger.info(f"Lap {self._laps_completed} complete")
-            return
+            if self._lap_detector is not None:
+                self._lap_detector.notify_waypoint_wrapped()
+            else:
+                # Fallback: no geometric guard — count directly.
+                self._laps_completed += 1
+                logger.info("Lap %d complete (waypoint-only fallback)", self._laps_completed)
+                return
+
+        # Geometric lap counting (requires LapDetector).
+        if self._lap_detector is not None and self._current_corridor is not None:
+            if self._lap_detector.update((robot_x, robot_y), self._current_corridor):
+                self._laps_completed += 1
+                logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
 
         target_wp = self._waypoints[self._waypoint_index]
+
+        # Apply sign routing deformation if in obstacles challenge.
+        if self._sign_router is not None and self._current_corridor is not None:
+            detections = self._gateway.get_vision_detections()
+            target_wp = self._sign_router.deform_waypoint(
+                waypoint=target_wp,
+                robot_pos=(robot_x, robot_y),
+                robot_yaw=robot_yaw,
+                corridor=self._current_corridor,
+                detections=detections,
+            )
 
         # Get LIDAR ranges from gateway
         lidar_data = self._gateway.get_lidar_scan()

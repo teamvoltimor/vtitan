@@ -14,6 +14,60 @@ import numpy as np
 
 from src.navigation.config import NavigationConfig
 
+_DEFAULT_TAU = 0.20        # low-pass time constant (seconds)
+_DEFAULT_MAX_ACCEL = 2.0   # m/s² — clamp on speed delta per tick
+
+
+class JerkLimiter:
+    """First-order low-pass filter + acceleration clamp for speed commands.
+
+    Combines two mechanisms to prevent jerky motion:
+    1. IIR low-pass filter with time constant τ (smooths step changes).
+    2. Per-tick acceleration clamp (hard rate limit).
+
+    Usage::
+
+        limiter = JerkLimiter(dt=0.05)          # 20 Hz
+        v_smooth = limiter.filter(v_target)      # call each tick
+
+    Args:
+        dt: Control tick interval (seconds).
+        tau: Low-pass filter time constant (seconds). Default 200 ms.
+        max_accel_mps2: Max allowed speed change per second (m/s²). Default 2 m/s².
+    """
+
+    def __init__(
+        self,
+        dt: float,
+        tau: float = _DEFAULT_TAU,
+        max_accel_mps2: float = _DEFAULT_MAX_ACCEL,
+    ) -> None:
+        self._alpha = dt / (tau + dt)
+        self._max_delta = max_accel_mps2 * dt
+        self._prev: float = 0.0
+
+    def filter(self, target: float) -> float:
+        """Apply low-pass filter and acceleration clamp.
+
+        Args:
+            target: Desired speed (m/s).
+
+        Returns:
+            Smoothed speed (m/s).
+        """
+        # 1. Low-pass IIR
+        lp = self._alpha * target + (1.0 - self._alpha) * self._prev
+        # 2. Acceleration clamp
+        delta = lp - self._prev
+        delta = max(-self._max_delta, min(self._max_delta, delta))
+        v = self._prev + delta
+        self._prev = v
+        return v
+
+    def reset(self, value: float = 0.0) -> None:
+        """Reset filter state (e.g. after stopped or E-stop)."""
+        self._prev = value
+
 
 class SpeedScaler:
     """Compute scaled speed commands based on clearance and heading error.

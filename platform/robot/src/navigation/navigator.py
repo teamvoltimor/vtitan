@@ -25,8 +25,13 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, Velocity
 from std_msgs.msg import String
 
+from shared.config.coordinate_transform import quaternion_to_yaw
+from shared.config.enums import Direction, Section
 from src.hardware.gateway import HardwareGateway
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.parking import ParkController, park_controller_from_metadata
+from src.navigation.race_tracker import LapDetector
+from src.navigation.sign_router import SignRouter, signs_from_metadata
 from src.navigation.waypoints import calculate_waypoints
 from src.state_machine.estimator import StateEstimator
 
@@ -95,11 +100,7 @@ class ROS2HardwareGateway(HardwareGateway):
 
     def _imu_callback(self, msg: Imu) -> None:
         q = msg.orientation
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        yaw = math.atan2(siny_cosp, cosy_cosp)
-
-        # We don't have pitch/roll directly used in estimation, but domain requires it
+        yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
         reading = IMUReading(yaw=yaw, pitch=0.0, roll=0.0)
         self._latest_imu = reading
         self._estimator.update_imu(reading)
@@ -108,9 +109,7 @@ class ROS2HardwareGateway(HardwareGateway):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        yaw = math.atan2(siny_cosp, cosy_cosp)
+        yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
         self._estimator.update_odom(x, y, yaw)
 
     def _lidar_callback(self, msg: LaserScan) -> None:
@@ -204,13 +203,34 @@ class TrackNavigator(Node):
 
         # Gateway & Core Logic
         self._gateway = ROS2HardwareGateway(self, start_x, start_y, start_yaw)
-        waypoints = calculate_waypoints(self._metadata)
+        waypoints = calculate_waypoints(self._metadata, num_laps=1)
+
+        sign_router: SignRouter | None = None
+        if not self._is_open_challenge:
+            signs = signs_from_metadata(self._metadata)
+            if signs:
+                sign_router = SignRouter(signs)
+
+        start_section = Section.from_string(start_cond[DictKeys.SECTION])
+        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
+        lap_detector = LapDetector(
+            start_pos=(start_x, start_y),
+            start_section=start_section,
+            direction=start_direction,
+        )
+
+        park_controller: ParkController | None = None
+        if not self._is_open_challenge:
+            park_controller = park_controller_from_metadata(self._metadata, start_section)
 
         self._core_navigator = CoreNavigator(
             gateway=self._gateway,
             waypoints=waypoints,
             num_laps=num_laps,
             tuning=tuning,
+            sign_router=sign_router,
+            lap_detector=lap_detector,
+            park_controller=park_controller,
         )
 
         # Control Loop
@@ -230,10 +250,31 @@ class TrackNavigator(Node):
             self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
+        """Load a JSON file of {param_name: value} overrides and apply to this node."""
+        import rclpy.parameter as rp
+
         try:
-            _load_json(params_path)
-            self.get_logger().info(f"Loaded parameter overrides from {params_path}")
+            data = _load_json(params_path)
         except FileNotFoundError as e:
             self.get_logger().error(f"Param file not found: {e}")
+            return
         except json.JSONDecodeError as e:
             self.get_logger().error(f"Failed to decode params JSON: {e}")
+            return
+
+        params = []
+        for name, value in data.items():
+            if isinstance(value, bool):
+                params.append(rp.Parameter(name, rp.Parameter.Type.BOOL, value))
+            elif isinstance(value, int):
+                params.append(rp.Parameter(name, rp.Parameter.Type.INTEGER, value))
+            elif isinstance(value, float):
+                params.append(rp.Parameter(name, rp.Parameter.Type.DOUBLE, value))
+            elif isinstance(value, str):
+                params.append(rp.Parameter(name, rp.Parameter.Type.STRING, value))
+            else:
+                self.get_logger().warning(f"Skipping param '{name}': unsupported type {type(value)}")
+
+        if params:
+            self.set_parameters(params)
+            self.get_logger().info(f"Applied {len(params)} param override(s) from {params_path}")

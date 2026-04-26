@@ -350,9 +350,11 @@ def _build_camera_link(robot_model: ET.Element) -> None:
         ET.SubElement(cix, tag).text = "0.00001"
 
     sensor = ET.SubElement(cam_link, "sensor", name="camera", type="camera")
+    # Explicit sensor pose: origin of the camera link (no offset needed — link already placed).
+    ET.SubElement(sensor, "pose").text = "0 0 0 0 0 0"
     ET.SubElement(sensor, "update_rate").text = str(RobotSpecs.CAMERA_UPDATE_RATE)
     ET.SubElement(sensor, "visualize").text = "false"
-    ET.SubElement(sensor, "topic").text = "/robot/camera"
+    ET.SubElement(sensor, "topic").text = "/wro_robot/camera"
     ET.SubElement(sensor, "always_on").text = "true"
     cam = ET.SubElement(sensor, "camera")
     ET.SubElement(cam, "horizontal_fov").text = str(RobotSpecs.CAMERA_HFOV)
@@ -392,7 +394,7 @@ def _build_lidar_link(robot_model: ET.Element) -> None:
     ET.SubElement(horizontal, "min_angle").text = str(-math.pi)
     ET.SubElement(horizontal, "max_angle").text = str(math.pi)
     rng = ET.SubElement(lidar, "range")
-    ET.SubElement(rng, "min").text = str(RobotSpecs.LIDAR_SIM_MIN_RANGE)
+    ET.SubElement(rng, "min").text = str(RobotSpecs.LIDAR_MIN_RANGE)
     ET.SubElement(rng, "max").text = str(RobotSpecs.LIDAR_MAX_RANGE)
     ET.SubElement(rng, "resolution").text = "0.01"
     noise = ET.SubElement(lidar, "noise")

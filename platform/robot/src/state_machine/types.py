@@ -8,6 +8,7 @@ States:
 """
 
 from dataclasses import dataclass
+from enum import Enum
 
 # Import RobotState from shared module (single source of truth)
 from shared.config.enums import RobotState
@@ -68,6 +69,9 @@ class RaceMetrics:
 
     gyro_yaw: float
     """Current gyroscope yaw in degrees."""
+
+    current_corridor: str = ""
+    """Active track corridor: 'north', 'south', 'east', 'west', or '' if unknown."""
 
 
 @dataclass

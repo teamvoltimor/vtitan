@@ -26,6 +26,8 @@ pyserial = ">=3.5,<4"
 scipy-stubs = ">=1.17.1.3,<2"
 opencv = ">=4.9.0,<5"
 ros-kilted-std-msgs = "*"
+pydantic = ">=2.13.3,<3"
+pydantic-settings = ">=2.14.0,<3"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"

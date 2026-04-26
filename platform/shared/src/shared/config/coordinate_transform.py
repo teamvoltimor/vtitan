@@ -7,8 +7,26 @@ coordinate transform helper.
 
 from __future__ import annotations
 
+import math
+
 from shared.config.constants import ParkingLotSpecs, StartingZoneSpecs, TrackDimensions
 from shared.config.enums import Section
+
+
+def quaternion_to_yaw(x: float, y: float, z: float, w: float) -> float:
+    """Extract yaw angle from a unit quaternion.
+
+    Uses the standard atan2 formula for the Z-axis rotation.
+
+    Args:
+        x, y, z, w: Quaternion components.
+
+    Returns:
+        Yaw angle in radians, in the range [-π, π].
+    """
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    return math.atan2(siny_cosp, cosy_cosp)
 
 
 class CoordinateTransform:

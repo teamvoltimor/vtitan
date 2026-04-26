@@ -18,7 +18,8 @@
     "full": 1.00,
     "err_crawl": 0.30,
     "err_slow": 0.40,
-    "err_medium": 0.65
+    "err_medium": 0.65,
+    "max_accel_mps2": 2.5
   },
   "lookahead": {
     "short": 0.25,
@@ -42,9 +43,19 @@
   "collision": {
     "side_gain": 0.10,
     "obstacle_gain": 0.35,
-    "active_fwd_dist": 0.40
+    "active_fwd_dist": 0.40,
+    "critical_dist": 0.05,
+    "warning_dist": 0.15,
+    "caution_dist": 0.35,
+    "lidar_clamp_dist": 3.0
   },
   "steering": {
     "kp": 1.7
+  },
+  "waypoints": {
+    "arc_radius": 0.45
+  },
+  "vision": {
+    "min_confidence": 0.20
   }
 }
