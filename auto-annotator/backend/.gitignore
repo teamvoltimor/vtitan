@@ -220,6 +220,7 @@ __marimo__/
 
 # Backend models
 models/
+<<<<<<< HEAD
 
 # Backend data 
 data/labels/
@@ -228,3 +229,24 @@ data/manifest.db
 data/manifest.db-shm
 data/manifest.db-wal
 
+=======
+<<<<<<< HEAD
+
+# Backend data
+data/images/
+data/labels/
+data/pending/
+data/manifest.db
+data/manifest.db-shm
+data/manifest.db-wal
+=======
+
+# Backend data 
+data/labels/
+data/pending/
+data/manifest.db
+data/manifest.db-shm
+data/manifest.db-wal
+
+>>>>>>> 958a21c (feat(auto-annotator): implement WRO Future Engineers vision training pipeline)
+>>>>>>> 63c672a (refactor: implement enterprise-grade architecture for auto-annotator backend)

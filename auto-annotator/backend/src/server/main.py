@@ -18,6 +18,7 @@ DEFAULT_MODEL       model id to load on startup (default: first available)
 
 from __future__ import annotations
 
+import atexit
 import os
 import pickle
 import socket
@@ -37,6 +38,7 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 _RECV_CHUNK = 65536
+_server_socket: socket.socket | None = None
 
 
 def _load_config() -> list[dict]:
@@ -75,6 +77,22 @@ def _handle_client(conn: socket.socket, context: ServerContext, lock: threading.
             pass
 
 
+def _cleanup_server() -> None:
+    """Clean up server socket on shutdown."""
+    global _server_socket
+    if _server_socket is not None:
+        try:
+            _server_socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            _server_socket.close()
+        except OSError:
+            pass
+        _server_socket = None
+        logger.info("Server socket closed")
+
+
 def run_server(default_model: str | None = None) -> None:
     """Bind the TCP socket immediately, then load the SAM model in the background.
 
@@ -83,6 +101,8 @@ def run_server(default_model: str | None = None) -> None:
     Inference commands that arrive before loading completes are answered
     with a structured ``"No model loaded"`` error (see :func:`dispatch`).
     """
+    global _server_socket
+
     start = time.monotonic()
 
     os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
@@ -91,31 +111,38 @@ def run_server(default_model: str | None = None) -> None:
     lock = threading.Lock()
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind((SERVER_HOST, SERVER_PORT))
-    srv.listen(16)
-    logger.info("TCP socket bound on %s:%s – loading model in background.", SERVER_HOST, SERVER_PORT)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    _server_socket = srv
+    atexit.register(_cleanup_server)
 
-    resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
-    context = ServerContext(models_config=_load_config(), device=device)
+    try:
+        srv.bind((SERVER_HOST, SERVER_PORT))
+        srv.listen(16)
+        logger.info("TCP socket bound on %s:%s – loading model in background.", SERVER_HOST, SERVER_PORT)
 
-    def _load_model() -> None:
-        initial_load(context, resolved_default)
-        elapsed = time.monotonic() - start
-        logger.info(
-            "Model ready in %.2fs on %s:%s device=%s model=%s",
-            elapsed,
-            SERVER_HOST,
-            SERVER_PORT,
-            device,
-            context.model_id or "FAILED",
-        )
+        resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
+        context = ServerContext(models_config=_load_config(), device=device)
 
-    threading.Thread(target=_load_model, daemon=True, name="model-loader").start()
+        def _load_model() -> None:
+            initial_load(context, context.models_config, resolved_default)
+            elapsed = time.monotonic() - start
+            logger.info(
+                "Model ready in %.2fs on %s:%s device=%s model=%s",
+                elapsed,
+                SERVER_HOST,
+                SERVER_PORT,
+                device,
+                context.model_id or "FAILED",
+            )
 
-    while True:
-        conn, _ = srv.accept()
-        threading.Thread(
-            target=_handle_client,
-            args=(conn, context, lock),
-            daemon=True,
-        ).start()
+        threading.Thread(target=_load_model, daemon=True, name="model-loader").start()
+
+        while True:
+            conn, _ = srv.accept()
+            threading.Thread(
+                target=_handle_client,
+                args=(conn, context, lock),
+                daemon=True,
+            ).start()
+    finally:
+        _cleanup_server()

@@ -108,26 +108,26 @@ DEFAULT_SERVER_PORT: int = 8765
 SERVER_HOST: str = "127.0.0.1"
 """Localhost address used by both the model server and the TCP client."""
 
-_env_port = os.environ.get(ENV_SERVER_PORT)
-_legacy_env_port = os.environ.get(ENV_MODEL_SERVER_PORT)
-_config_port = SERVER_CONFIG.get("port")
-if _env_port is not None:
-    _resolved_port = _env_port
-    _port_origin = f"env:{ENV_SERVER_PORT}"
-elif _legacy_env_port is not None:
-    _resolved_port = _legacy_env_port
-    _port_origin = f"env:{ENV_MODEL_SERVER_PORT}"
-elif _config_port is not None:
-    _resolved_port = _config_port
-    _port_origin = f"config:{SERVER_CONFIG_FILE.name}"
-else:
-    _resolved_port = DEFAULT_SERVER_PORT
-    _port_origin = "default"
-SERVER_PORT: int = int(_resolved_port)
-"""TCP port the model server binds to; resolved from envs, config file, or default."""
+def _resolve_server_port() -> tuple[int, str]:
+    """Resolve server port from environment, config file, or default.
 
-SERVER_PORT_SOURCE: str = _port_origin
-"""Description of where the current server port value originated."""
+    Priority: ENV_SERVER_PORT > ENV_MODEL_SERVER_PORT (legacy) > config > default.
+
+    Returns:
+        Tuple of (port_number, origin_description).
+    """
+    if port_str := os.environ.get(ENV_SERVER_PORT):
+        return int(port_str), f"env:{ENV_SERVER_PORT}"
+    if port_str := os.environ.get(ENV_MODEL_SERVER_PORT):
+        return int(port_str), f"env:{ENV_MODEL_SERVER_PORT}"
+    if config_port := SERVER_CONFIG.get("port"):
+        return int(config_port), f"config:{SERVER_CONFIG_FILE.name}"
+    return DEFAULT_SERVER_PORT, "default"
+
+
+SERVER_PORT, SERVER_PORT_SOURCE = _resolve_server_port()
+"""TCP port the model server binds to; resolved from envs, config file, or default.
+SERVER_PORT_SOURCE describes where the value originated."""
 
 DEFAULT_API_PORT: int = 8000
 """Port used by the HTTP API when no override is provided."""

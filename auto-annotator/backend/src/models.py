@@ -144,19 +144,19 @@ class ImageRecord:
     parent_id: int | None = None
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class InferenceResult:
     """Structured result returned by :func:`src.inference.run_sam_inference`.
 
     Attributes:
-        masks:      List of boolean H×W mask arrays (one per granularity level),
+        masks:      Tuple of boolean H×W mask arrays (one per granularity level),
                     or ``None`` on error.
         best_idx:   Index into *masks* of the highest-confidence mask.
         scores_str: Human-readable score string, e.g. ``"Precise: 0.92  Object: 0.88"``.
         error:      Non-empty error message on failure; empty string on success.
     """
 
-    masks: list[np.ndarray] | None
+    masks: tuple[np.ndarray, ...] | None
     best_idx: int
     scores_str: str
     error: str

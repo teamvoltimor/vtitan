@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
+from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
     CFG_KEY_ID,
     CFG_KEY_LABEL,
@@ -35,7 +36,8 @@ from src.server.constants import (
     MSG_KEY_MODEL_ID,
     PROJECT_ROOT,
 )
-from src.server.loader import is_available, load_model
+from src.server.loader import load_model
+from src.server.registry import ModelRegistry
 from src.server.responses import (
     ErrorResponse,
     ListModelsResponse,
@@ -99,12 +101,13 @@ def handle_list_models(_msg: dict, ctx: ServerContext) -> ListModelsResponse:
         :class:`~src.server.responses.ListModelsResponse` containing one
         :class:`~src.server.responses.ModelDescriptor` per configured model.
     """
+    registry = ModelRegistry(ctx.models_config, PROJECT_ROOT)
     descriptors = [
         ModelDescriptor(
             id=cfg[CFG_KEY_ID],
             label=cfg.get(CFG_KEY_LABEL, cfg[CFG_KEY_ID]),
             model_type=cfg.get(CFG_KEY_TYPE, ""),
-            available=is_available(cfg, PROJECT_ROOT),
+            available=cfg[CFG_KEY_ID] in registry.all_available(),
             active=cfg[CFG_KEY_ID] == ctx.model_id,
             supports_text=cfg.get(CFG_KEY_SUPPORTS_TEXT, False),
         )
@@ -125,8 +128,12 @@ def handle_set_model(msg: dict, ctx: ServerContext) -> SetModelResponse:
         success or a non-empty ``error`` string on failure.
     """
     model_id = msg.get(MSG_KEY_MODEL_ID, "")
-    err = load_model(model_id, ctx)
-    return SetModelResponse(model_id=model_id, error=err or "")
+    registry = ModelRegistry(ctx.models_config, PROJECT_ROOT)
+    try:
+        load_model(model_id, ctx, registry)
+        return SetModelResponse(model_id=model_id, error="")
+    except (ModelNotFound, ModelNotAvailable, ModelLoadError) as e:
+        return SetModelResponse(model_id=model_id, error=str(e))
 
 
 def handle_set_image(msg: dict, ctx: ServerContext) -> SetImageResponse:

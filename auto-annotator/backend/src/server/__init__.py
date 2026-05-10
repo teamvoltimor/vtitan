@@ -1,1 +1,1 @@
-"""src.server – Model inference microserver package."""
+"""src.server. Model inference microserver package."""

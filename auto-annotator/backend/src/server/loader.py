@@ -1,20 +1,18 @@
-"""src.server.loader – Model availability checks and loading orchestration.
+"""src.server.loader – Model loading orchestration via registry.
 
-Determines which models from models.toml are loadable given the current
-filesystem state, then delegates to the appropriate ``load_sam*`` function.
-All config-dict key and model-type strings come from :mod:`src.server.constants`.
+Uses ModelRegistry for parallel availability checks, then delegates to
+appropriate loader function. All config-dict keys come from
+:mod:`src.server.constants`.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
 
+from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CFG_KEY_CHECKPOINT,
-    CFG_KEY_HF_REPO,
     CFG_KEY_ID,
     CFG_KEY_TYPE,
     MODEL_TYPE_SAM1,
@@ -23,6 +21,7 @@ from src.server.constants import (
     MODEL_TYPE_YOLOE,
     PROJECT_ROOT,
 )
+from src.server.registry import ModelRegistry
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
 from src.server.sam3 import load_sam3
@@ -36,7 +35,6 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-
 _MODEL_LOADERS: dict[str, Callable[[dict, ServerContext], None]] = {
     MODEL_TYPE_SAM1: load_sam1,
     MODEL_TYPE_SAM2: load_sam2,
@@ -45,71 +43,23 @@ _MODEL_LOADERS: dict[str, Callable[[dict, ServerContext], None]] = {
 }
 
 
-def _resolve(p: str | None, base: Path) -> Path | None:
-    """Resolve a config path string relative to *base* when it is not absolute.
+def load_model(model_id: str, ctx: ServerContext, registry: ModelRegistry) -> None:
+    """Load a model by *model_id* into *ctx* using registry.
+
+    Clears any previously loaded predictor, frees GPU cache, then delegates
+    to the appropriate loader function.
 
     Args:
-        p:    Path string from the config dict, or ``None``.
-        base: Base directory used when *p* is a relative path.
-
-    Returns:
-        Absolute :class:`Path` if *p* is not ``None``; otherwise ``None``.
-    """
-    if p is None:
-        return None
-    path = Path(p)
-    return path if path.is_absolute() else base / path
-
-
-def is_available(cfg: dict, base: Path) -> bool:
-    """Return ``True`` when the model described by *cfg* can be loaded.
-
-    Availability rules per model type:
-      * ``sam1``: requires a resolvable checkpoint file.
-      * ``sam2``: requires either a resolvable checkpoint *or* a non-empty hf_repo.
-      * ``sam3``: requires a non-empty hf_repo.
-
-    Args:
-        cfg:  Model config dict from models.toml.
-        base: Project root directory used to resolve relative checkpoint paths.
-
-    Returns:
-        Boolean availability flag.
-    """
-    mtype = cfg.get(CFG_KEY_TYPE, "")
-    ckpt = _resolve(cfg.get(CFG_KEY_CHECKPOINT), base)
-    hf = cfg.get(CFG_KEY_HF_REPO, "")
-
-    if mtype == MODEL_TYPE_SAM1:
-        return ckpt is not None and ckpt.exists()
-    if mtype == MODEL_TYPE_SAM2:
-        return bool(hf) or (ckpt is not None and ckpt.exists())
-    if mtype == MODEL_TYPE_SAM3:
-        return bool(hf)
-    if mtype == MODEL_TYPE_YOLOE:
-        return ckpt is not None and ckpt.exists()
-    return False
-
-
-def load_model(model_id: str, ctx: ServerContext) -> str | None:
-    """Load a model by *model_id* into *ctx*.
-
-    Clears any previously loaded predictor, frees the GPU cache, then
-    delegates to the appropriate ``load_sam*`` function.
-
-    Args:
-        model_id: Unique model identifier string (must match a config ``id``).
+        model_id: Unique model identifier (must be in registry and available).
         ctx:      Mutable server context updated in-place on success.
+        registry: ModelRegistry with availability checks performed.
 
-    Returns:
-        ``None`` on success, or a non-empty error string on failure.
+    Raises:
+        ModelNotFound: If model_id is not in registry.
+        ModelNotAvailable: If model does not meet availability rules.
+        ModelLoadError: If loading fails.
     """
-    cfg = next((c for c in ctx.models_config if c[CFG_KEY_ID] == model_id), None)
-    if cfg is None:
-        return f"Unknown model: {model_id!r}"
-
-    if not is_available(cfg, PROJECT_ROOT):
-        return f"Model {model_id!r} not available (checkpoint missing?)"
+    cfg, capabilities = registry.get(model_id)
 
     ctx.predictor = None
     ctx.text_seg = None
@@ -120,38 +70,43 @@ def load_model(model_id: str, ctx: ServerContext) -> str | None:
         mtype = cfg.get(CFG_KEY_TYPE, "")
         loader = _MODEL_LOADERS.get(mtype)
         if loader is None:
-            return f"Unknown model type: {mtype!r}"
+            msg = f"Unknown model type: {mtype!r}"
+            raise ModelLoadError(msg)
 
         loader(cfg, ctx)
-
         ctx.model_id = model_id
+        logger.info("Model loaded", extra={"_extra": {"model_id": model_id, "caps": str(capabilities)}})
+    except (ModelNotFound, ModelNotAvailable, ModelLoadError):
+        raise
     except Exception as e:
-        return f"Failed to load {model_id}: {e}"
-    else:
-        return None
+        raise ModelLoadError(f"Failed to load {model_id}: {e}") from e
 
 
-def initial_load(ctx: ServerContext, default_model: str = "") -> None:
+def initial_load(ctx: ServerContext, configs: list[dict], default_model: str = "") -> None:
     """Try to load the best available model on server startup.
 
-    Tries *default_model* first (if specified), then iterates through all
-    models in ``ctx.models_config`` in order.  Stops at the first successful
-    load.  Prints a fatal warning to stderr when no model can be loaded.
+    Uses ModelRegistry to perform parallel availability checks, then tries
+    default_model first (if specified), then iterates through all available
+    models in order. Logs critical error if none can be loaded.
 
     Args:
         ctx:           Mutable server context.
+        configs:       Model config list from models.toml.
         default_model: Optional preferred model id to attempt first.
     """
+    registry = ModelRegistry(configs, PROJECT_ROOT)
+    logger.info("Model registry initialized", extra={"_extra": {"registry": str(registry)}})
+
     candidates: list[str] = []
     if default_model:
         candidates.append(default_model)
-    candidates.extend(c[CFG_KEY_ID] for c in ctx.models_config)
+    candidates.extend(registry.all_available())
 
     for model_id in dict.fromkeys(candidates):
-        cfg = next((c for c in ctx.models_config if c[CFG_KEY_ID] == model_id), None)
-        if cfg and is_available(cfg, PROJECT_ROOT):
-            err = load_model(model_id, ctx)
-            if err is None:
-                return
+        try:
+            load_model(model_id, ctx, registry)
+            return
+        except (ModelNotFound, ModelNotAvailable, ModelLoadError) as e:
+            logger.warning(f"Could not load {model_id}: {e}")
 
     logger.critical("No models could be loaded")

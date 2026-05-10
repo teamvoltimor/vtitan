@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from src.constants import BASE_DIR, DATA_YAML_PATH
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    from src.db.repository import Repository
+    from src.job_progress import ProgressReporter
 
 logger = get_logger(__name__)
 
@@ -22,6 +26,8 @@ def run_training_job(
     imgsz: int,
     on_progress: ProgressCallback,
     data_yaml: Path | None = None,
+    repository: Repository | None = None,
+    reporter: ProgressReporter | None = None,
 ) -> None:
     """Train YOLO model, calling on_progress after each epoch.
 
@@ -32,6 +38,8 @@ def run_training_job(
         imgsz:      Input image size (pixels).
         on_progress: Callback receiving epoch progress dicts.
         data_yaml:  Path to data.yaml. Defaults to app DATA_YAML_PATH.
+        repository: Repository for potential database updates. Unused in current implementation.
+        reporter:   Optional ProgressReporter for fine-grained progress tracking.
     """
     from ultralytics import YOLO  # lazy import — heavy dependency
 
@@ -59,6 +67,9 @@ def run_training_job(
             "cls_loss": round(cls_loss, 6),
             "map50": round(float(metrics.get("metrics/mAP50(B)", 0) or 0), 6),
         })
+
+        if reporter:
+            reporter.update("training", epoch / total_epochs, f"Epoch {epoch}/{total_epochs}")
 
     model.add_callback("on_train_epoch_end", _on_epoch_end)
 

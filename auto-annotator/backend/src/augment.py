@@ -22,8 +22,10 @@ from albumentations import (
     ShiftScaleRotate,
 )
 
-from src import db
 from src.constants import IMAGES_DIR, LABELS_DIR
+from src.db.repository import Repository
+from src.gallery_cache import AnnotationCache
+from src.job_progress import ProgressReporter
 from src.models import ImageRecord
 from src.utils import get_logger
 
@@ -115,13 +117,21 @@ def _write_label(path: Path, class_ids: list[int], coords: list[list[float]]) ->
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def augment_image(record: ImageRecord, num_augmentations: int, progress: ProgressCallback | None = None) -> list[int]:
+def augment_image(
+    record: ImageRecord,
+    num_augmentations: int,
+    repository: Repository,
+    progress: ProgressCallback | None = None,
+    cache: AnnotationCache | None = None,
+) -> list[int]:
     """Augment a single annotated image, write files and register in DB.
 
     Args:
         record:            ImageRecord for the original (done) image.
         num_augmentations: How many augmented versions to generate.
+        repository:        Repository for database access.
         progress:          Optional callback receiving ``{"step": str}`` events.
+        cache:             Optional cache to invalidate after writing augmented files.
 
     Returns:
         List of new image DB ids registered for the augmentations.
@@ -168,8 +178,11 @@ def augment_image(record: ImageRecord, num_augmentations: int, progress: Progres
         cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
         _write_label(aug_lbl_path, new_classes, new_coords)
 
-        new_id = db.register_augmented_image(str(aug_img_path), fmt, record.id)
+        new_id = repository.images.register_augmented(str(aug_img_path), fmt, record.id)
         new_ids.append(new_id)
+
+        if cache:
+            cache.invalidate(class_dir, aug_stem)
 
         if progress:
             progress({"step": f"{img_path.name} aug {i}"})
@@ -181,6 +194,9 @@ def run_augmentation_job(
     image_ids: list[int],
     num_augmentations: int,
     on_progress: ProgressCallback,
+    repository: Repository,
+    reporter=None,  # Optional ProgressReporter from job_handler
+    cache: AnnotationCache | None = None,
 ) -> None:
     """Run augmentation for a list of image IDs. Calls on_progress for each step.
 
@@ -188,12 +204,15 @@ def run_augmentation_job(
         image_ids:         List of DB ids of done original images to augment.
         num_augmentations: Augmented copies per image.
         on_progress:       Callback called with progress event dicts.
+        repository:        Repository for database access.
+        reporter:          Optional ProgressReporter for fine-grained progress.
+        cache:             Optional cache to invalidate after augmentation.
     """
     total = len(image_ids) * num_augmentations
     done = 0
 
-    for img_id in image_ids:
-        record = db.get_by_id(img_id)
+    for idx, img_id in enumerate(image_ids):
+        record = repository.images.get_by_id(img_id)
         if record is None:
             continue
 
@@ -202,7 +221,11 @@ def run_augmentation_job(
             done += 1
             on_progress({"done": done, "total": total, "step": event.get("step", "")})
 
-        augment_image(record, num_augmentations, progress=_step)
+        augment_image(record, num_augmentations, repository, progress=_step, cache=cache)
+
+        # Report progress if reporter available
+        if reporter:
+            reporter.update("augmenting", (idx + 1) / len(image_ids), f"Processed {idx + 1}/{len(image_ids)} images")
 
     on_progress({"done": total, "total": total, "finished": True})
     logger.info("augmentation_job_done", extra={"total": total})

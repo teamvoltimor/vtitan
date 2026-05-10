@@ -1,11 +1,11 @@
-"""src.db – SQLite persistence layer (package).
+"""src.db. SQLite persistence layer (package).
 
-Public API is re-exported from :mod:`src.db.core` so callers can use either::
+Public API is re-exported from `src.db.core` so callers can use either:
 
     from src import db
     db.get_next()            # works because __init__ re-exports get_next
 
-or::
+or
 
     from src.db import get_next, init_db
 
