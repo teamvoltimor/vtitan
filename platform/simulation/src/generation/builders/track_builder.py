@@ -15,7 +15,7 @@ from shared.config.constants import (
 )
 from shared.config.enums import Direction, Section
 
-from .xml_helpers import build_wall_model
+from src.generation.builders.xml_helpers import build_wall_model
 
 
 class TrackBuilder:

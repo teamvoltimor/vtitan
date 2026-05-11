@@ -1,9 +1,9 @@
 """Specialized SDF builders for modular Gazebo world construction."""
 
-from .lighting_builder import LightingBuilder
-from .object_builder import ObjectBuilder
-from .plugin_builder import PluginBuilder
-from .track_builder import TrackBuilder
+from src.generation.builders.lighting_builder import LightingBuilder
+from src.generation.builders.object_builder import ObjectBuilder
+from src.generation.builders.plugin_builder import PluginBuilder
+from src.generation.builders.track_builder import TrackBuilder
 
 __all__ = [
     "PluginBuilder",

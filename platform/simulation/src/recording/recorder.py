@@ -145,7 +145,7 @@ class VideoRecorderNode(Node):
                     self.get_logger().info(
                         f"Recording: {elapsed:.1f}s / {self.duration}s ({len(self.frames)} frames)"
                     )
-             except (
+            except (
                 RuntimeError,
                 OSError,
                 TypeError,
@@ -196,12 +196,12 @@ class VideoRecorderNode(Node):
 
             return True
 
-         except (OSError, cv2.error) as e:  # type: ignore[attr-defined]
-             self.get_logger().error(f"Error saving video: {e}")
-             return False
-         except Exception as e:
-             self.get_logger().error(f"Unexpected error saving video: {e}")
-             return False
+        except (OSError, cv2.error) as e:  # type: ignore[attr-defined]
+            self.get_logger().error(f"Error saving video: {e}")
+            return False
+        except Exception as e:
+            self.get_logger().error(f"Unexpected error saving video: {e}")
+            return False
 
 
 class PipelineOrchestrator:
@@ -221,14 +221,14 @@ class PipelineOrchestrator:
         self.videos_dir.mkdir(parents=True, exist_ok=True)
         self.frames_dir.mkdir(parents=True, exist_ok=True)
 
-         self.gazebo_process = None
-         self.recorder_process = None
-         self.bridge_process = None
-         self.driver_process = None
-         
-         # Gazebo operation timeout (seconds)
-         self._gazebo_launch_timeout = 30  # Max time to wait for Gazebo to launch
-         self._gazebo_start_time: float | None = None
+        self.gazebo_process = None
+        self.recorder_process = None
+        self.bridge_process = None
+        self.driver_process = None
+
+        # Gazebo operation timeout (seconds)
+        self._gazebo_launch_timeout = 30  # Max time to wait for Gazebo to launch
+        self._gazebo_start_time: float | None = None
 
     def generate_scenarios(self) -> bool:
         """Generate randomized scenarios"""
@@ -350,17 +350,20 @@ class PipelineOrchestrator:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            
+
             # Track launch time for timeout detection
             self._gazebo_start_time = time.time()
 
             # Wait for Gazebo to initialize (with timeout protection)
             init_wait = 5 if self.args.show_gui else 3
             time.sleep(init_wait)
-            
+
             # Check if process is still alive after initialization
             if self.gazebo_process.poll() is not None:
-                print(f"  ✗ ERROR: Gazebo process crashed during initialization (exit code: {self.gazebo_process.returncode})")
+                print(
+                    f"  ✗ ERROR: Gazebo process crashed during initialization "
+                    f"(exit code: {self.gazebo_process.returncode})"
+                )
                 return False
 
             return True
@@ -374,27 +377,30 @@ class PipelineOrchestrator:
         except Exception as e:
             print(f"  ✗ UNEXPECTED ERROR launching Gazebo: {e}")
             return False
-    
+
     def _check_gazebo_timeout(self) -> bool:
         """Check if Gazebo has exceeded maximum runtime.
-        
+
         Returns:
             True if Gazebo is still running and within timeout, False otherwise.
         """
         if self.gazebo_process is None or self._gazebo_start_time is None:
             return True
-        
+
         # Check if process has crashed
         if self.gazebo_process.poll() is not None:
             print("  ⚠ WARNING: Gazebo process has terminated unexpectedly")
             return False
-        
+
         # Check if exceeded timeout
         elapsed = time.time() - self._gazebo_start_time
         if elapsed > self._gazebo_launch_timeout:
-            print(f"  ⚠ WARNING: Gazebo operation exceeded timeout ({elapsed:.1f}s > {self._gazebo_launch_timeout}s)")
+            print(
+                f"  ⚠ WARNING: Gazebo operation exceeded timeout "
+                f"({elapsed:.1f}s > {self._gazebo_launch_timeout}s)"
+            )
             return False
-        
+
         return True
 
     def launch_bridge(self) -> bool:
@@ -534,7 +540,7 @@ class PipelineOrchestrator:
             return True  # Continue anyway
 
         except subprocess.TimeoutExpired:
-            print(f"  WARNING: Robot spawn command timed out (may already exist)")
+            print("  WARNING: Robot spawn command timed out (may already exist)")
             return True  # Continue anyway
         except (FileNotFoundError, PermissionError) as e:
             print(f"  WARNING: Error spawning robot: {e}")
@@ -546,7 +552,7 @@ class PipelineOrchestrator:
     def record_video(self, scenario_id: int) -> Path | None:
         """Record video using ROS2 node with Gazebo timeout protection."""
         print(f"  Recording video for {self.args.duration} seconds...")
-        
+
         # Check Gazebo health before recording
         if not self._check_gazebo_timeout():
             print("  ✗ ERROR: Gazebo not running or exceeded timeout, skipping video recording")
@@ -581,7 +587,7 @@ class PipelineOrchestrator:
         except RuntimeError as e:
             print(f"  ✗ ERROR recording video: ROS2 runtime error: {e}")
             return None
-        except (OSError, IOError) as e:
+        except OSError as e:
             print(f"  ✗ ERROR recording video: File I/O error: {e}")
             return None
         except Exception as e:
@@ -634,10 +640,10 @@ class PipelineOrchestrator:
             print(f"  ✓ Extracted {extracted_count} frames to {frames_output_dir}")
             return True
 
-        except (FileNotFoundError, IOError) as e:
+        except (OSError, FileNotFoundError) as e:
             print(f"  ✗ ERROR extracting frames: File error: {e}")
             return False
-        except (OSError, cv2.error) as e:  # type: ignore[attr-defined]
+        except cv2.error as e:  # type: ignore[attr-defined]
             print(f"  ✗ ERROR extracting frames: OpenCV error: {e}")
             return False
         except Exception as e:
@@ -929,6 +935,7 @@ Examples:
     except (FileNotFoundError, OSError) as e:
         print(f"\n✗ Pipeline file error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
     except Exception as e:

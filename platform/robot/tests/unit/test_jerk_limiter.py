@@ -10,6 +10,7 @@ Verifies:
 from __future__ import annotations
 
 import pytest
+
 from src.navigation.speed_control import JerkLimiter
 
 DT = 0.05  # 20 Hz
@@ -31,9 +32,7 @@ class TestJerkLimiter:
                 reached_at = elapsed
 
         assert reached_at is not None, "Never reached 95% of target"
-        assert reached_at >= 0.350, (
-            f"Reached 95% too fast: {reached_at:.3f}s < 350ms"
-        )
+        assert reached_at >= 0.350, f"Reached 95% too fast: {reached_at:.3f}s < 350ms"
 
     def test_output_never_overshoots(self):
         limiter = JerkLimiter(dt=DT, tau=TAU, max_accel_mps2=2.0)
@@ -47,9 +46,7 @@ class TestJerkLimiter:
         prev = 0.0
         for _ in range(100):
             v = limiter.filter(0.7)
-            assert abs(v - prev) <= max_allowed_delta, (
-                f"Delta {abs(v - prev):.4f} > max {max_allowed_delta:.4f}"
-            )
+            assert abs(v - prev) <= max_allowed_delta, f"Delta {abs(v - prev):.4f} > max {max_allowed_delta:.4f}"
             prev = v
 
     def test_reset_clears_state(self):

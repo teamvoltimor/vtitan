@@ -18,15 +18,14 @@ from xml.etree import ElementTree as ET
 from shared.config.constants import DictKeys
 from shared.config.enums import ScenarioType, Section
 
+# Legacy robot building module (kept for backward compatibility during refactoring)
+from src.generation import sdf_robot_builder
 from src.generation.builders import (
     LightingBuilder,
     ObjectBuilder,
     PluginBuilder,
     TrackBuilder,
 )
-
-# Legacy robot building module (kept for backward compatibility during refactoring)
-from . import sdf_robot_builder
 
 
 class SDFBuilder:

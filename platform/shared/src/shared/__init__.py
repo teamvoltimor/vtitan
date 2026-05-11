@@ -9,8 +9,8 @@ Imports:
     messaging: Message broker abstraction (decouples from ROS2)
 """
 
-from .io import JsonlReader, JsonlValidator, JsonlWriter
-from .messaging import (
+from shared.io import JsonlReader, JsonlValidator, JsonlWriter
+from shared.messaging import (
     Message,
     MessageProvider,
     MessageRouter,

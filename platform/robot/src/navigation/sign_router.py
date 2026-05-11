@@ -24,16 +24,24 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.config.enums import Section
-from shared.domain.models import Detection
+
+
+@dataclass(frozen=True)
+class Detection:
+    """A camera detection with class name, confidence, and bounding box."""
+
+    class_name: str
+    confidence: float
+    bbox: tuple[float, float, float, float]
+
 
 logger = logging.getLogger(__name__)
 
 # Camera focal length in pixels — derived from HFOV and image width.
-# f = (width/2) / tan(HFOV/2)
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
 # Per-corridor routing table: (axis, red_sign, green_sign)
@@ -42,8 +50,8 @@ _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CA
 _ROUTING_TABLE: dict[Section, tuple[str, int, int]] = {
     Section.SOUTH: ("y", +1, -1),
     Section.NORTH: ("y", -1, +1),
-    Section.EAST:  ("x", -1, +1),
-    Section.WEST:  ("x", +1, -1),
+    Section.EAST: ("x", -1, +1),
+    Section.WEST: ("x", +1, -1),
 }
 
 
@@ -299,10 +307,7 @@ def signs_from_metadata(metadata: dict) -> list[SignSpec]:
         List of SignSpec for all signs in the scenario.
     """
     sign_positions = metadata.get("sign_positions", [])
-    specs: list[SignSpec] = []
-    for entry in sign_positions:
-        specs.append(SignSpec(x=entry["x"], y=entry["y"], color=entry["color"]))
-    return specs
+    return [SignSpec(x=entry["x"], y=entry["y"], color=entry["color"]) for entry in sign_positions]
 
 
 def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:

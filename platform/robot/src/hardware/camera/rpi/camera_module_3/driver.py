@@ -3,9 +3,10 @@
 import logging
 import threading
 import time
-from queue import Queue
-from dataclasses import dataclass, field
-from typing import Generator, Optional
+from collections.abc import Generator
+from contextlib import suppress
+from dataclasses import dataclass
+from queue import Empty, Queue
 
 import numpy as np
 from picamera2 import Picamera2
@@ -59,7 +60,7 @@ class Driver(CameraDriver):
                     "device": self.config.device,
                     "resolution": (self.config.width, self.config.height),
                     "fps": self.config.fps,
-                }
+                },
             },
         )
 
@@ -111,14 +112,12 @@ class Driver(CameraDriver):
                 frame = self.picamera2.capture_array()
 
                 if self._frame_queue.full():
-                    try:
+                    with suppress(Empty):
                         self._frame_queue.get_nowait()
-                    except Exception:
-                        pass
 
                 self._frame_queue.put(frame)
-            except Exception as e:
-                self.logger.error(f"Capture error: {e}")
+            except Exception:
+                self.logger.exception("Capture error")
                 time.sleep(0.1)
 
     def start_streaming(self) -> None:
@@ -147,7 +146,7 @@ class Driver(CameraDriver):
         """Get latest frame without blocking."""
         try:
             return self._frame_queue.get_nowait()
-        except Exception:
+        except Empty:
             return None
 
     def stream(self) -> Generator[np.ndarray, None, None]:

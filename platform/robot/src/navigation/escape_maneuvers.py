@@ -48,7 +48,6 @@ class EscapeManager:
             EscapeCommand with reverse speed and steering angle.
         """
         esc = self.config.escape
-        stk = self.config.stuck
 
         # Reverse at max steering angle
         linear_speed = reverse_direction * esc.rev_speed
@@ -149,7 +148,6 @@ class EscapeManager:
 
 
 def compute_escape_direction(
-    forward_clearance: float,
     left_clearance: float,
     right_clearance: float,
     close_wall_direction: str,
@@ -168,19 +166,17 @@ def compute_escape_direction(
     # Avoid steering into close walls
     if close_wall_direction == "left":
         return "right"
-    elif close_wall_direction == "right":
+    if close_wall_direction == "right":
         return "left"
 
     # Steer toward clearer side
     if left_clearance > right_clearance:
         return "left"
-    else:
-        return "right"
+    return "right"
 
 
 def compute_obstacle_avoidance_gain(
     forward_clearance: float,
-    obstacle_gain: float = 0.30,
 ) -> float:
     """Compute dynamic gain for obstacle avoidance.
 
@@ -195,8 +191,7 @@ def compute_obstacle_avoidance_gain(
     """
     if forward_clearance <= 0.1:
         return 1.0  # Maximum avoidance
-    elif forward_clearance >= 0.5:
+    if forward_clearance >= 0.5:
         return 0.0  # No avoidance needed
-    else:
-        # Linear interpolation
-        return 1.0 - (forward_clearance - 0.1) / (0.5 - 0.1)
+    # Linear interpolation
+    return 1.0 - (forward_clearance - 0.1) / (0.5 - 0.1)

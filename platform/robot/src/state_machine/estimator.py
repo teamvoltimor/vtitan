@@ -6,7 +6,7 @@ and relative odometry ticks.
 
 import math
 
-from shared.domain.models import Pose, IMUReading
+from shared.domain.models import IMUReading, Pose
 
 
 def wrap_angle(angle: float) -> float:

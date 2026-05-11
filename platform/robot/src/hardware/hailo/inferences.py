@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class BoundingBox(NamedTuple):
@@ -58,17 +59,18 @@ class InferenceResult(NamedTuple):
 
     detections: list[YoloDetection]
     latency_ms: float
-    image: Optional[np.ndarray] = None
+    image: np.ndarray | None = None
 
     @classmethod
     def parse_yolo_nms_output(
+        cls,
         raw_tensor: object,
         img_width: int,
         img_height: int,
         class_map: dict[int, str],
         latency_ms: float,
         conf_threshold: float = 0.5,
-        image: Optional[np.ndarray] = None,
+        image: np.ndarray | None = None,
     ) -> InferenceResult:
         """
         Parse Hailo NMS output tensor to typed detections.

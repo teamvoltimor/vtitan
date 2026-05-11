@@ -17,7 +17,10 @@ def generate_launch_description():
             # In simulation, gazebo acts as the camera publisher and build_hat_node
             # is replaced by the gazebo diff_drive/ackermann plugin.
             Node(
-                package="klevor_robot", executable="telemetry_bridge_node", name="telemetry_bridge_sim", output="screen"
+                package="klevor_robot",
+                executable="telemetry_bridge_node",
+                name="telemetry_bridge_sim",
+                output="screen",
             ),
-        ]
+        ],
     )

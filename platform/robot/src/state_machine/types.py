@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 # Import RobotState from shared module (single source of truth)
-from shared.config.enums import RobotState
 
 
 @dataclass

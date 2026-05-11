@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 import time
-import unittest.mock as mock
+from unittest import mock
 
 import pytest
 
@@ -22,7 +22,10 @@ sys.modules["board"] = mock.MagicMock()
 sys.modules["busio"] = mock.MagicMock()
 sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
-from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver, Config as I2CConfig
+from src.hardware.imu.bno08x.mcp2221.i2c import (
+    Config as I2CConfig,
+    Driver as IMU_I2CDriver,
+)
 from src.logger import LOG_LEVEL, configure_json_logging
 
 _log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
@@ -31,7 +34,7 @@ configure_json_logging(level=_log_level)
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
+@pytest.fixture()
 def driver():
     """Create driver instance."""
     config = I2CConfig(i2c_address=0x4A)
@@ -158,7 +161,7 @@ def stream_imu():
                     "details": {
                         "accel": data.accelerometer,
                         "euler": data.euler,
-                    }
+                    },
                 },
             )
             time.sleep(0.1)

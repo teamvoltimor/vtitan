@@ -113,6 +113,7 @@ def assess_collision_risk(
         fwd_critical_threshold: Minimum consecutive count before escape fires.
         is_open_challenge: ``True`` when there are no traffic signs on track.
         angle_error: Current heading error to steer target (radians).
+        is_simulation: Whether running in simulation.
 
     Returns:
         Tuple of (risk_label, distances) where ``distances`` is a

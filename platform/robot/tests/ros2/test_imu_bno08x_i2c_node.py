@@ -6,8 +6,8 @@ Run with: python -m pytest tests/ros2/test_imu_i2c_node.py -v
 
 import logging
 import sys
-import unittest.mock as mock
 from dataclasses import dataclass
+from unittest import mock
 
 import pytest
 import rclpy
@@ -18,7 +18,6 @@ sys.modules["busio"] = mock.MagicMock()
 sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
 from src.ros2.imu.bno08x.mcp2221.i2c_node import IMU_I2CNode
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class IMU_AllData:
     gyroscope: tuple[float, float, float]
 
 
-@pytest.fixture
+@pytest.fixture()
 def ros_context():
     """Initialize and cleanup ROS2 context for each test."""
     rclpy.init()
@@ -41,7 +40,7 @@ def ros_context():
     rclpy.shutdown()
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_driver():
     """Create a mock IMU I2C driver."""
     with mock.patch("src.ros2.imu.bno08x.mcp2221.i2c_node.IMU_I2CDriver") as mock_cls:

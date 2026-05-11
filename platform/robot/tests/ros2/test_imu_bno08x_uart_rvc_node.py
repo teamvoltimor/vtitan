@@ -6,8 +6,8 @@ Run with: python -m pytest tests/ros2/test_imu_uart_rvc_node.py -v
 
 import logging
 import sys
-import unittest.mock as mock
 from dataclasses import dataclass
+from unittest import mock
 
 import pytest
 import rclpy

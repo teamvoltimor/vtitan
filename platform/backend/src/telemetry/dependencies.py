@@ -7,23 +7,21 @@ all application dependencies (Python-Architect Rule 3: Dependency Injection).
 from __future__ import annotations
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-from fastapi import Request
 
 from src.telemetry.config import ServerConfig, SimulationProfile
 from src.telemetry.error_handler import ErrorHandler
 from src.telemetry.exceptions import TelemetryError
 from src.telemetry.generator_sim import TelemetryGenerator
 from src.telemetry.recorder import TelemetryRecorder
+from src.telemetry.ws.manager import ConnectionManager
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
-
-    from src.telemetry.ws.manager import ConnectionManager
+    from fastapi import FastAPI, Request
 
 logger = logging.getLogger(__name__)
 
@@ -59,19 +57,15 @@ def create_app_state(config: ServerConfig) -> TelemetryAppState:
         OSError: If session directory cannot be created.
         FileNotFoundError: If simulation profile cannot be loaded.
     """
-    # Import here to avoid circular imports
-    from src.telemetry.ws.manager import ConnectionManager
-
     # Initialize session directory
     base_dir = Path(config.sessions_dir)
     base_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Session directory: {base_dir}")
+    logger.info("Session directory: %s", base_dir)
 
     # Load simulation profile from environment or default to 'normal'
-    import os
-    profile_name = os.getenv('SIMULATION_PROFILE', 'normal')
+    profile_name = os.getenv("SIMULATION_PROFILE", "normal")
     profile = SimulationProfile.load(profile_name)
-    logger.info(f"Loaded simulation profile: {profile_name}")
+    logger.info("Loaded simulation profile: %s", profile_name)
 
     # Initialize core dependencies
     recorder = TelemetryRecorder(
@@ -114,7 +108,8 @@ def get_state(request: Request) -> TelemetryAppState:
         RuntimeError: If state was not initialized.
     """
     if not hasattr(request.app.state, "telemetry"):
-        raise RuntimeError("Application state not initialized")
+        msg = "Application state not initialized"
+        raise RuntimeError(msg)
     return request.app.state.telemetry
 
 

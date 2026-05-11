@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
+from src.telemetry.exceptions import SessionNotFoundError
 from src.telemetry.models import NodeHealth, RobotSnapshot, TelemetryMetrics
 from src.telemetry.recorder import TelemetryRecorder
-from src.telemetry.exceptions import SessionNotFoundError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _make_snapshot(timestamp: float = 1.0) -> RobotSnapshot:
@@ -98,7 +101,7 @@ def test_list_sessions(tmp_path: Path) -> None:
 def test_context_manager_closes_file(tmp_path: Path) -> None:
     with TelemetryRecorder(base_dir=tmp_path, session_id="session_cm") as rec:
         rec.record(_make_snapshot())
-    assert rec._file.closed
+    assert rec.file.closed
 
 
 def test_jsonl_format(tmp_path: Path) -> None:

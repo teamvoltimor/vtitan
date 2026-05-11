@@ -9,21 +9,23 @@ This launch file starts all required nodes for the WRO competition:
 - (Optional) Hailo AI node - if available
 """
 
+from pathlib import Path
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-import os
 
 
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     """Generate launch description for WRO state machine system."""
-
     # Declare launch arguments
     use_sim_time_arg = DeclareLaunchArgument(
-        "use_sim_time", default_value="false", description="Use simulation time if true"
+        "use_sim_time",
+        default_value="false",
+        description="Use simulation time if true",
     )
 
     # Get package directories
@@ -31,12 +33,12 @@ def generate_launch_description():
 
     # Include LiDAR launch file
     lidar_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(klevor_robot_dir, "launch", "lidar_launch.py"))
+        PythonLaunchDescriptionSource(str(Path(klevor_robot_dir) / "launch" / "lidar_launch.py")),
     )
 
     # Static TF publishers for sensor frames
     static_tfs = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(klevor_robot_dir, "launch", "static_tfs.launch.py"))
+        PythonLaunchDescriptionSource(str(Path(klevor_robot_dir) / "launch" / "static_tfs.launch.py")),
     )
 
     # State machine controller node
@@ -84,20 +86,6 @@ def generate_launch_description():
         respawn_delay=2.0,
     )
 
-    # NOTE: Hailo AI node would be added here when available
-    # hailo_node = Node(
-    #     package="klevor_robot",
-    #     executable="hailo_inference_node",
-    #     name="hailo_inference",
-    #     output="screen",
-    #     parameters=[{
-    #         "use_sim_time": LaunchConfiguration("use_sim_time"),
-    #         "model_path": "/home/pi/models/yolov8n.hef"
-    #     }],
-    #     respawn=True,
-    #     respawn_delay=2.0,
-    # )
-
     return LaunchDescription(
         [
             use_sim_time_arg,
@@ -107,6 +95,5 @@ def generate_launch_description():
             oled_display_node,
             imu_node,
             ackermann_motor_node,
-            # hailo_node,  # Uncomment when Hailo node is available
-        ]
+        ],
     )

@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-import json
 import math
 import time
-import requests
 from collections import deque
-from typing import Optional
-
-_BACKOFF_INITIAL = 1.0    # seconds
-_BACKOFF_MAX = 30.0       # seconds
 
 import rclpy
+import requests
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.coordinate_transform import quaternion_to_yaw
-from sensor_msgs.msg import LaserScan, Imu, JointState
-from nav_msgs.msg import Odometry
 from std_msgs.msg import String
-from geometry_msgs.msg import Twist
 from vision_msgs.msg import Detection2DArray
+
+_BACKOFF_INITIAL = 1.0
+_BACKOFF_MAX = 60.0
 
 
 class RosTopic:
+    """ROS2 topic name constants used by the telemetry bridge."""
+
     SCAN = "/scan"
     ODOM = "/odom"
     IMU = "/imu/data"
@@ -34,6 +35,8 @@ class RosTopic:
 
 
 class RosMsgType:
+    """ROS2 message type string constants."""
+
     LASER_SCAN = "sensor_msgs/LaserScan"
     ODOMETRY = "nav_msgs/Odometry"
     IMU = "sensor_msgs/Imu"
@@ -67,17 +70,20 @@ class TelemetryBridgeNode(Node):
         self.create_subscription(Twist, RosTopic.CMD_VEL, self._cmd_vel_callback, 10)
         self.create_subscription(JointState, RosTopic.JOINT_STATES, self._joint_callback, 10)
         self.create_subscription(
-            Detection2DArray, RosTopic.HAILO_DETECTIONS, self._vision_callback, qos_profile_sensor_data
+            Detection2DArray,
+            RosTopic.HAILO_DETECTIONS,
+            self._vision_callback,
+            qos_profile_sensor_data,
         )
 
         # Latest data cache
-        self._latest_scan: Optional[LaserScan] = None
-        self._latest_odom: Optional[Odometry] = None
-        self._latest_imu: Optional[Imu] = None
+        self._latest_scan: LaserScan | None = None
+        self._latest_odom: Odometry | None = None
+        self._latest_imu: Imu | None = None
         self._latest_state: str = "unknown"
-        self._latest_cmd_vel: Optional[Twist] = None
-        self._latest_joints: Optional[JointState] = None
-        self._latest_vision: Optional[Detection2DArray] = None
+        self._latest_cmd_vel: Twist | None = None
+        self._latest_joints: JointState | None = None
+        self._latest_vision: Detection2DArray | None = None
 
         self._topic_updates: dict[str, dict] = {}
         self._topic_timestamps: dict[str, deque] = {}
@@ -86,7 +92,6 @@ class TelemetryBridgeNode(Node):
         self._logs: deque = deque(maxlen=10)
 
         # Backend-status publisher (reuses system_status topic).
-        from diagnostic_msgs.msg import DiagnosticArray
         self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", 10)
 
         # HTTP: single session for connection pooling; backoff state.
@@ -131,10 +136,7 @@ class TelemetryBridgeNode(Node):
         self._latest_vision = msg
         self._update_raw_topic(RosTopic.HAILO_DETECTIONS, RosMsgType.DETECTION_2D_ARRAY, msg)
 
-    def _update_raw_topic(self, topic_name: str, msg_type: str, msg):
-        import time
-        from collections import deque
-
+    def _update_raw_topic(self, topic_name: str, msg_type: str, msg: object) -> None:
         current_time = time.time()
 
         if topic_name not in self._topic_timestamps:
@@ -159,7 +161,7 @@ class TelemetryBridgeNode(Node):
             "data": msg_dict,
         }
 
-    def _msg_to_dict(self, msg) -> dict:
+    def _msg_to_dict(self, msg: object) -> dict:
         result = {}
         if hasattr(msg, "__slots__"):
             for field in msg.__slots__:
@@ -176,8 +178,6 @@ class TelemetryBridgeNode(Node):
         return result
 
     def _build_topics_snapshot(self) -> dict:
-        import time
-
         return {
             "timestamp": time.time(),
             "topics": list(self._topic_updates.values()),
@@ -223,7 +223,6 @@ class TelemetryBridgeNode(Node):
 
     def _publish_backend_status(self, status: str) -> None:
         """Publish backend connectivity state to /system_status."""
-        from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
         entry = DiagnosticStatus()
@@ -311,7 +310,7 @@ class TelemetryBridgeNode(Node):
                             det.bbox.size_x,
                             det.bbox.size_y,
                         ],
-                    }
+                    },
                 )
 
         return {
@@ -416,7 +415,8 @@ class TelemetryBridgeNode(Node):
         return quaternion_to_yaw(x, y, z, w)
 
 
-def main(args=None):
+def main(args: list[str] | None = None) -> None:
+    """Main entry point for telemetry bridge node."""
     rclpy.init(args=args)
     node = TelemetryBridgeNode()
     try:

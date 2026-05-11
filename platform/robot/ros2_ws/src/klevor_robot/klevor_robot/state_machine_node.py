@@ -39,6 +39,16 @@ from rclpy.qos import (
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Float32, String
 
+from src.hardware.button.gpio import Driver as ButtonDriver
+from src.state_machine import (
+    RaceMetrics,
+    RobotState,
+    SensorStatus,
+    StateMachine,
+    StateTransitionReason,
+    SystemStatus,
+)
+
 # Latched QoS for state/diagnostics — late-joining nodes see the last value immediately.
 _QOS_TRANSIENT = QoSProfile(
     depth=1,
@@ -51,16 +61,6 @@ _QOS_ACKERMANN = QoSProfile(
     depth=10,
     reliability=QoSReliabilityPolicy.RELIABLE,
     deadline=Duration(nanoseconds=200_000_000),
-)
-
-from src.hardware.button.gpio import Driver as ButtonDriver
-from src.state_machine import (
-    RaceMetrics,
-    RobotState,
-    SensorStatus,
-    StateMachine,
-    StateTransitionReason,
-    SystemStatus,
 )
 
 if TYPE_CHECKING:
@@ -108,31 +108,44 @@ class StateMachineNode(Node):
             self.button_driver = ButtonDriver()
             self.button_driver.connect()
             self.get_logger().info("Button driver connected")
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, ImportError) as e:
             self.get_logger().error(f"Failed to connect button driver: {e}")
-            self.button_driver = None  # type: ignore
+            self.button_driver = None
 
         # Publishers — robot_state and system_status are TRANSIENT_LOCAL so late
         # subscribers (RViz, dashboard) receive the last value without waiting.
         self.state_pub: Publisher[String] = self.create_publisher(String, "/robot_state", _QOS_TRANSIENT)
         self.ackermann_pub: Publisher[AckermannDriveStamped] = self.create_publisher(
-            AckermannDriveStamped, "/ackermann_cmd", _QOS_ACKERMANN
+            AckermannDriveStamped,
+            "/ackermann_cmd",
+            _QOS_ACKERMANN,
         )
         self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(
-            DiagnosticArray, "/system_status", _QOS_TRANSIENT
+            DiagnosticArray,
+            "/system_status",
+            _QOS_TRANSIENT,
         )
         self.metrics_pub: Publisher[String] = self.create_publisher(String, "/race_metrics", 10)
 
         # Subscribers — sensor topics use qos_profile_sensor_data (BEST_EFFORT +
         # VOLATILE, depth=10) to match the publisher QoS on sensor drivers.
         self.imu_sub: Subscription[Imu] = self.create_subscription(
-            Imu, "/imu/data", self._imu_callback, qos_profile_sensor_data
+            Imu,
+            "/imu/data",
+            self._imu_callback,
+            qos_profile_sensor_data,
         )
         self.lidar_sub: Subscription[LaserScan] = self.create_subscription(
-            LaserScan, "/scan", self._lidar_callback, qos_profile_sensor_data
+            LaserScan,
+            "/scan",
+            self._lidar_callback,
+            qos_profile_sensor_data,
         )
         self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
-            Float32, "/hailo/fps", self._hailo_fps_callback, qos_profile_sensor_data
+            Float32,
+            "/hailo/fps",
+            self._hailo_fps_callback,
+            qos_profile_sensor_data,
         )
 
         # Sensor status tracking
@@ -172,41 +185,36 @@ class StateMachineNode(Node):
         def fetch_ip() -> str:
             """Fetch IP address from network interface."""
             try:
-                # Create a socket to determine IP address
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.settimeout(2.0)  # 2 second timeout
+                s.settimeout(2.0)
                 s.connect(("8.8.8.8", 80))
                 ip = s.getsockname()[0]
                 s.close()
-                return ip
-            except Exception:
+            except OSError:
                 return "OFFLINE"
+            else:
+                return ip
 
         def on_complete(future: asyncio.Future) -> None:
             """Callback when IP fetch completes."""
             try:
                 self.ip_address = future.result()
-                self.ip_fetch_complete = True
-                self.get_logger().info(f"IP address resolved: {self.ip_address}")
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 self.ip_address = "OFFLINE"
-                self.ip_fetch_complete = True
-                self.get_logger().warning(f"Failed to fetch IP: {e}")
+                self.get_logger().warning("Failed to fetch IP: %s", e)
+            else:
+                self.get_logger().info("IP address resolved: %s", self.ip_address)
+            self.ip_fetch_complete = True
 
         future = self.executor.submit(fetch_ip)
         future.add_done_callback(on_complete)
 
-    def _imu_callback(self, msg: Imu) -> None:
+    def _imu_callback(self, _msg: Imu) -> None:
         """Handle IMU data."""
         self.imu_last_msg_time = time.time()
-
-        # Extract yaw from quaternion (simplified - proper conversion needed)
-        # For now, just track that we're receiving data
-        # Day 8 (review plan): wire CoreNavigator into RACING handler; extract
-        # yaw from IMU quaternion here using quaternion_to_yaw() from shared.
         self.gyro_yaw = 0.0
 
-    def _lidar_callback(self, msg: LaserScan) -> None:
+    def _lidar_callback(self, _msg: LaserScan) -> None:
         """Handle LiDAR scan data."""
         self.lidar_last_msg_time = time.time()
 
@@ -225,13 +233,11 @@ class StateMachineNode(Node):
         # Handle button events based on current state
         current_state = self.state_machine.current_state
 
-        if current_state == RobotState.READY:
-            # In READY state, any press starts the race
-            if state.last_event and state.last_event.value == "short_press":
-                self.get_logger().info("Button pressed - Starting race!")
-                self.state_machine.transition_to(RobotState.RACING, StateTransitionReason.BUTTON_PRESSED)
-                self.race_start_time = time.time()
-                self.laps_completed = 0
+        if current_state == RobotState.READY and state.last_event and state.last_event.value == "short_press":
+            self.get_logger().info("Button pressed - Starting race!")
+            self.state_machine.transition_to(RobotState.RACING, StateTransitionReason.BUTTON_PRESSED)
+            self.race_start_time = time.time()
+            self.laps_completed = 0
 
         elif current_state == RobotState.RACING:
             # In RACING state, only long press triggers E-STOP
@@ -276,7 +282,6 @@ class StateMachineNode(Node):
     def _handle_ready(self) -> None:
         """Handle READY state - wait for button press."""
         # Just wait - button handling is done in button_check_loop
-        pass
 
     def _handle_racing(self) -> None:
         """Handle RACING state - monitor for race completion."""
@@ -305,13 +310,17 @@ class StateMachineNode(Node):
         # Check IMU
         imu_ready = self.imu_last_msg_time is not None and (current_time - self.imu_last_msg_time) < timeout
         imu_status = SensorStatus(
-            name="IMU", is_ready=imu_ready, error_message=None if imu_ready else "No IMU data received"
+            name="IMU",
+            is_ready=imu_ready,
+            error_message=None if imu_ready else "No IMU data received",
         )
 
         # Check LiDAR
         lidar_ready = self.lidar_last_msg_time is not None and (current_time - self.lidar_last_msg_time) < timeout
         lidar_status = SensorStatus(
-            name="LiDAR", is_ready=lidar_ready, error_message=None if lidar_ready else "No LiDAR data received"
+            name="LiDAR",
+            is_ready=lidar_ready,
+            error_message=None if lidar_ready else "No LiDAR data received",
         )
 
         # Check Hailo (includes model loading verification via FPS > 0)
@@ -381,10 +390,7 @@ class StateMachineNode(Node):
 
     def _publish_race_metrics(self) -> None:
         """Publish current race metrics."""
-        if self.race_start_time is None:
-            elapsed_time = 0.0
-        else:
-            elapsed_time = time.time() - self.race_start_time
+        elapsed_time = 0.0 if self.race_start_time is None else time.time() - self.race_start_time
 
         metrics = RaceMetrics(
             laps_completed=self.laps_completed,
@@ -404,7 +410,7 @@ class StateMachineNode(Node):
                 "current_steering": round(metrics.current_steering, 2),
                 "gyro_yaw": round(metrics.gyro_yaw, 2),
                 "current_corridor": metrics.current_corridor,
-            }
+            },
         )
         self.metrics_pub.publish(msg)
 
@@ -421,11 +427,11 @@ class StateMachineNode(Node):
 
         self.get_logger().info("Published STOP command")
 
-    def _on_state_transition(self, transition) -> None:
+    def _on_state_transition(self, transition: object) -> None:
         """Callback for state transitions."""
         self.get_logger().info(
             f"State transition: {transition.from_state.value} -> {transition.to_state.value} "
-            f"(reason: {transition.reason.value})"
+            f"(reason: {transition.reason.value})",
         )
 
     @override

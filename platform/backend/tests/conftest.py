@@ -7,11 +7,11 @@ from pathlib import Path
 
 # Add paths for imports BEFORE any other imports
 platform_root = Path(__file__).parent.parent.parent
-shared_src = platform_root / 'shared' / 'src'
+shared_src = platform_root / "shared" / "src"
 
 for path_str in [str(shared_src), str(platform_root)]:
-	if path_str not in sys.path:
-		sys.path.insert(0, path_str)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 import pytest
 
@@ -19,13 +19,13 @@ from src.telemetry.config import ServerConfig
 from src.telemetry.models import NodeHealth, RobotSnapshot, TelemetryMetrics
 
 
-@pytest.fixture
+@pytest.fixture()
 def server_config(tmp_path: Path) -> ServerConfig:
     """Create a ServerConfig with temporary session directory."""
     return ServerConfig(sessions_dir=tmp_path)
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metrics() -> TelemetryMetrics:
     """Create a sample TelemetryMetrics object."""
     return TelemetryMetrics(
@@ -44,7 +44,7 @@ def sample_metrics() -> TelemetryMetrics:
     )
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_snapshot(sample_metrics: TelemetryMetrics) -> RobotSnapshot:
     """Create a sample RobotSnapshot for testing."""
     return RobotSnapshot(

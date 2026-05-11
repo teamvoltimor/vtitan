@@ -14,8 +14,8 @@ import numpy as np
 
 from src.navigation.config import NavigationConfig
 
-_DEFAULT_TAU = 0.20        # low-pass time constant (seconds)
-_DEFAULT_MAX_ACCEL = 2.0   # m/s² — clamp on speed delta per tick
+_DEFAULT_TAU = 0.20  # low-pass time constant (seconds)
+_DEFAULT_MAX_ACCEL = 2.0  # m/s² — clamp on speed delta per tick
 
 
 class JerkLimiter:
@@ -27,8 +27,8 @@ class JerkLimiter:
 
     Usage::
 
-        limiter = JerkLimiter(dt=0.05)          # 20 Hz
-        v_smooth = limiter.filter(v_target)      # call each tick
+        limiter = JerkLimiter(dt=0.05)  # 20 Hz
+        v_smooth = limiter.filter(v_target)  # call each tick
 
     Args:
         dt: Control tick interval (seconds).
@@ -98,14 +98,13 @@ class SpeedScaler:
 
         if forward_clearance < c.contact_dist:
             return s.contact  # Very close — creep
-        elif forward_clearance < c.slow_dist:
+        if forward_clearance < c.slow_dist:
             return s.slow  # Slow zone
-        elif forward_clearance < c.medium_dist:
+        if forward_clearance < c.medium_dist:
             return s.medium  # Medium zone
-        elif forward_clearance < c.fast_dist:
+        if forward_clearance < c.fast_dist:
             return s.fast  # Fast zone
-        else:
-            return s.full  # Clear path — full speed
+        return s.full  # Clear path — full speed
 
     def scale_for_heading_error(self, heading_error: float) -> float:
         """Compute speed reduction based on heading error magnitude.
@@ -122,12 +121,11 @@ class SpeedScaler:
 
         if abs_error >= h.crawl:
             return s.err_crawl  # Worst-case misalignment
-        elif abs_error >= h.slow:
+        if abs_error >= h.slow:
             return s.err_slow  # Large heading error
-        elif abs_error >= h.medium:
+        if abs_error >= h.medium:
             return s.err_medium  # Moderate heading error
-        else:
-            return 1.0  # Small error — no reduction
+        return 1.0  # Small error — no reduction
 
     def scale_combined(self, forward_clearance: float, heading_error: float) -> float:
         """Compute combined speed command (clearance ∩ heading error).

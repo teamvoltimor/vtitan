@@ -8,6 +8,7 @@ import pytest
 
 from src.telemetry.exceptions import RecorderError, SessionNotFoundError
 from src.telemetry.models import RobotSnapshot
+from src.telemetry.persistence.jsonl_reader import JSONLReader
 from src.telemetry.recorder import TelemetryRecorder
 from src.telemetry.ws.manager import ConnectionManager
 
@@ -20,11 +21,11 @@ class TestRecorderErrorHandling:
         recorder = TelemetryRecorder(base_dir=tmp_path)
 
         # First ensure the file is opened by attempting a successful record
-        # to set up the _file handle, then mock it for the error
-        recorder._ensure_file_open()
+        # to set up the file handle, then mock it for the error
+        recorder.ensure_file_open()
 
         # Mock file.flush() to simulate disk full error
-        with mock.patch.object(recorder._file, "flush") as mock_flush:
+        with mock.patch.object(recorder.file, "flush") as mock_flush:
             mock_flush.side_effect = OSError(28, "No space left on device")
 
             with pytest.raises(RecorderError, match="Failed to persist"):
@@ -35,9 +36,9 @@ class TestRecorderErrorHandling:
         recorder = TelemetryRecorder(base_dir=tmp_path)
 
         # Ensure file is open before mocking
-        recorder._ensure_file_open()
+        recorder.ensure_file_open()
 
-        with mock.patch.object(recorder._file, "flush") as mock_flush:
+        with mock.patch.object(recorder.file, "flush") as mock_flush:
             mock_flush.side_effect = PermissionError("Permission denied")
 
             with pytest.raises(RecorderError):
@@ -65,7 +66,7 @@ class TestRecorderErrorHandling:
 class TestBroadcastErrorHandling:
     """Test WebSocket broadcast resilience."""
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio()
     async def test_broadcast_removes_disconnected_clients(self) -> None:
         """Broadcast removes clients that fail to send."""
         manager = ConnectionManager()
@@ -86,7 +87,7 @@ class TestBroadcastErrorHandling:
         assert mock_conn1 in manager.active_connections
         assert mock_conn2 not in manager.active_connections
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio()
     async def test_broadcast_timeout_tracking(self) -> None:
         """Broadcast tracks timeout metrics."""
         manager = ConnectionManager()
@@ -95,9 +96,7 @@ class TestBroadcastErrorHandling:
         manager.active_connections = [mock_conn]
 
         # Simulate timeout
-        import asyncio
-
-        mock_conn.send_text.side_effect = asyncio.TimeoutError()
+        mock_conn.send_text.side_effect = TimeoutError()
 
         await manager.broadcast('{"test": "data"}')
 
@@ -117,46 +116,36 @@ class TestJSONLParsingResilience:
 
     def test_jsonl_reader_skips_invalid_lines(self, tmp_path) -> None:
         """JSONLReader can skip corrupted lines."""
-        from src.telemetry.persistence.jsonl_reader import JSONLReader
-
         # Create file with corrupted data structure
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text(
             '{"timestamp": 1.0, "missionName": "test", "metrics": {"timestamp": 1.0, "nodeHealth": "nominal"}}\n'
             "CORRUPTED_LINE\n"
-            '{"timestamp": 2.0, "missionName": "test", "metrics": {"timestamp": 2.0, "nodeHealth": "nominal"}}\n'
+            '{"timestamp": 2.0, "missionName": "test", "metrics": {"timestamp": 2.0, "nodeHealth": "nominal"}}\n',
         )
 
         # Read with skip_invalid=True
-        from src.telemetry.models import RobotSnapshot
-
         snapshots, corrupted = JSONLReader.read_file(
             jsonl_file,
             RobotSnapshot,
             skip_invalid=True,
         )
 
-        results = list(snapshots)
+        list(snapshots)
         assert len(corrupted) == 1
         assert corrupted[0][0] == 2  # Line 2 was corrupted
 
     def test_jsonl_reader_raises_on_invalid_without_skip(self, tmp_path) -> None:
         """JSONLReader raises when skip_invalid=False."""
-        from src.telemetry.persistence.jsonl_reader import JSONLReader
-
         jsonl_file = tmp_path / "test.jsonl"
         jsonl_file.write_text("CORRUPTED_LINE\n")
 
-        from src.telemetry.models import RobotSnapshot
-
-        with pytest.raises(ValueError):
-            # Should raise ValueError when consuming iterator
-            reader, _ = JSONLReader.read_file(
-                jsonl_file,
-                RobotSnapshot,
-                skip_invalid=False,
-            )
-            # Trigger the exception by consuming the iterator
+        reader, _ = JSONLReader.read_file(
+            jsonl_file,
+            RobotSnapshot,
+            skip_invalid=False,
+        )
+        with pytest.raises(ValueError, match="Line 1"):
             list(reader)
 
 

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 from geometry_msgs.msg import Twist
@@ -20,13 +20,12 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
-from shared.config.enums import ScenarioType
+from shared.config.coordinate_transform import quaternion_to_yaw
+from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, Velocity
 from std_msgs.msg import String
 
-from shared.config.coordinate_transform import quaternion_to_yaw
-from shared.config.enums import Direction, Section
 from src.hardware.gateway import HardwareGateway
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.parking import ParkController, park_controller_from_metadata
@@ -35,19 +34,13 @@ from src.navigation.sign_router import SignRouter, signs_from_metadata
 from src.navigation.waypoints import calculate_waypoints
 from src.state_machine.estimator import StateEstimator
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
     """Load JSON file."""
-    if isinstance(path, str):
-        from pathlib import Path
-
-        path = Path(path)
-    with path.open(encoding="utf-8") as f:
+    p = Path(path) if isinstance(path, str) else path
+    with p.open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -251,7 +244,7 @@ class TrackNavigator(Node):
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
         """Load a JSON file of {param_name: value} overrides and apply to this node."""
-        import rclpy.parameter as rp
+        import rclpy.parameter as rp  # noqa: PLC0415
 
         try:
             data = _load_json(params_path)

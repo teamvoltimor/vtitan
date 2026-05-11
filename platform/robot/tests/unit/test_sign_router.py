@@ -106,9 +106,12 @@ class TestDeformationDirections:
 # WRO official grid: 6 positions per corridor
 # (depth, width) using SOUTH-corridor frame, depth ∈ {1.0, 1.5, 2.0}, width ∈ {0.4, 0.6}
 _GRID_POSITIONS: list[tuple[float, float]] = [
-    (1.0, 0.4), (1.0, 0.6),
-    (1.5, 0.4), (1.5, 0.6),
-    (2.0, 0.4), (2.0, 0.6),
+    (1.0, 0.4),
+    (1.0, 0.6),
+    (1.5, 0.4),
+    (1.5, 0.6),
+    (2.0, 0.4),
+    (2.0, 0.6),
 ]
 
 # WRO 36 predefined scenarios: scenario ID → list of (color, depth, width) for SOUTH template
@@ -125,7 +128,7 @@ def _make_single_sign_scenario_cases():
     For EAST/WEST corridors: waypoint is on the expected x side.
     """
     cases = []
-    for (depth, width) in _GRID_POSITIONS:
+    for depth, width in _GRID_POSITIONS:
         for color in ("red", "green"):
             # SOUTH corridor: sign at (depth, width)
             sx, sy = depth, width
@@ -168,13 +171,15 @@ _ROUTING_CASES = _make_single_sign_scenario_cases()
 @pytest.mark.parametrize(
     "section_str,sx,sy,color,expected_y,expected_x",
     _ROUTING_CASES,
-    ids=[
-        f"{c[0]}_{c[3]}_d{c[1]:.1f}_w{c[2]:.1f}"
-        for c in _ROUTING_CASES
-    ],
+    ids=[f"{c[0]}_{c[3]}_d{c[1]:.1f}_w{c[2]:.1f}" for c in _ROUTING_CASES],
 )
 def test_routing_decision_all_grid_positions(
-    section_str, sx, sy, color, expected_y, expected_x
+    section_str,
+    sx,
+    sy,
+    color,
+    expected_y,
+    expected_x,
 ):
     """Routing produces correct pass-side for every grid position × color × section."""
     section = Section.from_string(section_str)
@@ -210,7 +215,10 @@ class TestActivationDistance:
         wp = (0.5, 0.4)
         # Robot far from sign (> activation_dist)
         result = router.deform_waypoint(
-            waypoint=wp, robot_pos=(0.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH
+            waypoint=wp,
+            robot_pos=(0.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert result == wp
 
@@ -219,7 +227,10 @@ class TestActivationDistance:
         router = _router([sign])
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
-            waypoint=wp, robot_pos=(1.5 - 0.3, 0.4), robot_yaw=0.0, corridor=Section.SOUTH
+            waypoint=wp,
+            robot_pos=(1.5 - 0.3, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert result != wp
 
@@ -269,6 +280,9 @@ def test_empty_sign_list_returns_waypoint_unchanged():
     router = _router([])
     wp = (1.5, 0.4)
     result = router.deform_waypoint(
-        waypoint=wp, robot_pos=(1.4, 0.4), robot_yaw=0.0, corridor=Section.SOUTH
+        waypoint=wp,
+        robot_pos=(1.4, 0.4),
+        robot_yaw=0.0,
+        corridor=Section.SOUTH,
     )
     assert result == wp

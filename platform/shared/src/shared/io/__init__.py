@@ -3,7 +3,7 @@
 Provides file I/O operations for common formats and patterns.
 """
 
-from .jsonl import JsonlReader, JsonlValidator, JsonlWriter
+from shared.io.jsonl import JsonlReader, JsonlValidator, JsonlWriter
 
 __all__ = [
     "JsonlReader",

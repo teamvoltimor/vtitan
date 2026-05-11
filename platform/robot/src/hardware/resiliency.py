@@ -2,7 +2,8 @@
 
 import logging
 import time
-from typing import Callable, ParamSpec, TypeVar
+from collections.abc import Callable
+from typing import ParamSpec, TypeVar
 
 from shared.domain.exceptions import HardwareError
 
@@ -33,14 +34,15 @@ def with_retry(
                     return func(*args, **kwargs)
                 except exceptions as e:
                     last_err = e
-                    logger.warning(f"Hardware action failed (attempt {attempt}/{max_retries}): {e}")
+                    logger.warning("Hardware action failed (attempt %d/%d): %s", attempt, max_retries, e)
                     if attempt < max_retries:
                         time.sleep(delay_sec)
 
             logger.error("Hardware action failed completely after retries.")
             if last_err:
                 raise last_err
-            raise HardwareError("Hardware action failed completely after retries.")
+            msg = "Hardware action failed completely after retries."
+            raise HardwareError(msg)
 
         return wrapper
 

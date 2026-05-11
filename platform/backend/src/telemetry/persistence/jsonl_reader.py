@@ -6,17 +6,19 @@ Provides typed, reusable abstraction for JSONL deserialization
 
 from __future__ import annotations
 
-import json
 import logging
-from pathlib import Path
-from typing import Generic, Iterator, TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
 
-class JSONLReader(Generic[T]):
+class JSONLReader[T]:
     """Reads and deserializes JSONL files to typed models.
 
     Provides optional resilience to corrupted lines with detailed logging.
@@ -43,7 +45,8 @@ class JSONLReader(Generic[T]):
             ValueError: If skip_invalid=False and corrupted line encountered.
         """
         if not path.exists():
-            raise FileNotFoundError(f"File not found: {path}")
+            msg = f"File not found: {path}"
+            raise FileNotFoundError(msg)
 
         corrupted: list[tuple[int, Exception]] = []
 
@@ -59,12 +62,14 @@ class JSONLReader(Generic[T]):
                     except Exception as exc:
                         if skip_invalid:
                             logger.warning(
-                                f"Skipping corrupted line {line_num}",
+                                "Skipping corrupted line %s",
+                                line_num,
                                 exc_info=exc,
                                 extra={"path": str(path)},
                             )
                             corrupted.append((line_num, exc))
                         else:
-                            raise ValueError(f"Line {line_num}: {exc}") from exc
+                            msg = f"Line {line_num}: {exc}"
+                            raise ValueError(msg) from exc
 
         return read(), corrupted

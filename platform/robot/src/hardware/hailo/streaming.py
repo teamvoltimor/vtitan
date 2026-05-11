@@ -1,30 +1,36 @@
 """Continuous Hailo inference with camera streaming."""
 
-import logging
-import time
-import threading
-from queue import Queue
-from typing import Generator
+from __future__ import annotations
 
+import logging
+import threading
+import time
+from collections.abc import Generator
+from contextlib import suppress
+from queue import Empty, Queue
+from typing import TYPE_CHECKING, Self
+
+import cv2
 import numpy as np
 
-from src.hardware.hailo.config import StreamingConfig
-from src.hardware.hailo.hailo_8.driver import Driver as HailoDriver
-from src.hardware.hailo.inferences import InferenceResult
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from src.hardware.hailo.config import StreamingConfig
+    from src.hardware.hailo.inferences import InferenceResult
+
 from src.hardware.camera.config import Config as CameraConfig
 from src.hardware.camera.streaming import StreamingDriver as CameraStreamingDriver
+from src.hardware.hailo.hailo_8.driver import Driver as HailoDriver
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
 
-def preprocess(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
+def preprocess(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:  # type: ignore[type-arg]
     """Preprocess frame for inference: resize and normalize."""
-    import cv2
-
     resized = cv2.resize(frame, (target_width, target_height))
-    normalized = resized.astype(np.float32) / 255.0
-    return normalized
+    return resized.astype(np.float32) / 255.0
 
 
 class StreamingDriver:
@@ -33,7 +39,7 @@ class StreamingDriver:
     def __init__(
         self,
         config: StreamingConfig,
-        hailo_config: "HailoDriver.Config | None" = None,
+        hailo_config: HailoDriver.Config | None = None,
     ):
         self.config = config
         self._hailo_driver = HailoDriver(hailo_config)
@@ -63,7 +69,7 @@ class StreamingDriver:
                         self.config.height,
                     ),
                     "fps": self.config.fps,
-                }
+                },
             },
         )
 
@@ -92,14 +98,12 @@ class StreamingDriver:
                     continue
 
                 if self._input_queue.full():
-                    try:
+                    with suppress(Empty):
                         self._input_queue.get_nowait()
-                    except Exception:
-                        pass
 
                 self._input_queue.put(frame)
-            except Exception as e:
-                self._logger.error(f"Capture error: {e}")
+            except Exception:
+                self._logger.exception("Capture error")
                 time.sleep(0.1)
 
     def _inference_loop(self) -> None:
@@ -107,7 +111,7 @@ class StreamingDriver:
         while self._running:
             try:
                 frame = self._input_queue.get(timeout=1.0)
-            except Exception:
+            except Empty:
                 continue
 
             try:
@@ -125,14 +129,12 @@ class StreamingDriver:
                 )
 
                 if self._result_queue.full():
-                    try:
+                    with suppress(Empty):
                         self._result_queue.get_nowait()
-                    except Exception:
-                        pass
 
                 self._result_queue.put(result)
-            except Exception as e:
-                self._logger.error(f"Inference error: {e}")
+            except Exception:
+                self._logger.exception("Inference error")
 
     def start(self) -> None:
         """Start continuous inference."""
@@ -170,7 +172,7 @@ class StreamingDriver:
         """Get latest inference result without blocking."""
         try:
             return self._result_queue.get_nowait()
-        except Exception:
+        except Empty:
             return None
 
     @property
@@ -193,9 +195,14 @@ class StreamingDriver:
         finally:
             self.stop()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         self.stop()

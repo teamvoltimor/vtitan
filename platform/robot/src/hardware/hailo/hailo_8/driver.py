@@ -5,7 +5,6 @@ import threading
 import time
 from typing import Any
 
-import hailo
 import numpy as np
 from hailo_platform import VDevice
 from hailo_platform.pyhailort.pyhailort import ConfiguredInferModel, InferModel
@@ -92,13 +91,12 @@ class Driver(ABC_Driver):
             bindings = configured.create_bindings()
             bindings.input().set_buffer(input_data)
             configured.run_async(bindings).wait()
-            output = bindings.output().get_buffer()
-        return output
+            return bindings.output().get_buffer()
 
     def infer_with_timing(self, input_data: np.ndarray) -> InferenceResult:
         """Run inference and measure latency."""
         start = time.perf_counter()
-        output = self.infer(input_data)
+        self.infer(input_data)
         latency_ms = (time.perf_counter() - start) * 1000
 
         self.logger.info("Inference completed", extra={"details": {"latency_ms": latency_ms}})
@@ -120,17 +118,17 @@ class Driver(ABC_Driver):
             configured.run_async(bindings).wait()
             raw_output = bindings.output().get_buffer()
 
-        latency_ms = (time.perf_counter() - start) * 1000
+            latency_ms = (time.perf_counter() - start) * 1000
 
-        return InferenceResult.parse_yolo_nms_output(
-            raw_tensor=raw_output,
-            img_width=original_width,
-            img_height=original_height,
-            class_map=self.config.class_map,
-            latency_ms=latency_ms,
-            conf_threshold=self.config.conf_threshold,
-            image=image,
-        )
+            return InferenceResult.parse_yolo_nms_output(
+                raw_tensor=raw_output,
+                img_width=original_width,
+                img_height=original_height,
+                class_map=self.config.class_map,
+                latency_ms=latency_ms,
+                conf_threshold=self.config.conf_threshold,
+                image=image,
+            )
 
     def benchmark_latency(self, num_iterations: int | None = None) -> float:
         """Benchmark inference latency."""
@@ -159,8 +157,9 @@ class Driver(ABC_Driver):
                 temp = devices[0].control.get_device_temperature()
                 self.logger.info("Temperature read", extra={"details": {"temperature_c": temp}})
                 return temp
+        except (RuntimeError, OSError, ValueError):
             return None
-        except Exception:
+        else:
             return None
 
     def get_power_usage(self) -> int | None:
@@ -171,6 +170,7 @@ class Driver(ABC_Driver):
                 power = devices[0].get_power_usage()
                 self.logger.info("Power usage read", extra={"details": {"power_mw": power}})
                 return power
+        except (RuntimeError, OSError, ValueError):
             return None
-        except Exception:
+        else:
             return None

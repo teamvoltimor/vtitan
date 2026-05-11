@@ -17,21 +17,23 @@ Usage:
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from fastapi import HTTPException
 
 from src.telemetry.exceptions import (
-	BroadcastError,
-	RecorderError,
-	SessionNotFoundError,
-	TelemetryError,
+    BroadcastError,
+    RecorderError,
+    SessionNotFoundError,
+    TelemetryError,
 )
 
 if TYPE_CHECKING:
-	from collections.abc import Callable, Generator
+    import types
+    from collections.abc import Callable, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ class ErrorContext:
         }
 
 
-class ErrorHandler(Generic[E]):
+class ErrorHandler[E: Exception]:
     """Context manager for standardized error handling and recovery.
 
     Features:
@@ -115,7 +117,12 @@ class ErrorHandler(Generic[E]):
         """Enter context manager."""
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> bool:
         """Exit context manager, logging any exception."""
         if exc_type is not None and issubclass(exc_type, self.base_exception):
             self.log_error(exc_val, severity="error")
@@ -211,22 +218,26 @@ class ErrorHandler(Generic[E]):
                         continue
                     raise
         """
-        import time
-
         for attempt in range(self.max_retries):
             try:
                 yield attempt
-                return
             except self.base_exception as e:
                 if attempt < self.max_retries - 1:
-                    delay = initial_delay * (backoff_factor ** attempt)
+                    delay = initial_delay * (backoff_factor**attempt)
                     self.logger.warning(
-                        f"[{operation}] Retry {attempt + 1}/{self.max_retries} after {delay:.2f}s: {e}"
+                        "[%s] Retry %s/%s after %.2fs: %s",
+                        operation,
+                        attempt + 1,
+                        self.max_retries,
+                        delay,
+                        e,
                     )
                     time.sleep(delay)
                 else:
                     self.log_error(e, operation=operation, severity="critical")
                     raise
+            else:
+                return
 
     def handle_batch(
         self,

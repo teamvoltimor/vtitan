@@ -20,16 +20,20 @@ Topics:
 import json
 import math
 import time
+from contextlib import suppress
 from typing import TYPE_CHECKING, override
 
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from rclpy.node import Node
-from sensor_msgs.msg import Image as ImageMsg
-from sensor_msgs.msg import Imu, LaserScan
+from sensor_msgs.msg import (
+    Image as ImageMsg,
+    Imu,
+    LaserScan,
+)
 from std_msgs.msg import Float32, String
 
 from src.hardware.display.ssd1306 import Driver as DisplayDriver
@@ -73,9 +77,9 @@ class OLEDDisplayNode(Node):
             self.display_driver = DisplayDriver()
             self.display_driver.connect()
             self.get_logger().info("Display driver connected")
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, ImportError) as e:
             self.get_logger().error(f"Failed to connect display driver: {e}")
-            self.display_driver = None  # type: ignore
+            self.display_driver = None
 
         # CV Bridge for image publishing
         self.bridge = CvBridge()
@@ -85,18 +89,30 @@ class OLEDDisplayNode(Node):
 
         # Subscribers
         self.state_sub: Subscription[String] = self.create_subscription(
-            String, "/robot_state", self._state_callback, 10
+            String,
+            "/robot_state",
+            self._state_callback,
+            10,
         )
         self.diagnostics_sub: Subscription[DiagnosticArray] = self.create_subscription(
-            DiagnosticArray, "/system_status", self._diagnostics_callback, 10
+            DiagnosticArray,
+            "/system_status",
+            self._diagnostics_callback,
+            10,
         )
         self.metrics_sub: Subscription[String] = self.create_subscription(
-            String, "/race_metrics", self._metrics_callback, 10
+            String,
+            "/race_metrics",
+            self._metrics_callback,
+            10,
         )
         self.imu_sub: Subscription[Imu] = self.create_subscription(Imu, "/imu/data", self._imu_callback, 10)
         self.lidar_sub: Subscription[LaserScan] = self.create_subscription(LaserScan, "/scan", self._lidar_callback, 10)
         self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
-            Float32, "/hailo/fps", self._hailo_fps_callback, 10
+            Float32,
+            "/hailo/fps",
+            self._hailo_fps_callback,
+            10,
         )
 
         # State tracking
@@ -136,10 +152,8 @@ class OLEDDisplayNode(Node):
 
     def _metrics_callback(self, msg: String) -> None:
         """Handle race metrics updates."""
-        try:
+        with suppress(json.JSONDecodeError):
             self.race_metrics = json.loads(msg.data)
-        except json.JSONDecodeError:
-            pass
 
     def _imu_callback(self, msg: Imu) -> None:
         """Handle IMU data for gyro yaw."""
@@ -385,8 +399,8 @@ class OLEDDisplayNode(Node):
             ros_img.header.stamp = self.get_clock().now().to_msg()
             ros_img.header.frame_id = "oled_display"
             self.oled_mirror_pub.publish(ros_img)
-        except Exception as e:
-            self.get_logger().warning(f"Failed to publish mirror image: {e}")
+        except (RuntimeError, ValueError) as e:
+            self.get_logger().warning("Failed to publish mirror image: %s", e)
 
     @override
     def destroy_node(self) -> None:

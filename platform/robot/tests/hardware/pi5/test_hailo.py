@@ -7,11 +7,13 @@ Run with: python -m pytest tests/hardware/pi5/test_hailo.py -v
 """
 
 import logging
-import os
 
 import pytest
 
-from src.hardware.hailo.hailo_8 import Config as HailoConfig, Driver as HailoDriver
+from src.hardware.hailo.hailo_8 import (
+    Config as HailoConfig,
+    Driver as HailoDriver,
+)
 from src.logger import LOG_LEVEL, configure_json_logging
 
 _log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
@@ -20,7 +22,7 @@ configure_json_logging(level=_log_level)
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
+@pytest.fixture()
 def driver():
     """Create driver instance."""
     config = HailoConfig(model_path="dummy.hef", benchmark_iterations=10)

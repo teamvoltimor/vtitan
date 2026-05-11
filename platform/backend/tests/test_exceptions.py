@@ -48,23 +48,27 @@ class TestExceptionInstantiation:
 
     def test_can_raise_and_catch_telemetry_error(self) -> None:
         """TelemetryError can be raised and caught."""
+        msg = "Test error"
         with pytest.raises(TelemetryError):
-            raise TelemetryError("Test error")
+            raise TelemetryError(msg)
 
     def test_can_raise_and_catch_broadcast_error(self) -> None:
         """BroadcastError can be raised and caught."""
+        msg = "Broadcast failed"
         with pytest.raises(BroadcastError):
-            raise BroadcastError("Broadcast failed")
+            raise BroadcastError(msg)
 
     def test_can_raise_and_catch_recorder_error(self) -> None:
         """RecorderError can be raised and caught."""
+        msg = "Recording failed"
         with pytest.raises(RecorderError):
-            raise RecorderError("Recording failed")
+            raise RecorderError(msg)
 
     def test_can_raise_and_catch_session_not_found_error(self) -> None:
         """SessionNotFoundError can be raised and caught."""
+        msg = "Session not found"
         with pytest.raises(SessionNotFoundError):
-            raise SessionNotFoundError("Session not found")
+            raise SessionNotFoundError(msg)
 
 
 class TestExceptionChaining:
@@ -76,10 +80,11 @@ class TestExceptionChaining:
         try:
             raise original
         except OSError as exc:
+            msg = f"Failed: {exc}"
             with pytest.raises(RecorderError) as exc_info:
-                raise RecorderError(f"Failed: {exc}") from exc
+                raise RecorderError(msg) from exc
 
-        assert exc_info.value.__cause__ is original
+            assert exc_info.value.__cause__ is original
 
     def test_exception_message_includes_detail(self) -> None:
         """Exception message preserves error details."""
@@ -95,15 +100,18 @@ class TestExceptionCatching:
 
     def test_catch_recorder_error_as_telemetry_error(self) -> None:
         """RecorderError can be caught as TelemetryError."""
+        msg = "Test"
         with pytest.raises(TelemetryError):
-            raise RecorderError("Test")
+            raise RecorderError(msg)
 
     def test_catch_broadcast_error_as_telemetry_error(self) -> None:
         """BroadcastError can be caught as TelemetryError."""
+        msg = "Test"
         with pytest.raises(TelemetryError):
-            raise BroadcastError("Test")
+            raise BroadcastError(msg)
 
     def test_catch_session_not_found_as_telemetry_error(self) -> None:
         """SessionNotFoundError can be caught as TelemetryError."""
+        msg = "Test"
         with pytest.raises(TelemetryError):
-            raise SessionNotFoundError("Test")
+            raise SessionNotFoundError(msg)

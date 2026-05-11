@@ -11,7 +11,6 @@ from src.hardware.hailo.inferences import InferenceResult
 
 class Config(BaseConfig):
     """Hailo driver configuration."""
-    pass
 
 
 class Driver(ABC):

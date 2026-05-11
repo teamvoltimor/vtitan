@@ -11,7 +11,7 @@ Exports:
     - Coordinate Transform: Utilities for coordinate space conversions
 """
 
-from .constants import (
+from shared.config.constants import (
     ColorNames,
     CorridorDimensions,
     DictKeys,
@@ -25,8 +25,8 @@ from .constants import (
     WidthTypes,
     ZLayers,
 )
-from .coordinate_transform import CoordinateTransform
-from .enums import (
+from shared.config.coordinate_transform import CoordinateTransform
+from shared.config.enums import (
     Direction,
     LightingScenario,
     NodeHealth,
@@ -35,7 +35,7 @@ from .enums import (
     ScenarioType,
     Section,
 )
-from .navigation_tuning import (
+from shared.config.navigation_tuning import (
     ClearanceZones,
     EscapeManeuverParams,
     HeadingErrorZones,
@@ -43,7 +43,7 @@ from .navigation_tuning import (
     PurePursuitParams,
     SpeedControlParams,
 )
-from .types import (
+from shared.config.types import (
     CameraParamsDict,
     ConfigResponseDict,
     CorridorWidths,

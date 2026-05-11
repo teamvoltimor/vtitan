@@ -4,16 +4,18 @@ Tests collision risk assessment and clearance measurement logic.
 """
 
 import math
-import pytest
+
 import numpy as np
-from src.navigation.config import NavigationConfig
+import pytest
+
 from src.navigation.collision_assessment import CollisionAssessor, RiskLevel
+from src.navigation.config import NavigationConfig
 
 
 class TestCollisionAssessor:
     """Tests for CollisionAssessor risk assessment calculations."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def assessor(self):
         config = NavigationConfig.default()
         return CollisionAssessor(config)

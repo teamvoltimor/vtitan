@@ -20,7 +20,7 @@ class HardwareNode(Node, ABC):
     """
 
     @abstractmethod
-    def create_driver(self):
+    def create_driver(self) -> object:
         """Create and return driver instance.
 
         Returns:
@@ -28,7 +28,7 @@ class HardwareNode(Node, ABC):
         """
 
     @abstractmethod
-    def init_driver(self, driver):
+    def init_driver(self, driver: object) -> None:
         """Perform driver-specific initialization steps.
 
         Args:
@@ -38,7 +38,7 @@ class HardwareNode(Node, ABC):
             HardwareError: If initialization fails.
         """
 
-    def init_hardware(self):
+    def init_hardware(self) -> bool:
         """Common hardware initialization pattern with error handling.
 
         Creates driver and initializes it with structured error logging.
@@ -47,15 +47,16 @@ class HardwareNode(Node, ABC):
         try:
             self.driver = self.create_driver()
             self.init_driver(self.driver)
-            self.get_logger().info(
-                f"{self.__class__.__name__} hardware initialized successfully",
-                extra={"details": {"driver": self.driver.__class__.__name__}},
-            )
-            return True
-        except (RuntimeError, ValueError, ImportError, OSError, TimeoutError) as e:
+        except Exception as e:
             self.get_logger().error(
                 f"{self.__class__.__name__} hardware initialization failed: {type(e).__name__}",
                 extra={"details": {"error": str(e), "error_type": type(e).__name__}},
                 exc_info=True,
             )
             raise
+        else:
+            self.get_logger().info(
+                f"{self.__class__.__name__} hardware initialized successfully",
+                extra={"details": {"driver": self.driver.__class__.__name__}},
+            )
+            return True

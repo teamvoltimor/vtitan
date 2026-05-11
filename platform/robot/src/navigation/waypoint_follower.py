@@ -44,8 +44,7 @@ class WaypointFollower:
 
         if forward_clearance < la.threshold:
             return la.short  # Near corner — short lookahead
-        else:
-            return la.long  # Open road — long lookahead
+        return la.long  # Open road — long lookahead
 
     def compute_target_point(
         self,
@@ -165,9 +164,7 @@ class WaypointFollower:
         closest_y = y1 + t * dy
 
         # Signed error (positive = right)
-        error = ((x0 - closest_x) * (-dy) + (y0 - closest_y) * dx) / math.sqrt(seg_length_sq)
-
-        return error
+        return ((x0 - closest_x) * (-dy) + (y0 - closest_y) * dx) / math.sqrt(seg_length_sq)
 
 
 def _wrap_angle(angle: float) -> float:

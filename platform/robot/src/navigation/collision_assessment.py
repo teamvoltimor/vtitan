@@ -53,12 +53,11 @@ class CollisionAssessor:
 
         if fwd_clear < self.config.collision.critical_dist:
             return RiskLevel.CRITICAL
-        elif fwd_clear < self.config.collision.warning_dist:
+        if fwd_clear < self.config.collision.warning_dist:
             return RiskLevel.WARNING
-        elif fwd_clear < self.config.collision.caution_dist:
+        if fwd_clear < self.config.collision.caution_dist:
             return RiskLevel.CAUTION
-        else:
-            return RiskLevel.CLEAR
+        return RiskLevel.CLEAR
 
     def measure_clearance(
         self,
@@ -138,12 +137,11 @@ class CollisionAssessor:
         # Return closest wall (priority: forward > left/right)
         if fwd_clear < threshold:
             return "forward"
-        elif left_clear < right_clear:
+        if left_clear < right_clear:
             if left_clear < threshold:
                 return "left"
-        else:
-            if right_clear < threshold:
-                return "right"
+        elif right_clear < threshold:
+            return "right"
 
         return "none"
 
@@ -172,9 +170,7 @@ def clamp_lidar_scan(
     clamped[invalid] = max_range
 
     # Clamp to valid bounds
-    clamped = np.clip(clamped, min_range, max_range)
-
-    return clamped
+    return np.clip(clamped, min_range, max_range)
 
 
 def compute_cost_map(

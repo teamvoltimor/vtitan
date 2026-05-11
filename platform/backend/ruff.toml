@@ -272,6 +272,9 @@ ignore = [
     "RUF002",  # Docstring contains ambiguous Unicode character
     "RUF003",  # Comment contains ambiguous Unicode character
 
+    # FastAPI Depends() in default arguments is the correct pattern
+    "B008",
+
     # Module naming (html.py intentionally shadows stdlib; rename would break API)
     "A005",    # Module shadows a Python standard-library module
 ]
@@ -321,6 +324,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "conftest.py" = [
     "F401",    # Unused imports (fixtures)
     "F811",    # Redefinition
+    "E402",    # Imports after sys.path manipulation
 ]
 
 # __init__.py files

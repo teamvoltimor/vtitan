@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
 
 from shared.config.constants import (
     ParkingLotSpecs,
@@ -69,7 +68,11 @@ def validate_scenario(ctx: WorldContext) -> list[Violation]:
     if ctx.parking_config is not None:
         violations.extend(_check_parking_bounds(ctx.parking_config))
         violations.extend(_check_sign_parking_clearance(ctx.sign_positions, ctx.parking_config))
-    violations.extend(_check_robot_spawn_clearance(ctx.starting_conditions, ctx.sign_positions, ctx.parking_config))
+    violations.extend(
+        _check_robot_spawn_clearance(
+            ctx.starting_conditions, ctx.sign_positions, ctx.parking_config
+        )
+    )
     return violations
 
 
@@ -79,10 +82,14 @@ def _check_sign_bounds(sign_positions: list[tuple[float, float]]) -> list[Violat
     hi = TrackDimensions.MAX_COORD - _SIGN_BOUNDARY_MARGIN
     for i, (x, y) in enumerate(sign_positions):
         if not (lo <= x <= hi and lo <= y <= hi):
-            violations.append(Violation(
-                rule="sign_bounds",
-                message=f"Sign {i} at ({x:.3f}, {y:.3f}) outside track bounds [{lo:.3f}, {hi:.3f}]",
-            ))
+            violations.append(
+                Violation(
+                    rule="sign_bounds",
+                    message=(
+                        f"Sign {i} at ({x:.3f}, {y:.3f}) outside track bounds [{lo:.3f}, {hi:.3f}]"
+                    ),
+                )
+            )
     return violations
 
 
@@ -92,13 +99,15 @@ def _check_sign_overlap(sign_positions: list[tuple[float, float]]) -> list[Viola
         for j in range(i + 1, len(sign_positions)):
             dist = _dist2d(sign_positions[i], sign_positions[j])
             if dist < _SIGN_MIN_SPACING:
-                violations.append(Violation(
-                    rule="sign_overlap",
-                    message=(
-                        f"Signs {i} and {j} overlap: "
-                        f"dist={dist:.3f} m < min={_SIGN_MIN_SPACING:.3f} m"
-                    ),
-                ))
+                violations.append(
+                    Violation(
+                        rule="sign_overlap",
+                        message=(
+                            f"Signs {i} and {j} overlap: "
+                            f"dist={dist:.3f} m < min={_SIGN_MIN_SPACING:.3f} m"
+                        ),
+                    )
+                )
     return violations
 
 
@@ -110,10 +119,15 @@ def _check_parking_bounds(parking_config: ParkingLotConfig) -> list[Violation]:
     for label, pos_key in (("block1", "block1_pos"), ("block2", "block2_pos")):
         x, y = parking_config[pos_key]  # type: ignore[literal-required]
         if not (lo <= x <= hi and lo <= y <= hi):
-            violations.append(Violation(
-                rule="parking_bounds",
-                message=f"Parking {label} at ({x:.3f}, {y:.3f}) outside bounds [{lo:.3f}, {hi:.3f}]",
-            ))
+            violations.append(
+                Violation(
+                    rule="parking_bounds",
+                    message=(
+                        f"Parking {label} at ({x:.3f}, {y:.3f}) "
+                        f"outside bounds [{lo:.3f}, {hi:.3f}]"
+                    ),
+                )
+            )
     return violations
 
 
@@ -130,13 +144,15 @@ def _check_sign_parking_clearance(
         for bi, block_pos in enumerate(block_positions):
             dist = _dist2d(sign_pos, block_pos)
             if dist < _SIGN_PARKING_MIN_DIST:
-                violations.append(Violation(
-                    rule="sign_parking_clearance",
-                    message=(
-                        f"Sign {si} too close to parking block{bi + 1}: "
-                        f"dist={dist:.3f} m < min={_SIGN_PARKING_MIN_DIST:.3f} m"
-                    ),
-                ))
+                violations.append(
+                    Violation(
+                        rule="sign_parking_clearance",
+                        message=(
+                            f"Sign {si} too close to parking block{bi + 1}: "
+                            f"dist={dist:.3f} m < min={_SIGN_PARKING_MIN_DIST:.3f} m"
+                        ),
+                    )
+                )
     return violations
 
 
@@ -151,26 +167,30 @@ def _check_robot_spawn_clearance(
     for i, sign_pos in enumerate(sign_positions):
         dist = _dist2d(spawn, sign_pos)
         if dist < _SPAWN_SIGN_MIN_DIST:
-            violations.append(Violation(
-                rule="spawn_sign_clearance",
-                message=(
-                    f"Robot spawn too close to sign {i}: "
-                    f"dist={dist:.3f} m < min={_SPAWN_SIGN_MIN_DIST:.3f} m"
-                ),
-            ))
+            violations.append(
+                Violation(
+                    rule="spawn_sign_clearance",
+                    message=(
+                        f"Robot spawn too close to sign {i}: "
+                        f"dist={dist:.3f} m < min={_SPAWN_SIGN_MIN_DIST:.3f} m"
+                    ),
+                )
+            )
 
     if parking_config is not None:
         for label, pos_key in (("block1", "block1_pos"), ("block2", "block2_pos")):
             block_pos = parking_config[pos_key]  # type: ignore[literal-required]
             dist = _dist2d(spawn, block_pos)
             if dist < _SPAWN_PARKING_MIN_DIST:
-                violations.append(Violation(
-                    rule="spawn_parking_clearance",
-                    message=(
-                        f"Robot spawn too close to parking {label}: "
-                        f"dist={dist:.3f} m < min={_SPAWN_PARKING_MIN_DIST:.3f} m"
-                    ),
-                ))
+                violations.append(
+                    Violation(
+                        rule="spawn_parking_clearance",
+                        message=(
+                            f"Robot spawn too close to parking {label}: "
+                            f"dist={dist:.3f} m < min={_SPAWN_PARKING_MIN_DIST:.3f} m"
+                        ),
+                    )
+                )
 
     return violations
 

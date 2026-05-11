@@ -26,11 +26,8 @@ class IMU_I2CNode(Node):
             self.driver.connect()
             self.driver.enable_sensors()
             self.get_logger().info("IMU driver connected and sensors enabled.")
-        except (RuntimeError, OSError) as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
-            raise
-        except Exception as e:
-            self.get_logger().error(f"Unexpected error initializing IMU driver: {e}", exc_info=True)
             raise
 
         self.publisher_ = self.create_publisher(Imu, topic, 10)
@@ -44,9 +41,6 @@ class IMU_I2CNode(Node):
             data = self.driver.get_all_data()
         except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().warning(f"Failed to read IMU data: {type(e).__name__}: {e}")
-            return
-        except Exception as e:
-            self.get_logger().warning(f"Unexpected error reading IMU data: {e}")
             return
 
         msg = Imu()
@@ -82,7 +76,8 @@ class IMU_I2CNode(Node):
         self.publisher_.publish(msg)
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
+    """Main entry point for IMU I2C node."""
     rclpy.init(args=args)
     node = IMU_I2CNode()
     try:

@@ -3,11 +3,13 @@
 Tests escape maneuver computation and obstacle avoidance logic.
 """
 
-import pytest
 import math
 from dataclasses import dataclass
+
+import pytest
+
 from src.navigation.config import NavigationConfig
-from src.navigation.escape_maneuvers import EscapeManager, EscapeCommand
+from src.navigation.escape_maneuvers import EscapeCommand, EscapeManager
 
 
 class TestEscapeCommand:
@@ -42,7 +44,7 @@ class TestEscapeCommand:
 class TestEscapeManager:
     """Tests for EscapeManager escape maneuver calculations."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def manager(self):
         """Create an EscapeManager instance for testing."""
         config = NavigationConfig.default()
@@ -81,7 +83,7 @@ class TestEscapeManager:
     def test_escape_manager_has_required_methods(self, manager):
         """Test that EscapeManager has expected methods."""
         assert hasattr(manager, "compute_k_turn_command")
-        assert callable(getattr(manager, "compute_k_turn_command"))
+        assert callable(manager.compute_k_turn_command)
 
     def test_max_steering_angle_enforcement(self, manager):
         """Test that steering angles respect max."""

@@ -12,8 +12,8 @@ import re
 import time
 from typing import TYPE_CHECKING, Annotated
 
-from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from src.telemetry.config import ServerConfig
 from src.telemetry.dependencies import (
@@ -22,19 +22,20 @@ from src.telemetry.dependencies import (
     get_generator,
     get_recorder,
 )
-from src.telemetry.error_handler import ErrorHandler
 from src.telemetry.exceptions import SessionNotFoundError, TelemetryError
 from src.telemetry.models import RobotSnapshot, TopicsSnapshot
 from src.telemetry.recorder import ReplaySessionInfo, TelemetryRecorder
 
 if TYPE_CHECKING:
-    from src.telemetry.generator_sim import TelemetryGenerator
-    from src.telemetry.ws.manager import ConnectionManager
     from shared.config.types import (
-        HealthCheckResponseDict,
         ConfigResponseDict,
+        HealthCheckResponseDict,
         SpeedUpdateResponseDict,
     )
+
+    from src.telemetry.error_handler import ErrorHandler
+    from src.telemetry.generator_sim import TelemetryGenerator
+    from src.telemetry.ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -161,14 +162,14 @@ async def update_robot_speed(config: SpeedConfigUpdate) -> SpeedUpdateResponseDi
     Returns:
         SpeedUpdateResponseDict confirming the update.
     """
-    logger.info(f"Received speed config update: {config.max_linear_speed}")
+    logger.info("Received speed config update: %s", config.max_linear_speed)
     # In a real system, you would broadcast this to the robot via ROS/WebSocket
     # For now, just log and return a success confirmation
     return {"status": "success", "max_linear_speed": config.max_linear_speed}
 
 
 @router.get("/topics", response_model=TopicsSnapshot)
-def get_raw_topics(request: Request) -> TopicsSnapshot:
+def get_raw_topics(_request: Request) -> TopicsSnapshot:
     """Return raw ROS2 topic data for debugging.
 
     Returns:
@@ -203,7 +204,7 @@ async def websocket_endpoint(
                 if data == "ping":
                     await websocket.send_text("pong")
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.debug(
                     "WebSocket idle timeout",
                     extra={"client": websocket.client},
@@ -216,7 +217,7 @@ async def websocket_endpoint(
         manager.disconnect(websocket)
 
     except Exception as exc:
-        logger.error(
+        logger.exception(
             "Unexpected error in WebSocket handler",
             exc_info=exc,
             extra={"client": websocket.client},

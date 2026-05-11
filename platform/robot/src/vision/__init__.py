@@ -12,8 +12,8 @@ from src.vision.detector import (
 __all__ = [
     "DetectorBase",
     "DetectorConfig",
-    "LocalYoloDetector",
     "HailoDetector",
+    "LocalYoloDetector",
     "SignDetection",
     "TrafficSignColor",
     "create_detector",
@@ -44,7 +44,7 @@ def create_detector(backend: str = "yolo", config: DetectorConfig | None = None)
                 },
             )
         return LocalYoloDetector(config)
-    elif backend == "hailo":
+    if backend == "hailo":
         if config is None:
             config = DetectorConfig(
                 model_path="models/traffic_signs.hef",
@@ -55,5 +55,5 @@ def create_detector(backend: str = "yolo", config: DetectorConfig | None = None)
                 },
             )
         return HailoDetector(config.model_path, config)
-    else:
-        raise ValueError(f"Unknown detector backend: {backend}")
+    msg = f"Unknown detector backend: {backend}"
+    raise ValueError(msg)

@@ -6,10 +6,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from fastapi import WebSocket
-
 if TYPE_CHECKING:
-    from src.telemetry.ws.protocol import TelemetryMessage
+    from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +82,7 @@ class ConnectionManager:
                     connection.send_text(data),
                     timeout=5.0,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "Broadcast timeout for client",
                     extra={"client": connection.client},
@@ -97,7 +95,7 @@ class ConnectionManager:
                     disconnected.append(connection)
                     self._metrics["client_disconnects"] += 1
                 else:
-                    logger.error(
+                    logger.exception(
                         "Unexpected runtime error during broadcast",
                         exc_info=exc,
                         extra={"client": connection.client},
@@ -105,7 +103,7 @@ class ConnectionManager:
                     disconnected.append(connection)
                     self._metrics["broadcast_failures"] += 1
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Unexpected error broadcasting to client",
                     exc_info=exc,
                     extra={"client": connection.client},
@@ -118,7 +116,7 @@ class ConnectionManager:
                 for connection in list(self.active_connections):
                     tg.create_task(_send_to_client(connection))
         except Exception as exc:
-            logger.error("Error in broadcast task group", exc_info=exc)
+            logger.exception("Error in broadcast task group", exc_info=exc)
 
         # Clean up disconnected clients (single responsibility)
         for connection in disconnected:

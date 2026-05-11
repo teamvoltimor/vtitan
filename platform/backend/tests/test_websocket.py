@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,8 +10,11 @@ from fastapi.testclient import TestClient
 from src.telemetry.app import create_app
 from src.telemetry.config import ServerConfig
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture
+
+@pytest.fixture()
 def client(tmp_path: Path):
     """Create TestClient with temporary session directory."""
     config = ServerConfig(sessions_dir=tmp_path)
@@ -37,15 +40,14 @@ class TestWebSocketEndpoint:
 
     def test_websocket_disconnect_cleanup(self, client: TestClient) -> None:
         """WebSocket cleanup happens on disconnect."""
-        with client.websocket_connect("/telemetry/ws") as websocket:
+        with client.websocket_connect("/telemetry/ws") as _websocket:
             pass  # Connection closes on context manager exit
         # Should not raise any errors
 
     def test_websocket_multiple_connections(self, client: TestClient) -> None:
         """Multiple WebSocket connections can coexist."""
-        with client.websocket_connect("/telemetry/ws") as ws1:
-            with client.websocket_connect("/telemetry/ws") as ws2:
-                ws1.send_text("ping")
-                ws2.send_text("ping")
-                assert ws1.receive_text() == "pong"
-                assert ws2.receive_text() == "pong"
+        with client.websocket_connect("/telemetry/ws") as ws1, client.websocket_connect("/telemetry/ws") as ws2:
+            ws1.send_text("ping")
+            ws2.send_text("ping")
+            assert ws1.receive_text() == "pong"
+            assert ws2.receive_text() == "pong"

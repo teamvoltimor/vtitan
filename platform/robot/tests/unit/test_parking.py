@@ -10,9 +10,10 @@ Verifies:
 from __future__ import annotations
 
 import math
-import pytest
 
+import pytest
 from shared.config.enums import Section
+
 from src.navigation.parking import (
     ParkController,
     _build_zone,
@@ -24,8 +25,8 @@ from src.navigation.parking import (
 
 _SOUTH_CFG = {"block1_pos": (1.00, 0.10), "block2_pos": (1.30, 0.10)}
 _NORTH_CFG = {"block1_pos": (1.00, 2.90), "block2_pos": (1.30, 2.90)}
-_EAST_CFG  = {"block1_pos": (2.90, 1.00), "block2_pos": (2.90, 1.30)}
-_WEST_CFG  = {"block1_pos": (0.10, 1.00), "block2_pos": (0.10, 1.30)}
+_EAST_CFG = {"block1_pos": (2.90, 1.00), "block2_pos": (2.90, 1.30)}
+_WEST_CFG = {"block1_pos": (0.10, 1.00), "block2_pos": (0.10, 1.30)}
 
 
 # ── Zone geometry ─────────────────────────────────────────────────────────────
@@ -128,24 +129,26 @@ def _simulate_park(
 # 4 canonical approach poses for SOUTH section
 # Approach from north, heading south (robot falls toward the gap).
 _SOUTH_APPROACHES = [
-    ((1.15, 0.60), -math.pi / 2),           # centred, facing south
-    ((0.95, 0.65), -math.pi / 2 + 0.3),     # left of gap, slight yaw error
-    ((1.35, 0.65), -math.pi / 2 - 0.3),     # right of gap, slight yaw error
-    ((1.15, 0.90), -math.pi / 2),           # further above
+    ((1.15, 0.60), -math.pi / 2),  # centred, facing south
+    ((0.95, 0.65), -math.pi / 2 + 0.3),  # left of gap, slight yaw error
+    ((1.35, 0.65), -math.pi / 2 - 0.3),  # right of gap, slight yaw error
+    ((1.15, 0.90), -math.pi / 2),  # further above
 ]
 
 
 @pytest.mark.parametrize("start_pos,start_yaw", _SOUTH_APPROACHES)
 def test_south_park_from_4_approaches(start_pos, start_yaw):
     done, steps, final_pos, final_yaw = _simulate_park(
-        _SOUTH_CFG, Section.SOUTH, start_pos, start_yaw
+        _SOUTH_CFG,
+        Section.SOUTH,
+        start_pos,
+        start_yaw,
     )
-    assert done, (
-        f"Did not park after {steps} steps — "
-        f"pos={final_pos}, yaw={math.degrees(final_yaw):.1f}°"
-    )
+    assert done, f"Did not park after {steps} steps — pos={final_pos}, yaw={math.degrees(final_yaw):.1f}°"
     zone = _build_zone(
-        _SOUTH_CFG["block1_pos"], _SOUTH_CFG["block2_pos"], Section.SOUTH
+        _SOUTH_CFG["block1_pos"],
+        _SOUTH_CFG["block2_pos"],
+        Section.SOUTH,
     )
     pos_ok, yaw_ok = _inside_zone(final_pos[0], final_pos[1], final_yaw, zone)
     assert pos_ok, f"Final pos {final_pos} not inside zone"

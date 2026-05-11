@@ -1,16 +1,25 @@
 """Generic camera streaming driver."""
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
-from queue import Queue
-from typing import Generator, Optional
+from collections.abc import Generator
+from contextlib import suppress
+from queue import Empty, Queue
+from typing import TYPE_CHECKING, Self
 
-import numpy as np
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    import numpy as np
 
 from src.hardware.camera.config import Config as CameraConfig
-from src.hardware.camera.rpi.camera_module_3.driver import Driver as CameraDriver
-from src.hardware.camera.rpi.camera_module_3.driver import Config as RPiCameraConfig
+from src.hardware.camera.rpi.camera_module_3.driver import (
+    Config as RPiCameraConfig,
+    Driver as CameraDriver,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -49,7 +58,7 @@ class StreamingDriver:
                     "device": self.config.device,
                     "resolution": (self.config.width, self.config.height),
                     "fps": self.config.fps,
-                }
+                },
             },
         )
         self._camera_driver.connect()
@@ -66,14 +75,12 @@ class StreamingDriver:
                     continue
 
                 if self._frame_queue.full():
-                    try:
+                    with suppress(Empty):
                         self._frame_queue.get_nowait()
-                    except Exception:
-                        pass
 
                 self._frame_queue.put(frame)
             except Exception as e:
-                self._logger.error(f"Capture error: {e}")
+                self._logger.exception("Capture error: %s", e)  # noqa: TRY401
                 time.sleep(0.1)
 
     def start_streaming(self) -> None:
@@ -101,7 +108,7 @@ class StreamingDriver:
         """Get latest frame without blocking."""
         try:
             return self._frame_queue.get_nowait()
-        except Exception:
+        except Empty:
             return None
 
     def stream(self) -> Generator[np.ndarray, None, None]:
@@ -136,9 +143,14 @@ class StreamingDriver:
         self._camera_driver.close()
         self._logger.info("Camera closed")
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.start_streaming()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         self.close()

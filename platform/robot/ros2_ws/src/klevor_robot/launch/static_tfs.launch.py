@@ -15,26 +15,28 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="tf_base_to_camera",
-            arguments=["0.14", "0", "0.10", "0", "0", "0", "base_link", "camera_link"],
-            output="screen",
-        ),
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="tf_base_to_lidar",
-            arguments=["0", "0", "0.12", "0", "0", "0", "base_link", "lidar_link"],
-            output="screen",
-        ),
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="tf_base_to_imu",
-            arguments=["0", "0", "0.01", "0", "0", "0", "base_link", "imu_link"],
-            output="screen",
-        ),
-    ])
+    return LaunchDescription(
+        [
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="tf_base_to_camera",
+                arguments=["0.14", "0", "0.10", "0", "0", "0", "base_link", "camera_link"],
+                output="screen",
+            ),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="tf_base_to_lidar",
+                arguments=["0", "0", "0.12", "0", "0", "0", "base_link", "lidar_link"],
+                output="screen",
+            ),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="tf_base_to_imu",
+                arguments=["0", "0", "0.01", "0", "0", "0", "base_link", "imu_link"],
+                output="screen",
+            ),
+        ],
+    )

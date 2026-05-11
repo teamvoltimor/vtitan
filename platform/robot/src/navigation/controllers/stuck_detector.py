@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from typing import Optional
 
 import numpy as np
 
@@ -68,7 +67,7 @@ class StuckDetector:
             return False
 
         # Check if moved in recent frames
-        old_pos = list(self.position_history)[0]
+        old_pos = next(iter(self.position_history))
         curr_pos = self.position_history[-1]
 
         distance_moved = np.sqrt((curr_pos[0] - old_pos[0]) ** 2 + (curr_pos[1] - old_pos[1]) ** 2)
@@ -77,7 +76,7 @@ class StuckDetector:
             self.stuck_count += 1
             if self.stuck_count > 3:  # Confirm for 3 consecutive checks
                 self.is_stuck = True
-                logger.warning(f"Robot stuck: moved only {distance_moved:.4f}m in {self.timeout_frames} frames")
+                logger.warning("Robot stuck: moved only %.4f m in %d frames", distance_moved, self.timeout_frames)
                 return True
         else:
             self.stuck_count = 0
@@ -100,7 +99,7 @@ class StuckDetector:
         if len(self.position_history) >= 2:
             distance = np.sqrt(
                 (self.position_history[-1][0] - self.position_history[0][0]) ** 2
-                + (self.position_history[-1][1] - self.position_history[0][1]) ** 2
+                + (self.position_history[-1][1] - self.position_history[0][1]) ** 2,
             )
         else:
             distance = 0.0

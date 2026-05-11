@@ -14,7 +14,7 @@ from shared.config.constants import (
 )
 from shared.config.enums import ScenarioType
 
-from .xml_helpers import add_box_collision, add_box_visual
+from src.generation.builders.xml_helpers import add_box_collision, add_box_visual
 
 
 class ObjectBuilder:

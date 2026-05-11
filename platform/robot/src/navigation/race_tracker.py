@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 # Travel direction unit vectors for each (section, direction) combination.
 # Used by LapDetector as the finish-line normal.
 _TRAVEL_DIRS: dict[tuple[Section, Direction], tuple[float, float]] = {
-    (Section.SOUTH, Direction.CLOCKWISE):        (-1.0,  0.0),
-    (Section.NORTH, Direction.CLOCKWISE):        ( 1.0,  0.0),
-    (Section.EAST,  Direction.CLOCKWISE):        ( 0.0, -1.0),
-    (Section.WEST,  Direction.CLOCKWISE):        ( 0.0,  1.0),
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ( 1.0,  0.0),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): (-1.0,  0.0),
-    (Section.EAST,  Direction.COUNTERCLOCKWISE): ( 0.0,  1.0),
-    (Section.WEST,  Direction.COUNTERCLOCKWISE): ( 0.0, -1.0),
+    (Section.SOUTH, Direction.CLOCKWISE): (-1.0, 0.0),
+    (Section.NORTH, Direction.CLOCKWISE): (1.0, 0.0),
+    (Section.EAST, Direction.CLOCKWISE): (0.0, -1.0),
+    (Section.WEST, Direction.CLOCKWISE): (0.0, 1.0),
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (1.0, 0.0),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): (-1.0, 0.0),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): (0.0, 1.0),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): (0.0, -1.0),
 }
 
 
@@ -201,13 +201,15 @@ class RaceTracker:
         split_time = time.time() - self._start_time
         self.metrics.lap_splits.append(round(split_time, 3))
         logger.info(
-            f"Lap {self.metrics.completed_laps}/{self.num_laps} completed",
+            "Lap %d/%d completed",
+            self.metrics.completed_laps,
+            self.num_laps,
             extra={
                 "details": {
                     "elapsed": f"{self.metrics.elapsed_time:.1f}s",
                     "lap_split": f"{split_time:.2f}s",
                     "distance": f"{self.metrics.total_distance:.2f}m",
-                }
+                },
             },
         )
         if self.metrics.completed_laps >= self.num_laps:

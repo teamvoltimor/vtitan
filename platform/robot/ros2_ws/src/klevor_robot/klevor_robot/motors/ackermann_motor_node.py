@@ -52,7 +52,9 @@ MOTOR_STEERING_OFFSET = EnvVar[float](key="MOTOR_STEERING_OFFSET", default=0.0, 
 """Steering center angle offset in degrees for calibration. Positive = bias right, Negative = bias left."""
 
 MOTOR_REVERSE_DRIVE = EnvVar[bool](
-    key="MOTOR_REVERSE_DRIVE", default=False, cast=lambda x: str(x).lower() in ("true", "1", "yes")
+    key="MOTOR_REVERSE_DRIVE",
+    default=False,
+    cast=lambda x: str(x).lower() in ("true", "1", "yes"),
 )
 """Reverse drive motor direction. Set to True if motor is mounted backwards."""
 
@@ -63,7 +65,7 @@ MOTOR_MAX_STEERING_ANGLE = EnvVar[float](key="MOTOR_MAX_STEERING_ANGLE", default
 """Maximum steering angle in degrees. Commands beyond this are clamped."""
 
 MOTOR_SPEED_SCALE = EnvVar[float](key="MOTOR_SPEED_SCALE", default=30.0, cast=float)
-"""Scale factor for converting Ackermann velocity (m/s) to motor speed (0-100). 
+"""Scale factor for converting Ackermann velocity (m/s) to motor speed (0-100).
 Formula: motor_speed = velocity * MOTOR_SPEED_SCALE"""
 
 
@@ -97,7 +99,7 @@ class AckermannMotorNode(Node):
             f"reverse_drive={self.reverse_drive}, "
             f"max_speed={self.max_speed}, "
             f"max_steering={self.max_steering_angle}°, "
-            f"speed_scale={self.speed_scale}"
+            f"speed_scale={self.speed_scale}",
         )
 
         # Motor driver
@@ -110,9 +112,9 @@ class AckermannMotorNode(Node):
             self.motor_driver.center_steering()
             self.get_logger().info("Steering centered")
 
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, ImportError) as e:
             self.get_logger().error(f"Failed to connect motor driver: {e}")
-            self.motor_driver = None  # type: ignore
+            self.motor_driver = None  # type: ignore[assignment]
 
         # Current command tracking
         self.current_speed: float = 0.0
@@ -126,7 +128,10 @@ class AckermannMotorNode(Node):
 
         # Subscriber
         self.ackermann_sub: Subscription[AckermannDriveStamped] = self.create_subscription(
-            AckermannDriveStamped, "/ackermann_cmd", self._ackermann_callback, 10
+            AckermannDriveStamped,
+            "/ackermann_cmd",
+            self._ackermann_callback,
+            10,
         )
 
         # Timers
@@ -160,7 +165,7 @@ class AckermannMotorNode(Node):
         if abs(calibrated_steering) > self.max_steering_angle:
             self.get_logger().warning(
                 f"Steering angle {calibrated_steering:.2f}° exceeds limit ±{self.max_steering_angle}°, "
-                f"clamped to {clamped_steering:.2f}°"
+                f"clamped to {clamped_steering:.2f}°",
             )
 
         # Convert velocity to motor speed percentage
@@ -175,7 +180,7 @@ class AckermannMotorNode(Node):
 
         if abs(motor_speed) > self.max_speed:
             self.get_logger().warning(
-                f"Motor speed {motor_speed} exceeds limit ±{self.max_speed}, clamped to {clamped_speed}"
+                f"Motor speed {motor_speed} exceeds limit ±{self.max_speed}, clamped to {clamped_speed}",
             )
 
         # Update tracking variables
@@ -198,10 +203,10 @@ class AckermannMotorNode(Node):
 
             self.get_logger().debug(
                 f"Motor command: speed={clamped_speed}, steering={clamped_steering:.2f}° "
-                f"(offset={self.steering_offset}°, reverse={self.reverse_drive})"
+                f"(offset={self.steering_offset}°, reverse={self.reverse_drive})",
             )
 
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().error(f"Failed to execute motor command: {e}")
 
     def _publish_feedback(self) -> None:
@@ -240,7 +245,7 @@ class AckermannMotorNode(Node):
 
             self.status_pub.publish(status_msg)
 
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().warning(f"Failed to read motor feedback: {e}")
 
     def _watchdog_check(self) -> None:
@@ -254,12 +259,12 @@ class AckermannMotorNode(Node):
         # If no command received in 1 second, ensure motors are stopped
         if time_since_last_command > 1.0 and self.current_speed != 0.0:
             self.get_logger().warning(
-                f"No Ackermann commands received for {time_since_last_command:.2f}s - stopping motors for safety"
+                f"No Ackermann commands received for {time_since_last_command:.2f}s - stopping motors for safety",
             )
             try:
                 self.motor_driver.stop_drive()
                 self.current_speed = 0.0
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 self.get_logger().error(f"Failed to stop motors in watchdog: {e}")
 
     @override
@@ -273,7 +278,7 @@ class AckermannMotorNode(Node):
                 self.motor_driver.stop_drive()
                 self.motor_driver.center_steering()
                 self.get_logger().info("Motors stopped and steering centered")
-            except Exception as e:
+            except (RuntimeError, OSError, ValueError) as e:
                 self.get_logger().error(f"Error stopping motors during shutdown: {e}")
 
         super().destroy_node()

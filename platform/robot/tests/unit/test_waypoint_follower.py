@@ -4,7 +4,9 @@ Tests pure-pursuit geometry calculations without ROS2 dependencies.
 """
 
 import math
+
 import pytest
+
 from src.navigation.config import NavigationConfig
 from src.navigation.waypoint_follower import WaypointFollower
 
@@ -12,7 +14,7 @@ from src.navigation.waypoint_follower import WaypointFollower
 class TestWaypointFollower:
     """Tests for WaypointFollower pure-pursuit calculations."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def follower(self):
         config = NavigationConfig.default()
         return WaypointFollower(config, max_steering_angle=math.radians(35))
@@ -49,7 +51,7 @@ class TestWaypointFollower:
         # Waypoint at angle — returned target is the waypoint itself (first beyond lookahead)
         target = follower.compute_target_point(
             current_pos=(0.0, 0.0),
-            waypoints=[(0.4, 0.3)],   # distance = 0.5 > lookahead 0.3
+            waypoints=[(0.4, 0.3)],  # distance = 0.5 > lookahead 0.3
             waypoint_index=0,
             lookahead_distance=0.3,
         )

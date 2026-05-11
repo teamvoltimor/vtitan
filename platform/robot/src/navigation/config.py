@@ -164,12 +164,13 @@ class NavigationConfig:
         config_dir = Path(__file__).parent / "tuning_profiles"
         config_file = config_dir / f"{profile.value}.json"
 
-        logger.info(f"Loading navigation profile: {profile.value} from {config_file}")
+        logger.info("Loading navigation profile: %s from %s", profile.value, config_file)
 
         if not config_file.exists():
-            raise FileNotFoundError(f"Navigation profile not found: {config_file}")
+            msg = f"Navigation profile not found: {config_file}"
+            raise FileNotFoundError(msg)
 
-        with open(config_file) as f:
+        with config_file.open() as f:
             data = json.load(f)
 
         try:
@@ -187,7 +188,8 @@ class NavigationConfig:
                 vision=VisionConfig(**data.get("vision", {})),
             )
         except KeyError as e:
-            raise KeyError(f"Navigation profile missing required field: {e}") from e
+            msg = f"Navigation profile missing required field: {e}"
+            raise KeyError(msg) from e
 
     @staticmethod
     def default() -> "NavigationConfig":

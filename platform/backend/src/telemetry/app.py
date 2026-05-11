@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +19,7 @@ from src.telemetry.dependencies import setup_dependencies
 from src.telemetry.simulation.orchestrator import SimulationOrchestrator
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import AsyncIterator
 
 logger = logging.getLogger(__name__)
 

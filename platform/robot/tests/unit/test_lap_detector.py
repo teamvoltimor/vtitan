@@ -13,11 +13,11 @@ Covers:
 from __future__ import annotations
 
 import math
+
 import pytest
-
 from shared.config.enums import Direction, Section
-from src.navigation.race_tracker import LapDetector
 
+from src.navigation.race_tracker import LapDetector
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -84,11 +84,11 @@ class TestNoDoubleCounting:
         det = _make()
         det.notify_waypoint_wrapped()
         positions = [
-            (2.0, 0.2),   # behind (dot < 0)
-            (1.2, 0.2),   # ahead  (dot > 0) → lap counted
-            (0.8, 0.2),   # further ahead
-            (1.6, 0.2),   # came back (behind again)
-            (1.2, 0.2),   # crosses again — but waypoint_pending is False now
+            (2.0, 0.2),  # behind (dot < 0)
+            (1.2, 0.2),  # ahead  (dot > 0) → lap counted
+            (0.8, 0.2),  # further ahead
+            (1.6, 0.2),  # came back (behind again)
+            (1.2, 0.2),  # crosses again — but waypoint_pending is False now
         ]
         laps = _feed(det, positions, section=Section.SOUTH)
         assert laps == 1
@@ -168,19 +168,25 @@ class TestSectionGuard:
     "section,direction,start,before,after",
     [
         # CW — normal is travel direction
-        (Section.SOUTH, Direction.CLOCKWISE,        (1.5, 0.2), (2.0, 0.2), (1.0, 0.2)),
-        (Section.NORTH, Direction.CLOCKWISE,        (1.5, 2.8), (1.0, 2.8), (2.0, 2.8)),
-        (Section.EAST,  Direction.CLOCKWISE,        (2.8, 1.5), (2.8, 2.0), (2.8, 1.0)),
-        (Section.WEST,  Direction.CLOCKWISE,        (0.2, 1.5), (0.2, 1.0), (0.2, 2.0)),
+        (Section.SOUTH, Direction.CLOCKWISE, (1.5, 0.2), (2.0, 0.2), (1.0, 0.2)),
+        (Section.NORTH, Direction.CLOCKWISE, (1.5, 2.8), (1.0, 2.8), (2.0, 2.8)),
+        (Section.EAST, Direction.CLOCKWISE, (2.8, 1.5), (2.8, 2.0), (2.8, 1.0)),
+        (Section.WEST, Direction.CLOCKWISE, (0.2, 1.5), (0.2, 1.0), (0.2, 2.0)),
         # CCW — normal reversed
         (Section.SOUTH, Direction.COUNTERCLOCKWISE, (1.5, 0.2), (1.0, 0.2), (2.0, 0.2)),
         (Section.NORTH, Direction.COUNTERCLOCKWISE, (1.5, 2.8), (2.0, 2.8), (1.0, 2.8)),
-        (Section.EAST,  Direction.COUNTERCLOCKWISE, (2.8, 1.5), (2.8, 1.0), (2.8, 2.0)),
-        (Section.WEST,  Direction.COUNTERCLOCKWISE, (0.2, 1.5), (0.2, 2.0), (0.2, 1.0)),
+        (Section.EAST, Direction.COUNTERCLOCKWISE, (2.8, 1.5), (2.8, 1.0), (2.8, 2.0)),
+        (Section.WEST, Direction.COUNTERCLOCKWISE, (0.2, 1.5), (0.2, 2.0), (0.2, 1.0)),
     ],
     ids=[
-        "south_cw", "north_cw", "east_cw", "west_cw",
-        "south_ccw", "north_ccw", "east_ccw", "west_ccw",
+        "south_cw",
+        "north_cw",
+        "east_cw",
+        "west_cw",
+        "south_ccw",
+        "north_ccw",
+        "east_ccw",
+        "west_ccw",
     ],
 )
 def test_all_sections_and_directions(section, direction, start, before, after):

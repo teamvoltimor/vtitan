@@ -7,9 +7,7 @@ Assesses collision risk from LIDAR data and generates escape maneuvers
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 from shared.config.enums import RiskLevel
@@ -99,10 +97,9 @@ class CollisionAvoidanceController:
 
         if min_range < self.contact_dist:
             return RiskLevel.CRITICAL
-        elif min_range < self.slow_dist:
+        if min_range < self.slow_dist:
             return RiskLevel.OBSTACLE
-        else:
-            return RiskLevel.SAFE
+        return RiskLevel.SAFE
 
     def compute_forward_clearance(self, lidar_ranges: np.ndarray) -> float:
         """Compute forward clearance from LIDAR data.
@@ -168,16 +165,15 @@ class CollisionAvoidanceController:
 
         if min_dist > 1.0:
             return "none"
-        elif min_dist == front:
+        if min_dist == front:
             return "front"
-        elif min_dist == left:
+        if min_dist == left:
             return "left"
-        elif min_dist == right:
+        if min_dist == right:
             return "right"
-        else:
-            return "back"
+        return "back"
 
-    def compute_escape_maneuver(self, risk: RiskLevel, threat_dir: str) -> Optional[EscapeManeuver]:
+    def compute_escape_maneuver(self, risk: RiskLevel, threat_dir: str) -> EscapeManeuver | None:
         """Generate escape maneuver for detected threat.
 
         Args:
@@ -200,7 +196,7 @@ class CollisionAvoidanceController:
                 priority=2 if risk == RiskLevel.CRITICAL else 1,
             )
 
-        elif threat_dir == "left":
+        if threat_dir == "left":
             # Move right
             return EscapeManeuver(
                 maneuver_type="side_correction",
@@ -210,7 +206,7 @@ class CollisionAvoidanceController:
                 priority=1,
             )
 
-        elif threat_dir == "right":
+        if threat_dir == "right":
             # Move left
             return EscapeManeuver(
                 maneuver_type="side_correction",

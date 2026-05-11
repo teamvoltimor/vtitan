@@ -22,8 +22,5 @@ class QuaternionConfig(BaseModel):
         # Validate euler_sequence
         valid_sequences = {"xyz", "zyx", "xzy", "yzx", "zxy", "yxz"}
         if self.euler_sequence not in valid_sequences:
-            msg = (
-                f"Invalid euler_sequence '{self.euler_sequence}'. "
-                f"Valid options are: {valid_sequences}"
-            )
+            msg = f"Invalid euler_sequence '{self.euler_sequence}'. Valid options are: {valid_sequences}"
             raise ValueError(msg)

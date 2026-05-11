@@ -6,8 +6,8 @@ import math
 
 import numpy as np
 import pytest
-
 from shared.config.enums import RiskLevel
+
 from src.navigation.collision import (
     assess_collision_risk,
     clamp_lidar_scan,

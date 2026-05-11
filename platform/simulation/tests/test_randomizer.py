@@ -17,7 +17,7 @@ from src.generation.randomizer import (
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> dict:
     return {
         DictKeys.COLORS: {
             "red": {DictKeys.MEAN: [1.0, 0.0, 0.0], DictKeys.STD: [0.1, 0.1, 0.1]},
@@ -27,11 +27,11 @@ def mock_config():
 
 
 @pytest.fixture
-def randomizer(mock_config):
+def randomizer(mock_config: dict) -> ScenarioRandomizer:
     return ScenarioRandomizer(mock_config)
 
 
-def test_randomize_corridor_widths(randomizer):
+def test_randomize_corridor_widths(randomizer: ScenarioRandomizer) -> None:
     widths = randomizer.randomize_corridor_widths()
     assert len(widths) == 4
     for section in [Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST]:
@@ -40,7 +40,7 @@ def test_randomize_corridor_widths(randomizer):
         assert DictKeys.TYPE in widths[section]
 
 
-def test_randomize_starting_conditions(randomizer):
+def test_randomize_starting_conditions(randomizer: ScenarioRandomizer) -> None:
     widths = {
         Section.SOUTH: {DictKeys.WIDTH: 0.6, DictKeys.TYPE: "narrow"},
         Section.NORTH: {DictKeys.WIDTH: 1.0, DictKeys.TYPE: "wide"},
@@ -55,7 +55,7 @@ def test_randomize_starting_conditions(randomizer):
     assert isinstance(conds[DictKeys.POSITION], tuple)
 
 
-def test_generate_parking_lot_positions(randomizer):
+def test_generate_parking_lot_positions(randomizer: ScenarioRandomizer) -> None:
     parking = randomizer.generate_parking_lot_positions(Section.SOUTH)
     assert DictKeys.BLOCK1_POS in parking
     assert DictKeys.BLOCK2_POS in parking
@@ -64,7 +64,7 @@ def test_generate_parking_lot_positions(randomizer):
     assert DictKeys.DEPTH in parking
 
 
-def test_generate_starting_zone(randomizer):
+def test_generate_starting_zone(randomizer: ScenarioRandomizer) -> None:
     zone_no_park = randomizer.generate_starting_zone(Section.SOUTH, 0.6, None)
     assert "x" in zone_no_park
     assert "y" in zone_no_park
@@ -77,7 +77,7 @@ def test_generate_starting_zone(randomizer):
     assert "length" in zone_park
 
 
-def test_compute_starting_yaw():
+def test_compute_starting_yaw() -> None:
     yaw = _compute_starting_yaw(Section.SOUTH, Direction.CLOCKWISE)
     assert yaw == math.pi
 
@@ -85,27 +85,27 @@ def test_compute_starting_yaw():
     assert yaw == math.pi
 
 
-def test_pick_start_position():
+def test_pick_start_position() -> None:
     pos = _pick_start_position(Section.SOUTH, 1.0)
     # Expected x to be one of [1.0, 1.5, 2.0] and y to be 0.5
     assert pos[0] in [1.0, 1.5, 2.0]
     assert pos[1] == 0.5
 
 
-def test_compute_second_block_depth():
+def test_compute_second_block_depth() -> None:
     d = _compute_second_block_depth(1.0, 0.225)
     assert d == 1.225
     d = _compute_second_block_depth(2.0, 0.225)
     assert d == 1.775
 
 
-def test_parking_positions_for_section():
+def test_parking_positions_for_section() -> None:
     b1, b2, yaw = _parking_positions_for_section(Section.SOUTH, 1.0, 1.225, 0.1)
     assert b1 == (1.0, 0.1)
     assert b2 == (1.225, 0.1)
 
 
-def test_zone_from_parking():
+def test_zone_from_parking() -> None:
     parking_config = {
         DictKeys.BLOCK1_POS: (1.0, 0.1),
         DictKeys.BLOCK2_POS: (1.5, 0.1),

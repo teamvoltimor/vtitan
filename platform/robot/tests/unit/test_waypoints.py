@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 
 import pytest
-
 from shared.config.enums import Direction, Section
+
 from src.navigation.waypoints import (
     _arc_with_endpoints,
     _build_corridor_order,
@@ -124,7 +124,7 @@ class TestWaypointDeduplication:
         assert len(deduped) == 2
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metadata_open():
     """Sample metadata for open challenge."""
     return {
@@ -145,7 +145,7 @@ def sample_metadata_open():
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metadata_obstacles():
     """Sample metadata for obstacles challenge."""
     return {

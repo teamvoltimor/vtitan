@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
+
 from src.navigation.config import WaypointConfig
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
@@ -54,17 +55,16 @@ def calculate_waypoints(
     direction = Direction.from_string(starting[DictKeys.DIRECTION])
 
     # Safety assertion: chassis half-width + arc-radius must fit the narrowest corridor.
-    min_width_mm = min(
-        cw[DictKeys.WIDTH_MM] for cw in corridor_widths.values()
-    )
+    min_width_mm = min(cw[DictKeys.WIDTH_MM] for cw in corridor_widths.values())
     min_width_m = min_width_mm / 1000.0
     required = RobotSpecs.WIDTH / 2 + _ARC_RADIUS
     if required > min_width_m:
-        raise ValueError(
+        msg = (
             f"Corridor too narrow: required {required:.3f} m "
             f"(chassis_half={RobotSpecs.WIDTH / 2:.3f} + arc_radius={_ARC_RADIUS:.3f}), "
             f"got {min_width_m:.3f} m"
         )
+        raise ValueError(msg)
 
     widths = {
         Section.from_string(side): corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0

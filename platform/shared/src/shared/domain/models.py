@@ -6,7 +6,6 @@ Replaces dictionaries and raw tuples with type-safe domain objects.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NewType
 
 
 @dataclass(slots=True, frozen=True)

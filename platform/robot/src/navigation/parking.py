@@ -26,10 +26,10 @@ from shared.config.enums import Section
 
 logger = logging.getLogger(__name__)
 
-_YAW_TOLERANCE = math.radians(10.0)   # ±10° stop condition
-_APPROACH_CLEARANCE = 0.25             # metres: staging position above gap opening
-_POS_REACH_DIST = 0.04                 # metres: "reached staging" threshold
-_INSIDE_TOLERANCE = 0.02              # metres: zone wall clearance
+_YAW_TOLERANCE = math.radians(10.0)  # ±10° stop condition
+_APPROACH_CLEARANCE = 0.25  # metres: staging position above gap opening
+_POS_REACH_DIST = 0.04  # metres: "reached staging" threshold
+_INSIDE_TOLERANCE = 0.02  # metres: zone wall clearance
 
 
 @dataclass(frozen=True)
@@ -40,25 +40,27 @@ class ParkZone:
     x_max: float
     y_min: float
     y_max: float
-    target_yaw: float   # expected robot yaw when parked (radians)
-    gap_cx: float       # lateral centre of gap (world x or y)
-    gap_cy: float       # depth centre of gap
+    target_yaw: float  # expected robot yaw when parked (radians)
+    gap_cx: float  # lateral centre of gap (world x or y)
+    gap_cy: float  # depth centre of gap
 
 
 @dataclass
 class ParkCommand:
     """Motor command from the park controller."""
 
-    linear: float     # m/s
-    steering: float   # normalised [-1, 1]
+    linear: float  # m/s
+    steering: float  # normalised [-1, 1]
     done: bool = False
     phase: str = "stage"
 
 
 class ParkPhase(StrEnum):
+    """Parking maneuver phases."""
+
     STAGE = "stage"
     ENTER = "enter"
-    DONE  = "done"
+    DONE = "done"
 
 
 class ParkController:
@@ -95,11 +97,14 @@ class ParkController:
 
         logger.info(
             "ParkController: zone=%s staging=%s section=%s",
-            self._zone, self._staging, start_section,
+            self._zone,
+            self._staging,
+            start_section,
         )
 
     @property
     def is_done(self) -> bool:
+        """Whether the parking maneuver is complete."""
         return self._phase is ParkPhase.DONE
 
     def update(
@@ -133,7 +138,9 @@ class ParkController:
     # ── Phase handlers ────────────────────────────────────────────────────────
 
     def _handle_stage(
-        self, robot_pos: tuple[float, float], robot_yaw: float
+        self,
+        robot_pos: tuple[float, float],
+        robot_yaw: float,
     ) -> ParkCommand:
         tx, ty = self._staging
         rx, ry = robot_pos
@@ -148,7 +155,9 @@ class ParkController:
         return ParkCommand(linear=self._speed, steering=steer, phase="stage")
 
     def _handle_enter(
-        self, robot_pos: tuple[float, float], robot_yaw: float
+        self,
+        robot_pos: tuple[float, float],
+        robot_yaw: float,
     ) -> ParkCommand:
         z = self._zone
         rx, ry = robot_pos
@@ -160,7 +169,10 @@ class ParkController:
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
 
         steer = _pursuit_steer(
-            robot_pos, robot_yaw, (z.gap_cx, z.gap_cy), self._steer_kp
+            robot_pos,
+            robot_yaw,
+            (z.gap_cx, z.gap_cy),
+            self._steer_kp,
         )
         return ParkCommand(linear=self._speed, steering=steer, phase="enter")
 
@@ -174,8 +186,8 @@ def _build_zone(
     section: Section,
 ) -> ParkZone:
     """Compute parking bounding box from block positions."""
-    hw = ParkingLotSpecs.WIDTH / 2    # half block width (10 mm)
-    hl = ParkingLotSpecs.LENGTH / 2   # half block length (100 mm)
+    hw = ParkingLotSpecs.WIDTH / 2  # half block width (10 mm)
+    hl = ParkingLotSpecs.LENGTH / 2  # half block length (100 mm)
 
     if section in (Section.SOUTH, Section.NORTH):
         x1, x2 = sorted([b1[0], b2[0]])
@@ -207,10 +219,13 @@ def _build_zone(
             target_yaw = math.pi
 
     return ParkZone(
-        x_min=x_min, x_max=x_max,
-        y_min=y_min, y_max=y_max,
+        x_min=x_min,
+        x_max=x_max,
+        y_min=y_min,
+        y_max=y_max,
         target_yaw=target_yaw,
-        gap_cx=gap_cx, gap_cy=gap_cy,
+        gap_cx=gap_cx,
+        gap_cy=gap_cy,
     )
 
 
@@ -222,7 +237,7 @@ def _staging_pos(zone: ParkZone, section: Section) -> tuple[float, float]:
         return zone.gap_cx, zone.y_min - _APPROACH_CLEARANCE
     if section is Section.EAST:
         return zone.x_min - _APPROACH_CLEARANCE, zone.gap_cy
-    return zone.x_max + _APPROACH_CLEARANCE, zone.gap_cy   # WEST
+    return zone.x_max + _APPROACH_CLEARANCE, zone.gap_cy  # WEST
 
 
 def _pursuit_steer(

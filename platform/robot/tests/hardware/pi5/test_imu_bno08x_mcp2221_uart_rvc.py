@@ -12,7 +12,10 @@ import time
 
 import pytest
 
-from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_RVCDriver, Config as RVCConfig
+from src.hardware.imu.bno08x.mcp2221.uart_rvc import (
+    Config as RVCConfig,
+    Driver as IMU_RVCDriver,
+)
 from src.logger import LOG_LEVEL, configure_json_logging
 
 _log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
@@ -21,7 +24,7 @@ configure_json_logging(level=_log_level)
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
+@pytest.fixture()
 def driver():
     """Create driver instance."""
     config = RVCConfig()
@@ -77,7 +80,7 @@ class TestIMURVCPolling:
                         "details": {
                             "euler": [data.roll_deg, data.pitch_deg, data.yaw_deg],
                             "accel": [data.x_accel, data.y_accel, data.z_accel],
-                        }
+                        },
                     },
                 )
             driver.stop_polling()
@@ -133,7 +136,7 @@ def stream_imu_rvc():
                         "details": {
                             "euler_deg": [data.roll_deg, data.pitch_deg, data.yaw_deg],
                             "accel": [data.x_accel, data.y_accel, data.z_accel],
-                        }
+                        },
                     },
                 )
             time.sleep(0.01)

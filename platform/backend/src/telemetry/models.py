@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -86,16 +84,16 @@ class TelemetryMetrics(TelemetryBaseModel):
 
     # LiDAR metrics (all optional)
     points_captured: int = Field(default=0, ge=0)
-    range_min: Optional[float] = Field(default=None, ge=0.0)
-    range_max: Optional[float] = Field(default=None, ge=0.0)
-    range_mean: Optional[float] = Field(default=None, ge=0.0)
-    forward: Optional[float] = Field(default=None, ge=0.0)
-    left: Optional[float] = Field(default=None, ge=0.0)
-    right: Optional[float] = Field(default=None, ge=0.0)
-    back: Optional[float] = Field(default=None, ge=0.0)
+    range_min: float | None = Field(default=None, ge=0.0)
+    range_max: float | None = Field(default=None, ge=0.0)
+    range_mean: float | None = Field(default=None, ge=0.0)
+    forward: float | None = Field(default=None, ge=0.0)
+    left: float | None = Field(default=None, ge=0.0)
+    right: float | None = Field(default=None, ge=0.0)
+    back: float | None = Field(default=None, ge=0.0)
 
     # Navigation metrics (optional)
-    speed: Optional[float] = Field(default=None, ge=0.0)
+    speed: float | None = Field(default=None, ge=0.0)
     stage: str = Field(default="unknown")
 
     # Sensor health flags
@@ -112,8 +110,8 @@ class RobotSnapshot(TelemetryBaseModel):
     mission_name: str
 
     # Optional position (allows missing odometry)
-    robot_position: Optional[Position3D] = None
-    robot_orientation: Optional[float] = None
+    robot_position: Position3D | None = None
+    robot_orientation: float | None = None
 
     # Sensor data (defaults to empty arrays)
     lidar_points: list[Position3D] = Field(default_factory=list)
@@ -123,6 +121,6 @@ class RobotSnapshot(TelemetryBaseModel):
     metrics: TelemetryMetrics
 
     # Extended telemetry (all optional)
-    imu_data: Optional[ImuData] = None
-    vision_detections: Optional[list[Detection]] = None
-    motor_state: Optional[MotorState] = None
+    imu_data: ImuData | None = None
+    vision_detections: list[Detection] | None = None
+    motor_state: MotorState | None = None

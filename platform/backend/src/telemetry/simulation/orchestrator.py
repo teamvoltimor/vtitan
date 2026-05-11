@@ -72,27 +72,30 @@ class SimulationOrchestrator:
 
                 except Exception as exc:
                     self._error_count += 1
-                    logger.error(
-                        f"Simulation loop error (attempt {self._error_count}/{self._max_consecutive_errors})",
+                    logger.exception(
+                        "Simulation loop error (attempt %s/%s)",
+                        self._error_count,
+                        self._max_consecutive_errors,
                         exc_info=exc,
                     )
 
                     # Fail fast after max retries (Logic-Cleaner Rule 1: Guard Clauses)
                     if self._error_count >= self._max_consecutive_errors:
                         logger.critical(
-                            f"Simulation loop exhausted error retries ({self._max_consecutive_errors})",
+                            "Simulation loop exhausted error retries (%s)",
+                            self._max_consecutive_errors,
                             exc_info=exc,
                         )
-                        raise RuntimeError(f"Simulation loop failed {self._max_consecutive_errors} times") from exc
+                        msg = f"Simulation loop failed {self._max_consecutive_errors} times"
+                        raise RuntimeError(msg) from exc
 
                     # Exponential backoff before retry (Error Handling: Resiliency)
                     backoff_seconds = min(2**self._error_count, 30)
-                    logger.warning(f"Retrying simulation after {backoff_seconds}s backoff")
+                    logger.warning("Retrying simulation after %ss backoff", backoff_seconds)
                     await asyncio.sleep(backoff_seconds)
 
         except asyncio.CancelledError:
             logger.info("Simulation loop cancelled during error handling")
-            pass
         except Exception as exc:
             logger.critical(
                 "Simulation loop terminated with unrecovered error",

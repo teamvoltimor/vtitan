@@ -4,6 +4,7 @@ Tests speed scaling logic for clearance zones and heading errors.
 """
 
 import pytest
+
 from src.navigation.config import NavigationConfig
 from src.navigation.speed_control import SpeedScaler
 
@@ -11,7 +12,7 @@ from src.navigation.speed_control import SpeedScaler
 class TestSpeedScaler:
     """Tests for SpeedScaler speed scaling calculations."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def scaler(self):
         config = NavigationConfig.default()
         return SpeedScaler(config)
@@ -81,34 +82,44 @@ class TestSpeedScaler:
 
     def test_speed_command_positive(self, scaler):
         cmd = scaler.compute_speed_command(
-            forward_clearance=0.5, heading_error=0.0, max_linear_speed=0.5
+            forward_clearance=0.5,
+            heading_error=0.0,
+            max_linear_speed=0.5,
         )
         assert cmd > 0
 
     def test_speed_command_zero_fraction(self, scaler):
         # A zero max speed gives zero command regardless of zones
         cmd = scaler.compute_speed_command(
-            forward_clearance=2.0, heading_error=0.0, max_linear_speed=0.0
+            forward_clearance=2.0,
+            heading_error=0.0,
+            max_linear_speed=0.0,
         )
         assert cmd == 0.0
 
     def test_speed_command_scales_linearly(self, scaler):
         cmd_high = scaler.compute_speed_command(
-            forward_clearance=2.0, heading_error=0.0, max_linear_speed=1.0
+            forward_clearance=2.0,
+            heading_error=0.0,
+            max_linear_speed=1.0,
         )
         cmd_low = scaler.compute_speed_command(
-            forward_clearance=0.05, heading_error=0.0, max_linear_speed=1.0
+            forward_clearance=0.05,
+            heading_error=0.0,
+            max_linear_speed=1.0,
         )
         assert cmd_high > cmd_low
 
     def test_clearance_vs_heading_speed_precedence(self, scaler):
         # Contact zone (low clearance) with small heading error → clearance limits
         result_clearance_limits = scaler.scale_combined(
-            forward_clearance=0.05, heading_error=0.1
+            forward_clearance=0.05,
+            heading_error=0.1,
         )
         # Clear path, large heading error → heading limits
         result_heading_limits = scaler.scale_combined(
-            forward_clearance=2.0, heading_error=1.2
+            forward_clearance=2.0,
+            heading_error=1.2,
         )
 
         # Both should be less than 1.0 (something is limiting)

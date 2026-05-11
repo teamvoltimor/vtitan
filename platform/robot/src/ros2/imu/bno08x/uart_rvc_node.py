@@ -87,7 +87,8 @@ class IMU_UART_RVCNode(Node):
         self.publisher_.publish(msg)
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
+    """Main entry point for IMU UART RVC node."""
     rclpy.init(args=args)
     node = IMU_UART_RVCNode()
     try:

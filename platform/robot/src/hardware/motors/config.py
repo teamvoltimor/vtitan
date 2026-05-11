@@ -32,6 +32,7 @@ class MotorSteeringConfig(BaseModel):
     reversed: bool = False
     """Whether the steering motor is reversed. This can be used to invert the direction of the steering motor if it is mounted in a way that causes left commands to actually turn the wheels right."""
 
+
 class MotorDriveConfig(BaseModel):
     """Drive configuration."""
 

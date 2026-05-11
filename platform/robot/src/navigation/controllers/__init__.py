@@ -9,13 +9,13 @@ Exports:
     - StuckDetector: Stuck condition detection and recovery
 """
 
-from .collision_avoidance_controller import CollisionAvoidanceController, EscapeManeuver
-from .stuck_detector import StuckDetector
-from .waypoint_controller import WaypointController
+from src.navigation.controllers.collision_avoidance_controller import CollisionAvoidanceController, EscapeManeuver
+from src.navigation.controllers.stuck_detector import StuckDetector
+from src.navigation.controllers.waypoint_controller import WaypointController
 
 __all__ = [
-    "WaypointController",
     "CollisionAvoidanceController",
     "EscapeManeuver",
     "StuckDetector",
+    "WaypointController",
 ]

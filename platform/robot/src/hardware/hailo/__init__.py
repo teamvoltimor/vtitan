@@ -6,11 +6,11 @@ from src.hardware.hailo.inferences import BoundingBox, YoloDetection
 from src.hardware.hailo.streaming import StreamingDriver
 
 __all__ = [
+    "BoundingBox",
     "Config",
-    "StreamingConfig",
     "Driver",
     "InferenceResult",
-    "BoundingBox",
-    "YoloDetection",
+    "StreamingConfig",
     "StreamingDriver",
+    "YoloDetection",
 ]

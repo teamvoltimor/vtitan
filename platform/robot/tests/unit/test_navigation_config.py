@@ -4,7 +4,8 @@ Tests configuration loading and profile management.
 """
 
 import pytest
-from src.navigation.config import NavigationConfig, DrivingProfile
+
+from src.navigation.config import DrivingProfile, NavigationConfig
 
 
 class TestNavigationConfig:

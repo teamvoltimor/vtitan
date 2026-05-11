@@ -6,7 +6,8 @@ Tests race metrics collection and lap tracking.
 import time
 
 import pytest
-from src.navigation.race_tracker import RaceTracker, RaceMetrics
+
+from src.navigation.race_tracker import RaceMetrics, RaceTracker
 
 
 class TestRaceMetrics:
@@ -53,7 +54,7 @@ class TestRaceMetrics:
 class TestRaceTracker:
     """Tests for RaceTracker metrics collection."""
 
-    @pytest.fixture
+    @pytest.fixture()
     def tracker(self):
         return RaceTracker(num_laps=3)
 

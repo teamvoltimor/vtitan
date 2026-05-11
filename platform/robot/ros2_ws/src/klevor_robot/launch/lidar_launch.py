@@ -13,23 +13,27 @@ from launch_ros.actions import Node
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for the LIDAR node."""
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "serial_port",
-            default_value="/dev/ttyUSB0",
-            description="Serial port the C1 LIDAR is connected to",
-        ),
-        Node(
-            package="sllidar_ros2",
-            executable="sllidar_node",
-            name="sllidar_node",
-            parameters=[{
-                "serial_port": LaunchConfiguration("serial_port"),
-                "serial_baudrate": 460800,
-                "frame_id": "laser_frame",
-                "angle_compensate": True,
-                "scan_mode": "Standard",
-            }],
-            output="screen",
-        ),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "serial_port",
+                default_value="/dev/ttyUSB0",
+                description="Serial port the C1 LIDAR is connected to",
+            ),
+            Node(
+                package="sllidar_ros2",
+                executable="sllidar_node",
+                name="sllidar_node",
+                parameters=[
+                    {
+                        "serial_port": LaunchConfiguration("serial_port"),
+                        "serial_baudrate": 460800,
+                        "frame_id": "laser_frame",
+                        "angle_compensate": True,
+                        "scan_mode": "Standard",
+                    },
+                ],
+                output="screen",
+            ),
+        ],
+    )

@@ -17,12 +17,16 @@ import os
 
 import pytest
 
-from src.hardware.motors.build_hat import Config as MotorConfig, Driver as BuildHatDriver
+from src.hardware.motors.build_hat import (
+    Config as MotorConfig,
+    Driver as BuildHatDriver,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
 logger = logging.getLogger(__name__)
+
 
 @pytest.fixture(autouse=True)
 def check_hardware(driver):
@@ -32,7 +36,7 @@ def check_hardware(driver):
         pytest.skip(f"Hardware not available: {e}")
 
 
-@pytest.fixture
+@pytest.fixture()
 def driver():
     """Create driver instance."""
     config = MotorConfig(steering_port="A", drive_port="B", default_speed=15, test_duration=1)
@@ -170,7 +174,7 @@ def find_limits_interactive():
                 "left_limit_deg": left_limit,
                 "right_limit_deg": right_limit,
                 "range_deg": right_limit - left_limit,
-            }
+            },
         },
     )
 

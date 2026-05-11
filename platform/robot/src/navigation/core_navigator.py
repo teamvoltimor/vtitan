@@ -9,31 +9,32 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import TYPE_CHECKING
 
-from shared.domain.models import Velocity
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel
+from shared.domain.models import Velocity
 
-from shared.config.enums import Section
-from src.hardware.gateway import HardwareGateway
 from src.navigation.controllers import (
     CollisionAvoidanceController,
     StuckDetector,
     WaypointController,
 )
-from src.navigation.parking import ParkController
-from src.navigation.race_tracker import LapDetector
-from src.navigation.sign_router import SignRouter, SignSpec
 from src.navigation.waypoints import corridor_for_position
-from shared.config.navigation_tuning import NavigationTuning
+
+if TYPE_CHECKING:
+    from shared.config.enums import Section
+
+    from src.hardware.gateway import HardwareGateway
+    from src.navigation.parking import ParkController
+    from src.navigation.race_tracker import LapDetector
+    from src.navigation.sign_router import SignRouter
 
 logger = logging.getLogger(__name__)
 
 
 class CoreNavigator:
-    """Orchestrates navigation by requesting states from a HardwareGateway
-    and sending Velocity commands.
-    """
+    """Orchestrates navigation using a HardwareGateway interface."""
 
     def __init__(
         self,
@@ -97,6 +98,9 @@ class CoreNavigator:
         if not pose:
             return  # No pose available yet
 
+        robot_x, robot_y = pose.x, pose.y
+        robot_yaw = pose.yaw
+
         # Guard: check lap completion — hand off to parking if available.
         if self._laps_completed >= self._num_laps:
             if self._park_controller is not None and not self._park_controller.is_done:
@@ -105,9 +109,6 @@ class CoreNavigator:
                 return
             self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
             return
-
-        robot_x, robot_y = pose.x, pose.y
-        robot_yaw = pose.yaw
 
         self._current_corridor = corridor_for_position(robot_x, robot_y)
 
@@ -131,10 +132,13 @@ class CoreNavigator:
                 return
 
         # Geometric lap counting (requires LapDetector).
-        if self._lap_detector is not None and self._current_corridor is not None:
-            if self._lap_detector.update((robot_x, robot_y), self._current_corridor):
-                self._laps_completed += 1
-                logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
+        if (
+            self._lap_detector is not None
+            and self._current_corridor is not None
+            and self._lap_detector.update((robot_x, robot_y), self._current_corridor)
+        ):
+            self._laps_completed += 1
+            logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
 
         target_wp = self._waypoints[self._waypoint_index]
 
@@ -152,7 +156,7 @@ class CoreNavigator:
         # Get LIDAR ranges from gateway
         lidar_data = self._gateway.get_lidar_scan()
         if lidar_data:
-            ranges, angles = lidar_data
+            ranges, _ = lidar_data
             forward_clearance = self._collision_controller.compute_forward_clearance(ranges)
             risk = self._collision_controller.assess_risk(ranges)
         else:

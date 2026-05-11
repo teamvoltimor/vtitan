@@ -11,5 +11,5 @@ def generate_launch_description():
                 name="telemetry_bridge",
                 output="screen",
             ),
-        ]
+        ],
     )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,15 +10,18 @@ from fastapi.testclient import TestClient
 from src.telemetry.app import create_app
 from src.telemetry.config import ServerConfig
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture
+
+@pytest.fixture()
 def app_with_config(tmp_path: Path):
     """Create FastAPI app with temporary configuration."""
     config = ServerConfig(sessions_dir=tmp_path)
     return create_app(config)
 
 
-@pytest.fixture
+@pytest.fixture()
 def client(app_with_config):
     """Create TestClient for FastAPI app."""
     return TestClient(app_with_config)

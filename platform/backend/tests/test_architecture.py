@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
 from pydantic import ValidationError
 
 from src.telemetry.config import ServerConfig
 from src.telemetry.dependencies import create_app_state
-from src.telemetry.exceptions import TelemetryError
+from src.telemetry.exceptions import BroadcastError, RecorderError, SessionNotFoundError, TelemetryError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestAppStateImmutability:
@@ -68,12 +70,6 @@ class TestExceptionHierarchy:
 
     def test_all_telemetry_errors_inherit_from_base(self) -> None:
         """Custom exceptions inherit from TelemetryError."""
-        from src.telemetry.exceptions import (
-            BroadcastError,
-            RecorderError,
-            SessionNotFoundError,
-        )
-
         assert issubclass(BroadcastError, TelemetryError)
         assert issubclass(RecorderError, TelemetryError)
         assert issubclass(SessionNotFoundError, RecorderError)
@@ -84,9 +80,8 @@ class TestExceptionHierarchy:
         try:
             raise original_error
         except OSError as exc:
-            from src.telemetry.exceptions import RecorderError
-
+            msg = f"Failed: {exc}"
             with pytest.raises(RecorderError) as exc_info:
-                raise RecorderError(f"Failed: {exc}") from exc
+                raise RecorderError(msg) from exc
 
         assert exc_info.value.__cause__ is original_error

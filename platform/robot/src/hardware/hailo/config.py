@@ -1,8 +1,8 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.hardware.hailo.utils import load_class_map_from_yaml
 from src.hardware.camera.config import Config as CameraConfig
+from src.hardware.hailo.utils import load_class_map_from_yaml
 
 
 class Config(BaseSettings):
@@ -35,7 +35,7 @@ class Config(BaseSettings):
     def __post_init__(self):
         try:
             self.class_map = load_class_map_from_yaml(self.data_yaml_path)
-        except Exception:
+        except (FileNotFoundError, ValueError, KeyError):
             self.class_map = {0: "red_pillar", 1: "green_pillar", 2: "wall"}
 
 

@@ -1,6 +1,5 @@
 """Reproducibility test: same seed → identical SDF + metadata."""
 
-import json
 from pathlib import Path
 
 import pytest
@@ -10,21 +9,19 @@ from src.generation.generator import ScenarioGenerator
 
 
 @pytest.fixture
-def base_world(tmp_path):
+def base_world(tmp_path: Path) -> str:
     """Minimal valid SDF world file for testing."""
     sdf = tmp_path / "world.sdf"
     sdf.write_text(
-        '<?xml version="1.0"?>'
-        '<sdf version="1.9">'
-        "<world name=\"wro_track\">"
-        "</world>"
-        "</sdf>",
+        '<?xml version="1.0"?><sdf version="1.9"><world name="wro_track"></world></sdf>',
         encoding="utf-8",
     )
     return str(sdf)
 
 
-def _run_generator(base_world: str, output_dir: Path, seed: int, challenge: ScenarioType) -> tuple[str, dict]:
+def _run_generator(
+    base_world: str, output_dir: Path, seed: int, challenge: ScenarioType
+) -> tuple[str, dict]:
     gen = ScenarioGenerator(
         base_world_path=base_world,
         output_dir=str(output_dir),
@@ -37,7 +34,9 @@ def _run_generator(base_world: str, output_dir: Path, seed: int, challenge: Scen
 
 
 @pytest.mark.parametrize("challenge", [ScenarioType.OPEN, ScenarioType.OBSTACLES])
-def test_same_seed_produces_identical_sdf(tmp_path, base_world, challenge):
+def test_same_seed_produces_identical_sdf(
+    tmp_path: Path, base_world: str, challenge: ScenarioType
+) -> None:
     seed = 42
     out_a = tmp_path / "run_a"
     out_b = tmp_path / "run_b"
@@ -49,7 +48,9 @@ def test_same_seed_produces_identical_sdf(tmp_path, base_world, challenge):
 
 
 @pytest.mark.parametrize("challenge", [ScenarioType.OPEN, ScenarioType.OBSTACLES])
-def test_same_seed_produces_identical_metadata(tmp_path, base_world, challenge):
+def test_same_seed_produces_identical_metadata(
+    tmp_path: Path, base_world: str, challenge: ScenarioType
+) -> None:
     seed = 42
     out_a = tmp_path / "run_a"
     out_b = tmp_path / "run_b"
@@ -65,7 +66,9 @@ def test_same_seed_produces_identical_metadata(tmp_path, base_world, challenge):
 
 
 @pytest.mark.parametrize("challenge", [ScenarioType.OPEN, ScenarioType.OBSTACLES])
-def test_different_seeds_produce_different_sdf(tmp_path, base_world, challenge):
+def test_different_seeds_produce_different_sdf(
+    tmp_path: Path, base_world: str, challenge: ScenarioType
+) -> None:
     out_a = tmp_path / "run_a"
     out_b = tmp_path / "run_b"
 

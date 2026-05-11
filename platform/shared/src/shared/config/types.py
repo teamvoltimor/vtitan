@@ -2,7 +2,7 @@
 
 from typing import TypedDict
 
-from shared.domain.enums import Direction, LightingScenario, Section
+from shared.domain.enums import Direction, Section
 
 
 class StartingPosition(TypedDict):

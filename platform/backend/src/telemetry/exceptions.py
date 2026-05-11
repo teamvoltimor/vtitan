@@ -10,40 +10,26 @@ from __future__ import annotations
 class TelemetryError(Exception):
     """Base exception for all telemetry operations."""
 
-    pass
-
 
 class ConfigurationError(TelemetryError):
     """Configuration loading or validation failed."""
-
-    pass
 
 
 class RecorderError(TelemetryError):
     """Recording operation failed."""
 
-    pass
-
 
 class SessionNotFoundError(RecorderError):
     """Requested replay session does not exist."""
-
-    pass
 
 
 class CorruptedSessionError(RecorderError):
     """Session file contains corrupted or invalid entries."""
 
-    pass
-
 
 class BroadcastError(TelemetryError):
     """WebSocket broadcast operation failed."""
 
-    pass
-
 
 class SimulationError(TelemetryError):
     """Simulation loop encountered unrecoverable error."""
-
-    pass
