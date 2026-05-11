@@ -6,9 +6,9 @@ with explicit exception types instead of bare exception catching.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Protocol
 
-import contextlib
 import numpy as np
 
 from src.constants import (
@@ -93,11 +93,13 @@ class SAM2Backend:
         self.oom_error = context.oom_error
 
     def set_image(self, image: np.ndarray) -> None:
+        """Set image for SAM2 inference."""
         try:
             with self.torch_module.inference_mode(), self._autocast_ctx():
                 self.predictor.set_image(image)
         except Exception as e:
-            raise InferenceBackendError(f"SAM2 set_image failed: {e}") from e
+            err_msg = f"SAM2 set_image failed: {e}"
+            raise InferenceBackendError(err_msg) from e
 
     def predict(
         self,
@@ -105,6 +107,7 @@ class SAM2Backend:
         labels: np.ndarray,
         mask_input: np.ndarray | None = None,
     ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+        """Run SAM2 predict."""
         try:
             with self.torch_module.inference_mode(), self._autocast_ctx():
                 masks, scores, logits = self.predictor.predict(
@@ -116,9 +119,11 @@ class SAM2Backend:
             all_masks = [masks[i].astype(bool) for i in range(len(masks))]
             return all_masks, scores.flatten(), logits
         except self.oom_error:
-            raise InferenceGPUMemory("CUDA out of memory") from None
+            err_msg = "CUDA out of memory"
+            raise InferenceGPUMemory(err_msg) from None
         except Exception as e:
-            raise InferenceBackendError(f"SAM2 predict failed: {e}") from e
+            err_msg = f"SAM2 predict failed: {e}"
+            raise InferenceBackendError(err_msg) from e
 
     def _autocast_ctx(self) -> contextlib.AbstractContextManager:
         if self.torch_module.cuda.is_available():
@@ -145,35 +150,40 @@ class UltralyticsBackend:
         self.current_image = None
 
     def set_image(self, image: np.ndarray) -> None:
+        """Store image for Ultralytics inference."""
         self.current_image = image
+
+    def _ultralytics_predict(self, coords: np.ndarray, labels: np.ndarray) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+        """Run actual Ultralytics prediction."""
+        if self.current_image is None:
+            err_msg = "Image must be set before calling predict"
+            raise InferenceBackendError(err_msg)
+
+        positive_coords = coords[labels == 1]
+        if len(positive_coords) == 0:
+            positive_coords = coords
+        positive_labels = [1] * len(positive_coords)
+
+        results = self.predictor(self.current_image, points=[positive_coords.tolist()], labels=[positive_labels])
+        if not results or results[0].masks is None:
+            err_msg = "Ultralytics returned no mask"
+            raise InferenceBackendError(err_msg)
+
+        single_mask = results[0].masks.data[0].cpu().numpy().astype(bool)
+        return [single_mask], np.array([INFERENCE_DEFAULT_MASK_SCORE]), None
 
     def predict(
         self,
         coords: np.ndarray,
         labels: np.ndarray,
-        mask_input: np.ndarray | None = None,
+        _mask_input: np.ndarray | None = None,
     ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
-        if self.current_image is None:
-            msg = "Image must be set before calling predict"
-            raise InferenceBackendError(msg)
-
+        """Run Ultralytics predict (positive points only, no logits)."""
         try:
-            positive_coords = coords[labels == 1]
-            if len(positive_coords) == 0:
-                positive_coords = coords
-            positive_labels = [1] * len(positive_coords)
-
-            results = self.predictor(self.current_image, points=[positive_coords.tolist()], labels=[positive_labels])
-            if not results or results[0].masks is None:
-                msg = "Ultralytics returned no mask"
-                raise InferenceBackendError(msg)
-
-            single_mask = results[0].masks.data[0].cpu().numpy().astype(bool)
-            return [single_mask], np.array([INFERENCE_DEFAULT_MASK_SCORE]), None
-        except InferenceBackendError:
-            raise
+            return self._ultralytics_predict(coords, labels)
         except Exception as e:
-            raise InferenceBackendError(f"Ultralytics predict failed: {e}") from e
+            err_msg = f"Ultralytics predict failed: {e}"
+            raise InferenceBackendError(err_msg) from e
 
 
 def load_native_sam2(context: InferenceContext) -> None:
@@ -188,9 +198,8 @@ def load_native_sam2(context: InferenceContext) -> None:
         InferenceBackendError: If both local and HuggingFace loading fail.
     """
     try:
-        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]
-
-        import torch
+        import torch  # noqa: PLC0415
+        from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]  # noqa: PLC0415
 
         context.torch_module = torch
         context.oom_error = torch.cuda.OutOfMemoryError
@@ -200,7 +209,7 @@ def load_native_sam2(context: InferenceContext) -> None:
 
         try:
             if local_checkpoint.exists():
-                from sam2.build_sam import build_sam2  # type: ignore[import-untyped]
+                from sam2.build_sam import build_sam2  # type: ignore[import-untyped]  # noqa: PLC0415
 
                 model = build_sam2(SAM2_DEFAULT_HIERA_CONFIG, str(local_checkpoint), device=device)
                 context.predictor = SAM2ImagePredictor(model)
@@ -209,12 +218,13 @@ def load_native_sam2(context: InferenceContext) -> None:
             context.use_native = True
             logger.info("Loaded native SAM2 backend")
         except Exception as e:
-            msg = f"Failed to load SAM2 (local: {local_checkpoint.exists()}, HF: fallback): {e}"
-            raise InferenceBackendError(msg) from e
+            err_msg = f"Failed to load SAM2 (local: {local_checkpoint.exists()}, HF: fallback): {e}"
+            raise InferenceBackendError(err_msg) from e
     except InferenceBackendError:
         raise
     except Exception as e:
-        raise InferenceBackendError(f"SAM2 import failed: {e}") from e
+        err_msg = f"SAM2 import failed: {e}"
+        raise InferenceBackendError(err_msg) from e
 
 
 def load_ultralytics_fallback(context: InferenceContext) -> None:
@@ -227,13 +237,14 @@ def load_ultralytics_fallback(context: InferenceContext) -> None:
         InferenceBackendError: If loading fails.
     """
     try:
-        from ultralytics import SAM as UltralyticsSAM  # type: ignore[import-untyped]
+        from ultralytics import SAM as UltralyticsSAM  # type: ignore[import-untyped]  # noqa: PLC0415
 
         context.predictor = UltralyticsSAM(SAM2_LOCAL_CHECKPOINT_FILENAME)
         context.use_native = False
         logger.info("Loaded Ultralytics SAM fallback")
     except Exception as e:
-        raise InferenceBackendError(f"Ultralytics fallback failed: {e}") from e
+        err_msg = f"Ultralytics fallback failed: {e}"
+        raise InferenceBackendError(err_msg) from e
 
 
 def get_backend(context: InferenceContext) -> InferenceBackend:
@@ -249,8 +260,8 @@ def get_backend(context: InferenceContext) -> InferenceBackend:
         InferenceBackendError: If predictor is not loaded or type is unknown.
     """
     if context.predictor is None:
-        msg = "No predictor loaded"
-        raise InferenceBackendError(msg)
+        err_msg = "No predictor loaded"
+        raise InferenceBackendError(err_msg)
 
     if context.use_native:
         return SAM2Backend(context)

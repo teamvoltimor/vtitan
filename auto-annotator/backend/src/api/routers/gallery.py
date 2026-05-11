@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile
 
-from src.api.dependencies import GalleryServiceDep, RepositoryDep
 from src.api.schemas import GalleryResponse, ParentImageItem
 from src.constants import API_PUBLIC_URL, PENDING_DIR
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    from src.api.dependencies import GalleryServiceDep, RepositoryDep
 
 logger = get_logger(__name__)
 
@@ -26,7 +29,7 @@ def read_gallery(gallery_service: GalleryServiceDep) -> GalleryResponse:
 
 @router.post("/import", response_model=GalleryResponse)
 async def upload_gallery_images(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile],
     gallery_service: GalleryServiceDep = ...,
     repository: RepositoryDep = ...,
 ) -> GalleryResponse:

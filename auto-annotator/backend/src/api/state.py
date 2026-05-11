@@ -8,13 +8,15 @@ verifies all required services are present.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from src.db.repository import Repository
-from src.gallery_cache import AnnotationCache
-from src.job_manager import JobManager
-from src.models import AppContext
-from src.services import AnnotationService, GalleryService, SegmentationService
-from src.validation import Validator
+if TYPE_CHECKING:
+    from src.db.repository import Repository
+    from src.gallery_cache import AnnotationCache
+    from src.job_manager import JobManager
+    from src.models import AppContext
+    from src.services import AnnotationService, GalleryService, SegmentationService
+    from src.validation import Validator
 
 
 @dataclass(frozen=True)

@@ -5,8 +5,10 @@ Validates HTTP endpoints, request/response handling, and error cases.
 
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 
 class TestGalleryEndpoints:
@@ -63,7 +65,6 @@ class TestErrorHandling:
         """Verify invalid annotation request returns 400."""
         # This test will depend on the actual validation in endpoints
         # Placeholder for when segmentation endpoint is tested
-        pass
 
 
 class TestCORS:

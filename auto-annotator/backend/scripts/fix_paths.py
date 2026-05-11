@@ -18,13 +18,14 @@ Options:
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 import sys
 from pathlib import Path
 
 # Database schema is defined in src/db/schema.sql, but we only need the "images" table here.
 BACKEND_DIR = Path(__file__).parent.parent
-default_db = backend_dir / "data" / "manifest.db"
+default_db = BACKEND_DIR / "data" / "manifest.db"
 
 
 def _detect_host_prefix(db_path: Path) -> str | None:
@@ -33,9 +34,7 @@ def _detect_host_prefix(db_path: Path) -> str | None:
     Only considers Windows-style absolute paths (contain a drive letter or backslash)
     so already-fixed Linux paths don't poison commonpath.
     """
-    import os
-
-    with db_path as conn:
+    with _connect(db_path) as conn:
         rows = conn.execute("SELECT path FROM images LIMIT 200").fetchall()
     # Keep only Windows-style paths (drive letter or backslash present)
     win_paths = [row["path"] for row in rows if "\\" in row["path"] or (len(row["path"]) > 1 and row["path"][1] == ":")]
@@ -49,7 +48,14 @@ def _detect_host_prefix(db_path: Path) -> str | None:
     return str(p) if p.name == "data" else common
 
 
-def run(db_path: Path, from_dir: str | None, to_dir: str, dry_run: bool) -> None:
+def _connect(db_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def run(db_path: Path, from_dir: str | None, to_dir: str, dry_run: bool) -> None:  # noqa: C901
+    """Fix Windows to Docker paths in manifest.db."""
     if not db_path.exists():
         print(f"ERROR: DB not found at {db_path}", file=sys.stderr)
         sys.exit(1)

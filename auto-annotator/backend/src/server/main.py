@@ -19,6 +19,7 @@ DEFAULT_MODEL       model id to load on startup (default: first available)
 from __future__ import annotations
 
 import atexit
+import contextlib
 import os
 import pickle
 import socket
@@ -38,7 +39,13 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 _RECV_CHUNK = 65536
-_server_socket: socket.socket | None = None
+
+
+class _ServerState:
+    socket: socket.socket | None = None
+
+
+_server_state = _ServerState()
 
 
 def _load_config() -> list[dict]:
@@ -79,17 +86,13 @@ def _handle_client(conn: socket.socket, context: ServerContext, lock: threading.
 
 def _cleanup_server() -> None:
     """Clean up server socket on shutdown."""
-    global _server_socket
-    if _server_socket is not None:
-        try:
-            _server_socket.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        try:
-            _server_socket.close()
-        except OSError:
-            pass
-        _server_socket = None
+    sock = _server_state.socket
+    if sock is not None:
+        with contextlib.suppress(OSError):
+            sock.shutdown(socket.SHUT_RDWR)
+        with contextlib.suppress(OSError):
+            sock.close()
+        _server_state.socket = None
         logger.info("Server socket closed")
 
 
@@ -101,8 +104,6 @@ def run_server(default_model: str | None = None) -> None:
     Inference commands that arrive before loading completes are answered
     with a structured ``"No model loaded"`` error (see :func:`dispatch`).
     """
-    global _server_socket
-
     start = time.monotonic()
 
     os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
@@ -112,7 +113,7 @@ def run_server(default_model: str | None = None) -> None:
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-    _server_socket = srv
+    _server_state.socket = srv
     atexit.register(_cleanup_server)
 
     try:

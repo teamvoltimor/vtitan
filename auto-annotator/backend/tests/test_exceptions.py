@@ -15,9 +15,9 @@ from src.exceptions import (
     InferenceGPUMemory,
     InferenceModelUnavailable,
     ModelError,
-    ModelNotFound,
-    ModelNotAvailable,
     ModelLoadError,
+    ModelNotAvailable,
+    ModelNotFound,
     ModelServerError,
     NavigationError,
 )
@@ -64,29 +64,35 @@ class TestExceptionRaising:
 
     def test_raise_model_not_found(self) -> None:
         """Verify ModelNotFound can be raised and caught."""
-        with pytest.raises(ModelNotFound):
-            raise ModelNotFound("Model 'sam3' not in registry")
+        err_msg = "Model 'sam3' not in registry"
+        with pytest.raises(ModelNotFound, match=err_msg):
+            raise ModelNotFound(err_msg)
 
     def test_raise_inference_gpu_memory(self) -> None:
         """Verify InferenceGPUMemory can be raised and caught."""
-        with pytest.raises(InferenceGPUMemory):
-            raise InferenceGPUMemory("CUDA out of memory")
+        err_msg = "CUDA out of memory"
+        with pytest.raises(InferenceGPUMemory, match=err_msg):
+            raise InferenceGPUMemory(err_msg)
+
+    def _raise_chained(self, original_error: ValueError) -> None:
+        try:
+            raise original_error
+        except ValueError as e:
+            err_msg = f"Failed to load model: {e}"
+            raise ModelLoadError(err_msg) from e
 
     def test_exception_chaining(self) -> None:
         """Verify exception chaining preserves original error."""
         original_error = ValueError("Original error")
-        try:
-            try:
-                raise original_error
-            except ValueError as e:
-                raise ModelLoadError(f"Failed to load model: {e}") from e
-        except ModelLoadError as e:
-            assert e.__cause__ is original_error
+        with pytest.raises(ModelLoadError) as exc_info:
+            self._raise_chained(original_error)
+        assert exc_info.value.__cause__ is original_error
 
     def test_catch_base_exception(self) -> None:
         """Verify specific exceptions can be caught by base class."""
-        with pytest.raises(AutoAnnotatorError):
-            raise InferenceGPUMemory("CUDA OOM")
+        err_msg = "CUDA OOM"
+        with pytest.raises(AutoAnnotatorError, match=err_msg):
+            raise InferenceGPUMemory(err_msg)
 
     def test_exception_message_preserved(self) -> None:
         """Verify exception message is preserved."""

@@ -8,9 +8,12 @@ Provides a single interface for all data access, enabling:
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from src.models import BrowseRow, ClassInfo, GroupedRow, ImageRecord, StatsResult
+from src.db import core as db_core
+
+if TYPE_CHECKING:
+    from src.models import BrowseRow, ClassInfo, GroupedRow, ImageRecord, StatsResult
 
 
 class ImageRepository(Protocol):
@@ -91,8 +94,6 @@ class DefaultRepository:
 
     def __init__(self) -> None:
         """Initialize with default database connections."""
-        from src.db import core as db_core
-
         self._db = db_core
 
     @property
@@ -118,43 +119,27 @@ class _DefaultImageRepository:
         self._db = db
 
     def get_by_id(self, image_id: int) -> ImageRecord | None:
-        from src.db import core as db_core
-
         return db_core.get_by_id(image_id)
 
     def get_all(self) -> list[BrowseRow]:
-        from src.db import core as db_core
-
         return db_core.get_all_images()
 
     def get_grouped(self) -> list[GroupedRow]:
-        from src.db import core as db_core
-
         return db_core.get_grouped_images()
 
     def add_from_paths(self, paths: list[str]) -> None:
-        from src.db import core as db_core
-
         return db_core.add_images_from_paths(paths)
 
     def delete(self, image_id: int) -> None:
-        from src.db import core as db_core
-
         return db_core.delete_image(image_id)
 
     def mark_done(self, image_id: int, export_format: str) -> None:
-        from src.db import core as db_core
-
         return db_core.mark_done(image_id, export_format)
 
     def mark_skipped(self, image_id: int) -> None:
-        from src.db import core as db_core
-
         return db_core.mark_skipped(image_id)
 
     def register_augmented(self, path: str, format_used: str, parent_id: int) -> int:
-        from src.db import core as db_core
-
         return db_core.register_augmented_image(path, format_used, parent_id)
 
 
@@ -165,13 +150,9 @@ class _DefaultClassRepository:
         self._db = db
 
     def get_all(self) -> list[ClassInfo]:
-        from src.db import core as db_core
-
         return db_core.get_classes()
 
     def upsert(self, name: str, color: str) -> None:
-        from src.db import core as db_core
-
         return db_core.upsert_class(name, color)
 
 
@@ -182,6 +163,4 @@ class _DefaultStatsRepository:
         self._db = db
 
     def get_stats(self) -> StatsResult:
-        from src.db import core as db_core
-
         return db_core.get_stats()

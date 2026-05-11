@@ -36,8 +36,8 @@ from src.job_manager import JobManager
 from src.model_server import connect_to_model_server
 from src.models import AppContext
 from src.services import AnnotationService, GalleryService, SegmentationService
-from src.validation import DefaultValidator
 from src.utils import get_logger
+from src.validation import DefaultValidator
 
 logger = get_logger(__name__)
 

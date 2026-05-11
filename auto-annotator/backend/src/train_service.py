@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from src.constants import BASE_DIR, DATA_YAML_PATH
 from src.utils import get_logger
 
 if TYPE_CHECKING:
-    from src.db.repository import Repository
+    from pathlib import Path
+
     from src.job_progress import ProgressReporter
 
 logger = get_logger(__name__)
@@ -26,7 +27,6 @@ def run_training_job(
     imgsz: int,
     on_progress: ProgressCallback,
     data_yaml: Path | None = None,
-    repository: Repository | None = None,
     reporter: ProgressReporter | None = None,
 ) -> None:
     """Train YOLO model, calling on_progress after each epoch.
@@ -41,7 +41,7 @@ def run_training_job(
         repository: Repository for potential database updates. Unused in current implementation.
         reporter:   Optional ProgressReporter for fine-grained progress tracking.
     """
-    from ultralytics import YOLO  # lazy import — heavy dependency
+    from ultralytics import YOLO  # lazy import — heavy dependency  # noqa: PLC0415
 
     yaml_path = data_yaml or DATA_YAML_PATH
     if not yaml_path.exists():
@@ -86,6 +86,6 @@ def run_training_job(
         )
         on_progress({"epoch": epochs, "total": epochs, "finished": True})
         logger.info("training_job_done", extra={"epochs": epochs, "model": model_name})
-    except Exception as exc:
+    except RuntimeError as exc:
         on_progress({"error": str(exc)})
         logger.info("training_job_error", extra={"error": str(exc)})

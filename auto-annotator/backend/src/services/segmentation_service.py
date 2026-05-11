@@ -12,13 +12,13 @@ import numpy as np
 from PIL import Image
 
 from src.api.schemas import SegmentationShape
-from src.coordinates import NormalizedPoint, YOLOPoint, yolo_bbox_to_corners
-from src.db.repository import Repository
+from src.coordinates import YOLOPoint, yolo_bbox_to_corners
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
 from src.inference import run_sam_inference
 from src.models import AppState, ClassInfo, Point
 
 if TYPE_CHECKING:
+    from src.db.repository import Repository
     from src.models import AppContext
 
 
@@ -63,14 +63,16 @@ class SegmentationService:
         """
         record = self.repository.images.get_by_id(image_id)
         if record is None:
-            raise ValueError(f"Image {image_id} not found")
+            msg = f"Image {image_id} not found"
+            raise ValueError(msg)
 
         # Load image from disk
         try:
             image = Image.open(record.path).convert("RGB")
             image_np = np.array(image)
         except Exception as e:
-            raise ValueError(f"Failed to load image: {e}") from e
+            msg = f"Failed to load image: {e}"
+            raise ValueError(msg) from e
 
         width, height = image.width, image.height
 
@@ -111,7 +113,8 @@ class SegmentationService:
 
         result = run_sam_inference(state, app_context.client, app_context.inference)
         if not result.ok or result.masks is None:
-            raise ValueError(f"Inference failed: {result.error}")
+            msg = f"Inference failed: {result.error}"
+            raise ValueError(msg)
 
         # Convert best mask to shape
         best_mask = result.masks[result.best_idx]

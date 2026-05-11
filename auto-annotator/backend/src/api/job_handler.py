@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
@@ -17,6 +17,9 @@ from src.job_manager import JobEvent, JobManager, JobStatus
 from src.job_progress import JobProgressReporter, ProgressUpdate
 from src.utils import get_logger
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 logger = get_logger(__name__)
 
 
@@ -24,9 +27,9 @@ async def run_job(
     job_manager: JobManager,
     job_func: Callable[..., None],
     job_name: str,
-    *job_args,
+    *job_args: object,
     progress_callback: Callable[[ProgressUpdate], None] | None = None,
-    **job_kwargs,
+    **job_kwargs: object,
 ) -> dict:
     """Start an async job and return immediate response.
 
@@ -76,7 +79,7 @@ async def run_job(
                 ),
             )
         except Exception as e:
-            logger.error(f"{job_name} job failed", extra={"_extra": {"error": str(e)}})
+            logger.exception("%s job failed", job_name, extra={"_extra": {"error": str(e)}})
             job_manager.set_status(job_id, JobStatus.FAILED)
             job_manager.emit(
                 job_id,
@@ -90,7 +93,8 @@ async def run_job(
         finally:
             job_manager.cleanup(job_id)
 
-    asyncio.create_task(run_job_async())
+    task = asyncio.create_task(run_job_async())
+    task.add_done_callback(lambda _t: None)
     return {"running": True, "message": f"{job_name} started"}
 
 
@@ -136,8 +140,8 @@ async def stream_job_events(job_manager: JobManager, job_name: str) -> Streaming
                 yield f"data: {json.dumps(evt.to_dict())}\n\n"
                 if evt.status in (JobStatus.COMPLETED, JobStatus.FAILED):
                     break
-        except asyncio.TimeoutError:
-            yield "data: {\"heartbeat\": true}\n\n"
+        except TimeoutError:
+            yield 'data: {"heartbeat": true}\n\n'
 
     return StreamingResponse(
         generator(),

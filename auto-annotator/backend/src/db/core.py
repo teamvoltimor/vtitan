@@ -25,8 +25,8 @@ from src.db.constants import (
     STATUS_NAMES,
 )
 from src.db.queries import (
-    QUERY_COUNT_CLASSES,
     QUERY_COUNT_CHILDREN_BY_PARENT,
+    QUERY_COUNT_CLASSES,
     QUERY_DELETE_IMAGE,
     QUERY_INSERT_AUGMENTED_IMAGE,
     QUERY_INSERT_CLASS_DEFAULT_IGNORE,
@@ -110,7 +110,7 @@ def _row_to_image_record(row: sqlite3.Row) -> ImageRecord:
         status=Status(row[COL_STATUS]),
         format_used=row[COL_FORMAT_USED],
         updated_at=row[COL_UPDATED_AT],
-        parent_id=row[COL_PARENT_ID] if COL_PARENT_ID in row.keys() else None,
+        parent_id=row.get(COL_PARENT_ID, None),
     )
 
 

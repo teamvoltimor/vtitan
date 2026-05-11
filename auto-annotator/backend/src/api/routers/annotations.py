@@ -4,17 +4,10 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 
-from src.api.dependencies import (
-    AnnotationCacheDep,
-    AnnotationServiceDep,
-    GalleryServiceDep,
-    ImageRecordDep,
-    RepositoryDep,
-    ValidatorDep,
-)
 from src.api.schemas import (
     GalleryResponse,
     SaveAnnotationsRequest,
@@ -22,10 +15,19 @@ from src.api.schemas import (
     SkipRequest,
 )
 from src.constants import DATA_YAML_PATH, IMAGES_DIR, LABELS_DIR
-from src.coordinates import yolo_bbox_to_corners
 from src.geometry import polygon_to_yolo_bbox
-from src.models import ClassInfo
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    from src.api.dependencies import (
+        AnnotationCacheDep,
+        AnnotationServiceDep,
+        GalleryServiceDep,
+        ImageRecordDep,
+        RepositoryDep,
+        ValidatorDep,
+    )
+    from src.models import ClassInfo
 
 logger = get_logger(__name__)
 
@@ -81,7 +83,7 @@ def save_annotations(
     try:
         validator.validate_save_annotations_request(payload, classes)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     name_to_yolo: dict[str, int] = {cls.name: idx for idx, cls in enumerate(classes)}
     primary_class = payload.shapes[0].className

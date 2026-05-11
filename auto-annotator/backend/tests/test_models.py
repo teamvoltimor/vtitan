@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from src.enums import Status
-from src.models import ClassInfo, Point, ImageRecord
+from src.models import ClassInfo, ImageRecord, Point
 from src.types import ClassId, ImageId
 
 
@@ -30,13 +30,13 @@ class TestImmutableModels:
     def test_point_immutable(self) -> None:
         """Verify Point dataclass is frozen."""
         point = Point(x=1.0, y=2.0, label=1)
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(AttributeError):
             point.x = 3.0  # type: ignore[misc]
 
     def test_class_info_immutable(self) -> None:
         """Verify ClassInfo dataclass is frozen."""
         cls = ClassInfo(id=1, name="red", color="#ff0000")
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(AttributeError):
             cls.name = "blue"  # type: ignore[misc]
 
     def test_image_record_immutable(self) -> None:
@@ -49,7 +49,7 @@ class TestImmutableModels:
             updated_at="2026-01-01",
             format=None,
         )
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(AttributeError):
             record.status = Status.DONE  # type: ignore[misc]
 
 

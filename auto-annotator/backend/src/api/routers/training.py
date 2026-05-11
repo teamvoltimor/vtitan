@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException, Request
 
-from src.api.dependencies import JobManagerDep, RepositoryDep
 from src.api.job_handler import get_job_status, run_job, stream_job_events
 from src.api.schemas import JobStatusResponse, TrainRequest
 from src.job_manager import JobStatus
 from src.train_service import run_training_job
+
+if TYPE_CHECKING:
+    from fastapi.responses import StreamingResponse
+
+    from src.api.dependencies import JobManagerDep, RepositoryDep
 
 router = APIRouter()
 
@@ -40,7 +46,7 @@ async def start_train(
         epochs=payload.epochs,
         batch=payload.batch,
         imgsz=payload.imgsz,
-        on_progress=lambda evt: None,  # Progress callback (optional)
+        on_progress=lambda _evt: None,  # Progress callback (optional)
         repository=repository,
         cache=app_state.annotation_cache,
     )
@@ -48,6 +54,6 @@ async def start_train(
 
 
 @router.get("/stream")
-async def train_stream(job_manager: JobManagerDep):
+async def train_stream(job_manager: JobManagerDep) -> StreamingResponse:
     """SSE stream for training progress."""
     return await stream_job_events(job_manager, "training")

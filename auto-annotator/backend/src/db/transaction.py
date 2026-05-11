@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from src.constants import DB_PATH
 from src.exceptions import DBTransactionError
@@ -37,7 +36,7 @@ class Transaction:
         self.conn: sqlite3.Connection | None = None
         self._in_transaction = False
 
-    def __enter__(self) -> Transaction:
+    def __enter__(self) -> Self:
         """Open connection and begin transaction."""
         try:
             self.conn = sqlite3.connect(DB_PATH)
@@ -46,11 +45,13 @@ class Transaction:
             self.conn.execute("PRAGMA journal_mode = WAL")
             self.conn.execute("BEGIN IMMEDIATE")
             self._in_transaction = True
-            return self
         except sqlite3.Error as e:
-            raise DBTransactionError(f"Failed to begin transaction: {e}") from e
+            err_msg = f"Failed to begin transaction: {e}"
+            raise DBTransactionError(err_msg) from e
+        else:
+            return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> bool:
         """Commit on success, rollback on error."""
         if not self.conn:
             return False
@@ -63,13 +64,14 @@ class Transaction:
 
             self.conn.execute("COMMIT")
             logger.debug("Transaction committed")
-            return False
         except sqlite3.Error as e:
-            logger.error("Commit/rollback failed", extra={"_extra": {"error": str(e)}})
-            raise DBTransactionError(f"Failed to commit: {e}") from e
+            err_msg = f"Failed to commit: {e}"
+            raise DBTransactionError(err_msg) from e
         finally:
             self.conn.close()
             self._in_transaction = False
+
+        return False
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute a query within the transaction.
@@ -91,7 +93,8 @@ class Transaction:
         try:
             return self.conn.execute(query, params)
         except sqlite3.Error as e:
-            raise DBTransactionError(f"Query execution failed: {e}") from e
+            msg = f"Query execution failed: {e}"
+            raise DBTransactionError(msg) from e
 
     def executemany(self, query: str, params: list[tuple]) -> sqlite3.Cursor:
         """Execute multiple queries within the transaction."""
@@ -102,7 +105,8 @@ class Transaction:
         try:
             return self.conn.executemany(query, params)
         except sqlite3.Error as e:
-            raise DBTransactionError(f"Batch execution failed: {e}") from e
+            msg = f"Batch execution failed: {e}"
+            raise DBTransactionError(msg) from e
 
 
 @contextmanager

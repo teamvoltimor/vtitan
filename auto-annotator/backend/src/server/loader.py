@@ -13,7 +13,6 @@ import torch
 
 from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CFG_KEY_ID,
     CFG_KEY_TYPE,
     MODEL_TYPE_SAM1,
     MODEL_TYPE_SAM2,
@@ -66,20 +65,21 @@ def load_model(model_id: str, ctx: ServerContext, registry: ModelRegistry) -> No
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    try:
-        mtype = cfg.get(CFG_KEY_TYPE, "")
-        loader = _MODEL_LOADERS.get(mtype)
-        if loader is None:
-            msg = f"Unknown model type: {mtype!r}"
-            raise ModelLoadError(msg)
+    mtype = cfg.get(CFG_KEY_TYPE, "")
+    loader = _MODEL_LOADERS.get(mtype)
+    if loader is None:
+        err_msg = f"Unknown model type: {mtype!r}"
+        raise ModelLoadError(err_msg)
 
+    try:
         loader(cfg, ctx)
         ctx.model_id = model_id
         logger.info("Model loaded", extra={"_extra": {"model_id": model_id, "caps": str(capabilities)}})
     except (ModelNotFound, ModelNotAvailable, ModelLoadError):
         raise
     except Exception as e:
-        raise ModelLoadError(f"Failed to load {model_id}: {e}") from e
+        err_msg = f"Failed to load {model_id}: {e}"
+        raise ModelLoadError(err_msg) from e
 
 
 def initial_load(ctx: ServerContext, configs: list[dict], default_model: str = "") -> None:
@@ -105,8 +105,9 @@ def initial_load(ctx: ServerContext, configs: list[dict], default_model: str = "
     for model_id in dict.fromkeys(candidates):
         try:
             load_model(model_id, ctx, registry)
-            return
         except (ModelNotFound, ModelNotAvailable, ModelLoadError) as e:
-            logger.warning(f"Could not load {model_id}: {e}")
+            logger.warning("Could not load %s: %s", model_id, e)
+        else:
+            return
 
     logger.critical("No models could be loaded")

@@ -7,14 +7,14 @@ Enables clients to handle errors uniformly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Generic, TypeVar
+from datetime import UTC, datetime
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
 @dataclass
-class ApiResponse(Generic[T]):
+class ApiResponse[T]:
     """Unified response envelope for all API operations.
 
     Provides consistent error handling, metadata, and status across endpoints.
@@ -35,10 +35,10 @@ class ApiResponse(Generic[T]):
         Returns:
             ApiResponse with data and no error.
         """
-        return cls(data=data, error=None, metadata=metadata or {"timestamp": datetime.utcnow().isoformat()})
+        return cls(data=data, error=None, metadata=metadata or {"timestamp": datetime.now(UTC).isoformat()})
 
     @classmethod
-    def error(cls, error: str, metadata: dict | None = None) -> ApiResponse[None]:
+    def error_response(cls, error: str, metadata: dict | None = None) -> ApiResponse[None]:
         """Create an error response.
 
         Args:
@@ -48,4 +48,4 @@ class ApiResponse(Generic[T]):
         Returns:
             ApiResponse with error and no data.
         """
-        return cls(data=None, error=error, metadata=metadata or {"timestamp": datetime.utcnow().isoformat()})
+        return cls(data=None, error=error, metadata=metadata or {"timestamp": datetime.now(UTC).isoformat()})

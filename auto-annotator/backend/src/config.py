@@ -58,20 +58,20 @@ class PathConfig:
         return PathConfig(
             base_dir=base_dir,
             models_dir=Path(
-                os.environ.get("MODELS_DIR", str(base_dir / "models"))
+                os.environ.get("MODELS_DIR", str(base_dir / "models")),
             ),
             pending_dir=base_dir / "data" / "pending",
             labels_dir=base_dir / "data" / "labels",
             images_dir=base_dir / "data" / "images",
             data_yaml_path=base_dir / "data" / "data.yaml",
             db_path=Path(
-                os.environ.get("DB_PATH", str(base_dir / "data" / "manifest.db"))
+                os.environ.get("DB_PATH", str(base_dir / "data" / "manifest.db")),
             ),
             config_file=Path(
-                os.environ.get("MODELS_CONFIG", str(base_dir / "config" / "models.toml"))
+                os.environ.get("MODELS_CONFIG", str(base_dir / "config" / "models.toml")),
             ),
             server_config_file=Path(
-                os.environ.get("SERVER_CONFIG", str(base_dir / "config" / "server.toml"))
+                os.environ.get("SERVER_CONFIG", str(base_dir / "config" / "server.toml")),
             ),
         )
 
@@ -135,7 +135,7 @@ class APIConfig:
     @classmethod
     def load() -> APIConfig:
         """Load API configuration from environment variables."""
-        port = int(os.environ.get("API_PORT", 8000))
+        port = int(os.environ.get("API_PORT", "8000"))
         return APIConfig(
             port=port,
             public_url=os.environ.get(

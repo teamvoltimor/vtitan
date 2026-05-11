@@ -6,9 +6,12 @@ Exponential backoff for network operations, file I/O, and other transient errors
 from __future__ import annotations
 
 import time
-from typing import Callable, TypeVar, overload
+from typing import TYPE_CHECKING, TypeVar, overload
 
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger(__name__)
 
@@ -16,7 +19,7 @@ T = TypeVar("T")
 
 
 @overload
-def retry(
+def retry[T](
     func: Callable[..., T],
     *,
     max_attempts: int = 3,
@@ -28,7 +31,7 @@ def retry(
     ...
 
 
-def retry(
+def retry[T](
     func: Callable[..., T],
     *,
     max_attempts: int = 3,
@@ -79,14 +82,17 @@ def retry(
                 raise
 
             if attempt == max_attempts:
-                logger.error(
-                    f"Retry exhausted after {max_attempts} attempts",
+                logger.exception(
+                    "Retry exhausted after %d attempts",
+                    max_attempts,
                     extra={"_extra": {"error": str(e), "last_delay_ms": delay_ms}},
                 )
                 raise
 
             logger.debug(
-                f"Attempt {attempt} failed, retrying in {delay_ms}ms",
+                "Attempt %d failed, retrying in %dms",
+                attempt,
+                delay_ms,
                 extra={"_extra": {"error": str(e)}},
             )
             time.sleep(delay_ms / 1000.0)
@@ -94,4 +100,5 @@ def retry(
 
     if last_error:
         raise last_error
-    raise RuntimeError("Retry logic failed unexpectedly")
+    msg = "Retry logic failed unexpectedly"
+    raise RuntimeError(msg)

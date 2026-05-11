@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter
 
-from src.api.dependencies import RepositoryDep
 from src.api.schemas import ClassItem, UpsertClassRequest
+
+if TYPE_CHECKING:
+    from src.api.dependencies import RepositoryDep
 
 router = APIRouter()
 

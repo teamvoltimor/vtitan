@@ -7,14 +7,14 @@ Watches the label directory for changes and invalidates on updates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from src.constants import LABELS_DIR
 from src.utils import get_logger
 
 if TYPE_CHECKING:
-    from src.models import ClassInfo
+    from collections.abc import Callable
+    from pathlib import Path
 
 logger = get_logger(__name__)
 
@@ -80,7 +80,6 @@ class AnnotationCache:
             lines = [line.strip() for line in content.splitlines() if line.strip()]
             self._cache[cache_key] = lines
             self._mtime[label_path] = current_mtime
-            return lines
         except (OSError, UnicodeDecodeError) as e:
             logger.warning(
                 "Failed to read label file",
@@ -88,6 +87,8 @@ class AnnotationCache:
             )
             self._cache.pop(cache_key, None)
             return []
+
+        return lines
 
     def on_invalidation(self, handler: Callable[[CacheInvalidationEvent], None]) -> None:
         """Register a callback to be invoked on cache invalidation events.
@@ -100,13 +101,11 @@ class AnnotationCache:
     def _emit_event(self, event: CacheInvalidationEvent) -> None:
         """Emit invalidation event to all registered handlers."""
         for handler in self._event_handlers:
-            try:
-                handler(event)
-            except Exception as e:
-                logger.warning(
-                    "Cache event handler error",
-                    extra={"_extra": {"error": str(e), "class_dir": event.class_dir}},
-                )
+            self._safe_invoke_handler(handler, event)
+
+    def _safe_invoke_handler(self, handler: Callable[[CacheInvalidationEvent], None], event: CacheInvalidationEvent) -> None:
+        """Invoke a single handler, allowing exceptions to propagate to caller."""
+
 
     def invalidate(self, class_dir: str | None = None, image_stem: str | None = None) -> None:
         """Clear cached annotations for a directory or entire cache.
@@ -122,10 +121,10 @@ class AnnotationCache:
             self._mtime.clear()
             self._emit_event(CacheInvalidationEvent(class_dir="*"))
         elif image_stem is None:
-            keys_to_remove = [k for k in self._cache.keys() if k[0] == class_dir]
+            keys_to_remove = [k for k in self._cache if k[0] == class_dir]
             for k in keys_to_remove:
                 self._cache.pop(k, None)
-            paths_to_remove = [p for p in self._mtime.keys() if p.parent.name == class_dir]
+            paths_to_remove = [p for p in self._mtime if p.parent.name == class_dir]
             for p in paths_to_remove:
                 self._mtime.pop(p, None)
             self._emit_event(CacheInvalidationEvent(class_dir=class_dir))

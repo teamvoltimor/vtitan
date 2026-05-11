@@ -6,17 +6,19 @@ via the AppState container. No more app.state.field or # type: ignore.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, HTTPException, Request
 
-from src.api.state import AppState
 from src.db.repository import Repository
 from src.gallery_cache import AnnotationCache
 from src.job_manager import JobManager
 from src.models import AppContext, ImageRecord
 from src.services import AnnotationService, GalleryService, SegmentationService
 from src.validation import Validator
+
+if TYPE_CHECKING:
+    from src.api.state import AppState
 
 
 def get_app_state(request: Request) -> AppState:

@@ -10,18 +10,15 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Any
+from enum import StrEnum
+from typing import Any
 
 from src.utils import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncQueue
 
 logger = get_logger(__name__)
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """Job execution status."""
 
     PENDING = "pending"

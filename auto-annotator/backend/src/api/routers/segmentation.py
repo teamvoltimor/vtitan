@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException
 
-from src.api.dependencies import AppContextDep, RepositoryDep, SegmentationServiceDep, ValidatorDep
 from src.api.schemas import SegmentationRequest, SegmentationResponse
+
+if TYPE_CHECKING:
+    from src.api.dependencies import AppContextDep, RepositoryDep, SegmentationServiceDep, ValidatorDep
 
 router = APIRouter()
 
@@ -32,6 +36,6 @@ def run_segmentation(
         return SegmentationResponse(state="ready", message="Model mask ready", shapes=[shape])
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

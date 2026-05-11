@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import APIRouter, HTTPException, Request
 
-from src.api.dependencies import JobManagerDep, RepositoryDep
 from src.api.job_handler import get_job_status, run_job, stream_job_events
 from src.api.schemas import AugmentRequest, JobStatusResponse
 from src.augment import run_augmentation_job
 from src.job_manager import JobStatus
+
+if TYPE_CHECKING:
+    from fastapi.responses import StreamingResponse
+
+    from src.api.dependencies import JobManagerDep, RepositoryDep
 
 router = APIRouter()
 
@@ -41,7 +47,7 @@ async def start_augment(
         "Augmentation",
         payload.imageIds,
         payload.numAugmentations,
-        lambda evt: None,  # Progress callback (optional)
+        lambda _evt: None,  # Progress callback (optional)
         repository=repository,
         cache=app_state.annotation_cache,
     )
@@ -49,6 +55,6 @@ async def start_augment(
 
 
 @router.get("/stream")
-async def augment_stream(job_manager: JobManagerDep):
+async def augment_stream(job_manager: JobManagerDep) -> StreamingResponse:
     """SSE stream for augmentation progress."""
     return await stream_job_events(job_manager, "augmentation")

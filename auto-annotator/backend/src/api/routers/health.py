@@ -5,11 +5,14 @@ Verify inference availability and system status.
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
-from src.api.dependencies import AppContextDep, RepositoryDep
+if TYPE_CHECKING:
+    from src.api.dependencies import AppContextDep, RepositoryDep
 
 router = APIRouter()
 
@@ -33,18 +36,16 @@ def health_check(app_context: AppContextDep, repository: RepositoryDep) -> Healt
 
     Use /health for monitoring and readiness checks.
     """
-    # Check database connectivity
     db_ok = True
     try:
-        # Try a simple database query
         repository.stats.get_stats()
-    except Exception as e:
+    except (OSError, sqlite3.Error):
         db_ok = False
         return HealthStatus(
             ready=False,
             inference_available=False,
             database_accessible=False,
-            message=f"Database error: {e}",
+            message="Database error",
         )
 
     # Check inference availability
@@ -62,7 +63,7 @@ def health_check(app_context: AppContextDep, repository: RepositoryDep) -> Healt
 
 
 @router.get("/health/startup")
-def startup_check(app_context: AppContextDep) -> dict:
+def startup_check() -> dict:
     """Liveness check for startup/readiness probes.
 
     Use this for container orchestration (Kubernetes, Docker Compose).

@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
+from src.exceptions import ModelNotAvailable, ModelNotFound
 from src.server.constants import (
     CFG_KEY_CHECKPOINT,
     CFG_KEY_HF_REPO,
@@ -23,9 +22,6 @@ from src.server.constants import (
     MODEL_TYPE_YOLOE,
 )
 from src.utils import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 logger = get_logger(__name__)
 
@@ -114,8 +110,7 @@ class ModelRegistry:
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(_is_available, cfg, base_dir): cfg for cfg in configs}
-            for future in futures:
-                cfg = futures[future]
+            for future, cfg in futures.items():
                 model_id = cfg.get(CFG_KEY_ID, "unknown")
                 available = future.result()
                 mtype = cfg.get(CFG_KEY_TYPE, "")
@@ -130,11 +125,13 @@ class ModelRegistry:
             ModelNotAvailable: If model is not available on this system.
         """
         if model_id not in self.models:
-            raise ModelNotFound(f"Model {model_id!r} not in registry")
+            msg = f"Model {model_id!r} not in registry"
+            raise ModelNotFound(msg)
 
         cfg, available, caps = self.models[model_id]
         if not available:
-            raise ModelNotAvailable(f"Model {model_id!r} not available (checkpoint missing?)")
+            msg = f"Model {model_id!r} not available (checkpoint missing?)"
+            raise ModelNotAvailable(msg)
 
         return cfg, caps
 

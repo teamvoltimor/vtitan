@@ -61,7 +61,7 @@ def _make_logger(name: str) -> logging.Logger:
 
 def _log(logger: logging.Logger, level: str, msg: str, **kw: object) -> None:
     record = logger.makeRecord(logger.name, getattr(logging, level), "", 0, msg, (), None)
-    record._extra = kw  # type: ignore[attr-defined]
+    record.__dict__.update(kw)
     logger.handle(record)
 
 
@@ -179,7 +179,7 @@ def _write_data_yaml(data_dir: Path, db_path: Path) -> None:
 
 def _parse_legacy_classes(classes_txt: Path) -> dict[int, str]:
     lines = [ln.strip() for ln in classes_txt.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    return {idx: name for idx, name in enumerate(lines)}
+    return dict(enumerate(lines))
 
 
 def _build_idx_remap(legacy_classes: dict[int, str], new_name_to_idx: dict[str, int]) -> dict[int, int]:
@@ -210,7 +210,8 @@ def _rewrite_label(lines: list[str], idx_remap: dict[int, int]) -> list[str] | N
     return out
 
 
-def run(zip_path: Path, dry_run: bool, data_dir: Path, db_path: Path, path_prefix: str | None = None) -> None:
+def run(zip_path: Path, dry_run: bool, data_dir: Path, db_path: Path, path_prefix: str | None = None) -> None:  # noqa: C901, PLR0912, PLR0915
+    """Import legacy dataset from zip into auto-annotator."""
     if not zip_path.exists():
         _log(logger, "ERROR", "zip_not_found", path=str(zip_path))
         sys.exit(1)
@@ -327,6 +328,7 @@ def run(zip_path: Path, dry_run: bool, data_dir: Path, db_path: Path, path_prefi
 
 
 def main() -> None:
+    """CLI entry point for legacy import."""
     backend_dir = Path(__file__).parent.parent
     default_data = backend_dir / "data"
     default_db = default_data / "manifest.db"

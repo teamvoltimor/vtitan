@@ -17,12 +17,10 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.constants import INFERENCE_DEFAULT_MASK_SCORE, MASK_LABELS
+from src.constants import MASK_LABELS
 from src.exceptions import (
-    InferenceBadInput,
     InferenceBackendError,
     InferenceGPUMemory,
-    InferenceModelUnavailable,
 )
 from src.inference_backends import get_backend, load_native_sam2, load_ultralytics_fallback
 from src.models import AppState, InferenceContext, InferenceResult, Point
@@ -57,7 +55,7 @@ def initialize_inference(client: ModelServerClient | None, context: InferenceCon
         try:
             load_ultralytics_fallback(context)
         except InferenceBackendError as fallback_err:
-            logger.error("No SAM backend available", extra={"_extra": {"err": str(fallback_err)}})
+            logger.exception("No SAM backend available", extra={"_extra": {"err": str(fallback_err)}})
 
 
 def _filter_connected_components(mask: np.ndarray, positive_points: list[Point]) -> np.ndarray:
@@ -159,7 +157,7 @@ def run_sam_inference(
         return InferenceResult(masks=None, best_idx=0, scores_str="", error=f"Inference error: {e}")
     except Exception as e:
         _empty_cache(context)
-        logger.error("Unexpected inference error", extra={"_extra": {"error": str(e)}})
+        logger.exception("Unexpected inference error", extra={"_extra": {"error": str(e)}})
         return InferenceResult(masks=None, best_idx=0, scores_str="", error=f"Unexpected error: {e}")
     finally:
         if client is None:

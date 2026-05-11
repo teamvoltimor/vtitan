@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from src.api.dependencies import GalleryServiceDep, ImageRecordDep, RepositoryDep
 from src.api.schemas import DeleteImagesRequest, GalleryResponse
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    from src.api.dependencies import GalleryServiceDep, ImageRecordDep, RepositoryDep
 
 logger = get_logger(__name__)
 

@@ -7,7 +7,7 @@ Separates business logic from HTTP endpoints.
 from __future__ import annotations
 
 from collections import defaultdict
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.api.schemas import (
     GalleryItem,
@@ -18,10 +18,11 @@ from src.api.schemas import (
     SegmentationShape,
 )
 from src.constants import API_PUBLIC_URL
-from src.db.repository import Repository
-from src.enums import Status
-from src.models import BrowseRow, ClassInfo, GroupedRow
-from src.services.annotation_service import AnnotationService
+
+if TYPE_CHECKING:
+    from src.db.repository import Repository
+    from src.models import BrowseRow, ClassInfo
+    from src.services.annotation_service import AnnotationService
 
 
 class GalleryService:
@@ -104,8 +105,7 @@ class GalleryService:
         Returns:
             GalleryItem with annotations loaded.
         """
-        # Get image record for annotation loading
-        image_record = db.get_by_id(row.id)
+        image_record = self.repository.images.get_by_id(row.id)
         if image_record is None:
             annotations: list[SegmentationShape] = []
         else:

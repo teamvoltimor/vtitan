@@ -7,12 +7,15 @@ across gallery, annotations, and grouped gallery endpoints.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from src.api.schemas import SegmentationShape
-from src.coordinates import YOLOPoint, yolo_coords_to_polygon, yolo_bbox_to_corners
+from src.coordinates import yolo_bbox_to_corners, yolo_coords_to_polygon
 from src.enums import Status
-from src.gallery_cache import AnnotationCache
-from src.models import ImageRecord, ClassInfo
+
+if TYPE_CHECKING:
+    from src.gallery_cache import AnnotationCache
+    from src.models import ClassInfo, ImageRecord
 
 
 class AnnotationService:
@@ -27,7 +30,7 @@ class AnnotationService:
         self.cache = cache
 
     def load_annotations(
-        self, image: ImageRecord, classes: list[ClassInfo]
+        self, image: ImageRecord, classes: list[ClassInfo],
     ) -> list[SegmentationShape]:
         """Load and parse saved annotations for an image.
 
@@ -82,7 +85,7 @@ class AnnotationService:
                     id=f"loaded-{image.id}-{i}",
                     className=cls_name,
                     points=points,
-                )
+                ),
             )
 
         return shapes

@@ -7,11 +7,11 @@ DB and directory structure. Supports both bbox (det) and polygon (seg) formats.
 from __future__ import annotations
 
 import collections
-import cv2
-import numpy as np
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING
 
+import cv2
 from albumentations import (
     BboxParams,
     Compose,
@@ -23,11 +23,14 @@ from albumentations import (
 )
 
 from src.constants import IMAGES_DIR, LABELS_DIR
-from src.db.repository import Repository
-from src.gallery_cache import AnnotationCache
-from src.job_progress import ProgressReporter
-from src.models import ImageRecord
 from src.utils import get_logger
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from src.db.repository import Repository
+    from src.gallery_cache import AnnotationCache
+    from src.models import ImageRecord
 
 logger = get_logger(__name__)
 
@@ -95,7 +98,7 @@ def _augment_seg(image_np: np.ndarray, class_ids: list[int], polygons: list[list
         new_H, new_W = out["image"].shape[:2]
 
         groups: dict[int, list[float]] = collections.defaultdict(list)
-        for (kx, ky), pidx in zip(out["keypoints"], out["poly_idx"]):
+        for (kx, ky), pidx in zip(out["keypoints"], out["poly_idx"], strict=False):
             groups[pidx].extend([kx / new_W, ky / new_H])
 
         new_classes, new_polys = [], []
@@ -112,7 +115,7 @@ def _augment_seg(image_np: np.ndarray, class_ids: list[int], polygons: list[list
 def _write_label(path: Path, class_ids: list[int], coords: list[list[float]]) -> None:
     lines = [
         f"{cid} " + " ".join(f"{v:.6f}" for v in coord)
-        for cid, coord in zip(class_ids, coords)
+        for cid, coord in zip(class_ids, coords, strict=False)
     ]
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -195,7 +198,7 @@ def run_augmentation_job(
     num_augmentations: int,
     on_progress: ProgressCallback,
     repository: Repository,
-    reporter=None,  # Optional ProgressReporter from job_handler
+    reporter: object | None = None,
     cache: AnnotationCache | None = None,
 ) -> None:
     """Run augmentation for a list of image IDs. Calls on_progress for each step.
