@@ -1,7 +1,6 @@
 """Calibration data management: COCO download and image → .npy conversion."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -9,47 +8,13 @@ import numpy as np
 
 from src.common import (
     CalibrationDataError,
-    HailoError,
+    _require_dep,
     get_logger,
-    iter_images,
 )
-
-try:
-    from fiftyone.types import ImageDirectory
-    from fiftyone.zoo import load_zoo_dataset
-except ImportError:
-    ImageDirectory = None  # type: ignore[assignment, misc]
-    load_zoo_dataset = None  # type: ignore[assignment]
+from src.config import ConvertConfig, DownloadConfig  # noqa: TC001
+from src.image import iter_images
 
 log = get_logger(__name__)
-
-
-@dataclass(slots=True, frozen=True)
-class DownloadConfig:
-    """Parameters for the COCO calibration dataset download.
-
-    Args:
-        samples: Number of images to pull from the COCO 2017 validation split.
-        output: Destination directory for the raw image files.
-    """
-
-    samples: int
-    output: str
-
-
-@dataclass(slots=True, frozen=True)
-class ConvertConfig:
-    """Parameters for converting raw images to float32 ``.npy`` arrays.
-
-    Args:
-        input: Directory containing ``.jpg``/``.png`` calibration images.
-        output: Directory where ``.npy`` files will be written.
-        size: Square resize target matching the model's input resolution.
-    """
-
-    input: str
-    output: str
-    size: int
 
 
 def download(config: DownloadConfig) -> None:
@@ -61,9 +26,14 @@ def download(config: DownloadConfig) -> None:
     Raises:
         HailoError: If ``fiftyone`` is not installed.
     """
-    if load_zoo_dataset is None:
-        msg = "fiftyone is not installed. Add it to pyproject.toml and run `uv sync`."
-        raise HailoError(msg)
+    try:
+        from fiftyone.types import ImageDirectory  # noqa: PLC0415
+        from fiftyone.zoo import load_zoo_dataset  # noqa: PLC0415
+    except ImportError:
+        ImageDirectory = None  # type: ignore[assignment, misc]
+        load_zoo_dataset = None  # type: ignore[assignment]
+
+    _require_dep(load_zoo_dataset, "fiftyone")
 
     log.info(
         "Downloading %d COCO 2017 validation images → %s",

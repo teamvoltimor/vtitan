@@ -1,41 +1,28 @@
 """YOLO PyTorch → ONNX export for Hailo compilation."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from src.common import (
-    MODEL_REGISTRY,
     HailoError,
-    ModelName,
     ModelNotFoundError,
+    _require_dep,
+    get_entry,
     get_logger,
 )
+from src.config import ExportConfig  # noqa: TC001
 
 try:
     from ultralytics import YOLO
 except ImportError:
     YOLO = None  # type: ignore[assignment, misc]
 
+try:
+    import onnx
+except ImportError:
+    onnx = None  # type: ignore[assignment]
+
 log = get_logger(__name__)
-
-
-@dataclass(slots=True, frozen=True)
-class ExportConfig:
-    """Parameters for a single model export run.
-
-    Args:
-        model: Registry key identifying the model variant.
-        imgsz: Square input resolution passed to ``YOLO.export()``.
-        opset: Override the per-model default ONNX opset when set.
-        no_simplify: When ``True``, suppress the ``simplify=True`` flag
-            even if the model registry requests it.
-    """
-
-    model: ModelName
-    imgsz: int
-    opset: int | None
-    no_simplify: bool
 
 
 def run(config: ExportConfig) -> None:
@@ -45,24 +32,17 @@ def run(config: ExportConfig) -> None:
         config: Export parameters.
 
     Raises:
-        HailoError: If ``config.model`` is not in the registry.
         ModelNotFoundError: If the ``.pt`` checkpoint is missing on disk.
     """
-    if YOLO is None:
-        msg = "ultralytics is not installed."
-        raise HailoError(msg)
-
-    entry = MODEL_REGISTRY.get(config.model)
-    if entry is None:
-        msg = f"Unknown model {config.model!r}. Valid options: {list(MODEL_REGISTRY)}"
-        raise HailoError(msg)
+    _require_dep(YOLO, "ultralytics")
+    entry = get_entry(config.model)
 
     if not Path(entry.pt_file).exists():
         msg = (
             f"Checkpoint not found: {entry.pt_file}. "
             "Download it or place it in the working directory."
         )
-        raise ModelNotFoundError(msg)
+        raise ModelNotFoundError(msg) from FileNotFoundError(entry.pt_file)
 
     opset = config.opset if config.opset is not None else entry.opset
     extra = entry.extra_kwargs()
@@ -87,3 +67,29 @@ def run(config: ExportConfig) -> None:
     )
     model.export(**export_kwargs)
     log.info("Export complete → %s", entry.onnx_file)
+
+
+def inspect(model_path: str) -> None:
+    """Print the ONNX graph structure, input names, and output names.
+
+    Args:
+        model_path: Path to the ``.onnx`` file to inspect.
+
+    Raises:
+        HailoError: If the file cannot be loaded.
+    """
+    _require_dep(onnx, "onnx")
+
+    if not Path(model_path).exists():
+        msg = f"ONNX file not found: {model_path}"
+        raise HailoError(msg) from FileNotFoundError(model_path)
+
+    log.info("Loading %s", model_path)
+    model = onnx.load(model_path)
+
+    log.info("%s", onnx.helper.printable_graph(model.graph))
+
+    inputs = [inp.name for inp in model.graph.input]
+    outputs = [out.name for out in model.graph.output]
+    log.info("Inputs:  %s", inputs)
+    log.info("Outputs: %s", outputs)

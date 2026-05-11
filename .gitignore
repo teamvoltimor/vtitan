@@ -215,17 +215,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Model weights and compiled artifactss. Large binaries, all regeneratable
-data/
-
-# Docker staging volume. Ephemeral, never source-controlled
-shared_with_docker/
-
-# Hailo visualisation exports and logs
-*.svg
-*.html
-*.log
-
 # Claude Code
 .claude/
 
