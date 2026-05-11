@@ -1,60 +1,73 @@
 """Build HAT motor driver implementation."""
 
+from __future__ import annotations
+
 import logging
 import signal
-from dataclasses import dataclass
-from pathlib import Path
+from typing import Self, override
 
 from buildhat import Motor
 
-from src.env import EnvVar
-from src.hardware.exceptions import MotorCalibrationError, MotorConnectionError, MotorTimeoutError
+from src.hardware.exceptions import MotorConnectionError, MotorTimeoutError
 from src.hardware.motors.base import (
     CalibrationData,
-    Config as BaseConfig,
     Driver as MotorDriver,
 )
+from src.hardware.motors.config import Config
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
-STEERING_PORT = EnvVar[str](key="MOTOR_STEERING_PORT", default="A")
-DRIVE_PORT = EnvVar[str](key="MOTOR_DRIVE_PORT", default="B")
-DEFAULT_SPEED = EnvVar[int](key="MOTOR_DEFAULT_SPEED", default=15, cast=int)
-TEST_DURATION = EnvVar[float](key="MOTOR_TEST_DURATION", default=1.5, cast=float)
-MOTOR_CONNECTION_TIMEOUT = EnvVar[int](key="MOTOR_CONNECTION_TIMEOUT", default=5, cast=int)
-
-
-@dataclass
-class Config(BaseConfig):
-    """Build HAT motor configuration."""
-
-    steering_port: str = STEERING_PORT.value
-    drive_port: str = DRIVE_PORT.value
-    default_speed: int = DEFAULT_SPEED.value
-    test_duration: float = TEST_DURATION.value
-    connection_timeout: int = MOTOR_CONNECTION_TIMEOUT.value
+CONNECTION_TIMEOUT = 5
+"""Default timeout in seconds for motor connection attempts."""
 
 
 class _TimeoutHandler:
     """Context manager for connection timeout handling."""
 
     def __init__(self, timeout_seconds: int):
+        """
+        Initialize timeout handler.
+
+        Args:
+            timeout_seconds (int): Number of seconds before timing out the connection attempt.
+        """
         self.timeout_seconds = timeout_seconds
         self._original_handler = None
 
-    def __enter__(self):
+    def __enter__(self) -> Self @ _TimeoutHandler:
         """Set timeout alarm."""
 
-        def _timeout_handler(signum, frame):
-            raise MotorTimeoutError("Motor connection timeout")
+        def _timeout_handler(_signum: int, _frame: signal.FrameType) -> None:
+            """
+            Signal handler for connection timeout. Raises MotorTimeoutError when the alarm signal is received.
 
+            Args:
+                _signum (int): The signal number (should be signal.SIGALRM).
+                _frame (signal.FrameType): The current stack frame (not used).
+            """
+            msg = f"Motor connection timed out after {self.timeout_seconds} seconds"
+            raise MotorTimeoutError(msg)
+
+        # Set the signal handler for SIGALRM to our timeout handler and start the alarm
         self._original_handler = signal.signal(signal.SIGALRM, _timeout_handler)
         signal.alarm(self.timeout_seconds)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Cancel timeout alarm."""
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: object,
+    ) -> None:
+        """
+        Cancel timeout alarm.
+
+        Args:
+            exc_type (type[BaseException] | None): The type of exception raised (if any) within the context block.
+            exc_value (BaseException | None): The exception instance raised (if any) within the context block.
+            traceback (object): The traceback object associated with the exception (if any) raised within the context block.
+        """
         signal.alarm(0)
         if self._original_handler is not None:
             signal.signal(signal.SIGALRM, self._original_handler)
@@ -70,6 +83,7 @@ class Driver(MotorDriver):
         self._calibration: CalibrationData | None = None
         self.logger = logging.getLogger(__name__)
 
+    @override
     def connect(self) -> None:
         """Connect to motors with timeout protection.
 
@@ -84,28 +98,28 @@ class Driver(MotorDriver):
                 self._drive = Motor(self.config.drive_port)
         except MotorTimeoutError as e:
             raise MotorConnectionError(
-                self.config.steering_port,
+                [self.config.steering.port, self.config.drive.port],
                 "Connection timeout (hardware not responding)",
             ) from e
         except FileNotFoundError as e:
             raise MotorConnectionError(
-                self.config.steering_port,
+                [self.config.steering.port, self.config.drive.port],
                 "Motor not found (USB disconnected?)",
             ) from e
         except PermissionError as e:
             raise MotorConnectionError(
-                self.config.steering_port,
+                [self.config.steering.port, self.config.drive.port],
                 "Permission denied (not running as root?)",
             ) from e
         except Exception as e:
             raise MotorConnectionError(
-                self.config.steering_port,
+                [self.config.steering.port, self.config.drive.port],
                 f"Unexpected connection error: {type(e).__name__}",
             ) from e
 
         self.logger.info(
             "Connected",
-            extra={"details": {"steering": self.config.steering_port, "drive": self.config.drive_port}},
+            extra={"details": {"steering": self.config.steering.port, "drive": self.config.drive.port}},
         )
 
     @property
@@ -122,97 +136,87 @@ class Driver(MotorDriver):
             self.connect()
         return self._drive
 
+    @override
     def get_steering_position(self) -> float:
         """Get current steering position in degrees."""
         return self.steering.get_aposition()
 
+    @override
     def get_drive_position(self) -> float:
         """Get current drive position in degrees."""
         return self.drive.get_aposition()
 
+    @override
     def get_steering_speed(self) -> float:
         """Get current steering speed in degrees/s."""
         return self.steering.get_speed()
 
+    @override
     def get_drive_speed(self) -> float:
         """Get current drive speed in degrees/s."""
         return self.drive.get_speed()
 
+    def _clamp_speed(self, speed: int) -> int:
+        """Clamp speed to configured limits."""
+        speed = abs(speed)
+        return max(min(speed, self.config.drive.max_speed), self.config.drive.min_speed)
+
+    def _clamp_position(self, position: float) -> float:
+        """Clamp steering position to configured limits."""
+        return max(min(position, self.config.steering.max_angle), self.config.steering.min_angle)
+
+    @override
     def run_drive_forward(self, speed: int | None = None) -> None:
-        """Run drive motor forward."""
-        s = speed or self.config.default_speed
+        """Run drive motor forward with optional speed limit."""
+        s = self._clamp_speed(speed or self.config.drive.default_speed)
         self.logger.info("Starting drive forward", extra={"details": {"speed": s}})
         self.drive.start(s)
 
+    @override
     def run_drive_reverse(self, speed: int | None = None) -> None:
         """Run drive motor in reverse."""
-        s = speed or self.config.default_speed
+        s = self._clamp_speed(speed or self.config.drive.default_speed)
         self.logger.info("Starting drive reverse", extra={"details": {"speed": -s}})
         self.drive.start(-s)
 
+    @override
     def stop_drive(self) -> None:
         """Stop drive motor."""
         self.drive.stop()
         self.logger.info("Drive stopped")
 
-    def move_steering_to(self, position: float, speed: int = 20) -> None:
-        """Move steering to absolute position."""
+    @override
+    def move_steering_to(self, position: float, speed: int | None = None) -> None:
+        """Move steering to absolute position in degrees."""
+        s = self._clamp_speed(speed)
         self.logger.info("Moving steering", extra={"details": {"target_position": position, "speed": speed}})
-        self.steering.run_to_position(position, speed=speed)
+        self.steering.run_to_position(position, speed=s)
 
+    @override
     def center_steering(self) -> None:
         """Center steering wheels."""
-        self.move_steering_to(0.0)
+        self.move_steering_to(self.config.steering.center_angle, speed=self.config.steering.centering_speed)
 
-    def load_calibration(self, calibration_file: Path | None = None) -> CalibrationData:
-        """Load calibration from file.
+    @override
+    def move_steering_to_right_from_center(self, position: float, speed: int = 20) -> None:
+        """Move steering to right relative position in degrees from center position."""
+        self.logger.info("Moving steering right", extra={"details": {"relative_position": position, "speed": speed}})
+        position = self._clamp_position(position)
+        target_position = (
+            self.config.steering.center_angle + position
+            if not self.config.steering.reversed
+            else self.config.steering.center_angle - position
+        )
+        self.steering.run_to_position(target_position, speed=speed)
 
-        Args:
-            calibration_file: Path to calibration JSON file. If None, uses default location.
-
-        Returns:
-            CalibrationData: Loaded calibration data (or defaults if file missing).
-
-        Raises:
-            MotorCalibrationError: If calibration file is invalid.
-        """
-        if calibration_file is None:
-            calibration_file = Path(__file__).parent.parent.parent / "config" / "calibration.json"
-
-        if not calibration_file.exists():
-            self.logger.warning("Calibration file not found", extra={"details": {"file": str(calibration_file)}})
-            return CalibrationData(left_limit=-45.0, right_limit=45.0)
-
-        import json
-
-        try:
-            with open(calibration_file) as f:
-                data = json.load(f)
-
-            self._calibration = CalibrationData(
-                left_limit=data["steering"]["left_limit"],
-                right_limit=data["steering"]["right_limit"],
-                center=data["steering"].get("center", 0.0),
-            )
-
-            self.logger.info("Calibration loaded", extra={"details": {"calibration": self._calibration.__dict__}})
-            return self._calibration
-        except (KeyError, json.JSONDecodeError, ValueError) as e:
-            raise MotorCalibrationError(f"Invalid calibration file format: {e}") from e
-
-    def save_calibration(self, left_limit: float, right_limit: float, calibration_file: Path | None = None) -> None:
-        """Save calibration to file."""
-        if calibration_file is None:
-            calibration_file = Path(__file__).parent.parent.parent / "config" / "calibration.json"
-
-        calibration_file.parent.mkdir(parents=True, exist_ok=True)
-
-        data = {"steering": {"left_limit": left_limit, "right_limit": right_limit, "center": 0.0}}
-
-        import json
-
-        with open(calibration_file, "w") as f:
-            json.dump(data, f, indent=2)
-
-        self._calibration = CalibrationData(left_limit=left_limit, right_limit=right_limit)
-        self.logger.info("Calibration saved", extra={"details": {"file": str(calibration_file)}})
+    @override
+    def move_steering_to_left_from_center(self, position: float, speed: int = 20) -> None:
+        """Move steering to left relative position in degrees from center position."""
+        self.logger.info("Moving steering left", extra={"details": {"relative_position": position, "speed": speed}})
+        position = self._clamp_position(position)
+        target_position = (
+            self.config.steering.center_angle - position
+            if not self.config.steering.reversed
+            else self.config.steering.center_angle + position
+        )
+        self.steering.run_to_position(target_position, speed=speed)

@@ -18,10 +18,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket
 from src.telemetry.config import ServerConfig
 from src.telemetry.dependencies import (
     get_connection_manager,
+    get_error_handler,
     get_generator,
     get_recorder,
 )
-from src.telemetry.exceptions import SessionNotFoundError
+from src.telemetry.error_handler import ErrorHandler
+from src.telemetry.exceptions import SessionNotFoundError, TelemetryError
 from src.telemetry.models import RobotSnapshot, TopicsSnapshot
 from src.telemetry.recorder import ReplaySessionInfo, TelemetryRecorder
 
@@ -119,6 +121,7 @@ async def record_snapshot(
     snapshot: RobotSnapshot,
     recorder: TelemetryRecorder = Depends(get_recorder),
     manager: ConnectionManager = Depends(get_connection_manager),
+    error_handler: ErrorHandler[TelemetryError] = Depends(get_error_handler),
 ) -> None:
     """Persist a snapshot for later replay and broadcast it to WebSockets.
 
@@ -126,9 +129,20 @@ async def record_snapshot(
         snapshot: RobotSnapshot to record and broadcast.
         recorder: Injected TelemetryRecorder dependency.
         manager: Injected ConnectionManager dependency.
+        error_handler: Injected ErrorHandler dependency.
+
+    Raises:
+        HTTPException: If recording or broadcast fails.
     """
-    await asyncio.to_thread(recorder.record, snapshot)
-    await manager.broadcast(snapshot.model_dump_json())
+    try:
+        await asyncio.to_thread(recorder.record, snapshot)
+    except TelemetryError as exc:
+        raise error_handler.to_http_response(exc) from exc
+
+    try:
+        await manager.broadcast(snapshot.model_dump_json())
+    except TelemetryError as exc:
+        raise error_handler.to_http_response(exc) from exc
 
 
 class SpeedConfigUpdate(BaseModel):
@@ -229,12 +243,14 @@ def list_sessions(
 def load_session(
     session_id: str,
     recorder: TelemetryRecorder = Depends(get_recorder),
+    error_handler: ErrorHandler[TelemetryError] = Depends(get_error_handler),
 ) -> list[RobotSnapshot]:
     """Return the snapshots recorded under the given session_id.
 
     Args:
         session_id: Session identifier to load.
         recorder: Injected TelemetryRecorder dependency.
+        error_handler: Injected ErrorHandler dependency.
 
     Returns:
         List of RobotSnapshot objects from the session.
@@ -251,4 +267,4 @@ def load_session(
     try:
         return list(recorder.load_session(session_id))
     except SessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise error_handler.to_http_response(exc) from exc

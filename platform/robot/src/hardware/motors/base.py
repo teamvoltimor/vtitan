@@ -1,26 +1,6 @@
 """Abstract base classes for motor implementations."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
-
-@dataclass
-class CalibrationData:
-    """Motor calibration data."""
-
-    left_limit: float
-    right_limit: float
-    center: float = 0.0
-
-
-@dataclass
-class Config:
-    """Motor configuration."""
-
-    steering_port: str
-    drive_port: str
-    default_speed: int
-    test_duration: float
 
 
 class Driver(ABC):
@@ -65,3 +45,11 @@ class Driver(ABC):
     @abstractmethod
     def center_steering(self) -> None:
         """Center steering wheels."""
+
+    @abstractmethod
+    def move_steering_to_right_from_center(self, position: float, speed: int = 20) -> None:
+        """Move steering to right relative position in degrees from center position."""
+
+    @abstractmethod
+    def move_steering_to_left_from_center(self, position: float, speed: int = 20) -> None:
+        """Move steering to left relative position in degrees from center position."""

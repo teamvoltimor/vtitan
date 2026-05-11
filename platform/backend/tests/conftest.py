@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+# Add paths for imports BEFORE any other imports
+platform_root = Path(__file__).parent.parent.parent
+shared_src = platform_root / 'shared' / 'src'
+
+for path_str in [str(shared_src), str(platform_root)]:
+	if path_str not in sys.path:
+		sys.path.insert(0, path_str)
 
 import pytest
 

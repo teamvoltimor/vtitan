@@ -8,22 +8,16 @@ import time
 from collections import deque
 from typing import TYPE_CHECKING
 
-from src.telemetry.config import SimulationConstants
+from src.telemetry.config import SimulationConstants, SimulationProfile
 from src.telemetry.models import NodeHealth, Position3D, RobotSnapshot, TelemetryMetrics
 
 if TYPE_CHECKING:
     from src.telemetry.recorder import TelemetryRecorder
 
-_RNG_SEED = SimulationConstants.RNG_SEED
-_ORBIT_PERIOD = SimulationConstants.ORBIT_PERIOD_FRAMES
-_STAGE_DURATION = SimulationConstants.STAGE_DURATION_FRAMES
-_LOG_COUNT = SimulationConstants.LOG_ENTRIES_PER_SNAPSHOT
-
-_STAGES = SimulationConstants.STAGE_NAMES
-
 _EVENT_TEMPLATES = SimulationConstants.LOG_TEMPLATES
-
-_HEALTH_CYCLE = (NodeHealth.NOMINAL, NodeHealth.WATCHDOG, NodeHealth.REPLANNING)
+_LIDAR_RESOLUTION = SimulationConstants.LIDAR_RESOLUTION
+_STAGE_DURATION = SimulationConstants.STAGE_DURATION_FRAMES
+_RNG_SEED = SimulationConstants.RNG_SEED
 
 
 class TelemetryGenerator:
@@ -31,14 +25,14 @@ class TelemetryGenerator:
 
     def __init__(
         self,
+        profile: SimulationProfile,
         history_length: int = 120,
-        lidar_resolution: int = 360,
         recorder: TelemetryRecorder | None = None,
     ) -> None:
+        self._profile = profile
         self._history: deque[RobotSnapshot] = deque(maxlen=history_length)
         self._path: deque[Position3D] = deque(maxlen=history_length)
         self._frame = 0
-        self._lidar_resolution = lidar_resolution
         self._rng = random.Random(_RNG_SEED)  # noqa: S311
         self._recorder = recorder
         self._advance_snapshot()
@@ -57,7 +51,7 @@ class TelemetryGenerator:
     def _advance_snapshot(self) -> RobotSnapshot:
         self._frame += 1
         timestamp = time.time()
-        orientation = (self._frame / _ORBIT_PERIOD) * math.tau
+        orientation = (self._frame / self._profile.orbit_period_frames) * math.tau
         robot_position = self._calc_robot_position(orientation)
         self._path.append(robot_position)
         lidar_points = self._generate_lidar_points(robot_position)
@@ -88,8 +82,8 @@ class TelemetryGenerator:
         """Simulate lidar sweep points with seeded turbulence from `random.Random`."""
         x0, y0, _ = robot_position
         points: list[Position3D] = []
-        for index in range(self._lidar_resolution):
-            angle = (index / self._lidar_resolution) * math.tau
+        for index in range(_LIDAR_RESOLUTION):
+            angle = (index / _LIDAR_RESOLUTION) * math.tau
             turbulence = math.sin(index * 0.08 + self._frame * 0.03) * 0.08 + self._rng.random() * 0.02
             radius = 1.2 + turbulence + 0.2 * math.cos(angle * 4)
             x = x0 + radius * math.cos(angle)
@@ -104,13 +98,13 @@ class TelemetryGenerator:
         orientation: float,
     ) -> TelemetryMetrics:
         """Construct metrics for the current frame using the provided orientation."""
-        stage = _STAGES[(self._frame // _STAGE_DURATION) % len(_STAGES)]
+        stage = self._profile.stage_names[(self._frame // _STAGE_DURATION) % len(self._profile.stage_names)]
         node_health = self._compute_node_health()
         speed = max(0.3, 0.6 + 0.2 * math.cos(self._frame * 0.04))
         return TelemetryMetrics(
             timestamp=timestamp,
             node_health=node_health,
-            points_captured=self._lidar_resolution,
+            points_captured=_LIDAR_RESOLUTION,
             range_min=0.12 + abs(math.sin(orientation * 0.5)) * 0.05,
             range_max=3.1 + abs(math.cos(orientation * 0.3)) * 0.4,
             range_mean=1.6 + math.sin(self._frame * 0.03) * 0.1,
@@ -129,7 +123,7 @@ class TelemetryGenerator:
     def _build_logs(self, metrics: TelemetryMetrics) -> list[str]:
         """Generate log messages that reflect the current metrics with jitter."""
         entries: list[str] = []
-        for index in range(_LOG_COUNT):
+        for index in range(self._profile.log_count):
             template = _EVENT_TEMPLATES[(self._frame + index) % len(_EVENT_TEMPLATES)]
             entries.append(
                 template.format(
@@ -146,4 +140,6 @@ class TelemetryGenerator:
         return entries
 
     def _compute_node_health(self) -> NodeHealth:
-        return _HEALTH_CYCLE[(self._frame // _ORBIT_PERIOD) % len(_HEALTH_CYCLE)]
+        stage_idx = (self._frame // self._profile.orbit_period_frames) % len(self._profile.health_stages)
+        health_str = self._profile.health_stages[stage_idx]
+        return NodeHealth(health_str)

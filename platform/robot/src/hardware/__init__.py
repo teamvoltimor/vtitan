@@ -9,6 +9,7 @@ Modules:
     - hailo: Hailo 8 NPU (Pi 5)
     - button: Physical push-button with GPIO
     - display: SSD1306 OLED display
+    - mcp2221: Shared MCP2221 USB bridge configuration
 """
 
 from src.hardware.button import (
@@ -37,6 +38,7 @@ from src.hardware.imu import (
     RVCData as IMU_RVCData,
     RVCDriver as IMU_RVCDriver,
 )
+from src.hardware.mcp2221 import MCP2221Config
 from src.hardware.motors import (
     CalibrationData,
     Config as MotorConfig,
@@ -62,5 +64,6 @@ __all__ = [
     "IMU_RVCData",
     "IMU_RVCDriver",
     "InferenceResult",
+    "MCP2221Config",
     "MotorConfig",
 ]

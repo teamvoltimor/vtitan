@@ -1,48 +1,8 @@
 """Abstract base classes for physical button interface."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
 
-
-class ButtonEvent(Enum):
-    """Button event types."""
-
-    PRESSED = "pressed"
-    RELEASED = "released"
-    SHORT_PRESS = "short_press"
-    LONG_PRESS = "long_press"
-
-
-@dataclass
-class ButtonState:
-    """Current button state data."""
-
-    is_pressed: bool
-    """Whether the button is currently pressed."""
-
-    press_duration: float
-    """Duration of current press in seconds."""
-
-    last_event: ButtonEvent | None
-    """Last detected button event."""
-
-
-@dataclass
-class Config:
-    """Configuration for button driver."""
-
-    gpio_pin: int
-    """GPIO pin number for the button."""
-
-    pull_up: bool
-    """Whether to use internal pull-up resistor."""
-
-    debounce_ms: int
-    """Debounce delay in milliseconds."""
-
-    long_press_threshold_sec: float
-    """Duration threshold for long press detection in seconds."""
+from src.hardware.button.state import ButtonState
 
 
 class Driver(ABC):

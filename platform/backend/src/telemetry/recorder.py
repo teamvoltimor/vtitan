@@ -1,23 +1,27 @@
-"""Persist telemetry snapshots to disk for replay sessions."""
+"""Persist telemetry snapshots to disk for replay sessions.
+
+TelemetryRecorder delegates storage to pluggable backends (JSONL, CSV, in-memory, etc).
+Recorder only manages the active session; backend handles serialization and I/O.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from pathlib import Path
-from typing import IO, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from src.telemetry.config import RecorderConfig
-from src.telemetry.exceptions import RecorderError, SessionNotFoundError
+from src.telemetry.record_backend import JSONLBackend, RecordBackend
+from src.telemetry.exceptions import SessionNotFoundError
 from src.telemetry.models import RobotSnapshot
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Self
+	from collections.abc import Sequence
+	from typing import Self
 
 logger = logging.getLogger(__name__)
 
@@ -37,187 +41,157 @@ class ReplaySessionInfo(BaseModel):
 
 
 class TelemetryRecorder:
-    """Persist telemetry frames to disk and enumerate replay history."""
+	"""Persist telemetry frames using pluggable storage backends.
 
-    def __init__(
-        self,
-        base_dir: Path | str,
-        session_id: str | None = None,
-        max_sessions: int = RecorderConfig.DEFAULT_MAX_SESSIONS,
-    ) -> None:
-        base_dir = Path(base_dir)
-        base_dir.mkdir(parents=True, exist_ok=True)
-        self._base_dir = base_dir
-        self._max_sessions = max_sessions
-        self._session_id = session_id or f"session_{int(time.time())}"
-        self._file_path = self._base_dir / f"{self._session_id}.jsonl"
-        self._entry_count = 0
-        self._file: IO[str] | None = None
+	Delegates all I/O to backend (RecordBackend protocol).
+	Recorder only manages sessions and delegates writes/reads.
+	"""
 
-    def __enter__(self) -> Self:
-        """Return the recorder while entering the context manager."""
-        return self
+	def __init__(
+		self,
+		base_dir: Path | str,
+		session_id: str | None = None,
+		max_sessions: int = RecorderConfig.DEFAULT_MAX_SESSIONS,
+		backend: RecordBackend | None = None,
+	) -> None:
+		"""Initialize recorder with optional backend.
 
-    def __exit__(self, *_: object) -> None:
-        """Ensure the file handle closes when exiting context."""
-        self.close()
+		Args:
+			base_dir: Directory for session storage.
+			session_id: Session identifier (auto-generated if not provided).
+			max_sessions: Maximum sessions to retain.
+			backend: Storage backend (defaults to JSONLBackend).
+		"""
+		base_dir = Path(base_dir)
+		base_dir.mkdir(parents=True, exist_ok=True)
+		self._base_dir = base_dir
+		self._max_sessions = max_sessions
+		self._session_id = session_id or f"session_{int(time.time())}"
+		if backend is None:
+			backend = JSONLBackend(base_dir, self._session_id, max_sessions)
+		self._backend = backend
 
-    @property
-    def session_id(self) -> str:
-        """Return the active replay session identifier."""
-        return self._session_id
+	def __enter__(self) -> Self:
+		"""Return the recorder while entering the context manager."""
+		return self
 
-    @property
-    def max_sessions(self) -> int:
-        """Return the maximum number of sessions to retain."""
-        return self._max_sessions
+	def __exit__(self, *_: object) -> None:
+		"""Close backend resources when exiting context."""
+		self.close()
 
-    @property
-    def sessions_dir(self) -> Path:
-        """Return the base directory for session storage."""
-        return self._base_dir
+	@property
+	def session_id(self) -> str:
+		"""Return the active replay session identifier."""
+		return self._session_id
 
-    @property
-    def entry_count(self) -> int:
-        """Return the number of entries recorded so far."""
-        return self._entry_count
+	@property
+	def max_sessions(self) -> int:
+		"""Return the maximum number of sessions to retain."""
+		return self._max_sessions
 
-    def _ensure_file_open(self) -> None:
-        """Lazily open the recording file on first write.
+	@property
+	def sessions_dir(self) -> Path:
+		"""Return the base directory for session storage."""
+		return self._base_dir
 
-        This delays file creation until actually needed, so empty
-        sessions are not created if nothing is ever recorded.
-        """
-        if self._file is None:
-            self._file_path.parent.mkdir(parents=True, exist_ok=True)
-            self._file = self._file_path.open("a", encoding="utf-8")
-            self._evict_old_sessions()
+	@property
+	def entry_count(self) -> int:
+		"""Return the number of entries recorded in current session.
 
-    def record(self, snapshot: RobotSnapshot) -> None:
-        """Append a serialized snapshot to the open recording file.
+		Note: For JSONL backend, this is tracked locally. Other backends
+		may calculate it dynamically.
+		"""
+		if isinstance(self._backend, JSONLBackend):
+			return self._backend._entry_count
+		return 0
 
-        Args:
-            snapshot: RobotSnapshot to persist.
+	@property
+	def _file(self) -> object:
+		"""Access backend file for test compatibility.
 
-        Raises:
-            RecorderError: If write operation fails.
-        """
-        self._ensure_file_open()
-        try:
-            json.dump(snapshot.model_dump(by_alias=True), self._file)
-            self._file.write("\n")
-            self._file.flush()
-            self._entry_count += 1
-        except OSError as exc:
-            logger.error(
-                "Failed to record snapshot to disk",
-                exc_info=exc,
-                extra={
-                    "session_id": self._session_id,
-                    "path": str(self._file_path),
-                    "errno": exc.errno,
-                },
-            )
-            raise RecorderError(f"Failed to persist snapshot: {exc}") from exc
-        except (json.JSONDecodeError, ValueError) as exc:
-            logger.error("Snapshot serialization failed", exc_info=exc)
-            raise RecorderError(f"Cannot serialize snapshot: {exc}") from exc
+		Test utility property for checking file closed state.
+		"""
+		if isinstance(self._backend, JSONLBackend):
+			return self._backend._file
+		return None
 
-    def close(self) -> None:
-        """Close the associated file handle if it's open."""
-        if self._file is not None:
-            self._file.close()
+	def _ensure_file_open(self) -> None:
+		"""Ensure backend is ready (for test compatibility).
 
-    def _evict_old_sessions(self) -> None:
-        """Delete the oldest sessions when the total exceeds max_sessions.
+		For JSONL backend, this opens the file. Other backends may be no-op.
+		"""
+		if isinstance(self._backend, JSONLBackend):
+			self._backend._ensure_file_open()
 
-        Logs warnings for individual file failures but continues eviction.
-        """
-        try:
-            sessions = sorted(self._base_dir.glob("session_*.jsonl"))
-            to_delete = sessions[: max(0, len(sessions) - self._max_sessions)]
+	def record(self, snapshot: RobotSnapshot) -> None:
+		"""Delegate snapshot write to backend.
 
-            for path in to_delete:
-                try:
-                    path.unlink()
-                    logger.info(f"Evicted old session: {path.stem}")
-                except OSError as exc:
-                    logger.warning(
-                        "Failed to evict session file",
-                        exc_info=exc,
-                        extra={"path": str(path)},
-                    )
-        except Exception as exc:
-            logger.error("Session eviction failed", exc_info=exc)
+		Args:
+			snapshot: RobotSnapshot to persist.
 
-    def list_sessions(self) -> Sequence[ReplaySessionInfo]:
-        """Return metadata for every recorded session in the base directory."""
-        return self.enumerate_sessions(self._base_dir)
+		Raises:
+			RecorderError: If write operation fails.
+		"""
+		self._backend.write(snapshot)
 
-    @classmethod
-    def enumerate_sessions(cls, base_dir: Path | str) -> Sequence[ReplaySessionInfo]:
-        """Return metadata for sessions in *base_dir*, sorted newest first."""
-        directory = Path(base_dir)
-        directory.mkdir(parents=True, exist_ok=True)
-        sessions: list[ReplaySessionInfo] = []
-        for path in sorted(directory.glob("session_*.jsonl"), reverse=True):
-            stat = path.stat()
-            sessions.append(
-                ReplaySessionInfo(
-                    session_id=path.stem,
-                    created_at=stat.st_ctime,
-                    entry_count=cls._count_lines(path),
-                ),
-            )
-        return sessions
+	def close(self) -> None:
+		"""Close backend resources."""
+		self._backend.close()
 
-    def load_session(self, session_id: str) -> Sequence[RobotSnapshot]:
-        """Return snapshots stored in session_id.
+	def list_sessions(self) -> Sequence[ReplaySessionInfo]:
+		"""Return metadata for all sessions from backend.
 
-        Args:
-            session_id: Session identifier to load.
+		Returns:
+			Sequence of ReplaySessionInfo sorted by creation time (newest first).
+		"""
+		sessions: list[ReplaySessionInfo] = []
+		for session_id, created_at, entry_count in self._backend.list_sessions():
+			sessions.append(
+				ReplaySessionInfo(
+					session_id=session_id,
+					created_at=created_at,
+					entry_count=entry_count,
+				)
+			)
+		return sessions
 
-        Returns:
-            Sequence of RobotSnapshot objects from the session.
+	def load_session(self, session_id: str) -> Sequence[RobotSnapshot]:
+		"""Load snapshots from backend.
 
-        Raises:
-            SessionNotFoundError: If session file does not exist.
-            RecorderError: If session file cannot be read or contains corrupted data.
-        """
-        path = self._base_dir / f"{session_id}.jsonl"
-        if not path.exists():
-            raise SessionNotFoundError(f"Session not found: {session_id}")
+		Args:
+			session_id: Session identifier to load.
 
-        snapshots: list[RobotSnapshot] = []
-        try:
-            with path.open("r", encoding="utf-8") as fh:
-                for line_num, line in enumerate(fh, start=1):
-                    text = line.strip()
-                    if not text:
-                        continue
-                    try:
-                        snapshots.append(RobotSnapshot.model_validate_json(text))
-                    except (json.JSONDecodeError, ValueError) as exc:
-                        logger.warning(
-                            f"Skipping corrupted line {line_num} in session {session_id}",
-                            exc_info=exc,
-                            extra={"path": str(path), "line_num": line_num},
-                        )
-                        # Continue on corrupted lines to maximize recovery
-                        continue
-        except OSError as exc:
-            logger.error(
-                f"Failed to read session file {session_id}",
-                exc_info=exc,
-                extra={"path": str(path)},
-            )
-            raise RecorderError(f"Cannot read session file: {exc}") from exc
+		Returns:
+			Sequence of RobotSnapshot objects from the session.
 
-        return snapshots
+		Raises:
+			SessionNotFoundError: If session does not exist.
+			RecorderError: If session cannot be read or is corrupted.
+		"""
+		return self._backend.read_session(session_id)
 
-    @staticmethod
-    def _count_lines(path: Path) -> int:
-        """Return the number of non-empty lines in *path* if it exists."""
-        if not path.exists():
-            return 0
-        return path.read_bytes().count(b"\n")
+	@classmethod
+	def enumerate_sessions(cls, base_dir: Path | str) -> Sequence[ReplaySessionInfo]:
+		"""Enumerate all sessions in a directory using JSONL backend.
+
+		Utility method for listing sessions without creating a recorder instance.
+
+		Args:
+			base_dir: Directory containing session files.
+
+		Returns:
+			Sequence of ReplaySessionInfo sorted by creation time (newest first).
+		"""
+		backend = JSONLBackend(
+			base_dir, "", max_sessions=RecorderConfig.DEFAULT_MAX_SESSIONS
+		)
+		sessions: list[ReplaySessionInfo] = []
+		for session_id, created_at, entry_count in backend.list_sessions():
+			sessions.append(
+				ReplaySessionInfo(
+					session_id=session_id,
+					created_at=created_at,
+					entry_count=entry_count,
+				)
+			)
+		return sessions

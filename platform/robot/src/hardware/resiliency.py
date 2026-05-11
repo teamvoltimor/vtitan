@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Callable, TypeVar, ParamSpec
+from typing import Callable, ParamSpec, TypeVar
 
 from shared.domain.exceptions import HardwareError
 

@@ -6,11 +6,90 @@ and configuration parameters following Python-Architect standards.
 
 from __future__ import annotations
 
+import json
+import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+import tomllib
+import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class SimulationProfile:
+	"""Immutable simulation configuration loaded from profile files.
+
+	Profiles define the physics and generation parameters for the deterministic
+	simulator. Load from YAML/JSON/TOML files using SimulationProfile.load().
+
+	Attributes:
+		orbit_period_frames: Frames for one complete orbit (affects speed).
+		log_count: Number of log entries per snapshot.
+		health_stages: Cycle of node health states.
+		stage_names: Track segment names.
+	"""
+
+	orbit_period_frames: int
+	log_count: int
+	health_stages: list[str]
+	stage_names: list[str]
+
+	def __post_init__(self) -> None:
+		"""Validate profile parameters."""
+		if self.orbit_period_frames <= 0:
+			raise ValueError("orbit_period_frames must be positive")
+		if self.log_count <= 0:
+			raise ValueError("log_count must be positive")
+		if not self.health_stages:
+			raise ValueError("health_stages cannot be empty")
+		if not self.stage_names:
+			raise ValueError("stage_names cannot be empty")
+
+	@classmethod
+	def load(cls, profile_name: str, config_dir: Path | None = None) -> SimulationProfile:
+		"""Load profile from YAML/JSON/TOML file, auto-detecting format by extension.
+
+		Args:
+			profile_name: Name of the profile (e.g., 'normal', 'fast', 'test').
+			config_dir: Directory containing profile files. Defaults to CONFIG_DIR env var
+				or {backend}/config/profiles if not set.
+
+		Returns:
+			Loaded and validated SimulationProfile.
+
+		Raises:
+			FileNotFoundError: If no profile file found in any supported format.
+			ValueError: If profile data is invalid (validation failure in __post_init__).
+		"""
+		if config_dir is None:
+			env_dir = os.getenv('CONFIG_DIR')
+			if env_dir:
+				config_dir = Path(env_dir) / 'profiles'
+			else:
+				backend_root = Path(__file__).parent.parent.parent
+				config_dir = backend_root / 'config' / 'profiles'
+
+		# Try each format
+		for file_path in [
+			config_dir / f"{profile_name}.yaml",
+			config_dir / f"{profile_name}.yml",
+			config_dir / f"{profile_name}.json",
+			config_dir / f"{profile_name}.toml",
+		]:
+			if file_path.exists():
+				with open(file_path) as f:
+					if file_path.suffix in {'.yaml', '.yml'}:
+						data = yaml.safe_load(f)
+					elif file_path.suffix == '.json':
+						data = json.load(f)
+					elif file_path.suffix == '.toml':
+						data = tomllib.loads(f.read())
+				return cls(**data)
+
+		raise FileNotFoundError(f"Profile '{profile_name}' not found in {config_dir}")
 
 
 class SimulationConstants:

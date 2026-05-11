@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING
 
 from fastapi import Request
 
-from src.telemetry.config import ServerConfig
+from src.telemetry.config import ServerConfig, SimulationProfile
+from src.telemetry.error_handler import ErrorHandler
+from src.telemetry.exceptions import TelemetryError
 from src.telemetry.generator_sim import TelemetryGenerator
 from src.telemetry.recorder import TelemetryRecorder
 
@@ -55,6 +57,7 @@ def create_app_state(config: ServerConfig) -> TelemetryAppState:
 
     Raises:
         OSError: If session directory cannot be created.
+        FileNotFoundError: If simulation profile cannot be loaded.
     """
     # Import here to avoid circular imports
     from src.telemetry.ws.manager import ConnectionManager
@@ -64,12 +67,18 @@ def create_app_state(config: ServerConfig) -> TelemetryAppState:
     base_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Session directory: {base_dir}")
 
+    # Load simulation profile from environment or default to 'normal'
+    import os
+    profile_name = os.getenv('SIMULATION_PROFILE', 'normal')
+    profile = SimulationProfile.load(profile_name)
+    logger.info(f"Loaded simulation profile: {profile_name}")
+
     # Initialize core dependencies
     recorder = TelemetryRecorder(
         base_dir=base_dir,
         max_sessions=config.max_sessions,
     )
-    generator = TelemetryGenerator()
+    generator = TelemetryGenerator(profile=profile)
     connection_manager = ConnectionManager()
 
     return TelemetryAppState(
@@ -122,3 +131,14 @@ def get_generator(request: Request) -> TelemetryGenerator:
 def get_connection_manager(request: Request) -> ConnectionManager:
     """Route dependency: Retrieve connection manager from app state."""
     return get_state(request).connection_manager
+
+
+def get_error_handler() -> ErrorHandler[TelemetryError]:
+    """Route dependency: Create an ErrorHandler for this request.
+
+    Each request gets a fresh handler instance for error tracking.
+
+    Returns:
+        ErrorHandler configured for TelemetryError and subclasses.
+    """
+    return ErrorHandler(logger, TelemetryError, max_retries=3)

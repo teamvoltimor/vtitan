@@ -1,63 +1,24 @@
 """SSD1306 OLED display driver for I2C."""
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, override
+import threading
+from typing import override
 
-try:
-    import board
-    import busio
-    from adafruit_ssd1306 import SSD1306_I2C
-    from PIL import Image, ImageDraw
+import board
+import busio
+from adafruit_ssd1306 import SSD1306_I2C
+from PIL import Image
 
-    LIBRARIES_AVAILABLE = True
-except ImportError:
-    board = None  # type: ignore
-    busio = None  # type: ignore
-    SSD1306_I2C = None  # type: ignore
-    Image = None  # type: ignore
-    ImageDraw = None  # type: ignore
-    LIBRARIES_AVAILABLE = False
-
-from src.env import EnvVar
 from src.hardware.display.base import (
-    Config as BaseConfig,
-    Driver as BaseDriver,
+    Driver as ABC_Driver,
 )
+from src.hardware.display.ssd1306.config import Config
 from src.logger import configure_json_logging
 
-if TYPE_CHECKING:
-    from PIL import Image as PILImage
-
-logger = configure_json_logging()
+configure_json_logging()
 
 
-DISPLAY_WIDTH = EnvVar[int](key="DISPLAY_WIDTH", default=128, cast=int)
-"""Display width in pixels. Default is 128 for SSD1306."""
-
-DISPLAY_HEIGHT = EnvVar[int](key="DISPLAY_HEIGHT", default=64, cast=int)
-"""Display height in pixels. Default is 64 for SSD1306."""
-
-DISPLAY_I2C_ADDRESS = EnvVar[int](
-    key="DISPLAY_I2C_ADDRESS", default=0x3C, cast=lambda x: int(x, 0) if isinstance(x, str) else int(x),
-)
-"""I2C address of the display. Default is 0x3C."""
-
-DISPLAY_I2C_BUS = EnvVar[int](key="DISPLAY_I2C_BUS", default=1, cast=int)
-"""I2C bus number. Default is 1 (typically /dev/i2c-1 on Raspberry Pi)."""
-
-
-@dataclass
-class Config(BaseConfig):
-    """Configuration for SSD1306 OLED display driver."""
-
-    width: int = DISPLAY_WIDTH.value
-    height: int = DISPLAY_HEIGHT.value
-    i2c_address: int = DISPLAY_I2C_ADDRESS.value
-    i2c_bus: int = DISPLAY_I2C_BUS.value
-
-
-class Driver(BaseDriver):
+class Driver(ABC_Driver):
     """SSD1306 OLED display driver for I2C communication.
 
     Supports 128x64 or 128x32 monochrome OLED displays.
@@ -65,19 +26,16 @@ class Driver(BaseDriver):
     """
 
     def __init__(self, config: Config | None = None):
-        if not LIBRARIES_AVAILABLE:
-            raise ImportError(
-                "Required libraries not available. Install with: pip install adafruit-circuitpython-ssd1306 pillow",
-            )
-
         self.config: Config = config or Config()
         self._display: SSD1306_I2C | None = None
         self._i2c: busio.I2C | None = None
+        self._conn_lock: threading.Lock = threading.Lock()
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     @override
     def connect(self) -> None:
         """Initialize I2C connection and configure display."""
+        self._conn_lock.acquire()
         self.logger.info(
             "Connecting to SSD1306 display",
             extra={
@@ -90,7 +48,8 @@ class Driver(BaseDriver):
             },
         )
 
-        # Initialize I2C bus
+        # If using MCP2221A, Blinka will automatically detect it as a USB HID device and provide I2C access via busio
+        # Remember that if that's the case, BLINKA_MCP2221 env var must be set to "1" and the MCP2221A must be properly connected to the I2C bus with correct wiring and power.
         self._i2c = busio.I2C(board.SCL, board.SDA)
 
         # Create display object
@@ -100,6 +59,7 @@ class Driver(BaseDriver):
         self.clear()
 
         self.logger.info("SSD1306 display connected successfully")
+        self._conn_lock.release()
 
     @override
     def clear(self) -> None:
@@ -112,7 +72,7 @@ class Driver(BaseDriver):
             self._display.show()
 
     @override
-    def show_image(self, image: "PILImage.Image") -> None:
+    def show_image(self, image: Image) -> None:
         """Display an image on the OLED.
 
         Args:
@@ -147,7 +107,7 @@ class Driver(BaseDriver):
         self._display.show()
 
     @override
-    def get_blank_image(self) -> "PILImage.Image":
+    def get_blank_image(self) -> Image:
         """Create a blank image with correct dimensions for this display."""
         return Image.new("1", (self.config.width, self.config.height))
 
@@ -164,6 +124,7 @@ class Driver(BaseDriver):
     @override
     def close(self) -> None:
         """Clean up display resources."""
+        self._conn_lock.acquire()
         if self._display is not None:
             self.clear()
             self._display = None
@@ -173,3 +134,4 @@ class Driver(BaseDriver):
             self._i2c = None
 
         self.logger.info("Display connection closed")
+        self._conn_lock.release()

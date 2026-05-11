@@ -1,13 +1,17 @@
 """Standardized error handling and recovery utilities for telemetry operations.
 
-Provides consistent error handling, logging, and recovery strategies across
-the telemetry system. Replaces scattered try/except blocks with centralized,
-testable error handling logic.
+Provides centralized error handling, logging, recovery, and HTTP response mapping
+across the telemetry system. All domain exceptions flow through ErrorHandler to
+translate into appropriate HTTP responses, logs, and retries.
 
 Usage:
-    with ErrorHandler(logger, TelemetryError) as handler:
-        result = risky_operation()
-        handler.context(result)  # Validates and logs context
+    handler = ErrorHandler(logger, TelemetryError)
+    try:
+        with handler.retry("recorder.write"):
+            recorder.write(snapshot)
+    except RecorderError as e:
+        response = handler.to_http_response(e)
+        return response
 """
 
 from __future__ import annotations
@@ -17,10 +21,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from src.telemetry.exceptions import TelemetryError
+from fastapi import HTTPException
+
+from src.telemetry.exceptions import (
+	BroadcastError,
+	RecorderError,
+	SessionNotFoundError,
+	TelemetryError,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+	from collections.abc import Callable, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -147,11 +158,14 @@ class ErrorHandler(Generic[E]):
         """
         op = operation or (self.error_context.operation if self.error_context else "unknown")
 
+        base_details = self.error_context.details if self.error_context else {}
+        merged_details = {**base_details, **details}
+
         context = ErrorContext(
             operation=op,
             error_type=type(error),
             message=str(error),
-            details={**self.error_context.details if self.error_context else {}, **details},
+            details=merged_details,
             severity=severity,
             recoverable=recoverable,
         )
@@ -254,3 +268,42 @@ class ErrorHandler(Generic[E]):
                     raise
 
         return results, errors
+
+    def to_http_response(self, error: Exception) -> HTTPException:
+        """Translate domain exception to HTTP response.
+
+        Maps TelemetryError subclasses to appropriate HTTP status codes and messages.
+        Logs the error before returning, ensuring all errors are centrally tracked.
+
+        Args:
+            error: Domain exception from telemetry system.
+
+        Returns:
+            HTTPException with appropriate status code.
+        """
+        status_code = 500
+        detail = "Internal server error"
+
+        if isinstance(error, SessionNotFoundError):
+            status_code = 404
+            detail = f"Session not found: {error}"
+        elif isinstance(error, RecorderError):
+            status_code = 503
+            detail = f"Recording system unavailable: {error}"
+        elif isinstance(error, BroadcastError):
+            status_code = 503
+            detail = f"Broadcast system unavailable: {error}"
+        elif isinstance(error, TelemetryError):
+            status_code = 500
+            detail = f"Telemetry error: {error}"
+        else:
+            status_code = 500
+            detail = "Internal server error"
+
+        self.log_error(
+            error,
+            severity="error" if status_code < 500 else "critical",
+            recoverable=status_code == 503,
+        )
+
+        return HTTPException(status_code=status_code, detail=detail)

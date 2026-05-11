@@ -1,26 +1,17 @@
 """Abstract base classes for Hailo NPU implementations."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-
-@dataclass
-class InferenceResult:
-    """Inference result."""
-
-    detections: list[dict[str, Any]]
-    latency_ms: float
+from src.hardware.hailo.config import Config as BaseConfig
+from src.hardware.hailo.inferences import InferenceResult
 
 
-@dataclass
-class Config:
-    """Hailo configuration."""
-
-    model_path: str
-    benchmark_iterations: int
+class Config(BaseConfig):
+    """Hailo driver configuration."""
+    pass
 
 
 class Driver(ABC):
