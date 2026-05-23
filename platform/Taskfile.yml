@@ -1,0 +1,394 @@
+version: '3'
+
+vars:
+  PYTHON: uv
+  ROS2: pixi
+  SCENARIOS: 10
+  CHALLENGE: open
+  OUTPUT_DIR: ../training_data
+  BASE_WORLD: ./simulation/worlds/wro_track_2026.sdf
+  METADATA: ../training_data/open/scenarios/scenario_0000_metadata.json
+  LAPS: 3
+  PARAMS: ./simulation/scripts/navigator_params.json
+
+tasks:
+  default:
+    cmds:
+      - task: help
+
+  help:
+    desc: Display all available commands
+    cmds:
+      - |
+        echo "
+        KLEVOR PLATFORM — Taskfile Commands
+
+        SETUP & INSTALLATION
+          task install          Install all dependencies (UV + Pixi)
+          task install:backend  Install backend dependencies
+          task install:frontend Install frontend dependencies
+          task install:robot    Install robot dependencies
+          task install:sim      Install simulation dependencies
+
+        TRACK GENERATION
+          task gen:track        Generate/regenerate WRO 2026 track worlds
+
+        SCENARIO GENERATION
+          task gen:open         Generate open-challenge scenarios (SCENARIOS=10 default)
+          task gen:obstacles    Generate obstacles-challenge scenarios
+          task gen:all          Generate both open and obstacles scenarios
+
+        NAVIGATION & SIMULATION
+          task navigate         Run navigator on scenario (METADATA override)
+          task record           Record scenario videos (requires Gazebo + ROS2)
+          task sim:gazebo       Launch Gazebo simulator
+          task sim:rviz         Launch RViz visualization
+
+        VIDEO & FRAME PROCESSING
+          task convert:bags     Convert ROS2 bags to MP4 videos
+          task extract:frames   Extract frames from bags and annotate
+
+        TESTING & CODE QUALITY
+          task test             Run all tests (UV)
+          task test:backend     Run backend tests
+          task test:sim         Run simulation tests
+          task lint             Run ruff linter on all code
+          task lint:fix         Auto-fix linting issues
+
+        DOCKER (if configured)
+          task docker:build     Build Docker images
+          task docker:up        Start Docker Compose services
+          task docker:down      Stop Docker Compose services
+          task docker:logs      View Docker Compose logs
+
+        CLEANUP
+          task clean            Remove all generated training data
+          task clean:cache      Clean Python cache and compiled files
+
+        ANALYSIS & DEBUGGING
+          task analyze          Analyze generated scenarios
+          task debug            Run with verbose logging
+
+        VARIABLES (override with task NAME -- VAR=value)
+          SCENARIOS={{.SCENARIOS}}   CHALLENGE={{.CHALLENGE}}   LAPS={{.LAPS}}
+          OUTPUT_DIR={{.OUTPUT_DIR}}
+          METADATA={{.METADATA}}
+        "
+
+  # SETUP & INSTALLATION
+
+  install:
+    desc: Install all dependencies (UV Python packages + Pixi ROS2 environment)
+    cmds:
+      - uv sync
+      - pixi install
+
+  install:backend:
+    desc: Install backend service dependencies
+    dir: backend
+    cmds:
+      - uv sync
+
+  install:frontend:
+    desc: Install frontend dependencies (Node.js)
+    dir: frontend
+    cmds:
+      - npm ci
+
+  install:robot:
+    desc: Install robot platform dependencies
+    dir: robot
+    cmds:
+      - uv sync
+
+  install:sim:
+    desc: Install simulation dependencies
+    dir: simulation
+    cmds:
+      - uv sync
+      - pixi install
+
+  # TRACK GENERATION
+
+  gen:track:
+    desc: Generate/regenerate WRO 2026 track SDF world file
+    dir: simulation
+    cmds:
+      - uv run python -m src.generation.track_generator --output ./simulation/worlds/wro_track_2026.sdf
+
+  # SCENARIO GENERATION
+
+  gen:open:
+    desc: Generate open-challenge scenarios (SCENARIOS=10 default)
+    dir: simulation
+    cmds:
+      - cmd: |
+          uv run python -m src.generation.generator \
+            --challenge open \
+            --num-scenarios {{.SCENARIOS}} \
+            --output-dir {{.OUTPUT_DIR}} \
+            --base-world ./simulation/worlds/wro_track_2026.sdf \
+            --randomize-all
+            
+  gen:obstacles:
+    desc: Generate obstacles-challenge scenarios (SCENARIOS=10 default)
+    dir: simulation
+    cmds:
+      - cmd: |
+          uv run python -m src.generation.generator \
+            --challenge obstacles \
+            --num-scenarios {{.SCENARIOS}} \
+            --output-dir {{.OUTPUT_DIR}} \
+            --base-world ./simulation/worlds/wro_track_2026.sdf \
+            --randomize-all
+
+  gen:all:
+    desc: Generate both open and obstacles scenarios
+    cmds:
+      - task: gen:open
+      - task: gen:obstacles
+
+  # NAVIGATION & SIMULATION
+
+  navigate:
+    desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)
+    dir: simulation
+    cmds:
+      - cmd: |
+          pixi run python -m src.navigation.navigator \
+            --metadata {{.METADATA}} \
+            --laps {{.LAPS}} \
+            --params {{.PARAMS}}
+            
+  record:
+    desc: Record scenario videos from Gazebo simulation
+    dir: simulation
+    cmds:
+      - cmd: |
+          pixi run python -m src.recording.recorder \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+            
+  sim:gazebo:
+    desc: Launch Gazebo simulator with WRO 2026 track
+    dir: simulation
+    cmds:
+      - pixi run gazebo --verbose ./simulation/worlds/wro_track_2026.sdf
+
+  sim:rviz:
+    desc: Launch RViz visualization
+    dir: simulation
+    cmds:
+      - pixi run rviz2
+
+  # VIDEO & FRAME PROCESSING
+
+  convert:bags:
+    desc: Convert ROS2 bags to MP4 videos
+    dir: simulation
+    cmds:
+      - cmd: |
+          uv run python -m src.recording.bag_converter \
+            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  extract:frames:
+    desc: Extract frames from ROS2 bags and annotate
+    dir: simulation
+    cmds:
+      - cmd: |
+          uv run python -m src.recording.frame_extractor \
+            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+
+  # TESTING & CODE QUALITY
+
+  test:
+    desc: Run all tests across all modules
+    cmds:
+      - task: test:backend
+      - task: test:sim
+      - task: test:robot
+
+  test:backend:
+    desc: Run backend tests
+    dir: backend
+    cmds:
+      - uv run pytest tests/ -v
+
+  test:sim:
+    desc: Run simulation tests
+    dir: simulation
+    cmds:
+      - uv run pytest tests/ -v
+
+  test:robot:
+    desc: Run robot tests
+    dir: robot
+    cmds:
+      - uv run pytest tests/ -v
+
+  lint:
+    desc: Run ruff linter on all code
+    cmds:
+      - task: lint:backend
+      - task: lint:sim
+      - task: lint:robot
+
+  lint:backend:
+    desc: Lint backend code
+    dir: backend
+    cmds:
+      - uv run ruff check src/ tests/
+
+  lint:sim:
+    desc: Lint simulation code
+    dir: simulation
+    cmds:
+      - uv run ruff check src/ tests/
+
+  lint:robot:
+    desc: Lint robot code
+    dir: robot
+    cmds:
+      - uv run ruff check src/ tests/
+
+  lint:fix:
+    desc: Auto-fix linting issues in all modules
+    cmds:
+      - task: lint:fix:backend
+      - task: lint:fix:sim
+      - task: lint:fix:robot
+
+  lint:fix:backend:
+    desc: Auto-fix backend linting issues
+    dir: backend
+    cmds:
+      - uv run ruff check src/ tests/ --fix
+
+  lint:fix:sim:
+    desc: Auto-fix simulation linting issues
+    dir: simulation
+    cmds:
+      - uv run ruff check src/ tests/ --fix
+
+  lint:fix:robot:
+    desc: Auto-fix robot linting issues
+    dir: robot
+    cmds:
+      - uv run ruff check src/ tests/ --fix
+
+  # DOCKER OPERATIONS (if docker-compose.yml exists)
+
+  docker:build:
+    desc: Build Docker images
+    cmds:
+      - docker compose build
+
+  docker:up:
+    desc: Start Docker Compose services
+    cmds:
+      - docker compose up -d
+
+  docker:down:
+    desc: Stop Docker Compose services
+    cmds:
+      - docker compose down
+
+  docker:logs:
+    desc: View Docker Compose logs (follow mode)
+    cmds:
+      - docker compose logs -f
+
+  docker:restart:
+    desc: Restart Docker Compose services
+    cmds:
+      - task: docker:down
+      - task: docker:up
+
+  # CLEANUP
+
+  clean:
+    desc: Remove all generated training data
+    cmds:
+      - cmd: rm -rf {{.OUTPUT_DIR}}
+
+  clean:cache:
+    desc: Clean Python cache files and __pycache__ directories
+    cmds:
+      - cmd: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      - cmd: find . -name "*.pyc" -delete 2>/dev/null || true
+
+  clean:all:
+    desc: Deep clean — remove training data, cache, and build artifacts
+    cmds:
+      - task: clean
+      - task: clean:cache
+
+  # ANALYSIS & DEBUGGING
+
+  analyze:
+    desc: Analyze generated scenarios (statistics and summaries)
+    dir: simulation
+    cmds:
+      - uv run python -m src.analysis.scenario_analyzer --output-dir {{.OUTPUT_DIR}}
+
+  debug:
+    desc: Run with verbose logging (DEBUG=1)
+    cmds:
+      - cmd: DEBUG=1 task {{CLI_ARGS}}
+
+  info:
+    desc: Display platform information (Python versions, dependencies)
+    cmds:
+      - cmd: |
+          echo "=== PYTHON ==="
+          uv --version
+          echo ""
+          echo "=== PIXI ==="
+          pixi --version || echo "Pixi not installed"
+          echo ""
+          echo "=== DIRECTORIES ==="
+          echo "Output dir: {{.OUTPUT_DIR}}"
+          echo "Simulation: simulation/"
+          echo "Backend: backend/"
+          echo "Frontend: frontend/"
+          echo "Robot: robot/"
+          echo "Shared: shared/"
+
+  # UTILITY TASKS
+
+  init:dev:
+    desc: One-time setup for development (install + lint)
+    cmds:
+      - task: install
+      - task: lint
+
+  quick:test:
+    desc: Quick test run (no full suite)
+    cmds:
+      - cmd: uv run pytest tests/ -x --tb=short
+
+  # WORKFLOW TASKS (combine multiple steps)
+
+  workflow:generate:
+    desc: Full scenario generation pipeline (generate track → all scenarios)
+    cmds:
+      - task: gen:track
+      - task: gen:all
+      - cmd: echo "Generation complete! Data in {{.OUTPUT_DIR}}"
+
+  workflow:dev:
+    desc: Development workflow (install → lint → test)
+    cmds:
+      - task: install
+      - task: lint
+      - task: test
+      - cmd: echo "Development checks complete!"
+
+  workflow:record:
+    desc: Recording pipeline (record → convert bags → extract frames)
+    cmds:
+      - task: record
+      - task: convert:bags
+      - task: extract:frames
+      - cmd: echo "Recording pipeline complete!"
