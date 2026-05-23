@@ -168,15 +168,16 @@ tasks:
     cmds:
       - docker-compose logs -f frontend
 
-  # ── Full Stack ─────────────────────────────────────────────────────────
+  # Full Stack
 
   dev:local:
     desc: Start full local development stack (backend + frontend)
     cmds:
       - task: backend:sync
       - task: frontend:install
-      - echo "Starting services in parallel..."
-      - task: backend:dev & task: frontend:dev
+      - echo "Starting services..."
+      - cmd: "cd backend && uv run python main.py & cd ../frontend && npm run dev"
+        ignore_error: true
 
   dev:docker:
     desc: Start full Docker stack (backend + frontend)
@@ -188,7 +189,7 @@ tasks:
     cmds:
       - task: docker:compose:up:detached
 
-  # ── Utility ────────────────────────────────────────────────────────────
+  # Utility
 
   help:
     desc: Show this help message
