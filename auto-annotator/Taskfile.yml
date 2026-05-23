@@ -1,0 +1,222 @@
+version: '3'
+
+vars:
+  API_PORT: '8000'
+  SERVER_PORT: '8765'
+  FRONTEND_PORT: '80'
+  MODELS_DIR: './backend/models'
+  DB_PATH: './backend/data/manifest.db'
+
+tasks:
+  # Local Development
+
+  backend:dev:
+    desc: Start SAM model server + FastAPI API (local development)
+    dir: backend
+    cmds:
+      - uv run python main.py
+
+  backend:dev:model:
+    desc: Start SAM model server + FastAPI API with custom model
+    dir: backend
+    cmds:
+      - uv run python main.py --model {{.MODEL_ID}}
+    vars:
+      MODEL_ID: sam2_hiera_large
+    env:
+      API_PORT: '{{.API_PORT}}'
+      SERVER_PORT: '{{.SERVER_PORT}}'
+
+  backend:server:
+    desc: Start SAM model server only
+    dir: backend
+    cmds:
+      - uv run python main.py --model {{.MODEL_ID}}
+    vars:
+      MODEL_ID: sam2_hiera_large
+
+  backend:sync:
+    desc: Install backend dependencies with uv
+    dir: backend
+    cmds:
+      - uv sync
+
+  frontend:dev:
+    desc: Start Vite dev server (http://localhost:5173)
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Build frontend for production
+    dir: frontend
+    cmds:
+      - npm run build
+
+  frontend:preview:
+    desc: Preview production build locally
+    dir: frontend
+    cmds:
+      - npm run preview
+
+  frontend:install:
+    desc: Install frontend dependencies
+    dir: frontend
+    cmds:
+      - npm install
+
+  # Code Quality
+
+  lint:backend:
+    desc: Run ruff linter on backend code
+    dir: backend
+    cmds:
+      - uv run ruff check .
+
+  lint:frontend:
+    desc: Run Biome linter on frontend code
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  lint:all:
+    desc: Run linters on backend and frontend
+    cmds:
+      - task: lint:backend
+      - task: lint:frontend
+
+  format:backend:
+    desc: Fix and format backend code with ruff
+    dir: backend
+    cmds:
+      - uv run ruff check --fix .
+      - uv run ruff format .
+
+  format:frontend:
+    desc: Fix and format frontend code with Biome
+    dir: frontend
+    cmds:
+      - npm run format
+
+  format:all:
+    desc: Fix and format backend and frontend code
+    cmds:
+      - task: format:backend
+      - task: format:frontend
+
+  # Docker
+
+  docker:build:
+    desc: Build auto-annotator Docker image
+    cmds:
+      - docker build -t auto-annotator .
+
+  docker:run:
+    desc: Run backend container with GPU support
+    cmds:
+      - docker run --gpus all -p {{.API_PORT}}:{{.API_PORT}} auto-annotator
+    env:
+      API_PORT: '{{.API_PORT}}'
+
+  docker:run:dev:
+    desc: Run backend container with GPU and volume mounts for development
+    cmds:
+      - docker run --gpus all
+        -p {{.API_PORT}}:{{.API_PORT}}
+        -v "{{.PWD}}/backend/data:/app/data"
+        -v "{{.PWD}}/backend/models:/app/models"
+        auto-annotator
+    env:
+      API_PORT: '{{.API_PORT}}'
+      PWD: '.'
+
+  docker:compose:up:
+    desc: Start all services with docker-compose (backend + frontend)
+    cmds:
+      - docker-compose up --build
+    env:
+      API_PORT: '{{.API_PORT}}'
+      FRONTEND_PORT: '{{.FRONTEND_PORT}}'
+      SERVER_PORT: '{{.SERVER_PORT}}'
+
+  docker:compose:up:detached:
+    desc: Start all services in background with docker-compose
+    cmds:
+      - docker-compose up -d --build
+    env:
+      API_PORT: '{{.API_PORT}}'
+      FRONTEND_PORT: '{{.FRONTEND_PORT}}'
+      SERVER_PORT: '{{.SERVER_PORT}}'
+
+  docker:compose:down:
+    desc: Stop and remove docker-compose services
+    cmds:
+      - docker-compose down
+
+  docker:compose:logs:
+    desc: Follow docker-compose logs
+    cmds:
+      - docker-compose logs -f
+
+  docker:compose:logs:backend:
+    desc: Follow backend service logs
+    cmds:
+      - docker-compose logs -f backend
+
+  docker:compose:logs:frontend:
+    desc: Follow frontend service logs
+    cmds:
+      - docker-compose logs -f frontend
+
+  # ── Full Stack ─────────────────────────────────────────────────────────
+
+  dev:local:
+    desc: Start full local development stack (backend + frontend)
+    cmds:
+      - task: backend:sync
+      - task: frontend:install
+      - echo "Starting services in parallel..."
+      - task: backend:dev & task: frontend:dev
+
+  dev:docker:
+    desc: Start full Docker stack (backend + frontend)
+    cmds:
+      - task: docker:compose:up
+
+  dev:docker:detached:
+    desc: Start full Docker stack in background
+    cmds:
+      - task: docker:compose:up:detached
+
+  # ── Utility ────────────────────────────────────────────────────────────
+
+  help:
+    desc: Show this help message
+    cmds:
+      - task --list
+
+  clean:
+    desc: Clean build artifacts and cache
+    cmds:
+      - cmd: rm -rf backend/.ruff_cache
+        ignore_error: true
+      - cmd: rm -rf frontend/dist
+        ignore_error: true
+      - cmd: rm -rf frontend/node_modules
+        ignore_error: true
+      - echo "Cleaned build artifacts"
+
+  clean:deep:
+    desc: Clean everything including dependencies
+    cmds:
+      - task: clean
+      - cmd: rm -rf backend/.venv
+        ignore_error: true
+      - echo "Full clean complete"
+
+  init:
+    desc: Initialize development environment
+    cmds:
+      - task: backend:sync
+      - task: frontend:install
+      - echo "Development environment initialized"
