@@ -8,6 +8,11 @@ vars:
   DB_PATH: './backend/data/manifest.db'
 
 tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
   # Local Development
 
   backend:dev:
