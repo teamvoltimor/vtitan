@@ -1,0 +1,103 @@
+version: '3'
+
+vars:
+  THEME_DIR: themes/hugo-book
+  THEME_REPO: https://github.com/alex-shpak/hugo-book.git
+  HUGO_CONTENT: content/v1
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  serve:
+    desc: Start Hugo dev server with live reload
+    deps: [theme, copy-docs]
+    cmds:
+      - hugo server --disableFastRender
+
+  build:
+    desc: Build the site (incremental)
+    deps: [theme, copy-docs]
+    cmds:
+      - hugo
+
+  build:prod:
+    desc: Build the site with minification for production
+    deps: [theme, copy-docs]
+    cmds:
+      - hugo --minify --destination public
+
+  copy-docs:
+    desc: Copy Markdown files from ../docs into content/v1/ via Go script
+    cmds:
+      - go run scripts/copy_docs.go
+
+  theme:
+    desc: Clone hugo-book theme if absent, otherwise pull latest
+    cmds:
+      - cmd: if not exist themes\hugo-book git clone --depth 1 {{.THEME_REPO}} themes\hugo-book
+        platforms: [windows]
+      - cmd: '[ -d "{{.THEME_DIR}}" ] || git clone --depth 1 {{.THEME_REPO}} {{.THEME_DIR}}'
+        platforms: [linux, darwin]
+      - git -C {{.THEME_DIR}} pull origin main
+
+  clean:
+    desc: Remove generated content from content/v1/
+    prompt: This will delete all files under {{.HUGO_CONTENT}}. Continue?
+    cmds:
+      - cmd: powershell -Command "Remove-Item -Recurse -Force {{.HUGO_CONTENT}}\* -ErrorAction SilentlyContinue"
+        platforms: [windows]
+      - cmd: rm -rf {{.HUGO_CONTENT}}/*
+        platforms: [linux, darwin]
+
+  clean:public:
+    desc: Remove the public/ build output directory
+    cmds:
+      - cmd: powershell -Command "Remove-Item -Recurse -Force public -ErrorAction SilentlyContinue"
+        platforms: [windows]
+      - cmd: rm -rf public
+        platforms: [linux, darwin]
+
+  lint:
+    desc: Run Biome linter
+    cmds:
+      - biome lint .
+
+  fmt:
+    desc: Format files with Biome (writes in place)
+    cmds:
+      - biome format --write .
+
+  check:
+    desc: Run Biome lint + format check (CI-safe, no writes)
+    cmds:
+      - biome check .
+
+  deploy:
+    desc: Build and deploy to GitHub Pages (requires GITHUB_TOKEN env var)
+    deps: [build:prod]
+    cmds:
+      - cmd: |
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "GITHUB_TOKEN is required for deployment."
+            exit 1
+          fi
+          cd public && \
+          git init && \
+          git config user.name "github-actions[bot]" && \
+          git config user.email "github-actions[bot]@users.noreply.github.com" && \
+          git add . && \
+          git commit -m "Deploy to GitHub Pages" && \
+          git branch -M gh-pages && \
+          git remote add origin https://x-access-token:$GITHUB_TOKEN@github.com/teamsteelbot/klevor.git && \
+          git push --force origin gh-pages
+
+  cloudflare:
+    desc: Build for Cloudflare Pages (outputs to public/)
+    deps: [build:prod]
+    cmds:
+      - cmd: echo "Built to public/ — connect your repo in the Cloudflare Pages dashboard and set output dir to public"
+        silent: true

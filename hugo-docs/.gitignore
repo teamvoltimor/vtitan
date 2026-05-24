@@ -11,6 +11,7 @@ Thumbs.db
 # Allowlist essentials
 !.gitignore
 !Makefile
+!Taskfile.yml
 !biome.json
 !*/
 
@@ -56,3 +57,6 @@ assets/jsconfig.json
 hugo.exe
 hugo.darwin
 hugo.linux
+
+# Claude Code
+.claude/
