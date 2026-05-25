@@ -1,71 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>404 – Page Not Found</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      background: #181a1b;
-      color: #e0e0e0;
-      font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-    }
-    .container {
-      text-align: center;
-      padding: 2em;
-      border-radius: 8px;
-      background: #23272e;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
-      max-width: 480px;
-    }
-    h1 {
-      font-size: 4em;
-      margin: 0 0 0.2em 0;
-      color: #ff9800;
-      letter-spacing: 0.05em;
-    }
-    h2 {
-      margin: 0 0 1em 0;
-      font-weight: 400;
-      color: #bdbdbd;
-    }
-    p {
-      margin: 1em 0;
-      color: #bdbdbd;
-    }
-    a {
-      color: #4fc3f7;
-      text-decoration: none;
-      font-weight: bold;
-      transition: color 0.2s;
-    }
-    a:hover {
-      color: #ff9800;
-    }
-    .emoji {
-      font-size: 2.5em;
-      margin-bottom: 0.5em;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="emoji">🚧</div>
-    <h1>404</h1>
-    <h2>Page Not Found</h2>
-    <p>
-      Sorry, the page you are looking for doesn’t exist or has been moved.<br>
-      Please check the URL or return to the <a href="/">documentation home</a>.
-    </p>
-    <p>
-      If you believe this is an error, <a href="https://github.com/your/repo/issues">let us know</a>.
-    </p>
-  </div>
-</body>
-</html>
+{{ define "main" }}
+<article class="markdown book-article">
+  <h1>404 — Page Not Found</h1>
+  <p>Sorry, the page you're looking for doesn't exist or has been moved.</p>
+  <p>
+    Return to the <a href="/">documentation home</a>, or
+    <a href="{{ .Site.Params.BookRepo }}/issues">report an issue</a>.
+  </p>
+</article>
+{{ end }}

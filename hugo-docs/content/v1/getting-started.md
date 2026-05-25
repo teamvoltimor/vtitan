@@ -1,3 +1,8 @@
+---
+title: "Getting Started"
+description: "Set up your environment and start using Klevor v2 — prerequisites, installation, and first steps."
+---
+
 # Getting Started
 
 Welcome to the documentation for **klevor-v2**!
@@ -28,7 +33,7 @@ Below is an example image included from the `static/` directory:
 Clone the repository:
 
 ```sh
-git clone https://github.com/your/repo.git
+git clone https://github.com/teamsteelbot/klevor.git
 cd klevor-v2
 ```
 

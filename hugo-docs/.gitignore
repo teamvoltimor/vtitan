@@ -46,7 +46,6 @@ Thumbs.db
 !content/**/_index.md
 !content/**/index.md
 !content/**/getting-started.md
-!content/**/test.md
 !content/**/usage.md
 
 # Build output and cache

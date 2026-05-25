@@ -1,3 +1,8 @@
+---
+title: "Proposals"
+description: "Technical proposals for Klevor v2 covering hardware, software, system designs, and technology comparisons."
+---
+
 # Proposals
 
 Welcome to the Proposals section of the documentation.

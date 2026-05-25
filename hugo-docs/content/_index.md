@@ -1,3 +1,8 @@
+---
+title: "Klevor Documentation"
+description: "Official documentation portal for Klevor v2 — browse versioned guides, proposals, and technical references."
+---
+
 # Welcome to the Documentation
 
 Welcome to the official documentation portal for this project. This site is designed to provide clear, organized, and easily navigable documentation for users and developers alike.
@@ -48,7 +53,7 @@ Welcome to the official documentation portal for this project. This site is desi
 
 ## 🛠️ Contributing
 
-If you find any issues or have suggestions for improvement, please contribute or open an issue in the [repository](https://github.com/your/repo).
+If you find any issues or have suggestions for improvement, please contribute or open an issue in the [repository](https://github.com/teamsteelbot/klevor).
 
 ---
 

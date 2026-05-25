@@ -36,13 +36,9 @@ tasks:
       - go run scripts/copy_docs.go
 
   theme:
-    desc: Clone hugo-book theme if absent, otherwise pull latest
+    desc: Initialise hugo-book submodule (pinned to committed revision)
     cmds:
-      - cmd: if not exist themes\hugo-book git clone --depth 1 {{.THEME_REPO}} themes\hugo-book
-        platforms: [windows]
-      - cmd: '[ -d "{{.THEME_DIR}}" ] || git clone --depth 1 {{.THEME_REPO}} {{.THEME_DIR}}'
-        platforms: [linux, darwin]
-      - git -C {{.THEME_DIR}} pull origin main
+      - git -C .. submodule update --init hugo-docs/themes/hugo-book
 
   clean:
     desc: Remove generated content from content/v1/

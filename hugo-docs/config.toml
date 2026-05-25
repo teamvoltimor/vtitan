@@ -4,6 +4,7 @@ title = "Klevor Docs"
 theme = "hugo-book"
 defaultContentLanguage = "en"
 enableGitInfo = true
+enableRobotsTXT = true
 contentDir = "content/v1"
 
 [params]
