@@ -23,6 +23,8 @@ from albumentations import (
 )
 
 from src.constants import IMAGES_DIR, LABELS_DIR
+from src.label_store import LabelRecord
+from src.models import AugmentedImage
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -30,11 +32,10 @@ if TYPE_CHECKING:
 
     from src.db.repository import Repository
     from src.gallery_cache import AnnotationCache
+    from src.label_store import LabelStore
     from src.models import ImageRecord
 
 logger = get_logger(__name__)
-
-ProgressCallback = Callable[[dict], None]
 
 
 def _build_transforms(image_height: int, image_width: int) -> list:
@@ -46,27 +47,19 @@ def _build_transforms(image_height: int, image_width: int) -> list:
     ]
 
 
-def _parse_label_file(label_path: Path) -> tuple[list[int], list[list[float]]]:
-    """Parse YOLO label file. Returns (class_ids, coord_lists)."""
-    class_ids, coords = [], []
-    for line in label_path.read_text(encoding="utf-8").splitlines():
-        parts = line.strip().split()
-        if not parts:
-            continue
-        class_ids.append(int(parts[0]))
-        coords.append([float(v) for v in parts[1:]])
-    return class_ids, coords
-
-
 def _is_bbox(coords: list[float]) -> bool:
     return len(coords) == 4
 
 
-def _augment_det(image_np: np.ndarray, class_ids: list[int], bboxes: list[list[float]], n: int) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
+def _augment_det(
+    image_np: np.ndarray, class_ids: list[int], bboxes: list[list[float]], n: int,
+) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
     """Augment image with detection (bbox) annotations."""
     H, W = image_np.shape[:2]
     transforms = _build_transforms(H, W)
-    compose = Compose(transforms, bbox_params=BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.3))
+    compose = Compose(
+        transforms, bbox_params=BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.3),
+    )
 
     results = []
     for _ in range(n):
@@ -75,7 +68,9 @@ def _augment_det(image_np: np.ndarray, class_ids: list[int], bboxes: list[list[f
     return results
 
 
-def _augment_seg(image_np: np.ndarray, class_ids: list[int], polygons: list[list[float]], n: int) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
+def _augment_seg(
+    image_np: np.ndarray, class_ids: list[int], polygons: list[list[float]], n: int,
+) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
     """Augment image with segmentation (polygon) annotations.
 
     Polygon format: flat list [x1, y1, x2, y2, ...] in normalized coords.
@@ -90,7 +85,9 @@ def _augment_seg(image_np: np.ndarray, class_ids: list[int], polygons: list[list
         all_kpts.extend(pts)
         poly_idx.extend([i] * len(pts))
 
-    compose = Compose(transforms, keypoint_params=KeypointParams(format="xy", label_fields=["poly_idx"], remove_invisible=True))
+    compose = Compose(
+        transforms, keypoint_params=KeypointParams(format="xy", label_fields=["poly_idx"], remove_invisible=True),
+    )
 
     results = []
     for _ in range(n):
@@ -112,19 +109,12 @@ def _augment_seg(image_np: np.ndarray, class_ids: list[int], polygons: list[list
     return results
 
 
-def _write_label(path: Path, class_ids: list[int], coords: list[list[float]]) -> None:
-    lines = [
-        f"{cid} " + " ".join(f"{v:.6f}" for v in coord)
-        for cid, coord in zip(class_ids, coords, strict=False)
-    ]
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
 def augment_image(
     record: ImageRecord,
     num_augmentations: int,
     repository: Repository,
-    progress: ProgressCallback | None = None,
+    label_store: LabelStore,
+    progress: Callable[[dict], None] | None = None,
     cache: AnnotationCache | None = None,
 ) -> list[int]:
     """Augment a single annotated image, write files and register in DB.
@@ -143,8 +133,9 @@ def augment_image(
     class_dir = img_path.parent.name
     label_path = LABELS_DIR / class_dir / (img_path.stem + ".txt")
 
-    if not label_path.exists():
-        logger.info("label_not_found", extra={"path": str(label_path)})
+    records = label_store.load_raw(label_path)
+    if not records:
+        logger.info("label_not_found_or_empty", extra={"path": str(label_path)})
         return []
 
     image_bgr = cv2.imread(str(img_path))
@@ -153,10 +144,8 @@ def augment_image(
         return []
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    class_ids, coords = _parse_label_file(label_path)
-
-    if not class_ids:
-        return []
+    class_ids = [r.class_id for r in records]
+    coords = [r.coords for r in records]
 
     fmt = record.format_used or "det"
     is_det = _is_bbox(coords[0])
@@ -179,9 +168,14 @@ def augment_image(
         aug_lbl_path.parent.mkdir(parents=True, exist_ok=True)
 
         cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
-        _write_label(aug_lbl_path, new_classes, new_coords)
+        label_store.save(aug_lbl_path, [LabelRecord(cid, c) for cid, c in zip(new_classes, new_coords, strict=False)])
 
-        new_id = repository.images.register_augmented(str(aug_img_path), fmt, record.id)
+        aug_record = AugmentedImage(
+            path=str(aug_img_path),
+            format_used=fmt,
+            parent_id=record.id,
+        )
+        new_id = repository.images.register_augmented(aug_record)
         new_ids.append(new_id)
 
         if cache:
@@ -196,19 +190,19 @@ def augment_image(
 def run_augmentation_job(
     image_ids: list[int],
     num_augmentations: int,
-    on_progress: ProgressCallback,
     repository: Repository,
+    label_store: LabelStore,
     reporter: object | None = None,
     cache: AnnotationCache | None = None,
 ) -> None:
-    """Run augmentation for a list of image IDs. Calls on_progress for each step.
+    """Run augmentation for a list of image IDs.
 
     Args:
         image_ids:         List of DB ids of done original images to augment.
         num_augmentations: Augmented copies per image.
-        on_progress:       Callback called with progress event dicts.
         repository:        Repository for database access.
-        reporter:          Optional ProgressReporter for fine-grained progress.
+        label_store:       LabelStore for reading and writing label files.
+        reporter:          Optional ProgressReporter for progress updates.
         cache:             Optional cache to invalidate after augmentation.
     """
     total = len(image_ids) * num_augmentations
@@ -222,13 +216,16 @@ def run_augmentation_job(
         def _step(event: dict) -> None:
             nonlocal done
             done += 1
-            on_progress({"done": done, "total": total, "step": event.get("step", "")})
+            if reporter:
+                reporter.update(
+                    "augmenting", done / total, event.get("step", ""), details={"done": done, "total": total},
+                )
 
-        augment_image(record, num_augmentations, repository, progress=_step, cache=cache)
+        augment_image(record, num_augmentations, repository, label_store, progress=_step, cache=cache)
 
-        # Report progress if reporter available
         if reporter:
             reporter.update("augmenting", (idx + 1) / len(image_ids), f"Processed {idx + 1}/{len(image_ids)} images")
 
-    on_progress({"done": total, "total": total, "finished": True})
+    if reporter:
+        reporter.update("augmenting", 1.0, "Done", details={"done": total, "total": total, "finished": True})
     logger.info("augmentation_job_done", extra={"total": total})

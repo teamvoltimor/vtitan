@@ -153,7 +153,9 @@ class UltralyticsBackend:
         """Store image for Ultralytics inference."""
         self.current_image = image
 
-    def _ultralytics_predict(self, coords: np.ndarray, labels: np.ndarray) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+    def _ultralytics_predict(
+        self, coords: np.ndarray, labels: np.ndarray,
+    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
         """Run actual Ultralytics prediction."""
         if self.current_image is None:
             err_msg = "Image must be set before calling predict"

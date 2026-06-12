@@ -10,16 +10,15 @@ magic strings appear here.
 
 from __future__ import annotations
 
-import pickle
 import socket
-import struct
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import numpy as np
 
-from src.constants import RECV_CHUNK_SIZE, SERVER_HOST, SERVER_PORT
+from src.constants import SERVER_HOST, SERVER_PORT
+from src.server import wire
 from src.server.constants import (
     CMD_LIST_MODELS,
     CMD_PING,
@@ -45,29 +44,6 @@ from src.server.constants import (
 from src.utils import get_logger
 
 logger = get_logger(__name__)
-
-
-def _recv_all(sock: socket.socket, n: int) -> bytes:
-    """Read exactly *n* bytes from *sock*, blocking until all bytes arrive.
-
-    Args:
-        sock: Connected TCP socket.
-        n:    Number of bytes to read.
-
-    Returns:
-        Bytes buffer of length *n*.
-
-    Raises:
-        ConnectionError: When the socket is closed before *n* bytes are received.
-    """
-    buf = b""
-    while len(buf) < n:
-        chunk = sock.recv(min(RECV_CHUNK_SIZE, n - len(buf)))
-        if not chunk:
-            msg = "Model server disconnected"
-            raise ConnectionError(msg)
-        buf += chunk
-    return buf
 
 
 # Request dataclasses – one per TCP command.
@@ -191,13 +167,11 @@ class ModelServerClient:
         Returns:
             Decoded response dict from the server.
         """
-        data = pickle.dumps(req.to_dict())
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(120)
             s.connect(self.addr)
-            s.sendall(struct.pack(">I", len(data)) + data)
-            resp_len = struct.unpack(">I", _recv_all(s, 4))[0]
-            return pickle.loads(_recv_all(s, resp_len))
+            wire.send(s, req.to_dict())
+            return wire.recv(s)
 
     def ping(self) -> bool:
         """Check whether the model server is reachable and responding.

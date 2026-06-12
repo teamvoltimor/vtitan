@@ -27,8 +27,7 @@ def retry[T](
     max_delay_ms: int = 5000,
     backoff_factor: float = 2.0,
     retryable: Callable[[Exception], bool] | None = None,
-) -> T:
-    ...
+) -> T: ...
 
 
 def retry[T](

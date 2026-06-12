@@ -19,11 +19,11 @@ SAM2-based interactive image annotator for generating YOLO training data.
 # 1. Install dependencies
 uv sync
 
-# 2. (Optional) Start the model server in one terminal
-make model-server
+# 2. (Optional) Start the model server only in one terminal
+task backend:server
 
-# 3. Start the Gradio app in another terminal
-make run
+# 3. Start the full backend stack (model server + API)
+task backend:dev
 ```
 
 Then open http://localhost:7860.
@@ -59,7 +59,7 @@ auto_annotator/
 │   └── manifest.db      # SQLite DB
 ├── app.py               # Gradio entrypoint
 ├── model_server.py      # TCP server entrypoint
-├── Makefile             # Convenience targets
+├── Taskfile.yml         # Convenience tasks (run with `task <name>`)
 └── Dockerfile
 ```
 

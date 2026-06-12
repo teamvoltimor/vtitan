@@ -210,20 +210,20 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                 return (
                   <Box
                     key={tab.label}
+                    component="button"
+                    type="button"
                     onClick={() => setActiveTabIndex(index)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) =>
-                      (e.key === 'Enter' || e.key === ' ') && setActiveTabIndex(index)
-                    }
                     sx={{
                       position: 'relative',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      width: '100%',
                       px: 1.5,
                       py: 0.875,
                       borderRadius: '6px',
+                      border: 'none',
+                      font: 'inherit',
                       cursor: 'pointer',
                       bgcolor: isActive
                         ? mode === 'dark'

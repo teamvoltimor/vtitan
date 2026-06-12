@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
 from src.api.job_handler import get_job_status, run_job, stream_job_events
 from src.api.schemas import AugmentRequest, JobStatusResponse
 from src.augment import run_augmentation_job
-from src.job_manager import JobStatus
 
 if TYPE_CHECKING:
     from fastapi.responses import StreamingResponse
 
-    from src.api.dependencies import JobManagerDep, RepositoryDep
+    from src.api.dependencies import JobManagerDep, LabelStoreDep, RepositoryDep
 
 router = APIRouter()
 
@@ -26,30 +25,28 @@ async def augment_status(job_manager: JobManagerDep) -> JobStatusResponse:
     return JobStatusResponse(**status)
 
 
-@router.post("/start", response_model=JobStatusResponse)
+@router.post("/start", response_model=JobStatusResponse, status_code=202)
 async def start_augment(
-    request: Request,
     payload: AugmentRequest,
     job_manager: JobManagerDep,
     repository: RepositoryDep,
+    label_store: LabelStoreDep,
 ) -> JobStatusResponse:
     """Start an augmentation job in the background using asyncio."""
-    if not payload.imageIds:
+    if not payload.image_ids:
         raise HTTPException(status_code=400, detail="No images specified")
 
-    if any(j.status == JobStatus.RUNNING for j in job_manager.jobs.values()):
+    if job_manager.has_running():
         raise HTTPException(status_code=409, detail="Augmentation already running")
 
-    app_state = request.app.state.app_state
     result = await run_job(
         job_manager,
         run_augmentation_job,
         "Augmentation",
-        payload.imageIds,
-        payload.numAugmentations,
-        lambda _evt: None,  # Progress callback (optional)
+        payload.image_ids,
+        payload.num_augmentations,
         repository=repository,
-        cache=app_state.annotation_cache,
+        label_store=label_store,
     )
     return JobStatusResponse(**result)
 

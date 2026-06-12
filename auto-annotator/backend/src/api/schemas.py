@@ -8,11 +8,47 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+_BASE = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+_REQUEST = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
+
+
+class AppBaseModel(BaseModel):
+    """Base model for all API schemas — camelCase wire format, snake_case Python."""
+
+    model_config = _BASE
+
+
+class AppRequestModel(BaseModel):
+    """Base model for request bodies — adds extra='forbid' to reject unknown fields."""
+
+    model_config = _REQUEST
+
+
+# Shared primitive
+
+
+class NormalizedPoint(AppBaseModel):
+    """A 2-D point with coordinates normalised to the range [0, 1]."""
+
+    x: float
+    y: float
+
+
+class SegmentationShape(AppBaseModel):
+    """A single mask or bounding-box shape from inference."""
+
+    id: str
+    class_name: str
+    points: list[NormalizedPoint]
+
 
 # Gallery & Image Schemas
 
-class GalleryStats(BaseModel):
+
+class GalleryStats(AppBaseModel):
     """Aggregate image status counts for the gallery overview."""
 
     pending: int
@@ -22,15 +58,7 @@ class GalleryStats(BaseModel):
     pct: float
 
 
-class SegmentationShape(BaseModel):
-    """A single mask or bounding-box shape from inference."""
-
-    id: str
-    className: str
-    points: list[NormalizedPoint]
-
-
-class GalleryItem(BaseModel):
+class GalleryItem(AppBaseModel):
     """A single image entry in the gallery listing."""
 
     id: int
@@ -42,66 +70,64 @@ class GalleryItem(BaseModel):
     annotations: list[SegmentationShape]
 
 
-class GalleryResponse(BaseModel):
+class GalleryResponse(AppBaseModel):
     """Full gallery payload returned by ``GET /gallery``."""
 
     items: list[GalleryItem]
     stats: GalleryStats
 
 
-class GroupedGalleryItem(BaseModel):
+class GroupedGalleryItem(AppBaseModel):
     """A class group in the grouped gallery view."""
 
-    className: str
+    class_name: str
     count: int
     images: list[GalleryItem]
 
 
-class GroupedGalleryResponse(BaseModel):
+class GroupedGalleryResponse(AppBaseModel):
     """Gallery grouped by class returned by ``GET /gallery/grouped``."""
 
     groups: list[GroupedGalleryItem]
     stats: GalleryStats
 
 
-class ParentImageItem(BaseModel):
-    """A parent (original) image with augmentation count."""
+class ParentImageItem(AppBaseModel):
+    """A parent (original) image with augmentation count.
+
+    ``updated_at`` and ``aug_count`` use explicit aliases to preserve the
+    existing snake_case wire format consumed by the frontend.
+    """
 
     id: int
     label: str
     src: str
     format: str
     status: str
-    updated_at: str
-    aug_count: int
+    updated_at: str = Field(alias="updated_at", serialization_alias="updated_at")
+    aug_count: int = Field(alias="aug_count", serialization_alias="aug_count")
 
 
 # Segmentation Schemas
 
-class NormalizedPoint(BaseModel):
-    """A 2-D point with coordinates normalised to the range [0, 1]."""
 
-    x: float
-    y: float
-
-
-class SegmentationPoint(BaseModel):
+class SegmentationPoint(AppRequestModel):
     """A click point sent by the frontend for SAM inference."""
 
     x: float
     y: float
-    pointType: Literal["positive", "negative"]
-    className: str
+    point_type: Literal["positive", "negative"]
+    class_name: str
 
 
-class SegmentationRequest(BaseModel):
+class SegmentationRequest(AppRequestModel):
     """Payload for ``POST /segment``."""
 
-    imageId: int
+    image_id: int
     points: list[SegmentationPoint]
 
 
-class SegmentationResponse(BaseModel):
+class SegmentationResponse(AppBaseModel):
     """Response envelope for ``POST /segment``."""
 
     state: Literal["idle", "pending", "ready", "error"]
@@ -111,23 +137,25 @@ class SegmentationResponse(BaseModel):
 
 # Annotation Schemas
 
-class SaveAnnotationsRequest(BaseModel):
+
+class SaveAnnotationsRequest(AppRequestModel):
     """Payload for ``POST /save``."""
 
-    imageId: int
+    image_id: int
     shapes: list[SegmentationShape]
-    exportFormat: Literal["segmentation", "detection"]
+    export_format: Literal["segmentation", "detection"]
 
 
-class SkipRequest(BaseModel):
+class SkipRequest(AppRequestModel):
     """Payload for ``POST /skip``."""
 
-    imageId: int
+    image_id: int
 
 
 # Class Schemas
 
-class ClassItem(BaseModel):
+
+class ClassItem(AppBaseModel):
     """A single annotation class."""
 
     id: int
@@ -135,7 +163,7 @@ class ClassItem(BaseModel):
     color: str
 
 
-class UpsertClassRequest(BaseModel):
+class UpsertClassRequest(AppRequestModel):
     """Payload for ``POST /classes``."""
 
     name: str
@@ -144,7 +172,8 @@ class UpsertClassRequest(BaseModel):
 
 # Model Schemas
 
-class ModelItem(BaseModel):
+
+class ModelItem(AppBaseModel):
     """A single SAM model available on the server."""
 
     id: str
@@ -155,9 +184,22 @@ class ModelItem(BaseModel):
     supports_text: bool
 
 
+# Health Schemas
+
+
+class HealthStatus(AppBaseModel):
+    """System health status response."""
+
+    ready: bool
+    inference_available: bool
+    database_accessible: bool
+    message: str = ""
+
+
 # Job Schemas
 
-class JobStatusResponse(BaseModel):
+
+class JobStatusResponse(AppBaseModel):
     """Status response for long-running jobs (augmentation, training)."""
 
     running: bool
@@ -166,27 +208,30 @@ class JobStatusResponse(BaseModel):
 
 # Import Request Schemas
 
-class DeleteImagesRequest(BaseModel):
+
+class DeleteImagesRequest(AppRequestModel):
     """Payload for ``DELETE /images``."""
 
-    imageIds: list[int]
+    image_ids: list[int]
 
 
 # Augmentation Schemas
 
-class AugmentRequest(BaseModel):
+
+class AugmentRequest(AppRequestModel):
     """Payload for ``POST /augment/start``."""
 
-    imageIds: list[int]
-    numAugmentations: int = 9
+    image_ids: list[int]
+    num_augmentations: int = 9
 
 
 # Training Schemas
 
-class TrainRequest(BaseModel):
+
+class TrainRequest(AppRequestModel):
     """Payload for ``POST /train/start``."""
 
-    modelName: str = "yolo11s.pt"
+    model_name: str = "yolo11s.pt"
     epochs: int = 50
     batch: int = 16
     imgsz: int = 640

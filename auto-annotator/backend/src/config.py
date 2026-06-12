@@ -51,7 +51,7 @@ class PathConfig:
     server_config_file: Path
 
     @classmethod
-    def load() -> PathConfig:
+    def load(cls) -> PathConfig:
         """Load paths from environment variables and defaults."""
         base_dir = Path(__file__).parent.parent
 
@@ -93,7 +93,7 @@ class ServerConfig:
     recv_chunk_size: int
 
     @classmethod
-    def load(paths: PathConfig) -> ServerConfig:
+    def load(cls, paths: PathConfig) -> ServerConfig:
         """Load server configuration from environment, config file, or defaults."""
         server_config_dict = _load_toml(paths.server_config_file).get("server", {})
         default_port = 8765
@@ -133,7 +133,7 @@ class APIConfig:
     public_url: str
 
     @classmethod
-    def load() -> APIConfig:
+    def load(cls) -> APIConfig:
         """Load API configuration from environment variables."""
         port = int(os.environ.get("API_PORT", "8000"))
         return APIConfig(
@@ -170,7 +170,7 @@ class InferenceConfig:
     default_model: str
 
     @classmethod
-    def load() -> InferenceConfig:
+    def load(cls) -> InferenceConfig:
         """Load inference configuration from environment and defaults."""
         return InferenceConfig(
             sam2_checkpoint_filename="sam2.1_l.pt",
@@ -201,7 +201,7 @@ class AppConfig:
     inference: InferenceConfig
 
     @classmethod
-    def load() -> AppConfig:
+    def load(cls) -> AppConfig:
         """Load all configuration from environment, config files, and defaults."""
         paths = PathConfig.load()
         return AppConfig(

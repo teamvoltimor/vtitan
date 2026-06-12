@@ -11,11 +11,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 from PIL import Image
 
-from src.api.schemas import SegmentationShape
-from src.coordinates import YOLOPoint, yolo_bbox_to_corners
+from src.coordinates import NormalizedPoint, YOLOPoint, yolo_bbox_to_corners
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
 from src.inference import run_sam_inference
-from src.models import AppState, ClassInfo, Point
+from src.models import ClassInfo, InferenceRequest, Point, Shape
 
 if TYPE_CHECKING:
     from src.db.repository import Repository
@@ -44,7 +43,7 @@ class SegmentationService:
         points: list[dict],
         app_context: AppContext,
         classes: list[ClassInfo],
-    ) -> SegmentationShape | None:
+    ) -> Shape | None:
         """Run SAM inference for click points and return best segmentation.
 
         ASSUMES input is already validated (non-empty points, valid classes).
@@ -56,15 +55,10 @@ class SegmentationService:
             classes: List of classes (assumed to include all classes in points).
 
         Returns:
-            SegmentationShape for the best mask, or None if inference fails or mask too small.
+            Shape for the best mask, or None if inference fails or mask too small.
 
-        Raises:
-            ValueError: If image not found.
         """
         record = self.repository.images.get_by_id(image_id)
-        if record is None:
-            msg = f"Image {image_id} not found"
-            raise ValueError(msg)
 
         # Load image from disk
         try:
@@ -84,34 +78,24 @@ class SegmentationService:
         selected_class = None
 
         for click in points:
-            cls_info = class_map.get(click["className"])
+            cls_info = class_map.get(click["class_name"])
             # Validation ensures cls_info is not None, so this is safe
-            if cls_info and click["pointType"] == "positive" and selected_class is None:
+            if cls_info and click["point_type"] == "positive" and selected_class is None:
                 selected_class = cls_info
 
-            # Normalize and convert to pixel coords
-            nx = max(0.0, min(1.0, click["x"]))
-            ny = max(0.0, min(1.0, click["y"]))
-            px = int(nx * (width - 1))
-            py = int(ny * (height - 1))
-
-            label = 1 if click["pointType"] == "positive" else 0
-            inference_points.append(Point(x=px, y=py, label=label, class_id=cls_info.id))
+            pixel = NormalizedPoint(x=click["x"], y=click["y"]).to_pixel(width, height)
+            label = 1 if click["point_type"] == "positive" else 0
+            inference_points.append(Point(x=pixel.x, y=pixel.y, label=label, class_id=cls_info.id))
 
         # Validation ensures selected_class is not None
         if selected_class is None:
-            selected_class = class_map[points[0]["className"]]
+            selected_class = class_map[points[0]["class_name"]]
 
-        # Run inference
-        state = AppState(
-            current_image=image_np,
-            current_image_id=image_id,
-            classes=classes,
-            point_buffer=inference_points,
-            pending_class_db_id=selected_class.id,
+        result = run_sam_inference(
+            InferenceRequest(image=image_np, points=inference_points),
+            app_context.client,
+            app_context.inference,
         )
-
-        result = run_sam_inference(state, app_context.client, app_context.inference)
         if not result.ok or result.masks is None:
             msg = f"Inference failed: {result.error}"
             raise ValueError(msg)
@@ -126,28 +110,28 @@ class SegmentationService:
         class_name: str,
         image_id: int,
         mask_idx: int,
-    ) -> SegmentationShape | None:
+    ) -> Shape | None:
         """Convert SAM binary mask to YOLO polygon or bounding box.
 
         Attempts polygon conversion first (preserves detail), falls back
         to bounding box if polygon is too small or simplifies to <3 points.
 
         Args:
-            mask: Boolean H×W binary mask from SAM.
+            mask: Boolean HxW binary mask from SAM.
             class_name: Annotation class name for this shape.
             image_id: Database image ID (for shape ID).
             mask_idx: Mask granularity index (0/1/2).
 
         Returns:
-            SegmentationShape if conversion succeeds, None if mask too small.
+            Shape if conversion succeeds, None if mask too small.
         """
         polygon = mask_to_yolo_polygon(mask)
         if polygon:
             yolo_points = [YOLOPoint(x=polygon[i], y=polygon[i + 1]) for i in range(0, len(polygon), 2)]
             points = [p.to_normalized() for p in yolo_points]
-            return SegmentationShape(
+            return Shape(
                 id=f"mask-{image_id}-{mask_idx}",
-                className=class_name,
+                class_name=class_name,
                 points=points,
             )
 
@@ -156,9 +140,9 @@ class SegmentationService:
             xc, yc, w, h = bbox
             yolo_points = yolo_bbox_to_corners(xc, yc, w, h)
             points = [p.to_normalized() for p in yolo_points]
-            return SegmentationShape(
+            return Shape(
                 id=f"bbox-{image_id}-{mask_idx}",
-                className=class_name,
+                class_name=class_name,
                 points=points,
             )
 

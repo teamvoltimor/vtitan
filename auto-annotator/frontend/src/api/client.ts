@@ -2,6 +2,9 @@ import { resolveBackendUrl } from '../../config/backend';
 
 const API_BASE_URL = resolveBackendUrl(import.meta.env.VITE_API_BASE_URL);
 
+// Every domain router is mounted under the versioned /api/v1 prefix on the backend.
+const API = `${API_BASE_URL}/api/v1`;
+
 const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const body = await response.text();
@@ -11,7 +14,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 };
 
 const postJSON = <T>(path: string, body: unknown): Promise<T> =>
-  fetch(`${API_BASE_URL}${path}`, {
+  fetch(`${API}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -60,14 +63,14 @@ export interface SegmentationResponse {
 }
 
 export const getGallery = async (): Promise<GalleryResponse> => {
-  const response = await fetch(`${API_BASE_URL}/gallery`);
+  const response = await fetch(`${API}/gallery`);
   return handleResponse<GalleryResponse>(response);
 };
 
 export const importGalleryImages = async (files: FileList): Promise<GalleryResponse> => {
   const form = new FormData();
   Array.from(files).forEach((file) => form.append('files', file));
-  const response = await fetch(`${API_BASE_URL}/gallery/import`, {
+  const response = await fetch(`${API}/gallery/import`, {
     method: 'POST',
     body: form,
   });
@@ -81,10 +84,10 @@ export const saveAnnotations = (
   imageId: number,
   exportFormat: 'segmentation' | 'detection',
   shapes: SegmentationShape[],
-): Promise<GalleryResponse> => postJSON('/save', { imageId, exportFormat, shapes });
+): Promise<GalleryResponse> => postJSON('/annotations/save', { imageId, exportFormat, shapes });
 
 export const skipImage = (imageId: number): Promise<GalleryResponse> =>
-  postJSON('/skip', { imageId });
+  postJSON('/annotations/skip', { imageId });
 
 export interface ClassItem {
   id: number;
@@ -98,19 +101,19 @@ export interface ModelItem {
 }
 
 export const getClasses = (): Promise<ClassItem[]> =>
-  fetch(`${API_BASE_URL}/classes`).then((r) => handleResponse<ClassItem[]>(r));
+  fetch(`${API}/classes`).then((r) => handleResponse<ClassItem[]>(r));
 
 export const upsertClass = (name: string, color: string): Promise<ClassItem[]> =>
   postJSON('/classes', { name, color });
 
 export const getModels = (): Promise<ModelItem[]> =>
-  fetch(`${API_BASE_URL}/models`).then((r) => handleResponse<ModelItem[]>(r));
+  fetch(`${API}/models`).then((r) => handleResponse<ModelItem[]>(r));
 
 export const getAnnotations = (imageId: number): Promise<SegmentationShape[]> =>
-  fetch(`${API_BASE_URL}/annotations/${imageId}`).then((r) => handleResponse<SegmentationShape[]>(r));
+  fetch(`${API}/annotations/${imageId}`).then((r) => handleResponse<SegmentationShape[]>(r));
 
 export const deleteImages = (imageIds: number[]): Promise<GalleryResponse> =>
-  postJSON('/delete', { imageIds });
+  postJSON('/images/delete', { imageIds });
 
 export interface GroupedGalleryItem {
   id: number;
@@ -128,13 +131,13 @@ export interface JobStatusResponse {
 }
 
 export const getGroupedGallery = (): Promise<GroupedGalleryItem[]> =>
-  fetch(`${API_BASE_URL}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));
+  fetch(`${API}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));
 
 export const startAugment = (imageIds: number[], numAugmentations: number): Promise<JobStatusResponse> =>
   postJSON('/augment/start', { imageIds, numAugmentations });
 
 export const getAugmentStatus = (): Promise<JobStatusResponse> =>
-  fetch(`${API_BASE_URL}/augment/status`).then((r) => handleResponse<JobStatusResponse>(r));
+  fetch(`${API}/augment/status`).then((r) => handleResponse<JobStatusResponse>(r));
 
 export const startTrain = (params: {
   modelName: string;
@@ -144,7 +147,7 @@ export const startTrain = (params: {
 }): Promise<JobStatusResponse> => postJSON('/train/start', params);
 
 export const getTrainStatus = (): Promise<JobStatusResponse> =>
-  fetch(`${API_BASE_URL}/train/status`).then((r) => handleResponse<JobStatusResponse>(r));
+  fetch(`${API}/train/status`).then((r) => handleResponse<JobStatusResponse>(r));
 
-export const augmentStreamUrl = (): string => `${API_BASE_URL}/augment/stream`;
-export const trainStreamUrl = (): string => `${API_BASE_URL}/train/stream`;
+export const augmentStreamUrl = (): string => `${API}/augment/stream`;
+export const trainStreamUrl = (): string => `${API}/train/stream`;

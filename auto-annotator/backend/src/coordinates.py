@@ -24,10 +24,10 @@ class NormalizedPoint:
     y: float
 
     def to_pixel(self, width: int, height: int) -> PixelPoint:
-        """Convert to pixel coordinates given image dimensions."""
-        px = int(self.x * (width - 1))
-        py = int(self.y * (height - 1))
-        return PixelPoint(x=px, y=py)
+        """Convert to pixel coordinates given image dimensions, clamping to valid range."""
+        x = max(0.0, min(1.0, self.x))
+        y = max(0.0, min(1.0, self.y))
+        return PixelPoint(x=int(x * (width - 1)), y=int(y * (height - 1)))
 
     def to_yolo(self) -> tuple[float, float]:
         """Convert to YOLO format (already normalized)."""

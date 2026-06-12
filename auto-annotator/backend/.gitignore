@@ -218,35 +218,20 @@ __marimo__/
 # Claude Code
 .claude/
 
-# Backend models
+# Backend models / weights
 models/
-<<<<<<< HEAD
+*.pt
 
-# Backend data 
-data/labels/
-data/pending/
-data/manifest.db
-data/manifest.db-shm
-data/manifest.db-wal
+# Databases (manifest + WAL sidecars + any scratch DBs)
+*.db
+*.db-shm
+*.db-wal
 
-=======
-<<<<<<< HEAD
-
-# Backend data
+# Backend data (runtime artifacts + user-provided datasets)
 data/images/
 data/labels/
 data/pending/
-data/manifest.db
-data/manifest.db-shm
-data/manifest.db-wal
-=======
-
-# Backend data 
-data/labels/
-data/pending/
-data/manifest.db
-data/manifest.db-shm
-data/manifest.db-wal
-
->>>>>>> 958a21c (feat(auto-annotator): implement WRO Future Engineers vision training pipeline)
->>>>>>> 63c672a (refactor: implement enterprise-grade architecture for auto-annotator backend)
+data/runs/
+data/data.yaml
+data/train.txt
+data/val.txt

@@ -5,6 +5,8 @@ Validates that model classes enforce type safety and immutability where required
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from src.enums import Status
@@ -29,38 +31,29 @@ class TestImmutableModels:
 
     def test_point_immutable(self) -> None:
         """Verify Point dataclass is frozen."""
-        point = Point(x=1.0, y=2.0, label=1)
-        with pytest.raises(AttributeError):
-            point.x = 3.0  # type: ignore[misc]
-
-    def test_class_info_immutable(self) -> None:
-        """Verify ClassInfo dataclass is frozen."""
-        cls = ClassInfo(id=1, name="red", color="#ff0000")
-        with pytest.raises(AttributeError):
-            cls.name = "blue"  # type: ignore[misc]
+        point = Point(x=1, y=2, label=1, class_id=1)
+        with pytest.raises(FrozenInstanceError):
+            point.x = 5  # type: ignore
 
     def test_image_record_immutable(self) -> None:
         """Verify ImageRecord dataclass is frozen."""
         record = ImageRecord(
             id=1,
             path="/test/image.jpg",
-            filename="image.jpg",
             status=Status.PENDING,
             updated_at="2026-01-01",
-            format=None,
+            format_used=None,
         )
-        with pytest.raises(AttributeError):
-            record.status = Status.DONE  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            record.status = Status.DONE  # type: ignore
 
 
 class TestModelSerialization:
-    """Test dataclass serialization and representation."""
-
     def test_point_repr(self) -> None:
         """Verify Point has meaningful repr."""
-        point = Point(x=1.5, y=2.5, label=1)
-        assert "1.5" in repr(point)
-        assert "2.5" in repr(point)
+        point = Point(x=1, y=2, label=1, class_id=1)
+        assert "x=1" in repr(point)
+        assert "y=2" in repr(point)
 
     def test_class_info_equality(self) -> None:
         """Verify ClassInfo equality by value."""

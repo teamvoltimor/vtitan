@@ -26,9 +26,11 @@ def run_segmentation(
     try:
         classes = repository.classes.get_all()
         # Validate request before calling service
-        validator.validate_segmentation_request(payload.imageId, payload.points, classes)
+        validator.validate_segmentation_request(payload.image_id, payload.points, classes)
 
-        shape = segmentation_service.segment(payload.imageId, [p.dict() for p in payload.points], app_context, classes)
+        shape = segmentation_service.segment(
+            payload.image_id, [p.model_dump() for p in payload.points], app_context, classes,
+        )
 
         if shape is None:
             return SegmentationResponse(state="error", message="Mask too small to render", shapes=[])

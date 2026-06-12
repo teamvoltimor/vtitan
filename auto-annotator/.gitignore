@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+r.env
+*.env
 .envrc
 .venv
 env/
@@ -217,6 +219,9 @@ __marimo__/
 
 # Claude Code
 .claude/
+
+# Model weights / checkpoints
+*.pt
 
 # Internal docs
 docs/internal/

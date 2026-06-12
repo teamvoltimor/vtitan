@@ -28,17 +28,19 @@ def serve_image(image_record: ImageRecordDep) -> FileResponse:
 
 
 @router.post("/delete", response_model=GalleryResponse)
-def delete_images(payload: DeleteImagesRequest, repository: RepositoryDep, gallery_service: GalleryServiceDep) -> GalleryResponse:
+def delete_images(
+    payload: DeleteImagesRequest, repository: RepositoryDep, gallery_service: GalleryServiceDep,
+) -> GalleryResponse:
     """Delete images by id and return the updated gallery."""
-    if not payload.imageIds:
+    if not payload.image_ids:
         raise HTTPException(status_code=400, detail="No images to delete")
 
-    for image_id in payload.imageIds:
+    for image_id in payload.image_ids:
         record = repository.images.get_by_id(image_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Image not found")
-        Path(record.path).unlink(missing_ok=True)
         repository.images.delete(image_id)
+        Path(record.path).unlink(missing_ok=True)
 
-    logger.info("images_deleted", extra={"count": len(payload.imageIds)})
+    logger.info("images_deleted", extra={"count": len(payload.image_ids)})
     return gallery_service.build_gallery_response()

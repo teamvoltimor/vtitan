@@ -33,6 +33,7 @@ from pathlib import Path
 # Logging (JSON to stdout, mirrors src.utils pattern)
 # ---------------------------------------------------------------------------
 
+
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
@@ -173,9 +174,11 @@ def _write_data_yaml(data_dir: Path, db_path: Path) -> None:
     out.write_text(yaml_content, encoding="utf-8")
     _log(logger, "INFO", "data_yaml_written", path=str(out))
 
+
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
+
 
 def _parse_legacy_classes(classes_txt: Path) -> dict[int, str]:
     lines = [ln.strip() for ln in classes_txt.read_text(encoding="utf-8").splitlines() if ln.strip()]
@@ -222,7 +225,7 @@ def run(zip_path: Path, dry_run: bool, data_dir: Path, db_path: Path, path_prefi
     if not dry_run:
         _init_db(db_path)
 
-    with tempfile.TemporaryDirectory(prefix="klevor_import_") as staging_root:
+    with tempfile.TemporaryDirectory(prefix="voldemorbot_import_") as staging_root:
         _log(logger, "INFO", "extracting_zip", zip=str(zip_path))
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(staging_root)
@@ -336,14 +339,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Import legacy gmr/labeled.zip into auto-annotator.")
     parser.add_argument("--zip", required=True, type=Path, metavar="PATH", help="Path to gmr/labeled.zip")
     parser.add_argument("--dry-run", action="store_true", help="Print actions without writing files or DB")
-    parser.add_argument("--data-dir", type=Path, default=default_data, metavar="PATH", help="Override backend/data/ dir")
+    parser.add_argument(
+        "--data-dir", type=Path, default=default_data, metavar="PATH", help="Override backend/data/ dir",
+    )
     parser.add_argument("--db", type=Path, default=default_db, metavar="PATH", help="Override DB path")
-    parser.add_argument("--path-prefix", default=None, metavar="PATH",
-                        help="Path prefix stored in DB (use /app/data when backend runs in Docker)")
+    parser.add_argument(
+        "--path-prefix",
+        default=None,
+        metavar="PATH",
+        help="Path prefix stored in DB (use /app/data when backend runs in Docker)",
+    )
     args = parser.parse_args()
 
-    run(zip_path=args.zip, dry_run=args.dry_run, data_dir=args.data_dir, db_path=args.db,
-        path_prefix=args.path_prefix)
+    run(zip_path=args.zip, dry_run=args.dry_run, data_dir=args.data_dir, db_path=args.db, path_prefix=args.path_prefix)
 
 
 if __name__ == "__main__":

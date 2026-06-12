@@ -22,6 +22,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.config import AppConfig
 from src.utils import get_logger
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -30,20 +31,19 @@ _START = time.monotonic()
 logger = get_logger(__name__)
 
 
-
-def _run_model_server(default_model: str | None) -> None:
+def _run_model_server(config: AppConfig) -> None:
     from src.server.main import run_server
 
-    run_server(default_model)
+    run_server(config)
 
 
-def _run_api(api_host: str, api_port: int) -> None:
+def _run_api(config: AppConfig) -> None:
     import uvicorn
 
     uvicorn.run(
         "src.api.app:app",
-        host=api_host,
-        port=api_port,
+        host=os.environ.get("API_HOST", "0.0.0.0"),  # noqa: S104
+        port=config.api.port,
         log_level="warning",
         access_log=False,
     )
@@ -63,27 +63,28 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    default_model = args.default_model or os.environ.get("DEFAULT_MODEL")
-    api_port = int(os.environ.get("API_PORT", "8000"))
-    api_host = os.environ.get("API_HOST", "0.0.0.0")  # noqa: S104
+    config = AppConfig.load()
+
+    if args.default_model:
+        import dataclasses
+
+        config = dataclasses.replace(
+            config,
+            inference=dataclasses.replace(config.inference, default_model=args.default_model),
+        )
 
     elapsed = time.monotonic() - _START
     logger.info("Launching backend stack; import took %.2fs", elapsed)
 
-    # Start the TCP model server in a daemon thread.  It binds its socket before
-    # loading the model, so the 1-second grace period below is sufficient.
     server_thread = threading.Thread(
         target=_run_model_server,
-        args=(default_model,),
+        args=(config,),
         daemon=True,
         name="model-server",
     )
     server_thread.start()
 
-    # connect_to_model_server() inside the FastAPI lifespan retries until the
-    # TCP socket is ready, so no sleep is needed here.
-    # Block on uvicorn; container exits cleanly when it receives SIGTERM.
-    _run_api(api_host, api_port)
+    _run_api(config)
 
 
 if __name__ == "__main__":

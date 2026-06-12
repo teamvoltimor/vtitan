@@ -108,6 +108,7 @@ DEFAULT_SERVER_PORT: int = 8765
 SERVER_HOST: str = "127.0.0.1"
 """Localhost address used by both the model server and the TCP client."""
 
+
 def _resolve_server_port() -> tuple[int, str]:
     """Resolve server port from environment, config file, or default.
 
@@ -140,6 +141,9 @@ DEFAULT_API_PUBLIC_URL: str = f"http://localhost:{API_PORT}"
 
 API_PUBLIC_URL: str = os.environ.get(ENV_API_PUBLIC_URL, DEFAULT_API_PUBLIC_URL)
 """Base URL used when building ``GalleryItem.src`` responses."""
+
+API_V1_PREFIX: str = "/api/v1"
+"""Version prefix every domain router is mounted under (single source of truth)."""
 
 RECV_CHUNK_SIZE: int = 65536
 """Maximum number of bytes read per socket recv() call in the TCP client and server."""

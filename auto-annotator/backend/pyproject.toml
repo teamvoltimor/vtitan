@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.30.0",
+    "alembic>=1.18.4",
 ]
 
 [dependency-groups]

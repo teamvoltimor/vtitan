@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS images (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS ix_images_status    ON images(status);
+CREATE INDEX IF NOT EXISTS ix_images_parent_id ON images(parent_id);
 """
 """Complete DDL script that creates both tables if they do not yet exist."""
 

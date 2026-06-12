@@ -1,15 +1,13 @@
-"""Health check and diagnostics endpoints.
-
-Verify inference availability and system status.
-"""
+"""Health, liveness, and readiness endpoints."""
 
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
+
+from src.api.schemas import HealthStatus
 
 if TYPE_CHECKING:
     from src.api.dependencies import AppContextDep, RepositoryDep
@@ -17,30 +15,10 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-@dataclass
-class HealthStatus:
-    """System health status."""
-
-    ready: bool
-    inference_available: bool
-    database_accessible: bool
-    message: str = ""
-
-
-@router.get("/health", response_model=HealthStatus)
-def health_check(app_context: AppContextDep, repository: RepositoryDep) -> HealthStatus:
-    """Check system health: database connectivity and inference availability.
-
-    Returns:
-        HealthStatus with ready=true if system is operational.
-
-    Use /health for monitoring and readiness checks.
-    """
-    db_ok = True
+def _readiness(app_context: AppContextDep, repository: RepositoryDep) -> HealthStatus:
     try:
         repository.stats.get_stats()
     except (OSError, sqlite3.Error):
-        db_ok = False
         return HealthStatus(
             ready=False,
             inference_available=False,
@@ -48,24 +26,29 @@ def health_check(app_context: AppContextDep, repository: RepositoryDep) -> Healt
             message="Database error",
         )
 
-    # Check inference availability
-    inference_ok = True
-    if not app_context.inference or not app_context.client:
-        inference_ok = False
-
-    ready = db_ok and inference_ok
+    inference_ok = bool(app_context.inference and app_context.client)
+    ready = inference_ok
     return HealthStatus(
         ready=ready,
         inference_available=inference_ok,
-        database_accessible=db_ok,
+        database_accessible=True,
         message="System ready" if ready else "System degraded",
     )
 
 
-@router.get("/health/startup")
-def startup_check() -> dict:
-    """Liveness check for startup/readiness probes.
-
-    Use this for container orchestration (Kubernetes, Docker Compose).
-    """
+@router.get("/healthz")
+def liveness() -> dict:
+    """Liveness probe — returns 200 if the process is running."""
     return {"status": "ok"}
+
+
+@router.get("/readyz", response_model=HealthStatus)
+def readiness(app_context: AppContextDep, repository: RepositoryDep) -> HealthStatus:
+    """Readiness probe — checks DB connectivity and inference availability."""
+    return _readiness(app_context, repository)
+
+
+@router.get("/health", response_model=HealthStatus)
+def health_check(app_context: AppContextDep, repository: RepositoryDep) -> HealthStatus:
+    """Full health check (alias for /readyz, kept for backward compatibility)."""
+    return _readiness(app_context, repository)

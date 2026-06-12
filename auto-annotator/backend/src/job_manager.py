@@ -160,6 +160,10 @@ class JobManager:
         logger.info("Job cancelled", extra={"_extra": {"job_id": job_id}})
         return True
 
+    def has_running(self) -> bool:
+        """Return True if any job is currently in RUNNING state."""
+        return any(j.status == JobStatus.RUNNING for j in self.jobs.values())
+
     def cleanup(self, job_id: str) -> None:
         """Remove completed job from tracking.
 

@@ -1,8 +1,5 @@
 """src.inference – SAM inference helpers (model-server or local fallback).
 
-Iterative refinement: if ``pending_logits`` exist from a previous call they are
-fed back as ``mask_input``, giving SAM a spatial prior for sharper successive masks.
-
 Connected-component filtering: only blobs that contain at least one positive
 click are kept, eliminating stray background regions.
 
@@ -23,7 +20,7 @@ from src.exceptions import (
     InferenceGPUMemory,
 )
 from src.inference_backends import get_backend, load_native_sam2, load_ultralytics_fallback
-from src.models import AppState, InferenceContext, InferenceResult, Point
+from src.models import InferenceContext, InferenceRequest, InferenceResult, Point
 
 if TYPE_CHECKING:
     from src.sam_client import ModelServerClient
@@ -100,54 +97,40 @@ def _empty_cache(context: InferenceContext) -> None:
 
 
 def run_sam_inference(
-    state: AppState,
+    request: InferenceRequest,
     client: ModelServerClient | None,
     context: InferenceContext,
 ) -> InferenceResult:
-    """Run SAM on the current point buffer and return a structured result.
+    """Run SAM on *request* and return a structured result. Mutates nothing.
 
-    Feeds ``state.pending_logits`` back as ``mask_input`` for iterative
-    refinement when available. Applies connected-component filtering to remove
-    stray background blobs.
+    Applies connected-component filtering to remove stray background blobs.
 
     Args:
-        state:   Current :class:`~src.models.AppState` with image and point buffer.
+        request: Image and click points for this inference call.
         client:  Active server client, or ``None`` for local inference.
         context: Local inference context (predictor, torch, OOM class).
 
     Returns:
         :class:`~src.models.InferenceResult` with ``ok == True`` on success.
     """
-    if state.current_image is None:
+    if request.image is None:
         return InferenceResult(masks=None, best_idx=0, scores_str="", error="No image loaded.")
-    if not state.point_buffer:
+    if not request.points:
         return InferenceResult(masks=None, best_idx=0, scores_str="", error="No points in buffer.")
     if client is None and context.predictor is None:
-        msg = "SAM model not loaded."
-        return InferenceResult(masks=None, best_idx=0, scores_str="", error=msg)
+        return InferenceResult(masks=None, best_idx=0, scores_str="", error="SAM model not loaded.")
 
-    points = state.point_buffer
-    coords = np.array([[p.x, p.y] for p in points], dtype=np.float32)
-    labels = np.array([p.label for p in points], dtype=np.int32)
-
-    mask_input: np.ndarray | None = None
-    if state.pending_logits is not None:
-        raw_logits = state.pending_logits[state.pending_mask_idx]
-        mask_input = raw_logits[None] if raw_logits.ndim == 2 else raw_logits
+    coords = np.array([[p.x, p.y] for p in request.points], dtype=np.float32)
+    labels = np.array([p.label for p in request.points], dtype=np.int32)
 
     try:
         if client is not None:
-            if not state.image_set:
-                client.set_image(state.current_image)
-                state.image_set = True
-            all_masks, scores_flat, logits_out = client.predict(coords, labels, mask_input=mask_input)
-            logits_out = np.array(logits_out) if logits_out else None
+            client.set_image(request.image)
+            all_masks, scores_flat, _ = client.predict(coords, labels)
         else:
             backend = get_backend(context)
-            if not state.image_set:
-                backend.set_image(state.current_image)
-                state.image_set = True
-            all_masks, scores_flat, logits_out = backend.predict(coords, labels, mask_input=mask_input)
+            backend.set_image(request.image)
+            all_masks, scores_flat, _ = backend.predict(coords, labels)
 
     except InferenceGPUMemory:
         _empty_cache(context)
@@ -163,9 +146,7 @@ def run_sam_inference(
         if client is None:
             _empty_cache(context)
 
-    state.pending_logits = logits_out
-
-    positive_points = [p for p in points if p.label == 1]
+    positive_points = [p for p in request.points if p.label == 1]
     all_masks = [_filter_connected_components(mask, positive_points) for mask in all_masks]
 
     best_index = int(np.argmax(scores_flat))

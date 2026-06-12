@@ -11,9 +11,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from src.annotation_lifecycle import AnnotationLifecycle
     from src.db.repository import Repository
     from src.gallery_cache import AnnotationCache
     from src.job_manager import JobManager
+    from src.label_store import LabelStore
     from src.models import AppContext
     from src.services import AnnotationService, GalleryService, SegmentationService
     from src.validation import Validator
@@ -30,8 +32,10 @@ class AppState:
     ctx: AppContext
     repository: Repository
     annotation_cache: AnnotationCache
+    label_store: LabelStore
     annotation_service: AnnotationService
     gallery_service: GalleryService
     segmentation_service: SegmentationService
+    lifecycle: AnnotationLifecycle
     job_manager: JobManager
     validator: Validator

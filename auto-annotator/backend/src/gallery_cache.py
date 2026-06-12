@@ -103,9 +103,14 @@ class AnnotationCache:
         for handler in self._event_handlers:
             self._safe_invoke_handler(handler, event)
 
-    def _safe_invoke_handler(self, handler: Callable[[CacheInvalidationEvent], None], event: CacheInvalidationEvent) -> None:
-        """Invoke a single handler, allowing exceptions to propagate to caller."""
-
+    def _safe_invoke_handler(
+        self, handler: Callable[[CacheInvalidationEvent], None], event: CacheInvalidationEvent,
+    ) -> None:
+        """Invoke a single handler, logging but not propagating exceptions."""
+        try:
+            handler(event)
+        except Exception as e:  # noqa: BLE001 — callback may raise anything; log and continue
+            logger.warning("Cache invalidation handler failed", extra={"_extra": {"error": str(e)}})
 
     def invalidate(self, class_dir: str | None = None, image_stem: str | None = None) -> None:
         """Clear cached annotations for a directory or entire cache.

@@ -113,10 +113,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Fix Windows→Docker paths in manifest.db")
     parser.add_argument("--db", type=Path, default=default_db, metavar="PATH")
     parser.add_argument(
-        "--from-dir", default=None, metavar="PATH", help="Windows host data dir to replace (auto-detected if omitted)",
+        "--from-dir",
+        default=None,
+        metavar="PATH",
+        help="Windows host data dir to replace (auto-detected if omitted)",
     )
     parser.add_argument(
-        "--to-dir", default="/app/data", metavar="PATH", help="Docker container data dir (default: /app/data)",
+        "--to-dir",
+        default="/app/data",
+        metavar="PATH",
+        help="Docker container data dir (default: /app/data)",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

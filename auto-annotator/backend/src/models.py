@@ -122,7 +122,6 @@ class Point:
     class_id: ClassId
 
 
-
 @dataclass(frozen=True, slots=True)
 class ImageRecord:
     """A row from the ``images`` DB table.
@@ -230,6 +229,24 @@ class BrowseRow:
     path: str
 
 
+@dataclass(frozen=True, slots=True)
+class AugmentedImage:
+    """A domain value object representing a newly generated augmented image.
+
+    Used to pass generation results across the persistence port without
+    leaking raw paths and scalar values.
+
+    Attributes:
+        path:        Absolute path to the newly saved augmented image.
+        format_used: The export format inherited from the parent.
+        parent_id:   The ID of the parent image this was generated from.
+    """
+
+    path: str
+    format_used: str
+    parent_id: int
+
+
 @dataclass
 class InferenceContext:
     """Mutable local-inference state that replaces module-level globals in src.inference.
@@ -268,25 +285,31 @@ class AppContext:
 
 
 @dataclass
-class AppState:
-    """Per-request inference state passed through SAM inference helpers.
+class InferenceRequest:
+    """Minimal input for a single SAM inference call.
+
+    Replaces the HTTP-layer AppState as the inference boundary, keeping
+    run_sam_inference free of request-state coupling and mutation.
 
     Attributes:
-        classes:             List of annotation classes loaded from the DB.
-        current_image_id:    DB id of the image being segmented, or ``None``.
-        current_image:       RGB numpy array of the current image, or ``None``.
-        image_set:           Whether SAM has been initialised with the current image.
-        point_buffer:        Ordered list of click points for the current inference call.
-        pending_logits:      Raw SAM logits fed back as ``mask_input`` for iterative refinement.
-        pending_mask_idx:    Index into ``pending_logits`` for the selected granularity level.
-        pending_class_db_id: DB id of the class assigned to the in-progress annotation.
+        image:  RGB uint8 numpy array of the image to segment.
+        points: Ordered list of click points (pixel coords, label 0/1).
     """
 
-    classes: list[ClassInfo] = field(default_factory=list)
-    current_image_id: ImageId | None = None
-    current_image: np.ndarray | None = None
-    image_set: bool = False
-    point_buffer: list[Point] = field(default_factory=list)
-    pending_logits: np.ndarray | None = None
-    pending_mask_idx: int = 0
-    pending_class_db_id: ClassId | None = None
+    image: np.ndarray
+    points: list[Point]
+
+
+@dataclass(frozen=True, slots=True)
+class Shape:
+    """A single annotation shape (polygon or bounding box).
+
+    Attributes:
+        id:         Shape identifier (e.g., "loaded-1-0" or "mask-2-1").
+        class_name: Name of the class this shape belongs to.
+        points:     List of normalized points defining the shape.
+    """
+
+    id: str
+    class_name: str
+    points: list[Any]  # Any allows passing NormalizedPoint without circular imports or we can import from coordinates

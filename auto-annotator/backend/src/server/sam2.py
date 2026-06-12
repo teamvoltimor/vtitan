@@ -37,6 +37,7 @@ def load_sam2(cfg: dict, ctx: ServerContext) -> None:
         ImportError: When the ``sam2`` package is not installed.
     """
     from sam2.sam2_image_predictor import SAM2ImagePredictor  # type: ignore[import-untyped]
+
     ckpt_str = cfg.get(CFG_KEY_CHECKPOINT)
     hf = cfg.get(CFG_KEY_HF_REPO, "")
 
@@ -48,6 +49,7 @@ def load_sam2(cfg: dict, ctx: ServerContext) -> None:
 
     if ckpt and ckpt.exists():
         from sam2.build_sam import build_sam2  # type: ignore[import-untyped]
+
         hiera = cfg.get(CFG_KEY_HIERA_CONFIG, SAM2_DEFAULT_HIERA_CONFIG)
         model = build_sam2(hiera, str(ckpt), device=ctx.device)
         ctx.predictor = SAM2ImagePredictor(model)

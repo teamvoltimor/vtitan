@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from src.api.schemas import GalleryResponse, ParentImageItem
-from src.constants import API_PUBLIC_URL, PENDING_DIR
+from src.constants import API_PUBLIC_URL, API_V1_PREFIX, PENDING_DIR
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/", response_model=GalleryResponse)
+@router.get("", response_model=GalleryResponse)
 def read_gallery(gallery_service: GalleryServiceDep) -> GalleryResponse:
     """Return all images with status counts for the gallery view."""
     return gallery_service.build_gallery_response()
@@ -61,7 +61,7 @@ def get_grouped_gallery(repository: RepositoryDep) -> list[ParentImageItem]:
         ParentImageItem(
             id=row.id,
             label=row.filename,
-            src=f"{API_PUBLIC_URL}/images/{row.id}",
+            src=f"{API_PUBLIC_URL}{API_V1_PREFIX}/images/{row.id}",
             format=row.format,
             status=row.status,
             updated_at=row.updated_at,

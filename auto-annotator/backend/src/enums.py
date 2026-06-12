@@ -23,4 +23,3 @@ class ExportFormat(StrEnum):
 
     DET = "det"
     """Detection format: one bounding box per annotation."""
-

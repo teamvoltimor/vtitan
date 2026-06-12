@@ -10,9 +10,11 @@ from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, HTTPException, Request
 
+from src.annotation_lifecycle import AnnotationLifecycle
 from src.db.repository import Repository
 from src.gallery_cache import AnnotationCache
 from src.job_manager import JobManager
+from src.label_store import LabelStore
 from src.models import AppContext, ImageRecord
 from src.services import AnnotationService, GalleryService, SegmentationService
 from src.validation import Validator
@@ -53,6 +55,11 @@ def get_annotation_cache(app_state: Annotated[AppState, Depends(get_app_state)])
     return app_state.annotation_cache
 
 
+def get_label_store(app_state: Annotated[AppState, Depends(get_app_state)]) -> LabelStore:
+    """FastAPI dependency: return the label store."""
+    return app_state.label_store
+
+
 def get_annotation_service(app_state: Annotated[AppState, Depends(get_app_state)]) -> AnnotationService:
     """FastAPI dependency: return the annotation service."""
     return app_state.annotation_service
@@ -73,6 +80,11 @@ def get_validator(app_state: Annotated[AppState, Depends(get_app_state)]) -> Val
     return app_state.validator
 
 
+def get_lifecycle(app_state: Annotated[AppState, Depends(get_app_state)]) -> AnnotationLifecycle:
+    """FastAPI dependency: return the annotation lifecycle."""
+    return app_state.lifecycle
+
+
 def validate_image_id(repository: Annotated[Repository, Depends(get_repository)], image_id: int) -> ImageRecord:
     """FastAPI dependency: retrieve image record by ID or raise 404."""
     record = repository.images.get_by_id(image_id)
@@ -84,9 +96,11 @@ def validate_image_id(repository: Annotated[Repository, Depends(get_repository)]
 AppContextDep = Annotated[AppContext, Depends(get_app_context)]
 RepositoryDep = Annotated[Repository, Depends(get_repository)]
 AnnotationCacheDep = Annotated[AnnotationCache, Depends(get_annotation_cache)]
+LabelStoreDep = Annotated[LabelStore, Depends(get_label_store)]
 AnnotationServiceDep = Annotated[AnnotationService, Depends(get_annotation_service)]
 GalleryServiceDep = Annotated[GalleryService, Depends(get_gallery_service)]
 SegmentationServiceDep = Annotated[SegmentationService, Depends(get_segmentation_service)]
+AnnotationLifecycleDep = Annotated[AnnotationLifecycle, Depends(get_lifecycle)]
 JobManagerDep = Annotated[JobManager, Depends(get_job_manager)]
 ValidatorDep = Annotated[Validator, Depends(get_validator)]
 ImageRecordDep = Annotated[ImageRecord, Depends(validate_image_id)]

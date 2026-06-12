@@ -98,6 +98,7 @@ class SAM3Predictor:
         if mask_input is not None:
             # Silently skip if this processor version does not support input_masks.
             import contextlib as _ctx
+
             with _ctx.suppress(Exception):
                 proc_kwargs["input_masks"] = [[mask_input]]
 
@@ -117,9 +118,10 @@ class SAM3Predictor:
             )[0]
         except Exception:
             import torch.nn.functional as _F
+
             H, W = self._orig_hw
             raw = outputs.pred_masks[0, :, 0:1].float()
-            masks_t = (_F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0)
+            masks_t = _F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0
 
         if masks_t.ndim == 4:
             masks_t = masks_t[:, 0]
@@ -153,10 +155,12 @@ class SAM3TextSegmenter:
     def __init__(self, hf_repo: str, device: str) -> None:
         try:
             from transformers import Sam3Model, Sam3Processor  # type: ignore[import-untyped]
+
             self.processor = Sam3Processor.from_pretrained(hf_repo)
             self.model = Sam3Model.from_pretrained(hf_repo).to(device)
         except (ImportError, AttributeError):
             from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
+
             self.processor = AutoProcessor.from_pretrained(hf_repo)
             self.model = AutoModel.from_pretrained(hf_repo).to(device)
         self.device = device
@@ -206,8 +210,9 @@ class SAM3TextSegmenter:
                     )[0]
                 except Exception:
                     import torch.nn.functional as _F
+
                     raw = outputs.pred_masks[0, :, 0:1].float()
-                    masks_t = (_F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0)
+                    masks_t = _F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0
 
                 if masks_t.ndim == 4:
                     masks_t = masks_t[:, 0]
@@ -225,28 +230,34 @@ class SAM3TextSegmenter:
                 if hasattr(outputs, "pred_boxes"):
                     for box in outputs.pred_boxes[0].cpu().float().numpy():
                         cx, cy, bw, bh = box * np.array([W, H, W, H])
-                        boxes.append([
-                            float(cx - bw / 2),
-                            float(cy - bh / 2),
-                            float(cx + bw / 2),
-                            float(cy + bh / 2),
-                        ])
+                        boxes.append(
+                            [
+                                float(cx - bw / 2),
+                                float(cy - bh / 2),
+                                float(cx + bw / 2),
+                                float(cy + bh / 2),
+                            ],
+                        )
 
-                results.append({
-                    "class_name": class_name,
-                    "masks": [masks_np[i] for i in range(len(masks_np))],
-                    "scores": scores,
-                    "boxes": boxes,
-                })
+                results.append(
+                    {
+                        "class_name": class_name,
+                        "masks": [masks_np[i] for i in range(len(masks_np))],
+                        "scores": scores,
+                        "boxes": boxes,
+                    },
+                )
             except Exception as e:
                 # Capture per-class failure so other classes are not discarded.
-                results.append({
-                    "class_name": class_name,
-                    "masks": [],
-                    "scores": [],
-                    "boxes": [],
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "class_name": class_name,
+                        "masks": [],
+                        "scores": [],
+                        "boxes": [],
+                        "error": str(e),
+                    },
+                )
 
         return results
 
@@ -267,10 +278,12 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
 
     try:
         from transformers import Sam3TrackerModel, Sam3TrackerProcessor  # type: ignore[import-untyped]
+
         tracker = Sam3TrackerModel.from_pretrained(hf_repo).to(ctx.device)
         tracker_proc = Sam3TrackerProcessor.from_pretrained(hf_repo)
     except (ImportError, AttributeError):
         from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
+
         tracker = AutoModel.from_pretrained(hf_repo).to(ctx.device)
         tracker_proc = AutoProcessor.from_pretrained(hf_repo)
 
@@ -279,5 +292,6 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
 
     if cfg.get(CFG_KEY_SUPPORTS_TEXT):
         import contextlib as _ctx
+
         with _ctx.suppress(Exception):
             ctx.text_seg = SAM3TextSegmenter(hf_repo, ctx.device)

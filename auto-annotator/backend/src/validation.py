@@ -18,7 +18,10 @@ class Validator(Protocol):
     """Interface for request validation."""
 
     def validate_segmentation_request(
-        self, image_id: int, points: list[SegmentationPoint], classes: list[ClassInfo],
+        self,
+        image_id: int,
+        points: list[SegmentationPoint],
+        classes: list[ClassInfo],
     ) -> None:
         """Validate segmentation request.
 
@@ -33,7 +36,9 @@ class Validator(Protocol):
         ...
 
     def validate_save_annotations_request(
-        self, payload: SaveAnnotationsRequest, classes: list[ClassInfo],
+        self,
+        payload: SaveAnnotationsRequest,
+        classes: list[ClassInfo],
     ) -> None:
         """Validate save annotations request.
 
@@ -59,27 +64,36 @@ class DefaultValidator:
         self.repository = repository
 
     def validate_segmentation_request(
-        self, _image_id: int, points: list[SegmentationPoint], classes: list[ClassInfo],
+        self,
+        image_id: int,
+        points: list[SegmentationPoint],
+        classes: list[ClassInfo],
     ) -> None:
         """Validate segmentation request.
 
         Checks:
+        - Image ID exists
         - At least one point provided
         - All classes referenced in points exist
-        - Image ID is valid (via implicit check in service)
         """
+        if self.repository.images.get_by_id(image_id) is None:
+            msg = f"Image {image_id} not found"
+            raise ValueError(msg)
+
         if not points:
             msg = "At least one point required"
             raise ValueError(msg)
 
         class_names = {cls.name for cls in classes}
         for point in points:
-            if point.className not in class_names:
-                msg = f"Unknown class '{point.className}'"
+            if point.class_name not in class_names:
+                msg = f"Unknown class '{point.class_name}'"
                 raise ValueError(msg)
 
     def validate_save_annotations_request(
-        self, payload: SaveAnnotationsRequest, classes: list[ClassInfo],
+        self,
+        payload: SaveAnnotationsRequest,
+        classes: list[ClassInfo],
     ) -> None:
         """Validate save annotations request.
 
@@ -93,13 +107,13 @@ class DefaultValidator:
             raise ValueError(msg)
 
         class_names = {cls.name for cls in classes}
-        primary_class = payload.shapes[0].className
+        primary_class = payload.shapes[0].class_name
 
         if primary_class not in class_names:
             msg = f"Unknown primary class '{primary_class}'"
             raise ValueError(msg)
 
         for shape in payload.shapes:
-            if shape.className not in class_names:
-                msg = f"Unknown class '{shape.className}'"
+            if shape.class_name not in class_names:
+                msg = f"Unknown class '{shape.class_name}'"
                 raise ValueError(msg)

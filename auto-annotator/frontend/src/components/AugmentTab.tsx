@@ -84,7 +84,9 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
           return;
         }
         setProgress({ done: evt.done ?? 0, total: evt.total ?? 1, step: evt.step ?? '' });
-      } catch {}
+      } catch (parseErr) {
+        console.error('SSE parse error', parseErr);
+      }
     };
 
     es.onerror = () => {

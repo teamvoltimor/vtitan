@@ -54,7 +54,20 @@ def test_db(temp_db_path: Path) -> Path:
     Returns:
         Path to initialized test database.
     """
-    db_core.init_db()
+    # Create empty mock directories for pending/labels/images to avoid scanning real data
+    mock_pending = temp_db_path.parent / "pending"
+    mock_labels = temp_db_path.parent / "labels"
+    mock_images = temp_db_path.parent / "images"
+    mock_pending.mkdir(exist_ok=True)
+    mock_labels.mkdir(exist_ok=True)
+    mock_images.mkdir(exist_ok=True)
+
+    db_core.init_db(
+        db_path=temp_db_path,
+        pending_dir=mock_pending,
+        labels_dir=mock_labels,
+        images_dir=mock_images,
+    )
     return temp_db_path
 
 

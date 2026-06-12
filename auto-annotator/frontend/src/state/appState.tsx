@@ -262,7 +262,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
     getAnnotations(selectedGalleryItem.id)
       .then((shapes) => setSegmentationPreview(shapes))
-      .catch(() => setSegmentationPreview([]));
+      .catch((err: unknown) => {
+        setSegmentationPreview([]);
+        recordAction(`Failed to load annotations: ${(err as Error).message}`);
+      });
   }, [selectedGalleryItem?.id]);
 
   const loadModel = useCallback(

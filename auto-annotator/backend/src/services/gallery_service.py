@@ -17,7 +17,7 @@ from src.api.schemas import (
     GroupedGalleryResponse,
     SegmentationShape,
 )
-from src.constants import API_PUBLIC_URL
+from src.constants import API_PUBLIC_URL, API_V1_PREFIX
 
 if TYPE_CHECKING:
     from src.db.repository import Repository
@@ -114,7 +114,7 @@ class GalleryService:
         return GalleryItem(
             id=row.id,
             label=row.filename,
-            src=f"{API_PUBLIC_URL}/images/{row.id}",
+            src=f"{API_PUBLIC_URL}{API_V1_PREFIX}/images/{row.id}",
             format=row.format or "",
             status=row.status,
             updated=row.updated_at or "",

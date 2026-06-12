@@ -21,24 +21,26 @@ from __future__ import annotations
 import atexit
 import contextlib
 import os
-import pickle
 import socket
 import struct
 import threading
 import time
 import tomllib
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.config import AppConfig
 
 import torch
 
-from src.constants import CONFIG_FILE, MODELS_DIR, SERVER_HOST, SERVER_PORT
+from src.server import wire
 from src.server.context import ServerContext
 from src.server.dispatch import dispatch
 from src.server.loader import initial_load
 from src.utils import get_logger
 
 logger = get_logger(__name__)
-
-_RECV_CHUNK = 65536
 
 
 class _ServerState:
@@ -48,38 +50,25 @@ class _ServerState:
 _server_state = _ServerState()
 
 
-def _load_config() -> list[dict]:
-    if not CONFIG_FILE.exists():
-        logger.warning("Config not found, no models configured: %s", CONFIG_FILE)
+def _load_models_config(config_file: Path) -> list[dict]:
+    if not config_file.exists():
+        logger.warning("Config not found, no models configured: %s", config_file)
         return []
-    with CONFIG_FILE.open("rb") as f:
+    with config_file.open("rb") as f:
         return tomllib.load(f).get("models", [])
-
-
-def _recv_all(sock: socket.socket, n: int) -> bytes:
-    buf = b""
-    while len(buf) < n:
-        chunk = sock.recv(min(_RECV_CHUNK, n - len(buf)))
-        if not chunk:
-            msg = "Client disconnected"
-            raise ConnectionError(msg)
-        buf += chunk
-    return buf
 
 
 def _handle_client(conn: socket.socket, context: ServerContext, lock: threading.Lock) -> None:
     with conn:
         try:
-            msg_len = struct.unpack(">I", _recv_all(conn, 4))[0]
-            msg = pickle.loads(_recv_all(conn, msg_len))
+            msg = wire.recv(conn)
             with lock:
                 resp = dispatch(msg, context)
         except Exception as exc:
             resp = {"error": str(exc)}
 
         try:
-            payload = pickle.dumps(resp)
-            conn.sendall(struct.pack(">I", len(payload)) + payload)
+            wire.send(conn, resp)
         except Exception:  # noqa: S110
             pass
 
@@ -96,7 +85,7 @@ def _cleanup_server() -> None:
         logger.info("Server socket closed")
 
 
-def run_server(default_model: str | None = None) -> None:
+def run_server(config: AppConfig | None = None) -> None:
     """Bind the TCP socket immediately, then load the SAM model in the background.
 
     Binding first means the FastAPI API can connect and start serving
@@ -104,9 +93,18 @@ def run_server(default_model: str | None = None) -> None:
     Inference commands that arrive before loading completes are answered
     with a structured ``"No model loaded"`` error (see :func:`dispatch`).
     """
+    from src.config import AppConfig as _AppConfig
+
+    cfg = config or _AppConfig.load()
+    server_host = cfg.server.host
+    server_port = cfg.server.port
+    models_dir = cfg.paths.models_dir
+    config_file = cfg.paths.config_file
+    default_model = cfg.inference.default_model or None
+
     start = time.monotonic()
 
-    os.environ.setdefault("HF_HUB_CACHE", str(MODELS_DIR))
+    os.environ.setdefault("HF_HUB_CACHE", str(models_dir))
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     lock = threading.Lock()
@@ -117,12 +115,12 @@ def run_server(default_model: str | None = None) -> None:
     atexit.register(_cleanup_server)
 
     try:
-        srv.bind((SERVER_HOST, SERVER_PORT))
+        srv.bind((server_host, server_port))
         srv.listen(16)
-        logger.info("TCP socket bound on %s:%s – loading model in background.", SERVER_HOST, SERVER_PORT)
+        logger.info("TCP socket bound on %s:%s – loading model in background.", server_host, server_port)
 
-        resolved_default = default_model or os.environ.get("DEFAULT_MODEL", "") or "sam2.1-large"
-        context = ServerContext(models_config=_load_config(), device=device)
+        resolved_default = default_model or "sam2.1-large"
+        context = ServerContext(models_config=_load_models_config(config_file), device=device)
 
         def _load_model() -> None:
             initial_load(context, context.models_config, resolved_default)
@@ -130,8 +128,8 @@ def run_server(default_model: str | None = None) -> None:
             logger.info(
                 "Model ready in %.2fs on %s:%s device=%s model=%s",
                 elapsed,
-                SERVER_HOST,
-                SERVER_PORT,
+                server_host,
+                server_port,
                 device,
                 context.model_id or "FAILED",
             )
