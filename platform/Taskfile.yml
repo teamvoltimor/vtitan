@@ -47,6 +47,13 @@ tasks:
           task fmt:backend          Format Go backend (goimports + gofmt)
           task sqlc:generate        Regenerate Go DB layer from SQL (requires sqlc CLI)
 
+        SIMGEN (Go scenario generator)
+          task build:simgen         Compile simgen binary to simgen/bin/simgen
+          task test:simgen          Run simgen tests
+          task lint:simgen          Run golangci-lint on simgen
+          task lint:fix:simgen      Auto-fix simgen lint issues
+          task fmt:simgen           Format simgen code (golangci-lint fmt — goimports + golines)
+
         FRONTEND (Vite + React telemetry dashboard)
           task dev:frontend         Run dev server (http://localhost:5173) — append ?demo for mock data
           task dev:frontend:demo    Run dev server in Demo Mode (mock telemetry, no backend)
@@ -218,6 +225,38 @@ tasks:
       - goimports -w ./...
       - gofmt -w .
 
+  # SIMGEN (Go scenario generator)
+
+  build:simgen:
+    desc: Compile simgen binary to simgen/bin/simgen
+    dir: simgen
+    cmds:
+      - go build -o bin/simgen ./cmd/simgen
+
+  test:simgen:
+    desc: Run simgen tests
+    dir: simgen
+    cmds:
+      - go test ./... -v
+
+  lint:simgen:
+    desc: Run golangci-lint on simgen
+    dir: simgen
+    cmds:
+      - golangci-lint run ./...
+
+  lint:fix:simgen:
+    desc: Auto-fix simgen lint issues with golangci-lint
+    dir: simgen
+    cmds:
+      - golangci-lint run --fix ./...
+
+  fmt:simgen:
+    desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
+    dir: simgen
+    cmds:
+      - golangci-lint fmt ./...
+
   clean:go:
     desc: Remove Go build cache and compiled binaries
     cmds:
@@ -373,6 +412,7 @@ tasks:
     desc: Run all tests across all modules (Python + Go)
     cmds:
       - task: test:backend
+      - task: test:simgen
       - task: test:sim
       - task: test:robot
 
@@ -394,6 +434,7 @@ tasks:
       - task: lint:sim
       - task: lint:robot
       - task: lint:backend
+      - task: lint:simgen
       - task: lint:frontend
       - task: proto:lint
 
@@ -415,6 +456,7 @@ tasks:
       - task: lint:fix:sim
       - task: lint:fix:robot
       - task: lint:fix:backend
+      - task: lint:fix:simgen
 
   lint:fix:sim:
     desc: Auto-fix simulation linting issues

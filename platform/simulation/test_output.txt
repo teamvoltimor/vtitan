@@ -1,14 +1,14 @@
 ============================= test session starts =============================
 platform win32 -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\ralva\AppData\Local\Python\pythoncore-3.14-64\python.exe
 cachedir: .pytest_cache
-rootdir: C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamsteelbot\klevor-v2-platform\platform\simulation
+rootdir: C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamvoldemor\voldemorbot-platform\platform\simulation
 configfile: pyproject.toml
 plugins: anyio-4.13.0, Faker-40.13.0, timeout-2.4.0, requests-mock-1.12.1, typeguard-4.5.1
 collecting ... collected 0 items / 2 errors
 
 =================================== ERRORS ====================================
 __________________ ERROR collecting tests/test_randomizer.py __________________
-ImportError while importing test module 'C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamsteelbot\klevor-v2-platform\platform\simulation\tests\test_randomizer.py'.
+ImportError while importing test module 'C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamvoldemor\voldemorbot-platform\platform\simulation\tests\test_randomizer.py'.
 Hint: make sure your test modules/packages have valid Python names.
 Traceback:
 C:\Users\ralva\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
@@ -18,7 +18,7 @@ tests\test_randomizer.py:5: in <module>
     from shared.config.constants import DictKeys, TrackDimensions
 E   ModuleNotFoundError: No module named 'shared'
 __________________ ERROR collecting tests/test_scenarios.py ___________________
-ImportError while importing test module 'C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamsteelbot\klevor-v2-platform\platform\simulation\tests\test_scenarios.py'.
+ImportError while importing test module 'C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamvoldemor\voldemorbot-platform\platform\simulation\tests\test_scenarios.py'.
 Hint: make sure your test modules/packages have valid Python names.
 Traceback:
 C:\Users\ralva\AppData\Local\Python\pythoncore-3.14-64\Lib\importlib\__init__.py:88: in import_module
@@ -29,7 +29,7 @@ tests\test_scenarios.py:4: in <module>
 E   ModuleNotFoundError: No module named 'shared'
 ============================== warnings summary ===============================
 tests\test_framework.py:602
-  C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamsteelbot\klevor-v2-platform\platform\simulation\tests\test_framework.py:602: PytestCollectionWarning: cannot collect test class 'TestFramework' because it has a __init__ constructor (from: tests/test_framework.py)
+  C:\Users\ralva\OneDrive\Documents\private\projects\archived\teamvoldemor\voldemorbot-platform\platform\simulation\tests\test_framework.py:602: PytestCollectionWarning: cannot collect test class 'TestFramework' because it has a __init__ constructor (from: tests/test_framework.py)
     class TestFramework:
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

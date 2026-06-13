@@ -1,4 +1,4 @@
-"""Klevor simulation — scenario and track generation."""
+"""Voldemorbot simulation — scenario and track generation."""
 
 from __future__ import annotations
 

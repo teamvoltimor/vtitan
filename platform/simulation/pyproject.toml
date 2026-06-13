@@ -1,5 +1,5 @@
 [project]
-name = "klevor-platform"
+name = "voldemorbot-platform"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — robot platform & training pipeline"
 requires-python = ">=3.11"
@@ -8,11 +8,11 @@ dependencies = [
     "numpy>=1.26",
     "opencv-python>=4.9",
     "defusedxml>=0.7",
-    "klevor-shared",
+    "voldemorbot-shared",
 ]
 
 [tool.uv.sources]
-klevor-shared = { path = "../shared" }
+voldemorbot-shared = { path = "../shared" }
 
 [project.optional-dependencies]
 dev = [
