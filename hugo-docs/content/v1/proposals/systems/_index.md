@@ -1,5 +1,6 @@
 ---
 title: "Complete System Proposals"
+description: "End-to-end robot system proposals combining hardware, software, and control strategies — architectures, comparisons, and implementation guides."
 date: 2026-01-17
 ---
 

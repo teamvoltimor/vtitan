@@ -1,3 +1,8 @@
+---
+title: "Usage Guide"
+description: "Practical instructions and examples for using Voldemorbot v2 — workflows, configuration, and troubleshooting."
+---
+
 # Usage Guide
 
 Welcome to the **Usage Guide** for this project documentation.
