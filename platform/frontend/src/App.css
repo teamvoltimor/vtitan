@@ -20,6 +20,8 @@
 .shell-loading {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
@@ -27,6 +29,82 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   letter-spacing: 0.12em;
+  text-align: center;
+  padding: 2rem;
+}
+
+.shell-loading-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent-teal);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.shell-loading-actions button {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.shell-loading-actions button:hover {
+  border-color: var(--color-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.shell-loading-actions .demo-launch {
+  border-color: var(--color-accent-teal);
+  background: var(--color-accent-teal-fade);
+  color: var(--color-accent-teal);
+}
+
+/* Floating Demo Mode toggle over the 3D canvas. */
+.demo-toggle {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 50;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  background: rgba(5, 11, 18, 0.72);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.demo-toggle:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.demo-toggle.active {
+  border-color: var(--color-accent-teal);
+  background: var(--color-accent-teal-fade);
+  color: var(--color-accent-teal);
 }
 
 .canvas-wrapper {
@@ -352,5 +430,13 @@
   .control-panel {
     border-left: none;
     border-top: 1px solid var(--color-border);
+  }
+
+  /* Single-column layout: the inspector flows below instead of overlapping. */
+  .inspector-panel {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: 320px;
   }
 }

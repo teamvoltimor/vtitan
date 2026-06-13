@@ -30,6 +30,8 @@ type Config struct {
 	Dev         bool
 }
 
+// Load reads configuration from TELEMETRY_* environment variables and returns
+// a Config populated with defaults for any value that is not set.
 func Load() *Config {
 	v := viper.New()
 	v.SetEnvPrefix(envPrefix)

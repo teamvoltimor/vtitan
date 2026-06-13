@@ -45,6 +45,7 @@ type (
 	}
 )
 
+// New returns a Generator that publishes synthetic frames to store.
 func New(store Store, log *zap.Logger) *Generator {
 	return &Generator{
 		store: store,

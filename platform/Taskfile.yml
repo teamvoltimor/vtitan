@@ -47,6 +47,16 @@ tasks:
           task fmt:backend          Format Go backend (goimports + gofmt)
           task sqlc:generate        Regenerate Go DB layer from SQL (requires sqlc CLI)
 
+        FRONTEND (Vite + React telemetry dashboard)
+          task dev:frontend         Run dev server (http://localhost:5173) — append ?demo for mock data
+          task dev:frontend:demo    Run dev server in Demo Mode (mock telemetry, no backend)
+          task build:frontend       Type-check + production build (dist/)
+          task preview:frontend     Preview the production build locally
+          task typecheck:frontend   Type-check only (tsc -b)
+          task lint:frontend        Run ESLint on the frontend
+          task docker:build:frontend  Build frontend Docker image (nginx static)
+          task docker:run:frontend    Run frontend container (http://localhost:8080)
+
         TRACK GENERATION
           task gen:track        Generate/regenerate WRO 2026 track worlds
 
@@ -214,6 +224,57 @@ tasks:
       - cmd: rm -rf backend/bin
       - go clean -cache
 
+  # FRONTEND
+
+  dev:frontend:
+    desc: Run frontend dev server (Vite, http://localhost:5173) — append ?demo to the URL for mock data
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  dev:frontend:demo:
+    desc: Run frontend dev server in Demo Mode (mock telemetry, no backend required)
+    dir: frontend
+    env:
+      VITE_DEMO: "true"
+    cmds:
+      - npm run dev
+
+  build:frontend:
+    desc: Type-check and build the frontend for production (tsc -b + vite build → dist/)
+    dir: frontend
+    cmds:
+      - npm run build
+
+  preview:frontend:
+    desc: Preview the production frontend build locally (vite preview)
+    dir: frontend
+    cmds:
+      - npm run preview
+
+  typecheck:frontend:
+    desc: Type-check the frontend without emitting (tsc -b)
+    dir: frontend
+    cmds:
+      - npx tsc -b
+
+  lint:frontend:
+    desc: Run ESLint on the frontend
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  docker:build:frontend:
+    desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
+    dir: frontend
+    cmds:
+      - docker build -t voldemorbot-frontend .
+
+  docker:run:frontend:
+    desc: Run frontend container serving on http://localhost:8080
+    cmds:
+      - docker run --rm -p 8080:80 voldemorbot-frontend
+
   # TRACK GENERATION
 
   gen:track:
@@ -328,11 +389,12 @@ tasks:
       - uv run pytest tests/ -v
 
   lint:
-    desc: Run all linters (ruff on Python, go vet on Go, buf lint on proto)
+    desc: Run all linters (ruff on Python, golangci-lint on Go, ESLint on frontend, buf lint on proto)
     cmds:
       - task: lint:sim
       - task: lint:robot
       - task: lint:backend
+      - task: lint:frontend
       - task: proto:lint
 
   lint:sim:

@@ -33,6 +33,8 @@ type (
 	}
 )
 
+// NewMemory returns a Memory store with a ring-buffer capacity of historySize.
+// A value ≤ 0 falls back to defaultHistorySize.
 func NewMemory(historySize int) *Memory {
 	if historySize <= 0 {
 		historySize = defaultHistorySize

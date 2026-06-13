@@ -25,6 +25,17 @@ export const NodeHealth = {
 
 export type NodeHealthValue = typeof NodeHealth[keyof typeof NodeHealth];
 
+// Detection class names emitted by the vision pipeline.
+export const DetectionClass = {
+  RED_SIGN: 'red_sign',
+  GREEN_SIGN: 'green_sign',
+} as const;
+
+export type DetectionClassValue = typeof DetectionClass[keyof typeof DetectionClass];
+
+// A point/vector in Three.js space (X right, Y up, Z toward camera).
+export type Vec3 = [number, number, number]
+
 // Position3D is a proto message {x, y, z} — not a tuple.
 export interface Position3D {
   x: number
@@ -71,7 +82,7 @@ export interface MotorState {
 
 export interface TelemetryMetrics {
   timestamp: string      // ISO 8601
-  node_health: NodeHealthValue | string
+  node_health: NodeHealthValue
 
   points_captured?: number
   range_min?: number | null
@@ -112,4 +123,75 @@ export interface ReplaySessionInfo {
   session_id: string
   created_at: string  // ISO 8601
   entry_count: number
+}
+
+// ============================================================================
+// ROS MESSAGE PAYLOADS (raw TopicUpdate.data shapes)
+//
+// These model the untyped `data` carried by each TopicUpdate so the topic
+// visualizers — and the demo data generators — share one definition instead of
+// reaching into `Record<string, any>`.
+// ============================================================================
+
+export interface Quaternion {
+  x: number
+  y: number
+  z: number
+  w: number
+}
+
+/** sensor_msgs/LaserScan */
+export interface LaserScanMsg {
+  ranges: number[]
+  angle_min: number
+  angle_max: number
+  angle_increment: number
+  range_min: number
+  range_max: number
+}
+
+/** geometry_msgs/Twist */
+export interface TwistMsg {
+  linear: Position3D
+  angular: Position3D
+}
+
+/** sensor_msgs/Imu */
+export interface ImuMsg {
+  orientation: Quaternion
+  linear_acceleration: Position3D
+  angular_velocity: Position3D
+}
+
+/** sensor_msgs/JointState */
+export interface JointStateMsg {
+  name: string[]
+  position: number[]
+  velocity?: number[]
+  effort?: number[]
+}
+
+/** nav_msgs/Odometry (subset used by the dashboard) */
+export interface OdometryMsg {
+  pose: { position: Position3D; orientation: Partial<Quaternion> }
+  twist: { linear: Partial<Position3D>; angular: Partial<Position3D> }
+}
+
+/** std_msgs/String */
+export interface StringMsg {
+  data: string
+}
+
+/** vision_msgs/Detection2DArray (subset used by the dashboard) */
+export interface Detection2DMsg {
+  results: Array<{ hypothesis: { class_id: string; score: number } }>
+  bbox: {
+    center: { position: { x: number; y: number } }
+    size_x: number
+    size_y: number
+  }
+}
+
+export interface Detection2DArrayMsg {
+  detections: Detection2DMsg[]
 }

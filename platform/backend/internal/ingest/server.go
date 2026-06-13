@@ -34,6 +34,8 @@ type Server struct {
 	log      *zap.Logger
 }
 
+// New returns a Server that writes every received frame to store and records
+// it via recorder.
 func New(store Store, recorder Recorder, log *zap.Logger) *Server {
 	return &Server{store: store, recorder: recorder, log: log}
 }
