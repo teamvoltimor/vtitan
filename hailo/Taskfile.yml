@@ -11,14 +11,12 @@ vars:
   TEST_OUTPUT: ./test_output
   TEST_CONF: 0.3
   SHARED_DIR: ./shared_with_docker
-  DOCKER_CONTAINER: hailo_ai_sw_suite
-  DOCKER_IMAGE: "hailo8_ai_sw_suite_2025-10_container"
+  DOCKER_CONTAINER: hailo8_ai_sw_suite_2025-10_container
+  DOCKER_IMAGE: "hailo8_ai_sw_suite_2025-10:1"
   DISPLAY: ':0'
   HW_ARCH: hailo8
   TARGET: emulator
   DATA_COUNT: 512
-
-# Setup & Environment
 
 tasks:
   default:
@@ -26,64 +24,59 @@ tasks:
     cmds:
       - task --list
 
-  setup:
-    desc: Install dependencies with uv
+# Environment
+
+  env:setup:
+    desc: 'Install dependencies with uv'
     cmds:
       - uv sync
     sources:
       - pyproject.toml
       - uv.lock
 
-  venv:
-    desc: Show virtual environment info
+  env:list:
+    desc: 'Show installed packages in the virtual environment'
     cmds:
       - uv pip list
 
-# Export Commands
+# Model
 
-  export:
+  model:export:
     desc: 'Export YOLO checkpoint to ONNX format'
     cmds:
       - uv run hailo export --model {{.MODEL}} --imgsz {{.IMGSZ}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      IMGSZ: '{{.IMGSZ}}'
 
-  export:all:
-    desc: 'Export all registered YOLO models to ONNX'
+  model:export-all:
+    desc: 'Export all registered YOLO models (n/s/m) to ONNX'
     cmds:
       - uv run hailo export --model yolo11n --imgsz {{.IMGSZ}}
       - uv run hailo export --model yolo11s --imgsz {{.IMGSZ}}
       - uv run hailo export --model yolo11m --imgsz {{.IMGSZ}}
 
-  export:inspect:
-    desc: 'Export and inspect ONNX model'
+  model:inspect:
+    desc: 'Inspect ONNX model graph, inputs, and outputs'
     cmds:
-      - task: export
-      - task: inspect
+      - uv run hailo inspect --model {{.MODEL}}
+
+  model:export-inspect:
+    desc: 'Export then inspect the resulting ONNX model'
+    cmds:
+      - task: model:export
+      - task: model:inspect
         vars:
           MODEL: 'data/{{.MODEL}}.onnx'
 
-# Calibration Data Commands
+# Calibration Data
 
   calib:download:
     desc: 'Download COCO 2017 validation images for calibration'
     cmds:
       - uv run hailo calib download --samples {{.SAMPLES}} --output {{.CALIB_INPUT}}
-    vars:
-      SAMPLES: '{{.SAMPLES}}'
-      CALIB_INPUT: '{{.CALIB_INPUT}}'
 
   calib:convert:
     desc: 'Convert calibration images to float32 NPY format'
     cmds:
       - uv run hailo calib convert --input {{.CALIB_INPUT}} --output {{.CALIB_OUTPUT}} --size {{.CALIB_SIZE}}
-    deps:
-      - calib:download
-    vars:
-      CALIB_INPUT: '{{.CALIB_INPUT}}'
-      CALIB_OUTPUT: '{{.CALIB_OUTPUT}}'
-      CALIB_SIZE: '{{.CALIB_SIZE}}'
 
   calib:prepare:
     desc: 'Download and convert calibration data (full pipeline)'
@@ -91,25 +84,12 @@ tasks:
       - task: calib:download
       - task: calib:convert
 
-# Inspection & Testing
+# Testing / Inference
 
-  inspect:
-    desc: 'Inspect ONNX model graph, inputs, and outputs'
-    cmds:
-      - uv run hailo inspect --model {{.MODEL}}
-    vars:
-      MODEL: '{{.MODEL}}'
-
-  test:
-    desc: 'Run inference on images (use BACKEND=pt|onnx|ultraonnx)'
+  test:run:
+    desc: 'Run inference on images (requires BACKEND=pt|onnx|ultraonnx)'
     cmds:
       - uv run hailo test --model {{.MODEL}} --backend {{.BACKEND}} --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      BACKEND: '{{.BACKEND}}'
-      TEST_INPUT: '{{.TEST_INPUT}}'
-      TEST_OUTPUT: '{{.TEST_OUTPUT}}'
-      TEST_CONF: '{{.TEST_CONF}}'
     requires:
       vars:
         - BACKEND
@@ -124,175 +104,130 @@ tasks:
     cmds:
       - uv run hailo test --model data/{{.MODEL}}.onnx --backend onnx --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
     deps:
-      - export
+      - model:export
 
   test:ultraonnx:
     desc: 'Test with Ultralytics ONNX backend'
     cmds:
       - uv run hailo test --model data/{{.MODEL}}.onnx --backend ultraonnx --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
     deps:
-      - export
+      - model:export
 
 # Staging for Docker
 
-  stage:
+  stage:run:
     desc: 'Stage model ONNX + calibration data for Docker'
     cmds:
       - uv run hailo stage --model {{.MODEL}} --calib {{.CALIB_OUTPUT}} --shared-dir {{.SHARED_DIR}}
     deps:
       - calib:convert
-    vars:
-      MODEL: '{{.MODEL}}'
-      CALIB_OUTPUT: '{{.CALIB_OUTPUT}}'
-      SHARED_DIR: '{{.SHARED_DIR}}'
 
   stage:no-calib:
     desc: 'Stage model ONNX only (no calibration data)'
     cmds:
       - uv run hailo stage --model {{.MODEL}} --shared-dir {{.SHARED_DIR}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      SHARED_DIR: '{{.SHARED_DIR}}'
 
 # Docker Container Management
 
   docker:run:
     desc: 'Start the Hailo AI Software Suite Docker container'
     cmds:
-      - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --shared-dir {{.SHARED_DIR}} --display {{.DISPLAY}}
-    vars:
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
-      SHARED_DIR: '{{.SHARED_DIR}}'
-      DISPLAY: '{{.DISPLAY}}'
+      - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --image {{.DOCKER_IMAGE}} --shared-dir {{.SHARED_DIR}} --display {{.DISPLAY}}
 
-  docker:run:dry:
-    desc: 'Print docker run command without executing'
+  docker:dry:
+    desc: 'Print the docker run command without executing'
     cmds:
       - uv run hailo docker run --dry-run
 
   docker:status:
-    desc: 'Check if Docker container is running'
+    desc: 'Check if the Docker container is running'
     cmds:
       - docker ps --filter "name={{.DOCKER_CONTAINER}}"
-    vars:
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
 
   docker:stop:
     desc: 'Stop the running Hailo container'
     cmds:
       - docker stop {{.DOCKER_CONTAINER}}
-    vars:
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
 
   docker:logs:
-    desc: 'View Docker container logs'
+    desc: 'Follow the Docker container logs'
     cmds:
       - docker logs -f {{.DOCKER_CONTAINER}}
-    vars:
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
 
-# Docker-Side Commands (Compile, Eval, Profile)
+# Compile (ONNX to Hailo HEF)
 
-  compile:
-    desc: 'Compile ONNX to Hailo HEF (print command)'
-    cmds:
-      - uv run hailo compile --model {{.MODEL}} --hw {{.HW_ARCH}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      HW_ARCH: '{{.HW_ARCH}}'
-
-  compile:exec:
+  compile:run:
     desc: 'Compile ONNX to Hailo HEF (execute in Docker)'
     cmds:
       - uv run hailo compile --model {{.MODEL}} --hw {{.HW_ARCH}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - stage
-    vars:
-      MODEL: '{{.MODEL}}'
-      HW_ARCH: '{{.HW_ARCH}}'
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
+      - stage:run
 
-  eval:
-    desc: 'Evaluate model on target (print command)'
+  compile:dry:
+    desc: 'Compile ONNX to Hailo HEF (print command only)'
     cmds:
-      - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      TARGET: '{{.TARGET}}'
-      DATA_COUNT: '{{.DATA_COUNT}}'
+      - uv run hailo compile --model {{.MODEL}} --hw {{.HW_ARCH}}
 
-  eval:exec:
+# Evaluate
+
+  eval:run:
     desc: 'Evaluate model on target (execute in Docker)'
     cmds:
       - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - compile:exec
-    vars:
-      MODEL: '{{.MODEL}}'
-      TARGET: '{{.TARGET}}'
-      DATA_COUNT: '{{.DATA_COUNT}}'
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
+      - compile:run
 
-  eval:exec:visual:
+  eval:dry:
+    desc: 'Evaluate model on target (print command only)'
+    cmds:
+      - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}}
+
+  eval:visual:
     desc: 'Evaluate with visualization (execute in Docker)'
     cmds:
       - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}} --visualize --docker {{.DOCKER_CONTAINER}}
-    vars:
-      MODEL: '{{.MODEL}}'
-      TARGET: '{{.TARGET}}'
-      DATA_COUNT: '{{.DATA_COUNT}}'
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
 
-  profile:
-    desc: 'Profile HEF model for performance (print command)'
-    cmds:
-      - uv run hailo profile --model {{.MODEL}}
-    vars:
-      MODEL: '{{.MODEL}}'
+# Profile
 
-  profile:exec:
+  profile:run:
     desc: 'Profile HEF model for performance (execute in Docker)'
     cmds:
       - uv run hailo profile --model {{.MODEL}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - compile:exec
-    vars:
-      MODEL: '{{.MODEL}}'
-      DOCKER_CONTAINER: '{{.DOCKER_CONTAINER}}'
+      - compile:run
+
+  profile:dry:
+    desc: 'Profile HEF model for performance (print command only)'
+    cmds:
+      - uv run hailo profile --model {{.MODEL}}
 
 # End-to-End Workflows
 
   workflow:full:
-    desc: 'Complete pipeline: export → calib → test → stage → compile → eval → profile'
+    desc: 'Local pipeline: export -> calib -> test -> stage -> start Docker'
     cmds:
-      - task: export
+      - task: model:export
       - task: calib:prepare
       - task: test:onnx
-      - task: stage
+      - task: stage:run
       - task: docker:run
-    vars:
-      MODEL: '{{.MODEL}}'
 
   workflow:compile:
-    desc: 'Compile workflow: stage → compile in Docker'
+    desc: 'Compile workflow: stage -> compile in Docker'
     cmds:
-      - task: stage
-      - task: compile:exec
-    vars:
-      MODEL: '{{.MODEL}}'
+      - task: stage:run
+      - task: compile:run
 
   workflow:eval:
-    desc: 'Evaluation workflow: compile → eval → profile'
+    desc: 'Evaluation workflow: compile -> eval -> profile'
     cmds:
-      - task: compile:exec
-      - task: eval:exec
-      - task: profile:exec
-    vars:
-      MODEL: '{{.MODEL}}'
+      - task: compile:run
+      - task: eval:run
+      - task: profile:run
 
-# Utility & Maintenance
+# Maintenance
 
-  clean:
+  clean:output:
     desc: 'Remove generated files (test output, exported models)'
     cmds:
       - cmd: rm -rf {{.TEST_OUTPUT}}
@@ -301,8 +236,6 @@ tasks:
         ignore_error: true
       - cmd: rm -rf test_output
         ignore_error: true
-    vars:
-      TEST_OUTPUT: '{{.TEST_OUTPUT}}'
 
   clean:calib:
     desc: 'Remove downloaded calibration images and NPY files'
@@ -311,30 +244,17 @@ tasks:
         ignore_error: true
       - cmd: rm -rf {{.CALIB_OUTPUT}}
         ignore_error: true
-    vars:
-      CALIB_INPUT: '{{.CALIB_INPUT}}'
-      CALIB_OUTPUT: '{{.CALIB_OUTPUT}}'
 
   clean:all:
     desc: 'Remove all generated files (models, calibration, test outputs)'
     cmds:
-      - task: clean
+      - task: clean:output
       - task: clean:calib
-
-  help:
-    desc: 'List all available tasks'
-    cmds:
-      - task --list
-
-  list:
-    desc: 'List all tasks with descriptions'
-    cmds:
-      - task --list-all
 
 # Logging & Debugging
 
   log:debug:
-    desc: 'Run a command with DEBUG logging level'
+    desc: 'Run a command with DEBUG logging level (requires ARGS)'
     cmds:
       - uv run hailo --log-level DEBUG {{.ARGS}}
     requires:
@@ -342,7 +262,7 @@ tasks:
         - ARGS
 
   log:info:
-    desc: 'Run a command with INFO logging level (default)'
+    desc: 'Run a command with INFO logging level (requires ARGS)'
     cmds:
       - uv run hailo --log-level INFO {{.ARGS}}
     requires:
@@ -350,7 +270,7 @@ tasks:
         - ARGS
 
   log:warning:
-    desc: 'Run a command with WARNING logging level'
+    desc: 'Run a command with WARNING logging level (requires ARGS)'
     cmds:
       - uv run hailo --log-level WARNING {{.ARGS}}
     requires:
