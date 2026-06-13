@@ -5,42 +5,54 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/config"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/handlers"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/store"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/compute"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/handlers"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/jobs"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	if err := run(); err != nil {
+		slog.Error("startup failed", "error", err)
+		os.Exit(1)
+	}
+}
 
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	st, err := store.Open(cfg.DBPath)
 	if err != nil {
-		slog.Error("open store", "error", err, "db_path", cfg.DBPath)
-		os.Exit(1)
+		return fmt.Errorf("open store: %w", err)
 	}
 	defer st.Close()
 
+	computeClients, err := compute.NewGRPC(cfg.SegmentAddr, cfg.AugmentAddr, cfg.TrainAddr)
+	if err != nil {
+		return fmt.Errorf("init compute clients: %w", err)
+	}
+	defer computeClients.Close()
+
 	gin.SetMode(gin.ReleaseMode)
-	app := handlers.New(cfg, st)
+	app := handlers.New(cfg, st, jobs.New(), computeClients)
 	router := app.Router()
 
 	addr := ":" + strconv.Itoa(cfg.APIPort)
 	slog.Info("starting api", "addr", addr, "db_path", cfg.DBPath, "data_dir", cfg.DataDir)
 	if err := router.Run(addr); err != nil {
-		slog.Error("server exited", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("server: %w", err)
 	}
+	return nil
 }

@@ -74,6 +74,30 @@ func (q *Queries) GetStatusCounts(ctx context.Context) ([]GetStatusCountsRow, er
 	return items, nil
 }
 
+const insertAugmentedImage = `-- name: InsertAugmentedImage :exec
+INSERT OR IGNORE INTO images (path, status, format_used, parent_id, updated_at)
+VALUES (?, ?, ?, ?, ?)
+`
+
+type InsertAugmentedImageParams struct {
+	Path       string
+	Status     int64
+	FormatUsed sql.NullString
+	ParentID   sql.NullInt64
+	UpdatedAt  sql.NullString
+}
+
+func (q *Queries) InsertAugmentedImage(ctx context.Context, arg InsertAugmentedImageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAugmentedImage,
+		arg.Path,
+		arg.Status,
+		arg.FormatUsed,
+		arg.ParentID,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const insertImageOrIgnore = `-- name: InsertImageOrIgnore :exec
 INSERT OR IGNORE INTO images (path) VALUES (?)
 `
@@ -174,6 +198,42 @@ func (q *Queries) ListImagesForBrowse(ctx context.Context) ([]ListImagesForBrows
 		return nil, err
 	}
 	return items, nil
+}
+
+const markImageDone = `-- name: MarkImageDone :exec
+UPDATE images SET status = ?, format_used = ?, updated_at = ? WHERE id = ?
+`
+
+type MarkImageDoneParams struct {
+	Status     int64
+	FormatUsed sql.NullString
+	UpdatedAt  sql.NullString
+	ID         int64
+}
+
+func (q *Queries) MarkImageDone(ctx context.Context, arg MarkImageDoneParams) error {
+	_, err := q.db.ExecContext(ctx, markImageDone,
+		arg.Status,
+		arg.FormatUsed,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const markImageSkipped = `-- name: MarkImageSkipped :exec
+UPDATE images SET status = ?, updated_at = ? WHERE id = ?
+`
+
+type MarkImageSkippedParams struct {
+	Status    int64
+	UpdatedAt sql.NullString
+	ID        int64
+}
+
+func (q *Queries) MarkImageSkipped(ctx context.Context, arg MarkImageSkippedParams) error {
+	_, err := q.db.ExecContext(ctx, markImageSkipped, arg.Status, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const softDeleteImage = `-- name: SoftDeleteImage :exec

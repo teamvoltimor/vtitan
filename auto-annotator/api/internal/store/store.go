@@ -1,5 +1,5 @@
 // Package store owns the SQLite connection, applies the schema, and exposes the
-// sqlc-generated query set.
+// sqlc-generated query set and configuration pragmas.
 package store
 
 import (
@@ -8,7 +8,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/store/db"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store/db"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, registered as "sqlite"
 )
@@ -34,17 +34,17 @@ type Store struct {
 // busy timeout), applies the schema idempotently, and seeds default classes.
 func Open(dbPath string) (*Store, error) {
 	dsn := fmt.Sprintf(
-		"file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)",
-		dbPath,
+		"file:%s?_pragma=%s&_pragma=%s&_pragma=%s",
+		dbPath, SQLiteJournalMode, SQLiteForeignKeys, SQLiteBusyTimeout,
 	)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	if err := sqlDB.Ping(); err != nil {
+	if err := sqlDB.PingContext(context.Background()); err != nil {
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
-	if _, err := sqlDB.Exec(schemaSQL); err != nil {
+	if _, err := sqlDB.ExecContext(context.Background(), schemaSQL); err != nil {
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 

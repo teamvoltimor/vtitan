@@ -1,5 +1,5 @@
-// Package middleware provides cross-cutting Gin middleware: request IDs,
-// structured logging, panic recovery (as RFC 7807), and CORS.
+// Package middleware provides cross-cutting Gin middleware: request IDs, structured
+// logging, panic recovery (as RFC 7807), and CORS.
 package middleware
 
 import (
@@ -11,21 +11,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/problem"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
 )
-
-const requestIDHeader = "X-Request-ID"
 
 // RequestID attaches a request id (from the inbound header or freshly generated)
 // to the response header and the Gin context.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.GetHeader(requestIDHeader)
+		id := c.GetHeader(HeaderRequestID)
 		if id == "" {
 			id = newID()
 		}
-		c.Set("request_id", id)
-		c.Header(requestIDHeader, id)
+		c.Set(ContextKeyRequestID, id)
+		c.Header(HeaderRequestID, id)
 		c.Next()
 	}
 }
@@ -40,7 +38,7 @@ func Logger() gin.HandlerFunc {
 			"path", c.Request.URL.Path,
 			"status", c.Writer.Status(),
 			"duration_ms", time.Since(start).Milliseconds(),
-			"request_id", c.GetString("request_id"),
+			"request_id", c.GetString(ContextKeyRequestID),
 		)
 	}
 }
@@ -66,12 +64,12 @@ func CORS(allowed []string) gin.HandlerFunc {
 		set[o] = true
 	}
 	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
+		origin := c.GetHeader(HeaderOrigin)
 		if origin != "" && set[origin] {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "*")
-			c.Header("Vary", "Origin")
+			c.Header(HeaderAccessControlAllowOrig, origin)
+			c.Header(HeaderAccessControlMethods, CORSAllowedMethods)
+			c.Header(HeaderAccessControlHeaders, CORSAllowAllHeaders)
+			c.Header(HeaderVary, CORSHeaderVaryValue)
 		}
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
@@ -84,7 +82,7 @@ func CORS(allowed []string) gin.HandlerFunc {
 func newID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return "unknown"
+		return UnknownRequestIDFallback
 	}
 	return hex.EncodeToString(b[:])
 }

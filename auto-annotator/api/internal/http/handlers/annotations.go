@@ -8,15 +8,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/domain"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/dto"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/problem"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
 )
 
 // GetAnnotations returns the saved annotation shapes for a done image by reading
 // its YOLO label file. GET /annotations/:id
 func (a *App) GetAnnotations(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(AnnotationIDParamName), 10, 64)
 	if err != nil {
 		problem.Write(c, http.StatusUnprocessableEntity, "invalid image id", "Validation Error")
 		return

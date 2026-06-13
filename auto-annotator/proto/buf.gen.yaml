@@ -1,0 +1,9 @@
+version: v2
+# Go stubs are vendored into the api module. Run `buf generate` from this dir.
+plugins:
+  - local: protoc-gen-go
+    out: ../api/internal/compute/pb
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: ../api/internal/compute/pb
+    opt: paths=source_relative

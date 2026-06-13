@@ -3,9 +3,10 @@ version: '3'
 vars:
   API_PORT: '8000'
   SERVER_PORT: '8765'
+  GRPC_PORT: '50051'
   FRONTEND_PORT: '80'
-  MODELS_DIR: './backend/models'
-  DB_PATH: './backend/data/manifest.db'
+  MODELS_DIR: './ml-service/models'
+  DB_PATH: './ml-service/data/manifest.db'
 
 tasks:
   default:
@@ -13,38 +14,79 @@ tasks:
     cmds:
       - task --list
 
-  # Local Development
+  # ML Service (SAM model server + gRPC compute workers)
 
-  backend:dev:
-    desc: Start SAM model server + FastAPI API (local development)
-    dir: backend
+  ml-service:dev:
+    desc: Start SAM model server + gRPC compute service (local development)
+    dir: ml-service
     cmds:
-      - uv run python main.py
+      - uv run python grpc_main.py
 
-  backend:dev:model:
-    desc: Start SAM model server + FastAPI API with custom model
-    dir: backend
+  ml-service:dev:model:
+    desc: Start ML service with a specific SAM model pre-loaded
+    dir: ml-service
     cmds:
-      - uv run python main.py --model {{.MODEL_ID}}
+      - uv run python grpc_main.py --model {{.MODEL_ID}}
     vars:
       MODEL_ID: sam2_hiera_large
     env:
-      API_PORT: '{{.API_PORT}}'
       SERVER_PORT: '{{.SERVER_PORT}}'
+      GRPC_PORT: '{{.GRPC_PORT}}'
 
-  backend:server:
-    desc: Start SAM model server only
-    dir: backend
+  ml-service:legacy:
+    desc: Start legacy SAM model server + FastAPI API (pre-cutover compatibility)
+    dir: ml-service
     cmds:
-      - uv run python main.py --model {{.MODEL_ID}}
-    vars:
-      MODEL_ID: sam2_hiera_large
+      - uv run python main.py
 
-  backend:sync:
-    desc: Install backend dependencies with uv
-    dir: backend
+  ml-service:sync:
+    desc: Install ML service dependencies with uv
+    dir: ml-service
     cmds:
       - uv sync
+
+  # Go API (orchestration service)
+
+  api:run:
+    desc: Run the Go orchestration API (Gin + SQLite + gRPC clients)
+    dir: api
+    cmds:
+      - go run ./cmd/api
+
+  api:build:
+    desc: Build the Go API binary
+    dir: api
+    cmds:
+      - go build -o bin/api ./cmd/api
+
+  api:test:
+    desc: Run Go API tests
+    dir: api
+    cmds:
+      - go test ./...
+
+  # Shared gRPC contract (proto/)
+
+  proto:gen:
+    desc: Regenerate Go + Python gRPC stubs from the shared proto contract
+    cmds:
+      - task: proto:gen:go
+      - task: proto:gen:py
+
+  proto:gen:go:
+    desc: Regenerate Go gRPC stubs (buf) into api/internal/compute/pb
+    dir: proto
+    cmds:
+      - buf lint
+      - buf generate
+
+  proto:gen:py:
+    desc: Regenerate Python gRPC stubs into ml-service/src/grpc_server/pb
+    dir: ml-service
+    cmds:
+      - uv run python -m grpc_tools.protoc -I ../proto/autoannotator/v1
+        --python_out=src/grpc_server/pb --grpc_python_out=src/grpc_server/pb
+        ../proto/autoannotator/v1/compute.proto
 
   frontend:dev:
     desc: Start Vite dev server (http://localhost:5173)
@@ -64,6 +106,12 @@ tasks:
     cmds:
       - npm run preview
 
+  frontend:test:
+    desc: Run frontend parity tests with Vitest
+    dir: frontend
+    cmds:
+      - npm run test:run
+
   frontend:install:
     desc: Install frontend dependencies
     dir: frontend
@@ -72,9 +120,9 @@ tasks:
 
   # Code Quality
 
-  lint:backend:
-    desc: Run ruff linter on backend code
-    dir: backend
+  lint:ml-service:
+    desc: Run ruff linter on ML service code
+    dir: ml-service
     cmds:
       - uv run ruff check .
 
@@ -84,15 +132,22 @@ tasks:
     cmds:
       - npm run lint
 
-  lint:all:
-    desc: Run linters on backend and frontend
+  lint:api:
+    desc: Run golangci-lint on Go API
+    dir: api
     cmds:
-      - task: lint:backend
-      - task: lint:frontend
+      - golangci-lint run ./...
 
-  format:backend:
-    desc: Fix and format backend code with ruff
-    dir: backend
+  lint:all:
+    desc: Run linters on ml-service, frontend, and Go API
+    cmds:
+      - task: lint:ml-service
+      - task: lint:frontend
+      - task: lint:api
+
+  format:ml-service:
+    desc: Fix and format ML service code with ruff
+    dir: ml-service
     cmds:
       - uv run ruff check --fix .
       - uv run ruff format .
@@ -103,46 +158,59 @@ tasks:
     cmds:
       - npm run format
 
-  format:all:
-    desc: Fix and format backend and frontend code
+  format:api:
+    desc: Format Go API code with golangci-lint fmt
+    dir: api
     cmds:
-      - task: format:backend
+      - golangci-lint fmt ./...
+
+  format:all:
+    desc: Fix and format ml-service, frontend, and Go API code
+    cmds:
+      - task: format:ml-service
       - task: format:frontend
+      - task: format:api
 
   # Docker
 
-  docker:build:
-    desc: Build auto-annotator Docker image
+  docker:build:api:
+    desc: Build Go API Docker image
     cmds:
-      - docker build -t auto-annotator .
+      - docker build -f Dockerfile.api -t auto-annotator-api .
 
-  docker:run:
-    desc: Run backend container with GPU support
+  docker:build:ml-service:
+    desc: Build ML service Docker image
     cmds:
-      - docker run --gpus all -p {{.API_PORT}}:{{.API_PORT}} auto-annotator
+      - docker build -f Dockerfile.ml-service -t auto-annotator-ml-service .
+
+  docker:run:api:
+    desc: Run Go API container
+    cmds:
+      - docker run -p {{.API_PORT}}:{{.API_PORT}} auto-annotator-api
     env:
       API_PORT: '{{.API_PORT}}'
 
-  docker:run:dev:
-    desc: Run backend container with GPU and volume mounts for development
+  docker:run:ml-service:
+    desc: Run ML service container with GPU and volume mounts for development
     cmds:
       - docker run --gpus all
-        -p {{.API_PORT}}:{{.API_PORT}}
-        -v "{{.PWD}}/backend/data:/app/data"
-        -v "{{.PWD}}/backend/models:/app/models"
-        auto-annotator
+        -p {{.GRPC_PORT}}:{{.GRPC_PORT}}
+        -v "{{.PWD}}/ml-service/data:/app/data"
+        -v "{{.PWD}}/ml-service/models:/app/models"
+        auto-annotator-ml-service
     env:
-      API_PORT: '{{.API_PORT}}'
+      GRPC_PORT: '{{.GRPC_PORT}}'
       PWD: '.'
 
   docker:compose:up:
-    desc: Start all services with docker-compose (backend + frontend)
+    desc: Start all services with docker-compose (ml-service + api + frontend)
     cmds:
       - docker-compose up --build
     env:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
       SERVER_PORT: '{{.SERVER_PORT}}'
+      GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:compose:up:detached:
     desc: Start all services in background with docker-compose
@@ -152,6 +220,7 @@ tasks:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
       SERVER_PORT: '{{.SERVER_PORT}}'
+      GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:compose:down:
     desc: Stop and remove docker-compose services
@@ -163,10 +232,15 @@ tasks:
     cmds:
       - docker-compose logs -f
 
-  docker:compose:logs:backend:
-    desc: Follow backend service logs
+  docker:compose:logs:api:
+    desc: Follow Go API service logs
     cmds:
-      - docker-compose logs -f backend
+      - docker-compose logs -f api
+
+  docker:compose:logs:ml-service:
+    desc: Follow ML service logs
+    cmds:
+      - docker-compose logs -f ml-service
 
   docker:compose:logs:frontend:
     desc: Follow frontend service logs
@@ -176,16 +250,16 @@ tasks:
   # Full Stack
 
   dev:local:
-    desc: Start full local development stack (backend + frontend)
+    desc: Start full local development stack (ml-service + api + frontend)
     cmds:
-      - task: backend:sync
+      - task: ml-service:sync
       - task: frontend:install
       - echo "Starting services..."
-      - cmd: "cd backend && uv run python main.py & cd ../frontend && npm run dev"
+      - cmd: "cd ml-service && uv run python grpc_main.py & cd ../api && go run ./cmd/api & cd ../frontend && npm run dev"
         ignore_error: true
 
   dev:docker:
-    desc: Start full Docker stack (backend + frontend)
+    desc: Start full Docker stack (ml-service + api + frontend)
     cmds:
       - task: docker:compose:up
 
@@ -204,7 +278,9 @@ tasks:
   clean:
     desc: Clean build artifacts and cache
     cmds:
-      - cmd: rm -rf backend/.ruff_cache
+      - cmd: rm -rf ml-service/.ruff_cache
+        ignore_error: true
+      - cmd: rm -rf api/bin
         ignore_error: true
       - cmd: rm -rf frontend/dist
         ignore_error: true
@@ -216,13 +292,13 @@ tasks:
     desc: Clean everything including dependencies
     cmds:
       - task: clean
-      - cmd: rm -rf backend/.venv
+      - cmd: rm -rf ml-service/.venv
         ignore_error: true
       - echo "Full clean complete"
 
   init:
     desc: Initialize development environment
     cmds:
-      - task: backend:sync
+      - task: ml-service:sync
       - task: frontend:install
       - echo "Development environment initialized"

@@ -5,12 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/dto"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
 )
 
 // Liveness reports that the process is up. GET /healthz
 func (a *App) Liveness(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, dto.LivenessResponse{Status: StatusOK})
 }
 
 // Readiness checks database connectivity. GET /readyz and /health

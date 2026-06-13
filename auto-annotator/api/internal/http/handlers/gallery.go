@@ -12,15 +12,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/domain"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/dto"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/problem"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/labels"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/store/db"
-)
-
-const (
-	formatDetection = "det"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/labels"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store/db"
 )
 
 // GetGallery returns all images with status counts. GET /gallery
@@ -64,25 +60,25 @@ func (a *App) ImportGallery(c *gin.Context) {
 		problem.Write(c, http.StatusBadRequest, err.Error(), "")
 		return
 	}
-	files := form.File["files"]
+	files := form.File[GalleryImportFormFieldKey]
 	if len(files) == 0 {
 		problem.Write(c, http.StatusBadRequest, "No files provided", "")
 		return
 	}
-	if err := ensureDir(a.pendingDir()); err != nil {
-		problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+	if mkdirErr := ensureDir(a.pendingDir()); mkdirErr != nil {
+		problem.Write(c, http.StatusInternalServerError, mkdirErr.Error(), "")
 		return
 	}
 
 	for _, fh := range files {
 		safe := filepath.Base(fh.Filename)
 		dest := filepath.Join(a.pendingDir(), randomHex()+"_"+safe)
-		if err := c.SaveUploadedFile(fh, dest); err != nil {
-			problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+		if saveErr := c.SaveUploadedFile(fh, dest); saveErr != nil {
+			problem.Write(c, http.StatusInternalServerError, saveErr.Error(), "")
 			return
 		}
-		if err := a.Store.Q.InsertImageOrIgnore(c.Request.Context(), dest); err != nil {
-			problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+		if insertErr := a.Store.Q.InsertImageOrIgnore(c.Request.Context(), dest); insertErr != nil {
+			problem.Write(c, http.StatusInternalServerError, insertErr.Error(), "")
 			return
 		}
 	}
@@ -151,7 +147,7 @@ func (a *App) loadAnnotations(imageID int64, imagePath, status, format string, c
 
 		var pts []labels.Point
 		switch {
-		case format == formatDetection && len(rec.Coords) == 4:
+		case format == FormatDetectionAbbr && len(rec.Coords) == 4:
 			pts = labels.CornersFromBBox(rec.Coords[0], rec.Coords[1], rec.Coords[2], rec.Coords[3])
 		case len(rec.Coords) >= 4 && len(rec.Coords)%2 == 0:
 			pts = labels.PolygonFromCoords(rec.Coords)
@@ -169,7 +165,7 @@ func (a *App) loadAnnotations(imageID int64, imagePath, status, format string, c
 }
 
 func (a *App) imageURL(id int64) string {
-	return fmt.Sprintf("%s/api/v1/images/%d", a.Cfg.APIPublicURL, id)
+	return fmt.Sprintf(ImageURLTemplate, a.Cfg.APIPublicURL, id)
 }
 
 func computeStats(counts []db.GetStatusCountsRow) dto.GalleryStats {
@@ -187,7 +183,7 @@ func computeStats(counts []db.GetStatusCountsRow) dto.GalleryStats {
 	total := pending + done + skipped
 	var pct float64
 	if total > 0 {
-		pct = math.Round(float64(done)/float64(total)*1000) / 10
+		pct = math.Round(float64(done)/float64(total)*PercentageScale) / 10
 	}
 	return dto.GalleryStats{
 		Pending: int(pending),

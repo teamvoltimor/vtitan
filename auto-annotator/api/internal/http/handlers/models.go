@@ -6,7 +6,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/dto"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
 )
 
 // modelsConfig mirrors the relevant fields of config/models.toml.

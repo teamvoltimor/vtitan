@@ -10,14 +10,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/dto"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/http/problem"
-	"github.com/teamvoldemor/voldemorbot-auto-annotator/api/internal/store/db"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store/db"
 )
 
 // ServeImage streams the raw image file for an id. GET /images/:id
 func (a *App) ServeImage(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param(ImageIDParamName), 10, 64)
 	if err != nil {
 		problem.Write(c, http.StatusUnprocessableEntity, "invalid image id", "Validation Error")
 		return

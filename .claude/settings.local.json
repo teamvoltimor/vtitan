@@ -52,7 +52,25 @@
       "Bash(sqlc generate *)",
       "Bash(echo \"exit: $?\")",
       "Bash(go mod *)",
-      "Bash(taskkill //IM aa-api.exe //F)"
+      "Bash(taskkill //IM aa-api.exe //F)",
+      "Bash(buf --version)",
+      "Bash(echo \"buf: $?\")",
+      "Bash(go env *)",
+      "Bash(echo \"GOBIN=$\\(go env GOBIN\\) GOPATH=$\\(go env GOPATH\\)\")",
+      "Bash(echo \"sqlc: $?\")",
+      "Bash(go build *)",
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "PowerShell(Select-String -Path \"D:\\\\Dev\\\\active\\\\projects\\\\teamvoldemor\\\\voldemorbot-auto-annotator\\\\auto-annotator\\\\ml-service\\\\.gitignore\" -Pattern \"model|\\\\.pt|\\\\.onnx|\\\\.hef|\\\\.pth\" -CaseSensitive:$false)",
+      "Bash(git -C D:\\\\Dev\\\\active\\\\projects\\\\teamvoldemor\\\\voldemorbot-auto-annotator rm auto-annotator/Dockerfile)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"auto-annotator/api\" -Recurse -Filter \"*.go\")",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(go test *)",
+      "Bash(go clean *)",
+      "Bash(go fmt *)",
+      "Bash(uv run *)",
+      "Bash(task lint:api)"
     ]
   }
 }

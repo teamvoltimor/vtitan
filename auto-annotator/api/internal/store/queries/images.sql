@@ -18,8 +18,18 @@ GROUP BY status;
 -- name: SoftDeleteImage :exec
 UPDATE images SET deleted_at = ? WHERE id = ?;
 
+-- name: MarkImageDone :exec
+UPDATE images SET status = ?, format_used = ?, updated_at = ? WHERE id = ?;
+
+-- name: MarkImageSkipped :exec
+UPDATE images SET status = ?, updated_at = ? WHERE id = ?;
+
 -- name: InsertImageOrIgnore :exec
 INSERT OR IGNORE INTO images (path) VALUES (?);
+
+-- name: InsertAugmentedImage :exec
+INSERT OR IGNORE INTO images (path, status, format_used, parent_id, updated_at)
+VALUES (?, ?, ?, ?, ?);
 
 -- name: ListGroupedImages :many
 SELECT i.id, i.path, i.status, i.format_used, i.updated_at,

@@ -16,5 +16,5 @@ func nullStr(ns sql.NullString) string {
 
 // ensureDir creates dir (and parents) if it does not already exist.
 func ensureDir(dir string) error {
-	return os.MkdirAll(dir, 0o755)
+	return os.MkdirAll(dir, 0o750)
 }

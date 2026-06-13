@@ -5,25 +5,28 @@ package labels
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 )
 
-// Record is one annotation line from a YOLO label file: a class index followed
-// by a flat list of normalized coordinates ([xc, yc, w, h] for detection or
-// [x1, y1, x2, y2, ...] for segmentation).
-type Record struct {
-	ClassID int
-	Coords  []float64
-}
+type (
+	// Record is one annotation line from a YOLO label file: a class index followed
+	// by a flat list of normalized coordinates ([xc, yc, w, h] for detection or
+	// [x1, y1, x2, y2, ...] for segmentation).
+	Record struct {
+		Coords  []float64
+		ClassID int
+	}
 
-// Point is a normalized 2-D coordinate in the range [0, 1].
-type Point struct {
-	X float64
-	Y float64
-}
+	// Point is a normalized 2-D coordinate in the range [0, 1].
+	Point struct {
+		X float64
+		Y float64
+	}
+)
 
 // Load reads and parses the label file at <labelsDir>/<classDir>/<stem>.txt,
 // returning nil when the file is absent or unreadable.
@@ -63,6 +66,38 @@ func parseLine(line string) (Record, bool) {
 		coords = append(coords, v)
 	}
 	return Record{ClassID: classID, Coords: coords}, true
+}
+
+// Write serializes records to a YOLO label file: one line per record,
+// "<class_id> <c0> <c1> ...", coordinates formatted to 6 decimals, no trailing
+// newline. Mirrors the Python LabelStore.save wire format.
+func Write(path string, records []Record) error {
+	lines := make([]string, 0, len(records))
+	for _, r := range records {
+		parts := make([]string, len(r.Coords))
+		for i, v := range r.Coords {
+			parts[i] = fmt.Sprintf("%.6f", v)
+		}
+		lines = append(lines, strconv.Itoa(r.ClassID)+" "+strings.Join(parts, " "))
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// BBoxFromPolygon converts normalized polygon points to a YOLO bounding box
+// [xc, yc, w, h], or nil when points is empty (matches polygon_to_yolo_bbox).
+func BBoxFromPolygon(points []Point) []float64 {
+	if len(points) == 0 {
+		return nil
+	}
+	xMin, xMax := points[0].X, points[0].X
+	yMin, yMax := points[0].Y, points[0].Y
+	for _, p := range points[1:] {
+		xMin = min(xMin, p.X)
+		xMax = max(xMax, p.X)
+		yMin = min(yMin, p.Y)
+		yMax = max(yMax, p.Y)
+	}
+	return []float64{(xMin + xMax) / 2, (yMin + yMax) / 2, xMax - xMin, yMax - yMin}
 }
 
 // PolygonFromCoords converts a flat [x1, y1, x2, y2, ...] list into clamped points.

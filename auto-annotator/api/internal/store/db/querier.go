@@ -12,11 +12,14 @@ type Querier interface {
 	CountClasses(ctx context.Context) (int64, error)
 	GetImageByID(ctx context.Context, id int64) (GetImageByIDRow, error)
 	GetStatusCounts(ctx context.Context) ([]GetStatusCountsRow, error)
+	InsertAugmentedImage(ctx context.Context, arg InsertAugmentedImageParams) error
 	InsertClassOrIgnore(ctx context.Context, arg InsertClassOrIgnoreParams) error
 	InsertImageOrIgnore(ctx context.Context, path string) error
 	ListClasses(ctx context.Context) ([]ListClassesRow, error)
 	ListGroupedImages(ctx context.Context) ([]ListGroupedImagesRow, error)
 	ListImagesForBrowse(ctx context.Context) ([]ListImagesForBrowseRow, error)
+	MarkImageDone(ctx context.Context, arg MarkImageDoneParams) error
+	MarkImageSkipped(ctx context.Context, arg MarkImageSkippedParams) error
 	SoftDeleteImage(ctx context.Context, arg SoftDeleteImageParams) error
 	UpsertClass(ctx context.Context, arg UpsertClassParams) error
 }
