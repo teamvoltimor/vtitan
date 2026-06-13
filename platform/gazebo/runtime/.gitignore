@@ -30,7 +30,3 @@ AMENT_IGNORE
 
 # Simulation train report
 scripts/train_report.md
-
-# Claude Code
-.claude/
-
