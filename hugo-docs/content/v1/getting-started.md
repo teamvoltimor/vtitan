@@ -15,7 +15,7 @@ This guide will help you get up and running quickly. Follow the steps below to s
 
 Below is an example image included from the `static/` directory:
 
-![Project Diagram](/project-diagram.png)
+![Project Diagram](/images/project-diagram.png)
 
 
 ---
