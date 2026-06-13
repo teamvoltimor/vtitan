@@ -219,7 +219,6 @@ __marimo__/
 docs/internal/
 
 # Generated data (created by simulation, consumed by robot)
-training_data/
 telemetry_sessions/
 backend/telemetry_sessions/
 shared/dist/

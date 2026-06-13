@@ -5,17 +5,17 @@ vars:
   ROS2: pixi
   SCENARIOS: 10
   CHALLENGE: open
-  OUTPUT_DIR: ./simgen/training_data
-  BASE_WORLD: ./simulation/worlds/wro_track_2026.sdf
-  METADATA: ./simgen/training_data/open/scenarios/scenario_0000_metadata.json
-  SCENARIO_SDF: ./simgen/training_data/open/scenarios/scenario_0000.sdf
+  OUTPUT_DIR: ./gazebo/generator/training_data
+  BASE_WORLD: ./gazebo/runtime/worlds/wro_track_2026.sdf
+  METADATA: ./gazebo/generator/training_data/open/scenarios/scenario_0000_metadata.json
+  SCENARIO_SDF: ./gazebo/generator/training_data/open/scenarios/scenario_0000.sdf
   LAPS: 3
-  PARAMS: ./simulation/scripts/navigator_params.json
+  PARAMS: ./gazebo/runtime/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
   # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
   EXE:
     sh: go env GOEXE
-  SIMGEN: ./simgen/bin/simgen{{.EXE}}
+  SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
 
 tasks:
   default:
@@ -52,13 +52,13 @@ tasks:
           task fmt:backend          Format Go backend (goimports + gofmt)
           task sqlc:generate        Regenerate Go DB layer from SQL (requires sqlc CLI)
 
-        SIMGEN (Go scenario generator)
-          task install:simgen       Build simgen binary (Go compilation)
-          task build:simgen         Compile simgen binary to simgen/bin/simgen
-          task test:simgen          Run simgen tests
-          task lint:simgen          Run golangci-lint on simgen
-          task lint:fix:simgen      Auto-fix simgen lint issues
-          task fmt:simgen           Format simgen code (golangci-lint fmt — goimports + golines)
+        GAZEBO GENERATOR (Go scenario generator)
+          task install:gazebo:generator       Build generator binary (Go compilation)
+          task build:gazebo:generator         Compile generator binary to gazebo/generator/bin/simgen
+          task test:gazebo:generator          Run generator tests
+          task lint:gazebo:generator          Run golangci-lint on generator
+          task lint:fix:gazebo:generator      Auto-fix generator lint issues
+          task fmt:gazebo:generator           Format generator code (golangci-lint fmt — goimports + golines)
 
         FRONTEND (Vite + React telemetry dashboard)
           task dev:frontend         Run dev server (http://localhost:5173) — append ?demo for mock data
@@ -79,7 +79,7 @@ tasks:
           task gen:all          Generate both open and obstacles scenarios
           task gen:preview      Render SVG top-down preview (METADATA=path)
 
-        SIMULATION
+        GAZEBO RUNTIME (ROS2 Simulation)
           task sim:init         Initialize Gazebo/ROS2 env via pixi (run once)
           task sim:gazebo       Launch Gazebo with base track
           task sim:gazebo:world Launch Gazebo with base track SDF
@@ -97,7 +97,7 @@ tasks:
         TESTING & CODE QUALITY
           task test             Run all tests (Python + Go)
           task test:backend  Run Go backend tests
-          task test:sim         Run simulation tests
+          task test:gazebo:runtime         Run simulation tests
           task lint             Run all linters (ruff + golangci-lint + buf lint)
           task lint:fix         Auto-fix linting issues in all modules
 
@@ -159,7 +159,7 @@ tasks:
 
   install:sim:
     desc: Install simulation dependencies
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - uv sync
       - pixi install
@@ -246,31 +246,31 @@ tasks:
 
   build:simgen:
     desc: Compile simgen binary to simgen/bin/simgen[.exe]
-    dir: simgen
+    dir: gazebo/generator
     cmds:
       - go build -o bin/simgen{{.EXE}} ./cmd/simgen
 
   test:simgen:
     desc: Run simgen tests
-    dir: simgen
+    dir: gazebo/generator
     cmds:
       - go test ./... -v
 
   lint:simgen:
     desc: Run golangci-lint on simgen
-    dir: simgen
+    dir: gazebo/generator
     cmds:
       - golangci-lint run ./...
 
   lint:fix:simgen:
     desc: Auto-fix simgen lint issues with golangci-lint
-    dir: simgen
+    dir: gazebo/generator
     cmds:
       - golangci-lint run --fix ./...
 
   fmt:simgen:
     desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
-    dir: simgen
+    dir: gazebo/generator
     cmds:
       - golangci-lint fmt ./...
 
@@ -369,25 +369,25 @@ tasks:
 
   sim:init:
     desc: Initialize Gazebo/ROS2 simulation environment via pixi (run once after clone)
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - pixi install
 
   sim:gazebo:world:
     desc: Launch Gazebo with the base WRO 2026 track SDF (run sim:init first)
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - pixi run gazebo --verbose worlds/wro_track_2026.sdf
 
   sim:gazebo:scenario:
     desc: Launch Gazebo with a generated scenario SDF (SCENARIO_SDF=path/to/scenario.sdf)
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - pixi run gazebo --verbose {{.SCENARIO_SDF}}
 
   navigate:
     desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - cmd: |
           pixi run python -m src.navigation.navigator \
@@ -397,7 +397,7 @@ tasks:
             
   record:
     desc: Record scenario videos from Gazebo simulation
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - cmd: |
           pixi run python -m src.recording.recorder \
@@ -405,13 +405,13 @@ tasks:
             
   sim:gazebo:
     desc: Launch Gazebo simulator with WRO 2026 track
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - pixi run gazebo --verbose ./simulation/worlds/wro_track_2026.sdf
 
   sim:rviz:
     desc: Launch RViz visualization
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - pixi run rviz2
 
@@ -419,7 +419,7 @@ tasks:
 
   convert:bags:
     desc: Convert ROS2 bags to MP4 videos
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - cmd: |
           uv run python -m src.recording.bag_converter \
@@ -428,7 +428,7 @@ tasks:
 
   extract:frames:
     desc: Extract frames from ROS2 bags and annotate
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - cmd: |
           uv run python -m src.recording.frame_extractor \
@@ -441,13 +441,13 @@ tasks:
     desc: Run all tests across all modules (Python + Go)
     cmds:
       - task: test:backend
-      - task: test:simgen
-      - task: test:sim
+      - task: test:gazebo:generator
+      - task: test:gazebo:runtime
       - task: test:robot
 
   test:sim:
     desc: Run simulation tests
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - uv run pytest tests/ -v
 
@@ -460,16 +460,16 @@ tasks:
   lint:
     desc: Run all linters (ruff on Python, golangci-lint on Go, ESLint on frontend, buf lint on proto)
     cmds:
-      - task: lint:sim
+      - task: lint:gazebo:runtime
       - task: lint:robot
       - task: lint:backend
-      - task: lint:simgen
+      - task: lint:gazebo:generator
       - task: lint:frontend
       - task: proto:lint
 
   lint:sim:
     desc: Lint simulation code
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - uv run ruff check src/ tests/
 
@@ -482,14 +482,14 @@ tasks:
   lint:fix:
     desc: Auto-fix linting issues in all modules
     cmds:
-      - task: lint:fix:sim
+      - task: lint:fix:gazebo:runtime
       - task: lint:fix:robot
       - task: lint:fix:backend
-      - task: lint:fix:simgen
+      - task: lint:fix:gazebo:generator
 
   lint:fix:sim:
     desc: Auto-fix simulation linting issues
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - uv run ruff check src/ tests/ --fix
 
@@ -551,7 +551,7 @@ tasks:
 
   analyze:
     desc: Analyze generated scenarios (statistics and summaries)
-    dir: simulation
+    dir: gazebo/runtime
     cmds:
       - uv run python -m src.analysis.scenario_analyzer --output-dir {{.OUTPUT_DIR}}
 
