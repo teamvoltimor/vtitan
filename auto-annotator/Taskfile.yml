@@ -5,8 +5,6 @@ vars:
   SERVER_PORT: '8765'
   GRPC_PORT: '50051'
   FRONTEND_PORT: '80'
-  MODELS_DIR: './ml-service/models'
-  DB_PATH: './ml-service/data/manifest.db'
 
 tasks:
   default:
@@ -47,7 +45,7 @@ tasks:
 
   # Go API (orchestration service)
 
-  api:run:
+  api:dev:
     desc: Run the Go orchestration API (Gin + SQLite + gRPC clients)
     dir: api
     cmds:
@@ -87,6 +85,8 @@ tasks:
       - uv run python -m grpc_tools.protoc -I ../proto/autoannotator/v1
         --python_out=src/grpc_server/pb --grpc_python_out=src/grpc_server/pb
         ../proto/autoannotator/v1/compute.proto
+
+  # Frontend (Vite)
 
   frontend:dev:
     desc: Start Vite dev server (http://localhost:5173)
@@ -140,6 +140,7 @@ tasks:
 
   lint:all:
     desc: Run linters on ml-service, frontend, and Go API
+    aliases: [lint]
     cmds:
       - task: lint:ml-service
       - task: lint:frontend
@@ -166,6 +167,7 @@ tasks:
 
   format:all:
     desc: Fix and format ml-service, frontend, and Go API code
+    aliases: [fmt]
     cmds:
       - task: format:ml-service
       - task: format:frontend
@@ -195,14 +197,13 @@ tasks:
     cmds:
       - docker run --gpus all
         -p {{.GRPC_PORT}}:{{.GRPC_PORT}}
-        -v "{{.PWD}}/ml-service/data:/app/data"
-        -v "{{.PWD}}/ml-service/models:/app/models"
+        -v "{{.ROOT_DIR}}/ml-service/data:/app/data"
+        -v "{{.ROOT_DIR}}/ml-service/models:/app/models"
         auto-annotator-ml-service
     env:
       GRPC_PORT: '{{.GRPC_PORT}}'
-      PWD: '.'
 
-  docker:compose:up:
+  docker:up:
     desc: Start all services with docker-compose (ml-service + api + frontend)
     cmds:
       - docker-compose up --build
@@ -212,7 +213,7 @@ tasks:
       SERVER_PORT: '{{.SERVER_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
 
-  docker:compose:up:detached:
+  docker:up:detached:
     desc: Start all services in background with docker-compose
     cmds:
       - docker-compose up -d --build
@@ -222,81 +223,79 @@ tasks:
       SERVER_PORT: '{{.SERVER_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
 
-  docker:compose:down:
+  docker:down:
     desc: Stop and remove docker-compose services
     cmds:
       - docker-compose down
 
-  docker:compose:logs:
+  docker:logs:
     desc: Follow docker-compose logs
     cmds:
       - docker-compose logs -f
 
-  docker:compose:logs:api:
+  docker:logs:api:
     desc: Follow Go API service logs
     cmds:
       - docker-compose logs -f api
 
-  docker:compose:logs:ml-service:
+  docker:logs:ml-service:
     desc: Follow ML service logs
     cmds:
       - docker-compose logs -f ml-service
 
-  docker:compose:logs:frontend:
+  docker:logs:frontend:
     desc: Follow frontend service logs
     cmds:
       - docker-compose logs -f frontend
 
   # Full Stack
 
+  dev:serve:
+    desc: Run ml-service + api + frontend concurrently (assumes deps installed)
+    deps:
+      - ml-service:dev
+      - api:dev
+      - frontend:dev
+
   dev:local:
-    desc: Start full local development stack (ml-service + api + frontend)
+    desc: Install deps, then start the full local development stack
+    aliases: [dev]
     cmds:
-      - task: ml-service:sync
-      - task: frontend:install
-      - echo "Starting services..."
-      - cmd: "cd ml-service && uv run python grpc_main.py & cd ../api && go run ./cmd/api & cd ../frontend && npm run dev"
-        ignore_error: true
+      - task: dev:init
+      - task: dev:serve
 
   dev:docker:
     desc: Start full Docker stack (ml-service + api + frontend)
     cmds:
-      - task: docker:compose:up
+      - task: docker:up
 
   dev:docker:detached:
     desc: Start full Docker stack in background
     cmds:
-      - task: docker:compose:up:detached
+      - task: docker:up:detached
 
   # Utility
 
-  help:
-    desc: Show this help message
-    cmds:
-      - task --list
-
-  clean:
+  clean:build:
     desc: Clean build artifacts and cache
     cmds:
-      - cmd: rm -rf ml-service/.ruff_cache
-        ignore_error: true
-      - cmd: rm -rf api/bin
-        ignore_error: true
-      - cmd: rm -rf frontend/dist
-        ignore_error: true
-      - cmd: rm -rf frontend/node_modules
-        ignore_error: true
+      - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue ml-service/.ruff_cache, api/bin, frontend/dist, frontend/node_modules"
+        platforms: [windows]
+      - cmd: rm -rf ml-service/.ruff_cache api/bin frontend/dist frontend/node_modules
+        platforms: [linux, darwin]
       - echo "Cleaned build artifacts"
 
   clean:deep:
     desc: Clean everything including dependencies
     cmds:
-      - task: clean
+      - task: clean:build
+      - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue ml-service/.venv"
+        platforms: [windows]
       - cmd: rm -rf ml-service/.venv
-        ignore_error: true
+        platforms: [linux, darwin]
       - echo "Full clean complete"
 
-  init:
+  dev:init:
     desc: Initialize development environment
     cmds:
       - task: ml-service:sync
