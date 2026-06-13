@@ -165,7 +165,7 @@ export const updateRobotSpeed = async (speed: number): Promise<void> => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ max_linear_speed: speed }),
+        body: JSON.stringify({ maxLinearSpeed: speed }),
       }
     )
 

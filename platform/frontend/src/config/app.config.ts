@@ -116,13 +116,13 @@ export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
 
   ENDPOINTS: {
-    LATEST: '/telemetry/latest',
-    TOPICS: '/telemetry/topics',
-    HISTORY: '/telemetry/history',
-    SESSIONS: '/telemetry/sessions',
-    SESSION: (id: string) => `/telemetry/sessions/${id}`,
-    ROBOT_SPEED: '/telemetry/robot/config/speed',
-    STREAM: '/telemetry/stream',
+    LATEST:      '/v1/telemetry/latest',
+    TOPICS:      '/v1/telemetry/topics',
+    HISTORY:     '/v1/telemetry/history',
+    SESSIONS:    '/v1/telemetry/sessions',
+    SESSION:     (id: string) => `/v1/telemetry/sessions/${id}`,
+    ROBOT_SPEED: '/v1/telemetry/robot/config/speed',
+    STREAM:      '/v1/telemetry/ws',
   },
 
   FETCH_CACHE: 'no-store' as const,
@@ -197,25 +197,25 @@ export const SENSOR_CONFIG = [
     id: 'lidar',
     name: 'LiDAR',
     icon: '📡',
-    key: 'lidarAvailable' as const,
+    key: 'lidar_available' as const,
   },
   {
     id: 'imu',
     name: 'IMU',
     icon: '🧭',
-    key: 'imuAvailable' as const,
+    key: 'imu_available' as const,
   },
   {
     id: 'camera',
     name: 'Camera',
     icon: '📷',
-    key: 'cameraAvailable' as const,
+    key: 'camera_available' as const,
   },
   {
     id: 'odometry',
     name: 'Odometry',
     icon: '⚙️',
-    key: 'odometryAvailable' as const,
+    key: 'odometry_available' as const,
   },
 ] as const
 

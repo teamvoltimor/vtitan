@@ -284,8 +284,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           // Guard clause: component unmounted
           if (!mounted.current) return
 
-          // Update state based on message type
-          if ('robotPosition' in data) {
+          // Update state based on message type.
+          // 'metrics' is required in RobotSnapshot and absent in TopicsSnapshot.
+          if ('metrics' in data) {
             // RobotSnapshot
             const snapshot = data as RobotSnapshot
 

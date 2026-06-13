@@ -215,11 +215,11 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Claude Code
-.claude/
+# Internal docs
+docs/internal/
 
 # Generated data (created by simulation, consumed by robot)
 training_data/
-
-# Internal docs
-internal_docs/
+telemetry_sessions/
+backend/telemetry_sessions/
+shared/dist/

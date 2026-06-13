@@ -1,11 +1,8 @@
 /**
  * src/api/schemas.ts
- * 
- * Zod validation schemas for API responses.
- * Provides runtime type checking for all telemetry data received from the backend.
- * Enables early error detection and safe type narrowing without `any` casts.
- * 
- * Phase 3: Type Safety - Runtime validation
+ *
+ * Zod validation schemas for API responses from the Go backend (protojson, snake_case).
+ * Field names and enum values match proto definitions in telemetry/v1/types.proto.
  */
 
 import { z } from 'zod'
@@ -21,169 +18,140 @@ import {
   type Position3D,
 } from '../types'
 
-/**
- * Position in 3D space [x, y, z]
- */
-const Position3DSchema = z.tuple([z.number(), z.number(), z.number()]) as z.ZodType<Position3D>
+// Timestamp emitted by google.protobuf.Timestamp via protojson — always ISO 8601 string.
+const TimestampSchema = z.string().datetime({ offset: true })
 
-/**
- * IMU sensor data
- */
+// Position3D is a proto message {x, y, z}, not a tuple.
+const Position3DSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+}) as z.ZodType<Position3D>
+
 const ImuDataSchema = z.object({
-  linearAcceleration: z.tuple([z.number(), z.number(), z.number()]),
-  angularVelocity: z.tuple([z.number(), z.number(), z.number()]),
-  orientationQuaternion: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  linear_acceleration: Position3DSchema,
+  angular_velocity:    Position3DSchema,
+  orientation_x: z.number(),
+  orientation_y: z.number(),
+  orientation_z: z.number(),
+  orientation_w: z.number(),
 }) as z.ZodType<ImuData>
 
-/**
- * Vision detection bounding box with confidence
- */
 const DetectionSchema = z.object({
-  className: z.string(),
+  class_name: z.string(),
   confidence: z.number().min(0).max(1),
-  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  bbox_x: z.number(),
+  bbox_y: z.number(),
+  bbox_w: z.number(),
+  bbox_h: z.number(),
 }) as z.ZodType<Detection>
 
-/**
- * Motor state including steering and drive
- */
 const MotorStateSchema = z.object({
-  steeringAngle: z.number(),
-  driveSpeed: z.number(),
-  encoderPosition: z.number(),
+  steering_angle:   z.number(),
+  drive_speed:      z.number(),
+  encoder_position: z.number().int(),
 }) as z.ZodType<MotorState>
 
-/**
- * Telemetry metrics collected from robot
- */
+// Proto enum names emitted by protojson (e.g. "NODE_HEALTH_NOMINAL").
+const NodeHealthSchema = z.enum([
+  'NODE_HEALTH_UNSPECIFIED',
+  'NODE_HEALTH_NOMINAL',
+  'NODE_HEALTH_WATCHDOG',
+  'NODE_HEALTH_REPLANNING',
+]).default('NODE_HEALTH_UNSPECIFIED')
+
 const TelemetryMetricsSchema = z.object({
-  timestamp: z.number().int().positive(),
-  nodeHealth: z.enum(['nominal', 'watchdog', 'replanning', 'unknown']).default('unknown'),
+  timestamp:   TimestampSchema,
+  node_health: NodeHealthSchema,
 
-  // Optional sensor metrics
-  pointsCaptured: z.number().int().nonnegative().optional(),
-  rangeMin: z.number().nullable().optional(),
-  rangeMax: z.number().nullable().optional(),
-  rangeMean: z.number().nullable().optional(),
-  forward: z.number().nullable().optional(),
-  left: z.number().nullable().optional(),
-  right: z.number().nullable().optional(),
-  back: z.number().nullable().optional(),
-  speed: z.number().nullable().optional(),
-  stage: z.string().optional(),
+  points_captured: z.number().int().nonnegative().optional(),
+  range_min:  z.number().nullable().optional(),
+  range_max:  z.number().nullable().optional(),
+  range_mean: z.number().nullable().optional(),
+  forward:    z.number().nullable().optional(),
+  left:       z.number().nullable().optional(),
+  right:      z.number().nullable().optional(),
+  back:       z.number().nullable().optional(),
+  speed:      z.number().nullable().optional(),
+  stage:      z.string().optional(),
 
-  // Hardware health flags
-  lidarAvailable: z.boolean().default(false),
-  imuAvailable: z.boolean().default(false),
-  cameraAvailable: z.boolean().default(false),
-  odometryAvailable: z.boolean().default(false),
+  lidar_available:    z.boolean().default(false),
+  imu_available:      z.boolean().default(false),
+  camera_available:   z.boolean().default(false),
+  odometry_available: z.boolean().default(false),
 }) as z.ZodType<TelemetryMetrics>
 
-/**
- * ROS topic update from telemetry stream
- */
 const TopicUpdateSchema = z.object({
-  topicName: z.string().nonempty(),
-  messageType: z.string(),
-  timestamp: z.number().int().positive(),
-  updateRateHz: z.number().positive(),
-  data: z.record(z.string(), z.unknown()),
+  topic_name:    z.string().nonempty(),
+  message_type:  z.string(),
+  timestamp:     TimestampSchema,
+  update_rate_hz: z.number().positive(),
+  data:          z.record(z.string(), z.unknown()),
 }) as z.ZodType<TopicUpdate>
 
-/**
- * Snapshot of all topics at a given timestamp
- */
 const TopicsSnapshotSchema = z.object({
-  timestamp: z.number().int().positive(),
-  topics: z.array(TopicUpdateSchema),
+  timestamp: TimestampSchema,
+  topics:    z.array(TopicUpdateSchema),
 }) as z.ZodType<TopicsSnapshot>
 
-/**
- * Complete robot state snapshot with sensor data
- */
 const RobotSnapshotSchema = z.object({
-  timestamp: z.number().int().positive(),
-  missionName: z.string().default('unknown'),
+  timestamp:    TimestampSchema,
+  mission_name: z.string().default('unknown'),
 
-  // Optional position data
-  robotPosition: Position3DSchema.nullable().optional(),
-  robotOrientation: z.number().nullable().optional(),
+  robot_position:    Position3DSchema.nullable().optional(),
+  robot_orientation: z.number().nullable().optional(),
 
-  // Sensor data arrays
-  lidarPoints: z.array(Position3DSchema).default([]),
-  pathHistory: z.array(Position3DSchema).default([]),
-  logs: z.array(z.string()).default([]),
+  lidar_points: z.array(Position3DSchema).default([]),
+  path_history: z.array(Position3DSchema).default([]),
+  logs:         z.array(z.string()).default([]),
 
-  // Core metrics
   metrics: TelemetryMetricsSchema,
 
-  // Extended optional telemetry
-  imuData: ImuDataSchema.nullable().optional(),
-  visionDetections: z.array(DetectionSchema).nullable().optional(),
-  motorState: MotorStateSchema.nullable().optional(),
+  imu_data:          ImuDataSchema.nullable().optional(),
+  vision_detections: z.array(DetectionSchema).nullable().optional(),
+  motor_state:       MotorStateSchema.nullable().optional(),
 }) as z.ZodType<RobotSnapshot>
 
-/**
- * Session information for replay
- */
 const ReplaySessionInfoSchema = z.object({
-  sessionId: z.string().uuid().or(z.string().nonempty()),
-  createdAt: z.number().int().positive(),
-  entryCount: z.number().int().nonnegative(),
+  session_id:  z.string().nonempty(),
+  created_at:  TimestampSchema,
+  entry_count: z.number().int().nonnegative(),
 }) satisfies z.ZodType<ReplaySessionInfo>
 
-/**
- * Array of sessions
- */
 const SessionsResponseSchema = z.array(ReplaySessionInfoSchema)
 
-/**
- * Generic API error response
- */
 const ErrorResponseSchema = z.object({
-  error: z.string(),
-  message: z.string().optional(),
-  statusCode: z.number().int().optional(),
+  error:       z.string(),
+  message:     z.string().optional(),
+  statusCode:  z.number().int().optional(),
 })
 
 export const schemas = {
-  Position3D: Position3DSchema,
-  ImuData: ImuDataSchema,
-  Detection: DetectionSchema,
-  MotorState: MotorStateSchema,
+  Position3D:       Position3DSchema,
+  ImuData:          ImuDataSchema,
+  Detection:        DetectionSchema,
+  MotorState:       MotorStateSchema,
   TelemetryMetrics: TelemetryMetricsSchema,
-  TopicUpdate: TopicUpdateSchema,
-  TopicsSnapshot: TopicsSnapshotSchema,
-  RobotSnapshot: RobotSnapshotSchema,
+  TopicUpdate:      TopicUpdateSchema,
+  TopicsSnapshot:   TopicsSnapshotSchema,
+  RobotSnapshot:    RobotSnapshotSchema,
   ReplaySessionInfo: ReplaySessionInfoSchema,
   SessionsResponse: SessionsResponseSchema,
-  ErrorResponse: ErrorResponseSchema,
+  ErrorResponse:    ErrorResponseSchema,
 }
 
-/**
- * Validates and narrows a value to RobotSnapshot type with full type safety
- */
 export function validateRobotSnapshot(data: unknown): RobotSnapshot {
   return RobotSnapshotSchema.parse(data)
 }
 
-/**
- * Validates and narrows a value to ReplaySessionInfo type
- */
 export function validateReplaySessionInfo(data: unknown): ReplaySessionInfo {
   return ReplaySessionInfoSchema.parse(data)
 }
 
-/**
- * Validates and narrows a value to array of sessions
- */
 export function validateSessions(data: unknown): ReplaySessionInfo[] {
   return SessionsResponseSchema.parse(data)
 }
 
-/**
- * Safely validates data with error handling instead of throwing
- */
 export function safeValidateRobotSnapshot(data: unknown): {
   success: true
   data: RobotSnapshot

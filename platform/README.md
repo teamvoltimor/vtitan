@@ -1,4 +1,4 @@
-# Klevor v2 — Platform
+# Voldemorbot v2 — Platform
 
 WRO 2026 Future Engineers simulation and robot platform.
 

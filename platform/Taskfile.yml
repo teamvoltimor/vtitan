@@ -10,6 +10,7 @@ vars:
   METADATA: ../training_data/open/scenarios/scenario_0000_metadata.json
   LAPS: 3
   PARAMS: ./simulation/scripts/navigator_params.json
+  GRPC_ADDR: localhost:9010
 
 tasks:
   default:
@@ -21,14 +22,30 @@ tasks:
     cmds:
       - |
         echo "
-        KLEVOR PLATFORM — Taskfile Commands
+        VOLDEMORBOT PLATFORM — Taskfile Commands
 
         SETUP & INSTALLATION
-          task install          Install all dependencies (UV + Pixi)
-          task install:backend  Install backend dependencies
-          task install:frontend Install frontend dependencies
-          task install:robot    Install robot dependencies
-          task install:sim      Install simulation dependencies
+          task install              Install all dependencies (UV + Pixi + Go)
+          task install:backend   Bootstrap Go backend (buf generate + go mod tidy)
+          task install:frontend     Install frontend dependencies
+          task install:robot        Install robot dependencies
+          task install:sim          Install simulation dependencies
+
+        PROTO (buf toolchain — requires buf CLI)
+          task proto:update         Update buf registry dependencies
+          task proto:generate       Generate Go, Python, and TypeScript code from .proto files
+          task proto:lint           Lint proto files
+          task proto:breaking       Check proto files for breaking changes vs master
+
+        GO BACKEND
+          task dev:backend          Run Go backend with --sim synthetic generator (dev)
+          task run:backend          Run Go backend production mode (expects robot gRPC feed)
+          task build:backend        Compile Go backend binary to backend/bin/server
+          task test:backend         Run Go backend tests
+          task lint:backend         Run golangci-lint on Go backend
+          task lint:fix:backend     Auto-fix Go backend lint issues
+          task fmt:backend          Format Go backend (goimports + gofmt)
+          task sqlc:generate        Regenerate Go DB layer from SQL (requires sqlc CLI)
 
         TRACK GENERATION
           task gen:track        Generate/regenerate WRO 2026 track worlds
@@ -49,11 +66,11 @@ tasks:
           task extract:frames   Extract frames from bags and annotate
 
         TESTING & CODE QUALITY
-          task test             Run all tests (UV)
-          task test:backend     Run backend tests
+          task test             Run all tests (Python + Go)
+          task test:backend  Run Go backend tests
           task test:sim         Run simulation tests
-          task lint             Run ruff linter on all code
-          task lint:fix         Auto-fix linting issues
+          task lint             Run all linters (ruff + golangci-lint + buf lint)
+          task lint:fix         Auto-fix linting issues in all modules
 
         DOCKER (if configured)
           task docker:build     Build Docker images
@@ -64,6 +81,7 @@ tasks:
         CLEANUP
           task clean            Remove all generated training data
           task clean:cache      Clean Python cache and compiled files
+          task clean:go         Remove Go build cache and binaries
 
         ANALYSIS & DEBUGGING
           task analyze          Analyze generated scenarios
@@ -71,23 +89,32 @@ tasks:
 
         VARIABLES (override with task NAME -- VAR=value)
           SCENARIOS={{.SCENARIOS}}   CHALLENGE={{.CHALLENGE}}   LAPS={{.LAPS}}
-          OUTPUT_DIR={{.OUTPUT_DIR}}
-          METADATA={{.METADATA}}
+          OUTPUT_DIR={{.OUTPUT_DIR}}   METADATA={{.METADATA}}
+          GRPC_ADDR={{.GRPC_ADDR}}
         "
 
   # SETUP & INSTALLATION
 
   install:
-    desc: Install all dependencies (UV Python packages + Pixi ROS2 environment)
+    desc: Install all dependencies (UV + Pixi + Go backend bootstrap)
     cmds:
       - uv sync
       - pixi install
+      - task: install:backend
 
   install:backend:
-    desc: Install backend service dependencies
+    desc: Bootstrap Go backend — update buf deps, generate proto code, sqlc, tidy Go modules
+    cmds:
+      - task: proto:update
+      - task: proto:generate
+      - task: sqlc:generate
+      - cd backend && go mod tidy
+
+  sqlc:generate:
+    desc: Regenerate Go database access layer from SQL schema and queries (requires sqlc CLI)
     dir: backend
     cmds:
-      - uv sync
+      - sqlc generate
 
   install:frontend:
     desc: Install frontend dependencies (Node.js)
@@ -107,6 +134,85 @@ tasks:
     cmds:
       - uv sync
       - pixi install
+
+  # PROTO (buf toolchain)
+
+  proto:update:
+    desc: Update buf registry dependencies (buf.build BSR)
+    dir: proto
+    cmds:
+      - buf dep update
+
+  proto:generate:
+    desc: Generate Go, Python, and TypeScript code from .proto definitions
+    dir: proto
+    cmds:
+      - buf generate
+
+  proto:lint:
+    desc: Lint proto files against STANDARD buf rule set
+    dir: proto
+    cmds:
+      - buf lint
+
+  proto:breaking:
+    desc: Check proto files for breaking changes against master branch
+    dir: proto
+    cmds:
+      - buf breaking --against '.git#branch=master,subdir=platform/proto'
+
+  # GO BACKEND
+
+  build:backend:
+    desc: Compile Go telemetry backend binary to backend/bin/server
+    dir: backend
+    cmds:
+      - go build -o bin/server ./cmd/server
+
+  dev:backend:
+    desc: Run Go backend with synthetic --sim generator (dev mode, HTTP :8010, gRPC :9010)
+    dir: backend
+    env:
+      TELEMETRY_DEV: "true"
+    cmds:
+      - go run ./cmd/server -sim
+
+  run:backend:
+    desc: Run Go backend production mode (expects real robot gRPC feed on :9010)
+    dir: backend
+    cmds:
+      - go run ./cmd/server
+
+  test:backend:
+    desc: Run Go backend tests
+    dir: backend
+    cmds:
+      - go test ./... -v
+
+  lint:backend:
+    desc: Run golangci-lint on the Go backend
+    dir: backend
+    cmds:
+      - golangci-lint run ./...
+
+  lint:fix:backend:
+    desc: Auto-fix Go backend lint issues with golangci-lint
+    dir: backend
+    cmds:
+      - golangci-lint run --fix ./...
+
+  fmt:backend:
+    desc: Format Go backend code (goimports + gofmt)
+    dir: backend
+    cmds:
+      - goimports -w ./...
+      - gofmt -w .
+
+  clean:go:
+    desc: Remove Go build cache and compiled binaries
+    cmds:
+      - cmd: rm -rf backend/bin
+      - go clean -cache
 
   # TRACK GENERATION
 
@@ -203,17 +309,11 @@ tasks:
   # TESTING & CODE QUALITY
 
   test:
-    desc: Run all tests across all modules
+    desc: Run all tests across all modules (Python + Go)
     cmds:
       - task: test:backend
       - task: test:sim
       - task: test:robot
-
-  test:backend:
-    desc: Run backend tests
-    dir: backend
-    cmds:
-      - uv run pytest tests/ -v
 
   test:sim:
     desc: Run simulation tests
@@ -228,17 +328,12 @@ tasks:
       - uv run pytest tests/ -v
 
   lint:
-    desc: Run ruff linter on all code
+    desc: Run all linters (ruff on Python, go vet on Go, buf lint on proto)
     cmds:
-      - task: lint:backend
       - task: lint:sim
       - task: lint:robot
-
-  lint:backend:
-    desc: Lint backend code
-    dir: backend
-    cmds:
-      - uv run ruff check src/ tests/
+      - task: lint:backend
+      - task: proto:lint
 
   lint:sim:
     desc: Lint simulation code
@@ -255,15 +350,9 @@ tasks:
   lint:fix:
     desc: Auto-fix linting issues in all modules
     cmds:
-      - task: lint:fix:backend
       - task: lint:fix:sim
       - task: lint:fix:robot
-
-  lint:fix:backend:
-    desc: Auto-fix backend linting issues
-    dir: backend
-    cmds:
-      - uv run ruff check src/ tests/ --fix
+      - task: lint:fix:backend
 
   lint:fix:sim:
     desc: Auto-fix simulation linting issues
@@ -319,10 +408,11 @@ tasks:
       - cmd: find . -name "*.pyc" -delete 2>/dev/null || true
 
   clean:all:
-    desc: Deep clean — remove training data, cache, and build artifacts
+    desc: Deep clean — remove training data, cache, and build artifacts (Python + Go)
     cmds:
       - task: clean
       - task: clean:cache
+      - task: clean:go
 
   # ANALYSIS & DEBUGGING
 
@@ -338,7 +428,7 @@ tasks:
       - cmd: DEBUG=1 task {{CLI_ARGS}}
 
   info:
-    desc: Display platform information (Python versions, dependencies)
+    desc: Display platform information (versions, directories)
     cmds:
       - cmd: |
           echo "=== PYTHON ==="
@@ -347,13 +437,20 @@ tasks:
           echo "=== PIXI ==="
           pixi --version || echo "Pixi not installed"
           echo ""
+          echo "=== GO ==="
+          go version || echo "Go not installed"
+          echo ""
+          echo "=== BUF ==="
+          buf --version || echo "buf not installed (needed for proto:generate)"
+          echo ""
           echo "=== DIRECTORIES ==="
-          echo "Output dir: {{.OUTPUT_DIR}}"
-          echo "Simulation: simulation/"
-          echo "Backend: backend/"
-          echo "Frontend: frontend/"
-          echo "Robot: robot/"
-          echo "Shared: shared/"
+          echo "Output dir:   {{.OUTPUT_DIR}}"
+          echo "Simulation:   simulation/"
+          echo "Backend (Go): backend/"
+          echo "Frontend:     frontend/"
+          echo "Robot:        robot/"
+          echo "Proto:        proto/"
+          echo "Shared:       shared/"
 
   # UTILITY TASKS
 
