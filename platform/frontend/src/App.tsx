@@ -1,11 +1,15 @@
 import './App.css'
 
+import { useRef, useState, useEffect } from 'react'
 import { TelemetryProvider } from './contexts/TelemetryContext'
 import { useTelemetry } from './contexts/telemetryState'
 import { TelemetryScene } from './components/scene/TelemetryScene'
 import { Sidebar } from './components/Sidebar'
 import { TopicInspector } from './components/TopicInspector'
 import { AsyncState } from './components/ui'
+
+const INSPECTOR_MIN_HEIGHT = 150
+const INSPECTOR_MAX_RATIO = 0.85
 
 /** Floating control to toggle Demo Mode (mock data, no backend) at any time. */
 function DemoToggle() {
@@ -27,6 +31,33 @@ function DemoToggle() {
 /** Main app content: gates on async state, then composes the layout. */
 function AppContent() {
   const { snapshot, topics, loading, error, retry, demoMode, setDemoMode } = useTelemetry()
+  const [inspectorHeight, setInspectorHeight] = useState(300)
+  const isResizing = useRef(false)
+  const startY = useRef(0)
+  const startHeight = useRef(0)
+
+  const onResizeStart = (e: React.MouseEvent) => {
+    isResizing.current = true
+    startY.current = e.clientY
+    startHeight.current = inspectorHeight
+    e.preventDefault()
+  }
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isResizing.current) return
+      const delta = startY.current - e.clientY
+      const max = window.innerHeight * INSPECTOR_MAX_RATIO
+      setInspectorHeight(Math.max(INSPECTOR_MIN_HEIGHT, Math.min(max, startHeight.current + delta)))
+    }
+    const onUp = () => { isResizing.current = false }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [])
 
   return (
     <AsyncState
@@ -47,7 +78,8 @@ function AppContent() {
           <DemoToggle />
         </div>
         <Sidebar />
-        <div className="inspector-panel">
+        <div className="inspector-panel" style={{ height: inspectorHeight }}>
+          <div className="inspector-resize-handle" onMouseDown={onResizeStart} aria-label="Drag to resize" role="separator" />
           <TopicInspector topics={topics} />
         </div>
       </div>

@@ -33,9 +33,11 @@ export {
 export function TopicVisualization({
   topic,
   visualMode,
+  expanded,
 }: {
   topic: TopicUpdate
   visualMode: boolean
+  expanded?: boolean
 }) {
   if (!visualMode) {
     return <JsonView data={topic.data} />
@@ -43,7 +45,7 @@ export function TopicVisualization({
 
   switch (topic.message_type) {
     case RosMessageType.LASER_SCAN:
-      return <LidarRadarChart data={topic.data as unknown as LaserScanMsg} />
+      return <LidarRadarChart data={topic.data as unknown as LaserScanMsg} expanded={expanded} />
     case RosMessageType.IMU:
       return <ImuCompass data={topic.data as unknown as ImuMsg} />
     case RosMessageType.TWIST:

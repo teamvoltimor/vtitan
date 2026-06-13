@@ -21,11 +21,11 @@ function SensorHealthPanel() {
     <div className="sensor-health">
       <Label>{UI_STRINGS.SENSOR_STATUS}</Label>
       <div className="sensor-grid">
-        {SENSOR_CONFIG.map(({ id, name, icon, key }) => {
+        {SENSOR_CONFIG.map(({ id, name, key }) => {
           const available = metrics[key]
           return (
             <div key={id} className={`sensor-item ${available ? 'online' : 'offline'}`}>
-              <span className="sensor-icon">{icon}</span>
+              <span className="sensor-dot" />
               <div className="sensor-info">
                 <strong>{name}</strong>
                 <span className={available ? 'status-ok' : 'status-error'}>

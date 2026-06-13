@@ -3,8 +3,11 @@ import type { LaserScanMsg } from '../../types'
 import { LIDAR_CONFIG } from '../../config'
 
 /** Top-down LiDAR radar chart with danger/warning/safe colouring. */
-export function LidarRadarChart({ data }: { data: LaserScanMsg }) {
+export function LidarRadarChart({ data, expanded }: { data: LaserScanMsg; expanded?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const size = expanded
+    ? LIDAR_CONFIG.RADAR_CHART.CANVAS_WIDTH * 2
+    : LIDAR_CONFIG.RADAR_CHART.CANVAS_WIDTH
 
   useEffect(() => {
     if (!canvasRef.current || !data?.ranges) return
@@ -59,11 +62,7 @@ export function LidarRadarChart({ data }: { data: LaserScanMsg }) {
 
   return (
     <div className="specialized-viz radar-viz">
-      <canvas
-        ref={canvasRef}
-        width={LIDAR_CONFIG.RADAR_CHART.CANVAS_WIDTH}
-        height={LIDAR_CONFIG.RADAR_CHART.CANVAS_HEIGHT}
-      />
+      <canvas ref={canvasRef} width={size} height={size} />
     </div>
   )
 }

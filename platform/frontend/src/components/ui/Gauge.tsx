@@ -42,7 +42,7 @@ export function Gauge({ value, max, unit = '', decimals = 2 }: GaugeProps) {
       <path
         d={arcPath}
         fill="none"
-        stroke={COLORS.SUCCESS}
+        stroke={COLORS.HIGHLIGHT}
         strokeWidth={cfg.ARC.STROKE_WIDTH}
         strokeLinecap="round"
       />

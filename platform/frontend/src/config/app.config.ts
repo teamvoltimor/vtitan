@@ -269,30 +269,10 @@ export const THEME = {
 // ============================================================================
 
 export const SENSOR_CONFIG = [
-  {
-    id: 'lidar',
-    name: 'LiDAR',
-    icon: '📡',
-    key: 'lidar_available' as const,
-  },
-  {
-    id: 'imu',
-    name: 'IMU',
-    icon: '🧭',
-    key: 'imu_available' as const,
-  },
-  {
-    id: 'camera',
-    name: 'Camera',
-    icon: '📷',
-    key: 'camera_available' as const,
-  },
-  {
-    id: 'odometry',
-    name: 'Odometry',
-    icon: '⚙️',
-    key: 'odometry_available' as const,
-  },
+  { id: 'lidar',    name: 'LiDAR',    key: 'lidar_available'    as const },
+  { id: 'imu',      name: 'IMU',      key: 'imu_available'      as const },
+  { id: 'camera',   name: 'Camera',   key: 'camera_available'   as const },
+  { id: 'odometry', name: 'Odometry', key: 'odometry_available' as const },
 ] as const
 
 // ============================================================================

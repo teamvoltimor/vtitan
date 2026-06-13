@@ -35,7 +35,7 @@ export function MotorDials({ data }: { data: JointStateMsg }) {
               <path
                 d={arcPath(pos)}
                 fill="none"
-                stroke={COLORS.SUCCESS}
+                stroke={COLORS.HIGHLIGHT}
                 strokeWidth={cfg.ARC_STROKE_WIDTH}
                 strokeLinecap="round"
               />

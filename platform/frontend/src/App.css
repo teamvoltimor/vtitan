@@ -192,8 +192,19 @@
   border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
-.sensor-icon {
-  font-size: 1.25rem;
+.sensor-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sensor-item.online .sensor-dot {
+  background: #4caf50;
+}
+
+.sensor-item.offline .sensor-dot {
+  background: #f44336;
 }
 
 .sensor-info {
@@ -277,14 +288,36 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  width: calc(100% - 360px); /* 360px is sidebar width based on shell grid */
-  height: 300px;
+  width: calc(100% - 360px);
   background: var(--color-panel);
   border-top: 1px solid var(--color-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   z-index: 100;
+}
+
+.inspector-resize-handle {
+  flex-shrink: 0;
+  height: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease;
+}
+
+.inspector-resize-handle:hover,
+.inspector-resize-handle:active {
+  background: rgba(95, 221, 229, 0.08);
+}
+
+.inspector-resize-handle::after {
+  content: '';
+  width: 40px;
+  height: 3px;
+  background: var(--color-border-strong);
+  border-radius: 999px;
 }
 
 .log-panel {
@@ -436,7 +469,11 @@
   .inspector-panel {
     position: static;
     width: 100%;
-    height: auto;
+    height: auto !important;
     max-height: 320px;
+  }
+
+  .inspector-resize-handle {
+    display: none;
   }
 }
