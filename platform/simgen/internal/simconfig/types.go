@@ -51,10 +51,11 @@ type Sign struct {
 }
 
 // LightingConfig is a fully resolved lighting configuration for one scenario.
+// Scenario first: minimizes GC scan region (string before float64s).
 type LightingConfig struct {
+	Scenario         string
 	Intensity        float64
 	AmbientIntensity float64
 	Direction        [3]float64
-	Scenario         string
 	CastShadows      bool
 }

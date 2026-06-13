@@ -3,6 +3,8 @@
 // source; the golden-value test in simconfig_test.go asserts equality.
 package simconfig
 
+import "math"
+
 // File and directory permission constants.
 const (
 	DirPermissions  = 0o750 // directory creation (rwxr-x---)
@@ -146,6 +148,8 @@ const (
 	LidarSamples     = 500
 	LidarUpdateRate  = 10.0 // Hz
 	LidarNoiseStddev = 0.03
+	LidarMinAngle    = -math.Pi // full 360° clockwise bound
+	LidarMaxAngle    = math.Pi  // full 360° counterclockwise bound
 )
 
 // Grid section length offsets for starting zone placement (meters).
@@ -158,6 +162,7 @@ const (
 const (
 	ScenarioPrefix  = "scenario_"
 	MetadataSuffix  = "_metadata.json"
+	PreviewSuffix   = "_preview.svg"
 	BaseWorldPath   = "worlds/wro_track_2026.sdf"
 	FolderScenarios = "scenarios"
 )
@@ -364,6 +369,13 @@ const (
 )
 const DebugCameraTopic = "camera/image_raw"
 
+// Gazebo world physics step parameters.
+const (
+	PhysicsMaxStepSize    = 0.001
+	PhysicsRealTimeFactor = 1.0
+	PhysicsUpdateRate     = 1000
+)
+
 // World default sun and ambient light parameters.
 const (
 	SunLightZ                  = 10.0
@@ -458,6 +470,32 @@ const (
 	InertiaComponentIxy = "ixy"
 	InertiaComponentIxz = "ixz"
 	InertiaComponentIyz = "iyz"
+)
+
+// Robot link names — used in SDF models, Gazebo plugins, and ROS2 TF frames.
+const (
+	RobotLinkRearLeftWheel   = "rear_left_wheel"
+	RobotLinkRearRightWheel  = "rear_right_wheel"
+	RobotLinkFrontLeftSteer  = "front_left_steering"
+	RobotLinkFrontRightSteer = "front_right_steering"
+	RobotLinkFrontLeftWheel  = "front_left_wheel"
+	RobotLinkFrontRightWheel = "front_right_wheel"
+	RobotLinkCamera          = "camera_link"
+	RobotLinkLidar           = "lidar_link"
+	RobotLinkImu             = "imu_link"
+)
+
+// Robot joint names — must match Ackermann plugin references and TF frame parents.
+const (
+	RobotJointRearLeft        = "rear_left_wheel_joint"
+	RobotJointRearRight       = "rear_right_wheel_joint"
+	RobotJointFrontLeftSteer  = "front_left_steering_joint"
+	RobotJointFrontRightSteer = "front_right_steering_joint"
+	RobotJointFrontLeftWheel  = "front_left_wheel_joint"
+	RobotJointFrontRightWheel = "front_right_wheel_joint"
+	RobotJointCamera          = "camera_joint"
+	RobotJointLidar           = "lidar_joint"
+	RobotJointImu             = "imu_joint"
 )
 
 // Parking block identifiers.

@@ -5,12 +5,17 @@ vars:
   ROS2: pixi
   SCENARIOS: 10
   CHALLENGE: open
-  OUTPUT_DIR: ../training_data
+  OUTPUT_DIR: ./simgen/training_data
   BASE_WORLD: ./simulation/worlds/wro_track_2026.sdf
-  METADATA: ../training_data/open/scenarios/scenario_0000_metadata.json
+  METADATA: ./simgen/training_data/open/scenarios/scenario_0000_metadata.json
+  SCENARIO_SDF: ./simgen/training_data/open/scenarios/scenario_0000.sdf
   LAPS: 3
   PARAMS: ./simulation/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
+  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  EXE:
+    sh: go env GOEXE
+  SIMGEN: ./simgen/bin/simgen{{.EXE}}
 
 tasks:
   default:
@@ -48,6 +53,7 @@ tasks:
           task sqlc:generate        Regenerate Go DB layer from SQL (requires sqlc CLI)
 
         SIMGEN (Go scenario generator)
+          task install:simgen       Build simgen binary (Go compilation)
           task build:simgen         Compile simgen binary to simgen/bin/simgen
           task test:simgen          Run simgen tests
           task lint:simgen          Run golangci-lint on simgen
@@ -65,18 +71,24 @@ tasks:
           task docker:run:frontend    Run frontend container (http://localhost:8080)
 
         TRACK GENERATION
-          task gen:track        Generate/regenerate WRO 2026 track worlds
+          task gen:track        Generate/regenerate WRO 2026 base track SDF
 
         SCENARIO GENERATION
           task gen:open         Generate open-challenge scenarios (SCENARIOS=10 default)
           task gen:obstacles    Generate obstacles-challenge scenarios
           task gen:all          Generate both open and obstacles scenarios
+          task gen:preview      Render SVG top-down preview (METADATA=path)
 
-        NAVIGATION & SIMULATION
+        SIMULATION
+          task sim:init         Initialize Gazebo/ROS2 env via pixi (run once)
+          task sim:gazebo       Launch Gazebo with base track
+          task sim:gazebo:world Launch Gazebo with base track SDF
+          task sim:gazebo:scenario  Launch Gazebo with a specific scenario SDF (SCENARIO_SDF=path)
+          task sim:rviz         Launch RViz visualization
+
+        NAVIGATION & RECORDING
           task navigate         Run navigator on scenario (METADATA override)
           task record           Record scenario videos (requires Gazebo + ROS2)
-          task sim:gazebo       Launch Gazebo simulator
-          task sim:rviz         Launch RViz visualization
 
         VIDEO & FRAME PROCESSING
           task convert:bags     Convert ROS2 bags to MP4 videos
@@ -227,11 +239,16 @@ tasks:
 
   # SIMGEN (Go scenario generator)
 
+  install:simgen:
+    desc: Build simgen binary (Go compilation — no external deps required)
+    cmds:
+      - task: build:simgen
+
   build:simgen:
-    desc: Compile simgen binary to simgen/bin/simgen
+    desc: Compile simgen binary to simgen/bin/simgen[.exe]
     dir: simgen
     cmds:
-      - go build -o bin/simgen ./cmd/simgen
+      - go build -o bin/simgen{{.EXE}} ./cmd/simgen
 
   test:simgen:
     desc: Run simgen tests
@@ -317,36 +334,24 @@ tasks:
   # TRACK GENERATION
 
   gen:track:
-    desc: Generate/regenerate WRO 2026 track SDF world file
-    dir: simulation
+    desc: Generate/regenerate WRO 2026 base track SDF world file via simgen
+    deps: [build:simgen]
     cmds:
-      - uv run python -m src.generation.track_generator --output ./simulation/worlds/wro_track_2026.sdf
+      - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
 
   # SCENARIO GENERATION
 
   gen:open:
-    desc: Generate open-challenge scenarios (SCENARIOS=10 default)
-    dir: simulation
+    desc: Generate open-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
+    deps: [build:simgen]
     cmds:
-      - cmd: |
-          uv run python -m src.generation.generator \
-            --challenge open \
-            --num-scenarios {{.SCENARIOS}} \
-            --output-dir {{.OUTPUT_DIR}} \
-            --base-world ./simulation/worlds/wro_track_2026.sdf \
-            --randomize-all
-            
+      - "{{.SIMGEN}} generate --challenge open --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/open"
+
   gen:obstacles:
-    desc: Generate obstacles-challenge scenarios (SCENARIOS=10 default)
-    dir: simulation
+    desc: Generate obstacles-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
+    deps: [build:simgen]
     cmds:
-      - cmd: |
-          uv run python -m src.generation.generator \
-            --challenge obstacles \
-            --num-scenarios {{.SCENARIOS}} \
-            --output-dir {{.OUTPUT_DIR}} \
-            --base-world ./simulation/worlds/wro_track_2026.sdf \
-            --randomize-all
+      - "{{.SIMGEN}} generate --challenge obstacles --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/obstacles"
 
   gen:all:
     desc: Generate both open and obstacles scenarios
@@ -354,7 +359,31 @@ tasks:
       - task: gen:open
       - task: gen:obstacles
 
+  gen:preview:
+    desc: Render SVG top-down preview from metadata JSON (METADATA=path/to/*_metadata.json)
+    deps: [build:simgen]
+    cmds:
+      - "{{.SIMGEN}} preview --metadata {{.METADATA}}"
+
   # NAVIGATION & SIMULATION
+
+  sim:init:
+    desc: Initialize Gazebo/ROS2 simulation environment via pixi (run once after clone)
+    dir: simulation
+    cmds:
+      - pixi install
+
+  sim:gazebo:world:
+    desc: Launch Gazebo with the base WRO 2026 track SDF (run sim:init first)
+    dir: simulation
+    cmds:
+      - pixi run gazebo --verbose worlds/wro_track_2026.sdf
+
+  sim:gazebo:scenario:
+    desc: Launch Gazebo with a generated scenario SDF (SCENARIO_SDF=path/to/scenario.sdf)
+    dir: simulation
+    cmds:
+      - pixi run gazebo --verbose {{.SCENARIO_SDF}}
 
   navigate:
     desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)

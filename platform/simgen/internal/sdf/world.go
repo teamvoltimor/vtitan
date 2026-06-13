@@ -31,9 +31,9 @@ func GenerateBaseWorld() (root, world *Node) {
 
 func addPhysics(world *Node) {
 	p := world.Sub("physics", "name", "default_physics", "default", "true", "type", "ode")
-	p.SubT("max_step_size", "0.001")
-	p.SubT("real_time_factor", "1.0")
-	p.SubT("real_time_update_rate", "1000")
+	p.SubT("max_step_size", ff(simconfig.PhysicsMaxStepSize))
+	p.SubT("real_time_factor", ff(simconfig.PhysicsRealTimeFactor))
+	p.SubT("real_time_update_rate", fi(simconfig.PhysicsUpdateRate))
 }
 
 func addSunLight(world *Node) {
@@ -70,7 +70,7 @@ func addGround(world *Node) {
 	planeSizeStr := fmt.Sprintf("%s %s", ff(simconfig.TrackMatSize), ff(simconfig.TrackMatSize))
 	vis := link.Sub("visual", "name", "visual")
 	groundPlane := vis.Sub("geometry").Sub("plane")
-	groundPlane.SubT("normal", "0 0 1")
+	groundPlane.SubT("normal", axisZ)
 	groundPlane.SubT("size", planeSizeStr)
 	mat := vis.Sub("material")
 	gc := rgba(simconfig.GroundColor)
@@ -137,12 +137,13 @@ func addCornerMarkers(world *Node) {
 
 	// Corner diagonal markers: two per corner (one blue, one orange).
 	// Positions and rotations are fixed by WRO field geometry (π/6 increments).
+	// color and name first: minimizes GC scan region (strings before float64s).
 	type cornerEntry struct {
+		color string
+		name  string
 		cx    float64
 		cy    float64
 		yaw   float64
-		color string
-		name  string
 	}
 	pi6 := math.Pi / 6 // 30°
 	corners := []cornerEntry{

@@ -5,16 +5,17 @@ import (
 )
 
 // Metadata is the JSON-serializable record written alongside each world SDF.
+// Pointer-bearing fields first: minimizes GC scan region (128 → 88 bytes).
 type Metadata struct {
-	ScenarioID         int                  `json:"scenario_id"`
-	NumSigns           int                  `json:"num_signs"`
-	HasParkingLot      bool                 `json:"has_parking_lot"`
 	ChallengeType      string               `json:"challenge_type"`
 	Seed               *int64               `json:"seed,omitempty"`
 	ParkingLot         *ParkingMeta         `json:"parking_lot,omitempty"`
 	CorridorWidths     map[string]WidthMeta `json:"corridor_widths"`
-	StartingConditions StartingMeta         `json:"starting_conditions"`
 	SignPositions      []SignMeta           `json:"sign_positions"`
+	StartingConditions StartingMeta         `json:"starting_conditions"`
+	ScenarioID         int                  `json:"scenario_id"`
+	NumSigns           int                  `json:"num_signs"`
+	HasParkingLot      bool                 `json:"has_parking_lot"`
 }
 
 type WidthMeta struct {
