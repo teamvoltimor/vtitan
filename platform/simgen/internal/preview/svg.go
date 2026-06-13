@@ -160,6 +160,7 @@ func wy(y float64) float64 { return marginTop + (simconfig.TrackMaxCoord-y)*pxPe
 // wp converts a world length (meters) to pixels.
 func wp(v float64) float64 { return v * pxPerMeter }
 
+// renderSVG generates the SVG content for a scenario metadata.
 func renderSVG(meta generate.Metadata) string {
 	var b strings.Builder
 
@@ -349,6 +350,7 @@ func drawInteriorWalls(b *strings.Builder, widths map[string]generate.WidthMeta)
 	writeLine(b, wx(tMax-ew), wy(sw), wx(tMax-ew), wy(tMax-nw), colorWall, strokeInteriorWall)
 }
 
+// drawParkingBlock renders a single parking block at the given world coordinates.
 func drawParkingBlock(b *strings.Builder, x, y float64, section string) {
 	// WRO spec: 200×20 mm. Long axis is perpendicular to the corridor's outer wall (pointing inward).
 	// South/North outer walls run along X → long axis is Y (200 mm), narrow axis is X (20 mm).
@@ -363,6 +365,7 @@ func drawParkingBlock(b *strings.Builder, x, y float64, section string) {
 	writeRect(b, wx(x)-bw/2, wy(y)-bh/2, bw, bh, colorParking, colorParkingStroke, strokeParkingBlock)
 }
 
+// drawLabelBar renders the scenario information label bar at the bottom of the SVG.
 func drawLabelBar(b *strings.Builder, meta generate.Metadata) {
 	panelY := marginTop + trackPx + labelPanelGap
 	writeRect(b, marginSide, panelY, trackPx, labelH-labelPanelGap, colorLabelBg, "none", 0)
@@ -379,6 +382,7 @@ func drawLabelBar(b *strings.Builder, meta generate.Metadata) {
 	fmt.Fprintf(b, fmtText, marginSide+labelPadX, panelY+labelTextOffY, labelFontSize, colorLabelText, label)
 }
 
+// writeRect writes a rectangle SVG element with optional stroke.
 func writeRect(b *strings.Builder, x, y, w, h float64, fill, stroke string, strokeW float64) {
 	if stroke == "none" || strokeW == 0 {
 		fmt.Fprintf(b, fmtRect, x, y, w, h, fill)
@@ -387,16 +391,19 @@ func writeRect(b *strings.Builder, x, y, w, h float64, fill, stroke string, stro
 	}
 }
 
+// writeLine writes a solid line SVG element.
 func writeLine(b *strings.Builder, x1, y1, x2, y2 float64, stroke string, strokeW float64) {
 	fmt.Fprintf(b, fmtLine, x1, y1, x2, y2, stroke, strokeW)
 }
 
+// writeDashedLine writes a dashed line SVG element.
 func writeDashedLine(
 	b *strings.Builder, x1, y1, x2, y2 float64, stroke string, strokeW float64, dash string,
 ) {
 	fmt.Fprintf(b, fmtLineDashed, x1, y1, x2, y2, stroke, strokeW, dash)
 }
 
+// mmToM converts millimeters to meters.
 func mmToM(mm int) float64 {
 	return float64(mm) / simconfig.MillimetersPerMeter
 }

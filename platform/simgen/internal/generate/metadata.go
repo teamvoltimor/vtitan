@@ -4,48 +4,55 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// Metadata is the JSON-serializable record written alongside each world SDF.
-// Pointer-bearing fields first: minimizes GC scan region (128 → 88 bytes).
-type Metadata struct {
-	ChallengeType      string               `json:"challenge_type"`
-	Seed               *int64               `json:"seed,omitempty"`
-	ParkingLot         *ParkingMeta         `json:"parking_lot,omitempty"`
-	CorridorWidths     map[string]WidthMeta `json:"corridor_widths"`
-	SignPositions      []SignMeta           `json:"sign_positions"`
-	StartingConditions StartingMeta         `json:"starting_conditions"`
-	ScenarioID         int                  `json:"scenario_id"`
-	NumSigns           int                  `json:"num_signs"`
-	HasParkingLot      bool                 `json:"has_parking_lot"`
-}
+type (
+	// Metadata is the JSON-serializable record written alongside each world SDF.
+	// Pointer-bearing fields first: minimizes GC scan region (128 → 88 bytes).
+	Metadata struct {
+		ChallengeType      string               `json:"challenge_type"`
+		Seed               *int64               `json:"seed,omitempty"`
+		ParkingLot         *ParkingMeta         `json:"parking_lot,omitempty"`
+		CorridorWidths     map[string]WidthMeta `json:"corridor_widths"`
+		SignPositions      []SignMeta           `json:"sign_positions"`
+		StartingConditions StartingMeta         `json:"starting_conditions"`
+		ScenarioID         int                  `json:"scenario_id"`
+		NumSigns           int                  `json:"num_signs"`
+		HasParkingLot      bool                 `json:"has_parking_lot"`
+	}
 
-type WidthMeta struct {
-	Type    string `json:"type"`
-	WidthMM int    `json:"width_mm"`
-}
+	// WidthMeta describes the resolved width type and dimension for a corridor section.
+	WidthMeta struct {
+		Type    string `json:"type"`
+		WidthMM int    `json:"width_mm"`
+	}
 
-type StartingMeta struct {
-	Direction string  `json:"direction"`
-	Section   string  `json:"section"`
-	Position  PosMeta `json:"position"`
-	Yaw       float64 `json:"yaw"`
-}
+	// StartingMeta describes the robot's starting configuration for a scenario.
+	StartingMeta struct {
+		Direction string  `json:"direction"`
+		Section   string  `json:"section"`
+		Position  PosMeta `json:"position"`
+		Yaw       float64 `json:"yaw"`
+	}
 
-type PosMeta struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
+	// PosMeta describes a 2D position in the world.
+	PosMeta struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
 
-type SignMeta struct {
-	Color string  `json:"color"`
-	X     float64 `json:"x"`
-	Y     float64 `json:"y"`
-}
+	// SignMeta describes a traffic sign's position and color.
+	SignMeta struct {
+		Color string  `json:"color"`
+		X     float64 `json:"x"`
+		Y     float64 `json:"y"`
+	}
 
-type ParkingMeta struct {
-	Block1Position PosMeta `json:"block1_position"`
-	Block2Position PosMeta `json:"block2_position"`
-	Depth          float64 `json:"depth"`
-}
+	// ParkingMeta describes the positions and spacing of parking blocks (obstacles challenge).
+	ParkingMeta struct {
+		Block1Position PosMeta `json:"block1_position"`
+		Block2Position PosMeta `json:"block2_position"`
+		Depth          float64 `json:"depth"`
+	}
+)
 
 // BuildMetadata constructs the Metadata struct for a generated scenario.
 func BuildMetadata(

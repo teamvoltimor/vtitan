@@ -12,8 +12,10 @@ const (
 	SectionWest  Section = "west"
 )
 
-// AllSections is the canonical ordered set of all four corridors.
-var AllSections = [4]Section{SectionNorth, SectionSouth, SectionEast, SectionWest}
+var (
+	// AllSections is the canonical ordered set of all four corridors.
+	AllSections = [4]Section{SectionNorth, SectionSouth, SectionEast, SectionWest}
+)
 
 // Capitalized returns the section name with a leading capital, e.g. "North".
 func (s Section) Capitalized() string {
@@ -44,8 +46,10 @@ const (
 	DirectionCounterClockwise Direction = "counterclockwise"
 )
 
-// AllDirections is the set of valid traversal directions.
-var AllDirections = [2]Direction{DirectionClockwise, DirectionCounterClockwise}
+var (
+	// AllDirections is the set of valid traversal directions.
+	AllDirections = [2]Direction{DirectionClockwise, DirectionCounterClockwise}
+)
 
 // ParseDirection converts a string to a Direction enum, validating against the two valid traversal modes.
 func ParseDirection(v string) (Direction, error) {
@@ -85,8 +89,10 @@ const (
 	LightingMixed          LightingScenario = "mixed"
 )
 
-// AllLightingScenarios is the set of valid lighting presets.
-var AllLightingScenarios = [6]LightingScenario{
-	LightingDirectSunlight, LightingCloudy, LightingIndoorBright,
-	LightingIndoorDim, LightingEvening, LightingMixed,
-}
+var (
+	// AllLightingScenarios is the set of valid lighting presets.
+	AllLightingScenarios = [6]LightingScenario{
+		LightingDirectSunlight, LightingCloudy, LightingIndoorBright,
+		LightingIndoorDim, LightingEvening, LightingMixed,
+	}
+)

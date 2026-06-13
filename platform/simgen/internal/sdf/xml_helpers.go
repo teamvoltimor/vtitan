@@ -7,21 +7,20 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// SDF axis direction strings for joint and geometry normal definitions.
+// Axis direction constants for joint and geometry normal definitions.
 const (
 	axisX = "1 0 0"
 	axisY = "0 1 0"
 	axisZ = "0 0 1"
 )
 
-// Joint limit sentinels for continuous revolute joints.
-// Gazebo SDF has no "unlimited" keyword; ±1e16 is the conventional stand-in.
+// Joint limit sentinels for continuous revolute joints (±1e16 = no limit in Gazebo SDF).
 const (
 	jointLimitUnbounded    = "1e16"
 	jointLimitUnboundedNeg = "-1e16"
 )
 
-// floatZero and intZero are the canonical zero-value strings for SDF elements.
+// Zero-value string constants for SDF elements.
 const (
 	floatZero = "0.0"
 	intZero   = "0"
@@ -32,7 +31,7 @@ func ff(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
 
-// fi formats an integer as a decimal string, analogous to ff for floats.
+// fi formats an integer as a decimal string.
 func fi(i int) string {
 	return strconv.Itoa(i)
 }
@@ -42,7 +41,7 @@ func pose6(x, y, z, roll, pitch, yaw float64) string {
 	return fmt.Sprintf("%s %s %s %s %s %s", ff(x), ff(y), ff(z), ff(roll), ff(pitch), ff(yaw))
 }
 
-// poseXY formats a pose at (x, y, 0) with zero rotation — common for wheel and steering links.
+// poseXY formats a pose at (x, y, 0) with zero rotation.
 func poseXY(x, y float64) string {
 	return fmt.Sprintf("%s %s 0 0 0 0", ff(x), ff(y))
 }

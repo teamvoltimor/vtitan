@@ -6,17 +6,32 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// Strategy decides how each parameter of a scenario is chosen.
-// Implementations can be fully random, deterministic, or mixed.
-type Strategy interface {
-	CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth
-	Lighting() simconfig.LightingConfig
-	StartingConditions(widths map[simconfig.Section]simconfig.CorridorWidth) simconfig.StartingConditions
-}
+type (
+	// Strategy decides how each parameter of a scenario is chosen.
+	// Implementations can be fully random, deterministic, or mixed.
+	Strategy interface {
+		CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth
+		Lighting() simconfig.LightingConfig
+		StartingConditions(widths map[simconfig.Section]simconfig.CorridorWidth) simconfig.StartingConditions
+	}
 
-// FullRandomization delegates every decision to the Randomizer.
-type FullRandomization struct{ r *Randomizer }
+	// FullRandomization delegates every decision to the Randomizer.
+	FullRandomization struct{ r *Randomizer }
 
+	// DeterministicDefaults returns fixed, reproducible values — useful for testing.
+	DeterministicDefaults struct{}
+
+	// PartialRandomization randomizes only the parameters flagged as true.
+	PartialRandomization struct {
+		r            *Randomizer
+		RandWidths   bool
+		RandLighting bool
+		RandStarting bool
+		defaults     DeterministicDefaults
+	}
+)
+
+// NewFullRandomization creates a strategy that fully randomizes all parameters.
 func NewFullRandomization(r *Randomizer) *FullRandomization { return &FullRandomization{r: r} }
 
 func (f *FullRandomization) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
@@ -29,9 +44,6 @@ func (f *FullRandomization) StartingConditions(
 ) simconfig.StartingConditions {
 	return f.r.RandomizeStartingConditions(w)
 }
-
-// DeterministicDefaults returns fixed, reproducible values — useful for testing.
-type DeterministicDefaults struct{}
 
 func (DeterministicDefaults) CorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
 	result := make(map[simconfig.Section]simconfig.CorridorWidth, 4)
@@ -63,15 +75,7 @@ func (DeterministicDefaults) StartingConditions(
 	}
 }
 
-// PartialRandomization randomizes only the parameters flagged as true.
-type PartialRandomization struct {
-	r            *Randomizer
-	RandWidths   bool
-	RandLighting bool
-	RandStarting bool
-	defaults     DeterministicDefaults
-}
-
+// NewPartialRandomization creates a strategy that selectively randomizes parameters.
 func NewPartialRandomization(r *Randomizer, randWidths, randLighting, randStarting bool) *PartialRandomization {
 	return &PartialRandomization{
 		r:            r,

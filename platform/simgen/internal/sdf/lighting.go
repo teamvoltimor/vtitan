@@ -22,7 +22,7 @@ func ApplyLighting(world *Node, cfg simconfig.LightingConfig) {
 	}
 }
 
-// updateSunLight modifies the sun light element with new direction and shadow settings.
+// updateSunLight updates the sun light's diffuse color, direction, and shadow casting.
 func updateSunLight(sun *Node, diffuse string, cfg simconfig.LightingConfig) {
 	if d := sun.Find("diffuse"); d != nil {
 		d.Text = diffuse
@@ -39,7 +39,7 @@ func updateSunLight(sun *Node, diffuse string, cfg simconfig.LightingConfig) {
 	}
 }
 
-// updateAmbientLight modifies the ambient light element with new intensity.
+// updateAmbientLight updates the ambient light's diffuse color.
 func updateAmbientLight(ambient *Node, cfg simconfig.LightingConfig) {
 	amb := clampF(cfg.AmbientIntensity, 0, 1)
 	av := ff(amb)
@@ -49,6 +49,7 @@ func updateAmbientLight(ambient *Node, cfg simconfig.LightingConfig) {
 	}
 }
 
+// clampF clamps a value v to the range [lo, hi].
 func clampF(v, lo, hi float64) float64 {
 	if v < lo {
 		return lo

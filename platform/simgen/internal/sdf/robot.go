@@ -7,9 +7,11 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// wheelRollPose is the 6-DOF pose that rotates a cylinder 90° around X so its
-// axis aligns with Y (the wheel roll axis in Gazebo).
-var wheelRollPose = pose6(0, 0, 0, math.Pi/2, 0, 0)
+var (
+	// wheelRollPose is the 6-DOF pose that rotates a cylinder 90° around X to align
+	// its axis with Y (the wheel roll axis in Gazebo).
+	wheelRollPose = pose6(0, 0, 0, math.Pi/2, 0, 0)
+)
 
 // AddRobotModel appends the full WRO robot model to the world element and
 // also inserts the static overhead debug camera as a sibling world model.

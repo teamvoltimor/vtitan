@@ -7,20 +7,29 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// scenarioEntry is one pillar in the South-corridor template frame.
-// x = depth (1.0 near, 1.5 mid, 2.0 far), y = width (0.4 outer, 0.6 inner).
-type scenarioEntry struct {
-	color string
-	x, y  float64
-}
+type (
+	// scenarioEntry defines one pillar in the South-corridor template frame.
+	// x = depth (1.0 near, 1.5 mid, 2.0 far), y = width (0.4 outer, 0.6 inner).
+	scenarioEntry struct {
+		color string
+		x, y  float64
+	}
 
-// scenarios is the WRO 2026 official 36-scenario traffic-sign table.
-// All entries are defined in South-corridor frame; use ApplyScenarioToSection
-// to transform them to world coordinates for any corridor.
-//
-// Scenarios 1–12: single pillar.
-// Scenarios 13–36: double pillar.
-var scenarios = map[int][]scenarioEntry{
+	// ScenarioPillar describes a traffic sign pillar with world coordinates and color.
+	ScenarioPillar struct {
+		Color string
+		X, Y  float64
+	}
+)
+
+var (
+	// scenarios is the WRO 2026 official 36-scenario traffic-sign table.
+	// All entries are defined in South-corridor frame; use ApplyScenarioToSection
+	// to transform them to world coordinates for any corridor.
+	//
+	// Scenarios 1–12: single pillar.
+	// Scenarios 13–36: double pillar.
+	scenarios = map[int][]scenarioEntry{
 	// Single pillar — inner position (y=0.6)
 	1: {{simconfig.ColorNameGreen, 1.0, 0.6}},
 	2: {{simconfig.ColorNameRed, 1.0, 0.6}},
@@ -60,13 +69,8 @@ var scenarios = map[int][]scenarioEntry{
 	34: {{simconfig.ColorNameGreen, 1.0, 0.4}, {simconfig.ColorNameRed, 2.0, 0.4}},
 	35: {{simconfig.ColorNameRed, 1.0, 0.4}, {simconfig.ColorNameGreen, 2.0, 0.4}},
 	36: {{simconfig.ColorNameRed, 1.0, 0.4}, {simconfig.ColorNameRed, 2.0, 0.4}},
-}
-
-// ScenarioPillar is a traffic sign pillar with world coordinates and color.
-type ScenarioPillar struct {
-	Color string
-	X, Y  float64
-}
+	}
+)
 
 // ApplyScenarioToSection transforms the South-frame scenario coordinates to
 // world coordinates for the given corridor section.

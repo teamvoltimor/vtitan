@@ -7,14 +7,14 @@ import "math"
 
 // File and directory permission constants.
 const (
-	DirPermissions  = 0o750 // directory creation (rwxr-x---)
-	FilePermissions = 0o644 // file creation (rw-r--r--)
+	DirPermissions  = 0o750
+	FilePermissions = 0o644
 )
 
 // Track dimensions (meters). Official WRO 2026 Future Engineers spec.
 const (
-	TrackMatSize     = 3.2 // 3200 mm physical mat
-	TrackSize        = 3.0 // 3000 mm inner track
+	TrackMatSize     = 3.2
+	TrackSize        = 3.0
 	TrackMinCoord    = 0.0
 	TrackMaxCoord    = 3.0
 	TrackCenterCoord = 1.5
@@ -25,15 +25,17 @@ const (
 
 // Wall dimensions (meters).
 const (
-	WallHeight             = 0.10 // 100 mm
-	WallThickness          = 0.10 // 100 mm visual
-	WallCollisionThickness = 0.18 // 100 mm + 40 mm per side
+	WallHeight             = 0.10
+	WallThickness          = 0.10
+	WallCollisionThickness = 0.18
 	WallExteriorOffset     = 0.05
 	WallInteriorOffset     = 0.05
 )
 
-// WallColor is the normalized RGB for all walls (black).
-var WallColor = [3]float64{0.0, 0.0, 0.0}
+var (
+	// WallColor is the normalized RGB for all walls (black).
+	WallColor = [3]float64{0.0, 0.0, 0.0}
+)
 
 // Corridor widths (meters).
 const (
@@ -49,10 +51,10 @@ const (
 
 // Traffic sign dimensions and grid positions (meters). WRO Spec 13.21–13.22.
 const (
-	SignWidth           = 0.05 // 50 mm
-	SignDepth           = 0.05 // 50 mm
-	SignHeight          = 0.10 // 100 mm
-	SignZPosition       = 0.05 // half height
+	SignWidth           = 0.05
+	SignDepth           = 0.05
+	SignHeight          = 0.10
+	SignZPosition       = 0.05
 	SignGridDepthNear   = 1.0
 	SignGridDepthMiddle = 1.5
 	SignGridDepthFar    = 2.0
@@ -62,48 +64,54 @@ const (
 	SignMaxCount        = 14
 )
 
-// SignColorRed is the official WRO red pillar color (RGB normalized). RGB(238,39,55).
-var SignColorRed = [3]float64{0.933, 0.153, 0.216}
+var (
+	// SignColorRed is the official WRO red pillar color (RGB normalized). RGB(238,39,55).
+	SignColorRed = [3]float64{0.933, 0.153, 0.216}
 
-// SignColorGreen is the official WRO green pillar color (RGB normalized). RGB(68,214,44).
-var SignColorGreen = [3]float64{0.267, 0.839, 0.173}
+	// SignColorGreen is the official WRO green pillar color (RGB normalized). RGB(68,214,44).
+	SignColorGreen = [3]float64{0.267, 0.839, 0.173}
 
-// SignColorRedStd is the standard deviation for Gaussian noise on red traffic sign colors.
-var SignColorRedStd = [3]float64{0.05, 0.02, 0.02}
+	// SignColorRedStd is the standard deviation for Gaussian noise on red traffic sign colors.
+	SignColorRedStd = [3]float64{0.05, 0.02, 0.02}
 
-// SignColorGreenStd is the standard deviation for Gaussian noise on green traffic sign colors.
-var SignColorGreenStd = [3]float64{0.02, 0.05, 0.02}
+	// SignColorGreenStd is the standard deviation for Gaussian noise on green traffic sign colors.
+	SignColorGreenStd = [3]float64{0.02, 0.05, 0.02}
+)
 
 // Parking block dimensions (meters, obstacles challenge only).
 const (
-	ParkingLength        = 0.20 // 200 mm
-	ParkingWidth         = 0.02 // 20 mm
-	ParkingHeight        = 0.10 // 100 mm
-	ParkingZPosition     = 0.05 // half height
-	ParkingWallOffset    = 0.10 // block center to outer wall
-	ParkingSpacingFactor = 1.5  // spacing = 1.5 × robot width
+	ParkingLength        = 0.20
+	ParkingWidth         = 0.02
+	ParkingHeight        = 0.10
+	ParkingZPosition     = 0.05
+	ParkingWallOffset    = 0.10
+	ParkingSpacingFactor = 1.5
 )
 
-// ParkingColor is the magenta parking block color (RGB normalized). RGB(255,0,255).
-var ParkingColor = [3]float64{1.0, 0.0, 1.0}
+var (
+	// ParkingColor is the magenta parking block color (RGB normalized). RGB(255,0,255).
+	ParkingColor = [3]float64{1.0, 0.0, 1.0}
+)
 
 // Starting zone dimensions (meters).
 const (
-	StartingZoneDefaultLength   = 0.5   // 500 mm
-	StartingZoneWidth           = 0.2   // 200 mm
-	StartingZoneThickness       = 0.001 // 1 mm visual marker
-	StartingZoneObstaclesFactor = 0.9   // use 90% of gap between blocks
-	StartingZoneIndicatorRadius = 0.035 // 35 mm
+	StartingZoneDefaultLength   = 0.5
+	StartingZoneWidth           = 0.2
+	StartingZoneThickness       = 0.001
+	StartingZoneObstaclesFactor = 0.9
+	StartingZoneIndicatorRadius = 0.035
 )
 
-// StartingZoneColor is the grey color for the starting zone base rectangle.
-var StartingZoneColor = [3]float64{0.5, 0.5, 0.5}
+var (
+	// StartingZoneColor is the grey color for the starting zone base rectangle.
+	StartingZoneColor = [3]float64{0.5, 0.5, 0.5}
 
-// StartingZoneClockwiseColor is the blue color indicator for clockwise direction.
-var StartingZoneClockwiseColor = [3]float64{0.2, 0.4, 1.0}
+	// StartingZoneClockwiseColor is the blue color indicator for clockwise direction.
+	StartingZoneClockwiseColor = [3]float64{0.2, 0.4, 1.0}
 
-// StartingZoneCounterClockwiseColor is the green color indicator for counterclockwise direction.
-var StartingZoneCounterClockwiseColor = [3]float64{0.2, 1.0, 0.4}
+	// StartingZoneCounterClockwiseColor is the green color indicator for counterclockwise direction.
+	StartingZoneCounterClockwiseColor = [3]float64{0.2, 1.0, 0.4}
+)
 
 // Robot chassis dimensions (meters). LEGO Bugatti Bolide + Ackermann.
 const (
@@ -137,8 +145,10 @@ const (
 	ImuMass       = 0.0025 // kg
 )
 
-// ImuSize is the BNO085 board footprint [W, D, H] in meters.
-var ImuSize = [3]float64{0.0256, 0.0227, 0.0046}
+var (
+	// ImuSize is the BNO085 board footprint [W, D, H] in meters.
+	ImuSize = [3]float64{0.0256, 0.0227, 0.0046}
+)
 
 // LIDAR (Slamtec C1).
 const (
@@ -328,23 +338,25 @@ const (
 	NoiseTypeGaussian    = "gaussian"
 )
 
-// RobotChassisColor is the blue color for the robot chassis.
-var RobotChassisColor = RGB{0.0, 0.0, 0.8}
+var (
+	// RobotChassisColor is the blue color for the robot chassis.
+	RobotChassisColor = RGB{0.0, 0.0, 0.8}
 
-// RobotFrontIndicatorColor is the red color for the robot front-facing indicator.
-var RobotFrontIndicatorColor = RGB{1.0, 0.0, 0.0}
+	// RobotFrontIndicatorColor is the red color for the robot front-facing indicator.
+	RobotFrontIndicatorColor = RGB{1.0, 0.0, 0.0}
 
-// RobotWheelColor is the dark grey color for robot wheels.
-var RobotWheelColor = RGB{0.1, 0.1, 0.1}
+	// RobotWheelColor is the dark grey color for robot wheels.
+	RobotWheelColor = RGB{0.1, 0.1, 0.1}
 
-// RobotWheelStripeColor is the yellow color for wheel position indicators.
-var RobotWheelStripeColor = RGB{1.0, 1.0, 0.0}
+	// RobotWheelStripeColor is the yellow color for wheel position indicators.
+	RobotWheelStripeColor = RGB{1.0, 1.0, 0.0}
 
-// RobotImuColor is the green color for the IMU sensor visual.
-var RobotImuColor = RGB{0.0, 0.4, 0.0}
+	// RobotImuColor is the green color for the IMU sensor visual.
+	RobotImuColor = RGB{0.0, 0.4, 0.0}
 
-// RobotFrontIndicatorSize is the [W, D, H] of the red front indicator box.
-var RobotFrontIndicatorSize = [3]float64{0.04, 0.04, 0.005}
+	// RobotFrontIndicatorSize is the [W, D, H] of the red front indicator box.
+	RobotFrontIndicatorSize = [3]float64{0.04, 0.04, 0.005}
+)
 
 // Wheel stripe geometry scale factors (applied to wheel radius).
 // stripeOffset = r * StripeOffsetFactor
@@ -386,17 +398,19 @@ const (
 	AmbientLightQuadraticAtten = 0.001
 )
 
-var SunDiffuseColor = RGB{0.8, 0.8, 0.8}
-var SunSpecularColor = RGB{0.2, 0.2, 0.2}
-var SunDefaultDirection = [3]float64{-0.5, -0.5, -1.0}
-var AmbientDiffuseColor = RGB{0.5, 0.5, 0.5}
-var AmbientSpecularColor = RGB{0.1, 0.1, 0.1}
+var (
+	SunDiffuseColor = RGB{0.8, 0.8, 0.8}
+	SunSpecularColor = RGB{0.2, 0.2, 0.2}
+	SunDefaultDirection = [3]float64{-0.5, -0.5, -1.0}
+	AmbientDiffuseColor = RGB{0.5, 0.5, 0.5}
+	AmbientSpecularColor = RGB{0.1, 0.1, 0.1}
+
+	// GroundColor is the white color for the WRO mat.
+	GroundColor = RGB{1.0, 1.0, 1.0}
+)
 
 // GroundFrictionMu is the friction coefficient for the ground plane.
 const GroundFrictionMu = 0.8
-
-// GroundColor is the white color for the WRO mat.
-var GroundColor = RGB{1.0, 1.0, 1.0}
 
 // Track decoration visual constants.
 const (
@@ -410,14 +424,16 @@ const (
 	SubdivLineHeight    = 0.001
 )
 
-var CornerMarkerBlueColor = RGB{0.0, 0.2, 1.0}
-var CornerMarkerOrangeColor = RGB{1.0, 0.4, 0.0}
-var GridLineColor = RGB{0.6, 0.6, 0.6}
-var CentralLogoColor = RGB{0.9, 0.9, 0.9}
-var CorridorSubdivisionColor = RGB{0.5, 0.5, 0.5}
+var (
+	CornerMarkerBlueColor = RGB{0.0, 0.2, 1.0}
+	CornerMarkerOrangeColor = RGB{1.0, 0.4, 0.0}
+	GridLineColor = RGB{0.6, 0.6, 0.6}
+	CentralLogoColor = RGB{0.9, 0.9, 0.9}
+	CorridorSubdivisionColor = RGB{0.5, 0.5, 0.5}
 
-// StartingZonePlaceholderColor is the slightly lighter grey for the base template placeholder zone.
-var StartingZonePlaceholderColor = RGB{0.7, 0.7, 0.7}
+	// StartingZonePlaceholderColor is the slightly lighter grey for the base template placeholder zone.
+	StartingZonePlaceholderColor = RGB{0.7, 0.7, 0.7}
+)
 
 // Validation clearance constants.
 const (
@@ -434,14 +450,16 @@ const (
 	MillimetersPerMeter     = 1000
 )
 
-// StartingZoneWideOffsets are the width section offsets for starting zone placement in wide corridors.
-var StartingZoneWideOffsets = [3]float64{0.2, 0.5, 0.8}
+var (
+	// StartingZoneWideOffsets are the width section offsets for starting zone placement in wide corridors.
+	StartingZoneWideOffsets = [3]float64{0.2, 0.5, 0.8}
 
-// StartingZoneNarrowOffsets are the width section offsets for starting zone placement in narrow corridors.
-var StartingZoneNarrowOffsets = [2]float64{0.2, 0.5}
+	// StartingZoneNarrowOffsets are the width section offsets for starting zone placement in narrow corridors.
+	StartingZoneNarrowOffsets = [2]float64{0.2, 0.5}
 
-// StartPositionOffsets are the centerline offsets for robot spawn position selection.
-var StartPositionOffsets = [3]float64{-0.5, 0.0, 0.5}
+	// StartPositionOffsets are the centerline offsets for robot spawn position selection.
+	StartPositionOffsets = [3]float64{-0.5, 0.0, 0.5}
+)
 
 // Default generation parameters (CLI flags).
 const (
@@ -460,7 +478,10 @@ const (
 	DefaultSpawnY            = 0.4
 )
 
-var DefaultSunDirection = [3]float64{-0.5, -0.5, -1.0}
+var (
+	// DefaultSunDirection is the default direction for sun lighting in the world.
+	DefaultSunDirection = [3]float64{-0.5, -0.5, -1.0}
+)
 
 // Inertia tensor component names (for robot URDF/SDF).
 const (

@@ -134,7 +134,7 @@ func (r *Randomizer) GenerateStartingZone(
 	return simconfig.StartingZone{Length: defaultLength, X: zoneX, Y: zoneY}
 }
 
-// computeZoneCoords determines the (x, y) position for the starting zone based on section.
+// computeZoneCoords determines the (x, y) position for a starting zone given a section and offsets.
 func computeZoneCoords(section simconfig.Section, lengthOffset, widthOffset, trackMax float64) (x, y float64) {
 	isNS := section == simconfig.SectionNorth || section == simconfig.SectionSouth
 	invertWidth := section == simconfig.SectionNorth || section == simconfig.SectionEast
@@ -193,10 +193,12 @@ func (r *Randomizer) GenerateSignPositions(
 
 // Private helpers
 
+// uniform samples uniformly from [lo, hi).
 func (r *Randomizer) uniform(lo, hi float64) float64 {
 	return lo + r.rng.Float64()*(hi-lo)
 }
 
+// pickStartPosition selects a random spawn position within the given corridor.
 func (r *Randomizer) pickStartPosition(section simconfig.Section, corridorWidth float64) simconfig.Vec2 {
 	trackMax := simconfig.TrackMaxCoord
 	center := simconfig.TrackCenterCoord
@@ -215,6 +217,7 @@ func (r *Randomizer) pickStartPosition(section simconfig.Section, corridorWidth 
 	}
 }
 
+// computeSecondBlockDepth calculates the depth position of the second parking block given the first block's depth.
 func (r *Randomizer) computeSecondBlockDepth(depth, spacing float64) float64 {
 	near := simconfig.SignGridDepthNear
 	far := simconfig.SignGridDepthFar
@@ -230,6 +233,7 @@ func (r *Randomizer) computeSecondBlockDepth(depth, spacing float64) float64 {
 	return depth - spacing
 }
 
+// computeStartingYaw calculates the robot's initial yaw angle based on its corridor and traversal direction.
 func computeStartingYaw(section simconfig.Section, direction simconfig.Direction) float64 {
 	halfPi := math.Pi / 2
 	type key struct {
@@ -249,6 +253,7 @@ func computeStartingYaw(section simconfig.Section, direction simconfig.Direction
 	return yawMap[key{section, direction}]
 }
 
+// parkingPositionsForSection computes the world coordinates of the two parking blocks for a given section.
 func parkingPositionsForSection(
 	section simconfig.Section,
 	depth, depth2, wallOffset float64,
@@ -269,6 +274,7 @@ func parkingPositionsForSection(
 	}
 }
 
+// zoneFromParking computes the starting zone position and size based on parking block positions.
 func zoneFromParking(
 	section simconfig.Section,
 	parking *simconfig.ParkingConfig,

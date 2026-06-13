@@ -9,21 +9,23 @@ import (
 	"voldemorbot/simgen/internal/simconfig"
 )
 
-// Violation is a single failed geometry constraint.
-type Violation struct {
-	Rule    string
-	Message string
-}
+type (
+	// Violation is a single failed geometry constraint.
+	Violation struct {
+		Rule    string
+		Message string
+	}
+
+	// WorldContext holds all resolved scenario parameters needed for validation.
+	WorldContext struct {
+		CorridorWidths     map[simconfig.Section]simconfig.CorridorWidth
+		Signs              []simconfig.Sign
+		ParkingConfig      *simconfig.ParkingConfig // nil for open challenge
+		StartingConditions simconfig.StartingConditions
+	}
+)
 
 func (v Violation) Error() string { return fmt.Sprintf("[%s] %s", v.Rule, v.Message) }
-
-// WorldContext holds all resolved scenario parameters needed for validation.
-type WorldContext struct {
-	CorridorWidths     map[simconfig.Section]simconfig.CorridorWidth
-	Signs              []simconfig.Sign
-	ParkingConfig      *simconfig.ParkingConfig // nil for open challenge
-	StartingConditions simconfig.StartingConditions
-}
 
 // Precomputed minimum-clearance thresholds (meters).
 var (
@@ -57,6 +59,7 @@ func ValidateScenario(ctx WorldContext) []Violation {
 	return violations
 }
 
+// checkSignBounds validates that all signs are within the track boundaries.
 func checkSignBounds(signs []simconfig.Sign) []Violation {
 	lo := simconfig.TrackMinCoord + signBoundaryMargin
 	hi := simconfig.TrackMaxCoord - signBoundaryMargin
@@ -73,6 +76,7 @@ func checkSignBounds(signs []simconfig.Sign) []Violation {
 	return out
 }
 
+// checkSignOverlap validates that traffic signs maintain minimum spacing.
 func checkSignOverlap(signs []simconfig.Sign) []Violation {
 	var out []Violation
 	for i := range signs {
@@ -89,6 +93,7 @@ func checkSignOverlap(signs []simconfig.Sign) []Violation {
 	return out
 }
 
+// checkParkingBounds validates that parking blocks are within track boundaries.
 func checkParkingBounds(cfg *simconfig.ParkingConfig) []Violation {
 	half := simconfig.ParkingLength / 2
 	lo := simconfig.TrackMinCoord + half
@@ -106,6 +111,7 @@ func checkParkingBounds(cfg *simconfig.ParkingConfig) []Violation {
 	return out
 }
 
+// checkSignParkingClearance validates minimum distance between signs and parking blocks.
 func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingConfig) []Violation {
 	blocks := []struct {
 		label string
@@ -135,6 +141,7 @@ func checkSignParkingClearance(signs []simconfig.Sign, cfg *simconfig.ParkingCon
 	return out
 }
 
+// checkRobotSpawnClearance validates minimum distance between robot spawn and obstacles.
 func checkRobotSpawnClearance(
 	sc simconfig.StartingConditions,
 	signs []simconfig.Sign,
@@ -175,6 +182,7 @@ func checkRobotSpawnClearance(
 	return out
 }
 
+// dist2d computes the Euclidean distance between two 2D points.
 func dist2d(a, b simconfig.Vec2) float64 {
 	dx := a[0] - b[0]
 	dy := a[1] - b[1]
