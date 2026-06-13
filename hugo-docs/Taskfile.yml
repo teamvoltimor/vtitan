@@ -12,36 +12,23 @@ tasks:
       - task --list
     silent: true
 
-  serve:
-    desc: Start Hugo dev server with live reload
-    deps: [theme, copy-docs]
-    cmds:
-      - hugo server --disableFastRender
-
-  build:
-    desc: Build the site (incremental)
-    deps: [theme, copy-docs]
-    cmds:
-      - hugo
-
-  build:prod:
-    desc: Build the site with minification for production
-    deps: [theme, copy-docs]
-    cmds:
-      - hugo --minify --destination public
-
-  copy-docs:
-    desc: Copy Markdown files from ../docs into content/v1/ via Go script
-    cmds:
-      - go run scripts/copy_docs.go
-
-  theme:
+  # theme: hugo-book submodule management
+  theme:init:
     desc: Initialise hugo-book submodule (pinned to committed revision)
+    aliases: [theme]
     cmds:
       - git -C .. submodule update --init hugo-docs/themes/hugo-book
 
-  clean:
+  # content: sync and clean Markdown sources
+  content:sync:
+    desc: Copy Markdown files from ../docs into content/v1/ via Go script
+    aliases: [copy-docs]
+    cmds:
+      - go run scripts/copy_docs.go
+
+  content:clean:
     desc: Remove generated content from content/v1/
+    aliases: [clean]
     prompt: This will delete all files under {{.HUGO_CONTENT}}. Continue?
     cmds:
       - cmd: powershell -Command "Remove-Item -Recurse -Force {{.HUGO_CONTENT}}\* -ErrorAction SilentlyContinue"
@@ -49,32 +36,61 @@ tasks:
       - cmd: rm -rf {{.HUGO_CONTENT}}/*
         platforms: [linux, darwin]
 
-  clean:public:
+  # site: serve, build, and clean the Hugo output
+  site:serve:
+    desc: Start Hugo dev server with live reload
+    aliases: [serve]
+    deps: [theme:init, content:sync]
+    cmds:
+      - hugo server --disableFastRender
+
+  site:build:
+    desc: Build the site (incremental)
+    aliases: [build]
+    deps: [theme:init, content:sync]
+    cmds:
+      - hugo
+
+  site:build-prod:
+    desc: Build the site with minification for production
+    aliases: [build:prod]
+    deps: [theme:init, content:sync]
+    cmds:
+      - hugo --minify --destination public
+
+  site:clean:
     desc: Remove the public/ build output directory
+    aliases: [clean:public]
     cmds:
       - cmd: powershell -Command "Remove-Item -Recurse -Force public -ErrorAction SilentlyContinue"
         platforms: [windows]
       - cmd: rm -rf public
         platforms: [linux, darwin]
 
-  lint:
+  # code: Biome lint and format
+  code:lint:
     desc: Run Biome linter
+    aliases: [lint]
     cmds:
       - biome lint .
 
-  fmt:
+  code:fmt:
     desc: Format files with Biome (writes in place)
+    aliases: [fmt]
     cmds:
       - biome format --write .
 
-  check:
+  code:check:
     desc: Run Biome lint + format check (CI-safe, no writes)
+    aliases: [check]
     cmds:
       - biome check .
 
-  deploy:
+  # deploy: publish the built site
+  deploy:github:
     desc: Build and deploy to GitHub Pages (requires GITHUB_TOKEN env var)
-    deps: [build:prod]
+    aliases: [deploy]
+    deps: [site:build-prod]
     cmds:
       - cmd: |
           if [ -z "$GITHUB_TOKEN" ]; then
@@ -91,9 +107,10 @@ tasks:
           git remote add origin https://x-access-token:$GITHUB_TOKEN@github.com/teamvoldemor/voldemorbot.git && \
           git push --force origin gh-pages
 
-  cloudflare:
+  deploy:cloudflare:
     desc: Build for Cloudflare Pages (outputs to public/)
-    deps: [build:prod]
+    aliases: [cloudflare]
+    deps: [site:build-prod]
     cmds:
       - cmd: echo "Built to public/ — connect your repo in the Cloudflare Pages dashboard and set output dir to public"
         silent: true
