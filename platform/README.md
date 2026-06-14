@@ -6,174 +6,214 @@ WRO 2026 Future Engineers simulation and robot platform.
 
 ```
 platform/
-├── backend/        # Telemetry API server (FastAPI)
-├── frontend/       # 3D visualiser (React + Three.js)
-├── simulation/     # Scenario and track generation
-├── robot/          # ROS2 navigation (hardware + simulation)
-└── training_data/  # Generated scenarios (shared across projects)
+├── backend/           # Go telemetry API server (HTTP + gRPC)
+├── frontend/          # 3D telemetry dashboard (React + Three.js + Vite)
+├── gazebo/
+│   ├── generator/     # simgen — scenario & track SDF generator (Go)
+│   └── runtime/       # Gazebo/ROS2 simulation runtime (Python)
+├── robot/             # ROS2 on-robot platform (Pixi + RoboStack)
+├── proto/             # buf-managed protobuf definitions
+├── shared/            # Shared Python utilities
+├── docs/internal/     # Development notes, ADRs, reviews
+├── conftest.py        # Pytest config (adds platform root to sys.path)
+└── Taskfile.yml       # All available commands
 ```
 
 ## Prerequisites
 
 | Tool | Used by | Install |
 |------|---------|---------|
-| [UV](https://docs.astral.sh/uv/) | backend, simulation | `pip install uv` |
+| [Go](https://go.dev/) | backend, simgen | go.dev |
+| [UV](https://docs.astral.sh/uv/) | runtime, robot | `pip install uv` |
+| [Pixi](https://pixi.sh/) | runtime, robot | `pip install pixi` |
 | [Node.js](https://nodejs.org/) | frontend | nodejs.org |
-| [Pixi](https://pixi.sh/) | robot (ROS2) | `pip install pixi` |
+| [Task](https://taskfile.dev/) | all | `go install github.com/go-task/task/v3/cmd/task@latest` |
+| [buf](https://buf.build/) | proto | `go install github.com/bufbuild/buf/cmd/buf@latest` |
+| [Docker](https://docker.com/) | frontend, compose | docker.com |
 
----
+## Commands
 
-## Backend
+All platform operations use `task` (see Taskfile.yml). Convention: `module:verb`.
 
-Telemetry API server — exposes robot state snapshots over HTTP.
+### Umbrella
 
 ```bash
-cd backend
-uv sync               # first time only
-uv run python main.py
-
-# Run tests
-uv run --extra dev pytest
+task install        # Install all deps (UV + Pixi + Go bootstrap)
+task test           # Run all tests (Go + Python)
+task lint           # Run all linters (ruff + golangci-lint + ESLint + buf)
+task lint:fix       # Auto-fix lint issues
+task clean          # Remove generated training data
+task clean:all      # Deep clean (training data + cache + Go artifacts)
+task init:dev       # One-time dev setup (install + lint)
 ```
 
-Runs on `http://localhost:8010`. Environment variables:
+### Backend (Go telemetry server)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TELEMETRY_PORT` | `8010` | Server port |
-| `TELEMETRY_SESSIONS_DIR` | `./telemetry_sessions` | Session storage directory |
-| `TELEMETRY_RELOAD` | `0` | Set to `1` to enable hot-reload (dev only) |
+HTTP API at `:8010`, gRPC ingest at `:9010`.
 
-Sessions are kept up to a maximum of 20 (oldest evicted automatically).
+```bash
+task backend:install    # Bootstrap (buf generate + sqlc + go mod tidy)
+task backend:dev        # Dev mode with synthetic data (--sim)
+task backend:run        # Production mode (expects real robot gRPC feed)
+task backend:build      # Compile binary to backend/bin/server
+task backend:test       # Go tests
+task backend:lint       # golangci-lint
+task backend:fmt        # goimports + gofmt
+task backend:sqlc       # Regenerate DB layer from SQL
+```
 
-**Endpoints**
+**HTTP endpoints:**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/telemetry/latest` | Latest robot snapshot |
-| `GET` | `/telemetry/history?limit=60` | Recent snapshot history |
-| `POST` | `/telemetry/record` | Persist a snapshot |
-| `GET` | `/docs` | Interactive API docs |
+| `GET` | `/v1/telemetry/latest` | Latest robot snapshot |
+| `GET` | `/v1/telemetry/history` | Snapshot history |
+| `GET` | `/v1/telemetry/topics` | Latest topics snapshot |
+| `GET` | `/v1/telemetry/sessions` | List recorded sessions |
+| `GET` | `/v1/telemetry/sessions/:id` | Load a session |
+| `GET` | `/v1/telemetry/config` | Get robot config |
+| `POST` | `/v1/telemetry/robot/config/speed` | Update speed config |
+| `GET` | `/v1/telemetry/health` | Health check |
+| `GET` | `/v1/telemetry/ws` | WebSocket real-time stream |
 
----
+**Environment variables (prefix `TELEMETRY_`):**
 
-## Frontend
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HTTP_ADDR` | `:8010` | HTTP server address |
+| `GRPC_ADDR` | `:9010` | gRPC server address |
+| `HISTORY_SIZE` | `360` | In-memory ring buffer size |
+| `DEV` | `false` | Set to `true` for dev mode |
+| `SIM_INTERVAL_MS` | `2500` | Synthetic data interval |
+| `MAX_SESSIONS` | `20` | Max recorded sessions |
+| `SESSIONS_DIR` | `data/sessions` | Session storage |
+| `DB_PATH` | `data/sessions.db` | SQLite database path |
 
-3D track visualiser built with React, Three.js and Vite.
+### Frontend (Vite + React telemetry dashboard)
 
 ```bash
-cd frontend
-npm install           # first time only
-npm run dev
+task frontend:install       # npm ci
+task frontend:dev           # Dev server (:5173), ?demo for mock data
+task frontend:dev:demo      # Dev server with VITE_DEMO=true
+task frontend:build         # tsc -b + vite build → dist/
+task frontend:preview       # Preview production build
+task frontend:typecheck     # tsc -b only
+task frontend:lint          # ESLint
+task frontend:docker:build  # Build nginx Docker image
+task frontend:docker:run    # Run container on :8080
 ```
 
-Runs on `http://localhost:5173`.
-
-The frontend reads configuration from `frontend/.env.development` (already committed):
+**Environment (`.env.development`):**
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_TELEMETRY_BASE` | `http://localhost:8010` | Backend URL |
-| `VITE_POLL_INTERVAL_MS` | `2500` | Live telemetry poll interval (ms) |
+| `VITE_POLL_INTERVAL_MS` | `2500` | Poll interval (ms) |
 
----
+### Simgen (Go scenario generator)
 
-## Simulation
-
-Generates randomized WRO 2026 Gazebo scenario SDF files and the base track.
-Output always goes to `platform/training_data/`.
+Generates randomized WRO 2026 Gazebo SDF world files and metadata. ~50ms/scenario.
 
 ```bash
-cd simulation
-uv sync               # first time only
+task simgen:install      # Build binary
+task simgen:build        # Compile to gazebo/generator/bin/simgen
+task simgen:test         # Go tests
+task simgen:lint         # golangci-lint
 ```
 
-### Generate the base track
-
-Generates `simulation/worlds/wro_track_2026.sdf` from WRO spec dimensions.
-Run this once before generating scenarios.
-
 ```bash
-uv run python main.py generate-track
+task gen:track           # Generate/regenerate base track SDF (once)
+task gen:open            # Open-challenge scenarios (SCENARIOS=10)
+task gen:obstacles       # Obstacles-challenge scenarios
+task gen:all             # Both challenges
+task gen:preview         # SVG top-down preview (METADATA=path)
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--output` | `./worlds/wro_track_2026.sdf` | Output SDF path |
+### Gazebo Runtime (Python/ROS2 simulation)
 
-### Generate scenarios
+Gazebo simulation, navigation, recording, and analysis.
 
 ```bash
-uv run python main.py generate
-uv run python main.py generate --challenge obstacles --num-scenarios 50 --randomize-all
+task sim:install           # Install deps (UV + Pixi)
+task sim:init              # Init ROS2 env via pixi (one-time)
+task sim:gazebo:world      # Launch Gazebo with base track
+task sim:gazebo:scenario   # Launch Gazebo with scenario SDF
+task sim:rviz              # Launch RViz
+task sim:navigate          # Run navigator (METADATA, LAPS overrides)
+task sim:analyze           # Analyze generated scenarios
+task sim:test              # Run tests
+task sim:test:quick        # Fail-fast tests
+task sim:lint              # ruff
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--challenge` | `open` | `open` or `obstacles` |
-| `--num-scenarios` | `10` | Number of scenarios to generate |
-| `--output-dir` | `../training_data` | Root output directory |
-| `--base-world` | `./worlds/wro_track_2026.sdf` | Base track SDF template |
-| `--randomize-all` | off | Randomize lighting, widths, and starting position |
+### Robot (on-robot platform)
 
-Scenarios are written to `training_data/<challenge>/scenarios/`.
-
----
-
-## Robot
-
-ROS2 waypoint-following navigator. Requires Pixi for the ROS2 environment.
+ROS2 waypoint-following navigator (Pixi + RoboStack).
 
 ```bash
-cd robot
-pixi install          # first time only — installs ROS2 Kilted via RoboStack
+task robot:install   # pixi install
+task robot:test      # Run tests (pixi -e dev)
+task robot:lint      # ruff
 ```
 
-### Run the navigator
+### Proto (buf toolchain)
 
 ```bash
-pixi run navigate
-# or explicitly:
-pixi run python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json
+task proto:update      # Update buf deps
+task proto:generate    # Generate Go + Python + TS stubs
+task proto:lint        # Lint proto files
+task proto:breaking    # Breaking change check vs master
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--metadata` | required | Path to scenario metadata JSON |
-| `--laps` | `3` | Number of laps to complete |
-| `--params` | none | Optional `navigator_params.json` for runtime overrides |
-
-### Run the simple driver
+### Recording pipeline
 
 ```bash
-pixi run drive
-# or explicitly:
-pixi run python main.py drive --direction clockwise --duration 30
+task record:run       # Record scenario videos from Gazebo
+task record:convert   # Convert ROS2 bags to MP4
+task record:frames    # Extract annotated frames from bags
 ```
 
-### Run tests (no ROS2 needed)
+### Docker
 
 ```bash
-pixi run test
+task docker:build    # docker compose build
+task docker:up       # Start services
+task docker:down     # Stop services
+task docker:logs     # Follow logs
 ```
 
----
-
-## Typical workflow
+### Workflows
 
 ```bash
-# 1. Generate the base track (once)
-cd simulation && uv run python main.py generate-track
+task workflow:generate   # Track → all scenarios
+task workflow:dev        # Install → lint → test
+task workflow:record     # Record → convert → frames
+```
+
+### Typical workflow
+
+```bash
+# 1. Generate base track (once)
+task gen:track
 
 # 2. Generate training scenarios
-uv run python main.py generate --num-scenarios 20 --randomize-all
+task gen:all SCENARIOS=20
 
-# 3. Start the backend
-cd ../backend && uv run python main.py
+# 3. Start backend with synthetic data
+task backend:dev
 
-# 4. Start the frontend (separate terminal)
-cd ../frontend && npm run dev
+# 4. Start frontend (separate terminal)
+task frontend:dev
 
-# 5. Run the navigator on a scenario (separate terminal)
-cd ../robot && pixi run navigate
+# 5. Run the navigator on a scenario
+task sim:navigate METADATA=gazebo/generator/training_data/open/scenarios/scenario_0000_metadata.json
 ```
+
+## Challenge Types
+
+- **Open:** Randomized corridor widths (600mm or 1000mm), no obstacles, no signs
+- **Obstacles:** Fixed 1000mm corridors, traffic signs (WRO 36-scenario), parking lot
+
+## Coordinate System
+
+Bottom-left origin (0,0) at south-west, Z up. Track: 3.0×3.0 m. Full mat: 3.2×3.2 m.
