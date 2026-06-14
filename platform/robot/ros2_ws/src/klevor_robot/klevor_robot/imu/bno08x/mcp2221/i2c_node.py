@@ -3,7 +3,7 @@
 Run on: Raspberry Pi 5
 
 Usage:
-    ros2 run klevor_robot bno08x_i2c_node
+    ros2 run voldemorbot_robot bno08x_i2c_node
 
 Topics:
     Published: imu/data (sensor_msgs.msg.Imu)
@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING, override
 
 import rclpy
 from rclpy.node import Node
+from rclpy.timer import Timer
 from sensor_msgs.msg import Imu
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
 
 if TYPE_CHECKING:
     from rclpy.publisher import Publisher
-    from rclpy.timer import Timer
 
 
 class IMU_I2CNode(Node):

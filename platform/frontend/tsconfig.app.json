@@ -24,5 +24,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Generated protobuf-es stubs (src/gen) are not yet wired up: they import
+  // @bufbuild/protobuf and a buf/validate module that aren't installed. Exclude
+  // them from the build until the proto client is actually adopted.
+  "exclude": ["src/gen"]
 }

@@ -30,3 +30,6 @@ AMENT_IGNORE
 
 # Claude Code
 .claude/
+
+# Internal docs
+internal_docs/

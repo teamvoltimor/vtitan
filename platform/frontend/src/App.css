@@ -20,6 +20,8 @@
 .shell-loading {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
@@ -27,6 +29,82 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   letter-spacing: 0.12em;
+  text-align: center;
+  padding: 2rem;
+}
+
+.shell-loading-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-accent-teal);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.shell-loading-actions button {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.shell-loading-actions button:hover {
+  border-color: var(--color-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.shell-loading-actions .demo-launch {
+  border-color: var(--color-accent-teal);
+  background: var(--color-accent-teal-fade);
+  color: var(--color-accent-teal);
+}
+
+/* Floating Demo Mode toggle over the 3D canvas. */
+.demo-toggle {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 50;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  background: rgba(5, 11, 18, 0.72);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.demo-toggle:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.demo-toggle.active {
+  border-color: var(--color-accent-teal);
+  background: var(--color-accent-teal-fade);
+  color: var(--color-accent-teal);
 }
 
 .canvas-wrapper {
@@ -78,8 +156,79 @@
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0 1.5rem;
+}
+
+.sensor-health {
+  margin: 1.5rem 0;
+  padding: 0 0;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.sensor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.sensor-item.online {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.sensor-item.offline {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.sensor-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sensor-item.online .sensor-dot {
+  background: #4caf50;
+}
+
+.sensor-item.offline .sensor-dot {
+  background: #f44336;
+}
+
+.sensor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sensor-info strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.status-ok {
+  font-size: 0.7rem;
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.status-error {
+  font-size: 0.7rem;
+  color: #f44336;
+  font-weight: 600;
 }
 
 .metrics-grid > div {
@@ -133,6 +282,42 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--color-text);
+}
+
+.inspector-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(100% - 360px);
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+
+.inspector-resize-handle {
+  flex-shrink: 0;
+  height: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease;
+}
+
+.inspector-resize-handle:hover,
+.inspector-resize-handle:active {
+  background: rgba(95, 221, 229, 0.08);
+}
+
+.inspector-resize-handle::after {
+  content: '';
+  width: 40px;
+  height: 3px;
+  background: var(--color-border-strong);
+  border-radius: 999px;
 }
 
 .log-panel {
@@ -278,5 +463,17 @@
   .control-panel {
     border-left: none;
     border-top: 1px solid var(--color-border);
+  }
+
+  /* Single-column layout: the inspector flows below instead of overlapping. */
+  .inspector-panel {
+    position: static;
+    width: 100%;
+    height: auto !important;
+    max-height: 320px;
+  }
+
+  .inspector-resize-handle {
+    display: none;
   }
 }

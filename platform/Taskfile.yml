@@ -1,0 +1,629 @@
+version: '3'
+
+vars:
+  PYTHON: uv
+  ROS2: pixi
+  SCENARIOS: 10
+  CHALLENGE: open
+  OUTPUT_DIR: ./gazebo/generator/training_data
+  BASE_WORLD: ./gazebo/runtime/worlds/wro_track_2026.sdf
+  METADATA: ./gazebo/generator/training_data/open/scenarios/scenario_0000_metadata.json
+  SCENARIO_SDF: ./gazebo/generator/training_data/open/scenarios/scenario_0000.sdf
+  LAPS: 3
+  PARAMS: ./gazebo/runtime/scripts/navigator_params.json
+  GRPC_ADDR: localhost:9010
+  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  EXE:
+    sh: go env GOEXE
+  SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
+
+tasks:
+  default:
+    cmds:
+      - task: help
+
+  help:
+    desc: Display all available commands
+    cmds:
+      - |
+        echo "
+        VOLDEMORBOT PLATFORM — Taskfile Commands
+
+        Convention: module:verb (e.g. backend:test, sim:gazebo:world).
+        Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
+
+        UMBRELLAS (run across every module)
+          task install              Install all dependencies (UV + Pixi + Go)
+          task test                 Run all tests (Python + Go)
+          task lint                 Run all linters (ruff + golangci-lint + ESLint + buf)
+          task lint:fix             Auto-fix lint issues across modules
+          task clean                Remove all generated training data
+          task clean:all            Deep clean (training data + cache + Go artifacts)
+          task init:dev             One-time dev setup (install + lint)
+
+        BACKEND (Go telemetry server)
+          task backend:install      Bootstrap Go backend (buf generate + sqlc + go mod tidy)
+          task backend:dev          Run with --sim synthetic generator (HTTP :8010, gRPC :9010)
+          task backend:run          Run production mode (expects robot gRPC feed)
+          task backend:build        Compile binary to backend/bin/server
+          task backend:test         Run Go backend tests
+          task backend:lint         Run golangci-lint
+          task backend:lint:fix     Auto-fix Go lint issues
+          task backend:fmt          Format (goimports + gofmt)
+          task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
+
+        PROTO (buf toolchain — requires buf CLI)
+          task proto:update         Update buf registry dependencies
+          task proto:generate       Generate Go, Python, and TypeScript code from .proto
+          task proto:lint           Lint proto files
+          task proto:breaking       Check proto for breaking changes vs master
+
+        SIMGEN (Go scenario generator)
+          task simgen:install       Build simgen binary (Go compilation)
+          task simgen:build         Compile binary to gazebo/generator/bin/simgen
+          task simgen:test          Run simgen tests
+          task simgen:lint          Run golangci-lint
+          task simgen:lint:fix      Auto-fix simgen lint issues
+          task simgen:fmt           Format (golangci-lint fmt — goimports + golines)
+
+        FRONTEND (Vite + React telemetry dashboard)
+          task frontend:install     Install Node.js dependencies
+          task frontend:dev         Run dev server (http://localhost:5173) — append ?demo for mock data
+          task frontend:dev:demo    Run dev server in Demo Mode (mock telemetry, no backend)
+          task frontend:build       Type-check + production build (dist/)
+          task frontend:preview     Preview the production build locally
+          task frontend:typecheck   Type-check only (tsc -b)
+          task frontend:lint        Run ESLint
+          task frontend:docker:build  Build frontend Docker image (nginx static)
+          task frontend:docker:run    Run frontend container (http://localhost:8080)
+
+        GEN (track + scenario generation)
+          task gen:track            Generate/regenerate WRO 2026 base track SDF
+          task gen:open             Generate open-challenge scenarios (SCENARIOS=10 default)
+          task gen:obstacles        Generate obstacles-challenge scenarios
+          task gen:all              Generate both open and obstacles scenarios
+          task gen:preview          Render SVG top-down preview (METADATA=path)
+
+        SIM (Gazebo / ROS2 runtime)
+          task sim:install          Install simulation dependencies (UV + Pixi)
+          task sim:init             Initialize Gazebo/ROS2 env via pixi (run once)
+          task sim:gazebo:world     Launch Gazebo with the base WRO 2026 track SDF
+          task sim:gazebo:scenario  Launch Gazebo with a scenario SDF (SCENARIO_SDF=path)
+          task sim:rviz             Launch RViz visualization
+          task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
+          task sim:analyze          Analyze generated scenarios (statistics)
+          task sim:test             Run simulation tests
+          task sim:test:quick       Quick test run (fail fast, short traceback)
+          task sim:lint             Lint simulation code
+          task sim:lint:fix         Auto-fix simulation lint issues
+
+        ROBOT (on-robot platform)
+          task robot:install        Install robot platform dependencies
+          task robot:test           Run robot tests
+          task robot:lint           Lint robot code
+          task robot:lint:fix       Auto-fix robot lint issues
+
+        RECORD (video + frame pipeline — requires Gazebo + ROS2)
+          task record:run           Record scenario videos from Gazebo
+          task record:convert       Convert ROS2 bags to MP4 videos
+          task record:frames        Extract frames from bags and annotate
+
+        DOCKER (compose)
+          task docker:build         Build Docker images
+          task docker:up            Start Docker Compose services
+          task docker:down          Stop Docker Compose services
+          task docker:logs          View Docker Compose logs
+          task docker:restart       Restart Docker Compose services
+
+        WORKFLOWS (multi-step pipelines)
+          task workflow:generate    Generate track → all scenarios
+          task workflow:dev         install → lint → test
+          task workflow:record      record → convert bags → extract frames
+
+        DIAGNOSTICS
+          task info                 Display platform information (versions, directories)
+          task debug                Run any task with verbose logging (DEBUG=1 task <name>)
+
+        VARIABLES (override with task NAME VAR=value)
+          SCENARIOS={{.SCENARIOS}}   CHALLENGE={{.CHALLENGE}}   LAPS={{.LAPS}}
+          OUTPUT_DIR={{.OUTPUT_DIR}}   METADATA={{.METADATA}}
+          GRPC_ADDR={{.GRPC_ADDR}}
+        "
+
+  # UMBRELLAS
+
+  install:
+    desc: Install all dependencies (UV + Pixi + Go backend bootstrap)
+    cmds:
+      - uv sync
+      - pixi install
+      - task: backend:install
+
+  test:
+    desc: Run all tests across all modules (Python + Go)
+    cmds:
+      - task: backend:test
+      - task: simgen:test
+      - task: sim:test
+      - task: robot:test
+
+  lint:
+    desc: Run all linters (ruff on Python, golangci-lint on Go, ESLint on frontend, buf lint on proto)
+    cmds:
+      - task: sim:lint
+      - task: robot:lint
+      - task: backend:lint
+      - task: simgen:lint
+      - task: frontend:lint
+      - task: proto:lint
+
+  lint:fix:
+    desc: Auto-fix linting issues in all modules
+    cmds:
+      - task: sim:lint:fix
+      - task: robot:lint:fix
+      - task: backend:lint:fix
+      - task: simgen:lint:fix
+
+  init:dev:
+    desc: One-time setup for development (install + lint)
+    cmds:
+      - task: install
+      - task: lint
+
+  # BACKEND (Go telemetry server)
+
+  backend:install:
+    desc: Bootstrap Go backend — update buf deps, generate proto code, sqlc, tidy Go modules
+    cmds:
+      - task: proto:update
+      - task: proto:generate
+      - task: backend:sqlc
+      - cd backend && go mod tidy
+
+  backend:build:
+    desc: Compile Go telemetry backend binary to backend/bin/server
+    dir: backend
+    cmds:
+      - go build -o bin/server ./cmd/server
+
+  backend:dev:
+    desc: Run Go backend with synthetic --sim generator (dev mode, HTTP :8010, gRPC :9010)
+    dir: backend
+    env:
+      TELEMETRY_DEV: "true"
+    cmds:
+      - go run ./cmd/server -sim
+
+  backend:run:
+    desc: Run Go backend production mode (expects real robot gRPC feed on :9010)
+    dir: backend
+    cmds:
+      - go run ./cmd/server
+
+  backend:test:
+    desc: Run Go backend tests
+    dir: backend
+    cmds:
+      - go test ./... -v
+
+  backend:lint:
+    desc: Run golangci-lint on the Go backend
+    dir: backend
+    cmds:
+      - golangci-lint run ./...
+
+  backend:lint:fix:
+    desc: Auto-fix Go backend lint issues with golangci-lint
+    dir: backend
+    cmds:
+      - golangci-lint run --fix ./...
+
+  backend:fmt:
+    desc: Format Go backend code (goimports + gofmt)
+    dir: backend
+    cmds:
+      - goimports -w ./...
+      - gofmt -w .
+
+  backend:sqlc:
+    desc: Regenerate Go database access layer from SQL schema and queries (requires sqlc CLI)
+    dir: backend
+    cmds:
+      - sqlc generate
+
+  # PROTO (buf toolchain)
+
+  proto:update:
+    desc: Update buf registry dependencies (buf.build BSR)
+    dir: proto
+    cmds:
+      - buf dep update
+
+  proto:generate:
+    desc: Generate Go, Python, and TypeScript code from .proto definitions
+    dir: proto
+    cmds:
+      - buf generate
+
+  proto:lint:
+    desc: Lint proto files against STANDARD buf rule set
+    dir: proto
+    cmds:
+      - buf lint
+
+  proto:breaking:
+    desc: Check proto files for breaking changes against master branch
+    dir: proto
+    cmds:
+      - buf breaking --against '.git#branch=master,subdir=platform/proto'
+
+  # SIMGEN (Go scenario generator)
+
+  simgen:install:
+    desc: Build simgen binary (Go compilation — no external deps required)
+    cmds:
+      - task: simgen:build
+
+  simgen:build:
+    desc: Compile simgen binary to gazebo/generator/bin/simgen[.exe]
+    dir: gazebo/generator
+    cmds:
+      - go build -o bin/simgen{{.EXE}} ./cmd/simgen
+
+  simgen:test:
+    desc: Run simgen tests
+    dir: gazebo/generator
+    cmds:
+      - go test ./... -v
+
+  simgen:lint:
+    desc: Run golangci-lint on simgen
+    dir: gazebo/generator
+    cmds:
+      - golangci-lint run ./...
+
+  simgen:lint:fix:
+    desc: Auto-fix simgen lint issues with golangci-lint
+    dir: gazebo/generator
+    cmds:
+      - golangci-lint run --fix ./...
+
+  simgen:fmt:
+    desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)
+    dir: gazebo/generator
+    cmds:
+      - golangci-lint fmt ./...
+
+  clean:go:
+    desc: Remove Go build cache and compiled binaries
+    cmds:
+      - cmd: rm -rf backend/bin
+      - go clean -cache
+
+  # FRONTEND (Vite + React telemetry dashboard)
+
+  frontend:install:
+    desc: Install frontend dependencies (Node.js)
+    dir: frontend
+    cmds:
+      - npm ci
+
+  frontend:dev:
+    desc: Run frontend dev server (Vite, http://localhost:5173) — append ?demo to the URL for mock data
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  frontend:dev:demo:
+    desc: Run frontend dev server in Demo Mode (mock telemetry, no backend required)
+    dir: frontend
+    env:
+      VITE_DEMO: "true"
+    cmds:
+      - npm run dev
+
+  frontend:build:
+    desc: Type-check and build the frontend for production (tsc -b + vite build → dist/)
+    dir: frontend
+    cmds:
+      - npm run build
+
+  frontend:preview:
+    desc: Preview the production frontend build locally (vite preview)
+    dir: frontend
+    cmds:
+      - npm run preview
+
+  frontend:typecheck:
+    desc: Type-check the frontend without emitting (tsc -b)
+    dir: frontend
+    cmds:
+      - npx tsc -b
+
+  frontend:lint:
+    desc: Run ESLint on the frontend
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  frontend:docker:build:
+    desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
+    dir: frontend
+    cmds:
+      - docker build -t voldemorbot-frontend .
+
+  frontend:docker:run:
+    desc: Run frontend container serving on http://localhost:8080
+    cmds:
+      - docker run --rm -p 8080:80 voldemorbot-frontend
+
+  # GEN (track + scenario generation)
+
+  gen:track:
+    desc: Generate/regenerate WRO 2026 base track SDF world file via simgen
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
+
+  gen:open:
+    desc: Generate open-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate --challenge open --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/open"
+
+  gen:obstacles:
+    desc: Generate obstacles-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate --challenge obstacles --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/obstacles"
+
+  gen:all:
+    desc: Generate both open and obstacles scenarios
+    cmds:
+      - task: gen:open
+      - task: gen:obstacles
+
+  gen:preview:
+    desc: Render SVG top-down preview from metadata JSON (METADATA=path/to/*_metadata.json)
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} preview --metadata {{.METADATA}}"
+
+  # SIM (Gazebo / ROS2 runtime)
+
+  sim:install:
+    desc: Install simulation dependencies
+    dir: gazebo/runtime
+    cmds:
+      - uv sync
+      - pixi install
+
+  sim:init:
+    desc: Initialize Gazebo/ROS2 simulation environment via pixi (run once after clone)
+    dir: gazebo/runtime
+    cmds:
+      - pixi install
+
+  sim:gazebo:world:
+    desc: Launch Gazebo with the base WRO 2026 track SDF (run sim:init first)
+    dir: gazebo/runtime
+    cmds:
+      - pixi run gazebo --verbose worlds/wro_track_2026.sdf
+
+  sim:gazebo:scenario:
+    desc: Launch Gazebo with a generated scenario SDF (SCENARIO_SDF=path/to/scenario.sdf)
+    dir: gazebo/runtime
+    cmds:
+      - pixi run gazebo --verbose {{.SCENARIO_SDF}}
+
+  sim:rviz:
+    desc: Launch RViz visualization
+    dir: gazebo/runtime
+    cmds:
+      - pixi run rviz2
+
+  sim:navigate:
+    desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)
+    dir: gazebo/runtime
+    cmds:
+      - cmd: |
+          pixi run python -m src.navigation.navigator \
+            --metadata {{.METADATA}} \
+            --laps {{.LAPS}} \
+            --params {{.PARAMS}}
+
+  sim:analyze:
+    desc: Analyze generated scenarios (statistics and summaries)
+    dir: gazebo/runtime
+    cmds:
+      - uv run python -m src.analysis.scenario_analyzer --output-dir {{.OUTPUT_DIR}}
+
+  sim:test:
+    desc: Run simulation tests
+    dir: gazebo/runtime
+    cmds:
+      - uv run pytest tests/ -v
+
+  sim:test:quick:
+    desc: Quick test run — fail fast, short traceback (gazebo/runtime suite)
+    dir: gazebo/runtime
+    cmds:
+      - cmd: uv run pytest tests/ -x --tb=short
+
+  sim:lint:
+    desc: Lint simulation code
+    dir: gazebo/runtime
+    cmds:
+      - uv run ruff check src/ tests/
+
+  sim:lint:fix:
+    desc: Auto-fix simulation linting issues
+    dir: gazebo/runtime
+    cmds:
+      - uv run ruff check src/ tests/ --fix
+
+  # ROBOT (on-robot platform)
+
+  robot:install:
+    desc: Install robot platform dependencies (pixi + RoboStack)
+    dir: robot
+    cmds:
+      - pixi install
+
+  robot:test:
+    desc: Run robot tests (pixi dev env — robot is pixi-only, not uv)
+    dir: robot
+    cmds:
+      - pixi run -e dev pytest tests/ -v
+
+  robot:test:unit:
+    desc: Run robot unit tests only (no hardware/ROS2 deps required)
+    dir: robot
+    cmds:
+      - pixi run -e dev pytest tests/unit -q
+
+  robot:lint:
+    desc: Lint robot code
+    dir: robot
+    cmds:
+      - pixi run -e dev ruff check src/ tests/
+
+  robot:lint:fix:
+    desc: Auto-fix robot linting issues
+    dir: robot
+    cmds:
+      - pixi run -e dev ruff check src/ tests/ --fix
+
+  # RECORD (video + frame pipeline)
+
+  record:run:
+    desc: Record scenario videos from Gazebo simulation
+    dir: gazebo/runtime
+    cmds:
+      - cmd: |
+          pixi run python -m src.recording.recorder \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:convert:
+    desc: Convert ROS2 bags to MP4 videos
+    dir: gazebo/runtime
+    cmds:
+      - cmd: |
+          uv run python -m src.recording.bag_converter \
+            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+
+  record:frames:
+    desc: Extract frames from ROS2 bags and annotate
+    dir: gazebo/runtime
+    cmds:
+      - cmd: |
+          uv run python -m src.recording.frame_extractor \
+            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
+            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+
+  # DOCKER (compose)
+
+  docker:build:
+    desc: Build Docker images
+    cmds:
+      - docker compose build
+
+  docker:up:
+    desc: Start Docker Compose services
+    cmds:
+      - docker compose up -d
+
+  docker:down:
+    desc: Stop Docker Compose services
+    cmds:
+      - docker compose down
+
+  docker:logs:
+    desc: View Docker Compose logs (follow mode)
+    cmds:
+      - docker compose logs -f
+
+  docker:restart:
+    desc: Restart Docker Compose services
+    cmds:
+      - task: docker:down
+      - task: docker:up
+
+  # CLEANUP
+
+  clean:
+    desc: Remove all generated training data
+    cmds:
+      - cmd: rm -rf {{.OUTPUT_DIR}}
+
+  clean:cache:
+    desc: Clean Python cache files and __pycache__ directories
+    cmds:
+      - cmd: find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      - cmd: find . -name "*.pyc" -delete 2>/dev/null || true
+
+  clean:all:
+    desc: Deep clean — remove training data, cache, and build artifacts (Python + Go)
+    cmds:
+      - task: clean
+      - task: clean:cache
+      - task: clean:go
+
+  # WORKFLOWS (multi-step pipelines)
+
+  workflow:generate:
+    desc: Full scenario generation pipeline (generate track → all scenarios)
+    cmds:
+      - task: gen:track
+      - task: gen:all
+      - cmd: echo "Generation complete! Data in {{.OUTPUT_DIR}}"
+
+  workflow:dev:
+    desc: Development workflow (install → lint → test)
+    cmds:
+      - task: install
+      - task: lint
+      - task: test
+      - cmd: echo "Development checks complete!"
+
+  workflow:record:
+    desc: Recording pipeline (record → convert bags → extract frames)
+    cmds:
+      - task: record:run
+      - task: record:convert
+      - task: record:frames
+      - cmd: echo "Recording pipeline complete!"
+
+  # DIAGNOSTICS
+
+  info:
+    desc: Display platform information (versions, directories)
+    cmds:
+      - cmd: |
+          echo "=== PYTHON ==="
+          uv --version
+          echo ""
+          echo "=== PIXI ==="
+          pixi --version || echo "Pixi not installed"
+          echo ""
+          echo "=== GO ==="
+          go version || echo "Go not installed"
+          echo ""
+          echo "=== BUF ==="
+          buf --version || echo "buf not installed (needed for proto:generate)"
+          echo ""
+          echo "=== DIRECTORIES ==="
+          echo "Output dir:   {{.OUTPUT_DIR}}"
+          echo "Gazebo:       gazebo/ (generator + runtime)"
+          echo "Backend (Go): backend/"
+          echo "Frontend:     frontend/"
+          echo "Robot:        robot/"
+          echo "Proto:        proto/"
+          echo "Shared:       shared/"
+
+  debug:
+    desc: Run with verbose logging (DEBUG=1)
+    cmds:
+      - cmd: DEBUG=1 task {{CLI_ARGS}}

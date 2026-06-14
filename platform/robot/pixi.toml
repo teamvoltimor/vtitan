@@ -1,5 +1,5 @@
 [workspace]
-name = "klevor-robot"
+name = "voldemorbot-robot"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — ROS2 navigation runtime (hardware + simulation)"
 channels = ["robostack-kilted", "conda-forge"]
@@ -19,11 +19,15 @@ ros-kilted-ros-gz = ">=2.1.12,<3"
 ros-kilted-std-srvs = ">=5.5.1,<6"
 
 # Python runtime
-python = ">=3.11"
-numpy  = ">=1.26"
+python = ">=3.12"
+numpy  = ">=1.26,<2"
 scipy = ">=1.17.1,<2"
 pyserial = ">=3.5,<4"
 scipy-stubs = ">=1.17.1.3,<2"
+opencv = ">=4.9.0,<5"
+ros-kilted-std-msgs = "*"
+pydantic = ">=2.13.3,<3"
+pydantic-settings = ">=2.14.0,<3"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"
@@ -33,6 +37,15 @@ colcon-common-extensions = ">=0.3.0,<0.4"
 cmake                    = ">=4.3.1,<5"
 ninja                    = ">=1.13.2,<2"
 
+[pypi-dependencies]
+voldemorbot-shared = { path = "../shared", editable = true }
+adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
+buildhat = ">=0.9.0, <0.10"
+adafruit-blinka = ">=9.0.4, <10"
+adafruit-circuitpython-bno08x = ">=1.3.2, <2"
+ultralytics = ">=8.1.0,<9"
+mcp2221 = ">=1.0"
+
 # No Windows build deps — sllidar_ros2 only builds on Linux
 [feature.dev.target.linux-64.dependencies]
 cxx-compiler = "*"
@@ -40,19 +53,21 @@ cxx-compiler = "*"
 [feature.dev.target.linux-aarch64.dependencies]
 cxx-compiler = "*"
 
+# ARCH: AMD64 (Linux x86_64)
+[target.linux-64.pypi-dependencies]
+hailort = { path = "libs/linux_x86_64/hailort-4.23.0-cp312-cp312-linux_x86_64.whl" }
+
+# ARCH: AARCH64 (Raspberry Pi 5)
+[target.linux-aarch64.pypi-dependencies]
+hailort = { path = "libs/linux_aarch64/hailort-4.23.0-cp312-cp312-linux_aarch64.whl" }
+
+# ARCH: AMD64 (Windows 10/11) — ROS2 Kilted doesn't support Windows, so no build deps, but we can still install the Python runtime deps for development and testing
+[target.win-64.pypi-dependencies]
+hailort = { path = "libs/win_amd64/hailort-4.23.0-cp312-cp312-win_amd64.whl" }
+
 [environments]
 default = { features = [], solve-group = "default" }
 dev     = { features = ["dev"], solve-group = "default" }
-
-# sllidar_ros2 SDK hardcodes Linux arch sources — build-ws is Linux-only
-[feature.dev.target.linux-64.tasks]
-build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
-
-[feature.dev.target.linux-aarch64.tasks]
-build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
-
-[target.linux-aarch64.tasks]
-run-lidar = "source ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0"
 
 [tasks]
 # Global defaults (Works for Linux x86 and ARM)
@@ -73,16 +88,20 @@ sim = "gz sim empty.sdf"
 sim-bridge = "gz sim -r empty.sdf"
 
 # ROS2 nodes (requires: pixi run -e dev build-ws first)
-run-imu-i2c     = { cmd = "source ros2_ws/install/setup.bash && ros2 run klevor_robot bno08x_i2c_node", env = { PYTHONPATH = "." } }
-run-imu-rvc     = { cmd = "source ros2_ws/install/setup.bash && ros2 run klevor_robot bno08x_uart_rvc_node", env = { PYTHONPATH = "." } }
+run-imu-i2c     = { cmd = "source ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_i2c_node", env = { PYTHONPATH = "." } }
+run-imu-rvc     = { cmd = "source ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_uart_rvc_node", env = { PYTHONPATH = "." } }
 
 [target.win-64.tasks]
 # Windows-specific overrides to fix the "Multiple executables" error
 graph = "ros2 run rqt_graph rqt_graph.exe"
 viz   = "ros2 run rviz2 rviz2.exe"
 
-[pypi-dependencies]
-adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
-buildhat = ">=0.9.0, <0.10"
-adafruit-blinka = ">=9.0.4, <10"
-adafruit-circuitpython-bno08x = ">=1.3.2, <2"
+# sllidar_ros2 SDK hardcodes Linux arch sources — build-ws is Linux-only
+[feature.dev.target.linux-64.tasks]
+build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
+
+[feature.dev.target.linux-aarch64.tasks]
+build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
+
+[target.linux-aarch64.tasks]
+run-lidar = "source ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0"

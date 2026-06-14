@@ -5,11 +5,27 @@ Hierarchy:
     IMU (abstract)
 """
 
-from src.hardware.imu.base import Data, Driver, RVCData, RVCDriver
+from src.hardware.imu.base import Driver, RVCDriver
+from src.hardware.imu.config import QuaternionConfig
+from src.hardware.imu.readings import (
+    AccelerometerReading,
+    EulerReading,
+    GyroscopeReading,
+    LinearAccelelerometerReading,
+    MagnetometerReading,
+    QuaternionReading,
+    RVCReading,
+)
 
 __all__ = [
-    "Data",
+    "AccelerometerReading",
     "Driver",
-    "RVCData",
+    "EulerReading",
+    "GyroscopeReading",
+    "LinearAccelelerometerReading",
+    "MagnetometerReading",
+    "QuaternionConfig",
+    "QuaternionReading",
     "RVCDriver",
+    "RVCReading",
 ]

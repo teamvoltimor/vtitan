@@ -1,30 +1,14 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
-
-@dataclass
-class Data:
-    """IMU sensor data."""
-
-    accelerometer: tuple[float, float, float]
-    gyroscope: tuple[float, float, float]
-    magnetometer: tuple[float, float, float]
-    quaternion: tuple[float, float, float, float]
-    euler: tuple[float, float, float]
-    linear_accel: tuple[float, float, float]
-
-
-@dataclass
-class RVCData:
-    """IMU RVC mode data (reduced set)."""
-
-    yaw_deg: float
-    pitch_deg: float
-    roll_deg: float
-    x_accel: float
-    y_accel: float
-    z_accel: float
-    quaternion: tuple[float, float, float, float]
+from src.hardware.imu.readings import (
+    AccelerometerReading,
+    EulerReading,
+    GyroscopeReading,
+    LinearAccelelerometerReading,
+    MagnetometerReading,
+    QuaternionReading,
+    RVCReading,
+)
 
 
 class Driver(ABC):
@@ -35,32 +19,32 @@ class Driver(ABC):
         """Connect to IMU."""
 
     @abstractmethod
-    def get_accelerometer(self) -> tuple[float, float, float]:
+    def get_accelerometer(self) -> AccelerometerReading:
         """Get accelerometer data (m/s²)."""
 
     @abstractmethod
-    def get_gyroscope(self) -> tuple[float, float, float]:
+    def get_gyroscope(self) -> GyroscopeReading:
         """Get gyroscope data (rad/s)."""
 
     @abstractmethod
-    def get_magnetometer(self) -> tuple[float, float, float]:
+    def get_magnetometer(self) -> MagnetometerReading:
         """Get magnetometer data (µT)."""
 
     @abstractmethod
-    def get_quaternion(self) -> tuple[float, float, float, float]:
+    def get_quaternion(self) -> QuaternionReading:
         """Get fused quaternion (w, x, y, z)."""
 
     @abstractmethod
-    def get_euler(self) -> tuple[float, float, float]:
+    def get_euler(self) -> EulerReading:
         """Get fused Euler angles (pitch, roll, yaw) in degrees."""
 
     @abstractmethod
-    def get_linear_acceleration(self) -> tuple[float, float, float]:
+    def get_linear_acceleration(self) -> LinearAccelelerometerReading:
         """Get linear acceleration (m/s², gravity removed)."""
 
     @abstractmethod
-    def get_all_data(self) -> Data:
-        """Get all sensor data."""
+    def close(self) -> None:
+        """Close connection."""
 
 
 class RVCDriver(ABC):
@@ -79,7 +63,7 @@ class RVCDriver(ABC):
         """Stop background polling."""
 
     @abstractmethod
-    def get_data(self) -> RVCData | None:
+    def get_data(self) -> RVCReading | None:
         """Get latest sensor data."""
 
     @abstractmethod

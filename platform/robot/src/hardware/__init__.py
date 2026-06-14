@@ -1,5 +1,5 @@
 """
-Hardware drivers for Klevor v2 robot.
+Hardware drivers for Voldemorbot v2 robot.
 
 Modules:
     - motors: LEGO motors via Build HAT (Pi Zero)
@@ -9,20 +9,41 @@ Modules:
     - hailo: Hailo 8 NPU (Pi 5)
     - button: Physical push-button with GPIO
     - display: SSD1306 OLED display
+    - mcp2221: Shared MCP2221 USB bridge configuration
 """
 
-from src.hardware.button import ButtonEvent, ButtonState, Config as ButtonConfig, Driver as ButtonDriver
-from src.hardware.camera import CameraConfig, CameraDriver, CameraFrame
-from src.hardware.display import Config as DisplayConfig, Driver as DisplayDriver
-from src.hardware.hailo import HailoConfig, HailoDriver, InferenceResult
+from src.hardware.button import (
+    ButtonEvent,
+    ButtonState,
+    Config as ButtonConfig,
+    Driver as ButtonDriver,
+)
+from src.hardware.camera import (
+    Config as CameraConfig,
+    Driver as CameraDriver,
+    Frame as CameraFrame,
+)
+from src.hardware.display import (
+    Config as DisplayConfig,
+    Driver as DisplayDriver,
+)
+from src.hardware.hailo import (
+    Config as HailoConfig,
+    Driver as HailoDriver,
+    InferenceResult,
+)
 from src.hardware.imu import (
     Data as IMUData,
     Driver as IMUDriver,
     RVCData as IMU_RVCData,
     RVCDriver as IMU_RVCDriver,
 )
-from src.hardware.lidar import LidarConfig, LidarPoint, RPLidarDriver
-from src.hardware.motors import BuildHatDriver, CalibrationData, MotorConfig
+from src.hardware.mcp2221 import MCP2221Config
+from src.hardware.motors import (
+    CalibrationData,
+    Config as MotorConfig,
+    Driver as BuildHatDriver,
+)
 
 __all__ = [
     "BuildHatDriver",
@@ -43,8 +64,6 @@ __all__ = [
     "IMU_RVCData",
     "IMU_RVCDriver",
     "InferenceResult",
-    "LidarConfig",
-    "LidarPoint",
+    "MCP2221Config",
     "MotorConfig",
-    "RPLidarDriver",
 ]
