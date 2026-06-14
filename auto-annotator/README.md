@@ -1,96 +1,141 @@
 # Auto-Annotator
 
-SAM2-based interactive image annotator for generating YOLO training data.
+SAM2-based image annotation service with a Go orchestration API, gRPC ML service,
+and Vite frontend.
 
-## Features
+## Architecture
 
-- **Interactive annotation** – click positive/negative points, SAM generates masks
-- **Multi-class support** – per-class colour pickers, default WRO classes seeded on first run
-- **Mask granularity** – choose Precise / Object / Broad from a dropdown
-- **Iterative refinement** – each added point feeds previous logits back to SAM for sharper masks
-- **YOLO export** – segmentation polygons and/or bounding boxes
-- **Browse tab** – list/grid toggle, image preview modal, import via UploadButton
-- **Settings tab** – model loading, class management, display options
-- **Model server** – SAM loads once, survives `app.py` restarts
+```
+┌──────────┐   gRPC    ┌──────────────┐
+│ Frontend │◄──HTTP──►│  Go API      │◄──gRPC──►│ ML Service  │
+│ (Vite)   │           │  (Gin/SQLite)│           │ (SAM/gRPC)  │
+└──────────┘           └──────────────┘           └─────────────┘
+```
+
+- **`api/`** — Go orchestration service (Gin HTTP API + SQLite + gRPC client)
+- **`ml-service/`** — Python ML service (gRPC SAM model server + compute workers)
+- **`frontend/`** — Vite + React annotation UI
+- **`proto/`** — Shared gRPC contract (`autoannotator.v1.compute`)
 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
-uv sync
+# 1. Install dependencies (ML service + frontend)
+task ml-service:sync
+task frontend:install
 
-# 2. (Optional) Start the model server only in one terminal
-task backend:server
+# 2. Start the full stack (all three services concurrently)
+task dev:serve
 
-# 3. Start the full backend stack (model server + API)
-task backend:dev
+# 3. Or start individual services in separate terminals
+task ml-service:dev     # SAM + gRPC (port 50051)
+task api:dev            # Go HTTP API (port 8000)
+task frontend:dev       # Vite dev server (port 5173)
 ```
 
-Then open http://localhost:7860.
+## Tasks
 
-## Project Structure
+All commands are available via `task <name>` (see `Taskfile.yml`):
 
-```
-auto_annotator/
-├── src/                 # Application package
-│   ├── constants.py     # Paths, ports, render constants
-│   ├── enums.py         # Status, ExportFormat
-│   ├── schema.py        # SQLite DDL + default classes
-│   ├── models.py        # AppState, Annotation, ClassInfo dataclasses
-│   ├── utils.py         # JSON logger, colour helpers
-│   ├── html.py          # stats_html(), _swatch_html()
-│   ├── db.py            # SQLite persistence layer
-│   ├── geometry.py      # mask_to_yolo_polygon, mask_to_yolo_bbox
-│   ├── render.py        # render_state_image
-│   ├── sam_client.py    # TCP client for model server
-│   ├── inference.py     # SAM inference (server or local fallback)
-│   ├── handlers/        # Gradio event handlers
-│   └── ui/              # Tab builders (annotate, browse, settings)
-├── server/              # Model server package
-│   ├── context.py       # ServerContext dataclass
-│   ├── sam1/2/3.py      # Per-model loaders
-│   ├── loader.py        # is_available(), load_model(), initial_load()
-│   └── dispatch.py      # Request routing
-├── config/
-│   └── models.toml      # SAM model definitions
-├── data/
-│   ├── pending/         # Images to annotate
-│   ├── labels/          # YOLO .txt output
-│   └── manifest.db      # SQLite DB
-├── app.py               # Gradio entrypoint
-├── model_server.py      # TCP server entrypoint
-├── Taskfile.yml         # Convenience tasks (run with `task <name>`)
-└── Dockerfile
-```
+### ML Service
 
-## Data
+| Task | Description |
+|---|---|
+| `ml-service:dev` | Start SAM + gRPC compute service |
+| `ml-service:dev:model` | Start with a specific SAM model (`MODEL_ID=sam2_hiera_large`) |
+| `ml-service:legacy` | Legacy FastAPI server (pre-cutover) |
+| `ml-service:sync` | Install dependencies with `uv sync` |
 
-Place images in `data/pending/`. They are auto-registered on startup.
+### Go API
 
-Labels are written to `data/labels/<stem>.txt` on Save.
+| Task | Description |
+|---|---|
+| `api:dev` | Run the Go API (Gin + SQLite + gRPC) |
+| `api:build` | Build binary to `api/bin/` |
+| `api:test` | Run Go tests |
 
-## Configuration
+### Proto (gRPC contract)
 
-- `config/models.toml`: describes each SAM / YOLO model (ids, checkpoints, metadata).
-- `config/server.toml`: controls model-server runtime settings.  Only `server.port` is read today, with `SERVER_PORT` and the legacy `MODEL_SERVER_PORT` environment variables taking priority.
+| Task | Description |
+|---|---|
+| `proto:gen` | Regenerate Go + Python gRPC stubs |
+| `proto:gen:go` | Go stubs via `buf` into `api/internal/compute/pb` |
+| `proto:gen:py` | Python stubs via `grpc_tools` into `ml-service/src/grpc_server/pb` |
+
+### Frontend
+
+| Task | Description |
+|---|---|
+| `frontend:dev` | Vite dev server (hot reload) |
+| `frontend:build` | Production build |
+| `frontend:preview` | Preview production build |
+| `frontend:test` | Vitest parity tests |
+| `frontend:install` | `npm install` |
+
+### Code Quality
+
+| Task | Description |
+|---|---|
+| `lint:all` (or `lint`) | Lint all modules |
+| `format:all` (or `fmt`) | Format all modules |
+| `lint:ml-service` | ruff |
+| `lint:api` | golangci-lint |
+| `lint:frontend` | Biome |
+
+### Docker
+
+| Task | Description |
+|---|---|
+| `docker:build:api` | Build Go API image |
+| `docker:build:ml-service` | Build ML service image |
+| `docker:up` | Start all services via docker-compose |
+| `docker:up:detached` | Start in background |
+| `docker:down` | Stop services |
+| `docker:logs` | Follow logs |
+
+### Full Stack
+
+| Task | Description |
+|---|---|
+| `dev:serve` | Run all three services concurrently |
+| `dev:local` (or `dev`) | Install deps + start full stack |
+| `dev:docker` | Start via docker-compose |
+
+### Utility
+
+| Task | Description |
+|---|---|
+| `clean:build` | Build artifacts and cache |
+| `clean:deep` | Full clean including `.venv` |
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `SERVER_CONFIG` | `./config/server.toml` | TOML file used by the model server (overrides `server.port`). |
-| `SERVER_PORT` | `8765` | Port the model server listens on (overrides both `server.toml` and the legacy `MODEL_SERVER_PORT`). |
-| `MODEL_SERVER_PORT` | `8765` | Legacy port override (kept for backwards compatibility). |
-| `MODELS_DIR` | `./models` | Directory for SAM checkpoints |
-| `MODELS_CONFIG` | `./config/models.toml` | Model configuration file |
-| `DB_PATH` | `./data/manifest.db` | SQLite database path |
-| `DEFAULT_MODEL` | first available | Model ID to load on startup |
-| `HF_TOKEN` | – | HuggingFace token (required for SAM 3) |
+| `API_PORT` | `8000` | Go API HTTP port |
+| `SERVER_PORT` | `8765` | ML service model-server port |
+| `GRPC_PORT` | `50051` | gRPC compute port |
+| `FRONTEND_PORT` | `80` | Frontend (Docker) port |
 
-## Keyboard shortcuts (Gradio defaults)
+## Project Structure
 
-- Click canvas with **Positive** selected → add foreground point
-- Click canvas with **Negative** selected → add background exclusion point
-- **Accept mask** → commit current mask as annotation
-- **Undo** → pop last point / clear pending mask / remove last annotation
-- **Save & Next** → write YOLO label, advance to next image
+```
+auto-annotator/
+├── api/                 # Go orchestration API
+│   ├── cmd/api/         # Entrypoint
+│   ├── internal/        # Handlers, DB, gRPC client
+│   └── sqlc.yaml        # SQL code-gen config
+├── ml-service/          # Python ML service
+│   ├── src/             # Application code
+│   ├── grpc_main.py     # gRPC entrypoint
+│   ├── models/          # SAM checkpoints
+│   └── data/            # Images and labels
+├── frontend/            # Vite + React UI
+├── proto/               # Shared gRPC contract
+│   └── autoannotator/v1/compute.proto
+├── Taskfile.yml         # All tasks (`task <name>`)
+├── Dockerfile.api
+├── Dockerfile.ml-service
+├── Dockerfile.frontend
+└── docker-compose.yml
+```
