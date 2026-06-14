@@ -6,7 +6,7 @@ Tests speed scaling logic for clearance zones and heading errors.
 import pytest
 
 from src.navigation.config import NavigationConfig
-from src.navigation.speed_control import SpeedScaler
+from src.navigation.control.speed_control import SpeedScaler
 
 
 class TestSpeedScaler:

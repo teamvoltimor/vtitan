@@ -14,7 +14,7 @@ import math
 import pytest
 from shared.config.enums import Section
 
-from src.navigation.parking import (
+from src.navigation.maneuvers.parking import (
     ParkController,
     _build_zone,
     _inside_zone,

@@ -1,4 +1,4 @@
-"""Klevor robot — WRO 2026 navigator and driver entrypoints."""
+"""Voldemorbot robot — WRO 2026 navigator and driver entrypoints."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def _run_navigate(args: argparse.Namespace) -> None:
-    from src.navigation.navigator import TrackNavigator
+    from src.ros2.navigation.node import TrackNavigator
 
     metadata_path = Path(args.metadata)
     if not metadata_path.exists():
@@ -62,7 +62,7 @@ def _run_drive(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """CLI entrypoint for the robot — navigate or drive."""
-    parser = argparse.ArgumentParser(description="Klevor robot — WRO 2026.")
+    parser = argparse.ArgumentParser(description="Voldemorbot robot — WRO 2026.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # navigate subcommand

@@ -3,7 +3,7 @@
 Run on: Raspberry Pi Zero (connected to Raspberry Pi 5 via network)
 
 Usage:
-    ros2 run klevor_robot ackermann_motor_node
+    ros2 run voldemorbot_robot ackermann_motor_node
 
 Topics:
     Subscribed:

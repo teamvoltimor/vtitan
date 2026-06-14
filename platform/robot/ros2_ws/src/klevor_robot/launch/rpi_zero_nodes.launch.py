@@ -14,7 +14,7 @@ def generate_launch_description():
     )
 
     ackermann_motor_node = Node(
-        package="klevor_robot",
+        package="voldemorbot_robot",
         executable="ackermann_motor_node",
         name="ackermann_motors",
         output="screen",

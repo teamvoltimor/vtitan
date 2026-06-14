@@ -7,7 +7,7 @@ import math
 import pytest
 from shared.config.enums import Direction, Section
 
-from src.navigation.waypoints import (
+from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
     _build_corridor_order,
     _deduplicate_consecutive,

@@ -28,10 +28,10 @@ from std_msgs.msg import String
 
 from src.hardware.gateway import HardwareGateway
 from src.navigation.core_navigator import CoreNavigator
-from src.navigation.parking import ParkController, park_controller_from_metadata
+from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
+from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
+from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.race_tracker import LapDetector
-from src.navigation.sign_router import SignRouter, signs_from_metadata
-from src.navigation.waypoints import calculate_waypoints
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
@@ -198,14 +198,15 @@ class TrackNavigator(Node):
         self._gateway = ROS2HardwareGateway(self, start_x, start_y, start_yaw)
         waypoints = calculate_waypoints(self._metadata, num_laps=1)
 
+        start_section = Section.from_string(start_cond[DictKeys.SECTION])
+        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
+
         sign_router: SignRouter | None = None
         if not self._is_open_challenge:
             signs = signs_from_metadata(self._metadata)
             if signs:
-                sign_router = SignRouter(signs)
+                sign_router = SignRouter(signs, direction=start_direction)
 
-        start_section = Section.from_string(start_cond[DictKeys.SECTION])
-        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
         lap_detector = LapDetector(
             start_pos=(start_x, start_y),
             start_section=start_section,

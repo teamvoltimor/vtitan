@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import pytest
 
 from src.navigation.config import NavigationConfig
-from src.navigation.escape_maneuvers import EscapeCommand, EscapeManager
+from src.navigation.maneuvers.escape_maneuvers import EscapeCommand, EscapeManager
 
 
 class TestEscapeCommand:
@@ -58,10 +58,10 @@ class TestEscapeManager:
 
     def test_manager_config_has_escape_params(self, manager):
         """Test that config contains escape parameters."""
-        assert hasattr(manager.config, "escape_maneuvers")
-        escape_cfg = manager.config.escape_maneuvers
-        assert hasattr(escape_cfg, "reverse_speed")
-        assert hasattr(escape_cfg, "forward_speed")
+        assert hasattr(manager.config, "escape")
+        escape_cfg = manager.config.escape
+        assert hasattr(escape_cfg, "rev_speed")
+        assert hasattr(escape_cfg, "obs_fwd_speed")
 
     def test_k_turn_command_generation(self, manager):
         """Test K-turn command generation."""
@@ -92,16 +92,16 @@ class TestEscapeManager:
 
     def test_escape_config_parameters_valid(self, manager):
         """Test that escape config contains valid parameters."""
-        escape_cfg = manager.config.escape_maneuvers
+        escape_cfg = manager.config.escape
 
         # Reverse speed should be negative
-        assert escape_cfg.reverse_speed < 0
+        assert escape_cfg.rev_speed < 0
 
-        # Forward speed should be positive
-        assert escape_cfg.forward_speed > 0
+        # Obstacle forward speed should be positive
+        assert escape_cfg.obs_fwd_speed > 0
 
         # Fractions should be between 0 and 1
-        assert 0 <= escape_cfg.reverse_fraction <= 1.0
+        assert 0 <= escape_cfg.obs_reverse_fraction <= 1.0
         assert 0 < escape_cfg.steer_scale <= 1.0
 
     def test_escape_command_duration_positive(self):

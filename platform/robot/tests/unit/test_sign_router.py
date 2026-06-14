@@ -13,9 +13,9 @@ Verifies:
 from __future__ import annotations
 
 import pytest
-from shared.config.enums import Section
+from shared.config.enums import Direction, Section
 
-from src.navigation.sign_router import (
+from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
     SignSpec,
@@ -37,67 +37,47 @@ def _sign_at(x: float, y: float, color: str) -> SignSpec:
     return SignSpec(x=x, y=y, color=color)
 
 
-# ── 1. Deformation direction per corridor × color ─────────────────────────────
+# 1. Deformation direction per corridor x color x travel direction
+
+# Per-section: (perpendicular axis, sign position, CCW red multiplier).
+# CCW values mirror the live routing table; CW is the world-frame negation.
+_SECTION_GEOMETRY = {
+    Section.SOUTH: ("y", (1.5, 0.4), +1),
+    Section.NORTH: ("y", (1.5, 2.6), -1),
+    Section.EAST: ("x", (2.6, 1.5), -1),
+    Section.WEST: ("x", (0.4, 1.5), +1),
+}
 
 
 class TestDeformationDirections:
-    """8 cases: 4 sections × {red, green}. Verify offset axis and sign."""
+    """16 cases: 4 sections x {red, green} x {CCW, CW}.
 
-    # SOUTH corridor — perpendicular axis = y
-    def test_south_red_shifts_north(self):
-        # Red in SOUTH → robot should be north of sign → y increases
-        sign = _sign_at(1.5, 0.4, "red")
-        wp = (1.5, 0.4)
-        wx, wy = _apply_deformation(wp, sign, "red", Section.SOUTH, LATERAL)
-        assert wy == pytest.approx(0.4 + LATERAL)
-        assert wx == pytest.approx(1.5)
+    Red keeps the sign on the robot's right, green on its left. Because the
+    same corridor is driven with opposite headings under CW vs CCW, the
+    world-frame offset flips sign between the two directions.
+    """
 
-    def test_south_green_shifts_south(self):
-        sign = _sign_at(1.5, 0.4, "green")
-        wp = (1.5, 0.4)
-        wx, wy = _apply_deformation(wp, sign, "green", Section.SOUTH, LATERAL)
-        assert wy == pytest.approx(0.4 - LATERAL)
-
-    # NORTH corridor — perpendicular axis = y
-    def test_north_red_shifts_south(self):
-        sign = _sign_at(1.5, 2.6, "red")
-        wp = (1.5, 2.6)
-        wx, wy = _apply_deformation(wp, sign, "red", Section.NORTH, LATERAL)
-        assert wy == pytest.approx(2.6 - LATERAL)
-
-    def test_north_green_shifts_north(self):
-        sign = _sign_at(1.5, 2.6, "green")
-        wp = (1.5, 2.6)
-        wx, wy = _apply_deformation(wp, sign, "green", Section.NORTH, LATERAL)
-        assert wy == pytest.approx(2.6 + LATERAL)
-
-    # EAST corridor — perpendicular axis = x
-    def test_east_red_shifts_west(self):
-        sign = _sign_at(2.6, 1.5, "red")
-        wp = (2.6, 1.5)
-        wx, wy = _apply_deformation(wp, sign, "red", Section.EAST, LATERAL)
-        assert wx == pytest.approx(2.6 - LATERAL)
-        assert wy == pytest.approx(1.5)
-
-    def test_east_green_shifts_east(self):
-        sign = _sign_at(2.6, 1.5, "green")
-        wp = (2.6, 1.5)
-        wx, wy = _apply_deformation(wp, sign, "green", Section.EAST, LATERAL)
-        assert wx == pytest.approx(2.6 + LATERAL)
-
-    # WEST corridor — perpendicular axis = x
-    def test_west_red_shifts_east(self):
-        sign = _sign_at(0.4, 1.5, "red")
-        wp = (0.4, 1.5)
-        wx, wy = _apply_deformation(wp, sign, "red", Section.WEST, LATERAL)
-        assert wx == pytest.approx(0.4 + LATERAL)
-        assert wy == pytest.approx(1.5)
-
-    def test_west_green_shifts_west(self):
-        sign = _sign_at(0.4, 1.5, "green")
-        wp = (0.4, 1.5)
-        wx, wy = _apply_deformation(wp, sign, "green", Section.WEST, LATERAL)
-        assert wx == pytest.approx(0.4 - LATERAL)
+    @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
+    @pytest.mark.parametrize(
+        ("direction", "color", "flip"),
+        [
+            (Direction.COUNTERCLOCKWISE, "red", +1),
+            (Direction.COUNTERCLOCKWISE, "green", -1),
+            (Direction.CLOCKWISE, "red", -1),
+            (Direction.CLOCKWISE, "green", +1),
+        ],
+    )
+    def test_offset_side(self, section, direction, color, flip):
+        axis, (sx, sy), ccw_red = _SECTION_GEOMETRY[section]
+        sign = _sign_at(sx, sy, color)
+        rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, LATERAL)
+        expected = ccw_red * flip * LATERAL
+        if axis == "y":
+            assert ry == pytest.approx(sy + expected)
+            assert rx == pytest.approx(sx)
+        else:
+            assert rx == pytest.approx(sx + expected)
+            assert ry == pytest.approx(sy)
 
 
 # ── 2. 36-scenario routing ────────────────────────────────────────────────────

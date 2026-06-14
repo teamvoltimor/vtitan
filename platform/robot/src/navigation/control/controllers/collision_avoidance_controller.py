@@ -7,10 +7,11 @@ Assesses collision risk from LIDAR data and generates escape maneuvers
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 import numpy as np
-from shared.config.enums import RiskLevel
+from shared.domain.enums import RiskLevel
 
 logger = logging.getLogger(__name__)
 
@@ -101,77 +102,104 @@ class CollisionAvoidanceController:
             return RiskLevel.OBSTACLE
         return RiskLevel.SAFE
 
-    def compute_forward_clearance(self, lidar_ranges: np.ndarray) -> float:
-        """Compute forward clearance from LIDAR data.
+    @staticmethod
+    def _sector_ranges(
+        lidar_ranges: np.ndarray,
+        lidar_angles: np.ndarray | None,
+        center_rad: float,
+        half_fov_rad: float,
+    ) -> np.ndarray:
+        """Valid ranges whose bearing falls within ``center ± half_fov``.
 
-        Averages ranges in forward sector (±30 degrees).
+        Bearings come from ``lidar_angles`` (0 rad = forward, +pi/2 = left,
+        -pi/2 = right, +/-pi = rear). When angles are unavailable a full 360 deg
+        scan indexed from ``angle_min = -pi`` is assumed, so every sector helper
+        agrees on which way is forward regardless of the scan's index ordering.
+        """
+        ranges = np.asarray(lidar_ranges, dtype=float)
+        if ranges.size == 0:
+            return ranges
+
+        if lidar_angles is None:
+            angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+        else:
+            angles = np.asarray(lidar_angles, dtype=float)
+
+        # Wrapped angular distance from the sector centre, in [-pi, pi].
+        delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
+        mask = (np.abs(delta) <= half_fov_rad) & (ranges > 0.01)
+        return ranges[mask]
+
+    def compute_forward_clearance(
+        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+    ) -> float:
+        """Mean clearance in the forward +/-30 deg sector (0 rad = forward).
 
         Args:
-            lidar_ranges: Array of LIDAR measurements
+            lidar_ranges: Array of LIDAR measurements.
+            lidar_angles: Per-ray bearings (radians). Synthesised if omitted.
 
         Returns:
-            Forward clearance distance (m)
+            Forward clearance distance (m).
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return 10.0  # Default: far away
 
-        valid_ranges = lidar_ranges[lidar_ranges > 0.01]
+        forward = self._sector_ranges(lidar_ranges, lidar_angles, 0.0, math.radians(30))
+        if forward.size == 0:
+            return 10.0
+        return float(np.mean(forward))
 
-        if len(valid_ranges) == 0:
+    def compute_rear_clearance(
+        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+    ) -> float:
+        """Minimum clearance in the rear +/-45 deg sector (+/-pi rad = rear).
+
+        Used to gate reverse / K-turn escapes so the robot never backs into a
+        wall it cannot see.
+        """
+        if lidar_ranges is None or len(lidar_ranges) == 0:
             return 10.0
 
-        # Take forward sector (center 60 degrees = ±30°)
-        num_rays = len(lidar_ranges)
-        sector_width = max(1, num_rays // 6)  # ~60° out of 360°
-        center = num_rays // 2
-        start = center - sector_width // 2
-        end = center + sector_width // 2
-
-        forward_sector = lidar_ranges[max(0, start) : min(num_rays, end)]
-        forward_ranges = forward_sector[forward_sector > 0.01]
-
-        if len(forward_ranges) == 0:
+        rear = self._sector_ranges(lidar_ranges, lidar_angles, math.pi, math.radians(45))
+        if rear.size == 0:
             return 10.0
+        return float(np.min(rear))
 
-        return float(np.mean(forward_ranges))
+    def detect_threat_direction(
+        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+    ) -> str:
+        """Direction of the closest obstacle: front, left, right, back, or none.
 
-    def detect_threat_direction(self, lidar_ranges: np.ndarray) -> str:
-        """Detect direction of closest obstacle.
+        Sectors are angular cones (+/-45 deg) about forward (0), left (+pi/2),
+        right (-pi/2) and rear (+/-pi), so the result is correct regardless of
+        the scan's index ordering.
 
         Args:
-            lidar_ranges: Array of LIDAR measurements
+            lidar_ranges: Array of LIDAR measurements.
+            lidar_angles: Per-ray bearings (radians). Synthesised if omitted.
 
         Returns:
-            Direction string: "front", "left", "right", or "none"
+            Direction string: "front", "left", "right", "back", or "none".
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return "none"
 
-        num_rays = len(lidar_ranges)
-        quarter = num_rays // 4
+        def sector_min(center_rad: float) -> float:
+            sect = self._sector_ranges(lidar_ranges, lidar_angles, center_rad, math.radians(45))
+            return float(np.min(sect)) if sect.size > 0 else 10.0
 
-        # Divide into quadrants
-        front = np.min(lidar_ranges[:quarter]) if len(lidar_ranges[:quarter]) > 0 else 10.0
-        right = np.min(lidar_ranges[quarter : 2 * quarter]) if len(lidar_ranges[quarter : 2 * quarter]) > 0 else 10.0
-        back = (
-            np.min(lidar_ranges[2 * quarter : 3 * quarter])
-            if len(lidar_ranges[2 * quarter : 3 * quarter]) > 0
-            else 10.0
-        )
-        left = np.min(lidar_ranges[3 * quarter :]) if len(lidar_ranges[3 * quarter :]) > 0 else 10.0
+        directions = {
+            "front": sector_min(0.0),
+            "left": sector_min(math.pi / 2),
+            "right": sector_min(-math.pi / 2),
+            "back": sector_min(math.pi),
+        }
 
-        # Find closest
-        min_dist = min(front, right, back, left)
-
-        if min_dist > 1.0:
+        closest = min(directions, key=directions.get)
+        if directions[closest] > 1.0:
             return "none"
-        if min_dist == front:
-            return "front"
-        if min_dist == left:
-            return "left"
-        if min_dist == right:
-            return "right"
-        return "back"
+        return closest
 
     def compute_escape_maneuver(self, risk: RiskLevel, threat_dir: str) -> EscapeManeuver | None:
         """Generate escape maneuver for detected threat.

@@ -12,7 +12,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
-from src.vision.detector import HailoDetector, LocalYoloDetector
+from src.vision import create_detector
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class VisionNode(Node):
         self.declare_parameter("camera_topic", "/camera/image_raw")
         self.declare_parameter("detections_topic", "/vision/detections")
         self.declare_parameter("model_path", "yolov8n.pt")
-        self.declare_parameter("backend", "local")  # 'local' or 'hailo'
+        self.declare_parameter("backend", "yolo")  # 'yolo' or 'hailo'
 
         camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
         detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
@@ -35,10 +35,22 @@ class VisionNode(Node):
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
-        if backend == "hailo":
-            self.detector = HailoDetector(model_path)  # model_path should be a .hef file
-        else:
-            self.detector = LocalYoloDetector(model_path)
+        from src.vision.detector import DetectorConfig, TrafficSignColor  # noqa: PLC0415
+
+        config = DetectorConfig(
+            model_path=model_path,
+            class_to_color={
+                0: TrafficSignColor.RED,
+                1: TrafficSignColor.GREEN,
+                2: TrafficSignColor.MAGENTA,
+            },
+        )
+        detector = create_detector(backend, config)
+        # Enter context manager for backends that hold hardware resources (Hailo).
+        # For YOLO the __enter__ is a no-op; calling it unconditionally is safe.
+        if hasattr(detector, "__enter__"):
+            detector.__enter__()
+        self.detector = detector
 
         self._publisher = self.create_publisher(String, detections_topic, 10)
 
@@ -86,6 +98,12 @@ class VisionNode(Node):
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             self.get_logger().error(f"Unexpected error processing image: {e}", exc_info=True)
+
+
+    def destroy_node(self) -> None:
+        if hasattr(self.detector, "__exit__"):
+            self.detector.__exit__(None, None, None)
+        super().destroy_node()
 
 
 def main(args: list[str] | None = None) -> None:

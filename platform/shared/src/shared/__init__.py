@@ -1,4 +1,4 @@
-"""Shared utilities for klevor-v2-platform.
+"""Shared utilities for voldemorbot-platform.
 
 Central module for configuration, types, enums, I/O utilities, and messaging
 abstractions shared across backend, robot, simulation, and frontend services.

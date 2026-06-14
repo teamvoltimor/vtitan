@@ -107,6 +107,16 @@ class ParkController:
         """Whether the parking maneuver is complete."""
         return self._phase is ParkPhase.DONE
 
+    @property
+    def section(self) -> Section:
+        """Corridor that contains the parking lot."""
+        return self._section
+
+    @property
+    def staging(self) -> tuple[float, float]:
+        """Staging position in front of the gap opening (world x, y)."""
+        return self._staging
+
     def update(
         self,
         robot_pos: tuple[float, float],

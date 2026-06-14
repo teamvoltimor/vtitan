@@ -3,6 +3,7 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import ClassVar
 
 from src.logger import configure_json_logging
 from src.state_machine.types import RobotState, StateTransitionReason
@@ -33,6 +34,25 @@ class StateMachine:
     - RACING: Ignore short presses, only accept 2-second hold for E-STOP
     - FINISHED: Display final results
     """
+
+    _VALID_TRANSITIONS: ClassVar[dict[RobotState, dict[StateTransitionReason, RobotState]]] = {
+        RobotState.BOOT_CHECK: {
+            StateTransitionReason.BOOT_COMPLETE: RobotState.READY,
+            StateTransitionReason.BOOT_FAILED: RobotState.FINISHED,
+        },
+        RobotState.READY: {
+            StateTransitionReason.BUTTON_PRESSED: RobotState.RACING,
+            StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
+        },
+        RobotState.RACING: {
+            StateTransitionReason.LAPS_COMPLETED: RobotState.FINISHED,
+            StateTransitionReason.EMERGENCY_STOP: RobotState.FINISHED,
+            StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
+        },
+        RobotState.FINISHED: {
+            StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
+        },
+    }
 
     def __init__(self):
         self._current_state: RobotState = RobotState.BOOT_CHECK
@@ -133,42 +153,9 @@ class StateMachine:
         return True
 
     def _is_valid_transition(self, from_state: RobotState, to_state: RobotState, reason: StateTransitionReason) -> bool:
-        """Validate if a state transition is allowed.
-
-        Args:
-            from_state: Current state.
-            to_state: Target state.
-            reason: Reason for transition.
-
-        Returns:
-            bool: True if transition is valid.
-        """
-        # Define valid transitions
-        valid_transitions: dict[RobotState, dict[StateTransitionReason, RobotState]] = {
-            RobotState.BOOT_CHECK: {
-                StateTransitionReason.BOOT_COMPLETE: RobotState.READY,
-                StateTransitionReason.BOOT_FAILED: RobotState.FINISHED,
-            },
-            RobotState.READY: {
-                StateTransitionReason.BUTTON_PRESSED: RobotState.RACING,
-                StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
-            },
-            RobotState.RACING: {
-                StateTransitionReason.LAPS_COMPLETED: RobotState.FINISHED,
-                StateTransitionReason.EMERGENCY_STOP: RobotState.FINISHED,
-                StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
-            },
-            RobotState.FINISHED: {
-                StateTransitionReason.SYSTEM_RESET: RobotState.BOOT_CHECK,
-            },
-        }
-
-        # Check if transition exists in valid transitions
-        if from_state not in valid_transitions:
-            return False
-
-        allowed_target = valid_transitions[from_state].get(reason)
-        return allowed_target == to_state
+        """Return True iff (from_state, reason) maps to to_state in the transition table."""
+        allowed = self._VALID_TRANSITIONS.get(from_state, {})
+        return allowed.get(reason) == to_state
 
     def can_start_race(self) -> bool:
         """Check if robot can start racing.

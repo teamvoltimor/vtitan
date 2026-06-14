@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from shared.config.enums import RiskLevel
 
-from src.navigation.collision import (
+from src.navigation.perception.collision import (
     assess_collision_risk,
     clamp_lidar_scan,
     measure_distance_in_direction,

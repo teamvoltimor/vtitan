@@ -1,4 +1,4 @@
-"""Shared configuration, constants, types, and enums for klevor-v2-platform.
+"""Shared configuration, constants, types, and enums for voldemorbot-platform.
 
 This module provides a single source of truth for domain constants, type definitions,
 and enumerations shared across all modules (backend, robot, simulation, frontend).

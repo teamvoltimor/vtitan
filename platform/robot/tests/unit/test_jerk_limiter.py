@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.navigation.speed_control import JerkLimiter
+from src.navigation.control.speed_control import JerkLimiter
 
 DT = 0.05  # 20 Hz
 TAU = 0.20

@@ -10,6 +10,11 @@ from __future__ import annotations
 
 from enum import Enum, StrEnum
 
+# RiskLevel is owned by the domain layer. Re-exported here so existing
+# ``shared.config.enums`` importers keep resolving to the single canonical
+# class object (one definition, no silent inequality across import paths).
+from shared.domain.enums import RiskLevel as RiskLevel
+
 
 class Section(Enum):
     """Four navigable corridors of the WRO 2026 track."""
@@ -112,21 +117,6 @@ class ScenarioType(StrEnum):
                 f"Invalid scenario type: {value!r}. Expected one of {options}"
             )
             raise ValueError(error_message) from err
-
-
-class RiskLevel(StrEnum):
-    """Collision risk classification for navigation logic.
-
-    Inherits from ``str`` so values compare equal to their string
-    representations.
-    """
-
-    SAFE = "safe"
-    CRITICAL = "critical"
-    OBSTACLE = "obstacle"
-
-    def __str__(self) -> str:
-        return self.value
 
 
 class LightingScenario(StrEnum):

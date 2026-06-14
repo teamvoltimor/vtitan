@@ -9,15 +9,11 @@ Pass-side rule (from robot's forward-travel perspective):
     - Red sign  → robot passes to the LEFT of the sign (sign on right).
     - Green sign → robot passes to the RIGHT of the sign (sign on left).
 
-Lateral offset formula is independent of CW/CCW direction; only the corridor
-section matters because outer/inner wall positions are fixed.
-
-    Section | Red (+y/+x?)      | Green             | Axis
-    --------|-------------------|-------------------|------
-    SOUTH   | sign_y + LATERAL  | sign_y - LATERAL  | y
-    NORTH   | sign_y - LATERAL  | sign_y + LATERAL  | y
-    EAST    | sign_x - LATERAL  | sign_x + LATERAL  | x
-    WEST    | sign_x + LATERAL  | sign_x - LATERAL  | x
+The deformation direction depends on BOTH the corridor section AND the travel
+direction (CW/CCW): the same corridor is driven with opposite headings depending
+on direction, which reverses left/right in world coordinates. The routing table
+is therefore keyed by (Section, Direction); the CW rows are the world-frame
+negation of the CCW rows.
 """
 
 from __future__ import annotations
@@ -27,7 +23,7 @@ import math
 from dataclasses import dataclass
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
-from shared.config.enums import Section
+from shared.config.enums import Direction, Section
 
 
 @dataclass(frozen=True)
@@ -44,14 +40,21 @@ logger = logging.getLogger(__name__)
 # Camera focal length in pixels — derived from HFOV and image width.
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
-# Per-corridor routing table: (axis, red_sign, green_sign)
+# Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
 # axis: "y" means deform the y-coordinate; "x" deforms x.
-# red_sign / green_sign: +1 or -1 multiplier applied to LATERAL offset.
-_ROUTING_TABLE: dict[Section, tuple[str, int, int]] = {
-    Section.SOUTH: ("y", +1, -1),
-    Section.NORTH: ("y", -1, +1),
-    Section.EAST: ("x", -1, +1),
-    Section.WEST: ("x", +1, -1),
+# red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
+# chosen so the robot keeps a red sign on its right and a green sign on its
+# left for the heading it actually drives in that corridor. The CLOCKWISE rows
+# are the world-frame negation of the COUNTERCLOCKWISE rows.
+_ROUTING_TABLE: dict[tuple[Section, Direction], tuple[str, int, int]] = {
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ("y", +1, -1),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): ("y", -1, +1),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): ("x", -1, +1),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): ("x", +1, -1),
+    (Section.SOUTH, Direction.CLOCKWISE): ("y", -1, +1),
+    (Section.NORTH, Direction.CLOCKWISE): ("y", +1, -1),
+    (Section.EAST, Direction.CLOCKWISE): ("x", +1, -1),
+    (Section.WEST, Direction.CLOCKWISE): ("x", -1, +1),
 }
 
 
@@ -102,9 +105,15 @@ class SignRouter:
         config: Tuning parameters.
     """
 
-    def __init__(self, signs: list[SignSpec], config: SignRouterConfig | None = None) -> None:
+    def __init__(
+        self,
+        signs: list[SignSpec],
+        config: SignRouterConfig | None = None,
+        direction: Direction = Direction.COUNTERCLOCKWISE,
+    ) -> None:
         self._signs = signs
         self._config = config or SignRouterConfig()
+        self._direction = direction
         self._passed: set[int] = set()
 
     @property
@@ -169,7 +178,9 @@ class SignRouter:
             if camera_color is not None:
                 color = camera_color
 
-        deformed = _apply_deformation(waypoint, sign, color, corridor, self._config.lateral_offset)
+        deformed = _apply_deformation(
+            waypoint, sign, color, corridor, self._direction, self._config.lateral_offset,
+        )
 
         if deformed != waypoint:
             logger.debug(
@@ -191,6 +202,7 @@ def _apply_deformation(
     sign: SignSpec,
     color: str,
     corridor: Section,
+    direction: Direction,
     lateral_offset: float,
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
@@ -200,15 +212,16 @@ def _apply_deformation(
         sign: Traffic sign spec (position + color).
         color: Effective sign color (may be camera-confirmed).
         corridor: Current track section.
+        direction: Travel direction (CW/CCW) — selects the pass-side mapping.
         lateral_offset: Lateral deformation magnitude (m).
 
     Returns:
         Deformed waypoint (x, y).
     """
-    if corridor not in _ROUTING_TABLE:
+    if (corridor, direction) not in _ROUTING_TABLE:
         return waypoint
 
-    axis, red_mult, green_mult = _ROUTING_TABLE[corridor]
+    axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
     mult = red_mult if color == "red" else green_mult
 
     wx, wy = waypoint

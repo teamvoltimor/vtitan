@@ -1,5 +1,5 @@
 """
-Hardware drivers for Klevor v2 robot.
+Hardware drivers for Voldemorbot v2 robot.
 
 Modules:
     - motors: LEGO motors via Build HAT (Pi Zero)

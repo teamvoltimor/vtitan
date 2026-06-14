@@ -466,28 +466,34 @@ tasks:
   # ROBOT (on-robot platform)
 
   robot:install:
-    desc: Install robot platform dependencies
+    desc: Install robot platform dependencies (pixi + RoboStack)
     dir: robot
     cmds:
-      - uv sync
+      - pixi install
 
   robot:test:
-    desc: Run robot tests
+    desc: Run robot tests (pixi dev env — robot is pixi-only, not uv)
     dir: robot
     cmds:
-      - uv run pytest tests/ -v
+      - pixi run -e dev pytest tests/ -v
+
+  robot:test:unit:
+    desc: Run robot unit tests only (no hardware/ROS2 deps required)
+    dir: robot
+    cmds:
+      - pixi run -e dev pytest tests/unit -q
 
   robot:lint:
     desc: Lint robot code
     dir: robot
     cmds:
-      - uv run ruff check src/ tests/
+      - pixi run -e dev ruff check src/ tests/
 
   robot:lint:fix:
     desc: Auto-fix robot linting issues
     dir: robot
     cmds:
-      - uv run ruff check src/ tests/ --fix
+      - pixi run -e dev ruff check src/ tests/ --fix
 
   # RECORD (video + frame pipeline)
 

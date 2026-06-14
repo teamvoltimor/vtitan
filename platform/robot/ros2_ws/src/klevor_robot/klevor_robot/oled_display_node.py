@@ -3,7 +3,7 @@
 Run on: Raspberry Pi 5
 
 Usage:
-    ros2 run klevor_robot oled_display_node
+    ros2 run voldemorbot_robot oled_display_node
 
 Topics:
     Subscribed:

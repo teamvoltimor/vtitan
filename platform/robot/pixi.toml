@@ -1,5 +1,5 @@
 [workspace]
-name = "klevor-robot"
+name = "voldemorbot-robot"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — ROS2 navigation runtime (hardware + simulation)"
 channels = ["robostack-kilted", "conda-forge"]
@@ -38,7 +38,7 @@ cmake                    = ">=4.3.1,<5"
 ninja                    = ">=1.13.2,<2"
 
 [pypi-dependencies]
-klevor-shared = { path = "../shared", editable = true }
+voldemorbot-shared = { path = "../shared", editable = true }
 adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
 buildhat = ">=0.9.0, <0.10"
 adafruit-blinka = ">=9.0.4, <10"
@@ -88,8 +88,8 @@ sim = "gz sim empty.sdf"
 sim-bridge = "gz sim -r empty.sdf"
 
 # ROS2 nodes (requires: pixi run -e dev build-ws first)
-run-imu-i2c     = { cmd = "source ros2_ws/install/setup.bash && ros2 run klevor_robot bno08x_i2c_node", env = { PYTHONPATH = "." } }
-run-imu-rvc     = { cmd = "source ros2_ws/install/setup.bash && ros2 run klevor_robot bno08x_uart_rvc_node", env = { PYTHONPATH = "." } }
+run-imu-i2c     = { cmd = "source ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_i2c_node", env = { PYTHONPATH = "." } }
+run-imu-rvc     = { cmd = "source ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_uart_rvc_node", env = { PYTHONPATH = "." } }
 
 [target.win-64.tasks]
 # Windows-specific overrides to fix the "Multiple executables" error

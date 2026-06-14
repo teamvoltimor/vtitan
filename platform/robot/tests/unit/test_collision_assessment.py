@@ -8,8 +8,8 @@ import math
 import numpy as np
 import pytest
 
-from src.navigation.collision_assessment import CollisionAssessor, RiskLevel
 from src.navigation.config import NavigationConfig
+from src.navigation.perception.collision_assessment import ClearanceBand, CollisionAssessor
 
 
 class TestCollisionAssessor:
@@ -25,10 +25,10 @@ class TestCollisionAssessor:
         assert hasattr(assessor.config, "collision")
 
     def test_risk_level_enum(self):
-        assert RiskLevel.CLEAR in RiskLevel
-        assert RiskLevel.CAUTION in RiskLevel
-        assert RiskLevel.WARNING in RiskLevel
-        assert RiskLevel.CRITICAL in RiskLevel
+        assert ClearanceBand.CLEAR in ClearanceBand
+        assert ClearanceBand.CAUTION in ClearanceBand
+        assert ClearanceBand.WARNING in ClearanceBand
+        assert ClearanceBand.CRITICAL in ClearanceBand
 
     def test_measure_clearance_scan_ahead(self, assessor):
         ranges = np.array([1.0, 1.0, 0.3, 1.0, 1.0])
@@ -71,18 +71,18 @@ class TestCollisionAssessor:
         ranges[180] = 0.03  # dead ahead, < critical_dist
 
         risk = assessor.assess_risk(ranges, angles)
-        assert risk == RiskLevel.CRITICAL
+        assert risk == ClearanceBand.CRITICAL
 
     def test_assess_risk_clear(self, assessor):
         ranges = np.full(360, 5.0)
         angles = np.linspace(-math.pi, math.pi, 360)
 
         risk = assessor.assess_risk(ranges, angles)
-        assert risk == RiskLevel.CLEAR
+        assert risk == ClearanceBand.CLEAR
 
     def test_assess_risk_empty_scan(self, assessor):
         risk = assessor.assess_risk(np.array([]), np.array([]))
-        assert risk == RiskLevel.CLEAR
+        assert risk == ClearanceBand.CLEAR
 
     # detect_stuck_robot — current API: detect_stuck_robot(odometry_history, move_threshold, min_samples)
     def test_detect_stuck_robot_moving(self, assessor):

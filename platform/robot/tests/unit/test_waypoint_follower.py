@@ -8,7 +8,7 @@ import math
 import pytest
 
 from src.navigation.config import NavigationConfig
-from src.navigation.waypoint_follower import WaypointFollower
+from src.navigation.planning.waypoint_follower import WaypointFollower
 
 
 class TestWaypointFollower:

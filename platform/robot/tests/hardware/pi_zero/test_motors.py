@@ -142,7 +142,7 @@ def find_limits_interactive():
     driver = BuildHatDriver(config=config)
     driver.connect()
 
-    log.info("Klevor v2 Steering Limit Finder")
+    log.info("Voldemorbot v2 Steering Limit Finder")
 
     log.info("Step 1: Center wheels manually, press Enter")
     input()

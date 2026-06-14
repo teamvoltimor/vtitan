@@ -12,8 +12,12 @@ import numpy as np
 from src.navigation.config import NavigationConfig
 
 
-class RiskLevel(Enum):
-    """Risk assessment levels."""
+class ClearanceBand(Enum):
+    """Graded forward-clearance bands used to scale speed and trigger escape.
+
+    Distinct from the navigation stack's ``RiskLevel`` (SAFE/OBSTACLE/CRITICAL):
+    this is a finer proximity ladder owned by ``CollisionAssessor``.
+    """
 
     CLEAR = "clear"  # No immediate risk
     CAUTION = "caution"  # Moderate risk, reduce speed
@@ -36,28 +40,28 @@ class CollisionAssessor:
         """
         self.config = config
 
-    def assess_risk(self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray) -> RiskLevel:
-        """Assess overall collision risk level.
+    def assess_risk(self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray) -> ClearanceBand:
+        """Assess overall forward-clearance band.
 
         Args:
             lidar_ranges: LIDAR range array (metres).
             lidar_angles: LIDAR angle array (radians, 0 = forward).
 
         Returns:
-            RiskLevel enum (CLEAR, CAUTION, WARNING, or CRITICAL).
+            ClearanceBand enum (CLEAR, CAUTION, WARNING, or CRITICAL).
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
-            return RiskLevel.CLEAR
+            return ClearanceBand.CLEAR
 
         fwd_clear = self.measure_clearance(lidar_ranges, lidar_angles, direction="forward")
 
         if fwd_clear < self.config.collision.critical_dist:
-            return RiskLevel.CRITICAL
+            return ClearanceBand.CRITICAL
         if fwd_clear < self.config.collision.warning_dist:
-            return RiskLevel.WARNING
+            return ClearanceBand.WARNING
         if fwd_clear < self.config.collision.caution_dist:
-            return RiskLevel.CAUTION
-        return RiskLevel.CLEAR
+            return ClearanceBand.CAUTION
+        return ClearanceBand.CLEAR
 
     def measure_clearance(
         self,

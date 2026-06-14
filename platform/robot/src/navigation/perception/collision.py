@@ -11,7 +11,7 @@ from typing import TypedDict
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.config.enums import RiskLevel
+from shared.domain.enums import RiskLevel
 
 
 class DistancesDict(TypedDict):

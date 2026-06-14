@@ -1,4 +1,4 @@
-"""Centralized exception hierarchy for the Klevor V2 platform.
+"""Centralized exception hierarchy for the Voldemorbot V2 platform.
 
 Provides domain-specific error handling instead of generic catch-alls.
 """

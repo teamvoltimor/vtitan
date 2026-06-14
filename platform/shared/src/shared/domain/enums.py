@@ -1,9 +1,10 @@
-"""WRO 2026 simulation enumerations.
+"""Shared domain enumerations.
 
-Defines strongly-typed domain enums for track sections, robot direction,
-and challenge type.
-Using enums instead of bare strings eliminates typo-prone comparisons and
-provides IDE autocomplete throughout the codebase.
+Canonical home for cross-context domain enums (track sections, robot
+direction, risk classification, robot/runtime state). Using enums instead of
+bare strings eliminates typo-prone comparisons and provides IDE autocomplete
+throughout the codebase. ``shared.config.enums`` re-exports ``RiskLevel`` from
+here so there is exactly one definition.
 """
 
 from __future__ import annotations

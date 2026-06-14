@@ -1,4 +1,4 @@
-"""I/O utilities for klevor-v2-platform.
+"""I/O utilities for voldemorbot-platform.
 
 Provides file I/O operations for common formats and patterns.
 """

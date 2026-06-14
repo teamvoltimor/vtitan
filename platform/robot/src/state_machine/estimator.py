@@ -11,11 +11,7 @@ from shared.domain.models import IMUReading, Pose
 
 def wrap_angle(angle: float) -> float:
     """Wrap angle to [-π, π]."""
-    while angle > math.pi:
-        angle -= 2 * math.pi
-    while angle < -math.pi:
-        angle += 2 * math.pi
-    return angle
+    return math.remainder(angle, 2 * math.pi)
 
 
 class StateEstimator:
@@ -37,6 +33,8 @@ class StateEstimator:
         self._start_x = start_x
         self._start_y = start_y
         self._start_yaw = start_yaw
+        self._cos_start_yaw = math.cos(start_yaw)
+        self._sin_start_yaw = math.sin(start_yaw)
         self._alpha = alpha
 
         self._imu_yaw_offset: float | None = None
@@ -59,26 +57,17 @@ class StateEstimator:
         self._odom_y = y
         self._odom_yaw = yaw
 
-    def estimate_pose(self) -> Pose | None:
-        """Calculate and return the current fused Pose.
+    def estimate_pose(self) -> Pose:
+        """Calculate and return the current fused Pose in the world frame."""
+        world_x = self._start_x + self._odom_x * self._cos_start_yaw - self._odom_y * self._sin_start_yaw
+        world_y = self._start_y + self._odom_x * self._sin_start_yaw + self._odom_y * self._cos_start_yaw
 
-        Returns:
-            Pose object in the world frame, or None if no data.
-        """
-        # Transform odometry to world frame based on starting rotation
-        cos_sy = math.cos(self._start_yaw)
-        sin_sy = math.sin(self._start_yaw)
-
-        world_x = self._start_x + self._odom_x * cos_sy - self._odom_y * sin_sy
-        world_y = self._start_y + self._odom_x * sin_sy + self._odom_y * cos_sy
-
-        # Fuse yaw
         if self._relative_imu_yaw is not None:
             diff = wrap_angle(self._odom_yaw - self._relative_imu_yaw)
             fused_relative_yaw = wrap_angle(self._relative_imu_yaw + self._alpha * diff)
             world_yaw = wrap_angle(fused_relative_yaw + self._start_yaw)
         else:
-            # Fall back to pure odometry if IMU is offline (Resiliency)
+            # Fall back to pure odometry if IMU is offline (resiliency)
             world_yaw = wrap_angle(self._odom_yaw + self._start_yaw)
 
         return Pose(x=world_x, y=world_y, yaw=world_yaw)

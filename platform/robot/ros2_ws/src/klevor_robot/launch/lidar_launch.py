@@ -1,8 +1,8 @@
 """Launch file for the Slamtec C1 LIDAR node.
 
 Usage:
-    ros2 launch klevor_robot lidar_launch.py
-    ros2 launch klevor_robot lidar_launch.py serial_port:=/dev/ttyUSB0
+    ros2 launch voldemorbot_robot lidar_launch.py
+    ros2 launch voldemorbot_robot lidar_launch.py serial_port:=/dev/ttyUSB0
 """
 
 from launch import LaunchDescription

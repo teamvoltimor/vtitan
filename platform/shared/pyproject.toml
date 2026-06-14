@@ -1,7 +1,7 @@
 [project]
-name = "klevor-shared"
+name = "voldemorbot-shared"
 version = "0.1.0"
-description = "Shared constants and enums for Klevor platform"
+description = "Shared constants and enums for Voldemorbot platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0.0",

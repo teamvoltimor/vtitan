@@ -29,21 +29,21 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     # Get package directories
-    klevor_robot_dir = get_package_share_directory("klevor_robot")
+    voldemorbot_robot_dir = get_package_share_directory("voldemorbot_robot")
 
     # Include LiDAR launch file
     lidar_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(str(Path(klevor_robot_dir) / "launch" / "lidar_launch.py")),
+        PythonLaunchDescriptionSource(str(Path(voldemorbot_robot_dir) / "launch" / "lidar_launch.py")),
     )
 
     # Static TF publishers for sensor frames
     static_tfs = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(str(Path(klevor_robot_dir) / "launch" / "static_tfs.launch.py")),
+        PythonLaunchDescriptionSource(str(Path(voldemorbot_robot_dir) / "launch" / "static_tfs.launch.py")),
     )
 
     # State machine controller node
     state_machine_node = Node(
-        package="klevor_robot",
+        package="voldemorbot_robot",
         executable="state_machine_node",
         name="state_machine",
         output="screen",
@@ -54,7 +54,7 @@ def generate_launch_description() -> LaunchDescription:
 
     # OLED display node with live mirroring
     oled_display_node = Node(
-        package="klevor_robot",
+        package="voldemorbot_robot",
         executable="oled_display_node",
         name="oled_display",
         output="screen",
@@ -65,7 +65,7 @@ def generate_launch_description() -> LaunchDescription:
 
     # IMU node (BNO08x via UART RVC mode)
     imu_node = Node(
-        package="klevor_robot",
+        package="voldemorbot_robot",
         executable="bno08x_uart_rvc_node",
         name="bno08x_imu",
         output="screen",
@@ -77,7 +77,7 @@ def generate_launch_description() -> LaunchDescription:
     # Ackermann motor controller node (NOTE: Should run on Pi Zero, not Pi 5)
     # This node subscribes to /ackermann_cmd and controls the Build HAT motors
     ackermann_motor_node = Node(
-        package="klevor_robot",
+        package="voldemorbot_robot",
         executable="ackermann_motor_node",
         name="ackermann_motors",
         output="screen",
