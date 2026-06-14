@@ -1,0 +1,24 @@
+version: v2
+plugins:
+  # Go — messages + gRPC stubs (consumed by backend)
+  - remote: buf.build/protocolbuffers/go:v1.36.5
+    out: ../backend/gen
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc/go:v1.5.1
+    out: ../backend/gen
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+
+  # Python — messages + gRPC stubs (consumed by the ROS2 robot)
+  - remote: buf.build/protocolbuffers/python:v28.3
+    out: ../robot/src/gen
+  - remote: buf.build/grpc/python:v1.68.1
+    out: ../robot/src/gen
+
+  # TypeScript — protobuf-es types (consumed by the frontend)
+  - remote: buf.build/bufbuild/es:v2.3.0
+    out: ../frontend/src/gen
+    opt:
+      - target=ts

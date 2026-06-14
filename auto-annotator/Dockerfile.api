@@ -1,0 +1,30 @@
+# Build stage – compile the Go orchestration API.
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /build
+
+# Copy manifests first so the module download layer is cached until they change.
+COPY api/go.mod api/go.sum ./
+RUN go mod download
+
+COPY api/ .
+
+# CGO_ENABLED=0: modernc.org/sqlite is a pure-Go driver — no C toolchain needed.
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
+
+
+# Runtime stage – minimal Alpine image with no build tools.
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates wget
+
+WORKDIR /app
+
+COPY --from=builder /app/api .
+
+ARG API_PORT=8000
+ENV API_PORT=${API_PORT}
+
+EXPOSE ${API_PORT}
+
+CMD ["/app/api"]

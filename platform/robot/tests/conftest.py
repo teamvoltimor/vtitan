@@ -8,11 +8,10 @@ from typing import Any
 
 import pytest
 
-
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_lidar_scan_360():
     """Mock 360° LIDAR scan with clear path ahead."""
     num_points = 360
@@ -22,7 +21,7 @@ def mock_lidar_scan_360():
     return list(zip(angles, distances))
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_lidar_scan_obstacle():
     """Mock LIDAR scan with obstacle at 0°."""
     num_points = 360
@@ -38,7 +37,7 @@ def mock_lidar_scan_obstacle():
     return list(zip(angles, distances))
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_lidar_scan_wall():
     """Mock LIDAR scan with wall very close."""
     num_points = 360
@@ -54,7 +53,7 @@ def mock_lidar_scan_wall():
     return list(zip(angles, distances))
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metadata_open():
     """Sample metadata JSON for open challenge."""
     return {
@@ -78,7 +77,7 @@ def sample_metadata_open():
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metadata_obstacles():
     """Sample metadata JSON for obstacles challenge."""
     return {
@@ -105,7 +104,7 @@ def sample_metadata_obstacles():
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_metadata_parking():
     """Sample metadata JSON with parking."""
     return {
@@ -138,7 +137,7 @@ def sample_metadata_parking():
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def calibration_data():
     """Sample calibration data."""
     return {
@@ -154,7 +153,7 @@ def calibration_data():
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def temp_metadata_file(tmp_path, sample_metadata_open):
     """Create temporary metadata JSON file."""
     metadata_file = tmp_path / "test_metadata.json"

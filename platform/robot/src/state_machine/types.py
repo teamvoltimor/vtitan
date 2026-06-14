@@ -10,21 +10,7 @@ States:
 from dataclasses import dataclass
 from enum import Enum
 
-
-class RobotState(Enum):
-    """Robot state machine states."""
-
-    BOOT_CHECK = "boot_check"
-    """Active immediately upon power-up. Verifies all hardware components."""
-
-    READY = "ready"
-    """System ready and waiting for button press to start race."""
-
-    RACING = "racing"
-    """Robot operating autonomously in race mode."""
-
-    FINISHED = "finished"
-    """Race completed (3 laps) or emergency stop triggered."""
+# Import RobotState from shared module (single source of truth)
 
 
 @dataclass
@@ -82,6 +68,9 @@ class RaceMetrics:
 
     gyro_yaw: float
     """Current gyroscope yaw in degrees."""
+
+    current_corridor: str = ""
+    """Active track corridor: 'north', 'south', 'east', 'west', or '' if unknown."""
 
 
 @dataclass

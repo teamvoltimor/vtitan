@@ -9,12 +9,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // Proxy API routes to the FastAPI backend in dev mode.
-    // Mirrors the nginx proxy rules in webapp/nginx.conf so that setting
+    // Mirrors the nginx proxy rules in nginx.conf so that setting
     // VITE_API_BASE_URL (or API_BASE_URL) produces identical behaviour locally and in Docker.
+    // Every domain router is mounted under /api/v1 on the backend.
     proxy: {
-      '/gallery': backendUrl,
-      '/images': backendUrl,
-      '/segment': backendUrl,
+      '/api/v1': backendUrl,
+      '/healthz': backendUrl,
     },
   },
 });

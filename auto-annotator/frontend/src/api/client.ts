@@ -2,6 +2,9 @@ import { resolveBackendUrl } from '../../config/backend';
 
 const API_BASE_URL = resolveBackendUrl(import.meta.env.VITE_API_BASE_URL);
 
+// Every domain router is mounted under the versioned /api/v1 prefix on the backend.
+const API = `${API_BASE_URL}/api/v1`;
+
 const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const body = await response.text();
@@ -11,7 +14,7 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
 };
 
 const postJSON = <T>(path: string, body: unknown): Promise<T> =>
-  fetch(`${API_BASE_URL}${path}`, {
+  fetch(`${API}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -24,6 +27,7 @@ export interface GalleryItem {
   format: string;
   status: string;
   updated: string;
+  annotations: SegmentationShape[];
 }
 
 interface GalleryStats {
@@ -59,14 +63,14 @@ export interface SegmentationResponse {
 }
 
 export const getGallery = async (): Promise<GalleryResponse> => {
-  const response = await fetch(`${API_BASE_URL}/gallery`);
+  const response = await fetch(`${API}/gallery`);
   return handleResponse<GalleryResponse>(response);
 };
 
 export const importGalleryImages = async (files: FileList): Promise<GalleryResponse> => {
   const form = new FormData();
   Array.from(files).forEach((file) => form.append('files', file));
-  const response = await fetch(`${API_BASE_URL}/gallery/import`, {
+  const response = await fetch(`${API}/gallery/import`, {
     method: 'POST',
     body: form,
   });
@@ -80,10 +84,10 @@ export const saveAnnotations = (
   imageId: number,
   exportFormat: 'segmentation' | 'detection',
   shapes: SegmentationShape[],
-): Promise<GalleryResponse> => postJSON('/save', { imageId, exportFormat, shapes });
+): Promise<GalleryResponse> => postJSON('/annotations/save', { imageId, exportFormat, shapes });
 
 export const skipImage = (imageId: number): Promise<GalleryResponse> =>
-  postJSON('/skip', { imageId });
+  postJSON('/annotations/skip', { imageId });
 
 export interface ClassItem {
   id: number;
@@ -97,10 +101,53 @@ export interface ModelItem {
 }
 
 export const getClasses = (): Promise<ClassItem[]> =>
-  fetch(`${API_BASE_URL}/classes`).then((r) => handleResponse<ClassItem[]>(r));
+  fetch(`${API}/classes`).then((r) => handleResponse<ClassItem[]>(r));
 
 export const upsertClass = (name: string, color: string): Promise<ClassItem[]> =>
   postJSON('/classes', { name, color });
 
 export const getModels = (): Promise<ModelItem[]> =>
-  fetch(`${API_BASE_URL}/models`).then((r) => handleResponse<ModelItem[]>(r));
+  fetch(`${API}/models`).then((r) => handleResponse<ModelItem[]>(r));
+
+export const getAnnotations = (imageId: number): Promise<SegmentationShape[]> =>
+  fetch(`${API}/annotations/${imageId}`).then((r) => handleResponse<SegmentationShape[]>(r));
+
+export const deleteImages = (imageIds: number[]): Promise<GalleryResponse> =>
+  postJSON('/images/delete', { imageIds });
+
+export interface GroupedGalleryItem {
+  id: number;
+  label: string;
+  src: string;
+  format: string;
+  status: string;
+  updated_at: string;
+  aug_count: number;
+}
+
+export interface JobStatusResponse {
+  running: boolean;
+  message: string;
+}
+
+export const getGroupedGallery = (): Promise<GroupedGalleryItem[]> =>
+  fetch(`${API}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));
+
+export const startAugment = (imageIds: number[], numAugmentations: number): Promise<JobStatusResponse> =>
+  postJSON('/augment/start', { imageIds, numAugmentations });
+
+export const getAugmentStatus = (): Promise<JobStatusResponse> =>
+  fetch(`${API}/augment/status`).then((r) => handleResponse<JobStatusResponse>(r));
+
+export const startTrain = (params: {
+  modelName: string;
+  epochs: number;
+  batch: number;
+  imgsz: number;
+}): Promise<JobStatusResponse> => postJSON('/train/start', params);
+
+export const getTrainStatus = (): Promise<JobStatusResponse> =>
+  fetch(`${API}/train/status`).then((r) => handleResponse<JobStatusResponse>(r));
+
+export const augmentStreamUrl = (): string => `${API}/augment/stream`;
+export const trainStreamUrl = (): string => `${API}/train/stream`;

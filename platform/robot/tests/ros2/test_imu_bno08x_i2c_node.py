@@ -5,15 +5,19 @@ Run with: python -m pytest tests/ros2/test_imu_i2c_node.py -v
 """
 
 import logging
-import unittest.mock as mock
+import sys
 from dataclasses import dataclass
+from unittest import mock
 
 import pytest
 import rclpy
 from sensor_msgs.msg import Imu
 
-from src.ros2.imu.bno08x.mcp2221.i2c_node import IMU_I2CNode
+sys.modules["board"] = mock.MagicMock()
+sys.modules["busio"] = mock.MagicMock()
+sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
+from src.ros2.imu.bno08x.mcp2221.i2c_node import IMU_I2CNode
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,7 @@ class IMU_AllData:
     gyroscope: tuple[float, float, float]
 
 
-@pytest.fixture
+@pytest.fixture()
 def ros_context():
     """Initialize and cleanup ROS2 context for each test."""
     rclpy.init()
@@ -36,7 +40,7 @@ def ros_context():
     rclpy.shutdown()
 
 
-@pytest.fixture
+@pytest.fixture()
 def mock_driver():
     """Create a mock IMU I2C driver."""
     with mock.patch("src.ros2.imu.bno08x.mcp2221.i2c_node.IMU_I2CDriver") as mock_cls:
@@ -61,7 +65,7 @@ class TestIMU_I2CNodeInit:
         node = IMU_I2CNode()
         assert node.publisher_ is not None
         # Check topic name
-        topic_names = [topic_name for topic_name, _ in node.get_publications()]
+        topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
         assert any("imu/data" in topic_name for topic_name in topic_names)
         node.destroy_node()
 

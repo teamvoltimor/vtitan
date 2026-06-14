@@ -7,24 +7,26 @@ Run with: python -m pytest tests/hardware/pi5/test_camera.py -v
 """
 
 import logging
-import os
 import time
 
 import pytest
 
-from src.hardware.camera import CameraConfig, CameraDriver
-from src.logger import LOG_LEVEL_DEFAULT, LOG_LEVEL_KEY, configure_json_logging
+from src.hardware.camera.rpi.camera_module_3 import (
+    Config as CameraConfig,
+    Driver as CameraDriver,
+)
+from src.logger import LOG_LEVEL, configure_json_logging
 
-_log_level = getattr(logging, os.getenv(LOG_LEVEL_KEY, LOG_LEVEL_DEFAULT).upper(), logging.INFO)
+_log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
 configure_json_logging(level=_log_level)
 
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
+@pytest.fixture()
 def driver():
     """Create driver instance."""
-    config = CameraConfig(device="/dev/video0", width=1536, height=864)
+    config = CameraConfig(device="/dev/video0", width=1536, height=864, fps=30)
     return CameraDriver(config=config)
 
 
@@ -37,7 +39,7 @@ class TestCameraConnection:
             driver.open()
             assert driver._capture is not None
             logger.info("Camera open test passed")
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot open camera: {e}")
         finally:
             driver.close()
@@ -49,7 +51,7 @@ class TestCameraConnection:
             frame = driver.capture_frame()
             logger.info("Frame captured", extra={"details": {"width": frame.width, "height": frame.height}})
             assert frame.frame is not None
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot capture frame: {e}")
         finally:
             driver.close()
@@ -64,7 +66,7 @@ class TestCameraPerformance:
             driver.open()
             width, height = driver.get_resolution()
             logger.info("Resolution", extra={"details": {"width": width, "height": height}})
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot get resolution: {e}")
         finally:
             driver.close()
@@ -76,7 +78,7 @@ class TestCameraPerformance:
             fps = driver.measure_fps(num_frames=30)
             logger.info("FPS measured", extra={"details": {"fps": fps}})
             assert fps > 10
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot measure FPS: {e}")
         finally:
             driver.close()
@@ -88,7 +90,7 @@ class TestCameraPerformance:
             latency = driver.measure_latency(num_frames=10)
             logger.info("Latency measured", extra={"details": {"latency_ms": latency * 1000}})
             assert latency < 0.1
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot measure latency: {e}")
         finally:
             driver.close()
@@ -106,8 +108,7 @@ def preview_camera():
 
     import cv2
 
-    config = CameraConfig(device="/dev/video0")
-    driver = CameraDriver(config=config)
+    config = CameraConfig(device="/dev/video0", fps=30)
 
     try:
         driver.open()
@@ -119,8 +120,8 @@ def preview_camera():
             cv2.imshow("Preview", frame.frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-    except Exception as e:
-        log.error("Preview error", extra={"details": {"error": str(e)}})
+    except (RuntimeError, OSError, ValueError) as e:
+        log.error("Preview error: %s", e)
     finally:
         driver.close()
         cv2.destroyAllWindows()

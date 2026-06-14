@@ -15,105 +15,21 @@ via ``docker exec``. Without it the shell command is printed for manual use.
 from __future__ import annotations
 
 import shutil
-import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 
 from src.common import (
-    DOCKER_CONTAINER,
-    DOCKER_IMAGE,
-    DOCKER_SHARED_MOUNT,
     MODEL_REGISTRY,
-    SHARED_WITH_DOCKER,
     HailoError,
-    HWArch,
+    get_entry,
     get_logger,
+)
+from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig  # noqa: TC001
+from src.docker import (
+    DOCKER_SHARED_MOUNT,
+    _run_or_print,
 )
 
 log = get_logger(__name__)
-
-
-# Config dataclasses
-
-@dataclass(slots=True, frozen=True)
-class StageConfig:
-    """Parameters for staging files into ``shared_with_docker/``.
-
-    Args:
-        model: Registry key of the model whose ONNX should be staged.
-        calib: Local calibration image directory to copy across.
-            Pass ``None`` to skip copying calibration data.
-        shared_dir: Host path of the Docker-shared volume
-            (default: ``shared_with_docker``).
-    """
-
-    model: str
-    calib: str | None
-    shared_dir: str = SHARED_WITH_DOCKER
-
-
-@dataclass(slots=True, frozen=True)
-class CompileConfig:
-    """Parameters for ``hailomz compile``.
-
-    Args:
-        model: Registry key used to resolve the zoo name and ONNX filename.
-        zoo_name: Override the Hailo Model Zoo identifier. Required when the
-            model has no ``zoo_name`` entry in the registry.
-        hw: Target hardware architecture.
-        calib_path: Calibration data path *inside Docker*
-            (default: ``/local/shared_with_docker/calib_data``).
-        docker: Docker container name for ``docker exec``.
-            When ``None`` the command is printed instead of executed.
-    """
-
-    model: str
-    zoo_name: str | None
-    hw: HWArch
-    calib_path: str
-    docker: str | None
-
-
-@dataclass(slots=True, frozen=True)
-class EvalConfig:
-    """Parameters for ``hailomz eval``.
-
-    Args:
-        model: Registry key used to resolve the zoo name and default HAR path.
-        zoo_name: Override the Hailo Model Zoo identifier.
-        har: HAR path *inside Docker*. Defaults to
-            ``/local/shared_with_docker/<zoo_name>.har``.
-        target: Evaluation target — ``"emulator"`` or ``"hailo8"``.
-        data_count: Number of samples to evaluate.
-        visualize: Emit ``--visualize`` flag.
-        docker: Docker container name. ``None`` → print command.
-    """
-
-    model: str
-    zoo_name: str | None
-    har: str | None
-    target: str
-    data_count: int
-    visualize: bool
-    docker: str | None
-
-
-@dataclass(slots=True, frozen=True)
-class ProfileConfig:
-    """Parameters for ``hailomz profile``.
-
-    Args:
-        model: Registry key used to resolve the zoo name and default HEF path.
-        zoo_name: Override the Hailo Model Zoo identifier.
-        hef: HEF path *inside Docker*. Defaults to
-            ``/local/shared_with_docker/<zoo_name>.hef``.
-        docker: Docker container name. ``None`` → print command.
-    """
-
-    model: str
-    zoo_name: str | None
-    hef: str | None
-    docker: str | None
 
 
 # Helpers
@@ -138,23 +54,7 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
     if entry and entry.zoo_name:
         return entry.zoo_name
     msg = f"Model {model!r} has no Hailo Model Zoo name. Supply --zoo-name explicitly (e.g. --zoo-name yolov11s)."
-    raise HailoError(msg)
-
-
-def _run_or_print(cmd: list[str], docker: str | None) -> None:
-    """Execute *cmd* via ``docker exec`` or print it for manual use.
-
-    Args:
-        cmd: The ``hailomz`` command and its arguments.
-        docker: Container name. When ``None`` the command is printed.
-    """
-    if docker:
-        full = ["docker", "exec", docker, *cmd]
-        log.info("Running: %s", " ".join(full))
-        subprocess.run(full, check=True)  # noqa: S603
-    else:
-        pretty = " \\\n  ".join(cmd)
-        log.info("Paste inside Docker:\n%s", pretty)
+    raise HailoError(msg) from KeyError(model)
 
 
 # Public commands
@@ -166,18 +66,14 @@ def stage(config: StageConfig) -> None:
         config: Stage parameters.
 
     Raises:
-        HailoError: If the model is not in the registry or its ONNX file
-            is missing.
+        HailoError: If its ONNX file is missing.
     """
-    entry = MODEL_REGISTRY.get(config.model)
-    if entry is None:
-        msg = f"Unknown model {config.model!r}. Valid options: {list(MODEL_REGISTRY)}"
-        raise HailoError(msg)
+    entry = get_entry(config.model)
 
     onnx_src = Path(entry.onnx_file)
     if not onnx_src.exists():
         msg = f"ONNX file not found: {onnx_src}. Run `hailo export` first."
-        raise HailoError(msg)
+        raise HailoError(msg) from FileNotFoundError(entry.onnx_file)
 
     shared = Path(config.shared_dir)
     shared.mkdir(parents=True, exist_ok=True)
@@ -190,7 +86,7 @@ def stage(config: StageConfig) -> None:
         calib_src = Path(config.calib)
         if not calib_src.exists():
             msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
-            raise HailoError(msg)
+            raise HailoError(msg) from FileNotFoundError(config.calib)
         calib_dest = shared / "calib_data"
         shutil.copytree(calib_src, calib_dest, dirs_exist_ok=True)
         log.info("Staged calibration data → %s", calib_dest)
@@ -263,70 +159,3 @@ def profile_model(config: ProfileConfig) -> None:
 
     cmd = ["hailomz", "profile", "--hef", hef, zoo_name]
     _run_or_print(cmd, config.docker)
-
-
-# Docker container lifecycle
-
-@dataclass(slots=True, frozen=True)
-class DockerRunConfig:
-    """Parameters for starting the Hailo AI Software Suite container.
-
-    Args:
-        shared_dir: Host path mounted as ``/local/shared_with_docker`` inside
-            the container. Resolved to an absolute path at runtime.
-        container: Name assigned to the running container instance.
-        display: X11 ``DISPLAY`` variable forwarded into the container.
-        dry_run: When ``True``, print the command instead of executing it.
-    """
-
-    shared_dir: str = SHARED_WITH_DOCKER
-    container: str = DOCKER_CONTAINER
-    display: str = ":0"
-    dry_run: bool = False
-
-
-def docker_run(config: DockerRunConfig) -> None:
-    """Start the Hailo AI Software Suite Docker container.
-
-    Reconstructs the full ``docker run`` command including all required
-    device mounts, GPU access, X11 forwarding, and the shared volume.
-
-    Args:
-        config: Container startup parameters.
-    """
-    shared_abs = str(Path(config.shared_dir).resolve())
-
-    cmd = [
-        "docker", "run",
-        "--privileged",
-        "--net=host",
-        "--gpus", "all",
-        "-e", f"DISPLAY={config.display}",
-        "-e", "XDG_RUNTIME_DIR=/run/user/1000/",
-        "--device=/dev/dri:/dev/dri",
-        "--ipc=host",
-        "--group-add", "44",
-        "-v", "/dev:/dev",
-        "-v", "/lib/firmware:/lib/firmware",
-        "-v", "/lib/modules:/lib/modules",
-        "-v", "/lib/udev/rules.d:/lib/udev/rules.d",
-        "-v", "/usr/src:/usr/src",
-        "-v", "/tmp/hailo_docker.xauth:/home/hailo/.Xauthority",  # noqa: S108
-        "-v", "/tmp/.X11-unix/:/tmp/.X11-unix/",  # noqa: S108
-        "--name", config.container,
-        "-v", "/var/run/docker.sock:/var/run/docker.sock",
-        "-v", "/etc/machine-id:/etc/machine-id:ro",
-        "-v", "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket",
-        "-v", f"{shared_abs}:{DOCKER_SHARED_MOUNT}:rw",
-        "-v", "/etc/timezone:/etc/timezone:ro",
-        "-v", "/etc/localtime:/etc/localtime:ro",
-        "-ti",
-        DOCKER_IMAGE,
-    ]
-
-    if config.dry_run:
-        pretty = " \\\n  ".join(cmd)
-        log.info("Docker run command:\n%s", pretty)
-    else:
-        log.info("Starting container %s from image %s", config.container, DOCKER_IMAGE)
-        subprocess.run(cmd, check=True)  # noqa: S603

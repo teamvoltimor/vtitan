@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // dist = build output; src/gen = generated protobuf stubs (not yet wired up).
+  globalIgnores(['dist', 'src/gen']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

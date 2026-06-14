@@ -17,7 +17,10 @@ import os
 
 import pytest
 
-from src.hardware.motors import BuildHatDriver, MotorConfig
+from src.hardware.motors.build_hat import (
+    Config as MotorConfig,
+    Driver as BuildHatDriver,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -25,10 +28,18 @@ configure_json_logging()
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
+def check_hardware(driver):
+    try:
+        driver.connect()
+    except Exception as e:
+        pytest.skip(f"Hardware not available: {e}")
+
+
+@pytest.fixture()
 def driver():
     """Create driver instance."""
-    config = MotorConfig(steering_port="A", drive_port="B", default_speed=15)
+    config = MotorConfig(steering_port="A", drive_port="B", default_speed=15, test_duration=1)
     return BuildHatDriver(config=config)
 
 
@@ -127,11 +138,11 @@ def find_limits_interactive():
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger(__name__)
 
-    config = MotorConfig(steering_port="A", drive_port="B")
+    config = MotorConfig(steering_port="A", drive_port="B", test_duration=1)
     driver = BuildHatDriver(config=config)
     driver.connect()
 
-    log.info("Klevor v2 Steering Limit Finder")
+    log.info("Voldemorbot v2 Steering Limit Finder")
 
     log.info("Step 1: Center wheels manually, press Enter")
     input()
@@ -163,7 +174,7 @@ def find_limits_interactive():
                 "left_limit_deg": left_limit,
                 "right_limit_deg": right_limit,
                 "range_deg": right_limit - left_limit,
-            }
+            },
         },
     )
 

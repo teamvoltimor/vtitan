@@ -18,8 +18,10 @@ import {
   getClasses,
   upsertClass,
   getModels,
+  getAnnotations,
   type ClassItem,
   type ModelItem,
+  deleteImages as apiDeleteImages,
 } from '../api/client';
 
 /* eslint-disable react-refresh/only-export-components */
@@ -75,6 +77,9 @@ interface AppStateContextValue {
   importImages: (files: FileList | null) => void;
   selectedGalleryItem: GalleryItem | null;
   setSelectedGalleryItem: (item: GalleryItem | null) => void;
+  selectedGalleryIds: Set<number>;
+  toggleGallerySelection: (id: number) => void;
+  clearGallerySelection: () => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   outlineMode: OutlineMode;
@@ -103,6 +108,10 @@ interface AppStateContextValue {
   skipAndNext: () => Promise<void>;
   goToPrev: () => void;
   acceptMask: () => void;
+  currentPage: number;
+  setCurrentPage: (page: number) => void;
+  itemsPerPage: number;
+  deleteSelectedImages: () => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -119,6 +128,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [stats, setStats] = useState({ processed: '0', skipped: '0', labels: '0' });
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [selectedGalleryItem, setSelectedGalleryItem] = useState<GalleryItem | null>(null);
+  const [selectedGalleryIds, setSelectedGalleryIds] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>('List');
   const [outlineMode, setOutlineMode] = useState<OutlineMode>('Class color');
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -130,6 +140,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [segmentationPreview, setSegmentationPreview] = useState<SegmentationPreviewShape[]>([]);
   const [segmentationStatus, setSegmentationStatus] = useState<SegmentationStatus>('idle');
   const [segmentationMessage, setSegmentationMessage] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const itemsPerPage = 12;
   const pendingSegmentationRequests = useRef(0);
 
   const pushLog = useCallback((entry: string) => {
@@ -242,6 +254,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     };
     void load();
   }, [refreshGallery]);
+
+  useEffect(() => {
+    if (!selectedGalleryItem || selectedGalleryItem.status !== 'done') {
+      setSegmentationPreview([]);
+      return;
+    }
+    getAnnotations(selectedGalleryItem.id)
+      .then((shapes) => setSegmentationPreview(shapes))
+      .catch((err: unknown) => {
+        setSegmentationPreview([]);
+        recordAction(`Failed to load annotations: ${(err as Error).message}`);
+      });
+  }, [selectedGalleryItem?.id]);
 
   const loadModel = useCallback(
     (modelId: string) => {
@@ -370,6 +395,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     recordAction('Accepted mask');
   }, [recordAction]);
 
+  const toggleGallerySelection = useCallback((id: number) => {
+    setSelectedGalleryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearGallerySelection = useCallback(() => {
+    setSelectedGalleryIds(new Set());
+  }, []);
+
+  const deleteSelectedImages = useCallback(async () => {
+    const ids = Array.from(selectedGalleryIds);
+    if (ids.length === 0) return;
+    try {
+      const response = await apiDeleteImages(ids);
+      _handleGalleryResponse(response);
+      clearGallerySelection();
+      recordAction(`Deleted ${ids.length} image${ids.length > 1 ? 's' : ''}`);
+    } catch (error) {
+      recordAction(`Delete failed: ${(error as Error).message}`);
+    }
+  }, [selectedGalleryIds, _handleGalleryResponse, recordAction, clearGallerySelection]);
+
   const value = useMemo(
     () => ({
       zoom,
@@ -395,6 +449,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       importImages,
       selectedGalleryItem,
       setSelectedGalleryItem,
+      selectedGalleryIds,
+      toggleGallerySelection,
+      clearGallerySelection,
       viewMode,
       setViewMode,
       outlineMode,
@@ -423,6 +480,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       skipAndNext,
       goToPrev,
       acceptMask,
+      currentPage,
+      setCurrentPage,
+      itemsPerPage,
+      deleteSelectedImages,
     }),
     [
       zoom,
@@ -436,6 +497,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       stats,
       gallery,
       selectedGalleryItem,
+      selectedGalleryIds,
       viewMode,
       outlineMode,
       timeline,
@@ -447,6 +509,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       segmentationPreview,
       segmentationStatus,
       segmentationMessage,
+      currentPage,
       addClass,
       updateClassColor,
       pushLog,
@@ -466,6 +529,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       skipAndNext,
       goToPrev,
       acceptMask,
+      toggleGallerySelection,
+      clearGallerySelection,
+      deleteSelectedImages,
       _advanceNext,
       _runSegmentation,
     ]
