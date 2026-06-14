@@ -24,7 +24,6 @@ from src.config.constants import (
     DictKeys,
     FileExtensions,
     FilePaths,
-    FolderNames,
     GridSections,
     TrackDimensions,
     TrafficSignSpecs,

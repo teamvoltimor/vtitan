@@ -50,7 +50,8 @@ def test_logs_are_non_empty() -> None:
     snap = gen.latest_snapshot()
     assert len(snap.logs) > 0
     for log in snap.logs:
-        assert isinstance(log, str) and log
+        assert isinstance(log, str)
+        assert log
 
 
 def test_mission_name_is_consistent() -> None:

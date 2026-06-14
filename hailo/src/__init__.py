@@ -2,8 +2,10 @@
 
 __all__ = [
     "calib",
+    "config",
+    "docker",
     "export",
-    "graph",
     "hailomz",
+    "image",
     "test",
 ]

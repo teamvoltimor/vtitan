@@ -22,11 +22,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from src import calib, export, graph, hailomz, test
+from src import calib, export, hailomz, test
 from src.common import (
-    DOCKER_CONTAINER,
-    DOCKER_IMAGE,
-    DOCKER_SHARED_MOUNT,
     MODEL_REGISTRY,
     SHARED_WITH_DOCKER,
     Backend,
@@ -36,6 +33,13 @@ from src.common import (
     Task,
     configure_logging,
     get_logger,
+)
+from src.docker import (
+    DOCKER_CONTAINER,
+    DOCKER_IMAGE,
+    DOCKER_SHARED_MOUNT,
+    DockerRunConfig,
+    docker_run,
 )
 
 log = get_logger(__name__)
@@ -67,7 +71,7 @@ def _cmd_calib(args: argparse.Namespace) -> None:
 
 
 def _cmd_inspect(args: argparse.Namespace) -> None:
-    graph.inspect(args.model)
+    export.inspect(args.model)
 
 
 def _cmd_test(args: argparse.Namespace) -> None:
@@ -132,8 +136,8 @@ def _cmd_profile(args: argparse.Namespace) -> None:
 
 def _cmd_docker(args: argparse.Namespace) -> None:
     if args.docker_cmd == "run":
-        hailomz.docker_run(
-            hailomz.DockerRunConfig(
+        docker_run(
+            DockerRunConfig(
                 shared_dir=args.shared_dir,
                 container=args.container,
                 display=args.display,

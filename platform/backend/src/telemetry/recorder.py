@@ -78,6 +78,11 @@ class TelemetryRecorder:
         self._file.flush()
         self._entry_count += 1
 
+    @property
+    def closed(self) -> bool:
+        """Return whether the underlying file handle is closed."""
+        return self._file.closed
+
     def close(self) -> None:
         """Close the associated file handle."""
         self._file.close()
