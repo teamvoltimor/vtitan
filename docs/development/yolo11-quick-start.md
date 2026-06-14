@@ -49,7 +49,7 @@ yolo version
 
 ```bash
 # Create directory structure
-mkdir -p ~/teamsteelbot_ws/datasets/traffic_signs/{images,labels}/{train,val}
+mkdir -p ~/teamvoldemor_ws/datasets/traffic_signs/{images,labels}/{train,val}
 
 # Generate synthetic data (fastest way to start)
 python3 docs/development/generate_synthetic_dataset.py
@@ -62,8 +62,8 @@ python3 docs/development/generate_synthetic_dataset.py
 ### Step 2: Create data.yaml (1 min)
 
 ```yaml
-# ~/teamsteelbot_ws/datasets/traffic_signs/data.yaml
-path: /home/your_user/teamsteelbot_ws/datasets/traffic_signs
+# ~/teamvoldemor_ws/datasets/traffic_signs/data.yaml
+path: /home/your_user/teamvoldemor_ws/datasets/traffic_signs
 train: images/train
 val: images/val
 
@@ -76,17 +76,17 @@ names: ['red_sign', 'green_sign', 'blue_sign']
 ```bash
 # One command to train!
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo11n.pt \
   epochs=50 \
   imgsz=640 \
   batch=16 \
   device=0 \
-  project=~/teamsteelbot_ws/models \
+  project=~/teamvoldemor_ws/models \
   name=signs_yolo11n
 
 # Model saved to:
-# ~/teamsteelbot_ws/models/signs_yolo11n/weights/best.pt
+# ~/teamvoldemor_ws/models/signs_yolo11n/weights/best.pt
 ```
 
 **Training parameters:**
@@ -99,7 +99,7 @@ yolo detect train \
 
 ```bash
 yolo export \
-  model=~/teamsteelbot_ws/models/signs_yolo11n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo11n/weights/best.pt \
   format=onnx \
   imgsz=640 \
   simplify=True
@@ -117,18 +117,18 @@ Copy the YOLO11 detector code from `docs/development/yolo11-hailo-guide.md` sect
 
 ```bash
 # File location:
-# ~/teamsteelbot_ws/src/teamsteelbot_vision/teamsteelbot_vision/sign_detector_yolo11.py
+# ~/teamvoldemor_ws/src/teamvoldemor_vision/teamvoldemor_vision/sign_detector_yolo11.py
 ```
 
 ### Step 2: Update setup.py
 
 ```python
-# ~/teamsteelbot_ws/src/teamsteelbot_vision/setup.py
+# ~/teamvoldemor_ws/src/teamvoldemor_vision/setup.py
 
 entry_points={
     'console_scripts': [
-        'sign_detector_classic = teamsteelbot_vision.sign_detector_classic:main',
-        'sign_detector_yolo11 = teamsteelbot_vision.sign_detector_yolo11:main',  # Add this
+        'sign_detector_classic = teamvoldemor_vision.sign_detector_classic:main',
+        'sign_detector_yolo11 = teamvoldemor_vision.sign_detector_yolo11:main',  # Add this
     ],
 },
 ```
@@ -137,16 +137,16 @@ entry_points={
 
 ```bash
 # Build
-cd ~/teamsteelbot_ws
-colcon build --packages-select teamsteelbot_vision --symlink-install
+cd ~/teamvoldemor_ws
+colcon build --packages-select teamvoldemor_vision --symlink-install
 source install/setup.bash
 
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: YOLO11 detector
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/signs_yolo11n/weights/best.onnx \
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/signs_yolo11n/weights/best.onnx \
   -p use_hailo:=false
 
 # Terminal 3: Monitor
@@ -192,7 +192,7 @@ python hailo_model_zoo/main.py compile \
 
 ```bash
 # From laptop
-scp best.hef pi@raspberrypi.local:~/teamsteelbot_ws/models/
+scp best.hef pi@raspberrypi.local:~/teamvoldemor_ws/models/
 
 # OR use git to sync entire workspace
 ```
@@ -201,8 +201,8 @@ scp best.hef pi@raspberrypi.local:~/teamsteelbot_ws/models/
 
 ```bash
 # On RPi5
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/best.hef \
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/best.hef \
   -p use_hailo:=true
 
 # Should achieve 30-60 FPS! 🚀
@@ -361,10 +361,10 @@ yolo detect predict model=best.pt source=image.jpg
 yolo export model=best.pt format=onnx
 
 # ROS2 run (laptop)
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args -p use_hailo:=false
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args -p use_hailo:=false
 
 # ROS2 run (RPi5)
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args -p use_hailo:=true
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args -p use_hailo:=true
 ```
 
 ---

@@ -50,7 +50,7 @@ I've updated all documentation to use **YOLO11** (the latest YOLO model from Ult
 ```bash
 python3 scripts/generate_synthetic_dataset.py \
   --num-images 1000 \
-  --output-dir ~/teamsteelbot_ws/datasets/traffic_signs
+  --output-dir ~/teamvoldemor_ws/datasets/traffic_signs
 ```
 
 **Why it's useful:** Start training immediately without collecting/labeling real images!
@@ -136,7 +136,7 @@ yolo version  # Verify installation
 ```bash
 python3 scripts/generate_synthetic_dataset.py \
   --num-images 1000 \
-  --output-dir ~/teamsteelbot_ws/datasets/traffic_signs
+  --output-dir ~/teamvoldemor_ws/datasets/traffic_signs
 
 # Create data.yaml (see YOLO11-QUICK-START.md for template)
 ```
@@ -144,7 +144,7 @@ python3 scripts/generate_synthetic_dataset.py \
 ### Step 3: Train (30 min on RTX 4050)
 ```bash
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo11n.pt \
   epochs=50 \
   imgsz=640 \
@@ -155,7 +155,7 @@ yolo detect train \
 ### Step 4: Export to ONNX (1 min)
 ```bash
 yolo export \
-  model=~/teamsteelbot_ws/models/signs_yolo11n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo11n/weights/best.pt \
   format=onnx \
   imgsz=640 \
   simplify=True
@@ -165,10 +165,10 @@ yolo export \
 ```bash
 # Copy sign_detector_yolo11.py from yolo11-hailo-guide.md
 # Build workspace
-colcon build --packages-select teamsteelbot_vision
+colcon build --packages-select teamvoldemor_vision
 
 # Run
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args \
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args \
   -p model_path:=~/path/to/best.onnx \
   -p use_hailo:=false
 ```

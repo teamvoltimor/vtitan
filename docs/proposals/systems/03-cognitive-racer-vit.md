@@ -29,19 +29,19 @@
 - **Research Focus:** Prioritize ML innovation over framework complexity
 
 ### Primary Compute: Raspberry Pi 5 (8GB)
-- **Reused from Klevor:** Proven platform
+- **Reused from VoldemorBot:** Proven platform
 - **CPU:** Quad-core Cortex-A76 @ 2.4 GHz
 - **GPU:** VideoCore VII (OpenGL ES 3.1)
 - **Sufficient for:** Running ViT inference on Hailo accelerator
 
-### AI Accelerator: Hailo-8L (Reused from Klevor!)
+### AI Accelerator: Hailo-8L (Reused from VoldemorBot!)
 - **Performance:** 13 TOPS @ 4W
-- **Key Advantage:** Already integrated in Klevor, proven reliability
+- **Key Advantage:** Already integrated in VoldemorBot, proven reliability
 - **Framework Support:** ONNX, TensorFlow Lite, PyTorch (via ONNX export)
 - **Latency:** <33ms inference (30 FPS)
 
 ### Motor Controller: Raspberry Pi Pico 2W (Reused)
-- **Communication:** USB-CDC to Pi5 (proven from Klevor)
+- **Communication:** USB-CDC to Pi5 (proven from VoldemorBot)
 - **Dual-core:** Motor control + sensor reading
 
 ---
@@ -57,7 +57,7 @@
 - **Advantage:** Wider FOV sees signs earlier and tracks longer
 
 #### AI Accelerator: Hailo-8L (Reused)
-- **Already integrated:** Leverage existing Klevor work!
+- **Already integrated:** Leverage existing VoldemorBot work!
 - **Hailo Dataflow Compiler:** Convert ONNX → Hailo HEF format
 - **Performance:** 30 FPS ViT inference (224×224 input)
 
@@ -519,7 +519,7 @@ if slip_ratio > 0.15:  # 15% slip
 
 ---
 
-## 8. Reuse from Klevor
+## 8. Reuse from VoldemorBot
 
 ### Maximum Reuse (90%)
 
@@ -588,7 +588,7 @@ if slip_ratio > 0.15:  # 15% slip
 ## 10. Critical Files
 
 ```
-teamsteelbot-v2/
+teamvoldemor/
 ├── models/
 │   ├── vit_racer.py                # Vision Transformer architecture
 │   ├── train_imitation.py          # Phase 1: Imitation learning
@@ -776,7 +776,7 @@ async def control_loop():
 
 ## Conclusion
 
-**Cognitive Racer** represents the cutting edge of autonomous robotics, applying Vision Transformer research to competition robotics. By leveraging Klevor's proven Hailo-8L accelerator and adding optical flow innovation, this proposal maximizes both technical sophistication and practical innovation.
+**Cognitive Racer** represents the cutting edge of autonomous robotics, applying Vision Transformer research to competition robotics. By leveraging VoldemorBot's proven Hailo-8L accelerator and adding optical flow innovation, this proposal maximizes both technical sophistication and practical innovation.
 
 **Best For:**
 - Teams with ML/AI expertise

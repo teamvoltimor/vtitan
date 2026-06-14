@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-16
 
-**⚠️ IMPORTANT:** This comparison has been updated based on actual Klevor hardware analysis.
+**⚠️ IMPORTANT:** This comparison has been updated based on actual VoldemorBot hardware analysis.
 See [05-actual-hardware-analysis.md](05-actual-hardware-analysis.md) for detailed hardware inventory.
 
 **KEY FINDING:** You have **AI HAT+ 26 TOPS** (better than assumed!) - This changes the recommendations!
@@ -13,7 +13,7 @@ This document provides a comprehensive comparison of all four robot proposals to
 
 ## 🎯 CRITICAL UPDATE: Your Actual Hardware
 
-Based on Klevor repository analysis, you have:
+Based on VoldemorBot repository analysis, you have:
 
 | Hardware | Status | Impact |
 |----------|--------|--------|
@@ -46,7 +46,7 @@ Based on Klevor repository analysis, you have:
 | **Most Innovation** | Proposal 3 (Cognitive) | Vision Transformers, optical flow sensor |
 | **Best Documentation** | Proposal 4 (ROS2 Edge) | Built-in ROS tools (bags, RViz, PlotJuggler) |
 | **Professional Framework** | Proposal 4 (ROS2 Edge) | Industry-standard ROS2 ecosystem |
-| **Maximum Hardware Reuse** | Proposal 4 (ROS2 Edge) | 95% from Klevor |
+| **Maximum Hardware Reuse** | Proposal 4 (ROS2 Edge) | 95% from VoldemorBot |
 | **Adaptability** | Proposal 1 OR 4 (ROS2) | Both use ROS2 with Nav2/behavior trees |
 | **Low Budget** | Proposal 2 OR 4 | No expensive hardware needed |
 | **High Budget** | Proposal 1 (Velocity Edge) | Jetson Orin Nano ($500) |
@@ -100,7 +100,7 @@ Based on Klevor repository analysis, you have:
 | Vision Approach | YOLOv8 (60+ FPS) | Classical HSV CV (120 FPS) | Vision Transformer (30 FPS) | YOLO OR Classical (flexible) |
 | Backup Vision | Classical HSV | LiDAR wall-following | Classical HSV | Classical HSV |
 | Depth Sensing | Stereo depth map | LiDAR only | LiDAR only | LiDAR only |
-| **SENSORS (from Klevor)** |
+| **SENSORS (from VoldemorBot)** |
 | RPLiDAR C1 | ✅ Reused | ✅ Reused | ✅ Reused | ✅ Reused |
 | BNO08X IMU | ✅ Reused | ✅ Reused | ✅ Reused | ✅ Reused |
 | VL53L0X Distance | ✅ Reused (3x) | ✅ Reused (2x) | ✅ Reused (4x) | ✅ Reused (2-3x) |
@@ -108,7 +108,7 @@ Based on Klevor repository analysis, you have:
 | PMW3901 Optical Flow | ❌ | ❌ | ✅ **UNIQUE!** | ❌ |
 | **MOTOR CONTROLLER** |
 | Controller | Pico 2W (micro-ROS) | Pico 2W (USB-CDC) | Pico 2W (USB-CDC) | Pico 2W (micro-ROS) |
-| Communication | micro-ROS bridge | USB-CDC (Klevor protocol) | USB-CDC (Python async) | micro-ROS bridge |
+| Communication | micro-ROS bridge | USB-CDC (VoldemorBot protocol) | USB-CDC (Python async) | micro-ROS bridge |
 | **SOFTWARE STACK** |
 | Framework | ROS2 Humble | FreeRTOS | Custom Python | ROS2 Humble |
 | Primary Language | C++ (70%) / Python (30%) | C++17 (100%) | Python 3.11 (80%) / C++ (20%) | Python (80%) / C++ (20%) |
@@ -121,7 +121,7 @@ Based on Klevor repository analysis, you have:
 | Vision FPS | 60+ | 120 ⭐ | 30 | 30-60 |
 | Expected Lap Time | 24-26s | 18-20s ⭐ | 22-24s | 23-27s |
 | **DEVELOPMENT** |
-| Klevor Reuse % | 60% | 80% | 90% | 95% ⭐ |
+| VoldemorBot Reuse % | 60% | 80% | 90% | 95% ⭐ |
 | Learning Curve | Medium (ROS2) | Low (C++/CV) | High (ML/PyTorch) | Medium (ROS2) |
 | Dev Timeline | 12 weeks | 10 weeks ⭐ | 14 weeks | 11 weeks |
 | Testing Buffer | 2 weeks | 2-3 weeks | 1 week | 2 weeks |
@@ -162,7 +162,7 @@ Based on Klevor repository analysis, you have:
 
 **Cons:**
 - ❌ Most expensive ($800 total budget)
-- ❌ Lowest Klevor reuse (60%)
+- ❌ Lowest VoldemorBot reuse (60%)
 - ❌ Higher power consumption (need 3S battery)
 - ❌ ROS2 learning curve (2-3 weeks)
 - ❌ More complex setup
@@ -187,7 +187,7 @@ Based on Klevor repository analysis, you have:
 - ✅ **Low cost:** ~$400 total
 - ✅ **Low risk:** Proven components, simple architecture
 - ✅ **Best testing data:** 100+ runs documented
-- ✅ **Reuses Klevor:** 80% hardware reuse
+- ✅ **Reuses VoldemorBot:** 80% hardware reuse
 
 **Cons:**
 - ❌ FreeRTOS on Pi5 (experimental, may need to fall back to Linux RT)
@@ -213,7 +213,7 @@ Based on Klevor repository analysis, you have:
 - ✅ **Research-grade documentation:** Academic paper quality
 - ✅ **Explainable AI:** Attention maps show decision process
 - ✅ **Optical flow sensor:** Unique ground-truth velocity (no one else)
-- ✅ **Reuses Klevor:** 90% including Hailo!
+- ✅ **Reuses VoldemorBot:** 90% including Hailo!
 - ✅ **Impressive:** Judges will remember this robot
 - ✅ **Continuous improvement:** Active learning loop
 - ✅ **Simulation:** Gazebo for RL training
@@ -239,7 +239,7 @@ Based on Klevor repository analysis, you have:
 ### Proposal 4: ROS2 Edge Racer (ROS2 + Pi5 + Hailo) ⭐ RECOMMENDED
 
 **Pros:**
-- ✅ **Maximum reuse:** 95% from Klevor (fastest development)
+- ✅ **Maximum reuse:** 95% from VoldemorBot (fastest development)
 - ✅ **Professional framework:** ROS2 ecosystem (Nav2, tools)
 - ✅ **Best documentation tools:** ROS bags, RViz, PlotJuggler
 - ✅ **Flexible vision:** Can use YOLO OR Classical CV (or both!)
@@ -260,7 +260,7 @@ Based on Klevor repository analysis, you have:
 
 **Best For:**
 - Teams wanting professional ROS2 without expensive hardware
-- Want maximum Klevor reuse
+- Want maximum VoldemorBot reuse
 - Value modularity and adaptability
 - Want impressive documentation with minimal effort
 - Balanced risk/reward profile
@@ -276,7 +276,7 @@ Based on Klevor repository analysis, you have:
 | **Speed (8)** | 7 | 10 ⭐ | 8 | 7 |
 | **Reliability (9)** | 8 | 10 ⭐ | 6 | 8 |
 | **Development Speed (8)** | 6 | 10 ⭐ | 4 | 8 |
-| **Klevor Reuse (7)** | 6 | 8 | 9 | 10 ⭐ |
+| **VoldemorBot Reuse (7)** | 6 | 8 | 9 | 10 ⭐ |
 | **Innovation (6)** | 7 | 6 | 10 ⭐ | 7 |
 | **Documentation (7)** | 9 | 9 | 10 | 10 ⭐ |
 | **Adaptability (8)** | 10 ⭐ | 6 | 10 ⭐ | 10 ⭐ |
@@ -330,7 +330,7 @@ Based on Klevor repository analysis, you have:
 
 ---
 
-### Scenario 5: "We want maximum hardware reuse from Klevor"
+### Scenario 5: "We want maximum hardware reuse from VoldemorBot"
 **→ Choose Proposal 4 (ROS2 Edge Racer)**
 - 95% reuse (highest)
 - Proven components
@@ -647,7 +647,7 @@ START
 
 **Our Top Recommendation: Proposal 4 (ROS2 Edge Racer)**
 - Best overall balance
-- 95% Klevor reuse
+- 95% VoldemorBot reuse
 - Professional framework
 - Low risk, high reward
 

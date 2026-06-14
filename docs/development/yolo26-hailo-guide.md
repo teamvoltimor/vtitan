@@ -109,7 +109,7 @@ python3 -c "from ultralytics import YOLO; model = YOLO('yolo26n.pt'); print('YOL
 
 **Directory structure:**
 ```
-~/teamsteelbot_ws/datasets/traffic_signs/
+~/teamvoldemor_ws/datasets/traffic_signs/
 ├── images/
 │   ├── train/
 │   │   ├── img001.jpg
@@ -130,15 +130,15 @@ python3 -c "from ultralytics import YOLO; model = YOLO('yolo26n.pt'); print('YOL
 # Use the provided script
 python3 scripts/generate_synthetic_dataset.py \
   --num-images 1000 \
-  --output-dir ~/teamsteelbot_ws/datasets/traffic_signs
+  --output-dir ~/teamvoldemor_ws/datasets/traffic_signs
 
 # Takes ~2 minutes, creates 1000 labeled images
 ```
 
 **data.yaml:**
 ```yaml
-# ~/teamsteelbot_ws/datasets/traffic_signs/data.yaml
-path: /home/your_user/teamsteelbot_ws/datasets/traffic_signs
+# ~/teamvoldemor_ws/datasets/traffic_signs/data.yaml
+path: /home/your_user/teamvoldemor_ws/datasets/traffic_signs
 train: images/train
 val: images/val
 
@@ -151,18 +151,18 @@ names: ['red_sign', 'green_sign', 'blue_sign']
 ```bash
 # Train YOLO26n (nano - smallest, fastest)
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo26n.pt \
   epochs=50 \
   imgsz=640 \
   batch=16 \
   device=0 \
-  project=~/teamsteelbot_ws/models \
+  project=~/teamvoldemor_ws/models \
   name=signs_yolo26n \
   patience=10
 
 # Training time: ~20-30 minutes on RTX 4050
-# Model saved to: ~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt
+# Model saved to: ~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt
 ```
 
 **Training parameters explained:**
@@ -187,12 +187,12 @@ yolo detect train model=yolo26m.pt data=data.yaml epochs=50
 ```bash
 # Validate on test set
 yolo detect val \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml
 
 # Test on single image
 yolo detect predict \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt \
   source=~/test_images/test_sign.jpg \
   save=True \
   conf=0.5
@@ -209,7 +209,7 @@ yolo detect predict \
 ```bash
 # Export to ONNX (for laptop testing and Hailo conversion)
 yolo export \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt \
   format=onnx \
   imgsz=640 \
   simplify=True \
@@ -322,7 +322,7 @@ hailomz compile --ckpt best.onnx --hw-arch hailo8l --yaml yolo11n.yaml
 
 ### Step 3.1: YOLO26 Detector Node (ONNX Runtime)
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_vision/teamsteelbot_vision/sign_detector_yolo26.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_vision/teamvoldemor_vision/sign_detector_yolo26.py`
 
 ```python
 #!/usr/bin/env python3
@@ -348,7 +348,7 @@ class SignDetectorYOLO26(Node):
 
         # Parameters
         self.declare_parameter('model_path',
-            '~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx')
+            '~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx')
         self.declare_parameter('use_hailo', False)
         self.declare_parameter('confidence_threshold', 0.5)
         self.declare_parameter('iou_threshold', 0.45)
@@ -619,11 +619,11 @@ if __name__ == '__main__':
 ### Step 3.2: Update setup.py
 
 ```python
-# ~/teamsteelbot_ws/src/teamsteelbot_vision/setup.py
+# ~/teamvoldemor_ws/src/teamvoldemor_vision/setup.py
 
 from setuptools import setup
 
-package_name = 'teamsteelbot_vision'
+package_name = 'teamvoldemor_vision'
 
 setup(
     name=package_name,
@@ -643,8 +643,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'sign_detector_classic = teamsteelbot_vision.sign_detector_classic:main',
-            'sign_detector_yolo26 = teamsteelbot_vision.sign_detector_yolo26:main',
+            'sign_detector_classic = teamvoldemor_vision.sign_detector_classic:main',
+            'sign_detector_yolo26 = teamvoldemor_vision.sign_detector_yolo26:main',
         ],
     },
 )
@@ -658,16 +658,16 @@ pip3 install onnxruntime-gpu  # GPU version for laptop
 # OR: pip3 install onnxruntime  # CPU version
 
 # Build workspace
-cd ~/teamsteelbot_ws
-colcon build --packages-select teamsteelbot_vision --symlink-install
+cd ~/teamvoldemor_ws
+colcon build --packages-select teamvoldemor_vision --symlink-install
 source install/setup.bash
 
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: YOLO26 detector
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
   -p use_hailo:=false \
   -p confidence_threshold:=0.5
 
@@ -698,12 +698,12 @@ rviz2
 pip3 install onnxruntime
 
 # Transfer model
-scp ~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
-    pi@raspberrypi.local:~/teamsteelbot_ws/models/
+scp ~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
+    pi@raspberrypi.local:~/teamvoldemor_ws/models/
 
 # Run
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/best.onnx \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/best.onnx \
   -p use_hailo:=false
 
 # Expected: 15-20 FPS (43% faster than YOLO11 CPU!)
@@ -718,8 +718,8 @@ ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
 hailomz compile --ckpt best.onnx --hw-arch hailo8l
 
 # Run
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/best.hef \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/best.hef \
   -p use_hailo:=true
 
 # Expected: 40-80 FPS (estimate based on 43% speedup)

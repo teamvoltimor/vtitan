@@ -46,11 +46,11 @@ This roadmap guides you through developing the ROS2 Edge Racer on your laptop (W
 
 ### Code to Write
 ```
-teamsteelbot_simulation/
+teamvoldemor_simulation/
 ├── mock_camera_node.py       # Publishes test images
 └── test_subscriber_node.py   # Echoes received data
 
-teamsteelbot_msgs/
+teamvoldemor_msgs/
 ├── msg/SignDetection.msg
 └── msg/RobotState.msg
 ```
@@ -97,7 +97,7 @@ teamsteelbot_msgs/
 
 ### Code to Write
 ```
-teamsteelbot_vision/
+teamvoldemor_vision/
 ├── sign_detector_classic.py  # HSV-based detector
 ├── sign_detector_yolo.py     # YOLO-based (optional)
 ├── detector_base.py          # Abstract base class
@@ -158,7 +158,7 @@ datasets/
 
 ### Code to Write
 ```
-teamsteelbot_control/
+teamvoldemor_control/
 ├── state_machine.py          # FSM implementation
 ├── decision_node.py          # Main decision logic
 ├── speed_controller.py       # Adaptive speed with limits
@@ -200,12 +200,12 @@ teamsteelbot_control/
 
 ### Code to Write
 ```
-teamsteelbot_sensors/
+teamvoldemor_sensors/
 ├── mock_lidar_node.py
 ├── mock_imu_node.py
 └── mock_distance_sensors_node.py
 
-teamsteelbot_bringup/
+teamvoldemor_bringup/
 └── config/
     └── ekf_config.yaml       # robot_localization parameters
 ```
@@ -254,7 +254,7 @@ teamsteelbot_bringup/
 
 ### Code to Write
 ```
-teamsteelbot_bringup/
+teamvoldemor_bringup/
 ├── launch/
 │   ├── simulation.launch.py       # All mock sensors + logic
 │   └── visualization.launch.py    # RViz2 + PlotJuggler
@@ -262,7 +262,7 @@ teamsteelbot_bringup/
     ├── simulation_params.yaml
     └── rviz_config.rviz
 
-teamsteelbot_simulation/
+teamvoldemor_simulation/
 ├── track_simulator.py             # Generates mock track images
 └── worlds/
     └── race_track.sdf              # (If using Gazebo)
@@ -363,7 +363,7 @@ This happens AFTER laptop development is solid.
 ### Daily Workflow
 ```bash
 # Morning: Pull latest code
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 git pull
 
 # Build
@@ -377,10 +377,10 @@ colcon test-result --verbose
 # Develop (edit Python files, they reload automatically with --symlink-install)
 
 # Test individual node
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Test full system
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 
 # Evening: Record results
 ros2 bag record -a -o test_run_$(date +%s)

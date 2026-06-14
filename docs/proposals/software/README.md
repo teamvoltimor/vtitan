@@ -606,7 +606,7 @@ If you want ROS2 + YOLO, use Proposal 4 instead (same benefits, $0 cost).
 
 ### Hailo:
 - [Hailo Documentation](https://hailo.ai/developer-zone/)
-- Your existing Klevor CLIP implementation!
+- Your existing VoldemorBot CLIP implementation!
 
 ---
 

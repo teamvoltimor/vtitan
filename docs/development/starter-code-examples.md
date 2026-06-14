@@ -6,7 +6,7 @@ Ready-to-use code snippets to kickstart your development. Copy these into your R
 
 ## 1. Mock Camera Node (Phase 1)
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_simulation/teamsteelbot_simulation/mock_camera_node.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_simulation/teamvoldemor_simulation/mock_camera_node.py`
 
 ```python
 #!/usr/bin/env python3
@@ -124,7 +124,7 @@ if __name__ == '__main__':
 **Test it:**
 ```bash
 # Terminal 1: Run node
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: Check if publishing
 ros2 topic hz /camera/image_raw
@@ -144,7 +144,7 @@ rviz2
 
 Start with Classical CV for rapid prototyping, then add YOLO26 for better accuracy!
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_vision/teamsteelbot_vision/sign_detector_classic.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_vision/teamvoldemor_vision/sign_detector_classic.py`
 
 ```python
 #!/usr/bin/env python3
@@ -340,10 +340,10 @@ if __name__ == '__main__':
 **Test it:**
 ```bash
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: Detector
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Terminal 3: Check detections
 ros2 topic echo /detections
@@ -357,7 +357,7 @@ rviz2
 
 ## 3. Simple State Machine (Phase 3)
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_control/teamsteelbot_control/state_machine.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_control/teamvoldemor_control/state_machine.py`
 
 ```python
 #!/usr/bin/env python3
@@ -473,11 +473,11 @@ class StateMachine:
         return (0.0, 0.0)
 ```
 
-**Unit test:** `~/teamsteelbot_ws/src/teamsteelbot_control/test/test_state_machine.py`
+**Unit test:** `~/teamvoldemor_ws/src/teamvoldemor_control/test/test_state_machine.py`
 
 ```python
 import pytest
-from teamsteelbot_control.state_machine import StateMachine, RaceState
+from teamvoldemor_control.state_machine import StateMachine, RaceState
 
 
 def test_initial_state():
@@ -539,8 +539,8 @@ def test_velocity_commands():
 
 **Run tests:**
 ```bash
-cd ~/teamsteelbot_ws
-colcon test --packages-select teamsteelbot_control
+cd ~/teamvoldemor_ws
+colcon test --packages-select teamvoldemor_control
 colcon test-result --verbose
 ```
 
@@ -548,7 +548,7 @@ colcon test-result --verbose
 
 ## 4. Decision Node (Phase 3)
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_control/teamsteelbot_control/decision_node.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_control/teamvoldemor_control/decision_node.py`
 
 ```python
 #!/usr/bin/env python3
@@ -642,13 +642,13 @@ if __name__ == '__main__':
 **Test full pipeline:**
 ```bash
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: Vision detector
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Terminal 3: Decision node
-ros2 run teamsteelbot_control decision_node
+ros2 run teamvoldemor_control decision_node
 
 # Terminal 4: Monitor velocity commands
 ros2 topic echo /cmd_vel
@@ -663,7 +663,7 @@ ros2 topic echo /cmd_vel
 
 ## 5. Launch File to Start Everything
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_bringup/launch/simulation.launch.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_bringup/launch/simulation.launch.py`
 
 ```python
 from launch import LaunchDescription
@@ -674,7 +674,7 @@ def generate_launch_description():
     return LaunchDescription([
         # Mock camera
         Node(
-            package='teamsteelbot_simulation',
+            package='teamvoldemor_simulation',
             executable='mock_camera_node',
             name='camera',
             parameters=[{
@@ -687,7 +687,7 @@ def generate_launch_description():
 
         # Sign detector
         Node(
-            package='teamsteelbot_vision',
+            package='teamvoldemor_vision',
             executable='sign_detector_classic',
             name='sign_detector',
             parameters=[{
@@ -699,7 +699,7 @@ def generate_launch_description():
 
         # Decision node
         Node(
-            package='teamsteelbot_control',
+            package='teamvoldemor_control',
             executable='decision_node',
             name='decision',
             output='screen',
@@ -717,7 +717,7 @@ def generate_launch_description():
 
 **Launch entire system:**
 ```bash
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 ```
 
 ---
@@ -726,12 +726,12 @@ ros2 launch teamsteelbot_bringup simulation.launch.py
 
 Don't forget to update `setup.py` for each package to register executables!
 
-**Example:** `~/teamsteelbot_ws/src/teamsteelbot_simulation/setup.py`
+**Example:** `~/teamvoldemor_ws/src/teamvoldemor_simulation/setup.py`
 
 ```python
 from setuptools import setup
 
-package_name = 'teamsteelbot_simulation'
+package_name = 'teamvoldemor_simulation'
 
 setup(
     name=package_name,
@@ -746,18 +746,18 @@ setup(
     zip_safe=True,
     maintainer='Your Name',
     maintainer_email='you@example.com',
-    description='Simulation nodes for TeamSteelBot',
+    description='Simulation nodes for teamvoldemor',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mock_camera_node = teamsteelbot_simulation.mock_camera_node:main',
+            'mock_camera_node = teamvoldemor_simulation.mock_camera_node:main',
         ],
     },
 )
 ```
 
-Repeat for other packages (`teamsteelbot_vision`, `teamsteelbot_control`).
+Repeat for other packages (`teamvoldemor_vision`, `teamvoldemor_control`).
 
 ---
 

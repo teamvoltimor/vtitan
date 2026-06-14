@@ -35,7 +35,7 @@ proposals/
 └── comparisons/                   ← Decision tools & analysis
     ├── 01-proposal-comparison.md        (Full comparison matrix)
     ├── 02-technology-choices.md
-    ├── 03-actual-hardware-analysis.md   (Your Klevor hardware!)
+    ├── 03-actual-hardware-analysis.md   (Your VoldemorBot hardware!)
     └── 04-configuration-flexibility.md
 ```
 
@@ -50,7 +50,7 @@ proposals/
 **Key Insight:** You have **Raspberry Pi 5 16GB + AI HAT+ 26 TOPS!**
 - This is BETTER than what the original proposals assumed
 - Don't waste money on Jetson Orin Nano!
-- Use your existing Klevor hardware (100% reuse possible)
+- Use your existing VoldemorBot hardware (100% reuse possible)
 
 **New Hardware Cost:** $0-38 (depending on proposal)
 
@@ -266,13 +266,13 @@ START
 **Configuration:**
 ```yaml
 Hardware:
-  - Raspberry Pi 5 16GB (from Klevor)
-  - Hailo AI HAT+ 26 TOPS (from Klevor)
-  - RPi Camera Module 3 Wide (from Klevor)
-  - RPLiDAR C1 (from Klevor)
-  - BNO08X IMU (from Klevor)
-  - 2× VL53L0X (from Klevor)
-  - Pico 2W (from Klevor)
+  - Raspberry Pi 5 16GB (from VoldemorBot)
+  - Hailo AI HAT+ 26 TOPS (from VoldemorBot)
+  - RPi Camera Module 3 Wide (from VoldemorBot)
+  - RPLiDAR C1 (from VoldemorBot)
+  - BNO08X IMU (from VoldemorBot)
+  - 2× VL53L0X (from VoldemorBot)
+  - Pico 2W (from VoldemorBot)
   - TCS34725 color sensor (NEW - $8)
 
 Software:
@@ -357,7 +357,7 @@ Quick reference to all files:
 | `/systems/02-minimalist-racer-classical.md` | Alternative: Speed-focused |
 | `/systems/01-velocity-edge-ros2.md` | ❌ Don't choose (Jetson) |
 | `/comparisons/01-proposal-comparison.md` | Full comparison matrix |
-| `/comparisons/03-actual-hardware-analysis.md` | Your Klevor hardware analysis |
+| `/comparisons/03-actual-hardware-analysis.md` | Your VoldemorBot hardware analysis |
 | `software/01-simulation-strategy.md` | Gazebo simulation guide |
 | `hardware/04-hailo-calibration-guide.md` | GPU calibration for AI HAT+ |
 

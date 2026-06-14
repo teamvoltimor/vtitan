@@ -8,11 +8,11 @@ This folder contains all proposals for the WRO Future Engineers 2026 robot, orga
 Hardware platforms, sensors, actuators, and power systems.
 
 - **Platform Options:**
-  - Pi5 + AI HAT+ 26 TOPS (Recommended - 100% reuse from Klevor)
+  - Pi5 + AI HAT+ 26 TOPS (Recommended - 100% reuse from VoldemorBot)
   - Jetson Orin Nano (Not recommended - wastes existing hardware)
 
 - **Sensor Configurations:**
-  - Base sensors (from Klevor): Camera, LiDAR, IMU, Distance
+  - Base sensors (from VoldemorBot): Camera, LiDAR, IMU, Distance
   - Optional additions: TCS34725 color sensor, PMW3901 optical flow
 
 - **Motor Options:**
@@ -68,7 +68,7 @@ Comparison matrices, decision guides, and recommendations.
 
 ## 📊 Current Recommendation
 
-**Hardware:** Pi5 16GB + AI HAT+ 26 TOPS (100% reuse from Klevor)
+**Hardware:** Pi5 16GB + AI HAT+ 26 TOPS (100% reuse from VoldemorBot)
 **Software:** ROS2 + YOLO (Hailo) + Classical CV fallback
 **Proposal:** #4 (ROS2 Edge Racer)
 **Cost:** $8 (TCS34725 color sensor)

@@ -160,7 +160,7 @@ sudo apt install ros-kilted-ros-gz -y
 echo "" >> ~/.bashrc
 echo "# ROS2 Kilted Kaiju" >> ~/.bashrc
 echo "source /opt/ros/kilted/setup.bash" >> ~/.bashrc
-echo "source ~/teamsteelbot_ws/install/setup.bash" >> ~/.bashrc
+echo "source ~/teamvoldemor_ws/install/setup.bash" >> ~/.bashrc
 echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
 echo "" >> ~/.bashrc
 
@@ -206,7 +206,7 @@ docker pull osrf/ros:kilted-desktop
 docker run -it --rm \
   --network host \
   --privileged \
-  -v ~/teamsteelbot_ws:/root/teamsteelbot_ws \
+  -v ~/teamvoldemor_ws:/root/teamvoldemor_ws \
   osrf/ros:kilted-desktop
 ```
 
@@ -330,7 +330,7 @@ executor.spin()
 
 ```bash
 # On laptop (WSL2)
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 
 # Clean old build
 rm -rf build/ install/ log/
@@ -422,7 +422,7 @@ wsl --install Ubuntu-24.04
 # Follow steps in "Installation Guide" above
 
 # Rebuild workspace
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 rm -rf build/ install/ log/
 colcon build --symlink-install
 ```
@@ -542,4 +542,4 @@ executor.spin()
 
 **ROS2 Kilted Kaiju = Latest features + 10x faster + Better for edge computing!** 🚀
 
-Perfect choice for your TeamSteelBot project!
+Perfect choice for your teamvoldemor project!

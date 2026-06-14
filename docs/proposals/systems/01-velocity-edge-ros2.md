@@ -44,7 +44,7 @@
 - Hardware-accelerated video encoding/decoding
 
 ### Motor Controller: Raspberry Pi Pico 2W
-- **Reused from Klevor:** Proven reliability
+- **Reused from VoldemorBot:** Proven reliability
 - **Communication:** micro-ROS bridge to ROS2 (USB-CDC)
 - **Dual-core:** One core for motor control, one for micro-ROS
 - **PIO:** Programmable I/O for precise encoder reading
@@ -74,12 +74,12 @@
 - **Stereo Pair:** Depth map for obstacle avoidance
 - **Frame Rate:** 30 FPS (sufficient for 2.5 m/s)
 
-#### LiDAR: RPLiDAR C1 (Reused from Klevor)
+#### LiDAR: RPLiDAR C1 (Reused from VoldemorBot)
 - **Why keep it?** Proven 2D navigation, wall-following backup
 - **Redundancy:** Validates stereo depth, provides 360° awareness
 - **Integration:** ROS2 driver available (rplidar_ros)
 
-#### IMU: BNO08X (Reused from Klevor)
+#### IMU: BNO08X (Reused from VoldemorBot)
 - **Why keep it?** Excellent sensor fusion, reliable orientation
 - **Integration:** Custom ROS2 node (or use existing I2C library)
 - **Usage:** robot_localization package for EKF sensor fusion
@@ -427,7 +427,7 @@ ros2 topic echo /detections < test_run_123456.db3
 
 ---
 
-## 8. Reuse from Klevor
+## 8. Reuse from VoldemorBot
 
 **Keep (60%):**
 - ✅ RPLiDAR C1
@@ -487,7 +487,7 @@ ros2 topic echo /detections < test_run_123456.db3
 ## 10. Critical Files
 
 ```
-teamsteelbot-v2/
+teamvoldemor/
 ├── src/
 │   ├── velocity_edge_bringup/
 │   │   ├── launch/

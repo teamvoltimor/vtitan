@@ -1,6 +1,6 @@
 # Motor Options Comparison - All Proposals
 
-## 🔧 What You Currently Have (Klevor)
+## 🔧 What You Currently Have (VoldemorBot)
 
 ### Drive Motor: INJORA 180 Motor 48T
 - **Type:** Brushed DC motor

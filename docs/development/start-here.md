@@ -22,14 +22,14 @@ You want to implement **Proposal 4: ROS2 Edge Racer** on your laptop (32GB RAM, 
 
 ### Step 1: Read the Proposal (5 min)
 - Already done! You've read `docs/proposals/systems/04-ros2-edge-racer-hybrid.md`
-- Key takeaway: ROS2 + Raspberry Pi 5 + Hailo + 95% Klevor reuse
+- Key takeaway: ROS2 + Raspberry Pi 5 + Hailo + 95% VoldemorBot reuse
 
 ### Step 2: Install ROS2 on WSL2 (20 min)
 
 Open WSL2 terminal:
 
 ```bash
-cd /mnt/c/Users/ralva/Documents/private/projects/archived/teamsteelbot/klevor-v2
+cd /mnt/c/Users/ralva/Documents/private/projects/archived/teamvoldemor/voldemorbot
 
 # Run automated setup script
 bash scripts/setup_wsl2_dev.sh
@@ -38,7 +38,7 @@ bash scripts/setup_wsl2_dev.sh
 This will:
 - Install ROS2 Humble
 - Install Gazebo and visualization tools
-- Create ROS2 workspace at `~/teamsteelbot_ws`
+- Create ROS2 workspace at `~/teamvoldemor_ws`
 - Install Python dependencies (OpenCV, YOLO26, ONNX Runtime, etc.)
 - Configure your environment
 
@@ -52,7 +52,7 @@ ros2 --version            # Should show "ros2 humble"
 gz sim empty.sdf          # Gazebo should open (Ctrl+C to close)
 rviz2                     # RViz2 should open (Ctrl+C to close)
 
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 colcon build              # Should build successfully
 ```
 
@@ -106,10 +106,10 @@ I've created complete documentation for your journey:
    - Topics, nodes, publishers, subscribers
 2. Create hello world node:
    ```bash
-   cd ~/teamsteelbot_ws/src
+   cd ~/teamvoldemor_ws/src
    ros2 pkg create --build-type ament_python my_test_pkg
    # Follow tutorial to create simple pub/sub
-   cd ~/teamsteelbot_ws
+   cd ~/teamvoldemor_ws
    colcon build --symlink-install
    source install/setup.bash
    ros2 run my_test_pkg talker
@@ -168,20 +168,20 @@ I've created complete documentation for your journey:
 
 ```bash
 # Morning routine
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 git pull                           # Get latest code
 colcon build --symlink-install     # Build (symlink = no rebuild for Python edits)
 source install/setup.bash          # Source workspace
 
 # Develop
-# Edit Python files in src/teamsteelbot_*/teamsteelbot_*/*.py
+# Edit Python files in src/teamvoldemor_*/teamvoldemor_*/*.py
 # With --symlink-install, changes take effect immediately (no rebuild!)
 
 # Test single node
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Test full system
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 
 # Debug
 ros2 topic echo /detections        # See what's being detected
@@ -251,8 +251,8 @@ IDLE → RACING → TURNING_LEFT/RIGHT → RACING → ...
 ## 🚨 Common Pitfalls
 
 ### 1. Forgetting to Source Workspace
-**Problem:** `Package 'teamsteelbot_vision' not found`
-**Solution:** `source ~/teamsteelbot_ws/install/setup.bash`
+**Problem:** `Package 'teamvoldemor_vision' not found`
+**Solution:** `source ~/teamvoldemor_ws/install/setup.bash`
 **Pro tip:** Add to `~/.bashrc` to auto-source
 
 ### 2. Not Updating setup.py
@@ -312,16 +312,16 @@ Track your progress with these milestones:
 ### Transfer Process
 ```bash
 # On laptop: Export workspace
-cd ~/teamsteelbot_ws/src
-tar -czf teamsteelbot_code.tar.gz teamsteelbot_*
+cd ~/teamvoldemor_ws/src
+tar -czf teamvoldemor_code.tar.gz teamvoldemor_*
 
 # Transfer (USB, scp, git, etc.)
-scp teamsteelbot_code.tar.gz pi@raspberrypi.local:~/
+scp teamvoldemor_code.tar.gz pi@raspberrypi.local:~/
 
 # On RPi5: Extract and build
-cd ~/teamsteelbot_ws/src
-tar -xzf ~/teamsteelbot_code.tar.gz
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws/src
+tar -xzf ~/teamvoldemor_code.tar.gz
+cd ~/teamvoldemor_ws
 colcon build --symlink-install
 ```
 
@@ -356,7 +356,7 @@ colcon build --symlink-install
 
 ### Action 1: Install ROS2 (30 min)
 ```bash
-cd /mnt/c/Users/ralva/Documents/private/projects/archived/teamsteelbot/klevor-v2
+cd /mnt/c/Users/ralva/Documents/private/projects/archived/teamvoldemor/voldemorbot
 bash scripts/setup_wsl2_dev.sh
 ```
 

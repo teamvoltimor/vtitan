@@ -69,7 +69,7 @@ python3 -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 
 **Directory structure:**
 ```
-~/teamsteelbot_ws/datasets/traffic_signs/
+~/teamvoldemor_ws/datasets/traffic_signs/
 ├── images/
 │   ├── train/
 │   │   ├── img001.jpg
@@ -93,7 +93,7 @@ python3 -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```yaml
 # Dataset configuration for YOLO11
 
-path: /home/your_user/teamsteelbot_ws/datasets/traffic_signs
+path: /home/your_user/teamvoldemor_ws/datasets/traffic_signs
 train: images/train
 val: images/val
 
@@ -107,7 +107,7 @@ names: ['red_sign', 'green_sign', 'blue_sign']
 **Option A: Real images (Best accuracy)**
 ```bash
 # Capture images from mock camera or real camera
-ros2 run teamsteelbot_tools image_capturer --output-dir ~/datasets/raw_images
+ros2 run teamvoldemor_tools image_capturer --output-dir ~/datasets/raw_images
 
 # Label with Roboflow (easiest) or LabelImg
 # Roboflow: https://roboflow.com (free tier)
@@ -117,7 +117,7 @@ ros2 run teamsteelbot_tools image_capturer --output-dir ~/datasets/raw_images
 **Option B: Synthetic data (Fastest to start)**
 ```python
 # Create synthetic training data
-# File: ~/teamsteelbot_ws/src/teamsteelbot_tools/scripts/generate_synthetic_data.py
+# File: ~/teamvoldemor_ws/src/teamvoldemor_tools/scripts/generate_synthetic_data.py
 
 import cv2
 import numpy as np
@@ -166,7 +166,7 @@ def generate_sign_image(sign_color, img_id, output_dir):
         f.write(f'{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n')
 
 # Generate dataset
-output_dir = Path('~/teamsteelbot_ws/datasets/traffic_signs/train')
+output_dir = Path('~/teamvoldemor_ws/datasets/traffic_signs/train')
 output_dir.mkdir(parents=True, exist_ok=True)
 (output_dir / 'images').mkdir(exist_ok=True)
 (output_dir / 'labels').mkdir(exist_ok=True)
@@ -191,17 +191,17 @@ print(f'Generated {img_id} synthetic training images')
 ```bash
 # Train YOLO11-nano (smallest, fastest)
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo11n.pt \
   epochs=100 \
   imgsz=640 \
   batch=16 \
   device=0 \
-  project=~/teamsteelbot_ws/models \
+  project=~/teamvoldemor_ws/models \
   name=traffic_signs_yolo11n
 
 # Training will take 30-60 minutes on RTX 4050
-# Model saved to: ~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.pt
+# Model saved to: ~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.pt
 ```
 
 **Training parameters explained:**
@@ -225,12 +225,12 @@ yolo detect train data=data.yaml model=yolo11m.pt epochs=100
 ```bash
 # Test on validation set
 yolo detect val \
-  model=~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.pt \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml
+  model=~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.pt \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml
 
 # Test on single image
 yolo detect predict \
-  model=~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.pt \
   source=~/test_images/test_sign.jpg \
   save=True
 ```
@@ -246,7 +246,7 @@ yolo detect predict \
 ```bash
 # Export to ONNX format (required for Hailo)
 yolo export \
-  model=~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.pt \
   format=onnx \
   imgsz=640 \
   simplify=True
@@ -320,7 +320,7 @@ python hailo_model_zoo/main.py compile \
 
 First, develop and test on laptop using ONNX Runtime or PyTorch.
 
-**File:** `~/teamsteelbot_ws/src/teamsteelbot_vision/teamsteelbot_vision/sign_detector_yolo11.py`
+**File:** `~/teamvoldemor_ws/src/teamvoldemor_vision/teamvoldemor_vision/sign_detector_yolo11.py`
 
 ```python
 #!/usr/bin/env python3
@@ -351,7 +351,7 @@ class SignDetectorYOLO11(Node):
 
         # Parameters
         self.declare_parameter('model_path',
-            '~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.onnx')
+            '~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.onnx')
         self.declare_parameter('use_hailo', False)  # True on RPi5, False on laptop
         self.declare_parameter('confidence_threshold', 0.5)
         self.declare_parameter('iou_threshold', 0.45)
@@ -600,11 +600,11 @@ python3 -c "import onnxruntime; print(onnxruntime.get_device())"
 
 ```bash
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: YOLO11 detector
-ros2 run teamsteelbot_vision sign_detector_yolo11 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/traffic_signs_yolo11n/weights/best.onnx \
+ros2 run teamvoldemor_vision sign_detector_yolo11 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/traffic_signs_yolo11n/weights/best.onnx \
   -p use_hailo:=false
 
 # Terminal 3: View detections
@@ -664,7 +664,7 @@ class SignDetectorYOLO11Hailo(Node):
 
         # Parameters
         self.declare_parameter('model_path',
-            '~/teamsteelbot_ws/models/traffic_signs_yolo11n.hef')
+            '~/teamvoldemor_ws/models/traffic_signs_yolo11n.hef')
         self.declare_parameter('confidence_threshold', 0.5)
 
         model_path = self.get_parameter('model_path').value
@@ -771,8 +771,8 @@ if __name__ == '__main__':
 
 ```bash
 # On RPi5
-ros2 run teamsteelbot_vision sign_detector_yolo11_hailo --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/traffic_signs_yolo11n.hef
+ros2 run teamvoldemor_vision sign_detector_yolo11_hailo --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/traffic_signs_yolo11n.hef
 
 # Should achieve 30-60 FPS with Hailo acceleration!
 ```

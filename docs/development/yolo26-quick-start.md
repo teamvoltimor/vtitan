@@ -70,7 +70,7 @@ pip3 install onnxruntime-gpu  # GPU version (laptop)
 # Use synthetic data generator
 python3 scripts/generate_synthetic_dataset.py \
   --num-images 1000 \
-  --output-dir ~/teamsteelbot_ws/datasets/traffic_signs
+  --output-dir ~/teamvoldemor_ws/datasets/traffic_signs
 
 # Creates 1000 labeled traffic sign images automatically!
 ```
@@ -78,8 +78,8 @@ python3 scripts/generate_synthetic_dataset.py \
 ### Step 2: Create data.yaml (1 min)
 
 ```bash
-cat > ~/teamsteelbot_ws/datasets/traffic_signs/data.yaml << 'EOF'
-path: /home/your_user/teamsteelbot_ws/datasets/traffic_signs
+cat > ~/teamvoldemor_ws/datasets/traffic_signs/data.yaml << 'EOF'
+path: /home/your_user/teamvoldemor_ws/datasets/traffic_signs
 train: images/train
 val: images/val
 
@@ -93,17 +93,17 @@ EOF
 ```bash
 # One command to train!
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo26n.pt \
   epochs=50 \
   imgsz=640 \
   batch=16 \
   device=0 \
-  project=~/teamsteelbot_ws/models \
+  project=~/teamvoldemor_ws/models \
   name=signs_yolo26n
 
 # Model saved to:
-# ~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt
+# ~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt
 
 # Expected results:
 # - mAP@0.5: >0.85 (traffic signs are easier than COCO)
@@ -119,7 +119,7 @@ yolo detect train \
 
 ```bash
 yolo export \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt \
   format=onnx \
   imgsz=640 \
   simplify=True \
@@ -135,14 +135,14 @@ yolo export \
 ```bash
 # Test on single image
 yolo detect predict \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
   source=test_image.jpg \
   save=True \
   conf=0.5
 
 # Check FPS
 yolo benchmark \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
   imgsz=640
 
 # Expected: 250-300 FPS on RTX 4050!
@@ -158,18 +158,18 @@ See `docs/development/yolo26-hailo-guide.md` section 3.1 for complete code.
 
 **Quick version:**
 ```bash
-# File: ~/teamsteelbot_ws/src/teamsteelbot_vision/teamsteelbot_vision/sign_detector_yolo26.py
+# File: ~/teamvoldemor_ws/src/teamvoldemor_vision/teamvoldemor_vision/sign_detector_yolo26.py
 # Copy the complete code from the guide
 ```
 
 ### Step 2: Update setup.py
 
 ```python
-# ~/teamsteelbot_ws/src/teamsteelbot_vision/setup.py
+# ~/teamvoldemor_ws/src/teamvoldemor_vision/setup.py
 entry_points={
     'console_scripts': [
-        'sign_detector_classic = teamsteelbot_vision.sign_detector_classic:main',
-        'sign_detector_yolo26 = teamsteelbot_vision.sign_detector_yolo26:main',  # Add this
+        'sign_detector_classic = teamvoldemor_vision.sign_detector_classic:main',
+        'sign_detector_yolo26 = teamvoldemor_vision.sign_detector_yolo26:main',  # Add this
     ],
 },
 ```
@@ -178,16 +178,16 @@ entry_points={
 
 ```bash
 # Build
-cd ~/teamsteelbot_ws
-colcon build --packages-select teamsteelbot_vision --symlink-install
+cd ~/teamvoldemor_ws
+colcon build --packages-select teamvoldemor_vision --symlink-install
 source install/setup.bash
 
 # Terminal 1: Mock camera
-ros2 run teamsteelbot_simulation mock_camera_node
+ros2 run teamvoldemor_simulation mock_camera_node
 
 # Terminal 2: YOLO26 detector
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
-  -p model_path:=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
+  -p model_path:=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
   -p use_hailo:=false \
   -p confidence_threshold:=0.5
 
@@ -213,11 +213,11 @@ rviz2
 pip3 install onnxruntime
 
 # Transfer model
-scp ~/teamsteelbot_ws/models/signs_yolo26n/weights/best.onnx \
+scp ~/teamvoldemor_ws/models/signs_yolo26n/weights/best.onnx \
     pi@raspberrypi.local:~/
 
 # Run
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
   -p model_path:=~/best.onnx \
   -p use_hailo:=false
 
@@ -234,7 +234,7 @@ ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
 hailomz compile --ckpt best.onnx --hw-arch hailo8l --yaml yolo26n.yaml
 
 # Run
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args \
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args \
   -p model_path:=~/best.hef \
   -p use_hailo:=true
 
@@ -400,10 +400,10 @@ yolo detect predict model=best.onnx source=image.jpg
 yolo benchmark model=best.onnx
 
 # ROS2 run (laptop)
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args -p use_hailo:=false
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args -p use_hailo:=false
 
 # ROS2 run (RPi5, when Hailo supported)
-ros2 run teamsteelbot_vision sign_detector_yolo26 --ros-args -p use_hailo:=true
+ros2 run teamvoldemor_vision sign_detector_yolo26 --ros-args -p use_hailo:=true
 ```
 
 ---
