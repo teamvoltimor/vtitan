@@ -60,7 +60,7 @@ competition:
 ```bash
 # Change config and restart
 nano ~/config/competition_config.yaml
-ros2 launch teamsteelbot robot.launch.py config:=competition_config.yaml
+ros2 launch teamvoldemor robot.launch.py config:=competition_config.yaml
 ```
 
 **Flexibility Score: ⭐⭐⭐⭐⭐ (5/5)**
@@ -232,7 +232,7 @@ nano ~/config/mission_config.yaml
 # Change: green_cube.stop_duration: 3.0 → 5.0
 
 # 3. Restart robot (10 seconds):
-ros2 launch teamsteelbot robot.launch.py config:=mission_config.yaml
+ros2 launch teamvoldemor robot.launch.py config:=mission_config.yaml
 
 # 4. Test run (1 minute)
 # Ready to compete!
@@ -316,7 +316,7 @@ ros2 launch teamsteelbot robot.launch.py config:=mission_config.yaml
 
 ### File Structure:
 ```
-~/teamsteelbot_ros2_ws/
+~/teamvoldemor_ros2_ws/
 ├── config/
 │   ├── robot_params.yaml          # Robot physical parameters
 │   ├── sensor_config.yaml         # Sensor calibration
@@ -334,15 +334,15 @@ ros2 launch teamsteelbot robot.launch.py config:=mission_config.yaml
 ### Launch with Overrides:
 ```bash
 # Default config
-ros2 launch teamsteelbot robot.launch.py
+ros2 launch teamvoldemor robot.launch.py
 
 # Competition config
-ros2 launch teamsteelbot robot.launch.py \
+ros2 launch teamvoldemor robot.launch.py \
     config:=competition_config.yaml \
     mission:=mission_A.yaml
 
 # With overrides (surprise rules!)
-ros2 launch teamsteelbot robot.launch.py \
+ros2 launch teamvoldemor robot.launch.py \
     config:=competition_config.yaml \
     overrides:=surprise_rules.yaml
 ```
@@ -446,7 +446,7 @@ def validate_mission_config(config_file):
 ### 3. **Quick Test Mode**
 ```bash
 # Test new config without full run
-ros2 launch teamsteelbot robot.launch.py \
+ros2 launch teamvoldemor robot.launch.py \
     config:=new_config.yaml \
     test_mode:=true \
     dry_run:=true

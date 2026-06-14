@@ -1,8 +1,8 @@
 # Actual Hardware Analysis - What We Have vs What We Need
 
-**Based on Klevor Repository Analysis**
+**Based on VoldemorBot Repository Analysis**
 
-## ✅ Confirmed Hardware from Klevor
+## ✅ Confirmed Hardware from VoldemorBot
 
 | Component | Specs | Status | Value for V2 |
 |-----------|-------|--------|--------------|
@@ -96,7 +96,7 @@ Your proposals assumed either:
 ### 🥇 **#1 Recommendation: Proposal 4 - ROS2 Edge Racer** ⭐⭐⭐⭐⭐
 
 **Why it's PERFECT for your hardware:**
-- ✅ Uses 100% of Klevor hardware
+- ✅ Uses 100% of VoldemorBot hardware
 - ✅ **Leverages your AI HAT+ 26 TOPS for YOLO**
 - ✅ ROS2 professional framework
 - ✅ Flexible (YOLO primary, Classical CV backup)
@@ -113,7 +113,7 @@ Your proposals assumed either:
 ### 🥈 **#2 Recommendation: Proposal 3 - Cognitive Racer** ⭐⭐⭐⭐
 
 **Why it's GREAT for your hardware:**
-- ✅ Uses 100% of Klevor hardware
+- ✅ Uses 100% of VoldemorBot hardware
 - ✅ **Leverages your AI HAT+ 26 TOPS for Vision Transformer**
 - ✅ You already have CLIP integration working!
 - ✅ Can build on existing Hailo pipeline
@@ -155,13 +155,13 @@ Your proposals assumed either:
 - ❌ Stereo cameras ($100) when you have good camera
 - ❌ Wastes your existing investment
 
-**Only choose if:** You have unlimited budget and want to sell/repurpose Klevor hardware (don't do this!)
+**Only choose if:** You have unlimited budget and want to sell/repurpose VoldemorBot hardware (don't do this!)
 
 ---
 
 ## 🎯 Software Reuse Analysis
 
-### From Klevor (Go Implementation)
+### From VoldemorBot (Go Implementation)
 
 **✅ Directly Reusable:**
 - USB-CDC protocol (Pico ↔ Pi5 communication)
@@ -219,7 +219,7 @@ You already have Hailo CLIP integration working in Go!
 
 ## 🔧 Language/Framework Reuse
 
-### Your Current Stack (Klevor)
+### Your Current Stack (VoldemorBot)
 - **Primary:** Go on Pi5
 - **Secondary:** TinyGo on Pico 2W
 - **AI:** Hailo CLIP integration
@@ -237,13 +237,13 @@ You already have Hailo CLIP integration working in Go!
 
 Looking at `00-technology-choices.md`, Go is viable for:
 - **Proposal 2 with Go** ✅ (instead of C++)
-  - 80%+ Klevor code reusable!
+  - 80%+ VoldemorBot code reusable!
   - FreeRTOS → Go with RT-PREEMPT
   - gocv for Classical CV
 
 - **Proposal 3 with Go+Python Hybrid** ✅
   - Python for ML (ViT training/inference)
-  - Go for control (reuse Klevor pilot code!)
+  - Go for control (reuse VoldemorBot pilot code!)
   - ZeroMQ communication
 
 - **Proposal 4 could use rclgo** ⚠️ (risky)
@@ -278,7 +278,7 @@ Looking at `00-technology-choices.md`, Go is viable for:
 1. **100% Hardware Utilization**
    - Uses your AI HAT+ 26 TOPS (YOLO inference)
    - Uses your 16GB Pi5
-   - Uses all Klevor sensors
+   - Uses all VoldemorBot sensors
    - Nothing wasted!
 
 2. **Best Balance**
@@ -291,7 +291,7 @@ Looking at `00-technology-choices.md`, Go is viable for:
 
 4. **Timeline: 11 weeks** (with 2-week buffer)
 
-5. **Leverages Klevor Experience**
+5. **Leverages VoldemorBot Experience**
    - You know Hailo SDK
    - Can adapt Go challenge handlers to Python ROS2
    - USB-CDC protocol to micro-ROS

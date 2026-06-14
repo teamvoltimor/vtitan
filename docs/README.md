@@ -1,8 +1,8 @@
-# Future Engineers 2026 - Team Steel Bot V2
+# Future Engineers 2026 - Team Voldemor
 
 ## Documentation Hub
 
-This documentation repository contains comprehensive proposals, design documents, and development logs for Team Steel Bot's Future Engineers 2026 competition robot.
+This documentation repository contains comprehensive proposals, design documents, and development logs for Team Voldemor's Future Engineers 2026 competition robot.
 
 ### WRO 2026 Challenge Overview
 
@@ -98,7 +98,7 @@ docs/
 
 ### Hardware Platform
 **Selected:** Raspberry Pi 5 (all proposals)
-- Proven from Klevor robot (WRO 2025)
+- Proven from VoldemorBot robot (WRO 2025)
 - Excellent community support
 - Sufficient compute for both classical CV and AI
 - Cost-effective ($80 vs $500 for Jetson)
@@ -194,7 +194,7 @@ This is as important as robot performance! Our approach:
 
 ---
 
-## Reuse from Klevor (WRO 2025 Robot)
+## Reuse from VoldemorBot (WRO 2025 Robot)
 
 ### ✅ Keep These Proven Components
 - **RPLiDAR C1:** Excellent 2D navigation, battle-tested
@@ -282,14 +282,14 @@ This is as important as robot performance! Our approach:
 
 ## Team Information
 
-**Team Name:** Team Steel Bot V2
+**Team Name:** Team Voldemor
 **Competition:** WRO Future Engineers 2026
 **Robot Name:** TBD (naming after design selection)
-**Previous Robot:** Klevor (WRO 2025 Futuros Ingenieros)
+**Previous Robot:** VoldemorBot (WRO 2025 Futuros Ingenieros)
 
 ### Contact & Collaboration
-- **Repository:** teamsteelbot-v2 (this repo)
-- **Previous Work:** teamsteelbot/klevor (reference implementation)
+- **Repository:** teamvoldemor (this repo)
+- **Previous Work:** teamvoldemor/VoldemorBot (reference implementation)
 - **Documentation Site:** (TBD - MkDocs Material setup)
 
 ---
@@ -316,7 +316,7 @@ This is as important as robot performance! Our approach:
 
 We have three strong proposals, each with unique advantages. The **Minimalist Racer (Proposal 2)** offers the best balance of performance, reliability, and documentation potential for winning WRO 2026.
 
-By leveraging proven Klevor components while introducing innovative elements (hardware color sensor, triple redundancy), we can build a robot that is:
+By leveraging proven VoldemorBot components while introducing innovative elements (hardware color sensor, triple redundancy), we can build a robot that is:
 - **Fast** (3.0 m/s target)
 - **Reliable** (triple sensor redundancy)
 - **Explainable** (classical engineering, not "black box" AI)

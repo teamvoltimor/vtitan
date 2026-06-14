@@ -127,7 +127,7 @@ python3 scripts/generate_synthetic_dataset.py --num-images 1000
 
 # 4. Train (20-30 min)
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo26n.pt \
   epochs=50 \
   device=0

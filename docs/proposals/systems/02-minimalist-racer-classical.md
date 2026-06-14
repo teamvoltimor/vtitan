@@ -27,7 +27,7 @@
   - Dual Cortex-M33 cores @ 150 MHz
   - PIO (Programmable I/O) for precise encoder reading
   - Low-latency USB-CDC to Pi5
-  - Reused from Klevor - proven reliability
+  - Reused from VoldemorBot - proven reliability
 
 ### Operating System
 - **FreeRTOS** on Raspberry Pi 5
@@ -80,15 +80,15 @@
 - **Usage:** Physical validation as robot passes signs
 - **Advantage:** **No competitor will have this!** Instant validation without vision processing latency.
 
-#### Spatial Awareness: RPLiDAR C1 (Reused from Klevor)
+#### Spatial Awareness: RPLiDAR C1 (Reused from VoldemorBot)
 - **Specs:** 2D 360° laser scanner, 12m range
 - **Key Features:**
   - 8000 samples/sec
   - 0.5° angular resolution
   - Wall-following backup mode
-  - Proven reliability in Klevor
+  - Proven reliability in VoldemorBot
 
-#### Orientation: BNO08X IMU (Reused from Klevor)
+#### Orientation: BNO08X IMU (Reused from VoldemorBot)
 - **Specs:** 9-DOF (accel, gyro, mag) with sensor fusion
 - **Key Features:**
   - On-chip sensor fusion (quaternion output)
@@ -834,7 +834,7 @@ while (true) {
 
 ---
 
-## 8. Reuse from Klevor (Maximize Proven Components)
+## 8. Reuse from VoldemorBot (Maximize Proven Components)
 
 ### ✅ Keep (80% Reuse)
 
@@ -863,7 +863,7 @@ while (true) {
   - Reuse metrics concepts (lap time, detection accuracy, etc.)
 
 #### Documentation
-- **Structure:** Klevor's 74 .md files show strong documentation culture
+- **Structure:** VoldemorBot's 74 .md files show strong documentation culture
   - Reuse folder structure (hardware/, software/, docs/)
   - Markdown format for easy version control
   - MkDocs Material for nice web rendering
@@ -874,12 +874,12 @@ while (true) {
 
 ### ❌ Replace (20% New)
 
-| Component | From Klevor | To Minimalist Racer | Rationale |
+| Component | From VoldemorBot | To Minimalist Racer | Rationale |
 |-----------|-------------|-------------------|-----------|
 | **Language** | Go | C++17 | Bare-metal FreeRTOS requires C++, lower overhead |
 | **Framework** | Custom Go structure | FreeRTOS | Deterministic real-time guarantees, 200 Hz control loop |
 | **Vision** | CLIP + Hailo-8L | Classical HSV CV | Simpler, faster (120 vs 30 FPS), no training required |
-| **Camera** | (Unclear from Klevor) | RPi Camera Module 3 | Excellent low-light, hardware integration |
+| **Camera** | (Unclear from VoldemorBot) | RPi Camera Module 3 | Excellent low-light, hardware integration |
 | **Monitoring** | Grafana/Prometheus | Lightweight CSV logs | Reduce complexity, focus on core robot functionality |
 
 ---
@@ -918,7 +918,7 @@ while (true) {
   - Capture frames via V4L2 API
   - GPU acceleration test (cv::cuda)
 - [ ] IMU (BNO08X):
-  - I2C driver (reuse Klevor logic)
+  - I2C driver (reuse VoldemorBot logic)
   - Read quaternion, calibrate
 - [ ] Distance sensors (VL53L0X):
   - I2C driver (multiple devices via addressing)
@@ -931,7 +931,7 @@ while (true) {
 
 #### Week 4: Motor Control via Pico 2W
 - [ ] USB-CDC communication:
-  - Reuse Klevor protocol definitions
+  - Reuse VoldemorBot protocol definitions
   - C++ struct serialization
   - Bidirectional messaging test
 - [ ] Motor driver on Pico:
@@ -1084,7 +1084,7 @@ while (true) {
 ## 10. Critical Files & Code Structure
 
 ```
-teamsteelbot-v2/
+teamvoldemor/
 ├── hardware/
 │   ├── bom.csv                        # Bill of materials
 │   ├── schematics/

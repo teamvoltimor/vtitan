@@ -128,7 +128,7 @@ This document analyzes using the **Raspberry Pi Build HAT** with **LEGO Technic 
 
 ## 🏗️ Integration with Your Setup
 
-### Current Setup (Klevor)
+### Current Setup (VoldemorBot)
 - Raspberry Pi 5 (16GB)
 - Raspberry Pi Pico 2 WH (motor controller)
 - USB-CDC communication (Pico ↔ Pi)

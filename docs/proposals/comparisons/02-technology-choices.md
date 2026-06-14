@@ -4,7 +4,7 @@
 
 ### User Preference: **Go** ✓
 
-Based on existing Klevor experience with Go, and your preference to continue using Go rather than C++.
+Based on existing VoldemorBot experience with Go, and your preference to continue using Go rather than C++.
 
 ---
 
@@ -34,7 +34,7 @@ func (n *SignDetectorNode) imageCallback(msg *sensor_msgs.Image) {
 ```
 
 **Advantages:**
-- ✅ Leverage existing Klevor Go codebase
+- ✅ Leverage existing VoldemorBot Go codebase
 - ✅ Excellent concurrency (goroutines for parallel processing)
 - ✅ Fast compilation
 - ✅ Memory safe (no segfaults like C++)
@@ -104,7 +104,7 @@ func readSensors() SensorData {
 ```
 
 **Advantages:**
-- ✅ **Reuse Klevor code:** Sensor drivers, USB-CDC protocol, challenge handlers
+- ✅ **Reuse VoldemorBot code:** Sensor drivers, USB-CDC protocol, challenge handlers
 - ✅ Goroutines = excellent concurrency (read all sensors in parallel)
 - ✅ Built-in profiling (pprof) for optimization
 - ✅ Fast development (familiar syntax, good tooling)
@@ -118,7 +118,7 @@ func readSensors() SensorData {
   - **TinyGo option:** Subset of Go for embedded systems
   - **Decision:** Standard Go + RT-PREEMPT Linux is sufficient
 
-**Verdict:** **Excellent choice for Proposal 2!** Reuses Klevor experience, fast development, good enough real-time performance.
+**Verdict:** **Excellent choice for Proposal 2!** Reuses VoldemorBot experience, fast development, good enough real-time performance.
 
 #### Approach B: TinyGo (Experimental)
 - **TinyGo:** Go compiler for embedded systems
@@ -272,9 +272,9 @@ func (m *SPIKEMotor) ReadEncoder() (int, error) {
 #### Option 3: Via Pico 2W (Recommended for Proposal 2)
 **Architecture:** Go (Pi5) ↔ USB-CDC ↔ C++/MicroPython (Pico 2W) ↔ LEGO Motors
 
-**Reuse Klevor's USB-CDC Protocol:**
+**Reuse VoldemorBot's USB-CDC Protocol:**
 ```go
-// Klevor-compatible USB-CDC (already exists!)
+// VoldemorBot-compatible USB-CDC (already exists!)
 package usbcdc
 
 type Message struct {
@@ -303,7 +303,7 @@ func (c *Client) SendMotorCommand(speed float64) error {
 }
 ```
 
-**Verdict:** **Option 3 (via Pico 2W) is best** - reuses proven Klevor code!
+**Verdict:** **Option 3 (via Pico 2W) is best** - reuses proven VoldemorBot code!
 
 ---
 
@@ -377,8 +377,8 @@ func detectSign(frame gocv.Mat) SignDetection {
 - **OS:** Linux with RT-PREEMPT kernel
 - **Vision:** gocv (OpenCV bindings)
 - **Sensors:** Go libraries (periph.io for I2C/SPI, etc.)
-- **Communication:** Reuse Klevor USB-CDC Go code
-- **Verdict:** **Perfect fit!** Reuses Klevor experience, fast development
+- **Communication:** Reuse VoldemorBot USB-CDC Go code
+- **Verdict:** **Perfect fit!** Reuses VoldemorBot experience, fast development
 
 ### Proposal 3: Cognitive Racer
 - **ML Layer:** Python (PyTorch, ONNX, Hailo SDK)
@@ -388,12 +388,12 @@ func detectSign(frame gocv.Mat) SignDetection {
 
 ---
 
-## Code Reuse from Klevor (Go)
+## Code Reuse from VoldemorBot (Go)
 
 ### Directly Reusable
 
 ```
-klevor/devices/raspberry-pi-5/go/
+VoldemorBot/devices/raspberry-pi-5/go/
 ├── internal/
 │   ├── usbcdc/               ✅ Reuse 100%
 │   │   ├── incoming_message.go
@@ -415,7 +415,7 @@ klevor/devices/raspberry-pi-5/go/
 
 **Vision (new for v2):**
 ```go
-// Add to Klevor codebase structure
+// Add to VoldemorBot codebase structure
 internal/
   └── vision/
       ├── color_detector.go    # HSV detection (new)
@@ -452,9 +452,9 @@ internal/
 
 ## Recommendations
 
-### For Fast Development + Klevor Reuse:
+### For Fast Development + VoldemorBot Reuse:
 **→ Proposal 2 (Minimalist Racer) with Go** ⭐⭐⭐⭐⭐
-- Reuse 80%+ of Klevor code
+- Reuse 80%+ of VoldemorBot code
 - Add vision module (gocv)
 - Familiar syntax = fast development
 - Good enough performance (4.8ms loop, target 5ms)
@@ -480,7 +480,7 @@ internal/
 Specifically:
 - **Proposal 2 with Go** is the **best overall choice**
 - Excellent balance of:
-  - Speed (reuse Klevor code)
+  - Speed (reuse VoldemorBot code)
   - Performance (good enough for 200 Hz)
   - Reliability (memory safe, good concurrency)
   - Familiarity (team already knows Go)

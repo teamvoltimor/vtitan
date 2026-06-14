@@ -8,24 +8,24 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ### Option A: Raspberry Pi 5 16GB + AI HAT+ 26 TOPS ⭐⭐ RECOMMENDED
 
-**Status:** ✅ Already have from Klevor!
+**Status:** ✅ Already have from VoldemorBot!
 
 | Component | Spec | Source |
 |-----------|------|--------|
-| **CPU** | Quad-core ARM Cortex-A76 @ 2.4 GHz | Klevor |
-| **RAM** | 16GB LPDDR4X | Klevor |
-| **GPU** | VideoCore VII | Klevor |
-| **AI Accelerator** | Hailo AI HAT+ 26 TOPS | Klevor |
-| **Storage** | microSD or NVMe | Klevor |
-| **Power** | 5V/5A (27W max) | Klevor |
+| **CPU** | Quad-core ARM Cortex-A76 @ 2.4 GHz | VoldemorBot |
+| **RAM** | 16GB LPDDR4X | VoldemorBot |
+| **GPU** | VideoCore VII | VoldemorBot |
+| **AI Accelerator** | Hailo AI HAT+ 26 TOPS | VoldemorBot |
+| **Storage** | microSD or NVMe | VoldemorBot |
+| **Power** | 5V/5A (27W max) | VoldemorBot |
 | **Cost** | $0 (reused) | |
 
 **Advantages:**
-- ✅ 100% reuse from Klevor
+- ✅ 100% reuse from VoldemorBot
 - ✅ AI HAT+ 26 TOPS (better than Hailo-8L 13 TOPS assumed!)
 - ✅ 16GB RAM (better than 8GB assumed!)
 - ✅ Low power consumption
-- ✅ Already proven in Klevor with CLIP
+- ✅ Already proven in VoldemorBot with CLIP
 - ✅ You know the Hailo SDK!
 
 **Disadvantages:**
@@ -66,7 +66,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 **Disadvantages:**
 - ❌ Expensive ($500)
 - ❌ You already have AI HAT+ 26 TOPS!
-- ❌ Wastes existing Klevor investment
+- ❌ Wastes existing VoldemorBot investment
 - ❌ Higher power consumption
 - ❌ Makes no sense given your hardware!
 
@@ -81,7 +81,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ### Option A: Raspberry Pi Camera Module 3 Wide ⭐ RECOMMENDED
 
-**Status:** ✅ Already have from Klevor!
+**Status:** ✅ Already have from VoldemorBot!
 
 | Spec | Value |
 |------|-------|
@@ -98,7 +98,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 - ✅ Hardware ISP acceleration
 - ✅ Wide 120° FOV (sees signs earlier)
 - ✅ Excellent low-light performance
-- ✅ Already proven in Klevor
+- ✅ Already proven in VoldemorBot
 
 **Used in:**
 - ✅ Proposal 2, 3, 4 (all Pi5-based)
@@ -138,7 +138,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ## 🎯 LiDAR
 
-### RPLiDAR C1 ⭐ FROM KLEVOR
+### RPLiDAR C1 ⭐ FROM VoldemorBot
 
 **Status:** ✅ Already have!
 
@@ -163,7 +163,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ## 📡 IMU
 
-### BNO08X 9-DOF IMU ⭐ FROM KLEVOR
+### BNO08X 9-DOF IMU ⭐ FROM VoldemorBot
 
 **Status:** ✅ Already have!
 
@@ -187,7 +187,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ## 📏 Distance Sensors
 
-### VL53L0X Time-of-Flight ⭐ FROM KLEVOR
+### VL53L0X Time-of-Flight ⭐ FROM VoldemorBot
 
 **Status:** ✅ Already have 2-4 units!
 
@@ -266,7 +266,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 
 ## ⚙️ Motor Controller
 
-### Raspberry Pi Pico 2W ⭐ FROM KLEVOR
+### Raspberry Pi Pico 2W ⭐ FROM VoldemorBot
 
 **Status:** ✅ Already have!
 
@@ -277,7 +277,7 @@ All hardware platforms, sensors, and actuators for the WRO Future Engineers 2026
 | **Flash** | 2MB |
 | **PIO** | 2× Programmable I/O (for encoders) |
 | **Connectivity** | WiFi (2.4 GHz) + Bluetooth |
-| **Interface to Pi5** | USB-CDC (proven from Klevor) |
+| **Interface to Pi5** | USB-CDC (proven from VoldemorBot) |
 | **Cost** | $0 (reused) |
 
 **Uses:**
@@ -329,7 +329,7 @@ See separate documents:
 
 **Recommended:** 2200-3000 mAh, 30C discharge
 
-**From Klevor:** ✅ Likely already have compatible battery
+**From VoldemorBot:** ✅ Likely already have compatible battery
 
 ---
 
@@ -368,7 +368,7 @@ See separate documents:
 **Total new cost:** $8-38 (vs $630 for Jetson!)
 
 **Why this is optimal:**
-- ✅ Uses all existing Klevor hardware
+- ✅ Uses all existing VoldemorBot hardware
 - ✅ AI HAT+ 26 TOPS fully utilized
 - ✅ Minimal cost
 - ✅ Proven reliability

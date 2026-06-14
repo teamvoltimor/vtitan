@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**Philosophy:** Combine ROS2's professional ecosystem with Klevor's proven hardware stack (Pi5 + Hailo + RPi Camera) for maximum reuse, adaptability, and performance.
+**Philosophy:** Combine ROS2's professional ecosystem with VoldemorBot's proven hardware stack (Pi5 + Hailo + RPi Camera) for maximum reuse, adaptability, and performance.
 
 **Core Innovation:** ROS2 nodes running on Raspberry Pi 5 with Hailo-8L acceleration, bridging professional robotics with accessible hardware.
 
@@ -10,7 +10,7 @@
 - Speed: 2.6 m/s (balanced)
 - Control Loop: 50 Hz (ROS2 standard for vision-based control)
 - Vision Processing: 30-60 FPS (YOLO on Hailo)
-- Hardware Reuse: 95% from Klevor!
+- Hardware Reuse: 95% from VoldemorBot!
 
 ---
 
@@ -36,13 +36,13 @@
 - ✅ Behavior Trees for adaptability (surprise rules)
 
 ### Primary Compute: Raspberry Pi 5 (8GB) ✅ REUSED
-- **From Klevor:** Already proven!
+- **From VoldemorBot:** Already proven!
 - **CPU:** Quad-core ARM Cortex-A76 @ 2.4 GHz
 - **Sufficient for:** ROS2 + Python + light computer vision
 - **Power:** 5V/5A (lower than Jetson)
 
 ### AI Accelerator: Hailo-8L ✅ REUSED
-- **From Klevor:** HUGE advantage - already integrated!
+- **From VoldemorBot:** HUGE advantage - already integrated!
 - **Performance:** 13 TOPS @ 4W
 - **Integration:** ONNX/TensorFlow → Hailo HEF conversion
 - **Usage:** YOLO inference OR classical CV acceleration
@@ -55,14 +55,14 @@
 
 ### Motor Controller: Raspberry Pi Pico 2W ✅ REUSED
 - **Communication:** micro-ROS bridge to ROS2
-- **Protocol:** Same USB-CDC as Klevor
+- **Protocol:** Same USB-CDC as VoldemorBot
 - **Advantage:** Seamless ROS2 integration via micro-ROS
 
 ---
 
 ## 2. Hardware Configuration (95% Reuse!)
 
-### Sensors (All from Klevor)
+### Sensors (All from VoldemorBot)
 
 #### Vision: RPi Camera Module 3 ✅
 - ROS2 node: `camera_publisher` (sensor_msgs/Image)
@@ -356,7 +356,7 @@ node = SignDetectorNode(options)
 
 2. **Hardware Architecture**
    - Component diagram
-   - 95% Klevor reuse explanation
+   - 95% VoldemorBot reuse explanation
    - LEGO motor integration
 
 3. **Software Architecture**
@@ -391,7 +391,7 @@ node = SignDetectorNode(options)
    - Shows creative problem-solving
    - Cost-effective professional stack
 
-2. **95% Klevor Reuse** ♻️
+2. **95% VoldemorBot Reuse** ♻️
    - Fastest development (proven hardware)
    - Reduces risk significantly
    - Shows engineering efficiency
@@ -502,9 +502,9 @@ node = SignDetectorNode(options)
 ## 10. Critical Files & Structure
 
 ```
-teamsteelbot_ros2/
+teamvoldemor_ros2/
 ├── src/
-│   ├── teamsteelbot_bringup/
+│   ├── teamvoldemor_bringup/
 │   │   ├── launch/
 │   │   │   └── race.launch.py              # Main launch file
 │   │   └── config/
@@ -512,27 +512,27 @@ teamsteelbot_ros2/
 │   │       ├── ekf.yaml                    # robot_localization config
 │   │       └── controllers.yaml
 │   │
-│   ├── teamsteelbot_vision/
-│   │   ├── teamsteelbot_vision/
+│   ├── teamvoldemor_vision/
+│   │   ├── teamvoldemor_vision/
 │   │   │   ├── sign_detector_yolo.py      # YOLO node (Hailo)
 │   │   │   ├── sign_detector_classic.py   # Classical CV node
 │   │   │   └── color_sensor_node.py       # TCS34725 validation
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_control/
-│   │   ├── teamsteelbot_control/
+│   ├── teamvoldemor_control/
+│   │   ├── teamvoldemor_control/
 │   │   │   ├── decision_node.py           # State machine + logic
 │   │   │   ├── speed_controller.py        # Adaptive speed
 │   │   │   └── voter_node.py              # Multi-sensor voting
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_sensors/
-│   │   ├── teamsteelbot_sensors/
+│   ├── teamvoldemor_sensors/
+│   │   ├── teamvoldemor_sensors/
 │   │   │   ├── bno08x_node.py            # IMU driver
 │   │   │   └── vl53l0x_node.py           # Distance sensors
 │   │   └── package.xml
 │   │
-│   └── teamsteelbot_msgs/
+│   └── teamvoldemor_msgs/
 │       ├── msg/
 │       │   ├── ColorReading.msg           # TCS34725 custom message
 │       │   └── SignDetection.msg          # Custom detection format
@@ -614,7 +614,7 @@ ros2 bag play test_run.db3
 ## 13. Why This Proposal Wins 🏆
 
 ### Quantitative Advantages
-1. **Maximum Reuse:** 95% Klevor hardware → fastest development
+1. **Maximum Reuse:** 95% VoldemorBot hardware → fastest development
 2. **Cost Effective:** ~$400 total (vs $800 for Jetson setup)
 3. **Speed:** 2.6 m/s (balanced - not too risky, not too slow)
 4. **Professional Tools:** ROS2 ecosystem (bags, visualization, simulation)
@@ -626,7 +626,7 @@ ros2 bag play test_run.db3
 4. **Documentation:** ROS tools make impressive journal easy (RViz, bags, plots)
 
 ### Risk Profile
-- **Low Hardware Risk:** 95% proven from Klevor
+- **Low Hardware Risk:** 95% proven from VoldemorBot
 - **Low Schedule Risk:** Fast development (11 weeks), mature tools
 - **Medium Learning Risk:** ROS2 learning curve (mitigated by extensive resources)
 - **High Win Probability:** Balanced approach with professional presentation
@@ -643,7 +643,7 @@ ros2 bag play test_run.db3
 ## Conclusion
 
 **ROS2 Edge Racer** is the optimal hybrid approach:
-- **Best Hardware Reuse:** 95% from proven Klevor stack
+- **Best Hardware Reuse:** 95% from proven VoldemorBot stack
 - **Professional Ecosystem:** ROS2 for adaptability and documentation
 - **Cost Effective:** Raspberry Pi 5 instead of expensive Jetson
 - **Unique Innovation:** TCS34725 color sensor validation

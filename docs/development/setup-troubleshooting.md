@@ -33,7 +33,7 @@ pip3 install onnxruntime
 sudo apt install ros-kilted-ros-gz -y
 ```
 
-See: `KILTED_PACKAGE_FIXES.md` for details.
+See: `kilted-package-fixes.md` for details.
 
 ---
 
@@ -121,17 +121,17 @@ pip3 install opencv-python opencv-contrib-python numpy scipy
 **Fix (Option 1 - Recommended): Use virtual environment**
 ```bash
 # Create virtual environment
-python3 -m venv ~/teamsteelbot/klevor-v2/.venv
+python3 -m venv ~/teamvoldemor/voldemorbot/.venv
 
 # Activate it
-source ~/teamsteelbot/klevor-v2/.venv/bin/activate
+source ~/teamvoldemor/voldemorbot/.venv/bin/activate
 
 # Install packages
 pip3 install opencv-python opencv-contrib-python numpy scipy
 pip3 install transforms3d ultralytics onnxruntime
 
 # Add to ~/.bashrc for persistence
-echo "source ~/teamsteelbot/klevor-v2/.venv/bin/activate" >> ~/.bashrc
+echo "source ~/teamvoldemor/voldemorbot/.venv/bin/activate" >> ~/.bashrc
 ```
 
 **Fix (Option 2): Use system packages with --break-system-packages**
@@ -260,8 +260,8 @@ pip3 install transforms3d ultralytics onnxruntime
 
 ### 8. Create Workspace
 ```bash
-mkdir -p ~/teamsteelbot/klevor-v2/src
-cd ~/teamsteelbot/klevor-v2
+mkdir -p ~/teamvoldemor/voldemorbot/src
+cd ~/teamvoldemor/voldemorbot
 source /opt/ros/kilted/setup.bash
 colcon build
 ```
@@ -270,11 +270,11 @@ colcon build
 ```bash
 echo "" >> ~/.bashrc
 echo "# Python virtual environment" >> ~/.bashrc
-echo "source ~/teamsteelbot/klevor-v2/.venv/bin/activate" >> ~/.bashrc
+echo "source ~/teamvoldemor/voldemorbot/.venv/bin/activate" >> ~/.bashrc
 echo "" >> ~/.bashrc
 echo "# ROS2 Kilted Kaiju" >> ~/.bashrc
 echo "source /opt/ros/kilted/setup.bash" >> ~/.bashrc
-echo "source ~/teamsteelbot/klevor-v2/install/setup.bash" >> ~/.bashrc
+echo "source ~/teamvoldemor/voldemorbot/install/setup.bash" >> ~/.bashrc
 echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -334,7 +334,7 @@ docker pull osrf/ros:kilted-desktop
 # Run container
 docker run -it --rm \
   --network host \
-  -v ~/teamsteelbot/klevor-v2:/root/teamsteelbot/klevor-v2 \
+  -v ~/teamvoldemor/voldemorbot:/root/teamvoldemor/voldemorbot \
   osrf/ros:kilted-desktop
 ```
 
@@ -373,4 +373,4 @@ If you're still stuck:
 
 The updated script should work without these errors! 🎉
 
-**Note:** The script now uses a Python virtual environment at `~/teamsteelbot/klevor-v2/.venv` which is automatically activated in your shell. This is the recommended approach for Ubuntu 24.04.
+**Note:** The script now uses a Python virtual environment at `~/teamvoldemor/voldemorbot/.venv` which is automatically activated in your shell. This is the recommended approach for Ubuntu 24.04.

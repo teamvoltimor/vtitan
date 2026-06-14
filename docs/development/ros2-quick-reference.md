@@ -8,7 +8,7 @@ A cheat sheet for daily development with ROS2 Humble.
 
 ### Build Workspace
 ```bash
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 colcon build                           # Build all packages
 colcon build --packages-select pkg     # Build specific package
 colcon build --symlink-install         # Symlink Python files (no rebuild needed)
@@ -18,7 +18,7 @@ colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release  # Release build (faster)
 ### Source Workspace
 ```bash
 source /opt/ros/humble/setup.bash      # Source ROS2
-source ~/teamsteelbot_ws/install/setup.bash  # Source your workspace
+source ~/teamvoldemor_ws/install/setup.bash  # Source your workspace
 # Or add to ~/.bashrc to auto-source
 ```
 
@@ -37,9 +37,9 @@ colcon build                           # Rebuild from scratch
 ros2 run <package_name> <executable_name>
 
 # Examples:
-ros2 run teamsteelbot_simulation mock_camera_node
-ros2 run teamsteelbot_vision sign_detector_classic
-ros2 run teamsteelbot_control decision_node
+ros2 run teamvoldemor_simulation mock_camera_node
+ros2 run teamvoldemor_vision sign_detector_classic
+ros2 run teamvoldemor_control decision_node
 ```
 
 ### Run with Parameters
@@ -47,7 +47,7 @@ ros2 run teamsteelbot_control decision_node
 ros2 run pkg node --ros-args -p param_name:=value
 
 # Example:
-ros2 run teamsteelbot_simulation mock_camera_node --ros-args -p fps:=60
+ros2 run teamvoldemor_simulation mock_camera_node --ros-args -p fps:=60
 ```
 
 ### Launch Multiple Nodes
@@ -55,7 +55,7 @@ ros2 run teamsteelbot_simulation mock_camera_node --ros-args -p fps:=60
 ros2 launch <package_name> <launch_file>
 
 # Example:
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 ```
 
 ---
@@ -233,7 +233,7 @@ ros2 topic echo /topic_name            # Verify data is correct
 **"Package not found"**
 ```bash
 # Did you source the workspace?
-source ~/teamsteelbot_ws/install/setup.bash
+source ~/teamvoldemor_ws/install/setup.bash
 
 # Did you build?
 colcon build
@@ -365,8 +365,8 @@ nav_msgs/msg/Odometry                  # Position + velocity
 
 ```bash
 # Add these to ~/.bashrc for faster workflow
-alias cb='cd ~/teamsteelbot_ws && colcon build --symlink-install'
-alias cs='source ~/teamsteelbot_ws/install/setup.bash'
+alias cb='cd ~/teamvoldemor_ws && colcon build --symlink-install'
+alias cs='source ~/teamvoldemor_ws/install/setup.bash'
 alias cbs='cb && cs'  # Build and source
 alias ct='colcon test && colcon test-result --verbose'
 
@@ -436,7 +436,7 @@ git branch -d feature/vision-detector
 
 ```bash
 # Morning: Start fresh
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 git pull
 colcon build --symlink-install
 source install/setup.bash
@@ -444,10 +444,10 @@ source install/setup.bash
 # Develop: Edit Python files (no rebuild needed with --symlink-install)
 
 # Test individual node
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Test full system
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 
 # Debug
 ros2 topic echo /detections
@@ -503,7 +503,7 @@ ros2 daemon stop
 ros2 daemon start
 
 # Clear build artifacts
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 rm -rf build/ install/ log/
 ```
 

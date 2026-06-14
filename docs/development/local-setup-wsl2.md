@@ -73,7 +73,7 @@ sudo apt install python3-colcon-common-extensions -y
 ```bash
 # Add to ~/.bashrc
 echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-echo "source ~/teamsteelbot_ws/install/setup.bash" >> ~/.bashrc  # Will create this workspace
+echo "source ~/teamvoldemor_ws/install/setup.bash" >> ~/.bashrc  # Will create this workspace
 
 # Reload
 source ~/.bashrc
@@ -83,8 +83,8 @@ source ~/.bashrc
 
 ```bash
 # Create ROS2 workspace
-mkdir -p ~/teamsteelbot_ws/src
-cd ~/teamsteelbot_ws
+mkdir -p ~/teamvoldemor_ws/src
+cd ~/teamvoldemor_ws
 
 # Build (empty for now)
 colcon build
@@ -148,23 +148,23 @@ pip3 install transforms3d
 ### Step 3.1: Create Package Structure
 
 ```bash
-cd ~/teamsteelbot_ws/src
+cd ~/teamvoldemor_ws/src
 
 # Create main packages
-ros2 pkg create --build-type ament_python teamsteelbot_bringup
-ros2 pkg create --build-type ament_python teamsteelbot_vision
-ros2 pkg create --build-type ament_python teamsteelbot_control
-ros2 pkg create --build-type ament_python teamsteelbot_sensors
-ros2 pkg create --build-type ament_cmake teamsteelbot_msgs
-ros2 pkg create --build-type ament_python teamsteelbot_simulation
+ros2 pkg create --build-type ament_python teamvoldemor_bringup
+ros2 pkg create --build-type ament_python teamvoldemor_vision
+ros2 pkg create --build-type ament_python teamvoldemor_control
+ros2 pkg create --build-type ament_python teamvoldemor_sensors
+ros2 pkg create --build-type ament_cmake teamvoldemor_msgs
+ros2 pkg create --build-type ament_python teamvoldemor_simulation
 ```
 
 ### Step 3.2: Directory Structure
 
 ```
-~/teamsteelbot_ws/
+~/teamvoldemor_ws/
 ├── src/
-│   ├── teamsteelbot_bringup/
+│   ├── teamvoldemor_bringup/
 │   │   ├── launch/
 │   │   │   ├── simulation.launch.py       # Gazebo simulation
 │   │   │   └── robot.launch.py            # Real robot (RPi5)
@@ -173,8 +173,8 @@ ros2 pkg create --build-type ament_python teamsteelbot_simulation
 │   │   │   └── robot_params.yaml
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_simulation/
-│   │   ├── teamsteelbot_simulation/
+│   ├── teamvoldemor_simulation/
+│   │   ├── teamvoldemor_simulation/
 │   │   │   ├── mock_camera_node.py        # Simulated camera
 │   │   │   ├── mock_lidar_node.py         # Simulated LiDAR
 │   │   │   └── track_generator.py         # Generate test tracks
@@ -184,27 +184,27 @@ ros2 pkg create --build-type ament_python teamsteelbot_simulation
 │   │   │   └── racer_robot/               # URDF model
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_vision/
-│   │   ├── teamsteelbot_vision/
+│   ├── teamvoldemor_vision/
+│   │   ├── teamvoldemor_vision/
 │   │   │   ├── sign_detector_yolo.py      # YOLO-based detector
 │   │   │   ├── sign_detector_classic.py   # Classical CV detector
 │   │   │   └── detector_base.py           # Base class
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_control/
-│   │   ├── teamsteelbot_control/
+│   ├── teamvoldemor_control/
+│   │   ├── teamvoldemor_control/
 │   │   │   ├── decision_node.py           # Main decision logic
 │   │   │   ├── state_machine.py           # FSM implementation
 │   │   │   └── speed_controller.py        # Adaptive speed
 │   │   └── package.xml
 │   │
-│   ├── teamsteelbot_sensors/
-│   │   ├── teamsteelbot_sensors/
+│   ├── teamvoldemor_sensors/
+│   │   ├── teamvoldemor_sensors/
 │   │   │   ├── sensor_fusion_node.py      # Mock IMU + encoders
 │   │   │   └── distance_sensor_node.py    # Mock VL53L0X
 │   │   └── package.xml
 │   │
-│   └── teamsteelbot_msgs/
+│   └── teamvoldemor_msgs/
 │       ├── msg/
 │       │   ├── SignDetection.msg
 │       │   ├── ColorReading.msg
@@ -230,7 +230,7 @@ ros2 pkg create --build-type ament_python teamsteelbot_simulation
 
 ### Step 4.1: Simple Robot URDF
 
-Create `~/teamsteelbot_ws/src/teamsteelbot_simulation/models/racer_robot/robot.urdf.xacro`:
+Create `~/teamvoldemor_ws/src/teamvoldemor_simulation/models/racer_robot/robot.urdf.xacro`:
 
 ```xml
 <?xml version="1.0"?>
@@ -300,7 +300,7 @@ Create `~/teamsteelbot_ws/src/teamsteelbot_simulation/models/racer_robot/robot.u
 
 ### Step 4.2: Minimal Launch File
 
-Create `~/teamsteelbot_ws/src/teamsteelbot_bringup/launch/simulation.launch.py`:
+Create `~/teamvoldemor_ws/src/teamvoldemor_bringup/launch/simulation.launch.py`:
 
 ```python
 from launch import LaunchDescription
@@ -317,7 +317,7 @@ def generate_launch_description():
 
         # Camera publisher (mock for now)
         Node(
-            package='teamsteelbot_simulation',
+            package='teamvoldemor_simulation',
             executable='mock_camera_node',
             name='camera',
             output='screen'
@@ -341,12 +341,12 @@ def generate_launch_description():
 
 ```bash
 # Terminal 1: Build workspace
-cd ~/teamsteelbot_ws
+cd ~/teamvoldemor_ws
 colcon build --symlink-install  # Symlink allows live Python edits
 source install/setup.bash
 
 # Terminal 2: Launch simulation
-ros2 launch teamsteelbot_bringup simulation.launch.py
+ros2 launch teamvoldemor_bringup simulation.launch.py
 
 # Terminal 3: Monitor topics
 ros2 topic list
@@ -360,10 +360,10 @@ rviz2
 
 ```bash
 # Test vision node standalone
-ros2 run teamsteelbot_vision sign_detector_classic
+ros2 run teamvoldemor_vision sign_detector_classic
 
 # Test decision node
-ros2 run teamsteelbot_control decision_node
+ros2 run teamvoldemor_control decision_node
 
 # Check node graph
 rqt_graph
@@ -408,11 +408,11 @@ When moving from laptop to RPi5:
 ### 7.1: Code Transfer
 ```bash
 # On laptop: Export packages
-cd ~/teamsteelbot_ws/src
-tar -czf teamsteelbot_packages.tar.gz teamsteelbot_*
+cd ~/teamvoldemor_ws/src
+tar -czf teamvoldemor_packages.tar.gz teamvoldemor_*
 
 # Transfer to RPi5 (USB, scp, git, etc.)
-scp teamsteelbot_packages.tar.gz pi@raspberrypi.local:~/
+scp teamvoldemor_packages.tar.gz pi@raspberrypi.local:~/
 ```
 
 ### 7.2: Hardware-Specific Changes

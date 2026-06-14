@@ -71,7 +71,7 @@ All documentation has been updated to use **YOLO26** (released January 14, 2026)
 ```bash
 # Takes only 20-30 minutes on RTX 4050
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo26n.pt \
   epochs=50 \
   device=0
@@ -98,7 +98,7 @@ yolo export model=best.pt format=onnx simplify=True nms=False
 # - RPi5 Hailo: 30-60 FPS (proven today)
 
 # Keep using your trained model
-ros2 run teamsteelbot_vision sign_detector_yolo11
+ros2 run teamvoldemor_vision sign_detector_yolo11
 ```
 
 **When to use:**
@@ -297,14 +297,14 @@ python3 -c "from ultralytics import YOLO; YOLO('yolo26n.pt')"
 ```bash
 python3 scripts/generate_synthetic_dataset.py \
   --num-images 1000 \
-  --output-dir ~/teamsteelbot_ws/datasets/traffic_signs
+  --output-dir ~/teamvoldemor_ws/datasets/traffic_signs
 ```
 
 ### 3. Train (30 min)
 
 ```bash
 yolo detect train \
-  data=~/teamsteelbot_ws/datasets/traffic_signs/data.yaml \
+  data=~/teamvoldemor_ws/datasets/traffic_signs/data.yaml \
   model=yolo26n.pt \
   epochs=50 \
   device=0
@@ -314,7 +314,7 @@ yolo detect train \
 
 ```bash
 yolo export \
-  model=~/teamsteelbot_ws/models/signs_yolo26n/weights/best.pt \
+  model=~/teamvoldemor_ws/models/signs_yolo26n/weights/best.pt \
   format=onnx \
   simplify=True \
   nms=False
@@ -430,6 +430,6 @@ If you're close to competition and YOLO11 works, you can keep it.
 
 ---
 
-**YOLO26 = 43% faster + better accuracy = Perfect for TeamSteelBot! 🚀**
+**YOLO26 = 43% faster + better accuracy = Perfect for teamvoldemor! 🚀**
 
 All documentation has been updated. You're ready to go!
