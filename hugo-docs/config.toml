@@ -1,16 +1,17 @@
-baseURL = "https://klevor.teamsteelbot.com/"
+baseURL = "https://voldemorbot.teamvoldemor.com/"
 languageCode = "en-us"
-title = "Klevor Docs"
+title = "Voldemorbot Docs"
 theme = "hugo-book"
 defaultContentLanguage = "en"
 enableGitInfo = true
+enableRobotsTXT = true
 contentDir = "content/v1"
 
 [params]
 BookTheme = "auto"
 BookToC = true
 BookSearch = true
-BookRepo = "https://github.com/teamsteelbot/klevor"
+BookRepo = "https://github.com/teamvoldemor/voldemorbot"
 BookSection = "*"
 BookDebug = false
 
