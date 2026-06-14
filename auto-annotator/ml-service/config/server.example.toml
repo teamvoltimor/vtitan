@@ -1,0 +1,35 @@
+# server.example.toml – ML service runtime configuration template
+#
+# Copy to server.toml and adjust values for your environment:
+#   cp config/server.example.toml config/server.toml
+#
+# Environment variables override every key below.
+# Priority order: env var > server.toml > built-in default.
+
+# ── TCP model server ──────────────────────────────────────────────────────────
+# The SAM model server runs as a daemon thread inside the ml-service process.
+# It keeps the model loaded in GPU memory and serves inference requests over a
+# local TCP socket so the gRPC servicers can reuse weights across requests.
+[server]
+# Port the TCP model server listens on.
+# Override: SERVER_PORT env var (legacy: MODEL_SERVER_PORT).
+port = 8765
+
+# Maximum bytes read per socket recv() call.
+# Increase for very large mask payloads (e.g. 4K images).
+# Override: not available via env — set here.
+recv_chunk_size = 65536
+
+# ── gRPC compute server ───────────────────────────────────────────────────────
+# The gRPC server is the boundary between the Go API and Python compute.
+# All three services (Segmentation, Augmentation, Training) share one port.
+[grpc]
+# Port the gRPC server binds to (all interfaces, 0.0.0.0).
+# Override: GRPC_PORT env var.
+port = 50051
+
+# Thread-pool size for the gRPC executor.
+# SAM inference is GPU-bound; 4–8 workers lets augmentation/training jobs
+# overlap without starving segmentation requests.
+# Override: not available via env — set here.
+max_workers = 8

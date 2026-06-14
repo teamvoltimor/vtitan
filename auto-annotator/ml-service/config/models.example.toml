@@ -1,0 +1,116 @@
+# models.example.toml – SAM / YOLO model registry template
+#
+# Copy to models.toml and add your own model entries:
+#   cp config/models.example.toml config/models.toml
+#
+# The server loads the model whose id matches default_model on startup.
+# Override at runtime: --model <id> CLI flag or DEFAULT_MODEL env var.
+#
+# ── Field reference ───────────────────────────────────────────────────────────
+#   id             Unique key used by the API and UI dropdown.
+#   label          Human-readable name shown in the frontend.
+#   type           One of: "sam1" | "sam2" | "sam3" | "yolo11" | "yoloe" | "grounding_dino"
+#   checkpoint     Local .pt / .pth path relative to the ml-service root.
+#                  Takes priority over hf_repo when present.
+#   hf_repo        HuggingFace repo slug; used when checkpoint is absent or missing.
+#   hiera_config   SAM 2/3 only — Hydra YAML config path inside the sam2 package.
+#   variant        SAM 1 only — "vit_h" | "vit_l" | "vit_b"
+#   onnx_path      YOLO11 only — ONNX export path for CPU/CUDA inference.
+#   hef_path       YOLO11 only — Hailo HEF path for Hailo-8 NPU inference.
+#   supports_text  true for models that accept text prompts (YOLOE, SAM 3, Grounding DINO).
+
+default_model = "sam2.1-large"
+
+# ── SAM 2.1 (recommended default) ────────────────────────────────────────────
+
+[[models]]
+id           = "sam2.1-large"
+label        = "SAM 2.1 Large"
+type         = "sam2"
+# Remove checkpoint to auto-download from HuggingFace on first run.
+checkpoint   = "models/sam2.1_l.pt"
+hiera_config = "configs/sam2.1/sam2.1_hiera_l.yaml"
+hf_repo      = "facebook/sam2.1-hiera-large"
+
+[[models]]
+id           = "sam2.1-base-plus"
+label        = "SAM 2.1 Base+"
+type         = "sam2"
+checkpoint   = "models/sam2.1_bp.pt"
+hiera_config = "configs/sam2.1/sam2.1_hiera_b+.yaml"
+hf_repo      = "facebook/sam2.1-hiera-base-plus"
+
+[[models]]
+id           = "sam2.1-small"
+label        = "SAM 2.1 Small"
+type         = "sam2"
+checkpoint   = "models/sam2.1_s.pt"
+hiera_config = "configs/sam2.1/sam2.1_hiera_s.yaml"
+hf_repo      = "facebook/sam2.1-hiera-small"
+
+# ── SAM 2.0 ──────────────────────────────────────────────────────────────────
+
+[[models]]
+id           = "sam2-large"
+label        = "SAM 2 Large"
+type         = "sam2"
+checkpoint   = "models/sam2_l.pt"
+hiera_config = "configs/sam2/sam2_hiera_l.yaml"
+hf_repo      = "facebook/sam2-hiera-large"
+
+# ── SAM 1 (ViT checkpoints, CPU-friendly) ────────────────────────────────────
+
+[[models]]
+id         = "sam1-vit-h"
+label      = "SAM 1 ViT-H"
+type       = "sam1"
+checkpoint = "models/sam_vit_h_4b8939.pth"
+variant    = "vit_h"
+
+[[models]]
+id         = "sam1-vit-l"
+label      = "SAM 1 ViT-L"
+type       = "sam1"
+checkpoint = "models/sam_vit_l_0b3195.pth"
+variant    = "vit_l"
+
+[[models]]
+id         = "sam1-vit-b"
+label      = "SAM 1 ViT-B"
+type       = "sam1"
+checkpoint = "models/sam_vit_b_01ec64.pth"
+variant    = "vit_b"
+
+# ── Text-prompted models ──────────────────────────────────────────────────────
+# These accept free-text class labels instead of click points.
+
+[[models]]
+id            = "sam3"
+label         = "SAM 3"
+type          = "sam3"
+hf_repo       = "facebook/sam3"
+supports_text = true
+
+[[models]]
+id            = "yoloe-26l"
+label         = "YOLOE 26L (open-vocabulary)"
+type          = "yoloe"
+checkpoint    = "models/yoloe-26l-seg.pt"
+supports_text = true
+
+[[models]]
+id            = "grounding-dino-sam"
+label         = "Grounding DINO + SAM"
+type          = "grounding_dino"
+supports_text = true
+
+# ── Custom YOLO11 (example — replace with your trained model) ─────────────────
+# Use this template for any model you exported with `yolo export`.
+
+# [[models]]
+# id         = "my-yolo11n"
+# label      = "My YOLOv11n (custom)"
+# type       = "yolo11"
+# checkpoint = "models/my_model/best.pt"
+# onnx_path  = "models/my_model/best.onnx"   # optional — for ONNX runtime
+# hef_path   = "models/my_model/best.hef"    # optional — for Hailo-8 NPU

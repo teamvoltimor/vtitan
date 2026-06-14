@@ -1,4 +1,0 @@
-[server]
-# TCP port the SAM model server listens on.  This value is overridden by
-# the SERVER_PORT env var (or the legacy MODEL_SERVER_PORT) when present.
-port = 8765

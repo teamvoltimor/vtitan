@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+// Package autoannotator.v1 is the language-neutral contract between the Go
+// orchestration API (gRPC client) and the Python compute workers (gRPC servers).
+// The workers own all ML compute (SAM inference, albumentations augmentation,
+// Ultralytics YOLO training); the Go API owns the SQLite manifest DB.
+//
+// This is the single source of truth shared by both services. Each side vendors
+// its own generated stubs: Go in api/internal/compute/pb, Python in
+// backend/src/grpc_server/pb.
+package autoannotator.v1;
+
+option go_package = "github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1";
+
+// A normalized 2-D point in the range [0, 1].
+message Point {
+  double x = 1;
+  double y = 2;
+}
+
+// A click point sent for SAM inference.
+message ClickPoint {
+  double x = 1;
+  double y = 2;
+  string point_type = 3; // "positive" | "negative"
+  string class_name = 4;
+}
+
+// A mask/bounding-box annotation returned by inference.
+message Shape {
+  string id = 1;
+  string class_name = 2;
+  repeated Point points = 3;
+}
+
+// ---- Segmentation ----
+
+message SegmentRequest {
+  int64 image_id = 1;
+  string image_path = 2; // absolute path on the shared filesystem
+  repeated ClickPoint points = 3;
+  repeated string class_names = 4; // valid class names (index = YOLO class id)
+}
+
+message SegmentResponse {
+  string state = 1; // "ready" | "error"
+  string message = 2;
+  repeated Shape shapes = 3;
+}
+
+// SAM point-prompted segmentation. Stateless: every call carries all points.
+service SegmentationService {
+  rpc Segment(SegmentRequest) returns (SegmentResponse);
+}
+
+// ---- Shared job progress (augmentation + training stream this) ----
+
+// An augmented image produced by the worker. The worker writes the files; the
+// Go API inserts the corresponding DB row (single DB writer).
+message AugmentedImage {
+  string path = 1;
+  string format_used = 2; // "seg" | "det"
+  int64 parent_id = 3;
+}
+
+message JobProgress {
+  string status = 1; // "running" | "completed" | "failed"
+  string message = 2;
+  string stage = 3;
+  double progress = 4; // 0.0 - 1.0
+  string details = 5;  // free-form JSON (epoch/loss/map for training, counts for augment)
+  bool finished = 6;
+  string error = 7;
+  // Set on augmentation progress events as copies are created, so the Go API can
+  // persist them. Empty for training.
+  AugmentedImage augmented = 8;
+}
+
+// ---- Augmentation ----
+
+// A source image to augment. The Go API resolves these from the DB (the single
+// DB owner) so the worker only touches the filesystem.
+message AugmentSource {
+  int64 image_id = 1;
+  string path = 2;
+  string format_used = 3; // "seg" | "det"
+}
+
+message AugmentRequest {
+  repeated AugmentSource sources = 1;
+  int32 num_augmentations = 2;
+}
+
+service AugmentationService {
+  rpc RunAugmentation(AugmentRequest) returns (stream JobProgress);
+}
+
+// ---- Training ----
+
+message TrainRequest {
+  string model_name = 1;
+  int32 epochs = 2;
+  int32 batch = 3;
+  int32 imgsz = 4;
+  string data_yaml_path = 5; // absolute path to the Go-generated data.yaml
+}
+
+service TrainingService {
+  rpc RunTraining(TrainRequest) returns (stream JobProgress);
+}

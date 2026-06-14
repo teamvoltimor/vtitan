@@ -1,0 +1,16 @@
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+  except:
+    # JobProgress is intentionally the shared streamed response for both the
+    # augmentation and training RPCs; request/response names mirror the existing
+    # HTTP DTOs rather than the <RPC>Request/<RPC>Response convention.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE
