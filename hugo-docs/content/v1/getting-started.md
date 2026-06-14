@@ -1,6 +1,11 @@
+---
+title: "Getting Started"
+description: "Set up your environment and start using Voldemorbot v2 — prerequisites, installation, and first steps."
+---
+
 # Getting Started
 
-Welcome to the documentation for **klevor-v2**!
+Welcome to the documentation for **voldemorbot**!
 
 This guide will help you get up and running quickly. Follow the steps below to set up your environment and start using the project.
 
@@ -10,7 +15,7 @@ This guide will help you get up and running quickly. Follow the steps below to s
 
 Below is an example image included from the `static/` directory:
 
-![Project Diagram](/project-diagram.png)
+![Project Diagram](/images/project-diagram.png)
 
 
 ---
@@ -28,8 +33,8 @@ Below is an example image included from the `static/` directory:
 Clone the repository:
 
 ```sh
-git clone https://github.com/your/repo.git
-cd klevor-v2
+git clone https://github.com/teamvoldemor/voldemorbot.git
+cd voldemorbot
 ```
 
 Install dependencies:

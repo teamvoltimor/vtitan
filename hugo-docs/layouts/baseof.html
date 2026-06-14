@@ -2,13 +2,14 @@
 <html lang="{{ default .Site.Language.Lang .Site.LanguageCode }}" dir="{{ default "ltr" .Site.Language.LanguageDirection }}">
 <head>
   {{ partial "docs/html-head" . }}
-  {{ partial "head-includes.html" . }}
+  {{ partial "head-includes" . }}
   {{ partial "docs/inject/head" . }}
 </head>
 <body dir="{{ default "ltr" .Site.Language.LanguageDirection }}" class="book-kind-{{ .Kind }} book-type-{{ .Type }}{{ with .Layout }} book-layout-{{ . }}{{ end }}">
+  <a href="#main" class="skip-to-content">Skip to content</a>
   <input type="checkbox" class="hidden toggle" id="menu-control" />
   <input type="checkbox" class="hidden toggle" id="toc-control" />
-  <main class="container flex">
+  <main id="main" class="container flex">
     {{ template "menu-container" . }}
 
     <div class="book-page">
@@ -71,12 +72,6 @@
   {{ if $codeCopy }}
     {{ $codeCopy = $codeCopy | resources.Minify }}
     <script>{{ $codeCopy.Content | safeJS }}</script>
-  {{ end }}
-
-  {{ $tocScrollSpy := resources.Get "toc-scroll-spy.js" }}
-  {{ if $tocScrollSpy }}
-    {{ $tocScrollSpy = $tocScrollSpy | resources.Minify }}
-    <script>{{ $tocScrollSpy.Content | safeJS }}</script>
   {{ end }}
 
   {{ $tabs := resources.Get "tabs.js" }}

@@ -10,10 +10,11 @@ import (
 	"time"
 )
 
-// Source and destination directories (relative to project root)
+// Source and destination directories (relative to the hugo-docs project root,
+// which is the working directory the Taskfile invokes this script from).
 const (
-	docsDir    = "../../docs"
-	contentDir = "../content/v1"
+	docsDir    = "../docs"
+	contentDir = "content/v1"
 )
 
 // Checks if a file has Hugo front matter (YAML or TOML)

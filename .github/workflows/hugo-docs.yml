@@ -1,0 +1,62 @@
+name: Build and Deploy Docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "hugo-docs/**"
+      - ".github/workflows/hugo-docs.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "hugo-docs/**"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.156.0"
+          extended: true
+
+      - name: Build
+        working-directory: hugo-docs
+        run: hugo --minify --gc
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.156.0"
+          extended: true
+
+      - name: Build
+        working-directory: hugo-docs
+        run: hugo --minify --gc
+
+      - name: Deploy
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: klevor-docs
+          directory: hugo-docs/public
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

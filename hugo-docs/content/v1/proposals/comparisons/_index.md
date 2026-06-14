@@ -1,5 +1,6 @@
 ---
 title: "Comparisons"
+description: "Technology and hardware comparisons to inform design decisions — decision matrices, evaluations, and recommendations."
 date: 2026-01-17
 ---
 

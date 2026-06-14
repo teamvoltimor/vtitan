@@ -1,3 +1,8 @@
+---
+title: "Version 1"
+description: "Documentation for Version 1 of Voldemorbot v2 — getting started guides, usage instructions, and technical proposals."
+---
+
 # Documentation Version 1 (v1)
 
 Welcome to the documentation for **Version 1** of this project!

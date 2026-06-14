@@ -1,76 +1,61 @@
-# Ignore everything by default
-*
-
-# Makefile
-!Makefile
-
-# But NOT these Hugo-required files and folders:
-!.gitignore
-!config.toml
-!config.yaml
-!config.json
-!archetypes/
-!content/
-!data/
-!layouts/
-!static/
-!themes/
-!assets/
-!resources/
-!hugo.toml
-!hugo.yaml
-!hugo.json
-!.hugo_build.lock
-
-# Allow all files in static (for images, CSS, etc.)
-!static/**
-
-# Allow all files in layouts (for custom templates/partials)
-!layouts/**
-
-# Allow all files in assets (for custom CSS/JS)
-!assets/**
-
-# Allow all files in themes (for theme code)
-!themes/**
-
-# Allow all files in archetypes (for archetype templates)
-!archetypes/**
-
-# Allow all files in data (for data-driven content)
-!data/**
-
-# Allow all files in resources (for Hugo's generated assets)
-!resources/**
-
-# Unignore all directories under content so allowed files are tracked
-!content/**/
-
-# Allow only _index.md and archetype/page standards in content (for Hugo content)
-!content/**/_index.md
-!content/**/index.md
-
-# Add Go scripts
-!scripts/
-!scripts/**/*
-
-# Special MarkDown files unique to Hugo docs content
-!content/**/getting-started.md
-!content/**/test.md
-!content/**/usage.md
-
-# Ignore Hugo build output
-public/
-resources/_gen/
-
-# Ignore OS and editor files
+# System files
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
-
-# Ignore Hugo cache
-hugo_stats.json
-
-# Ignore logs
 *.log
+
+# Ignore everything by default
+*
+
+# Allowlist essentials
+!.gitignore
+!Makefile
+!Taskfile.yml
+!biome.json
+!*/
+
+# Configuration files
+!hugo.toml
+!hugo.yaml
+!hugo.json
+!config.toml
+!config.yaml
+!config.json
+!.hugo_build.lock
+
+# Standard Hugo folders
+!archetypes/
+!archetypes/**
+!assets/
+!assets/**
+!data/
+!data/**
+!layouts/
+!layouts/**
+!static/
+!static/**
+!themes/
+!themes/**
+!scripts/
+!scripts/**
+
+# Content and specific page rules
+!content/
+!content/**/
+!content/**/_index.md
+!content/**/index.md
+!content/**/getting-started.md
+!content/**/usage.md
+
+# Build output and cache
+public/
+resources/_gen/
+hugo_stats.json
+assets/jsconfig.json
+hugo.exe
+hugo.darwin
+hugo.linux
+
+# Claude Code
+.claude/
