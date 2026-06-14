@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>klevor_robot</name>
+  <name>voldemorbot_robot</name>
   <version>0.1.0</version>
   <description>WRO 2026 Future Engineers — ROS2 navigation runtime</description>
   <maintainer email="inquiries@ralvarez.dev">Ramón Álvarez</maintainer>
