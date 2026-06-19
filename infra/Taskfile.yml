@@ -1,0 +1,41 @@
+version: "3"
+
+tasks:
+  default:
+    desc: List all infra tasks
+    cmds:
+      - task --list
+
+  # Cloudflare Tunnel
+
+  cloudflare:status:
+    desc: Show Cloudflare tunnel service status
+    cmds:
+      - systemctl status cloudflared
+
+  cloudflare:restart:
+    desc: Restart Cloudflare tunnel service
+    cmds:
+      - sudo systemctl restart cloudflared
+
+  cloudflare:logs:
+    desc: Tail Cloudflare tunnel logs (last 50 lines)
+    cmds:
+      - journalctl -u cloudflared -n 50 --no-pager
+
+  # VPN (Windscribe)
+
+  vpn:connect:
+    desc: Connect Windscribe VPN
+    cmds:
+      - windscribe-cli connect
+
+  vpn:disconnect:
+    desc: Disconnect Windscribe VPN
+    cmds:
+      - windscribe-cli disconnect
+
+  vpn:status:
+    desc: Show Windscribe VPN connection status
+    cmds:
+      - windscribe-cli status

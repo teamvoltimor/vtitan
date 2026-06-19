@@ -1,15 +1,18 @@
 version: "3"
 
 vars:
-  RPI_ZERO_SSH: rpi-zero-ethernet
-  RPI_ZERO_HOST: ralvarezdev-raspberrypi-zero.local
-  RPI_5_SSH: rpi-5-local
-  RPI_5_HOST: 192.168.0.50
-  RPI_5_WINDOWS_IP: 192.168.1.50
-  RPI_5_CONNECTION: netplan-eth0
   WINDOWS_ETHERNET_IP: 192.168.1.50
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
+
+includes:
+  platform:
+    taskfile: ./platform/Taskfile.yml
+    dir: ./platform
+  infra:
+    taskfile: ./infra/Taskfile.yml
+  fleet:
+    taskfile: ./fleet/Taskfile.yml
 
 tasks:
   default:
@@ -17,9 +20,7 @@ tasks:
     cmds:
       - task --list
 
-  # =====================
   # Windows host commands (run from this machine)
-  # =====================
 
   windows:ping:
     desc: "Ping a Pi (usage: task windows:ping PING_HOST=address)"
@@ -87,19 +88,7 @@ tasks:
       - cmd: powershell -NoProfile -Command "Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled; Remove-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 -ErrorAction SilentlyContinue; Write-Host 'DHCP enabled on Ethernet adapter'"
         platforms: [windows]
 
-  windows:windscribe:connect:
-    desc: Connect Windscribe VPN
-    cmds:
-      - windscribe-cli connect
-
-  windows:windscribe:disconnect:
-    desc: Disconnect Windscribe VPN
-    cmds:
-      - windscribe-cli disconnect
-
-  # =====================
   # Raspberry Pi commands (run directly on the Pi)
-  # =====================
 
   rpi:ip:
     desc: Show usb0 (gadget) IP address
@@ -209,12 +198,71 @@ tasks:
     cmds:
       - sudo nmcli device wifi list
 
-  rpi:windscribe:connect:
-    desc: Connect Windscribe VPN
-    cmds:
-      - windscribe-cli connect
+  # Health & composite
 
-  rpi:windscribe:disconnect:
-    desc: Disconnect Windscribe VPN
+  rpi:health:
+    desc: Full system health snapshot (temp, throttle, GPU mem, disk, mem, uptime)
     cmds:
-      - windscribe-cli disconnect
+      - vcgencmd measure_temp
+      - vcgencmd get_throttled
+      - vcgencmd get_mem gpu
+      - df -h /
+      - free -h
+      - uptime
+
+  # Hailo AI accelerator
+
+  rpi:hailo:status:
+    desc: Show HailoRT service status
+    cmds:
+      - systemctl status hailort
+
+  rpi:hailo:restart:
+    desc: Restart HailoRT service
+    cmds:
+      - sudo systemctl restart hailort
+
+  rpi:hailo:logs:
+    desc: Tail HailoRT service logs (last 50 lines)
+    cmds:
+      - journalctl -u hailort -n 50 --no-pager
+
+  rpi:hailo:models:
+    desc: List compiled HEF models in home directory
+    cmds:
+      - ls -lh ~/*.hef
+
+  # Camera
+
+  rpi:camera:info:
+    desc: List detected cameras
+    cmds:
+      - rpicam-hello --list-cameras
+
+  rpi:camera:test:
+    desc: Run 2-second camera preview (smoke test)
+    cmds:
+      - rpicam-hello -t 2000
+
+  rpi:camera:capture:
+    desc: Capture a still to /tmp/snap.jpg
+    cmds:
+      - rpicam-still -o /tmp/snap.jpg && echo "Saved to /tmp/snap.jpg"
+
+  # Repos
+
+  rpi:repos:pull:
+    desc: Pull latest on all voldemorbot repos
+    cmds:
+      - |
+        for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do
+          echo "=== $d ===" && git -C $d pull
+        done
+
+  rpi:repos:status:
+    desc: Show git status across all voldemorbot repos
+    cmds:
+      - |
+        for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do
+          echo "=== $d ===" && git -C $d status -sb
+        done
