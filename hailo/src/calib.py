@@ -1,4 +1,5 @@
 """Calibration data management: COCO download and image → .npy conversion."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,13 +7,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.common import (
-    CalibrationDataError,
-    _require_dep,
-    get_logger,
-)
 from src.config import ConvertConfig, DownloadConfig  # noqa: TC001
+from src.errors import CalibrationDataError, require_dep
 from src.image import iter_images
+from src.log import get_logger
 
 log = get_logger(__name__)
 
@@ -30,10 +28,9 @@ def download(config: DownloadConfig) -> None:
         from fiftyone.types import ImageDirectory  # noqa: PLC0415
         from fiftyone.zoo import load_zoo_dataset  # noqa: PLC0415
     except ImportError:
-        ImageDirectory = None  # type: ignore[assignment, misc]
         load_zoo_dataset = None  # type: ignore[assignment]
 
-    _require_dep(load_zoo_dataset, "fiftyone")
+    require_dep(load_zoo_dataset, "fiftyone")
 
     log.info(
         "Downloading %d COCO 2017 validation images → %s",

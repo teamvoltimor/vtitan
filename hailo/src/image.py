@@ -7,101 +7,30 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from src.common import Task
-
-# COCO labels
-
-COCO_CLASSES: list[str] = [
-    "person",
-    "bicycle",
-    "car",
-    "motorcycle",
-    "airplane",
-    "bus",
-    "train",
-    "truck",
-    "boat",
-    "traffic light",
-    "fire hydrant",
-    "stop sign",
-    "parking meter",
-    "bench",
-    "bird",
-    "cat",
-    "dog",
-    "horse",
-    "sheep",
-    "cow",
-    "elephant",
-    "bear",
-    "zebra",
-    "giraffe",
-    "backpack",
-    "umbrella",
-    "handbag",
-    "tie",
-    "suitcase",
-    "frisbee",
-    "skis",
-    "snowboard",
-    "sports ball",
-    "kite",
-    "baseball bat",
-    "baseball glove",
-    "skateboard",
-    "surfboard",
-    "tennis racket",
-    "bottle",
-    "wine glass",
-    "cup",
-    "fork",
-    "knife",
-    "spoon",
-    "bowl",
-    "banana",
-    "apple",
-    "sandwich",
-    "orange",
-    "broccoli",
-    "carrot",
-    "hot dog",
-    "pizza",
-    "donut",
-    "cake",
-    "chair",
-    "couch",
-    "potted plant",
-    "bed",
-    "dining table",
-    "toilet",
-    "tv",
-    "laptop",
-    "mouse",
-    "remote",
-    "keyboard",
-    "cell phone",
-    "microwave",
-    "oven",
-    "toaster",
-    "sink",
-    "refrigerator",
-    "book",
-    "clock",
-    "vase",
-    "scissors",
-    "teddy bear",
-    "hair drier",
-    "toothbrush",
-]
-
-_rng = np.random.default_rng(42)
-COLORS: list[tuple[int, ...]] = [tuple(int(x) for x in _rng.integers(0, 255, 3)) for _ in range(len(COCO_CLASSES))]
+from src.coco import COCO_CLASSES, COLORS
+from src.constants import (
+    BOX_LINE_THICKNESS,
+    DEFAULT_IMG_SIZE,
+    DETECTION_BOX_COLS,
+    DETECTION_CLASS_COL,
+    DETECTION_OUTPUT_COLS,
+    DETECTION_SCORE_COL,
+    IMAGE_EXTENSIONS,
+    LETTERBOX_PAD_COLOR,
+    NORMALIZE_FACTOR,
+    TEXT_FONT_SCALE,
+    TEXT_THICKNESS,
+    TEXT_Y_OFFSET,
+    TRANSPOSE_HWC_TO_CHW,
+)
+from src.enums import Task
+from src.errors import HailoError
 
 
 def letterbox(
     img: np.ndarray,
-    new_shape: tuple[int, int] = (640, 640),
-    pad_color: tuple[int, int, int] = (114, 114, 114),
+    new_shape: tuple[int, int] = (DEFAULT_IMG_SIZE, DEFAULT_IMG_SIZE),
+    pad_color: tuple[int, int, int] = LETTERBOX_PAD_COLOR,
 ) -> tuple[np.ndarray, float, float, float]:
     """Resize ``img`` with letterboxing to preserve aspect ratio.
 
@@ -131,13 +60,12 @@ def letterbox(
         cv2.BORDER_CONSTANT,
         value=pad_color,
     )
-    img = cv2.resize(img, new_shape[::-1], interpolation=cv2.INTER_LINEAR)
     return img, ratio, dw, dh
 
 
 def preprocess(
     img_path: str,
-    size: int = 640,
+    size: int = DEFAULT_IMG_SIZE,
 ) -> tuple[np.ndarray, float, float, float, np.ndarray]:
     """Load, letterbox, and normalise an image for ONNX inference.
 
@@ -150,8 +78,8 @@ def preprocess(
     """
     img0 = cv2.imread(img_path)
     img, ratio, dw, dh = letterbox(img0, new_shape=(size, size))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-    img = np.expand_dims(np.transpose(img, (2, 0, 1)), 0)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / NORMALIZE_FACTOR
+    img = np.expand_dims(np.transpose(img, TRANSPOSE_HWC_TO_CHW), 0)
     return img, ratio, dw, dh, img0
 
 
@@ -184,11 +112,25 @@ def scale_coords(
     return boxes
 
 
+def _class_label(class_id: int, names: dict[int, str] | None) -> str:
+    """Resolve a class index to a display name.
+
+    Prefers the model's own ``names`` mapping (correct for custom-trained
+    models), falling back to the COCO class list, then the bare index.
+    """
+    if names is not None and class_id in names:
+        return names[class_id]
+    if class_id < len(COCO_CLASSES):
+        return COCO_CLASSES[class_id]
+    return str(class_id)
+
+
 def draw_boxes(
     image: np.ndarray,
     boxes: np.ndarray,
     scores: np.ndarray,
     classes: np.ndarray,
+    names: dict[int, str] | None = None,
 ) -> None:
     """Overlay bounding boxes and labels on ``image`` in-place.
 
@@ -197,21 +139,24 @@ def draw_boxes(
         boxes: ``(N, 4)`` xyxy float array.
         scores: ``(N,)`` confidence scores.
         classes: ``(N,)`` class indices.
+        names: Optional ``{index: name}`` mapping from the model. When ``None``
+            the COCO class list is used. Pass the model's own names to label
+            custom-trained classes correctly.
     """
     for box, score, cls in zip(boxes, scores, classes, strict=False):
         x1, y1, x2, y2 = map(int, box)
         class_id = int(cls)
         color = COLORS[class_id % len(COLORS)]
-        label = f"{COCO_CLASSES[class_id]} {score:.2f}" if class_id < len(COCO_CLASSES) else f"{class_id} {score:.2f}"
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        label = f"{_class_label(class_id, names)} {score:.2f}"
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, BOX_LINE_THICKNESS)
         cv2.putText(
             image,
             label,
-            (x1, max(y1 - 10, 0)),
+            (x1, max(y1 - TEXT_Y_OFFSET, 0)),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
+            TEXT_FONT_SCALE,
             color,
-            2,
+            TEXT_THICKNESS,
         )
 
 
@@ -272,24 +217,43 @@ def iter_images(directory: str):
         ``(fname, abs_path)`` tuples.
     """
     for path in Path(directory).iterdir():
-        if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+        if path.suffix.lower() in IMAGE_EXTENSIONS:
             yield path.name, str(path)
 
 
-def _apply_boxes(
+def apply_boxes(
     raw: np.ndarray | None,
     conf: float,
     ratio: float,
     dw: float,
     dh: float,
     image: np.ndarray,
+    names: dict[int, str] | None = None,
 ) -> None:
-    """Filter by confidence, scale, and draw detected boxes onto image in-place."""
+    """Filter by confidence, scale, and draw detected boxes onto image in-place.
+
+    Expects ``raw`` in **post-NMS** ``(N, 6)`` layout
+    (``xyxy``, score, class). Models exported with ``nms=False`` emit a raw
+    ``(channels, anchors)`` detection tensor instead, which this function cannot
+    decode.
+
+    Raises:
+        HailoError: If ``raw`` is not ``(N, 6)``.
+    """
     if raw is None or raw.shape[0] == 0:
         return
-    xyxy, scores, classes = raw[:, :4], raw[:, 4], raw[:, 5]
+    if raw.ndim != 2 or raw.shape[1] != DETECTION_OUTPUT_COLS:
+        msg = (
+            f"Raw ONNX output has shape {raw.shape}; expected post-NMS (N, {DETECTION_OUTPUT_COLS}). "
+            "The registered models export with nms=False, so use "
+            "`--backend ultraonnx` to test them."
+        )
+        raise HailoError(msg)
+    xyxy = raw[:, :DETECTION_BOX_COLS]
+    scores = raw[:, DETECTION_SCORE_COL]
+    classes = raw[:, DETECTION_CLASS_COL]
     keep = scores > conf
     xyxy, scores, classes = xyxy[keep], scores[keep], classes[keep]
     if len(xyxy):
         xyxy = scale_coords(xyxy, ratio, dw, dh, image.shape)
-        draw_boxes(image, xyxy, scores, classes)
+        draw_boxes(image, xyxy, scores, classes, names)

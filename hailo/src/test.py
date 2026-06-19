@@ -1,4 +1,5 @@
 """Inference testing across all backends (PyTorch, ONNX, Ultralytics+ONNX)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,22 +8,18 @@ from typing import Protocol
 import cv2
 import numpy as np
 
-from src.common import (
-    Backend,
-    HailoError,
-    Task,
-    _require_dep,
-    get_logger,
-)
 from src.config import TestConfig  # noqa: TC001
+from src.enums import Backend, Task
+from src.errors import HailoError, require_dep
 from src.image import (
-    _apply_boxes,
+    apply_boxes,
     draw_boxes,
     infer_task,
     iter_images,
     preprocess,
     unletterbox_mask,
 )
+from src.log import get_logger
 
 try:
     from ultralytics import YOLO
@@ -61,7 +58,7 @@ class _PTHandler:
         self.config = config
 
     def setup(self) -> None:
-        _require_dep(YOLO, "ultralytics")
+        require_dep(YOLO, "ultralytics")
         self.model = YOLO(self.config.model)
 
     def infer(self, img_path: str) -> np.ndarray:
@@ -71,7 +68,7 @@ class _PTHandler:
             boxes = results[0].boxes.xyxy.cpu().numpy()
             scores = results[0].boxes.conf.cpu().numpy()
             classes = results[0].boxes.cls.cpu().numpy()
-            draw_boxes(orig, boxes, scores, classes)
+            draw_boxes(orig, boxes, scores, classes, names=results[0].names)
         return orig
 
 
@@ -82,7 +79,7 @@ class _UltraONNXHandler:
         self.config = config
 
     def setup(self) -> None:
-        _require_dep(YOLO, "ultralytics")
+        require_dep(YOLO, "ultralytics")
         self.model = YOLO(self.config.model)
 
     def infer(self, img_path: str) -> np.ndarray:
@@ -91,13 +88,18 @@ class _UltraONNXHandler:
 
 
 class _ONNXDetectHandler:
-    """Raw ONNX backend handler for detection task."""
+    """Raw ONNX backend handler for detection task.
+
+    Requires an NMS-embedded model (post-NMS ``(N, 6)`` output). Models exported
+    with ``nms=False`` raise a clear error via :func:`apply_boxes`; use the
+    ``ultraonnx`` backend for those instead.
+    """
 
     def __init__(self, config: TestConfig):
         self.config = config
 
     def setup(self) -> None:
-        _require_dep(ort, "onnxruntime")
+        require_dep(ort, "onnxruntime")
         self.session = ort.InferenceSession(self.config.model)
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]
@@ -105,7 +107,7 @@ class _ONNXDetectHandler:
     def infer(self, img_path: str) -> np.ndarray:
         img_input, ratio, dw, dh, orig = preprocess(img_path)
         outputs = self.session.run(self.output_names, {self.input_name: img_input})
-        _apply_boxes(
+        apply_boxes(
             outputs[0][0] if outputs else None,
             self.config.conf,
             ratio,
@@ -123,7 +125,7 @@ class _ONNXSegmentHandler:
         self.config = config
 
     def setup(self) -> None:
-        _require_dep(ort, "onnxruntime")
+        require_dep(ort, "onnxruntime")
         self.session = ort.InferenceSession(self.config.model)
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]
@@ -163,7 +165,7 @@ class _ONNXSegmentHandler:
             color_mask[:, :, 1] = mask_img
             overlay = cv2.addWeighted(orig, 0.7, color_mask, 0.3, 0)
 
-        _apply_boxes(boxes_raw, self.config.conf, ratio, dw, dh, overlay)
+        apply_boxes(boxes_raw, self.config.conf, ratio, dw, dh, overlay)
         return overlay
 
 
