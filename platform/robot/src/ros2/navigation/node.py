@@ -196,6 +196,10 @@ class TrackNavigator(Node):
 
         # Gateway & Core Logic
         self._gateway = ROS2HardwareGateway(self, start_x, start_y, start_yaw)
+        # num_laps=1 is intentional: calculate_waypoints bakes the lap count into
+        # the list, but CoreNavigator already cycles one canonical lap `num_laps`
+        # times (see step() waypoint-wrap). Passing the real count would multiply
+        # laps (e.g. 3 -> 9). Keep this at 1.
         waypoints = calculate_waypoints(self._metadata, num_laps=1)
 
         start_section = Section.from_string(start_cond[DictKeys.SECTION])
