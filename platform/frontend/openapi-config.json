@@ -1,0 +1,13 @@
+{
+  "$schema": "https://api.openapis.dev/config.json",
+  "input": {
+    "path": "../openapi/openapi.yaml"
+  },
+  "output": {
+    "path": "./src/api",
+    "client": "fetch"
+  },
+  "types": {
+    "enums": "javascript"
+  }
+}
