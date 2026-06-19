@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
-	"github.com/klevor/telemetry-backend/internal/sqlcdb"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/sqlcdb"
 	_ "modernc.org/sqlite" // SQLite driver (pure Go, no cgo)
 )
 

@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
 )
 
 const wsWriteTimeout = 5 * time.Second

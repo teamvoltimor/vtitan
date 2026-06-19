@@ -20,13 +20,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
-	"github.com/klevor/telemetry-backend/internal/config"
-	"github.com/klevor/telemetry-backend/internal/edge"
-	"github.com/klevor/telemetry-backend/internal/ingest"
-	"github.com/klevor/telemetry-backend/internal/recorder"
-	"github.com/klevor/telemetry-backend/internal/sim"
-	"github.com/klevor/telemetry-backend/internal/store"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/edge"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/ingest"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/recorder"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/sim"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/store"
 )
 
 const (

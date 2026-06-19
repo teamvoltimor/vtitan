@@ -3,14 +3,16 @@ package edge
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
-	"github.com/klevor/telemetry-backend/internal/config"
-	"github.com/klevor/telemetry-backend/internal/recorder"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/recorder"
 )
 
 type (
@@ -40,12 +42,16 @@ func NewRouter(store Store, sessions SessionStore, cfg *config.Config, log *zap.
 	}
 
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(recoverMiddleware(log))
 	r.Use(corsMiddleware())
 	r.Use(requestIDMiddleware(log))
 
 	h := &handlers{store: store, sessions: sessions, cfg: cfg, log: log}
 	ws := newWSManager(store, log)
+
+	r.GET("/openapi.yaml", func(c *gin.Context) {
+		c.File("../openapi/openapi.yaml")
+	})
 
 	v1 := r.Group("/v1/telemetry")
 	v1.GET("/health", h.health)
@@ -59,6 +65,18 @@ func NewRouter(store Store, sessions SessionStore, cfg *config.Config, log *zap.
 	v1.GET("/ws", ws.handle)
 
 	return r
+}
+
+func recoverMiddleware(log *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("http panic", zap.Any("panic", r), zap.String("path", c.Request.URL.Path))
+				problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "")
+			}
+		}()
+		c.Next()
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {
@@ -82,11 +100,13 @@ func requestIDMiddleware(log *zap.Logger) gin.HandlerFunc {
 		}
 		c.Set(ctxKeyRequestID, rid)
 		c.Header(headerRequestID, rid)
+		start := time.Now()
 		c.Next()
 		log.Info("request",
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.Request.URL.Path),
 			zap.Int("status", c.Writer.Status()),
+			zap.Int64("duration_ms", time.Since(start).Milliseconds()),
 			zap.String("request_id", rid),
 		)
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
 )
 
 const (

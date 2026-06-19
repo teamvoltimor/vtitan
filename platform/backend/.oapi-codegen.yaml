@@ -1,0 +1,6 @@
+package: edge
+generate:
+  models: true
+  embedded-spec: false
+  strict-server: false
+  gin-server: false
