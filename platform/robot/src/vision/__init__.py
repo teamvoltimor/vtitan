@@ -1,6 +1,7 @@
 """Vision module exports and detector factory."""
 
 from shared.domain.models import Detection
+
 from src.vision.detector import (
     BBoxFormat,
     DetectorBase,
@@ -52,8 +53,8 @@ def create_detector(backend: str = "yolo", config: DetectorConfig | None = None)
         return LocalYoloDetector(config)
     if backend == "hailo":
         try:
-            from src.hardware.hailo.hailo_8.driver import Driver  # noqa: PLC0415
             from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
+            from src.hardware.hailo.hailo_8.driver import Driver  # noqa: PLC0415
         except ImportError as e:
             msg = "hailo_platform not found. Are you running on the Raspberry Pi 5 with HailoRT installed?"
             raise ImportError(msg) from e

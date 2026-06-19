@@ -101,6 +101,7 @@ class VisionNode(Node):
 
 
     def destroy_node(self) -> None:
+        """Release the detector context, then tear down the node."""
         if hasattr(self.detector, "__exit__"):
             self.detector.__exit__(None, None, None)
         super().destroy_node()

@@ -17,23 +17,18 @@ class SimulatedMotorDriver:
 
     def stop_drive(self) -> None:
         """No-op drive stop."""
-        pass
 
     def center_steering(self) -> None:
         """No-op steering center."""
-        pass
 
     def run_drive_forward(self, speed: int | None = None) -> None:
         """No-op forward."""
-        pass
 
     def run_drive_reverse(self, speed: int | None = None) -> None:
         """No-op reverse."""
-        pass
 
     def move_steering_to(self, position: float, speed: int = 20) -> None:
         """No-op steering movement."""
-        pass
 
 
 class BuildHatNode(Node):
@@ -101,7 +96,8 @@ class BuildHatNode(Node):
         self.driver.move_steering_to(-angle_deg)
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
+    """Entry point for the Build HAT motor node."""
     rclpy.init(args=args)
     node = BuildHatNode()
     try:

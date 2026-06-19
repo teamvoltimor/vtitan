@@ -21,6 +21,7 @@ from src.hardware.motors.build_hat import (
     Config as MotorConfig,
     Driver as BuildHatDriver,
 )
+from src.hardware.motors.config import MotorDriveConfig, MotorSteeringConfig
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -38,8 +39,26 @@ def check_hardware(driver):
 
 @pytest.fixture()
 def driver():
-    """Create driver instance."""
-    config = MotorConfig(steering_port="A", drive_port="B", default_speed=15, test_duration=1)
+    """Create driver instance.
+
+    Limits and center are placeholders — calibrate them on-device with
+    ``find_limits_interactive()`` before relying on steering range.
+    """
+    config = MotorConfig(
+        steering=MotorSteeringConfig(
+            port="A",
+            left_limit_angle=-83.0,
+            center_angle=0.0,
+            right_limit_angle=22.0,
+        ),
+        drive=MotorDriveConfig(
+            port="B",
+            min_speed=0,
+            max_speed=100,
+            default_speed=15,
+        ),
+        test_duration=1,
+    )
     return BuildHatDriver(config=config)
 
 
@@ -138,7 +157,21 @@ def find_limits_interactive():
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger(__name__)
 
-    config = MotorConfig(steering_port="A", drive_port="B", test_duration=1)
+    config = MotorConfig(
+        steering=MotorSteeringConfig(
+            port="A",
+            left_limit_angle=-83.0,
+            center_angle=0.0,
+            right_limit_angle=22.0,
+        ),
+        drive=MotorDriveConfig(
+            port="B",
+            min_speed=0,
+            max_speed=100,
+            default_speed=15,
+        ),
+        test_duration=1,
+    )
     driver = BuildHatDriver(config=config)
     driver.connect()
 

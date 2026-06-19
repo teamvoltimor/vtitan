@@ -70,11 +70,11 @@ class Driver(ABC_Driver):
             # Initialize BNO08x with the I2C bus
             self._imu: BNO08X = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
             self.logger.info("Connected to BNO08x IMU via MCP2221A I2C")
-        except (RuntimeError, OSError) as e:
-            self.logger.error(f"Failed to connect to IMU: {type(e).__name__}: {e}")
+        except (RuntimeError, OSError):
+            self.logger.exception("Failed to connect to IMU")
             raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error connecting to IMU: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Unexpected error connecting to IMU")
             raise
 
     @override
@@ -84,14 +84,14 @@ class Driver(ABC_Driver):
         if self._i2c is not None:
             try:
                 self._i2c.deinit()
-            except Exception:
+            except Exception:  # noqa: BLE001 - cleanup must never raise
                 self.logger.warning("Error during I2C deinit", exc_info=True)
         self._i2c = None
         self._imu = None
         self.logger.info("Connection closed")
 
     @property
-    def imu(self):
+    def imu(self) -> BNO08X | None:
         """Get IMU instance."""
         if self._imu is None:
             self.connect()
@@ -179,6 +179,7 @@ class Driver(ABC_Driver):
         try:
             cal = self.imu.calibration_status
             self.logger.info("Calibration status read", extra={"details": {"calibration": cal}})
-            return cal
         except AttributeError:
             return None
+        else:
+            return cal

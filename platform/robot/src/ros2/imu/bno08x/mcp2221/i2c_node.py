@@ -1,16 +1,23 @@
 """ROS2 node for BNO08x IMU via MCP2221A I2C bridge."""
 
+from typing import TYPE_CHECKING
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
 
+if TYPE_CHECKING:
+    from rclpy.publisher import Publisher
+    from rclpy.timer import Timer
+
 
 class IMU_I2CNode(Node):
     """ROS2 node publishing IMU data from BNO08x over I2C."""
 
     def __init__(self) -> None:
+        """Initialize the I2C IMU node, connect the driver and start publishing."""
         super().__init__("bno08x_i2c_node")
 
         # Declare parameters
@@ -31,16 +38,13 @@ class IMU_I2CNode(Node):
         except (RuntimeError, OSError) as e:
             self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
             raise
-        except Exception as e:
-            self.get_logger().error(f"Unexpected error initializing IMU driver: {e}")
-            raise
 
         # Setup publisher
-        self.publisher_ = self.create_publisher(Imu, topic, 10)
+        self.publisher_: Publisher = self.create_publisher(Imu, topic, 10)
 
         # Setup timer
         timer_period = 1.0 / publish_rate
-        self.timer = self.create_timer(timer_period, self.publish_imu)
+        self.timer: Timer = self.create_timer(timer_period, self.publish_imu)
 
     def publish_imu(self) -> None:
         """Read data from driver and publish as sensor_msgs/Imu."""
@@ -48,9 +52,6 @@ class IMU_I2CNode(Node):
             data = self.driver.get_all_data()
         except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().warning(f"Failed to read IMU data: {type(e).__name__}: {e}")
-            return
-        except Exception as e:
-            self.get_logger().warning(f"Unexpected error reading IMU data: {e}")
             return
 
         msg = Imu()
@@ -92,7 +93,8 @@ class IMU_I2CNode(Node):
         self.publisher_.publish(msg)
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
+    """Entry point for the BNO08x I2C IMU node."""
     rclpy.init(args=args)
     node = IMU_I2CNode()
     try:

@@ -93,9 +93,9 @@ class Driver(MotorDriver):
         self.logger.info("Connecting to Build HAT motors")
 
         try:
-            with _TimeoutHandler(self.config.connection_timeout):
-                self._steering = Motor(self.config.steering_port)
-                self._drive = Motor(self.config.drive_port)
+            with _TimeoutHandler(CONNECTION_TIMEOUT):
+                self._steering = Motor(self.config.steering.port)
+                self._drive = Motor(self.config.drive.port)
         except MotorTimeoutError as e:
             raise MotorConnectionError(
                 [self.config.steering.port, self.config.drive.port],
@@ -163,7 +163,10 @@ class Driver(MotorDriver):
 
     def _clamp_position(self, position: float) -> float:
         """Clamp steering position to configured limits."""
-        return max(min(position, self.config.steering.max_angle), self.config.steering.min_angle)
+        return max(
+            min(position, self.config.steering.right_limit_angle),
+            self.config.steering.left_limit_angle,
+        )
 
     @override
     def run_drive_forward(self, speed: int | None = None) -> None:

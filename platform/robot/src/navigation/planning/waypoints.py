@@ -326,16 +326,12 @@ def corridor_for_position(x: float, y: float) -> Section:
     if x < _INNER_MIN and in_y:
         return Section.WEST
 
-    # Corner: classify by nearest inner-boundary face.
-    dist_s = abs(y - _INNER_MIN)
-    dist_n = abs(y - _INNER_MAX)
-    dist_e = abs(x - _INNER_MAX)
-    dist_w = abs(x - _INNER_MIN)
-    nearest = min(dist_s, dist_n, dist_e, dist_w)
-    if nearest == dist_s:
-        return Section.SOUTH
-    if nearest == dist_n:
-        return Section.NORTH
-    if nearest == dist_e:
-        return Section.EAST
-    return Section.WEST
+    # Corner: classify by nearest inner-boundary face. Dict insertion order
+    # (S, N, E, W) preserves the original tie-break.
+    face_distances = {
+        Section.SOUTH: abs(y - _INNER_MIN),
+        Section.NORTH: abs(y - _INNER_MAX),
+        Section.EAST: abs(x - _INNER_MAX),
+        Section.WEST: abs(x - _INNER_MIN),
+    }
+    return min(face_distances, key=face_distances.get)
