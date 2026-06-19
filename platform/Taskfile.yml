@@ -102,15 +102,27 @@ tasks:
           task sim:lint             Lint simulation code
           task sim:lint:fix         Auto-fix simulation lint issues
 
-        ROBOT (on-robot platform)
+        ROBOT (on-robot platform — run build-ws before any run-/launch- task)
           task robot:install        Install robot platform dependencies (default + dev envs)
           task robot:test           Run robot tests
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
-          task robot:run-imu-i2c   Run BNO08x IMU node (I2C mode)
-          task robot:run-imu-rvc   Run BNO08x IMU node (UART RVC mode)
-          task robot:run-lidar     Run Slamtec C1 LIDAR node (Linux/aarch64 only)
+          task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
+          task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
+          task robot:run-lidar      Run Slamtec C1 LIDAR node (Linux/aarch64 only)
+          task robot:run-state-machine  Run the WRO state machine node
+          task robot:run-oled       Run the SSD1306 OLED display node
+          task robot:run-motor      Run the Ackermann motor control node
+          task robot:run-telemetry  Run the telemetry bridge node
+          task robot:run-vision     Run the YOLO vision detection node
+          task robot:run-navigator  Run the track navigator node (default scenario_0000)
+          task robot:launch-rpi5    Launch the Pi 5 node set (state machine + telemetry + OLED)
+          task robot:launch-rpi-zero  Launch the Pi Zero node set (Ackermann motor)
+          task robot:launch-state-machine  Launch full WRO state-machine stack
+          task robot:launch-telemetry  Launch the telemetry bridge
+          task robot:launch-simulator  Launch the simulator node set
+          task robot:launch-lidar   Launch the Slamtec C1 LIDAR
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -555,6 +567,78 @@ tasks:
     dir: robot
     cmds:
       - pixi run run-lidar
+
+  robot:run-state-machine:
+    desc: Run the WRO state machine node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-state-machine
+
+  robot:run-oled:
+    desc: Run the SSD1306 OLED display node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-oled
+
+  robot:run-motor:
+    desc: Run the Ackermann motor control node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-motor
+
+  robot:run-telemetry:
+    desc: Run the telemetry bridge node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-telemetry
+
+  robot:run-vision:
+    desc: Run the YOLO vision detection node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-vision
+
+  robot:run-navigator:
+    desc: Run the track navigator node (default scenario_0000 metadata) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-navigator
+
+  robot:launch-rpi5:
+    desc: Launch the Pi 5 node set (state machine + telemetry + OLED) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-rpi5
+
+  robot:launch-rpi-zero:
+    desc: Launch the Pi Zero node set (Ackermann motor) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-rpi-zero
+
+  robot:launch-state-machine:
+    desc: Launch the full WRO state-machine stack — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-state-machine
+
+  robot:launch-telemetry:
+    desc: Launch the telemetry bridge — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-telemetry
+
+  robot:launch-simulator:
+    desc: Launch the simulator node set (state machine + telemetry) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-simulator
+
+  robot:launch-lidar:
+    desc: Launch the Slamtec C1 LIDAR (Linux/aarch64 only) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-lidar
 
   # RECORD (video + frame pipeline)
 

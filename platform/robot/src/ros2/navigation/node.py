@@ -9,12 +9,14 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -276,3 +278,37 @@ class TrackNavigator(Node):
         if params:
             self.set_parameters(params)
             self.get_logger().info(f"Applied {len(params)} param override(s) from {params_path}")
+
+
+def main(args: list[str] | None = None) -> None:
+    """Run the ROS2 track navigator node (``ros2 run voldemorbot_robot track_navigator_node``)."""
+    parser = argparse.ArgumentParser(description="WRO 2026 track navigator ROS2 node.")
+    parser.add_argument("--metadata", required=True, help="Path to scenario metadata JSON.")
+    parser.add_argument("--laps", type=int, default=3, help="Laps to complete (default: 3).")
+    parser.add_argument("--params", help="Optional navigator_params.json for runtime overrides.")
+    parser.add_argument("--tuning", help="Optional navigation tuning YAML.")
+    parsed, _ = parser.parse_known_args(args)
+
+    metadata_path = Path(parsed.metadata)
+    if not metadata_path.exists():
+        logger.error("Metadata file not found: %s", metadata_path)
+        raise SystemExit(1)
+
+    rclpy.init(args=args)
+    navigator: TrackNavigator | None = None
+    try:
+        navigator = TrackNavigator(
+            metadata_path=metadata_path,
+            num_laps=parsed.laps,
+            params_path=parsed.params,
+            tuning_path=parsed.tuning,
+        )
+        while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
+            rclpy.spin_once(navigator, timeout_sec=0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if navigator is not None:
+            navigator.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()

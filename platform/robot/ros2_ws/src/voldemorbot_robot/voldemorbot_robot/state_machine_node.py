@@ -167,7 +167,7 @@ class StateMachineNode(Node):
         self.current_corridor: str = ""
 
         # Async executor for non-blocking operations
-        self.executor = ThreadPoolExecutor(max_workers=2)
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
         # Timers
         self.state_timer: Timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._state_machine_loop)
@@ -206,7 +206,7 @@ class StateMachineNode(Node):
                 self.get_logger().info("IP address resolved: %s", self.ip_address)
             self.ip_fetch_complete = True
 
-        future = self.executor.submit(fetch_ip)
+        future = self._executor.submit(fetch_ip)
         future.add_done_callback(on_complete)
 
     def _imu_callback(self, _msg: Imu) -> None:
@@ -447,7 +447,7 @@ class StateMachineNode(Node):
             self.button_driver.close()
 
         # Shutdown executor
-        self.executor.shutdown(wait=False)
+        self._executor.shutdown(wait=False)
 
         super().destroy_node()
 

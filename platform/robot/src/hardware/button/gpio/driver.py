@@ -8,12 +8,10 @@ from buildhat.serinterface import threading
 from gpiozero import Button
 from pydantic import BaseModel, Field
 
-from src.hardware.button.base import (
-    ButtonEvent,
-    ButtonState,
-    Driver as ABC_Driver,
-)
+from src.hardware.button.base import Driver as ABC_Driver
 from src.hardware.button.config import Config as ButtonConfig
+from src.hardware.button.event import ButtonEvent
+from src.hardware.button.state import ButtonState
 from src.logger import configure_json_logging
 
 configure_json_logging()

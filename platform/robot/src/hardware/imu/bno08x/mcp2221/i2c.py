@@ -77,6 +77,19 @@ class Driver(ABC_Driver):
             self.logger.error(f"Unexpected error connecting to IMU: {e}", exc_info=True)
             raise
 
+    @override
+    def close(self) -> None:
+        """Release the I2C bus and clear the IMU handle."""
+        self.logger.info("Closing connection to BNO08x I2C")
+        if self._i2c is not None:
+            try:
+                self._i2c.deinit()
+            except Exception:
+                self.logger.warning("Error during I2C deinit", exc_info=True)
+        self._i2c = None
+        self._imu = None
+        self.logger.info("Connection closed")
+
     @property
     def imu(self):
         """Get IMU instance."""
