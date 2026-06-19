@@ -17,7 +17,7 @@ from adafruit_bno08x import (
     BNO_REPORT_ROTATION_VECTOR,
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.hardware.exceptions import IMUConnectionError
@@ -42,23 +42,28 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="bno08x_i2c_",
-        nested_delimiter="_",
+        # "__" so nested leaves with underscores parse, e.g.
+        # BNO08X_I2C_QUATERNION__NEGATE_YAW -> quaternion.negate_yaw.
+        env_nested_delimiter="__",
     )
 
     quaternion: QuaternionConfig = Field(
         default_factory=QuaternionConfig,
     )
 
-    address: str | int
+    address: int
     """I2C address of the BNO08x IMU (0x4A or 0x4B depending on ADR pin)"""
 
     enable_sensors_delay: float = 0.5
     """Delay in seconds after enabling sensors to allow them to stabilize"""
 
-    def __post_init__(self):
-        # Convert address from hex string to int if provided as a string
-        if self.address is not None and isinstance(self.address, str):
-            self.address = int(self.address, 0)
+    @field_validator("address", mode="before")
+    @classmethod
+    def _parse_address(cls, value: object) -> object:
+        """Coerce a hex/decimal string address (e.g. "0x4A") to int."""
+        if isinstance(value, str):
+            return int(value, 0)
+        return value
 
 
 class Driver(ABC_Driver):

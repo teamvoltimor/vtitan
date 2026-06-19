@@ -13,8 +13,9 @@ vars:
   PARAMS: ./gazebo/runtime/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
   # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
   EXE:
-    sh: go env GOEXE
+    sh: go env GOEXE 2>/dev/null || true
   SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
 
 tasks:
@@ -104,12 +105,15 @@ tasks:
 
         ROBOT (on-robot platform — run build-ws before any run-/launch- task)
           task robot:install        Install robot platform dependencies (default + dev envs)
-          task robot:test           Run robot tests
+          task robot:test           Run robot tests (excludes on-device hardware tests)
+          task robot:test:unit      Run robot unit tests only
+          task robot:test:hardware  Run on-device hardware tests (real Pi + peripherals)
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
           task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
           task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
+          task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
           task robot:run-lidar      Run Slamtec C1 LIDAR node (Linux/aarch64 only)
           task robot:run-state-machine  Run the WRO state machine node
           task robot:run-oled       Run the SSD1306 OLED display node
@@ -521,16 +525,22 @@ tasks:
       - pixi install -e dev
 
   robot:test:
-    desc: Run robot tests (pixi dev env — robot is pixi-only, not uv)
+    desc: Run robot tests excluding on-device hardware tests (pixi dev env — robot is pixi-only, not uv)
     dir: robot
     cmds:
-      - pixi run -e dev pytest tests/ -v
+      - pixi run -e dev pytest tests/ -m "not hardware" -v
 
   robot:test:unit:
     desc: Run robot unit tests only (no hardware/ROS2 deps required)
     dir: robot
     cmds:
       - pixi run -e dev pytest tests/unit -q
+
+  robot:test:hardware:
+    desc: Run on-device hardware tests (requires a real Raspberry Pi with peripherals attached)
+    dir: robot
+    cmds:
+      - pixi run -e dev pytest tests/hardware -m hardware -v
 
   robot:lint:
     desc: Lint robot code
@@ -562,8 +572,14 @@ tasks:
     cmds:
       - pixi run run-imu-rvc
 
+  robot:fetch-lidar-driver:
+    desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
+    dir: robot
+    cmds:
+      - pixi run fetch-lidar-driver
+
   robot:run-lidar:
-    desc: Run Slamtec C1 LIDAR node (Linux/aarch64 only) — requires build-ws first
+    desc: Run Slamtec C1 LIDAR node (Linux/aarch64 only) — requires fetch-lidar-driver + build-ws first
     dir: robot
     cmds:
       - pixi run run-lidar

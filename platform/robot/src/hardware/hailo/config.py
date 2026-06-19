@@ -1,4 +1,6 @@
-from pydantic import Field
+from typing import Self
+
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.hardware.camera.config import Config as CameraConfig
@@ -32,11 +34,16 @@ class Config(BaseSettings):
     Minimum confidence threshold for object detection. Detections with confidence below this value will be filtered out. Default is 0.45.
     """
 
-    def __post_init__(self):
+    class_map: dict[int, str] = Field(default_factory=dict)
+    """Class id → name map, loaded from data_yaml_path (falls back to defaults below)."""
+
+    @model_validator(mode="after")
+    def _load_class_map(self) -> Self:
         try:
             self.class_map = load_class_map_from_yaml(self.data_yaml_path)
         except (FileNotFoundError, ValueError, KeyError):
             self.class_map = {0: "red_pillar", 1: "green_pillar", 2: "wall"}
+        return self
 
 
 class StreamingConfig(CameraConfig):

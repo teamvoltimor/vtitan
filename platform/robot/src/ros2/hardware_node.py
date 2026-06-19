@@ -48,14 +48,12 @@ class HardwareNode(Node, ABC):
             self.driver = self.create_driver()
             self.init_driver(self.driver)
             self.get_logger().info(
-                f"{self.__class__.__name__} hardware initialized successfully",
-                extra={"details": {"driver": self.driver.__class__.__name__}},
+                f"{self.__class__.__name__} hardware initialized successfully "
+                f"(driver: {self.driver.__class__.__name__})"
             )
             return True
         except (RuntimeError, ValueError, ImportError, OSError, TimeoutError) as e:
             self.get_logger().error(
-                f"{self.__class__.__name__} hardware initialization failed: {type(e).__name__}",
-                extra={"details": {"error": str(e), "error_type": type(e).__name__}},
-                exc_info=True,
+                f"{self.__class__.__name__} hardware initialization failed: {type(e).__name__}: {e}"
             )
             raise

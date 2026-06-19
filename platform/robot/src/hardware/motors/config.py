@@ -62,7 +62,9 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="motor_",
-        env_nested_delimiter="_",
+        # "__" (not "_") so nested leaf names containing underscores parse
+        # correctly, e.g. MOTOR_DRIVE__MIN_SPEED -> drive.min_speed.
+        env_nested_delimiter="__",
     )
 
     steering: MotorSteeringConfig = Field(default_factory=MotorSteeringConfig)

@@ -53,10 +53,7 @@ class BuildHatNode(Node):
             self.get_logger().info("Build HAT motors connected.")
             self._hardware_ready = True
         except MotorConnectionError as e:
-            self.get_logger().error(
-                f"Motor hardware missing (using simulated driver): {e}",
-                extra={"details": {"error": str(e), "port": e.port}},
-            )
+            self.get_logger().error(f"Motor hardware missing on port {e.port} (using simulated driver): {e}")
             self.driver = SimulatedMotorDriver()
             return
 
@@ -66,10 +63,7 @@ class BuildHatNode(Node):
             self.driver.center_steering()
             self.get_logger().info("Build HAT motors calibrated and centered.")
         except MotorCalibrationError as e:
-            self.get_logger().warning(
-                f"Using default calibration (file missing): {e}",
-                extra={"details": {"error": str(e)}},
-            )
+            self.get_logger().warning(f"Using default calibration (file missing): {e}")
             # Continue with defaults — not fatal
 
         self.subscription = self.create_subscription(Twist, cmd_vel_topic, self.cmd_vel_callback, 10)

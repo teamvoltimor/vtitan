@@ -32,7 +32,7 @@ class IMU_I2CNode(Node):
             self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
             raise
         except Exception as e:
-            self.get_logger().error(f"Unexpected error initializing IMU driver: {e}", exc_info=True)
+            self.get_logger().error(f"Unexpected error initializing IMU driver: {e}")
             raise
 
         # Setup publisher

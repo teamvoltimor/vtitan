@@ -9,12 +9,10 @@ from typing import override
 import board
 import digitalio
 
-from src.hardware.button.base import (
-    ButtonEvent,
-    ButtonState,
-    Driver as BaseDriver,
-)
+from src.hardware.button.base import Driver as BaseDriver
+from src.hardware.button.event import ButtonEvent
 from src.hardware.button.mcp2221.config import Config
+from src.hardware.button.state import ButtonState
 from src.logger import configure_json_logging
 
 os.environ.setdefault("BLINKA_MCP2221", "1")

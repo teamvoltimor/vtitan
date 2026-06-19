@@ -1,17 +1,23 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+from pydantic import BaseModel, BeforeValidator, Field
+
+
+def _parse_int(value: object) -> object:
+    """Coerce hex/octal/decimal strings (e.g. "0x04D8") to int; pass through ints."""
+    if isinstance(value, str):
+        return int(value, 0)
+    return value
+
+
+HexInt = Annotated[int, BeforeValidator(_parse_int)]
 
 
 class MCP2221Config(BaseModel):
     """Base configuration shared by all MCP2221A drivers."""
 
-    vid: int = Field(default=0x04D8)
-    """USB Vendor ID (VID) for MCP2221. Default is 0x04D8 (Microchip)."""
+    vid: HexInt = Field(default=0x04D8)
+    """USB Vendor ID (VID) for MCP2221. Default is 0x04D8 (Microchip). Accepts hex strings."""
 
-    pid: int = Field(default=0x00DD)
-    """USB Product ID (PID) for MCP2221. Default is 0x00DD."""
-
-    def __post_init__(self):
-        if self.vid is not None:
-            self.vid = int(self.vid, 0) if isinstance(self.vid, str) else self.vid
-        if self.pid is not None:
-            self.pid = int(self.pid, 0) if isinstance(self.pid, str) else self.pid
+    pid: HexInt = Field(default=0x00DD)
+    """USB Product ID (PID) for MCP2221. Default is 0x00DD. Accepts hex strings."""

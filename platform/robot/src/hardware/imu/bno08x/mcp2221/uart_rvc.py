@@ -25,7 +25,9 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="bno08x_uart_rvc_",
-        env_nested_delimiter="_",
+        # "__" so nested leaves with underscores parse, e.g.
+        # BNO08X_UART_RVC_QUATERNION__NEGATE_YAW -> quaternion.negate_yaw.
+        env_nested_delimiter="__",
     )
 
     quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)

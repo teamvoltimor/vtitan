@@ -11,6 +11,10 @@ import time
 
 import pytest
 
+# Pi-only camera stack — skip the whole module when picamera2 isn't installed
+# (e.g. on dev/CI machines that aren't a Raspberry Pi).
+pytest.importorskip("picamera2")
+
 from src.hardware.camera.rpi.camera_module_3 import (
     Config as CameraConfig,
     Driver as CameraDriver,

@@ -10,6 +10,10 @@ import logging
 
 import pytest
 
+# hailo_8 transitively imports the Pi camera stack (picamera2); skip the whole
+# module when it isn't installed (e.g. on dev/CI machines that aren't a Pi).
+pytest.importorskip("picamera2")
+
 from src.hardware.hailo.hailo_8 import (
     Config as HailoConfig,
     Driver as HailoDriver,
