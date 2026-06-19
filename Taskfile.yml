@@ -74,203 +74,15 @@ tasks:
     cmds:
       - cmd: powershell -NoProfile -Command "New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -PrefixLength 24 -ErrorAction SilentlyContinue; if (-not (Get-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -ErrorAction SilentlyContinue)) { Write-Host 'IP already set or adapter not found'; Get-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 | Select-Object IPAddress } else { Write-Host 'Set {{.WINDOWS_ETHERNET_IP}} on Ethernet adapter' }"
 
-  # Windows -> Zero
-
-  windows:zero:ping:
-    desc: Ping rpi-zero-ethernet
+  windows:windscribe:connect:
+    desc: Connect Windscribe VPN
     cmds:
-      - task: windows:ping
-        vars:
-          PING_HOST: '{{.RPI_ZERO_HOST}}'
+      - windscribe-cli connect
 
-  windows:zero:ssh:
-    desc: SSH into rpi-zero-ethernet
+  windows:windscribe:disconnect:
+    desc: Disconnect Windscribe VPN
     cmds:
-      - task: windows:ssh
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-
-  windows:zero:setup-usb-gadget:
-    desc: Install rpi-usb-gadget on rpi-zero-ethernet
-    cmds:
-      - task: windows:setup-usb-gadget
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-          PING_HOST: '{{.RPI_ZERO_HOST}}'
-
-  windows:zero:setup-usb-gadget:dry-run:
-    desc: Show setup commands for rpi-zero-ethernet
-    cmds:
-      - task: windows:setup-usb-gadget:dry-run
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-          PING_HOST: '{{.RPI_ZERO_HOST}}'
-
-  # Windows -> 5
-
-  windows:5:ping:
-    desc: Ping rpi-5-local
-    cmds:
-      - task: windows:ping
-        vars:
-          PING_HOST: '{{.RPI_5_HOST}}'
-
-  windows:5:ssh:
-    desc: SSH into rpi-5-local
-    cmds:
-      - task: windows:ssh
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-
-  windows:5:run:
-    desc: Run a command on rpi-5-local via SSH
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-
-  windows:5:setup-usb-gadget:
-    desc: Install rpi-usb-gadget on rpi-5-local
-    cmds:
-      - task: windows:setup-usb-gadget
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          PING_HOST: '{{.RPI_5_HOST}}'
-
-  windows:5:setup-usb-gadget:dry-run:
-    desc: Show setup commands for rpi-5-local
-    cmds:
-      - task: windows:setup-usb-gadget:dry-run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          PING_HOST: '{{.RPI_5_HOST}}'
-
-  windows:ethernet:set-ip-5:
-    desc: Set Windows Ethernet adapter to 192.168.1.50 for direct link to rpi-5 (run as Admin)
-    cmds:
-      - task: windows:ethernet:set-ip
-        vars:
-          WINDOWS_ETHERNET_IP: '{{.RPI_5_WINDOWS_IP}}'
-
-  # Windows -> Zero: wrap Pi commands
-
-  windows:zero:ip:
-    desc: Show usb0 IP on rpi-zero-ethernet
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-          CMD: ip -4 a show usb0
-
-  windows:zero:nudge:
-    desc: Force gadget client profile on rpi-zero-ethernet
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-          CMD: sudo nmcli con up 'USB Gadget (client)'
-
-  windows:zero:diagnose:
-    desc: Run diagnostics on rpi-zero-ethernet
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_ZERO_SSH}}'
-          CMD: |
-            echo '=== usb0 interface ==='
-            ip -4 a show usb0
-            echo ''
-            echo '=== routing table ==='
-            ip route show dev usb0
-            echo ''
-            echo '=== USB Gadget profile ==='
-            nmcli -t -f NAME con show --active 2>/dev/null | grep -i gadget || echo '(no gadget profile active)'
-
-  # Windows -> 5: wrap Pi commands
-
-  windows:5:ip:
-    desc: Show Ethernet IP on rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: ip -4 a show eth0
-
-  windows:5:wlan-ip:
-    desc: Show WiFi IP on rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: ip -4 a show wlan0
-
-  windows:5:nudge:
-    desc: Force gadget client profile on rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo nmcli con up 'USB Gadget (client)'
-
-  windows:5:diagnose:
-    desc: Run diagnostics on rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: |
-            echo '=== usb0 interface ==='
-            ip -4 a show usb0
-            echo ''
-            echo '=== routing table ==='
-            ip route show dev usb0
-            echo ''
-            echo '=== USB Gadget profile ==='
-            nmcli -t -f NAME con show --active 2>/dev/null | grep -i gadget || echo '(no gadget profile active)'
-
-  windows:5:set-static-ip:
-    desc: Set rpi-5-local to static IP 192.168.0.50
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo nmcli con modify '{{.RPI_5_CONNECTION}}' ipv4.addresses {{.RPI_5_HOST}}/24 ipv4.gateway 192.168.0.1 ipv4.dns 192.168.0.1 ipv4.method manual && sudo nmcli con down '{{.RPI_5_CONNECTION}}' && sudo nmcli con up '{{.RPI_5_CONNECTION}}'
-
-  windows:5:set-dhcp:
-    desc: Revert rpi-5-local Ethernet to DHCP
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo nmcli con modify '{{.RPI_5_CONNECTION}}' ipv4.method auto && sudo nmcli con down '{{.RPI_5_CONNECTION}}' && sudo nmcli con up '{{.RPI_5_CONNECTION}}'
-
-  windows:5:update:
-    desc: Update and upgrade rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo apt update && sudo apt full-upgrade -y
-
-  windows:5:set-wifi:
-    desc: "Set WiFi on rpi-5-local (usage: task windows:5:set-wifi SSID=name PASSWORD=pass)"
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo nmcli device wifi connect '{{.SSID}}' password '{{.PASSWORD}}'
-    requires:
-      vars:
-        - SSID
-        - PASSWORD
-
-  windows:5:wifi-scan:
-    desc: List available WiFi networks on rpi-5-local
-    cmds:
-      - task: windows:run
-        vars:
-          SSH_HOST: '{{.RPI_5_SSH}}'
-          CMD: sudo nmcli device wifi list
+      - windscribe-cli disconnect
 
   # =====================
   # Raspberry Pi commands (run directly on the Pi)
@@ -307,6 +119,45 @@ tasks:
       - echo ""
       - echo "=== USB Gadget profile ==="
       - nmcli -t -f NAME con show --active 2>/dev/null | grep -i gadget || echo '(no gadget profile active)'
+
+  # Health & thermal
+
+  rpi:temp:
+    desc: Show CPU/GPU temperature
+    cmds:
+      - vcgencmd measure_temp
+
+  rpi:throttled:
+    desc: Show throttling / under-voltage status (0x0 = healthy)
+    cmds:
+      - vcgencmd get_throttled
+
+  rpi:disk:
+    desc: Show root filesystem disk usage
+    cmds:
+      - df -h /
+
+  rpi:mem:
+    desc: Show memory usage
+    cmds:
+      - free -h
+
+  rpi:uptime:
+    desc: Show uptime and load average
+    cmds:
+      - uptime
+
+  # Power & lifecycle
+
+  rpi:reboot:
+    desc: Reboot the Pi
+    cmds:
+      - sudo reboot
+
+  rpi:shutdown:
+    desc: Shut down the Pi (safe poweroff)
+    cmds:
+      - sudo shutdown -h now
 
   rpi:set-static-ip:
     desc: "Set static IP (usage: task rpi:set-static-ip IP=x.x.x.x)"
@@ -345,54 +196,12 @@ tasks:
     cmds:
       - sudo nmcli device wifi list
 
-  rpi:5:update:
-    desc: Update and upgrade rpi-5-local
+  rpi:windscribe:connect:
+    desc: Connect Windscribe VPN
     cmds:
-      - task: rpi:update
+      - windscribe-cli connect
 
-  rpi:5:set-wifi:
-    desc: "Set WiFi on rpi-5-local (usage: task rpi:5:set-wifi SSID=name PASSWORD=pass)"
+  rpi:windscribe:disconnect:
+    desc: Disconnect Windscribe VPN
     cmds:
-      - task: rpi:set-wifi
-
-  rpi:5:wifi-scan:
-    desc: List available WiFi networks on rpi-5-local
-    cmds:
-      - task: rpi:wifi-scan
-
-  # Pi -> 5: convenience aliases (run directly on the Pi)
-
-  rpi:5:ip:
-    desc: Show Ethernet IP on rpi-5-local
-    cmds:
-      - task: rpi:eth-ip
-
-  rpi:5:wlan-ip:
-    desc: Show WiFi IP on rpi-5-local
-    cmds:
-      - task: rpi:wlan-ip
-
-  rpi:5:nudge:
-    desc: Force gadget client profile on rpi-5-local
-    cmds:
-      - task: rpi:nudge
-
-  rpi:5:diagnose:
-    desc: Run diagnostics on rpi-5-local
-    cmds:
-      - task: rpi:diagnose
-
-  rpi:5:set-static-ip:
-    desc: Set rpi-5-local to static IP 192.168.0.50
-    cmds:
-      - task: rpi:set-static-ip
-        vars:
-          IP: '{{.RPI_5_HOST}}'
-          CONNECTION: '{{.RPI_5_CONNECTION}}'
-
-  rpi:5:set-dhcp:
-    desc: Revert rpi-5-local Ethernet to DHCP
-    cmds:
-      - task: rpi:set-dhcp
-        vars:
-          CONNECTION: '{{.RPI_5_CONNECTION}}'
+      - windscribe-cli disconnect
