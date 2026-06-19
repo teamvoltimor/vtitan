@@ -1,0 +1,480 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Telemetry API
+  version: 1.0.0
+  description: |
+    Telemetry context — responsible for robot telemetry ingestion, storage,
+    replay, and real-time streaming over HTTP + WebSocket.
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+paths:
+  /v1/telemetry/health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Telemetry
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/telemetry/latest:
+    get:
+      summary: Latest robot telemetry snapshot
+      operationId: getLatestTelemetry
+      tags:
+        - Telemetry
+      responses:
+        '200':
+          description: Latest snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotSnapshot'
+        '503':
+          description: No snapshot received yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/telemetry/history:
+    get:
+      summary: Telemetry history
+      operationId: getTelemetryHistory
+      tags:
+        - Telemetry
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of snapshots to return
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 360
+            default: 60
+      responses:
+        '200':
+          description: Array of historical snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RobotSnapshot'
+
+  /v1/telemetry/topics:
+    get:
+      summary: Latest ROS2 topics snapshot
+      operationId: getLatestTopics
+      tags:
+        - Telemetry
+      responses:
+        '200':
+          description: Topics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopicsSnapshot'
+
+  /v1/telemetry/config:
+    get:
+      summary: Server configuration
+      operationId: getServerConfig
+      tags:
+        - Telemetry
+      responses:
+        '200':
+          description: Server configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+
+  /v1/telemetry/sessions:
+    get:
+      summary: List replay sessions
+      operationId: listSessions
+      tags:
+        - Telemetry
+      responses:
+        '200':
+          description: Array of session infos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionResponse'
+
+  /v1/telemetry/sessions/{sessionId}:
+    get:
+      summary: Load a specific replay session
+      operationId: loadSession
+      tags:
+        - Telemetry
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^session_\d+$
+      responses:
+        '200':
+          description: Array of snapshots for the session
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RobotSnapshot'
+        '400':
+          description: Invalid session ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/telemetry/robot/config/speed:
+    post:
+      summary: Update robot max linear speed
+      operationId: updateRobotSpeed
+      tags:
+        - Telemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpeedRequest'
+      responses:
+        '200':
+          description: Speed updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpeedUpdateResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/telemetry/ws:
+    get:
+      summary: WebSocket telemetry stream
+      operationId: streamTelemetry
+      tags:
+        - Telemetry
+      responses:
+        '101':
+          description: Upgraded to WebSocket
+
+components:
+  schemas:
+    # ── Hand-written types ──────────────────────────────────────────────
+
+    HealthResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: "0.1.0"
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    SessionResponse:
+      type: object
+      required: [session_id, created_at, entry_count]
+      properties:
+        session_id:
+          type: string
+          description: Unique session identifier
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 creation timestamp
+        entry_count:
+          type: integer
+          description: Number of snapshots in the session
+
+    ConfigResponse:
+      type: object
+      required: [http_addr, grpc_addr, sessions_dir, history_size, max_sessions, dev]
+      properties:
+        http_addr:
+          type: string
+        grpc_addr:
+          type: string
+        sessions_dir:
+          type: string
+        history_size:
+          type: integer
+        max_sessions:
+          type: integer
+        dev:
+          type: boolean
+
+    SpeedRequest:
+      type: object
+      required: [maxLinearSpeed]
+      properties:
+        maxLinearSpeed:
+          type: number
+          format: double
+          description: Maximum linear speed
+          x-oapi-codegen-extra-tags:
+            validate: required,gt=0
+
+    SpeedUpdateResponse:
+      type: object
+      required: [status, maxLinearSpeed]
+      properties:
+        status:
+          type: string
+        maxLinearSpeed:
+          type: number
+          format: double
+
+    # ── Proto-derived types ─────────────────────────────────────────────
+
+    Position3D:
+      type: object
+      required: [x, y, z]
+      properties:
+        x:
+          type: number
+          format: double
+        y:
+          type: number
+          format: double
+        z:
+          type: number
+          format: double
+
+    ImuData:
+      type: object
+      required:
+        - linear_acceleration
+        - angular_velocity
+        - orientation_x
+        - orientation_y
+        - orientation_z
+        - orientation_w
+      properties:
+        linear_acceleration:
+          $ref: '#/components/schemas/Position3D'
+        angular_velocity:
+          $ref: '#/components/schemas/Position3D'
+        orientation_x:
+          type: number
+          format: double
+        orientation_y:
+          type: number
+          format: double
+        orientation_z:
+          type: number
+          format: double
+        orientation_w:
+          type: number
+          format: double
+
+    Detection:
+      type: object
+      required: [class_name, confidence, bbox_x, bbox_y, bbox_w, bbox_h]
+      properties:
+        class_name:
+          type: string
+        confidence:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        bbox_x:
+          type: number
+          format: double
+        bbox_y:
+          type: number
+          format: double
+        bbox_w:
+          type: number
+          format: double
+        bbox_h:
+          type: number
+          format: double
+
+    MotorState:
+      type: object
+      required: [steering_angle, drive_speed, encoder_position]
+      properties:
+        steering_angle:
+          type: number
+          format: double
+        drive_speed:
+          type: number
+          format: double
+        encoder_position:
+          type: integer
+
+    TelemetryMetrics:
+      type: object
+      required:
+        - timestamp
+        - node_health
+        - lidar_available
+        - imu_available
+        - camera_available
+        - odometry_available
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        node_health:
+          type: string
+          enum:
+            - NODE_HEALTH_UNSPECIFIED
+            - NODE_HEALTH_NOMINAL
+            - NODE_HEALTH_WATCHDOG
+            - NODE_HEALTH_REPLANNING
+        points_captured:
+          type: integer
+        range_min:
+          type: number
+          format: double
+          nullable: true
+        range_max:
+          type: number
+          format: double
+          nullable: true
+        range_mean:
+          type: number
+          format: double
+          nullable: true
+        forward:
+          type: number
+          format: double
+          nullable: true
+        left:
+          type: number
+          format: double
+          nullable: true
+        right:
+          type: number
+          format: double
+          nullable: true
+        back:
+          type: number
+          format: double
+          nullable: true
+        speed:
+          type: number
+          format: double
+          nullable: true
+        stage:
+          type: string
+        lidar_available:
+          type: boolean
+        imu_available:
+          type: boolean
+        camera_available:
+          type: boolean
+        odometry_available:
+          type: boolean
+
+    RobotSnapshot:
+      type: object
+      required: [timestamp, mission_name, metrics]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        mission_name:
+          type: string
+        robot_position:
+          allOf:
+            - $ref: '#/components/schemas/Position3D'
+          nullable: true
+        robot_orientation:
+          type: number
+          format: double
+          nullable: true
+        lidar_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position3D'
+        path_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position3D'
+        logs:
+          type: array
+          items:
+            type: string
+        metrics:
+          $ref: '#/components/schemas/TelemetryMetrics'
+        imu_data:
+          allOf:
+            - $ref: '#/components/schemas/ImuData'
+          nullable: true
+        vision_detections:
+          type: array
+          items:
+            $ref: '#/components/schemas/Detection'
+          nullable: true
+        motor_state:
+          allOf:
+            - $ref: '#/components/schemas/MotorState'
+          nullable: true
+
+    TopicUpdate:
+      type: object
+      required: [topic_name, message_type, timestamp, update_rate_hz, data]
+      properties:
+        topic_name:
+          type: string
+        message_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        update_rate_hz:
+          type: number
+          format: double
+        data:
+          type: object
+
+    TopicsSnapshot:
+      type: object
+      required: [timestamp, topics]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopicUpdate'
