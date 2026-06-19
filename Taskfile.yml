@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   RPI_ZERO_SSH: rpi-zero-ethernet
@@ -7,6 +7,7 @@ vars:
   RPI_5_HOST: 192.168.0.50
   RPI_5_WINDOWS_IP: 192.168.1.50
   RPI_5_CONNECTION: netplan-eth0
+  WINDOWS_ETHERNET_IP: 192.168.1.50
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
 
@@ -73,6 +74,18 @@ tasks:
     desc: Set Windows Ethernet adapter IP for direct link to a Pi (run as Admin)
     cmds:
       - cmd: powershell -NoProfile -Command "New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -PrefixLength 24 -ErrorAction SilentlyContinue; if (-not (Get-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -ErrorAction SilentlyContinue)) { Write-Host 'IP already set or adapter not found'; Get-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 | Select-Object IPAddress } else { Write-Host 'Set {{.WINDOWS_ETHERNET_IP}} on Ethernet adapter' }"
+
+  windows:ethernet:remove-ip:
+    desc: Remove the direct-link IP from the Windows Ethernet adapter (run as Admin)
+    cmds:
+      - cmd: netsh interface ip delete address "Ethernet" addr={{.WINDOWS_ETHERNET_IP}} & echo Removed {{.WINDOWS_ETHERNET_IP}} from Ethernet adapter
+        platforms: [windows]
+
+  windows:ethernet:set-dhcp:
+    desc: Remove static IP and re-enable DHCP on the Windows Ethernet adapter (run as Admin)
+    cmds:
+      - cmd: powershell -NoProfile -Command "Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled; Remove-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 -ErrorAction SilentlyContinue; Write-Host 'DHCP enabled on Ethernet adapter'"
+        platforms: [windows]
 
   windows:windscribe:connect:
     desc: Connect Windscribe VPN
