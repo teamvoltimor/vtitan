@@ -33,7 +33,7 @@ tasks:
         Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
 
         UMBRELLAS (run across every module)
-          task install              Install all dependencies (UV + Pixi + Go)
+          task install              Install all dependencies (sim + robot + Go)
           task test                 Run all tests (Python + Go)
           task lint                 Run all linters (ruff + golangci-lint + ESLint + buf)
           task lint:fix             Auto-fix lint issues across modules
@@ -51,6 +51,11 @@ tasks:
           task backend:lint:fix     Auto-fix Go lint issues
           task backend:fmt          Format (goimports + gofmt)
           task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
+
+        OPENAPI (spec-first API contract)
+          task openapi:generate     Regenerate Go types from all OpenAPI specs
+          task openapi:validate     Validate all OpenAPI specs
+          task frontend:api:generate  Generate TypeScript client from OpenAPI specs
 
         PROTO (buf toolchain — requires buf CLI)
           task proto:update         Update buf registry dependencies
@@ -98,10 +103,14 @@ tasks:
           task sim:lint:fix         Auto-fix simulation lint issues
 
         ROBOT (on-robot platform)
-          task robot:install        Install robot platform dependencies
+          task robot:install        Install robot platform dependencies (default + dev envs)
           task robot:test           Run robot tests
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
+          task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
+          task robot:run-imu-i2c   Run BNO08x IMU node (I2C mode)
+          task robot:run-imu-rvc   Run BNO08x IMU node (UART RVC mode)
+          task robot:run-lidar     Run Slamtec C1 LIDAR node (Linux/aarch64 only)
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -133,10 +142,10 @@ tasks:
   # UMBRELLAS
 
   install:
-    desc: Install all dependencies (UV + Pixi + Go backend bootstrap)
+    desc: Install all dependencies (sim + robot + Go backend bootstrap)
     cmds:
-      - uv sync
-      - pixi install
+      - task: sim:install
+      - task: robot:install
       - task: backend:install
 
   test:
@@ -179,7 +188,12 @@ tasks:
       - task: proto:update
       - task: proto:generate
       - task: backend:sqlc
-      - cd backend && go mod tidy
+      - task: backend:tidy
+
+  backend:tidy:
+    dir: backend
+    cmds:
+      - go mod tidy
 
   backend:build:
     desc: Compile Go telemetry backend binary to backend/bin/server
@@ -231,6 +245,26 @@ tasks:
     dir: backend
     cmds:
       - sqlc generate
+
+  # OPENAPI (spec-first API contract)
+
+  openapi:generate:
+    desc: Regenerate Go types from all context OpenAPI specs
+    dir: backend
+    cmds:
+      - pwsh -NoProfile -File scripts/gen-openapi.ps1
+    sources:
+      - ../openapi/contexts/*.yaml
+      - scripts/gen-openapi.ps1
+    generates:
+      - internal/edge/openapi.*.gen.go
+      - internal/api/*/openapi.gen.go
+
+  openapi:validate:
+    desc: Validate all OpenAPI specs exist and are non-empty
+    dir: backend
+    cmds:
+      - pwsh -NoProfile -File scripts/validate-openapi.ps1
 
   # PROTO (buf toolchain)
 
@@ -347,6 +381,12 @@ tasks:
     cmds:
       - npm run lint
 
+  frontend:api:generate:
+    desc: Generate TypeScript API client from OpenAPI specs
+    dir: frontend
+    cmds:
+      - npm run api:generate
+
   frontend:docker:build:
     desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
     dir: frontend
@@ -427,11 +467,7 @@ tasks:
     desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          pixi run python -m src.navigation.navigator \
-            --metadata {{.METADATA}} \
-            --laps {{.LAPS}} \
-            --params {{.PARAMS}}
+      - pixi run python -m src.navigation.navigator --metadata {{.METADATA}} --laps {{.LAPS}} --params {{.PARAMS}}
 
   sim:analyze:
     desc: Analyze generated scenarios (statistics and summaries)
@@ -466,10 +502,11 @@ tasks:
   # ROBOT (on-robot platform)
 
   robot:install:
-    desc: Install robot platform dependencies (pixi + RoboStack)
+    desc: Install robot platform dependencies (pixi + RoboStack, default + dev envs)
     dir: robot
     cmds:
       - pixi install
+      - pixi install -e dev
 
   robot:test:
     desc: Run robot tests (pixi dev env — robot is pixi-only, not uv)
@@ -495,33 +532,49 @@ tasks:
     cmds:
       - pixi run -e dev ruff check src/ tests/ --fix
 
+  robot:build-ws:
+    desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)
+    dir: robot
+    cmds:
+      - pixi run -e dev build-ws
+
+  robot:run-imu-i2c:
+    desc: Run BNO08x IMU node (I2C mode) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-imu-i2c
+
+  robot:run-imu-rvc:
+    desc: Run BNO08x IMU node (UART RVC mode) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-imu-rvc
+
+  robot:run-lidar:
+    desc: Run Slamtec C1 LIDAR node (Linux/aarch64 only) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-lidar
+
   # RECORD (video + frame pipeline)
 
   record:run:
     desc: Record scenario videos from Gazebo simulation
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          pixi run python -m src.recording.recorder \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+      - pixi run python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
 
   record:convert:
     desc: Convert ROS2 bags to MP4 videos
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          uv run python -m src.recording.bag_converter \
-            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+      - uv run python -m src.recording.bag_converter --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
 
   record:frames:
     desc: Extract frames from ROS2 bags and annotate
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          uv run python -m src.recording.frame_extractor \
-            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+      - uv run python -m src.recording.frame_extractor --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
 
   # DOCKER (compose)
 
@@ -601,27 +654,7 @@ tasks:
   info:
     desc: Display platform information (versions, directories)
     cmds:
-      - cmd: |
-          echo "=== PYTHON ==="
-          uv --version
-          echo ""
-          echo "=== PIXI ==="
-          pixi --version || echo "Pixi not installed"
-          echo ""
-          echo "=== GO ==="
-          go version || echo "Go not installed"
-          echo ""
-          echo "=== BUF ==="
-          buf --version || echo "buf not installed (needed for proto:generate)"
-          echo ""
-          echo "=== DIRECTORIES ==="
-          echo "Output dir:   {{.OUTPUT_DIR}}"
-          echo "Gazebo:       gazebo/ (generator + runtime)"
-          echo "Backend (Go): backend/"
-          echo "Frontend:     frontend/"
-          echo "Robot:        robot/"
-          echo "Proto:        proto/"
-          echo "Shared:       shared/"
+      - pwsh -NoProfile -File scripts/info.ps1 {{.OUTPUT_DIR}}
 
   debug:
     desc: Run with verbose logging (DEBUG=1)
