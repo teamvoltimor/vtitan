@@ -83,6 +83,21 @@ tasks:
       - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo rpi-usb-gadget on\""
       - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo reboot\""
 
+  rpi:setup-usb-gadget:
+    desc: "Install rpi-usb-gadget on a target Pi via SSH (run from another Pi, usage: task rpi:setup-usb-gadget SSH_HOST=alias PING_HOST=address)"
+    cmds:
+      - echo "Installing rpi-usb-gadget on {{.SSH_HOST}}..."
+      - ssh {{.SSH_HOST}} "sudo apt update && sudo apt install -y rpi-usb-gadget"
+      - ssh {{.SSH_HOST}} "sudo rpi-usb-gadget on"
+      - echo "Installation complete. Rebooting {{.SSH_HOST}}..."
+      - ssh {{.SSH_HOST}} "sudo reboot"
+      - echo "Waiting for {{.PING_HOST}} to come back online..."
+      - count=0; until ping -c1 {{.PING_HOST}} >/dev/null 2>&1; do sleep {{.RPI_PING_INTERVAL}}; count=$((count+1)); [ $count -ge {{.RPI_PING_RETRIES}} ] && echo "Timed out waiting for {{.SSH_HOST}}" && exit 1; done; echo "{{.SSH_HOST}} is back online!"
+    requires:
+      vars:
+        - SSH_HOST
+        - PING_HOST
+
   windows:ssh:print-config:
     desc: "Print recommended ~/.ssh/config entries (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"
     cmds:
@@ -150,6 +165,26 @@ tasks:
     cmds:
       - cmd: powershell -NoProfile -Command "Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled; Remove-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 -ErrorAction SilentlyContinue; Write-Host 'DHCP enabled on Ethernet adapter'"
         platforms: [windows]
+
+  windows:ethernet:setup-link:
+    desc: "Configure direct ethernet link: set Windows IP + Pi Ethernet IP (run as Admin, usage: task windows:ethernet:setup-link [RPI_5_SSH=alias])"
+    cmds:
+      - task: windows:ethernet:set-ip
+      - echo "Setting Pi Ethernet IP to {{.RPI_DIRECT_IP}} (gateway {{.WINDOWS_ETHERNET_IP}})..."
+      - ssh {{.RPI_5_SSH}} "sudo nmcli con modify 'netplan-eth0' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual && sudo nmcli con down 'netplan-eth0' && sudo nmcli con up 'netplan-eth0'"
+      - echo "Done. Now connect via task windows:ssh SSH_HOST=rpi-5-direct"
+    vars:
+      RPI_5_SSH: '{{.RPI_5_SSH | default "rpi-5-local"}}'
+
+  windows:ethernet:unlink:
+    desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [RPI_5_SSH=alias])"
+    cmds:
+      - task: windows:ethernet:set-dhcp
+      - echo "Reverting Pi Ethernet to DHCP..."
+      - ssh {{.RPI_5_SSH}} "sudo nmcli con modify 'netplan-eth0' ipv4.method auto && sudo nmcli con down 'netplan-eth0' && sudo nmcli con up 'netplan-eth0'"
+      - echo "Direct link torn down. Pi Ethernet back on DHCP."
+    vars:
+      RPI_5_SSH: '{{.RPI_5_SSH | default "rpi-5-local"}}'
 
   # Raspberry Pi commands (run directly on the Pi)
 
@@ -247,15 +282,26 @@ tasks:
       IP: '{{.IP | default "192.168.0.50"}}'
 
   rpi:set-static-ip:direct:
-    desc: "Set static IP on USB Gadget (client) for direct ethernet link"
+    desc: "Set static IP on Ethernet for direct link to Windows"
+    cmds:
+      - task: rpi:set-static-ip
+        vars:
+          IP: '{{.IP}}'
+          CONNECTION: 'netplan-eth0'
+          GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
+    vars:
+      IP: '{{.IP | default .RPI_DIRECT_IP}}'
+
+  rpi:set-static-ip:gadget:
+    desc: "Set static IP on USB Gadget (client) for Pi Zero link"
     cmds:
       - task: rpi:set-static-ip
         vars:
           IP: '{{.IP}}'
           CONNECTION: 'USB Gadget (client)'
-          GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
+          GATEWAY: '{{.RPI_DIRECT_IP}}'
     vars:
-      IP: '{{.IP | default .RPI_DIRECT_IP}}'
+      IP: '{{.IP | default "192.168.2.1"}}'
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
