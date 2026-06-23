@@ -1,8 +1,9 @@
 version: "3"
 
 vars:
-  WINDOWS_ETHERNET_IP: 192.168.1.50
-  RPI_DIRECT_IP: 192.168.1.1
+  WINDOWS_ETHERNET_IP: 10.250.250.1
+  RPI_DIRECT_IP: 10.250.250.2
+  RPI_LOCAL_IP: 192.168.0.50
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
 
@@ -167,24 +168,68 @@ tasks:
         platforms: [windows]
 
   windows:ethernet:setup-link:
-    desc: "Configure direct ethernet link: set Windows IP + Pi Ethernet IP (run as Admin, usage: task windows:ethernet:setup-link [RPI_5_SSH=alias])"
+    desc: "Configure direct ethernet link: set Windows IP + Pi Ethernet IP (run as Admin, usage: task windows:ethernet:setup-link [SSH_HOST=alias])"
     cmds:
+      - echo "[1/3] Setting Windows Ethernet adapter IP to {{.WINDOWS_ETHERNET_IP}}..."
       - task: windows:ethernet:set-ip
-      - echo "Setting Pi Ethernet IP to {{.RPI_DIRECT_IP}} (gateway {{.WINDOWS_ETHERNET_IP}})..."
-      - ssh {{.RPI_5_SSH}} "sudo nmcli con modify 'netplan-eth0' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual && sudo nmcli con down 'netplan-eth0' && sudo nmcli con up 'netplan-eth0'"
-      - echo "Done. Now connect via task windows:ssh SSH_HOST=rpi-5-direct"
+      - echo "[2/3] Setting Pi Ethernet IP to {{.RPI_DIRECT_IP}} (gateway {{.WINDOWS_ETHERNET_IP}})..."
+      - echo "      (Configuring via Cloudflare tunnel — VPN safe)"
+      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'netplan-eth0' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual ipv4.never-default yes connection.autoconnect-priority -10 && (sudo nmcli con down 'netplan-eth0' 2>/dev/null || true) && sudo nmcli con up 'netplan-eth0' 2>/dev/null || true"
+      - echo "[3/3] Done. Plug in the Ethernet cable now, then:"
+      - echo "      task windows:ssh SSH_HOST=rpi-5-direct"
     vars:
-      RPI_5_SSH: '{{.RPI_5_SSH | default "rpi-5-local"}}'
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-remote"}}'
+
+  windows:route:add:
+    desc: "Add both WiFi and Ethernet persistent routes (run as Admin)"
+    cmds:
+      - task: windows:route:add:wifi
+      - task: windows:route:add:ethernet
+
+  windows:route:add:ethernet:
+    desc: "Add persistent route for direct ethernet link (run as Admin)"
+    cmds:
+      - echo "Adding persistent route for {{.SUBNET}}/{{.MASK}} via {{.GATEWAY}}..."
+      - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
+        platforms: [windows]
+    vars:
+      SUBNET: '{{.SUBNET | default "10.250.250.0"}}'
+      MASK: '{{.MASK | default "255.255.255.0"}}'
+      GATEWAY: '{{.GATEWAY | default "10.250.250.1"}}'
+      INTERFACE: '{{.INTERFACE | default "8"}}'
+
+  windows:route:add:wifi:
+    desc: "Add persistent route for WiFi subnet to bypass VPN (run as Admin)"
+    cmds:
+      - echo "Adding persistent route for {{.SUBNET}}/{{.MASK}} via {{.GATEWAY}}..."
+      - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
+        platforms: [windows]
+    vars:
+      SUBNET: '{{.SUBNET | default "192.168.0.0"}}'
+      MASK: '{{.MASK | default "255.255.255.0"}}'
+      GATEWAY: '{{.GATEWAY | default "192.168.0.1"}}'
+      INTERFACE: '{{.INTERFACE | default "9"}}'
+
+  windows:route:delete:
+    desc: "Remove persistent route (run as Admin)"
+    cmds:
+      - echo "Removing route for {{.SUBNET}}..."
+      - cmd: route delete {{.SUBNET}}
+        platforms: [windows]
+    vars:
+      SUBNET: '{{.SUBNET | default "10.250.250.0"}}'
 
   windows:ethernet:unlink:
-    desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [RPI_5_SSH=alias])"
+    desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [SSH_HOST=alias])"
     cmds:
+      - echo "[1/2] Reverting Windows Ethernet adapter to DHCP..."
       - task: windows:ethernet:set-dhcp
-      - echo "Reverting Pi Ethernet to DHCP..."
-      - ssh {{.RPI_5_SSH}} "sudo nmcli con modify 'netplan-eth0' ipv4.method auto && sudo nmcli con down 'netplan-eth0' && sudo nmcli con up 'netplan-eth0'"
+      - echo "[2/2] Reverting Pi Ethernet to DHCP..."
+      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'netplan-eth0' ipv4.method auto && (sudo nmcli con down 'netplan-eth0' 2>/dev/null || true) && sudo nmcli con up 'netplan-eth0' 2>/dev/null || true"
       - echo "Direct link torn down. Pi Ethernet back on DHCP."
+      - echo "You can unplug the Ethernet cable now."
     vars:
-      RPI_5_SSH: '{{.RPI_5_SSH | default "rpi-5-local"}}'
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-remote"}}'
 
   # Raspberry Pi commands (run directly on the Pi)
 
@@ -262,7 +307,7 @@ tasks:
   rpi:set-static-ip:
     desc: "Set static IP on any connection (usage: task rpi:set-static-ip IP=x.x.x.x [CONNECTION=name] [GATEWAY=gw])"
     cmds:
-      - sudo nmcli con modify '{{.CONNECTION}}' ipv4.addresses {{.IP}}/24 ipv4.gateway {{.GATEWAY}} ipv4.dns {{.GATEWAY}} ipv4.method manual && sudo nmcli con down '{{.CONNECTION}}' && sudo nmcli con up '{{.CONNECTION}}'
+      - sudo nmcli con modify '{{.CONNECTION}}' ipv4.addresses {{.IP}}/24 ipv4.gateway {{.GATEWAY}} ipv4.dns {{.GATEWAY}} ipv4.method manual && (sudo nmcli con down '{{.CONNECTION}}' 2>/dev/null || true) && sudo nmcli con up '{{.CONNECTION}}' 2>/dev/null || echo "Profile updated. It will activate when the cable is connected."
     requires:
       vars:
         - IP
@@ -289,6 +334,8 @@ tasks:
           IP: '{{.IP}}'
           CONNECTION: 'netplan-eth0'
           GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
+      - echo "Setting netplan-eth0 to never-default (keep WiFi as primary route)..."
+      - sudo nmcli con modify 'netplan-eth0' ipv4.never-default yes connection.autoconnect-priority -10
     vars:
       IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
