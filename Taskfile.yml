@@ -2,6 +2,7 @@ version: "3"
 
 vars:
   WINDOWS_ETHERNET_IP: 192.168.1.50
+  RPI_DIRECT_IP: 192.168.1.1
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
 
@@ -34,6 +35,9 @@ tasks:
     desc: "SSH into a Pi (usage: task windows:ssh SSH_HOST=alias)"
     cmds:
       - ssh {{.SSH_HOST}}
+    requires:
+      vars:
+        - SSH_HOST
 
   windows:run:
     desc: "Run a command on a Pi via SSH (usage: task windows:run SSH_HOST=alias CMD=command)"
@@ -70,6 +74,57 @@ tasks:
       - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo apt update && sudo apt install -y rpi-usb-gadget\""
       - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo rpi-usb-gadget on\""
       - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo reboot\""
+
+  windows:ssh:print-config:
+    desc: "Print recommended ~/.ssh/config entries (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"
+    cmds:
+      - echo "=== Recommended SSH Config Entries ==="
+      - echo ""
+      - echo "# --- Local network (router) ---"
+      - echo "Host rpi-5-local"
+      - echo "    HostName {{.RPI_LOCAL_IP}}"
+      - echo "    User {{.SSH_USER}}"
+      - echo "    Port 22"
+      - echo "    IdentityFile {{.SSH_KEY_PATH}}"
+      - echo "    ServerAliveInterval 60"
+      - echo "    ConnectTimeout 10"
+      - echo ""
+      - echo "# --- Direct Ethernet (USB gadget, target=pair device) ---"
+      - echo "Host rpi-5-direct"
+      - echo "    HostName {{.RPI_DIRECT_IP}}"
+      - echo "    User {{.SSH_USER}}"
+      - echo "    Port 22"
+      - echo "    IdentityFile {{.SSH_KEY_PATH}}"
+      - echo "    ServerAliveInterval 60"
+      - echo "    ConnectTimeout 10"
+      - echo ""
+      - echo "# --- Remote access (Cloudflare Tunnel) ---"
+      - echo "Host rpi-5-remote"
+      - echo "    HostName pi.{{.SSH_DOMAIN}}.dev"
+      - echo "    ProxyCommand cloudflared access ssh --hostname %h"
+      - echo "    User {{.SSH_USER}}"
+      - echo "    Port 22"
+      - echo "    IdentityFile {{.SSH_KEY_PATH}}"
+      - echo "    ServerAliveInterval 60"
+      - echo "    ConnectTimeout 10"
+      - echo ""
+      - echo ""
+      - echo "Override with task <task> SSH_USER=user SSH_KEY_PATH=~/.ssh/key SSH_DOMAIN=yourdomain RPI_DIRECT_IP=x.x.x.x"
+    vars:
+      SSH_USER: "{{.SSH_USER | default \"YOUR_USERNAME\"}}"
+      SSH_KEY_PATH: "{{.SSH_KEY_PATH | default \"~/.ssh/YOUR_KEY_FILE\"}}"
+      SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
+      RPI_LOCAL_IP: 192.168.0.50
+
+  windows:ssh:setup-config:
+    desc: "Append missing SSH host entries to ~/.ssh/config (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"
+    cmds:
+      - cmd: powershell -NoProfile -File ./scripts/setup-ssh-config.ps1 -RpiDirectIp {{.RPI_DIRECT_IP}} -User {{.SSH_USER}} -KeyFile {{.SSH_KEY_PATH}} -RemoteHost pi.{{.SSH_DOMAIN}}.dev
+        platforms: [windows]
+    vars:
+      SSH_USER: "{{.SSH_USER | default \"YOUR_USERNAME\"}}"
+      SSH_KEY_PATH: "{{.SSH_KEY_PATH | default \"~/.ssh/YOUR_KEY_FILE\"}}"
+      SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
 
   windows:ethernet:set-ip:
     desc: Set Windows Ethernet adapter IP for direct link to a Pi (run as Admin)
