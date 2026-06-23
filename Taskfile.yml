@@ -236,28 +236,26 @@ tasks:
       CONNECTION: '{{.CONNECTION | default "Wired connection 1"}}'
 
   rpi:set-static-ip:router:
-    desc: "Set static IP on Wired connection 1 (router, usage: task rpi:set-static-ip:router IP=x.x.x.x)"
+    desc: "Set static IP on Wired connection 1 (router network)"
     cmds:
       - task: rpi:set-static-ip
         vars:
           IP: '{{.IP}}'
           CONNECTION: 'Wired connection 1'
           GATEWAY: '192.168.0.1'
-    requires:
-      vars:
-        - IP
+    vars:
+      IP: '{{.IP | default "192.168.0.50"}}'
 
   rpi:set-static-ip:direct:
-    desc: "Set static IP on USB Gadget (client) for direct ethernet link (usage: task rpi:set-static-ip:direct IP=x.x.x.x)"
+    desc: "Set static IP on USB Gadget (client) for direct ethernet link"
     cmds:
       - task: rpi:set-static-ip
         vars:
           IP: '{{.IP}}'
           CONNECTION: 'USB Gadget (client)'
           GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
-    requires:
-      vars:
-        - IP
+    vars:
+      IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
