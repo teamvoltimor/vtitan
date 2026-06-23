@@ -10,6 +10,9 @@ class MotorSteeringConfig(BaseModel):
     Port for steering motor. This should be the identifier for the motor controller (e.g., serial port, I2C address, etc.) that controls the steering motor.
     """
 
+    offset: float = 0.0
+    """Steering center angle offset in degrees for calibration. Positive = bias right, Negative = bias left."""
+
     left_limit_angle: float
     """
     Left limit for steering position in degrees. This defines the maximum left turn angle for the steering motor.
@@ -22,6 +25,9 @@ class MotorSteeringConfig(BaseModel):
 
     center_angle: float
     """Center position for steering in degrees. This defines the angle that corresponds to the centered steering position."""
+
+    max_steering_angle: float = 45.0
+    """Maximum steering angle (absolute value) in degrees. Commands beyond ±this angle are clamped for safety."""
 
     centering_speed: int = 20
     """Speed for centering steering. This can be used to define how quickly the steering motor should move when centering the wheels."""

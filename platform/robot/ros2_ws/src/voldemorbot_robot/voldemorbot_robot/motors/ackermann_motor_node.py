@@ -1,6 +1,10 @@
-"""ROS2 node for Ackermann motor control via Build HAT.
+"""ROS2 node for Ackermann motor control with selectable actuator backends.
 
 Run on: Raspberry Pi Zero (connected to Raspberry Pi 5 via network)
+
+Steering and drive are independent backends, chosen at runtime:
+    - Default: servo steering + DC-encoder drive (two split-interface drivers).
+    - Build HAT: one combined steering+drive object, reused for both sides.
 
 Usage:
     ros2 run voldemorbot_robot ackermann_motor_node
@@ -14,13 +18,17 @@ Topics:
         - /motor/status (diagnostic_msgs/DiagnosticStatus) - Motor status diagnostics
 
 Environment Variables:
-    MOTOR_STEERING_PORT: Build HAT port for steering motor (default: A)
-    MOTOR_DRIVE_PORT: Build HAT port for drive motor (default: B)
+    STEERING_BACKEND: servo | build_hat (default: servo)
+    DRIVE_BACKEND: dc_encoder | build_hat (default: dc_encoder)
     MOTOR_STEERING_OFFSET: Steering center angle offset in degrees (default: 0.0)
     MOTOR_REVERSE_DRIVE: Reverse drive motor direction (default: False)
     MOTOR_MAX_SPEED: Maximum drive speed 0-100 (default: 50)
     MOTOR_MAX_STEERING_ANGLE: Maximum steering angle in degrees (default: 45.0)
     MOTOR_SPEED_SCALE: Scale factor for velocity to motor speed (default: 30.0)
+    DC-encoder drive pins: MOTOR_PWM_PIN (ENB), MOTOR_IN3_PIN, MOTOR_IN4_PIN,
+        MOTOR_ENCODER_A_PIN, MOTOR_ENCODER_B_PIN
+    Servo steering: SERVO_* (see src.hardware.motors.servo.config.ServoConfig)
+    Build HAT (when selected): MOTOR_STEERING_PORT, MOTOR_DRIVE_PORT, ...
 """
 
 import math
@@ -32,8 +40,9 @@ from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from rclpy.node import Node
 from std_msgs.msg import Float32
 
-from src.env import EnvVar
-from src.hardware.motors.build_hat import Driver as MotorDriver
+from src.hardware.motors.base import DriveDriver, SteeringDriver
+from src.hardware.motors.config import Config
+from src.hardware.motors.enums import DriveBackend, SteeringBackend
 
 if TYPE_CHECKING:
     from rclpy.publisher import Publisher
@@ -47,26 +56,66 @@ NODE_NAME = "ackermann_motor_node"
 PUBLISHER_RATE_HZ = 20.0
 """Rate for publishing motor state and diagnostics."""
 
-# Environment variables for motor configuration
-MOTOR_STEERING_OFFSET = EnvVar[float](key="MOTOR_STEERING_OFFSET", default=0.0, cast=float)
-"""Steering center angle offset in degrees for calibration. Positive = bias right, Negative = bias left."""
+STEERING_COMMAND_SPEED = 30
+"""Steering move speed (deg/s) commanded per update. Used by geared backends; the servo self-paces."""
 
-MOTOR_REVERSE_DRIVE = EnvVar[bool](
-    key="MOTOR_REVERSE_DRIVE",
-    default=False,
-    cast=lambda x: str(x).lower() in ("true", "1", "yes"),
-)
-"""Reverse drive motor direction. Set to True if motor is mounted backwards."""
+# Backend selection (from environment)
+def _parse_steering_backend(value: str) -> SteeringBackend:
+    """Parse STEERING_BACKEND env var."""
+    try:
+        return SteeringBackend(value)
+    except ValueError:
+        return SteeringBackend.SERVO
 
-MOTOR_MAX_SPEED = EnvVar[int](key="MOTOR_MAX_SPEED", default=50, cast=int)
-"""Maximum drive motor speed (0-100 scale). Limits top speed for safety."""
+def _parse_drive_backend(value: str) -> DriveBackend:
+    """Parse DRIVE_BACKEND env var."""
+    try:
+        return DriveBackend(value)
+    except ValueError:
+        return DriveBackend.DC_ENCODER
 
-MOTOR_MAX_STEERING_ANGLE = EnvVar[float](key="MOTOR_MAX_STEERING_ANGLE", default=45.0, cast=float)
-"""Maximum steering angle in degrees. Commands beyond this are clamped."""
 
-MOTOR_SPEED_SCALE = EnvVar[float](key="MOTOR_SPEED_SCALE", default=30.0, cast=float)
-"""Scale factor for converting Ackermann velocity (m/s) to motor speed (0-100).
-Formula: motor_speed = velocity * MOTOR_SPEED_SCALE"""
+class _DriverFactory:
+    """Build the steering/drive drivers for the configured backends.
+
+    The Build HAT driver is a single combined steering+drive object, so when
+    both backends select it the same instance is reused (one GPIO/serial open).
+    Driver classes are imported lazily so an unused backend need not be
+    installed on the host.
+    """
+
+    def __init__(self, config: Config) -> None:
+        self._config = config
+        self._build_hat: SteeringDriver | None = None
+
+    def _shared_build_hat(self) -> SteeringDriver:
+        """Return the combined Build HAT driver, building it at most once."""
+        if self._build_hat is None:
+            from src.hardware.motors.build_hat import Driver  # noqa: PLC0415 - lazy: only when selected
+            self._build_hat = Driver(self._config)
+        return self._build_hat
+
+    def steering(self, backend: SteeringBackend) -> SteeringDriver:
+        """Build the steering driver for ``backend``."""
+        if backend is SteeringBackend.BUILD_HAT:
+            return self._shared_build_hat()
+        from src.hardware.motors.servo import Driver, ServoConfig  # noqa: PLC0415 - lazy: only when selected
+        return Driver(ServoConfig())
+
+    def drive(self, backend: DriveBackend) -> DriveDriver:
+        """Build the drive driver for ``backend``."""
+        if backend is DriveBackend.BUILD_HAT:
+            return self._shared_build_hat()  # combined object also satisfies DriveDriver
+        from src.hardware.motors.dc_encoder.driver import Driver  # noqa: PLC0415 - lazy: only when selected
+        import os  # for inline env reading (dc_encoder driver reads pins from MOTOR_* vars)
+        return Driver(
+            pwm_pin=int(os.getenv("MOTOR_PWM_PIN", 13)),
+            dir_a_pin=int(os.getenv("MOTOR_IN3_PIN", 5)),
+            dir_b_pin=int(os.getenv("MOTOR_IN4_PIN", 6)),
+            encoder_a_pin=int(os.getenv("MOTOR_ENCODER_A_PIN", 16)),
+            encoder_b_pin=int(os.getenv("MOTOR_ENCODER_B_PIN", 20)),
+            standby_pin=None,  # L298N has no STBY line
+        )
 
 
 class AckermannMotorNode(Node):
@@ -83,38 +132,52 @@ class AckermannMotorNode(Node):
 
     def __init__(self) -> None:
         """Initialize Ackermann motor node."""
+        import os
         super().__init__(NODE_NAME)
 
         self.get_logger().info("Initializing Ackermann Motor Control Node")
 
-        # Load configuration from environment
-        self.steering_offset = MOTOR_STEERING_OFFSET.value
-        self.reverse_drive = MOTOR_REVERSE_DRIVE.value
-        self.max_speed = MOTOR_MAX_SPEED.value
-        self.max_steering_angle = MOTOR_MAX_STEERING_ANGLE.value
-        self.speed_scale = MOTOR_SPEED_SCALE.value
+        # Load configuration from environment (pydantic-settings via Config)
+        config = Config()
+        self.config = config
+
+        # Backend selection (with fallback)
+        steering_backend = _parse_steering_backend(os.getenv("STEERING_BACKEND", "servo"))
+        drive_backend = _parse_drive_backend(os.getenv("DRIVE_BACKEND", "dc_encoder"))
+        self.steering_backend = steering_backend
+        self.drive_backend = drive_backend
 
         self.get_logger().info(
-            f"Configuration: steering_offset={self.steering_offset}°, "
-            f"reverse_drive={self.reverse_drive}, "
-            f"max_speed={self.max_speed}, "
-            f"max_steering={self.max_steering_angle}°, "
-            f"speed_scale={self.speed_scale}",
+            f"Configuration: steering_backend={self.steering_backend.value}, "
+            f"drive_backend={self.drive_backend.value}, "
+            f"steering_offset={config.steering.offset}°, "
+            f"reverse_drive={config.drive.reversed}, "
+            f"max_speed={config.drive.max_speed}, "
+            f"max_steering={config.steering.max_steering_angle}°, "
+            f"speed_scale={config.drive.speed_scale}",
         )
 
-        # Motor driver
+        # Motor drivers (steering and drive may be one combined object or two)
+        self.steering: SteeringDriver | None = None
+        self.drive: DriveDriver | None = None
         try:
-            self.motor_driver = MotorDriver()
-            self.motor_driver.connect()
-            self.get_logger().info("Motor driver connected")
+            factory = _DriverFactory(config)
+            self.steering = factory.steering(steering_backend)
+            self.drive = factory.drive(drive_backend)
+
+            self.steering.connect()
+            if self.drive is not self.steering:  # combined Build HAT: connect once
+                self.drive.connect()
+            self.get_logger().info("Motor drivers connected")
 
             # Center steering on startup
-            self.motor_driver.center_steering()
+            self.steering.center_steering()
             self.get_logger().info("Steering centered")
 
         except (RuntimeError, OSError, ValueError, ImportError) as e:
-            self.get_logger().error(f"Failed to connect motor driver: {e}")
-            self.motor_driver = None  # type: ignore[assignment]
+            self.get_logger().error(f"Failed to connect motor drivers: {e}")
+            self.steering = None
+            self.drive = None
 
         # Current command tracking
         self.current_speed: float = 0.0
@@ -146,7 +209,7 @@ class AckermannMotorNode(Node):
         Args:
             msg: Ackermann drive command with speed and steering angle.
         """
-        if self.motor_driver is None:
+        if self.steering is None or self.drive is None:
             return
 
         # Extract velocity and steering angle from message
@@ -157,30 +220,32 @@ class AckermannMotorNode(Node):
         steering_angle_deg = math.degrees(steering_angle_rad)
 
         # Apply steering offset calibration
-        calibrated_steering = steering_angle_deg + self.steering_offset
+        calibrated_steering = steering_angle_deg + self.config.steering.offset
 
         # Clamp steering to safe limits
-        clamped_steering = max(-self.max_steering_angle, min(self.max_steering_angle, calibrated_steering))
+        max_angle = self.config.steering.max_steering_angle
+        clamped_steering = max(-max_angle, min(max_angle, calibrated_steering))
 
-        if abs(calibrated_steering) > self.max_steering_angle:
+        if abs(calibrated_steering) > max_angle:
             self.get_logger().warning(
-                f"Steering angle {calibrated_steering:.2f}° exceeds limit ±{self.max_steering_angle}°, "
+                f"Steering angle {calibrated_steering:.2f}° exceeds limit ±{max_angle}°, "
                 f"clamped to {clamped_steering:.2f}°",
             )
 
         # Convert velocity to motor speed percentage
-        motor_speed = int(velocity * self.speed_scale)
+        motor_speed = int(velocity * self.config.drive.speed_scale)
 
         # Apply drive reversal if configured
-        if self.reverse_drive:
+        if self.config.drive.reversed:
             motor_speed = -motor_speed
 
         # Clamp motor speed to safe limits
-        clamped_speed = max(-self.max_speed, min(self.max_speed, motor_speed))
+        max_speed = self.config.drive.max_speed
+        clamped_speed = max(-max_speed, min(max_speed, motor_speed))
 
-        if abs(motor_speed) > self.max_speed:
+        if abs(motor_speed) > max_speed:
             self.get_logger().warning(
-                f"Motor speed {motor_speed} exceeds limit ±{self.max_speed}, clamped to {clamped_speed}",
+                f"Motor speed {motor_speed} exceeds limit ±{max_speed}, clamped to {clamped_speed}",
             )
 
         # Update tracking variables
@@ -191,19 +256,19 @@ class AckermannMotorNode(Node):
         # Execute motor commands
         try:
             # Set steering position
-            self.motor_driver.move_steering_to(clamped_steering, speed=30)
+            self.steering.move_steering_to(clamped_steering, speed=STEERING_COMMAND_SPEED)
 
             # Set drive motor speed
             if clamped_speed > 0:
-                self.motor_driver.run_drive_forward(abs(clamped_speed))
+                self.drive.run_drive_forward(abs(clamped_speed))
             elif clamped_speed < 0:
-                self.motor_driver.run_drive_reverse(abs(clamped_speed))
+                self.drive.run_drive_reverse(abs(clamped_speed))
             else:
-                self.motor_driver.stop_drive()
+                self.drive.stop_drive()
 
             self.get_logger().debug(
                 f"Motor command: speed={clamped_speed}, steering={clamped_steering:.2f}° "
-                f"(offset={self.steering_offset}°, reverse={self.reverse_drive})",
+                f"(offset={self.config.steering.offset}°, reverse={self.config.drive.reversed})",
             )
 
         except (RuntimeError, OSError, ValueError) as e:
@@ -211,13 +276,13 @@ class AckermannMotorNode(Node):
 
     def _publish_feedback(self) -> None:
         """Publish motor position and speed feedback."""
-        if self.motor_driver is None:
+        if self.steering is None or self.drive is None:
             return
 
         try:
             # Get current motor states
-            steering_pos = self.motor_driver.get_steering_position()
-            drive_speed = self.motor_driver.get_drive_speed()
+            steering_pos = self.steering.get_steering_position()
+            drive_speed = self.drive.get_drive_speed()
 
             # Publish steering position
             steering_msg = Float32()
@@ -234,14 +299,14 @@ class AckermannMotorNode(Node):
             status_msg.name = "Ackermann Motors"
             status_msg.level = DiagnosticStatus.OK
             status_msg.message = "Motors operational"
-            status_msg.hardware_id = "BuildHAT"
+            status_msg.hardware_id = f"{self.steering_backend.value}+{self.drive_backend.value}"
 
             status_msg.values.append(KeyValue(key="steering_position", value=f"{steering_pos:.2f}"))
             status_msg.values.append(KeyValue(key="drive_speed", value=f"{drive_speed:.2f}"))
             status_msg.values.append(KeyValue(key="commanded_speed", value=f"{self.current_speed}"))
             status_msg.values.append(KeyValue(key="commanded_steering", value=f"{self.current_steering_angle:.2f}"))
-            status_msg.values.append(KeyValue(key="steering_offset", value=f"{self.steering_offset:.2f}"))
-            status_msg.values.append(KeyValue(key="reverse_drive", value=str(self.reverse_drive)))
+            status_msg.values.append(KeyValue(key="steering_offset", value=f"{self.config.steering.offset:.2f}"))
+            status_msg.values.append(KeyValue(key="reverse_drive", value=str(self.config.drive.reversed)))
 
             self.status_pub.publish(status_msg)
 
@@ -250,7 +315,7 @@ class AckermannMotorNode(Node):
 
     def _watchdog_check(self) -> None:
         """Watchdog to stop motors if no commands received recently."""
-        if self.motor_driver is None:
+        if self.drive is None:
             return
 
         current_time = self.get_clock().now().nanoseconds / 1e9
@@ -262,7 +327,7 @@ class AckermannMotorNode(Node):
                 f"No Ackermann commands received for {time_since_last_command:.2f}s - stopping motors for safety",
             )
             try:
-                self.motor_driver.stop_drive()
+                self.drive.stop_drive()
                 self.current_speed = 0.0
             except (RuntimeError, OSError, ValueError) as e:
                 self.get_logger().error(f"Failed to stop motors in watchdog: {e}")
@@ -273,10 +338,10 @@ class AckermannMotorNode(Node):
         self.get_logger().info("Shutting down Ackermann Motor Node")
 
         # Stop motors safely
-        if self.motor_driver is not None:
+        if self.steering is not None and self.drive is not None:
             try:
-                self.motor_driver.stop_drive()
-                self.motor_driver.center_steering()
+                self.drive.stop_drive()
+                self.steering.center_steering()
                 self.get_logger().info("Motors stopped and steering centered")
             except (RuntimeError, OSError, ValueError) as e:
                 self.get_logger().error(f"Error stopping motors during shutdown: {e}")

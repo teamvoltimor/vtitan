@@ -5,8 +5,8 @@ implementation of ``EncodedDriveDriver`` — it integrates commanded RPM over a
 pluggable clock to produce believable counts, so the navigation/ROS2 stack and
 tests can exercise the encoder path on any machine.
 
-``Driver`` targets a TB6612FNG-class H-bridge + quadrature encoder on a
-Raspberry Pi 5. GPIO libraries are imported lazily inside ``connect`` so this
+``Driver`` targets a TB6612FNG- or L298N-class H-bridge + quadrature encoder on
+a Raspberry Pi. GPIO libraries are imported lazily inside ``connect`` so this
 module imports cleanly on dev machines without ``lgpio``/``gpiozero``.
 Hardware bring-up (gear-ratio confirmation, PID tuning, odometry validation)
 is still pending — see docs/internal/2026-06-11-jgb37-dc-encoder-motor.md.
@@ -129,11 +129,15 @@ class SimulatedEncoderDriver(EncodedDriveDriver):
 
 
 class Driver(EncodedDriveDriver):
-    """TB6612FNG + quadrature encoder drive on Raspberry Pi 5 (lgpio/gpiozero).
+    """H-bridge + quadrature encoder drive on Raspberry Pi (lgpio/gpiozero).
 
     GPIO libraries are imported lazily in :meth:`connect` so the module imports
     on machines without them. Closed-loop RPM runs a background control thread
     driving the PID against encoder feedback.
+
+    ``standby_pin`` wires the chip-enable line a TB6612FNG exposes (STBY); pass
+    ``None`` for an L298N, which has no standby line — its per-channel enable
+    (ENA/ENB) is the PWM pin, so disabling output is simply ``pwm.value = 0``.
     """
 
     def __init__(
@@ -141,16 +145,17 @@ class Driver(EncodedDriveDriver):
         pwm_pin: int,
         dir_a_pin: int,
         dir_b_pin: int,
-        standby_pin: int,
         encoder_a_pin: int,
         encoder_b_pin: int,
+        standby_pin: int | None = None,
         counts_per_rev: float = _DEFAULT_COUNTS_PER_REV,
         wheel_diameter_m: float = _DEFAULT_WHEEL_DIAMETER_M,
         max_rpm: float = _DEFAULT_MAX_RPM,
         pid: PIDController | None = None,
         invert: bool = False,
     ) -> None:
-        self._pins = (pwm_pin, dir_a_pin, dir_b_pin, standby_pin, encoder_a_pin, encoder_b_pin)
+        self._pins = (pwm_pin, dir_a_pin, dir_b_pin, encoder_a_pin, encoder_b_pin)
+        self._standby_pin = standby_pin
         self._counts_per_rev = counts_per_rev
         self._wheel_diameter_m = wheel_diameter_m
         self._max_rpm = max_rpm
@@ -177,14 +182,15 @@ class Driver(EncodedDriveDriver):
                 "gpiozero/lgpio not available (Pi 5 hardware only)",
             ) from err
 
-        pwm, ain1, ain2, stby, enc_a, enc_b = self._pins
+        pwm, ain1, ain2, enc_a, enc_b = self._pins
         try:
             self._encoder = RotaryEncoder(enc_a, enc_b, max_steps=0)
             self._pwm = PWMOutputDevice(pwm)
             self._ain1 = DigitalOutputDevice(ain1)
             self._ain2 = DigitalOutputDevice(ain2)
-            self._standby = DigitalOutputDevice(stby)
-            self._standby.on()
+            if self._standby_pin is not None:  # TB6612 STBY; L298N has none
+                self._standby = DigitalOutputDevice(self._standby_pin)
+                self._standby.on()
         except Exception as err:  # gpiozero raises GPIOZeroError/OSError families
             raise MotorConnectionError(
                 [str(p) for p in self._pins],

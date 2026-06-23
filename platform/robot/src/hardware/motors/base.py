@@ -21,6 +21,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+DEFAULT_STEERING_SPEED = 20
+"""Default steering move speed (deg/s) used when a caller does not give one."""
+
+STEERING_CENTER_DEG = 0.0
+"""Absolute steering angle (deg) for wheels-straight, by convention."""
+
 
 @dataclass(frozen=True)
 class CalibrationData:
@@ -55,31 +61,49 @@ class DriveOdometry:
 
 
 class SteeringDriver(ABC):
-    """Front-wheel steering actuator (servo or geared steering motor)."""
+    """Front-wheel steering actuator (servo or geared steering motor).
+
+    Subclasses implement only the two primitives :meth:`move_steering_to` and
+    :meth:`get_steering_position`. Centring, the centre-relative helpers,
+    open-loop speed read-back and the connection lifecycle have concrete
+    defaults here, so a feedback-less actuator (e.g. an RC servo) need not
+    restate them; richer backends (e.g. the Build HAT) override as needed.
+    """
+
+    @property
+    def center_position(self) -> float:
+        """Absolute steering angle (deg) that corresponds to wheels-straight."""
+        return STEERING_CENTER_DEG
+
+    def connect(self) -> None:
+        """Open the steering hardware. No-op unless a backend needs it."""
+
+    def disconnect(self) -> None:
+        """Release the steering hardware. No-op unless a backend needs it."""
 
     @abstractmethod
     def get_steering_position(self) -> float:
         """Get current steering position in degrees."""
 
     @abstractmethod
-    def get_steering_speed(self) -> float:
-        """Get current steering speed in degrees/s."""
-
-    @abstractmethod
-    def move_steering_to(self, position: float, speed: int = 20) -> None:
+    def move_steering_to(self, position: float, speed: int = DEFAULT_STEERING_SPEED) -> None:
         """Move steering to absolute position."""
 
-    @abstractmethod
+    def get_steering_speed(self) -> float:
+        """Get current steering speed in degrees/s (0.0 when there is no feedback)."""
+        return 0.0
+
     def center_steering(self) -> None:
         """Center steering wheels."""
+        self.move_steering_to(self.center_position)
 
-    @abstractmethod
-    def move_steering_to_right_from_center(self, position: float, speed: int = 20) -> None:
-        """Move steering to right relative position in degrees from center position."""
+    def move_steering_to_right_from_center(self, position: float, speed: int = DEFAULT_STEERING_SPEED) -> None:
+        """Move steering right by ``position`` degrees from the center position."""
+        self.move_steering_to(self.center_position + position, speed)
 
-    @abstractmethod
-    def move_steering_to_left_from_center(self, position: float, speed: int = 20) -> None:
-        """Move steering to left relative position in degrees from center position."""
+    def move_steering_to_left_from_center(self, position: float, speed: int = DEFAULT_STEERING_SPEED) -> None:
+        """Move steering left by ``position`` degrees from the center position."""
+        self.move_steering_to(self.center_position - position, speed)
 
 
 class DriveDriver(ABC):
