@@ -21,6 +21,14 @@ tasks:
     cmds:
       - task --list
 
+  # GPG
+
+  gpg:fix-tty:
+    desc: "Fix 'Inappropriate ioctl for device' GPG error"
+    cmds:
+      - export GPG_TTY=$(tty)
+    platforms: [linux, darwin]
+
   # Windows host commands (run from this machine)
 
   windows:ping:
@@ -217,7 +225,7 @@ tasks:
       - sudo shutdown -h now
 
   rpi:set-static-ip:
-    desc: "Set static IP (usage: task rpi:set-static-ip IP=x.x.x.x)"
+    desc: "Set static IP on any connection (usage: task rpi:set-static-ip IP=x.x.x.x [CONNECTION=name] [GATEWAY=gw])"
     cmds:
       - sudo nmcli con modify '{{.CONNECTION}}' ipv4.addresses {{.IP}}/24 ipv4.gateway {{.GATEWAY}} ipv4.dns {{.GATEWAY}} ipv4.method manual && sudo nmcli con down '{{.CONNECTION}}' && sudo nmcli con up '{{.CONNECTION}}'
     requires:
@@ -226,6 +234,30 @@ tasks:
     vars:
       GATEWAY: '{{.GATEWAY | default "192.168.0.1"}}'
       CONNECTION: '{{.CONNECTION | default "Wired connection 1"}}'
+
+  rpi:set-static-ip:router:
+    desc: "Set static IP on Wired connection 1 (router, usage: task rpi:set-static-ip:router IP=x.x.x.x)"
+    cmds:
+      - task: rpi:set-static-ip
+        vars:
+          IP: '{{.IP}}'
+          CONNECTION: 'Wired connection 1'
+          GATEWAY: '192.168.0.1'
+    requires:
+      vars:
+        - IP
+
+  rpi:set-static-ip:direct:
+    desc: "Set static IP on USB Gadget (client) for direct ethernet link (usage: task rpi:set-static-ip:direct IP=x.x.x.x)"
+    cmds:
+      - task: rpi:set-static-ip
+        vars:
+          IP: '{{.IP}}'
+          CONNECTION: 'USB Gadget (client)'
+          GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
+    requires:
+      vars:
+        - IP
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
