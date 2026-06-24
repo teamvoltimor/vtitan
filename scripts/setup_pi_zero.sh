@@ -30,22 +30,50 @@ cmd_create() {
     done
     [[ -z "$device" ]] && { echo "--device required" >&2; exit 1; }
 
-    log "Flashing RPi OS Lite (32-bit Bookworm) to $device..."
+    log "Resolving latest RPi OS Lite 32-bit image URL..."
+    local image_url
+    local version_dir
+    version_dir=$(curl -sL "https://downloads.raspberrypi.org/raspios_lite_armhf/images/" \
+        | grep -oP 'href="raspios_lite_armhf-\K[^/]+(?=/")' \
+        | sort | tail -1)
+    image_url=$(curl -sL "https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-${version_dir}/" \
+        | grep -oP 'href="\K[^"]+\.img\.xz(?=")' \
+        | grep -v bmap | head -1)
+    image_url="https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-${version_dir}/${image_url}"
+
+    log "Flashing $image_url to $device..."
     log "WARNING: This will ERASE $device. Press Ctrl-C within 5s to abort."
     sleep 5
 
-    # Flash with rpi-imager CLI or direct dd (image must be pre-downloaded)
-    if command -v rpi-imager &>/dev/null; then
-        rpi-imager --cli --os raspios_lite_armhf --storage "$device"
+    # Flash with rpi-imager CLI
+    if command -v rpi-imager-cli &>/dev/null; then
+        rpi-imager-cli --disable-verify "$image_url" "$device"
+    elif command -v rpi-imager &>/dev/null; then
+        # Fallback: direct dd with xz decompression (requires pre-downloaded image)
+        log "rpi-imager-cli not found — falling back to direct dd (image must be pre-downloaded)." >&2
+        log "Install with: sudo apt install rpi-imager-cli" >&2
+        exit 1
     else
-        echo "rpi-imager not found — flash the image manually, then re-run to configure boot partition." >&2
+        echo "rpi-imager-cli not found — install it with: sudo apt install rpi-imager-cli" >&2
         exit 1
     fi
 
-    # Mount boot partition
+    # Re-read partition table and wait for device nodes
+    blockdev --rereadpt "$device" 2>/dev/null || partprobe "$device" 2>/dev/null || true
+    sleep 2
+
+    # Mount boot partition (auto-detect vfat partition)
     local boot_mount
     boot_mount=$(mktemp -d)
-    mount "${device}1" "$boot_mount"
+    local boot_part
+    boot_part=$(lsblk -ln -o NAME,FSTYPE "$device" | awk '/vfat/{print "/dev/"$1}')
+    if [[ -z "$boot_part" ]]; then
+        # Retry once after a longer wait
+        sleep 3
+        boot_part=$(lsblk -ln -o NAME,FSTYPE "$device" | awk '/vfat/{print "/dev/"$1}')
+    fi
+    [[ -z "$boot_part" ]] && { echo "Could not find boot partition on $device" >&2; exit 1; }
+    mount "$boot_part" "$boot_mount"
 
     # Enable SSH
     touch "$boot_mount/ssh"
@@ -53,7 +81,9 @@ cmd_create() {
     # Hostname
     echo "$HOSTNAME_TARGET" > "$boot_mount/hostname"
 
-    # config.txt additions
+    # config.txt additions (remove any existing overlays first to avoid duplicates)
+    sed -i '/^dtoverlay=dwc2/d' "$boot_mount/config.txt"
+    sed -i '/^#dtparam=i2c_arm=on/d' "$boot_mount/config.txt"
     cat >> "$boot_mount/config.txt" <<'EOF'
 dtparam=i2c_arm=on
 dtoverlay=dwc2
@@ -61,7 +91,8 @@ enable_uart=1
 dtoverlay=pwm-2chan
 EOF
 
-    # cmdline.txt: add USB gadget modules
+    # cmdline.txt: add USB gadget modules (ensure trailing newline first)
+    sed -i '$a\' "$boot_mount/cmdline.txt"
     sed -i 's/$/ modules-load=dwc2,g_ether/' "$boot_mount/cmdline.txt"
 
     # WiFi (optional)

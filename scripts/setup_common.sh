@@ -11,13 +11,21 @@ require_root() {
     fi
 }
 
+run_as_pi() {
+    if [[ $EUID -eq 0 ]]; then
+        sudo -u pi "$@"
+    else
+        "$@"
+    fi
+}
+
 install_pixi() {
-    if command -v pixi &>/dev/null; then
-        log "pixi already installed: $(pixi --version)"
+    if run_as_pi bash -c 'command -v pixi &>/dev/null'; then
+        log "pixi already installed: $(run_as_pi pixi --version)"
         return
     fi
     log "Installing pixi..."
-    curl -fsSL https://pixi.sh/install.sh | bash
+    run_as_pi bash -c 'curl -fsSL https://pixi.sh/install.sh | bash'
     export PATH="$HOME/.pixi/bin:$PATH"
 }
 
@@ -28,15 +36,13 @@ clone_repo() {
         return
     fi
     log "Cloning voldemorbot repo to $dest..."
-    git clone https://github.com/teamvoldemor/voldemorbot.git "$dest"
+    run_as_pi git clone https://github.com/teamvoldemor/voldemorbot.git "$dest"
 }
 
 install_ros_workspace() {
     local robot_dir="$1"
     log "Installing pixi env and building ROS2 workspace in $robot_dir..."
-    cd "$robot_dir"
-    pixi install
-    pixi run -e dev build-ws
+    run_as_pi bash -c "cd '$robot_dir' && pixi install && pixi run -e dev build-ws"
 }
 
 copy_env() {
@@ -47,4 +53,5 @@ copy_env() {
     fi
     cp "$robot_dir/.env.example" "$robot_dir/.env"
     log "Copied .env.example to .env — edit before running services"
+    chown pi:pi "$robot_dir/.env"
 }
