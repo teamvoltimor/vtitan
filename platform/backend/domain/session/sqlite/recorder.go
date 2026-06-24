@@ -1,4 +1,4 @@
-package recorder
+package sqlite
 
 import (
 	"bufio"
@@ -15,7 +15,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/sqlcdb"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session/sqlite/db"
 	_ "modernc.org/sqlite" // SQLite driver (pure Go, no cgo)
 )
 
@@ -29,37 +30,23 @@ const (
 	filePerm           = 0o644
 )
 
-// ErrSessionNotFound is returned when a session ID does not exist in the index.
-var ErrSessionNotFound = errors.New("session not found")
-
-type (
-	// SessionInfo is the public summary type for a recorded session.
-	// time.Time comes first so its embedded pointer (loc) is within the first
-	// 24 bytes, reducing the GC-scanned span.
-	SessionInfo struct {
-		CreatedAt  time.Time
-		SessionID  string
-		EntryCount int
-	}
-
-	// Recorder persists RobotSnapshot frames to JSONL files and maintains a SQLite
-	// session index. One Recorder instance = one active session; each server restart
-	// opens a fresh session.
-	// Pointer fields are grouped first to minimize the GC-scanned span.
-	Recorder struct {
-		queries     *sqlcdb.Queries
-		sqlDB       *sql.DB
-		file        *os.File
-		writer      *bufio.Writer
-		log         *zap.Logger
-		marshaler   protojson.MarshalOptions
-		unmarshaler protojson.UnmarshalOptions
-		sessionID   string
-		framesDir   string
-		mu          sync.Mutex
-		maxSessions int
-	}
-)
+// Recorder persists RobotSnapshot frames to JSONL files and maintains a SQLite
+// session index. One Recorder instance = one active session; each server restart
+// opens a fresh session.
+// Pointer fields are grouped first to minimize the GC-scanned span.
+type Recorder struct {
+	queries     *db.Queries
+	sqlDB       *sql.DB
+	file        *os.File
+	writer      *bufio.Writer
+	log         *zap.Logger
+	marshaler   protojson.MarshalOptions
+	unmarshaler protojson.UnmarshalOptions
+	sessionID   string
+	framesDir   string
+	mu          sync.Mutex
+	maxSessions int
+}
 
 const initSchema = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -78,29 +65,29 @@ func New(ctx context.Context, dbPath, framesDir string, maxSessions int, log *za
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath+sqliteDSNOptions)
+	sqlDB, err := sql.Open("sqlite", dbPath+sqliteDSNOptions)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	db.SetMaxOpenConns(sqliteMaxOpenConns) // SQLite write serialization
+	sqlDB.SetMaxOpenConns(sqliteMaxOpenConns) // SQLite write serialization
 
-	if _, err := db.ExecContext(ctx, initSchema); err != nil {
-		db.Close()
+	if _, err := sqlDB.ExecContext(ctx, initSchema); err != nil {
+		sqlDB.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 
 	sessionID := fmt.Sprintf(sessionIDFormat, time.Now().UnixMilli())
-	queries := sqlcdb.New(db)
+	queries := db.New(sqlDB)
 
-	params := sqlcdb.InsertSessionParams{SessionID: sessionID, CreatedAt: time.Now().UnixMilli()}
+	params := db.InsertSessionParams{SessionID: sessionID, CreatedAt: time.Now().UnixMilli()}
 	if err := queries.InsertSession(ctx, params); err != nil {
-		db.Close()
+		sqlDB.Close()
 		return nil, fmt.Errorf("insert session: %w", err)
 	}
 
 	r := &Recorder{
 		queries:     queries,
-		sqlDB:       db,
+		sqlDB:       sqlDB,
 		sessionID:   sessionID,
 		framesDir:   framesDir,
 		maxSessions: maxSessions,
@@ -119,8 +106,6 @@ func New(ctx context.Context, dbPath, framesDir string, maxSessions int, log *za
 
 // Record persists a snapshot frame to the active session's JSONL file and
 // increments the session's entry count in SQLite.
-// Persistence errors are logged but do not propagate — callers (the ingest
-// stream) must not be interrupted by disk errors.
 func (r *Recorder) Record(ctx context.Context, snap *telemetryv1.RobotSnapshot) error {
 	b, err := r.marshaler.Marshal(snap)
 	if err != nil {
@@ -150,14 +135,14 @@ func (r *Recorder) Record(ctx context.Context, snap *telemetryv1.RobotSnapshot) 
 }
 
 // ListSessions returns all sessions ordered newest-first from the SQLite index.
-func (r *Recorder) ListSessions(ctx context.Context) ([]SessionInfo, error) {
+func (r *Recorder) ListSessions(ctx context.Context) ([]session.SessionInfo, error) {
 	rows, err := r.queries.ListSessions(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
-	out := make([]SessionInfo, len(rows))
+	out := make([]session.SessionInfo, len(rows))
 	for i, row := range rows {
-		out[i] = SessionInfo{
+		out[i] = session.SessionInfo{
 			CreatedAt:  time.UnixMilli(row.CreatedAt),
 			SessionID:  row.SessionID,
 			EntryCount: int(row.EntryCount),
@@ -167,10 +152,10 @@ func (r *Recorder) ListSessions(ctx context.Context) ([]SessionInfo, error) {
 }
 
 // LoadSession reads all frames from the JSONL file for the given session.
-// Returns ErrSessionNotFound if the session ID is not in the index.
+// Returns session.ErrSessionNotFound if the session ID is not in the index.
 func (r *Recorder) LoadSession(ctx context.Context, sessionID string) ([]*telemetryv1.RobotSnapshot, error) {
 	if _, err := r.queries.GetSession(ctx, sessionID); errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrSessionNotFound
+		return nil, session.ErrSessionNotFound
 	} else if err != nil {
 		return nil, fmt.Errorf("get session: %w", err)
 	}

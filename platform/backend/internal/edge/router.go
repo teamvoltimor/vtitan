@@ -1,7 +1,6 @@
 package edge
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -9,26 +8,10 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/recorder"
-)
-
-type (
-	// Store is the read side of the memory store consumed by the edge layer.
-	Store interface {
-		Latest() *telemetryv1.RobotSnapshot
-		History(limit int) []*telemetryv1.RobotSnapshot
-		Subscribe() (snapshots <-chan *telemetryv1.RobotSnapshot, cancel func())
-		LatestTopics() *telemetryv1.TopicsSnapshot
-	}
-
-	// SessionStore is the read side of the recorder consumed by the edge layer.
-	SessionStore interface {
-		ListSessions(ctx context.Context) ([]recorder.SessionInfo, error)
-		LoadSession(ctx context.Context, sessionID string) ([]*telemetryv1.RobotSnapshot, error)
-	}
 )
 
 // marshaler serializes proto messages to snake_case JSON for the frontend.
@@ -36,7 +19,7 @@ type (
 var marshaler = protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true}
 
 // NewRouter wires up the gin router for the REST + WebSocket edge.
-func NewRouter(store Store, sessions SessionStore, cfg *config.Config, log *zap.Logger) *gin.Engine {
+func NewRouter(telSvc telemetry.TelemetryService, sessSvc session.SessionService, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	if !cfg.Dev {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -46,8 +29,8 @@ func NewRouter(store Store, sessions SessionStore, cfg *config.Config, log *zap.
 	r.Use(corsMiddleware())
 	r.Use(requestIDMiddleware(log))
 
-	h := &handlers{store: store, sessions: sessions, cfg: cfg, log: log}
-	ws := newWSManager(store, log)
+	h := &handlers{telSvc: telSvc, sessSvc: sessSvc, cfg: cfg, log: log}
+	ws := newWSManager(telSvc, log)
 
 	r.GET("/openapi.yaml", func(c *gin.Context) {
 		c.File("../openapi/openapi.yaml")

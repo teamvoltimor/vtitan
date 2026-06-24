@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "api:generate": "openapi-ts",
+    "api:generate": "openapi-ts -i ../openapi/contexts/telemetry.yaml -o ./src/api/generated -p @hey-api/typescript",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@hey-api/openapi-ts": "^0.98.2",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

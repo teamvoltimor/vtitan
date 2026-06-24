@@ -6,17 +6,17 @@
  */
 
 import { z } from 'zod'
-import {
-  type TopicUpdate,
-  type TopicsSnapshot,
-  type ImuData,
-  type Detection,
-  type MotorState,
-  type TelemetryMetrics,
-  type RobotSnapshot,
-  type ReplaySessionInfo,
-  type Position3D,
-} from '../types'
+import type {
+  Position3d,
+  ImuData,
+  Detection,
+  MotorState,
+  TelemetryMetrics,
+  TopicUpdate,
+  TopicsSnapshot,
+  SessionResponse,
+} from '../api/generated'
+import type { RobotSnapshot } from '../types'
 
 // Timestamp emitted by google.protobuf.Timestamp via protojson — always ISO 8601 string.
 const TimestampSchema = z.string().datetime({ offset: true })
@@ -26,7 +26,7 @@ const Position3DSchema = z.object({
   x: z.number(),
   y: z.number(),
   z: z.number(),
-}) as z.ZodType<Position3D>
+}) as z.ZodType<Position3d>
 
 const ImuDataSchema = z.object({
   linear_acceleration: Position3DSchema,
@@ -116,7 +116,7 @@ const ReplaySessionInfoSchema = z.object({
   session_id:  z.string().nonempty(),
   created_at:  TimestampSchema,
   entry_count: z.number().int().nonnegative(),
-}) satisfies z.ZodType<ReplaySessionInfo>
+}) satisfies z.ZodType<SessionResponse>
 
 const SessionsResponseSchema = z.array(ReplaySessionInfoSchema)
 
@@ -144,11 +144,11 @@ export function validateRobotSnapshot(data: unknown): RobotSnapshot {
   return RobotSnapshotSchema.parse(data)
 }
 
-export function validateReplaySessionInfo(data: unknown): ReplaySessionInfo {
+export function validateReplaySessionInfo(data: unknown): SessionResponse {
   return ReplaySessionInfoSchema.parse(data)
 }
 
-export function validateSessions(data: unknown): ReplaySessionInfo[] {
+export function validateSessions(data: unknown): SessionResponse[] {
   return SessionsResponseSchema.parse(data)
 }
 

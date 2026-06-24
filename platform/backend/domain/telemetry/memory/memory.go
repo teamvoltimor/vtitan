@@ -1,4 +1,4 @@
-package store
+package memory
 
 import (
 	"sync"
@@ -12,26 +12,24 @@ const (
 	subscriberChanBuf  = 16
 )
 
-type (
-	subscriber struct {
-		ch chan *telemetryv1.RobotSnapshot
-	}
+type subscriber struct {
+	ch chan *telemetryv1.RobotSnapshot
+}
 
-	// Memory is a thread-safe ring-buffer store for robot snapshots and topic state.
-	// It is the single source of truth for both the gRPC ingest adaptor and the gin edge.
-	// Pointer fields are ordered first to minimize the GC-scanned span.
-	Memory struct {
-		latest   *telemetryv1.RobotSnapshot
-		subs     map[uint64]*subscriber
-		topics   *telemetryv1.TopicsSnapshot
-		history  []*telemetryv1.RobotSnapshot
-		mu       sync.RWMutex
-		subMu    sync.RWMutex
-		nextID   atomic.Uint64
-		topicsMu sync.RWMutex
-		cap      int
-	}
-)
+// Memory is a thread-safe ring-buffer store for robot snapshots and topic state.
+// It is the single source of truth for both the gRPC ingest adaptor and the gin edge.
+// Pointer fields are ordered first to minimize the GC-scanned span.
+type Memory struct {
+	latest   *telemetryv1.RobotSnapshot
+	subs     map[uint64]*subscriber
+	topics   *telemetryv1.TopicsSnapshot
+	history  []*telemetryv1.RobotSnapshot
+	mu       sync.RWMutex
+	subMu    sync.RWMutex
+	nextID   atomic.Uint64
+	topicsMu sync.RWMutex
+	cap      int
+}
 
 // NewMemory returns a Memory store with a ring-buffer capacity of historySize.
 // A value ≤ 0 falls back to defaultHistorySize.

@@ -13,18 +13,19 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/recorder"
 )
 
 var sessionIDPattern = regexp.MustCompile(`^session_\d+$`)
 
 type handlers struct {
-	store    Store
-	sessions SessionStore
-	cfg      *config.Config
-	log      *zap.Logger
+	telSvc  telemetry.TelemetryService
+	sessSvc session.SessionService
+	cfg     *config.Config
+	log     *zap.Logger
 }
 
 func (h *handlers) health(c *gin.Context) {
@@ -32,7 +33,7 @@ func (h *handlers) health(c *gin.Context) {
 }
 
 func (h *handlers) latest(c *gin.Context) {
-	snap := h.store.Latest()
+	snap := h.telSvc.Latest()
 	if snap == nil {
 		problem.Write(c, http.StatusServiceUnavailable, "Service Unavailable", "no snapshot received yet")
 		return
@@ -47,12 +48,12 @@ func (h *handlers) history(c *gin.Context) {
 			limit = n
 		}
 	}
-	snaps := h.store.History(limit)
+	snaps := h.telSvc.History(limit)
 	writeProtoSlice(c, snaps, h.log)
 }
 
 func (h *handlers) topics(c *gin.Context) {
-	topics := h.store.LatestTopics()
+	topics := h.telSvc.LatestTopics()
 	if topics == nil {
 		topics = &telemetryv1.TopicsSnapshot{
 			Timestamp: timestamppb.Now(),
@@ -117,7 +118,7 @@ func (h *handlers) getConfig(c *gin.Context) {
 }
 
 func (h *handlers) listSessions(c *gin.Context) {
-	infos, err := h.sessions.ListSessions(c.Request.Context())
+	infos, err := h.sessSvc.ListSessions(c.Request.Context())
 	if err != nil {
 		h.log.Error("list sessions", zap.Error(err))
 		problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "failed to list sessions")
@@ -140,8 +141,8 @@ func (h *handlers) loadSession(c *gin.Context) {
 		problem.Write(c, http.StatusBadRequest, "Bad Request", "invalid session id format")
 		return
 	}
-	snaps, err := h.sessions.LoadSession(c.Request.Context(), id)
-	if errors.Is(err, recorder.ErrSessionNotFound) {
+	snaps, err := h.sessSvc.LoadSession(c.Request.Context(), id)
+	if errors.Is(err, session.ErrSessionNotFound) {
 		problem.Write(c, http.StatusNotFound, "Not Found", "session not found")
 		return
 	}

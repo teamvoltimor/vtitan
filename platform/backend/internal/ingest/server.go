@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"errors"
 	"io"
 
@@ -10,34 +9,23 @@ import (
 	"google.golang.org/grpc/status"
 
 	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
-)
-
-type (
-	// Store is the write side of the memory store.
-	Store interface {
-		Write(snap *telemetryv1.RobotSnapshot)
-		WriteTopics(topics *telemetryv1.TopicsSnapshot)
-	}
-
-	// Recorder persists snapshot frames to durable storage.
-	Recorder interface {
-		Record(ctx context.Context, snap *telemetryv1.RobotSnapshot) error
-	}
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 )
 
 // Server is the gRPC ingest adapter. It translates incoming streams into
-// store writes; all business logic lives in the store.
+// service calls; all business logic lives in the domain services.
 type Server struct {
 	telemetryv1.UnimplementedTelemetryIngestServiceServer
-	store    Store
-	recorder Recorder
-	log      *zap.Logger
+	telSvc  telemetry.TelemetryService
+	sessSvc session.SessionService
+	log     *zap.Logger
 }
 
-// New returns a Server that writes every received frame to store and records
-// it via recorder.
-func New(store Store, recorder Recorder, log *zap.Logger) *Server {
-	return &Server{store: store, recorder: recorder, log: log}
+// New returns a Server that writes every received frame to the telemetry
+// service and records it via the session service.
+func New(telSvc telemetry.TelemetryService, sessSvc session.SessionService, log *zap.Logger) *Server {
+	return &Server{telSvc: telSvc, sessSvc: sessSvc, log: log}
 }
 
 // StreamSnapshots receives a client-stream of robot snapshots and writes each
@@ -57,8 +45,8 @@ func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_Strea
 		if req.Snapshot == nil {
 			return status.Error(codes.InvalidArgument, "snapshot must not be nil")
 		}
-		s.store.Write(req.Snapshot)
-		if err := s.recorder.Record(stream.Context(), req.Snapshot); err != nil {
+		s.telSvc.Write(req.Snapshot)
+		if err := s.sessSvc.Record(stream.Context(), req.Snapshot); err != nil {
 			s.log.Warn("record snapshot", zap.Error(err))
 		}
 		count++
@@ -82,7 +70,8 @@ func (s *Server) StreamTopics(stream telemetryv1.TelemetryIngestService_StreamTo
 		if req.Topics == nil {
 			return status.Error(codes.InvalidArgument, "topics must not be nil")
 		}
-		s.store.WriteTopics(req.Topics)
+		s.telSvc.WriteTopics(req.Topics)
 		count++
 	}
 }
+

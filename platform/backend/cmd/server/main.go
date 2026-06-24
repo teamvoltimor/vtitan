@@ -21,12 +21,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session/sqlite"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry/memory"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/edge"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/ingest"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/recorder"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/sim"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/store"
 )
 
 const (
@@ -53,16 +55,19 @@ func main() {
 
 func run(log *zap.Logger, simMode bool) error {
 	cfg := config.Load()
-	mem := store.NewMemory(cfg.HistorySize)
+
+	mem := memory.NewMemory(cfg.HistorySize)
+	telSvc := telemetry.NewService(mem)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rec, err := recorder.New(ctx, cfg.DBPath, cfg.SessionsDir, cfg.MaxSessions, log)
+	rec, err := sqlite.New(ctx, cfg.DBPath, cfg.SessionsDir, cfg.MaxSessions, log)
 	if err != nil {
 		return fmt.Errorf("init recorder: %w", err)
 	}
 	defer rec.Close()
+	sessSvc := session.NewService(rec)
 
 	validator, err := protovalidate.New()
 	if err != nil {
@@ -76,7 +81,7 @@ func run(log *zap.Logger, simMode bool) error {
 			streamLoggingInterceptor(log),
 		),
 	)
-	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(mem, rec, log))
+	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc, log))
 	if cfg.Dev {
 		reflection.Register(grpcSrv)
 	}
@@ -87,7 +92,7 @@ func run(log *zap.Logger, simMode bool) error {
 		return fmt.Errorf("gRPC listen %s: %w", cfg.GRPCAddr, err)
 	}
 
-	router := edge.NewRouter(mem, rec, cfg, log)
+	router := edge.NewRouter(telSvc, sessSvc, cfg, log)
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router,
@@ -95,7 +100,7 @@ func run(log *zap.Logger, simMode bool) error {
 	}
 
 	if simMode {
-		g := sim.New(mem, log)
+		g := sim.New(telSvc, log)
 		go g.Run(ctx, cfg.SimInterval)
 	}
 

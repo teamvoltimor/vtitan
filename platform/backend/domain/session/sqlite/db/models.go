@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package sqlcdb
+package db
 
 type Session struct {
 	SessionID  string
