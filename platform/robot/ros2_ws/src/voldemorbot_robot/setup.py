@@ -35,6 +35,7 @@ setup(
             "telemetry_bridge_node = voldemorbot_robot.telemetry_bridge_node:main",
             "vision_node = voldemorbot_robot.vision.node:main",
             "track_navigator_node = voldemorbot_robot.navigation.node:main",
+            "button_node = voldemorbot_robot.button_node:main",
         ],
     },
 )

@@ -1,0 +1,23 @@
+[Unit]
+Description=Voldemorbot Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
+Wants=network-online.target hailort.service voldemorbot-lidar.service
+After=network-online.target hailort.service voldemorbot-lidar.service
+
+[Service]
+Type=exec
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/voldemorbot/platform/robot
+Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
+Environment=ROS_DOMAIN_ID=0
+ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi5_nodes.launch.py
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=3
+StartLimitIntervalSec=60
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
