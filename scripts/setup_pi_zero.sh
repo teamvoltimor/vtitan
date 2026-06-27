@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Pi Zero 2W setup: SD card creation and first-boot provisioning.
+# Pi Zero 2W provisioning — run ON the Pi over SSH.
 #
-# Usage:
-#   create  -- Flash RPi OS Lite to SD card (run from dev machine):
-#     sudo bash setup_pi_zero.sh create --device /dev/sdX [--wifi-ssid "..." --wifi-password "..."]
+# Prerequisite: flash the card with Raspberry Pi Imager and, in its OS
+# customization, set hostname, enable SSH + your public key, set the username to
+# `pi` + a password, and configure WiFi (SSID/password/country). Use the
+# 64-bit image (Raspberry Pi OS Lite 64-bit) — pixi/conda-forge has no 32-bit
+# ARM packages. Boot the Pi, let it join WiFi, then:
 #
-#   provision -- Run first-boot setup (run on Pi Zero via SSH, or via firstboot.sh):
-#     sudo bash setup_pi_zero.sh provision
+#   scp -r scripts pi@<wifi-ip>:/tmp/        # or git clone first
+#   ssh pi@<wifi-ip> 'sudo bash /tmp/scripts/setup_pi_zero.sh'
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,154 +17,88 @@ source "$SCRIPT_DIR/setup_common.sh"
 
 REPO_DIR=/home/pi/voldemorbot
 ROBOT_DIR="$REPO_DIR/platform/robot"
-HOSTNAME_TARGET=ralvarezdev-raspberrypi-zero
+USB_GADGET_IP=10.250.250.1/24   # Pi Zero is the USB gadget; Pi 5 host is .2
 
-# SD card creation (run from dev machine as root)
-cmd_create() {
-    local device="" wifi_ssid="" wifi_pass=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --device)        device="$2";    shift 2 ;;
-            --wifi-ssid)     wifi_ssid="$2"; shift 2 ;;
-            --wifi-password) wifi_pass="$2"; shift 2 ;;
-            *) echo "Unknown arg: $1" >&2; exit 1 ;;
-        esac
-    done
-    [[ -z "$device" ]] && { echo "--device required" >&2; exit 1; }
+require_root
 
-    log "Resolving latest RPi OS Lite 32-bit image URL..."
-    local image_url
-    local version_dir
-    version_dir=$(curl -sL "https://downloads.raspberrypi.org/raspios_lite_armhf/images/" \
-        | grep -oP 'href="raspios_lite_armhf-\K[^/]+(?=/")' \
-        | sort | tail -1)
-    image_url=$(curl -sL "https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-${version_dir}/" \
-        | grep -oP 'href="\K[^"]+\.img\.xz(?=")' \
-        | grep -v bmap | head -1)
-    image_url="https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-${version_dir}/${image_url}"
+# Verify GitHub access up front (private repo) before any heavy work.
+require_github_auth
 
-    log "Flashing $image_url to $device..."
-    log "WARNING: This will ERASE $device. Press Ctrl-C within 5s to abort."
-    sleep 5
+# RPi OS Bookworm/Trixie keep boot config under /boot/firmware.
+BOOT_DIR=/boot/firmware
+[[ -d "$BOOT_DIR" ]] || BOOT_DIR=/boot
 
-    # Flash with rpi-imager CLI
-    if command -v rpi-imager-cli &>/dev/null; then
-        rpi-imager-cli --disable-verify "$image_url" "$device"
-    elif command -v rpi-imager &>/dev/null; then
-        # Fallback: direct dd with xz decompression (requires pre-downloaded image)
-        log "rpi-imager-cli not found — falling back to direct dd (image must be pre-downloaded)." >&2
-        log "Install with: sudo apt install rpi-imager-cli" >&2
-        exit 1
-    else
-        echo "rpi-imager-cli not found — install it with: sudo apt install rpi-imager-cli" >&2
-        exit 1
-    fi
+log "Updating packages..."
+apt-get update -qq
+apt-get full-upgrade -y -qq
 
-    # Re-read partition table and wait for device nodes
-    blockdev --rereadpt "$device" 2>/dev/null || partprobe "$device" 2>/dev/null || true
-    sleep 2
+log "Adding pi to hardware groups..."
+usermod -aG gpio,i2c,spi,dialout pi
 
-    # Mount boot partition (auto-detect vfat partition)
-    local boot_mount
-    boot_mount=$(mktemp -d)
-    local boot_part
-    boot_part=$(lsblk -ln -o NAME,FSTYPE "$device" | awk '/vfat/{print "/dev/"$1}')
-    if [[ -z "$boot_part" ]]; then
-        # Retry once after a longer wait
-        sleep 3
-        boot_part=$(lsblk -ln -o NAME,FSTYPE "$device" | awk '/vfat/{print "/dev/"$1}')
-    fi
-    [[ -z "$boot_part" ]] && { echo "Could not find boot partition on $device" >&2; exit 1; }
-    mount "$boot_part" "$boot_mount"
+log "Installing dependencies..."
+apt-get install -y -qq git build-essential python3-lgpio python3-pip i2c-tools network-manager
 
-    # Enable SSH
-    touch "$boot_mount/ssh"
+# ---- Hardware interfaces: I2C, hardware PWM, UART, USB-gadget (dwc2) ----
+log "Configuring $BOOT_DIR/config.txt overlays..."
+config="$BOOT_DIR/config.txt"
+for line in "dtparam=i2c_arm=on" "dtoverlay=dwc2" "enable_uart=1" "dtoverlay=pwm-2chan"; do
+    grep -qxF "$line" "$config" || echo "$line" >> "$config"
+done
 
-    # Hostname
-    echo "$HOSTNAME_TARGET" > "$boot_mount/hostname"
-
-    # config.txt additions (remove any existing overlays first to avoid duplicates)
-    sed -i '/^dtoverlay=dwc2/d' "$boot_mount/config.txt"
-    sed -i '/^#dtparam=i2c_arm=on/d' "$boot_mount/config.txt"
-    cat >> "$boot_mount/config.txt" <<'EOF'
-dtparam=i2c_arm=on
-dtoverlay=dwc2
-enable_uart=1
-dtoverlay=pwm-2chan
+log "Ensuring g_ether USB gadget module loads at boot..."
+cmdline="$BOOT_DIR/cmdline.txt"
+grep -q "modules-load=dwc2,g_ether" "$cmdline" || sed -i 's/[[:space:]]*$/ modules-load=dwc2,g_ether/' "$cmdline"
+# Stable, locally-administered MACs so the host side sees a consistent link.
+cat > /etc/modprobe.d/g_ether.conf <<'EOF'
+options g_ether dev_addr=02:00:00:00:ce:01 host_addr=02:00:00:00:ce:02
 EOF
 
-    # cmdline.txt: add USB gadget modules (ensure trailing newline first)
-    sed -i '$a\' "$boot_mount/cmdline.txt"
-    sed -i 's/$/ modules-load=dwc2,g_ether/' "$boot_mount/cmdline.txt"
+# ---- usb0 owned solely by NetworkManager (one manager per interface) ----
+log "Writing NetworkManager static profile for usb0 ($USB_GADGET_IP)..."
+cat > /etc/NetworkManager/system-connections/usb0.nmconnection <<EOF
+[connection]
+id=usb0
+type=ethernet
+interface-name=usb0
+autoconnect=true
 
-    # WiFi (optional)
-    if [[ -n "$wifi_ssid" ]]; then
-        cat > "$boot_mount/wpa_supplicant.conf" <<EOF
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=ES
+[ipv4]
+method=manual
+address1=$USB_GADGET_IP
 
-network={
-    ssid="$wifi_ssid"
-    psk="$wifi_pass"
-}
+[ipv6]
+method=disabled
 EOF
-    fi
+chmod 600 /etc/NetworkManager/system-connections/usb0.nmconnection
+chown root:root /etc/NetworkManager/system-connections/usb0.nmconnection
+nmcli connection reload 2>/dev/null || true
 
-    # Copy firstboot script
-    cp "$SCRIPT_DIR/setup_pi_zero.sh" "$boot_mount/firstboot.sh"
+# ---- More swap so the ROS2 colcon build survives on 512MB RAM ----
+if [[ -f /etc/dphys-swapfile ]]; then
+    log "Increasing swap to 2GB for the ROS2 build..."
+    sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+    grep -q '^CONF_MAXSWAP=' /etc/dphys-swapfile \
+        && sed -i 's/^CONF_MAXSWAP=.*/CONF_MAXSWAP=2048/' /etc/dphys-swapfile \
+        || echo 'CONF_MAXSWAP=2048' >> /etc/dphys-swapfile
+    dphys-swapfile setup >/dev/null && dphys-swapfile swapon || true
+fi
 
-    umount "$boot_mount"
-    rmdir "$boot_mount"
+install_pixi
+clone_repo "$REPO_DIR"
+install_ros_workspace "$ROBOT_DIR"
+copy_env "$ROBOT_DIR"
 
-    log "SD card ready. Insert into Pi Zero and boot — it will provision itself on first boot."
-}
+log "Verifying PWM availability..."
+ls /sys/class/pwm/pwmchip0/ >/dev/null 2>&1 \
+    || log "WARNING: PWM chip not present yet — it appears after the reboot below."
 
-# First-boot provisioning (run on Pi Zero as root)
-cmd_provision() {
-    require_root
+log "Installing systemd service + udev rules..."
+cp "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service" /etc/systemd/system/
+cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
+systemctl daemon-reload
+systemctl enable voldemorbot-pi-zero.service
+udevadm control --reload-rules
+udevadm trigger
 
-    log "Expanding root filesystem..."
-    raspi-config --expand-rootfs || true
-
-    log "Updating packages..."
-    apt-get update -qq
-    apt-get full-upgrade -y -qq
-
-    log "Adding pi to hardware groups..."
-    usermod -aG gpio,i2c,spi,dialout pi
-
-    log "Installing dependencies..."
-    apt-get install -y -qq git build-essential python3-lgpio i2c-tools python3-pip
-
-    log "Verifying PWM..."
-    ls /sys/class/pwm/pwmchip0/ || log "WARNING: PWM not available — check dtoverlay=pwm-2chan in config.txt"
-
-    install_pixi
-    clone_repo "$REPO_DIR"
-    install_ros_workspace "$ROBOT_DIR"
-    copy_env "$ROBOT_DIR"
-
-    log "Installing systemd service..."
-    cp "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service" /etc/systemd/system/
-    cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
-    systemctl daemon-reload
-    systemctl enable voldemorbot-pi-zero.service
-    udevadm control --reload-rules
-    udevadm trigger
-
-    log "Cleaning up firstboot script..."
-    rm -f /boot/firstboot.sh
-
-    log "Provisioning complete. Rebooting..."
-    reboot
-}
-
-case "${1:-}" in
-    create)    shift; cmd_create "$@" ;;
-    provision) cmd_provision ;;
-    *)
-        echo "Usage: $0 {create|provision}" >&2
-        exit 1
-        ;;
-esac
+log "Provisioning complete. Rebooting to apply overlays + USB gadget..."
+reboot
