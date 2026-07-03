@@ -89,7 +89,10 @@ class CollisionAvoidanceController:
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return RiskLevel.SAFE
 
-        valid_ranges = lidar_ranges[lidar_ranges > 0.01]
+        # The HardwareGateway returns ranges as a plain list (see ROS2HardwareGateway
+        # and SimulatedHardwareGateway); coerce as the sector helpers do.
+        ranges = np.asarray(lidar_ranges, dtype=float)
+        valid_ranges = ranges[ranges > 0.01]
 
         if len(valid_ranges) == 0:
             return RiskLevel.SAFE

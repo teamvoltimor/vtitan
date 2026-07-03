@@ -30,5 +30,5 @@ dev     = { features = ["dev"], solve-group = "default" }
 
 [tasks]
 record = "python -m src.recording.recorder"
-test   = "pytest tests/ -v"
+test   = "pytest tests/ -v -p no:launch_testing -p no:launch_ros"
 lint   = "ruff check src/ tests/"

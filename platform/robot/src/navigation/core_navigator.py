@@ -91,6 +91,11 @@ class CoreNavigator:
         """Current track corridor derived from robot position. None before first step."""
         return self._current_corridor
 
+    @property
+    def laps_completed(self) -> int:
+        """Number of laps confirmed completed so far."""
+        return self._laps_completed
+
     def step(self) -> None:
         """Execute one control step.
 
