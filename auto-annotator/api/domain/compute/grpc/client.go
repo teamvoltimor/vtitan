@@ -1,4 +1,5 @@
-package compute
+// Package grpc is the gRPC adapter for the compute domain.
+package grpc
 
 import (
 	"context"
@@ -6,25 +7,22 @@ import (
 	"fmt"
 	"io"
 
-	"google.golang.org/grpc"
+	xgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	computev1 "github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/compute/pb/autoannotator/v1"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
+	computev1 "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1"
 )
 
-// grpcClients is the gRPC-backed Clients implementation. A worker whose address
-// is unconfigured yields a clear "not configured" error rather than a nil panic,
-// so the API degrades gracefully until the Python workers are wired up.
 type grpcClients struct {
 	seg   computev1.SegmentationServiceClient
 	aug   computev1.AugmentationServiceClient
 	train computev1.TrainingServiceClient
-	conns []*grpc.ClientConn
+	conns []*xgrpc.ClientConn
 }
 
-// NewGRPC dials the configured worker addresses (lazily — no connection is
-// established until the first RPC). Empty addresses leave that worker disabled.
-func NewGRPC(segAddr, augAddr, trainAddr string) (Clients, error) {
+// NewGRPC dials the configured worker addresses. Empty addresses leave that worker disabled.
+func NewGRPC(segAddr, augAddr, trainAddr string) (compute.Clients, error) {
 	g := &grpcClients{}
 	if segAddr != "" {
 		conn, err := dial(segAddr)
@@ -53,8 +51,8 @@ func NewGRPC(segAddr, augAddr, trainAddr string) (Clients, error) {
 	return g, nil
 }
 
-func dial(addr string) (*grpc.ClientConn, error) {
-	return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func dial(addr string) (*xgrpc.ClientConn, error) {
+	return xgrpc.NewClient(addr, xgrpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (g *grpcClients) Close() error {
@@ -67,9 +65,9 @@ func (g *grpcClients) Close() error {
 	return err
 }
 
-func (g *grpcClients) Segment(ctx context.Context, in SegmentInput) (SegmentResult, error) {
+func (g *grpcClients) Segment(ctx context.Context, in compute.SegmentInput) (compute.SegmentResult, error) {
 	if g.seg == nil {
-		return SegmentResult{}, errors.New("segmentation worker not configured")
+		return compute.SegmentResult{}, errors.New("segmentation worker not configured")
 	}
 	points := make([]*computev1.ClickPoint, len(in.Points))
 	for i, p := range in.Points {
@@ -82,16 +80,16 @@ func (g *grpcClients) Segment(ctx context.Context, in SegmentInput) (SegmentResu
 		ClassNames: in.ClassNames,
 	})
 	if err != nil {
-		return SegmentResult{}, err
+		return compute.SegmentResult{}, err
 	}
-	return SegmentResult{
+	return compute.SegmentResult{
 		State:   resp.GetState(),
 		Message: resp.GetMessage(),
 		Shapes:  fromPbShapes(resp.GetShapes()),
 	}, nil
 }
 
-func (g *grpcClients) RunAugmentation(ctx context.Context, in AugmentInput, onProgress func(Progress)) error {
+func (g *grpcClients) RunAugmentation(ctx context.Context, in compute.AugmentInput, onProgress func(compute.Progress)) error {
 	if g.aug == nil {
 		return errors.New("augmentation worker not configured")
 	}
@@ -109,7 +107,7 @@ func (g *grpcClients) RunAugmentation(ctx context.Context, in AugmentInput, onPr
 	return relayProgress(stream, onProgress)
 }
 
-func (g *grpcClients) RunTraining(ctx context.Context, in TrainInput, onProgress func(Progress)) error {
+func (g *grpcClients) RunTraining(ctx context.Context, in compute.TrainInput, onProgress func(compute.Progress)) error {
 	if g.train == nil {
 		return errors.New("training worker not configured")
 	}
@@ -126,7 +124,7 @@ func (g *grpcClients) RunTraining(ctx context.Context, in TrainInput, onProgress
 	return relayProgress(stream, onProgress)
 }
 
-func relayProgress(stream grpc.ServerStreamingClient[computev1.JobProgress], onProgress func(Progress)) error {
+func relayProgress(stream xgrpc.ServerStreamingClient[computev1.JobProgress], onProgress func(compute.Progress)) error {
 	for {
 		msg, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -139,8 +137,8 @@ func relayProgress(stream grpc.ServerStreamingClient[computev1.JobProgress], onP
 	}
 }
 
-func fromPbProgress(p *computev1.JobProgress) Progress {
-	out := Progress{
+func fromPbProgress(p *computev1.JobProgress) compute.Progress {
+	out := compute.Progress{
 		Status:   p.GetStatus(),
 		Message:  p.GetMessage(),
 		Stage:    p.GetStage(),
@@ -150,19 +148,19 @@ func fromPbProgress(p *computev1.JobProgress) Progress {
 		Error:    p.GetError(),
 	}
 	if a := p.GetAugmented(); a != nil {
-		out.Augmented = &AugmentedImage{Path: a.GetPath(), FormatUsed: a.GetFormatUsed(), ParentID: a.GetParentId()}
+		out.Augmented = &compute.AugmentedImage{Path: a.GetPath(), FormatUsed: a.GetFormatUsed(), ParentID: a.GetParentId()}
 	}
 	return out
 }
 
-func fromPbShapes(in []*computev1.Shape) []Shape {
-	shapes := make([]Shape, 0, len(in))
+func fromPbShapes(in []*computev1.Shape) []compute.Shape {
+	shapes := make([]compute.Shape, 0, len(in))
 	for _, s := range in {
-		pts := make([]Point, 0, len(s.GetPoints()))
+		pts := make([]compute.Point, 0, len(s.GetPoints()))
 		for _, p := range s.GetPoints() {
-			pts = append(pts, Point{X: p.GetX(), Y: p.GetY()})
+			pts = append(pts, compute.Point{X: p.GetX(), Y: p.GetY()})
 		}
-		shapes = append(shapes, Shape{ID: s.GetId(), ClassName: s.GetClassName(), Points: pts})
+		shapes = append(shapes, compute.Shape{ID: s.GetId(), ClassName: s.GetClassName(), Points: pts})
 	}
 	return shapes
 }

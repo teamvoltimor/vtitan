@@ -1,4 +1,5 @@
 import { resolveBackendUrl } from '../../config/backend';
+import type { components } from './types.generated';
 
 const API_BASE_URL = resolveBackendUrl(import.meta.env.VITE_API_BASE_URL);
 
@@ -20,47 +21,18 @@ const postJSON = <T>(path: string, body: unknown): Promise<T> =>
     body: JSON.stringify(body),
   }).then((r) => handleResponse<T>(r));
 
-export interface GalleryItem {
-  id: number;
-  label: string;
-  src: string;
-  format: string;
-  status: string;
-  updated: string;
-  annotations: SegmentationShape[];
-}
+// Generated type aliases — single source of truth is api/openapi.yaml
+type Schemas = components['schemas'];
 
-interface GalleryStats {
-  pending: number;
-  done: number;
-  skipped: number;
-  total: number;
-  pct: number;
-}
-
-export interface GalleryResponse {
-  items: GalleryItem[];
-  stats: GalleryStats;
-}
-
-export type SegmentationPoint = {
-  x: number;
-  y: number;
-  pointType: 'positive' | 'negative';
-  className: string;
-};
-
-export interface SegmentationShape {
-  id: string;
-  className: string;
-  points: { x: number; y: number }[];
-}
-
-export interface SegmentationResponse {
-  state: 'idle' | 'pending' | 'ready' | 'error';
-  message: string;
-  shapes: SegmentationShape[];
-}
+export type GalleryItem = Schemas['GalleryItem'];
+export type GalleryResponse = Schemas['GalleryResponse'];
+export type SegmentationPoint = Schemas['SegmentationPoint'];
+export type SegmentationShape = Schemas['Shape'];
+export type SegmentationResponse = Schemas['SegmentationResponse'];
+export type ClassItem = Schemas['ClassItem'];
+export type ModelItem = Schemas['ModelItem'];
+export type GroupedGalleryItem = Schemas['ParentImageItem'];
+export type JobStatusResponse = Schemas['JobStatusResponse'];
 
 export const getGallery = async (): Promise<GalleryResponse> => {
   const response = await fetch(`${API}/gallery`);
@@ -89,17 +61,6 @@ export const saveAnnotations = (
 export const skipImage = (imageId: number): Promise<GalleryResponse> =>
   postJSON('/annotations/skip', { imageId });
 
-export interface ClassItem {
-  id: number;
-  name: string;
-  color: string;
-}
-
-export interface ModelItem {
-  id: string;
-  label: string;
-}
-
 export const getClasses = (): Promise<ClassItem[]> =>
   fetch(`${API}/classes`).then((r) => handleResponse<ClassItem[]>(r));
 
@@ -114,21 +75,6 @@ export const getAnnotations = (imageId: number): Promise<SegmentationShape[]> =>
 
 export const deleteImages = (imageIds: number[]): Promise<GalleryResponse> =>
   postJSON('/images/delete', { imageIds });
-
-export interface GroupedGalleryItem {
-  id: number;
-  label: string;
-  src: string;
-  format: string;
-  status: string;
-  updated_at: string;
-  aug_count: number;
-}
-
-export interface JobStatusResponse {
-  running: boolean;
-  message: string;
-}
 
 export const getGroupedGallery = (): Promise<GroupedGalleryItem[]> =>
   fetch(`${API}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));

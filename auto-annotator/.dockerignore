@@ -1,0 +1,42 @@
+# Everything here is excluded from the Docker build context for ALL services
+# (ml-service, api, frontend all use `context: .`). Keeping the context small
+# is the single biggest win for build speed — the daemon tars and uploads the
+# whole context on every build, even for one-line source changes.
+
+# Python virtualenv — ~5 GB of CUDA/torch wheels, rebuilt inside the image via uv.
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/.ruff_cache/
+**/.mypy_cache/
+**/.pytest_cache/
+
+# Locally compiled binaries — the image builds its own; a host binary (esp. a
+# Windows .exe) is useless in a Linux container and busts the Go build cache.
+**/*.exe
+api/api
+**/*.test
+
+# Node — installed inside the image via `npm ci`.
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Runtime data and model weights — mounted as volumes, never baked in.
+ml-service/data/
+ml-service/models/
+
+# VCS / editor / OS noise
+.git/
+.gitignore
+**/.DS_Store
+**/*.log
+
+# Docs and local tooling not needed to build any image
+docs/
+*.md
+.env
+.env.*
+**/.claude/
+**/.rsk/

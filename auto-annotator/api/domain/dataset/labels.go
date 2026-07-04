@@ -1,7 +1,5 @@
-// Package labels reads YOLO label (.txt) files and converts their normalized
-// coordinates into polygon point lists. It is the Go port of the read path in
-// the Python label_store + coordinates modules.
-package labels
+// Package dataset reads/writes YOLO label files and generates YOLO data.yaml.
+package dataset
 
 import (
 	"bufio"
@@ -13,9 +11,7 @@ import (
 )
 
 type (
-	// Record is one annotation line from a YOLO label file: a class index followed
-	// by a flat list of normalized coordinates ([xc, yc, w, h] for detection or
-	// [x1, y1, x2, y2, ...] for segmentation).
+	// Record is one annotation line from a YOLO label file.
 	Record struct {
 		Coords  []float64
 		ClassID int
@@ -68,9 +64,7 @@ func parseLine(line string) (Record, bool) {
 	return Record{ClassID: classID, Coords: coords}, true
 }
 
-// Write serializes records to a YOLO label file: one line per record,
-// "<class_id> <c0> <c1> ...", coordinates formatted to 6 decimals, no trailing
-// newline. Mirrors the Python LabelStore.save wire format.
+// Write serializes records to a YOLO label file.
 func Write(path string, records []Record) error {
 	lines := make([]string, 0, len(records))
 	for _, r := range records {
@@ -83,8 +77,7 @@ func Write(path string, records []Record) error {
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
 }
 
-// BBoxFromPolygon converts normalized polygon points to a YOLO bounding box
-// [xc, yc, w, h], or nil when points is empty (matches polygon_to_yolo_bbox).
+// BBoxFromPolygon converts normalized polygon points to a YOLO bounding box [xc, yc, w, h].
 func BBoxFromPolygon(points []Point) []float64 {
 	if len(points) == 0 {
 		return nil
@@ -109,8 +102,7 @@ func PolygonFromCoords(coords []float64) []Point {
 	return points
 }
 
-// CornersFromBBox converts YOLO [xc, yc, w, h] into four clamped corner points
-// ordered top-left, top-right, bottom-right, bottom-left.
+// CornersFromBBox converts YOLO [xc, yc, w, h] into four clamped corner points.
 func CornersFromBBox(xc, yc, w, h float64) []Point {
 	halfW, halfH := w/2, h/2
 	return []Point{

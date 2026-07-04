@@ -5,12 +5,17 @@ WORKDIR /build
 
 # Copy manifests first so the module download layer is cached until they change.
 COPY api/go.mod api/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY api/ .
 
 # CGO_ENABLED=0: modernc.org/sqlite is a pure-Go driver — no C toolchain needed.
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
+# Cache mounts persist the module and compiler caches across builds so a source
+# change recompiles incrementally instead of from scratch.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
 
 
 # Runtime stage – minimal Alpine image with no build tools.
@@ -21,6 +26,7 @@ RUN apk add --no-cache ca-certificates wget
 WORKDIR /app
 
 COPY --from=builder /app/api .
+COPY --from=builder /build/openapi.yaml ./api/openapi.yaml
 
 ARG API_PORT=8000
 ENV API_PORT=${API_PORT}

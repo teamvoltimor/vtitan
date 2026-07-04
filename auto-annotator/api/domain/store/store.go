@@ -8,7 +8,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store/db"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/db"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, registered as "sqlite"
 )

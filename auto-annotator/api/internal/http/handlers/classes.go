@@ -5,48 +5,37 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/dto"
+	annotationdomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/store/db"
 )
 
 // ListClasses returns all annotation classes ordered by id. GET /classes
-func (a *App) ListClasses(c *gin.Context) {
-	rows, err := a.Store.Q.ListClasses(c.Request.Context())
+func (h *AnnotationHandler) ListClasses(c *gin.Context) {
+	classes, err := h.annotation.ListClasses(c.Request.Context())
 	if err != nil {
-		problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, classRowsToItems(rows))
+	c.JSON(http.StatusOK, classesToOAPI(classes))
 }
 
 // UpsertClass inserts or updates a class by name and returns the full list.
 // POST /classes
-func (a *App) UpsertClass(c *gin.Context) {
-	var req dto.UpsertClassRequest
+func (h *AnnotationHandler) UpsertClass(c *gin.Context) {
+	var req UpsertClassRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		problem.Write(c, http.StatusUnprocessableEntity, err.Error(), "Validation Error")
+		problem.ValidationError(c, err)
 		return
 	}
-	if err := a.Store.Q.UpsertClass(c.Request.Context(), db.UpsertClassParams{
-		Name:  req.Name,
-		Color: req.Color,
-	}); err != nil {
-		problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+	ctx := c.Request.Context()
+	if err := h.annotation.UpsertClass(ctx, annotationdomain.UpsertClassReq{Name: req.Name, Color: req.Color}); err != nil {
+		problem.FromDomain(c, err)
 		return
 	}
-	rows, err := a.Store.Q.ListClasses(c.Request.Context())
+	classes, err := h.annotation.ListClasses(ctx)
 	if err != nil {
-		problem.Write(c, http.StatusInternalServerError, err.Error(), "")
+		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, classRowsToItems(rows))
-}
-
-func classRowsToItems(rows []db.ListClassesRow) []dto.ClassItem {
-	items := make([]dto.ClassItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, dto.ClassItem{ID: r.ID, Name: r.Name, Color: r.Color})
-	}
-	return items
+	c.JSON(http.StatusOK, classesToOAPI(classes))
 }

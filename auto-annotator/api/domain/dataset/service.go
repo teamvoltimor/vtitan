@@ -1,7 +1,3 @@
-// Package dataset generates the YOLO data.yaml plus train/val image-list files.
-// It is the Go port of the Python AnnotationLifecycle._write_data_yaml and
-// _split_dataset: a real (non-leaking) per-class train/val split, with a path
-// regenerated for the current environment.
 package dataset
 
 import (
@@ -14,22 +10,17 @@ import (
 )
 
 const (
-	// valFraction is the share of each class's images held out for validation.
-	valFraction = 0.2
-
+	valFraction   = 0.2
 	trainListName = "train.txt"
 	valListName   = "val.txt"
 	dataYAMLName  = "data.yaml"
 )
 
-// validExts are the image extensions considered when splitting (lowercase).
 var validExts = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".bmp": true, ".webp": true,
 }
 
-// WriteDataYAML writes <dataDir>/{train.txt,val.txt,data.yaml} for the given
-// classes. Images are read from <dataDir>/images/<class>. It is a no-op (nil)
-// when there are no classes, no on-disk class directories, or no train images.
+// WriteDataYAML writes <dataDir>/{train.txt,val.txt,data.yaml} for the given classes.
 func WriteDataYAML(dataDir string, classNames []string) error {
 	if len(classNames) == 0 {
 		return nil
@@ -86,9 +77,6 @@ func WriteDataYAML(dataDir string, classNames []string) error {
 	return nil
 }
 
-// splitDataset produces a deterministic per-class train/val split, returning
-// data-dir-relative image paths. The first valFraction of each class (sorted by
-// name) is held out for validation; single-image classes go to train only.
 func splitDataset(imagesDir string, classNames []string) (train, val []string) {
 	for _, name := range classNames {
 		entries, err := os.ReadDir(filepath.Join(imagesDir, name))
@@ -121,7 +109,6 @@ func splitDataset(imagesDir string, classNames []string) (train, val []string) {
 		}
 	}
 
-	// Avoid an empty val set (ultralytics errors on it) when every class had one image.
 	if len(val) == 0 && len(train) >= 2 {
 		val = append(val, train[len(train)-1])
 		train = train[:len(train)-1]

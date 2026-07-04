@@ -16,6 +16,7 @@ type Config struct {
 	DataDir      string
 	ModelsConfig string
 	APIPublicURL string
+	OpenAPIPath  string
 	SegmentAddr  string
 	AugmentAddr  string
 	TrainAddr    string
@@ -45,15 +46,16 @@ func Load() (Config, error) {
 	v.SetDefault(EnvModelsConfig, DefaultModelsConfig)
 	v.SetDefault(EnvAPIPublicURL, "")
 	v.SetDefault(EnvCORSOrigins, DefaultCORSOrigins)
+	v.SetDefault(EnvOpenAPIPath, DefaultOpenAPIPath)
 	v.SetDefault(EnvSegmentAddr, "")
 	v.SetDefault(EnvAugmentAddr, "")
 	v.SetDefault(EnvTrainAddr, "")
 
 	port := v.GetInt(EnvAPIPort)
+	// An empty public URL is intentional: it makes the API emit proxy-relative
+	// image URLs so they share the frontend's origin. Set API_PUBLIC_URL only
+	// when images must be served from an absolute origin (e.g. a CDN).
 	publicURL := v.GetString(EnvAPIPublicURL)
-	if publicURL == "" {
-		publicURL = fmt.Sprintf("http://localhost:%d", port)
-	}
 
 	return Config{
 		APIPort:      port,
@@ -62,6 +64,7 @@ func Load() (Config, error) {
 		ModelsConfig: v.GetString(EnvModelsConfig),
 		APIPublicURL: publicURL,
 		CORSOrigins:  splitAndTrim(v.GetString(EnvCORSOrigins)),
+		OpenAPIPath:  v.GetString(EnvOpenAPIPath),
 		SegmentAddr:  v.GetString(EnvSegmentAddr),
 		AugmentAddr:  v.GetString(EnvAugmentAddr),
 		TrainAddr:    v.GetString(EnvTrainAddr),

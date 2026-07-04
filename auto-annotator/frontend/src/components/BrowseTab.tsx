@@ -180,9 +180,9 @@ const BrowseTab = () => {
                       onClick={() => setSelectedGalleryItem(item)}
                     >
                       <AnnotatedThumbnail
-                        src={item.src}
+                        src={item.thumbSrc || item.src}
                         alt={item.label}
-                        annotations={item.annotations}
+                        annotations={item.annotations ?? []}
                         borderRadius="6px 6px 0 0"
                       />
                       <Stack px={1.5} py={1} spacing={0.25}>
@@ -274,9 +274,9 @@ const BrowseTab = () => {
                       }}
                     >
                       <AnnotatedThumbnail
-                        src={item.src}
+                        src={item.thumbSrc || item.src}
                         alt={item.label}
-                        annotations={item.annotations}
+                        annotations={item.annotations ?? []}
                         borderRadius="4px"
                       />
                     </Box>

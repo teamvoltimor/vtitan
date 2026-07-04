@@ -1,8 +1,7 @@
-// Package jobs provides a single-active-job manager with an SSE-friendly
-// pub/sub broker. It replaces the Python asyncio JobManager: at most one job
-// runs at a time (202-start / 409-busy), and subscribers receive progress
-// events over buffered channels.
-package jobs
+// Package job provides a single-active-job manager with an SSE-friendly
+// pub/sub broker. At most one job runs at a time (202-start / 409-busy),
+// and subscribers receive progress events over buffered channels.
+package job
 
 import (
 	"context"
@@ -12,14 +11,14 @@ import (
 	"sync"
 )
 
-var (
-	// ErrBusy is returned by Start when a job is already running.
-	ErrBusy = errors.New("a job is already running")
-)
+// ErrBusy is returned by Start when a job is already running.
+var ErrBusy = errors.New("a job is already running")
 
 type (
-	// Event is one progress message broadcast to subscribers. The JSON shape mirrors
-	// the Python JobEvent.to_dict (job_id, status, message, data).
+	// Status is the lifecycle state of a job.
+	Status string
+
+	// Event is one progress message broadcast to subscribers.
 	Event struct {
 		Data    map[string]any `json:"data"`
 		JobID   string         `json:"job_id"`
@@ -28,7 +27,7 @@ type (
 	}
 
 	// EmitFunc is passed to a job runner to broadcast progress.
-	EmitFunc func(status JobStatus, message string, data map[string]any)
+	EmitFunc func(status Status, message string, data map[string]any)
 
 	// Manager owns the single active job slot.
 	Manager struct {
@@ -36,6 +35,14 @@ type (
 		mu      sync.Mutex
 	}
 )
+
+const (
+	StatusRunning   Status = "running"
+	StatusCompleted Status = "completed"
+	StatusFailed    Status = "failed"
+)
+
+func (s Status) String() string { return string(s) }
 
 // New creates an empty Manager.
 func New() *Manager { return &Manager{} }
@@ -60,7 +67,7 @@ func (m *Manager) Start(run func(ctx context.Context, emit EmitFunc)) (string, e
 	m.current = j
 	m.mu.Unlock()
 
-	emit := func(status JobStatus, message string, data map[string]any) {
+	emit := func(status Status, message string, data map[string]any) {
 		j.broadcast(Event{JobID: j.id, Status: string(status), Message: message, Data: data})
 	}
 
@@ -115,7 +122,7 @@ func (j *job) broadcast(e Event) {
 	for _, ch := range j.subs {
 		select {
 		case ch <- e:
-		default: // drop when a slow subscriber's buffer is full
+		default:
 		}
 	}
 }

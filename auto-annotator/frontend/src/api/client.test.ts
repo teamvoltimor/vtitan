@@ -119,7 +119,7 @@ describe('POST /segment', () => {
   it('segmentImage → POST /segment with imageId and points', async () => {
     const fetch = mockFetch({ state: 'ready', message: '', shapes: [] });
     vi.stubGlobal('fetch', fetch);
-    const points = [{ x: 10, y: 20, pointType: 'positive' as const, className: 'cat' }];
+    const points = [{ x: '10', y: '20', pointType: 'positive' as const, className: 'cat' }];
     await segmentImage(3, points);
     expect(fetch).toHaveBeenCalledWith(
       `${BASE}/segment`,

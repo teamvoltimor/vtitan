@@ -24,6 +24,8 @@ const (
 
 	// RouteImages is the image detail route with ID path parameter.
 	RouteImages = "/images/:id"
+	// RouteImageThumb serves a downscaled thumbnail for an image.
+	RouteImageThumb = "/images/:id/thumb"
 	// RouteImagesDelete is the image delete route.
 	RouteImagesDelete = "/images/delete"
 	// ImageIDParamName is the path parameter name for image ID.
@@ -80,14 +82,33 @@ const (
 	ImagesDirName = "images"
 	// PendingDirName is the directory name for pending exports.
 	PendingDirName = "pending"
+	// ThumbsDirName is the directory where generated thumbnails are cached.
+	ThumbsDirName = "thumbs"
 	// DataYAMLName is the data.yaml file name for training.
 	DataYAMLName = "data.yaml"
+
+	// ThumbMaxWidth is the max width (px) of generated thumbnails; height scales
+	// to preserve aspect ratio.
+	ThumbMaxWidth = 320
+	// ThumbJPEGQuality is the JPEG quality used when encoding cached thumbnails.
+	ThumbJPEGQuality = 80
+	// ThumbCacheControl lets browsers cache thumbnails aggressively.
+	ThumbCacheControl = "public, max-age=86400"
 
 	// StatusOK is the response status indicator for success.
 	StatusOK = "ok"
 
-	// ImageURLTemplate is the URL path template format for image routes.
+	// ImageURLTemplate is the absolute URL template for image routes, used when
+	// API_PUBLIC_URL is explicitly configured.
 	ImageURLTemplate = "%s/api/v1/images/%d"
+
+	// RelativeImageURLTemplate is the proxy-relative image URL, used by default
+	// so image requests share the frontend's origin.
+	RelativeImageURLTemplate = "/api/v1/images/%d"
+
+	// ImageCacheControl lets the browser cache served image files so repeated
+	// gallery/preview renders don't refetch them.
+	ImageCacheControl = "public, max-age=3600"
 
 	// TimeFormatISO8601 is the time format for RFC3339 with microsecond precision
 	// matching Python datetime.isoformat().
@@ -109,4 +130,83 @@ const (
 
 	// PercentageScale is the percentage calculation scale (multiply by 1000, divide by 10 for decimal precision).
 	PercentageScale = 1000
+	// PercentageDivisor is the divisor to convert from PercentageScale back to percentage.
+	PercentageDivisor = 10
+
+	// --- Error titles ---
+	ErrTitleValidation = "Validation Error"
+
+	// --- Error messages ---
+	ErrImageNotFound   = "Image not found"
+	ErrInvalidImageID  = "invalid image id"
+	ErrNoFilesProvided = "No files provided"
+	ErrNoImagesToDelete = "No images to delete"
+	ErrNoImagesSpecified = "No images specified"
+	ErrAugmentationRunning = "Augmentation already running"
+	ErrTrainingRunning     = "Training already running"
+	ErrAtLeastOneShape     = "At least one shape required"
+	ErrAtLeastOnePoint     = "At least one point required"
+
+	// --- Error format strings ---
+	ErrFmtImageNotFound         = "Image %d not found"
+	ErrFmtUnknownClass          = "Unknown class '%s'"
+	ErrFmtUnknownPrimaryClass   = "Unknown primary class '%s'"
+	ErrFmtNoJobRunning          = "No %s job running"
+	ErrFmtInvalidXCoord         = "invalid x coordinate: %s"
+	ErrFmtInvalidYCoord         = "invalid y coordinate: %s"
+
+	// --- Status / success messages ---
+	MsgSystemReady             = "System ready"
+	MsgDatabaseError           = "Database error"
+	MsgAugmentationStarted     = "Augmentation started"
+	MsgTrainingStarted         = "Training started"
+	MsgAugmentationCompleted   = "Augmentation completed"
+	MsgTrainingCompleted       = "Training completed"
+
+	// --- Magic numbers ---
+	NumBBoxCoords     = 4
+	MinPolygonCoords  = 4
+	CoordPairSize     = 2
+	RandomHexBytes    = 16
+
+	// --- Directory / file permissions ---
+	DirPerm = 0o750
+
+	// --- File extensions ---
+	ThumbFileExt    = ".jpg"
+	ThumbTempPattern = "thumb-*.jpg"
+	LabelFileExt    = ".txt"
+
+	// --- Content types ---
+	ContentTypeYAML = "application/yaml"
+
+	// --- HTTP headers ---
+	HeaderContentType       = "Content-Type"
+	HeaderCacheControl      = "Cache-Control"
+	HeaderXAccelBuffering   = "X-Accel-Buffering"
+	HeaderValueEventStream  = "text/event-stream"
+	HeaderValueNoCache      = "no-cache"
+	HeaderValueBufferingOff = "no"
+
+	// --- SSE format strings ---
+	SSEDataFormat      = "data: %s\n\n"
+	SSEHeartbeatFormat = "data: {\"heartbeat\": true}\n\n"
+
+	// --- SSE payload map keys ---
+	MapKeyError    = "error"
+	MapKeyFinished = "finished"
+	MapKeyStage    = "stage"
+	MapKeyProgress = "progress"
+	MapKeyDetails  = "details"
+
+	// --- Image/annotation metadata ---
+	ClassFallbackNameFmt = "class_%d"
+	ShapeIDLoadedFmt     = "loaded-%d-%d"
+	UnderscoreSep        = "_"
+	FallbackHexString    = "00000000000000000000000000000000"
+
+	// --- Error context prefixes (fmt.Errorf wraparound) ---
+	ErrCtxListImages   = "list images"
+	ErrCtxStatusCounts = "status counts"
+	ErrCtxListClasses  = "list classes"
 )
