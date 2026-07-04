@@ -39,12 +39,15 @@ class ClearanceZones:
         SLOW_DIST: Robot enters slow zone (0.10-0.25m)
         MEDIUM_DIST: Robot enters medium speed zone (0.25-0.50m)
         FAST_DIST: Robot can go full speed (> 0.50m)
+        PATH_MARGIN: Extra clearance beyond the chassis half-width still
+            counted as "in the robot's forward path" for risk assessment (m)
     """
 
-    CONTACT_DIST: ClassVar[float] = 0.10  # Creep forward zone
-    SLOW_DIST: ClassVar[float] = 0.25  # Reduced speed
-    MEDIUM_DIST: ClassVar[float] = 0.50  # Normal speed
-    FAST_DIST: ClassVar[float] = 1.00  # Full speed capability
+    CONTACT_DIST: float = 0.10  # Creep forward zone
+    SLOW_DIST: float = 0.25  # Reduced speed
+    MEDIUM_DIST: float = 0.50  # Normal speed
+    FAST_DIST: float = 1.00  # Full speed capability
+    PATH_MARGIN: float = 0.10  # Forward-path half-width margin beyond chassis
 
 
 @dataclass(frozen=True)
@@ -60,10 +63,10 @@ class HeadingErrorZones:
         NORMAL: Small error (< 0.4 rad) - normal speed
     """
 
-    CRAWL: ClassVar[float] = 1.0  # ~57° - worst case
-    SLOW: ClassVar[float] = 0.7  # ~40°
-    MEDIUM: ClassVar[float] = 0.4  # ~23°
-    NORMAL: ClassVar[float] = 0.2  # ~11°
+    CRAWL: float = 1.0  # ~57° - worst case
+    SLOW: float = 0.7  # ~40°
+    MEDIUM: float = 0.4  # ~23°
+    NORMAL: float = 0.2  # ~11°
 
 
 @dataclass(frozen=True)
@@ -81,11 +84,11 @@ class PurePursuitParams:
         MAX_STEERING_RATE: Maximum steering command rate (rad/s)
     """
 
-    LOOKAHEAD_SHORT: ClassVar[float] = 0.20  # Close to corner
-    LOOKAHEAD_LONG: ClassVar[float] = 0.40  # Normal straight
-    LOOKAHEAD_TRANSITION: ClassVar[float] = 0.30  # Crosstrack threshold
-    STEER_KP: ClassVar[float] = 1.5  # Steering P-gain
-    MAX_STEERING_RATE: ClassVar[float] = 2.0  # rad/s
+    LOOKAHEAD_SHORT: float = 0.20  # Close to corner
+    LOOKAHEAD_LONG: float = 0.40  # Normal straight
+    LOOKAHEAD_TRANSITION: float = 0.30  # Crosstrack threshold
+    STEER_KP: float = 1.5  # Steering P-gain
+    MAX_STEERING_RATE: float = 2.0  # rad/s
 
 
 @dataclass(frozen=True)
@@ -104,12 +107,12 @@ class SpeedControlParams:
         FAST_SPEED: Speed in fast/open zone
     """
 
-    MIN_SPEED: ClassVar[float] = 0.05  # Minimum to move
-    MAX_SPEED: ClassVar[float] = 0.50  # Maximum safe speed
-    CREEP_SPEED: ClassVar[float] = 0.05  # Contact zone
-    SLOW_SPEED: ClassVar[float] = 0.15  # Near obstacles
-    MEDIUM_SPEED: ClassVar[float] = 0.30  # Moderate clearance
-    FAST_SPEED: ClassVar[float] = 0.50  # Open track
+    MIN_SPEED: float = 0.05  # Minimum to move
+    MAX_SPEED: float = 0.50  # Maximum safe speed
+    CREEP_SPEED: float = 0.05  # Contact zone
+    SLOW_SPEED: float = 0.15  # Near obstacles
+    MEDIUM_SPEED: float = 0.30  # Moderate clearance
+    FAST_SPEED: float = 0.50  # Open track
 
 
 @dataclass(frozen=True)
@@ -122,22 +125,48 @@ class EscapeManeuverParams:
     Attributes:
         REV_SPEED: Reverse speed during escapes
         REV_STEERING_SCALE: Steering aggressiveness while reversing
-        K_TURN_MIN_FRAMES: Minimum frames for K-turn maneuver
-        K_TURN_MAX_FRAMES: Maximum frames for K-turn maneuver
+        K_TURN_MIN_FRAMES: Minimum frames for K-turn maneuver (OBSTACLE risk)
+        K_TURN_MAX_FRAMES: Maximum frames for K-turn maneuver (CRITICAL risk)
         SLALOM_REVERSE_FRAMES: Frames spent reversing during slalom
         SLALOM_FORWARD_FRAMES: Frames spent forward turning during slalom
         STUCK_MOVE_THRESHOLD: Distance threshold to detect stuck (m)
         STUCK_TIMEOUT_FRAMES: Frames without movement before stuck (20Hz)
+        SIDE_CORRECTION_STEER: Steering magnitude for a side-threat correction
+        SIDE_CORRECTION_SPEED: Forward speed during a side-threat correction
+        SIDE_CORRECTION_FRAMES: Duration of a side-threat correction (frames)
+        ESCALATE_AFTER_ATTEMPTS: Consecutive escapes before escalating (longer
+            duration, opposite side) instead of repeating an identical pulse
+        MAX_ESCAPE_FRAMES: Hard cap on any single escalated escape duration
     """
 
-    REV_SPEED: ClassVar[float] = -0.20  # Reverse speed
-    REV_STEERING_SCALE: ClassVar[float] = 0.8  # Steering while reversing
-    K_TURN_MIN_FRAMES: ClassVar[int] = 6  # Minimum K-turn duration
-    K_TURN_MAX_FRAMES: ClassVar[int] = 12  # Maximum K-turn duration
-    SLALOM_REVERSE_FRAMES: ClassVar[int] = 8  # Reverse duration in slalom
-    SLALOM_FORWARD_FRAMES: ClassVar[int] = 10  # Forward turn duration
-    STUCK_MOVE_THRESHOLD: ClassVar[float] = 0.03  # 3cm movement threshold
-    STUCK_TIMEOUT_FRAMES: ClassVar[int] = 40  # ~2 seconds at 20Hz
+    REV_SPEED: float = -0.20  # Reverse speed
+    REV_STEERING_SCALE: float = 0.8  # Steering while reversing
+    K_TURN_MIN_FRAMES: int = 6  # Minimum K-turn duration
+    K_TURN_MAX_FRAMES: int = 12  # Maximum K-turn duration
+    SLALOM_REVERSE_FRAMES: int = 8  # Reverse duration in slalom
+    SLALOM_FORWARD_FRAMES: int = 10  # Forward turn duration
+    STUCK_MOVE_THRESHOLD: float = 0.03  # 3cm movement threshold
+    STUCK_TIMEOUT_FRAMES: int = 40  # ~2 seconds at 20Hz
+    SIDE_CORRECTION_STEER: float = 0.3
+    SIDE_CORRECTION_SPEED: float = 0.1
+    SIDE_CORRECTION_FRAMES: int = 4
+    ESCALATE_AFTER_ATTEMPTS: int = 3
+    MAX_ESCAPE_FRAMES: int = 20
+
+
+@dataclass(frozen=True)
+class SensorHealthParams:
+    """Sensor dropout / staleness detection for the hardware gateway.
+
+    Attributes:
+        STALE_TIMEOUT_SEC: A cached sensor reading older than this is treated as
+            a dropout — the gateway reports it as unavailable so the navigator
+            degrades safely instead of acting on frozen data. Derived as 5x the
+            LIDAR scan period (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor
+            feed the control loop depends on.
+    """
+
+    STALE_TIMEOUT_SEC: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -167,6 +196,30 @@ class NavigationTuning:
     pursuit: PurePursuitParams = PurePursuitParams()
     speed: SpeedControlParams = SpeedControlParams()
     escape: EscapeManeuverParams = EscapeManeuverParams()
+    sensor: SensorHealthParams = SensorHealthParams()
+
+    # (group key, dataclass) pairs — the single source of truth for which
+    # sections load_from_yaml/load_from_json/to_dict handle, so adding a new
+    # tuning group never requires touching more than this tuple.
+    _GROUPS: ClassVar[tuple[tuple[str, type], ...]] = (
+        ("clearance", ClearanceZones),
+        ("heading", HeadingErrorZones),
+        ("pursuit", PurePursuitParams),
+        ("speed", SpeedControlParams),
+        ("escape", EscapeManeuverParams),
+        ("sensor", SensorHealthParams),
+    )
+
+    @classmethod
+    def _from_mapping(cls, data: dict[str, Any]) -> NavigationTuning:
+        """Reconstruct nested tuning dataclasses from a parsed mapping.
+
+        Shared by :meth:`load_from_yaml` and :meth:`load_from_json` so both
+        formats stay in lockstep with ``_GROUPS`` instead of duplicating the
+        per-group reconstruction. Missing groups fall back to their defaults,
+        allowing partial config files.
+        """
+        return cls(**{key: dataclass_type(**data.get(key, {})) for key, dataclass_type in cls._GROUPS})
 
     @classmethod
     def load_from_yaml(cls, path: Path | str) -> NavigationTuning:
@@ -212,25 +265,7 @@ class NavigationTuning:
         if not isinstance(data, dict):
             raise ValueError("YAML must contain a mapping (dict)")
 
-        # Reconstruct nested dataclasses from dict
-        # Use get() with empty dict defaults to allow partial configs
-        return cls(
-            clearance=ClearanceZones(**data.get("clearance", {}))
-            if "clearance" in data
-            else ClearanceZones(),
-            heading=HeadingErrorZones(**data.get("heading", {}))
-            if "heading" in data
-            else HeadingErrorZones(),
-            pursuit=PurePursuitParams(**data.get("pursuit", {}))
-            if "pursuit" in data
-            else PurePursuitParams(),
-            speed=SpeedControlParams(**data.get("speed", {}))
-            if "speed" in data
-            else SpeedControlParams(),
-            escape=EscapeManeuverParams(**data.get("escape", {}))
-            if "escape" in data
-            else EscapeManeuverParams(),
-        )
+        return cls._from_mapping(data)
 
     @classmethod
     def load_from_json(cls, path: Path | str) -> NavigationTuning:
@@ -260,23 +295,7 @@ class NavigationTuning:
         if not isinstance(data, dict):
             raise ValueError("JSON must contain a mapping (dict)")
 
-        return cls(
-            clearance=ClearanceZones(**data.get("clearance", {}))
-            if "clearance" in data
-            else ClearanceZones(),
-            heading=HeadingErrorZones(**data.get("heading", {}))
-            if "heading" in data
-            else HeadingErrorZones(),
-            pursuit=PurePursuitParams(**data.get("pursuit", {}))
-            if "pursuit" in data
-            else PurePursuitParams(),
-            speed=SpeedControlParams(**data.get("speed", {}))
-            if "speed" in data
-            else SpeedControlParams(),
-            escape=EscapeManeuverParams(**data.get("escape", {}))
-            if "escape" in data
-            else EscapeManeuverParams(),
-        )
+        return cls._from_mapping(data)
 
     def to_dict(self) -> dict[str, Any]:
         """Export configuration as nested dictionary.
@@ -288,13 +307,7 @@ class NavigationTuning:
         """
         import dataclasses
 
-        return {
-            "clearance": dataclasses.asdict(self.clearance),
-            "heading": dataclasses.asdict(self.heading),
-            "pursuit": dataclasses.asdict(self.pursuit),
-            "speed": dataclasses.asdict(self.speed),
-            "escape": dataclasses.asdict(self.escape),
-        }
+        return {key: dataclasses.asdict(getattr(self, key)) for key, _ in self._GROUPS}
 
     def to_json(self) -> str:
         """Export configuration as JSON string.

@@ -12,6 +12,8 @@ Exports:
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
     EscapeManeuver,
+    ManeuverType,
+    ThreatDirection,
 )
 from src.navigation.control.controllers.stuck_detector import StuckDetector
 from src.navigation.control.controllers.waypoint_controller import WaypointController
@@ -19,6 +21,8 @@ from src.navigation.control.controllers.waypoint_controller import WaypointContr
 __all__ = [
     "CollisionAvoidanceController",
     "EscapeManeuver",
+    "ManeuverType",
     "StuckDetector",
+    "ThreatDirection",
     "WaypointController",
 ]

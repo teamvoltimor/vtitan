@@ -24,7 +24,7 @@ from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
-from shared.config.navigation_tuning import NavigationTuning
+from shared.config.navigation_tuning import NavigationTuning, SensorHealthParams
 from shared.domain.models import Detection, IMUReading, Pose, Velocity
 from std_msgs.msg import String
 
@@ -53,12 +53,23 @@ class ROS2HardwareGateway(HardwareGateway):
     CoreNavigator logic.
     """
 
-    def __init__(self, node: Node, start_x: float, start_y: float, start_yaw: float) -> None:
+    def __init__(
+        self,
+        node: Node,
+        start_x: float,
+        start_y: float,
+        start_yaw: float,
+        stale_timeout_sec: float = SensorHealthParams().STALE_TIMEOUT_SEC,
+    ) -> None:
         self._node = node
         self._estimator = StateEstimator(start_x, start_y, start_yaw)
         self._latest_lidar: tuple[list[float], list[float]] | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
+        # Receipt timestamps (seconds) for staleness / dropout detection.
+        self._lidar_stamp: float | None = None
+        self._odom_stamp: float | None = None
+        self._stale_timeout_sec = stale_timeout_sec
 
         # Publishers
         self._vel_publisher = node.create_publisher(
@@ -100,21 +111,30 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_imu = reading
         self._estimator.update_imu(reading)
 
+    def _now(self) -> float:
+        """Current node clock time in seconds (sim time when enabled)."""
+        return self._node.get_clock().now().nanoseconds * 1e-9
+
     def _odom_callback(self, msg: Odometry) -> None:
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         q = msg.pose.pose.orientation
         yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
         self._estimator.update_odom(x, y, yaw)
+        self._odom_stamp = self._now()
 
     def _lidar_callback(self, msg: LaserScan) -> None:
-        raw = np.array(msg.ranges)
-        # Assuming clamp_lidar_scan is no longer needed since controller handles it
-        # or we clamp it here
+        raw = np.array(msg.ranges, dtype=float)
+        # Invalid returns (NaN / +-inf, which Slamtec drivers emit for no-return
+        # rays) must not survive: NaN silently drops out of every downstream mask
+        # and inf reads as "far away", so replace both with the max range before
+        # clamping. Zero/near-zero (also emitted for invalid) is filtered later by
+        # the collision controller's ``> 0.01`` guard.
+        raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
         raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
-        raw[np.isinf(raw)] = RobotSpecs.LIDAR_MAX_RANGE
         angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)).tolist()
         self._latest_lidar = (raw.tolist(), angles)
+        self._lidar_stamp = self._now()
 
     def _vision_callback(self, msg: String) -> None:
         try:
@@ -145,11 +165,20 @@ class ROS2HardwareGateway(HardwareGateway):
         self._vel_publisher.publish(msg)
 
     def get_current_pose(self) -> Pose | None:
-        """Get the latest fused pose."""
+        """Get the latest fused pose, or None if odometry has dropped out.
+
+        Before the first odometry message the estimator's seed pose is used
+        (startup). Once odometry has been seen, a stale feed is reported as None
+        so the navigator stops rather than steering on a frozen pose.
+        """
+        if self._odom_stamp is not None and (self._now() - self._odom_stamp) > self._stale_timeout_sec:
+            return None
         return self._estimator.estimate_pose()
 
     def get_lidar_scan(self) -> tuple[list[float], list[float]] | None:
-        """Get the latest processed LIDAR scan."""
+        """Get the latest processed LIDAR scan, or None if it has gone stale."""
+        if self._lidar_stamp is None or (self._now() - self._lidar_stamp) > self._stale_timeout_sec:
+            return None
         return self._latest_lidar
 
     def get_imu_reading(self) -> IMUReading | None:
@@ -197,7 +226,9 @@ class TrackNavigator(Node):
         tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning()
 
         # Gateway & Core Logic
-        self._gateway = ROS2HardwareGateway(self, start_x, start_y, start_yaw)
+        self._gateway = ROS2HardwareGateway(
+            self, start_x, start_y, start_yaw, stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
+        )
         # num_laps=1 is intentional: calculate_waypoints bakes the lap count into
         # the list, but CoreNavigator already cycles one canonical lap `num_laps`
         # times (see step() waypoint-wrap). Passing the real count would multiply

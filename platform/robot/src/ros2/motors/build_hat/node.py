@@ -6,6 +6,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from shared.config.constants import RobotSpecs
+from shared.domain.steering import steering_norm_to_angle_rad
 
 from src.hardware.exceptions import MotorCalibrationError, MotorConnectionError
 from src.hardware.motors import BuildHatDriver
@@ -84,15 +85,17 @@ class BuildHatNode(Node):
             else:
                 self.driver.run_drive_reverse(speed=speed_pct)
 
-        # Control steering motor
-        # Map angular velocity (Ackermann steering angle) to motor position
-        # Driver expects position in degrees. Our calibration left_limit / right_limit usually map to degrees.
-        # Ackermann angles are in radians.
-        angle_deg = math.degrees(angular_z)
+        # Control steering motor.
+        # Twist.angular.z carries a NORMALISED steering command in [-1, 1]
+        # (see WaypointController.compute_steering and the sim's AckermannKinematics),
+        # not an angle in radians. Decode it to a physical wheel angle first, then
+        # convert to the degrees the driver's absolute-position API expects.
+        angle_rad = steering_norm_to_angle_rad(angular_z, self.max_steering_angle)
+        angle_deg = math.degrees(angle_rad)
 
-        # Invert if necessary, assuming positive z is left (standard ROS),
-        # so positive angle is left turn. The driver's move_steering_to takes absolute position in degrees.
-        # We assume 0 is center.
+        # The driver's move_steering_to takes an absolute position in degrees with
+        # 0 = centre; positive angular.z (left, standard ROS) maps to a negative
+        # servo position on this chassis.
         self.driver.move_steering_to(-angle_deg)
 
 

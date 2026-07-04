@@ -16,11 +16,13 @@ import pytest
 from shared.config.enums import Direction, Section
 
 from src.navigation.planning.sign_router import (
+    _ROUTING_TABLE,
     SignRouter,
     SignRouterConfig,
     SignSpec,
     _apply_deformation,
 )
+from src.navigation.race_tracker import _TRAVEL_DIRS
 
 LATERAL = 0.15
 CFG = SignRouterConfig(lateral_offset=LATERAL, activation_dist=0.80, passed_dist=1.20)
@@ -222,18 +224,24 @@ class TestPassedSigns:
     def test_passed_sign_not_deformed(self):
         sign = _sign_at(1.5, 0.4, "red")
         router = _router([sign])
-        # Simulate having already passed it (far away)
+        # Engage the sign first (robot approaches within activation distance)...
         router.deform_waypoint(
-            waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),  # robot past the sign by > passed_dist
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - 0.2, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
-        # Should now be marked as passed
+        # ...then drive past it (> passed_dist), which retires it.
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
+        )
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - 0.2, 0.4),  # back near sign
+            robot_pos=(1.5 - 0.2, 0.4),  # back near sign — must stay retired
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -243,14 +251,49 @@ class TestPassedSigns:
         signs = [_sign_at(1.0, 0.4, "red"), _sign_at(2.0, 0.4, "green")]
         router = _router(signs)
         assert router.active_sign_count == 2
-        # Move past first sign
+        # Engage the first sign (within activation distance).
         router.deform_waypoint(
-            waypoint=(0.5, 0.4),
-            robot_pos=(1.0 + 1.5, 0.4),
+            waypoint=(1.0, 0.4),
+            robot_pos=(0.8, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
+        )
+        # Then drive past it (> passed_dist).
+        router.deform_waypoint(
+            waypoint=(2.0, 0.4),
+            robot_pos=(2.5, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 1
+
+
+class TestEngagementGating:
+    """A sign is only retired once approached — never discarded from afar."""
+
+    def test_distant_sign_at_spawn_not_prematurely_passed(self):
+        # Sign is farther than passed_dist at spawn; the buggy behaviour marked
+        # it passed on the first tick, silently disabling routing.
+        sign = _sign_at(2.0, 0.4, "red")
+        router = _router([sign])
+
+        result = router.deform_waypoint(
+            waypoint=(0.4, 0.4),
+            robot_pos=(0.4, 0.4),  # d = 1.6 m > passed_dist
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
+        )
+        assert result == (0.4, 0.4)  # too far to deform yet
+        assert router.active_sign_count == 1  # still active, not retired
+
+        # Once the robot approaches, the sign deforms the waypoint as expected.
+        approached = router.deform_waypoint(
+            waypoint=(2.0, 0.4),
+            robot_pos=(1.7, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
+        )
+        assert approached != (2.0, 0.4)
 
 
 # ── 5. No-op with empty sign list ─────────────────────────────────────────────
@@ -266,3 +309,32 @@ def test_empty_sign_list_returns_waypoint_unchanged():
         corridor=Section.SOUTH,
     )
     assert result == wp
+
+
+# 6. Pass-side rule pinned in the robot's travel frame
+
+
+class TestPassSideRule:
+    """Red stays on the robot's right, green on its left — for every corridor.
+
+    This pins the routing table against the official WRO pass-side rule in the
+    travel frame, independent of world-axis bookkeeping, so a future edit cannot
+    silently invert red/green.
+    """
+
+    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize("color", ["red", "green"])
+    def test_sign_kept_on_correct_side(self, section, direction, color):
+        heading_x, heading_y = _TRAVEL_DIRS[(section, direction)]
+        sign = _sign_at(1.5, 1.5, color)
+        wx, wy = _apply_deformation(
+            (sign.x, sign.y), sign, color, section, direction, LATERAL,
+        )
+        # Signed lateral position of the deformed waypoint relative to the sign,
+        # in the robot's travel frame: cross > 0 => waypoint on the robot's left
+        # => the sign stays on the robot's right.
+        cross = heading_x * (wy - sign.y) - heading_y * (wx - sign.x)
+        if color == "red":
+            assert cross > 0, "red sign must stay on the robot's right"
+        else:
+            assert cross < 0, "green sign must stay on the robot's left"

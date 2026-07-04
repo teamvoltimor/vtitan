@@ -180,3 +180,31 @@ class TestParkControllerBasics:
         cmd = ctrl.update((1.15, 2.5), 0.0)
         assert cmd.linear > 0
         assert not cmd.done
+
+
+class TestParkControllerTimeout:
+    """A maneuver that can never reach the position+yaw stop condition must
+    give up and hold, rather than chase the gap centre for the whole match.
+    """
+
+    def test_unreachable_target_times_out_instead_of_running_forever(self):
+        # Robot held exactly on the far side of the field, never approaching
+        # the zone (a stand-in for "wedged, can't make progress").
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=50)
+
+        for _ in range(51):
+            cmd = ctrl.update((2.9, 2.9), 0.0)
+        assert cmd.done
+        assert ctrl.is_done
+        assert ctrl.is_timed_out
+        assert cmd.linear == 0.0
+        assert cmd.steering == 0.0
+
+    def test_successful_park_is_not_flagged_as_timed_out(self):
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=400)
+        for _ in range(400):
+            cmd = ctrl.update((1.15, 0.08), -math.pi / 2)
+            if cmd.done:
+                break
+        assert ctrl.is_done
+        assert not ctrl.is_timed_out

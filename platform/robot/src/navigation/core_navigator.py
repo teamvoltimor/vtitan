@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
@@ -18,6 +19,8 @@ from shared.domain.models import Velocity
 
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
+    EscapeManeuver,
+    ManeuverType,
     StuckDetector,
     WaypointController,
 )
@@ -62,6 +65,14 @@ class CoreNavigator:
         self._parking_engaged = False
         self._park_engage_dist = 0.30  # Engage parking within 30 cm of staging
 
+        # Escape-maneuver latching: an escape runs for its full duration_frames
+        # instead of a single 50 ms tick, and repeated escapes escalate (reverse
+        # longer, alternate side) rather than repeating an identical failed pulse.
+        self._active_maneuver: EscapeManeuver | None = None
+        self._maneuver_frames_left = 0
+        self._escape_count = 0  # escapes begun since the last normal drive tick
+        self._escape_steer_sign = 1.0
+
         # Controllers
         self._waypoint_controller = WaypointController(
             max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
@@ -79,6 +90,12 @@ class CoreNavigator:
             escape_rev_speed=self._tuning.escape.REV_SPEED,
             escape_steer_scale=self._tuning.escape.REV_STEERING_SCALE,
             stuck_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
+            path_margin=self._tuning.clearance.PATH_MARGIN,
+            k_turn_min_frames=self._tuning.escape.K_TURN_MIN_FRAMES,
+            k_turn_max_frames=self._tuning.escape.K_TURN_MAX_FRAMES,
+            side_correction_steer=self._tuning.escape.SIDE_CORRECTION_STEER,
+            side_correction_speed=self._tuning.escape.SIDE_CORRECTION_SPEED,
+            side_correction_frames=self._tuning.escape.SIDE_CORRECTION_FRAMES,
         )
 
         self._stuck_detector = StuckDetector(
@@ -104,12 +121,33 @@ class CoreNavigator:
         """
         pose = self._gateway.get_current_pose()
         if not pose:
-            return  # No pose available yet
+            # No localisation available (startup or sensor dropout): stop rather
+            # than coast on the last published command.
+            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            return
 
         robot_x, robot_y = pose.x, pose.y
         robot_yaw = pose.yaw
 
         self._current_corridor = corridor_for_position(robot_x, robot_y)
+
+        # Continue an in-progress escape maneuver until its latched duration
+        # elapses, so escapes are real motions rather than single-tick pulses that
+        # never clear the wall.
+        if self._active_maneuver is not None:
+            self._drive_active_maneuver()
+            return
+
+        # Update stuck detector — runs while actively driving OR maneuvering
+        # into the parking gap, but not once the robot has reached its final
+        # deliberate stop (open-challenge hold, or parking done): otherwise a
+        # robot correctly holding position at zero velocity would eventually
+        # read as "stuck" and reverse itself back out of a completed park.
+        if not self._is_holding():
+            self._stuck_detector.update((robot_x, robot_y))
+            if self._stuck_detector.is_stuck:
+                self._handle_stuck_escape()
+                return
 
         # Lap completion: defer the parking handoff until the robot is actually
         # in the parking corridor and within reach of the staging point. Until
@@ -117,12 +155,6 @@ class CoreNavigator:
         if self._laps_completed >= self._num_laps and self._handle_finish(
             robot_x, robot_y, robot_yaw,
         ):
-            return
-
-        # Update stuck detector
-        self._stuck_detector.update((robot_x, robot_y))
-        if self._stuck_detector.is_stuck:
-            self._handle_stuck_escape()
             return
 
         # Waypoint-wrap detection: signal LapDetector and reset index.
@@ -164,10 +196,12 @@ class CoreNavigator:
         if lidar_data:
             ranges, angles = lidar_data
             forward_clearance = self._collision_controller.compute_forward_clearance(ranges, angles)
-            risk = self._collision_controller.assess_risk(ranges)
+            risk = self._collision_controller.assess_risk(ranges, angles)
         else:
-            forward_clearance = 5.0
-            risk = RiskLevel.SAFE
+            # No LIDAR: a degraded sensor is not open road. Drive cautiously
+            # (slow zone + non-SAFE risk) instead of blasting forward blind.
+            forward_clearance = self._tuning.clearance.SLOW_DIST
+            risk = RiskLevel.OBSTACLE
 
         # Check waypoint reached
         dist_to_wp = math.sqrt((target_wp[0] - robot_x) ** 2 + (target_wp[1] - robot_y) ** 2)
@@ -201,13 +235,75 @@ class CoreNavigator:
         # Escape maneuvers if critical
         if risk == RiskLevel.CRITICAL and lidar_data:
             threat_dir = self._collision_controller.detect_threat_direction(lidar_data[0], lidar_data[1])
-            maneuver = self._collision_controller.compute_escape_maneuver(risk, threat_dir)
+            maneuver = self._collision_controller.compute_escape_maneuver(
+                risk, threat_dir, lidar_data[0], lidar_data[1],
+            )
+            if maneuver and self._reversing_into_unseen_wall(maneuver, lidar_data):
+                # Blocked at both ends: fall through to the capped creep-speed
+                # publish below rather than backing into an unseen wall. The
+                # stuck detector is the backstop if the robot truly can't move.
+                maneuver = None
             if maneuver:
-                self._gateway.publish_velocity(Velocity(linear=maneuver.speed, angular=maneuver.steering))
+                self._escape_count += 1
+                self._begin_maneuver(self._maybe_escalate(maneuver))
+                self._drive_active_maneuver()
                 return
 
-        # Normal publish
+        # Normal publish — the robot is driving, so clear the escape escalation.
+        self._escape_count = 0
         self._gateway.publish_velocity(Velocity(linear=speed, angular=steering_normalized))
+
+    def _reversing_into_unseen_wall(
+        self, maneuver: EscapeManeuver, lidar_data: tuple[list[float], list[float]],
+    ) -> bool:
+        """True if executing ``maneuver`` would back into a wall behind the robot."""
+        if maneuver.speed >= 0:
+            return False
+        rear_clear = self._collision_controller.compute_rear_clearance(lidar_data[0], lidar_data[1])
+        return rear_clear < self._tuning.clearance.CONTACT_DIST
+
+    def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
+        """Latch an escape maneuver so it executes for its full duration."""
+        self._active_maneuver = maneuver
+        self._maneuver_frames_left = max(1, maneuver.duration_frames)
+
+    def _drive_active_maneuver(self) -> None:
+        """Publish the active escape command and count down its latched duration."""
+        maneuver = self._active_maneuver
+        if maneuver is None:
+            return
+        self._maneuver_frames_left -= 1
+        if self._maneuver_frames_left <= 0:
+            self._active_maneuver = None
+        self._gateway.publish_velocity(Velocity(linear=maneuver.speed, angular=maneuver.steering))
+
+    def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
+        """Escalate a repeated escape instead of repeating an identical pulse.
+
+        After a few consecutive escapes that clearly aren't working, reverse for
+        longer and swing toward the opposite side, so the robot stops slamming
+        the same failing maneuver into the same wall.
+        """
+        if self._escape_count <= self._tuning.escape.ESCALATE_AFTER_ATTEMPTS:
+            return maneuver
+        self._escape_steer_sign = -self._escape_steer_sign
+        steering = abs(maneuver.steering) * self._escape_steer_sign if maneuver.steering else 0.0
+        return replace(
+            maneuver,
+            steering=steering,
+            duration_frames=min(maneuver.duration_frames * 2, self._tuning.escape.MAX_ESCAPE_FRAMES),
+        )
+
+    def _is_holding(self) -> bool:
+        """True once the robot has reached a deliberate, terminal stop.
+
+        Both terminal states are monotonic (never revert once reached), so it
+        is safe to permanently stop running stuck detection once this is True.
+        """
+        if self._laps_completed < self._num_laps:
+            return False
+        pc = self._park_controller
+        return pc is None or pc.is_done
 
     def _handle_finish(self, robot_x: float, robot_y: float, robot_yaw: float) -> bool:
         """Handle the post-final-lap phase.
@@ -254,7 +350,13 @@ class CoreNavigator:
         return math.hypot(sx - robot_x, sy - robot_y) < self._park_engage_dist
 
     def _handle_stuck_escape(self) -> None:
-        """Reverse out of a stuck state, but never back into an unseen wall."""
+        """Reverse out of a stuck state, but never back into an unseen wall.
+
+        The reverse is latched for several frames (escalating with repeated
+        attempts) and alternates steering side each attempt, so a wall-pinned
+        robot actually backs away instead of twitching one centimetre every few
+        seconds forever.
+        """
         logger.warning("Robot stuck - triggering escape")
         rear_clear = 10.0
         lidar_data = self._gateway.get_lidar_scan()
@@ -265,11 +367,23 @@ class CoreNavigator:
         if rear_clear < self._tuning.clearance.CONTACT_DIST:
             logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)
             self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
-        else:
-            self._gateway.publish_velocity(
-                Velocity(
-                    linear=self._tuning.escape.REV_SPEED,
-                    angular=self._tuning.escape.REV_STEERING_SCALE,
-                ),
-            )
+            self._stuck_detector.reset()
+            return
+
+        self._escape_count += 1
+        frames = min(
+            self._tuning.escape.K_TURN_MIN_FRAMES + 2 * (self._escape_count - 1),
+            self._tuning.escape.MAX_ESCAPE_FRAMES,
+        )
+        steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign
+        self._escape_steer_sign = -self._escape_steer_sign  # alternate side each attempt
+        self._begin_maneuver(
+            EscapeManeuver(
+                maneuver_type=ManeuverType.STUCK_REVERSE,
+                steering=steering,
+                speed=self._tuning.escape.REV_SPEED,
+                duration_frames=frames,
+            ),
+        )
         self._stuck_detector.reset()
+        self._drive_active_maneuver()

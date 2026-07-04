@@ -1,13 +1,19 @@
 """WRO 2026 traffic-sign routing for obstacles challenge.
 
-Computes lateral waypoint deformations so the robot passes red signs on the
-right and green signs on the left, per the official WRO pass-side rule.
+Computes lateral waypoint deformations so the robot keeps red signs on its right
+and green signs on its left, per the official WRO Future Engineers pass-side
+rule. Equivalently (and this is the wording the routing table implements): the
+robot passes to the LEFT of a red sign and to the RIGHT of a green sign.
 
 Pure Python — no ROS2 dependencies. Designed to be unit-tested independently.
 
 Pass-side rule (from robot's forward-travel perspective):
-    - Red sign  → robot passes to the LEFT of the sign (sign on right).
-    - Green sign → robot passes to the RIGHT of the sign (sign on left).
+    - Red sign  → robot passes to the LEFT of the sign (sign stays on its right).
+    - Green sign → robot passes to the RIGHT of the sign (sign stays on its left).
+
+The travel-frame semantics are pinned by ``TestPassSideRule`` in
+``tests/unit/test_sign_router.py``: for every (section, direction) the deformed
+waypoint keeps a red sign on the robot's right and a green sign on its left.
 
 The deformation direction depends on BOTH the corridor section AND the travel
 direction (CW/CCW): the same corridor is driven with opposite headings depending
@@ -22,7 +28,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
 from shared.config.enums import Direction, Section
 
 
@@ -115,6 +121,7 @@ class SignRouter:
         self._config = config or SignRouterConfig()
         self._direction = direction
         self._passed: set[int] = set()
+        self._engaged: set[int] = set()
 
     @property
     def active_sign_count(self) -> int:
@@ -145,21 +152,7 @@ class SignRouter:
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
         """
-        nearest_dist = float("inf")
-        nearest_idx = -1
-
-        for i, sign in enumerate(self._signs):
-            if i in self._passed:
-                continue
-            d = _dist2d(robot_pos, (sign.x, sign.y))
-            if d > self._config.passed_dist:
-                self._passed.add(i)
-                logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
-                continue
-            if d < nearest_dist:
-                nearest_dist = d
-                nearest_idx = i
-
+        nearest_idx, nearest_dist = self._nearest_active_sign(robot_pos)
         if nearest_idx < 0 or nearest_dist > self._config.activation_dist:
             return waypoint
 
@@ -196,6 +189,37 @@ class SignRouter:
 
         return deformed
 
+    def _nearest_active_sign(self, robot_pos: tuple[float, float]) -> tuple[int, float]:
+        """Index and distance of the nearest not-yet-passed sign to the robot.
+
+        Also maintains engagement/passed bookkeeping: a sign is engaged once the
+        robot comes within activation distance, and retired only after it has
+        been engaged and then left beyond ``passed_dist`` — never discarded from
+        afar (which would silently disable routing at spawn).
+
+        Returns:
+            ``(index, distance)``; index is -1 when no active sign remains.
+        """
+        nearest_dist = float("inf")
+        nearest_idx = -1
+
+        for i, sign in enumerate(self._signs):
+            if i in self._passed:
+                continue
+            d = _dist2d(robot_pos, (sign.x, sign.y))
+            if d < self._config.activation_dist:
+                self._engaged.add(i)
+            if d > self._config.passed_dist:
+                if i in self._engaged:
+                    self._passed.add(i)
+                    logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
+                continue
+            if d < nearest_dist:
+                nearest_dist = d
+                nearest_idx = i
+
+        return nearest_idx, nearest_dist
+
 
 def _apply_deformation(
     waypoint: tuple[float, float],
@@ -222,7 +246,7 @@ def _apply_deformation(
         return waypoint
 
     axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
-    mult = red_mult if color == "red" else green_mult
+    mult = red_mult if color == ColorNames.RED else green_mult
 
     wx, wy = waypoint
     if axis == "y":
@@ -259,7 +283,7 @@ def _match_detection_to_sign(
     for det in detections:
         if det.confidence < config.min_confidence:
             continue
-        if det.class_name not in ("red", "green"):
+        if det.class_name not in (ColorNames.RED, ColorNames.GREEN):
             continue
 
         world_pos = _detection_to_world(det, robot_pos, robot_yaw)

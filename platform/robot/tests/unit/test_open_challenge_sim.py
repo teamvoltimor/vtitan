@@ -21,13 +21,14 @@ from typing import Any
 
 import numpy as np
 import pytest
+from shared.config.constants import CompetitionSpecs
 from shared.config.enums import Direction, Section
 
 from src.simulation import ScenarioSimulator, TrackModel
 
 logger = logging.getLogger(__name__)
 
-_N_LAPS = 3
+_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = 600
 _WIDE_MM = 1000
 _TRACK_MAX = 3.0
@@ -201,8 +202,21 @@ def _log_result(label: str, result: Any) -> None:
     )
 
 
+def _within_round_limit(result: Any) -> bool:
+    """Solved AND finished inside the official WRO round time limit.
+
+    ``SimResult.success`` only checks laps-completed/collision; a scenario that
+    finishes 3 laps at, say, 195s "passes" a lap-count-only check but scores
+    zero in competition. The sim's own step budget (200s) is looser than the
+    180s round limit, so this must be checked explicitly.
+    """
+    return result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+
+
 class TestThreeLapSolvability:
-    """The real car must complete 3 laps on every Open Challenge layout."""
+    """The real car must complete 3 laps, inside the round time limit, on
+    every Open Challenge layout.
+    """
 
     def test_symmetric_wide_all_starts(self) -> None:
         failures = []
@@ -210,7 +224,7 @@ class TestThreeLapSolvability:
             meta = build_open_metadata(_uniform_widths(_WIDE_MM), section, direction)
             result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
             _log_result(f"WIDE  {section.capitalized:<5} {direction}", result)
-            if not result.success:
+            if not _within_round_limit(result):
                 failures.append((section, direction, result))
         assert not failures, _describe(failures)
 
@@ -220,7 +234,7 @@ class TestThreeLapSolvability:
             meta = build_open_metadata(_uniform_widths(_NARROW_MM), section, direction)
             result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
             _log_result(f"NARROW {section.capitalized:<5} {direction}", result)
-            if not result.success:
+            if not _within_round_limit(result):
                 failures.append((section, direction, result))
         assert not failures, _describe(failures)
 
@@ -243,9 +257,11 @@ class TestThreeLapSolvability:
         )
         result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
         _log_result(f"MIX S{south} N{north} E{east} W{west}", result)
-        assert result.success, (
+        assert _within_round_limit(result), (
             f"laps={result.laps_completed}/{_N_LAPS} collided={result.collided} "
-            f"timeout={result.timed_out} at {result.collision_xy or result.final_pose}"
+            f"timeout={result.timed_out} t={result.sim_time_s:.1f}s "
+            f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
+            f"at {result.collision_xy or result.final_pose}"
         )
 
     def test_random_scenarios(self) -> None:
@@ -265,7 +281,7 @@ class TestThreeLapSolvability:
                 f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
                 result,
             )
-            if not result.success:
+            if not _within_round_limit(result):
                 failures.append((section, direction, result))
         assert not failures, _describe(failures)
 
@@ -273,7 +289,8 @@ class TestThreeLapSolvability:
 def _describe(failures: list[tuple[Section, Direction, Any]]) -> str:
     lines = [
         f"  {sec.capitalized}/{dir_} -> laps={r.laps_completed}/{r.target_laps} "
-        f"collided={r.collided} timeout={r.timed_out} "
+        f"collided={r.collided} timeout={r.timed_out} t={r.sim_time_s:.1f}s "
+        f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
         f"@={r.collision_xy or (round(r.final_pose[0], 2), round(r.final_pose[1], 2))}"
         for sec, dir_, r in failures
     ]

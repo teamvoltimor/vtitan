@@ -30,6 +30,7 @@ _YAW_TOLERANCE = math.radians(10.0)  # ±10° stop condition
 _APPROACH_CLEARANCE = 0.25  # metres: staging position above gap opening
 _POS_REACH_DIST = 0.04  # metres: "reached staging" threshold
 _INSIDE_TOLERANCE = 0.02  # metres: zone wall clearance
+_DEFAULT_MAX_FRAMES = 400  # 20s at 20Hz: bound on the parking maneuver's duration
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,11 @@ class ParkController:
         start_section: Corridor that contains the parking lot.
         speed: Constant driving speed (m/s).
         steer_kp: Proportional heading gain.
+        max_frames: Hard bound on how many control ticks the maneuver may run
+            before giving up and holding position. Without this, a robot that
+            can never satisfy the position+yaw stop condition (e.g. wedged
+            against a block) would chase the gap centre for the rest of the
+            match instead of coming to a controlled stop.
     """
 
     def __init__(
@@ -84,11 +90,15 @@ class ParkController:
         start_section: Section,
         speed: float = 0.12,
         steer_kp: float = 2.5,
+        max_frames: int = _DEFAULT_MAX_FRAMES,
     ) -> None:
         self._section = start_section
         self._speed = speed
         self._steer_kp = steer_kp
         self._phase = ParkPhase.STAGE
+        self._max_frames = max_frames
+        self._frames_elapsed = 0
+        self._timed_out = False
 
         b1 = parking_config["block1_pos"]
         b2 = parking_config["block2_pos"]
@@ -104,8 +114,13 @@ class ParkController:
 
     @property
     def is_done(self) -> bool:
-        """Whether the parking maneuver is complete."""
+        """Whether the parking maneuver is complete (cleanly or via timeout)."""
         return self._phase is ParkPhase.DONE
+
+    @property
+    def is_timed_out(self) -> bool:
+        """Whether the maneuver gave up on its frame budget rather than parking cleanly."""
+        return self._timed_out
 
     @property
     def section(self) -> Section:
@@ -134,6 +149,16 @@ class ParkController:
         if self._phase is ParkPhase.DONE:
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
 
+        self._frames_elapsed += 1
+        if self._frames_elapsed > self._max_frames:
+            logger.warning(
+                "ParkController: giving up after %d frames without parking cleanly",
+                self._frames_elapsed,
+            )
+            self._timed_out = True
+            self._phase = ParkPhase.DONE
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+
         # Early exit: if already inside the zone at any phase, we're done.
         pos_inside, yaw_ok = _inside_zone(robot_pos[0], robot_pos[1], robot_yaw, self._zone)
         if pos_inside and yaw_ok:
@@ -145,7 +170,7 @@ class ParkController:
             return self._handle_stage(robot_pos, robot_yaw)
         return self._handle_enter(robot_pos, robot_yaw)
 
-    # ── Phase handlers ────────────────────────────────────────────────────────
+    # Phase handlers
 
     def _handle_stage(
         self,
@@ -187,7 +212,7 @@ class ParkController:
         return ParkCommand(linear=self._speed, steering=steer, phase="enter")
 
 
-# ── Pure helpers ──────────────────────────────────────────────────────────────
+# Pure helpers
 
 
 def _build_zone(
