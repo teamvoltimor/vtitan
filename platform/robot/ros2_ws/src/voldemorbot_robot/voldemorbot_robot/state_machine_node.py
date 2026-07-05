@@ -200,7 +200,7 @@ class StateMachineNode(Node):
                 self.ip_address = "OFFLINE"
                 self.get_logger().warning("Failed to fetch IP: %s", e)
             else:
-                self.get_logger().info("IP address resolved: %s", self.ip_address)
+                self.get_logger().info(f"IP address resolved: {self.ip_address}")
             self.ip_fetch_complete = True
 
         future = self._executor.submit(fetch_ip)
@@ -431,10 +431,6 @@ class StateMachineNode(Node):
 
         # Ensure robot is stopped
         self._publish_stop_command()
-
-        # Close button driver
-        if self.button_driver is not None:
-            self.button_driver.close()
 
         # Shutdown executor
         self._executor.shutdown(wait=False)

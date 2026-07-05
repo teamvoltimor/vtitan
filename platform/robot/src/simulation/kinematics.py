@@ -7,7 +7,7 @@ hardware imposes:
 * **Steering slew** — the servo cannot snap to an angle instantly; it ramps at
   ``MAX_STEERING_RATE`` (rad/s).
 * **Drive acceleration** — the drive motor cannot change speed instantly; it is
-  clamped to ``max_accel`` (m/s²), matching the JerkLimiter the controller uses.
+  clamped to ``max_accel`` (m/s²), the physical acceleration limit of the drive motor.
 * **Steering limit** — front-wheel angle saturates at ``MAX_STEERING_ANGLE``.
 
 The bicycle model uses the rear-axle reference point::
@@ -27,7 +27,7 @@ from dataclasses import dataclass, replace
 from shared.config.constants import RobotSpecs
 
 _DEFAULT_MAX_STEER_RATE = 2.0  # rad/s (NavigationTuning.pursuit.MAX_STEERING_RATE)
-_DEFAULT_MAX_ACCEL = 2.0  # m/s² (NavigationTuning.speed / JerkLimiter default)
+_DEFAULT_MAX_ACCEL = 2.0  # m/s² (drive motor's physical acceleration limit)
 
 
 @dataclass(frozen=True, slots=True)

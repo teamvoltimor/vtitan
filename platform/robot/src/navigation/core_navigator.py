@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel
-from shared.domain.models import Velocity
 
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
@@ -25,13 +24,14 @@ from src.navigation.control.controllers import (
     WaypointController,
 )
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.ports import DriveCommand
 
 if TYPE_CHECKING:
     from shared.config.enums import Section
 
-    from src.hardware.gateway import HardwareGateway
     from src.navigation.maneuvers.parking import ParkController
     from src.navigation.planning.sign_router import SignRouter
+    from src.navigation.ports import HardwareGateway, LidarScan
     from src.navigation.race_tracker import LapDetector
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class CoreNavigator:
         if not pose:
             # No localisation available (startup or sensor dropout): stop rather
             # than coast on the last published command.
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return
 
         robot_x, robot_y = pose.x, pose.y
@@ -191,12 +191,13 @@ class CoreNavigator:
                 detections=detections,
             )
 
-        # Get LIDAR ranges from gateway
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
-            ranges, angles = lidar_data
-            forward_clearance = self._collision_controller.compute_forward_clearance(ranges, angles)
-            risk = self._collision_controller.assess_risk(ranges, angles)
+        # Get LIDAR scan from gateway
+        scan = self._gateway.get_lidar_scan()
+        if scan:
+            forward_clearance = self._collision_controller.compute_forward_clearance(
+                scan.ranges_m, scan.angles_rad,
+            )
+            risk = self._collision_controller.assess_risk(scan.ranges_m, scan.angles_rad)
         else:
             # No LIDAR: a degraded sensor is not open road. Drive cautiously
             # (slow zone + non-SAFE risk) instead of blasting forward blind.
@@ -209,11 +210,25 @@ class CoreNavigator:
             self._waypoint_index += 1
             return
 
+        # Steer at a lookahead point, not directly at the (often much closer)
+        # next waypoint — otherwise the lookahead distance is computed but
+        # discarded, producing weave on straights and corner cutting (PP-1).
+        # The deformed target_wp stands in for index 0 of the search so sign
+        # routing still biases the immediate target; points further out reuse
+        # the raw path.
+        lookahead_distance = self._waypoint_controller.select_lookahead(forward_clearance)
+        steer_target = self._waypoint_controller.select_target_point(
+            current_pos=(robot_x, robot_y),
+            waypoints=[target_wp, *self._waypoints[self._waypoint_index + 1 :]],
+            waypoint_index=0,
+            lookahead_distance=lookahead_distance,
+        )
+
         # Get steering from waypoint controller
         steering_normalized, _ = self._waypoint_controller.compute_steering(
             current_pos=(robot_x, robot_y),
             current_yaw=robot_yaw,
-            target_waypoint=target_wp,
+            target_waypoint=steer_target,
             forward_clearance=forward_clearance,
         )
 
@@ -233,12 +248,12 @@ class CoreNavigator:
             speed = min(speed, self._tuning.speed.SLOW_SPEED)
 
         # Escape maneuvers if critical
-        if risk == RiskLevel.CRITICAL and lidar_data:
-            threat_dir = self._collision_controller.detect_threat_direction(lidar_data[0], lidar_data[1])
+        if risk == RiskLevel.CRITICAL and scan:
+            threat_dir = self._collision_controller.detect_threat_direction(scan.ranges_m, scan.angles_rad)
             maneuver = self._collision_controller.compute_escape_maneuver(
-                risk, threat_dir, lidar_data[0], lidar_data[1],
+                risk, threat_dir, scan.ranges_m, scan.angles_rad,
             )
-            if maneuver and self._reversing_into_unseen_wall(maneuver, lidar_data):
+            if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
                 # Blocked at both ends: fall through to the capped creep-speed
                 # publish below rather than backing into an unseen wall. The
                 # stuck detector is the backstop if the robot truly can't move.
@@ -251,15 +266,13 @@ class CoreNavigator:
 
         # Normal publish — the robot is driving, so clear the escape escalation.
         self._escape_count = 0
-        self._gateway.publish_velocity(Velocity(linear=speed, angular=steering_normalized))
+        self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
 
-    def _reversing_into_unseen_wall(
-        self, maneuver: EscapeManeuver, lidar_data: tuple[list[float], list[float]],
-    ) -> bool:
+    def _reversing_into_unseen_wall(self, maneuver: EscapeManeuver, scan: LidarScan) -> bool:
         """True if executing ``maneuver`` would back into a wall behind the robot."""
         if maneuver.speed >= 0:
             return False
-        rear_clear = self._collision_controller.compute_rear_clearance(lidar_data[0], lidar_data[1])
+        rear_clear = self._collision_controller.compute_rear_clearance(scan.ranges_m, scan.angles_rad)
         return rear_clear < self._tuning.clearance.CONTACT_DIST
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
@@ -275,7 +288,7 @@ class CoreNavigator:
         self._maneuver_frames_left -= 1
         if self._maneuver_frames_left <= 0:
             self._active_maneuver = None
-        self._gateway.publish_velocity(Velocity(linear=maneuver.speed, angular=maneuver.steering))
+        self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
 
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
@@ -314,7 +327,7 @@ class CoreNavigator:
         pc = self._park_controller
         if pc is None:
             # Open challenge: no parking maneuver — hold position.
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return True
 
         if not self._parking_engaged and self._should_engage_parking(robot_x, robot_y):
@@ -325,18 +338,18 @@ class CoreNavigator:
             return False  # Keep navigating until at the staging point.
 
         if pc.is_done:
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return True
 
         cmd = pc.update((robot_x, robot_y), robot_yaw)
         linear = cmd.linear
         # Forward-clearance gate so the staging vector never drives into a wall.
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
-            fwd = self._collision_controller.compute_forward_clearance(lidar_data[0], lidar_data[1])
+        scan = self._gateway.get_lidar_scan()
+        if scan:
+            fwd = self._collision_controller.compute_forward_clearance(scan.ranges_m, scan.angles_rad)
             if fwd < self._tuning.clearance.CONTACT_DIST:
                 linear = 0.0
-        self._gateway.publish_velocity(Velocity(linear=linear, angular=cmd.steering))
+        self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         return True
 
     def _should_engage_parking(self, robot_x: float, robot_y: float) -> bool:
@@ -359,14 +372,14 @@ class CoreNavigator:
         """
         logger.warning("Robot stuck - triggering escape")
         rear_clear = 10.0
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
+        scan = self._gateway.get_lidar_scan()
+        if scan:
             rear_clear = self._collision_controller.compute_rear_clearance(
-                lidar_data[0], lidar_data[1],
+                scan.ranges_m, scan.angles_rad,
             )
         if rear_clear < self._tuning.clearance.CONTACT_DIST:
             logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self._stuck_detector.reset()
             return
 

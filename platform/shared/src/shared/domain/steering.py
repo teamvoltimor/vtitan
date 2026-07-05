@@ -1,7 +1,7 @@
 """Steering command contract shared between the controller, sim, and actuators.
 
-The navigation stack publishes steering in ``Velocity.angular`` as a *normalised*
-command in ``[-1, 1]`` (``+1`` = full left / counter-clockwise), NOT an angle in
+The navigation stack publishes steering in ``DriveCommand.steering_norm`` as a
+*normalised* command in ``[-1, 1]`` (``+1`` = full left / counter-clockwise), NOT an angle in
 radians and NOT a yaw rate. ``WaypointController`` produces it as
 ``steering_rad / MAX_STEERING_ANGLE``; the simulator's ``AckermannKinematics``
 consumes it as ``clamp(norm) * MAX_STEERING_ANGLE``. Any actuator adapter must
@@ -20,7 +20,7 @@ def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) 
 
     Args:
         steering_norm: Normalised steering command in ``[-1, 1]`` as carried in
-            ``Velocity.angular``. Values outside the range are clamped.
+            ``DriveCommand.steering_norm``. Values outside the range are clamped.
         max_steering_angle: Physical steering saturation limit (radians).
 
     Returns:
@@ -34,7 +34,7 @@ def angle_rad_to_steering_norm(angle_rad: float, max_steering_angle: float) -> f
     """Encode a physical front-wheel angle into a normalised steering command.
 
     Inverse of :func:`steering_norm_to_angle_rad`; the controller uses this shape
-    to publish ``Velocity.angular``.
+    to publish ``DriveCommand.steering_norm``.
 
     Args:
         angle_rad: Front-wheel steering angle (radians), ``+`` = left.

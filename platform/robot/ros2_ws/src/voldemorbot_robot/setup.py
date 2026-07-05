@@ -18,6 +18,7 @@ setup(
                 "launch/rpi5_nodes.launch.py",
                 "launch/rpi_zero_nodes.launch.py",
                 "launch/simulator.launch.py",
+                "launch/race.launch.py",
             ],
         ),
     ],

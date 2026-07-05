@@ -69,6 +69,37 @@ class WaypointController:
             return self.lookahead_short
         return self.lookahead_long
 
+    def select_target_point(
+        self,
+        current_pos: tuple[float, float],
+        waypoints: list[tuple[float, float]],
+        waypoint_index: int,
+        lookahead_distance: float,
+    ) -> tuple[float, float]:
+        """Find the path point at least ``lookahead_distance`` ahead.
+
+        Searches forward from ``waypoint_index`` for the first waypoint whose
+        distance from ``current_pos`` reaches the lookahead distance, instead
+        of steering directly at the next waypoint (which can be well under the
+        lookahead distance and produces weave on straights / corner cutting).
+
+        Args:
+            current_pos: Robot position (x, y)
+            waypoints: Ordered path waypoints, searched from waypoint_index
+            waypoint_index: Index to start the forward search from
+            lookahead_distance: Minimum distance from current_pos to target (meters)
+
+        Returns:
+            The selected (x, y) target point. Falls back to the last waypoint
+            if none in the remaining path reach the lookahead distance.
+        """
+        cx, cy = current_pos
+        for i in range(waypoint_index, len(waypoints)):
+            wx, wy = waypoints[i]
+            if math.hypot(wx - cx, wy - cy) >= lookahead_distance:
+                return waypoints[i]
+        return waypoints[-1]
+
     def compute_steering(
         self,
         current_pos: tuple[float, float],

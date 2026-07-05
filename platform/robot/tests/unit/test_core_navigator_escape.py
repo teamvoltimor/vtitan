@@ -13,9 +13,10 @@ import math
 import numpy as np
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose, Velocity
+from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.ports import DriveCommand, LidarScan
 
 NUM_RAYS = 360
 ANGLES = np.linspace(-math.pi, math.pi, NUM_RAYS, endpoint=False).tolist()
@@ -33,18 +34,18 @@ def _scan_with_sectors(**close_sectors: float) -> list[float]:
 
 
 class _FakeGateway:
-    def __init__(self, pose: Pose, lidar: tuple[list[float], list[float]] | None) -> None:
+    def __init__(self, pose: Pose, lidar: LidarScan | None) -> None:
         self._pose = pose
         self._lidar = lidar
-        self.commands: list[Velocity] = []
+        self.commands: list[DriveCommand] = []
 
-    def publish_velocity(self, velocity: Velocity) -> None:
-        self.commands.append(velocity)
+    def publish_drive(self, command: DriveCommand) -> None:
+        self.commands.append(command)
 
     def get_current_pose(self) -> Pose | None:
         return self._pose
 
-    def get_lidar_scan(self) -> tuple[list[float], list[float]] | None:
+    def get_lidar_scan(self) -> LidarScan | None:
         return self._lidar
 
     def get_imu_reading(self) -> IMUReading | None:
@@ -68,24 +69,24 @@ class TestCriticalEscapeRearGate:
         reflection — otherwise the rear-gate would never see it as blocked.
         """
         ranges = _scan_with_sectors(front=0.06, back=0.09)
-        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), (ranges, ANGLES))
+        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
 
         nav.step()
 
         assert gateway.commands, "expected a published command"
-        assert gateway.commands[-1].linear >= 0, "must not reverse into an unseen rear wall"
+        assert gateway.commands[-1].speed_mps >= 0, "must not reverse into an unseen rear wall"
 
     def test_front_blocked_rear_clear_reverses(self, waypoints):
         """Front blocked, rear clear: the K-turn escape should reverse."""
         ranges = _scan_with_sectors(front=0.06)
-        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), (ranges, ANGLES))
+        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
 
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].linear < 0, "front-only threat should trigger the reverse K-turn"
+        assert gateway.commands[-1].speed_mps < 0, "front-only threat should trigger the reverse K-turn"
 
 
 class TestStuckDetectionDuringParking:
@@ -108,7 +109,7 @@ class TestStuckDetectionDuringParking:
         for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 15):
             nav.step()
 
-        assert any(cmd.linear < 0 for cmd in gateway.commands), (
+        assert any(cmd.speed_mps < 0 for cmd in gateway.commands), (
             "expected a reverse escape once the stuck timeout elapsed while parking"
         )
 
@@ -125,7 +126,7 @@ class TestStuckDetectionDuringParking:
         for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 10):
             nav.step()
 
-        assert all(cmd.linear == 0.0 for cmd in gateway.commands)
+        assert all(cmd.speed_mps == 0.0 for cmd in gateway.commands)
 
 
 class _StubParkController:
@@ -153,7 +154,7 @@ class TestMissingSensorsDegradeSafely:
 
         nav.step()
 
-        assert gateway.commands == [Velocity(linear=0.0, angular=0.0)]
+        assert gateway.commands == [DriveCommand(speed_mps=0.0, steering_norm=0.0)]
 
     def test_missing_lidar_does_not_use_full_speed(self, waypoints):
         gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), lidar=None)
@@ -163,4 +164,4 @@ class TestMissingSensorsDegradeSafely:
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].linear <= tuning.speed.SLOW_SPEED
+        assert gateway.commands[-1].speed_mps <= tuning.speed.SLOW_SPEED

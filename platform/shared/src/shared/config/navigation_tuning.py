@@ -155,6 +155,19 @@ class EscapeManeuverParams:
 
 
 @dataclass(frozen=True)
+class WaypointParams:
+    """Waypoint generation geometry parameters.
+
+    Attributes:
+        ARC_RADIUS: Corner arc radius (m). Must exceed the Ackermann minimum
+            turning radius (~0.294 m) — enforced by a fail-fast width
+            assertion in ``calculate_waypoints``.
+    """
+
+    ARC_RADIUS: float = 0.45
+
+
+@dataclass(frozen=True)
 class SensorHealthParams:
     """Sensor dropout / staleness detection for the hardware gateway.
 
@@ -197,6 +210,7 @@ class NavigationTuning:
     speed: SpeedControlParams = SpeedControlParams()
     escape: EscapeManeuverParams = EscapeManeuverParams()
     sensor: SensorHealthParams = SensorHealthParams()
+    waypoints: WaypointParams = WaypointParams()
 
     # (group key, dataclass) pairs — the single source of truth for which
     # sections load_from_yaml/load_from_json/to_dict handle, so adding a new
@@ -208,6 +222,7 @@ class NavigationTuning:
         ("speed", SpeedControlParams),
         ("escape", EscapeManeuverParams),
         ("sensor", SensorHealthParams),
+        ("waypoints", WaypointParams),
     )
 
     @classmethod

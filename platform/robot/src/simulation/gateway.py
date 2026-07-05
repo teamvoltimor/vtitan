@@ -9,7 +9,7 @@ raycast LIDAR + collision model (:mod:`track_model`). Each control tick mirrors
 the ROS2 node exactly (``platform/robot/src/ros2/navigation/node.py``):
 
 1. ``navigator.step()`` reads pose + LIDAR, computes steering/speed, and
-   publishes a ``Velocity`` (``linear`` = m/s, ``angular`` = normalised steer).
+   publishes a ``DriveCommand`` (``speed_mps``, ``steering_norm`` in [-1, 1]).
 2. The gateway integrates that command over ``dt`` and regenerates the sensors.
 
 No Gazebo, no ROS2, no physics engine — pure Python, runs anywhere.
@@ -25,10 +25,11 @@ import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose, Velocity
+from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.waypoints import calculate_waypoints
+from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel
@@ -64,7 +65,7 @@ class SimulatedHardwareGateway:
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
         self._angles_list = self._angles.tolist()
 
-        self._command = Velocity(linear=0.0, angular=0.0)
+        self._command = DriveCommand(speed_mps=0.0, steering_norm=0.0)
         self._scan_ranges: list[float] = []
         self.collided = False
         self.collision_xy: tuple[float, float] | None = None
@@ -72,17 +73,17 @@ class SimulatedHardwareGateway:
 
     # HardwareGateway protocol
 
-    def publish_velocity(self, velocity: Velocity) -> None:
+    def publish_drive(self, command: DriveCommand) -> None:
         """Store the latest command; applied on the next :meth:`advance`."""
-        self._command = velocity
+        self._command = command
 
     def get_current_pose(self) -> Pose | None:
         """Return the ground-truth pose (perfect odometry)."""
         return Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
 
-    def get_lidar_scan(self) -> tuple[list[float], list[float]] | None:
+    def get_lidar_scan(self) -> LidarScan | None:
         """Return the most recent simulated LIDAR sweep (ranges, robot-frame angles)."""
-        return (self._scan_ranges, self._angles_list)
+        return LidarScan(ranges_m=tuple(self._scan_ranges), angles_rad=tuple(self._angles_list))
 
     def get_imu_reading(self) -> IMUReading | None:
         """Return the IMU yaw from ground truth (pitch/roll are zero on a flat mat)."""
@@ -103,8 +104,8 @@ class SimulatedHardwareGateway:
         """Integrate the last command over ``dt`` and regenerate the sensors."""
         self._state = self._kin.step(
             self._state,
-            target_speed=self._command.linear,
-            target_steer_norm=self._command.angular,
+            target_speed=self._command.speed_mps,
+            target_steer_norm=self._command.steering_norm,
             dt=dt,
         )
         if not self.collided and self._track.footprint_collides(
@@ -177,6 +178,7 @@ class ScenarioSimulator:
     ) -> None:
         self._metadata = metadata
         self._num_laps = num_laps
+        nav_tuning = tuning or NavigationTuning()
 
         widths = _corridor_widths_m(metadata)
         self._track = TrackModel(widths)
@@ -184,7 +186,7 @@ class ScenarioSimulator:
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
-        self._waypoints = calculate_waypoints(metadata, num_laps=1)
+        self._waypoints = calculate_waypoints(metadata, num_laps=1, arc_radius=nav_tuning.waypoints.ARC_RADIUS)
 
         self._gateway = SimulatedHardwareGateway(
             track=self._track,
@@ -203,7 +205,7 @@ class ScenarioSimulator:
             gateway=self._gateway,
             waypoints=self._waypoints,
             num_laps=num_laps,
-            tuning=tuning or NavigationTuning(),
+            tuning=nav_tuning,
             lap_detector=lap_detector,
         )
 

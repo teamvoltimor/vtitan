@@ -21,6 +21,7 @@ from shared.config.navigation_tuning import (
     PurePursuitParams,
     SensorHealthParams,
     SpeedControlParams,
+    WaypointParams,
 )
 
 # One overridden value per group, distinct from the default, so a silently
@@ -32,6 +33,7 @@ _OVERRIDES: dict[str, dict[str, float]] = {
     "speed": {"FAST_SPEED": 0.60},
     "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER": 0.4},
     "sensor": {"STALE_TIMEOUT_SEC": 0.75},
+    "waypoints": {"ARC_RADIUS": 0.35},
 }
 
 
@@ -51,6 +53,7 @@ def test_defaults_construct_with_no_args():
         ("speed", SpeedControlParams),
         ("escape", EscapeManeuverParams),
         ("sensor", SensorHealthParams),
+        ("waypoints", WaypointParams),
     ],
 )
 def test_group_accepts_keyword_overrides(group, dataclass_type):
@@ -76,6 +79,7 @@ def test_load_from_yaml_round_trip(tmp_path):
     assert pytest.approx(0.60) == tuning.speed.FAST_SPEED
     assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
     assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
+    assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
 
 
 def test_load_from_json_round_trip(tmp_path):

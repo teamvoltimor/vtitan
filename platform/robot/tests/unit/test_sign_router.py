@@ -311,6 +311,46 @@ def test_empty_sign_list_returns_waypoint_unchanged():
     assert result == wp
 
 
+# ── 6. WP-1: deformation stays clear of the inner square and outer wall ──────
+
+
+class TestDeformationClamping:
+    """A sign near a corridor edge must never deform the waypoint into the
+    restricted inner square or beyond the outer wall.
+    """
+
+    def test_sign_at_inner_edge_does_not_enter_inner_square(self):
+        # South corridor, sign right at the inner-square boundary (y=1.0):
+        # unclamped this deforms to y=1.15 — inside the restricted square.
+        sign = _sign_at(1.5, 1.0, "red")
+        wx, wy = _apply_deformation(
+            (1.5, 1.0), sign, "red", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+        )
+        assert wx == pytest.approx(1.5)
+        assert wy < 1.0, "deformed waypoint must stay below the inner square"
+
+    def test_sign_at_outer_edge_does_not_cross_wall(self):
+        # South corridor, sign right at the outer wall (y=0.0): unclamped this
+        # deforms to y=-0.15 — beyond the track boundary.
+        sign = _sign_at(1.5, 0.0, "green")
+        wx, wy = _apply_deformation(
+            (1.5, 0.0), sign, "green", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+        )
+        assert wx == pytest.approx(1.5)
+        assert wy >= 0.0, "deformed waypoint must stay on the track"
+
+    def test_sign_at_inner_edge_east_corridor(self):
+        # East corridor deforms x; sign at the inner-square boundary (x=2.0).
+        # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85 — inside the
+        # inner square.
+        sign = _sign_at(2.0, 1.5, "red")
+        wx, wy = _apply_deformation(
+            (2.0, 1.5), sign, "red", Section.EAST, Direction.COUNTERCLOCKWISE, LATERAL,
+        )
+        assert wy == pytest.approx(1.5)
+        assert wx > 2.0, "deformed waypoint must stay clear of the inner square"
+
+
 # 6. Pass-side rule pinned in the robot's travel frame
 
 
@@ -326,7 +366,11 @@ class TestPassSideRule:
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_sign_kept_on_correct_side(self, section, direction, color):
         heading_x, heading_y = _TRAVEL_DIRS[(section, direction)]
-        sign = _sign_at(1.5, 1.5, color)
+        # A realistic in-corridor sign position (clear of the inner square, per
+        # WP-1 clamping) rather than a section-agnostic point — (1.5, 1.5) sits
+        # inside the restricted inner square itself, which no real sign ever does.
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        sign = _sign_at(sx, sy, color)
         wx, wy = _apply_deformation(
             (sign.x, sign.y), sign, color, section, direction, LATERAL,
         )

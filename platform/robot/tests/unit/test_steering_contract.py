@@ -1,7 +1,7 @@
 """Contract tests for the shared steering-command mapping.
 
-``Velocity.angular`` carries a normalised steering command in ``[-1, 1]``. The
-controller, the simulator, and the Build HAT motor adapter must all agree on how
+``DriveCommand.steering_norm`` carries a normalised steering command in
+``[-1, 1]``. The controller, the simulator, and the Build HAT motor adapter must all agree on how
 that maps to a physical wheel angle — otherwise the hardware steers by a
 different amount than every simulation proved safe. These tests pin the mapping
 and guard against the "treated 0.5 as 0.5 radians" regression.

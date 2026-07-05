@@ -68,9 +68,7 @@ class SimpleRobotDriver(Node):
 
         self.create_timer(_LOOP_PERIOD, self._control_loop)
         self.get_logger().info(
-            "Robot driver started: %s direction, %ss duration",
-            direction,
-            duration,
+            f"Robot driver started: {direction} direction, {duration}s duration",
         )
 
     def _control_loop(self) -> None:

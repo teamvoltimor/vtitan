@@ -28,7 +28,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
+from shared.config.constants import ColorNames, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
 
 
@@ -45,6 +45,12 @@ logger = logging.getLogger(__name__)
 
 # Camera focal length in pixels — derived from HFOV and image width.
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
+
+# Chassis half-width plus a small margin: how far a deformed waypoint must
+# stay clear of the restricted inner square and the outer wall (WP-1). An
+# unclamped deformation can otherwise place the waypoint inside the inner
+# square or against a wall for a sign positioned near a corridor edge.
+_WALL_CLEARANCE = RobotSpecs.WIDTH / 2 + 0.02
 
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
 # axis: "y" means deform the y-coordinate; "x" deforms x.
@@ -231,6 +237,10 @@ def _apply_deformation(
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
 
+    The result is clamped so it can't land inside the restricted inner square
+    or beyond the outer wall (WP-1) — a sign positioned near a corridor edge
+    would otherwise deform the waypoint straight into a hazard.
+
     Args:
         waypoint: Original target waypoint (x, y).
         sign: Traffic sign spec (position + color).
@@ -250,8 +260,26 @@ def _apply_deformation(
 
     wx, wy = waypoint
     if axis == "y":
-        return wx, sign.y + mult * lateral_offset
-    return sign.x + mult * lateral_offset, wy
+        return wx, _clamp_lateral(sign.y + mult * lateral_offset, corridor)
+    return _clamp_lateral(sign.x + mult * lateral_offset, corridor), wy
+
+
+def _clamp_lateral(value: float, corridor: Section) -> float:
+    """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
+
+    SOUTH/WEST corridors border the inner square on their high side (the
+    coordinate must stay below ``CORNER_MIN``); NORTH/EAST border it on their
+    low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
+    on its outer side by the track wall.
+    """
+    low_side = corridor in (Section.SOUTH, Section.WEST)
+    if low_side:
+        value = min(value, TrackDimensions.CORNER_MIN - _WALL_CLEARANCE)
+        value = max(value, TrackDimensions.MIN_COORD + _WALL_CLEARANCE)
+    else:
+        value = max(value, TrackDimensions.CORNER_MAX + _WALL_CLEARANCE)
+        value = min(value, TrackDimensions.MAX_COORD - _WALL_CLEARANCE)
+    return value
 
 
 def _match_detection_to_sign(
