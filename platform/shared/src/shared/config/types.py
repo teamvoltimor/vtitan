@@ -90,9 +90,7 @@ class TrafficSignColor(TypedDict):
     rgb: list[float]  # Normalized RGB [0.0, 1.0]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # Runtime Data Structures
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class DetectionDict(TypedDict, total=False):

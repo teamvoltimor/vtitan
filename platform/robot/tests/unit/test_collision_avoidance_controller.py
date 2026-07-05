@@ -18,13 +18,22 @@ from shared.domain.enums import RiskLevel
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
 )
+from tests.test_constants import (
+    ANGLES_FULL_ROTATION,
+    FORWARD_SECTOR_INDICES,
+    LIDAR_CLOSE_THREAT,
+    LIDAR_DEFAULT_FAR,
+    MIN_FORWARD_CLEARANCE,
+    MIN_REAR_CLEARANCE,
+    NUM_RAYS,
+    REAR_SECTOR_INDICES,
+    YAW_EAST,
+)
 
-NUM_RAYS = 360
-# ROS LaserScan convention: index 0 = angle_min = -pi (directly behind).
-ANGLES = np.linspace(-math.pi, math.pi, NUM_RAYS)
+ANGLES = ANGLES_FULL_ROTATION
 
 
-def _scan(default: float = 10.0) -> np.ndarray:
+def _scan(default: float = LIDAR_DEFAULT_FAR) -> np.ndarray:
     return np.full(NUM_RAYS, default)
 
 
@@ -41,8 +50,8 @@ class TestThreatDirection:
     def test_wall_behind_reports_back_not_front(self, controller):
         ranges = _scan()
         # Close returns near +-pi (rear cone), including index 0 (= -pi).
-        ranges[:8] = 0.3
-        ranges[-8:] = 0.3
+        ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
         assert controller.detect_threat_direction(ranges, ANGLES) == "back"
 
@@ -50,22 +59,22 @@ class TestThreatDirection:
         # When angles are omitted, index 0 is assumed to be -pi, so a close
         # ray at index 0 is still the rear, not the front.
         ranges = _scan()
-        ranges[:8] = 0.3
-        ranges[-8:] = 0.3
+        ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
         assert controller.detect_threat_direction(ranges) == "back"
 
     def test_wall_ahead_reports_front(self, controller):
         ranges = _scan()
         i = _index_for(0.0)
-        ranges[i - 4 : i + 4] = 0.3
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
 
         assert controller.detect_threat_direction(ranges, ANGLES) == "front"
 
     def test_obstacle_left_reports_left(self, controller):
         ranges = _scan()
         i = _index_for(math.pi / 2)  # +pi/2 = left
-        ranges[i - 4 : i + 4] = 0.3
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
 
         assert controller.detect_threat_direction(ranges, ANGLES) == "left"
 
@@ -76,22 +85,22 @@ class TestThreatDirection:
 class TestClearance:
     def test_forward_clearance_ignores_rear_wall(self, controller):
         ranges = _scan()
-        ranges[:8] = 0.3
-        ranges[-8:] = 0.3
+        ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
         # Path ahead is clear even though a wall sits behind.
-        assert controller.compute_forward_clearance(ranges, ANGLES) > 5.0
+        assert controller.compute_forward_clearance(ranges, ANGLES) > MIN_FORWARD_CLEARANCE
 
     def test_rear_clearance_sees_rear_wall(self, controller):
         ranges = _scan()
-        ranges[:8] = 0.3
-        ranges[-8:] = 0.3
-        assert controller.compute_rear_clearance(ranges, ANGLES) == pytest.approx(0.3)
+        ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
+        assert controller.compute_rear_clearance(ranges, ANGLES) == pytest.approx(LIDAR_CLOSE_THREAT)
 
     def test_rear_clearance_clear_when_only_front_blocked(self, controller):
         ranges = _scan()
         i = _index_for(0.0)
-        ranges[i - 4 : i + 4] = 0.3
-        assert controller.compute_rear_clearance(ranges, ANGLES) > 5.0
+        ranges[i - FORWARD_SECTOR_INDICES : i + FORWARD_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
+        assert controller.compute_rear_clearance(ranges, ANGLES) > MIN_REAR_CLEARANCE
 
 
 class TestEscapeDoesNotReverseIntoRearWall:

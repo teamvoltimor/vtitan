@@ -17,19 +17,24 @@ from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.ports import DriveCommand, LidarScan
+from tests.test_constants import (
+    ANGLES_FULL_ROTATION,
+    LIDAR_DEFAULT_FAR,
+    NUM_RAYS,
+    SIDE_SECTOR_INDICES,
+)
 
-NUM_RAYS = 360
-ANGLES = np.linspace(-math.pi, math.pi, NUM_RAYS, endpoint=False).tolist()
+ANGLES = ANGLES_FULL_ROTATION.tolist()
 
 
 def _scan_with_sectors(**close_sectors: float) -> list[float]:
-    """A 10 m scan with the given named sectors (front/back/left/right) closed."""
-    ranges = np.full(NUM_RAYS, 10.0)
+    """A far-range scan with the given named sectors (front/back/left/right) closed."""
+    ranges = np.full(NUM_RAYS, LIDAR_DEFAULT_FAR)
     centers = {"front": 0.0, "left": math.pi / 2, "right": -math.pi / 2, "back": math.pi}
     for name, dist in close_sectors.items():
         center = centers[name]
         idx = int(np.argmin(np.abs(np.asarray(ANGLES) - center)))
-        ranges[idx - 6 : idx + 6] = dist
+        ranges[idx - SIDE_SECTOR_INDICES : idx + SIDE_SECTOR_INDICES] = dist
     return ranges.tolist()
 
 

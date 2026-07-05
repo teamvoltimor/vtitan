@@ -24,12 +24,29 @@ from src.navigation.planning.sign_router import (
     _apply_deformation,
 )
 from src.navigation.race_tracker import _TRAVEL_DIRS
+from tests.test_constants import (
+    CORRIDOR_DEPTH_MAX,
+    CORRIDOR_DEPTH_MIDPOINT,
+    CORRIDOR_WIDTH_QUARTER_NORTH,
+    CORRIDOR_WIDTH_QUARTER_SOUTH,
+    SIGN_ACTIVATION_DIST,
+    SIGN_GRID_POSITIONS,
+    SIGN_LATERAL_OFFSET,
+    SIGN_PASSED_DIST,
+    TRACK_CORNER_EAST,
+    TRACK_CORNER_NORTH,
+    TRACK_CORNER_SOUTH,
+    TRACK_CORNER_WEST,
+)
 
-LATERAL = 0.15
-CFG = SignRouterConfig(lateral_offset=LATERAL, activation_dist=0.80, passed_dist=1.20)
+CFG = SignRouterConfig(
+    lateral_offset=SIGN_LATERAL_OFFSET,
+    activation_dist=SIGN_ACTIVATION_DIST,
+    passed_dist=SIGN_PASSED_DIST,
+)
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# Helper
 
 
 def _router(signs: list[SignSpec]) -> SignRouter:
@@ -45,10 +62,10 @@ def _sign_at(x: float, y: float, color: str) -> SignSpec:
 # Per-section: (perpendicular axis, sign position, CCW red multiplier).
 # CCW values mirror the live routing table; CW is the world-frame negation.
 _SECTION_GEOMETRY = {
-    Section.SOUTH: ("y", (1.5, 0.4), +1),
-    Section.NORTH: ("y", (1.5, 2.6), -1),
-    Section.EAST: ("x", (2.6, 1.5), -1),
-    Section.WEST: ("x", (0.4, 1.5), +1),
+    Section.SOUTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, CORRIDOR_WIDTH_QUARTER_NORTH), +1),
+    Section.NORTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, TRACK_CORNER_NORTH), -1),
+    Section.EAST: ("x", (TRACK_CORNER_EAST, CORRIDOR_DEPTH_MIDPOINT), -1),
+    Section.WEST: ("x", (TRACK_CORNER_WEST, CORRIDOR_DEPTH_MIDPOINT), +1),
 }
 
 
@@ -73,8 +90,8 @@ class TestDeformationDirections:
     def test_offset_side(self, section, direction, color, flip):
         axis, (sx, sy), ccw_red = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
-        rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, LATERAL)
-        expected = ccw_red * flip * LATERAL
+        rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
+        expected = ccw_red * flip * SIGN_LATERAL_OFFSET
         if axis == "y":
             assert ry == pytest.approx(sy + expected)
             assert rx == pytest.approx(sx)
@@ -83,19 +100,11 @@ class TestDeformationDirections:
             assert ry == pytest.approx(sy)
 
 
-# ── 2. 36-scenario routing ────────────────────────────────────────────────────
-
+# 2. 36-scenario routing
 
 # WRO official grid: 6 positions per corridor
 # (depth, width) using SOUTH-corridor frame, depth ∈ {1.0, 1.5, 2.0}, width ∈ {0.4, 0.6}
-_GRID_POSITIONS: list[tuple[float, float]] = [
-    (1.0, 0.4),
-    (1.0, 0.6),
-    (1.5, 0.4),
-    (1.5, 0.6),
-    (2.0, 0.4),
-    (2.0, 0.6),
-]
+_GRID_POSITIONS = SIGN_GRID_POSITIONS
 
 # WRO 36 predefined scenarios: scenario ID → list of (color, depth, width) for SOUTH template
 # Scenarios 1-12: single pillar
@@ -116,33 +125,33 @@ def _make_single_sign_scenario_cases():
             # SOUTH corridor: sign at (depth, width)
             sx, sy = depth, width
             if color == "red":
-                expected_y = sy + LATERAL  # north of sign
+                expected_y = sy + SIGN_LATERAL_OFFSET  # north of sign
             else:
-                expected_y = sy - LATERAL  # south of sign
+                expected_y = sy - SIGN_LATERAL_OFFSET  # south of sign
             cases.append(("south", sx, sy, color, expected_y, None))
 
             # NORTH corridor: sign at (depth, TRACK_MAX - width)
             sx, sy = depth, TrackDimensions.MAX_COORD - width
             if color == "red":
-                expected_y = sy - LATERAL
+                expected_y = sy - SIGN_LATERAL_OFFSET
             else:
-                expected_y = sy + LATERAL
+                expected_y = sy + SIGN_LATERAL_OFFSET
             cases.append(("north", sx, sy, color, expected_y, None))
 
             # EAST corridor: sign at (TRACK_MAX - width, depth)
             sx, sy = TrackDimensions.MAX_COORD - width, depth
             if color == "red":
-                expected_x = sx - LATERAL
+                expected_x = sx - SIGN_LATERAL_OFFSET
             else:
-                expected_x = sx + LATERAL
+                expected_x = sx + SIGN_LATERAL_OFFSET
             cases.append(("east", sx, sy, color, None, expected_x))
 
             # WEST corridor: sign at (width, depth)
             sx, sy = width, depth
             if color == "red":
-                expected_x = sx + LATERAL
+                expected_x = sx + SIGN_LATERAL_OFFSET
             else:
-                expected_x = sx - LATERAL
+                expected_x = sx - SIGN_LATERAL_OFFSET
             cases.append(("west", sx, sy, color, None, expected_x))
 
     return cases

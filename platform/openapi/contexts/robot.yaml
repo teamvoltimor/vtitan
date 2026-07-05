@@ -227,7 +227,7 @@ components:
       bearerFormat: JWT
 
   schemas:
-    # ── Enums ───────────────────────────────────────────────────────────
+    # Enums
 
     RobotState:
       type: string
@@ -239,7 +239,7 @@ components:
         - ERROR
         - OFFLINE
 
-    # ── Core models ─────────────────────────────────────────────────────
+    # Core models
 
     Robot:
       type: object
@@ -471,7 +471,7 @@ components:
         message:
           type: string
 
-    # ── Shared error types ──────────────────────────────────────────────
+    # Shared error types
 
     ErrorResponse:
       type: object

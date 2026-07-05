@@ -27,6 +27,22 @@ from shared.config.enums import Direction, Section
 from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
 from src.navigation.race_tracker import _TRAVEL_DIRS
 from src.simulation import ScenarioSimulator, TrackModel
+from tests.test_constants import (
+    COLLISION_TEST_FOOTPRINT_CLEARANCE,
+    COLLISION_TEST_INNER_PENETRATION,
+    COLLISION_TEST_NEAR_WALL,
+    COLLISION_TEST_RAYCAST_CLEARANCE,
+    CORRIDOR_DEPTH_MAX,
+    CORRIDOR_DEPTH_MIDPOINT,
+    CORRIDOR_DEPTH_MIN,
+    INNER_BLOCK_MAX,
+    INNER_BLOCK_MIN,
+    ROBOT_CHASSIS_WIDTH,
+    ROBOT_FOOTPRINT_RADIUS,
+    TRACK_CENTER_X,
+    TRACK_CENTER_Y,
+    TRACK_MODEL_CORRIDOR_WIDTH_WIDE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +69,10 @@ def _start_pose(
     east_cx = _TRACK_MAX - widths_m["east"] / 2 + _OUTER_BIAS
     west_cx = widths_m["west"] / 2 - _OUTER_BIAS
     center = {
-        Section.SOUTH: (1.5, south_cy),
-        Section.NORTH: (1.5, north_cy),
-        Section.EAST: (east_cx, 1.5),
-        Section.WEST: (west_cx, 1.5),
+        Section.SOUTH: (TRACK_CENTER_X, south_cy),
+        Section.NORTH: (TRACK_CENTER_X, north_cy),
+        Section.EAST: (east_cx, TRACK_CENTER_Y),
+        Section.WEST: (west_cx, TRACK_CENTER_Y),
     }[section]
     nx, ny = _TRAVEL[(section, direction)]
     return center[0], center[1], math.atan2(ny, nx)
@@ -107,36 +123,35 @@ class TestTrackModelGeometry:
 
     def test_forward_ray_hits_inner_block(self) -> None:
         # Wide symmetric track: inner block spans [1.0, 2.0]^2.
-        track = TrackModel(dict.fromkeys(Section, 1.0))
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
         # Stand in the south corridor centerline, facing north (+y).
         ranges = track.raycast_scan(
-            x=1.5, y=0.5, yaw=math.pi / 2, angles_robot=np.array([0.0]),
+            x=TRACK_CENTER_X, y=0.5, yaw=math.pi / 2, angles_robot=np.array([0.0]),
         )
         # Distance to inner block south face at y=1.0 -> 0.5 m.
-        assert math.isclose(ranges[0], 0.5, abs_tol=1e-6)
+        assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
 
     def test_backward_ray_hits_outer_wall(self) -> None:
-        track = TrackModel(dict.fromkeys(Section, 1.0))
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
         # Facing north, the rear ray (pi) points south to the outer wall at y=0.
         ranges = track.raycast_scan(
-            x=1.5, y=0.5, yaw=math.pi / 2, angles_robot=np.array([math.pi]),
+            x=TRACK_CENTER_X, y=0.5, yaw=math.pi / 2, angles_robot=np.array([math.pi]),
         )
-        assert math.isclose(ranges[0], 0.5, abs_tol=1e-6)
+        assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
 
     def test_centerline_does_not_collide(self) -> None:
-        track = TrackModel(dict.fromkeys(Section, 1.0))
-        assert not track.footprint_collides(1.5, 0.5, 0.0)
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        assert not track.footprint_collides(TRACK_CENTER_X, 0.5, 0.0)
 
     def test_into_outer_wall_collides(self) -> None:
-        track = TrackModel(dict.fromkeys(Section, 1.0))
-        # Chassis centre 0.05 m from the south wall -> half the 0.15 m width
-        # (0.075) crosses the collision face at y=0.04.
-        assert track.footprint_collides(1.5, 0.05, 0.0)
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Chassis centre near south wall -> half the chassis width crosses collision face.
+        assert track.footprint_collides(TRACK_CENTER_X, COLLISION_TEST_NEAR_WALL, 0.0)
 
     def test_into_inner_block_collides(self) -> None:
-        track = TrackModel(dict.fromkeys(Section, 1.0))
-        # Just inside the inner block (centre at 1.5, 1.05) is solid.
-        assert track.footprint_collides(1.5, 1.05, 0.0)
+        track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
+        # Just inside the inner block is solid.
+        assert track.footprint_collides(TRACK_CENTER_X, COLLISION_TEST_INNER_PENETRATION, 0.0)
 
 
 # Planner sanity: the canonical path must sit inside the corridor

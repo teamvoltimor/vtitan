@@ -19,7 +19,7 @@ from shared.config.enums import Direction, Section
 
 from src.navigation.race_tracker import LapDetector
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# Helpers
 
 
 def _make(
@@ -49,7 +49,7 @@ def _feed(
     return laps
 
 
-# ── Basic correctness ─────────────────────────────────────────────────────────
+# Basic correctness
 
 
 class TestBasicCounting:
@@ -75,7 +75,7 @@ class TestBasicCounting:
         assert laps == 0
 
 
-# ── Overshoot / double-count prevention ───────────────────────────────────────
+# Overshoot / double-count prevention
 
 
 class TestNoDoubleCounting:
@@ -140,7 +140,7 @@ class TestNoDoubleCounting:
         assert laps == 2
 
 
-# ── Wrong section guard ───────────────────────────────────────────────────────
+# Wrong section guard
 
 
 class TestSectionGuard:
@@ -161,7 +161,7 @@ class TestSectionGuard:
         assert laps == 1
 
 
-# ── All four sections × both directions ──────────────────────────────────────
+# All four sections × both directions
 
 
 @pytest.mark.parametrize(
@@ -197,7 +197,7 @@ def test_all_sections_and_directions(section, direction, start, before, after):
     assert laps == 1
 
 
-# ── 3-lap simulation ──────────────────────────────────────────────────────────
+# 3-lap simulation
 
 
 def _simulate_laps(n_laps: int, det: LapDetector, section: Section) -> int:
