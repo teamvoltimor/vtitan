@@ -48,6 +48,10 @@ class LiveScenarioVisualizer(Node):
         self._scan_pub = self.create_publisher(LaserScan, "/scan", 10)
         self._track_pub = self.create_publisher(MarkerArray, "/sim/track", 1)
         self._tf_broadcaster = TransformBroadcaster(self)
+        self.set_track(track)
+
+    def set_track(self, track: TrackModel) -> None:
+        """(Re)publish the track walls — call again when switching scenarios."""
         self._publish_track(track)
 
     def publish(self, state: AckermannState, scan: LidarScan | None) -> None:

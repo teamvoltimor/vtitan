@@ -103,7 +103,8 @@ tasks:
           task sim:gazebo:scenario  Launch Gazebo with a scenario SDF (SCENARIO_SDF=path)
           task sim:rviz             Launch RViz visualization
           task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
-          task sim:navigate:visualize  Run one scenario live, publishing to RViz/Gazebo (ARGS=...)
+          task sim:navigate:rviz    Launch RViz pre-configured for live visualization
+          task sim:navigate:visualize  Run scenario(s) live in RViz (--list/--scenario/--interactive)
           task sim:analyze          Analyze generated scenarios (statistics)
           task sim:test             Run simulation tests
           task sim:test:quick       Quick test run (fail fast, short traceback)
@@ -513,12 +514,21 @@ tasks:
 
   sim:navigate:visualize:
     desc: >-
-      Run one closed-loop scenario live at wall-clock speed, publishing pose/LIDAR/track
-      to ROS2 for RViz or Gazebo (run `task sim:rviz` first; pass options after --, e.g.
-      `task sim:navigate:visualize -- --south 600 --rate 2`)
+      Run closed-loop scenario(s) live at wall-clock speed, publishing pose/LIDAR/track to
+      ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which is a
+      separate pixi/ROS2 install under gazebo/runtime and may not discover these topics).
+      `-- --list` lists the 28 TestThreeLapSolvability scenarios; `-- --scenario 5` or
+      `-- --scenario random#3` runs one of them; `-- --interactive` steps through all 28,
+      pausing between each; otherwise runs one ad-hoc scenario, e.g. `-- --south 600 --rate 2`
     dir: robot
     cmds:
       - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
+
+  sim:navigate:rviz:
+    desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
+    dir: robot
+    cmds:
+      - pixi run viz
 
   sim:analyze:
     desc: Analyze generated scenarios (statistics and summaries)

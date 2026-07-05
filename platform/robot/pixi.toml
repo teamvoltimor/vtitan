@@ -94,7 +94,7 @@ test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH 
 
 # ROS2 utilities
 graph = "ros2 run rqt_graph rqt_graph"
-viz   = "ros2 run rviz2 rviz2"
+viz   = "ros2 run rviz2 rviz2 -d config/live_visualization.rviz"
 list-topics = "ros2 topic list"
 
 # Launch a blank Gazebo world
@@ -128,7 +128,7 @@ fetch-lidar-driver = "test -d ros2_ws/src/sllidar_ros2 || git clone https://gith
 [target.win-64.tasks]
 # Windows-specific overrides to fix the "Multiple executables" error
 graph = "ros2 run rqt_graph rqt_graph.exe"
-viz   = "ros2 run rviz2 rviz2.exe"
+viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
 
 # sllidar_ros2 SDK hardcodes Linux arch sources — build-ws is Linux-only
 [feature.dev.target.linux-64.tasks]

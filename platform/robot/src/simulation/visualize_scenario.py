@@ -1,29 +1,43 @@
-"""Run one closed-loop Open Challenge scenario live, visualized in RViz/Gazebo.
+"""Run closed-loop Open Challenge scenario(s) live, visualized in RViz.
 
 Drives the exact same ``ScenarioSimulator`` + real ``CoreNavigator`` the
 headless test battery (``tests/unit/test_open_challenge_sim.py``) runs, but
-paces it to wall-clock speed and publishes pose/LIDAR/track to ROS2 so RViz
-(``task sim:rviz``) — or Gazebo, for the default 1000mm layout that matches
-``worlds/wro_track_2026.sdf`` — can show it running.
+paces it to wall-clock speed and publishes pose/LIDAR/track to ROS2 for RViz.
+
+Launch RViz from this same pixi environment — ``task sim:navigate:rviz``
+(pre-configured with TF/LaserScan/Odometry/track displays) — not
+``task sim:rviz``, which starts a *separate* pixi/ROS2 install under
+gazebo/runtime and may fail to discover these topics over DDS.
 
 Usage (from platform/robot, in the pixi ``dev`` env — headless tests never
 need this env, only this script does):
 
-    pixi run -e dev python -m src.simulation.visualize_scenario
-    pixi run -e dev python -m src.simulation.visualize_scenario \\
+    # Ad-hoc scenario (custom widths/section/direction):
+    pixi run -e dev visualize-scenario
+    pixi run -e dev visualize-scenario -- \\
         --south 600 --north 600 --section south --direction cw --rate 2
+
+    # The exact scenarios TestThreeLapSolvability runs, by index or label:
+    pixi run -e dev visualize-scenario -- --list
+    pixi run -e dev visualize-scenario -- --scenario 0
+    pixi run -e dev visualize-scenario -- --scenario symmetric_narrow[South/clockwise]
+
+    # Step through all 28 test scenarios, pausing between each:
+    pixi run -e dev visualize-scenario -- --interactive
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+from typing import Any
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.ports import LidarScan
-from src.simulation.gateway import CONTROL_DT, ScenarioSimulator
+from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.simulation.gateway import CONTROL_DT, ScenarioSimulator, SimResult
 from src.simulation.kinematics import AckermannState
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
@@ -31,6 +45,8 @@ from src.simulation.live_visualizer import (
     init_rclpy_once,
 )
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
+from src.simulation.scenario_catalog import NamedScenario, all_test_scenarios, find_scenario
+from src.simulation.track_model import TrackModel
 
 logger = logging.getLogger(__name__)
 
@@ -38,39 +54,119 @@ _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--south", type=int, default=_WIDE_MM, help="South corridor width (mm).")
     parser.add_argument("--north", type=int, default=_WIDE_MM, help="North corridor width (mm).")
     parser.add_argument("--east", type=int, default=_WIDE_MM, help="East corridor width (mm).")
     parser.add_argument("--west", type=int, default=_WIDE_MM, help="West corridor width (mm).")
     parser.add_argument(
         "--section", choices=["south", "north", "east", "west"], default="south",
-        help="Starting section.",
+        help="Starting section (ignored with --scenario/--interactive).",
     )
     parser.add_argument(
-        "--direction", choices=["cw", "ccw"], default="cw", help="Travel direction.",
+        "--direction", choices=["cw", "ccw"], default="cw",
+        help="Travel direction (ignored with --scenario/--interactive).",
     )
     parser.add_argument("--laps", type=int, default=3, help="Target lap count.")
     parser.add_argument(
         "--rate", type=float, default=1.0,
         help="Playback speed multiplier (1.0 = real time, 0 = as fast as possible).",
     )
+    parser.add_argument(
+        "--list", action="store_true",
+        help="List the scenarios TestThreeLapSolvability runs, then exit.",
+    )
+    parser.add_argument(
+        "--scenario", metavar="INDEX_OR_LABEL",
+        help="Run one named test scenario (see --list) instead of an ad-hoc one.",
+    )
+    parser.add_argument(
+        "--interactive", action="store_true",
+        help="Step through every test scenario in order, pausing between each.",
+    )
     return parser.parse_args()
+
+
+def _track_for(metadata: dict[str, Any]) -> TrackModel:
+    """Build just the track geometry — cheaper than a full ``ScenarioSimulator``."""
+    return TrackModel(corridor_widths_from_metadata(metadata))
+
+
+def _run_one(
+    scenario: NamedScenario, visualizer: LiveScenarioVisualizer, rate: float,
+) -> SimResult:
+    """Run a single named scenario against the live visualizer."""
+    sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
+    visualizer.set_track(sim.track)
+    pacer = RealTimePacer(dt=CONTROL_DT, rate=rate)
+
+    def on_step(state: AckermannState, scan: LidarScan | None) -> None:
+        visualizer.publish(state, scan)
+        pacer.wait()
+
+    return sim.run(on_step=on_step)
+
+
+def _log_result(label: str, result: SimResult) -> None:
+    status = "SUCCESS" if result.success else "FAILED"
+    logger.info(
+        "%s | %s | laps=%d/%d collided=%s timeout=%s dist=%.2fm t=%.1fs",
+        status, label, result.laps_completed, result.target_laps,
+        result.collided, result.timed_out, result.distance_m, result.sim_time_s,
+    )
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = _parse_args()
 
+    if args.list:
+        for i, s in enumerate(all_test_scenarios()):
+            print(f"{i:2d}  {s.label}")
+        return
+
+    init_rclpy_once()
+
+    if args.interactive:
+        scenarios = all_test_scenarios()
+        visualizer = LiveScenarioVisualizer(_track_for(scenarios[0].metadata))
+        logger.info(
+            "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
+            "in another terminal to watch. %d scenarios queued.", len(scenarios),
+        )
+        try:
+            for i, scenario in enumerate(scenarios):
+                logger.info("--- [%d/%d] %s ---", i + 1, len(scenarios), scenario.label)
+                result = _run_one(scenario, visualizer, args.rate)
+                _log_result(scenario.label, result)
+                if i < len(scenarios) - 1:
+                    input("Press Enter for the next scenario (Ctrl+C to stop)... ")
+        except KeyboardInterrupt:
+            logger.info("Stopped.")
+        visualizer.destroy_node()
+        return
+
+    if args.scenario is not None:
+        scenario = find_scenario(args.scenario, all_test_scenarios())
+        visualizer = LiveScenarioVisualizer(_track_for(scenario.metadata))
+        logger.info(
+            "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
+            "in another terminal to watch.",
+        )
+        result = _run_one(scenario, visualizer, args.rate)
+        _log_result(scenario.label, result)
+        visualizer.destroy_node()
+        return
+
     widths = uniform_widths(_WIDE_MM)
     widths.update(south=args.south, north=args.north, east=args.east, west=args.west)
     section = Section.from_string(args.section)
     direction = Direction.CLOCKWISE if args.direction == "cw" else Direction.COUNTERCLOCKWISE
     metadata = build_open_metadata(widths, section, direction)
-
     sim = ScenarioSimulator(metadata, num_laps=args.laps)
 
-    init_rclpy_once()
     visualizer = LiveScenarioVisualizer(sim.track)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=args.rate)
 
@@ -79,19 +175,11 @@ def main() -> None:
         pacer.wait()
 
     logger.info(
-        "Publishing /sim/odom, /scan, /sim/track — open RViz (task sim:rviz) and "
-        "add TF, LaserScan (topic=/scan), and MarkerArray (topic=/sim/track) displays, "
-        "fixed frame = 'map'.",
+        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
+        "in another terminal to watch (displays pre-configured).",
     )
     result = sim.run(on_step=on_step)
-
-    status = "SUCCESS" if result.success else "FAILED"
-    logger.info(
-        "%s | laps=%d/%d collided=%s timeout=%s dist=%.2fm t=%.1fs",
-        status, result.laps_completed, result.target_laps,
-        result.collided, result.timed_out, result.distance_m, result.sim_time_s,
-    )
-
+    _log_result("ad-hoc", result)
     visualizer.destroy_node()
 
 
