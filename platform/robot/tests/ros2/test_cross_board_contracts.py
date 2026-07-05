@@ -19,6 +19,7 @@ import pytest
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from shared.config.constants import RobotSpecs
+from shared.config.enums import Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -26,6 +27,8 @@ from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
 from src.navigation.ports import DriveCommand
 from src.ros2.navigation.node import ROS2HardwareGateway
+
+_WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
 
 
 @pytest.fixture()
@@ -44,7 +47,6 @@ def _make_navigator_host_node():
 
     node = Node("test_navigator_side")
     node.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-    node.declare_parameter("odom_topic", "/odom")
     node.declare_parameter("lidar_topic", "/scan")
     node.declare_parameter("vision_topic", "/vision/detections")
     node.declare_parameter("imu_topic", "/imu/data")
@@ -93,7 +95,7 @@ class TestNavigatorToMotorNode:
         monkeypatch.setenv("DRIVE_BACKEND", "dc_encoder")
 
         nav_node = _make_navigator_host_node()
-        gateway = ROS2HardwareGateway(nav_node, 0.0, 0.0, 0.0)
+        gateway = ROS2HardwareGateway(nav_node, 0.0, 0.0, 0.0, _WIDTHS)
 
         published: list[AckermannDriveStamped] = []
         gateway._drive_publisher.publish = published.append

@@ -18,7 +18,6 @@ from typing import Any
 import numpy as np
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
-from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
@@ -30,11 +29,13 @@ from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan
 from src.navigation.race_tracker import LapDetector
+from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
@@ -60,16 +61,19 @@ class ROS2HardwareGateway(HardwareGateway):
         start_x: float,
         start_y: float,
         start_yaw: float,
+        corridor_widths_m: dict[Section, float],
         stale_timeout_sec: float = SensorHealthParams().STALE_TIMEOUT_SEC,
     ) -> None:
         self._node = node
         self._estimator = StateEstimator(start_x, start_y, start_yaw)
+        self._localizer = LidarLocalizer(TrackWalls(corridor_widths_m))
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
-        # Receipt timestamps (seconds) for staleness / dropout detection.
+        # Receipt timestamp (seconds) for staleness / dropout detection. LIDAR
+        # is the position source (no wheel odometry exists on real hardware),
+        # so its staleness gates get_current_pose() too.
         self._lidar_stamp: float | None = None
-        self._odom_stamp: float | None = None
         self._stale_timeout_sec = stale_timeout_sec
 
         # Publishers
@@ -80,12 +84,6 @@ class ROS2HardwareGateway(HardwareGateway):
         )
 
         # Subscribers
-        node.create_subscription(
-            Odometry,
-            node.get_parameter("odom_topic").get_parameter_value().string_value,
-            self._odom_callback,
-            10,
-        )
         node.create_subscription(
             LaserScan,
             node.get_parameter("lidar_topic").get_parameter_value().string_value,
@@ -116,14 +114,6 @@ class ROS2HardwareGateway(HardwareGateway):
         """Current node clock time in seconds (sim time when enabled)."""
         return self._node.get_clock().now().nanoseconds * 1e-9
 
-    def _odom_callback(self, msg: Odometry) -> None:
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        q = msg.pose.pose.orientation
-        yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
-        self._estimator.update_odom(x, y, yaw)
-        self._odom_stamp = self._now()
-
     def _lidar_callback(self, msg: LaserScan) -> None:
         raw = np.array(msg.ranges, dtype=float)
         # Invalid returns (NaN / +-inf, which Slamtec drivers emit for no-return
@@ -136,6 +126,16 @@ class ROS2HardwareGateway(HardwareGateway):
         angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)).tolist()
         self._latest_lidar = LidarScan(ranges_m=tuple(raw.tolist()), angles_rad=tuple(angles))
         self._lidar_stamp = self._now()
+
+        # No wheel odometry exists on real hardware, so this scan is also the
+        # position source: match it against the known wall geometry, seeded
+        # from the previous estimate (the robot moves only centimetres between
+        # scans, so that prior is always a tight, reliable search start).
+        prior_pose = self._estimator.estimate_pose()
+        est_x, est_y = self._localizer.estimate_position(
+            (prior_pose.x, prior_pose.y), prior_pose.yaw, raw.tolist(), angles,
+        )
+        self._estimator.update_position(est_x, est_y)
 
     def _vision_callback(self, msg: String) -> None:
         try:
@@ -176,13 +176,13 @@ class ROS2HardwareGateway(HardwareGateway):
         self._drive_publisher.publish(msg)
 
     def get_current_pose(self) -> Pose | None:
-        """Get the latest fused pose, or None if odometry has dropped out.
+        """Get the latest fused pose, or None if LIDAR (the position source) has gone stale.
 
-        Before the first odometry message the estimator's seed pose is used
-        (startup). Once odometry has been seen, a stale feed is reported as None
-        so the navigator stops rather than steering on a frozen pose.
+        Before the first LIDAR scan the estimator's seed pose is used
+        (startup). Once scans have been seen, a stale feed is reported as None
+        so the navigator stops rather than steering on a frozen position.
         """
-        if self._odom_stamp is not None and (self._now() - self._odom_stamp) > self._stale_timeout_sec:
+        if self._lidar_stamp is not None and (self._now() - self._lidar_stamp) > self._stale_timeout_sec:
             return None
         return self._estimator.estimate_pose()
 
@@ -223,11 +223,12 @@ class TrackNavigator(Node):
         start_yaw = start_cond[DictKeys.YAW]
 
         # Parameters. Defaults match the topics the deployed nodes actually
-        # use (ackermann_motor_node's /ackermann_cmd, sllidar_ros2's /scan,
-        # telemetry_bridge_node's /odom) — not the pre-Ackermann-migration
-        # /wro_robot/cmd_vel and /lidar names this node previously assumed.
+        # use (ackermann_motor_node's /ackermann_cmd, sllidar_ros2's /scan) —
+        # not the pre-Ackermann-migration /wro_robot/cmd_vel and /lidar names
+        # this node previously assumed. There is no odom_topic: no node
+        # publishes nav_msgs/Odometry on real hardware, so position comes
+        # from LIDAR localization instead (see ROS2HardwareGateway).
         self.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-        self.declare_parameter("odom_topic", "/odom")
         self.declare_parameter("lidar_topic", "/scan")
         self.declare_parameter("vision_topic", "/vision/detections")
         self.declare_parameter("imu_topic", "/imu/data")
@@ -240,8 +241,14 @@ class TrackNavigator(Node):
         tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning()
 
         # Gateway & Core Logic
+        corridor_widths_m = corridor_widths_from_metadata(self._metadata)
         self._gateway = ROS2HardwareGateway(
-            self, start_x, start_y, start_yaw, stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
+            self,
+            start_x,
+            start_y,
+            start_yaw,
+            corridor_widths_m,
+            stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
         )
         # num_laps=1 is intentional: calculate_waypoints bakes the lap count into
         # the list, but CoreNavigator already cycles one canonical lap `num_laps`

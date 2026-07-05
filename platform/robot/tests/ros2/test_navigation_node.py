@@ -9,17 +9,25 @@ and message contract so that drift can't happen silently again.
 
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import pytest
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
+from shared.config.enums import Section
 from shared.domain.steering import steering_norm_to_angle_rad
 
 from src.navigation.ports import DriveCommand
+from src.navigation.track_geometry import TrackWalls
 from src.ros2.navigation.node import ROS2HardwareGateway
 
 # tests/ros2/conftest.py mocks sys.modules["buildhat"] for this whole directory.
+
+_WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
 
 
 @pytest.fixture()
@@ -37,7 +45,6 @@ def _make_host_node() -> Node:
     """A bare Node declaring the parameters ROS2HardwareGateway expects."""
     node = Node("test_track_navigator")
     node.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-    node.declare_parameter("odom_topic", "/odom")
     node.declare_parameter("lidar_topic", "/scan")
     node.declare_parameter("vision_topic", "/vision/detections")
     node.declare_parameter("imu_topic", "/imu/data")
@@ -49,7 +56,7 @@ class TestGatewayTopicContract:
 
     def test_default_topics_match_deployed_nodes(self, ros_context):
         node = _make_host_node()
-        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0)
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
         topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
         assert "/ackermann_cmd" in topics
@@ -63,7 +70,7 @@ class TestGatewayPublishDrive:
 
     def test_publishes_ackermann_drive_stamped(self, ros_context):
         node = _make_host_node()
-        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0)
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
         published: list[AckermannDriveStamped] = []
         gateway._drive_publisher.publish = published.append
@@ -85,7 +92,7 @@ class TestGatewayPublishDrive:
 
     def test_zero_command_is_zero_speed_and_angle(self, ros_context):
         node = _make_host_node()
-        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0)
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
         published: list[AckermannDriveStamped] = []
         gateway._drive_publisher.publish = published.append
@@ -94,5 +101,56 @@ class TestGatewayPublishDrive:
 
         assert published[0].drive.speed == pytest.approx(0.0)
         assert published[0].drive.steering_angle == pytest.approx(0.0)
+
+        node.destroy_node()
+
+
+class TestGatewayLidarLocalization:
+    """get_current_pose() must reflect where the robot actually is — not just
+
+    the seed start position — once LIDAR scans start arriving. Nothing
+    publishes nav_msgs/Odometry on real hardware, so this is the only real
+    position source (NEW-1 in the 2026-07-05 navigation review).
+    """
+
+    def test_pose_updates_from_lidar_scan_away_from_start(self, ros_context):
+        node = _make_host_node()
+        # Seed the gateway's position a few centimetres off from where the
+        # robot actually is, exactly like real operation (the localizer
+        # tracks locally from a good prior; it is not a global relocalizer).
+        # Yaw is seeded accurately — the IMU's first reading calibrates its
+        # own zero-point relative to start_yaw, so it isn't this test's
+        # concern; only the LIDAR-derived position is under test here.
+        true_x, true_y, true_yaw = 2.5, 1.5, math.pi / 2
+        start_x, start_y, start_yaw = 2.47, 1.47, true_yaw
+        gateway = ROS2HardwareGateway(node, start_x, start_y, start_yaw, _WIDTHS)
+
+        walls = TrackWalls(_WIDTHS)
+        angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
+        ranges = walls.raycast(true_x, true_y, true_yaw, angles)
+
+        msg = LaserScan()
+        msg.angle_min = float(angles[0])
+        msg.angle_max = float(angles[-1])
+        msg.ranges = ranges.tolist()
+
+        # IMU must report the true yaw before the scan arrives, since the
+        # localizer is only asked to solve for (x, y), not yaw.
+        from sensor_msgs.msg import Imu
+
+        imu_msg = Imu()
+        imu_msg.orientation.z = math.sin(true_yaw / 2)
+        imu_msg.orientation.w = math.cos(true_yaw / 2)
+        gateway._imu_callback(imu_msg)
+
+        gateway._lidar_callback(msg)
+
+        pose = gateway.get_current_pose()
+        assert pose is not None
+        assert pose.x == pytest.approx(true_x, abs=0.02)
+        assert pose.y == pytest.approx(true_y, abs=0.02)
+        assert (pose.x, pose.y) != pytest.approx((start_x, start_y), abs=0.01), (
+            "pose must move off the seed start position once a scan arrives"
+        )
 
         node.destroy_node()

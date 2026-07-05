@@ -31,6 +31,7 @@ from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
+from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel
 
@@ -180,7 +181,7 @@ class ScenarioSimulator:
         self._num_laps = num_laps
         nav_tuning = tuning or NavigationTuning()
 
-        widths = _corridor_widths_m(metadata)
+        widths = corridor_widths_from_metadata(metadata)
         self._track = TrackModel(widths)
         start = _start_conditions(metadata)
 
@@ -279,14 +280,6 @@ class ScenarioSimulator:
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
         )
-
-
-def _corridor_widths_m(metadata: dict[str, Any]) -> dict[Section, float]:
-    raw = metadata[DictKeys.CORRIDOR_WIDTHS]
-    return {
-        Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0
-        for side in ("north", "south", "east", "west")
-    }
 
 
 def _start_conditions(metadata: dict[str, Any]) -> _StartConditions:

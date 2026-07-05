@@ -33,6 +33,8 @@ import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.enums import Section
 
+from src.navigation.track_geometry import TrackWalls
+
 # Wall thickness halves (metres) — straight from the generator's constants:
 # WallThickness = 0.10 (visual), WallCollisionThickness = 0.18 (collision).
 _WALL_VISUAL_HALF = 0.05
@@ -42,16 +44,6 @@ _COLLISION_MARGIN = _WALL_COLLISION_HALF - _WALL_VISUAL_HALF  # 0.04 m
 
 _TRACK_MIN = 0.0
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
-
-
-@dataclass(frozen=True, slots=True)
-class _Segment:
-    """An axis-aligned wall face as a line segment (for LIDAR raycasting)."""
-
-    x1: float
-    y1: float
-    x2: float
-    y2: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,18 +76,15 @@ class TrackModel:
                 four sections, e.g. ``{Section.SOUTH: 0.6, ...}``.
         """
         self._widths = corridor_widths_m
+        self._walls = TrackWalls(corridor_widths_m)
 
-        south_y = corridor_widths_m[Section.SOUTH]
-        north_y = _TRACK_MAX - corridor_widths_m[Section.NORTH]
-        west_x = corridor_widths_m[Section.WEST]
-        east_x = _TRACK_MAX - corridor_widths_m[Section.EAST]
-
-        self._inner_visual = _Box(west_x, south_y, east_x, north_y)
+        inner = self._walls.inner_block
+        self._inner_visual = _Box(inner.x_min, inner.y_min, inner.x_max, inner.y_max)
         self._inner_collision = _Box(
-            west_x - _COLLISION_MARGIN,
-            south_y - _COLLISION_MARGIN,
-            east_x + _COLLISION_MARGIN,
-            north_y + _COLLISION_MARGIN,
+            inner.x_min - _COLLISION_MARGIN,
+            inner.y_min - _COLLISION_MARGIN,
+            inner.x_max + _COLLISION_MARGIN,
+            inner.y_max + _COLLISION_MARGIN,
         )
         # Footprint must stay within this outer collision boundary.
         self._outer_collision = _Box(
@@ -104,30 +93,6 @@ class TrackModel:
             _TRACK_MAX - _COLLISION_MARGIN,
             _TRACK_MAX - _COLLISION_MARGIN,
         )
-
-        self._segments = self._build_visual_segments(self._inner_visual)
-        # Pre-stack segment endpoints for vectorised raycasting.
-        self._seg_ax = np.array([s.x1 for s in self._segments])
-        self._seg_ay = np.array([s.y1 for s in self._segments])
-        self._seg_ex = np.array([s.x2 - s.x1 for s in self._segments])
-        self._seg_ey = np.array([s.y2 - s.y1 for s in self._segments])
-
-    @staticmethod
-    def _build_visual_segments(inner: _Box) -> list[_Segment]:
-        """Outer track boundary (0/3) + inner block faces — what the LIDAR sees."""
-        lo, hi = _TRACK_MIN, _TRACK_MAX
-        return [
-            # Outer boundary (inner faces of the exterior walls).
-            _Segment(lo, lo, hi, lo),  # south
-            _Segment(lo, hi, hi, hi),  # north
-            _Segment(lo, lo, lo, hi),  # west
-            _Segment(hi, lo, hi, hi),  # east
-            # Inner block (outer faces of the interior walls).
-            _Segment(inner.x_min, inner.y_min, inner.x_max, inner.y_min),  # south
-            _Segment(inner.x_min, inner.y_max, inner.x_max, inner.y_max),  # north
-            _Segment(inner.x_min, inner.y_min, inner.x_min, inner.y_max),  # west
-            _Segment(inner.x_max, inner.y_min, inner.x_max, inner.y_max),  # east
-        ]
 
     # Simulated LIDAR
 
@@ -151,27 +116,7 @@ class TrackModel:
         Returns:
             Range (metres) for each bearing, clamped to ``[LIDAR_MIN_RANGE, max_range]``.
         """
-        world_ang = yaw + angles_robot
-        dx = np.cos(world_ang)
-        dy = np.sin(world_ang)
-        n_rays = angles_robot.shape[0]
-        best = np.full(n_rays, np.inf)
-
-        # Vectorise across rays, loop the 8 segments (cheap).
-        for ax, ay, ex, ey in zip(
-            self._seg_ax, self._seg_ay, self._seg_ex, self._seg_ey, strict=True,
-        ):
-            denom = dx * ey - dy * ex
-            # Avoid divide-by-zero for parallel rays.
-            safe = np.where(denom == 0.0, np.nan, denom)
-            rx = ax - x
-            ry = ay - y
-            t = (rx * ey - ry * ex) / safe  # distance along the ray
-            u = (rx * dy - ry * dx) / safe  # parameter along the segment
-            hit = (t >= 0.0) & (u >= 0.0) & (u <= 1.0)
-            best = np.minimum(best, np.where(hit, t, np.inf))
-
-        return np.clip(best, RobotSpecs.LIDAR_MIN_RANGE, max_range)
+        return self._walls.raycast(x, y, yaw, angles_robot, max_range)
 
     # Collision
 
