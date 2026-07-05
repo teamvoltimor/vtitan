@@ -87,6 +87,7 @@ dev     = { features = ["dev"], solve-group = "default" }
 # Global defaults (Works for Linux x86 and ARM)
 navigate = "python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
 drive    = "python main.py drive"
+visualize-scenario = { cmd = "python -m src.simulation.visualize_scenario", env = { PYTHONPATH = "." } }
 lint     = "ruff check --fix src/"
 test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
 test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }

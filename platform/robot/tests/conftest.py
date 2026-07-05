@@ -3,9 +3,17 @@ Pytest configuration and fixtures for robot tests.
 """
 
 import json
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
+
+# Ensure shared package is available
+_this_dir = Path(__file__).resolve().parent
+_shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
+if str(_shared_src) not in sys.path:
+    sys.path.insert(0, str(_shared_src))
 
 from tests.test_constants import (
     CHALLENGE_TYPE_OBSTACLES,

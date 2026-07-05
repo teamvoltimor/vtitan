@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-voldemorbot-shared = { path = "../shared" }
+voldemorbot-shared = { path = "../../shared" }
 
 [project.optional-dependencies]
 dev = [
@@ -23,7 +23,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-pythonpath = [".", "../shared/src"]
+pythonpath = [".", "../../shared/src"]
 log_cli = true
 log_cli_level = "INFO"
 log_cli_format = "%(name)s | %(message)s"

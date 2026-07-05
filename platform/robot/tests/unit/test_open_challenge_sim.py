@@ -21,12 +21,11 @@ from typing import Any
 
 import numpy as np
 import pytest
-from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs, TrackDimensions
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
 from shared.config.enums import Direction, Section
 
-from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
-from src.navigation.race_tracker import _TRAVEL_DIRS
 from src.simulation import ScenarioSimulator, TrackModel
+from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from tests.test_constants import (
     COLLISION_TEST_FOOTPRINT_CLEARANCE,
     COLLISION_TEST_INNER_PENETRATION,
@@ -49,70 +48,9 @@ logger = logging.getLogger(__name__)
 _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
-_TRACK_MAX = TrackDimensions.MAX_COORD
-_OUTER_BIAS = _OUTER_WALL_BIAS
-
-# Travel-direction unit vectors, imported directly from race_tracker so this
-# test can never silently drift from the real finish-line normals it mirrors.
-_TRAVEL = _TRAVEL_DIRS
 
 _ALL_SECTIONS = list(Section)
 _ALL_DIRECTIONS = list(Direction)
-
-
-def _start_pose(
-    section: Section, direction: Direction, widths_m: dict[str, float],
-) -> tuple[float, float, float]:
-    """Spawn pose on the biased corridor centerline, aligned with travel."""
-    south_cy = widths_m["south"] / 2 - _OUTER_BIAS
-    north_cy = _TRACK_MAX - widths_m["north"] / 2 + _OUTER_BIAS
-    east_cx = _TRACK_MAX - widths_m["east"] / 2 + _OUTER_BIAS
-    west_cx = widths_m["west"] / 2 - _OUTER_BIAS
-    center = {
-        Section.SOUTH: (TRACK_CENTER_X, south_cy),
-        Section.NORTH: (TRACK_CENTER_X, north_cy),
-        Section.EAST: (east_cx, TRACK_CENTER_Y),
-        Section.WEST: (west_cx, TRACK_CENTER_Y),
-    }[section]
-    nx, ny = _TRAVEL[(section, direction)]
-    return center[0], center[1], math.atan2(ny, nx)
-
-
-def build_open_metadata(
-    widths_mm: dict[str, int],
-    section: Section,
-    direction: Direction,
-    scenario_id: int = 0,
-) -> dict[str, Any]:
-    """Construct a valid Open Challenge metadata dict (same schema as simgen)."""
-    widths_m = {k: v / 1000.0 for k, v in widths_mm.items()}
-    sx, sy, yaw = _start_pose(section, direction, widths_m)
-    return {
-        "scenario_id": scenario_id,
-        "challenge_type": "open",
-        "seed": None,
-        "num_signs": 0,
-        "has_parking_lot": False,
-        "parking_lot": None,
-        "sign_positions": [],
-        "corridor_widths": {
-            side: {
-                "type": "narrow" if widths_mm[side] == _NARROW_MM else "wide",
-                "width_mm": widths_mm[side],
-            }
-            for side in ("north", "south", "east", "west")
-        },
-        "starting_conditions": {
-            "direction": str(direction),
-            "section": section.capitalized,
-            "position": {"x": sx, "y": sy},
-            "yaw": yaw,
-        },
-    }
-
-
-def _uniform_widths(mm: int) -> dict[str, int]:
-    return dict.fromkeys(("north", "south", "east", "west"), mm)
 
 
 # Track model unit checks
@@ -229,7 +167,7 @@ class TestThreeLapSolvability:
     def test_symmetric_wide_all_starts(self) -> None:
         failures = []
         for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
-            meta = build_open_metadata(_uniform_widths(_WIDE_MM), section, direction)
+            meta = build_open_metadata(uniform_widths(_WIDE_MM), section, direction)
             result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
             _log_result(f"WIDE  {section.capitalized:<5} {direction}", result)
             if not _within_round_limit(result):
@@ -239,7 +177,7 @@ class TestThreeLapSolvability:
     def test_symmetric_narrow_all_starts(self) -> None:
         failures = []
         for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
-            meta = build_open_metadata(_uniform_widths(_NARROW_MM), section, direction)
+            meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction)
             result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
             _log_result(f"NARROW {section.capitalized:<5} {direction}", result)
             if not _within_round_limit(result):

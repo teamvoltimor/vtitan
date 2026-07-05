@@ -18,6 +18,7 @@ No Gazebo, no ROS2, no physics engine — pure Python, runs anywhere.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,8 +36,8 @@ from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel
 
-_CONTROL_HZ = 20.0
-_CONTROL_DT = 1.0 / _CONTROL_HZ
+CONTROL_HZ = 20.0
+CONTROL_DT = 1.0 / CONTROL_HZ
 
 
 class SimulatedHardwareGateway:
@@ -101,7 +102,7 @@ class SimulatedHardwareGateway:
         """Current kinematic state of the simulated body."""
         return self._state
 
-    def advance(self, dt: float = _CONTROL_DT) -> None:
+    def advance(self, dt: float = CONTROL_DT) -> None:
         """Integrate the last command over ``dt`` and regenerate the sensors."""
         self._state = self._kin.step(
             self._state,
@@ -220,12 +221,21 @@ class ScenarioSimulator:
         """The single-lap canonical waypoint path fed to the navigator."""
         return self._waypoints
 
-    def run(self, max_steps: int = 4000, dt: float = _CONTROL_DT) -> SimResult:
+    def run(
+        self,
+        max_steps: int = 4000,
+        dt: float = CONTROL_DT,
+        on_step: Callable[[AckermannState, LidarScan], None] | None = None,
+    ) -> SimResult:
         """Run the control loop until all laps finish, a wall is hit, or timeout.
 
         Args:
             max_steps: Safety budget on control ticks (4000 ≈ 200 s at 20 Hz).
             dt: Control interval (seconds).
+            on_step: Optional callback invoked with ``(state, lidar_scan)`` after
+                every tick — used by the live Gazebo/RViz visualizer to publish
+                the ground-truth pose and LIDAR sweep. ``None`` in the headless
+                test battery, so it costs nothing there beyond one attribute check.
 
         Returns:
             A populated :class:`SimResult`.
@@ -246,6 +256,9 @@ class ScenarioSimulator:
             nav.step()
             gw.advance(dt)
             step += 1
+
+            if on_step is not None:
+                on_step(gw.state, gw.get_lidar_scan())
 
             sx, sy = gw.state.x, gw.state.y
             distance += math.hypot(sx - prev_xy[0], sy - prev_xy[1])
