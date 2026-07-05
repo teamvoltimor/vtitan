@@ -44,6 +44,7 @@ CFG = SignRouterConfig(
     activation_dist=SIGN_ACTIVATION_DIST,
     passed_dist=SIGN_PASSED_DIST,
 )
+LATERAL = SIGN_LATERAL_OFFSET
 
 
 # Helper

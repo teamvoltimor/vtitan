@@ -14,8 +14,7 @@ need this env, only this script does):
 
     # Ad-hoc scenario (custom widths/section/direction):
     pixi run -e dev visualize-scenario
-    pixi run -e dev visualize-scenario -- \\
-        --south 600 --north 600 --section south --direction cw --rate 2
+    pixi run -e dev visualize-scenario -- --south 600 --north 600 --section south --direction cw --rate 2
 
     # The exact scenarios TestThreeLapSolvability runs, by index or label:
     pixi run -e dev visualize-scenario -- --list
@@ -24,29 +23,41 @@ need this env, only this script does):
 
     # Step through all 28 test scenarios, pausing between each:
     pixi run -e dev visualize-scenario -- --interactive
+
+    # Obstacles Challenge demo scenarios (sign routing + parking — NOT a pytest
+    # battery, see scenario_catalog.all_obstacles_demo_scenarios):
+    pixi run -e dev visualize-scenario -- --challenge obstacles --list
+    pixi run -e dev visualize-scenario -- --challenge obstacles --interactive
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
-from src.navigation.ports import LidarScan
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.gateway import CONTROL_DT, ScenarioSimulator, SimResult
-from src.simulation.kinematics import AckermannState
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
     RealTimePacer,
     init_rclpy_once,
 )
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
-from src.simulation.scenario_catalog import NamedScenario, all_test_scenarios, find_scenario
+from src.simulation.scenario_catalog import (
+    NamedScenario,
+    all_obstacles_demo_scenarios,
+    all_test_scenarios,
+    find_scenario,
+)
 from src.simulation.track_model import TrackModel
+
+if TYPE_CHECKING:
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +97,15 @@ def _parse_args() -> argparse.Namespace:
         "--interactive", action="store_true",
         help="Step through every test scenario in order, pausing between each.",
     )
+    parser.add_argument(
+        "--challenge", choices=["open", "obstacles"], default="open",
+        help="Which catalog --list/--scenario/--interactive operate over.",
+    )
     return parser.parse_args()
+
+
+def _catalog(challenge: str) -> list[NamedScenario]:
+    return all_test_scenarios() if challenge == "open" else all_obstacles_demo_scenarios()
 
 
 def _track_for(metadata: dict[str, Any]) -> TrackModel:
@@ -94,12 +113,16 @@ def _track_for(metadata: dict[str, Any]) -> TrackModel:
     return TrackModel(corridor_widths_from_metadata(metadata))
 
 
+def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], track: TrackModel) -> None:
+    visualizer.set_track(track, sign_positions=metadata["sign_positions"], parking_lot=metadata["parking_lot"])
+
+
 def _run_one(
     scenario: NamedScenario, visualizer: LiveScenarioVisualizer, rate: float,
 ) -> SimResult:
     """Run a single named scenario against the live visualizer."""
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
-    visualizer.set_track(sim.track)
+    _set_track(visualizer, scenario.metadata, sim.track)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=rate)
 
     def on_step(state: AckermannState, scan: LidarScan | None) -> None:
@@ -119,19 +142,22 @@ def _log_result(label: str, result: SimResult) -> None:
 
 
 def main() -> None:
+    """Entry point for `python -m src.simulation.visualize_scenario`."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = _parse_args()
 
     if args.list:
-        for i, s in enumerate(all_test_scenarios()):
-            print(f"{i:2d}  {s.label}")
+        for i, s in enumerate(_catalog(args.challenge)):
+            logger.info("%2d  %s", i, s.label)
         return
 
     init_rclpy_once()
 
     if args.interactive:
-        scenarios = all_test_scenarios()
-        visualizer = LiveScenarioVisualizer(_track_for(scenarios[0].metadata))
+        scenarios = _catalog(args.challenge)
+        first_track = _track_for(scenarios[0].metadata)
+        visualizer = LiveScenarioVisualizer(first_track)
+        _set_track(visualizer, scenarios[0].metadata, first_track)
         logger.info(
             "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
             "in another terminal to watch. %d scenarios queued.", len(scenarios),
@@ -149,8 +175,10 @@ def main() -> None:
         return
 
     if args.scenario is not None:
-        scenario = find_scenario(args.scenario, all_test_scenarios())
-        visualizer = LiveScenarioVisualizer(_track_for(scenario.metadata))
+        scenario = find_scenario(args.scenario, _catalog(args.challenge))
+        scenario_track = _track_for(scenario.metadata)
+        visualizer = LiveScenarioVisualizer(scenario_track)
+        _set_track(visualizer, scenario.metadata, scenario_track)
         logger.info(
             "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
             "in another terminal to watch.",

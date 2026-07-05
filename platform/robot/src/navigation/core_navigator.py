@@ -178,7 +178,8 @@ class CoreNavigator:
             self._laps_completed += 1
             logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
 
-        target_wp = self._waypoints[self._waypoint_index]
+        raw_wp = self._waypoints[self._waypoint_index]
+        target_wp = raw_wp
 
         # Apply sign routing deformation if in obstacles challenge.
         if self._sign_router is not None and self._current_corridor is not None:
@@ -204,8 +205,15 @@ class CoreNavigator:
             forward_clearance = self._tuning.clearance.SLOW_DIST
             risk = RiskLevel.OBSTACLE
 
-        # Check waypoint reached
-        dist_to_wp = math.sqrt((target_wp[0] - robot_x) ** 2 + (target_wp[1] - robot_y) ** 2)
+        # Check waypoint reached — against the *raw* planned point, not the
+        # sign-deformed one: deformation only biases steering near a sign, it
+        # must never stall path progression. A sign can pull the steering
+        # target sideways by up to lateral_offset, so the robot's real
+        # trajectory may never pass within waypoint_threshold of the deformed
+        # point — checking that point would freeze waypoint_index indefinitely
+        # while the sign stays engaged, corrupting every later tick's lookahead
+        # search with a stale target.
+        dist_to_wp = math.sqrt((raw_wp[0] - robot_x) ** 2 + (raw_wp[1] - robot_y) ** 2)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
             return

@@ -18,23 +18,27 @@ No Gazebo, no ROS2, no physics engine — pure Python, runs anywhere.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs
-from shared.config.enums import Direction, Section
+from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
+from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 CONTROL_HZ = 20.0
 CONTROL_DT = 1.0 / CONTROL_HZ
@@ -150,11 +154,18 @@ class SimResult:
     collision_xy: tuple[float, float] | None
     final_pose: tuple[float, float, float]
     lap_step_indices: list[int] = field(default_factory=list)
+    parked: bool | None = None
+    """``None`` when the scenario has no parking lot; else whether parking finished cleanly
+    (as opposed to giving up on its frame budget — see ``ParkController.is_timed_out``)."""
 
     @property
     def success(self) -> bool:
-        """Completed all target laps without a wall contact."""
-        return self.laps_completed >= self.target_laps and not self.collided
+        """Completed all target laps without a wall contact (and parked cleanly, if required)."""
+        return (
+            self.laps_completed >= self.target_laps
+            and not self.collided
+            and self.parked is not False
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,7 +178,18 @@ class _StartConditions:
 
 
 class ScenarioSimulator:
-    """Builds and runs a closed-loop Open Challenge simulation from metadata."""
+    """Builds and runs a closed-loop Open or Obstacles Challenge simulation from metadata.
+
+    Sign routing and parking are wired in exactly like the real ROS2 node
+    (``TrackNavigator`` in ``src/ros2/navigation/node.py``): a ``SignRouter`` is
+    built from ``metadata["sign_positions"]`` and a ``ParkController`` from
+    ``metadata["parking_lot"]``, both ``None`` for the Open Challenge. Camera
+    detections are simulated as always-empty (``SimulatedHardwareGateway`` has
+    no vision model), so sign colors resolve from scenario-metadata ground
+    truth rather than a detector — the same simplification the Open Challenge
+    sim already makes for pose (perfect odometry) and LIDAR (ground-truth
+    raycasts).
+    """
 
     def __init__(
         self,
@@ -185,6 +207,7 @@ class ScenarioSimulator:
         widths = corridor_widths_from_metadata(metadata)
         self._track = TrackModel(widths)
         start = _start_conditions(metadata)
+        is_open_challenge = metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
@@ -203,12 +226,25 @@ class ScenarioSimulator:
             start_section=start.section,
             direction=start.direction,
         )
+
+        sign_router: SignRouter | None = None
+        if not is_open_challenge:
+            signs = signs_from_metadata(metadata)
+            if signs:
+                sign_router = SignRouter(signs, direction=start.direction)
+
+        self._park_controller: ParkController | None = None
+        if not is_open_challenge:
+            self._park_controller = park_controller_from_metadata(metadata, start.section)
+
         self._navigator = CoreNavigator(
             gateway=self._gateway,
             waypoints=self._waypoints,
             num_laps=num_laps,
             tuning=nav_tuning,
+            sign_router=sign_router,
             lap_detector=lap_detector,
+            park_controller=self._park_controller,
         )
 
     @property
@@ -274,10 +310,16 @@ class ScenarioSimulator:
 
             if gw.collided:
                 break
-            if nav.laps_completed >= self._num_laps:
+            if nav.laps_completed >= self._num_laps and (
+                self._park_controller is None or self._park_controller.is_done
+            ):
                 break
 
-        timed_out = step >= max_steps and nav.laps_completed < self._num_laps
+        pc = self._park_controller
+        parked = None if pc is None else (pc.is_done and not pc.is_timed_out)
+        timed_out = step >= max_steps and (
+            nav.laps_completed < self._num_laps or (pc is not None and not pc.is_done)
+        )
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,
@@ -290,6 +332,7 @@ class ScenarioSimulator:
             avg_speed_mps=(speed_sum / step) if step else 0.0,
             min_lidar_range_m=(min_range if math.isfinite(min_range) else 0.0),
             collision_xy=gw.collision_xy,
+            parked=parked,
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
         )

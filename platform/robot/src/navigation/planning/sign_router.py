@@ -31,6 +31,8 @@ from dataclasses import dataclass
 from shared.config.constants import ColorNames, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
 
+from src.navigation.planning.waypoints import corridor_for_position
+
 
 @dataclass(frozen=True)
 class Detection:
@@ -128,6 +130,10 @@ class SignRouter:
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
+        # Each sign's own corridor, precomputed once — deform_waypoint() must
+        # never apply a sign's (x, y) through a different corridor's axis
+        # convention (see _nearest_active_sign).
+        self._sign_corridors = [corridor_for_position(s.x, s.y) for s in signs]
 
     @property
     def active_sign_count(self) -> int:
@@ -158,8 +164,16 @@ class SignRouter:
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
         """
-        nearest_idx, nearest_dist = self._nearest_active_sign(robot_pos)
+        nearest_idx, nearest_dist = self._nearest_active_sign(robot_pos, corridor)
         if nearest_idx < 0 or nearest_dist > self._config.activation_dist:
+            return waypoint
+
+        # The deformation model assumes a straight corridor segment (hold the
+        # depth axis, override the lateral axis with a value derived from the
+        # sign's fixed position). Once the *target* waypoint itself has curved
+        # into a corner and left this corridor, that override is stale and
+        # increasingly wrong — skip it rather than fight the path's own curve.
+        if corridor_for_position(*waypoint) != corridor:
             return waypoint
 
         sign = self._signs[nearest_idx]
@@ -195,13 +209,21 @@ class SignRouter:
 
         return deformed
 
-    def _nearest_active_sign(self, robot_pos: tuple[float, float]) -> tuple[int, float]:
-        """Index and distance of the nearest not-yet-passed sign to the robot.
+    def _nearest_active_sign(
+        self, robot_pos: tuple[float, float], corridor: Section,
+    ) -> tuple[int, float]:
+        """Index and distance of the nearest not-yet-passed sign in ``corridor``.
 
         Also maintains engagement/passed bookkeeping: a sign is engaged once the
         robot comes within activation distance, and retired only after it has
         been engaged and then left beyond ``passed_dist`` — never discarded from
-        afar (which would silently disable routing at spawn).
+        afar (which would silently disable routing at spawn). Bookkeeping runs
+        for every sign regardless of corridor; only the returned *candidate* is
+        restricted to signs that belong to ``corridor`` — a sign one corridor
+        over can be geometrically within ``activation_dist`` right at a corner,
+        and applying its (x, y) through this corridor's axis/clamp convention
+        produces a nonsensical waypoint (deforms the wrong axis, clamped against
+        the wrong wall).
 
         Returns:
             ``(index, distance)``; index is -1 when no active sign remains.
@@ -219,6 +241,8 @@ class SignRouter:
                 if i in self._engaged:
                     self._passed.add(i)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
+                continue
+            if self._sign_corridors[i] != corridor:
                 continue
             if d < nearest_dist:
                 nearest_dist = d

@@ -16,19 +16,21 @@ from __future__ import annotations
 
 import math
 import time
+from typing import TYPE_CHECKING
 
 import rclpy
 from geometry_msgs.msg import Point, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-from shared.config.constants import RobotSpecs, TrackDimensions
+from shared.config.constants import ColorNames, ParkingLotSpecs, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
-from src.navigation.ports import LidarScan
-from src.simulation.kinematics import AckermannState
-from src.simulation.track_model import TrackModel
+if TYPE_CHECKING:
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
+    from src.simulation.track_model import TrackModel
 
 _MAP_FRAME = "map"
 _ROBOT_FRAME = "base_link"
@@ -50,9 +52,22 @@ class LiveScenarioVisualizer(Node):
         self._tf_broadcaster = TransformBroadcaster(self)
         self.set_track(track)
 
-    def set_track(self, track: TrackModel) -> None:
-        """(Re)publish the track walls — call again when switching scenarios."""
-        self._publish_track(track)
+    def set_track(
+        self,
+        track: TrackModel,
+        sign_positions: list[dict] | None = None,
+        parking_lot: dict | None = None,
+    ) -> None:
+        """(Re)publish the track walls, signs, and parking lot — call again per scenario."""
+        markers = MarkerArray()
+        markers.markers.append(self._outer_boundary_marker())
+        markers.markers.append(self._inner_block_marker(track))
+        for i, sign in enumerate(sign_positions or []):
+            markers.markers.append(self._sign_marker(i, sign))
+        if parking_lot is not None:
+            markers.markers.append(self._parking_block_marker(10, parking_lot["block1_position"]))
+            markers.markers.append(self._parking_block_marker(11, parking_lot["block2_position"]))
+        self._track_pub.publish(markers)
 
     def publish(self, state: AckermannState, scan: LidarScan | None) -> None:
         """Publish one tick's pose (odom + TF) and LIDAR sweep."""
@@ -95,13 +110,6 @@ class LiveScenarioVisualizer(Node):
         msg.ranges = list(scan.ranges_m)
         return msg
 
-    def _publish_track(self, track: TrackModel) -> None:
-        """Draw the outer boundary + inner block once (matches the collision model)."""
-        markers = MarkerArray()
-        markers.markers.append(self._outer_boundary_marker())
-        markers.markers.append(self._inner_block_marker(track))
-        self._track_pub.publish(markers)
-
     def _outer_boundary_marker(self) -> Marker:
         m = Marker()
         m.header.frame_id = _MAP_FRAME
@@ -134,6 +142,43 @@ class LiveScenarioVisualizer(Node):
         m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
         return m
 
+    def _sign_marker(self, index: int, sign: dict) -> Marker:
+        m = Marker()
+        m.header.frame_id = _MAP_FRAME
+        m.ns = "signs"
+        m.id = index
+        m.type = Marker.CYLINDER
+        m.action = Marker.ADD
+        m.pose.position.x = sign["x"]
+        m.pose.position.y = sign["y"]
+        m.pose.position.z = TrafficSignSpecs.Z_POSITION
+        m.pose.orientation.w = 1.0
+        m.scale.x = TrafficSignSpecs.WIDTH
+        m.scale.y = TrafficSignSpecs.DEPTH
+        m.scale.z = TrafficSignSpecs.HEIGHT
+        color = (
+            TrafficSignSpecs.RED_COLOR if sign["color"] == ColorNames.RED else TrafficSignSpecs.GREEN_COLOR
+        )
+        m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
+        return m
+
+    def _parking_block_marker(self, index: int, block: dict) -> Marker:
+        m = Marker()
+        m.header.frame_id = _MAP_FRAME
+        m.ns = "parking"
+        m.id = index
+        m.type = Marker.CUBE
+        m.action = Marker.ADD
+        m.pose.position.x = block["x"]
+        m.pose.position.y = block["y"]
+        m.pose.position.z = ParkingLotSpecs.Z_POSITION
+        m.pose.orientation.w = 1.0
+        m.scale.x = ParkingLotSpecs.LENGTH
+        m.scale.y = ParkingLotSpecs.WIDTH
+        m.scale.z = ParkingLotSpecs.HEIGHT
+        m.color.r, m.color.g, m.color.b, m.color.a = *ParkingLotSpecs.COLOR, 1.0
+        return m
+
 
 class RealTimePacer:
     """Sleeps between ticks so a headless-speed loop plays back at wall-clock rate."""
@@ -143,6 +188,7 @@ class RealTimePacer:
         self._next_tick: float | None = None
 
     def wait(self) -> None:
+        """Block until the next tick's wall-clock deadline (no-op if unthrottled)."""
         if self._tick_budget <= 0.0:
             return
         now = time.monotonic()
