@@ -25,10 +25,15 @@ from std_msgs.msg import String
 
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
+from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from src.navigation.ports import DriveCommand
 from src.ros2.navigation.node import ROS2HardwareGateway
 
 _WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
+
+# The mock motor config's own steering limit (degrees) — shared between the
+# fixture and the clamp assertion below so they can't silently drift apart.
+_MOCK_MAX_STEERING_DEG = 30.0
 
 
 @pytest.fixture()
@@ -56,7 +61,7 @@ def _make_navigator_host_node():
 def _make_motor_node():
     mock_config = mock.MagicMock()
     mock_config.steering.offset = 0.0
-    mock_config.steering.max_steering_angle = 30.0
+    mock_config.steering.max_steering_angle = _MOCK_MAX_STEERING_DEG
     mock_config.drive.reversed = False
     mock_config.drive.max_speed = 100
     mock_config.drive.speed_scale = 30.0
@@ -91,8 +96,8 @@ class TestNavigatorToMotorNode:
         ],
     )
     def test_drive_command_round_trips_correctly(self, ros_context, speed_mps, steering_norm, monkeypatch):
-        monkeypatch.setenv("STEERING_BACKEND", "servo")
-        monkeypatch.setenv("DRIVE_BACKEND", "dc_encoder")
+        monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
+        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
 
         nav_node = _make_navigator_host_node()
         gateway = ROS2HardwareGateway(nav_node, 0.0, 0.0, 0.0, _WIDTHS)
@@ -108,11 +113,11 @@ class TestNavigatorToMotorNode:
         expected_angle_deg = math.degrees(
             steering_norm_to_angle_rad(steering_norm, RobotSpecs.MAX_STEERING_ANGLE),
         )
-        # The motor node clamps to its own configured max_steering_angle (30
-        # deg here), which can differ from RobotSpecs.MAX_STEERING_ANGLE (0.5236
-        # rad) by a fraction of a degree — clamp the expected value the same
-        # way the real node does rather than asserting exact equality.
-        expected_angle_deg = max(-30.0, min(30.0, expected_angle_deg))
+        # The motor node clamps to its own configured max_steering_angle,
+        # which can differ from RobotSpecs.MAX_STEERING_ANGLE (0.5236 rad) by
+        # a fraction of a degree — clamp the expected value the same way the
+        # real node does rather than asserting exact equality.
+        expected_angle_deg = max(-_MOCK_MAX_STEERING_DEG, min(_MOCK_MAX_STEERING_DEG, expected_angle_deg))
         got_angle_deg = mock_steering.move_steering_to.call_args[0][0]
         assert got_angle_deg == pytest.approx(expected_angle_deg)
 
@@ -140,8 +145,8 @@ class TestStateMachineStopToMotorNode:
     """RPi 5 (state_machine_node's e-stop) -> RPi Zero (ackermann_motor_node)."""
 
     def test_estop_stop_command_stops_the_motors(self, ros_context, monkeypatch):
-        monkeypatch.setenv("STEERING_BACKEND", "servo")
-        monkeypatch.setenv("DRIVE_BACKEND", "dc_encoder")
+        monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
+        monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
 
         from voldemorbot_robot.state_machine_node import StateMachineNode
 

@@ -21,31 +21,24 @@ from typing import Any
 
 import numpy as np
 import pytest
-from shared.config.constants import CompetitionSpecs
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 
+from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
+from src.navigation.race_tracker import _TRAVEL_DIRS
 from src.simulation import ScenarioSimulator, TrackModel
 
 logger = logging.getLogger(__name__)
 
 _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
-_NARROW_MM = 600
-_WIDE_MM = 1000
-_TRACK_MAX = 3.0
-_OUTER_BIAS = 0.05  # matches waypoints._OUTER_WALL_BIAS
+_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
+_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
+_TRACK_MAX = TrackDimensions.MAX_COORD
+_OUTER_BIAS = _OUTER_WALL_BIAS
 
-# Travel-direction unit vectors (mirror race_tracker._TRAVEL_DIRS) used to point
-# the robot along its lap direction at spawn, as the generator does.
-_TRAVEL: dict[tuple[Section, Direction], tuple[float, float]] = {
-    (Section.SOUTH, Direction.CLOCKWISE): (-1.0, 0.0),
-    (Section.NORTH, Direction.CLOCKWISE): (1.0, 0.0),
-    (Section.EAST, Direction.CLOCKWISE): (0.0, -1.0),
-    (Section.WEST, Direction.CLOCKWISE): (0.0, 1.0),
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (1.0, 0.0),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): (-1.0, 0.0),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): (0.0, 1.0),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): (0.0, -1.0),
-}
+# Travel-direction unit vectors, imported directly from race_tracker so this
+# test can never silently drift from the real finish-line normals it mirrors.
+_TRAVEL = _TRAVEL_DIRS
 
 _ALL_SECTIONS = list(Section)
 _ALL_DIRECTIONS = list(Direction)
@@ -171,7 +164,7 @@ class TestPlannedWaypointsClearCorridor:
         )
         sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
         # Chassis half-width clearance to the nearest visual wall.
-        clearance = 0.075
+        clearance = RobotSpecs.WIDTH / 2
         offenders = [
             wp
             for wp in sim.waypoints

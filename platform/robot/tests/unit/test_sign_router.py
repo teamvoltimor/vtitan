@@ -13,6 +13,7 @@ Verifies:
 from __future__ import annotations
 
 import pytest
+from shared.config.constants import TrackDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.planning.sign_router import (
@@ -120,16 +121,16 @@ def _make_single_sign_scenario_cases():
                 expected_y = sy - LATERAL  # south of sign
             cases.append(("south", sx, sy, color, expected_y, None))
 
-            # NORTH corridor: sign at (depth, 3.0 - width)
-            sx, sy = depth, 3.0 - width
+            # NORTH corridor: sign at (depth, TRACK_MAX - width)
+            sx, sy = depth, TrackDimensions.MAX_COORD - width
             if color == "red":
                 expected_y = sy - LATERAL
             else:
                 expected_y = sy + LATERAL
             cases.append(("north", sx, sy, color, expected_y, None))
 
-            # EAST corridor: sign at (3.0 - width, depth)
-            sx, sy = 3.0 - width, depth
+            # EAST corridor: sign at (TRACK_MAX - width, depth)
+            sx, sy = TrackDimensions.MAX_COORD - width, depth
             if color == "red":
                 expected_x = sx - LATERAL
             else:
