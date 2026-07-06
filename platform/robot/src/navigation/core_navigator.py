@@ -167,6 +167,8 @@ class CoreNavigator:
                 # Fallback: no geometric guard — count directly.
                 self._laps_completed += 1
                 logger.info("Lap %d complete (waypoint-only fallback)", self._laps_completed)
+                if self._sign_router is not None:
+                    self._sign_router.reset_for_new_lap()
                 return
 
         # Geometric lap counting (requires LapDetector).
@@ -177,20 +179,10 @@ class CoreNavigator:
         ):
             self._laps_completed += 1
             logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
+            if self._sign_router is not None:
+                self._sign_router.reset_for_new_lap()
 
         raw_wp = self._waypoints[self._waypoint_index]
-        target_wp = raw_wp
-
-        # Apply sign routing deformation if in obstacles challenge.
-        if self._sign_router is not None and self._current_corridor is not None:
-            detections = self._gateway.get_vision_detections()
-            target_wp = self._sign_router.deform_waypoint(
-                waypoint=target_wp,
-                robot_pos=(robot_x, robot_y),
-                robot_yaw=robot_yaw,
-                corridor=self._current_corridor,
-                detections=detections,
-            )
 
         # Get LIDAR scan from gateway
         scan = self._gateway.get_lidar_scan()
@@ -221,16 +213,32 @@ class CoreNavigator:
         # Steer at a lookahead point, not directly at the (often much closer)
         # next waypoint — otherwise the lookahead distance is computed but
         # discarded, producing weave on straights and corner cutting (PP-1).
-        # The deformed target_wp stands in for index 0 of the search so sign
-        # routing still biases the immediate target; points further out reuse
-        # the raw path.
         lookahead_distance = self._waypoint_controller.select_lookahead(forward_clearance)
         steer_target = self._waypoint_controller.select_target_point(
             current_pos=(robot_x, robot_y),
-            waypoints=[target_wp, *self._waypoints[self._waypoint_index + 1 :]],
+            waypoints=self._waypoints[self._waypoint_index :],
             waypoint_index=0,
             lookahead_distance=lookahead_distance,
         )
+
+        # Apply sign routing to whichever point steering will actually chase —
+        # deforming a raw-path *candidate* before the lookahead search picked
+        # from it meant the search itself, not the sign, decided whether the
+        # nudge ever reached steering (it almost never did: waypoints are
+        # spaced well under the 0.20-0.40m lookahead, so the search kept
+        # skipping past a single deformed candidate to a further, undeformed
+        # one). Deforming the search's own output guarantees the bias is
+        # exactly what gets steered toward, at full tapered strength whenever
+        # that point is close to the sign.
+        if self._sign_router is not None and self._current_corridor is not None:
+            detections = self._gateway.get_vision_detections()
+            steer_target = self._sign_router.deform_waypoint(
+                waypoint=steer_target,
+                robot_pos=(robot_x, robot_y),
+                robot_yaw=robot_yaw,
+                corridor=self._current_corridor,
+                detections=detections,
+            )
 
         # Get steering from waypoint controller
         steering_normalized, _ = self._waypoint_controller.compute_steering(

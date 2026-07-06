@@ -23,7 +23,6 @@ from src.navigation.planning.sign_router import (
     SignSpec,
     _apply_deformation,
 )
-from src.navigation.race_tracker import _TRAVEL_DIRS
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
     CORRIDOR_DEPTH_MIDPOINT,
@@ -60,39 +59,40 @@ def _sign_at(x: float, y: float, color: str) -> SignSpec:
 
 # 1. Deformation direction per corridor x color x travel direction
 
-# Per-section: (perpendicular axis, sign position, CCW red multiplier).
-# CCW values mirror the live routing table; CW is the world-frame negation.
+# Per-section: (perpendicular axis, sign position, red multiplier). Red's
+# multiplier is the SAME for CW and CCW — outward/inward is a fixed property
+# of the corridor, not the travel direction.
 _SECTION_GEOMETRY = {
-    Section.SOUTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, CORRIDOR_WIDTH_QUARTER_NORTH), +1),
-    Section.NORTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, TRACK_CORNER_NORTH), -1),
-    Section.EAST: ("x", (TRACK_CORNER_EAST, CORRIDOR_DEPTH_MIDPOINT), -1),
-    Section.WEST: ("x", (TRACK_CORNER_WEST, CORRIDOR_DEPTH_MIDPOINT), +1),
+    Section.SOUTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, CORRIDOR_WIDTH_QUARTER_NORTH), -1),
+    Section.NORTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, TRACK_CORNER_NORTH), +1),
+    Section.EAST: ("x", (TRACK_CORNER_EAST, CORRIDOR_DEPTH_MIDPOINT), +1),
+    Section.WEST: ("x", (TRACK_CORNER_WEST, CORRIDOR_DEPTH_MIDPOINT), -1),
 }
 
 
 class TestDeformationDirections:
     """16 cases: 4 sections x {red, green} x {CCW, CW}.
 
-    Red keeps the sign on the robot's right, green on its left. Because the
-    same corridor is driven with opposite headings under CW vs CCW, the
-    world-frame offset flips sign between the two directions.
+    Red always moves the deformed waypoint OUTWARD (away from the inner
+    square), green always INWARD — identically for CW and CCW, since this is
+    an absolute property of the track, not the travel direction.
     """
 
     @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
     @pytest.mark.parametrize(
-        ("direction", "color", "flip"),
+        ("direction", "color", "color_sign"),
         [
             (Direction.COUNTERCLOCKWISE, "red", +1),
             (Direction.COUNTERCLOCKWISE, "green", -1),
-            (Direction.CLOCKWISE, "red", -1),
-            (Direction.CLOCKWISE, "green", +1),
+            (Direction.CLOCKWISE, "red", +1),
+            (Direction.CLOCKWISE, "green", -1),
         ],
     )
-    def test_offset_side(self, section, direction, color, flip):
-        axis, (sx, sy), ccw_red = _SECTION_GEOMETRY[section]
+    def test_offset_side(self, section, direction, color, color_sign):
+        axis, (sx, sy), red_mult = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
         rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
-        expected = ccw_red * flip * SIGN_LATERAL_OFFSET
+        expected = red_mult * color_sign * SIGN_LATERAL_OFFSET
         if axis == "y":
             assert ry == pytest.approx(sy + expected)
             assert rx == pytest.approx(sx)
@@ -117,42 +117,46 @@ _GRID_POSITIONS = SIGN_GRID_POSITIONS
 def _make_single_sign_scenario_cases():
     """Generate test cases: (corridor, sign_x, sign_y, color, expect_north_or_east).
 
+    Red is avoided OUTWARD (away from the inner square), green INWARD — for
+    every corridor, using the router's default direction (COUNTERCLOCKWISE):
+    this rule is now identical for CW and CCW, so the direction doesn't matter.
+
     For SOUTH/NORTH corridors: "correct pass" means waypoint is on the expected y side.
     For EAST/WEST corridors: waypoint is on the expected x side.
     """
     cases = []
     for depth, width in _GRID_POSITIONS:
         for color in ("red", "green"):
-            # SOUTH corridor: sign at (depth, width)
+            # SOUTH corridor: sign at (depth, width). Outward = south (lower y).
             sx, sy = depth, width
-            if color == "red":
-                expected_y = sy + SIGN_LATERAL_OFFSET  # north of sign
-            else:
-                expected_y = sy - SIGN_LATERAL_OFFSET  # south of sign
-            cases.append(("south", sx, sy, color, expected_y, None))
-
-            # NORTH corridor: sign at (depth, TRACK_MAX - width)
-            sx, sy = depth, TrackDimensions.MAX_COORD - width
             if color == "red":
                 expected_y = sy - SIGN_LATERAL_OFFSET
             else:
                 expected_y = sy + SIGN_LATERAL_OFFSET
+            cases.append(("south", sx, sy, color, expected_y, None))
+
+            # NORTH corridor: sign at (depth, TRACK_MAX - width). Outward = north (higher y).
+            sx, sy = depth, TrackDimensions.MAX_COORD - width
+            if color == "red":
+                expected_y = sy + SIGN_LATERAL_OFFSET
+            else:
+                expected_y = sy - SIGN_LATERAL_OFFSET
             cases.append(("north", sx, sy, color, expected_y, None))
 
-            # EAST corridor: sign at (TRACK_MAX - width, depth)
+            # EAST corridor: sign at (TRACK_MAX - width, depth). Outward = east (higher x).
             sx, sy = TrackDimensions.MAX_COORD - width, depth
             if color == "red":
-                expected_x = sx - SIGN_LATERAL_OFFSET
-            else:
                 expected_x = sx + SIGN_LATERAL_OFFSET
+            else:
+                expected_x = sx - SIGN_LATERAL_OFFSET
             cases.append(("east", sx, sy, color, None, expected_x))
 
-            # WEST corridor: sign at (width, depth)
+            # WEST corridor: sign at (width, depth). Outward = west (lower x).
             sx, sy = width, depth
             if color == "red":
-                expected_x = sx + SIGN_LATERAL_OFFSET
-            else:
                 expected_x = sx - SIGN_LATERAL_OFFSET
+            else:
+                expected_x = sx + SIGN_LATERAL_OFFSET
             cases.append(("west", sx, sy, color, None, expected_x))
 
     return cases
@@ -278,6 +282,27 @@ class TestPassedSigns:
         )
         assert router.active_sign_count == 1
 
+    def test_reset_for_new_lap_re_arms_passed_signs(self):
+        """Every sign must route again each lap — the Obstacles Challenge runs 3."""
+        sign = _sign_at(1.5, 0.4, "red")
+        router = _router([sign])
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert router.active_sign_count == 0
+
+        router.reset_for_new_lap()
+        assert router.active_sign_count == 1
+
+        wp = (1.5, 0.4)
+        result = router.deform_waypoint(
+            waypoint=wp, robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert result != wp
+
 
 class TestEngagementGating:
     """A sign is only retired once approached — never discarded from afar."""
@@ -362,21 +387,31 @@ class TestDeformationClamping:
         assert wx > 2.0, "deformed waypoint must stay clear of the inner square"
 
 
-# 6. Pass-side rule pinned in the robot's travel frame
+# 6. Pass-side rule pinned in absolute (track-relative) terms
+
+# Unit vector pointing away from the inner square, per corridor.
+_OUTWARD_DIR = {
+    Section.SOUTH: (0.0, -1.0),
+    Section.NORTH: (0.0, 1.0),
+    Section.EAST: (1.0, 0.0),
+    Section.WEST: (-1.0, 0.0),
+}
 
 
 class TestPassSideRule:
-    """Red stays on the robot's right, green on its left — for every corridor.
+    """Red is avoided outward, green inward — for every corridor, in BOTH directions.
 
-    This pins the routing table against the official WRO pass-side rule in the
-    travel frame, independent of world-axis bookkeeping, so a future edit cannot
-    silently invert red/green.
+    This pins the official WRO pass-side rule as an ABSOLUTE, track-relative
+    invariant: it must hold identically whether the round is driven clockwise
+    or counterclockwise, so a future edit cannot silently make it
+    direction-dependent again (an earlier version of this table pinned "red on
+    the robot's right" instead — a travel-relative rule that flips outward and
+    inward between CW and CCW, which is not the actual official rule).
     """
 
     @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_sign_kept_on_correct_side(self, section, direction, color):
-        heading_x, heading_y = _TRAVEL_DIRS[(section, direction)]
         # A realistic in-corridor sign position (clear of the inner square, per
         # WP-1 clamping) rather than a section-agnostic point — (1.5, 1.5) sits
         # inside the restricted inner square itself, which no real sign ever does.
@@ -385,11 +420,9 @@ class TestPassSideRule:
         wx, wy = _apply_deformation(
             (sign.x, sign.y), sign, color, section, direction, LATERAL,
         )
-        # Signed lateral position of the deformed waypoint relative to the sign,
-        # in the robot's travel frame: cross > 0 => waypoint on the robot's left
-        # => the sign stays on the robot's right.
-        cross = heading_x * (wy - sign.y) - heading_y * (wx - sign.x)
+        ox, oy = _OUTWARD_DIR[section]
+        outward_component = ox * (wx - sign.x) + oy * (wy - sign.y)
         if color == "red":
-            assert cross > 0, "red sign must stay on the robot's right"
+            assert outward_component > 0, "red must be avoided on the outward side"
         else:
-            assert cross < 0, "green sign must stay on the robot's left"
+            assert outward_component < 0, "green must be avoided on the inward side"

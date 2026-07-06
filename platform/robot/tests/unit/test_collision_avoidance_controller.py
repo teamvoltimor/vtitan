@@ -180,9 +180,12 @@ class TestForwardPathRisk:
     def test_side_walls_are_not_risk(self, controller):
         ranges = _scan()
         # Close walls to the left and right (+-pi/2), outside the driving lane.
+        # Must clear path_half_width (chassis half-width + margin, 0.20m for the
+        # 0.20m-wide chassis) with room to spare, or this stops testing "outside
+        # the lane" and starts testing the boundary instead.
         for center in (math.pi / 2, -math.pi / 2):
             i = _index_for(center)
-            ranges[i - 6 : i + 6] = 0.20
+            ranges[i - 6 : i + 6] = 0.35
         assert controller.assess_risk(ranges, ANGLES) == RiskLevel.SAFE
 
     def test_forward_obstacle_within_contact_is_critical(self, controller):

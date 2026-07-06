@@ -15,7 +15,7 @@ from itertools import product
 from typing import Any
 
 import numpy as np
-from shared.config.constants import ColorNames, CompetitionSpecs, CorridorDimensions
+from shared.config.constants import ColorNames, CompetitionSpecs, CorridorDimensions, TrackDimensions
 from shared.config.enums import Direction, Section
 
 from src.simulation.scenario_builder import (
@@ -31,6 +31,17 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _ALL_SECTIONS = list(Section)
 _ALL_DIRECTIONS = list(Direction)
+
+# corridor_for_position() only unambiguously classifies a point into the
+# corridor it visually sits in while its depth coordinate falls inside the
+# inner block's own span [CORNER_MIN, CORNER_MAX] — outside that, both axes
+# are simultaneously "outside the square" and it falls back to a nearest-face
+# corner tie-break, which can silently reassign the sign to an ADJACENT
+# corridor SignRouter never actually drives close to. The official WRO grid
+# (test_sign_router.py's depth in {1.0, 1.5, 2.0}) always stays inside this
+# same safe zone — demo placement must too, or "avoidance" silently no-ops.
+_DEPTH_FRAC_MIN = TrackDimensions.CORNER_MIN / TrackDimensions.MAX_COORD
+_DEPTH_FRAC_MAX = TrackDimensions.CORNER_MAX / TrackDimensions.MAX_COORD
 
 _MIXED_COMBOS = [
     (_NARROW_MM, _WIDE_MM, _NARROW_MM, _WIDE_MM),
@@ -107,7 +118,7 @@ def all_obstacles_demo_scenarios() -> list[NamedScenario]:
         signs = []
         for _ in range(2):
             sign_section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
-            depth_frac = float(rng.uniform(0.2, 0.8))
+            depth_frac = float(rng.uniform(_DEPTH_FRAC_MIN, _DEPTH_FRAC_MAX))
             lane_frac = float(rng.uniform(0.3, 0.7))
             color = ColorNames.RED if rng.random() < 0.5 else ColorNames.GREEN
             x, y = sign_world_pos(sign_section, depth_frac, lane_frac, widths_m)

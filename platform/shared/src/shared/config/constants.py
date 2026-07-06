@@ -144,8 +144,8 @@ class RobotSpecs:
     """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann)."""
 
     # Chassis dimensions
-    LENGTH = 0.28  # 280mm chassis length
-    WIDTH = 0.15  # 150mm chassis width
+    LENGTH = 0.30  # 300mm chassis length
+    WIDTH = 0.20  # 200mm chassis width
     HEIGHT = 0.10  # 100mm chassis height
 
     # Ackermann geometry
