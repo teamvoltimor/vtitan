@@ -1,11 +1,15 @@
 version: "3"
 
 vars:
-  WINDOWS_ETHERNET_IP: 10.250.250.1
-  RPI_DIRECT_IP: 10.250.250.2
+  WINDOWS_ETHERNET_IP: 192.168.250.1
+  RPI_DIRECT_IP: 192.168.250.2
   RPI_LOCAL_IP: 192.168.0.50
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
+  ZERO_WIFI_IP: 192.168.0.51
+  PLATFORM_SCRIPTS: "{{.HOME}}/voldemorbot-platform/scripts"
+  WIFI_CONN: for
+  WIFI_2G_BSSID: AA:D3:62:23:33:28
 
 includes:
   platform:
@@ -99,6 +103,64 @@ tasks:
         - SSH_HOST
         - PING_HOST
 
+  # WiFi band management (Pi Zero is 2.4 GHz only; lock Pi 5 to same band to provision)
+
+  rpi:wifi:lock-2g:
+    desc: "Lock Pi 5 WiFi to 2.4 GHz BSSID so it can reach the Pi Zero (run before provisioning)"
+    cmds:
+      - echo "Locking {{.WIFI_CONN}} to 2.4 GHz BSSID {{.WIFI_2G_BSSID}}..."
+      - sudo nmcli connection modify {{.WIFI_CONN}} 802-11-wireless.bssid {{.WIFI_2G_BSSID}}
+      - sudo nmcli connection up {{.WIFI_CONN}}
+      - sleep 3
+      - echo "Now on 2.4 GHz — $(iwconfig wlan0 | grep Frequency)"
+
+  rpi:wifi:unlock:
+    desc: "Restore Pi 5 WiFi to automatic band selection (run after provisioning)"
+    cmds:
+      - echo "Clearing BSSID lock on {{.WIFI_CONN}}..."
+      - sudo nmcli connection modify {{.WIFI_CONN}} 802-11-wireless.bssid ""
+      - sudo nmcli connection up {{.WIFI_CONN}}
+      - echo "WiFi restored to auto band selection."
+
+  # Provisioning (run from dev Pi 5 — scripts live in ~/voldemorbot-platform/)
+
+  rpi:provision:zero:
+    desc: "Provision Pi Zero 2W — scp scripts + run setup_pi_zero.sh (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x])"
+    cmds:
+      - task: rpi:wifi:lock-2g
+      - echo "[1/3] Copying provisioner scripts to pi@{{.ZERO_IP}}..."
+      - scp -r {{.PLATFORM_SCRIPTS}} pi@{{.ZERO_IP}}:/tmp/
+      - echo "[2/3] Running provisioner on {{.ZERO_IP}} (takes ~20-40 min)..."
+      - GH_TOKEN=$(gh auth token) ssh pi@{{.ZERO_IP}} 'sudo -E bash /tmp/scripts/setup_pi_zero.sh'
+      - echo "[3/3] Waiting for Pi Zero to reboot and come back online..."
+      - |
+        count=0
+        until ping -c1 {{.ZERO_IP}} >/dev/null 2>&1; do
+          sleep {{.RPI_PING_INTERVAL}}
+          count=$((count+1))
+          [ $count -ge 120 ] && echo "Timed out waiting for {{.ZERO_IP}}" && exit 1
+        done
+        echo "Pi Zero ({{.ZERO_IP}}) is back online."
+      - task: rpi:wifi:unlock
+    vars:
+      ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
+
+  rpi:provision:pi5:
+    desc: "Provision Robot Pi 5 — scp scripts + run setup_pi_5.sh (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x [HAILO_DEB=path])"
+    cmds:
+      - echo "[1/2] Copying provisioner scripts to pi@{{.PI5_IP}}..."
+      - scp -r {{.PLATFORM_SCRIPTS}} pi@{{.PI5_IP}}:/tmp/
+      - echo "[2/2] Running provisioner on {{.PI5_IP}}..."
+      - |
+        hailo_arg=""
+        [[ -n "{{.HAILO_DEB}}" ]] && hailo_arg="--hailo-deb {{.HAILO_DEB}}"
+        GH_TOKEN=$(gh auth token) ssh pi@{{.PI5_IP}} "sudo -E bash /tmp/scripts/setup_pi_5.sh $hailo_arg"
+    requires:
+      vars:
+        - PI5_IP
+    vars:
+      HAILO_DEB: '{{.HAILO_DEB | default ""}}'
+
   windows:ssh:print-config:
     desc: "Print recommended ~/.ssh/config entries (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"
     cmds:
@@ -174,7 +236,7 @@ tasks:
       - task: windows:ethernet:set-ip
       - echo "[2/3] Setting Pi Ethernet IP to {{.RPI_DIRECT_IP}} (gateway {{.WINDOWS_ETHERNET_IP}})..."
       - echo "      (Configuring via Cloudflare tunnel — VPN safe)"
-      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'netplan-eth0' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual ipv4.never-default yes connection.autoconnect-priority -10 && (sudo nmcli con down 'netplan-eth0' 2>/dev/null || true) && sudo nmcli con up 'netplan-eth0' 2>/dev/null || true"
+      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'Wired connection 1' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual ipv4.never-default yes connection.autoconnect-priority -10 && (sudo nmcli con down 'Wired connection 1' 2>/dev/null || true) && sudo nmcli con up 'Wired connection 1' 2>/dev/null || true"
       - echo "[3/3] Done. Plug in the Ethernet cable now, then:"
       - echo "      task windows:ssh SSH_HOST=rpi-5-direct"
     vars:
@@ -193,9 +255,9 @@ tasks:
       - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
         platforms: [windows]
     vars:
-      SUBNET: '{{.SUBNET | default "10.250.250.0"}}'
+      SUBNET: '{{.SUBNET | default "192.168.250.0"}}'
       MASK: '{{.MASK | default "255.255.255.0"}}'
-      GATEWAY: '{{.GATEWAY | default "10.250.250.1"}}'
+      GATEWAY: '{{.GATEWAY | default "192.168.250.1"}}'
       INTERFACE: '{{.INTERFACE | default "8"}}'
 
   windows:route:add:wifi:
@@ -217,7 +279,7 @@ tasks:
       - cmd: route delete {{.SUBNET}}
         platforms: [windows]
     vars:
-      SUBNET: '{{.SUBNET | default "10.250.250.0"}}'
+      SUBNET: '{{.SUBNET | default "192.168.250.0"}}'
 
   windows:ethernet:unlink:
     desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [SSH_HOST=alias])"
@@ -225,7 +287,7 @@ tasks:
       - echo "[1/2] Reverting Windows Ethernet adapter to DHCP..."
       - task: windows:ethernet:set-dhcp
       - echo "[2/2] Reverting Pi Ethernet to DHCP..."
-      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'netplan-eth0' ipv4.method auto && (sudo nmcli con down 'netplan-eth0' 2>/dev/null || true) && sudo nmcli con up 'netplan-eth0' 2>/dev/null || true"
+      - ssh {{.SSH_HOST}} "sudo nmcli con modify 'Wired connection 1' ipv4.method auto && (sudo nmcli con down 'Wired connection 1' 2>/dev/null || true) && sudo nmcli con up 'Wired connection 1' 2>/dev/null || true"
       - echo "Direct link torn down. Pi Ethernet back on DHCP."
       - echo "You can unplug the Ethernet cable now."
     vars:
@@ -332,10 +394,10 @@ tasks:
       - task: rpi:set-static-ip
         vars:
           IP: '{{.IP}}'
-          CONNECTION: 'netplan-eth0'
+          CONNECTION: 'Wired connection 1'
           GATEWAY: '{{.WINDOWS_ETHERNET_IP}}'
-      - echo "Setting netplan-eth0 to never-default (keep WiFi as primary route)..."
-      - sudo nmcli con modify 'netplan-eth0' ipv4.never-default yes connection.autoconnect-priority -10
+      - echo "Setting Wired connection 1 to never-default (keep WiFi as primary route)..."
+      - sudo nmcli con modify 'Wired connection 1' ipv4.never-default yes connection.autoconnect-priority -10
     vars:
       IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
