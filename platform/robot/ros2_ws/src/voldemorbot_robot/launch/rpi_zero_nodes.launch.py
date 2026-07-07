@@ -1,4 +1,4 @@
-"""Launch file for the Raspberry Pi Zero 2W (Motor Controller)."""
+"""Launch file for the Raspberry Pi Zero 2W (Motors, Button, OLED)."""
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
@@ -30,7 +30,25 @@ def _launch_setup(context, *_args, **_kwargs):
         respawn=True,
         respawn_delay=2.0,
     )
-    return [ackermann_motor_node]
+    button_node = Node(
+        package="voldemorbot_robot",
+        executable="button_node",
+        name="button_node",
+        output="screen",
+        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
+        respawn=True,
+        respawn_delay=2.0,
+    )
+    oled_display_node = Node(
+        package="voldemorbot_robot",
+        executable="oled_display_node",
+        name="oled_display_node",
+        output="screen",
+        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
+        respawn=True,
+        respawn_delay=2.0,
+    )
+    return [ackermann_motor_node, button_node, oled_display_node]
 
 
 def generate_launch_description():
