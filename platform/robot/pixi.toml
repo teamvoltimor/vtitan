@@ -20,9 +20,6 @@ ros-kilted-sensor-msgs    = "*"
 ros-kilted-ackermann-msgs = "*"
 
 # ROS2 Kilted tools
-ros-kilted-rviz2 = ">=15.0.11,<16"
-ros-kilted-rqt-graph = ">=1.7.1,<2"
-ros-kilted-ros-gz = ">=2.1.12,<3"
 ros-kilted-std-srvs = ">=5.5.1,<6"
 
 # Python runtime
@@ -43,6 +40,15 @@ ros-kilted-ament-cmake   = ">=2.7.4,<3"
 colcon-common-extensions = ">=0.3.0,<0.4"
 cmake                    = ">=4.3.1,<5"
 ninja                    = ">=1.13.2,<2"
+
+# Simulation/visualization tooling — NOT needed on real hardware (headless Pi
+# 5 / Pi Zero running actual ROS2 nodes), only for local dev-machine work.
+# Kept out of the unconditional base [dependencies] so `pixi install -e dev`
+# on the Pi doesn't have to solve/fetch Gazebo + RViz.
+[feature.sim.dependencies]
+ros-kilted-rviz2 = ">=15.0.11,<16"
+ros-kilted-rqt-graph = ">=1.7.1,<2"
+ros-kilted-ros-gz = ">=2.1.12,<3"
 
 [pypi-dependencies]
 voldemorbot-shared = { path = "../shared", editable = true }
@@ -82,6 +88,9 @@ hailort = { path = "libs/win_amd64/hailort-4.23.0-cp312-cp312-win_amd64.whl" }
 [environments]
 default = { features = [], solve-group = "default" }
 dev     = { features = ["dev"], solve-group = "default" }
+# Local dev-machine environment for simulation/visualization work (Gazebo,
+# RViz, rqt_graph) — not installed on real hardware. Use: pixi run -e sim ...
+sim     = { features = ["dev", "sim"], solve-group = "default" }
 
 [tasks]
 # Global defaults (Works for Linux x86 and ARM)

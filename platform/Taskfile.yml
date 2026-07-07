@@ -528,7 +528,7 @@ tasks:
     desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
     dir: robot
     cmds:
-      - pixi run viz
+      - pixi run -e sim viz
 
   sim:analyze:
     desc: Analyze generated scenarios (statistics and summaries)
