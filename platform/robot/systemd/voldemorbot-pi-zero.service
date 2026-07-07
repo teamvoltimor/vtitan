@@ -2,6 +2,8 @@
 Description=Voldemorbot Pi Zero — Motors, Button, OLED
 Wants=network-online.target dev-gpiochip0.device
 After=network-online.target dev-gpiochip0.device
+StartLimitBurst=5
+StartLimitIntervalSec=30
 
 [Service]
 Type=exec
@@ -11,11 +13,12 @@ WorkingDirectory=__TARGET_HOME__/voldemorbot/platform/robot
 Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-__TARGET_HOME__/voldemorbot/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py
+# launch-rpi-zero (not a raw "ros2 launch") -- the pixi task sources
+# ros2_ws/install/setup.bash first, which is required to resolve the
+# locally-built voldemorbot_robot package.
+ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev launch-rpi-zero
 Restart=on-failure
 RestartSec=3
-StartLimitBurst=5
-StartLimitIntervalSec=30
 ExecStop=/usr/bin/kill -SIGINT $MAINPID
 TimeoutStopSec=5
 

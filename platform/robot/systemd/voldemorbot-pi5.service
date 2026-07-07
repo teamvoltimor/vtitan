@@ -2,6 +2,8 @@
 Description=Voldemorbot Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
 Wants=network-online.target hailort.service voldemorbot-lidar.service
 After=network-online.target hailort.service voldemorbot-lidar.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Service]
 Type=exec
@@ -11,11 +13,12 @@ WorkingDirectory=__TARGET_HOME__/voldemorbot/platform/robot
 Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-__TARGET_HOME__/voldemorbot/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi5_nodes.launch.py
+# launch-rpi5 (not a raw "ros2 launch") -- the pixi task sources
+# ros2_ws/install/setup.bash first, which is required to resolve the
+# locally-built voldemorbot_robot package.
+ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev launch-rpi5
 Restart=on-failure
 RestartSec=5
-StartLimitBurst=3
-StartLimitIntervalSec=60
 ExecStop=/usr/bin/kill -SIGINT $MAINPID
 TimeoutStopSec=10
 
