@@ -6,7 +6,8 @@ from typing import override
 
 from buildhat.serinterface import threading
 from gpiozero import Button
-from pydantic import BaseModel, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.hardware.button.base import Driver as ABC_Driver
 from src.hardware.button.config import Config as ButtonConfig
@@ -17,10 +18,19 @@ from src.logger import configure_json_logging
 configure_json_logging()
 
 
-class Config(BaseModel):
+class Config(BaseSettings):
     """Configuration for GPIO button driver."""
 
-    gpio_pin: int
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        # "__" so nested leaves with underscores parse, e.g.
+        # BUTTON__DEBOUNCE_MS -> button.debounce_ms.
+        env_nested_delimiter="__",
+    )
+
+    # No prefix on this class, so gpio_pin needs an explicit alias to reach
+    # BUTTON_GPIO_PIN -- it would otherwise only match a bare GPIO_PIN var.
+    gpio_pin: int = Field(validation_alias="BUTTON_GPIO_PIN")
     """GPIO pin number for the button."""
 
     button: ButtonConfig = Field(default_factory=ButtonConfig)
