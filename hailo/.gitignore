@@ -221,10 +221,11 @@ data/
 # Docker staging volume. Ephemeral, never source-controlled
 shared_with_docker/
 
-# Hailo visualisation exports and logs
-*.svg
-*.html
-*.log
+# Hailo generated artifacts (visualisations, reports, logs)
+output/*
+!output/.gitkeep
+logs/*
+!logs/.gitkeep
 
 # Claude Code
 .claude/

@@ -22,17 +22,14 @@ from __future__ import annotations
 import argparse
 import sys
 
-from src import calib, export, hailomz, test
-from src.common import (
-    MODEL_REGISTRY,
-    SHARED_WITH_DOCKER,
-    Backend,
-    HailoError,
-    HWArch,
-    ModelName,
-    Task,
-    configure_logging,
-    get_logger,
+from src import calib, export, graph, hailomz, test
+from src.constants import (
+    DEFAULT_CALIB_INPUT,
+    DEFAULT_CALIB_OUTPUT,
+    DEFAULT_COCO_SAMPLES,
+    DEFAULT_CONFIDENCE,
+    DEFAULT_IMG_SIZE,
+    DEFAULT_X11_DISPLAY,
 )
 from src.docker import (
     DOCKER_CONTAINER,
@@ -41,6 +38,10 @@ from src.docker import (
     DockerRunConfig,
     docker_run,
 )
+from src.enums import Backend, EvalTarget, HWArch, Task
+from src.errors import HailoError
+from src.log import configure_logging, get_logger
+from src.registry import MODEL_REGISTRY, SHARED_WITH_DOCKER, ModelName
 
 log = get_logger(__name__)
 
@@ -71,7 +72,7 @@ def _cmd_calib(args: argparse.Namespace) -> None:
 
 
 def _cmd_inspect(args: argparse.Namespace) -> None:
-    export.inspect(args.model)
+    graph.inspect(args.model)
 
 
 def _cmd_test(args: argparse.Namespace) -> None:
@@ -115,7 +116,7 @@ def _cmd_eval(args: argparse.Namespace) -> None:
             model=args.model,
             zoo_name=args.zoo_name,
             har=args.har,
-            target=args.target,
+            target=EvalTarget(args.target),
             data_count=args.data_count,
             visualize=args.visualize,
             docker=args.docker,
@@ -140,6 +141,7 @@ def _cmd_docker(args: argparse.Namespace) -> None:
             DockerRunConfig(
                 shared_dir=args.shared_dir,
                 container=args.container,
+                image=args.image,
                 display=args.display,
                 dry_run=args.dry_run,
             ),
@@ -175,7 +177,7 @@ def _add_export_parser(sub: argparse._SubParsersAction) -> None:
         metavar="MODEL",
         help=f"Model variant — one of: {list(MODEL_REGISTRY)}",
     )
-    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--imgsz", type=int, default=DEFAULT_IMG_SIZE)
     parser.add_argument("--opset", type=int, default=None, help="Override ONNX opset")
     parser.add_argument("--no-simplify", action="store_true")
     parser.set_defaults(func=_cmd_export)
@@ -186,16 +188,16 @@ def _add_calib_parser(sub: argparse._SubParsersAction) -> None:
     calib_sub = parser.add_subparsers(dest="calib_cmd", required=True)
 
     p_dl = calib_sub.add_parser("download", help="Download COCO 2017 validation images")
-    p_dl.add_argument("--samples", type=int, default=2048)
-    p_dl.add_argument("--output", default="./calib_data")
+    p_dl.add_argument("--samples", type=int, default=DEFAULT_COCO_SAMPLES)
+    p_dl.add_argument("--output", default=DEFAULT_CALIB_INPUT)
 
     p_cv = calib_sub.add_parser(
         "convert",
         help="Convert images to float32 .npy (HWC, [0,1]) for hailomz --calib-path",
     )
-    p_cv.add_argument("--input", default="./calib_data")
-    p_cv.add_argument("--output", default="./calib_data_npy")
-    p_cv.add_argument("--size", type=int, default=640)
+    p_cv.add_argument("--input", default=DEFAULT_CALIB_INPUT)
+    p_cv.add_argument("--output", default=DEFAULT_CALIB_OUTPUT)
+    p_cv.add_argument("--size", type=int, default=DEFAULT_IMG_SIZE)
 
     parser.set_defaults(func=_cmd_calib)
 
@@ -213,7 +215,8 @@ def _add_test_parser(sub: argparse._SubParsersAction) -> None:
         "--backend",
         required=True,
         choices=[b.value for b in Backend],
-        help="pt | onnx | ultraonnx",
+        help="pt | onnx | ultraonnx  (onnx requires an NMS-embedded model; "
+        "use ultraonnx for the registered nms=False exports)",
     )
     parser.add_argument(
         "--task",
@@ -221,9 +224,9 @@ def _add_test_parser(sub: argparse._SubParsersAction) -> None:
         default=None,
         help='Override task (inferred from filename by default — "seg" → segment)',
     )
-    parser.add_argument("--input", default="./calib_data")
+    parser.add_argument("--input", default=DEFAULT_CALIB_INPUT)
     parser.add_argument("--output", default="./test_output")
-    parser.add_argument("--conf", type=float, default=0.3)
+    parser.add_argument("--conf", type=float, default=DEFAULT_CONFIDENCE)
     parser.set_defaults(func=_cmd_test)
 
 
@@ -301,8 +304,8 @@ def _add_eval_parser(
     )
     parser.add_argument(
         "--target",
-        default="emulator",
-        choices=["emulator", "hailo8"],
+        default=EvalTarget.EMULATOR.value,
+        choices=[t.value for t in EvalTarget],
         help="Evaluation target (default: emulator)",
     )
     parser.add_argument("--data-count", type=int, default=512)
@@ -347,9 +350,14 @@ def _add_docker_parser(sub: argparse._SubParsersAction) -> None:
         help=f"Container name (default: {DOCKER_CONTAINER})",
     )
     p_docker_run.add_argument(
+        "--image",
+        default=DOCKER_IMAGE,
+        help=f"Suite image repo:tag to launch (default: {DOCKER_IMAGE})",
+    )
+    p_docker_run.add_argument(
         "--display",
-        default=":0",
-        help="X11 DISPLAY to forward (default: :0)",
+        default=DEFAULT_X11_DISPLAY,
+        help=f"X11 DISPLAY to forward (default: {DEFAULT_X11_DISPLAY})",
     )
     p_docker_run.add_argument(
         "--dry-run",

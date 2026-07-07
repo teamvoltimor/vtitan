@@ -9,29 +9,35 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.common import get_logger
+from src.log import get_logger
 
-# Docker container identity
 DOCKER_CONTAINER = "hailo8_ai_sw_suite_2025-10_container"
 DOCKER_IMAGE = "hailo8_ai_sw_suite_2025-10:1"
 DOCKER_SHARED_MOUNT = "/local/shared_with_docker"
 
+_HOST_UID = 1000
+_VIDEO_GID = 44
+
 log = get_logger(__name__)
 
 
-def _run_or_print(cmd: list[str], docker: str | None) -> None:
+def run_or_print(cmd: list[str], docker: str | None, workdir: str | None = None) -> None:
     """Execute *cmd* via ``docker exec`` or print it for manual use.
 
     Args:
         cmd: The ``hailomz`` command and its arguments.
         docker: Container name. When ``None`` the command is printed.
+        workdir: Working directory inside the container. When set, the command
+            runs there (``docker exec -w``) so any output artifacts land in that
+            directory; the printed form is prefixed with a matching ``cd``.
     """
     if docker:
-        full = ["docker", "exec", docker, *cmd]
+        full = ["docker", "exec", *(["-w", workdir] if workdir else []), docker, *cmd]
         log.info("Running: %s", " ".join(full))
         subprocess.run(full, check=True)  # noqa: S603
     else:
-        pretty = " \\\n  ".join(cmd)
+        prefix = f"cd {workdir} && \\\n  " if workdir else ""
+        pretty = prefix + " \\\n  ".join(cmd)
         log.info("Paste inside Docker:\n%s", pretty)
 
 
@@ -43,21 +49,33 @@ class DockerRunConfig:
         shared_dir: Host path mounted as ``/local/shared_with_docker`` inside
             the container. Resolved to an absolute path at runtime.
         container: Name assigned to the running container instance.
+        image: Suite image ``repo:tag`` to launch. Override to point at a
+            different suite build than the :data:`DOCKER_IMAGE` default.
         display: X11 ``DISPLAY`` variable forwarded into the container.
         dry_run: When ``True``, print the command instead of executing it.
     """
 
     shared_dir: str
     container: str = DOCKER_CONTAINER
+    image: str = DOCKER_IMAGE
     display: str = ":0"
     dry_run: bool = False
+
+
+def _container_exists(name: str) -> bool:
+    """Return ``True`` if a container named *name* already exists (any state)."""
+    probe = ["docker", "ps", "-aq", "-f", f"name=^{name}$"]
+    result = subprocess.run(probe, check=True, capture_output=True, text=True)  # noqa: S603
+    return bool(result.stdout.strip())
 
 
 def docker_run(config: DockerRunConfig) -> None:
     """Start the Hailo AI Software Suite Docker container.
 
     Reconstructs the full ``docker run`` command including all required
-    device mounts, GPU access, X11 forwarding, and the shared volume.
+    device mounts, GPU access, X11 forwarding, and the shared volume. When a
+    container of the same name already exists it is restarted and re-attached
+    instead of creating a duplicate.
 
     Args:
         config: Container startup parameters.
@@ -65,36 +83,62 @@ def docker_run(config: DockerRunConfig) -> None:
     shared_abs = str(Path(config.shared_dir).resolve())
 
     cmd = [
-        "docker", "run",
+        "docker",
+        "run",
         "--privileged",
         "--net=host",
-        "--gpus", "all",
-        "-e", f"DISPLAY={config.display}",
-        "-e", "XDG_RUNTIME_DIR=/run/user/1000/",
+        "--gpus",
+        "all",
+        "-e",
+        f"DISPLAY={config.display}",
+        "-e",
+        f"XDG_RUNTIME_DIR=/run/user/{_HOST_UID}/",
         "--device=/dev/dri:/dev/dri",
         "--ipc=host",
-        "--group-add", "44",
-        "-v", "/dev:/dev",
-        "-v", "/lib/firmware:/lib/firmware",
-        "-v", "/lib/modules:/lib/modules",
-        "-v", "/lib/udev/rules.d:/lib/udev/rules.d",
-        "-v", "/usr/src:/usr/src",
-        "-v", "/tmp/hailo_docker.xauth:/home/hailo/.Xauthority",  # noqa: S108
-        "-v", "/tmp/.X11-unix/:/tmp/.X11-unix/",  # noqa: S108
-        "--name", config.container,
-        "-v", "/var/run/docker.sock:/var/run/docker.sock",
-        "-v", "/etc/machine-id:/etc/machine-id:ro",
-        "-v", "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket",
-        "-v", f"{shared_abs}:{DOCKER_SHARED_MOUNT}:rw",
-        "-v", "/etc/timezone:/etc/timezone:ro",
-        "-v", "/etc/localtime:/etc/localtime:ro",
+        "--group-add",
+        str(_VIDEO_GID),
+        "-v",
+        "/dev:/dev",
+        "-v",
+        "/lib/firmware:/lib/firmware",
+        "-v",
+        "/lib/modules:/lib/modules",
+        "-v",
+        "/lib/udev/rules.d:/lib/udev/rules.d",
+        "-v",
+        "/usr/src:/usr/src",
+        "-v",
+        "/tmp/hailo_docker.xauth:/home/hailo/.Xauthority",  # noqa: S108
+        "-v",
+        "/tmp/.X11-unix/:/tmp/.X11-unix/",  # noqa: S108
+        "--name",
+        config.container,
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "-v",
+        "/etc/machine-id:/etc/machine-id:ro",
+        "-v",
+        "/var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket",
+        "-v",
+        f"{shared_abs}:{DOCKER_SHARED_MOUNT}:rw",
+        "-v",
+        "/etc/timezone:/etc/timezone:ro",
+        "-v",
+        "/etc/localtime:/etc/localtime:ro",
         "-ti",
-        DOCKER_IMAGE,
+        config.image,
     ]
 
     if config.dry_run:
         pretty = " \\\n  ".join(cmd)
         log.info("Docker run command:\n%s", pretty)
-    else:
-        log.info("Starting container %s from image %s", config.container, DOCKER_IMAGE)
-        subprocess.run(cmd, check=True)  # noqa: S603
+        return
+
+    if _container_exists(config.container):
+        log.info("Container %s already exists — starting and attaching", config.container)
+        start = ["docker", "start", "-ai", config.container]
+        subprocess.run(start, check=True)  # noqa: S603
+        return
+
+    log.info("Starting container %s from image %s", config.container, config.image)
+    subprocess.run(cmd, check=True)  # noqa: S603

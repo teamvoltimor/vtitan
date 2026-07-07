@@ -251,6 +251,39 @@ tasks:
       - task: clean:output
       - task: clean:calib
 
+# Code Quality
+
+  format:
+    desc: 'Format Python code with ruff'
+    cmds:
+      - uv run ruff format .
+
+  format:check:
+    desc: 'Check if code needs formatting (no changes)'
+    cmds:
+      - uv run ruff format --check .
+
+  format:diff:
+    desc: 'Show formatting changes without applying'
+    cmds:
+      - uv run ruff format --diff .
+
+  lint:
+    desc: 'Run ruff linter'
+    cmds:
+      - uv run ruff check .
+
+  lint:fix:
+    desc: 'Automatically fix linter issues'
+    cmds:
+      - uv run ruff check --fix .
+
+  check:
+    desc: 'Format check + lint (no changes)'
+    cmds:
+      - task: format:check
+      - task: lint
+
 # Logging & Debugging
 
   log:debug:

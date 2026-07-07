@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from src.common import SHARED_WITH_DOCKER, Backend, HWArch, ModelName, Task
+from src.registry import SHARED_WITH_DOCKER, ModelName
+
+if TYPE_CHECKING:
+    from src.enums import Backend, EvalTarget, HWArch, Task
 
 
 @dataclass(slots=True, frozen=True)
@@ -131,7 +135,7 @@ class EvalConfig:
     model: str
     zoo_name: str | None
     har: str | None
-    target: str
+    target: EvalTarget
     data_count: int
     visualize: bool
     docker: str | None

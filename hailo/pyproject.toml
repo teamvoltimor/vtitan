@@ -1,18 +1,22 @@
 [project]
 name = "hailo"
 version = "0.1.0"
-description = "Add your description here"
+description = "Host-side CLI toolchain for compiling YOLO models to Hailo 8 HEF format"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fiftyone>=1.13.0",
     "numpy>=2.4.2",
     "onnx>=1.20.1",
     "onnxruntime>=1.24.1",
     "opencv-python>=4.13.0.92",
-    "ruff>=0.15.4",
     "ultralytics>=8.4.14",
 ]
+
+[project.optional-dependencies]
+calib = ["fiftyone>=1.13.0"]
+
+[dependency-groups]
+dev = ["ruff>=0.15.4"]
 
 [project.scripts]
 hailo = "main:main"

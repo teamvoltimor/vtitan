@@ -12,27 +12,26 @@ Workflow
 When ``--docker <container>`` is supplied the hailomz commands are executed
 via ``docker exec``. Without it the shell command is printed for manual use.
 """
+
 from __future__ import annotations
 
 import shutil
 from pathlib import Path
 
-from src.common import (
-    MODEL_REGISTRY,
-    HailoError,
-    get_entry,
-    get_logger,
-)
 from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig  # noqa: TC001
 from src.docker import (
     DOCKER_SHARED_MOUNT,
-    _run_or_print,
+    run_or_print,
 )
+from src.errors import HailoError
+from src.log import get_logger
+from src.registry import MODEL_REGISTRY, get_entry
 
 log = get_logger(__name__)
 
 
 # Helpers
+
 
 def _resolve_zoo_name(model: str, override: str | None) -> str:
     """Return the hailomz model zoo identifier.
@@ -58,6 +57,7 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
 
 
 # Public commands
+
 
 def stage(config: StageConfig) -> None:
     """Copy ONNX and calibration data into ``shared_with_docker/``.
@@ -113,12 +113,19 @@ def compile_model(config: CompileConfig) -> None:
     ckpt = f"{DOCKER_SHARED_MOUNT}/{onnx_name}"
 
     cmd = [
-        "hailomz", "compile", zoo_name,
-        "--ckpt", ckpt,
-        "--calib-path", config.calib_path,
-        "--hw-arch", str(config.hw),
+        "hailomz",
+        "compile",
+        zoo_name,
+        "--ckpt",
+        ckpt,
+        "--calib-path",
+        config.calib_path,
+        "--hw-arch",
+        str(config.hw),
     ]
-    _run_or_print(cmd, config.docker)
+    # Pin the working directory to the shared mount so the resulting HAR/HEF
+    # land where `eval`/`profile` look for them by default.
+    run_or_print(cmd, config.docker, workdir=DOCKER_SHARED_MOUNT)
 
 
 def eval_model(config: EvalConfig) -> None:
@@ -134,15 +141,20 @@ def eval_model(config: EvalConfig) -> None:
     har = config.har or f"{DOCKER_SHARED_MOUNT}/{zoo_name}.har"
 
     cmd = [
-        "hailomz", "eval", zoo_name,
-        "--har", har,
-        "--target", config.target,
-        "--data-count", str(config.data_count),
+        "hailomz",
+        "eval",
+        zoo_name,
+        "--har",
+        har,
+        "--target",
+        config.target,
+        "--data-count",
+        str(config.data_count),
     ]
     if config.visualize:
         cmd.append("--visualize")
 
-    _run_or_print(cmd, config.docker)
+    run_or_print(cmd, config.docker)
 
 
 def profile_model(config: ProfileConfig) -> None:
@@ -158,4 +170,4 @@ def profile_model(config: ProfileConfig) -> None:
     hef = config.hef or f"{DOCKER_SHARED_MOUNT}/{zoo_name}.hef"
 
     cmd = ["hailomz", "profile", "--hef", hef, zoo_name]
-    _run_or_print(cmd, config.docker)
+    run_or_print(cmd, config.docker)
