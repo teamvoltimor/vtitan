@@ -7,23 +7,29 @@
 # ROS2 workspace, services). They never flash or partition anything.
 set -euo pipefail
 
-# pixi is installed per-user under the pi account; reference it by absolute path
-# so it works from non-interactive (sudo) shells that don't source ~/.bashrc.
-PIXI_BIN=/home/pi/.pixi/bin/pixi
-
-log() { echo "[setup] $*"; }
-
+# The non-root account these scripts operate on behalf of — whoever invoked
+# sudo. Raspberry Pi Imager lets you name this account anything (it doesn't
+# have to be the classic "pi" default), so derive it instead of hardcoding it.
 require_root() {
     if [[ $EUID -ne 0 ]]; then
         echo "This script must be run as root (sudo)." >&2
         exit 1
     fi
 }
+require_root
+TARGET_USER="${SUDO_USER:?run this script with sudo, not as root directly}"
+TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
 
-# Run a command as the pi user with pi's HOME (so ~/.pixi etc. resolve).
+# pixi is installed per-user under $TARGET_USER; reference it by absolute path
+# so it works from non-interactive (sudo) shells that don't source ~/.bashrc.
+PIXI_BIN="$TARGET_HOME/.pixi/bin/pixi"
+
+log() { echo "[setup] $*"; }
+
+# Run a command as $TARGET_USER with their HOME (so ~/.pixi etc. resolve).
 run_as_pi() {
     if [[ $EUID -eq 0 ]]; then
-        sudo -H -u pi "$@"
+        sudo -H -u "$TARGET_USER" "$@"
     else
         "$@"
     fi
@@ -34,7 +40,7 @@ install_pixi() {
         log "pixi already installed: $(run_as_pi "$PIXI_BIN" --version)"
         return
     fi
-    log "Installing pixi for user pi..."
+    log "Installing pixi for user $TARGET_USER..."
     run_as_pi bash -c 'curl -fsSL https://pixi.sh/install.sh | bash'
 }
 
@@ -54,18 +60,18 @@ install_gh() {
     apt-get install -y -qq gh
 }
 
-# Ensure gh is installed and authenticated for the pi user (the voldemorbot repo
-# is private). Auth comes from an existing `gh auth login` or a GH_TOKEN env var.
-# Called early so we fail fast instead of after the long apt/pixi build.
+# Ensure gh is installed and authenticated for $TARGET_USER (the voldemorbot
+# repo is private). Auth comes from an existing `gh auth login` or a GH_TOKEN
+# env var. Called early so we fail fast instead of after the long apt/pixi build.
 require_github_auth() {
     install_gh
     if [[ -n "${GH_TOKEN:-}" ]]; then
-        log "Authenticating gh for user pi via GH_TOKEN..."
+        log "Authenticating gh for user $TARGET_USER via GH_TOKEN..."
         printf '%s' "$GH_TOKEN" | run_as_pi gh auth login --with-token
     fi
     if ! run_as_pi gh auth status >/dev/null 2>&1; then
-        echo "ERROR: gh is not authenticated for user 'pi' (private repo)." >&2
-        echo "  Run:  sudo -u pi gh auth login        (or pass GH_TOKEN=...)" >&2
+        echo "ERROR: gh is not authenticated for user '$TARGET_USER' (private repo)." >&2
+        echo "  Run:  sudo -u $TARGET_USER gh auth login        (or pass GH_TOKEN=...)" >&2
         echo "  then re-run this script." >&2
         exit 1
     fi
@@ -74,7 +80,7 @@ require_github_auth() {
 }
 
 clone_repo() {
-    local dest="${1:-/home/pi/voldemorbot}"
+    local dest="${1:-$TARGET_HOME/voldemorbot}"
     if [[ -d "$dest/.git" ]]; then
         log "Repo already cloned at $dest"
         return
@@ -101,6 +107,6 @@ copy_env() {
         return
     fi
     cp "$robot_dir/.env.example" "$robot_dir/.env"
-    chown pi:pi "$robot_dir/.env"
+    chown "$TARGET_USER:$TARGET_USER" "$robot_dir/.env"
     log "Copied .env.example to .env — edit before running services"
 }

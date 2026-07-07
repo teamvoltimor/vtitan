@@ -2,9 +2,10 @@
 # Pi 5 provisioning — run ON the Pi over SSH.
 #
 # Prerequisite: flash with Raspberry Pi Imager (Raspberry Pi OS Lite 64-bit),
-# setting hostname, SSH + your public key, username `pi` + password, and WiFi.
+# setting hostname, SSH + your public key, a username + password (any name —
+# it's auto-detected via $SUDO_USER, doesn't have to be `pi`), and WiFi.
 # Boot, then:
-#   ssh pi@<host> 'sudo bash /path/to/setup_pi_5.sh [--hailo-deb /path/hailort.deb]'
+#   ssh <user>@<host> 'sudo bash /path/to/setup_pi_5.sh [--hailo-deb /path/hailort.deb]'
 #
 # The Pi 5 is the USB *host* for the Pi Zero gadget (it just sees usb0 appear),
 # so it needs no dwc2/g_ether overlays — only a static IP on usb0.
@@ -14,10 +15,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./setup_common.sh
 source "$SCRIPT_DIR/setup_common.sh"
 
-REPO_DIR=/home/pi/voldemorbot
+REPO_DIR="$TARGET_HOME/voldemorbot"
 ROBOT_DIR="$REPO_DIR/platform/robot"
-
-require_root
 
 hailo_deb=""
 while [[ $# -gt 0 ]]; do
@@ -40,8 +39,8 @@ raspi-config nonint do_i2c 0
 raspi-config nonint do_spi 0
 raspi-config nonint do_serial 2   # serial hardware on, login shell off (IMU UART-RVC)
 
-log "Adding pi to hardware groups..."
-usermod -aG gpio,i2c,spi,dialout pi
+log "Adding $TARGET_USER to hardware groups..."
+usermod -aG gpio,i2c,spi,dialout "$TARGET_USER"
 
 log "Installing dependencies..."
 apt-get install -y -qq git build-essential python3-pip i2c-tools network-manager
