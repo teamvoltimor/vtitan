@@ -10,8 +10,8 @@ cover, so nothing is silently missing.
 | Machine | Role | Provisioned by |
 |---|---|---|
 | **Dev / build Pi 5** (`ralvarezdev-raspberrypi`, user `ralvarezdev`) | Developer workstation: edits, builds, flashes, remote access | by hand (documented below) |
-| **Robot Pi 5** (user `pi`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `scripts/setup_pi_5.sh` |
-| **Robot Pi Zero 2W** (user `pi`) | Motors (servo + DC encoder), button, OLED | `scripts/setup_pi_zero.sh` |
+| **Robot Pi 5** (user `ralvarezdev`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `scripts/setup_pi_5.sh` |
+| **Robot Pi Zero 2W** (user `ralvarezdev`) | Motors (servo + DC encoder), button, OLED | `scripts/setup_pi_zero.sh` |
 
 All three run **Raspberry Pi OS Lite (64-bit)** / Debian 13 (trixie), arm64.
 64-bit is mandatory — pixi/conda-forge has no 32-bit ARM packages.
@@ -61,8 +61,9 @@ robot pixi env and `ros2_ws` built.
 ### Phase 1 — Raspberry Pi Imager (Windows)
 
 Writes the OS and first-contact config. In OS customization: hostname, enable
-SSH + public key, username **`pi`**, password, WiFi (SSID/password/country),
-locale. See `scripts/README.md`.
+SSH + public key, username (any name — the scripts derive it from
+`$SUDO_USER`), password, WiFi (SSID/password/country), locale. See
+`scripts/README.md`.
 
 ### Phase 2 — `scripts/setup_pi_*.sh` (run on the Pi over SSH)
 
@@ -72,17 +73,19 @@ install/enable systemd service(s) + udev rules → reboot.
 
 **`setup_pi_zero.sh` additionally:** config.txt overlays (`dwc2`, `pwm-2chan`,
 `i2c`, `uart`), `cmdline.txt` `modules-load=dwc2,g_ether` + fixed gadget MACs,
-NM-only `usb0` static profile **10.250.250.1/24**, swap bump for the build.
+NM-only `usb0` static profile **192.168.250.1/24**, swap bump for the build.
 
 **`setup_pi_5.sh` additionally:** raspi-config interfaces (i2c/spi/serial/camera),
-Hailo runtime, NM `usb0` host IP **10.250.250.2/24**, LiDAR driver fetch +
+Hailo runtime, NM `usb0` host IP **192.168.250.2/24**, LiDAR driver fetch +
 `voldemorbot-lidar.service`.
 
 ### Networking
 
-Pi Zero ↔ Pi 5 USB-Ethernet gadget on **10.250.250.0/24** (Zero `.1` gadget,
+Pi Zero ↔ Pi 5 USB-Ethernet gadget on **192.168.250.0/24** (Zero `.1` gadget,
 Pi 5 `.2` host), **NetworkManager-only** — no netplan, no manual `ip` service, no
 ICS switcher. WiFi (separate subnet) carries internet + first-contact SSH.
+(Migrated off `10.250.250.0/24` — a VPN was intercepting all `10.0.0.0/8`
+traffic and silently blackholing the direct link.)
 
 ---
 
@@ -99,10 +102,8 @@ tunnel · Tailscale/WireGuard.
 **⚠️ Known script gaps (TODO):**
 - **Hailo:** script installs from a manual `--hailo-deb`; the real/official path
   is `apt install hailo-all` (as on the dev box). Should switch.
-- **Swap:** the Pi Zero swap bump only edits `/etc/dphys-swapfile`, which doesn't
-  exist on trixie (zram default) — currently a silent no-op.
 
-**🔧 Not covered by anyone — Imager or manual:** hostname / user `pi` / WiFi /
+**🔧 Not covered by anyone — Imager or manual:** hostname / username / WiFi /
 SSH keys (Imager) · robot `.env` tuning (GPIO pins, `STEERING_BACKEND`,
 `DRIVE_BACKEND`) · on-device steering calibration (`find_limits_interactive`,
 see `platform/robot/KNOWN_ISSUES.md`) · physical sensor wiring.

@@ -1,5 +1,15 @@
 # Voldemorbot Pi Setup & Startup Services — Specification
 
+> **⚠️ Historical design spec — partially superseded.** This predates the
+> actual implementation and has drifted from it in several places: systemd
+> units here launch via raw `ros2 launch` (the real units source
+> `ros2_ws/install/setup.bash` via a pixi task instead), `User=pi`/`/home/pi`
+> paths are now parameterized per-account, and the Taskfile provisioning
+> tasks shown below were deleted (superseded by `rpi:provision:zero` /
+> `rpi:provision:pi5` in the root `Taskfile.yml`). For the current, accurate
+> setup reference use `docs/pi-setup.md` and `scripts/README.md`. Pin
+> assignments and hardware architecture below are still accurate.
+
 ## 1. Hardware Architecture
 
 ```
@@ -11,7 +21,7 @@ Pi 5 (16GB — compute, USB-heavy)              Pi Zero 2W (GPIO — real-time c
 │ Camera Mod 3 → CSI              │  Gadget   │   IN4       ← GPIO6                  │
 │                                 │◄────────► │ Encoder C1  ← GPIO16                 │
 │                                 │ g_ether   │ Encoder C2  ← GPIO20                 │
-│                                 │10.250.250.x│ Button       ← GPIO4 (pull-up)      │
+│                                 │192.168.250.x│ Button       ← GPIO4 (pull-up)      │
 │                                 │           │ OLED (I2C)   ← GPIO2 (SDA), 3 (SCL)  │
 └─────────────────────────────────┘           └──────────────────────────────────────┘
 
@@ -455,7 +465,7 @@ provision [--hailo-deb /path/to/hailort.deb]:
   5. dpkg -i hailort*.deb && pip install libs/linux_aarch64/hailort-*.whl
      systemctl enable hailort
   6. nmcli con add type ethernet ifname usb0 ipv4.method manual \
-       ipv4.addresses 10.250.250.2/24 connection.id usb-gadget
+       ipv4.addresses 192.168.250.2/24 connection.id usb-gadget
   7. git clone ~/voldemorbot
   8. cd ~/voldemorbot/platform/robot && pixi install && pixi run -e dev build-ws
   9. cp .env.example .env
@@ -472,7 +482,7 @@ Power On
   │
   ├── Pi Zero (~5s to ready)
   │    1. Kernel: GPIO, I2C, PWM
-  │    2. g_ether: usb0 @ 10.250.250.1
+  │    2. g_ether: usb0 @ 192.168.250.1
   │    3. voldemorbot-pi-zero.service
   │       ├── button_node         → /button/event
   │       ├── ackermann_motor     → /motor/*  (sub: /ackermann_cmd)
@@ -480,7 +490,7 @@ Power On
   │
   └── Pi 5 (~15s to ready)
        1. Kernel + USB: ttyUSB0, ttyACM0
-       2. g_ether: usb0 @ 10.250.250.2
+       2. g_ether: usb0 @ 192.168.250.2
        3. hailort.service (firmware load)
        4. voldemorbot-lidar.service → /scan
        5. voldemorbot-pi5.service

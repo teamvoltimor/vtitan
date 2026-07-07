@@ -409,11 +409,11 @@ tasks:
         vars:
           IP: '{{.IP}}'
           CONNECTION: 'usb0'
-          GATEWAY: '10.250.250.1'
+          GATEWAY: '192.168.250.1'
       - echo "Setting usb0 to never-default (keep WiFi as primary route)..."
       - sudo nmcli con modify 'usb0' ipv4.never-default yes connection.autoconnect-priority -10
     vars:
-      IP: '{{.IP | default "10.250.250.2"}}'
+      IP: '{{.IP | default "192.168.250.2"}}'
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
