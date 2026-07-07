@@ -527,4 +527,4 @@ tasks:
       - echo "Verifying..."
       - ls -lh /var/log/journal/$(cat /etc/machine-id)/
       - journalctl --list-boots
-      - echo "Done. Under-voltage messages survive reboot now: journalctl -b -1 | grep -i under-voltage"
+      - echo "Done. Persistent journal logging enabled."
