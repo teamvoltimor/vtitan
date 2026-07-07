@@ -2,24 +2,23 @@
 # Pi Zero 2W provisioning — run ON the Pi over SSH.
 #
 # Prerequisite: flash the card with Raspberry Pi Imager and, in its OS
-# customization, set hostname, enable SSH + your public key, set the username to
-# `pi` + a password, and configure WiFi (SSID/password/country). Use the
-# 64-bit image (Raspberry Pi OS Lite 64-bit) — pixi/conda-forge has no 32-bit
-# ARM packages. Boot the Pi, let it join WiFi, then:
+# customization, set hostname, enable SSH + your public key, set a username +
+# password (any name — it's auto-detected via $SUDO_USER, doesn't have to be
+# `pi`), and configure WiFi (SSID/password/country). Use the 64-bit image
+# (Raspberry Pi OS Lite 64-bit) — pixi/conda-forge has no 32-bit ARM packages.
+# Boot the Pi, let it join WiFi, then:
 #
-#   scp -r scripts pi@<wifi-ip>:/tmp/        # or git clone first
-#   ssh pi@<wifi-ip> 'sudo bash /tmp/scripts/setup_pi_zero.sh'
+#   scp -r scripts <user>@<wifi-ip>:/tmp/        # or git clone first
+#   ssh <user>@<wifi-ip> 'sudo bash /tmp/scripts/setup_pi_zero.sh'
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./setup_common.sh
 source "$SCRIPT_DIR/setup_common.sh"
 
-REPO_DIR=/home/pi/voldemorbot
+REPO_DIR="$TARGET_HOME/voldemorbot"
 ROBOT_DIR="$REPO_DIR/platform/robot"
 USB_GADGET_IP=192.168.250.1/24   # Pi Zero is the USB gadget; Pi 5 host is .2
-
-require_root
 
 # Verify GitHub access up front (private repo) before any heavy work.
 require_github_auth
@@ -32,8 +31,8 @@ log "Updating packages..."
 apt-get update -qq
 apt-get full-upgrade -y -qq
 
-log "Adding pi to hardware groups..."
-usermod -aG gpio,i2c,spi,dialout pi
+log "Adding $TARGET_USER to hardware groups..."
+usermod -aG gpio,i2c,spi,dialout "$TARGET_USER"
 
 log "Installing dependencies..."
 apt-get install -y -qq git build-essential python3-lgpio python3-pip i2c-tools network-manager
