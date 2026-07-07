@@ -1,0 +1,59 @@
+version: "3"
+
+vars:
+  RPI_5_SSH: rpi-5-local
+  RPI_5_HOST: 192.168.0.50
+  RPI_ZERO_SSH: rpi-zero-ethernet
+  RPI_ZERO_HOST: ralvarezdev-raspberrypi-zero.local
+  RPI_PING_RETRIES: 30
+  RPI_PING_INTERVAL: 2
+
+tasks:
+  default:
+    desc: List all fleet tasks
+    cmds:
+      - task --list
+
+  # Pi 5
+
+  rpi-5:ping:
+    desc: Ping the Pi 5
+    cmds:
+      - cmd: powershell -NoProfile -Command "Test-Connection -ComputerName '{{.RPI_5_HOST}}' -Count 3"
+        platforms: [windows]
+      - cmd: ping -c3 {{.RPI_5_HOST}}
+        platforms: [linux, darwin]
+
+  rpi-5:ssh:
+    desc: SSH into the Pi 5
+    cmds:
+      - ssh {{.RPI_5_SSH}}
+
+  rpi-5:run:
+    desc: "Run a command on the Pi 5 (usage: task fleet:rpi-5:run CMD=command)"
+    cmds:
+      - ssh {{.RPI_5_SSH}} "{{.CMD}}"
+    requires:
+      vars: [CMD]
+
+  # Pi Zero
+
+  rpi-zero:ping:
+    desc: Ping the Pi Zero
+    cmds:
+      - cmd: powershell -NoProfile -Command "Test-Connection -ComputerName '{{.RPI_ZERO_HOST}}' -Count 3"
+        platforms: [windows]
+      - cmd: ping -c3 {{.RPI_ZERO_HOST}}
+        platforms: [linux, darwin]
+
+  rpi-zero:ssh:
+    desc: SSH into the Pi Zero
+    cmds:
+      - ssh {{.RPI_ZERO_SSH}}
+
+  rpi-zero:run:
+    desc: "Run a command on the Pi Zero (usage: task fleet:rpi-zero:run CMD=command)"
+    cmds:
+      - ssh {{.RPI_ZERO_SSH}} "{{.CMD}}"
+    requires:
+      vars: [CMD]
