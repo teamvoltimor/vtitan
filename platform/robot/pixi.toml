@@ -113,22 +113,25 @@ sim = "gz sim empty.sdf"
 sim-bridge = "gz sim -r empty.sdf"
 
 # ROS2 nodes (requires: pixi run -e dev build-ws first)
-run-imu-i2c        = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_i2c_node", env = { PYTHONPATH = "." } }
-run-imu-rvc        = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_uart_rvc_node", env = { PYTHONPATH = "." } }
-run-state-machine  = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot state_machine_node", env = { PYTHONPATH = "." } }
-run-oled           = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot oled_display_node", env = { PYTHONPATH = "." } }
-run-motor          = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot ackermann_motor_node", env = { PYTHONPATH = "." } }
-run-telemetry      = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot telemetry_bridge_node", env = { PYTHONPATH = "." } }
-run-vision         = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot vision_node", env = { PYTHONPATH = "." } }
-run-navigator      = { cmd = ". ros2_ws/install/setup.bash && ros2 run voldemorbot_robot track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json", env = { PYTHONPATH = "." } }
+# Wrapped in `bash -c` because pixi's built-in cross-platform task shell has
+# no sourcing support at all (neither bash's "source" nor POSIX "."), so it
+# can't apply ros2_ws/install/setup.bash's env side effects on its own.
+run-imu-i2c        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_i2c_node'", env = { PYTHONPATH = "." } }
+run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot bno08x_uart_rvc_node'", env = { PYTHONPATH = "." } }
+run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot state_machine_node'", env = { PYTHONPATH = "." } }
+run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot oled_display_node'", env = { PYTHONPATH = "." } }
+run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot ackermann_motor_node'", env = { PYTHONPATH = "." } }
+run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot telemetry_bridge_node'", env = { PYTHONPATH = "." } }
+run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot vision_node'", env = { PYTHONPATH = "." } }
+run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_robot track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json'", env = { PYTHONPATH = "." } }
 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)
-launch-rpi5            = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot rpi5_nodes.launch.py", env = { PYTHONPATH = "." } }
-launch-rpi-zero        = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py", env = { PYTHONPATH = "." } }
-launch-state-machine   = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot wro_state_machine_launch.py", env = { PYTHONPATH = "." } }
-launch-telemetry       = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot telemetry_bridge_launch.py", env = { PYTHONPATH = "." } }
-launch-simulator       = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot simulator.launch.py", env = { PYTHONPATH = "." } }
-launch-lidar           = { cmd = ". ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot lidar_launch.py", env = { PYTHONPATH = "." } }
+launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot wro_state_machine_launch.py'", env = { PYTHONPATH = "." } }
+launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
+launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot simulator.launch.py'", env = { PYTHONPATH = "." } }
+launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_robot lidar_launch.py'", env = { PYTHONPATH = "." } }
 
 # Fetch the third-party Slamtec LIDAR driver into the workspace (idempotent).
 # Required before build-ws if you intend to use run-lidar / launch-lidar.
@@ -147,4 +150,4 @@ build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base
 build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
 
 [target.linux-aarch64.tasks]
-run-lidar = ". ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0"
+run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0'"
