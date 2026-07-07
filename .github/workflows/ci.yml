@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master, platform]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  robot:
+    name: Robot — lint + unit tests (pixi)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/robot
+    steps:
+      - uses: actions/checkout@v4
+
+      # Robot is pixi-only (RoboStack). The unit subset has no ROS2/hardware
+      # deps, so it runs in CI without a Pi.
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          manifest-path: platform/robot/pixi.toml
+          environments: dev
+          cache: true
+
+      - name: Ruff
+        run: pixi run -e dev ruff check src/ tests/
+
+      - name: Unit tests
+        run: pixi run -e dev pytest tests/unit -q
+
+  backend:
+    name: Backend — build + test (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: platform/backend/go.mod
+          cache-dependency-path: platform/backend/go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
