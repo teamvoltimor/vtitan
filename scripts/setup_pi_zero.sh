@@ -41,6 +41,9 @@ apt-get install -y -qq git build-essential python3-lgpio python3-pip i2c-tools n
 # ---- Hardware interfaces: I2C, hardware PWM, UART, USB-gadget (dwc2) ----
 log "Configuring $BOOT_DIR/config.txt overlays..."
 config="$BOOT_DIR/config.txt"
+# Strip any prior dwc2 overlay first (e.g. a stock dr_mode=host image default) —
+# otherwise it survives alongside the plain "dtoverlay=dwc2" appended below.
+sed -i '/^dtoverlay=dwc2/d' "$config"
 for line in "dtparam=i2c_arm=on" "dtoverlay=dwc2" "enable_uart=1" "dtoverlay=pwm-2chan"; do
     grep -qxF "$line" "$config" || echo "$line" >> "$config"
 done
