@@ -1,0 +1,4 @@
+[tools]
+hugo = "0.161"
+biome = "2.3"
+task = "3.52"
