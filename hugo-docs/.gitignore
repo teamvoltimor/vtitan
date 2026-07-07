@@ -13,7 +13,10 @@ Thumbs.db
 !Makefile
 !Taskfile.yml
 !biome.json
+!.editorconfig
+!mise.toml
 !*/
+!./README.md
 
 # Configuration files
 !hugo.toml
