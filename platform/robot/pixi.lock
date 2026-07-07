@@ -88,6 +88,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libattr-2.5.2-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libavif16-1.4.2-hf998032_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libblas-3.11.0-8_h4a7cf45_openblas.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-1.88.0-hd24cca6_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-python-1.88.0-py312hf890105_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlicommon-1.2.0-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlidec-1.2.0-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlienc-1.2.0-hb03c661_1.conda
@@ -133,6 +135,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libogg-1.3.5-hd0c01bc_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenblas-0.3.33-pthreads_h94d23a6_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopencv-4.13.0-qt6_py312h59bef40_610.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libopengl-1.7.0-ha4b6fd6_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libopengl-devel-1.7.0-ha4b6fd6_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-2026.2.0-hb56ce9e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-batch-plugin-2026.2.0-hd85de46_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-plugin-2026.2.0-hd85de46_0.conda
@@ -383,6 +387,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-common-interfaces-5.5.2-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-composition-interfaces-2.3.1-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-console-bridge-vendor-1.8.0-np2py312h2ed9cc7_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-cv-bridge-4.1.0-np2py312h3b5449b_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-cyclonedds-0.10.5-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-diagnostic-msgs-5.5.2-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312h2ed9cc7_19.conda
@@ -685,6 +690,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libattr-2.5.2-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libavif16-1.4.2-h1641d3b_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libblas-3.11.0-8_haddc8a3_openblas.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libboost-1.88.0-h5651608_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libboost-python-1.88.0-py312he84d598_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlicommon-1.2.0-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlidec-1.2.0-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlienc-1.2.0-he30d5cf_1.conda
@@ -730,6 +737,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libogg-1.3.5-h86ecc28_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenblas-0.3.33-pthreads_h9d3fd7e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopencv-4.13.0-qt6_py312hf9920a1_610.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopengl-1.7.0-hd24410f_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopengl-devel-1.7.0-hd24410f_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-2026.2.0-h1915271_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-arm-cpu-plugin-2026.2.0-h1915271_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-auto-batch-plugin-2026.2.0-h3d5001d_0.conda
@@ -973,6 +982,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-common-interfaces-5.5.2-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-composition-interfaces-2.3.1-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-console-bridge-vendor-1.8.0-np2py312h61f2ce4_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-cv-bridge-4.1.0-np2py312h3c25c5b_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-cyclonedds-0.10.5-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-diagnostic-msgs-5.5.2-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312h61f2ce4_19.conda
@@ -1317,6 +1327,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/libaec-1.1.5-haf901d7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libavif16-1.4.2-h7e7b026_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libblas-3.11.0-8_h8455456_mkl.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/libboost-1.88.0-h9dfe17d_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/libboost-python-1.88.0-py312h9b46583_7.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlicommon-1.2.0-hfd05255_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlidec-1.2.0-hfd05255_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlienc-1.2.0-hfd05255_1.conda
@@ -1497,6 +1509,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-common-interfaces-5.5.2-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-composition-interfaces-2.3.1-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-console-bridge-vendor-1.8.0-np2py312hf80f32c_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-cv-bridge-4.1.0-np2py312h7e38322_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-cyclonedds-0.10.5-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-diagnostic-msgs-5.5.2-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312hf80f32c_19.conda
@@ -1801,6 +1814,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libattr-2.5.2-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libavif16-1.4.2-hf998032_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libblas-3.11.0-8_h4a7cf45_openblas.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-1.88.0-hd24cca6_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libboost-python-1.88.0-py312hf890105_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlicommon-1.2.0-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlidec-1.2.0-hb03c661_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlienc-1.2.0-hb03c661_1.conda
@@ -1846,6 +1861,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libogg-1.3.5-hd0c01bc_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenblas-0.3.33-pthreads_h94d23a6_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopencv-4.13.0-qt6_py312h59bef40_610.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libopengl-1.7.0-ha4b6fd6_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libopengl-devel-1.7.0-ha4b6fd6_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-2026.2.0-hb56ce9e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-batch-plugin-2026.2.0-hd85de46_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenvino-auto-plugin-2026.2.0-hd85de46_0.conda
@@ -2129,6 +2146,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-common-interfaces-5.5.2-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-composition-interfaces-2.3.1-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-console-bridge-vendor-1.8.0-np2py312h2ed9cc7_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-cv-bridge-4.1.0-np2py312h3b5449b_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-cyclonedds-0.10.5-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-diagnostic-msgs-5.5.2-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312h2ed9cc7_19.conda
@@ -2444,6 +2462,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libattr-2.5.2-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libavif16-1.4.2-h1641d3b_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libblas-3.11.0-8_haddc8a3_openblas.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libboost-1.88.0-h5651608_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libboost-python-1.88.0-py312he84d598_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlicommon-1.2.0-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlidec-1.2.0-he30d5cf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libbrotlienc-1.2.0-he30d5cf_1.conda
@@ -2489,6 +2509,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libogg-1.3.5-h86ecc28_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenblas-0.3.33-pthreads_h9d3fd7e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopencv-4.13.0-qt6_py312hf9920a1_610.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopengl-1.7.0-hd24410f_3.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopengl-devel-1.7.0-hd24410f_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-2026.2.0-h1915271_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-arm-cpu-plugin-2026.2.0-h1915271_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libopenvino-auto-batch-plugin-2026.2.0-h3d5001d_0.conda
@@ -2765,6 +2787,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-common-interfaces-5.5.2-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-composition-interfaces-2.3.1-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-console-bridge-vendor-1.8.0-np2py312h61f2ce4_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-cv-bridge-4.1.0-np2py312h3c25c5b_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-cyclonedds-0.10.5-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-diagnostic-msgs-5.5.2-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312h61f2ce4_19.conda
@@ -3134,6 +3157,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/libaec-1.1.5-haf901d7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libavif16-1.4.2-h7e7b026_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libblas-3.11.0-8_h8455456_mkl.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/libboost-1.88.0-h9dfe17d_7.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/libboost-python-1.88.0-py312h9b46583_7.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlicommon-1.2.0-hfd05255_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlidec-1.2.0-hfd05255_1.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libbrotlienc-1.2.0-hfd05255_1.conda
@@ -3318,6 +3343,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-common-interfaces-5.5.2-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-composition-interfaces-2.3.1-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-console-bridge-vendor-1.8.0-np2py312hf80f32c_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-cv-bridge-4.1.0-np2py312h7e38322_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-cyclonedds-0.10.5-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-diagnostic-msgs-5.5.2-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-eigen3-cmake-module-0.4.0-np2py312hf80f32c_19.conda
