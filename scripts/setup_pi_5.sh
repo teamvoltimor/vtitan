@@ -74,8 +74,8 @@ if [[ -n "$hailo_deb" ]]; then
 fi
 
 log "Installing systemd services + udev rules..."
-cp "$ROBOT_DIR/systemd/voldemorbot-pi5.service" /etc/systemd/system/
-cp "$ROBOT_DIR/systemd/voldemorbot-lidar.service" /etc/systemd/system/
+install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-pi5.service"
+install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-lidar.service"
 cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
 systemctl daemon-reload
 systemctl enable voldemorbot-lidar.service voldemorbot-pi5.service

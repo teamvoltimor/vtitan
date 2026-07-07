@@ -106,7 +106,7 @@ ls /sys/class/pwm/pwmchip0/ >/dev/null 2>&1 \
     || log "WARNING: PWM chip not present yet — it appears after the reboot below."
 
 log "Installing systemd service + udev rules..."
-cp "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service" /etc/systemd/system/
+install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service"
 cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
 systemctl daemon-reload
 systemctl enable voldemorbot-pi-zero.service
