@@ -10,6 +10,7 @@ vars:
   PLATFORM_SCRIPTS: "{{.HOME}}/voldemorbot-platform/scripts"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
+  FLEET_USER: ralvarezdev   # account created on every Pi via Raspberry Pi Imager (not "pi")
 
 includes:
   platform:
@@ -125,13 +126,13 @@ tasks:
   # Provisioning (run from dev Pi 5 — scripts live in ~/voldemorbot-platform/)
 
   rpi:provision:zero:
-    desc: "Provision Pi Zero 2W — scp scripts + run setup_pi_zero.sh (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x])"
+    desc: "Provision Pi Zero 2W — scp scripts + run setup_pi_zero.sh (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x]). Needs an interactive sudo password on the Zero — if invoking over a WiFi SSH session, run under nohup since the WiFi lock step below will disconnect it."
     cmds:
       - task: rpi:wifi:lock-2g
-      - echo "[1/3] Copying provisioner scripts to pi@{{.ZERO_IP}}..."
-      - scp -r {{.PLATFORM_SCRIPTS}} pi@{{.ZERO_IP}}:/tmp/
-      - echo "[2/3] Running provisioner on {{.ZERO_IP}} (takes ~20-40 min)..."
-      - GH_TOKEN=$(gh auth token) ssh pi@{{.ZERO_IP}} 'sudo -E bash /tmp/scripts/setup_pi_zero.sh'
+      - echo "[1/3] Copying provisioner scripts to {{.FLEET_USER}}@{{.ZERO_IP}}..."
+      - scp -r {{.PLATFORM_SCRIPTS}} {{.FLEET_USER}}@{{.ZERO_IP}}:/tmp/
+      - echo "[2/3] Running provisioner on {{.ZERO_IP}} (takes ~20-40 min, will prompt for the Zero's sudo password)..."
+      - ssh -t {{.FLEET_USER}}@{{.ZERO_IP}} "GH_TOKEN=$(gh auth token) sudo -E bash /tmp/scripts/setup_pi_zero.sh"
       - echo "[3/3] Waiting for Pi Zero to reboot and come back online..."
       - |
         count=0
@@ -148,13 +149,13 @@ tasks:
   rpi:provision:pi5:
     desc: "Provision Robot Pi 5 — scp scripts + run setup_pi_5.sh (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x [HAILO_DEB=path])"
     cmds:
-      - echo "[1/2] Copying provisioner scripts to pi@{{.PI5_IP}}..."
-      - scp -r {{.PLATFORM_SCRIPTS}} pi@{{.PI5_IP}}:/tmp/
+      - echo "[1/2] Copying provisioner scripts to {{.FLEET_USER}}@{{.PI5_IP}}..."
+      - scp -r {{.PLATFORM_SCRIPTS}} {{.FLEET_USER}}@{{.PI5_IP}}:/tmp/
       - echo "[2/2] Running provisioner on {{.PI5_IP}}..."
       - |
         hailo_arg=""
         [[ -n "{{.HAILO_DEB}}" ]] && hailo_arg="--hailo-deb {{.HAILO_DEB}}"
-        GH_TOKEN=$(gh auth token) ssh pi@{{.PI5_IP}} "sudo -E bash /tmp/scripts/setup_pi_5.sh $hailo_arg"
+        ssh -t {{.FLEET_USER}}@{{.PI5_IP}} "GH_TOKEN=$(gh auth token) sudo -E bash /tmp/scripts/setup_pi_5.sh $hailo_arg"
     requires:
       vars:
         - PI5_IP
