@@ -110,3 +110,14 @@ copy_env() {
     chown "$TARGET_USER:$TARGET_USER" "$robot_dir/.env"
     log "Copied .env.example to .env — edit before running services"
 }
+
+# Installs a systemd unit, substituting the __TARGET_USER__/__TARGET_HOME__
+# placeholders (units are static files and can't reference $SUDO_USER
+# themselves) so the service actually runs as this Pi's real account.
+install_systemd_unit() {
+    local unit_file="$1"
+    local unit_name
+    unit_name="$(basename "$unit_file")"
+    sed -e "s|__TARGET_USER__|$TARGET_USER|g" -e "s|__TARGET_HOME__|$TARGET_HOME|g" \
+        "$unit_file" > "/etc/systemd/system/$unit_name"
+}

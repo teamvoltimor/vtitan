@@ -75,14 +75,25 @@ chmod 600 /etc/NetworkManager/system-connections/usb0.nmconnection
 chown root:root /etc/NetworkManager/system-connections/usb0.nmconnection
 nmcli connection reload 2>/dev/null || true
 
-# ---- More swap so the ROS2 colcon build survives on 512MB RAM ----
+# ---- More swap so pixi/the ROS2 colcon build survives on 512MB RAM ----
 if [[ -f /etc/dphys-swapfile ]]; then
-    log "Increasing swap to 2GB for the ROS2 build..."
+    log "Increasing swap to 2GB for the ROS2 build (dphys-swapfile)..."
     sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
     grep -q '^CONF_MAXSWAP=' /etc/dphys-swapfile \
         && sed -i 's/^CONF_MAXSWAP=.*/CONF_MAXSWAP=2048/' /etc/dphys-swapfile \
         || echo 'CONF_MAXSWAP=2048' >> /etc/dphys-swapfile
     dphys-swapfile setup >/dev/null && dphys-swapfile swapon || true
+elif [[ ! -f /swapfile ]]; then
+    # Newer Pi OS (Bookworm/Trixie) uses rpi-swap's zram+file hybrid instead of
+    # dphys-swapfile, but its file-backing only writes back after a long delay
+    # (hours), so it doesn't help a short memory-intensive burst like `pixi
+    # install`/colcon — a plain always-active swapfile is simpler and reliable.
+    log "No dphys-swapfile on this image — adding a plain 2GB swapfile instead..."
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
 install_pixi
@@ -95,7 +106,7 @@ ls /sys/class/pwm/pwmchip0/ >/dev/null 2>&1 \
     || log "WARNING: PWM chip not present yet — it appears after the reboot below."
 
 log "Installing systemd service + udev rules..."
-cp "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service" /etc/systemd/system/
+install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service"
 cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
 systemctl daemon-reload
 systemctl enable voldemorbot-pi-zero.service
