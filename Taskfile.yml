@@ -311,9 +311,9 @@ tasks:
       - ip -4 a show wlan0
 
   rpi:nudge:
-    desc: Force gadget client profile
+    desc: Force usb0 gadget-link profile up
     cmds:
-      - sudo nmcli con up 'USB Gadget (client)'
+      - sudo nmcli con up 'usb0'
 
   rpi:diagnose:
     desc: Run connectivity diagnostics
@@ -324,8 +324,8 @@ tasks:
       - echo "=== routing table ==="
       - ip route show dev usb0
       - echo ""
-      - echo "=== USB Gadget profile ==="
-      - nmcli -t -f NAME con show --active 2>/dev/null | grep -i gadget || echo '(no gadget profile active)'
+      - echo "=== usb0 profile ==="
+      - nmcli -t -f NAME con show --active 2>/dev/null | grep -i '^usb0$' || echo '(usb0 profile not active)'
 
   # Health & thermal
 
@@ -402,15 +402,17 @@ tasks:
       IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
   rpi:set-static-ip:gadget:
-    desc: "Set static IP on USB Gadget (client) for Pi Zero link"
+    desc: "Set static IP on usb0 for the Pi Zero USB gadget link (Zero=.1, Pi 5 host=.2)"
     cmds:
       - task: rpi:set-static-ip
         vars:
           IP: '{{.IP}}'
-          CONNECTION: 'USB Gadget (client)'
-          GATEWAY: '{{.RPI_DIRECT_IP}}'
+          CONNECTION: 'usb0'
+          GATEWAY: '10.250.250.1'
+      - echo "Setting usb0 to never-default (keep WiFi as primary route)..."
+      - sudo nmcli con modify 'usb0' ipv4.never-default yes connection.autoconnect-priority -10
     vars:
-      IP: '{{.IP | default "192.168.2.1"}}'
+      IP: '{{.IP | default "10.250.250.2"}}'
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
