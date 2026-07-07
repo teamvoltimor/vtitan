@@ -54,10 +54,10 @@ if [[ -n "$hailo_deb" ]]; then
 fi
 
 # usb0 host side: static IP matching the Pi Zero gadget (Zero=.1, Pi5=.2).
-log "Configuring usb0 host static IP (10.250.250.2)..."
+log "Configuring usb0 host static IP (192.168.250.2)..."
 nmcli con add type ethernet ifname usb0 \
     ipv4.method manual \
-    ipv4.addresses 10.250.250.2/24 \
+    ipv4.addresses 192.168.250.2/24 \
     ipv6.method disabled \
     connection.id usb0 2>/dev/null || log "usb0 connection already exists"
 

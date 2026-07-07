@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/setup_common.sh"
 
 REPO_DIR=/home/pi/voldemorbot
 ROBOT_DIR="$REPO_DIR/platform/robot"
-USB_GADGET_IP=10.250.250.1/24   # Pi Zero is the USB gadget; Pi 5 host is .2
+USB_GADGET_IP=192.168.250.1/24   # Pi Zero is the USB gadget; Pi 5 host is .2
 
 require_root
 
