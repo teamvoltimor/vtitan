@@ -5,11 +5,11 @@ After=dev-ttyUSB0.device
 
 [Service]
 Type=exec
-User=pi
-Group=pi
-Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+User=__TARGET_USER__
+Group=__TARGET_USER__
+Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0
+ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0
 Restart=on-failure
 RestartSec=3
 

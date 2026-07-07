@@ -5,13 +5,13 @@ After=network-online.target dev-gpiochip0.device
 
 [Service]
 Type=exec
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/voldemorbot/platform/robot
-Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
-EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=__TARGET_HOME__/voldemorbot/platform/robot
+Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-__TARGET_HOME__/voldemorbot/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py
+ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py
 Restart=on-failure
 RestartSec=3
 StartLimitBurst=5
