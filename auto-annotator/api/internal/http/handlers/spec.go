@@ -1,0 +1,23 @@
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	RouteOpenAPISpec   = "/openapi.yaml"
+	DefaultOpenAPIPath = "api/openapi.yaml"
+)
+
+// ServeOpenAPISpec serves the OpenAPI YAML spec. GET /api/v1/openapi.yaml
+func (h *SystemHandler) ServeOpenAPISpec(c *gin.Context) {
+	data, err := h.svc.OpenAPISpec()
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	c.Header(HeaderContentType, ContentTypeYAML)
+	c.String(http.StatusOK, string(data))
+}

@@ -15,7 +15,7 @@ export const useCanvasRender = (
   queuedPoints: AnnotationPoint[] = []
 ) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { zoom, selectedGalleryItem, classColors } = useAppState();
+  const { zoom, selectedGalleryItem, classColors, recordAction } = useAppState();
   const imageBoundsRef = useRef<ImageBounds | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const dashOffsetRef = useRef(0);
@@ -196,12 +196,18 @@ export const useCanvasRender = (
     [zoom, drawSegmentationPreview, drawMockMask, drawAnnotations, drawQueuedPoints]
   );
 
+  // Load the image only when the selected source changes. Keying on `src`
+  // (rather than `drawCanvas`) avoids refetching the full-resolution image
+  // every time an unrelated draw dependency — segmentationPreview, zoom,
+  // classColors — changes its identity. Redraws against the cached image are
+  // handled by the effect below.
+  const src = selectedGalleryItem?.src ?? null;
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    if (!selectedGalleryItem) {
+    if (!src) {
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
       imageBoundsRef.current = null;
       imageRef.current = null;
@@ -210,14 +216,19 @@ export const useCanvasRender = (
 
     const image = new Image();
     imageRef.current = image;
-    image.src = selectedGalleryItem.src;
     image.onload = () => {
       if (!canvasRef.current) return;
       const ctxAfter = canvasRef.current.getContext('2d');
       if (!ctxAfter) return;
       drawCanvas(ctxAfter, image);
     };
-  }, [selectedGalleryItem, drawCanvas]);
+    image.onerror = () => {
+      recordAction(`Preview failed to load: ${src}`);
+    };
+    image.src = src;
+    // drawCanvas/recordAction are stable enough; we deliberately reload only on src.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
 
   useEffect(() => {
     if (!canvasRef.current) return;

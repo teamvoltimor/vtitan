@@ -1,0 +1,8 @@
+package: handlers
+output: api/internal/http/handlers/openapi.gen.go
+generate:
+  models: true
+  embedded-spec: false
+  strict-server: true
+  gin-server: true
+  client: false

@@ -19,6 +19,8 @@ const (
 	EnvAugmentAddr = "AUGMENT_GRPC_ADDR"
 	// EnvTrainAddr is the training gRPC address environment variable key.
 	EnvTrainAddr = "TRAIN_GRPC_ADDR"
+	// EnvOpenAPIPath is the OpenAPI spec file path environment variable key.
+	EnvOpenAPIPath = "OPENAPI_SPEC_PATH"
 
 	// DefaultAPIPort is the default API server port.
 	DefaultAPIPort = 8000
@@ -30,6 +32,8 @@ const (
 	DefaultModelsConfig = "./config/models.toml"
 	// DefaultCORSOrigins is the default CORS origins (localhost for dev).
 	DefaultCORSOrigins = "http://localhost:5173,http://localhost:3000"
+	// DefaultOpenAPIPath is the default path to the OpenAPI spec file.
+	DefaultOpenAPIPath = "api/openapi.yaml"
 
 	// ConfigFileName is the configuration file name.
 	ConfigFileName = ".env"

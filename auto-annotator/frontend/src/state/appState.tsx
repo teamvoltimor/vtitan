@@ -14,6 +14,7 @@ import {
   saveAnnotations,
   skipImage as apiSkipImage,
   type SegmentationPoint,
+  type SegmentationShape,
   segmentImage,
   getClasses,
   upsertClass,
@@ -261,7 +262,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     getAnnotations(selectedGalleryItem.id)
-      .then((shapes) => setSegmentationPreview(shapes))
+      .then((shapes) =>
+        setSegmentationPreview(
+          shapes.map((s) => ({
+            id: s.id,
+            className: s.className,
+            points: s.points.map((p) => ({ x: parseFloat(p.x), y: parseFloat(p.y) })),
+          })),
+        ),
+      )
       .catch((err: unknown) => {
         setSegmentationPreview([]);
         recordAction(`Failed to load annotations: ${(err as Error).message}`);
@@ -304,14 +313,20 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       startSegmentationRequest();
       try {
         const payloadPoints: SegmentationPoint[] = points.map(({ x, y, pointType, className }) => ({
-          x,
-          y,
+          x: x.toFixed(6),
+          y: y.toFixed(6),
           pointType,
           className,
         }));
         const response = await segmentImage(selectedGalleryItem.id, payloadPoints);
         if (response.shapes.length > 0) {
-          setSegmentationPreview((prev) => [...prev, ...response.shapes]);
+          setSegmentationPreview((prev) => [
+            ...prev,
+            ...response.shapes.map((s) => ({
+              ...s,
+              points: s.points.map((p) => ({ x: parseFloat(p.x), y: parseFloat(p.y) })),
+            })),
+          ]);
           setAnnotationPoints([]);
         }
         recordAction('Segmentation inference completed');
@@ -364,7 +379,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     if (!selectedGalleryItem || segmentationPreview.length === 0) return;
     const currentId = selectedGalleryItem.id;
     try {
-      const response = await saveAnnotations(selectedGalleryItem.id, exportFormat, segmentationPreview);
+      const apiShapes: SegmentationShape[] = segmentationPreview.map((s) => ({
+        id: s.id,
+        className: s.className,
+        points: s.points.map((p) => ({ x: p.x.toFixed(6), y: p.y.toFixed(6) })),
+      }));
+      const response = await saveAnnotations(selectedGalleryItem.id, exportFormat, apiShapes);
       _advanceNext(response, currentId, `Saved ${selectedGalleryItem.label}`);
     } catch (error) {
       recordAction(`Save failed: ${(error as Error).message}`);

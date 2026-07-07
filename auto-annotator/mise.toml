@@ -1,0 +1,5 @@
+[tools]
+go = "1.26"
+python = "3.12"
+node = "22"
+task = "3.52"

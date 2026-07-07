@@ -63,6 +63,34 @@ tasks:
     cmds:
       - go test ./...
 
+  # OpenAPI contract
+
+  openapi:validate:
+    desc: Validate OpenAPI spec YAML syntax
+    cmds:
+      - python3 -c "import yaml; yaml.safe_load(open('api/openapi.yaml')); print('[OK] Valid OpenAPI spec')"
+
+  openapi:generate:backend:
+    desc: Generate Go types from OpenAPI spec
+    deps: [openapi:validate]
+    cmds:
+      - oapi-codegen -config .oapi-codegen.yaml api/openapi.yaml
+      - echo "[OK] Generated api/internal/http/handlers/openapi.gen.go"
+
+  openapi:generate:frontend:
+    desc: Generate TypeScript types from OpenAPI spec
+    deps: [openapi:validate]
+    dir: frontend
+    cmds:
+      - pnpm exec openapi-typescript ../api/openapi.yaml -o src/api/types.generated.ts
+      - echo "[OK] Generated src/api/types.generated.ts"
+
+  openapi:generate:all:
+    desc: Generate types for both backend and frontend
+    cmds:
+      - task: openapi:generate:backend
+      - task: openapi:generate:frontend
+
   # Shared gRPC contract (proto/)
 
   proto:gen:

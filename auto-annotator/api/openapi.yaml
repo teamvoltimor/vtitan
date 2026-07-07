@@ -1,0 +1,714 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Auto-Annotator API
+  version: 1.0.0
+  description: Image annotation and ML inference API
+
+servers:
+  - url: /api/v1
+    description: v1 API
+
+paths:
+  # System probes (unversioned)
+  /healthz:
+    get:
+      operationId: liveness
+      summary: Liveness probe
+      tags: [System]
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResponse'
+
+  /readyz:
+    get:
+      operationId: readiness
+      summary: Readiness probe
+      tags: [System]
+      responses:
+        '200':
+          description: Service readiness status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /health:
+    get:
+      operationId: health
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  # Gallery
+  /gallery:
+    get:
+      operationId: getGallery
+      summary: List images with annotations
+      tags: [Gallery]
+      responses:
+        '200':
+          description: Gallery with items and stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryResponse'
+
+  /gallery/grouped:
+    get:
+      operationId: getGroupedGallery
+      summary: List parent images with augmentation counts
+      tags: [Gallery]
+      responses:
+        '200':
+          description: Grouped gallery items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParentImageItem'
+
+  /gallery/import:
+    post:
+      operationId: importGallery
+      summary: Upload images to gallery
+      tags: [Gallery]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Image files to upload
+      responses:
+        '200':
+          description: Updated gallery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryResponse'
+
+  # Images
+  /images/{id}:
+    get:
+      operationId: serveImage
+      summary: Stream raw image file
+      tags: [Images]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+
+  /images/{id}/thumb:
+    get:
+      operationId: serveThumbnail
+      summary: Stream downscaled thumbnail
+      tags: [Images]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Thumbnail image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /images/delete:
+    post:
+      operationId: deleteImages
+      summary: Soft-delete images by id
+      tags: [Images]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteImagesRequest'
+      responses:
+        '200':
+          description: Updated gallery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryResponse'
+
+  # Annotations
+  /annotations/{id}:
+    get:
+      operationId: getAnnotations
+      summary: Get saved annotation shapes for an image
+      tags: [Annotations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Annotation shapes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Shape'
+
+  /annotations/save:
+    post:
+      operationId: saveAnnotations
+      summary: Write label file, mark image done, return updated gallery
+      tags: [Annotations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveAnnotationsRequest'
+      responses:
+        '201':
+          description: Updated gallery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryResponse'
+
+  /annotations/skip:
+    post:
+      operationId: skipImage
+      summary: Mark image as skipped
+      tags: [Annotations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkipRequest'
+      responses:
+        '200':
+          description: Updated gallery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GalleryResponse'
+
+  # Classes
+  /classes:
+    get:
+      operationId: listClasses
+      summary: List all annotation classes
+      tags: [Classes]
+      responses:
+        '200':
+          description: Class list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassItem'
+    post:
+      operationId: upsertClass
+      summary: Insert or update a class by name
+      tags: [Classes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertClassRequest'
+      responses:
+        '200':
+          description: Updated class list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassItem'
+
+  # Models
+  /models:
+    get:
+      operationId: listModels
+      summary: List configured ML models
+      tags: [Models]
+      responses:
+        '200':
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelItem'
+
+  # Segmentation
+  /segment:
+    post:
+      operationId: segment
+      summary: Run SAM inference for click points
+      tags: [Segmentation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SegmentationRequest'
+      responses:
+        '200':
+          description: Segmentation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SegmentationResponse'
+
+  # Augmentation
+  /augment/start:
+    post:
+      operationId: startAugment
+      summary: Launch augmentation job
+      tags: [Augmentation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AugmentRequest'
+      responses:
+        '202':
+          description: Augmentation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+
+  /augment/status:
+    get:
+      operationId: getAugmentStatus
+      summary: Check if augmentation job is running
+      tags: [Augmentation]
+      responses:
+        '200':
+          description: Job running status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+
+  /augment/stream:
+    get:
+      operationId: streamAugment
+      summary: SSE stream of augmentation progress
+      tags: [Augmentation]
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # Training
+  /train/start:
+    post:
+      operationId: startTrain
+      summary: Launch YOLO training job
+      tags: [Training]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainRequest'
+      responses:
+        '202':
+          description: Training started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+
+  /train/status:
+    get:
+      operationId: getTrainStatus
+      summary: Check if training job is running
+      tags: [Training]
+      responses:
+        '200':
+          description: Job running status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+
+  /train/stream:
+    get:
+      operationId: streamTrain
+      summary: SSE stream of training progress
+      tags: [Training]
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  schemas:
+    # --- System ---
+    LivenessResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    HealthStatus:
+      type: object
+      required: [message, ready, inferenceAvailable, databaseAccessible]
+      properties:
+        message:
+          type: string
+        ready:
+          type: boolean
+        inferenceAvailable:
+          type: boolean
+        databaseAccessible:
+          type: boolean
+
+    # --- Geometry ---
+    Point:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]+)?$"
+          example: "123.45"
+          description: X coordinate (decimal string for precision)
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+        y:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]+)?$"
+          example: "456.78"
+          description: Y coordinate (decimal string for precision)
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+
+    Shape:
+      type: object
+      required: [id, className, points]
+      properties:
+        id:
+          type: string
+          description: Unique annotation ID
+        className:
+          type: string
+          minLength: 1
+          description: Annotation class/label
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/Point'
+          minItems: 1
+          description: Polygon vertices
+
+    # --- Gallery ---
+    GalleryStats:
+      type: object
+      required: [pending, done, skipped, total, pct]
+      properties:
+        pending:
+          type: integer
+          minimum: 0
+        done:
+          type: integer
+          minimum: 0
+        skipped:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          minimum: 0
+        pct:
+          type: number
+          format: double
+          description: Completion percentage (0.0 - 100.0)
+
+    GalleryItem:
+      type: object
+      required: [id, label, src, thumbSrc, format, status, updated]
+      properties:
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        src:
+          type: string
+          format: uri
+        thumbSrc:
+          type: string
+          format: uri
+        format:
+          type: string
+        status:
+          type: string
+          enum: [pending, done, skipped]
+        updated:
+          type: string
+          description: Last update timestamp (RFC 3339 or empty)
+        annotations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shape'
+
+    GalleryResponse:
+      type: object
+      required: [items, stats]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GalleryItem'
+        stats:
+          $ref: '#/components/schemas/GalleryStats'
+
+    ParentImageItem:
+      type: object
+      required: [id, label, src, format, status, updated_at, aug_count]
+      properties:
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        src:
+          type: string
+          format: uri
+        format:
+          type: string
+        status:
+          type: string
+          enum: [pending, done, skipped]
+        updated_at:
+          type: string
+          description: Last update timestamp (RFC 3339 or empty)
+        aug_count:
+          type: integer
+          format: int64
+
+    # --- Image ---
+    DeleteImagesRequest:
+      type: object
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          minItems: 1
+
+    # --- Class ---
+    ClassItem:
+      type: object
+      required: [id, name, color]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        color:
+          type: string
+
+    UpsertClassRequest:
+      type: object
+      required: [name, color]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        color:
+          type: string
+          minLength: 1
+
+    # --- Model ---
+    ModelItem:
+      type: object
+      required: [id, label, modelType, available, active, supportsText]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        modelType:
+          type: string
+        available:
+          type: boolean
+        active:
+          type: boolean
+        supportsText:
+          type: boolean
+
+    # --- Segmentation ---
+    SegmentationPoint:
+      type: object
+      required: [pointType, className, x, y]
+      properties:
+        pointType:
+          type: string
+          enum: [positive, negative]
+        className:
+          type: string
+        x:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]+)?$"
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+        y:
+          type: string
+          pattern: "^[0-9]+(\\.[0-9]+)?$"
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+
+    SegmentationRequest:
+      type: object
+      required: [imageId, points]
+      properties:
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentationPoint'
+          minItems: 1
+        imageId:
+          type: integer
+          format: int64
+
+    SegmentationResponse:
+      type: object
+      required: [state, message, shapes]
+      properties:
+        state:
+          type: string
+          enum: [idle, pending, ready, error]
+        message:
+          type: string
+        shapes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shape'
+
+    # --- Annotation Save ---
+    SaveAnnotationsRequest:
+      type: object
+      required: [exportFormat, shapes, imageId]
+      properties:
+        exportFormat:
+          type: string
+          enum: [segmentation, detection]
+        shapes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shape'
+          minItems: 1
+        imageId:
+          type: integer
+          format: int64
+
+    SkipRequest:
+      type: object
+      required: [imageId]
+      properties:
+        imageId:
+          type: integer
+          format: int64
+
+    # --- Jobs ---
+    JobStatusResponse:
+      type: object
+      required: [running, message]
+      properties:
+        running:
+          type: boolean
+        message:
+          type: string
+
+    AugmentRequest:
+      type: object
+      required: [imageIds, numAugmentations]
+      properties:
+        imageIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          minItems: 1
+        numAugmentations:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 9
+
+    TrainRequest:
+      type: object
+      required: [modelName, epochs, batch, imgsz]
+      properties:
+        modelName:
+          type: string
+        epochs:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 50
+        batch:
+          type: integer
+          format: int32
+          minimum: 1
+          default: 16
+        imgsz:
+          type: integer
+          format: int32
+          minimum: 32
+          default: 640

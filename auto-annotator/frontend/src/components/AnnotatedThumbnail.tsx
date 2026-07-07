@@ -37,9 +37,9 @@ const AnnotatedThumbnail = ({ src, alt, annotations, borderRadius = '6px' }: Ann
         ctx.strokeStyle = color;
         ctx.lineWidth = Math.max(1, W / 200);
         ctx.beginPath();
-        ctx.moveTo(pts[0].x * W, pts[0].y * H);
+        ctx.moveTo(parseFloat(pts[0].x) * W, parseFloat(pts[0].y) * H);
         for (let i = 1; i < pts.length; i++) {
-          ctx.lineTo(pts[i].x * W, pts[i].y * H);
+          ctx.lineTo(parseFloat(pts[i].x) * W, parseFloat(pts[i].y) * H);
         }
         ctx.closePath();
         ctx.stroke();
