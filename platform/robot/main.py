@@ -38,7 +38,7 @@ def _run_navigate(args: argparse.Namespace) -> None:
 
 
 def _run_drive(args: argparse.Namespace) -> None:
-    from src.navigation.driver import SimpleRobotDriver
+    from src.ros2.tools.simple_driver import SimpleRobotDriver
 
     rclpy.init()
     driver: SimpleRobotDriver | None = None

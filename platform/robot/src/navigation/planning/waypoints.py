@@ -15,15 +15,10 @@ from typing import Any
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
-
-from src.navigation.config import WaypointConfig
+from shared.config.navigation_tuning import NavigationTuning
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
-
-# Arc radius for corners. Must exceed the Ackermann minimum turning radius
-# (~0.294 m). Configured via WaypointConfig.arc_radius (tuning profiles).
-_ARC_RADIUS = WaypointConfig().arc_radius
 
 # Bias corridor centres toward the outer wall. Compensates for the robot's
 # chassis width so the planned path stays clear of the inner-wall face.
@@ -33,6 +28,7 @@ _OUTER_WALL_BIAS = 0.05
 def calculate_waypoints(
     metadata: dict[str, Any],
     num_laps: int,
+    arc_radius: float | None = None,
 ) -> list[tuple[float, float]]:
     """Build the full multi-lap waypoint sequence for a scenario.
 
@@ -43,11 +39,21 @@ def calculate_waypoints(
     Args:
         metadata: Scenario metadata dict (from ScenarioGenerator._build_metadata).
         num_laps: Total laps the robot must complete.
+        arc_radius: Corner arc radius (m). Must exceed the Ackermann minimum
+            turning radius (~0.294 m). Defaults to the tuning profile's value
+            so a loaded profile actually takes effect instead of a value
+            frozen at import time.
 
     Returns:
         Ordered list of (x, y) world-frame waypoints starting near the robot's
         spawn position, covering num_laps full loops.
+
+    Raises:
+        ValueError: If a generated or deformed waypoint would fall outside
+            the track or inside the restricted inner square.
     """
+    arc_radius = arc_radius if arc_radius is not None else NavigationTuning().waypoints.ARC_RADIUS
+
     corridor_widths = metadata[DictKeys.CORRIDOR_WIDTHS]
     starting = metadata[DictKeys.STARTING_CONDITIONS]
     # Metadata stores direction as a plain string after JSON serialisation;
@@ -57,11 +63,11 @@ def calculate_waypoints(
     # Safety assertion: chassis half-width + arc-radius must fit the narrowest corridor.
     min_width_mm = min(cw[DictKeys.WIDTH_MM] for cw in corridor_widths.values())
     min_width_m = min_width_mm / 1000.0
-    required = RobotSpecs.WIDTH / 2 + _ARC_RADIUS
+    required = RobotSpecs.WIDTH / 2 + arc_radius
     if required > min_width_m:
         msg = (
             f"Corridor too narrow: required {required:.3f} m "
-            f"(chassis_half={RobotSpecs.WIDTH / 2:.3f} + arc_radius={_ARC_RADIUS:.3f}), "
+            f"(chassis_half={RobotSpecs.WIDTH / 2:.3f} + arc_radius={arc_radius:.3f}), "
             f"got {min_width_m:.3f} m"
         )
         raise ValueError(msg)
@@ -86,7 +92,7 @@ def calculate_waypoints(
         south_cy,
         east_cx,
         west_cx,
-        _ARC_RADIUS,
+        arc_radius,
         direction,
     )
 
@@ -99,7 +105,7 @@ def calculate_waypoints(
     start_pos = starting[DictKeys.POSITION]
     start_x, start_y = start_pos[DictKeys.X], start_pos[DictKeys.Y]
 
-    return _build_waypoint_sequence(
+    waypoints = _build_waypoint_sequence(
         full_loop,
         segments,
         order,
@@ -107,6 +113,8 @@ def calculate_waypoints(
         start_y,
         num_laps,
     )
+    _validate_bounds(waypoints)
+    return waypoints
 
 
 # Segment builders
@@ -210,6 +218,24 @@ def _nearest_waypoint_index(
     pts = np.array(waypoints)
     deltas = pts - np.array([x, y])
     return int(np.argmin((deltas**2).sum(axis=1)))
+
+
+def _validate_bounds(waypoints: list[tuple[float, float]]) -> None:
+    """Raise ValueError if generation produced an out-of-bounds waypoint.
+
+    Malformed metadata (e.g. mm-vs-m width) can otherwise silently produce
+    wall-crossing waypoints. Every waypoint must stay on the track and clear
+    of the restricted inner square.
+    """
+    for x, y in waypoints:
+        if not (TrackDimensions.MIN_COORD <= x <= TrackDimensions.MAX_COORD) or not (
+            TrackDimensions.MIN_COORD <= y <= TrackDimensions.MAX_COORD
+        ):
+            msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls outside the track bounds"
+            raise ValueError(msg)
+        if _INNER_MIN < x < _INNER_MAX and _INNER_MIN < y < _INNER_MAX:
+            msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls inside the restricted inner square"
+            raise ValueError(msg)
 
 
 def _deduplicate_consecutive(
@@ -326,16 +352,12 @@ def corridor_for_position(x: float, y: float) -> Section:
     if x < _INNER_MIN and in_y:
         return Section.WEST
 
-    # Corner: classify by nearest inner-boundary face.
-    dist_s = abs(y - _INNER_MIN)
-    dist_n = abs(y - _INNER_MAX)
-    dist_e = abs(x - _INNER_MAX)
-    dist_w = abs(x - _INNER_MIN)
-    nearest = min(dist_s, dist_n, dist_e, dist_w)
-    if nearest == dist_s:
-        return Section.SOUTH
-    if nearest == dist_n:
-        return Section.NORTH
-    if nearest == dist_e:
-        return Section.EAST
-    return Section.WEST
+    # Corner: classify by nearest inner-boundary face. Dict insertion order
+    # (S, N, E, W) preserves the original tie-break.
+    face_distances = {
+        Section.SOUTH: abs(y - _INNER_MIN),
+        Section.NORTH: abs(y - _INNER_MAX),
+        Section.EAST: abs(x - _INNER_MAX),
+        Section.WEST: abs(x - _INNER_MIN),
+    }
+    return min(face_distances, key=face_distances.get)

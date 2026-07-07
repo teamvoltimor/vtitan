@@ -2,6 +2,9 @@ install/
 log/
 build/
 
+# Third-party ROS2 LIDAR driver, fetched via `pixi run fetch-lidar-driver` (not vendored)
+ros2_ws/src/sllidar_ros2/
+
 # Ignore generated docs
 *.dox
 *.wikidoc

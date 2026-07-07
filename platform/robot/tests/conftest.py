@@ -3,53 +3,117 @@ Pytest configuration and fixtures for robot tests.
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+# Ensure shared package is available
+_this_dir = Path(__file__).resolve().parent
+_shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
+if str(_shared_src) not in sys.path:
+    sys.path.insert(0, str(_shared_src))
+
+from tests.test_constants import (
+    CHALLENGE_TYPE_OBSTACLES,
+    CHALLENGE_TYPE_OPEN,
+    CORRIDOR_DEPTH_MAX,
+    CORRIDOR_DEPTH_MIN,
+    CORRIDOR_DEPTH_MIDPOINT,
+    CORRIDOR_EAST,
+    CORRIDOR_NORTH,
+    CORRIDOR_SOUTH,
+    CORRIDOR_TYPE_NARROW,
+    CORRIDOR_TYPE_WIDE,
+    CORRIDOR_WIDTH_NARROW_MM,
+    CORRIDOR_WIDTH_QUARTER_NORTH,
+    CORRIDOR_WIDTH_QUARTER_SOUTH,
+    CORRIDOR_WIDTH_WIDE_MM,
+    DIRECTION_CLOCKWISE,
+    FIXTURES_DIR,
+    IMU_ACCEL_OFFSET_X,
+    IMU_ACCEL_OFFSET_Y,
+    IMU_ACCEL_OFFSET_Z,
+    IMU_GYRO_OFFSET_X,
+    IMU_GYRO_OFFSET_Y,
+    IMU_GYRO_OFFSET_Z,
+    LIDAR_DEFAULT_FAR,
+    LIDAR_NEAR_WALL,
+    LIDAR_WALL_DISTANCE,
+    META_BLOCK_DEPTH,
+    META_BLOCK_X,
+    META_BLOCK_Y,
+    META_CHALLENGE_TYPE,
+    META_CORRIDOR_WIDTHS,
+    META_DIRECTION,
+    META_NUM_SIGNS,
+    META_PARKING_LOT,
+    META_POSITION,
+    META_SCENARIO_ID,
+    META_SECTION,
+    META_SIGN_POSITIONS,
+    META_SIGN_COLOR,
+    META_SIGN_DEPTH,
+    META_SIGN_LANE,
+    META_SIGN_SECTION,
+    META_STARTING_CONDITIONS,
+    META_TYPE,
+    META_WIDTH_MM,
+    META_YAW,
+    NUM_RAYS,
+    PARKING_BLOCK_X,
+    PARKING_BLOCK_Y_MID,
+    PARKING_BLOCK_Y_OFFSET,
+    PARKING_ZONE_END,
+    PARKING_ZONE_START,
+    ROBOT_CHASSIS_WIDTH,
+    SIGN_COLOR_GREEN,
+    SIGN_COLOR_RED,
+    STEERING_CENTER,
+    STEERING_LEFT_LIMIT,
+    STEERING_RIGHT_LIMIT,
+    TRACK_CENTER_X,
+    TRACK_CENTER_Y,
+    TRACK_CORNER_EAST,
+    TRACK_CORNER_NORTH,
+    TRACK_CORNER_SOUTH,
+    TRACK_CORNER_WEST,
+    YAW_PI_APPROX,
+)
 
 
 @pytest.fixture()
 def mock_lidar_scan_360():
     """Mock 360° LIDAR scan with clear path ahead."""
-    num_points = 360
-    angles = [i for i in range(num_points)]
-    distances = [2.0] * num_points
-
+    angles = [i for i in range(NUM_RAYS)]
+    distances = [LIDAR_DEFAULT_FAR] * NUM_RAYS
     return list(zip(angles, distances))
 
 
 @pytest.fixture()
 def mock_lidar_scan_obstacle():
     """Mock LIDAR scan with obstacle at 0°."""
-    num_points = 360
-    angles = [i for i in range(num_points)]
-
+    angles = [i for i in range(NUM_RAYS)]
     distances = []
     for angle in angles:
         if -10 <= angle <= 10:
             distances.append(0.15)
         else:
-            distances.append(2.0)
-
+            distances.append(LIDAR_DEFAULT_FAR)
     return list(zip(angles, distances))
 
 
 @pytest.fixture()
 def mock_lidar_scan_wall():
     """Mock LIDAR scan with wall very close."""
-    num_points = 360
-    angles = [i for i in range(num_points)]
-
+    angles = [i for i in range(NUM_RAYS)]
     distances = []
     for angle in angles:
         if -5 <= angle <= 5:
-            distances.append(0.05)
+            distances.append(LIDAR_NEAR_WALL)
         else:
-            distances.append(1.5)
-
+            distances.append(LIDAR_WALL_DISTANCE)
     return list(zip(angles, distances))
 
 
@@ -57,23 +121,23 @@ def mock_lidar_scan_wall():
 def sample_metadata_open():
     """Sample metadata JSON for open challenge."""
     return {
-        "scenario_id": 0,
-        "challenge_type": "open",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "narrow", "width_mm": 600},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
+        META_SCENARIO_ID: 0,
+        META_CHALLENGE_TYPE: CHALLENGE_TYPE_OPEN,
+        META_CORRIDOR_WIDTHS: {
+            CORRIDOR_NORTH: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_SOUTH: {META_TYPE: CORRIDOR_TYPE_NARROW, META_WIDTH_MM: CORRIDOR_WIDTH_NARROW_MM},
+            CORRIDOR_EAST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_WEST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
         },
-        "starting_conditions": {
-            "direction": "clockwise",
-            "section": "South",
-            "position": {"x": 1.5, "y": 0.3},
-            "yaw": 3.14,
+        META_STARTING_CONDITIONS: {
+            META_DIRECTION: DIRECTION_CLOCKWISE,
+            META_SECTION: "South",
+            META_POSITION: {META_BLOCK_X: TRACK_CENTER_X, META_BLOCK_Y: CORRIDOR_WIDTH_QUARTER_SOUTH},
+            META_YAW: YAW_PI_APPROX,
         },
-        "num_signs": 0,
-        "sign_positions": [],
-        "parking_lot": None,
+        META_NUM_SIGNS: 0,
+        META_SIGN_POSITIONS: [],
+        META_PARKING_LOT: None,
     }
 
 
@@ -81,26 +145,26 @@ def sample_metadata_open():
 def sample_metadata_obstacles():
     """Sample metadata JSON for obstacles challenge."""
     return {
-        "scenario_id": 1,
-        "challenge_type": "obstacles",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "wide", "width_mm": 1000},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
+        META_SCENARIO_ID: 1,
+        META_CHALLENGE_TYPE: CHALLENGE_TYPE_OBSTACLES,
+        META_CORRIDOR_WIDTHS: {
+            CORRIDOR_NORTH: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_SOUTH: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_EAST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_WEST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
         },
-        "starting_conditions": {
-            "direction": "clockwise",
-            "section": "South",
-            "position": {"x": 1.5, "y": 0.5},
-            "yaw": 3.14,
+        META_STARTING_CONDITIONS: {
+            META_DIRECTION: DIRECTION_CLOCKWISE,
+            META_SECTION: "South",
+            META_POSITION: {META_BLOCK_X: TRACK_CENTER_X, META_BLOCK_Y: 0.5},
+            META_YAW: YAW_PI_APPROX,
         },
-        "num_signs": 2,
-        "sign_positions": [
-            {"section": "north", "color": "green", "depth": 1.5, "lane": 0.4},
-            {"section": "east", "color": "red", "depth": 2.0, "lane": 0.6},
+        META_NUM_SIGNS: 2,
+        META_SIGN_POSITIONS: [
+            {META_SIGN_SECTION: CORRIDOR_NORTH, META_SIGN_COLOR: SIGN_COLOR_GREEN, META_SIGN_DEPTH: CORRIDOR_DEPTH_MIDPOINT, META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_NORTH},
+            {META_SIGN_SECTION: CORRIDOR_EAST, META_SIGN_COLOR: SIGN_COLOR_RED, META_SIGN_DEPTH: CORRIDOR_DEPTH_MAX, META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_SOUTH},
         ],
-        "parking_lot": None,
+        META_PARKING_LOT: None,
     }
 
 
@@ -108,31 +172,31 @@ def sample_metadata_obstacles():
 def sample_metadata_parking():
     """Sample metadata JSON with parking."""
     return {
-        "scenario_id": 2,
-        "challenge_type": "obstacles",
-        "corridor_widths": {
-            "north": {"type": "wide", "width_mm": 1000},
-            "south": {"type": "wide", "width_mm": 1000},
-            "east": {"type": "wide", "width_mm": 1000},
-            "west": {"type": "wide", "width_mm": 1000},
+        META_SCENARIO_ID: 2,
+        META_CHALLENGE_TYPE: CHALLENGE_TYPE_OBSTACLES,
+        META_CORRIDOR_WIDTHS: {
+            CORRIDOR_NORTH: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_SOUTH: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_EAST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
+            CORRIDOR_WEST: {META_TYPE: CORRIDOR_TYPE_WIDE, META_WIDTH_MM: CORRIDOR_WIDTH_WIDE_MM},
         },
-        "starting_conditions": {
-            "direction": "clockwise",
-            "section": "South",
-            "position": {"x": 1.5, "y": 0.5},
-            "yaw": 3.14,
+        META_STARTING_CONDITIONS: {
+            META_DIRECTION: DIRECTION_CLOCKWISE,
+            META_SECTION: "South",
+            META_POSITION: {META_BLOCK_X: TRACK_CENTER_X, META_BLOCK_Y: 0.5},
+            META_YAW: YAW_PI_APPROX,
         },
-        "num_signs": 1,
-        "sign_positions": [
-            {"section": "north", "color": "green", "depth": 1.5, "lane": 0.4},
+        META_NUM_SIGNS: 1,
+        META_SIGN_POSITIONS: [
+            {META_SIGN_SECTION: CORRIDOR_NORTH, META_SIGN_COLOR: SIGN_COLOR_GREEN, META_SIGN_DEPTH: CORRIDOR_DEPTH_MIDPOINT, META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_NORTH},
         ],
-        "parking_lot": {
-            "blocks": [
-                {"x": 0.1, "y": 0.5, "depth": 1.0},
-                {"x": 0.1, "y": 0.85, "depth": 1.5},
+        META_PARKING_LOT: {
+            META_PARKING_BLOCKS: [
+                {META_BLOCK_X: PARKING_BLOCK_X, META_BLOCK_Y: PARKING_BLOCK_Y_MID, META_BLOCK_DEPTH: CORRIDOR_DEPTH_MIN},
+                {META_BLOCK_X: PARKING_BLOCK_X, META_BLOCK_Y: PARKING_BLOCK_Y_OFFSET, META_BLOCK_DEPTH: CORRIDOR_DEPTH_MIDPOINT},
             ],
-            "zone_start": 0.3,
-            "zone_end": 0.7,
+            META_PARKING_ZONE_START: PARKING_ZONE_START,
+            META_PARKING_ZONE_END: PARKING_ZONE_END,
         },
     }
 
@@ -142,13 +206,13 @@ def calibration_data():
     """Sample calibration data."""
     return {
         "steering": {
-            "left_limit": -45.0,
-            "right_limit": 44.5,
-            "center": 0.0,
+            "left_limit": STEERING_LEFT_LIMIT,
+            "right_limit": STEERING_RIGHT_LIMIT,
+            "center": STEERING_CENTER,
         },
         "imu": {
-            "accel_offset": [0.01, -0.02, 0.005],
-            "gyro_offset": [0.0, 0.0, 0.0],
+            "accel_offset": [IMU_ACCEL_OFFSET_X, IMU_ACCEL_OFFSET_Y, IMU_ACCEL_OFFSET_Z],
+            "gyro_offset": [IMU_GYRO_OFFSET_X, IMU_GYRO_OFFSET_Y, IMU_GYRO_OFFSET_Z],
         },
     }
 

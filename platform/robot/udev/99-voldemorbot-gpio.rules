@@ -1,0 +1,13 @@
+# GPIO — group gpio
+SUBSYSTEM=="gpio*", KERNEL=="gpiochip*", ACTION=="add", \
+    PROGRAM="/bin/sh -c 'chown root:gpio /dev/gpiochip* && chmod 660 /dev/gpiochip*'"
+
+# PWM for servo + motor
+SUBSYSTEM=="pwm*", ACTION=="add", \
+    PROGRAM="/bin/sh -c 'chown -R root:gpio /sys/class/pwm && chmod -R 770 /sys/class/pwm'"
+
+# I2C for OLED
+SUBSYSTEM=="i2c-dev", MODE="0666"
+
+# LiDAR serial
+KERNEL=="ttyUSB[0-9]*", MODE="0660", GROUP="dialout"

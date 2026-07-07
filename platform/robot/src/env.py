@@ -7,7 +7,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeVar, cast, override
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
+
+# Load the robot-level .env (robot/.env, sibling of src/) into the process
+# environment on import, so both EnvVar (below) and the pydantic-settings
+# hardware configs — all of which read os.environ — pick up local overrides.
+# No-op when the file is absent (e.g. CI/dev without a .env), so it's safe.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 T = TypeVar("T")
 

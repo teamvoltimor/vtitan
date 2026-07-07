@@ -1,0 +1,479 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Simulation API
+  version: 1.0.0
+  description: |
+    Simulation context — responsible for WRO scenario generation, environment
+    configuration, simulation execution, and training data management.
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/simulation/scenarios:
+    get:
+      summary: List available scenarios
+      operationId: listScenarios
+      tags:
+        - Simulation
+      parameters:
+        - name: challenge
+          in: query
+          schema:
+            type: string
+            enum: [open, obstacles]
+          description: Filter by challenge type
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Array of scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScenarioSummary'
+    post:
+      summary: Generate a new scenario
+      operationId: generateScenario
+      tags:
+        - Simulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateScenarioRequest'
+      responses:
+        '201':
+          description: Scenario generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/simulation/scenarios/{scenarioId}:
+    get:
+      summary: Get scenario details
+      operationId: getScenario
+      tags:
+        - Simulation
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Scenario details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete a scenario
+      operationId: deleteScenario
+      tags:
+        - Simulation
+      parameters:
+        - name: scenarioId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Scenario deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/simulation/runs:
+    get:
+      summary: List simulation runs
+      operationId: listSimulationRuns
+      tags:
+        - Simulation
+      responses:
+        '200':
+          description: Array of simulation runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SimulationRun'
+    post:
+      summary: Start a new simulation run
+      operationId: startSimulationRun
+      tags:
+        - Simulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRunRequest'
+      responses:
+        '201':
+          description: Run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationRun'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/simulation/runs/{runId}:
+    get:
+      summary: Get simulation run status
+      operationId: getSimulationRun
+      tags:
+        - Simulation
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationRun'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      summary: Control a simulation run (stop, pause, resume)
+      operationId: controlSimulationRun
+      tags:
+        - Simulation
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunControlRequest'
+      responses:
+        '200':
+          description: Run updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationRun'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/simulation/environments:
+    get:
+      summary: List available environments
+      operationId: listEnvironments
+      tags:
+        - Simulation
+      responses:
+        '200':
+          description: Array of environments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EnvironmentConfig'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ScenarioSummary:
+      type: object
+      required: [id, name, challenge, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        challenge:
+          type: string
+          enum: [open, obstacles]
+        created_at:
+          type: string
+          format: date-time
+        detection_count:
+          type: integer
+        environment:
+          type: string
+
+    Scenario:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/ScenarioSummary'
+        - type: object
+          properties:
+            track_config:
+              $ref: '#/components/schemas/TrackConfig'
+            lighting:
+              $ref: '#/components/schemas/LightingConfig'
+            parking_lot:
+              $ref: '#/components/schemas/ParkingLotConfig'
+            starting_zone:
+              $ref: '#/components/schemas/StartingZoneConfig'
+
+    GenerateScenarioRequest:
+      type: object
+      required: [challenge]
+      properties:
+        challenge:
+          type: string
+          enum: [open, obstacles]
+        corridors:
+          type: string
+          enum: [narrow, wide, mixed]
+          description: Corridor width profile
+        lighting:
+          type: string
+          enum:
+            - DIRECT_SUNLIGHT
+            - CLOUDY
+            - INDOOR_BRIGHT
+            - INDOOR_DIM
+            - EVENING
+            - MIXED
+        num_signs:
+          type: integer
+          minimum: 6
+          maximum: 14
+        randomize:
+          type: boolean
+          default: true
+
+    TrackConfig:
+      type: object
+      properties:
+        track_width:
+          type: number
+          format: double
+        corridor_widths:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              type:
+                type: string
+              width:
+                type: number
+                format: double
+        sections:
+          type: array
+          items:
+            type: string
+
+    LightingConfig:
+      type: object
+      properties:
+        intensity:
+          type: number
+          format: float
+        ambient_intensity:
+          type: number
+          format: float
+        direction:
+          type: array
+          items:
+            type: number
+            format: float
+          minItems: 3
+          maxItems: 3
+        cast_shadows:
+          type: boolean
+        scenario:
+          type: string
+
+    ParkingLotConfig:
+      type: object
+      properties:
+        block1_position:
+          type: array
+          items:
+            type: number
+            format: double
+          minItems: 2
+          maxItems: 2
+        block2_position:
+          type: array
+          items:
+            type: number
+            format: double
+          minItems: 2
+          maxItems: 2
+        depth:
+          type: number
+          format: double
+
+    StartingZoneConfig:
+      type: object
+      properties:
+        length:
+          type: number
+          format: double
+        position:
+          type: array
+          items:
+            type: number
+            format: double
+          minItems: 2
+          maxItems: 2
+        direction:
+          type: string
+          enum: [CLOCKWISE, COUNTERCLOCKWISE]
+
+    SimulationRun:
+      type: object
+      required: [id, scenario_id, status, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scenario_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, paused, completed, failed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        laps_completed:
+          type: integer
+        total_laps:
+          type: integer
+        duration_s:
+          type: number
+          format: double
+        collision_count:
+          type: integer
+        metrics:
+          $ref: '#/components/schemas/RunMetrics'
+
+    StartRunRequest:
+      type: object
+      required: [scenario_id]
+      properties:
+        scenario_id:
+          type: string
+          format: uuid
+        laps:
+          type: integer
+          minimum: 1
+          default: 3
+        headless:
+          type: boolean
+          default: false
+
+    RunControlRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [pause, resume, stop, restart]
+
+    RunMetrics:
+      type: object
+      properties:
+        avg_lap_time_s:
+          type: number
+          format: double
+        max_speed_ms:
+          type: number
+          format: double
+        avg_speed_ms:
+          type: number
+          format: double
+        path_length_m:
+          type: number
+          format: double
+        obstacle_contacts:
+          type: integer
+        sign_detections:
+          type: integer
+
+    EnvironmentConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        world_file:
+          type: string
+        lighting:
+          $ref: '#/components/schemas/LightingConfig'
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

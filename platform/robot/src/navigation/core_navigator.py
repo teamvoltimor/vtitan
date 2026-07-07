@@ -9,26 +9,29 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RiskLevel
-from shared.domain.models import Velocity
 
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
+    EscapeManeuver,
+    ManeuverType,
     StuckDetector,
     WaypointController,
 )
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.ports import DriveCommand
 
 if TYPE_CHECKING:
     from shared.config.enums import Section
 
-    from src.hardware.gateway import HardwareGateway
     from src.navigation.maneuvers.parking import ParkController
     from src.navigation.planning.sign_router import SignRouter
+    from src.navigation.ports import HardwareGateway, LidarScan
     from src.navigation.race_tracker import LapDetector
 
 logger = logging.getLogger(__name__)
@@ -62,6 +65,14 @@ class CoreNavigator:
         self._parking_engaged = False
         self._park_engage_dist = 0.30  # Engage parking within 30 cm of staging
 
+        # Escape-maneuver latching: an escape runs for its full duration_frames
+        # instead of a single 50 ms tick, and repeated escapes escalate (reverse
+        # longer, alternate side) rather than repeating an identical failed pulse.
+        self._active_maneuver: EscapeManeuver | None = None
+        self._maneuver_frames_left = 0
+        self._escape_count = 0  # escapes begun since the last normal drive tick
+        self._escape_steer_sign = 1.0
+
         # Controllers
         self._waypoint_controller = WaypointController(
             max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
@@ -79,6 +90,12 @@ class CoreNavigator:
             escape_rev_speed=self._tuning.escape.REV_SPEED,
             escape_steer_scale=self._tuning.escape.REV_STEERING_SCALE,
             stuck_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
+            path_margin=self._tuning.clearance.PATH_MARGIN,
+            k_turn_min_frames=self._tuning.escape.K_TURN_MIN_FRAMES,
+            k_turn_max_frames=self._tuning.escape.K_TURN_MAX_FRAMES,
+            side_correction_steer=self._tuning.escape.SIDE_CORRECTION_STEER,
+            side_correction_speed=self._tuning.escape.SIDE_CORRECTION_SPEED,
+            side_correction_frames=self._tuning.escape.SIDE_CORRECTION_FRAMES,
         )
 
         self._stuck_detector = StuckDetector(
@@ -91,6 +108,11 @@ class CoreNavigator:
         """Current track corridor derived from robot position. None before first step."""
         return self._current_corridor
 
+    @property
+    def laps_completed(self) -> int:
+        """Number of laps confirmed completed so far."""
+        return self._laps_completed
+
     def step(self) -> None:
         """Execute one control step.
 
@@ -99,12 +121,33 @@ class CoreNavigator:
         """
         pose = self._gateway.get_current_pose()
         if not pose:
-            return  # No pose available yet
+            # No localisation available (startup or sensor dropout): stop rather
+            # than coast on the last published command.
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            return
 
         robot_x, robot_y = pose.x, pose.y
         robot_yaw = pose.yaw
 
         self._current_corridor = corridor_for_position(robot_x, robot_y)
+
+        # Continue an in-progress escape maneuver until its latched duration
+        # elapses, so escapes are real motions rather than single-tick pulses that
+        # never clear the wall.
+        if self._active_maneuver is not None:
+            self._drive_active_maneuver()
+            return
+
+        # Update stuck detector — runs while actively driving OR maneuvering
+        # into the parking gap, but not once the robot has reached its final
+        # deliberate stop (open-challenge hold, or parking done): otherwise a
+        # robot correctly holding position at zero velocity would eventually
+        # read as "stuck" and reverse itself back out of a completed park.
+        if not self._is_holding():
+            self._stuck_detector.update((robot_x, robot_y))
+            if self._stuck_detector.is_stuck:
+                self._handle_stuck_escape()
+                return
 
         # Lap completion: defer the parking handoff until the robot is actually
         # in the parking corridor and within reach of the staging point. Until
@@ -112,12 +155,6 @@ class CoreNavigator:
         if self._laps_completed >= self._num_laps and self._handle_finish(
             robot_x, robot_y, robot_yaw,
         ):
-            return
-
-        # Update stuck detector
-        self._stuck_detector.update((robot_x, robot_y))
-        if self._stuck_detector.is_stuck:
-            self._handle_stuck_escape()
             return
 
         # Waypoint-wrap detection: signal LapDetector and reset index.
@@ -130,6 +167,8 @@ class CoreNavigator:
                 # Fallback: no geometric guard — count directly.
                 self._laps_completed += 1
                 logger.info("Lap %d complete (waypoint-only fallback)", self._laps_completed)
+                if self._sign_router is not None:
+                    self._sign_router.reset_for_new_lap()
                 return
 
         # Geometric lap counting (requires LapDetector).
@@ -140,41 +179,72 @@ class CoreNavigator:
         ):
             self._laps_completed += 1
             logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
+            if self._sign_router is not None:
+                self._sign_router.reset_for_new_lap()
 
-        target_wp = self._waypoints[self._waypoint_index]
+        raw_wp = self._waypoints[self._waypoint_index]
 
-        # Apply sign routing deformation if in obstacles challenge.
+        # Get LIDAR scan from gateway
+        scan = self._gateway.get_lidar_scan()
+        if scan:
+            forward_clearance = self._collision_controller.compute_forward_clearance(
+                scan.ranges_m, scan.angles_rad,
+            )
+            risk = self._collision_controller.assess_risk(scan.ranges_m, scan.angles_rad)
+        else:
+            # No LIDAR: a degraded sensor is not open road. Drive cautiously
+            # (slow zone + non-SAFE risk) instead of blasting forward blind.
+            forward_clearance = self._tuning.clearance.SLOW_DIST
+            risk = RiskLevel.OBSTACLE
+
+        # Check waypoint reached — against the *raw* planned point, not the
+        # sign-deformed one: deformation only biases steering near a sign, it
+        # must never stall path progression. A sign can pull the steering
+        # target sideways by up to lateral_offset, so the robot's real
+        # trajectory may never pass within waypoint_threshold of the deformed
+        # point — checking that point would freeze waypoint_index indefinitely
+        # while the sign stays engaged, corrupting every later tick's lookahead
+        # search with a stale target.
+        dist_to_wp = math.sqrt((raw_wp[0] - robot_x) ** 2 + (raw_wp[1] - robot_y) ** 2)
+        if dist_to_wp < self._waypoint_threshold:
+            self._waypoint_index += 1
+            return
+
+        # Steer at a lookahead point, not directly at the (often much closer)
+        # next waypoint — otherwise the lookahead distance is computed but
+        # discarded, producing weave on straights and corner cutting (PP-1).
+        lookahead_distance = self._waypoint_controller.select_lookahead(forward_clearance)
+        steer_target = self._waypoint_controller.select_target_point(
+            current_pos=(robot_x, robot_y),
+            waypoints=self._waypoints[self._waypoint_index :],
+            waypoint_index=0,
+            lookahead_distance=lookahead_distance,
+        )
+
+        # Apply sign routing to whichever point steering will actually chase —
+        # deforming a raw-path *candidate* before the lookahead search picked
+        # from it meant the search itself, not the sign, decided whether the
+        # nudge ever reached steering (it almost never did: waypoints are
+        # spaced well under the 0.20-0.40m lookahead, so the search kept
+        # skipping past a single deformed candidate to a further, undeformed
+        # one). Deforming the search's own output guarantees the bias is
+        # exactly what gets steered toward, at full tapered strength whenever
+        # that point is close to the sign.
         if self._sign_router is not None and self._current_corridor is not None:
             detections = self._gateway.get_vision_detections()
-            target_wp = self._sign_router.deform_waypoint(
-                waypoint=target_wp,
+            steer_target = self._sign_router.deform_waypoint(
+                waypoint=steer_target,
                 robot_pos=(robot_x, robot_y),
                 robot_yaw=robot_yaw,
                 corridor=self._current_corridor,
                 detections=detections,
             )
 
-        # Get LIDAR ranges from gateway
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
-            ranges, angles = lidar_data
-            forward_clearance = self._collision_controller.compute_forward_clearance(ranges, angles)
-            risk = self._collision_controller.assess_risk(ranges)
-        else:
-            forward_clearance = 5.0
-            risk = RiskLevel.SAFE
-
-        # Check waypoint reached
-        dist_to_wp = math.sqrt((target_wp[0] - robot_x) ** 2 + (target_wp[1] - robot_y) ** 2)
-        if dist_to_wp < self._waypoint_threshold:
-            self._waypoint_index += 1
-            return
-
         # Get steering from waypoint controller
         steering_normalized, _ = self._waypoint_controller.compute_steering(
             current_pos=(robot_x, robot_y),
             current_yaw=robot_yaw,
-            target_waypoint=target_wp,
+            target_waypoint=steer_target,
             forward_clearance=forward_clearance,
         )
 
@@ -194,15 +264,75 @@ class CoreNavigator:
             speed = min(speed, self._tuning.speed.SLOW_SPEED)
 
         # Escape maneuvers if critical
-        if risk == RiskLevel.CRITICAL and lidar_data:
-            threat_dir = self._collision_controller.detect_threat_direction(lidar_data[0], lidar_data[1])
-            maneuver = self._collision_controller.compute_escape_maneuver(risk, threat_dir)
+        if risk == RiskLevel.CRITICAL and scan:
+            threat_dir = self._collision_controller.detect_threat_direction(scan.ranges_m, scan.angles_rad)
+            maneuver = self._collision_controller.compute_escape_maneuver(
+                risk, threat_dir, scan.ranges_m, scan.angles_rad,
+            )
+            if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
+                # Blocked at both ends: fall through to the capped creep-speed
+                # publish below rather than backing into an unseen wall. The
+                # stuck detector is the backstop if the robot truly can't move.
+                maneuver = None
             if maneuver:
-                self._gateway.publish_velocity(Velocity(linear=maneuver.speed, angular=maneuver.steering))
+                self._escape_count += 1
+                self._begin_maneuver(self._maybe_escalate(maneuver))
+                self._drive_active_maneuver()
                 return
 
-        # Normal publish
-        self._gateway.publish_velocity(Velocity(linear=speed, angular=steering_normalized))
+        # Normal publish — the robot is driving, so clear the escape escalation.
+        self._escape_count = 0
+        self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
+
+    def _reversing_into_unseen_wall(self, maneuver: EscapeManeuver, scan: LidarScan) -> bool:
+        """True if executing ``maneuver`` would back into a wall behind the robot."""
+        if maneuver.speed >= 0:
+            return False
+        rear_clear = self._collision_controller.compute_rear_clearance(scan.ranges_m, scan.angles_rad)
+        return rear_clear < self._tuning.clearance.CONTACT_DIST
+
+    def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
+        """Latch an escape maneuver so it executes for its full duration."""
+        self._active_maneuver = maneuver
+        self._maneuver_frames_left = max(1, maneuver.duration_frames)
+
+    def _drive_active_maneuver(self) -> None:
+        """Publish the active escape command and count down its latched duration."""
+        maneuver = self._active_maneuver
+        if maneuver is None:
+            return
+        self._maneuver_frames_left -= 1
+        if self._maneuver_frames_left <= 0:
+            self._active_maneuver = None
+        self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
+
+    def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
+        """Escalate a repeated escape instead of repeating an identical pulse.
+
+        After a few consecutive escapes that clearly aren't working, reverse for
+        longer and swing toward the opposite side, so the robot stops slamming
+        the same failing maneuver into the same wall.
+        """
+        if self._escape_count <= self._tuning.escape.ESCALATE_AFTER_ATTEMPTS:
+            return maneuver
+        self._escape_steer_sign = -self._escape_steer_sign
+        steering = abs(maneuver.steering) * self._escape_steer_sign if maneuver.steering else 0.0
+        return replace(
+            maneuver,
+            steering=steering,
+            duration_frames=min(maneuver.duration_frames * 2, self._tuning.escape.MAX_ESCAPE_FRAMES),
+        )
+
+    def _is_holding(self) -> bool:
+        """True once the robot has reached a deliberate, terminal stop.
+
+        Both terminal states are monotonic (never revert once reached), so it
+        is safe to permanently stop running stuck detection once this is True.
+        """
+        if self._laps_completed < self._num_laps:
+            return False
+        pc = self._park_controller
+        return pc is None or pc.is_done
 
     def _handle_finish(self, robot_x: float, robot_y: float, robot_yaw: float) -> bool:
         """Handle the post-final-lap phase.
@@ -213,7 +343,7 @@ class CoreNavigator:
         pc = self._park_controller
         if pc is None:
             # Open challenge: no parking maneuver — hold position.
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return True
 
         if not self._parking_engaged and self._should_engage_parking(robot_x, robot_y):
@@ -224,18 +354,18 @@ class CoreNavigator:
             return False  # Keep navigating until at the staging point.
 
         if pc.is_done:
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return True
 
         cmd = pc.update((robot_x, robot_y), robot_yaw)
         linear = cmd.linear
         # Forward-clearance gate so the staging vector never drives into a wall.
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
-            fwd = self._collision_controller.compute_forward_clearance(lidar_data[0], lidar_data[1])
+        scan = self._gateway.get_lidar_scan()
+        if scan:
+            fwd = self._collision_controller.compute_forward_clearance(scan.ranges_m, scan.angles_rad)
             if fwd < self._tuning.clearance.CONTACT_DIST:
                 linear = 0.0
-        self._gateway.publish_velocity(Velocity(linear=linear, angular=cmd.steering))
+        self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         return True
 
     def _should_engage_parking(self, robot_x: float, robot_y: float) -> bool:
@@ -249,22 +379,40 @@ class CoreNavigator:
         return math.hypot(sx - robot_x, sy - robot_y) < self._park_engage_dist
 
     def _handle_stuck_escape(self) -> None:
-        """Reverse out of a stuck state, but never back into an unseen wall."""
+        """Reverse out of a stuck state, but never back into an unseen wall.
+
+        The reverse is latched for several frames (escalating with repeated
+        attempts) and alternates steering side each attempt, so a wall-pinned
+        robot actually backs away instead of twitching one centimetre every few
+        seconds forever.
+        """
         logger.warning("Robot stuck - triggering escape")
         rear_clear = 10.0
-        lidar_data = self._gateway.get_lidar_scan()
-        if lidar_data:
+        scan = self._gateway.get_lidar_scan()
+        if scan:
             rear_clear = self._collision_controller.compute_rear_clearance(
-                lidar_data[0], lidar_data[1],
+                scan.ranges_m, scan.angles_rad,
             )
         if rear_clear < self._tuning.clearance.CONTACT_DIST:
             logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
-        else:
-            self._gateway.publish_velocity(
-                Velocity(
-                    linear=self._tuning.escape.REV_SPEED,
-                    angular=self._tuning.escape.REV_STEERING_SCALE,
-                ),
-            )
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._stuck_detector.reset()
+            return
+
+        self._escape_count += 1
+        frames = min(
+            self._tuning.escape.K_TURN_MIN_FRAMES + 2 * (self._escape_count - 1),
+            self._tuning.escape.MAX_ESCAPE_FRAMES,
+        )
+        steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign
+        self._escape_steer_sign = -self._escape_steer_sign  # alternate side each attempt
+        self._begin_maneuver(
+            EscapeManeuver(
+                maneuver_type=ManeuverType.STUCK_REVERSE,
+                steering=steering,
+                speed=self._tuning.escape.REV_SPEED,
+                duration_frames=frames,
+            ),
+        )
         self._stuck_detector.reset()
+        self._drive_active_maneuver()

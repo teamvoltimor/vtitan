@@ -1,0 +1,149 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Platform API
+  version: 1.0.0
+  description: |
+    Aggregated OpenAPI specification for the VoldemorBot Platform.
+    Each bounded context is defined in openapi/contexts/{context}.yaml.
+
+    Contexts:
+      - Telemetry: robot telemetry, metrics, sessions, replay
+      - Robot: robot lifecycle, fleet management, status, command
+      - Vision: YOLO detections, annotations, model management
+      - Navigation: waypoints, route planning, clearance, tuning
+      - Simulation: scenario generation, simulation runs, environments
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+paths:
+  # Telemetry
+  /v1/telemetry/health:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1health
+  /v1/telemetry/latest:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1latest
+  /v1/telemetry/history:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1history
+  /v1/telemetry/topics:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1topics
+  /v1/telemetry/config:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1config
+  /v1/telemetry/sessions:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1sessions
+  /v1/telemetry/sessions/{sessionId}:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1sessions~1{sessionId}
+  /v1/telemetry/robot/config/speed:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1robot~1config~1speed
+  /v1/telemetry/ws:
+    $ref: contexts/telemetry.yaml#/paths/~1v1~1telemetry~1ws
+
+  # Robot
+  /v1/robots:
+    $ref: contexts/robot.yaml#/paths/~1v1~1robots
+  /v1/robots/{robotId}:
+    $ref: contexts/robot.yaml#/paths/~1v1~1robots~1{robotId}
+  /v1/robots/{robotId}/status:
+    $ref: contexts/robot.yaml#/paths/~1v1~1robots~1{robotId}~1status
+  /v1/robots/{robotId}/config:
+    $ref: contexts/robot.yaml#/paths/~1v1~1robots~1{robotId}~1config
+  /v1/robots/{robotId}/command:
+    $ref: contexts/robot.yaml#/paths/~1v1~1robots~1{robotId}~1command
+
+  # Vision
+  /v1/vision/detections:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1detections
+  /v1/vision/detections/current:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1detections~1current
+  /v1/vision/annotations:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1annotations
+  /v1/vision/annotations/{annotationId}:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1annotations~1{annotationId}
+  /v1/vision/model:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1model
+  /v1/vision/pipeline/status:
+    $ref: contexts/vision.yaml#/paths/~1v1~1vision~1pipeline~1status
+
+  # Navigation
+  /v1/navigation/waypoints:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1waypoints
+  /v1/navigation/waypoints/{waypointId}:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1waypoints~1{waypointId}
+  /v1/navigation/route:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1route
+  /v1/navigation/status:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1status
+  /v1/navigation/clearance:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1clearance
+  /v1/navigation/tuning:
+    $ref: contexts/navigation.yaml#/paths/~1v1~1navigation~1tuning
+
+  # Simulation
+  /v1/simulation/scenarios:
+    $ref: contexts/simulation.yaml#/paths/~1v1~1simulation~1scenarios
+  /v1/simulation/scenarios/{scenarioId}:
+    $ref: contexts/simulation.yaml#/paths/~1v1~1simulation~1scenarios~1{scenarioId}
+  /v1/simulation/runs:
+    $ref: contexts/simulation.yaml#/paths/~1v1~1simulation~1runs
+  /v1/simulation/runs/{runId}:
+    $ref: contexts/simulation.yaml#/paths/~1v1~1simulation~1runs~1{runId}
+  /v1/simulation/environments:
+    $ref: contexts/simulation.yaml#/paths/~1v1~1simulation~1environments
+
+components:
+  schemas:
+    Telemetry:
+      HealthResponse:
+        $ref: contexts/telemetry.yaml#/components/schemas/HealthResponse
+      ErrorResponse:
+        $ref: contexts/telemetry.yaml#/components/schemas/ErrorResponse
+      SessionResponse:
+        $ref: contexts/telemetry.yaml#/components/schemas/SessionResponse
+      ConfigResponse:
+        $ref: contexts/telemetry.yaml#/components/schemas/ConfigResponse
+      RobotSnapshot:
+        $ref: contexts/telemetry.yaml#/components/schemas/RobotSnapshot
+      TopicsSnapshot:
+        $ref: contexts/telemetry.yaml#/components/schemas/TopicsSnapshot
+    Robot:
+      Robot:
+        $ref: contexts/robot.yaml#/components/schemas/Robot
+      RobotStatus:
+        $ref: contexts/robot.yaml#/components/schemas/RobotStatus
+      RobotConfig:
+        $ref: contexts/robot.yaml#/components/schemas/RobotConfig
+      Pose:
+        $ref: contexts/robot.yaml#/components/schemas/Pose
+      Velocity:
+        $ref: contexts/robot.yaml#/components/schemas/Velocity
+    Vision:
+      Detection:
+        $ref: contexts/vision.yaml#/components/schemas/Detection
+      DetectionFrame:
+        $ref: contexts/vision.yaml#/components/schemas/DetectionFrame
+      Annotation:
+        $ref: contexts/vision.yaml#/components/schemas/Annotation
+      PipelineStatus:
+        $ref: contexts/vision.yaml#/components/schemas/PipelineStatus
+    Navigation:
+      Waypoint:
+        $ref: contexts/navigation.yaml#/components/schemas/Waypoint
+      Route:
+        $ref: contexts/navigation.yaml#/components/schemas/Route
+      ClearanceData:
+        $ref: contexts/navigation.yaml#/components/schemas/ClearanceData
+      NavigationTuning:
+        $ref: contexts/navigation.yaml#/components/schemas/NavigationTuning
+    Simulation:
+      Scenario:
+        $ref: contexts/simulation.yaml#/components/schemas/Scenario
+      SimulationRun:
+        $ref: contexts/simulation.yaml#/components/schemas/SimulationRun
+      EnvironmentConfig:
+        $ref: contexts/simulation.yaml#/components/schemas/EnvironmentConfig
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

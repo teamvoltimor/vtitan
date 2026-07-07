@@ -1,0 +1,414 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Vision API
+  version: 1.0.0
+  description: |
+    Vision context — responsible for image capture, YOLO inference,
+    traffic sign detection, annotation management, and model lifecycle.
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/vision/detections:
+    get:
+      summary: List recent detections
+      operationId: listDetections
+      tags:
+        - Vision
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of detections
+        - name: confidence_min
+          in: query
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+          description: Minimum confidence filter
+      responses:
+        '200':
+          description: Array of detections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Detection'
+
+  /v1/vision/detections/current:
+    get:
+      summary: Get the latest frame detections
+      operationId: getCurrentDetections
+      tags:
+        - Vision
+      responses:
+        '200':
+          description: Current frame detections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionFrame'
+        '503':
+          description: Vision pipeline not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/vision/annotations:
+    get:
+      summary: List ground-truth annotations
+      operationId: listAnnotations
+      tags:
+        - Vision
+      responses:
+        '200':
+          description: Array of annotations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Annotation'
+    post:
+      summary: Create annotation
+      operationId: createAnnotation
+      tags:
+        - Vision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationRequest'
+      responses:
+        '201':
+          description: Annotation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/vision/annotations/{annotationId}:
+    put:
+      summary: Update annotation
+      operationId: updateAnnotation
+      tags:
+        - Vision
+      parameters:
+        - name: annotationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnotationRequest'
+      responses:
+        '200':
+          description: Annotation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Annotation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete annotation
+      operationId: deleteAnnotation
+      tags:
+        - Vision
+      parameters:
+        - name: annotationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Annotation deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/vision/model:
+    get:
+      summary: Get active inference model info
+      operationId: getActiveModel
+      tags:
+        - Vision
+      responses:
+        '200':
+          description: Model information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInfo'
+    put:
+      summary: Switch active inference model
+      operationId: setActiveModel
+      tags:
+        - Vision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetModelRequest'
+      responses:
+        '200':
+          description: Model switched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInfo'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/vision/pipeline/status:
+    get:
+      summary: Get vision pipeline status
+      operationId: getPipelineStatus
+      tags:
+        - Vision
+      responses:
+        '200':
+          description: Pipeline status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStatus'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Detection:
+      type: object
+      required: [class_name, confidence, bbox]
+      properties:
+        id:
+          type: string
+          format: uuid
+        class_name:
+          type: string
+          enum: [red_sign, green_sign]
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        bbox:
+          $ref: '#/components/schemas/BoundingBox'
+        timestamp:
+          type: string
+          format: date-time
+
+    BoundingBox:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x:
+          type: number
+          format: double
+          description: Normalized center X [0, 1]
+        y:
+          type: number
+          format: double
+          description: Normalized center Y [0, 1]
+        width:
+          type: number
+          format: double
+          description: Normalized width [0, 1]
+        height:
+          type: number
+          format: double
+          description: Normalized height [0, 1]
+
+    DetectionFrame:
+      type: object
+      required: [timestamp, detections, inference_time_ms]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        detections:
+          type: array
+          items:
+            $ref: '#/components/schemas/Detection'
+        inference_time_ms:
+          type: number
+          format: float
+        image_width:
+          type: integer
+        image_height:
+          type: integer
+        npu_fps:
+          type: number
+          format: float
+
+    Annotation:
+      type: object
+      required: [id, class_name, bbox, image_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        class_name:
+          type: string
+        bbox:
+          $ref: '#/components/schemas/BoundingBox'
+        image_id:
+          type: string
+          format: uuid
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateAnnotationRequest:
+      type: object
+      required: [class_name, bbox, image_id]
+      properties:
+        class_name:
+          type: string
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+        bbox:
+          $ref: '#/components/schemas/BoundingBox'
+        image_id:
+          type: string
+          format: uuid
+          x-oapi-codegen-extra-tags:
+            binding: "required,uuid"
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdateAnnotationRequest:
+      type: object
+      properties:
+        class_name:
+          type: string
+        bbox:
+          $ref: '#/components/schemas/BoundingBox'
+
+    ModelInfo:
+      type: object
+      required: [name, version, input_shape, classes]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        input_shape:
+          type: array
+          items:
+            type: integer
+          minItems: 3
+          maxItems: 4
+          description: Model input shape (C, H, W) or (H, W, C)
+        classes:
+          type: array
+          items:
+            type: string
+        confidence_threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        iou_threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    SetModelRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+
+    PipelineStatus:
+      type: object
+      required: [active, model_loaded, fps]
+      properties:
+        active:
+          type: boolean
+        model_loaded:
+          type: boolean
+        model_name:
+          type: string
+        fps:
+          type: number
+          format: float
+        frames_processed:
+          type: integer
+        last_inference:
+          type: string
+          format: date-time
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

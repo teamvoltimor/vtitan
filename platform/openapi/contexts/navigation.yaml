@@ -1,0 +1,387 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Navigation API
+  version: 1.0.0
+  description: |
+    Navigation context — responsible for path planning, waypoint management,
+    obstacle avoidance configuration, and route execution monitoring.
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/navigation/waypoints:
+    get:
+      summary: List planned waypoints
+      operationId: listWaypoints
+      tags:
+        - Navigation
+      responses:
+        '200':
+          description: Array of waypoints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Waypoint'
+    post:
+      summary: Add a waypoint
+      operationId: createWaypoint
+      tags:
+        - Navigation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWaypointRequest'
+      responses:
+        '201':
+          description: Waypoint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Waypoint'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/navigation/waypoints/{waypointId}:
+    delete:
+      summary: Remove a waypoint
+      operationId: deleteWaypoint
+      tags:
+        - Navigation
+      parameters:
+        - name: waypointId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Waypoint deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/navigation/route:
+    get:
+      summary: Get the current planned route
+      operationId: getRoute
+      tags:
+        - Navigation
+      responses:
+        '200':
+          description: Planned route
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+    post:
+      summary: Plan or replan a route
+      operationId: planRoute
+      tags:
+        - Navigation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanRouteRequest'
+      responses:
+        '200':
+          description: Route planned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/navigation/status:
+    get:
+      summary: Get navigation subsystem status
+      operationId: getNavigationStatus
+      tags:
+        - Navigation
+      responses:
+        '200':
+          description: Navigation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationStatus'
+
+  /v1/navigation/clearance:
+    get:
+      summary: Get current LIDAR clearance readings
+      operationId: getClearance
+      tags:
+        - Navigation
+      responses:
+        '200':
+          description: Clearance data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClearanceData'
+
+  /v1/navigation/tuning:
+    get:
+      summary: Get navigation tuning parameters
+      operationId: getTuningParams
+      tags:
+        - Navigation
+      responses:
+        '200':
+          description: Current tuning parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationTuning'
+    put:
+      summary: Update navigation tuning parameters
+      operationId: updateTuningParams
+      tags:
+        - Navigation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationTuning'
+      responses:
+        '200':
+          description: Tuning parameters updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationTuning'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Waypoint:
+      type: object
+      required: [id, x, y, index]
+      properties:
+        id:
+          type: string
+          format: uuid
+        x:
+          type: number
+          format: double
+          description: X position in meters
+        y:
+          type: number
+          format: double
+          description: Y position in meters
+        index:
+          type: integer
+          description: Order in the waypoint sequence
+        tolerance:
+          type: number
+          format: double
+          description: Acceptance radius in meters
+        section:
+          type: string
+          description: Track section identifier
+
+    CreateWaypointRequest:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+          format: double
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+        y:
+          type: number
+          format: double
+          x-oapi-codegen-extra-tags:
+            binding: "required"
+        tolerance:
+          type: number
+          format: double
+        section:
+          type: string
+
+    Route:
+      type: object
+      required: [waypoints, total_distance, estimated_duration_s]
+      properties:
+        id:
+          type: string
+          format: uuid
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Waypoint'
+        total_distance:
+          type: number
+          format: double
+          description: Total route distance in meters
+        estimated_duration_s:
+          type: number
+          format: double
+          description: Estimated duration in seconds
+        laps:
+          type: integer
+          description: Number of laps in the route
+        created_at:
+          type: string
+          format: date-time
+
+    PlanRouteRequest:
+      type: object
+      required: [start_x, start_y]
+      properties:
+        start_x:
+          type: number
+          format: double
+        start_y:
+          type: number
+          format: double
+        start_yaw:
+          type: number
+          format: double
+        laps:
+          type: integer
+          minimum: 1
+          default: 3
+
+    NavigationStatus:
+      type: object
+      required: [active, current_waypoint_index, total_waypoints]
+      properties:
+        active:
+          type: boolean
+        current_waypoint_index:
+          type: integer
+        total_waypoints:
+          type: integer
+        current_section:
+          type: string
+        risk_level:
+          type: string
+          enum: [SAFE, CRITICAL, OBSTACLE]
+        phase:
+          type: string
+          enum: [TRACKING, AVOIDING, ESCAPING, PARKING, FINISHED]
+        last_replan:
+          type: string
+          format: date-time
+
+    ClearanceData:
+      type: object
+      required: [front, left, right, back, timestamp]
+      properties:
+        front:
+          type: number
+          format: double
+          nullable: true
+        left:
+          type: number
+          format: double
+          nullable: true
+        right:
+          type: number
+          format: double
+          nullable: true
+        back:
+          type: number
+          format: double
+          nullable: true
+        points_captured:
+          type: integer
+        range_min:
+          type: number
+          format: double
+        range_max:
+          type: number
+          format: double
+        timestamp:
+          type: string
+          format: date-time
+
+    NavigationTuning:
+      type: object
+      properties:
+        lookahead_short:
+          type: number
+          format: double
+        lookahead_long:
+          type: number
+          format: double
+        steer_kp:
+          type: number
+          format: double
+        max_steering_rate:
+          type: number
+          format: double
+        contact_dist:
+          type: number
+          format: double
+        slow_dist:
+          type: number
+          format: double
+        medium_dist:
+          type: number
+          format: double
+        fast_dist:
+          type: number
+          format: double
+        min_speed:
+          type: number
+          format: double
+        max_speed:
+          type: number
+          format: double
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

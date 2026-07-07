@@ -365,14 +365,14 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "voldemorbot-shared", directory = "../shared" },
+    { name = "voldemorbot-shared", directory = "../../shared" },
 ]
 provides-extras = ["dev"]
 
 [[package]]
 name = "voldemorbot-shared"
 version = "0.1.0"
-source = { directory = "../shared" }
+source = { directory = "../../shared" }
 dependencies = [
     { name = "pydantic" },
 ]

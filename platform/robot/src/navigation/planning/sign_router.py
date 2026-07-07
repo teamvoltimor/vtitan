@@ -1,19 +1,27 @@
 """WRO 2026 traffic-sign routing for obstacles challenge.
 
-Computes lateral waypoint deformations so the robot passes red signs on the
-right and green signs on the left, per the official WRO pass-side rule.
+Computes lateral waypoint deformations so the robot avoids a red obstacle on
+its OUTWARD side (toward the outer wall) and a green obstacle on its INWARD
+side (toward the inner square) — an absolute rule tied to the track geometry,
+not the travel direction: it holds identically whether the round is run
+clockwise or counterclockwise.
 
 Pure Python — no ROS2 dependencies. Designed to be unit-tested independently.
 
-Pass-side rule (from robot's forward-travel perspective):
-    - Red sign  → robot passes to the LEFT of the sign (sign on right).
-    - Green sign → robot passes to the RIGHT of the sign (sign on left).
+Pass-side rule:
+    - Red obstacle   → robot passes on the OUTWARD side (away from centre).
+    - Green obstacle → robot passes on the INWARD side (toward centre).
 
-The deformation direction depends on BOTH the corridor section AND the travel
-direction (CW/CCW): the same corridor is driven with opposite headings depending
-on direction, which reverses left/right in world coordinates. The routing table
-is therefore keyed by (Section, Direction); the CW rows are the world-frame
-negation of the CCW rows.
+Pinned by ``TestPassSideRule`` in ``tests/unit/test_sign_router.py``: for
+every (section, direction) the deformed waypoint moves outward for red and
+inward for green.
+
+The deformation is still keyed by (Section, Direction) because the AXIS and
+WORLD-FRAME SIGN of "outward" both depend on which corridor is being driven,
+but — unlike an earlier version of this table — the CLOCKWISE and
+COUNTERCLOCKWISE rows for a given section are now IDENTICAL, not negations of
+each other: outward/inward is a fixed property of the corridor, independent
+of which way the robot is circling it.
 """
 
 from __future__ import annotations
@@ -22,8 +30,10 @@ import logging
 import math
 from dataclasses import dataclass
 
-from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.config.constants import ColorNames, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
+
+from src.navigation.planning.waypoints import corridor_for_position
 
 
 @dataclass(frozen=True)
@@ -40,17 +50,32 @@ logger = logging.getLogger(__name__)
 # Camera focal length in pixels — derived from HFOV and image width.
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
+# Chassis half-width plus a small margin: how far a deformed waypoint must
+# stay clear of the restricted inner square and the outer wall (WP-1). An
+# unclamped deformation can otherwise place the waypoint inside the inner
+# square or against a wall for a sign positioned near a corridor edge.
+_WALL_CLEARANCE = RobotSpecs.WIDTH / 2 + 0.02
+
+# How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
+# axis may drift and still count as a valid straight-corridor deformation
+# candidate — see _is_squarely_in_corridor.
+_DEFORM_DEPTH_BUFFER = 0.3
+
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
 # axis: "y" means deform the y-coordinate; "x" deforms x.
 # red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
-# chosen so the robot keeps a red sign on its right and a green sign on its
-# left for the heading it actually drives in that corridor. The CLOCKWISE rows
-# are the world-frame negation of the COUNTERCLOCKWISE rows.
+# chosen so red always moves the deformed waypoint OUTWARD (away from the
+# inner square) and green always moves it INWARD — identically for CW and
+# CCW, since outward/inward is a fixed property of the corridor, not the
+# travel direction. (An earlier version of this table made the CW rows the
+# world-frame negation of the CCW rows, which instead pinned "red on the
+# robot's right" — a travel-RELATIVE rule that flips outward/inward between
+# CW and CCW. That was wrong: the official rule is the absolute one above.)
 _ROUTING_TABLE: dict[tuple[Section, Direction], tuple[str, int, int]] = {
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ("y", +1, -1),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): ("y", -1, +1),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): ("x", -1, +1),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): ("x", +1, -1),
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ("y", -1, +1),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): ("y", +1, -1),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): ("x", +1, -1),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): ("x", -1, +1),
     (Section.SOUTH, Direction.CLOCKWISE): ("y", -1, +1),
     (Section.NORTH, Direction.CLOCKWISE): ("y", +1, -1),
     (Section.EAST, Direction.CLOCKWISE): ("x", +1, -1),
@@ -115,11 +140,27 @@ class SignRouter:
         self._config = config or SignRouterConfig()
         self._direction = direction
         self._passed: set[int] = set()
+        self._engaged: set[int] = set()
+        # Each sign's own corridor, precomputed once — deform_waypoint() must
+        # never apply a sign's (x, y) through a different corridor's axis
+        # convention (see _nearest_active_sign).
+        self._sign_corridors = [corridor_for_position(s.x, s.y) for s in signs]
 
     @property
     def active_sign_count(self) -> int:
-        """Number of signs not yet marked as passed."""
+        """Number of signs not yet marked as passed (this lap)."""
         return len(self._signs) - len(self._passed)
+
+    def reset_for_new_lap(self) -> None:
+        """Re-arm every sign so it's routed again on the next lap.
+
+        Without this, a sign marked ``_passed`` on lap 1 (once the robot moves
+        beyond ``passed_dist``) stays passed for the rest of the run — the
+        Obstacles Challenge requires clearing every sign on all 3 laps, not
+        just the first time each one is encountered.
+        """
+        self._passed.clear()
+        self._engaged.clear()
 
     def deform_waypoint(
         self,
@@ -145,22 +186,21 @@ class SignRouter:
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
         """
-        nearest_dist = float("inf")
-        nearest_idx = -1
-
-        for i, sign in enumerate(self._signs):
-            if i in self._passed:
-                continue
-            d = _dist2d(robot_pos, (sign.x, sign.y))
-            if d > self._config.passed_dist:
-                self._passed.add(i)
-                logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
-                continue
-            if d < nearest_dist:
-                nearest_dist = d
-                nearest_idx = i
-
+        nearest_idx, nearest_dist = self._nearest_active_sign(robot_pos, corridor)
         if nearest_idx < 0 or nearest_dist > self._config.activation_dist:
+            return waypoint
+
+        # The deformation model assumes a straight corridor segment (hold the
+        # depth axis, override the lateral axis with a value derived from the
+        # sign's fixed position). Once the *target* waypoint itself has curved
+        # into a corner, that override is stale and increasingly wrong — skip
+        # it rather than fight the path's own curve. Deliberately stricter than
+        # corridor_for_position()'s corner tie-break (which exists to always
+        # assign the ROBOT some corridor, even ambiguously): a corner waypoint
+        # like (2.42, 2.42) ties NORTH vs EAST there and gets assigned NORTH by
+        # insertion order, but it's still on the turning arc, not the straight
+        # segment this deformation model assumes.
+        if not _is_squarely_in_corridor(waypoint[0], waypoint[1], corridor):
             return waypoint
 
         sign = self._signs[nearest_idx]
@@ -178,8 +218,22 @@ class SignRouter:
             if camera_color is not None:
                 color = camera_color
 
+        # Taper the offset by *this waypoint's* own distance to the sign (not
+        # the robot's — that only gates whether the sign is engaged at all).
+        # A single target-point substitution never needed this: it was always
+        # the point nearest the robot's own engagement. But biasing a whole
+        # forward window the same fixed amount regardless of how far each
+        # point already is from the sign snaps the offset from full magnitude
+        # to zero in a single waypoint step at the corridor boundary — a kink
+        # arriving at exactly the same place the car is also turning through.
+        # Fading it out over `passed_dist` keeps every existing single-point
+        # call (waypoint == sign position, taper == 1.0) byte-identical.
+        waypoint_dist = _dist2d(waypoint, (sign.x, sign.y))
+        taper = max(0.0, 1.0 - waypoint_dist / self._config.passed_dist)
+        effective_offset = self._config.lateral_offset * taper
+
         deformed = _apply_deformation(
-            waypoint, sign, color, corridor, self._direction, self._config.lateral_offset,
+            waypoint, sign, color, corridor, self._direction, effective_offset,
         )
 
         if deformed != waypoint:
@@ -196,6 +250,47 @@ class SignRouter:
 
         return deformed
 
+    def _nearest_active_sign(
+        self, robot_pos: tuple[float, float], corridor: Section,
+    ) -> tuple[int, float]:
+        """Index and distance of the nearest not-yet-passed sign in ``corridor``.
+
+        Also maintains engagement/passed bookkeeping: a sign is engaged once the
+        robot comes within activation distance, and retired only after it has
+        been engaged and then left beyond ``passed_dist`` — never discarded from
+        afar (which would silently disable routing at spawn). Bookkeeping runs
+        for every sign regardless of corridor; only the returned *candidate* is
+        restricted to signs that belong to ``corridor`` — a sign one corridor
+        over can be geometrically within ``activation_dist`` right at a corner,
+        and applying its (x, y) through this corridor's axis/clamp convention
+        produces a nonsensical waypoint (deforms the wrong axis, clamped against
+        the wrong wall).
+
+        Returns:
+            ``(index, distance)``; index is -1 when no active sign remains.
+        """
+        nearest_dist = float("inf")
+        nearest_idx = -1
+
+        for i, sign in enumerate(self._signs):
+            if i in self._passed:
+                continue
+            d = _dist2d(robot_pos, (sign.x, sign.y))
+            if d < self._config.activation_dist:
+                self._engaged.add(i)
+            if d > self._config.passed_dist:
+                if i in self._engaged:
+                    self._passed.add(i)
+                    logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
+                continue
+            if self._sign_corridors[i] != corridor:
+                continue
+            if d < nearest_dist:
+                nearest_dist = d
+                nearest_idx = i
+
+        return nearest_idx, nearest_dist
+
 
 def _apply_deformation(
     waypoint: tuple[float, float],
@@ -206,6 +301,10 @@ def _apply_deformation(
     lateral_offset: float,
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
+
+    The result is clamped so it can't land inside the restricted inner square
+    or beyond the outer wall (WP-1) — a sign positioned near a corridor edge
+    would otherwise deform the waypoint straight into a hazard.
 
     Args:
         waypoint: Original target waypoint (x, y).
@@ -222,12 +321,30 @@ def _apply_deformation(
         return waypoint
 
     axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
-    mult = red_mult if color == "red" else green_mult
+    mult = red_mult if color == ColorNames.RED else green_mult
 
     wx, wy = waypoint
     if axis == "y":
-        return wx, sign.y + mult * lateral_offset
-    return sign.x + mult * lateral_offset, wy
+        return wx, _clamp_lateral(sign.y + mult * lateral_offset, corridor)
+    return _clamp_lateral(sign.x + mult * lateral_offset, corridor), wy
+
+
+def _clamp_lateral(value: float, corridor: Section) -> float:
+    """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
+
+    SOUTH/WEST corridors border the inner square on their high side (the
+    coordinate must stay below ``CORNER_MIN``); NORTH/EAST border it on their
+    low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
+    on its outer side by the track wall.
+    """
+    low_side = corridor in (Section.SOUTH, Section.WEST)
+    if low_side:
+        value = min(value, TrackDimensions.CORNER_MIN - _WALL_CLEARANCE)
+        value = max(value, TrackDimensions.MIN_COORD + _WALL_CLEARANCE)
+    else:
+        value = max(value, TrackDimensions.CORNER_MAX + _WALL_CLEARANCE)
+        value = min(value, TrackDimensions.MAX_COORD - _WALL_CLEARANCE)
+    return value
 
 
 def _match_detection_to_sign(
@@ -259,7 +376,7 @@ def _match_detection_to_sign(
     for det in detections:
         if det.confidence < config.min_confidence:
             continue
-        if det.class_name not in ("red", "green"):
+        if det.class_name not in (ColorNames.RED, ColorNames.GREEN):
             continue
 
         world_pos = _detection_to_world(det, robot_pos, robot_yaw)
@@ -325,3 +442,39 @@ def signs_from_metadata(metadata: dict) -> list[SignSpec]:
 
 def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+
+
+def _is_squarely_in_corridor(x: float, y: float, corridor: Section) -> bool:
+    """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
+
+    The deformation model holds the depth axis (whatever value the raw path
+    already gives it) and overrides only the lateral axis with a value derived
+    from the sign's position, then clamps that result into the corridor's own
+    free-space band. Two independent checks:
+
+    * Lateral axis (the one being overridden) must still read as this
+      corridor, not already the opposite wall.
+    * Depth axis (held, never touched) must stay within
+      ``_DEFORM_DEPTH_BUFFER`` of the inner square's own span — not the exact
+      ``[CORNER_MIN, CORNER_MAX]`` window ``corridor_for_position()`` uses for
+      its own robot-position classification, which is far too strict here: the
+      lookahead target runs 0.2-0.4m ahead of the robot, so it's often already
+      past that window well before the robot itself is anywhere near a corner,
+      and requiring it anyway silently killed deformation through most of a
+      sign's real engagement. But with no depth check at all, deformation can
+      keep firing long after the robot has geometrically left this corridor
+      for the next one, building up an offset that snaps back hard once the
+      sign finally disengages by corridor mismatch — this buffer catches that
+      case without reintroducing the original over-strict cutoff.
+    """
+    depth_min = TrackDimensions.CORNER_MIN - _DEFORM_DEPTH_BUFFER
+    depth_max = TrackDimensions.CORNER_MAX + _DEFORM_DEPTH_BUFFER
+    if corridor is Section.SOUTH:
+        return y < TrackDimensions.CORNER_MIN and depth_min <= x <= depth_max
+    if corridor is Section.NORTH:
+        return y > TrackDimensions.CORNER_MAX and depth_min <= x <= depth_max
+    if corridor is Section.EAST:
+        return x > TrackDimensions.CORNER_MAX and depth_min <= y <= depth_max
+    if corridor is Section.WEST:
+        return x < TrackDimensions.CORNER_MIN and depth_min <= y <= depth_max
+    return False

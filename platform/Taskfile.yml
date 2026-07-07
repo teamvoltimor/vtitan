@@ -12,9 +12,16 @@ vars:
   LAPS: 3
   PARAMS: ./gazebo/runtime/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
+  RPI_ZERO_SSH: pi@10.250.250.1
+  SSH_HOST: pi@rpi-5.local
+  DEVICE: ""
+  WIFI_SSID: ""
+  WIFI_PASS: ""
+  SERVICE: voldemorbot-pi5
   # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
+  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
   EXE:
-    sh: go env GOEXE
+    sh: go env GOEXE 2>/dev/null || true
   SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
 
 tasks:
@@ -33,7 +40,7 @@ tasks:
         Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
 
         UMBRELLAS (run across every module)
-          task install              Install all dependencies (UV + Pixi + Go)
+          task install              Install all dependencies (sim + robot + Go)
           task test                 Run all tests (Python + Go)
           task lint                 Run all linters (ruff + golangci-lint + ESLint + buf)
           task lint:fix             Auto-fix lint issues across modules
@@ -51,6 +58,11 @@ tasks:
           task backend:lint:fix     Auto-fix Go lint issues
           task backend:fmt          Format (goimports + gofmt)
           task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
+
+        OPENAPI (spec-first API contract)
+          task openapi:generate     Regenerate Go types from all OpenAPI specs
+          task openapi:validate     Validate all OpenAPI specs
+          task frontend:api:generate  Generate TypeScript client from OpenAPI specs
 
         PROTO (buf toolchain — requires buf CLI)
           task proto:update         Update buf registry dependencies
@@ -91,17 +103,38 @@ tasks:
           task sim:gazebo:scenario  Launch Gazebo with a scenario SDF (SCENARIO_SDF=path)
           task sim:rviz             Launch RViz visualization
           task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
+          task sim:navigate:rviz    Launch RViz pre-configured for live visualization
+          task sim:navigate:visualize  Run scenario(s) live in RViz (--list/--scenario/--interactive)
           task sim:analyze          Analyze generated scenarios (statistics)
           task sim:test             Run simulation tests
           task sim:test:quick       Quick test run (fail fast, short traceback)
           task sim:lint             Lint simulation code
           task sim:lint:fix         Auto-fix simulation lint issues
 
-        ROBOT (on-robot platform)
-          task robot:install        Install robot platform dependencies
-          task robot:test           Run robot tests
+        ROBOT (on-robot platform — run build-ws before any run-/launch- task)
+          task robot:install        Install robot platform dependencies (default + dev envs)
+          task robot:test           Run robot tests (excludes on-device hardware tests)
+          task robot:test:unit      Run robot unit tests only
+          task robot:test:hardware  Run on-device hardware tests (real Pi + peripherals)
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
+          task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
+          task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
+          task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
+          task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
+          task robot:run-lidar      Run Slamtec C1 LIDAR node (Linux/aarch64 only)
+          task robot:run-state-machine  Run the WRO state machine node
+          task robot:run-oled       Run the SSD1306 OLED display node
+          task robot:run-motor      Run the Ackermann motor control node
+          task robot:run-telemetry  Run the telemetry bridge node
+          task robot:run-vision     Run the YOLO vision detection node
+          task robot:run-navigator  Run the track navigator node (default scenario_0000)
+          task robot:launch-rpi5    Launch the Pi 5 node set (state machine + telemetry + OLED)
+          task robot:launch-rpi-zero  Launch the Pi Zero node set (Ackermann motor)
+          task robot:launch-state-machine  Launch full WRO state-machine stack
+          task robot:launch-telemetry  Launch the telemetry bridge
+          task robot:launch-simulator  Launch the simulator node set
+          task robot:launch-lidar   Launch the Slamtec C1 LIDAR
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -120,6 +153,18 @@ tasks:
           task workflow:dev         install → lint → test
           task workflow:record      record → convert bags → extract frames
 
+        PROVISIONING (SSH-based — override SSH_HOST / RPI_ZERO_SSH as needed)
+          task rpi:setup:pi-zero:create  Flash SD card for Pi Zero (DEVICE=/dev/sdX WIFI_SSID=... WIFI_PASS=...)
+          task rpi:setup:pi-zero:provision  Provision Pi Zero via SSH (RPI_ZERO_SSH=pi@10.250.250.1)
+          task rpi:setup:pi5        Provision Pi 5 via SSH (SSH_HOST=pi@rpi-5.local)
+          task rpi:services:install  Copy systemd + udev files to Pi 5 (SSH_HOST=)
+          task rpi:services:enable   Enable voldemorbot services on Pi 5
+          task rpi-zero:services:enable  Enable voldemorbot service on Pi Zero
+          task rpi:services:status   Show Pi 5 service status (voldemorbot-pi5, lidar, hailort)
+          task rpi-zero:services:status  Show Pi Zero service status
+          task rpi:services:logs     Tail logs for a service (SERVICE=voldemorbot-pi5)
+          task rpi:startup           Provision both Pis end-to-end
+
         DIAGNOSTICS
           task info                 Display platform information (versions, directories)
           task debug                Run any task with verbose logging (DEBUG=1 task <name>)
@@ -133,10 +178,10 @@ tasks:
   # UMBRELLAS
 
   install:
-    desc: Install all dependencies (UV + Pixi + Go backend bootstrap)
+    desc: Install all dependencies (sim + robot + Go backend bootstrap)
     cmds:
-      - uv sync
-      - pixi install
+      - task: sim:install
+      - task: robot:install
       - task: backend:install
 
   test:
@@ -179,7 +224,12 @@ tasks:
       - task: proto:update
       - task: proto:generate
       - task: backend:sqlc
-      - cd backend && go mod tidy
+      - task: backend:tidy
+
+  backend:tidy:
+    dir: backend
+    cmds:
+      - go mod tidy
 
   backend:build:
     desc: Compile Go telemetry backend binary to backend/bin/server
@@ -231,6 +281,33 @@ tasks:
     dir: backend
     cmds:
       - sqlc generate
+
+  # OPENAPI (spec-first API contract)
+
+  openapi:generate:
+    desc: Regenerate Go types from all context OpenAPI specs
+    dir: backend
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/gen-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/gen-openapi.sh
+        platforms: [linux, darwin]
+    sources:
+      - ../openapi/contexts/*.yaml
+      - scripts/gen-openapi.ps1
+      - scripts/gen-openapi.sh
+    generates:
+      - internal/edge/openapi.*.gen.go
+      - internal/api/*/openapi.gen.go
+
+  openapi:validate:
+    desc: Validate all OpenAPI specs exist and are non-empty
+    dir: backend
+    cmds:
+      - cmd: pwsh -NoProfile -File scripts/validate-openapi.ps1
+        platforms: [windows]
+      - cmd: bash scripts/validate-openapi.sh
+        platforms: [linux, darwin]
 
   # PROTO (buf toolchain)
 
@@ -347,6 +424,12 @@ tasks:
     cmds:
       - npm run lint
 
+  frontend:api:generate:
+    desc: Generate TypeScript API client from OpenAPI specs
+    dir: frontend
+    cmds:
+      - npm run api:generate
+
   frontend:docker:build:
     desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
     dir: frontend
@@ -424,14 +507,28 @@ tasks:
       - pixi run rviz2
 
   sim:navigate:
-    desc: Run navigator on metadata scenario (METADATA=scenario_0000 default, LAPS=3 default)
-    dir: gazebo/runtime
+    desc: Run closed-loop simulation with real navigator (runs test_open_challenge_sim)
+    dir: robot
     cmds:
-      - cmd: |
-          pixi run python -m src.navigation.navigator \
-            --metadata {{.METADATA}} \
-            --laps {{.LAPS}} \
-            --params {{.PARAMS}}
+      - uv run pytest tests/unit/test_open_challenge_sim.py -v -s
+
+  sim:navigate:visualize:
+    desc: >-
+      Run closed-loop scenario(s) live at wall-clock speed, publishing pose/LIDAR/track to
+      ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which is a
+      separate pixi/ROS2 install under gazebo/runtime and may not discover these topics).
+      `-- --list` lists the 28 TestThreeLapSolvability scenarios; `-- --scenario 5` or
+      `-- --scenario random#3` runs one of them; `-- --interactive` steps through all 28,
+      pausing between each; otherwise runs one ad-hoc scenario, e.g. `-- --south 600 --rate 2`
+    dir: robot
+    cmds:
+      - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
+
+  sim:navigate:rviz:
+    desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
+    dir: robot
+    cmds:
+      - pixi run viz
 
   sim:analyze:
     desc: Analyze generated scenarios (statistics and summaries)
@@ -466,22 +563,29 @@ tasks:
   # ROBOT (on-robot platform)
 
   robot:install:
-    desc: Install robot platform dependencies (pixi + RoboStack)
+    desc: Install robot platform dependencies (pixi + RoboStack, default + dev envs)
     dir: robot
     cmds:
       - pixi install
+      - pixi install -e dev
 
   robot:test:
-    desc: Run robot tests (pixi dev env — robot is pixi-only, not uv)
+    desc: Run robot tests excluding on-device hardware tests (pixi dev env — robot is pixi-only, not uv)
     dir: robot
     cmds:
-      - pixi run -e dev pytest tests/ -v
+      - pixi run -e dev pytest tests/ -m "not hardware" -v
 
   robot:test:unit:
     desc: Run robot unit tests only (no hardware/ROS2 deps required)
     dir: robot
     cmds:
       - pixi run -e dev pytest tests/unit -q
+
+  robot:test:hardware:
+    desc: Run on-device hardware tests (requires a real Raspberry Pi with peripherals attached)
+    dir: robot
+    cmds:
+      - pixi run -e dev pytest tests/hardware -m hardware -v
 
   robot:lint:
     desc: Lint robot code
@@ -495,33 +599,127 @@ tasks:
     cmds:
       - pixi run -e dev ruff check src/ tests/ --fix
 
+  robot:build-ws:
+    desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)
+    dir: robot
+    cmds:
+      - pixi run -e dev build-ws
+
+  robot:run-imu-i2c:
+    desc: Run BNO08x IMU node (I2C mode) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-imu-i2c
+
+  robot:run-imu-rvc:
+    desc: Run BNO08x IMU node (UART RVC mode) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-imu-rvc
+
+  robot:fetch-lidar-driver:
+    desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
+    dir: robot
+    cmds:
+      - pixi run fetch-lidar-driver
+
+  robot:run-lidar:
+    desc: Run Slamtec C1 LIDAR node (Linux/aarch64 only) — requires fetch-lidar-driver + build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-lidar
+
+  robot:run-state-machine:
+    desc: Run the WRO state machine node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-state-machine
+
+  robot:run-oled:
+    desc: Run the SSD1306 OLED display node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-oled
+
+  robot:run-motor:
+    desc: Run the Ackermann motor control node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-motor
+
+  robot:run-telemetry:
+    desc: Run the telemetry bridge node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-telemetry
+
+  robot:run-vision:
+    desc: Run the YOLO vision detection node — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-vision
+
+  robot:run-navigator:
+    desc: Run the track navigator node (default scenario_0000 metadata) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run run-navigator
+
+  robot:launch-rpi5:
+    desc: Launch the Pi 5 node set (state machine + telemetry + OLED) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-rpi5
+
+  robot:launch-rpi-zero:
+    desc: Launch the Pi Zero node set (Ackermann motor) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-rpi-zero
+
+  robot:launch-state-machine:
+    desc: Launch the full WRO state-machine stack — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-state-machine
+
+  robot:launch-telemetry:
+    desc: Launch the telemetry bridge — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-telemetry
+
+  robot:launch-simulator:
+    desc: Launch the simulator node set (state machine + telemetry) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-simulator
+
+  robot:launch-lidar:
+    desc: Launch the Slamtec C1 LIDAR (Linux/aarch64 only) — requires build-ws first
+    dir: robot
+    cmds:
+      - pixi run launch-lidar
+
   # RECORD (video + frame pipeline)
 
   record:run:
     desc: Record scenario videos from Gazebo simulation
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          pixi run python -m src.recording.recorder \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+      - pixi run python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
 
   record:convert:
     desc: Convert ROS2 bags to MP4 videos
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          uv run python -m src.recording.bag_converter \
-            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+      - uv run python -m src.recording.bag_converter --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
 
   record:frames:
     desc: Extract frames from ROS2 bags and annotate
     dir: gazebo/runtime
     cmds:
-      - cmd: |
-          uv run python -m src.recording.frame_extractor \
-            --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags \
-            --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
+      - uv run python -m src.recording.frame_extractor --input-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/bags --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/frames
 
   # DOCKER (compose)
 
@@ -601,29 +799,69 @@ tasks:
   info:
     desc: Display platform information (versions, directories)
     cmds:
-      - cmd: |
-          echo "=== PYTHON ==="
-          uv --version
-          echo ""
-          echo "=== PIXI ==="
-          pixi --version || echo "Pixi not installed"
-          echo ""
-          echo "=== GO ==="
-          go version || echo "Go not installed"
-          echo ""
-          echo "=== BUF ==="
-          buf --version || echo "buf not installed (needed for proto:generate)"
-          echo ""
-          echo "=== DIRECTORIES ==="
-          echo "Output dir:   {{.OUTPUT_DIR}}"
-          echo "Gazebo:       gazebo/ (generator + runtime)"
-          echo "Backend (Go): backend/"
-          echo "Frontend:     frontend/"
-          echo "Robot:        robot/"
-          echo "Proto:        proto/"
-          echo "Shared:       shared/"
+      - pwsh -NoProfile -File scripts/info.ps1 {{.OUTPUT_DIR}}
 
   debug:
     desc: Run with verbose logging (DEBUG=1)
     cmds:
       - cmd: DEBUG=1 task {{CLI_ARGS}}
+
+  # PROVISIONING (SSH-based Pi setup)
+
+  rpi:setup:pi-zero:create:
+    desc: "Flash SD card for Pi Zero (DEVICE=/dev/sdX, WIFI_SSID=..., WIFI_PASS=...)"
+    requires:
+      vars: [DEVICE]
+    cmds:
+      - bash ../scripts/setup_pi_zero.sh create --device {{.DEVICE}} --wifi-ssid "{{.WIFI_SSID}}" --wifi-password "{{.WIFI_PASS}}"
+
+  rpi:setup:pi-zero:provision:
+    desc: "Copy provisioning script to Pi Zero and run first-boot setup (RPI_ZERO_SSH=pi@10.250.250.1)"
+    cmds:
+      - scp ../scripts/setup_pi_zero.sh {{.RPI_ZERO_SSH}}:/tmp/
+      - ssh {{.RPI_ZERO_SSH}} "bash /tmp/setup_pi_zero.sh provision && rm /tmp/setup_pi_zero.sh"
+
+  rpi:setup:pi5:
+    desc: "Copy provisioning script to Pi 5 and run full setup (SSH_HOST=pi@rpi-5.local)"
+    cmds:
+      - scp ../scripts/setup_pi_5.sh {{.SSH_HOST}}:/tmp/
+      - ssh {{.SSH_HOST}} "bash /tmp/setup_pi_5.sh && rm /tmp/setup_pi_5.sh"
+
+  rpi:services:install:
+    desc: "Copy systemd service files and udev rules to target Pi, reload daemon (SSH_HOST=)"
+    cmds:
+      - scp robot/systemd/*.service {{.SSH_HOST}}:/tmp/
+      - scp robot/udev/99-voldemorbot-gpio.rules {{.SSH_HOST}}:/tmp/
+      - ssh {{.SSH_HOST}} "sudo mv /tmp/*.service /etc/systemd/system/ && sudo mv /tmp/*.rules /etc/udev/rules.d/ && sudo systemctl daemon-reload && sudo udevadm control --reload-rules && sudo udevadm trigger"
+
+  rpi:services:enable:
+    desc: "Enable voldemorbot services on Pi 5 (SSH_HOST=pi@rpi-5.local)"
+    cmds:
+      - ssh {{.SSH_HOST}} "sudo systemctl enable voldemorbot-pi5.service voldemorbot-lidar.service"
+
+  rpi-zero:services:enable:
+    desc: "Enable voldemorbot service on Pi Zero (RPI_ZERO_SSH=pi@10.250.250.1)"
+    cmds:
+      - ssh {{.RPI_ZERO_SSH}} "sudo systemctl enable voldemorbot-pi-zero.service"
+
+  rpi:services:status:
+    desc: "Show service status on Pi 5 (voldemorbot-pi5, voldemorbot-lidar, hailort)"
+    cmds:
+      - ssh {{.SSH_HOST}} "for s in voldemorbot-pi5 voldemorbot-lidar hailort; do echo === $$s ===; systemctl status $$s --no-pager -l | head -8; echo; done"
+
+  rpi-zero:services:status:
+    desc: "Show voldemorbot-pi-zero service status (RPI_ZERO_SSH=pi@10.250.250.1)"
+    cmds:
+      - ssh {{.RPI_ZERO_SSH}} "systemctl status voldemorbot-pi-zero --no-pager -l | head -15"
+
+  rpi:services:logs:
+    desc: "Tail journal logs for a service on Pi 5 (SERVICE=voldemorbot-pi5)"
+    cmds:
+      - ssh {{.SSH_HOST}} "journalctl -u {{.SERVICE}} -n 50 --no-pager -f"
+
+  rpi:startup:
+    desc: "Provision both Pis end-to-end (SSH_HOST + RPI_ZERO_SSH must be reachable)"
+    cmds:
+      - task: rpi:setup:pi5
+      - task: rpi:setup:pi-zero:provision
+      - cmd: echo "Both Pis provisioned. Reboot both to start services automatically."

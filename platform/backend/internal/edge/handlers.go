@@ -12,18 +12,20 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
-	"github.com/klevor/telemetry-backend/internal/config"
-	"github.com/klevor/telemetry-backend/internal/recorder"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
 )
 
 var sessionIDPattern = regexp.MustCompile(`^session_\d+$`)
 
 type handlers struct {
-	store    Store
-	sessions SessionStore
-	cfg      *config.Config
-	log      *zap.Logger
+	telSvc  telemetry.TelemetryService
+	sessSvc session.SessionService
+	cfg     *config.Config
+	log     *zap.Logger
 }
 
 func (h *handlers) health(c *gin.Context) {
@@ -31,9 +33,9 @@ func (h *handlers) health(c *gin.Context) {
 }
 
 func (h *handlers) latest(c *gin.Context) {
-	snap := h.store.Latest()
+	snap := h.telSvc.Latest()
 	if snap == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "no snapshot received yet"})
+		problem.Write(c, http.StatusServiceUnavailable, "Service Unavailable", "no snapshot received yet")
 		return
 	}
 	writeProto(c, http.StatusOK, snap, h.log)
@@ -46,12 +48,12 @@ func (h *handlers) history(c *gin.Context) {
 			limit = n
 		}
 	}
-	snaps := h.store.History(limit)
+	snaps := h.telSvc.History(limit)
 	writeProtoSlice(c, snaps, h.log)
 }
 
 func (h *handlers) topics(c *gin.Context) {
-	topics := h.store.LatestTopics()
+	topics := h.telSvc.LatestTopics()
 	if topics == nil {
 		topics = &telemetryv1.TopicsSnapshot{
 			Timestamp: timestamppb.Now(),
@@ -64,7 +66,7 @@ func (h *handlers) topics(c *gin.Context) {
 func (h *handlers) updateSpeed(c *gin.Context) {
 	var body SpeedRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		problem.Write(c, http.StatusBadRequest, "Bad Request", err.Error())
 		return
 	}
 	h.log.Info("speed config update", zap.Float64("max_linear_speed", body.MaxLinearSpeed))
@@ -77,7 +79,7 @@ func writeProto(c *gin.Context, code int, msg proto.Message, log *zap.Logger) {
 	b, err := marshaler.Marshal(msg)
 	if err != nil {
 		log.Error("proto marshal", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		problem.InternalError(c)
 		return
 	}
 	c.Data(code, contentTypeJSON, b)
@@ -90,7 +92,7 @@ func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger)
 		b, err := marshaler.Marshal(msg)
 		if err != nil {
 			log.Error("proto marshal slice item", zap.Error(err), zap.Int("index", i))
-			c.Status(http.StatusInternalServerError)
+			problem.InternalError(c)
 			return
 		}
 		parts[i] = b
@@ -98,7 +100,7 @@ func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger)
 	out, err := json.Marshal(parts)
 	if err != nil {
 		log.Error("json marshal slice", zap.Error(err))
-		c.Status(http.StatusInternalServerError)
+		problem.InternalError(c)
 		return
 	}
 	c.Data(http.StatusOK, contentTypeJSON, out)
@@ -106,8 +108,8 @@ func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger)
 
 func (h *handlers) getConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, ConfigResponse{
-		HTTPAddr:    h.cfg.HTTPAddr,
-		GRPCAddr:    h.cfg.GRPCAddr,
+		HttpAddr:    h.cfg.HTTPAddr,
+		GrpcAddr:    h.cfg.GRPCAddr,
 		HistorySize: h.cfg.HistorySize,
 		Dev:         h.cfg.Dev,
 		MaxSessions: h.cfg.MaxSessions,
@@ -116,17 +118,17 @@ func (h *handlers) getConfig(c *gin.Context) {
 }
 
 func (h *handlers) listSessions(c *gin.Context) {
-	infos, err := h.sessions.ListSessions(c.Request.Context())
+	infos, err := h.sessSvc.ListSessions(c.Request.Context())
 	if err != nil {
 		h.log.Error("list sessions", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to list sessions"})
+		problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "failed to list sessions")
 		return
 	}
 	out := make([]SessionResponse, len(infos))
 	for i, s := range infos {
 		out[i] = SessionResponse{
-			SessionID:  s.SessionID,
-			CreatedAt:  s.CreatedAt.UTC().Format(timeFormatISO),
+			SessionId:  s.SessionID,
+			CreatedAt:  s.CreatedAt.UTC(),
 			EntryCount: s.EntryCount,
 		}
 	}
@@ -136,17 +138,17 @@ func (h *handlers) listSessions(c *gin.Context) {
 func (h *handlers) loadSession(c *gin.Context) {
 	id := c.Param("id")
 	if !sessionIDPattern.MatchString(id) {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid session id format"})
+		problem.Write(c, http.StatusBadRequest, "Bad Request", "invalid session id format")
 		return
 	}
-	snaps, err := h.sessions.LoadSession(c.Request.Context(), id)
-	if errors.Is(err, recorder.ErrSessionNotFound) {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "session not found"})
+	snaps, err := h.sessSvc.LoadSession(c.Request.Context(), id)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		problem.Write(c, http.StatusNotFound, "Not Found", "session not found")
 		return
 	}
 	if err != nil {
 		h.log.Error("load session", zap.String("session_id", id), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to load session"})
+		problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "failed to load session")
 		return
 	}
 	writeProtoSlice(c, snaps, h.log)

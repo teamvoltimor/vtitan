@@ -8,18 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 )
 
 const wsWriteTimeout = 5 * time.Second
 
 type wsManager struct {
-	store Store
-	log   *zap.Logger
+	telSvc telemetry.TelemetryService
+	log    *zap.Logger
 }
 
-func newWSManager(store Store, log *zap.Logger) *wsManager {
-	return &wsManager{store: store, log: log}
+func newWSManager(telSvc telemetry.TelemetryService, log *zap.Logger) *wsManager {
+	return &wsManager{telSvc: telSvc, log: log}
 }
 
 // handle upgrades an HTTP connection to WebSocket and streams snapshots until
@@ -39,7 +40,7 @@ func (m *wsManager) handle(c *gin.Context) {
 	// when the client sends a close frame or disconnects.
 	ctx := conn.CloseRead(c.Request.Context())
 
-	ch, unsub := m.store.Subscribe()
+	ch, unsub := m.telSvc.Subscribe()
 	defer unsub()
 
 	for {

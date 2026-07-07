@@ -20,63 +20,77 @@ from src.navigation.maneuvers.parking import (
     _inside_zone,
     _normalise_angle,
 )
+from tests.test_constants import (
+    PARKING_EAST_BLOCK1,
+    PARKING_EAST_BLOCK2,
+    PARKING_NORTH_BLOCK1,
+    PARKING_NORTH_BLOCK2,
+    PARKING_SOUTH_BLOCK1,
+    PARKING_SOUTH_BLOCK2,
+    PARKING_WEST_BLOCK1,
+    PARKING_WEST_BLOCK2,
+    YAW_EAST,
+    YAW_NORTH,
+    YAW_SOUTH,
+    YAW_WEST,
+)
 
-# ── Test configs ──────────────────────────────────────────────────────────────
+# Test configs
 
-_SOUTH_CFG = {"block1_pos": (1.00, 0.10), "block2_pos": (1.30, 0.10)}
-_NORTH_CFG = {"block1_pos": (1.00, 2.90), "block2_pos": (1.30, 2.90)}
-_EAST_CFG = {"block1_pos": (2.90, 1.00), "block2_pos": (2.90, 1.30)}
-_WEST_CFG = {"block1_pos": (0.10, 1.00), "block2_pos": (0.10, 1.30)}
+_SOUTH_CFG = {"block1_pos": PARKING_SOUTH_BLOCK1, "block2_pos": PARKING_SOUTH_BLOCK2}
+_NORTH_CFG = {"block1_pos": PARKING_NORTH_BLOCK1, "block2_pos": PARKING_NORTH_BLOCK2}
+_EAST_CFG = {"block1_pos": PARKING_EAST_BLOCK1, "block2_pos": PARKING_EAST_BLOCK2}
+_WEST_CFG = {"block1_pos": PARKING_WEST_BLOCK1, "block2_pos": PARKING_WEST_BLOCK2}
 
 
-# ── Zone geometry ─────────────────────────────────────────────────────────────
+# Zone geometry
 
 
 class TestBuildZone:
     def test_south_gap_centre(self):
-        z = _build_zone((1.00, 0.10), (1.30, 0.10), Section.SOUTH)
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
         assert z.gap_cx == pytest.approx(1.15)
         assert z.gap_cy == pytest.approx(0.10)
 
     def test_south_x_bounds_inside_blocks(self):
-        z = _build_zone((1.00, 0.10), (1.30, 0.10), Section.SOUTH)
-        assert z.x_min > 1.00
-        assert z.x_max < 1.30
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
+        assert z.x_min > PARKING_SOUTH_BLOCK1[0]
+        assert z.x_max < PARKING_SOUTH_BLOCK2[0]
         assert z.x_min < z.x_max
 
     def test_south_target_yaw(self):
-        z = _build_zone((1.00, 0.10), (1.30, 0.10), Section.SOUTH)
-        assert z.target_yaw == pytest.approx(-math.pi / 2)
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
+        assert z.target_yaw == pytest.approx(YAW_SOUTH)
 
     def test_north_target_yaw(self):
-        z = _build_zone((1.00, 2.90), (1.30, 2.90), Section.NORTH)
-        assert z.target_yaw == pytest.approx(math.pi / 2)
+        z = _build_zone(PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, Section.NORTH)
+        assert z.target_yaw == pytest.approx(YAW_NORTH)
 
     def test_east_target_yaw(self):
-        z = _build_zone((2.90, 1.00), (2.90, 1.30), Section.EAST)
-        assert z.target_yaw == pytest.approx(0.0)
+        z = _build_zone(PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, Section.EAST)
+        assert z.target_yaw == pytest.approx(YAW_EAST)
 
     def test_west_target_yaw(self):
-        z = _build_zone((0.10, 1.00), (0.10, 1.30), Section.WEST)
-        assert abs(_normalise_angle(z.target_yaw)) == pytest.approx(math.pi)
+        z = _build_zone(PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, Section.WEST)
+        assert abs(_normalise_angle(z.target_yaw)) == pytest.approx(YAW_WEST)
 
 
-# ── Inside-zone detection ─────────────────────────────────────────────────────
+# Inside-zone detection
 
 
 class TestInsideZone:
     def _zone(self):
-        return _build_zone((1.00, 0.10), (1.30, 0.10), Section.SOUTH)
+        return _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
 
     def test_inside_pos_and_yaw(self):
         z = self._zone()
-        pos_ok, yaw_ok = _inside_zone(1.15, 0.08, -math.pi / 2, z)
+        pos_ok, yaw_ok = _inside_zone(1.15, 0.08, YAW_SOUTH, z)
         assert pos_ok
         assert yaw_ok
 
     def test_outside_x(self):
         z = self._zone()
-        pos_ok, _ = _inside_zone(0.80, 0.08, -math.pi / 2, z)
+        pos_ok, _ = _inside_zone(0.80, 0.08, YAW_SOUTH, z)
         assert not pos_ok
 
     def test_bad_yaw(self):
@@ -180,3 +194,31 @@ class TestParkControllerBasics:
         cmd = ctrl.update((1.15, 2.5), 0.0)
         assert cmd.linear > 0
         assert not cmd.done
+
+
+class TestParkControllerTimeout:
+    """A maneuver that can never reach the position+yaw stop condition must
+    give up and hold, rather than chase the gap centre for the whole match.
+    """
+
+    def test_unreachable_target_times_out_instead_of_running_forever(self):
+        # Robot held exactly on the far side of the field, never approaching
+        # the zone (a stand-in for "wedged, can't make progress").
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=50)
+
+        for _ in range(51):
+            cmd = ctrl.update((2.9, 2.9), 0.0)
+        assert cmd.done
+        assert ctrl.is_done
+        assert ctrl.is_timed_out
+        assert cmd.linear == 0.0
+        assert cmd.steering == 0.0
+
+    def test_successful_park_is_not_flagged_as_timed_out(self):
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=400)
+        for _ in range(400):
+            cmd = ctrl.update((1.15, 0.08), -math.pi / 2)
+            if cmd.done:
+                break
+        assert ctrl.is_done
+        assert not ctrl.is_timed_out

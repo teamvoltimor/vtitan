@@ -1,0 +1,23 @@
+[Unit]
+Description=Voldemorbot Pi Zero — Motors, Button, OLED
+Wants=network-online.target dev-gpiochip0.device
+After=network-online.target dev-gpiochip0.device
+
+[Service]
+Type=exec
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/voldemorbot/platform/robot
+Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
+Environment=ROS_DOMAIN_ID=0
+ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py
+Restart=on-failure
+RestartSec=3
+StartLimitBurst=5
+StartLimitIntervalSec=30
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

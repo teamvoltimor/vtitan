@@ -30,18 +30,12 @@ class IMU_UART_RVCNode(Node):
             self.get_logger().info("IMU driver connected and polling started.")
             self._hardware_ready = True
         except IMUConnectionError as e:
-            self.get_logger().error(
-                f"IMU hardware not available: {e}",
-                extra={"details": {"error": str(e), "port": e.port}},
-            )
+            self.get_logger().error(f"IMU hardware not available on port {e.port}: {e}")
             # Continue gracefully — IMU data is not critical for motor control
         except (RuntimeError, ValueError, ImportError, OSError, TimeoutError, AttributeError) as e:
-            self.get_logger().error(
-                f"Unexpected IMU initialization error: {e}",
-                extra={"details": {"error": str(e)}},
-                exc_info=True,
-            )
-            # Continue — let operator decide if IMU is essential
+            # Unexpected failures (vs. a clean IMUConnectionError) are fatal — surface them.
+            self.get_logger().error(f"Unexpected IMU initialization error: {e}")
+            raise
 
         # Setup publisher
         self.publisher_ = self.create_publisher(Imu, topic, 10)
@@ -97,7 +91,8 @@ class IMU_UART_RVCNode(Node):
         self.publisher_.publish(msg)
 
 
-def main(args=None) -> None:
+def main(args: list[str] | None = None) -> None:
+    """Entry point for the BNO08x UART RVC IMU node."""
     rclpy.init(args=args)
     node = IMU_UART_RVCNode()
     try:

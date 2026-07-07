@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class QuaternionConfig(BaseModel):
@@ -18,9 +18,11 @@ class QuaternionConfig(BaseModel):
     euler_sequence: str = "xyz"
     """The sequence of Euler angles for conversion to quaternion. The default is 'xyz' (roll, pitch, yaw). Adjust this if your IMU uses a different convention."""
 
-    def __post_init__(self):
-        # Validate euler_sequence
+    @field_validator("euler_sequence")
+    @classmethod
+    def _validate_euler_sequence(cls, value: str) -> str:
         valid_sequences = {"xyz", "zyx", "xzy", "yzx", "zxy", "yxz"}
-        if self.euler_sequence not in valid_sequences:
-            msg = f"Invalid euler_sequence '{self.euler_sequence}'. Valid options are: {valid_sequences}"
+        if value not in valid_sequences:
+            msg = f"Invalid euler_sequence '{value}'. Valid options are: {valid_sequences}"
             raise ValueError(msg)
+        return value

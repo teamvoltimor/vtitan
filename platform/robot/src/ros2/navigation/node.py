@@ -9,29 +9,33 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
+import rclpy
+from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
-from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose, Velocity
+from shared.config.navigation_tuning import NavigationTuning, SensorHealthParams
+from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
-from src.hardware.gateway import HardwareGateway
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
+from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan
 from src.navigation.race_tracker import LapDetector
+from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
@@ -51,27 +55,35 @@ class ROS2HardwareGateway(HardwareGateway):
     CoreNavigator logic.
     """
 
-    def __init__(self, node: Node, start_x: float, start_y: float, start_yaw: float) -> None:
+    def __init__(
+        self,
+        node: Node,
+        start_x: float,
+        start_y: float,
+        start_yaw: float,
+        corridor_widths_m: dict[Section, float],
+        stale_timeout_sec: float = SensorHealthParams().STALE_TIMEOUT_SEC,
+    ) -> None:
         self._node = node
         self._estimator = StateEstimator(start_x, start_y, start_yaw)
-        self._latest_lidar: tuple[list[float], list[float]] | None = None
+        self._localizer = LidarLocalizer(TrackWalls(corridor_widths_m))
+        self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
+        # Receipt timestamp (seconds) for staleness / dropout detection. LIDAR
+        # is the position source (no wheel odometry exists on real hardware),
+        # so its staleness gates get_current_pose() too.
+        self._lidar_stamp: float | None = None
+        self._stale_timeout_sec = stale_timeout_sec
 
         # Publishers
-        self._vel_publisher = node.create_publisher(
-            Twist,
-            node.get_parameter("cmd_vel_topic").get_parameter_value().string_value,
+        self._drive_publisher = node.create_publisher(
+            AckermannDriveStamped,
+            node.get_parameter("ackermann_cmd_topic").get_parameter_value().string_value,
             10,
         )
 
         # Subscribers
-        node.create_subscription(
-            Odometry,
-            node.get_parameter("odom_topic").get_parameter_value().string_value,
-            self._odom_callback,
-            10,
-        )
         node.create_subscription(
             LaserScan,
             node.get_parameter("lidar_topic").get_parameter_value().string_value,
@@ -98,21 +110,32 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_imu = reading
         self._estimator.update_imu(reading)
 
-    def _odom_callback(self, msg: Odometry) -> None:
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        q = msg.pose.pose.orientation
-        yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
-        self._estimator.update_odom(x, y, yaw)
+    def _now(self) -> float:
+        """Current node clock time in seconds (sim time when enabled)."""
+        return self._node.get_clock().now().nanoseconds * 1e-9
 
     def _lidar_callback(self, msg: LaserScan) -> None:
-        raw = np.array(msg.ranges)
-        # Assuming clamp_lidar_scan is no longer needed since controller handles it
-        # or we clamp it here
+        raw = np.array(msg.ranges, dtype=float)
+        # Invalid returns (NaN / +-inf, which Slamtec drivers emit for no-return
+        # rays) must not survive: NaN silently drops out of every downstream mask
+        # and inf reads as "far away", so replace both with the max range before
+        # clamping. Zero/near-zero (also emitted for invalid) is filtered later by
+        # the collision controller's ``> 0.01`` guard.
+        raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
         raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
-        raw[np.isinf(raw)] = RobotSpecs.LIDAR_MAX_RANGE
         angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)).tolist()
-        self._latest_lidar = (raw.tolist(), angles)
+        self._latest_lidar = LidarScan(ranges_m=tuple(raw.tolist()), angles_rad=tuple(angles))
+        self._lidar_stamp = self._now()
+
+        # No wheel odometry exists on real hardware, so this scan is also the
+        # position source: match it against the known wall geometry, seeded
+        # from the previous estimate (the robot moves only centimetres between
+        # scans, so that prior is always a tight, reliable search start).
+        prior_pose = self._estimator.estimate_pose()
+        est_x, est_y = self._localizer.estimate_position(
+            (prior_pose.x, prior_pose.y), prior_pose.yaw, raw.tolist(), angles,
+        )
+        self._estimator.update_position(est_x, est_y)
 
     def _vision_callback(self, msg: String) -> None:
         try:
@@ -135,19 +158,38 @@ class ROS2HardwareGateway(HardwareGateway):
         except (json.JSONDecodeError, TypeError):
             self._latest_detections = []
 
-    def publish_velocity(self, velocity: Velocity) -> None:
-        """Publish velocity command to ROS2 cmd_vel topic."""
-        msg = Twist()
-        msg.linear.x = float(velocity.linear)
-        msg.angular.z = float(velocity.angular)
-        self._vel_publisher.publish(msg)
+    def publish_drive(self, command: DriveCommand) -> None:
+        """Publish drive command as an AckermannDriveStamped on the ackermann_cmd topic.
+
+        This is the contract ``ackermann_motor_node`` actually subscribes to:
+        ``drive.speed`` in m/s and ``drive.steering_angle`` as a physical angle
+        in radians (not the normalised [-1, 1] steer CoreNavigator computes
+        internally) — decoded via the same shared mapping the motor node and
+        the simulator both use.
+        """
+        msg = AckermannDriveStamped()
+        msg.header.stamp = self._node.get_clock().now().to_msg()
+        msg.drive.speed = float(command.speed_mps)
+        msg.drive.steering_angle = steering_norm_to_angle_rad(
+            command.steering_norm, RobotSpecs.MAX_STEERING_ANGLE,
+        )
+        self._drive_publisher.publish(msg)
 
     def get_current_pose(self) -> Pose | None:
-        """Get the latest fused pose."""
+        """Get the latest fused pose, or None if LIDAR (the position source) has gone stale.
+
+        Before the first LIDAR scan the estimator's seed pose is used
+        (startup). Once scans have been seen, a stale feed is reported as None
+        so the navigator stops rather than steering on a frozen position.
+        """
+        if self._lidar_stamp is not None and (self._now() - self._lidar_stamp) > self._stale_timeout_sec:
+            return None
         return self._estimator.estimate_pose()
 
-    def get_lidar_scan(self) -> tuple[list[float], list[float]] | None:
-        """Get the latest processed LIDAR scan."""
+    def get_lidar_scan(self) -> LidarScan | None:
+        """Get the latest processed LIDAR scan, or None if it has gone stale."""
+        if self._lidar_stamp is None or (self._now() - self._lidar_stamp) > self._stale_timeout_sec:
+            return None
         return self._latest_lidar
 
     def get_imu_reading(self) -> IMUReading | None:
@@ -180,10 +222,14 @@ class TrackNavigator(Node):
         start_y = start_cond[DictKeys.POSITION][DictKeys.Y]
         start_yaw = start_cond[DictKeys.YAW]
 
-        # Parameters
-        self.declare_parameter("cmd_vel_topic", "/wro_robot/cmd_vel")
-        self.declare_parameter("odom_topic", "/wro_robot/odom")
-        self.declare_parameter("lidar_topic", "/lidar")
+        # Parameters. Defaults match the topics the deployed nodes actually
+        # use (ackermann_motor_node's /ackermann_cmd, sllidar_ros2's /scan) —
+        # not the pre-Ackermann-migration /wro_robot/cmd_vel and /lidar names
+        # this node previously assumed. There is no odom_topic: no node
+        # publishes nav_msgs/Odometry on real hardware, so position comes
+        # from LIDAR localization instead (see ROS2HardwareGateway).
+        self.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
+        self.declare_parameter("lidar_topic", "/scan")
         self.declare_parameter("vision_topic", "/vision/detections")
         self.declare_parameter("imu_topic", "/imu/data")
         self.declare_parameter("is_simulation", value=False)
@@ -195,8 +241,20 @@ class TrackNavigator(Node):
         tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning()
 
         # Gateway & Core Logic
-        self._gateway = ROS2HardwareGateway(self, start_x, start_y, start_yaw)
-        waypoints = calculate_waypoints(self._metadata, num_laps=1)
+        corridor_widths_m = corridor_widths_from_metadata(self._metadata)
+        self._gateway = ROS2HardwareGateway(
+            self,
+            start_x,
+            start_y,
+            start_yaw,
+            corridor_widths_m,
+            stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
+        )
+        # num_laps=1 is intentional: calculate_waypoints bakes the lap count into
+        # the list, but CoreNavigator already cycles one canonical lap `num_laps`
+        # times (see step() waypoint-wrap). Passing the real count would multiply
+        # laps (e.g. 3 -> 9). Keep this at 1.
+        waypoints = calculate_waypoints(self._metadata, num_laps=1, arc_radius=tuning.waypoints.ARC_RADIUS)
 
         start_section = Section.from_string(start_cond[DictKeys.SECTION])
         start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
@@ -238,10 +296,10 @@ class TrackNavigator(Node):
             self._core_navigator.step()
         except RuntimeError as e:
             self.get_logger().error(f"Runtime error in control loop: {e}")
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
         except ValueError as e:
             self.get_logger().error(f"Value error in control loop: {e}")
-            self._gateway.publish_velocity(Velocity(linear=0.0, angular=0.0))
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
         """Load a JSON file of {param_name: value} overrides and apply to this node."""
@@ -272,3 +330,37 @@ class TrackNavigator(Node):
         if params:
             self.set_parameters(params)
             self.get_logger().info(f"Applied {len(params)} param override(s) from {params_path}")
+
+
+def main(args: list[str] | None = None) -> None:
+    """Run the ROS2 track navigator node (``ros2 run voldemorbot_robot track_navigator_node``)."""
+    parser = argparse.ArgumentParser(description="WRO 2026 track navigator ROS2 node.")
+    parser.add_argument("--metadata", required=True, help="Path to scenario metadata JSON.")
+    parser.add_argument("--laps", type=int, default=3, help="Laps to complete (default: 3).")
+    parser.add_argument("--params", help="Optional navigator_params.json for runtime overrides.")
+    parser.add_argument("--tuning", help="Optional navigation tuning YAML.")
+    parsed, _ = parser.parse_known_args(args)
+
+    metadata_path = Path(parsed.metadata)
+    if not metadata_path.exists():
+        logger.error("Metadata file not found: %s", metadata_path)
+        raise SystemExit(1)
+
+    rclpy.init(args=args)
+    navigator: TrackNavigator | None = None
+    try:
+        navigator = TrackNavigator(
+            metadata_path=metadata_path,
+            num_laps=parsed.laps,
+            params_path=parsed.params,
+            tuning_path=parsed.tuning,
+        )
+        while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
+            rclpy.spin_once(navigator, timeout_sec=0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if navigator is not None:
+            navigator.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()

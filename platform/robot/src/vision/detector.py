@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
-
 from shared.domain.models import Detection
 
 if TYPE_CHECKING:
@@ -159,7 +159,7 @@ class HailoDetector(DetectorBase):
         self._driver = driver
         self._config = config
 
-    def __enter__(self) -> HailoDetector:
+    def __enter__(self) -> Self:
         self._driver.connect()
         self._driver.load_model(self._config.model_path)
         return self
@@ -167,10 +167,8 @@ class HailoDetector(DetectorBase):
     def __exit__(self, *args: object) -> None:
         vdevice = getattr(self._driver, "_vdevice", None)
         if vdevice is not None:
-            try:
+            with contextlib.suppress(Exception):
                 vdevice.release()
-            except Exception:  # noqa: BLE001
-                pass
 
     def detect(self, image: np.ndarray) -> list[SignDetection]:
         """Detect objects using Hailo 8 NPU."""

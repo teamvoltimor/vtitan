@@ -113,6 +113,13 @@ class ParkingLotSpecs:
     BLOCK_SPACING_FACTOR = 1.5  # Spacing = 1.5 × robot_width
 
 
+class CompetitionSpecs:
+    """Official WRO Future Engineers match rules (round timing, lap counts)."""
+
+    ROUND_TIME_LIMIT_S = 180.0  # Official round duration: 3 minutes
+    OPEN_CHALLENGE_LAPS = 3  # Laps required per Open Challenge run
+
+
 class StartingZoneSpecs:
     """Starting zone dimensions and visual appearance."""
 
@@ -137,8 +144,8 @@ class RobotSpecs:
     """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann)."""
 
     # Chassis dimensions
-    LENGTH = 0.28  # 280mm chassis length
-    WIDTH = 0.15  # 150mm chassis width
+    LENGTH = 0.30  # 300mm chassis length
+    WIDTH = 0.20  # 200mm chassis width
     HEIGHT = 0.10  # 100mm chassis height
 
     # Ackermann geometry
@@ -161,6 +168,10 @@ class RobotSpecs:
     LIDAR_SAMPLES = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE = 10.0  # 10 Hz scan rate
     LIDAR_NOISE_STDDEV = 0.03  # 30mm noise
+    # Rays that clip the chassis body itself (mount occlusion, cable clutter)
+    # return as a self-reflection, not a real obstacle. Never applied to the
+    # pure-forward bearing, where a genuine near-contact must still register.
+    LIDAR_SELF_DETECTION_THRESHOLD = 0.08  # 80mm
 
     # IMU (Adafruit BNO085)
     IMU_UPDATE_RATE = 100.0  # 100 Hz update rate

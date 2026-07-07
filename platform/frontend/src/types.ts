@@ -1,3 +1,42 @@
+// API request/response types — generated from OpenAPI spec via `pnpm api:generate`.
+// Import from here (not directly from ./api/generated) so aliases and overrides stay in one place.
+
+export type {
+  Position3d,
+  ImuData,
+  Detection,
+  MotorState,
+  TelemetryMetrics,
+  TopicUpdate,
+  TopicsSnapshot,
+  HealthResponse,
+  ErrorResponse,
+  SessionResponse,
+  ConfigResponse,
+  SpeedRequest,
+  SpeedUpdateResponse,
+} from './api/generated'
+
+// Backward-compat aliases for renamed generated types.
+export type { Position3d as Position3D } from './api/generated'
+export type { SessionResponse as ReplaySessionInfo } from './api/generated'
+
+// RobotSnapshot: generated type has optional arrays; Zod `.default([])` in schemas.ts
+// guarantees they're always present after validation, so we override them as required here.
+import type { RobotSnapshot as ApiRobotSnapshot, Position3d, TelemetryMetrics } from './api/generated'
+export interface RobotSnapshot extends Omit<ApiRobotSnapshot, 'lidar_points' | 'path_history' | 'logs'> {
+  lidar_points: Array<Position3d>
+  path_history: Array<Position3d>
+  logs: Array<string>
+}
+
+// NodeHealthValue is the discriminated union from the generated TelemetryMetrics.
+export type NodeHealthValue = TelemetryMetrics['node_health']
+
+// ============================================================================
+// FRONTEND-SPECIFIC CONSTANTS (not derived from the OpenAPI spec)
+// ============================================================================
+
 export const RobotState = {
   BOOT_CHECK: 'BOOT_CHECK',
   READY: 'READY',
@@ -23,8 +62,6 @@ export const NodeHealth = {
   REPLANNING:  'NODE_HEALTH_REPLANNING',
 } as const;
 
-export type NodeHealthValue = typeof NodeHealth[keyof typeof NodeHealth];
-
 // Detection class names emitted by the vision pipeline.
 export const DetectionClass = {
   RED_SIGN: 'red_sign',
@@ -35,95 +72,6 @@ export type DetectionClassValue = typeof DetectionClass[keyof typeof DetectionCl
 
 // A point/vector in Three.js space (X right, Y up, Z toward camera).
 export type Vec3 = [number, number, number]
-
-// Position3D is a proto message {x, y, z} — not a tuple.
-export interface Position3D {
-  x: number
-  y: number
-  z: number
-}
-
-export interface TopicUpdate {
-  topic_name: string
-  message_type: typeof RosMessageType[keyof typeof RosMessageType] | string
-  timestamp: string  // ISO 8601 (google.protobuf.Timestamp via protojson)
-  update_rate_hz: number
-  data: Record<string, unknown>
-}
-
-export interface TopicsSnapshot {
-  timestamp: string  // ISO 8601
-  topics: Array<TopicUpdate>
-}
-
-export interface ImuData {
-  linear_acceleration: Position3D  // m/s² (x, y, z)
-  angular_velocity: Position3D     // rad/s (roll, pitch, yaw)
-  orientation_x: number
-  orientation_y: number
-  orientation_z: number
-  orientation_w: number
-}
-
-export interface Detection {
-  class_name: string   // "red_sign" | "green_sign"
-  confidence: number   // [0, 1]
-  bbox_x: number       // normalized bounding box
-  bbox_y: number
-  bbox_w: number
-  bbox_h: number
-}
-
-export interface MotorState {
-  steering_angle: number    // radians
-  drive_speed: number       // motor speed 0-100
-  encoder_position: number  // encoder ticks
-}
-
-export interface TelemetryMetrics {
-  timestamp: string      // ISO 8601
-  node_health: NodeHealthValue
-
-  points_captured?: number
-  range_min?: number | null
-  range_max?: number | null
-  range_mean?: number | null
-  forward?: number | null
-  left?: number | null
-  right?: number | null
-  back?: number | null
-  speed?: number | null
-  stage?: string
-
-  lidar_available: boolean
-  imu_available: boolean
-  camera_available: boolean
-  odometry_available: boolean
-}
-
-export interface RobotSnapshot {
-  timestamp: string      // ISO 8601
-  mission_name: string
-
-  robot_position?: Position3D | null
-  robot_orientation?: number | null
-
-  lidar_points: Array<Position3D>
-  path_history: Array<Position3D>
-  logs: Array<string>
-
-  metrics: TelemetryMetrics
-
-  imu_data?: ImuData | null
-  vision_detections?: Array<Detection> | null
-  motor_state?: MotorState | null
-}
-
-export interface ReplaySessionInfo {
-  session_id: string
-  created_at: string  // ISO 8601
-  entry_count: number
-}
 
 // ============================================================================
 // ROS MESSAGE PAYLOADS (raw TopicUpdate.data shapes)
@@ -152,15 +100,15 @@ export interface LaserScanMsg {
 
 /** geometry_msgs/Twist */
 export interface TwistMsg {
-  linear: Position3D
-  angular: Position3D
+  linear: Position3d
+  angular: Position3d
 }
 
 /** sensor_msgs/Imu */
 export interface ImuMsg {
   orientation: Quaternion
-  linear_acceleration: Position3D
-  angular_velocity: Position3D
+  linear_acceleration: Position3d
+  angular_velocity: Position3d
 }
 
 /** sensor_msgs/JointState */
@@ -173,8 +121,8 @@ export interface JointStateMsg {
 
 /** nav_msgs/Odometry (subset used by the dashboard) */
 export interface OdometryMsg {
-  pose: { position: Position3D; orientation: Partial<Quaternion> }
-  twist: { linear: Partial<Position3D>; angular: Partial<Position3D> }
+  pose: { position: Position3d; orientation: Partial<Quaternion> }
+  twist: { linear: Partial<Position3d>; angular: Partial<Position3d> }
 }
 
 /** std_msgs/String */

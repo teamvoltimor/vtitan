@@ -9,7 +9,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	telemetryv1 "github.com/klevor/telemetry-backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 )
 
 const (
@@ -28,29 +29,22 @@ const (
 	missionNameSim = "sim"
 )
 
-type (
-	// Store is the write side of the memory store.
-	Store interface {
-		Write(snap *telemetryv1.RobotSnapshot)
-	}
+// Generator produces synthetic RobotSnapshot frames for dev/sim mode.
+// Values are NOT bit-exact reproductions of the Python simulator —
+// the contract is the schema shape, not the numeric sequence.
+type Generator struct {
+	telSvc telemetry.TelemetryService
+	log    *zap.Logger
+	rng    *rand.Rand
+	frame  int
+}
 
-	// Generator produces synthetic RobotSnapshot frames for dev/sim mode.
-	// Values are NOT bit-exact reproductions of the Python simulator —
-	// the contract is the schema shape, not the numeric sequence.
-	Generator struct {
-		store Store
-		log   *zap.Logger
-		rng   *rand.Rand
-		frame int
-	}
-)
-
-// New returns a Generator that publishes synthetic frames to store.
-func New(store Store, log *zap.Logger) *Generator {
+// New returns a Generator that publishes synthetic frames via telSvc.
+func New(telSvc telemetry.TelemetryService, log *zap.Logger) *Generator {
 	return &Generator{
-		store: store,
-		log:   log,
-		rng:   rand.New(rand.NewSource(0)), //nolint:gosec // deterministic sim seed, not crypto
+		telSvc: telSvc,
+		log:    log,
+		rng:    rand.New(rand.NewSource(0)), //nolint:gosec // deterministic sim seed, not crypto
 	}
 }
 
@@ -65,7 +59,7 @@ func (g *Generator) Run(ctx context.Context, interval time.Duration) {
 			g.log.Info("simulator stopped")
 			return
 		case <-ticker.C:
-			g.store.Write(g.next())
+			g.telSvc.Write(g.next())
 		}
 	}
 }

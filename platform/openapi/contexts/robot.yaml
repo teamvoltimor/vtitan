@@ -1,0 +1,509 @@
+openapi: 3.0.0
+info:
+  title: VoldemorBot Robot API
+  version: 1.0.0
+  description: |
+    Robot context — responsible for robot lifecycle management, fleet
+    coordination, configuration, and real-time status reporting.
+
+servers:
+  - url: http://localhost:8010
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/robots:
+    get:
+      summary: List all registered robots
+      operationId: listRobots
+      tags:
+        - Robot
+      parameters:
+        - name: fleet_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by fleet
+        - name: state
+          in: query
+          schema:
+            $ref: '#/components/schemas/RobotState'
+      responses:
+        '200':
+          description: Array of robots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Robot'
+    post:
+      summary: Register a new robot
+      operationId: createRobot
+      tags:
+        - Robot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRobotRequest'
+      responses:
+        '201':
+          description: Robot registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/robots/{robotId}:
+    get:
+      summary: Get robot details
+      operationId: getRobot
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Robot details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update robot metadata
+      operationId: updateRobot
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRobotRequest'
+      responses:
+        '200':
+          description: Robot updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Robot'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      summary: Delete a robot
+      operationId: deleteRobot
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Robot deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/robots/{robotId}/status:
+    get:
+      summary: Get robot real-time status
+      operationId: getRobotStatus
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current robot status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Robot offline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/robots/{robotId}/config:
+    put:
+      summary: Update robot configuration
+      operationId: updateRobotConfig
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRobotConfigRequest'
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotConfig'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/robots/{robotId}/command:
+    post:
+      summary: Send a command to the robot
+      operationId: sendRobotCommand
+      tags:
+        - Robot
+      parameters:
+        - name: robotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RobotCommand'
+      responses:
+        '202':
+          description: Command accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RobotCommandResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Enums
+
+    RobotState:
+      type: string
+      enum:
+        - BOOT_CHECK
+        - READY
+        - RACING
+        - FINISHED
+        - ERROR
+        - OFFLINE
+
+    # Core models
+
+    Robot:
+      type: object
+      required: [id, name, fleet_id, state, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          x-oapi-codegen-extra-tags:
+            binding: "required,max=255"
+        fleet_id:
+          type: string
+          format: uuid
+          x-oapi-codegen-extra-tags:
+            binding: "required,uuid"
+        state:
+          $ref: '#/components/schemas/RobotState'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateRobotRequest:
+      type: object
+      required: [name, fleet_id]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          x-oapi-codegen-extra-tags:
+            binding: "required,max=255"
+        fleet_id:
+          type: string
+          format: uuid
+          x-oapi-codegen-extra-tags:
+            binding: "required,uuid"
+
+    UpdateRobotRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          x-oapi-codegen-extra-tags:
+            binding: "omitempty,max=255"
+
+    RobotStatus:
+      type: object
+      required: [robot_id, state, pose, velocity, system_status, timestamp]
+      properties:
+        robot_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/RobotState'
+        pose:
+          $ref: '#/components/schemas/Pose'
+        velocity:
+          $ref: '#/components/schemas/Velocity'
+        battery:
+          $ref: '#/components/schemas/BatteryStatus'
+        system_status:
+          $ref: '#/components/schemas/SystemStatus'
+        lap_number:
+          type: integer
+        mission_name:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Pose:
+      type: object
+      required: [x, y, yaw]
+      properties:
+        x:
+          type: number
+          format: double
+          description: X position in meters
+        y:
+          type: number
+          format: double
+          description: Y position in meters
+        yaw:
+          type: number
+          format: double
+          description: Orientation in radians
+
+    Velocity:
+      type: object
+      required: [linear, angular]
+      properties:
+        linear:
+          type: number
+          format: double
+          description: Linear velocity in m/s
+        angular:
+          type: number
+          format: double
+          description: Angular velocity in rad/s
+
+    BatteryStatus:
+      type: object
+      required: [voltage, state_of_charge]
+      properties:
+        voltage:
+          type: number
+          format: double
+          description: Battery voltage
+        current:
+          type: number
+          format: double
+          description: Current draw in amps
+        state_of_charge:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: State of charge percentage
+
+    SystemStatus:
+      type: object
+      properties:
+        cpu_temp:
+          type: number
+          format: double
+          description: CPU temperature in Celsius
+        motor_temps:
+          type: array
+          items:
+            type: number
+            format: double
+          description: Motor temperatures in Celsius
+        ros_nodes_active:
+          type: integer
+          description: Number of active ROS nodes
+        imu_ready:
+          type: boolean
+        lidar_ready:
+          type: boolean
+        camera_ready:
+          type: boolean
+        drive_ready:
+          type: boolean
+
+    RobotConfig:
+      type: object
+      properties:
+        max_linear_speed:
+          type: number
+          format: double
+          description: Maximum linear speed in m/s
+        max_angular_speed:
+          type: number
+          format: double
+          description: Maximum angular speed in rad/s
+        steering_kp:
+          type: number
+          format: double
+          description: Steering PID proportional gain
+        lookahead_distance:
+          type: number
+          format: double
+          description: Pure pursuit lookahead in meters
+        speed_profiles:
+          type: array
+          items:
+            type: string
+
+    UpdateRobotConfigRequest:
+      type: object
+      properties:
+        max_linear_speed:
+          type: number
+          format: double
+          minimum: 0
+        max_angular_speed:
+          type: number
+          format: double
+          minimum: 0
+        steering_kp:
+          type: number
+          format: double
+          minimum: 0
+        lookahead_distance:
+          type: number
+          format: double
+          minimum: 0
+        speed_profile:
+          type: string
+
+    RobotCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum:
+            - START_RACE
+            - STOP_RACE
+            - PAUSE
+            - RESUME
+            - EMERGENCY_STOP
+            - RETURN_TO_START
+            - REBOOT
+            - SHUTDOWN
+        parameters:
+          type: object
+          additionalProperties: true
+
+    RobotCommandResponse:
+      type: object
+      required: [command_id, status]
+      properties:
+        command_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [accepted, rejected, queued]
+        message:
+          type: string
+
+    # Shared error types
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

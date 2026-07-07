@@ -10,7 +10,9 @@ class Config(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="",
-        env_nested_delimiter="_",
+        # "__" so nested leaves with underscores parse, e.g.
+        # BUTTON__PULL_UP -> button.pull_up, MCP2221__VID -> mcp2221.vid.
+        env_nested_delimiter="__",
     )
 
     mcp2221: MCP2221Config = Field(default_factory=MCP2221Config)

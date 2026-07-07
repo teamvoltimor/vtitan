@@ -1,0 +1,10 @@
+{
+  "input": "../openapi/contexts/telemetry.yaml",
+  "output": "./src/api/generated",
+  "plugins": [
+    {
+      "name": "@hey-api/typescript",
+      "enums": "javascript"
+    }
+  ]
+}

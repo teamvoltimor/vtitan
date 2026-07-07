@@ -1,9 +1,9 @@
-[project]
+[workspace]
 name = "voldemorbot-platform"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — hardware-agnostic ROS2 Kilted runtime"
 channels = ["robostack-kilted", "conda-forge"]
-platforms = ["linux-64", "linux-aarch64", "win-64", "osx-arm64"]
+platforms = ["linux-64", "linux-aarch64", "win-64"]
 
 [dependencies]
 # ROS2 Kilted base (via RoboStack: https://github.com/RoboStack/ros-kilted)
@@ -12,10 +12,8 @@ ros-kilted-geometry-msgs    = "*"
 ros-kilted-nav-msgs         = "*"
 ros-kilted-sensor-msgs      = "*"
 ros-kilted-cv-bridge        = "*"
-
-# Gazebo Ionic + ROS2 integration
-ros-kilted-gazebo-ros-pkgs  = "*"
 ros-kilted-ackermann-msgs   = "*"
+ros-kilted-ros-gz           = ">=2.1.12,<3"
 
 # Python runtime
 python    = ">=3.11"
@@ -32,5 +30,5 @@ dev     = { features = ["dev"], solve-group = "default" }
 
 [tasks]
 record = "python -m src.recording.recorder"
-test   = "pytest tests/ -v"
+test   = "pytest tests/ -v -p no:launch_testing -p no:launch_ros"
 lint   = "ruff check src/ tests/"

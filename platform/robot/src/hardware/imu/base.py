@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from src.hardware.imu.readings import (
     AccelerometerReading,
@@ -9,6 +10,18 @@ from src.hardware.imu.readings import (
     QuaternionReading,
     RVCReading,
 )
+
+
+@dataclass
+class Data:
+    """Aggregate IMU sensor reading returned by ``Driver.get_all_data()``."""
+
+    accelerometer: tuple[float, float, float]
+    gyroscope: tuple[float, float, float]
+    magnetometer: tuple[float, float, float]
+    quaternion: tuple[float, float, float, float]
+    euler: tuple[float, float, float]
+    linear_accel: tuple[float, float, float]
 
 
 class Driver(ABC):

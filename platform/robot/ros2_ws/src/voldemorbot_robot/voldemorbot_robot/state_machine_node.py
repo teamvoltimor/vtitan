@@ -11,6 +11,8 @@ Topics:
         - /scan (sensor_msgs/LaserScan) - LiDAR data
         - /hailo/detections (vision_msgs/Detection2DArray) - Hailo AI detections
         - /hailo/fps (std_msgs/Float32) - Hailo inference FPS
+    Subscribed:
+        - /button/event (std_msgs/String) — button events from button_node (Pi Zero)
     Published:
         - /robot_state (std_msgs/String) - Current robot state
         - /ackermann_cmd (ackermann_msgs/AckermannDriveStamped) - Drive commands
@@ -39,7 +41,6 @@ from rclpy.qos import (
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Float32, String
 
-from src.hardware.button.gpio import Driver as ButtonDriver
 from src.state_machine import (
     RaceMetrics,
     RobotState,
@@ -103,15 +104,6 @@ class StateMachineNode(Node):
         self.state_machine = StateMachine()
         self.state_machine.register_transition_callback(self._on_state_transition)
 
-        # Button driver for physical control
-        try:
-            self.button_driver = ButtonDriver()
-            self.button_driver.connect()
-            self.get_logger().info("Button driver connected")
-        except (RuntimeError, OSError, ValueError, ImportError) as e:
-            self.get_logger().error(f"Failed to connect button driver: {e}")
-            self.button_driver = None
-
         # Publishers — robot_state and system_status are TRANSIENT_LOCAL so late
         # subscribers (RViz, dashboard) receive the last value without waiting.
         self.state_pub: Publisher[String] = self.create_publisher(String, "/robot_state", _QOS_TRANSIENT)
@@ -147,6 +139,12 @@ class StateMachineNode(Node):
             self._hailo_fps_callback,
             qos_profile_sensor_data,
         )
+        self.button_sub: Subscription[String] = self.create_subscription(
+            String,
+            "/button/event",
+            self._button_event_callback,
+            10,
+        )
 
         # Sensor status tracking
         self.imu_last_msg_time: float | None = None
@@ -167,11 +165,10 @@ class StateMachineNode(Node):
         self.current_corridor: str = ""
 
         # Async executor for non-blocking operations
-        self.executor = ThreadPoolExecutor(max_workers=2)
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
         # Timers
         self.state_timer: Timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._state_machine_loop)
-        self.button_timer: Timer = self.create_timer(0.05, self._button_check_loop)  # 20Hz for responsive button
 
         # Start async IP fetch immediately
         self._fetch_ip_address_async()
@@ -203,10 +200,10 @@ class StateMachineNode(Node):
                 self.ip_address = "OFFLINE"
                 self.get_logger().warning("Failed to fetch IP: %s", e)
             else:
-                self.get_logger().info("IP address resolved: %s", self.ip_address)
+                self.get_logger().info(f"IP address resolved: {self.ip_address}")
             self.ip_fetch_complete = True
 
-        future = self.executor.submit(fetch_ip)
+        future = self._executor.submit(fetch_ip)
         future.add_done_callback(on_complete)
 
     def _imu_callback(self, _msg: Imu) -> None:
@@ -223,28 +220,21 @@ class StateMachineNode(Node):
         self.hailo_last_msg_time = time.time()
         self.hailo_fps = msg.data
 
-    def _button_check_loop(self) -> None:
-        """Check button state at high frequency for responsive control."""
-        if self.button_driver is None:
-            return
-
-        state = self.button_driver.get_state()
-
-        # Handle button events based on current state
+    def _button_event_callback(self, msg: String) -> None:
+        """Handle button events published by button_node on the Pi Zero."""
         current_state = self.state_machine.current_state
+        event = msg.data
 
-        if current_state == RobotState.READY and state.last_event and state.last_event.value == "short_press":
+        if current_state == RobotState.READY and event == "short_press":
             self.get_logger().info("Button pressed - Starting race!")
             self.state_machine.transition_to(RobotState.RACING, StateTransitionReason.BUTTON_PRESSED)
             self.race_start_time = time.time()
             self.laps_completed = 0
 
-        elif current_state == RobotState.RACING:
-            # In RACING state, only long press triggers E-STOP
-            if state.last_event and state.last_event.value == "long_press":
-                self.get_logger().warning("EMERGENCY STOP activated!")
-                self.state_machine.transition_to(RobotState.FINISHED, StateTransitionReason.EMERGENCY_STOP)
-                self._publish_stop_command()
+        elif current_state == RobotState.RACING and event == "long_press":
+            self.get_logger().warning("EMERGENCY STOP activated!")
+            self.state_machine.transition_to(RobotState.FINISHED, StateTransitionReason.EMERGENCY_STOP)
+            self._publish_stop_command()
 
     def _state_machine_loop(self) -> None:
         """Main state machine loop - runs at 10Hz."""
@@ -442,12 +432,8 @@ class StateMachineNode(Node):
         # Ensure robot is stopped
         self._publish_stop_command()
 
-        # Close button driver
-        if self.button_driver is not None:
-            self.button_driver.close()
-
         # Shutdown executor
-        self.executor.shutdown(wait=False)
+        self._executor.shutdown(wait=False)
 
         super().destroy_node()
 
