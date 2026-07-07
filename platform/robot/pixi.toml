@@ -73,14 +73,18 @@ cxx-compiler = "*"
 [target.linux-64.pypi-dependencies]
 hailort = { path = "libs/linux_x86_64/hailort-4.23.0-cp312-cp312-linux_x86_64.whl" }
 
-# ARCH: AARCH64 (Raspberry Pi 5)
-# lgpio backs adafruit-blinka GPIO on the Pi 5 (bcm2712) — required by the IMU
-# and OLED hardware nodes. Pi-only: no GPIO on dev x86/Windows hosts.
+# ARCH: AARCH64 (Raspberry Pi 5 / Pi Zero 2W)
+# lgpio backs adafruit-blinka GPIO on Bookworm+ (bcm2712/bcm2710) — required by
+# the IMU and OLED hardware nodes. Pi-only: no GPIO on dev x86/Windows hosts.
 [target.linux-aarch64.dependencies]
 lgpio = ">=0.2.2,<0.3"
 
 [target.linux-aarch64.pypi-dependencies]
 hailort = { path = "libs/linux_aarch64/hailort-4.23.0-cp312-cp312-linux_aarch64.whl" }
+# adafruit-blinka's board/GPIO detection imports the "RPi" namespace directly
+# (not "lgpio") -- rpi-lgpio is a drop-in RPi.GPIO-compatible shim built on
+# lgpio, needed on Bookworm+ where the classic RPi.GPIO package doesn't work.
+rpi-lgpio = ">=0.6,<1"
 
 # ARCH: AMD64 (Windows 10/11) — ROS2 Kilted doesn't support Windows, so no build deps, but we can still install the Python runtime deps for development and testing
 [target.win-64.pypi-dependencies]
