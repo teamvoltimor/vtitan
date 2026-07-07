@@ -21,7 +21,7 @@ ros-kilted-ackermann-msgs = "*"
 
 # ROS2 Kilted tools
 ros-kilted-std-srvs = ">=5.5.1,<6"
-ros-kilted-cv-bridge = ">=3.2.1,<4"
+ros-kilted-cv-bridge = "*"
 
 # Python runtime
 python = ">=3.12"
