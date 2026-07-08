@@ -346,14 +346,20 @@ tasks:
   rpi:diagnose:
     desc: Run connectivity diagnostics
     cmds:
+      - echo "=== default routes (only one should exist, via wlan0) ==="
+      - ip route show default
+      - echo ""
       - echo "=== usb0 interface ==="
       - ip -4 a show usb0
       - echo ""
-      - echo "=== routing table ==="
+      - echo "=== routing table (usb0) ==="
       - ip route show dev usb0
       - echo ""
       - echo "=== usb0 profile ==="
       - nmcli -t -f NAME con show --active 2>/dev/null | grep -i '^usb0$' || echo '(usb0 profile not active)'
+      - echo ""
+      - echo "=== 'Wired connection 1' never-default check ==="
+      - nmcli -t -f ipv4.never-default con show 'Wired connection 1' 2>/dev/null || echo "('Wired connection 1' profile not found)"
 
   # Health & thermal
 
