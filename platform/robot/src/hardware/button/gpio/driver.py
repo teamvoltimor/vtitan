@@ -85,49 +85,60 @@ class Driver(ABC_Driver):
 
     def _on_pressed(self) -> None:
         """Internal callback when button is pressed."""
-        self._is_pressed = True
-        self._press_start_time = time.time()
-        self._last_event = ButtonEvent.PRESSED
+        with self._lock:
+            self._is_pressed = True
+            self._press_start_time = time.time()
+            self._last_event = ButtonEvent.PRESSED
         self.logger.debug("Button pressed")
 
     def _on_released(self) -> None:
         """Internal callback when button is released."""
-        self._is_pressed = False
+        with self._lock:
+            self._is_pressed = False
 
-        # Determine if it was a short or long press
-        if self._press_start_time is None:
-            self._last_event = ButtonEvent.RELEASED
-        else:
-            press_duration = time.time() - self._press_start_time
-
-            # Log the press duration and type of press
-            if press_duration >= self.config.button.long_press_threshold_sec:
-                self._last_event = ButtonEvent.LONG_PRESS
-                self.logger.info(
-                    "Button long press detected",
-                    extra={"details": {"duration": round(press_duration, 2)}},
-                )
+            # Determine if it was a short or long press
+            if self._press_start_time is None:
+                self._last_event = ButtonEvent.RELEASED
             else:
-                self._last_event = ButtonEvent.SHORT_PRESS
-                self.logger.debug(
-                    "Button short press detected",
-                    extra={"details": {"duration": round(press_duration, 2)}},
-                )
+                press_duration = time.time() - self._press_start_time
 
-            self._press_start_time = None
+                # Log the press duration and type of press
+                if press_duration >= self.config.button.long_press_threshold_sec:
+                    self._last_event = ButtonEvent.LONG_PRESS
+                    self.logger.info(
+                        "Button long press detected",
+                        extra={"details": {"duration": round(press_duration, 2)}},
+                    )
+                else:
+                    self._last_event = ButtonEvent.SHORT_PRESS
+                    self.logger.debug(
+                        "Button short press detected",
+                        extra={"details": {"duration": round(press_duration, 2)}},
+                    )
+
+                self._press_start_time = None
 
     @override
     def get_state(self) -> ButtonState:
-        """Get current button state."""
+        """Get current button state.
+
+        Reading last_event consumes it -- it reads as None again until the next new event, so a
+        caller polling this in a loop (e.g. button_node) sees each event exactly once instead of
+        republishing the same stale event on every poll.
+        """
         if self._button is None:
             self.connect()
 
-        # Calculate current press duration if button is pressed
-        press_duration = 0.0
-        if self._is_pressed and self._press_start_time is not None:
-            press_duration = time.time() - self._press_start_time
+        with self._lock:
+            # Calculate current press duration if button is pressed
+            press_duration = 0.0
+            if self._is_pressed and self._press_start_time is not None:
+                press_duration = time.time() - self._press_start_time
 
-        return ButtonState(is_pressed=self._is_pressed, press_duration=press_duration, last_event=self._last_event)
+            last_event = self._last_event
+            self._last_event = None
+
+        return ButtonState(is_pressed=self._is_pressed, press_duration=press_duration, last_event=last_event)
 
     @override
     def is_pressed(self) -> bool:

@@ -151,7 +151,12 @@ class Driver(BaseDriver):
 
     @override
     def get_state(self) -> ButtonState:
-        """Get current button state."""
+        """Get current button state.
+
+        Reading last_event consumes it -- it reads as None again until the next new event, so a
+        caller polling this in a loop (e.g. button_node) sees each event exactly once instead of
+        republishing the same stale event on every poll.
+        """
         if self._pin is None:
             self.connect()
 
@@ -160,10 +165,13 @@ class Driver(BaseDriver):
             if self._is_pressed and self._press_start_time is not None:
                 press_duration = time.time() - self._press_start_time
 
+            last_event = self._last_event
+            self._last_event = None
+
             return ButtonState(
                 is_pressed=self._is_pressed,
                 press_duration=press_duration,
-                last_event=self._last_event,
+                last_event=last_event,
             )
 
     @override

@@ -214,6 +214,65 @@ reliable clear sightline — a re-scan could easily register a point there inste
 contiguous `abs(angle) > 115°` mask already covers this for free; don't special-case a "clear"
 notch out of it.
 
+## Phase 3 — `/button/event` (Pi Zero)
+
+### Bugs found and fixed
+
+1. **`get_state()` never reset `_last_event` after reading it**, in both the GPIO driver
+   (`src/hardware/button/gpio/driver.py`) and the MCP2221 variant
+   (`src/hardware/button/mcp2221/driver.py`). `button_node._poll()` runs at 20 Hz and publishes
+   whenever `state.last_event` is truthy — since the field was never cleared, the very first real
+   event would have republished forever, once per poll, flooding `/button/event` with the same
+   stale message indefinitely. Fixed by having `get_state()` read-and-clear the field atomically
+   under the driver's lock (the GPIO driver's lock existed but was never actually used to protect
+   this state — also added locking around the `_on_pressed`/`_on_released` callbacks themselves,
+   since without it a callback could write a new event in the narrow window between `get_state()`'s
+   read and its clear, silently losing that event).
+2. **`BUTTON_GPIO_PIN` was configured for GPIO 17, but the button is physically wired to GPIO 4.**
+   `gpiozero.Button(17)` connects with no error — nothing about a missing physical connection
+   raises an exception — so the driver reports "Button connected successfully" and the node runs
+   fine forever, just never sees a real edge transition no matter how many times the physical
+   button is pressed. This is the same class of bug as Phase 1's `Config` issue in spirit (silent
+   "success" hiding a real problem), but a hardware-wiring mismatch instead of a code defect.
+   Fixed by changing `BUTTON_GPIO_PIN` from `17` to `4` in `.env`/`.env.example`.
+
+   Notably, `setup-pi-architecture.md` (marked "historical design spec — partially superseded")
+   had GPIO 4 listed all along — its header explicitly calls out *"Pin assignments and hardware
+   architecture below are still accurate"* even though other parts of that doc have drifted from
+   the real implementation. Don't discount a whole doc as stale just because part of it is —
+   check what it specifically claims is still current. The current `.env.example`, despite being
+   live code rather than a doc, was the one that had actually gone stale here.
+
+### Validation method: escalating bisection through the stack
+
+For a discrete, momentary event (as opposed to a continuous stream like `/imu/data` or `/scan`),
+a background listener with a generous window (60s) and "press whenever ready, tell me when done"
+worked better than trying to synchronize a live countdown — same lesson as Phase 1's
+live-streaming problem, just with a longer passive window instead of a snapshot pair.
+
+When the full `/button/event` topic kept showing zero events even after both fixes above, the
+useful technique was bisecting top-down through the stack, one layer at a time, until finding
+where the signal actually disappeared:
+
+1. **Raw GPIO read**, bypassing the driver class entirely — plain `gpiozero.Button(pin).is_pressed`
+   polled in a loop. Confirms the physical wiring and pin number are actually correct.
+2. **The driver class directly**, bypassing ROS/`button_node` — instantiate `Driver()`, call
+   `.connect()`, poll `.get_state()` in a loop. Confirms the driver's callback registration and
+   event/state logic work correctly in isolation.
+3. **The full ROS topic**, via `ros2 topic echo` — confirms the node wrapper and publish path
+   work end-to-end.
+
+In this case, layers 1 and 2 both worked cleanly on the first proper attempt, and a subsequent
+retest of layer 3 also succeeded — meaning the earlier "zero events" results were most likely
+timing misses (the same "did I actually press it inside the window" issue seen throughout this
+runbook), not a real remaining bug. The bisection was still valuable: it positively confirmed the
+wiring and the driver logic before writing off the ROS layer as broken, rather than guessing.
+
+Don't conclude a topic is broken from one "zero events" result on a momentary/discrete signal —
+unlike a continuous stream (where you can just wait longer), a single missed press looks identical
+to a real failure. Retry at least once, and bisect down a layer if it keeps failing, before
+treating it as a genuine bug.
+
 ## Template for future phases
 
 For each new sensor, document here: what bugs were found, what prerequisite gaps existed, and
