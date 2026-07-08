@@ -155,4 +155,8 @@ build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base
 build-ws = "colcon build --symlink-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
 
 [target.linux-aarch64.tasks]
-run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0'"
+# frame_id matches static_tfs.launch.py's child_frame_id for lidar -- must stay in sync.
+# inverted:=true -- the C1 is mounted upside-down, which mirrors left/right in the raw
+# scan (confirmed empirically: front/back read correctly with just the yaw offset, but
+# left and right came out swapped until this was set).
+run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=true'"

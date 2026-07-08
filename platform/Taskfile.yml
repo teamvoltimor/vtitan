@@ -488,6 +488,7 @@ tasks:
     desc: Launch RViz visualization
     dir: gazebo/runtime
     cmds:
+      - 'echo "Global Options, Fixed Frame - use odom or map if Gazebo/nav publishes one. If RViz reports a missing Fixed Frame, or Message Filter drops messages for a frame, that frame is not being published yet."'
       - pixi run rviz2
 
   sim:navigate:
@@ -512,6 +513,7 @@ tasks:
     desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
     dir: robot
     cmds:
+      - 'echo "Global Options, Fixed Frame defaults to map in the saved config, which does not exist without SLAM/odometry publishing it. For real-hardware topic testing with no map, change it to base_link. Symptom if left on map: MessageFilter dropping message ... discarding message because the queue is full."'
       - pixi run -e sim viz
 
   sim:analyze:

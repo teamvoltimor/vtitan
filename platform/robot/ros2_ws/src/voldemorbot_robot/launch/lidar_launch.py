@@ -28,7 +28,11 @@ def generate_launch_description() -> LaunchDescription:
                     {
                         "serial_port": LaunchConfiguration("serial_port"),
                         "serial_baudrate": 460800,
-                        "frame_id": "laser_frame",
+                        # Matches static_tfs.launch.py's child_frame_id -- must stay in sync.
+                        "frame_id": "lidar_link",
+                        # C1 is mounted upside-down -- mirrors left/right in the raw scan
+                        # without this. Confirmed empirically during sensor verification.
+                        "inverted": True,
                         "angle_compensate": True,
                         "scan_mode": "Standard",
                     },

@@ -13,6 +13,7 @@ setup(
             "share/" + package_name + "/launch",
             [
                 "launch/lidar_launch.py",
+                "launch/static_tfs.launch.py",
                 "launch/wro_state_machine_launch.py",
                 "launch/telemetry_bridge_launch.py",
                 "launch/rpi5_nodes.launch.py",
