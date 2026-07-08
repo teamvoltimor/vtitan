@@ -49,15 +49,16 @@ class Driver(UARTRVCDriver):
     """Driver for BNO08x IMU via MCP2221A UART RVC mode."""
 
     def __init__(self, config: Config | None = None):
+        config = config or Config()
         super().__init__(
             config=UARTRVCConfig(
-                quaternion=config.quaternion if config else None,
-                port=config.port if config else "",
-                baudrate=config.baudrate if config else 115200,
-                poll_rate_hz=config.poll_rate_hz if config else 100.0,
+                quaternion=config.quaternion,
+                port=config.port,
+                baudrate=config.baudrate,
+                poll_rate_hz=config.poll_rate_hz,
             ),
         )
-        self.config: Config = config or Config()
+        self.config: Config = config
 
     def find_mcp2221_port(self) -> str | None:
         """Auto-detect MCP2221 USB bridge port."""
