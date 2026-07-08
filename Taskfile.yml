@@ -1,12 +1,17 @@
 version: "3"
 
 vars:
-  WINDOWS_ETHERNET_IP: 192.168.250.1
-  RPI_DIRECT_IP: 192.168.250.2
+  # Distinct from the Pi5<->PiZero USB gadget subnet (also 192.168.250.0/24, see
+  # scripts/setup_pi_5.sh / setup_pi_zero.sh) to avoid both landing on Pi 5's
+  # usb0 and 'Wired connection 1' with the same address.
+  WINDOWS_ETHERNET_IP: 192.168.251.1
+  RPI_DIRECT_IP: 192.168.251.2
   RPI_LOCAL_IP: 192.168.0.50
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
   ZERO_WIFI_IP: 192.168.0.51
+  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see scripts/setup_pi_zero.sh
+  RPI_ZERO_GADGET_IP: 192.168.250.1
   PLATFORM_SCRIPTS: "{{.HOME}}/voldemorbot-platform/scripts"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
@@ -176,8 +181,9 @@ tasks:
       - echo "    ServerAliveInterval 60"
       - echo "    ConnectTimeout 10"
       - echo ""
-      - echo "# --- Direct Ethernet (USB gadget, target=pair device) ---"
-      - echo "Host rpi-5-direct"
+      - echo "# --- Direct Ethernet (point-to-point cable to Pi 5, separate subnet from the Pi5<->PiZero USB gadget) ---"
+      - echo "# Also matches the raw IP so ProxyJump (rpi-zero-direct below) inherits IdentityFile/User."
+      - echo "Host rpi-5-direct {{.RPI_DIRECT_IP}}"
       - echo "    HostName {{.RPI_DIRECT_IP}}"
       - echo "    User {{.SSH_USER}}"
       - echo "    Port 22"
@@ -195,23 +201,44 @@ tasks:
       - echo "    ServerAliveInterval 60"
       - echo "    ConnectTimeout 10"
       - echo ""
+      - echo "# --- Pi Zero, WiFi ---"
+      - echo "Host rpi-zero-local"
+      - echo "    HostName {{.SSH_ZERO_HOSTNAME}}"
+      - echo "    User {{.SSH_USER}}"
+      - echo "    Port 22"
+      - echo "    IdentityFile {{.SSH_KEY_PATH}}"
+      - echo "    ServerAliveInterval 60"
+      - echo "    ConnectTimeout 10"
       - echo ""
-      - echo "Override with task <task> SSH_USER=user SSH_KEY_PATH=~/.ssh/key SSH_DOMAIN=yourdomain RPI_DIRECT_IP=x.x.x.x"
+      - echo "# --- Pi Zero, via USB-gadget hop through Pi 5 (needs rpi-5-direct cable connected) ---"
+      - echo "Host rpi-zero-direct"
+      - echo "    HostName {{.RPI_ZERO_GADGET_IP}}"
+      - echo "    User {{.SSH_USER}}"
+      - echo "    Port 22"
+      - echo "    ProxyJump {{.SSH_USER}}@{{.RPI_DIRECT_IP}}"
+      - echo "    IdentityFile {{.SSH_KEY_PATH}}"
+      - echo "    ServerAliveInterval 60"
+      - echo "    ConnectTimeout 10"
+      - echo ""
+      - echo ""
+      - echo "Override with task <task> SSH_USER=user SSH_KEY_PATH=~/.ssh/key SSH_DOMAIN=yourdomain RPI_DIRECT_IP=x.x.x.x SSH_ZERO_HOSTNAME=host.local"
     vars:
       SSH_USER: "{{.SSH_USER | default \"YOUR_USERNAME\"}}"
       SSH_KEY_PATH: "{{.SSH_KEY_PATH | default \"~/.ssh/YOUR_KEY_FILE\"}}"
       SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
+      SSH_ZERO_HOSTNAME: "{{.SSH_ZERO_HOSTNAME | default \"YOUR_PI_ZERO_HOSTNAME.local\"}}"
       RPI_LOCAL_IP: 192.168.0.50
 
   windows:ssh:setup-config:
-    desc: "Append missing SSH host entries to ~/.ssh/config (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"
+    desc: "Append missing SSH host entries to ~/.ssh/config (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP, SSH_ZERO_HOSTNAME)"
     cmds:
-      - cmd: powershell -NoProfile -File ./scripts/setup-ssh-config.ps1 -RpiDirectIp {{.RPI_DIRECT_IP}} -User {{.SSH_USER}} -KeyFile {{.SSH_KEY_PATH}} -RemoteHost pi.{{.SSH_DOMAIN}}.dev
+      - cmd: powershell -NoProfile -File ./scripts/setup-ssh-config.ps1 -RpiDirectIp {{.RPI_DIRECT_IP}} -User {{.SSH_USER}} -KeyFile {{.SSH_KEY_PATH}} -RemoteHost pi.{{.SSH_DOMAIN}}.dev -RpiZeroHostname {{.SSH_ZERO_HOSTNAME}} -RpiZeroGadgetIp {{.RPI_ZERO_GADGET_IP}}
         platforms: [windows]
     vars:
       SSH_USER: "{{.SSH_USER | default \"YOUR_USERNAME\"}}"
       SSH_KEY_PATH: "{{.SSH_KEY_PATH | default \"~/.ssh/YOUR_KEY_FILE\"}}"
       SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
+      SSH_ZERO_HOSTNAME: "{{.SSH_ZERO_HOSTNAME | default \"YOUR_PI_ZERO_HOSTNAME.local\"}}"
 
   windows:ethernet:set-ip:
     desc: Set Windows Ethernet adapter IP for direct link to a Pi (run as Admin)
@@ -256,9 +283,9 @@ tasks:
       - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
         platforms: [windows]
     vars:
-      SUBNET: '{{.SUBNET | default "192.168.250.0"}}'
+      SUBNET: '{{.SUBNET | default "192.168.251.0"}}'
       MASK: '{{.MASK | default "255.255.255.0"}}'
-      GATEWAY: '{{.GATEWAY | default "192.168.250.1"}}'
+      GATEWAY: '{{.GATEWAY | default "192.168.251.1"}}'
       INTERFACE: '{{.INTERFACE | default "8"}}'
 
   windows:route:add:wifi:
@@ -280,7 +307,7 @@ tasks:
       - cmd: route delete {{.SUBNET}}
         platforms: [windows]
     vars:
-      SUBNET: '{{.SUBNET | default "192.168.250.0"}}'
+      SUBNET: '{{.SUBNET | default "192.168.251.0"}}'
 
   windows:ethernet:unlink:
     desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [SSH_HOST=alias])"
