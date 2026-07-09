@@ -51,9 +51,9 @@ def mask_to_yolo_polygon(
     if len(pts) < GEOMETRY_MINIMUM_POLYGON_POINTS:
         return []
 
-    H, W = mask.shape
-    pts[:, 0] /= W
-    pts[:, 1] /= H
+    h, w = mask.shape
+    pts[:, 0] /= w
+    pts[:, 1] /= h
     return pts.clip(0.0, 1.0).flatten().tolist()
 
 
@@ -89,11 +89,11 @@ def mask_to_yolo_bbox(mask: np.ndarray) -> list[float]:
     if len(xs) == 0:
         return []
 
-    H, W = mask.shape
+    mask_h, mask_w = mask.shape
     x1, x2 = int(xs.min()), int(xs.max())
     y1, y2 = int(ys.min()), int(ys.max())
-    xc = (x1 + x2) / 2 / W
-    yc = (y1 + y2) / 2 / H
-    w = (x2 - x1) / W
-    h = (y2 - y1) / H
+    xc = (x1 + x2) / 2 / mask_w
+    yc = (y1 + y2) / 2 / mask_h
+    w = (x2 - x1) / mask_w
+    h = (y2 - y1) / mask_h
     return [xc, yc, w, h]

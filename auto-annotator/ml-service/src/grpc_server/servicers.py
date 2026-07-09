@@ -67,14 +67,17 @@ class SegmentationServicer(pb_grpc.SegmentationServiceServicer):
         """Run SAM inference for the request's click points (unary RPC)."""
         from src.models import ClassInfo
         from src.services.segmentation_service import SegmentationService
+        from src.types import ClassId
 
-        classes = [ClassInfo(id=i, name=name, color="") for i, name in enumerate(request.class_names)]
+        classes = [ClassInfo(id=ClassId(i), name=name, color="") for i, name in enumerate(request.class_names)]
         points = [
             {"x": p.x, "y": p.y, "point_type": p.point_type, "class_name": p.class_name}
             for p in request.points
         ]
 
-        service = SegmentationService(repository=None)  # type: ignore[arg-type]
+        # segment_path() resolves the image itself; no repository-backed
+        # DB lookup is needed on this gRPC path (Go owns the DB).
+        service = SegmentationService(repository=None)
         try:
             shape = service.segment_path(
                 request.image_path, request.image_id, points, self._app_context(), classes,

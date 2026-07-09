@@ -24,6 +24,7 @@ dev = [
     "pytest>=8.0.0",
     "pillow>=10.0.0",
     "grpcio-tools>=1.68.0",
+    "mypy>=1.13.0",
 ]
 
 [[tool.uv.index]]

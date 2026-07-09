@@ -105,6 +105,9 @@ select = [
     # pyupgrade (UP)
     "UP",
 
+    # flake8-future-annotations (FA)
+    "FA",
+
     # flake8-2020 (YTT)
     "YTT",
 
@@ -155,6 +158,9 @@ select = [
 
     # flake8-import-conventions (ICN)
     "ICN",
+
+    # pep8-naming (N)
+    "N",
 
     # flake8-logging-format (G)
     "G",
@@ -272,7 +278,7 @@ ignore = [
     "RUF002",  # Docstring contains ambiguous Unicode character
     "RUF003",  # Comment contains ambiguous Unicode character
 
-    # Module naming (html.py intentionally shadows stdlib; rename would break API)
+    # Module naming (src/state_machine/types.py intentionally shadows stdlib `types`)
     "A005",    # Module shadows a Python standard-library module
 ]
 
@@ -322,6 +328,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "TRY300",
     "FBT001",
     "FBT002",
+    "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
+    "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
 ]
 "tests/*.py" = [
     "S101",
@@ -351,6 +359,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "TRY300",
     "FBT001",
     "FBT002",
+    "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
+    "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
 ]
 "*_test.py" = [
     "S101",
@@ -380,6 +390,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "TRY300",
     "FBT001",
     "FBT002",
+    "N801",    # Test classes mirror production CapWords-violating names (e.g. TestIMU_I2CNodeInit)
+    "N806",    # Fixtures yield the class itself; tests unpack it into a same-named local
 ]
 "conftest.py" = [
     "F401",
@@ -418,40 +430,21 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "PLC0415",
 ]
 
-# Inference pipeline: heavy imports are deferred; function complexity is domain-driven
-"src/inference.py" = ["PLC0415", "BLE001", "C901", "PLR0911", "PLR0912", "PLR0915"]
+# scipy's own docs use `from scipy.spatial.transform import Rotation as R`
+"src/hardware/imu/bno08x/utils.py" = ["N817"]
 
-# Rendering: single complex function by design (many overlay layers)
-"src/render.py" = ["C901"]
-
-# ENV_HF_TOKEN is a key name string, not a hardcoded secret value
-"src/constants.py" = ["S105"]
-
-# pickle is the intentional wire protocol for the TCP model server
-"src/sam_client.py" = ["S301"]
-
-# model_ctrl defers numpy import to avoid heavy startup cost
-"src/handlers/model_ctrl.py" = ["PLC0415"]
-
-# TCP server: pickle protocol; broad catch is intentional server robustness
-"src/server/main.py" = ["S301", "BLE001"]
-
-# Broad catch in load_model is intentional — ML loading can fail in arbitrary ways
-"src/server/loader.py" = ["BLE001"]
-
-# ML backends defer all framework imports until the model is actually loaded
-"src/server/sam1.py" = ["PLC0415"]
-"src/server/sam2.py" = ["PLC0415"]
-"src/server/sam3.py" = ["PLC0415", "BLE001"]
-
-# Broad catch in model-dropdown init is a UI fallback; S104 bind-all is intentional for Docker
-"src/app.py" = ["BLE001", "S104"]
+# IMU_I2CNode / IMU_UART_RVCNode violate CapWords (N801) but renaming ripples
+# across ~90 call sites (driver, the ros2_ws ament re-export shim including its
+# IMU_RVCNode backward-compat alias, and both test files); deferred as a
+# deliberate follow-up rather than done incidentally while enabling N.
+"src/ros2/imu/bno08x/mcp2221/i2c_node.py" = ["N801"]
+"src/ros2/imu/bno08x/mcp2221/uart_rvc_node.py" = ["N801"]
 
 # Core navigator step() is complex by design — orchestrates all navigation subsystems
 "src/navigation/core_navigator.py" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 
 # corridor_for_position has 8 return branches for corridor classification
-"src/navigation/waypoints.py" = ["PLR0911"]
+"src/navigation/planning/waypoints.py" = ["PLR0911"]
 
 # ROS2 launch files are implicit namespace packages; function sig required by ROS2
 "**/launch/*.py" = ["INP001", "ANN201", "D103"]

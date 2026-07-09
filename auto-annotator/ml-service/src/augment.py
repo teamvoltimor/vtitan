@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from src.gallery_cache import AnnotationCache
     from src.label_store import LabelStore
-    from src.models import ImageRecord
+    from src.models import ImageRecord, ImageRepositoryProtocol
 
 
 def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> tuple[Path, Path]:
@@ -69,8 +69,8 @@ def _augment_det(
     image_np: np.ndarray, class_ids: list[int], bboxes: list[list[float]], n: int,
 ) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
     """Augment image with detection (bbox) annotations."""
-    H, W = image_np.shape[:2]
-    transforms = _build_transforms(H, W)
+    h, w = image_np.shape[:2]
+    transforms = _build_transforms(h, w)
     compose = Compose(
         transforms, bbox_params=BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.3),
     )
@@ -89,13 +89,13 @@ def _augment_seg(
 
     Polygon format: flat list [x1, y1, x2, y2, ...] in normalized coords.
     """
-    H, W = image_np.shape[:2]
-    transforms = _build_transforms(H, W)
+    h, w = image_np.shape[:2]
+    transforms = _build_transforms(h, w)
 
     all_kpts: list[tuple[float, float]] = []
     poly_idx: list[int] = []
     for i, flat in enumerate(polygons):
-        pts = [(flat[j] * W, flat[j + 1] * H) for j in range(0, len(flat), 2)]
+        pts = [(flat[j] * w, flat[j + 1] * h) for j in range(0, len(flat), 2)]
         all_kpts.extend(pts)
         poly_idx.extend([i] * len(pts))
 
@@ -106,11 +106,11 @@ def _augment_seg(
     results = []
     for _ in range(n):
         out = compose(image=image_np, keypoints=all_kpts, poly_idx=poly_idx)
-        new_H, new_W = out["image"].shape[:2]
+        new_h, new_w = out["image"].shape[:2]
 
         groups: dict[int, list[float]] = collections.defaultdict(list)
         for (kx, ky), pidx in zip(out["keypoints"], out["poly_idx"], strict=False):
-            groups[pidx].extend([kx / new_W, ky / new_H])
+            groups[pidx].extend([kx / new_w, ky / new_h])
 
         new_classes, new_polys = [], []
         for pidx in sorted(groups):
@@ -126,7 +126,7 @@ def _augment_seg(
 def augment_image(
     record: ImageRecord,
     num_augmentations: int,
-    repository: object,
+    repository: ImageRepositoryProtocol,
     label_store: LabelStore,
     progress: Callable[[dict], None] | None = None,
     cache: AnnotationCache | None = None,
@@ -281,7 +281,7 @@ def augment_image_files(
 def run_augmentation_job(
     image_ids: list[int],
     num_augmentations: int,
-    repository: object,
+    repository: ImageRepositoryProtocol,
     label_store: LabelStore,
     reporter: object | None = None,
     cache: AnnotationCache | None = None,

@@ -17,7 +17,7 @@ from src.inference import run_sam_inference
 from src.models import ClassInfo, InferenceRequest, Point, Shape
 
 if TYPE_CHECKING:
-    from src.models import AppContext
+    from src.models import AppContext, ImageRepositoryProtocol
 
 
 class SegmentationService:
@@ -28,8 +28,13 @@ class SegmentationService:
     inference execution, and error handling are internal.
     """
 
-    def __init__(self, repository: object):
-        """Initialize with repository for image access."""
+    def __init__(self, repository: ImageRepositoryProtocol | None):
+        """Initialize with repository for image access.
+
+        ``repository`` is only read by :meth:`segment`; the gRPC-facing
+        :meth:`segment_path` resolves image paths itself and accepts
+        ``None`` here (see ``src.grpc_server.servicers.SegmentationServicer``).
+        """
         self.repository = repository
 
     def segment(
@@ -53,6 +58,9 @@ class SegmentationService:
             Shape for the best mask, or None if inference fails or mask too small.
 
         """
+        if self.repository is None:
+            msg = "segment() requires a repository; use segment_path() when none is available"
+            raise ValueError(msg)
         record = self.repository.images.get_by_id(image_id)
         return self.segment_path(record.path, image_id, points, app_context, classes)
 

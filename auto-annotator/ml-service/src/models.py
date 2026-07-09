@@ -90,6 +90,32 @@ class SAMClientProtocol(Protocol):
         ...
 
 
+@runtime_checkable
+class ImageRepoProtocol(Protocol):
+    """Structural interface for the ``images`` sub-repository of a DB repository."""
+
+    def get_by_id(self, image_id: int) -> ImageRecord:
+        """Return the image row for *image_id*."""
+        ...
+
+    def register_augmented(self, record: AugmentedImage) -> int:
+        """Persist *record* and return the new row's DB id."""
+        ...
+
+
+@runtime_checkable
+class ImageRepositoryProtocol(Protocol):
+    """Structural interface for the pre-Go-migration DB repository.
+
+    Only satisfied by legacy call paths (:meth:`SegmentationService.segment`,
+    :func:`src.augment.run_augmentation_job`) predating the Go API owning the
+    database; the gRPC entrypoints resolve paths themselves and never
+    construct a real implementation of this Protocol.
+    """
+
+    images: ImageRepoProtocol
+
+
 @dataclass(frozen=True, slots=True)
 class ClassInfo:
     """A single annotation class, mirroring a row from the ``classes`` DB table.

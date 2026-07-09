@@ -43,6 +43,18 @@ tasks:
     cmds:
       - uv sync
 
+  ml-service:test:
+    desc: Run ML service unit tests (pure modules only, no GPU/model weights needed)
+    dir: ml-service
+    cmds:
+      - uv run pytest tests/ -v
+
+  ml-service:typecheck:
+    desc: Run mypy on ML service code
+    dir: ml-service
+    cmds:
+      - uv run mypy src/
+
   # Go API (orchestration service)
 
   api:dev:

@@ -119,9 +119,9 @@ class SAM3Predictor:
         except Exception:
             import torch.nn.functional as _F
 
-            H, W = self._orig_hw
+            h, w = self._orig_hw
             raw = outputs.pred_masks[0, :, 0:1].float()
-            masks_t = _F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0
+            masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
 
         if masks_t.ndim == 4:
             masks_t = masks_t[:, 0]
@@ -183,7 +183,7 @@ class SAM3TextSegmenter:
             optionally ``error`` (str) on failure.
         """
         pil = _PIL.fromarray(image)
-        H, W = image.shape[:2]
+        h, w = image.shape[:2]
         results = []
 
         # Segment each class independently; capture per-class failures to preserve partial results.
@@ -212,7 +212,7 @@ class SAM3TextSegmenter:
                     import torch.nn.functional as _F
 
                     raw = outputs.pred_masks[0, :, 0:1].float()
-                    masks_t = _F.interpolate(raw, (H, W), mode="bilinear")[:, 0] > 0
+                    masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
 
                 if masks_t.ndim == 4:
                     masks_t = masks_t[:, 0]
@@ -229,7 +229,7 @@ class SAM3TextSegmenter:
                 boxes: list[list[float]] = []
                 if hasattr(outputs, "pred_boxes"):
                     for box in outputs.pred_boxes[0].cpu().float().numpy():
-                        cx, cy, bw, bh = box * np.array([W, H, W, H])
+                        cx, cy, bw, bh = box * np.array([w, h, w, h])
                         boxes.append(
                             [
                                 float(cx - bw / 2),
