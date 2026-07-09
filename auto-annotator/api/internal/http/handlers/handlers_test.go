@@ -116,6 +116,9 @@ func TestSegment(t *testing.T) {
 	})
 
 	t.Run("empty points -> 400", func(t *testing.T) {
+		// A present-but-empty JSON array satisfies go-playground/validator's
+		// `binding:"required"` (only an absent/null field fails that check),
+		// so this still reaches the handler's own empty-points business rule.
 		rec := doJSON(t, router, http.MethodPost, "/api/v1/segment", `{"imageId":1,"points":[]}`)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
@@ -153,7 +156,7 @@ func TestAugmentJobLifecycle(t *testing.T) {
 	}
 
 	// Second start while the first is blocked -> 409.
-	busy := doJSON(t, router, http.MethodPost, "/api/v1/augment/start", `{"imageIds":[1]}`)
+	busy := doJSON(t, router, http.MethodPost, "/api/v1/augment/start", `{"imageIds":[1],"numAugmentations":1}`)
 	if busy.Code != http.StatusConflict {
 		t.Fatalf("busy: want 409, got %d: %s", busy.Code, busy.Body.String())
 	}
@@ -174,7 +177,10 @@ func TestAugmentJobLifecycle(t *testing.T) {
 		t.Fatal("job did not finish after worker released")
 	}
 
-	noImages := doJSON(t, router, http.MethodPost, "/api/v1/augment/start", `{"imageIds":[]}`)
+	// A present-but-empty JSON array satisfies go-playground/validator's
+	// `binding:"required"` (only an absent/null field fails that check), so
+	// this still reaches the handler's own empty-imageIds business rule.
+	noImages := doJSON(t, router, http.MethodPost, "/api/v1/augment/start", `{"imageIds":[],"numAugmentations":1}`)
 	if noImages.Code != http.StatusBadRequest {
 		t.Fatalf("no images: want 400, got %d", noImages.Code)
 	}

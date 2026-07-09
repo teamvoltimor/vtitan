@@ -4,6 +4,16 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -126,8 +136,8 @@ func (e SegmentationResponseState) Valid() bool {
 
 // AugmentRequest defines model for AugmentRequest.
 type AugmentRequest struct {
-	ImageIds         []int64 `json:"imageIds"`
-	NumAugmentations int32   `json:"numAugmentations"`
+	ImageIds         []int64 `binding:"required" json:"imageIds"`
+	NumAugmentations int32   `binding:"required" json:"numAugmentations"`
 }
 
 // ClassItem defines model for ClassItem.
@@ -139,7 +149,7 @@ type ClassItem struct {
 
 // DeleteImagesRequest defines model for DeleteImagesRequest.
 type DeleteImagesRequest struct {
-	ImageIds []int64 `json:"imageIds"`
+	ImageIds []int64 `binding:"required" json:"imageIds"`
 }
 
 // GalleryItem defines model for GalleryItem.
@@ -235,9 +245,9 @@ type Point struct {
 
 // SaveAnnotationsRequest defines model for SaveAnnotationsRequest.
 type SaveAnnotationsRequest struct {
-	ExportFormat SaveAnnotationsRequestExportFormat `json:"exportFormat"`
-	ImageId      int64                              `json:"imageId"`
-	Shapes       []Shape                            `json:"shapes"`
+	ExportFormat SaveAnnotationsRequestExportFormat `binding:"required" json:"exportFormat"`
+	ImageId      int64                              `binding:"required" json:"imageId"`
+	Shapes       []Shape                            `binding:"required" json:"shapes"`
 }
 
 // SaveAnnotationsRequestExportFormat defines model for SaveAnnotationsRequest.ExportFormat.
@@ -256,8 +266,8 @@ type SegmentationPointPointType string
 
 // SegmentationRequest defines model for SegmentationRequest.
 type SegmentationRequest struct {
-	ImageId int64               `json:"imageId"`
-	Points  []SegmentationPoint `json:"points"`
+	ImageId int64               `binding:"required" json:"imageId"`
+	Points  []SegmentationPoint `binding:"required" json:"points"`
 }
 
 // SegmentationResponse defines model for SegmentationResponse.
@@ -284,21 +294,21 @@ type Shape struct {
 
 // SkipRequest defines model for SkipRequest.
 type SkipRequest struct {
-	ImageId int64 `json:"imageId"`
+	ImageId int64 `binding:"required" json:"imageId"`
 }
 
 // TrainRequest defines model for TrainRequest.
 type TrainRequest struct {
-	Batch     int32  `json:"batch"`
-	Epochs    int32  `json:"epochs"`
-	Imgsz     int32  `json:"imgsz"`
-	ModelName string `json:"modelName"`
+	Batch     int32  `binding:"required" json:"batch"`
+	Epochs    int32  `binding:"required" json:"epochs"`
+	Imgsz     int32  `binding:"required" json:"imgsz"`
+	ModelName string `binding:"required" json:"modelName"`
 }
 
 // UpsertClassRequest defines model for UpsertClassRequest.
 type UpsertClassRequest struct {
-	Color string `json:"color"`
-	Name  string `json:"name"`
+	Color string `binding:"required" json:"color"`
+	Name  string `binding:"required" json:"name"`
 }
 
 // ImportGalleryMultipartBody defines parameters for ImportGallery.
@@ -330,3 +340,1716 @@ type SegmentJSONRequestBody = SegmentationRequest
 
 // StartTrainJSONRequestBody defines body for StartTrain for application/json ContentType.
 type StartTrainJSONRequestBody = TrainRequest
+
+// ServerInterface represents all server handlers.
+type ServerInterface interface {
+	// Write label file, mark image done, return updated gallery
+	// (POST /annotations/save)
+	SaveAnnotations(c *gin.Context)
+	// Mark image as skipped
+	// (POST /annotations/skip)
+	SkipImage(c *gin.Context)
+	// Get saved annotation shapes for an image
+	// (GET /annotations/{id})
+	GetAnnotations(c *gin.Context, id int64)
+	// Launch augmentation job
+	// (POST /augment/start)
+	StartAugment(c *gin.Context)
+	// Check if augmentation job is running
+	// (GET /augment/status)
+	GetAugmentStatus(c *gin.Context)
+	// SSE stream of augmentation progress
+	// (GET /augment/stream)
+	StreamAugment(c *gin.Context)
+	// List all annotation classes
+	// (GET /classes)
+	ListClasses(c *gin.Context)
+	// Insert or update a class by name
+	// (POST /classes)
+	UpsertClass(c *gin.Context)
+	// List images with annotations
+	// (GET /gallery)
+	GetGallery(c *gin.Context)
+	// List parent images with augmentation counts
+	// (GET /gallery/grouped)
+	GetGroupedGallery(c *gin.Context)
+	// Upload images to gallery
+	// (POST /gallery/import)
+	ImportGallery(c *gin.Context)
+	// Health check
+	// (GET /health)
+	Health(c *gin.Context)
+	// Liveness probe
+	// (GET /healthz)
+	Liveness(c *gin.Context)
+	// Soft-delete images by id
+	// (POST /images/delete)
+	DeleteImages(c *gin.Context)
+	// Stream raw image file
+	// (GET /images/{id})
+	ServeImage(c *gin.Context, id int64)
+	// Stream downscaled thumbnail
+	// (GET /images/{id}/thumb)
+	ServeThumbnail(c *gin.Context, id int64)
+	// List configured ML models
+	// (GET /models)
+	ListModels(c *gin.Context)
+	// Readiness probe
+	// (GET /readyz)
+	Readiness(c *gin.Context)
+	// Run SAM inference for click points
+	// (POST /segment)
+	Segment(c *gin.Context)
+	// Launch YOLO training job
+	// (POST /train/start)
+	StartTrain(c *gin.Context)
+	// Check if training job is running
+	// (GET /train/status)
+	GetTrainStatus(c *gin.Context)
+	// SSE stream of training progress
+	// (GET /train/stream)
+	StreamTrain(c *gin.Context)
+}
+
+// ServerInterfaceWrapper converts contexts to parameters.
+type ServerInterfaceWrapper struct {
+	Handler            ServerInterface
+	HandlerMiddlewares []MiddlewareFunc
+	ErrorHandler       func(*gin.Context, error, int)
+}
+
+type MiddlewareFunc func(c *gin.Context)
+
+// SaveAnnotations operation middleware
+func (siw *ServerInterfaceWrapper) SaveAnnotations(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SaveAnnotations(c)
+}
+
+// SkipImage operation middleware
+func (siw *ServerInterfaceWrapper) SkipImage(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SkipImage(c)
+}
+
+// GetAnnotations operation middleware
+func (siw *ServerInterfaceWrapper) GetAnnotations(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAnnotations(c, id)
+}
+
+// StartAugment operation middleware
+func (siw *ServerInterfaceWrapper) StartAugment(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StartAugment(c)
+}
+
+// GetAugmentStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetAugmentStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAugmentStatus(c)
+}
+
+// StreamAugment operation middleware
+func (siw *ServerInterfaceWrapper) StreamAugment(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StreamAugment(c)
+}
+
+// ListClasses operation middleware
+func (siw *ServerInterfaceWrapper) ListClasses(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListClasses(c)
+}
+
+// UpsertClass operation middleware
+func (siw *ServerInterfaceWrapper) UpsertClass(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpsertClass(c)
+}
+
+// GetGallery operation middleware
+func (siw *ServerInterfaceWrapper) GetGallery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGallery(c)
+}
+
+// GetGroupedGallery operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupedGallery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetGroupedGallery(c)
+}
+
+// ImportGallery operation middleware
+func (siw *ServerInterfaceWrapper) ImportGallery(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportGallery(c)
+}
+
+// Health operation middleware
+func (siw *ServerInterfaceWrapper) Health(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Health(c)
+}
+
+// Liveness operation middleware
+func (siw *ServerInterfaceWrapper) Liveness(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Liveness(c)
+}
+
+// DeleteImages operation middleware
+func (siw *ServerInterfaceWrapper) DeleteImages(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteImages(c)
+}
+
+// ServeImage operation middleware
+func (siw *ServerInterfaceWrapper) ServeImage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ServeImage(c, id)
+}
+
+// ServeThumbnail operation middleware
+func (siw *ServerInterfaceWrapper) ServeThumbnail(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ServeThumbnail(c, id)
+}
+
+// ListModels operation middleware
+func (siw *ServerInterfaceWrapper) ListModels(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListModels(c)
+}
+
+// Readiness operation middleware
+func (siw *ServerInterfaceWrapper) Readiness(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Readiness(c)
+}
+
+// Segment operation middleware
+func (siw *ServerInterfaceWrapper) Segment(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Segment(c)
+}
+
+// StartTrain operation middleware
+func (siw *ServerInterfaceWrapper) StartTrain(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StartTrain(c)
+}
+
+// GetTrainStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainStatus(c)
+}
+
+// StreamTrain operation middleware
+func (siw *ServerInterfaceWrapper) StreamTrain(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StreamTrain(c)
+}
+
+// GinServerOptions provides options for the Gin server.
+type GinServerOptions struct {
+	BaseURL      string
+	Middlewares  []MiddlewareFunc
+	ErrorHandler func(*gin.Context, error, int)
+}
+
+// RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
+func RegisterHandlers(router gin.IRouter, si ServerInterface) {
+	RegisterHandlersWithOptions(router, si, GinServerOptions{})
+}
+
+// RegisterHandlersWithOptions creates http.Handler with additional options
+func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options GinServerOptions) {
+	errorHandler := options.ErrorHandler
+	if errorHandler == nil {
+		errorHandler = func(c *gin.Context, err error, statusCode int) {
+			c.JSON(statusCode, gin.H{"msg": err.Error()})
+		}
+	}
+
+	wrapper := ServerInterfaceWrapper{
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandler:       errorHandler,
+	}
+
+	router.POST(options.BaseURL+"/annotations/save", wrapper.SaveAnnotations)
+	router.POST(options.BaseURL+"/annotations/skip", wrapper.SkipImage)
+	router.GET(options.BaseURL+"/annotations/:id", wrapper.GetAnnotations)
+	router.POST(options.BaseURL+"/augment/start", wrapper.StartAugment)
+	router.GET(options.BaseURL+"/augment/status", wrapper.GetAugmentStatus)
+	router.GET(options.BaseURL+"/augment/stream", wrapper.StreamAugment)
+	router.GET(options.BaseURL+"/classes", wrapper.ListClasses)
+	router.POST(options.BaseURL+"/classes", wrapper.UpsertClass)
+	router.GET(options.BaseURL+"/gallery", wrapper.GetGallery)
+	router.GET(options.BaseURL+"/gallery/grouped", wrapper.GetGroupedGallery)
+	router.POST(options.BaseURL+"/gallery/import", wrapper.ImportGallery)
+	router.GET(options.BaseURL+"/health", wrapper.Health)
+	router.GET(options.BaseURL+"/healthz", wrapper.Liveness)
+	router.POST(options.BaseURL+"/images/delete", wrapper.DeleteImages)
+	router.GET(options.BaseURL+"/images/:id", wrapper.ServeImage)
+	router.GET(options.BaseURL+"/images/:id/thumb", wrapper.ServeThumbnail)
+	router.GET(options.BaseURL+"/models", wrapper.ListModels)
+	router.GET(options.BaseURL+"/readyz", wrapper.Readiness)
+	router.POST(options.BaseURL+"/segment", wrapper.Segment)
+	router.POST(options.BaseURL+"/train/start", wrapper.StartTrain)
+	router.GET(options.BaseURL+"/train/status", wrapper.GetTrainStatus)
+	router.GET(options.BaseURL+"/train/stream", wrapper.StreamTrain)
+}
+
+type SaveAnnotationsRequestObject struct {
+	Body *SaveAnnotationsJSONRequestBody
+}
+
+type SaveAnnotationsResponseObject interface {
+	VisitSaveAnnotationsResponse(w http.ResponseWriter) error
+}
+
+type SaveAnnotations201JSONResponse GalleryResponse
+
+func (response SaveAnnotations201JSONResponse) VisitSaveAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SkipImageRequestObject struct {
+	Body *SkipImageJSONRequestBody
+}
+
+type SkipImageResponseObject interface {
+	VisitSkipImageResponse(w http.ResponseWriter) error
+}
+
+type SkipImage200JSONResponse GalleryResponse
+
+func (response SkipImage200JSONResponse) VisitSkipImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAnnotationsRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetAnnotationsResponseObject interface {
+	VisitGetAnnotationsResponse(w http.ResponseWriter) error
+}
+
+type GetAnnotations200JSONResponse []Shape
+
+func (response GetAnnotations200JSONResponse) VisitGetAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartAugmentRequestObject struct {
+	Body *StartAugmentJSONRequestBody
+}
+
+type StartAugmentResponseObject interface {
+	VisitStartAugmentResponse(w http.ResponseWriter) error
+}
+
+type StartAugment202JSONResponse JobStatusResponse
+
+func (response StartAugment202JSONResponse) VisitStartAugmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAugmentStatusRequestObject struct {
+}
+
+type GetAugmentStatusResponseObject interface {
+	VisitGetAugmentStatusResponse(w http.ResponseWriter) error
+}
+
+type GetAugmentStatus200JSONResponse JobStatusResponse
+
+func (response GetAugmentStatus200JSONResponse) VisitGetAugmentStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StreamAugmentRequestObject struct {
+}
+
+type StreamAugmentResponseObject interface {
+	VisitStreamAugmentResponse(w http.ResponseWriter) error
+}
+
+type StreamAugment200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response StreamAugment200TexteventStreamResponse) VisitStreamAugmentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type ListClassesRequestObject struct {
+}
+
+type ListClassesResponseObject interface {
+	VisitListClassesResponse(w http.ResponseWriter) error
+}
+
+type ListClasses200JSONResponse []ClassItem
+
+func (response ListClasses200JSONResponse) VisitListClassesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertClassRequestObject struct {
+	Body *UpsertClassJSONRequestBody
+}
+
+type UpsertClassResponseObject interface {
+	VisitUpsertClassResponse(w http.ResponseWriter) error
+}
+
+type UpsertClass200JSONResponse []ClassItem
+
+func (response UpsertClass200JSONResponse) VisitUpsertClassResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGalleryRequestObject struct {
+}
+
+type GetGalleryResponseObject interface {
+	VisitGetGalleryResponse(w http.ResponseWriter) error
+}
+
+type GetGallery200JSONResponse GalleryResponse
+
+func (response GetGallery200JSONResponse) VisitGetGalleryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGroupedGalleryRequestObject struct {
+}
+
+type GetGroupedGalleryResponseObject interface {
+	VisitGetGroupedGalleryResponse(w http.ResponseWriter) error
+}
+
+type GetGroupedGallery200JSONResponse []ParentImageItem
+
+func (response GetGroupedGallery200JSONResponse) VisitGetGroupedGalleryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportGalleryRequestObject struct {
+	Body *multipart.Reader
+}
+
+type ImportGalleryResponseObject interface {
+	VisitImportGalleryResponse(w http.ResponseWriter) error
+}
+
+type ImportGallery200JSONResponse GalleryResponse
+
+func (response ImportGallery200JSONResponse) VisitImportGalleryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type HealthRequestObject struct {
+}
+
+type HealthResponseObject interface {
+	VisitHealthResponse(w http.ResponseWriter) error
+}
+
+type Health200JSONResponse HealthStatus
+
+func (response Health200JSONResponse) VisitHealthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LivenessRequestObject struct {
+}
+
+type LivenessResponseObject interface {
+	VisitLivenessResponse(w http.ResponseWriter) error
+}
+
+type Liveness200JSONResponse LivenessResponse
+
+func (response Liveness200JSONResponse) VisitLivenessResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteImagesRequestObject struct {
+	Body *DeleteImagesJSONRequestBody
+}
+
+type DeleteImagesResponseObject interface {
+	VisitDeleteImagesResponse(w http.ResponseWriter) error
+}
+
+type DeleteImages200JSONResponse GalleryResponse
+
+func (response DeleteImages200JSONResponse) VisitDeleteImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServeImageRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ServeImageResponseObject interface {
+	VisitServeImageResponse(w http.ResponseWriter) error
+}
+
+type ServeImage200ImageResponse struct {
+	Body          io.Reader
+	ContentType   string
+	ContentLength int64
+}
+
+func (response ServeImage200ImageResponse) VisitServeImageResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", response.ContentType)
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ServeThumbnailRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type ServeThumbnailResponseObject interface {
+	VisitServeThumbnailResponse(w http.ResponseWriter) error
+}
+
+type ServeThumbnail200ImagejpegResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ServeThumbnail200ImagejpegResponse) VisitServeThumbnailResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ListModelsRequestObject struct {
+}
+
+type ListModelsResponseObject interface {
+	VisitListModelsResponse(w http.ResponseWriter) error
+}
+
+type ListModels200JSONResponse []ModelItem
+
+func (response ListModels200JSONResponse) VisitListModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadinessRequestObject struct {
+}
+
+type ReadinessResponseObject interface {
+	VisitReadinessResponse(w http.ResponseWriter) error
+}
+
+type Readiness200JSONResponse HealthStatus
+
+func (response Readiness200JSONResponse) VisitReadinessResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SegmentRequestObject struct {
+	Body *SegmentJSONRequestBody
+}
+
+type SegmentResponseObject interface {
+	VisitSegmentResponse(w http.ResponseWriter) error
+}
+
+type Segment200JSONResponse SegmentationResponse
+
+func (response Segment200JSONResponse) VisitSegmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTrainRequestObject struct {
+	Body *StartTrainJSONRequestBody
+}
+
+type StartTrainResponseObject interface {
+	VisitStartTrainResponse(w http.ResponseWriter) error
+}
+
+type StartTrain202JSONResponse JobStatusResponse
+
+func (response StartTrain202JSONResponse) VisitStartTrainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrainStatusRequestObject struct {
+}
+
+type GetTrainStatusResponseObject interface {
+	VisitGetTrainStatusResponse(w http.ResponseWriter) error
+}
+
+type GetTrainStatus200JSONResponse JobStatusResponse
+
+func (response GetTrainStatus200JSONResponse) VisitGetTrainStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StreamTrainRequestObject struct {
+}
+
+type StreamTrainResponseObject interface {
+	VisitStreamTrainResponse(w http.ResponseWriter) error
+}
+
+type StreamTrain200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response StreamTrain200TexteventStreamResponse) VisitStreamTrainResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+// StrictServerInterface represents all server handlers.
+type StrictServerInterface interface {
+	// Write label file, mark image done, return updated gallery
+	// (POST /annotations/save)
+	SaveAnnotations(ctx context.Context, request SaveAnnotationsRequestObject) (SaveAnnotationsResponseObject, error)
+	// Mark image as skipped
+	// (POST /annotations/skip)
+	SkipImage(ctx context.Context, request SkipImageRequestObject) (SkipImageResponseObject, error)
+	// Get saved annotation shapes for an image
+	// (GET /annotations/{id})
+	GetAnnotations(ctx context.Context, request GetAnnotationsRequestObject) (GetAnnotationsResponseObject, error)
+	// Launch augmentation job
+	// (POST /augment/start)
+	StartAugment(ctx context.Context, request StartAugmentRequestObject) (StartAugmentResponseObject, error)
+	// Check if augmentation job is running
+	// (GET /augment/status)
+	GetAugmentStatus(ctx context.Context, request GetAugmentStatusRequestObject) (GetAugmentStatusResponseObject, error)
+	// SSE stream of augmentation progress
+	// (GET /augment/stream)
+	StreamAugment(ctx context.Context, request StreamAugmentRequestObject) (StreamAugmentResponseObject, error)
+	// List all annotation classes
+	// (GET /classes)
+	ListClasses(ctx context.Context, request ListClassesRequestObject) (ListClassesResponseObject, error)
+	// Insert or update a class by name
+	// (POST /classes)
+	UpsertClass(ctx context.Context, request UpsertClassRequestObject) (UpsertClassResponseObject, error)
+	// List images with annotations
+	// (GET /gallery)
+	GetGallery(ctx context.Context, request GetGalleryRequestObject) (GetGalleryResponseObject, error)
+	// List parent images with augmentation counts
+	// (GET /gallery/grouped)
+	GetGroupedGallery(ctx context.Context, request GetGroupedGalleryRequestObject) (GetGroupedGalleryResponseObject, error)
+	// Upload images to gallery
+	// (POST /gallery/import)
+	ImportGallery(ctx context.Context, request ImportGalleryRequestObject) (ImportGalleryResponseObject, error)
+	// Health check
+	// (GET /health)
+	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
+	// Liveness probe
+	// (GET /healthz)
+	Liveness(ctx context.Context, request LivenessRequestObject) (LivenessResponseObject, error)
+	// Soft-delete images by id
+	// (POST /images/delete)
+	DeleteImages(ctx context.Context, request DeleteImagesRequestObject) (DeleteImagesResponseObject, error)
+	// Stream raw image file
+	// (GET /images/{id})
+	ServeImage(ctx context.Context, request ServeImageRequestObject) (ServeImageResponseObject, error)
+	// Stream downscaled thumbnail
+	// (GET /images/{id}/thumb)
+	ServeThumbnail(ctx context.Context, request ServeThumbnailRequestObject) (ServeThumbnailResponseObject, error)
+	// List configured ML models
+	// (GET /models)
+	ListModels(ctx context.Context, request ListModelsRequestObject) (ListModelsResponseObject, error)
+	// Readiness probe
+	// (GET /readyz)
+	Readiness(ctx context.Context, request ReadinessRequestObject) (ReadinessResponseObject, error)
+	// Run SAM inference for click points
+	// (POST /segment)
+	Segment(ctx context.Context, request SegmentRequestObject) (SegmentResponseObject, error)
+	// Launch YOLO training job
+	// (POST /train/start)
+	StartTrain(ctx context.Context, request StartTrainRequestObject) (StartTrainResponseObject, error)
+	// Check if training job is running
+	// (GET /train/status)
+	GetTrainStatus(ctx context.Context, request GetTrainStatusRequestObject) (GetTrainStatusResponseObject, error)
+	// SSE stream of training progress
+	// (GET /train/stream)
+	StreamTrain(ctx context.Context, request StreamTrainRequestObject) (StreamTrainResponseObject, error)
+}
+
+type StrictHandlerFunc func(ctx *gin.Context, request any) (any, error)
+type StrictMiddlewareFunc func(f StrictHandlerFunc, operationID string) StrictHandlerFunc
+
+type StrictGinServerOptions struct {
+	// RequestErrorHandlerFunc is called when a request cannot be parsed or
+	// decoded. It is invoked for JSON bind failures, form parse/bind errors,
+	// multipart reader errors, media type parse errors, missing multipart
+	// boundaries, and request body read errors. The default returns 400.
+	RequestErrorHandlerFunc func(ctx *gin.Context, err error)
+	// HandlerErrorFunc is called when the application handler (or any
+	// middleware wrapping it) returns a non-nil error. The default returns 500.
+	HandlerErrorFunc func(ctx *gin.Context, err error)
+	// ResponseErrorHandlerFunc is called when the response object fails to
+	// serialize (Visit*Response returns an error) or when the handler returns
+	// an unexpected response type. The default returns 500.
+	ResponseErrorHandlerFunc func(ctx *gin.Context, err error)
+}
+
+func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: StrictGinServerOptions{
+		RequestErrorHandlerFunc: func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"msg": err.Error()})
+		},
+		HandlerErrorFunc: func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"msg": err.Error()})
+		},
+		ResponseErrorHandlerFunc: func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"msg": err.Error()})
+		},
+	}}
+}
+
+func NewStrictHandlerWithOptions(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc, options StrictGinServerOptions) ServerInterface {
+	if options.RequestErrorHandlerFunc == nil {
+		options.RequestErrorHandlerFunc = func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"msg": err.Error()})
+		}
+	}
+	if options.HandlerErrorFunc == nil {
+		options.HandlerErrorFunc = func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"msg": err.Error()})
+		}
+	}
+	if options.ResponseErrorHandlerFunc == nil {
+		options.ResponseErrorHandlerFunc = func(ctx *gin.Context, err error) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"msg": err.Error()})
+		}
+	}
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: options}
+}
+
+type strictHandler struct {
+	ssi         StrictServerInterface
+	middlewares []StrictMiddlewareFunc
+	options     StrictGinServerOptions
+}
+
+// SaveAnnotations operation middleware
+func (sh *strictHandler) SaveAnnotations(ctx *gin.Context) {
+	var request SaveAnnotationsRequestObject
+
+	var body SaveAnnotationsJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SaveAnnotations(ctx, request.(SaveAnnotationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SaveAnnotations")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SaveAnnotationsResponseObject); ok {
+		if err := validResponse.VisitSaveAnnotationsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SkipImage operation middleware
+func (sh *strictHandler) SkipImage(ctx *gin.Context) {
+	var request SkipImageRequestObject
+
+	var body SkipImageJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.SkipImage(ctx, request.(SkipImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SkipImage")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SkipImageResponseObject); ok {
+		if err := validResponse.VisitSkipImageResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAnnotations operation middleware
+func (sh *strictHandler) GetAnnotations(ctx *gin.Context, id int64) {
+	var request GetAnnotationsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAnnotations(ctx, request.(GetAnnotationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAnnotations")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetAnnotationsResponseObject); ok {
+		if err := validResponse.VisitGetAnnotationsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartAugment operation middleware
+func (sh *strictHandler) StartAugment(ctx *gin.Context) {
+	var request StartAugmentRequestObject
+
+	var body StartAugmentJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StartAugment(ctx, request.(StartAugmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartAugment")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(StartAugmentResponseObject); ok {
+		if err := validResponse.VisitStartAugmentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAugmentStatus operation middleware
+func (sh *strictHandler) GetAugmentStatus(ctx *gin.Context) {
+	var request GetAugmentStatusRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAugmentStatus(ctx, request.(GetAugmentStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAugmentStatus")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetAugmentStatusResponseObject); ok {
+		if err := validResponse.VisitGetAugmentStatusResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StreamAugment operation middleware
+func (sh *strictHandler) StreamAugment(ctx *gin.Context) {
+	var request StreamAugmentRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StreamAugment(ctx, request.(StreamAugmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StreamAugment")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(StreamAugmentResponseObject); ok {
+		if err := validResponse.VisitStreamAugmentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListClasses operation middleware
+func (sh *strictHandler) ListClasses(ctx *gin.Context) {
+	var request ListClassesRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListClasses(ctx, request.(ListClassesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListClasses")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListClassesResponseObject); ok {
+		if err := validResponse.VisitListClassesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpsertClass operation middleware
+func (sh *strictHandler) UpsertClass(ctx *gin.Context) {
+	var request UpsertClassRequestObject
+
+	var body UpsertClassJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UpsertClass(ctx, request.(UpsertClassRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpsertClass")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UpsertClassResponseObject); ok {
+		if err := validResponse.VisitUpsertClassResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGallery operation middleware
+func (sh *strictHandler) GetGallery(ctx *gin.Context) {
+	var request GetGalleryRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGallery(ctx, request.(GetGalleryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGallery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetGalleryResponseObject); ok {
+		if err := validResponse.VisitGetGalleryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGroupedGallery operation middleware
+func (sh *strictHandler) GetGroupedGallery(ctx *gin.Context) {
+	var request GetGroupedGalleryRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGroupedGallery(ctx, request.(GetGroupedGalleryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGroupedGallery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetGroupedGalleryResponseObject); ok {
+		if err := validResponse.VisitGetGroupedGalleryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ImportGallery operation middleware
+func (sh *strictHandler) ImportGallery(ctx *gin.Context) {
+	var request ImportGalleryRequestObject
+
+	if reader, err := ctx.Request.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ImportGallery(ctx, request.(ImportGalleryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ImportGallery")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ImportGalleryResponseObject); ok {
+		if err := validResponse.VisitImportGalleryResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Health operation middleware
+func (sh *strictHandler) Health(ctx *gin.Context) {
+	var request HealthRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Health(ctx, request.(HealthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Health")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(HealthResponseObject); ok {
+		if err := validResponse.VisitHealthResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Liveness operation middleware
+func (sh *strictHandler) Liveness(ctx *gin.Context) {
+	var request LivenessRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Liveness(ctx, request.(LivenessRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Liveness")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(LivenessResponseObject); ok {
+		if err := validResponse.VisitLivenessResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteImages operation middleware
+func (sh *strictHandler) DeleteImages(ctx *gin.Context) {
+	var request DeleteImagesRequestObject
+
+	var body DeleteImagesJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteImages(ctx, request.(DeleteImagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteImages")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(DeleteImagesResponseObject); ok {
+		if err := validResponse.VisitDeleteImagesResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ServeImage operation middleware
+func (sh *strictHandler) ServeImage(ctx *gin.Context, id int64) {
+	var request ServeImageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ServeImage(ctx, request.(ServeImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServeImage")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ServeImageResponseObject); ok {
+		if err := validResponse.VisitServeImageResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ServeThumbnail operation middleware
+func (sh *strictHandler) ServeThumbnail(ctx *gin.Context, id int64) {
+	var request ServeThumbnailRequestObject
+
+	request.Id = id
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ServeThumbnail(ctx, request.(ServeThumbnailRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServeThumbnail")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ServeThumbnailResponseObject); ok {
+		if err := validResponse.VisitServeThumbnailResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListModels operation middleware
+func (sh *strictHandler) ListModels(ctx *gin.Context) {
+	var request ListModelsRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListModels(ctx, request.(ListModelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListModels")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ListModelsResponseObject); ok {
+		if err := validResponse.VisitListModelsResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Readiness operation middleware
+func (sh *strictHandler) Readiness(ctx *gin.Context) {
+	var request ReadinessRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Readiness(ctx, request.(ReadinessRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Readiness")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ReadinessResponseObject); ok {
+		if err := validResponse.VisitReadinessResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Segment operation middleware
+func (sh *strictHandler) Segment(ctx *gin.Context) {
+	var request SegmentRequestObject
+
+	var body SegmentJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Segment(ctx, request.(SegmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Segment")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(SegmentResponseObject); ok {
+		if err := validResponse.VisitSegmentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartTrain operation middleware
+func (sh *strictHandler) StartTrain(ctx *gin.Context) {
+	var request StartTrainRequestObject
+
+	var body StartTrainJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StartTrain(ctx, request.(StartTrainRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartTrain")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(StartTrainResponseObject); ok {
+		if err := validResponse.VisitStartTrainResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTrainStatus operation middleware
+func (sh *strictHandler) GetTrainStatus(ctx *gin.Context) {
+	var request GetTrainStatusRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTrainStatus(ctx, request.(GetTrainStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTrainStatus")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetTrainStatusResponseObject); ok {
+		if err := validResponse.VisitGetTrainStatusResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StreamTrain operation middleware
+func (sh *strictHandler) StreamTrain(ctx *gin.Context) {
+	var request StreamTrainRequestObject
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.StreamTrain(ctx, request.(StreamTrainRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StreamTrain")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(StreamTrainResponseObject); ok {
+		if err := validResponse.VisitStreamTrainResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
