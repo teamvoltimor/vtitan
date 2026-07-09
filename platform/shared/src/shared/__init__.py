@@ -1,10 +1,11 @@
 """Shared utilities for voldemorbot-platform.
 
-Central module for configuration, types, enums, and I/O utilities shared across
-backend, robot, simulation, and frontend services.
+Central module for configuration, enums, and I/O utilities. Currently
+consumed only by ``platform/robot`` (Python); the Go backend and TypeScript
+frontend do not import it.
 
 Imports:
-    config: Configuration, constants, types, enums
+    config: Configuration, constants, enums
     io: JSONL file utilities
 """
 

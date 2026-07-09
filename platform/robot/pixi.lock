@@ -46805,6 +46805,7 @@ packages:
   name: voldemorbot-shared
   requires_dist:
   - pydantic>=2.0.0
+  - pyyaml>=6.0 ; extra == 'yaml'
   requires_python: '>=3.11'
 - pypi: ./libs/linux_aarch64/hailort-4.23.0-cp312-cp312-linux_aarch64.whl
   name: hailort

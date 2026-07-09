@@ -8,185 +8,188 @@ Official Source: WRO Future Engineers Competition Rules 2026
 Last Updated: 2026-02-08
 """
 
-from shared.domain.enums import Section
+from dataclasses import dataclass
+from typing import Final
+
+from shared.domain.enums import LightingScenario, Section
 
 
 class TrackDimensions:
     """Official WRO track dimensions (meters)."""
 
     # Mat and track sizes
-    MAT_SIZE = 3.2  # 3200mm mat size
-    TRACK_SIZE = 3.0  # 3000mm inner track size
+    MAT_SIZE: Final[float] = 3.2  # 3200mm mat size
+    TRACK_SIZE: Final[float] = 3.0  # 3000mm inner track size
 
     # Coordinate system (bottom-left origin)
-    MIN_COORD = 0.0  # Minimum coordinate (bottom-left)
-    MAX_COORD = 3.0  # Maximum coordinate (top-right)
-    CENTER_COORD = 1.5  # Center of track
+    MIN_COORD: Final[float] = 0.0  # Minimum coordinate (bottom-left)
+    MAX_COORD: Final[float] = 3.0  # Maximum coordinate (top-right)
+    CENTER_COORD: Final[float] = 1.5  # Center of track
 
     # Corner section (obstacles challenge)
-    CORNER_MIN = 1.0  # Corner section start
-    CORNER_MAX = 2.0  # Corner section end
-    CORNER_SIZE = 1.0  # 1000mm × 1000mm corner
+    CORNER_MIN: Final[float] = 1.0  # Corner section start
+    CORNER_MAX: Final[float] = 2.0  # Corner section end
+    CORNER_SIZE: Final[float] = 1.0  # 1000mm × 1000mm corner
 
 
 class WallSpecs:
     """Wall dimensions and positioning."""
 
-    HEIGHT = 0.1  # 100mm wall height
-    THICKNESS = 0.1  # 100mm wall thickness (visual)
+    HEIGHT: Final[float] = 0.1  # 100mm wall height
+    THICKNESS: Final[float] = 0.1  # 100mm wall thickness (visual)
     # Collision extends 40mm per side past visual to prevent LIDAR pass-through.
     # LIDAR is 30mm ahead of chassis front, so 40mm buffer ensures the LIDAR
     # stays ≥10mm outside the visual wall face even at full contact.
-    COLLISION_THICKNESS = 0.18  # 100mm visual + 40mm per side
+    COLLISION_THICKNESS: Final[float] = 0.18  # 100mm visual + 40mm per side
 
     # Wall positioning offsets
-    EXTERIOR_OFFSET = 0.05  # Half thickness for exterior walls
-    INTERIOR_OFFSET = 0.05  # Half thickness for interior walls
+    EXTERIOR_OFFSET: Final[float] = 0.05  # Half thickness for exterior walls
+    INTERIOR_OFFSET: Final[float] = 0.05  # Half thickness for interior walls
 
     # Color (RGB normalized 0-1)
-    COLOR = (0.0, 0.0, 0.0)  # Black
+    COLOR: Final[tuple[float, float, float]] = (0.0, 0.0, 0.0)  # Black
 
 
 class CorridorDimensions:
     """Corridor width specifications for different challenges."""
 
     # Open challenge: Variable corridor widths
-    NARROW = 0.6  # 600mm narrow corridor
-    WIDE = 1.0  # 1000mm wide corridor
+    NARROW: Final[float] = 0.6  # 600mm narrow corridor
+    WIDE: Final[float] = 1.0  # 1000mm wide corridor
 
     # Validation bounds (wider range to allow test tolerance)
-    MIN_WIDTH = 0.5  # Minimum valid corridor width (500mm)
-    MAX_WIDTH = 1.5  # Maximum valid corridor width (1500mm)
+    MIN_WIDTH: Final[float] = 0.5  # Minimum valid corridor width (500mm)
+    MAX_WIDTH: Final[float] = 1.5  # Maximum valid corridor width (1500mm)
 
     # Obstacles challenge: Fixed corridor width
-    OBSTACLES_WIDTH = 1.0  # 1000mm fixed width
+    OBSTACLES_WIDTH: Final[float] = 1.0  # 1000mm fixed width
 
     # Corridor division grid
-    DIVISION_OUTER = 0.4  # 400mm from outer wall
-    DIVISION_INNER = 0.6  # 600mm from outer wall
-    DIVISION_WIDTH = 0.2  # 200mm middle section width
+    DIVISION_OUTER: Final[float] = 0.4  # 400mm from outer wall
+    DIVISION_INNER: Final[float] = 0.6  # 600mm from outer wall
+    DIVISION_WIDTH: Final[float] = 0.2  # 200mm middle section width
 
 
 class TrafficSignSpecs:
     """Official WRO traffic sign dimensions and colors."""
 
-    WIDTH = 0.05  # 50mm
-    DEPTH = 0.05  # 50mm
-    HEIGHT = 0.10  # 100mm
-    Z_POSITION = 0.05  # Half height (50mm)
+    WIDTH: Final[float] = 0.05  # 50mm
+    DEPTH: Final[float] = 0.05  # 50mm
+    HEIGHT: Final[float] = 0.10  # 100mm
+    Z_POSITION: Final[float] = 0.05  # Half height (50mm)
 
     # Official colors (RGB normalized 0-1)
     # WRO Spec 13.21-13.22
-    RED_COLOR = (0.933, 0.153, 0.216)  # RGB(238, 39, 55)
-    GREEN_COLOR = (0.267, 0.839, 0.173)  # RGB(68, 214, 44)
+    RED_COLOR: Final[tuple[float, float, float]] = (0.933, 0.153, 0.216)  # RGB(238, 39, 55)
+    GREEN_COLOR: Final[tuple[float, float, float]] = (0.267, 0.839, 0.173)  # RGB(68, 214, 44)
 
     # Color randomization (standard deviation for Gaussian noise)
-    RED_STD = (0.05, 0.02, 0.02)
-    GREEN_STD = (0.02, 0.05, 0.02)
+    RED_STD: Final[tuple[float, float, float]] = (0.05, 0.02, 0.02)
+    GREEN_STD: Final[tuple[float, float, float]] = (0.02, 0.05, 0.02)
 
     # Grid positions (intersections of corridor divisions)
-    GRID_DEPTH_NEAR = 1.0  # Entry position
-    GRID_DEPTH_MIDDLE = 1.5  # Center position
-    GRID_DEPTH_FAR = 2.0  # Exit position
-    GRID_WIDTH_OUTER = 0.4  # Outer division line
-    GRID_WIDTH_INNER = 0.6  # Inner division line
+    GRID_DEPTH_NEAR: Final[float] = 1.0  # Entry position
+    GRID_DEPTH_MIDDLE: Final[float] = 1.5  # Center position
+    GRID_DEPTH_FAR: Final[float] = 2.0  # Exit position
+    GRID_WIDTH_OUTER: Final[float] = 0.4  # Outer division line
+    GRID_WIDTH_INNER: Final[float] = 0.6  # Inner division line
 
     # Number of signs
-    MIN_SIGNS = 6  # Minimum per round
-    MAX_SIGNS = 14  # Maximum per round (7 red + 7 green)
+    MIN_SIGNS: Final[int] = 6  # Minimum per round
+    MAX_SIGNS: Final[int] = 14  # Maximum per round (7 red + 7 green)
 
 
 class ParkingLotSpecs:
     """Parking block dimensions and positioning (obstacles challenge only)."""
 
     # Block dimensions (meters)
-    LENGTH = 0.20  # 200mm
-    WIDTH = 0.02  # 20mm
-    HEIGHT = 0.10  # 100mm
-    Z_POSITION = 0.05  # Half height (50mm)
+    LENGTH: Final[float] = 0.20  # 200mm
+    WIDTH: Final[float] = 0.02  # 20mm
+    HEIGHT: Final[float] = 0.10  # 100mm
+    Z_POSITION: Final[float] = 0.05  # Half height (50mm)
 
     # Color (RGB normalized 0-1)
-    COLOR = (1.0, 0.0, 1.0)  # Magenta RGB(255, 0, 255)
+    COLOR: Final[tuple[float, float, float]] = (1.0, 0.0, 1.0)  # Magenta RGB(255, 0, 255)
 
     # Positioning
-    WALL_OFFSET = 0.1  # Half of LENGTH (100mm from wall edge)
-    BLOCK_SPACING_FACTOR = 1.5  # Spacing = 1.5 × robot_width
+    WALL_OFFSET: Final[float] = 0.1  # Half of LENGTH (100mm from wall edge)
+    BLOCK_SPACING_FACTOR: Final[float] = 1.5  # Spacing = 1.5 × robot_width
 
 
 class CompetitionSpecs:
     """Official WRO Future Engineers match rules (round timing, lap counts)."""
 
-    ROUND_TIME_LIMIT_S = 180.0  # Official round duration: 3 minutes
-    OPEN_CHALLENGE_LAPS = 3  # Laps required per Open Challenge run
+    ROUND_TIME_LIMIT_S: Final[float] = 180.0  # Official round duration: 3 minutes
+    OPEN_CHALLENGE_LAPS: Final[int] = 3  # Laps required per Open Challenge run
 
 
 class StartingZoneSpecs:
     """Starting zone dimensions and visual appearance."""
 
     # Default dimensions (meters)
-    DEFAULT_LENGTH = 0.5  # 500mm
-    WIDTH = 0.2  # 200mm
-    THICKNESS = 0.001  # 1mm visual marker
+    DEFAULT_LENGTH: Final[float] = 0.5  # 500mm
+    WIDTH: Final[float] = 0.2  # 200mm
+    THICKNESS: Final[float] = 0.001  # 1mm visual marker
 
     # Obstacles challenge adjustment
-    OBSTACLES_SIZE_FACTOR = 0.9  # Use 90% of available gap
+    OBSTACLES_SIZE_FACTOR: Final[float] = 0.9  # Use 90% of available gap
 
     # Visual appearance (RGB normalized 0-1)
-    COLOR = (0.5, 0.5, 0.5)  # Grey
+    COLOR: Final[tuple[float, float, float]] = (0.5, 0.5, 0.5)  # Grey
 
     # Direction indicators
-    CLOCKWISE_COLOR = (0.2, 0.4, 1.0)  # Blue
-    COUNTERCLOCKWISE_COLOR = (0.2, 1.0, 0.4)  # Green
-    INDICATOR_RADIUS = 0.035  # 35mm radius
+    CLOCKWISE_COLOR: Final[tuple[float, float, float]] = (0.2, 0.4, 1.0)  # Blue
+    COUNTERCLOCKWISE_COLOR: Final[tuple[float, float, float]] = (0.2, 1.0, 0.4)  # Green
+    INDICATOR_RADIUS: Final[float] = 0.035  # 35mm radius
 
 
 class RobotSpecs:
     """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann)."""
 
     # Chassis dimensions
-    LENGTH = 0.30  # 300mm chassis length
-    WIDTH = 0.20  # 200mm chassis width
-    HEIGHT = 0.10  # 100mm chassis height
+    LENGTH: Final[float] = 0.30  # 300mm chassis length
+    WIDTH: Final[float] = 0.20  # 200mm chassis width
+    HEIGHT: Final[float] = 0.10  # 100mm chassis height
 
     # Ackermann geometry
-    WHEELBASE = 0.17  # 170mm axle-to-axle distance
-    TRACK_WIDTH = 0.105  # 105mm wheel-to-wheel distance
-    WHEEL_RADIUS = 0.0216  # 21.6mm LEGO Technic wheel radius
-    MAX_STEERING_ANGLE = 0.5236  # ~30 degrees max front wheel angle
+    WHEELBASE: Final[float] = 0.17  # 170mm axle-to-axle distance
+    TRACK_WIDTH: Final[float] = 0.105  # 105mm wheel-to-wheel distance
+    WHEEL_RADIUS: Final[float] = 0.0216  # 21.6mm LEGO Technic wheel radius
+    MAX_STEERING_ANGLE: Final[float] = 0.5236  # ~30 degrees max front wheel angle
 
     # Wheel details
-    WHEEL_WIDTH = 0.020  # 20mm LEGO Technic wheel width
-    WHEEL_MASS = 0.05  # 50g per wheel
-    CHASSIS_MASS = 0.8  # 800g total chassis
+    WHEEL_WIDTH: Final[float] = 0.020  # 20mm LEGO Technic wheel width
+    WHEEL_MASS: Final[float] = 0.05  # 50g per wheel
+    CHASSIS_MASS: Final[float] = 0.8  # 800g total chassis
 
     # LIDAR (Slamtec C1)
-    LIDAR_MIN_RANGE = 0.05  # 50mm minimum detection range (real sensor)
-    LIDAR_SIM_MIN_RANGE = (
+    LIDAR_MIN_RANGE: Final[float] = 0.05  # 50mm minimum detection range (real sensor)
+    LIDAR_SIM_MIN_RANGE: Final[float] = (
         0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
     )
-    LIDAR_MAX_RANGE = 12.0  # 12m maximum detection range
-    LIDAR_SAMPLES = 500  # Slamtec C1 horizontal samples
-    LIDAR_UPDATE_RATE = 10.0  # 10 Hz scan rate
-    LIDAR_NOISE_STDDEV = 0.03  # 30mm noise
+    LIDAR_MAX_RANGE: Final[float] = 12.0  # 12m maximum detection range
+    LIDAR_SAMPLES: Final[int] = 500  # Slamtec C1 horizontal samples
+    LIDAR_UPDATE_RATE: Final[float] = 10.0  # 10 Hz scan rate
+    LIDAR_NOISE_STDDEV: Final[float] = 0.03  # 30mm noise
     # Rays that clip the chassis body itself (mount occlusion, cable clutter)
     # return as a self-reflection, not a real obstacle. Never applied to the
     # pure-forward bearing, where a genuine near-contact must still register.
-    LIDAR_SELF_DETECTION_THRESHOLD = 0.08  # 80mm
+    LIDAR_SELF_DETECTION_THRESHOLD: Final[float] = 0.08  # 80mm
 
     # IMU (Adafruit BNO085)
-    IMU_UPDATE_RATE = 100.0  # 100 Hz update rate
-    IMU_GYRO_NOISE = 0.054  # rad/s gyroscope noise stddev
-    IMU_ACCEL_NOISE = 0.3  # m/s² accelerometer noise stddev
-    IMU_MASS = 0.0025  # 2.5g board mass
-    IMU_SIZE = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
+    IMU_UPDATE_RATE: Final[float] = 100.0  # 100 Hz update rate
+    IMU_GYRO_NOISE: Final[float] = 0.054  # rad/s gyroscope noise stddev
+    IMU_ACCEL_NOISE: Final[float] = 0.3  # m/s² accelerometer noise stddev
+    IMU_MASS: Final[float] = 0.0025  # 2.5g board mass
+    IMU_SIZE: Final[tuple[float, float, float]] = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
 
     # Camera (RPi Camera 3 Wide)
-    CAMERA_HFOV = 1.7802  # 102 degrees horizontal FOV (radians)
-    CAMERA_WIDTH = 1536  # Horizontal resolution (pixels)
-    CAMERA_HEIGHT = 864  # Vertical resolution (pixels)
-    CAMERA_UPDATE_RATE = 30.0  # 30 FPS
-    CAMERA_NEAR_CLIP = 0.05  # 50mm near clip
-    CAMERA_FAR_CLIP = 10.0  # 10m far clip
+    CAMERA_HFOV: Final[float] = 1.7802  # 102 degrees horizontal FOV (radians)
+    CAMERA_WIDTH: Final[int] = 1536  # Horizontal resolution (pixels)
+    CAMERA_HEIGHT: Final[int] = 864  # Vertical resolution (pixels)
+    CAMERA_UPDATE_RATE: Final[float] = 30.0  # 30 FPS
+    CAMERA_NEAR_CLIP: Final[float] = 0.05  # 50mm near clip
+    CAMERA_FAR_CLIP: Final[float] = 10.0  # 10m far clip
 
 
 class TrackMarkings:
@@ -215,6 +218,23 @@ class LightingSpecs:
     DIRECTION_VARIANCE = 0.3
 
 
+@dataclass(frozen=True, slots=True)
+class LightingSpec:
+    """Randomization ranges and shadow behavior for one lighting scenario.
+
+    Attributes:
+        intensity:     (min, max) sun intensity range [0.0, 1.0].
+        ambient:       (min, max) ambient intensity range [0.0, 1.0].
+        direction:     ((x_min, x_max), (y_min, y_max), z) sun direction, z fixed.
+        cast_shadows:  Whether the sun casts shadows in this scenario.
+    """
+
+    intensity: tuple[float, float]
+    ambient: tuple[float, float]
+    direction: tuple[tuple[float, float], tuple[float, float], float]
+    cast_shadows: bool
+
+
 class LightingScenarios:
     """Table-driven lighting scenario specifications.
 
@@ -223,43 +243,43 @@ class LightingScenarios:
     eliminates 50+ lines of duplicated branching code.
     """
 
-    SPECS = {
-        "direct_sunlight": {
-            "intensity": (0.9, 1.0),
-            "ambient": (0.3, 0.4),
-            "direction": ((-0.7, -0.3), (-0.7, -0.3), -1.0),
-            "cast_shadows": True,
-        },
-        "cloudy": {
-            "intensity": (0.6, 0.75),
-            "ambient": (0.5, 0.6),
-            "direction": ((-0.5, -0.5), (-0.5, -0.5), -1.0),
-            "cast_shadows": True,
-        },
-        "indoor_bright": {
-            "intensity": (0.7, 0.85),
-            "ambient": (0.6, 0.7),
-            "direction": ((0.0, 0.0), (0.0, 0.0), -1.0),
-            "cast_shadows": False,
-        },
-        "indoor_dim": {
-            "intensity": (0.5, 0.65),
-            "ambient": (0.4, 0.5),
-            "direction": ((0.0, 0.0), (0.0, 0.0), -1.0),
-            "cast_shadows": False,
-        },
-        "evening": {
-            "intensity": (0.6, 0.8),
-            "ambient": (0.3, 0.4),
-            "direction": ((-0.9, -0.7), (-0.5, 0.5), -0.3),
-            "cast_shadows": True,
-        },
-        "mixed": {
-            "intensity": (0.7, 0.9),
-            "ambient": (0.5, 0.65),
-            "direction": ((-0.6, -0.4), (-0.6, -0.4), -1.0),
-            "cast_shadows": True,
-        },
+    SPECS: Final[dict[LightingScenario, LightingSpec]] = {
+        LightingScenario.DIRECT_SUNLIGHT: LightingSpec(
+            intensity=(0.9, 1.0),
+            ambient=(0.3, 0.4),
+            direction=((-0.7, -0.3), (-0.7, -0.3), -1.0),
+            cast_shadows=True,
+        ),
+        LightingScenario.CLOUDY: LightingSpec(
+            intensity=(0.6, 0.75),
+            ambient=(0.5, 0.6),
+            direction=((-0.5, -0.5), (-0.5, -0.5), -1.0),
+            cast_shadows=True,
+        ),
+        LightingScenario.INDOOR_BRIGHT: LightingSpec(
+            intensity=(0.7, 0.85),
+            ambient=(0.6, 0.7),
+            direction=((0.0, 0.0), (0.0, 0.0), -1.0),
+            cast_shadows=False,
+        ),
+        LightingScenario.INDOOR_DIM: LightingSpec(
+            intensity=(0.5, 0.65),
+            ambient=(0.4, 0.5),
+            direction=((0.0, 0.0), (0.0, 0.0), -1.0),
+            cast_shadows=False,
+        ),
+        LightingScenario.EVENING: LightingSpec(
+            intensity=(0.6, 0.8),
+            ambient=(0.3, 0.4),
+            direction=((-0.9, -0.7), (-0.5, 0.5), -0.3),
+            cast_shadows=True,
+        ),
+        LightingScenario.MIXED: LightingSpec(
+            intensity=(0.7, 0.9),
+            ambient=(0.5, 0.65),
+            direction=((-0.6, -0.4), (-0.6, -0.4), -1.0),
+            cast_shadows=True,
+        ),
     }
 
 

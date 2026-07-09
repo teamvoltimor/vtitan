@@ -7,6 +7,9 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

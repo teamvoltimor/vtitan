@@ -120,14 +120,6 @@ sim     = { features = ["dev", "sim"], solve-group = "default" }
 navigate = "python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
 drive    = "python main.py drive"
 visualize-scenario = { cmd = "python -m src.simulation.visualize_scenario", env = { PYTHONPATH = "." } }
-# check-only by default (CI-safe -- fails on violations instead of silently
-# rewriting files); use lint-fix for the old auto-fix convenience locally.
-lint       = "ruff check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
-lint-fix   = "ruff check --fix src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
-format-check = "ruff format --check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
-typecheck  = { cmd = "mypy src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine", env = { PYTHONPATH = "." } }
-test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
-test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }
 
 # ROS2 utilities
 graph = "ros2 run rqt_graph rqt_graph"
@@ -169,6 +161,24 @@ fetch-lidar-driver = "test -d ros2_ws/src/sllidar_ros2 || git clone https://gith
 # Windows-specific overrides to fix the "Multiple executables" error
 graph = "ros2 run rqt_graph rqt_graph.exe"
 viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
+
+# pytest/ruff/mypy only exist in the dev feature (see [feature.dev.dependencies])
+# -- these must live here, not in the global [tasks], or `pixi run <task>`
+# silently resolves against the `default` environment, which lacks all three
+# and falls through to whatever's on the system PATH instead of the pinned
+# pixi-managed tool. That's a silent false-pass, not a "command not found"
+# error: system mypy in particular can't see this env's editable-installed
+# packages (e.g. voldemorbot-shared), so every third-party/first-party type
+# check silently degrades to Any instead of raising the configured errors.
+[feature.dev.tasks]
+# check-only by default (CI-safe -- fails on violations instead of silently
+# rewriting files); use lint-fix for the old auto-fix convenience locally.
+lint       = "ruff check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
+lint-fix   = "ruff check --fix src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
+format-check = "ruff format --check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
+typecheck  = { cmd = "mypy src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine", env = { PYTHONPATH = "." } }
+test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
+test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }
 
 # sllidar_ros2 SDK hardcodes Linux arch sources — build-ws is Linux-only
 [feature.dev.target.linux-64.tasks]
