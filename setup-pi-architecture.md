@@ -304,7 +304,7 @@ WorkingDirectory=/home/pi/voldemorbot/platform/robot
 Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi5_nodes.launch.py
+ExecStart=/home/pi/.pixi/bin/pixi run -e vision ros2 launch voldemorbot_robot rpi5_nodes.launch.py
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=3
@@ -330,7 +330,7 @@ User=pi
 Group=pi
 Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0
+ExecStart=/home/pi/.pixi/bin/pixi run -e vision ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0
 Restart=on-failure
 RestartSec=3
 

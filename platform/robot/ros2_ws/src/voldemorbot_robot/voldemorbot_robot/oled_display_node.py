@@ -34,9 +34,12 @@ from sensor_msgs.msg import (
     Imu,
     LaserScan,
 )
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from std_msgs.msg import Float32, String
 
-from src.hardware.display.ssd1306 import Driver as DisplayDriver
+from src.hardware.display.enums import DisplayBackend
+from src.hardware.display.ssd1306 import Driver as BlinkaDriver, RawI2CDriver
 from src.state_machine import RobotState
 
 if TYPE_CHECKING:
@@ -48,11 +51,38 @@ if TYPE_CHECKING:
 NODE_NAME = "oled_display_node"
 """ROS2 node name for OLED display controller."""
 
-UI_REFRESH_RATE_HZ = 10.0
-"""Rate for updating display data (fast updates)."""
 
-PAGE_CYCLE_INTERVAL_SEC = 1.2
-"""Interval for cycling between pages during RACING state."""
+class NodeConfig(BaseSettings):
+    """Node-level timing and backend selection, configurable via .env -- matches every
+    hardware driver's Config pattern.
+
+    Timing fields were previously hardcoded as plain module constants, silently ignoring
+    .env.example's documented UI_REFRESH_RATE_HZ / PAGE_CYCLE_INTERVAL_SEC entirely --
+    changing those values had zero effect.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="")
+
+    ui_refresh_rate_hz: float = Field(default=10.0, validation_alias="UI_REFRESH_RATE_HZ")
+    """Rate for updating display data (fast updates)."""
+
+    page_cycle_interval_sec: float = Field(default=1.2, validation_alias="PAGE_CYCLE_INTERVAL_SEC")
+    """Interval for cycling between pages during RACING state."""
+
+    display_backend: DisplayBackend = Field(default=DisplayBackend.BLINKA, validation_alias="DISPLAY_BACKEND")
+    """SSD1306 I2C backend -- blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N
+    ioctl, no Blinka/smbus2 dependency). See src/hardware/display/ssd1306/driver_raw_i2c.py
+    for why raw_i2c exists."""
+
+
+_node_config = NodeConfig()
+UI_REFRESH_RATE_HZ = _node_config.ui_refresh_rate_hz
+PAGE_CYCLE_INTERVAL_SEC = _node_config.page_cycle_interval_sec
+
+_DISPLAY_DRIVER_BY_BACKEND = {
+    DisplayBackend.BLINKA: BlinkaDriver,
+    DisplayBackend.RAW_I2C: RawI2CDriver,
+}
 
 
 class OLEDDisplayNode(Node):
@@ -74,9 +104,10 @@ class OLEDDisplayNode(Node):
 
         # Display driver
         try:
-            self.display_driver = DisplayDriver()
+            display_driver_cls = _DISPLAY_DRIVER_BY_BACKEND[_node_config.display_backend]
+            self.display_driver = display_driver_cls()
             self.display_driver.connect()
-            self.get_logger().info("Display driver connected")
+            self.get_logger().info(f"Display driver connected ({_node_config.display_backend.value} backend)")
         except (RuntimeError, OSError, ValueError, ImportError) as e:
             self.get_logger().error(f"Failed to connect display driver: {e}")
             self.display_driver = None
@@ -400,7 +431,7 @@ class OLEDDisplayNode(Node):
             ros_img.header.frame_id = "oled_display"
             self.oled_mirror_pub.publish(ros_img)
         except (RuntimeError, ValueError) as e:
-            self.get_logger().warning("Failed to publish mirror image: %s", e)
+            self.get_logger().warning(f"Failed to publish mirror image: {e}")
 
     @override
     def destroy_node(self) -> None:

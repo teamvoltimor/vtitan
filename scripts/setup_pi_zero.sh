@@ -47,6 +47,13 @@ for line in "dtparam=i2c_arm=on" "dtoverlay=dwc2" "enable_uart=1" "dtoverlay=pwm
     grep -qxF "$line" "$config" || echo "$line" >> "$config"
 done
 
+# dtparam=i2c_arm=on above only loads the i2c_bcm2835 bus driver -- it does NOT create
+# /dev/i2c-1 on its own. raspi-config's "Enable I2C" normally also loads i2c-dev for the
+# userspace device node; do that explicitly here since we're bypassing raspi-config.
+log "Ensuring i2c-dev module loads at boot..."
+echo "i2c-dev" > /etc/modules-load.d/i2c-dev.conf
+modprobe i2c-dev
+
 log "Ensuring g_ether USB gadget module loads at boot..."
 cmdline="$BOOT_DIR/cmdline.txt"
 grep -q "modules-load=dwc2,g_ether" "$cmdline" || sed -i 's/[[:space:]]*$/ modules-load=dwc2,g_ether/' "$cmdline"

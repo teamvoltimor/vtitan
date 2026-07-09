@@ -19,10 +19,19 @@ import math
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.env import EnvVar
 
-LIDAR_YAW_OFFSET_DEG = EnvVar(key="LIDAR_YAW_OFFSET_DEG", default=180.0, cast=float)
+class Config(BaseSettings):
+    """Static TF configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="")
+
+    lidar_yaw_offset_deg: float = Field(default=180.0, validation_alias="LIDAR_YAW_OFFSET_DEG")
+
+
+_config = Config()
 
 
 def _static_tf(name: str, x: float, y: float, z: float, yaw_rad: float, frame_id: str, child_frame_id: str) -> Node:
@@ -46,7 +55,7 @@ def _static_tf(name: str, x: float, y: float, z: float, yaw_rad: float, frame_id
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for static sensor-frame transforms."""
-    lidar_yaw_rad = math.radians(LIDAR_YAW_OFFSET_DEG.value)
+    lidar_yaw_rad = math.radians(_config.lidar_yaw_offset_deg)
 
     return LaunchDescription(
         [

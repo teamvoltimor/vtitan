@@ -65,11 +65,16 @@ clone_repo "$REPO_DIR"
 install_ros_workspace "$ROBOT_DIR" lidar
 copy_env "$ROBOT_DIR"
 
+# Pi 5 runs vision_node/Hailo — pre-install the "vision" env (dev + ultralytics
+# + hailort) here so the first systemd start doesn't have to install it cold.
+log "Installing pixi vision env (ultralytics + hailort)..."
+run_as_pi bash -c "cd '$ROBOT_DIR' && '$PIXI_BIN' install -e vision"
+
 # Hailo python bindings go INTO the pixi env (where vision_node actually runs),
 # not system python — that also sidesteps Trixie's externally-managed pip.
 if [[ -n "$hailo_deb" ]]; then
-    log "Installing HailoRT python wheel into the pixi dev env..."
-    run_as_pi bash -c "cd '$ROBOT_DIR' && '$PIXI_BIN' run -e dev python -m pip install libs/linux_aarch64/hailort-*.whl" \
+    log "Installing HailoRT python wheel into the pixi vision env..."
+    run_as_pi bash -c "cd '$ROBOT_DIR' && '$PIXI_BIN' run -e vision python -m pip install libs/linux_aarch64/hailort-*.whl" \
         || log "WARNING: hailort wheel install failed — check libs/linux_aarch64/"
 fi
 

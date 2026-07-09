@@ -27,7 +27,9 @@ there's no benefit blocking on it before everything cheaper to test is already v
 
 Each node also has an isolated `pixi run -e dev run-<node>` task (see `pixi.toml`) that runs it
 standalone, bypassing systemd and the rest of the node graph — use this when a topic looks wrong
-and you need to debug that node alone.
+and you need to debug that node alone. Exception: `run-vision` needs `-e vision` instead of `-e
+dev` — ultralytics/hailort are feature-gated out of `dev` so the Pi Zero's environment doesn't
+have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
 
 ## Prerequisites (per Pi, easy to forget on a fresh checkout)
 
