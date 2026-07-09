@@ -45,7 +45,7 @@ class Driver(ABC_Driver):
     - Event-based and polling-based APIs
     """
 
-    def __init__(self, config: Config | None = None):
+    def __init__(self, config: Config | None = None) -> None:
         self.config: Config = config or Config()
         self._button: Button | None = None
         self._press_start_time: float | None = None

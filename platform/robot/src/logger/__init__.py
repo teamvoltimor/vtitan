@@ -3,8 +3,8 @@
 Structured JSON logging utilities.
 
 Public API:
-    - COMPETITION_MODE: EnvVar for competition mode (disables all logging).
-    - LOG_LEVEL: EnvVar for log level configuration.
+    - COMPETITION_MODE: whether competition mode is enabled (disables all logging).
+    - LOG_LEVEL: the configured log level.
     - is_competition_mode: Check if competition mode is enabled.
     - JSONFormatter: A logging.Formatter subclass that formats log records as single-line JSON with structured fields.
     - configure_json_logging: A helper function to set up JSON logging on the root logger with a JSONFormatter.

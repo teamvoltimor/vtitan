@@ -5,15 +5,14 @@ import threading
 import time
 from collections.abc import Generator
 from contextlib import suppress
-from dataclasses import dataclass
 from queue import Empty, Queue
 
 import numpy as np
 from picamera2 import Picamera2
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.env import EnvVar
 from src.hardware.camera.base import (
-    Config as BaseConfig,
     Driver as CameraDriver,
     Frame,
 )
@@ -21,20 +20,21 @@ from src.logger import configure_json_logging
 
 configure_json_logging()
 
-CAMERA_DEVICE = EnvVar[str](key="CAMERA_DEVICE", default="/dev/video0")
-CAMERA_WIDTH = EnvVar[int](key="CAMERA_WIDTH", default=1536, cast=int)
-CAMERA_HEIGHT = EnvVar[int](key="CAMERA_HEIGHT", default=864, cast=int)
-CAMERA_FPS = EnvVar[int](key="CAMERA_FPS", default=30, cast=int)
 
+class Config(BaseSettings):
+    """Camera configuration for RPi Camera Module 3.
 
-@dataclass
-class Config(BaseConfig):
-    """Camera configuration for RPi Camera Module 3."""
+    Structurally mirrors src.hardware.camera.base.Config's shape (device,
+    width, height, fps) rather than subclassing it -- that base is a plain
+    dataclass, and mixing dataclass/pydantic-settings inheritance is fragile.
+    """
 
-    device: str = CAMERA_DEVICE.value
-    width: int = CAMERA_WIDTH.value
-    height: int = CAMERA_HEIGHT.value
-    fps: int = CAMERA_FPS.value
+    model_config = SettingsConfigDict(env_prefix="")
+
+    device: str = Field(default="/dev/video0", validation_alias="CAMERA_DEVICE")
+    width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
+    height: int = Field(default=864, validation_alias="CAMERA_HEIGHT")
+    fps: int = Field(default=30, validation_alias="CAMERA_FPS")
     rotation: int = 0
     hflip: bool = False
     vflip: bool = False

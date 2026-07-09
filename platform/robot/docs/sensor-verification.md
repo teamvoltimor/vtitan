@@ -165,8 +165,8 @@ during the motion before assuming it's a code bug — verify with the raw-angle 
 5. **C1 mounted inverted** — needs two independent corrections, not one:
    - **180° yaw offset** on the `base_link -> lidar_link` static TF (a pure rotation) — fixes
      where "front" lands. Made configurable via `LIDAR_YAW_OFFSET_DEG` (default `180`) in `.env`,
-     read through `src.env.EnvVar` (same mechanism every pydantic-settings driver already uses —
-     the launch file just imports it, which triggers `load_dotenv()` as a side effect).
+     read through a pydantic-settings `BaseSettings` class (same mechanism every hardware driver
+     uses; `.env` itself is loaded as a side effect of importing `src.logger.config`).
    - **`inverted:=true`** on the `sllidar_node` launch parameter (both `run-lidar`'s pixi task and
      `lidar_launch.py`'s `Node` parameters) — fixes a **left/right mirror** that the yaw offset
      alone cannot correct. A pure Z-axis rotation can shift where front/back land but can never

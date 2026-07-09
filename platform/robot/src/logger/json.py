@@ -60,7 +60,7 @@ def configure_json_logging(level: int | None = None) -> logging.Logger:
         return root
 
     # Otherwise, configure JSON logging with the specified level or LOG_LEVEL env var.
-    level_str = LOG_LEVEL.value.upper() if level is None else str(level)
+    level_str = LOG_LEVEL.upper() if level is None else str(level)
     logging_level = getattr(logging, level_str, logging.INFO)
 
     handler = logging.StreamHandler()

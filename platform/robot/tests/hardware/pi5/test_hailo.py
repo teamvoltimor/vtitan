@@ -20,7 +20,7 @@ from src.hardware.hailo.hailo_8 import (
 )
 from src.logger import LOG_LEVEL, configure_json_logging
 
-_log_level = getattr(logging, LOG_LEVEL.value.upper(), logging.INFO)
+_log_level = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
 configure_json_logging(level=_log_level)
 
 logger = logging.getLogger(__name__)

@@ -1,11 +1,8 @@
 """Base class for hardware driver nodes with common lifecycle management."""
 
-import logging
 from abc import ABC, abstractmethod
 
 from rclpy.node import Node
-
-logger = logging.getLogger(__name__)
 
 
 class HardwareNode(Node, ABC):

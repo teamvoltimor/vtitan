@@ -46,6 +46,7 @@ from src.state_machine import (
     RobotState,
     SensorStatus,
     StateMachine,
+    StateTransition,
     StateTransitionReason,
     SystemStatus,
 )
@@ -322,9 +323,7 @@ class StateMachineNode(Node):
             )
 
             # Check LiDAR
-            lidar_ready = (
-                self.lidar_last_msg_time is not None and (current_time - self.lidar_last_msg_time) < timeout
-            )
+            lidar_ready = self.lidar_last_msg_time is not None and (current_time - self.lidar_last_msg_time) < timeout
             lidar_status = SensorStatus(
                 name="LiDAR",
                 is_ready=lidar_ready,
@@ -435,7 +434,7 @@ class StateMachineNode(Node):
 
         self.get_logger().info("Published STOP command")
 
-    def _on_state_transition(self, transition: object) -> None:
+    def _on_state_transition(self, transition: StateTransition) -> None:
         """Callback for state transitions."""
         self.get_logger().info(
             f"State transition: {transition.from_state.value} -> {transition.to_state.value} "

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from src.hardware.button.event import ButtonEvent
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ButtonState:
     """Current button state data."""
 

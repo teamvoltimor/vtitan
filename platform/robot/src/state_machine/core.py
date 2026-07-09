@@ -11,7 +11,7 @@ from src.state_machine.types import RobotState, StateTransitionReason
 logger = configure_json_logging()
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class StateTransition:
     """State transition event."""
 
@@ -54,7 +54,7 @@ class StateMachine:
         },
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._current_state: RobotState = RobotState.BOOT_CHECK
         self._transition_callbacks: list[Callable[[StateTransition], None]] = []
         self.logger: logging.Logger = logging.getLogger(__name__)

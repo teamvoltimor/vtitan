@@ -1,8 +1,15 @@
 """Hardware-specific exception hierarchy for graceful error handling."""
 
+from shared.domain.exceptions import HardwareError as _PlatformHardwareError
 
-class HardwareError(Exception):
-    """Base class for all hardware errors."""
+
+class HardwareError(_PlatformHardwareError):
+    """Base class for all hardware errors raised by this robot's drivers.
+
+    Subclasses the platform-wide shared.domain.exceptions.HardwareError so
+    code catching that shared base (e.g. resiliency.with_retry's default
+    exception tuple) also catches every driver-specific error below.
+    """
 
 
 class MotorConnectionError(HardwareError):

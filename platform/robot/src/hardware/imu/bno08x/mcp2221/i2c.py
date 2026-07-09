@@ -2,8 +2,7 @@
 
 import logging
 import time
-from dataclasses import dataclass
-from typing import override
+from typing import Any, override
 
 import board
 import busio
@@ -17,8 +16,9 @@ from adafruit_bno08x import (
     BNO_REPORT_ROTATION_VECTOR,
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.env import EnvVar
 from src.hardware.imu.base import (
     Data,
     Driver as ABC_Driver,
@@ -28,22 +28,20 @@ from src.logger import configure_json_logging
 configure_json_logging()
 
 
-IMU_I2C_ADDRESS = EnvVar[int](
-    key="IMU_I2C_ADDRESS",
-    default=0x4A,
-    cast=lambda x: int(x, 0) if x.startswith("0x") else int(x),
-)
-"""
-I2C address for the BNO08x IMU. The default address is 0x4A when the ADR pin is high, and 0x4B when the ADR pin is low.
-Ensure that the ADR pin on your BNO08x board is set accordingly to match this address.
-"""
-
-
-@dataclass
-class Config:
+class Config(BaseSettings):
     """Configuration for BNO08x via MCP2221A I2C."""
 
-    i2c_address: int = IMU_I2C_ADDRESS.value
+    model_config = SettingsConfigDict(env_prefix="")
+
+    i2c_address: int = Field(default=0x4A, validation_alias="IMU_I2C_ADDRESS")
+    """I2C address for the BNO08x IMU. The default address is 0x4A when the ADR pin is high, and 0x4B when
+    the ADR pin is low. Ensure that the ADR pin on your BNO08x board is set accordingly to match this address."""
+
+    @field_validator("i2c_address", mode="before")
+    @classmethod
+    def _parse_int_literal(cls, value: Any) -> Any:  # noqa: ANN401 - pydantic before-validator signature
+        """Accept "0x4A"-style hex literals as well as plain decimal strings."""
+        return int(value, 0) if isinstance(value, str) else value
 
 
 class Driver(ABC_Driver):

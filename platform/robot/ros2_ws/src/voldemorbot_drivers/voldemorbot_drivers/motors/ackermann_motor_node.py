@@ -71,6 +71,7 @@ PUBLISHER_RATE_HZ = 20.0
 STEERING_COMMAND_SPEED = 30
 """Steering move speed (deg/s) commanded per update. Used by geared backends; the servo self-paces."""
 
+
 # Backend selection (from environment)
 def _parse_steering_backend(value: str) -> SteeringBackend:
     """Parse STEERING_BACKEND env var."""
@@ -78,6 +79,7 @@ def _parse_steering_backend(value: str) -> SteeringBackend:
         return SteeringBackend(value)
     except ValueError:
         return SteeringBackend.SERVO
+
 
 def _parse_drive_backend(value: str) -> DriveBackend:
     """Parse DRIVE_BACKEND env var."""
@@ -104,6 +106,7 @@ class _DriverFactory:
         """Return the combined Build HAT driver, building it at most once."""
         if self._build_hat is None:
             from src.hardware.motors.build_hat import Driver  # noqa: PLC0415 - lazy: only when selected
+
             self._build_hat = Driver(self._config)
         return self._build_hat
 
@@ -112,6 +115,7 @@ class _DriverFactory:
         if backend is SteeringBackend.BUILD_HAT:
             return self._shared_build_hat()
         from src.hardware.motors.servo import Driver, ServoConfig  # noqa: PLC0415 - lazy: only when selected
+
         return Driver(ServoConfig())
 
     def drive(self, backend: DriveBackend) -> DriveDriver:
@@ -121,6 +125,7 @@ class _DriverFactory:
         import os  # for inline env reading (dc_encoder driver reads pins from MOTOR_* vars)
 
         from src.hardware.motors.dc_encoder.driver import Driver  # noqa: PLC0415 - lazy: only when selected
+
         return Driver(
             pwm_pin=int(os.getenv("MOTOR_PWM_PIN", 13)),
             dir_a_pin=int(os.getenv("MOTOR_IN3_PIN", 5)),
@@ -442,6 +447,7 @@ class AckermannMotorNode(LifecycleNode):
                 self.current_speed = 0.0
             except (RuntimeError, OSError, ValueError) as e:
                 self.get_logger().error(f"Failed to stop motors in watchdog: {e}")
+
 
 def main(args: list[str] | None = None) -> None:
     """Run the Ackermann motor node, auto-configuring and auto-activating on launch."""

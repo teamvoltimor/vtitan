@@ -4,7 +4,6 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 """
 
 import json
-import logging
 
 import numpy as np
 import rclpy
@@ -13,8 +12,6 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 from src.vision import create_detector
-
-logger = logging.getLogger(__name__)
 
 
 class VisionNode(Node):

@@ -160,14 +160,23 @@ class OLEDDisplayNode(LifecycleNode):
 
         self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, 10)
         self.diagnostics_sub = self.create_subscription(
-            DiagnosticArray, "/system_status", self._diagnostics_callback, 10,
+            DiagnosticArray,
+            "/system_status",
+            self._diagnostics_callback,
+            10,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
         self.imu_sub = self.create_subscription(
-            Imu, "/imu/data", self._imu_callback, qos_profile_sensor_data,
+            Imu,
+            "/imu/data",
+            self._imu_callback,
+            qos_profile_sensor_data,
         )
         self.lidar_sub = self.create_subscription(
-            LaserScan, "/scan", self._lidar_callback, qos_profile_sensor_data,
+            LaserScan,
+            "/scan",
+            self._lidar_callback,
+            qos_profile_sensor_data,
         )
         self.hailo_fps_sub = self.create_subscription(Float32, "/hailo/fps", self._hailo_fps_callback, 10)
 

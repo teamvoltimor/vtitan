@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import time
 from collections import deque
+from typing import Any, TypedDict
 
 import rclpy
 import requests
@@ -20,6 +21,89 @@ from vision_msgs.msg import Detection2DArray
 
 _BACKOFF_INITIAL = 1.0
 _BACKOFF_MAX = 60.0
+
+
+class _IMUPayload(TypedDict):
+    """IMU section of a RobotSnapshot."""
+
+    linearAcceleration: list[float]
+    angularVelocity: list[float]
+    orientationQuaternion: list[float]
+
+
+class _MotorStatePayload(TypedDict):
+    """Motor-state section of a RobotSnapshot."""
+
+    steeringAngle: float
+    driveSpeed: float
+    encoderPosition: int
+
+
+class _VisionDetectionPayload(TypedDict):
+    """A single Hailo detection, as reported in a RobotSnapshot."""
+
+    className: int | str
+    confidence: float
+    bbox: list[float]
+
+
+class TelemetryMetrics(TypedDict):
+    """Backend-facing telemetry metrics payload (POSTed as part of RobotSnapshot)."""
+
+    timestamp: float
+    nodeHealth: str
+    pointsCaptured: int
+    rangeMin: float | None
+    rangeMax: float | None
+    rangeMean: float | None
+    forward: float | None
+    left: float | None
+    right: float | None
+    back: float | None
+    speed: float | None
+    stage: str
+    lidarAvailable: bool
+    imuAvailable: bool
+    cameraAvailable: bool
+    odometryAvailable: bool
+
+
+class RobotSnapshot(TypedDict):
+    """Backend-facing telemetry snapshot POSTed to /telemetry/record."""
+
+    timestamp: float
+    missionName: str
+    robotPosition: list[float] | None
+    robotOrientation: float | None
+    lidarPoints: list[list[float]]
+    pathHistory: list[list[float]]
+    logs: list[str]
+    metrics: TelemetryMetrics
+    imuData: _IMUPayload | None
+    visionDetections: list[_VisionDetectionPayload] | None
+    motorState: _MotorStatePayload | None
+
+
+class _TopicUpdatePayload(TypedDict):
+    """Per-topic diagnostic entry in a TopicsSnapshot.
+
+    "data" is a recursive reflection of an arbitrary ROS2 message's __slots__
+    (see _msg_to_dict) -- its shape depends on which message type was passed,
+    so it has no fixed schema and stays a plain dict.
+    """
+
+    topicName: str
+    messageType: str
+    timestamp: float
+    updateRateHz: float
+    data: dict[str, Any]
+
+
+class TopicsSnapshot(TypedDict):
+    """Backend-facing topic-health snapshot POSTed to /telemetry/topics/update."""
+
+    timestamp: float
+    topics: list[_TopicUpdatePayload]
 
 
 class RosTopic:
@@ -49,7 +133,7 @@ class RosMsgType:
 class TelemetryBridgeNode(Node):
     """Subscribes to robot topics and POSTs telemetry to backend API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("telemetry_bridge")
 
         # Configuration
@@ -85,7 +169,7 @@ class TelemetryBridgeNode(Node):
         self._latest_joints: JointState | None = None
         self._latest_vision: Detection2DArray | None = None
 
-        self._topic_updates: dict[str, dict] = {}
+        self._topic_updates: dict[str, _TopicUpdatePayload] = {}
         self._topic_timestamps: dict[str, deque] = {}
 
         self._path_history: deque = deque(maxlen=self._max_history)
@@ -105,34 +189,34 @@ class TelemetryBridgeNode(Node):
 
         self.get_logger().info(f"Telemetry bridge started → {self._backend_url}")
 
-    def _scan_callback(self, msg: LaserScan):
+    def _scan_callback(self, msg: LaserScan) -> None:
         self._latest_scan = msg
         self._update_raw_topic(RosTopic.SCAN, RosMsgType.LASER_SCAN, msg)
 
-    def _odom_callback(self, msg: Odometry):
+    def _odom_callback(self, msg: Odometry) -> None:
         self._latest_odom = msg
         self._update_raw_topic(RosTopic.ODOM, RosMsgType.ODOMETRY, msg)
         pos = msg.pose.pose.position
         self._path_history.append([pos.x, pos.y, pos.z])
 
-    def _imu_callback(self, msg: Imu):
+    def _imu_callback(self, msg: Imu) -> None:
         self._latest_imu = msg
         self._update_raw_topic(RosTopic.IMU, RosMsgType.IMU, msg)
 
-    def _state_callback(self, msg: String):
+    def _state_callback(self, msg: String) -> None:
         self._latest_state = msg.data
         self._update_raw_topic(RosTopic.STATE, RosMsgType.STRING, msg)
         self._logs.append(f"State: {msg.data}")
 
-    def _cmd_vel_callback(self, msg: Twist):
+    def _cmd_vel_callback(self, msg: Twist) -> None:
         self._latest_cmd_vel = msg
         self._update_raw_topic(RosTopic.CMD_VEL, RosMsgType.TWIST, msg)
 
-    def _joint_callback(self, msg: JointState):
+    def _joint_callback(self, msg: JointState) -> None:
         self._latest_joints = msg
         self._update_raw_topic(RosTopic.JOINT_STATES, RosMsgType.JOINT_STATE, msg)
 
-    def _vision_callback(self, msg: Detection2DArray):
+    def _vision_callback(self, msg: Detection2DArray) -> None:
         self._latest_vision = msg
         self._update_raw_topic(RosTopic.HAILO_DETECTIONS, RosMsgType.DETECTION_2D_ARRAY, msg)
 
@@ -161,8 +245,13 @@ class TelemetryBridgeNode(Node):
             "data": msg_dict,
         }
 
-    def _msg_to_dict(self, msg: object) -> dict:
-        result = {}
+    def _msg_to_dict(self, msg: object) -> dict[str, Any]:
+        """Recursively reflect an arbitrary ROS2 message's __slots__ into a dict.
+
+        Shape depends on the message type passed in, so it has no fixed schema
+        -- this is intentionally dict[str, Any], not a TypedDict.
+        """
+        result: dict[str, Any] = {}
         if hasattr(msg, "__slots__"):
             for field in msg.__slots__:
                 value = getattr(msg, field, None)
@@ -177,13 +266,13 @@ class TelemetryBridgeNode(Node):
                     result[field] = value
         return result
 
-    def _build_topics_snapshot(self) -> dict:
+    def _build_topics_snapshot(self) -> TopicsSnapshot:
         return {
             "timestamp": time.time(),
             "topics": list(self._topic_updates.values()),
         }
 
-    def _publish_telemetry(self):
+    def _publish_telemetry(self) -> None:
         """Aggregate data and POST to backend with exponential backoff."""
         now = time.monotonic()
         if self._backend_down and now < self._next_retry_time:
@@ -193,9 +282,12 @@ class TelemetryBridgeNode(Node):
         topics_snapshot = self._build_topics_snapshot()
 
         try:
+            # requests' stubs want a plain dict for `json=`; a TypedDict is one
+            # at runtime (json.dumps() doesn't care), just not per the stub's
+            # exact signature -- dict() here is a type-only view, not a copy.
             r = self._session.post(
                 f"{self._backend_url}/telemetry/record",
-                json=snapshot,
+                json=dict(snapshot),
                 timeout=1.0,
             )
             if r.status_code != 200:
@@ -203,7 +295,7 @@ class TelemetryBridgeNode(Node):
 
             self._session.post(
                 f"{self._backend_url}/telemetry/topics/update",
-                json=topics_snapshot,
+                json=dict(topics_snapshot),
                 timeout=1.0,
             )
 
@@ -234,13 +326,13 @@ class TelemetryBridgeNode(Node):
         if hasattr(self, "_system_status_pub"):
             self._system_status_pub.publish(msg)
 
-    def _build_snapshot(self) -> dict:
+    def _build_snapshot(self) -> RobotSnapshot:
         """Build RobotSnapshot dict from latest sensor data."""
         timestamp = time.time()
 
         # Robot position (from odometry)
-        robot_position = None
-        robot_orientation = None
+        robot_position: list[float] | None = None
+        robot_orientation: float | None = None
         if self._latest_odom:
             pos = self._latest_odom.pose.pose.position
             robot_position = [pos.x, pos.y, pos.z]
@@ -249,7 +341,7 @@ class TelemetryBridgeNode(Node):
             robot_orientation = self._quaternion_to_yaw(q.x, q.y, q.z, q.w)
 
         # LiDAR points (convert to world frame)
-        lidar_points = []
+        lidar_points: list[list[float]] = []
         if self._latest_scan and robot_position and robot_orientation is not None:
             lidar_points = self._scan_to_points(self._latest_scan, robot_position, robot_orientation)
 
@@ -257,7 +349,7 @@ class TelemetryBridgeNode(Node):
         metrics = self._build_metrics(timestamp)
 
         # IMU data
-        imu_data = None
+        imu_data: _IMUPayload | None = None
         if self._latest_imu:
             imu_data = {
                 "linearAcceleration": [
@@ -279,7 +371,7 @@ class TelemetryBridgeNode(Node):
             }
 
         # Motor state
-        motor_state = None
+        motor_state: _MotorStatePayload | None = None
         if self._latest_joints and self._latest_cmd_vel:
             motor_state = {
                 "steeringAngle": self._latest_joints.position[0] if len(self._latest_joints.position) > 0 else 0.0,
@@ -288,7 +380,7 @@ class TelemetryBridgeNode(Node):
             }
 
         # Vision detections
-        vision_detections = None
+        vision_detections: list[_VisionDetectionPayload] | None = None
         if self._latest_vision:
             vision_detections = []
             for det in self._latest_vision.detections:
@@ -327,7 +419,7 @@ class TelemetryBridgeNode(Node):
             "motorState": motor_state,
         }
 
-    def _build_metrics(self, timestamp: float) -> dict:
+    def _build_metrics(self, timestamp: float) -> TelemetryMetrics:
         """Build TelemetryMetrics dict."""
         lidar_available = self._latest_scan is not None
         imu_available = self._latest_imu is not None
@@ -335,13 +427,13 @@ class TelemetryBridgeNode(Node):
         camera_available = self._latest_vision is not None
 
         points_captured = 0
-        range_min = None
-        range_max = None
-        range_mean = None
-        forward = None
-        left = None
-        right = None
-        back = None
+        range_min: float | None = None
+        range_max: float | None = None
+        range_mean: float | None = None
+        forward: float | None = None
+        left: float | None = None
+        right: float | None = None
+        back: float | None = None
 
         if self._latest_scan:
             valid_ranges = [
@@ -374,7 +466,7 @@ class TelemetryBridgeNode(Node):
                     valid_b = [r for r in back_scan if self._latest_scan.range_min < r < self._latest_scan.range_max]
                     back = min(valid_b) if valid_b else None
 
-        speed = None
+        speed: float | None = None
         if self._latest_cmd_vel:
             speed = self._latest_cmd_vel.linear.x
 
@@ -397,7 +489,7 @@ class TelemetryBridgeNode(Node):
             "odometryAvailable": odometry_available,
         }
 
-    def _scan_to_points(self, scan: LaserScan, robot_pos: list, robot_yaw: float) -> list:
+    def _scan_to_points(self, scan: LaserScan, robot_pos: list[float], robot_yaw: float) -> list[list[float]]:
         """Convert LaserScan to world-frame point cloud."""
         points = []
         for i, r in enumerate(scan.ranges):
