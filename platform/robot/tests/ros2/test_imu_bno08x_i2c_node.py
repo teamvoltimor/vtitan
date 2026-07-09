@@ -1,7 +1,12 @@
 """
-Tests for ROS2 BNO085 IMU I2C node.
+Tests for ROS2 BNO085 IMU I2C lifecycle node.
 
-Run with: python -m pytest tests/ros2/test_imu_i2c_node.py -v
+IMU_I2CNode is a LifecycleNode: hardware connects in on_configure() and
+publishing starts in on_activate(), so tests must drive those transitions
+explicitly before exercising node behavior (deployed nodes do this
+automatically via trigger_configure()/trigger_activate() in main()).
+
+Run with: python -m pytest tests/ros2/test_imu_bno08x_i2c_node.py -v
 """
 
 import logging
@@ -11,6 +16,7 @@ from unittest import mock
 
 import pytest
 import rclpy
+from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
 
 sys.modules["board"] = mock.MagicMock()
@@ -50,55 +56,74 @@ def mock_driver():
 
 
 class TestIMU_I2CNodeInit:
-    """Test IMU I2C node initialization."""
+    """Test IMU I2C node configuration."""
 
-    def test_node_initialization(self, ros_context, mock_driver):
-        """Test node initializes correctly."""
+    def test_node_configures_correctly(self, ros_context, mock_driver):
+        """Test node configures correctly."""
         node = IMU_I2CNode()
+        node.trigger_configure()
         assert node.get_name() == "bno08x_i2c_node"
         assert node.publisher_ is not None
         assert node.driver is not None
         node.destroy_node()
 
     def test_node_creates_publisher(self, ros_context, mock_driver):
-        """Test node creates IMU publisher."""
+        """Test node creates IMU publisher after activation (lifecycle publishers
+        aren't advertised on the graph until the node activates)."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
         assert node.publisher_ is not None
-        # Check topic name
         topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
         assert any("imu/data" in topic_name for topic_name in topic_names)
         node.destroy_node()
 
     def test_node_calls_driver_connect(self, ros_context, mock_driver):
-        """Test node calls driver connect during init."""
+        """Test node calls driver connect during configure."""
         node = IMU_I2CNode()
+        node.trigger_configure()
         mock_driver.connect.assert_called_once()
         node.destroy_node()
 
     def test_node_calls_driver_enable_sensors(self, ros_context, mock_driver):
-        """Test node calls driver enable_sensors during init."""
+        """Test node calls driver enable_sensors during configure."""
         node = IMU_I2CNode()
+        node.trigger_configure()
         mock_driver.enable_sensors.assert_called_once()
         node.destroy_node()
 
-    def test_node_creates_timer(self, ros_context, mock_driver):
-        """Test node creates publish timer."""
+    def test_node_creates_timer_on_activate(self, ros_context, mock_driver):
+        """Test node creates publish timer on activate, not on configure."""
         node = IMU_I2CNode()
-        timers = [timer for timer in node.timers]
-        assert len(timers) > 0
+        node.trigger_configure()
+        assert list(node.timers) == []
+
+        node.trigger_activate()
+
+        assert len(list(node.timers)) > 0
         node.destroy_node()
 
-    def test_node_fails_if_driver_connect_fails(self, ros_context, mock_driver):
-        """Test node fails if driver cannot connect."""
+    def test_node_degrades_gracefully_if_driver_connect_fails(self, ros_context, mock_driver):
+        """Test node stays configured (driver=None) if connect raises."""
         mock_driver.connect.side_effect = RuntimeError("Connection failed")
-        with pytest.raises(RuntimeError, match="Connection failed"):
-            IMU_I2CNode()
 
-    def test_node_fails_if_driver_enable_sensors_fails(self, ros_context, mock_driver):
-        """Test node fails if driver sensor enable fails."""
+        node = IMU_I2CNode()
+        result = node.trigger_configure()
+
+        assert result == TransitionCallbackReturn.SUCCESS
+        assert node.driver is None
+        node.destroy_node()
+
+    def test_node_degrades_gracefully_if_enable_sensors_fails(self, ros_context, mock_driver):
+        """Test node stays configured (driver=None) if enable_sensors raises."""
         mock_driver.enable_sensors.side_effect = RuntimeError("Sensor enable failed")
-        with pytest.raises(RuntimeError, match="Sensor enable failed"):
-            IMU_I2CNode()
+
+        node = IMU_I2CNode()
+        result = node.trigger_configure()
+
+        assert result == TransitionCallbackReturn.SUCCESS
+        assert node.driver is None
+        node.destroy_node()
 
 
 class TestIMU_I2CNodePublishing:
@@ -107,6 +132,8 @@ class TestIMU_I2CNodePublishing:
     def test_publish_imu_with_valid_data(self, ros_context, mock_driver):
         """Test publishing IMU message with valid data."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Create mock sensor data
         # Note: I2C quaternion order is (qw, qx, qy, qz)
@@ -160,6 +187,8 @@ class TestIMU_I2CNodePublishing:
     def test_publish_imu_sets_timestamp(self, ros_context, mock_driver):
         """Test publish_imu sets message timestamp."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data = IMU_AllData(
             quaternion=(1.0, 0.0, 0.0, 0.0),
@@ -188,6 +217,8 @@ class TestIMU_I2CNodePublishing:
     def test_publish_imu_sets_covariances(self, ros_context, mock_driver):
         """Test publish_imu sets covariance matrices."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data = IMU_AllData(
             quaternion=(1.0, 0.0, 0.0, 0.0),
@@ -223,6 +254,8 @@ class TestIMU_I2CNodePublishing:
     def test_publish_imu_quaternion_conversion(self, ros_context, mock_driver):
         """Test publish_imu correctly converts quaternion order."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # I2C returns (qw, qx, qy, qz)
         mock_data = IMU_AllData(
@@ -254,6 +287,8 @@ class TestIMU_I2CNodePublishing:
     def test_publish_imu_multiple_iterations(self, ros_context, mock_driver):
         """Test publish_imu works correctly over multiple calls."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data_1 = IMU_AllData(
             quaternion=(0.7, 0.1, 0.2, 0.3),
@@ -296,6 +331,14 @@ class TestIMU_I2CNodePublishing:
 
         node.destroy_node()
 
+    def test_publish_imu_noop_before_configure(self, ros_context, mock_driver):
+        """publish_imu must not raise if called before configure (driver/publisher are None)."""
+        node = IMU_I2CNode()
+
+        node.publish_imu()  # must not raise
+
+        node.destroy_node()
+
 
 class TestIMU_I2CNodeCleanup:
     """Test IMU I2C node cleanup."""
@@ -303,12 +346,14 @@ class TestIMU_I2CNodeCleanup:
     def test_node_cleanup_on_destroy(self, ros_context, mock_driver):
         """Test node cleanup on destroy."""
         node = IMU_I2CNode()
+        node.trigger_configure()
         node.destroy_node()
         # Verify node is destroyed without error
 
     def test_node_does_not_crash_on_destroy(self, ros_context, mock_driver):
         """Test node destroy is safe even if driver fails."""
         node = IMU_I2CNode()
+        node.trigger_configure()
 
         # Reset and setup driver to fail on close
         mock_driver.reset_mock()
@@ -317,7 +362,7 @@ class TestIMU_I2CNodeCleanup:
         # Should not crash even if driver fails
         try:
             node.destroy_node()
-        except Exception as e:
+        except Exception:
             # Some exception is expected, but node should attempt cleanup
             pass
 
@@ -326,7 +371,7 @@ class TestIMU_I2CNodeIntegration:
     """Integration tests for IMU I2C node."""
 
     def test_node_full_lifecycle(self, ros_context, mock_driver):
-        """Test complete node lifecycle from init to destroy."""
+        """Test complete node lifecycle from configure to destroy."""
         # Create and setup mock data
         mock_data = IMU_AllData(
             quaternion=(0.707, 0.0, 0.0, 0.707),
@@ -337,6 +382,8 @@ class TestIMU_I2CNodeIntegration:
 
         # Create node
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Verify initialization
         assert node.get_name() == "bno08x_i2c_node"
@@ -361,6 +408,8 @@ class TestIMU_I2CNodeIntegration:
     def test_node_handles_missing_quaternion(self, ros_context, mock_driver):
         """Test node handles edge case of unusual quaternion values."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Use edge case quaternion values
         mock_data = IMU_AllData(
@@ -390,8 +439,10 @@ class TestIMU_I2CNodeIntegration:
         node.destroy_node()
 
     def test_node_timer_callback_integration(self, ros_context, mock_driver):
-        """Test timer callback is properly registered."""
+        """Test timer callback is properly registered on activate."""
         node = IMU_I2CNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Setup mock data
         mock_data = IMU_AllData(

@@ -1,5 +1,10 @@
 """
-Tests for ROS2 BNO085 IMU RVC node.
+Tests for ROS2 BNO085 IMU RVC lifecycle node.
+
+IMU_UART_RVCNode is a LifecycleNode: hardware connects in on_configure() and
+publishing starts in on_activate(), so tests must drive those transitions
+explicitly before exercising node behavior (deployed nodes do this
+automatically via trigger_configure()/trigger_activate() in main()).
 
 Run with: python -m pytest tests/ros2/test_imu_uart_rvc_node.py -v
 """
@@ -11,6 +16,7 @@ from unittest import mock
 
 import pytest
 import rclpy
+from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
 
 logger = logging.getLogger(__name__)
@@ -65,90 +71,124 @@ def imu_rvc_node_class():
 
 
 class TestIMU_UART_RVCNodeInit:
-    """Test IMU RVC node initialization."""
+    """Test IMU RVC node configuration."""
 
-    def test_node_initialization(self, ros_context, imu_rvc_node_class):
-        """Test node initializes correctly."""
+    def test_node_configures_correctly(self, ros_context, imu_rvc_node_class):
+        """Test node configures correctly."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
         assert node.get_name() == "bno08x_uart_rvc_node"
         assert node.publisher_ is not None
         assert node.driver is not None
         node.destroy_node()
 
     def test_node_creates_publisher(self, ros_context, imu_rvc_node_class):
-        """Test node creates IMU publisher."""
+        """Test node creates IMU publisher after activation (lifecycle publishers
+        aren't advertised on the graph until the node activates)."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
         assert node.publisher_ is not None
-        # Check topic name
         topic_names = [topic_name for topic_name, _ in node.get_publisher_names_and_types_by_node(node.get_name(), "")]
         assert any("imu/data" in topic_name for topic_name in topic_names)
         node.destroy_node()
 
     def test_node_calls_driver_connect(self, ros_context, imu_rvc_node_class):
-        """Test node calls driver connect during init."""
+        """Test node calls driver connect during configure."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
         mock_driver_instance.connect.assert_called_once()
         node.destroy_node()
 
     def test_node_calls_driver_start_polling(self, ros_context, imu_rvc_node_class):
-        """Test node calls driver start_polling during init."""
+        """Test node calls driver start_polling during configure."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
         mock_driver_instance.start_polling.assert_called_once()
         node.destroy_node()
 
-    def test_node_creates_timer(self, ros_context, imu_rvc_node_class):
-        """Test node creates publish timer."""
+    def test_node_creates_timer_on_activate(self, ros_context, imu_rvc_node_class):
+        """Test node creates publish timer on activate, not on configure."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
-        timers = [timer for timer in node.timers]
-        assert len(timers) > 0
+        node.trigger_configure()
+        assert list(node.timers) == []
+
+        node.trigger_activate()
+
+        assert len(list(node.timers)) > 0
         node.destroy_node()
 
-    def test_node_fails_if_driver_connect_fails(self, ros_context, imu_rvc_node_class):
-        """Test node fails if driver cannot connect."""
+    def test_node_degrades_gracefully_on_known_connection_error(self, ros_context, imu_rvc_node_class):
+        """A clean IMUConnectionError (hardware absent) must not fail configure --
+        IMU data is not critical for motor control."""
+        from src.hardware.exceptions import IMUConnectionError
+
+        IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
+
+        mock_driver_instance = mock.MagicMock()
+        mock_driver_instance.connect.side_effect = IMUConnectionError("/dev/ttyUSB0", "not found")
+        mock_driver_cls.return_value = mock_driver_instance
+
+        node = IMU_UART_RVCNode()
+        result = node.trigger_configure()
+
+        assert result == TransitionCallbackReturn.SUCCESS
+        assert node._hardware_ready is False
+        node.destroy_node()
+
+    def test_node_fails_configure_on_unexpected_connect_error(self, ros_context, imu_rvc_node_class):
+        """An unexpected error type (not IMUConnectionError) is a real bug --
+        configure must fail rather than silently degrade."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_instance.connect.side_effect = RuntimeError("Connection failed")
         mock_driver_cls.return_value = mock_driver_instance
 
-        with pytest.raises(RuntimeError, match="Connection failed"):
-            IMU_UART_RVCNode()
+        node = IMU_UART_RVCNode()
+        result = node.trigger_configure()
 
-    def test_node_fails_if_driver_polling_fails(self, ros_context, imu_rvc_node_class):
-        """Test node fails if driver polling fails."""
+        assert result == TransitionCallbackReturn.FAILURE
+        node.destroy_node()
+
+    def test_node_fails_configure_on_unexpected_polling_error(self, ros_context, imu_rvc_node_class):
+        """An unexpected error type during start_polling also fails configure."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         mock_driver_instance = mock.MagicMock()
         mock_driver_instance.start_polling.side_effect = RuntimeError("Polling failed")
         mock_driver_cls.return_value = mock_driver_instance
 
-        with pytest.raises(RuntimeError, match="Polling failed"):
-            IMU_UART_RVCNode()
+        node = IMU_UART_RVCNode()
+        result = node.trigger_configure()
+
+        assert result == TransitionCallbackReturn.FAILURE
+        node.destroy_node()
 
 
 class TestIMU_UART_RVCNodePublishing:
@@ -162,6 +202,8 @@ class TestIMU_UART_RVCNodePublishing:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Create mock sensor data
         mock_data = IMU_RVCData(
@@ -217,6 +259,8 @@ class TestIMU_UART_RVCNodePublishing:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
         mock_driver_instance.get_data.return_value = None
 
         # Mock the publisher to track calls
@@ -230,6 +274,17 @@ class TestIMU_UART_RVCNodePublishing:
 
         node.destroy_node()
 
+    def test_publish_imu_noop_before_configure(self, ros_context, imu_rvc_node_class):
+        """publish_imu must not raise if called before configure."""
+        IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
+        mock_driver_cls.return_value = mock.MagicMock()
+
+        node = IMU_UART_RVCNode()
+
+        node.publish_imu()  # must not raise
+
+        node.destroy_node()
+
     def test_publish_imu_sets_timestamp(self, ros_context, imu_rvc_node_class):
         """Test publish_imu sets message timestamp."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
@@ -238,6 +293,8 @@ class TestIMU_UART_RVCNodePublishing:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data = IMU_RVCData(
             yaw_deg=0.0,
@@ -275,6 +332,8 @@ class TestIMU_UART_RVCNodePublishing:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data = IMU_RVCData(
             yaw_deg=0.0,
@@ -312,6 +371,8 @@ class TestIMU_UART_RVCNodePublishing:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         mock_data_1 = IMU_RVCData(
             yaw_deg=10.0,
@@ -372,6 +433,7 @@ class TestIMU_UART_RVCNodeCleanup:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
         node.destroy_node()
         mock_driver_instance.close.assert_called_once()
 
@@ -383,6 +445,7 @@ class TestIMU_UART_RVCNodeCleanup:
         mock_driver_cls.return_value = mock_driver_instance
 
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
 
         # Reset the mock to clear init calls
         mock_driver_instance.reset_mock()
@@ -393,15 +456,12 @@ class TestIMU_UART_RVCNodeCleanup:
         # Verify driver.close() was called
         mock_driver_instance.close.assert_called_once()
 
-        # Verify it's called before the node is destroyed
-        # (this is implicit if close succeeds)
-
 
 class TestIMU_UART_RVCNodeIntegration:
     """Integration tests for IMU RVC node."""
 
     def test_node_full_lifecycle(self, ros_context, imu_rvc_node_class):
-        """Test complete node lifecycle from init to destroy."""
+        """Test complete node lifecycle from configure to destroy."""
         IMU_UART_RVCNode, mock_driver_cls = imu_rvc_node_class
 
         # Create and setup mock data
@@ -421,6 +481,8 @@ class TestIMU_UART_RVCNodeIntegration:
 
         # Create node
         node = IMU_UART_RVCNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         # Verify initialization
         assert node.get_name() == "bno08x_uart_rvc_node"

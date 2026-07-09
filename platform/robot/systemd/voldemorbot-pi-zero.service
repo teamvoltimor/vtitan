@@ -15,7 +15,7 @@ EnvironmentFile=-__TARGET_HOME__/voldemorbot/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
 # launch-rpi-zero (not a raw "ros2 launch") -- the pixi task sources
 # ros2_ws/install/setup.bash first, which is required to resolve the
-# locally-built voldemorbot_robot package.
+# locally-built voldemorbot_drivers and voldemorbot_bringup packages.
 ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e dev launch-rpi-zero
 Restart=on-failure
 RestartSec=3

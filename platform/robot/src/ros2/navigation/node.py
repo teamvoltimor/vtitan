@@ -19,6 +19,7 @@ import numpy as np
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
@@ -88,7 +89,7 @@ class ROS2HardwareGateway(HardwareGateway):
             LaserScan,
             node.get_parameter("lidar_topic").get_parameter_value().string_value,
             self._lidar_callback,
-            10,
+            qos_profile_sensor_data,
         )
         node.create_subscription(
             String,
@@ -100,7 +101,7 @@ class ROS2HardwareGateway(HardwareGateway):
             Imu,
             node.get_parameter("imu_topic").get_parameter_value().string_value,
             self._imu_callback,
-            10,
+            qos_profile_sensor_data,
         )
 
     def _imu_callback(self, msg: Imu) -> None:
@@ -333,7 +334,7 @@ class TrackNavigator(Node):
 
 
 def main(args: list[str] | None = None) -> None:
-    """Run the ROS2 track navigator node (``ros2 run voldemorbot_robot track_navigator_node``)."""
+    """Run the ROS2 track navigator node (``ros2 run voldemorbot_navigation track_navigator_node``)."""
     parser = argparse.ArgumentParser(description="WRO 2026 track navigator ROS2 node.")
     parser.add_argument("--metadata", required=True, help="Path to scenario metadata JSON.")
     parser.add_argument("--laps", type=int, default=3, help="Laps to complete (default: 3).")

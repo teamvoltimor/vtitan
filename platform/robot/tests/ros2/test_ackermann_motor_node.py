@@ -31,7 +31,7 @@ def ros_context():
         rclpy.init()
         yield
         rclpy.shutdown()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         pytest.skip(f"ROS2 initialization failed: {e}")
 
 
@@ -52,13 +52,13 @@ def ackermann_node_class(monkeypatch):
     mock_drive = mock.MagicMock()
 
     with (
-        mock.patch("voldemorbot_robot.motors.ackermann_motor_node.Config", return_value=mock_config),
-        mock.patch("voldemorbot_robot.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
 
-        from voldemorbot_robot.motors.ackermann_motor_node import AckermannMotorNode
+        from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
         yield AckermannMotorNode, mock_steering, mock_drive, mock_config
 
@@ -67,6 +67,7 @@ class TestAckermannMotorNodeInit:
     def test_connects_and_centers_steering(self, ros_context, ackermann_node_class):
         AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         mock_steering.connect.assert_called_once()
         mock_steering.center_steering.assert_called_once()
@@ -78,6 +79,8 @@ class TestAckermannMotorNodeInit:
     def test_subscribes_to_ackermann_cmd(self, ros_context, ackermann_node_class):
         AckermannMotorNode, _, _, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
+        node.trigger_activate()
 
         subs = node.get_subscriptions_info_by_topic("/ackermann_cmd")
         assert len(subs) == 1
@@ -100,15 +103,16 @@ class TestAckermannMotorNodeInit:
         mock_steering.connect.side_effect = RuntimeError("no such device")
 
         with (
-            mock.patch("voldemorbot_robot.motors.ackermann_motor_node.Config", return_value=mock_config),
-            mock.patch("voldemorbot_robot.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+            mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+            mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
         ):
             mock_factory_cls.return_value.steering.return_value = mock_steering
             mock_factory_cls.return_value.drive.return_value = mock.MagicMock()
 
-            from voldemorbot_robot.motors.ackermann_motor_node import AckermannMotorNode
+            from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
             node = AckermannMotorNode()
+            node.trigger_configure()
 
         assert node.steering is None
         assert node.drive is None
@@ -128,6 +132,7 @@ class TestAckermannMotorNodeDecode:
     def test_decodes_speed_and_steering(self, ros_context, ackermann_node_class):
         AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.3  # m/s
@@ -135,7 +140,7 @@ class TestAckermannMotorNodeDecode:
 
         node._ackermann_callback(msg)
 
-        from voldemorbot_robot.motors.ackermann_motor_node import STEERING_COMMAND_SPEED
+        from voldemorbot_drivers.motors.ackermann_motor_node import STEERING_COMMAND_SPEED
 
         mock_steering.move_steering_to.assert_called_once()
         angle_deg, kwargs = mock_steering.move_steering_to.call_args[0][0], mock_steering.move_steering_to.call_args[1]
@@ -151,6 +156,7 @@ class TestAckermannMotorNodeDecode:
     def test_negative_speed_reverses(self, ros_context, ackermann_node_class):
         AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = -0.2
@@ -166,6 +172,7 @@ class TestAckermannMotorNodeDecode:
     def test_zero_speed_stops(self, ros_context, ackermann_node_class):
         AckermannMotorNode, _, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.0
@@ -181,6 +188,7 @@ class TestAckermannMotorNodeDecode:
         AckermannMotorNode, mock_steering, _, mock_config = ackermann_node_class
         mock_config.steering.offset = 5.0
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.0
@@ -196,6 +204,7 @@ class TestAckermannMotorNodeDecode:
     def test_steering_clamped_to_max_angle(self, ros_context, ackermann_node_class):
         AckermannMotorNode, mock_steering, _, mock_config = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.0
@@ -212,6 +221,7 @@ class TestAckermannMotorNodeDecode:
         AckermannMotorNode, _, mock_drive, mock_config = ackermann_node_class
         mock_config.drive.reversed = True
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.3
@@ -230,6 +240,7 @@ class TestAckermannMotorNodeWatchdog:
     def test_stops_motors_after_command_dropout(self, ros_context, ackermann_node_class):
         AckermannMotorNode, _, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         msg = AckermannDriveStamped()
         msg.drive.speed = 0.3
@@ -249,6 +260,7 @@ class TestAckermannMotorNodeWatchdog:
     def test_no_watchdog_action_when_already_stopped(self, ros_context, ackermann_node_class):
         AckermannMotorNode, _, mock_drive, _ = ackermann_node_class
         node = AckermannMotorNode()
+        node.trigger_configure()
 
         node.last_command_time = node.get_clock().now().nanoseconds / 1e9 - 2.0
         node.current_speed = 0.0
@@ -257,3 +269,122 @@ class TestAckermannMotorNodeWatchdog:
         mock_drive.stop_drive.assert_not_called()
 
         node.destroy_node()
+
+
+class TestAckermannMotorNodeSafetyLifecycle:
+    """Safety-critical guarantee: the motors are always commanded to a stopped,
+    centered state on every teardown path, no matter which one is taken."""
+
+    def test_feedback_and_watchdog_timers_only_exist_after_activate(self, ros_context, ackermann_node_class):
+        AckermannMotorNode, _, _, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        assert node.feedback_timer is None
+        assert node.watchdog_timer is None
+
+        node.trigger_activate()
+
+        assert node.feedback_timer is not None
+        assert node.watchdog_timer is not None
+        node.destroy_node()
+
+    def test_deactivate_stops_motors_and_removes_subscription(self, ros_context, ackermann_node_class):
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        node.trigger_activate()
+        mock_steering.reset_mock()
+        mock_drive.reset_mock()
+
+        node.trigger_deactivate()
+
+        mock_drive.stop_drive.assert_called_once()
+        mock_steering.center_steering.assert_called_once()
+        assert node.ackermann_sub is None
+        assert node.feedback_timer is None
+        assert node.watchdog_timer is None
+        node.destroy_node()
+
+    def test_deactivated_node_ignores_further_commands(self, ros_context, ackermann_node_class):
+        """Once deactivated, a command can no longer reach the motors even if
+        something still holds a reference to the (destroyed) subscription's
+        callback -- steering/drive are only ever acted on via _ackermann_callback,
+        which is unreachable once the subscription is torn down."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        node.trigger_activate()
+        node.trigger_deactivate()
+
+        assert node.ackermann_sub is None  # nothing left to route a command through
+        node.destroy_node()
+
+    def test_cleanup_stops_motors_defensively_even_without_prior_deactivate(self, ros_context, ackermann_node_class):
+        """cleanup is normally reached via deactivate first, but its own stop
+        must be redundant-safe in case that path is ever skipped."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        mock_steering.reset_mock()
+        mock_drive.reset_mock()
+
+        node.trigger_cleanup()  # configure -> cleanup directly, no activate/deactivate
+
+        mock_drive.stop_drive.assert_called_once()
+        mock_steering.center_steering.assert_called_once()
+        assert node.steering is None
+        assert node.drive is None
+
+    def test_deactivate_then_cleanup_stops_motors_on_each_transition(self, ros_context, ackermann_node_class):
+        """Both transitions independently guarantee the stop -- calling both in
+        sequence stops the motors twice, which is the intended defense-in-depth,
+        not a bug."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        node.trigger_activate()
+        mock_steering.reset_mock()
+        mock_drive.reset_mock()
+
+        node.trigger_deactivate()
+        node.trigger_cleanup()
+
+        assert mock_drive.stop_drive.call_count == 2
+        assert mock_steering.center_steering.call_count == 2
+        assert node.steering is None
+        assert node.drive is None
+        node.destroy_node()
+
+    def test_destroy_without_clean_shutdown_still_stops_motors(self, ros_context, ackermann_node_class):
+        """Simulates a process kill mid-active: destroy_node() is the only
+        thing called, no deactivate/cleanup transition first."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        node.trigger_activate()
+        mock_steering.reset_mock()
+        mock_drive.reset_mock()
+
+        node.destroy_node()
+
+        mock_drive.stop_drive.assert_called_once()
+        mock_steering.center_steering.assert_called_once()
+
+    def test_destroy_without_configure_does_not_raise(self, ros_context, ackermann_node_class):
+        """A node destroyed before ever being configured must not crash cleanup."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()  # never configured -- steering/drive are None
+
+        node.destroy_node()  # must not raise
+
+        mock_drive.stop_drive.assert_not_called()
+
+    def test_stop_motors_failure_does_not_prevent_destroy(self, ros_context, ackermann_node_class):
+        """If the driver itself throws while stopping, destroy_node() must still
+        complete rather than leave the node half-destroyed."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        mock_drive.stop_drive.side_effect = RuntimeError("bus error")
+
+        node.destroy_node()  # must not raise

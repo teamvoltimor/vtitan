@@ -137,19 +137,21 @@ during the motion before assuming it's a code bug — verify with the raw-angle 
 
 1. **`sllidar_ros2` never fetched on Pi 5** — the third-party driver package isn't part of this
    repo; it's fetched into `ros2_ws/src` via the `fetch-lidar-driver` pixi task (idempotent),
-   which must run once **before** `build-ws`. Symptom if skipped: `ros2_ws/src/` only has
-   `voldemorbot_robot`, and the LIDAR launch fails looking for the `sllidar_ros2` package /
+   which must run once **before** `build-ws`. Symptom if skipped: `ros2_ws/src/` only has the
+   `voldemorbot_*` packages (at the time, a single `voldemorbot_robot` — since split into
+   `voldemorbot_drivers`/`voldemorbot_navigation`/`voldemorbot_vision`/`voldemorbot_state_machine`/
+   `voldemorbot_bringup`), and the LIDAR launch fails looking for the `sllidar_ros2` package /
    `sllidar_node` executable.
 2. **Three different launch paths used three different `frame_id` values** for the same physical
    sensor: the standalone path (`run-lidar` pixi task / `voldemorbot-lidar.service`, which launches
    the third-party `sllidar_ros2/launch/sllidar_c1_launch.py` directly) defaulted to `laser`; the
-   integration path (`voldemorbot_robot/launch/lidar_launch.py`, included by
+   integration path (now `voldemorbot_bringup/launch/lidar_launch.py`, included by
    `wro_state_machine_launch.py`) hardcoded `laser_frame`; the static TF (below) published a
    transform into `lidar_link`. None of these matched, so TF lookups for the actual published scan
    frame would have failed regardless of which path was running. Standardized all three on
    `lidar_link` (matching the URDF/SDF naming convention already used for `camera_link`/`imu_link`).
 3. **`static_tfs.launch.py` existed in source but was never installed** — missing from
-   `setup.py`'s `data_files`, so `ros2 launch voldemorbot_robot static_tfs.launch.py` failed with
+   `setup.py`'s `data_files`, so `ros2 launch voldemorbot_bringup static_tfs.launch.py` failed with
    *"file 'static_tfs.launch.py' was not found in the share directory"* — and critically,
    `wro_state_machine_launch.py` also includes it via `get_package_share_directory(...)`, so the
    **full integration bringup was silently missing all sensor-frame transforms**, not just the

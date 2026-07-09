@@ -43,7 +43,7 @@ def ros_context():
         rclpy.init()
         yield
         rclpy.shutdown()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         pytest.skip(f"ROS2 initialization failed: {e}")
 
 
@@ -70,15 +70,17 @@ def _make_motor_node():
     mock_drive = mock.MagicMock()
 
     with (
-        mock.patch("voldemorbot_robot.motors.ackermann_motor_node.Config", return_value=mock_config),
-        mock.patch("voldemorbot_robot.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
 
-        from voldemorbot_robot.motors.ackermann_motor_node import AckermannMotorNode
+        from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
-        return AckermannMotorNode(), mock_steering, mock_drive
+        node = AckermannMotorNode()
+        node.trigger_configure()
+        return node, mock_steering, mock_drive
 
 
 class TestNavigatorToMotorNode:
@@ -148,7 +150,7 @@ class TestStateMachineStopToMotorNode:
         monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
         monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
 
-        from voldemorbot_robot.state_machine_node import StateMachineNode
+        from voldemorbot_state_machine.state_machine_node import StateMachineNode
 
         sm_node = StateMachineNode()
         published: list[AckermannDriveStamped] = []
@@ -180,13 +182,15 @@ class TestButtonNodeToStateMachine:
     """RPi Zero (button_node) -> RPi 5 (state_machine_node)."""
 
     def test_short_press_event_starts_the_race(self, ros_context):
-        from voldemorbot_robot.state_machine_node import StateMachineNode
+        from voldemorbot_state_machine.state_machine_node import StateMachineNode
 
         mock_button_driver = mock.MagicMock()
-        with mock.patch("voldemorbot_robot.button_node.ButtonDriver", return_value=mock_button_driver):
-            from voldemorbot_robot.button_node import ButtonNode
+        with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_button_driver):
+            from voldemorbot_drivers.button_node import ButtonNode
 
             button_node = ButtonNode()
+            button_node.trigger_configure()
+            button_node.trigger_activate()
 
         mock_button_driver.get_state.return_value = ButtonState(
             is_pressed=False, press_duration=0.0, last_event=ButtonEvent.SHORT_PRESS,

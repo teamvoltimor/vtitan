@@ -1,0 +1,279 @@
+"""Mock-hardware tests for oled_display_node — the real node deployed on the
+
+Raspberry Pi 5. No real I2C/display hardware is touched: the display driver
+class table is mocked so the test exercises the node's lifecycle and callback
+logic against fake driver state.
+
+OLEDDisplayNode is a LifecycleNode: hardware connects and pub/subs are created
+in on_configure(), the display-update timer starts in on_activate(), so tests
+must drive those transitions explicitly before exercising node behavior
+(deployed nodes do this automatically via
+trigger_configure()/trigger_activate() in main()).
+"""
+
+from __future__ import annotations
+
+import sys
+from unittest import mock
+
+import pytest
+import rclpy
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Float32, String
+
+# oled_display_node imports both display backends unconditionally at module
+# scope (src.hardware.display.ssd1306's __init__ re-exports both), which pulls
+# in board/busio/adafruit_ssd1306 (Blinka, not available off-hardware) and
+# fcntl (POSIX-only, doesn't exist on Windows) even though only one backend is
+# ever actually used at runtime. Mock all four before import, matching the
+# pattern test_imu_bno08x_i2c_node.py already uses for board/busio.
+sys.modules["board"] = mock.MagicMock()
+sys.modules["busio"] = mock.MagicMock()
+sys.modules["adafruit_ssd1306"] = mock.MagicMock()
+sys.modules["fcntl"] = mock.MagicMock()
+
+from src.hardware.display.enums import DisplayBackend
+
+
+@pytest.fixture()
+def ros_context():
+    """Initialize and cleanup ROS2 context for each test."""
+    try:
+        rclpy.init()
+        yield
+        rclpy.shutdown()
+    except Exception as e:
+        pytest.skip(f"ROS2 initialization failed: {e}")
+
+
+@pytest.fixture()
+def oled_node_class():
+    """Import OLEDDisplayNode with the BLINKA driver class table entry mocked out."""
+    from voldemorbot_drivers import oled_display_node as oled_module
+
+    mock_driver = mock.MagicMock()
+    mock_driver_cls = mock.MagicMock(return_value=mock_driver)
+
+    with mock.patch.dict(
+        oled_module._DISPLAY_DRIVER_BY_BACKEND,
+        {DisplayBackend.BLINKA: mock_driver_cls, DisplayBackend.RAW_I2C: mock_driver_cls},
+    ):
+        OLEDDisplayNode = oled_module.OLEDDisplayNode
+
+        yield OLEDDisplayNode, mock_driver
+
+
+class TestOLEDDisplayNodeInit:
+    def test_connects_driver_on_configure(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = OLEDDisplayNode()
+        assert node.display_driver is None  # not yet configured
+
+        node.trigger_configure()
+
+        mock_driver.connect.assert_called_once()
+        assert node.display_driver is mock_driver
+
+        node.destroy_node()
+
+    def test_creates_publisher_and_subscriptions_on_configure(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+
+        node.trigger_configure()
+
+        assert node.oled_mirror_pub is not None
+        assert node.state_sub is not None
+        assert node.diagnostics_sub is not None
+        assert node.metrics_sub is not None
+        assert node.imu_sub is not None
+        assert node.lidar_sub is not None
+        assert node.hailo_fps_sub is not None
+
+        node.destroy_node()
+
+    def test_driver_connect_failure_degrades_safely(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        mock_driver.connect.side_effect = RuntimeError("i2c bus hang")
+
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        assert node.display_driver is None
+        node._update_display()  # must not raise with no driver
+        node.destroy_node()
+
+
+class TestOLEDDisplayNodeLifecycle:
+    """Lifecycle-specific behavior: transitions gate hardware and the update timer."""
+
+    def test_activate_creates_ui_timer(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        assert node.ui_timer is None
+
+        node.trigger_activate()
+
+        assert node.ui_timer is not None
+        node.destroy_node()
+
+    def test_deactivate_stops_ui_timer(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.trigger_activate()
+
+        node.trigger_deactivate()
+
+        assert node.ui_timer is None
+        node.destroy_node()
+
+    def test_cleanup_disconnects_driver_and_removes_pub_subs(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        node.trigger_cleanup()
+
+        mock_driver.clear.assert_called_once()
+        mock_driver.close.assert_called_once()
+        assert node.display_driver is None
+        assert node.oled_mirror_pub is None
+        assert node.state_sub is None
+        node.destroy_node()
+
+    def test_destroy_without_configure_does_not_raise(self, ros_context, oled_node_class):
+        """A node destroyed before ever being configured must not crash cleanup."""
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = OLEDDisplayNode()
+
+        node.destroy_node()  # must not raise
+
+        mock_driver.close.assert_not_called()
+
+    def test_destroy_closes_driver_without_clean_shutdown(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        node.destroy_node()
+
+        mock_driver.close.assert_called_once()
+
+
+class TestOLEDDisplayNodeCallbacks:
+    """Pin the callback contracts other nodes rely on."""
+
+    def test_state_callback_updates_current_state(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = String()
+        msg.data = "racing"
+        node._state_callback(msg)
+
+        assert node.current_state == "racing"
+        node.destroy_node()
+
+    def test_diagnostics_callback_updates_system_status(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = DiagnosticArray()
+        status = DiagnosticStatus()
+        status.name = "IMU"
+        status.level = DiagnosticStatus.OK
+        status.message = "OK"
+        msg.status.append(status)
+        node._diagnostics_callback(msg)
+
+        assert "IMU" in node.system_status
+        assert node.system_status["IMU"]["level"] == DiagnosticStatus.OK
+        node.destroy_node()
+
+    def test_metrics_callback_parses_json(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = String()
+        msg.data = '{"laps_completed": 2, "current_velocity": 0.5}'
+        node._metrics_callback(msg)
+
+        assert node.race_metrics["laps_completed"] == 2
+        node.destroy_node()
+
+    def test_metrics_callback_ignores_invalid_json(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.race_metrics = {"laps_completed": 1}
+
+        msg = String()
+        msg.data = "not valid json"
+        node._metrics_callback(msg)  # must not raise
+
+        assert node.race_metrics == {"laps_completed": 1}
+        node.destroy_node()
+
+    def test_hailo_fps_callback_updates_fps(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Float32()
+        msg.data = 27.5
+        node._hailo_fps_callback(msg)
+
+        assert node.hailo_fps == 27.5
+        node.destroy_node()
+
+    def test_imu_callback_computes_gyro_yaw(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Imu()
+        msg.orientation.x = 0.0
+        msg.orientation.y = 0.0
+        msg.orientation.z = 0.707
+        msg.orientation.w = 0.707
+        node._imu_callback(msg)
+
+        assert node.gyro_yaw == pytest.approx(90.0, abs=1.0)
+        node.destroy_node()
+
+
+class TestOLEDDisplayNodeUpdate:
+    def test_update_display_calls_show_image_and_publishes_mirror_when_active(self, ros_context, oled_node_class):
+        from PIL import Image as PILImage
+
+        OLEDDisplayNode, mock_driver = oled_node_class
+        mock_driver.get_blank_image.return_value = PILImage.new("1", (128, 64))
+
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.trigger_activate()
+
+        published = []
+        node.oled_mirror_pub.publish = published.append
+
+        node._update_display()
+
+        mock_driver.show_image.assert_called_once()
+        assert len(published) == 1
+
+        node.destroy_node()
+
+    def test_update_display_noop_before_configure(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = OLEDDisplayNode()
+
+        node._update_display()  # must not raise
+
+        mock_driver.show_image.assert_not_called()
+        node.destroy_node()

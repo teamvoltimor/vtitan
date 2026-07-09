@@ -33,7 +33,7 @@ def ros_context():
 
 @pytest.fixture()
 def state_machine_node_class():
-    from voldemorbot_robot.state_machine_node import StateMachineNode
+    from voldemorbot_state_machine.state_machine_node import StateMachineNode
 
     yield StateMachineNode
 

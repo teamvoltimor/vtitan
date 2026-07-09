@@ -21,11 +21,13 @@ _mock_serinterface.threading = threading
 sys.modules["buildhat.serinterface"] = _mock_serinterface
 
 # The real per-board node implementations (ackermann_motor_node, button_node,
-# state_machine_node, ...) live in the ament_python package under ros2_ws/,
-# which isn't on PYTHONPATH — it's normally only importable after a colcon
-# build. It's pure Python (ament_python, no compiled extensions), so adding
-# its source dir directly lets tests import the exact deployed node code
-# without needing a full ROS2 workspace build.
-_ROS2_WS_PKG = Path(__file__).resolve().parents[2] / "ros2_ws" / "src" / "voldemorbot_robot"
-if str(_ROS2_WS_PKG) not in sys.path:
-    sys.path.insert(0, str(_ROS2_WS_PKG))
+# state_machine_node, ...) live across several ament_python packages under
+# ros2_ws/src/voldemorbot_* (drivers/navigation/vision/state_machine/bringup),
+# none of which are on PYTHONPATH — they're normally only importable after a
+# colcon build. They're pure Python (ament_python, no compiled extensions), so
+# adding each source dir directly lets tests import the exact deployed node
+# code without needing a full ROS2 workspace build.
+_ROS2_WS_SRC = Path(__file__).resolve().parents[2] / "ros2_ws" / "src"
+for _pkg_dir in sorted(_ROS2_WS_SRC.glob("voldemorbot_*")):
+    if str(_pkg_dir) not in sys.path:
+        sys.path.insert(0, str(_pkg_dir))
