@@ -59,6 +59,8 @@ if TYPE_CHECKING:
     from rclpy.subscription import Subscription
     from rclpy.timer import Timer
 
+    from src.hardware.display.base import Driver as DisplayDriver
+
 
 NODE_NAME = "oled_display_node"
 """ROS2 node name for OLED display controller."""
@@ -122,7 +124,7 @@ class OLEDDisplayNode(LifecycleNode):
         super().__init__(NODE_NAME)
         self.get_logger().info("OLED Display Node constructed (unconfigured)")
 
-        self.display_driver = None
+        self.display_driver: DisplayDriver | None = None
         self.bridge: CvBridge | None = None
         self.oled_mirror_pub: Publisher | None = None
         self.state_sub: Subscription | None = None
@@ -249,7 +251,7 @@ class OLEDDisplayNode(LifecycleNode):
             self.oled_mirror_pub = None
 
     @override
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         """Release hardware directly rather than trigger an on_shutdown transition.
 
         Handles a node destroyed without a clean lifecycle shutdown (e.g.
@@ -356,6 +358,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_boot_check(self) -> Image.Image:
         """Render BOOT_CHECK view - hardware checklist."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
@@ -388,6 +391,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_ready(self) -> Image.Image:
         """Render READY view - IP, model name, ready status."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
@@ -415,6 +419,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_ackermann(self) -> Image.Image:
         """Render Ackermann page - velocity, steering, gyro."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
@@ -441,6 +446,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_hailo(self) -> Image.Image:
         """Render Hailo Vision page - NPU FPS, detections."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
@@ -460,6 +466,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_lidar(self) -> Image.Image:
         """Render LiDAR page - spatial clearances."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
@@ -485,6 +492,7 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _render_finished(self) -> Image.Image:
         """Render FINISHED view - final results."""
+        assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 

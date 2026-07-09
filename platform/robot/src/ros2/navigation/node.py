@@ -13,7 +13,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import rclpy
@@ -46,7 +46,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
     """Load JSON file."""
     p = Path(path) if isinstance(path, str) else path
     with p.open(encoding="utf-8") as f:
-        return json.load(f)
+        return cast("dict[str, Any]", json.load(f))
 
 
 class ROS2HardwareGateway(HardwareGateway):
@@ -320,11 +320,14 @@ class TrackNavigator(Node):
             if isinstance(value, bool):
                 params.append(rp.Parameter(name, rp.Parameter.Type.BOOL, value))
             elif isinstance(value, int):
-                params.append(rp.Parameter(name, rp.Parameter.Type.INTEGER, value))
+                # rclpy's Parameter stub only resolves the bool overload;
+                # runtime dispatch is on the Type enum, not the stub's
+                # positional-arg overload, so this is a stub limitation.
+                params.append(rp.Parameter(name, rp.Parameter.Type.INTEGER, value))  # type: ignore[arg-type]
             elif isinstance(value, float):
-                params.append(rp.Parameter(name, rp.Parameter.Type.DOUBLE, value))
+                params.append(rp.Parameter(name, rp.Parameter.Type.DOUBLE, value))  # type: ignore[arg-type]
             elif isinstance(value, str):
-                params.append(rp.Parameter(name, rp.Parameter.Type.STRING, value))
+                params.append(rp.Parameter(name, rp.Parameter.Type.STRING, value))  # type: ignore[arg-type]
             else:
                 self.get_logger().warning(f"Skipping param '{name}': unsupported type {type(value)}")
 

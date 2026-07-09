@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     from rclpy.timer import Timer
 
     from src.hardware.motors.base import DriveDriver, SteeringDriver
+    from src.hardware.motors.base import Driver as CombinedDriver
 
 
 NODE_NAME = "ackermann_motor_node"
@@ -100,9 +101,9 @@ class _DriverFactory:
 
     def __init__(self, config: Config) -> None:
         self._config = config
-        self._build_hat: SteeringDriver | None = None
+        self._build_hat: CombinedDriver | None = None
 
-    def _shared_build_hat(self) -> SteeringDriver:
+    def _shared_build_hat(self) -> CombinedDriver:
         """Return the combined Build HAT driver, building it at most once."""
         if self._build_hat is None:
             from src.hardware.motors.build_hat import Driver  # noqa: PLC0415 - lazy: only when selected
@@ -178,8 +179,10 @@ class AckermannMotorNode(LifecycleNode):
 
         self.get_logger().info("Configuring Ackermann Motor Node")
 
-        # Load configuration from environment (pydantic-settings via Config)
-        config = Config()
+        # Load configuration from environment (pydantic-settings via Config).
+        # test_duration is required with no default -- resolved from an env
+        # var; mypy can't see that.
+        config = Config()  # type: ignore[call-arg]
         self.config = config
 
         # Backend selection (with fallback)
@@ -307,7 +310,7 @@ class AckermannMotorNode(LifecycleNode):
                 setattr(self, pub_attr, None)
 
     @override
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         """Stop the motors and release everything, regardless of lifecycle state.
 
         Handles a node destroyed without a clean lifecycle shutdown (e.g.
@@ -325,7 +328,7 @@ class AckermannMotorNode(LifecycleNode):
         Args:
             msg: Ackermann drive command with speed and steering angle.
         """
-        if self.steering is None or self.drive is None:
+        if self.steering is None or self.drive is None or self.config is None:
             return
 
         # Extract velocity and steering angle from message
@@ -392,7 +395,16 @@ class AckermannMotorNode(LifecycleNode):
 
     def _publish_feedback(self) -> None:
         """Publish motor position and speed feedback."""
-        if self.steering is None or self.drive is None:
+        if (
+            self.steering is None
+            or self.drive is None
+            or self.config is None
+            or self.steering_pos_pub is None
+            or self.drive_speed_pub is None
+            or self.status_pub is None
+            or self.steering_backend is None
+            or self.drive_backend is None
+        ):
             return
 
         try:

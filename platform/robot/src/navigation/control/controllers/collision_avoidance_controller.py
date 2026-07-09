@@ -127,7 +127,7 @@ class CollisionAvoidanceController:
         self.side_correction_frames = side_correction_frames
 
     def _forward_path_ranges(
-        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None,
     ) -> np.ndarray:
         """Ranges of points ahead of the robot inside its driving lane.
 
@@ -150,10 +150,10 @@ class CollisionAvoidanceController:
         lateral = np.abs(ranges * np.sin(angles))
         ahead = np.cos(angles) > 0.0
         mask = ahead & (lateral < self.path_half_width) & (ranges > _MIN_VALID_LIDAR_RANGE_M)
-        return ranges[mask]
+        return np.asarray(ranges[mask])
 
     def assess_risk(
-        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> RiskLevel:
         """Assess collision risk from obstacles in the robot's forward path.
 
@@ -187,8 +187,8 @@ class CollisionAvoidanceController:
 
     @staticmethod
     def _sector_ranges(
-        lidar_ranges: np.ndarray,
-        lidar_angles: np.ndarray | None,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
@@ -226,10 +226,10 @@ class CollisionAvoidanceController:
         delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
         min_valid = RobotSpecs.LIDAR_SELF_DETECTION_THRESHOLD if filter_self_detection else 0.01
         mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid)
-        return ranges[mask]
+        return np.asarray(ranges[mask])
 
     def compute_forward_clearance(
-        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> float:
         """Mean clearance in the forward +/-30 deg sector (0 rad = forward).
 
@@ -249,7 +249,7 @@ class CollisionAvoidanceController:
         return float(np.mean(forward))
 
     def compute_rear_clearance(
-        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> float:
         """Minimum clearance in the rear +/-45 deg sector (+/-pi rad = rear).
 
@@ -269,7 +269,7 @@ class CollisionAvoidanceController:
         return float(np.min(rear))
 
     def detect_threat_direction(
-        self, lidar_ranges: np.ndarray, lidar_angles: np.ndarray | None = None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> ThreatDirection:
         """Direction of the closest obstacle: front, left, right, back, or none.
 
@@ -302,13 +302,13 @@ class CollisionAvoidanceController:
             ThreatDirection.BACK: sector_min(math.pi, filter_self_detection=True),
         }
 
-        closest = min(directions, key=directions.get)
+        closest = min(directions, key=lambda direction: directions[direction])
         if directions[closest] > 1.0:
             return ThreatDirection.NONE
         return closest
 
     def _k_turn_steer_sign(
-        self, lidar_ranges: np.ndarray | None, lidar_angles: np.ndarray | None,
+        self, lidar_ranges: np.ndarray | tuple[float, ...] | None, lidar_angles: np.ndarray | tuple[float, ...] | None,
     ) -> float:
         """Steering sign that swings the nose toward the clearer side in reverse.
 
@@ -338,8 +338,8 @@ class CollisionAvoidanceController:
         self,
         risk: RiskLevel,
         threat_dir: ThreatDirection,
-        lidar_ranges: np.ndarray | None = None,
-        lidar_angles: np.ndarray | None = None,
+        lidar_ranges: np.ndarray | tuple[float, ...] | None = None,
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> EscapeManeuver | None:
         """Generate escape maneuver for detected threat.
 

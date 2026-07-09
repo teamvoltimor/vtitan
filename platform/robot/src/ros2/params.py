@@ -18,7 +18,7 @@ def declare_and_get_str_param(node: Node, key: str, default: str) -> str:
         str: Parameter value.
     """
     node.declare_parameter(key, default)
-    return node.get_parameter(key).get_parameter_value().string_value
+    return str(node.get_parameter(key).get_parameter_value().string_value)
 
 
 def declare_and_get_int_param(node: Node, key: str, default: int) -> int:
@@ -33,7 +33,7 @@ def declare_and_get_int_param(node: Node, key: str, default: int) -> int:
         int: Parameter value.
     """
     node.declare_parameter(key, default)
-    return node.get_parameter(key).get_parameter_value().integer_value
+    return int(node.get_parameter(key).get_parameter_value().integer_value)
 
 
 def declare_and_get_float_param(node: Node, key: str, default: float) -> float:
@@ -48,7 +48,7 @@ def declare_and_get_float_param(node: Node, key: str, default: float) -> float:
         float: Parameter value.
     """
     node.declare_parameter(key, default)
-    return node.get_parameter(key).get_parameter_value().double_value
+    return float(node.get_parameter(key).get_parameter_value().double_value)
 
 
 def declare_and_get_bool_param(node: Node, key: str, default: bool) -> bool:
@@ -63,4 +63,4 @@ def declare_and_get_bool_param(node: Node, key: str, default: bool) -> bool:
         bool: Parameter value.
     """
     node.declare_parameter(key, default)
-    return node.get_parameter(key).get_parameter_value().bool_value
+    return bool(node.get_parameter(key).get_parameter_value().bool_value)

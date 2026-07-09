@@ -56,6 +56,14 @@ class Driver(ABC):
         """Get linear acceleration (m/s², gravity removed)."""
 
     @abstractmethod
+    def enable_sensors(self) -> None:
+        """Enable all sensor feature reports on the IMU."""
+
+    @abstractmethod
+    def get_all_data(self) -> Data:
+        """Get all sensor Readings in one aggregate snapshot."""
+
+    @abstractmethod
     def close(self) -> None:
         """Close connection."""
 

@@ -38,9 +38,7 @@ _LAZY: dict[str, tuple[str, str]] = {
     "HailoConfig": ("hailo", "Config"),
     "HailoDriver": ("hailo", "Driver"),
     "InferenceResult": ("hailo", "InferenceResult"),
-    "IMUData": ("imu", "Data"),
     "IMUDriver": ("imu", "Driver"),
-    "IMU_RVCData": ("imu", "RVCData"),
     "IMU_RVCDriver": ("imu", "RVCDriver"),
     "MCP2221Config": ("mcp2221", "MCP2221Config"),
     "CalibrationData": ("motors", "CalibrationData"),
@@ -62,9 +60,7 @@ __all__ = [
     "DisplayDriver",
     "HailoConfig",
     "HailoDriver",
-    "IMUData",
     "IMUDriver",
-    "IMU_RVCData",
     "IMU_RVCDriver",
     "InferenceResult",
     "MCP2221Config",
@@ -110,9 +106,7 @@ if TYPE_CHECKING:
         InferenceResult,
     )
     from src.hardware.imu import (
-        Data as IMUData,
         Driver as IMUDriver,
-        RVCData as IMU_RVCData,
         RVCDriver as IMU_RVCDriver,
     )
     from src.hardware.mcp2221 import MCP2221Config

@@ -126,7 +126,7 @@ class Driver(ABC_Driver):
                 img_height=original_height,
                 class_map=self.config.class_map,
                 latency_ms=latency_ms,
-                conf_threshold=self.config.conf_threshold,
+                conf_threshold=self.config.min_confidence,
                 image=image,
             )
 
@@ -156,7 +156,7 @@ class Driver(ABC_Driver):
             if devices:
                 temp = devices[0].control.get_device_temperature()
                 self.logger.info("Temperature read", extra={"details": {"temperature_c": temp}})
-                return temp
+                return float(temp)
         except (RuntimeError, OSError, ValueError):
             return None
         else:
@@ -169,7 +169,7 @@ class Driver(ABC_Driver):
             if devices:
                 power = devices[0].get_power_usage()
                 self.logger.info("Power usage read", extra={"details": {"power_mw": power}})
-                return power
+                return int(power)
         except (RuntimeError, OSError, ValueError):
             return None
         else:

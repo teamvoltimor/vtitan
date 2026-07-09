@@ -72,7 +72,7 @@ class Driver(ABC_Driver):
             self._display.show()
 
     @override
-    def show_image(self, image: Image) -> None:
+    def show_image(self, image: Image.Image) -> None:
         """Display an image on the OLED.
 
         Args:
@@ -107,7 +107,7 @@ class Driver(ABC_Driver):
         self._display.show()
 
     @override
-    def get_blank_image(self) -> Image:
+    def get_blank_image(self) -> Image.Image:
         """Create a blank image with correct dimensions for this display."""
         return Image.new("1", (self.config.width, self.config.height))
 

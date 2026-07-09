@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class RobotState(StrEnum):
@@ -71,14 +75,14 @@ class StateMachine:
 
     def __init__(self) -> None:
         self._current_state = RobotState.BOOT_CHECK
-        self._transition_callbacks: list[object] = []
+        self._transition_callbacks: list[Callable[[Transition], None]] = []
 
     @property
     def current_state(self) -> RobotState:
         """Get the current robot state."""
         return self._current_state
 
-    def register_transition_callback(self, callback: object) -> None:
+    def register_transition_callback(self, callback: Callable[[Transition], None]) -> None:
         """Register a callback invoked on every state transition."""
         self._transition_callbacks.append(callback)
 

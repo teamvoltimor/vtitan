@@ -186,6 +186,7 @@ class RawI2CDriver(ABC_Driver):
         """
         width, height = image.size
         pixels = image.load()
+        assert pixels is not None
         buffer = bytearray(width * self._pages)
         for page in range(self._pages):
             for x in range(width):

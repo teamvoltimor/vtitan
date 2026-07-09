@@ -129,7 +129,7 @@ class ButtonNode(LifecycleNode):
             self.pub.publish(msg)
 
     @override
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         """Release hardware directly rather than trigger an on_shutdown transition.
 
         Handles a node destroyed without a clean lifecycle shutdown (e.g.

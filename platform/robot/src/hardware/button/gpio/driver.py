@@ -33,7 +33,10 @@ class Config(BaseSettings):
     gpio_pin: int = Field(validation_alias="BUTTON_GPIO_PIN")
     """GPIO pin number for the button."""
 
-    button: ButtonConfig = Field(default_factory=ButtonConfig)
+    # ButtonConfig has no defaults for pull_up/debounce_ms/long_press_threshold_sec
+    # -- this factory only succeeds when the nested BUTTON__* env vars are
+    # set; mypy can't see that env resolution, hence the ignore.
+    button: ButtonConfig = Field(default_factory=lambda: ButtonConfig())  # type: ignore[call-arg]
 
 
 class Driver(ABC_Driver):
@@ -46,7 +49,9 @@ class Driver(ABC_Driver):
     """
 
     def __init__(self, config: Config | None = None) -> None:
-        self.config: Config = config or Config()
+        # gpio_pin is required with no default -- resolved from an env var
+        # when config isn't passed explicitly; mypy can't see that.
+        self.config: Config = config or Config()  # type: ignore[call-arg]
         self._button: Button | None = None
         self._press_start_time: float | None = None
         self._last_event: ButtonEvent | None = None
@@ -157,7 +162,7 @@ class Driver(ABC_Driver):
         if self._button is None:
             return False
 
-        return self._button.wait_for_press(timeout=timeout)
+        return bool(self._button.wait_for_press(timeout=timeout))
 
     @override
     def wait_for_release(self, timeout: float | None = None) -> bool:
@@ -168,7 +173,7 @@ class Driver(ABC_Driver):
         if self._button is None:
             return False
 
-        return self._button.wait_for_release(timeout=timeout)
+        return bool(self._button.wait_for_release(timeout=timeout))
 
     @override
     def close(self) -> None:

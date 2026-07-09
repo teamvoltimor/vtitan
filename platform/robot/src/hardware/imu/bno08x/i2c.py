@@ -47,8 +47,11 @@ class Config(BaseSettings):
         env_nested_delimiter="__",
     )
 
+    # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory
+    # only succeeds when the nested QUATERNION__* env vars are set; mypy
+    # can't see that env resolution, hence the ignore.
     quaternion: QuaternionConfig = Field(
-        default_factory=QuaternionConfig,
+        default_factory=lambda: QuaternionConfig(),  # type: ignore[call-arg]
     )
 
     address: int
@@ -74,9 +77,12 @@ class Driver(ABC_Driver):
         Initialize driver with optional configuration.
 
         Args:
-            config (I2CConfig | None): Configuration for I2C connection and sensor settings. If None, defaults will be used.
+            config (I2CConfig | None): Configuration for I2C connection and sensor settings.
+                If None, resolved from env vars (address is required, no default).
         """
-        self.config: Config = config or Config()
+        # address is required with no default -- resolved from an env var
+        # when config isn't passed explicitly; mypy can't see that.
+        self.config: Config = config or Config()  # type: ignore[call-arg]
         self._imu: BNO08X | None = None
         self._i2c: busio.I2C | None = None
         self._conn_lock: threading.Lock = threading.Lock()
@@ -103,7 +109,7 @@ class Driver(ABC_Driver):
         except (RuntimeError, OSError) as e:
             self.logger.exception("Failed to connect to IMU", extra={"details": {"error": str(e)}})
             raise IMUConnectionError(
-                self.config.address,
+                hex(self.config.address),
                 "Connection failed (check wiring, power, and I2C address)",
             ) from e
         except Exception as e:
@@ -112,7 +118,7 @@ class Driver(ABC_Driver):
                 extra={"details": {"error": str(e)}},
             )
             raise IMUConnectionError(
-                self.config.address,
+                hex(self.config.address),
                 f"Unexpected connection error: {type(e).__name__}",
             ) from e
         finally:
@@ -188,20 +194,21 @@ class Driver(ABC_Driver):
 
     @override
     def get_quaternion(self) -> QuaternionReading:
-        """Get fused quaternion (x, y, z, w)."""
+        """Get fused quaternion (w, x, y, z)."""
         if self.imu is None:
             self.logger.warning("IMU not connected, cannot read quaternion")
-            return QuaternionReading(0.0, 0.0, 0.0, 1.0)  # Identity quaternion as default
+            return QuaternionReading(w=1.0, x=0.0, y=0.0, z=0.0)  # Identity quaternion as default
 
-        # Unpack correctly based on Adafruit's return order
+        # Adafruit's BNO08x .quaternion property returns (x, y, z, w).
         x, y, z, w = self.imu.quaternion
 
         self.logger.debug(
             "Quaternion read",
             extra={"details": {"x": x, "y": y, "z": z, "w": w}},
         )
-        # Return explicitly in the ROS 2 expected order
-        return QuaternionReading(x, y, z, w)
+        # QuaternionReading is (w, x, y, z) -- keyword args so the fields
+        # line up correctly regardless of Adafruit's (x, y, z, w) order.
+        return QuaternionReading(w=w, x=x, y=y, z=z)
 
     @override
     def get_euler(self) -> EulerReading:
@@ -243,7 +250,8 @@ class Driver(ABC_Driver):
         except AttributeError:
             return None
         else:
-            return cal
+            # cal is an untyped Adafruit attribute.
+            return cal  # type: ignore[no-any-return]
 
     @override
     def close(self) -> None:

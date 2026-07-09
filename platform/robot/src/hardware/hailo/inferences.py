@@ -67,7 +67,7 @@ class InferenceResult(NamedTuple):
     @classmethod
     def parse_yolo_nms_output(
         cls,
-        raw_tensor: object,
+        raw_tensor: np.ndarray,
         img_width: int,
         img_height: int,
         class_map: dict[int, str],

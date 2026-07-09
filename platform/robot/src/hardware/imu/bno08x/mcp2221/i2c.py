@@ -23,6 +23,14 @@ from src.hardware.imu.base import (
     Data,
     Driver as ABC_Driver,
 )
+from src.hardware.imu.readings import (
+    AccelerometerReading,
+    EulerReading,
+    GyroscopeReading,
+    LinearAccelelerometerReading,
+    MagnetometerReading,
+    QuaternionReading,
+)
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -39,7 +47,7 @@ class Config(BaseSettings):
 
     @field_validator("i2c_address", mode="before")
     @classmethod
-    def _parse_int_literal(cls, value: Any) -> Any:  # noqa: ANN401 - pydantic before-validator signature
+    def _parse_int_literal(cls, value: Any) -> Any:
         """Accept "0x4A"-style hex literals as well as plain decimal strings."""
         return int(value, 0) if isinstance(value, str) else value
 
@@ -49,8 +57,8 @@ class Driver(ABC_Driver):
 
     def __init__(self, config: Config | None = None):
         self.config = config or Config()
-        self._imu = None
-        self._i2c = None
+        self._imu: BNO08X | None = None
+        self._i2c: busio.I2C | None = None
         self.logger = logging.getLogger(__name__)
 
     def connect(self) -> None:
@@ -66,7 +74,7 @@ class Driver(ABC_Driver):
             self._i2c = busio.I2C(board.SCL, board.SDA)
 
             # Initialize BNO08x with the I2C bus
-            self._imu: BNO08X = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
+            self._imu = BNO08X_I2C(self._i2c, address=self.config.i2c_address)
             self.logger.info("Connected to BNO08x IMU via MCP2221A I2C")
         except (RuntimeError, OSError):
             self.logger.exception("Failed to connect to IMU")
@@ -98,67 +106,75 @@ class Driver(ABC_Driver):
     @override
     def enable_sensors(self) -> None:
         """Enable all sensors."""
-        if self.imu is None:
+        imu = self.imu
+        if imu is None:
             self.logger.warning("IMU not connected, cannot enable sensors")
             return
 
-        self.imu.enable_feature(BNO_REPORT_ACCELEROMETER)
-        self.imu.enable_feature(BNO_REPORT_GYROSCOPE)
-        self.imu.enable_feature(BNO_REPORT_MAGNETOMETER)
-        self.imu.enable_feature(BNO_REPORT_ROTATION_VECTOR)  # Standard Quaternion
-        self.imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR)  # Z-axis gravity removed
-        self.imu.enable_feature(BNO_REPORT_LINEAR_ACCELERATION)
+        imu.enable_feature(BNO_REPORT_ACCELEROMETER)
+        imu.enable_feature(BNO_REPORT_GYROSCOPE)
+        imu.enable_feature(BNO_REPORT_MAGNETOMETER)
+        imu.enable_feature(BNO_REPORT_ROTATION_VECTOR)  # Standard Quaternion
+        imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR)  # Z-axis gravity removed
+        imu.enable_feature(BNO_REPORT_LINEAR_ACCELERATION)
 
         time.sleep(0.1)
         self.logger.info("Sensors enabled")
 
     @override
-    def get_accelerometer(self) -> tuple[float, float, float]:
+    def get_accelerometer(self) -> AccelerometerReading:
         """Get accelerometer data (m/s²)."""
+        assert self.imu is not None
         accel = self.imu.acceleration
         self.logger.debug("Accelerometer read", extra={"details": {"x": accel[0], "y": accel[1], "z": accel[2]}})
-        return tuple(accel)
+        return AccelerometerReading(*accel)
 
     @override
-    def get_gyroscope(self) -> tuple[float, float, float]:
+    def get_gyroscope(self) -> GyroscopeReading:
         """Get gyroscope data (rad/s)."""
+        assert self.imu is not None
         gyro = self.imu.gyro
         self.logger.debug("Gyroscope read", extra={"details": {"x": gyro[0], "y": gyro[1], "z": gyro[2]}})
-        return tuple(gyro)
+        return GyroscopeReading(*gyro)
 
     @override
-    def get_magnetometer(self) -> tuple[float, float, float]:
+    def get_magnetometer(self) -> MagnetometerReading:
         """Get magnetometer data (µT)."""
+        assert self.imu is not None
         mag = self.imu.magnetic
         self.logger.debug("Magnetometer read", extra={"details": {"x": mag[0], "y": mag[1], "z": mag[2]}})
-        return tuple(mag)
+        return MagnetometerReading(*mag)
 
     @override
-    def get_quaternion(self) -> tuple[float, float, float, float]:
-        """Get fused quaternion (x, y, z, w)."""
-        # Unpack correctly based on Adafruit's return order
+    def get_quaternion(self) -> QuaternionReading:
+        """Get fused quaternion (w, x, y, z)."""
+        assert self.imu is not None
+        # Adafruit's BNO08x .quaternion property returns (x, y, z, w).
         x, y, z, w = self.imu.quaternion
 
         self.logger.debug(
             "Quaternion read",
             extra={"details": {"x": x, "y": y, "z": z, "w": w}},
         )
-        # Return explicitly in the ROS 2 expected order
-        return (x, y, z, w)
+        # QuaternionReading is (w, x, y, z) -- keyword args so the fields
+        # line up correctly regardless of Adafruit's (x, y, z, w) order.
+        return QuaternionReading(w=w, x=x, y=y, z=z)
 
     @override
-    def get_euler(self) -> tuple[float, float, float]:
+    def get_euler(self) -> EulerReading:
         """Get fused Euler angles (pitch, roll, yaw) in degrees."""
+        assert self.imu is not None
         euler = self.imu.euler
         self.logger.debug("Euler read", extra={"details": {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}})
-        return tuple(euler)
+        return EulerReading(*euler)
 
     @override
-    def get_linear_acceleration(self) -> tuple[float, float, float]:
+    def get_linear_acceleration(self) -> LinearAccelelerometerReading:
         """Get linear acceleration (m/s², gravity removed)."""
+        assert self.imu is not None
         linear = self.imu.linear_acceleration
         self.logger.debug("Linear accel read", extra={"details": {"x": linear[0], "y": linear[1], "z": linear[2]}})
-        return tuple(linear)
+        return LinearAccelelerometerReading(*linear)
 
     @override
     def get_all_data(self) -> Data:
@@ -174,10 +190,14 @@ class Driver(ABC_Driver):
 
     def get_calibration_status(self) -> dict | None:
         """Get calibration status."""
+        imu = self.imu
+        if imu is None:
+            return None
         try:
-            cal = self.imu.calibration_status
+            cal = imu.calibration_status
             self.logger.info("Calibration status read", extra={"details": {"calibration": cal}})
         except AttributeError:
             return None
         else:
-            return cal
+            # cal is an untyped Adafruit attribute.
+            return cal  # type: ignore[no-any-return]

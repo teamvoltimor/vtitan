@@ -448,6 +448,24 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # ROS2 launch files are implicit namespace packages; function sig required by ROS2
 "**/launch/*.py" = ["INP001", "ANN201", "D103"]
 
+# `assert self.<property> is not None` narrows an internal invariant already
+# enforced by the calling convention (e.g. only reachable after a successful
+# connect()) so mypy can see it too -- not a bypassable security check.
+"src/hardware/display/ssd1306/driver_raw_i2c.py" = ["S101"]
+"src/hardware/hailo/streaming.py" = ["S101"]
+"src/hardware/imu/bno08x/mcp2221/i2c.py" = ["S101"]
+"ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers/oled_display_node.py" = ["S101"]
+
+# `Field(default_factory=lambda: X())` (not the bare class) is required so
+# mypy's pydantic overload resolution actually type-checks X()'s own required
+# fields instead of silently degrading to an "incompatible Callable" error.
+"src/hardware/button/gpio/driver.py" = ["PLW0108"]
+"src/hardware/button/mcp2221/config.py" = ["PLW0108"]
+"src/hardware/imu/bno08x/i2c.py" = ["PLW0108"]
+"src/hardware/imu/bno08x/uart_rvc.py" = ["PLW0108"]
+"src/hardware/imu/bno08x/mcp2221/uart_rvc.py" = ["PLW0108"]
+"src/hardware/motors/config.py" = ["PLW0108"]
+
 "src/*.py" = []
 
 # ============================================================================

@@ -39,7 +39,10 @@ class Config(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)
+    # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory
+    # only succeeds when the nested QUATERNION__* env vars are set; mypy
+    # can't see that env resolution, hence the ignore.
+    quaternion: QuaternionConfig = Field(default_factory=lambda: QuaternionConfig())  # type: ignore[call-arg]
 
     port: str
     """Serial port for UART connection. If empty, the driver will attempt to auto-detect the port based on VID/PID."""
@@ -55,7 +58,9 @@ class Driver(ABC_RVCDriver):
     """Driver for BNO08x IMU via UART RVC mode."""
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        # port is required with no default -- resolved from the BNO08X_UART_RVC_PORT
+        # env var when config isn't passed explicitly; mypy can't see that.
+        self.config: Config = config or Config()  # type: ignore[call-arg]
         self._serial: serial.Serial | None = None
         self._rvc: BNO08x_RVC | None = None
         self._thread: Thread | None = None

@@ -20,11 +20,10 @@ Topics:
         - /race_metrics (std_msgs/String) - Race metrics (JSON)
 """
 
-import asyncio
 import json
 import socket
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -194,20 +193,20 @@ class StateMachineNode(Node):
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.settimeout(2.0)
                 s.connect(("8.8.8.8", 80))
-                ip = s.getsockname()[0]
+                ip: str = s.getsockname()[0]
                 s.close()
             except OSError:
                 return "OFFLINE"
             else:
                 return ip
 
-        def on_complete(future: asyncio.Future) -> None:
+        def on_complete(future: Future[str]) -> None:
             """Callback when IP fetch completes."""
             try:
                 self.ip_address = future.result()
             except (RuntimeError, OSError) as e:
                 self.ip_address = "OFFLINE"
-                self.get_logger().warning("Failed to fetch IP: %s", e)
+                self.get_logger().warning(f"Failed to fetch IP: {e}")
             else:
                 self.get_logger().info(f"IP address resolved: {self.ip_address}")
             self.ip_fetch_complete = True

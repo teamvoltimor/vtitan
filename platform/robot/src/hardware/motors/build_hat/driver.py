@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import logging
 import signal
-from typing import Self, override
+from typing import TYPE_CHECKING, Self, override
 
 from buildhat import Motor
 
 from src.hardware.exceptions import MotorConnectionError, MotorTimeoutError
 from src.hardware.motors.base import (
+    DEFAULT_STEERING_SPEED,
     CalibrationData,
     Driver as MotorDriver,
 )
 from src.hardware.motors.config import Config
 from src.logger import configure_json_logging
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from types import FrameType
 
 configure_json_logging()
 
@@ -33,18 +38,18 @@ class _TimeoutHandler:
             timeout_seconds (int): Number of seconds before timing out the connection attempt.
         """
         self.timeout_seconds = timeout_seconds
-        self._original_handler = None
+        self._original_handler: Callable[[int, FrameType | None], object] | int | None = None
 
-    def __enter__(self) -> Self @ _TimeoutHandler:
+    def __enter__(self) -> Self:
         """Set timeout alarm."""
 
-        def _timeout_handler(_signum: int, _frame: signal.FrameType) -> None:
+        def _timeout_handler(_signum: int, _frame: FrameType | None) -> None:
             """
             Signal handler for connection timeout. Raises MotorTimeoutError when the alarm signal is received.
 
             Args:
                 _signum (int): The signal number (should be signal.SIGALRM).
-                _frame (signal.FrameType): The current stack frame (not used).
+                _frame (FrameType | None): The current stack frame (not used).
             """
             msg = f"Motor connection timed out after {self.timeout_seconds} seconds"
             raise MotorTimeoutError(msg)
@@ -77,7 +82,9 @@ class Driver(MotorDriver):
     """Driver for Build HAT motor control."""
 
     def __init__(self, config: Config | None = None):
-        self.config = config or Config()
+        # test_duration is required with no default -- resolved from an env
+        # var when config isn't passed explicitly; mypy can't see that.
+        self.config = config or Config()  # type: ignore[call-arg]
         self._steering: Motor | None = None
         self._drive: Motor | None = None
         self._calibration: CalibrationData | None = None
@@ -139,22 +146,22 @@ class Driver(MotorDriver):
     @override
     def get_steering_position(self) -> float:
         """Get current steering position in degrees."""
-        return self.steering.get_aposition()
+        return float(self.steering.get_aposition())
 
     @override
     def get_drive_position(self) -> float:
         """Get current drive position in degrees."""
-        return self.drive.get_aposition()
+        return float(self.drive.get_aposition())
 
     @override
     def get_steering_speed(self) -> float:
         """Get current steering speed in degrees/s."""
-        return self.steering.get_speed()
+        return float(self.steering.get_speed())
 
     @override
     def get_drive_speed(self) -> float:
         """Get current drive speed in degrees/s."""
-        return self.drive.get_speed()
+        return float(self.drive.get_speed())
 
     def _clamp_speed(self, speed: int) -> int:
         """Clamp speed to configured limits."""
@@ -189,7 +196,7 @@ class Driver(MotorDriver):
         self.logger.info("Drive stopped")
 
     @override
-    def move_steering_to(self, position: float, speed: int | None = None) -> None:
+    def move_steering_to(self, position: float, speed: int = DEFAULT_STEERING_SPEED) -> None:
         """Move steering to absolute position in degrees."""
         s = self._clamp_speed(speed)
         self.logger.info("Moving steering", extra={"details": {"target_position": position, "speed": speed}})

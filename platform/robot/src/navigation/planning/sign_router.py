@@ -29,21 +29,15 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from shared.config.constants import ColorNames, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
 
 from src.navigation.planning.waypoints import corridor_for_position
 
-
-@dataclass(frozen=True)
-class Detection:
-    """A camera detection with class name, confidence, and bounding box."""
-
-    class_name: str
-    confidence: float
-    bbox: tuple[float, float, float, float]
-
+if TYPE_CHECKING:
+    from shared.domain.models import Detection
 
 logger = logging.getLogger(__name__)
 

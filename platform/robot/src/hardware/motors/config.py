@@ -73,9 +73,14 @@ class Config(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    steering: MotorSteeringConfig = Field(default_factory=MotorSteeringConfig)
+    # MotorSteeringConfig/MotorDriveConfig have no field defaults for the
+    # physical parameters (port, angle limits, speeds) -- there is no safe
+    # universal default for those, so this factory only succeeds when the
+    # nested env vars (MOTOR_STEERING__*/MOTOR_DRIVE__*) are set; mypy can't
+    # see that env resolution, hence the ignores.
+    steering: MotorSteeringConfig = Field(default_factory=lambda: MotorSteeringConfig())  # type: ignore[call-arg]
 
-    drive: MotorDriveConfig = Field(default_factory=MotorDriveConfig)
+    drive: MotorDriveConfig = Field(default_factory=lambda: MotorDriveConfig())  # type: ignore[call-arg]
 
     test_duration: float
     """

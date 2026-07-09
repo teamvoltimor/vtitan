@@ -72,7 +72,7 @@ class VisionNode(Node):
                 )
                 return
 
-            img = np.ndarray(
+            img: np.ndarray = np.ndarray(
                 shape=(msg.height, msg.width, 3),
                 dtype=np.uint8,
                 buffer=msg.data,

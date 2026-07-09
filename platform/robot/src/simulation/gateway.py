@@ -293,8 +293,9 @@ class ScenarioSimulator:
             gw.advance(dt)
             step += 1
 
-            if on_step is not None:
-                on_step(gw.state, gw.get_lidar_scan())
+            scan = gw.get_lidar_scan()
+            if on_step is not None and scan is not None:
+                on_step(gw.state, scan)
 
             sx, sy = gw.state.x, gw.state.y
             distance += math.hypot(sx - prev_xy[0], sy - prev_xy[1])

@@ -30,7 +30,13 @@ class Driver(BaseDriver):
     """
 
     def __init__(self, config: Config | None = None):
-        self.config: Config = config or Config()
+        # gpio_pin is required with no default -- resolved from an env var
+        # when config isn't passed explicitly; mypy can't see that.
+        self.config: Config = config or Config()  # type: ignore[call-arg]
+        self._gpio_pin: int = self.config.gpio_pin
+        self._pull_up: bool = self.config.button.pull_up
+        self._debounce_sec: float = self.config.button.debounce_ms / 1000.0
+        self._long_press_threshold_sec: float = self.config.button.long_press_threshold_sec
         self._pin: digitalio.DigitalInOut | None = None
         self._press_start_time: float | None = None
         self._last_event: ButtonEvent | None = None
@@ -85,7 +91,7 @@ class Driver(BaseDriver):
             return False
 
         try:
-            return self._pin.value
+            return bool(self._pin.value)
         except Exception:
             self.logger.exception("Error reading GPIO")
             return False

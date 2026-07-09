@@ -362,4 +362,4 @@ def corridor_for_position(x: float, y: float) -> Section:
         Section.EAST: abs(x - _INNER_MAX),
         Section.WEST: abs(x - _INNER_MIN),
     }
-    return min(face_distances, key=face_distances.get)
+    return min(face_distances, key=lambda section: face_distances[section])

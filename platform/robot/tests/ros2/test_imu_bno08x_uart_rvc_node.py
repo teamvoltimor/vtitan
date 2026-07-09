@@ -34,6 +34,7 @@ class IMU_RVCData:
     y_accel: float
     z_accel: float
     quaternion: tuple[float, float, float, float]
+    """(qw, qx, qy, qz) -- matches QuaternionReading's field order."""
 
 
 @pytest.fixture(autouse=True)
@@ -213,7 +214,7 @@ class TestIMU_UART_RVCNodePublishing:
             x_accel=0.1,
             y_accel=0.2,
             z_accel=9.8,
-            quaternion=(0.0, 0.0, 0.707, 0.707),
+            quaternion=(0.707, 0.0, 0.0, 0.707),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -303,7 +304,7 @@ class TestIMU_UART_RVCNodePublishing:
             x_accel=0.0,
             y_accel=0.0,
             z_accel=0.0,
-            quaternion=(0.0, 0.0, 0.0, 1.0),
+            quaternion=(1.0, 0.0, 0.0, 0.0),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -342,7 +343,7 @@ class TestIMU_UART_RVCNodePublishing:
             x_accel=0.0,
             y_accel=0.0,
             z_accel=0.0,
-            quaternion=(0.0, 0.0, 0.0, 1.0),
+            quaternion=(1.0, 0.0, 0.0, 0.0),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -381,7 +382,7 @@ class TestIMU_UART_RVCNodePublishing:
             x_accel=0.5,
             y_accel=1.5,
             z_accel=9.8,
-            quaternion=(0.1, 0.2, 0.3, 0.9),
+            quaternion=(0.9, 0.1, 0.2, 0.3),
         )
         mock_data_2 = IMU_RVCData(
             yaw_deg=20.0,
@@ -390,7 +391,7 @@ class TestIMU_UART_RVCNodePublishing:
             x_accel=1.0,
             y_accel=2.0,
             z_accel=9.9,
-            quaternion=(0.2, 0.3, 0.4, 0.8),
+            quaternion=(0.8, 0.2, 0.3, 0.4),
         )
 
         mock_driver_instance.get_data.side_effect = [mock_data_1, mock_data_2]
@@ -475,7 +476,7 @@ class TestIMU_UART_RVCNodeIntegration:
             x_accel=0.1,
             y_accel=0.2,
             z_accel=9.8,
-            quaternion=(0.0, 0.0, 0.707, 0.707),
+            quaternion=(0.707, 0.0, 0.0, 0.707),
         )
         mock_driver_instance.get_data.return_value = mock_data
 

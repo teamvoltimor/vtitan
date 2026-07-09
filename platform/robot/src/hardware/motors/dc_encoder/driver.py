@@ -189,8 +189,9 @@ class Driver(EncodedDriveDriver):
             self._ain1 = DigitalOutputDevice(ain1)
             self._ain2 = DigitalOutputDevice(ain2)
             if self._standby_pin is not None:  # TB6612 STBY; L298N has none
-                self._standby = DigitalOutputDevice(self._standby_pin)
-                self._standby.on()
+                standby = DigitalOutputDevice(self._standby_pin)
+                self._standby = standby
+                standby.on()
         except Exception as err:  # gpiozero raises GPIOZeroError/OSError families
             raise MotorConnectionError(
                 [str(p) for p in self._pins],

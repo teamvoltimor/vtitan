@@ -122,7 +122,7 @@ class IMU_UART_RVCNode(LifecycleNode):
         self._hardware_ready = False
 
     @override
-    def destroy_node(self) -> bool:
+    def destroy_node(self) -> None:
         """Release hardware directly rather than trigger an on_shutdown transition.
 
         Handles a node destroyed without a clean lifecycle shutdown (e.g.
@@ -135,7 +135,7 @@ class IMU_UART_RVCNode(LifecycleNode):
 
     def publish_imu(self) -> None:
         """Read data from driver and publish as sensor_msgs/Imu."""
-        if not self._hardware_ready or self.publisher_ is None:
+        if not self._hardware_ready or self.publisher_ is None or self.driver is None:
             return
 
         data = self.driver.get_data()
@@ -146,8 +146,9 @@ class IMU_UART_RVCNode(LifecycleNode):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.frame_id
 
-        # The driver returns quaternion as (qx, qy, qz, qw)
-        qx, qy, qz, qw = data.quaternion
+        # QuaternionReading's field order is (w, x, y, z); ROS 2's
+        # geometry_msgs/Quaternion is (x, y, z, w).
+        qw, qx, qy, qz = data.quaternion
         msg.orientation.x = qx
         msg.orientation.y = qy
         msg.orientation.z = qz

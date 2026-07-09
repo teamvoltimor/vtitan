@@ -132,7 +132,7 @@ class LocalYoloDetector(DetectorBase):
         # Perform inference
         results = self.model.predict(source=image, verbose=False)
 
-        detections = []
+        detections: list[SignDetection] = []
         if not results:
             return detections
 

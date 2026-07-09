@@ -16,6 +16,7 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from src.hardware.hailo.base import Config as HailoConfig
     from src.hardware.hailo.config import StreamingConfig
     from src.hardware.hailo.inferences import InferenceResult
 
@@ -27,7 +28,7 @@ from src.logger import configure_json_logging
 configure_json_logging()
 
 
-def preprocess(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:  # type: ignore[type-arg]
+def preprocess(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
     """Preprocess frame for inference: resize and normalize."""
     resized = cv2.resize(frame, (target_width, target_height))
     return resized.astype(np.float32) / 255.0
@@ -39,7 +40,7 @@ class StreamingDriver:
     def __init__(
         self,
         config: StreamingConfig,
-        hailo_config: HailoDriver.Config | None = None,
+        hailo_config: HailoConfig | None = None,
     ):
         self.config = config
         self._hailo_driver = HailoDriver(hailo_config)
@@ -89,6 +90,8 @@ class StreamingDriver:
 
     def _capture_loop(self) -> None:
         """Continuous capture loop."""
+        # Only started (see start_capture()) after the camera driver is set.
+        assert self._camera_streaming_driver is not None
         while self._running:
             try:
                 frame = self._camera_streaming_driver.get_latest_frame()
