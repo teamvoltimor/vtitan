@@ -38,8 +38,10 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from sensor_msgs.msg import Imu, LaserScan
+from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Float32, String
 
+from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.state_machine import (
     RaceMetrics,
     RobotState,
@@ -73,14 +75,13 @@ if TYPE_CHECKING:
 NODE_NAME = "state_machine_node"
 """ROS2 node name for state machine controller."""
 
-PUBLISHER_RATE_HZ = 10.0
-"""Rate for publishing state and diagnostics."""
+_DEFAULT_PUBLISHER_RATE_HZ = 10.0
+"""Default rate for publishing state and diagnostics; overridable via the
+``publisher_rate_hz`` ROS2 parameter."""
 
-HAILO_MODEL_PATH = "/home/pi/models/yolov8n.hef"
-"""Path to Hailo .hef model file."""
-
-TARGET_LAPS = 3
-"""Number of laps required to complete race."""
+_DEFAULT_TARGET_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
+"""Default laps required to complete race; overridable via the
+``target_laps`` ROS2 parameter."""
 
 
 class StateMachineNode(Node):
@@ -107,6 +108,9 @@ class StateMachineNode(Node):
         self.is_simulation: bool = self.get_parameter("is_simulation").get_parameter_value().bool_value
         if self.is_simulation:
             self.get_logger().info("Running in SIMULATION mode -- hardware readiness checks bypassed")
+
+        self.publisher_rate_hz = declare_and_get_float_param(self, "publisher_rate_hz", _DEFAULT_PUBLISHER_RATE_HZ)
+        self.target_laps = declare_and_get_int_param(self, "target_laps", _DEFAULT_TARGET_LAPS)
 
         # State machine
         self.state_machine = StateMachine()
@@ -176,7 +180,7 @@ class StateMachineNode(Node):
         self._executor = ThreadPoolExecutor(max_workers=2)
 
         # Timers
-        self.state_timer: Timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._state_machine_loop)
+        self.state_timer: Timer = self.create_timer(1.0 / self.publisher_rate_hz, self._state_machine_loop)
 
         # Start async IP fetch immediately
         self._fetch_ip_address_async()
@@ -284,8 +288,8 @@ class StateMachineNode(Node):
     def _handle_racing(self) -> None:
         """Handle RACING state - monitor for race completion."""
         # Check if laps completed
-        if self.laps_completed >= TARGET_LAPS:
-            self.get_logger().info(f"Race complete! {TARGET_LAPS} laps finished")
+        if self.laps_completed >= self.target_laps:
+            self.get_logger().info(f"Race complete! {self.target_laps} laps finished")
             self.state_machine.transition_to(RobotState.FINISHED, StateTransitionReason.LAPS_COMPLETED)
             self._publish_stop_command()
 

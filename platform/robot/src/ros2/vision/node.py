@@ -8,6 +8,7 @@ import json
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
@@ -55,7 +56,7 @@ class VisionNode(Node):
             Image,
             camera_topic,
             self._image_callback,
-            10,
+            qos_profile_sensor_data,
         )
         self.get_logger().info(
             f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",

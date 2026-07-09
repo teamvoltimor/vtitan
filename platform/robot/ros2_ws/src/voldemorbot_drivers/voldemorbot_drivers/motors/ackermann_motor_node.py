@@ -42,6 +42,7 @@ Environment Variables:
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -52,6 +53,7 @@ from std_msgs.msg import Float32
 
 from src.hardware.motors.config import Config
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
+from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -90,6 +92,17 @@ def _parse_drive_backend(value: str) -> DriveBackend:
         return DriveBackend.DC_ENCODER
 
 
+@dataclass(frozen=True, slots=True)
+class _DcEncoderPins:
+    """GPIO pin assignment for the DC-encoder drive backend (L298N/TB6612)."""
+
+    pwm_pin: int = 13
+    dir_a_pin: int = 5
+    dir_b_pin: int = 6
+    encoder_a_pin: int = 16
+    encoder_b_pin: int = 20
+
+
 class _DriverFactory:
     """Build the steering/drive drivers for the configured backends.
 
@@ -99,8 +112,9 @@ class _DriverFactory:
     installed on the host.
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, dc_encoder_pins: _DcEncoderPins | None = None) -> None:
         self._config = config
+        self._dc_encoder_pins = dc_encoder_pins or _DcEncoderPins()
         self._build_hat: CombinedDriver | None = None
 
     def _shared_build_hat(self) -> CombinedDriver:
@@ -123,16 +137,15 @@ class _DriverFactory:
         """Build the drive driver for ``backend``."""
         if backend is DriveBackend.BUILD_HAT:
             return self._shared_build_hat()  # combined object also satisfies DriveDriver
-        import os  # for inline env reading (dc_encoder driver reads pins from MOTOR_* vars)
-
         from src.hardware.motors.dc_encoder.driver import Driver  # noqa: PLC0415 - lazy: only when selected
 
+        pins = self._dc_encoder_pins
         return Driver(
-            pwm_pin=int(os.getenv("MOTOR_PWM_PIN", 13)),
-            dir_a_pin=int(os.getenv("MOTOR_IN3_PIN", 5)),
-            dir_b_pin=int(os.getenv("MOTOR_IN4_PIN", 6)),
-            encoder_a_pin=int(os.getenv("MOTOR_ENCODER_A_PIN", 16)),
-            encoder_b_pin=int(os.getenv("MOTOR_ENCODER_B_PIN", 20)),
+            pwm_pin=pins.pwm_pin,
+            dir_a_pin=pins.dir_a_pin,
+            dir_b_pin=pins.dir_b_pin,
+            encoder_a_pin=pins.encoder_a_pin,
+            encoder_b_pin=pins.encoder_b_pin,
             standby_pin=None,  # L298N has no STBY line
         )
 
@@ -175,8 +188,6 @@ class AckermannMotorNode(LifecycleNode):
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Connect the motor drivers, center steering, and create publishers."""
-        import os  # noqa: PLC0415 - env read only needed here
-
         self.get_logger().info("Configuring Ackermann Motor Node")
 
         # Load configuration from environment (pydantic-settings via Config).
@@ -185,9 +196,14 @@ class AckermannMotorNode(LifecycleNode):
         config = Config()  # type: ignore[call-arg]
         self.config = config
 
-        # Backend selection (with fallback)
-        self.steering_backend = _parse_steering_backend(os.getenv("STEERING_BACKEND", "servo"))
-        self.drive_backend = _parse_drive_backend(os.getenv("DRIVE_BACKEND", "dc_encoder"))
+        # Backend selection (with fallback), exposed as ROS2 params so
+        # `ros2 param get/set` and launch-time YAML overrides work.
+        self.steering_backend = _parse_steering_backend(
+            declare_and_get_str_param(self, "steering_backend", "servo"),
+        )
+        self.drive_backend = _parse_drive_backend(
+            declare_and_get_str_param(self, "drive_backend", "dc_encoder"),
+        )
 
         self.get_logger().info(
             f"Configuration: steering_backend={self.steering_backend.value}, "
@@ -199,11 +215,21 @@ class AckermannMotorNode(LifecycleNode):
             f"speed_scale={config.drive.speed_scale}",
         )
 
+        # DC-encoder GPIO pin assignment, exposed as ROS2 params.
+        _pin_defaults = _DcEncoderPins()
+        dc_encoder_pins = _DcEncoderPins(
+            pwm_pin=declare_and_get_int_param(self, "motor_pwm_pin", _pin_defaults.pwm_pin),
+            dir_a_pin=declare_and_get_int_param(self, "motor_in3_pin", _pin_defaults.dir_a_pin),
+            dir_b_pin=declare_and_get_int_param(self, "motor_in4_pin", _pin_defaults.dir_b_pin),
+            encoder_a_pin=declare_and_get_int_param(self, "motor_encoder_a_pin", _pin_defaults.encoder_a_pin),
+            encoder_b_pin=declare_and_get_int_param(self, "motor_encoder_b_pin", _pin_defaults.encoder_b_pin),
+        )
+
         # Motor drivers (steering and drive may be one combined object or two)
         self.steering = None
         self.drive = None
         try:
-            factory = _DriverFactory(config)
+            factory = _DriverFactory(config, dc_encoder_pins)
             steering = factory.steering(self.steering_backend)
             drive = factory.drive(self.drive_backend)
 
