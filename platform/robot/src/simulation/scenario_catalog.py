@@ -43,6 +43,9 @@ _ALL_DIRECTIONS = list(Direction)
 _DEPTH_FRAC_MIN = TrackDimensions.CORNER_MIN / TrackDimensions.MAX_COORD
 _DEPTH_FRAC_MAX = TrackDimensions.CORNER_MAX / TrackDimensions.MAX_COORD
 
+_COLOR_COIN_FLIP_PROB = 0.5
+"""Probability threshold for a fair red/green split in demo sign colours."""
+
 _MIXED_COMBOS = [
     (_NARROW_MM, _WIDE_MM, _NARROW_MM, _WIDE_MM),
     (_WIDE_MM, _NARROW_MM, _WIDE_MM, _NARROW_MM),
@@ -120,7 +123,7 @@ def all_obstacles_demo_scenarios() -> list[NamedScenario]:
             sign_section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
             depth_frac = float(rng.uniform(_DEPTH_FRAC_MIN, _DEPTH_FRAC_MAX))
             lane_frac = float(rng.uniform(0.3, 0.7))
-            color = ColorNames.RED if rng.random() < 0.5 else ColorNames.GREEN
+            color = ColorNames.RED if rng.random() < _COLOR_COIN_FLIP_PROB else ColorNames.GREEN
             x, y = sign_world_pos(sign_section, depth_frac, lane_frac, widths_m)
             signs.append({"x": x, "y": y, "color": color})
         meta = build_obstacles_metadata(widths_mm, section, direction, signs)

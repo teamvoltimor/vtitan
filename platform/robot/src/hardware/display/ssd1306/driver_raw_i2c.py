@@ -36,6 +36,9 @@ _CONTROL_DATA = 0x40
 _BLOCK_SIZE = 32
 """Max data bytes per write() call (matches smbus2's block-write chunking)."""
 
+_DISPLAY_HEIGHT_128X64 = 64
+"""Pixel height of the 128x64 SSD1306 variant (vs. 128x32), selecting COM pin config."""
+
 _DISPLAYOFF = 0xAE
 _DISPLAYON = 0xAF
 _SETDISPLAYCLOCKDIV = 0xD5
@@ -105,7 +108,7 @@ class RawI2CDriver(ABC_Driver):
         ioctl(self._fd, _I2C_SLAVE, self.config.i2c_address)
 
         multiplex = self.config.height - 1
-        com_pins = 0x12 if self.config.height == 64 else 0x02
+        com_pins = 0x12 if self.config.height == _DISPLAY_HEIGHT_128X64 else 0x02
 
         self._write_command(
             _DISPLAYOFF,

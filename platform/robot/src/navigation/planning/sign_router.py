@@ -50,6 +50,10 @@ logger = logging.getLogger(__name__)
 # Camera focal length in pixels — derived from HFOV and image width.
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
+# Bounding boxes shorter than this (px) are too degenerate for a reliable
+# pinhole distance estimate.
+_MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
+
 # Chassis half-width plus a small margin: how far a deformed waypoint must
 # stay clear of the restricted inner square and the outer wall (WP-1). An
 # unclamped deformation can otherwise place the waypoint inside the inner
@@ -411,7 +415,7 @@ def _detection_to_world(
     """
     x1, y1, x2, y2 = det.bbox
     pixel_height = abs(y2 - y1)
-    if pixel_height < 5:  # degenerate bbox
+    if pixel_height < _MIN_RELIABLE_BBOX_HEIGHT_PX:
         return None
 
     # Estimate distance using pinhole model: d = (f * real_h) / pixel_h

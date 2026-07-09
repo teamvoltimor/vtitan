@@ -13,6 +13,9 @@ import math
 
 logger = logging.getLogger(__name__)
 
+_WAYPOINT_REACHED_DISTANCE_M: float = 0.01
+"""Distance below which the current target waypoint is considered reached."""
+
 
 class WaypointController:
     """Pure pursuit steering controller for waypoint following.
@@ -131,7 +134,7 @@ class WaypointController:
         dy = target_waypoint[1] - current_pos[1]
         distance = math.sqrt(dx**2 + dy**2)
 
-        if distance < 0.01:  # Waypoint reached
+        if distance < _WAYPOINT_REACHED_DISTANCE_M:
             return 0.0, lookahead
 
         # Pure pursuit: steering angle to intercept lookahead circle

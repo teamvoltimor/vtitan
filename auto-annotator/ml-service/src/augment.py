@@ -21,6 +21,7 @@ from albumentations import (
     ShiftScaleRotate,
 )
 
+from src.constants import GEOMETRY_MINIMUM_POLYGON_POINTS, YOLO_BBOX_COORD_COUNT
 from src.label_store import LabelRecord
 from src.models import AugmentedImage
 from src.utils import get_logger
@@ -62,7 +63,7 @@ def _build_transforms(image_height: int, image_width: int) -> list:
 
 
 def _is_bbox(coords: list[float]) -> bool:
-    return len(coords) == 4
+    return len(coords) == YOLO_BBOX_COORD_COUNT
 
 
 def _augment_det(
@@ -115,7 +116,7 @@ def _augment_seg(
         new_classes, new_polys = [], []
         for pidx in sorted(groups):
             flat = groups[pidx]
-            if len(flat) >= 6:  # at least 3 points
+            if len(flat) >= GEOMETRY_MINIMUM_POLYGON_POINTS * 2:  # x,y pair per point
                 new_classes.append(class_ids[pidx])
                 new_polys.append(flat)
 

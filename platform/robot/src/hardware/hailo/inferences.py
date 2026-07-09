@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, NamedTuple
 if TYPE_CHECKING:
     import numpy as np
 
+_BATCHED_NMS_TENSOR_NDIM = 4
+"""Rank of a Hailo NMS output tensor that still carries its batch dimension."""
+
 
 class BoundingBox(NamedTuple):
     """Represents a bounding box for detected objects in an image."""
@@ -90,7 +93,7 @@ class InferenceResult(NamedTuple):
         detections = []
 
         # The raw tensor may have an extra batch dimension (e.g., shape [1, num_classes, max_boxes, 5])
-        if raw_tensor.ndim == 4 and raw_tensor.shape[0] == 1:
+        if raw_tensor.ndim == _BATCHED_NMS_TENSOR_NDIM and raw_tensor.shape[0] == 1:
             raw_tensor = raw_tensor[0]
 
         # The tensor is expected to have shape [num_classes, max_boxes, 5] where the last dimension contains [ymin, xmin, ymax, xmax, confidence]

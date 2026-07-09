@@ -13,6 +13,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+_STUCK_CONFIRMATION_CHECKS: int = 3
+"""Consecutive below-threshold checks required before declaring the robot stuck."""
+
+_MIN_HISTORY_FOR_DISTANCE: int = 2
+"""Minimum number of tracked positions needed to compute a movement distance."""
+
 
 class StuckDetector:
     """Detects and responds to stuck robot conditions.
@@ -74,7 +80,7 @@ class StuckDetector:
 
         if distance_moved < self.move_threshold:
             self.stuck_count += 1
-            if self.stuck_count > 3:  # Confirm for 3 consecutive checks
+            if self.stuck_count > _STUCK_CONFIRMATION_CHECKS:
                 self.is_stuck = True
                 logger.warning("Robot stuck: moved only %.4f m in %d frames", distance_moved, self.timeout_frames)
                 return True
@@ -96,7 +102,7 @@ class StuckDetector:
         Returns:
             Dict with stuck status and metrics
         """
-        if len(self.position_history) >= 2:
+        if len(self.position_history) >= _MIN_HISTORY_FOR_DISTANCE:
             distance = np.sqrt(
                 (self.position_history[-1][0] - self.position_history[0][0]) ** 2
                 + (self.position_history[-1][1] - self.position_history[0][1]) ** 2,

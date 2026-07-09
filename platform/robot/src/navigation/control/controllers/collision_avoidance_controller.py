@@ -17,6 +17,9 @@ from shared.domain.enums import RiskLevel
 
 logger = logging.getLogger(__name__)
 
+_MIN_VALID_LIDAR_RANGE_M: float = 0.01
+"""LIDAR ranges at or below this are treated as invalid (no-return) readings."""
+
 
 class ThreatDirection(StrEnum):
     """Bearing of the nearest obstacle relative to the robot."""
@@ -146,7 +149,7 @@ class CollisionAvoidanceController:
 
         lateral = np.abs(ranges * np.sin(angles))
         ahead = np.cos(angles) > 0.0
-        mask = ahead & (lateral < self.path_half_width) & (ranges > 0.01)
+        mask = ahead & (lateral < self.path_half_width) & (ranges > _MIN_VALID_LIDAR_RANGE_M)
         return ranges[mask]
 
     def assess_risk(

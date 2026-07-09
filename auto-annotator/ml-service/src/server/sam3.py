@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from PIL import Image as _PIL
 
-from src.server.constants import CFG_KEY_HF_REPO, CFG_KEY_SUPPORTS_TEXT
+from src.server.constants import CFG_KEY_HF_REPO, CFG_KEY_SUPPORTS_TEXT, SAM3_MASK_TENSOR_NDIM
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
@@ -123,7 +123,7 @@ class SAM3Predictor:
             raw = outputs.pred_masks[0, :, 0:1].float()
             masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
 
-        if masks_t.ndim == 4:
+        if masks_t.ndim == SAM3_MASK_TENSOR_NDIM:
             masks_t = masks_t[:, 0]
 
         masks_np = masks_t.cpu().bool().numpy()
@@ -214,7 +214,7 @@ class SAM3TextSegmenter:
                     raw = outputs.pred_masks[0, :, 0:1].float()
                     masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
 
-                if masks_t.ndim == 4:
+                if masks_t.ndim == SAM3_MASK_TENSOR_NDIM:
                     masks_t = masks_t[:, 0]
                 masks_np = masks_t.cpu().bool().numpy()
 

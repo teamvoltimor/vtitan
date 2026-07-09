@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import time
 from collections import deque
+from http import HTTPStatus
 from typing import Any, TypedDict
 
 import rclpy
@@ -21,6 +22,18 @@ from vision_msgs.msg import Detection2DArray
 
 _BACKOFF_INITIAL = 1.0
 _BACKOFF_MAX = 60.0
+
+_MIN_TIMESTAMPS_FOR_RATE = 2
+"""Minimum tracked timestamps needed to compute a topic update rate."""
+
+_MIN_POINTS_FOR_FORWARD_WINDOW = 20
+"""Minimum LIDAR points needed to safely slice the +/-10-index forward window."""
+
+_MIN_POINTS_FOR_SIDE_WINDOW = 4
+"""Minimum LIDAR points needed to safely slice the quarter-arc left/right windows."""
+
+_MIN_POINTS_FOR_BACK_WINDOW = 16
+"""Minimum LIDAR points needed to safely slice the n/8 back window."""
 
 
 class _IMUPayload(TypedDict):
@@ -229,7 +242,7 @@ class TelemetryBridgeNode(Node):
         self._topic_timestamps[topic_name].append(current_time)
         timestamps = list(self._topic_timestamps[topic_name])
 
-        if len(timestamps) >= 2:
+        if len(timestamps) >= _MIN_TIMESTAMPS_FOR_RATE:
             time_diff = timestamps[-1] - timestamps[0]
             update_rate = (len(timestamps) - 1) / time_diff if time_diff > 0 else 0.0
         else:
@@ -290,7 +303,7 @@ class TelemetryBridgeNode(Node):
                 json=dict(snapshot),
                 timeout=1.0,
             )
-            if r.status_code != 200:
+            if r.status_code != HTTPStatus.OK:
                 self.get_logger().warning(f"Backend returned {r.status_code}")
 
             self._session.post(
@@ -447,13 +460,13 @@ class TelemetryBridgeNode(Node):
 
                 n = len(self._latest_scan.ranges)
                 # Ensure we have enough points before indexing
-                if n > 20:
+                if n > _MIN_POINTS_FOR_FORWARD_WINDOW:
                     forward_scan = self._latest_scan.ranges[n // 2 - 10 : n // 2 + 10]
                     valid_fwd = [
                         r for r in forward_scan if self._latest_scan.range_min < r < self._latest_scan.range_max
                     ]
                     forward = min(valid_fwd) if valid_fwd else None
-                if n > 4:
+                if n > _MIN_POINTS_FOR_SIDE_WINDOW:
                     left_scan = self._latest_scan.ranges[: n // 4]
                     valid_l = [r for r in left_scan if self._latest_scan.range_min < r < self._latest_scan.range_max]
                     left = min(valid_l) if valid_l else None
@@ -461,7 +474,7 @@ class TelemetryBridgeNode(Node):
                     right_scan = self._latest_scan.ranges[3 * n // 4 :]
                     valid_r = [r for r in right_scan if self._latest_scan.range_min < r < self._latest_scan.range_max]
                     right = min(valid_r) if valid_r else None
-                if n > 16:
+                if n > _MIN_POINTS_FOR_BACK_WINDOW:
                     back_scan = self._latest_scan.ranges[n // 2 - n // 8 : n // 2 + n // 8]
                     valid_b = [r for r in back_scan if self._latest_scan.range_min < r < self._latest_scan.range_max]
                     back = min(valid_b) if valid_b else None

@@ -20,6 +20,8 @@ from shared.config.navigation_tuning import NavigationTuning
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
+_DEDUPE_DISTANCE_M: float = 0.001  # 1 mm
+
 # Bias corridor centres toward the outer wall. Compensates for the robot's
 # chassis width so the planned path stays clear of the inner-wall face.
 _OUTER_WALL_BIAS = 0.05
@@ -247,7 +249,7 @@ def _deduplicate_consecutive(
     deduped = [waypoints[0]]
     for point in waypoints[1:]:
         prev = deduped[-1]
-        if abs(point[0] - prev[0]) > 0.001 or abs(point[1] - prev[1]) > 0.001:
+        if abs(point[0] - prev[0]) > _DEDUPE_DISTANCE_M or abs(point[1] - prev[1]) > _DEDUPE_DISTANCE_M:
             deduped.append(point)
     return deduped
 

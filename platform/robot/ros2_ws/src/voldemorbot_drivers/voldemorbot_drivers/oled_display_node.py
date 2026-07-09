@@ -43,6 +43,7 @@ from sensor_msgs.msg import (
     Imu,
     LaserScan,
 )
+from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Float32, String
 
 from src.hardware.display.enums import DisplayBackend
@@ -94,6 +95,15 @@ _DISPLAY_DRIVER_BY_BACKEND = {
     DisplayBackend.BLINKA: BlinkaDriver,
     DisplayBackend.RAW_I2C: RawI2CDriver,
 }
+
+_MIN_VALID_LIDAR_RANGE_M = 0.01
+"""LIDAR ranges at or below this are treated as invalid (no-return) readings."""
+
+_PATH_BLOCKED_CLEARANCE_CM = 30
+"""Front clearance below this (cm) is shown as a blocked path on the OLED."""
+
+_PATH_NARROW_CLEARANCE_CM = 20
+"""Side clearance below this (cm) is shown as a narrow path on the OLED."""
 
 
 class OLEDDisplayNode(LifecycleNode):
@@ -287,17 +297,21 @@ class OLEDDisplayNode(LifecycleNode):
         # Calculate clearances in different directions
         # Front: center ±15 degrees
         front_indices = list(range(num_points // 2 - 20, num_points // 2 + 20))
-        front_ranges = [ranges[i] for i in front_indices if 0 <= i < num_points and ranges[i] > 0.01]
+        front_ranges = [
+            ranges[i] for i in front_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M
+        ]
         self.lidar_front = min(front_ranges) * 100 if front_ranges else 0.0  # Convert to cm
 
         # Left: 60-120 degrees
         left_indices = list(range(num_points // 4, num_points // 3))
-        left_ranges = [ranges[i] for i in left_indices if 0 <= i < num_points and ranges[i] > 0.01]
+        left_ranges = [ranges[i] for i in left_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
         self.lidar_left = min(left_ranges) * 100 if left_ranges else 0.0  # Convert to cm
 
         # Right: -60 to -120 degrees
         right_indices = list(range(2 * num_points // 3, 3 * num_points // 4))
-        right_ranges = [ranges[i] for i in right_indices if 0 <= i < num_points and ranges[i] > 0.01]
+        right_ranges = [
+            ranges[i] for i in right_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M
+        ]
         self.lidar_right = min(right_ranges) * 100 if right_ranges else 0.0  # Convert to cm
 
     def _hailo_fps_callback(self, msg: Float32) -> None:
@@ -460,9 +474,9 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Path status
         path_status = "CLEAR"
-        if self.lidar_front < 30:
+        if self.lidar_front < _PATH_BLOCKED_CLEARANCE_CM:
             path_status = "BLOCKED"
-        elif min(self.lidar_left, self.lidar_right) < 20:
+        elif min(self.lidar_left, self.lidar_right) < _PATH_NARROW_CLEARANCE_CM:
             path_status = "NARROW"
 
         draw.text((0, 50), f"Path: {path_status}", fill=255)
@@ -480,7 +494,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Laps completed
         laps = self.race_metrics.get("laps_completed", 0)
-        draw.text((0, 18), f"Laps: {laps}/3", fill=255)
+        draw.text((0, 18), f"Laps: {laps}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS}", fill=255)
 
         # Total time
         race_time = self.race_metrics.get("total_race_time", 0.0)
@@ -489,7 +503,7 @@ class OLEDDisplayNode(LifecycleNode):
         draw.text((0, 30), f"Time: {minutes}:{seconds:05.2f}", fill=255)
 
         # Status
-        status = "COMPLETE" if laps >= 3 else "E-STOP"
+        status = "COMPLETE" if laps >= CompetitionSpecs.OPEN_CHALLENGE_LAPS else "E-STOP"
         draw.text((0, 50), f"Status: {status}", fill=255)
 
         return image

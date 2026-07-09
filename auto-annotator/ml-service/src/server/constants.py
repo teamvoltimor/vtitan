@@ -156,3 +156,8 @@ RESP_KEY_ACTIVE: str = "active"
 
 RESP_KEY_SUPPORTS_TEXT: str = "supports_text"
 """Model-list entry key: whether the model supports text-prompted segmentation."""
+
+# Tensor shape constants used by src/server/sam3.py.
+
+SAM3_MASK_TENSOR_NDIM: int = 4
+"""Rank of a batched SAM 3 mask tensor (batch, channel, height, width)."""
