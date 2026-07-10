@@ -10,6 +10,11 @@ servers:
   - url: http://localhost:8010
     description: Local development
 
+# Explicitly no auth: the running server has no auth wired for this context
+# (unlike robot/navigation/simulation/vision, which declare bearerAuth ahead
+# of any implementation). Revisit once authentication actually exists.
+security: []
+
 paths:
   /v1/telemetry/health:
     get:
@@ -41,9 +46,9 @@ paths:
         '503':
           description: No snapshot received yet
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProblemDetails'
 
   /v1/telemetry/history:
     get:
@@ -139,15 +144,15 @@ paths:
         '400':
           description: Invalid session ID format
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProblemDetails'
         '404':
           description: Session not found
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProblemDetails'
 
   /v1/telemetry/robot/config/speed:
     post:
@@ -171,9 +176,9 @@ paths:
         '400':
           description: Invalid request
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ProblemDetails'
 
   /v1/telemetry/ws:
     get:
@@ -200,12 +205,24 @@ components:
           type: string
           example: "0.1.0"
 
-    ErrorResponse:
+    ProblemDetails:
       type: object
-      required: [error]
+      description: RFC 7807 Problem Details, emitted uniformly for every error response.
+      required: [type, title, status, instance]
       properties:
-        error:
+        type:
           type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        correlation_id:
+          type: string
+          description: Matches the request_id in server logs for this response.
 
     SessionResponse:
       type: object

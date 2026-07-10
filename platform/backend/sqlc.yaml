@@ -5,7 +5,7 @@ sql:
     schema: "db/schema.sql"
     gen:
       go:
-        package: "sqlcdb"
-        out: "internal/sqlcdb"
+        package: "db"
+        out: "domain/session/sqlite/db"
         emit_json_tags: false
         emit_interface: false

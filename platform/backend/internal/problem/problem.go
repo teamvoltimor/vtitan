@@ -9,22 +9,29 @@ import (
 
 const contentType = "application/problem+json"
 
+// CtxKeyRequestID is the gin context key requestIDMiddleware stores the
+// per-request correlation ID under. Write reads it back so every Problem
+// Details response can be matched to the corresponding server log line.
+const CtxKeyRequestID = "request_id"
+
 type Detail struct {
-	Type     string `json:"type"`
-	Title    string `json:"title"`
-	Status   int    `json:"status"`
-	Detail   string `json:"detail,omitempty"`
-	Instance string `json:"instance"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	Status        int    `json:"status"`
+	Detail        string `json:"detail,omitempty"`
+	Instance      string `json:"instance"`
+	CorrelationID string `json:"correlation_id,omitempty"`
 }
 
 // Write emits an RFC 7807 Problem Details response and aborts the handler chain.
 func Write(c *gin.Context, status int, title, detail string) {
 	b, _ := json.Marshal(Detail{
-		Type:     "about:blank",
-		Title:    title,
-		Status:   status,
-		Detail:   detail,
-		Instance: c.Request.URL.Path,
+		Type:          "about:blank",
+		Title:         title,
+		Status:        status,
+		Detail:        detail,
+		Instance:      c.Request.URL.Path,
+		CorrelationID: c.GetString(CtxKeyRequestID),
 	})
 	c.Data(status, contentType, b)
 	c.Abort()

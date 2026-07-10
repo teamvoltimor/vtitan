@@ -12,9 +12,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	robotdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
 )
@@ -26,6 +27,12 @@ type handlers struct {
 	sessSvc session.SessionService
 	cfg     *config.Config
 	log     *zap.Logger
+
+	// robotSvc/defaultRobotID back the legacy /v1/telemetry/robot/config/speed
+	// endpoint, which now delegates to the real Robot context config store
+	// (this project has exactly one physical robot) instead of no-op'ing.
+	robotSvc       robotdomain.Service
+	defaultRobotID string
 }
 
 func (h *handlers) health(c *gin.Context) {
@@ -69,8 +76,18 @@ func (h *handlers) updateSpeed(c *gin.Context) {
 		problem.Write(c, http.StatusBadRequest, "Bad Request", err.Error())
 		return
 	}
+	// Persists to the Robot context's config store for the single default
+	// robot (still not forwarded to ROS/hardware -- that path isn't wired up
+	// yet -- but no longer a no-op: GET /v1/robots/{id}/config now reflects it).
+	speed := body.MaxLinearSpeed
+	if _, err := h.robotSvc.UpdateConfig(c.Request.Context(), h.defaultRobotID,
+		robotdomain.UpdateConfigRequest{MaxLinearSpeed: &speed},
+	); err != nil {
+		h.log.Error("persist speed config", zap.Error(err))
+		problem.InternalError(c)
+		return
+	}
 	h.log.Info("speed config update", zap.Float64("max_linear_speed", body.MaxLinearSpeed))
-	// Forward to robot via ROS when that path is wired up.
 	c.JSON(http.StatusOK, SpeedUpdateResponse{Status: statusSuccess, MaxLinearSpeed: body.MaxLinearSpeed})
 }
 

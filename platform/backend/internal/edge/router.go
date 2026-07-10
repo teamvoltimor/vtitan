@@ -8,8 +8,16 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	navigationdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/navigation"
+	robotdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
+	simulationdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
+	visiondomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/vision"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/api/navigation"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/api/robot"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/api/simulation"
+	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/api/vision"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
 )
@@ -18,22 +26,44 @@ import (
 // EmitUnpopulated = false omits zero-value optional fields.
 var marshaler = protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true}
 
+// Services bundles the domain services NewRouter wires onto the edge.
+type Services struct {
+	Telemetry telemetry.TelemetryService
+	Session   session.SessionService
+	Robot     robotdomain.Service
+	// DefaultRobotID is the singleton robot's ID, seeded at startup, that the
+	// legacy /v1/telemetry/robot/config/speed endpoint delegates to (this
+	// project has exactly one physical robot; the Robot context's fleet-shaped
+	// CRUD is a superset of that reality).
+	DefaultRobotID string
+	Navigation     navigationdomain.Service
+	Simulation     simulationdomain.Service
+	Vision         visiondomain.Service
+}
+
 // NewRouter wires up the gin router for the REST + WebSocket edge.
-func NewRouter(telSvc telemetry.TelemetryService, sessSvc session.SessionService, cfg *config.Config, log *zap.Logger) *gin.Engine {
+func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	if !cfg.Dev {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New()
+	// Order matters: RequestID must run first so the correlation ID it sets is
+	// already in context by the time Recovery's deferred recover() (or any
+	// later middleware/handler) needs it.
+	r.Use(requestIDMiddleware(log))
 	r.Use(recoverMiddleware(log))
 	r.Use(corsMiddleware())
-	r.Use(requestIDMiddleware(log))
 
-	h := &handlers{telSvc: telSvc, sessSvc: sessSvc, cfg: cfg, log: log}
-	ws := newWSManager(telSvc, log)
+	h := &handlers{
+		telSvc: svcs.Telemetry, sessSvc: svcs.Session,
+		robotSvc: svcs.Robot, defaultRobotID: svcs.DefaultRobotID,
+		cfg: cfg, log: log,
+	}
+	ws := newWSManager(svcs.Telemetry, log)
 
 	r.GET("/openapi.yaml", func(c *gin.Context) {
-		c.File("../openapi/openapi.yaml")
+		c.File(cfg.OpenAPISpecPath)
 	})
 
 	v1 := r.Group("/v1/telemetry")
@@ -47,6 +77,12 @@ func NewRouter(telSvc telemetry.TelemetryService, sessSvc session.SessionService
 	v1.GET("/sessions/:id", h.loadSession)
 	v1.GET("/ws", ws.handle)
 
+	apiV1 := r.Group("/v1")
+	robot.NewHandler(svcs.Robot).RegisterRoutes(apiV1)
+	navigation.NewHandler(svcs.Navigation).RegisterRoutes(apiV1)
+	simulation.NewHandler(svcs.Simulation).RegisterRoutes(apiV1)
+	vision.NewHandler(svcs.Vision).RegisterRoutes(apiV1)
+
 	return r
 }
 
@@ -54,7 +90,11 @@ func recoverMiddleware(log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("http panic", zap.Any("panic", r), zap.String("path", c.Request.URL.Path))
+				log.Error("http panic",
+					zap.Any("panic", r),
+					zap.String("path", c.Request.URL.Path),
+					zap.String("request_id", c.GetString(problem.CtxKeyRequestID)),
+				)
 				problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "")
 			}
 		}()
@@ -81,7 +121,7 @@ func requestIDMiddleware(log *zap.Logger) gin.HandlerFunc {
 		if rid == "" {
 			rid = newRequestID()
 		}
-		c.Set(ctxKeyRequestID, rid)
+		c.Set(problem.CtxKeyRequestID, rid)
 		c.Header(headerRequestID, rid)
 		start := time.Now()
 		c.Next()

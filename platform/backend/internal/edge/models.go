@@ -15,9 +15,8 @@ const (
 	corsAllowHeaders = "Content-Type"
 
 	headerRequestID = "X-Request-Id"
-	ctxKeyRequestID = "request_id"
 )
 
-// HealthResponse, ErrorResponse, SessionResponse, ConfigResponse,
+// HealthResponse, ProblemDetails, SessionResponse, ConfigResponse,
 // SpeedRequest, SpeedUpdateResponse are generated from openapi/contexts/telemetry.yaml.
 // See openapi.telemetry.gen.go for their definitions.

@@ -20,16 +20,28 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	navigationdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/navigation"
+	navigationmemory "github.com/teamvoldemor/voldemorbot/platform/backend/domain/navigation/memory"
+	robotdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
+	robotmemory "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot/memory"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session/sqlite"
+	simulationdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation"
+	simulationmemory "github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation/memory"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry/memory"
+	visiondomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/vision"
+	visionmemory "github.com/teamvoldemor/voldemorbot/platform/backend/domain/vision/memory"
+	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/edge"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/ingest"
 	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/sim"
 )
+
+// defaultRobotName seeds the singleton robot this single-robot project's
+// legacy telemetry speed-config endpoint delegates to.
+const defaultRobotName = "voldemorbot"
 
 const (
 	shutdownTimeout       = 10 * time.Second
@@ -69,6 +81,15 @@ func run(log *zap.Logger, simMode bool) error {
 	defer rec.Close()
 	sessSvc := session.NewService(rec)
 
+	robotSvc := robotdomain.NewService(robotmemory.NewMemory())
+	defaultRobot, err := robotSvc.Create(ctx, robotdomain.CreateRequest{Name: defaultRobotName})
+	if err != nil {
+		return fmt.Errorf("seed default robot: %w", err)
+	}
+	navSvc := navigationdomain.NewService(navigationmemory.NewMemory())
+	simSvc := simulationdomain.NewService(simulationmemory.NewMemory())
+	visSvc := visiondomain.NewService(visionmemory.NewMemory(), mem)
+
 	validator, err := protovalidate.New()
 	if err != nil {
 		return fmt.Errorf("init protovalidate: %w", err)
@@ -92,7 +113,15 @@ func run(log *zap.Logger, simMode bool) error {
 		return fmt.Errorf("gRPC listen %s: %w", cfg.GRPCAddr, err)
 	}
 
-	router := edge.NewRouter(telSvc, sessSvc, cfg, log)
+	router := edge.NewRouter(edge.Services{
+		Telemetry:      telSvc,
+		Session:        sessSvc,
+		Robot:          robotSvc,
+		DefaultRobotID: defaultRobot.ID,
+		Navigation:     navSvc,
+		Simulation:     simSvc,
+		Vision:         visSvc,
+	}, cfg, log)
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router,

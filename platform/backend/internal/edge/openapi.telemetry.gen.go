@@ -51,11 +51,6 @@ type Detection struct {
 	Confidence float64 `json:"confidence"`
 }
 
-// ErrorResponse defines model for ErrorResponse.
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	Status  string `json:"status"`
@@ -84,6 +79,17 @@ type Position3D struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 	Z float64 `json:"z"`
+}
+
+// ProblemDetails RFC 7807 Problem Details, emitted uniformly for every error response.
+type ProblemDetails struct {
+	// CorrelationId Matches the request_id in server logs for this response.
+	CorrelationId *string `json:"correlation_id,omitempty"`
+	Detail        *string `json:"detail,omitempty"`
+	Instance      string  `json:"instance"`
+	Status        int     `json:"status"`
+	Title         string  `json:"title"`
+	Type          string  `json:"type"`
 }
 
 // RobotSnapshot defines model for RobotSnapshot.
