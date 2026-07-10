@@ -1,4 +1,5 @@
 [tools]
-go = "1.24"
+# Matches platform/backend/go.mod's `go 1.26` directive.
+go = "1.26"
 node = "22"
 task = "3.52"

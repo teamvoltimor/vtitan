@@ -20,6 +20,9 @@ profile.cov
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# SQLite database (see internal/config/constants.go DefaultDBPath)
+data/
+
 # Go workspace file
 go.work
 go.work.sum

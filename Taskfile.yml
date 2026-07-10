@@ -25,6 +25,15 @@ includes:
     taskfile: ./infra/Taskfile.yml
   fleet:
     taskfile: ./fleet/Taskfile.yml
+  auto-annotator:
+    taskfile: ./auto-annotator/Taskfile.yml
+    dir: ./auto-annotator
+  hailo:
+    taskfile: ./hailo/Taskfile.yml
+    dir: ./hailo
+  hugo-docs:
+    taskfile: ./hugo-docs/Taskfile.yml
+    dir: ./hugo-docs
 
 tasks:
   default:

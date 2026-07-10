@@ -53,3 +53,74 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+  auto-annotator-api:
+    name: Auto-Annotator API — build + test (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: auto-annotator/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: auto-annotator/api/go.mod
+          cache-dependency-path: auto-annotator/api/go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+  auto-annotator-ml-service:
+    name: Auto-Annotator ML Service — lint + typecheck + unit tests (uv)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: auto-annotator/ml-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Typecheck
+        run: uv run mypy src/
+
+      # Pure modules only (no GPU/model weights) per Taskfile's ml-service:test.
+      - name: Unit tests
+        run: uv run pytest tests/ -q
+
+  hailo:
+    name: Hailo — lint + typecheck + unit tests (uv)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hailo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Typecheck
+        run: uv run mypy .
+
+      - name: Unit tests
+        run: uv run pytest -q

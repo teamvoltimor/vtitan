@@ -1,5 +1,9 @@
 [tools]
 go = "1.26"
+# ml-service/pyproject.toml requires-python = ">=3.12", pinned below the repo's
+# 3.14 baseline (see hailo/.python-version for that baseline) because its
+# torch/CUDA wheel set is resolved against this version; bumping it is a real
+# dependency-resolution exercise, not a drop-in version-string change.
 python = "3.12"
 node = "22"
 task = "3.52"
