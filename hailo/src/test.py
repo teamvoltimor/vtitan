@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 import cv2
 import numpy as np
@@ -21,15 +21,19 @@ from src.image import (
 )
 from src.log import get_logger
 
+_yolo_import_err: ImportError | None = None
 try:
     from ultralytics import YOLO
-except ImportError:
+except ImportError as _exc:
     YOLO = None  # type: ignore[assignment, misc]
+    _yolo_import_err = _exc
 
+_ort_import_err: ImportError | None = None
 try:
     import onnxruntime as ort
-except ImportError:
-    ort = None  # type: ignore[assignment]
+except ImportError as _exc:
+    ort = None
+    _ort_import_err = _exc
 
 log = get_logger(__name__)
 
@@ -41,6 +45,10 @@ class InferenceHandler(Protocol):
     infer() to run inference on a single image. The common iteration and
     I/O loop is handled by run_inference().
     """
+
+    def __init__(self, config: TestConfig) -> None:
+        """Store the test configuration for later use by setup()/infer()."""
+        ...
 
     def setup(self) -> None:
         """Initialize the model or inference session."""
@@ -58,7 +66,7 @@ class _PTHandler:
         self.config = config
 
     def setup(self) -> None:
-        require_dep(YOLO, "ultralytics")
+        require_dep(YOLO, "ultralytics", cause=_yolo_import_err)
         self.model = YOLO(self.config.model)
 
     def infer(self, img_path: str) -> np.ndarray:
@@ -69,7 +77,9 @@ class _PTHandler:
             scores = results[0].boxes.conf.cpu().numpy()
             classes = results[0].boxes.cls.cpu().numpy()
             draw_boxes(orig, boxes, scores, classes, names=results[0].names)
-        return orig
+        # ultralytics ships no type stubs, so `results` is Any; orig_img is a
+        # real ndarray at runtime.
+        return cast("np.ndarray", orig)
 
 
 class _UltraONNXHandler:
@@ -79,12 +89,14 @@ class _UltraONNXHandler:
         self.config = config
 
     def setup(self) -> None:
-        require_dep(YOLO, "ultralytics")
+        require_dep(YOLO, "ultralytics", cause=_yolo_import_err)
         self.model = YOLO(self.config.model)
 
     def infer(self, img_path: str) -> np.ndarray:
         results = self.model(img_path)
-        return results[0].plot()
+        # ultralytics ships no type stubs, so `results` is Any; plot() returns
+        # a real ndarray at runtime.
+        return cast("np.ndarray", results[0].plot())
 
 
 class _ONNXDetectHandler:
@@ -99,7 +111,7 @@ class _ONNXDetectHandler:
         self.config = config
 
     def setup(self) -> None:
-        require_dep(ort, "onnxruntime")
+        require_dep(ort, "onnxruntime", cause=_ort_import_err)
         self.session = ort.InferenceSession(self.config.model)
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]
@@ -125,7 +137,7 @@ class _ONNXSegmentHandler:
         self.config = config
 
     def setup(self) -> None:
-        require_dep(ort, "onnxruntime")
+        require_dep(ort, "onnxruntime", cause=_ort_import_err)
         self.session = ort.InferenceSession(self.config.model)
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]

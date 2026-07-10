@@ -7,7 +7,7 @@
 # ============================================================================
 # Basic Configuration
 # ============================================================================
-target-version = "py311"
+target-version = "py314"
 line-length = 120
 indent-width = 4
 
@@ -128,6 +128,12 @@ select = [
 
     # flake8-builtins (A)
     "A",
+
+    # pep8-naming (N)
+    "N",
+
+    # flake8-future-annotations (FA)
+    "FA",
 
     # flake8-commas (COM)
     "COM",
@@ -330,25 +336,10 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "F403",    # Star imports
 ]
 
-# Setup and config files
-"setup.py" = ["D", "ANN"]
-"config.py" = ["E501"]
-"settings.py" = ["E501"]
-
-# Scripts
-"scripts/*.py" = [
-    "T20",     # Print statements
-    "INP001",  # Implicit namespace package
-]
-
 # Root-level entrypoints (not in a package)
 "main.py" = [
     "INP001",
 ]
-
-
-
-"src/*.py" = []
 
 # ============================================================================
 # Rule-specific Configuration

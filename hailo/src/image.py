@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
 from src.coco import COCO_CLASSES, COLORS
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 from src.constants import (
     BOX_LINE_THICKNESS,
     DEFAULT_IMG_SIZE,
@@ -75,8 +79,14 @@ def preprocess(
 
     Returns:
         ``(chw_batch, ratio, pad_w, pad_h, original_bgr)``
+
+    Raises:
+        HailoError: If ``img_path`` cannot be read as an image.
     """
     img0 = cv2.imread(img_path)
+    if img0 is None:
+        msg = f"Could not read image: {img_path}"
+        raise HailoError(msg)
     img, ratio, dw, dh = letterbox(img0, new_shape=(size, size))
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / NORMALIZE_FACTOR
     img = np.expand_dims(np.transpose(img, TRANSPOSE_HWC_TO_CHW), 0)
@@ -92,6 +102,10 @@ def scale_coords(
 ) -> np.ndarray:
     """Map letterboxed xyxy coordinates back to the original image space.
 
+    Mutates ``boxes`` in place (and also returns it) to avoid an extra copy on
+    the detection hot path; pass ``boxes.copy()`` if the caller needs the
+    pre-scaling array to remain intact.
+
     Args:
         boxes: Array of shape ``(N, 4)`` in xyxy format.
         ratio: Scale ratio returned by :func:`letterbox`.
@@ -100,7 +114,7 @@ def scale_coords(
         img_shape: ``(H, W, ...)`` of the original image.
 
     Returns:
-        Clipped xyxy boxes in original image coordinates.
+        Clipped xyxy boxes in original image coordinates (same array as ``boxes``).
     """
     boxes[:, [0, 2]] -= dw
     boxes[:, [1, 3]] -= dh
@@ -207,7 +221,7 @@ def infer_task(model_path: str) -> Task:
     return Task.SEGMENT if "seg" in Path(model_path).name else Task.DETECT
 
 
-def iter_images(directory: str):
+def iter_images(directory: str) -> Iterator[tuple[str, str]]:
     """Yield ``(filename, full_path)`` for every image in *directory*.
 
     Args:

@@ -24,13 +24,15 @@ def download(config: DownloadConfig) -> None:
     Raises:
         HailoError: If ``fiftyone`` is not installed.
     """
+    import_err = None
     try:
         from fiftyone.types import ImageDirectory  # noqa: PLC0415
         from fiftyone.zoo import load_zoo_dataset  # noqa: PLC0415
-    except ImportError:
-        load_zoo_dataset = None  # type: ignore[assignment]
+    except ImportError as exc:
+        load_zoo_dataset = None
+        import_err = exc
 
-    require_dep(load_zoo_dataset, "fiftyone")
+    require_dep(load_zoo_dataset, "fiftyone", cause=import_err)
 
     log.info(
         "Downloading %d COCO 2017 validation images → %s",

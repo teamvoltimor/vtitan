@@ -12,6 +12,7 @@ dependencies = [
     "numpy",
     "pillow",
     "python-dotenv",
+    "pydantic-settings>=2.7.0",
     "ultralytics>=8.4.14",
     "albumentations>=1.4.0",
     "grpcio>=1.68.0",

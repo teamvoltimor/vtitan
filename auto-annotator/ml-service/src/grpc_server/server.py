@@ -7,10 +7,11 @@ processes later if GPU isolation is needed.
 
 from __future__ import annotations
 
-import os
 from concurrent import futures
 
 import grpc
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.config import AppConfig
 from src.grpc_server.pb import compute_pb2_grpc as pb_grpc
@@ -27,6 +28,14 @@ _DEFAULT_PORT = 50051
 _DEFAULT_MAX_WORKERS = 8
 
 
+class _GrpcEnvSettings(BaseSettings):
+    """Raw env-var read for the gRPC server port override."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    grpc_port: int | None = Field(default=None, validation_alias="GRPC_PORT")
+
+
 def _load_grpc_config() -> tuple[int, int]:
     """Return (port, max_workers) from config file, with env var override for port."""
     import tomllib  # noqa: PLC0415 — stdlib, cheap import
@@ -37,7 +46,8 @@ def _load_grpc_config() -> tuple[int, int]:
         with paths.server_config_file.open("rb") as f:
             grpc_cfg = tomllib.load(f).get("grpc", {})
 
-    port = int(os.environ.get("GRPC_PORT", grpc_cfg.get("port", _DEFAULT_PORT)))
+    env_port = _GrpcEnvSettings().grpc_port
+    port = env_port if env_port is not None else int(grpc_cfg.get("port", _DEFAULT_PORT))
     max_workers = int(grpc_cfg.get("max_workers", _DEFAULT_MAX_WORKERS))
     return port, max_workers
 

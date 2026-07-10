@@ -28,4 +28,5 @@ DEFAULT_COCO_SAMPLES = 2048
 DEFAULT_CONFIDENCE = 0.3
 DEFAULT_CALIB_INPUT = "./calib_data"
 DEFAULT_CALIB_OUTPUT = "./calib_data_npy"
-DEFAULT_X11_DISPLAY = ":0"
+# X11 display default now lives in src.settings.HailoSettings (host-specific,
+# HAILO_X11_DISPLAY-overridable), not here.

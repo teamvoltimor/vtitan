@@ -29,11 +29,8 @@ from src.constants import (
     DEFAULT_COCO_SAMPLES,
     DEFAULT_CONFIDENCE,
     DEFAULT_IMG_SIZE,
-    DEFAULT_X11_DISPLAY,
 )
 from src.docker import (
-    DOCKER_CONTAINER,
-    DOCKER_IMAGE,
     DOCKER_SHARED_MOUNT,
     DockerRunConfig,
     docker_run,
@@ -42,6 +39,7 @@ from src.enums import Backend, EvalTarget, HWArch, Task
 from src.errors import HailoError
 from src.log import configure_logging, get_logger
 from src.registry import MODEL_REGISTRY, SHARED_WITH_DOCKER, ModelName
+from src.settings import HailoSettings, load_settings
 
 log = get_logger(__name__)
 
@@ -142,6 +140,8 @@ def _cmd_docker(args: argparse.Namespace) -> None:
                 shared_dir=args.shared_dir,
                 container=args.container,
                 image=args.image,
+                host_uid=args.host_uid,
+                video_gid=args.video_gid,
                 display=args.display,
                 dry_run=args.dry_run,
             ),
@@ -331,13 +331,13 @@ def _add_profile_parser(
     parser.set_defaults(func=_cmd_profile)
 
 
-def _add_docker_parser(sub: argparse._SubParsersAction) -> None:
+def _add_docker_parser(sub: argparse._SubParsersAction, settings: HailoSettings) -> None:
     parser = sub.add_parser("docker", help="Manage the Hailo AI Software Suite container")
     docker_sub = parser.add_subparsers(dest="docker_cmd", required=True)
 
     p_docker_run = docker_sub.add_parser(
         "run",
-        help=f"Start the {DOCKER_IMAGE} container with all required mounts",
+        help=f"Start the {settings.docker_image} container with all required mounts",
     )
     p_docker_run.add_argument(
         "--shared-dir",
@@ -346,18 +346,30 @@ def _add_docker_parser(sub: argparse._SubParsersAction) -> None:
     )
     p_docker_run.add_argument(
         "--container",
-        default=DOCKER_CONTAINER,
-        help=f"Container name (default: {DOCKER_CONTAINER})",
+        default=settings.docker_container,
+        help=f"Container name (default: {settings.docker_container}, override via HAILO_DOCKER_CONTAINER)",
     )
     p_docker_run.add_argument(
         "--image",
-        default=DOCKER_IMAGE,
-        help=f"Suite image repo:tag to launch (default: {DOCKER_IMAGE})",
+        default=settings.docker_image,
+        help=f"Suite image repo:tag to launch (default: {settings.docker_image}, override via HAILO_DOCKER_IMAGE)",
+    )
+    p_docker_run.add_argument(
+        "--host-uid",
+        type=int,
+        default=settings.host_uid,
+        help=f"Host UID for XDG_RUNTIME_DIR (default: {settings.host_uid}, override via HAILO_HOST_UID)",
+    )
+    p_docker_run.add_argument(
+        "--video-gid",
+        type=int,
+        default=settings.video_gid,
+        help=f"Host video group GID for --group-add (default: {settings.video_gid}, override via HAILO_VIDEO_GID)",
     )
     p_docker_run.add_argument(
         "--display",
-        default=DEFAULT_X11_DISPLAY,
-        help=f"X11 DISPLAY to forward (default: {DEFAULT_X11_DISPLAY})",
+        default=settings.x11_display,
+        help=f"X11 DISPLAY to forward (default: {settings.x11_display}, override via HAILO_X11_DISPLAY)",
     )
     p_docker_run.add_argument(
         "--dry-run",
@@ -381,6 +393,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    settings = load_settings()
     docker_parent = _make_docker_parent()
     _add_export_parser(sub)
     _add_calib_parser(sub)
@@ -390,7 +403,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_compile_parser(sub, docker_parent)
     _add_eval_parser(sub, docker_parent)
     _add_profile_parser(sub, docker_parent)
-    _add_docker_parser(sub)
+    _add_docker_parser(sub, settings)
 
     return parser
 

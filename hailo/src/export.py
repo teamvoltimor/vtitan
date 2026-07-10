@@ -9,10 +9,12 @@ from src.errors import ModelNotFoundError, require_dep
 from src.log import get_logger
 from src.registry import get_entry
 
+_yolo_import_err: ImportError | None = None
 try:
     from ultralytics import YOLO
-except ImportError:
+except ImportError as _exc:
     YOLO = None  # type: ignore[assignment, misc]
+    _yolo_import_err = _exc
 
 log = get_logger(__name__)
 
@@ -26,12 +28,12 @@ def run(config: ExportConfig) -> None:
     Raises:
         ModelNotFoundError: If the ``.pt`` checkpoint is missing on disk.
     """
-    require_dep(YOLO, "ultralytics")
+    require_dep(YOLO, "ultralytics", cause=_yolo_import_err)
     entry = get_entry(config.model)
 
     if not Path(entry.pt_file).exists():
         msg = f"Checkpoint not found: {entry.pt_file}. Download it or place it in the working directory."
-        raise ModelNotFoundError(msg) from FileNotFoundError(entry.pt_file)
+        raise ModelNotFoundError(msg)
 
     opset = config.opset if config.opset is not None else entry.opset
     extra = entry.extra_kwargs()

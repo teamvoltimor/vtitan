@@ -53,7 +53,7 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
     if entry and entry.zoo_name:
         return entry.zoo_name
     msg = f"Model {model!r} has no Hailo Model Zoo name. Supply --zoo-name explicitly (e.g. --zoo-name yolov11s)."
-    raise HailoError(msg) from KeyError(model)
+    raise HailoError(msg)
 
 
 # Public commands
@@ -73,7 +73,7 @@ def stage(config: StageConfig) -> None:
     onnx_src = Path(entry.onnx_file)
     if not onnx_src.exists():
         msg = f"ONNX file not found: {onnx_src}. Run `hailo export` first."
-        raise HailoError(msg) from FileNotFoundError(entry.onnx_file)
+        raise HailoError(msg)
 
     shared = Path(config.shared_dir)
     shared.mkdir(parents=True, exist_ok=True)
@@ -86,7 +86,7 @@ def stage(config: StageConfig) -> None:
         calib_src = Path(config.calib)
         if not calib_src.exists():
             msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
-            raise HailoError(msg) from FileNotFoundError(config.calib)
+            raise HailoError(msg)
         calib_dest = shared / "calib_data"
         shutil.copytree(calib_src, calib_dest, dirs_exist_ok=True)
         log.info("Staged calibration data → %s", calib_dest)

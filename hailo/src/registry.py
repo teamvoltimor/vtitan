@@ -108,5 +108,5 @@ def get_entry(model_key: str) -> ModelEntry:
     entry = MODEL_REGISTRY.get(model_key)
     if entry is None:
         msg = f"Unknown model {model_key!r}. Valid options: {list(MODEL_REGISTRY)}"
-        raise HailoError(msg) from KeyError(model_key)
+        raise HailoError(msg)
     return entry

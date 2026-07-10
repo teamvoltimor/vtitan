@@ -2,10 +2,17 @@
 
 __all__ = [
     "calib",
+    "coco",
     "config",
+    "constants",
     "docker",
+    "enums",
+    "errors",
     "export",
+    "graph",
     "hailomz",
     "image",
+    "log",
+    "registry",
     "test",
 ]

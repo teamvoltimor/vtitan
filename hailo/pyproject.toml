@@ -3,12 +3,13 @@ name = "hailo"
 version = "0.1.0"
 description = "Host-side CLI toolchain for compiling YOLO models to Hailo 8 HEF format"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "numpy>=2.4.2",
     "onnx>=1.20.1",
     "onnxruntime>=1.24.1",
     "opencv-python>=4.13.0.92",
+    "pydantic-settings>=2.7.0",
     "ultralytics>=8.4.14",
 ]
 
@@ -16,7 +17,12 @@ dependencies = [
 calib = ["fiftyone>=1.13.0"]
 
 [dependency-groups]
-dev = ["ruff>=0.15.4"]
+dev = ["ruff>=0.15.4", "mypy>=1.13.0", "pytest>=8.0.0"]
 
 [project.scripts]
 hailo = "main:main"
+
+[tool.pytest.ini_options]
+# Scope discovery to tests/ only -- src/test.py is the CLI's `test`
+# subcommand module, not a test suite, and must never be collected.
+testpaths = ["tests"]

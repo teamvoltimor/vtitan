@@ -6,14 +6,17 @@ strongly-typed dataclasses. Single entry point for all app configuration.
 
 from __future__ import annotations
 
-import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 # Environment variable name constants.
-# Defined here so load() methods reference named symbols instead of bare strings.
+# Defined here so load() methods and the _*EnvSettings classes below reference
+# named symbols instead of bare strings.
 
 ENV_MODELS_DIR: str = "MODELS_DIR"
 """Environment variable: directory containing model checkpoint files."""
@@ -47,6 +50,54 @@ ENV_API_PUBLIC_URL: str = "API_PUBLIC_URL"
 
 ENV_DEFAULT_MODEL: str = "DEFAULT_MODEL"
 """Environment variable: model ID to load on server startup."""
+
+
+class _PathEnvSettings(BaseSettings):
+    """Raw env-var reads for :class:`PathConfig`.
+
+    Unset fields stay ``None`` so ``PathConfig.load()`` can apply its own
+    ``base_dir``-relative defaults.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    models_dir: Path | None = Field(default=None, validation_alias=ENV_MODELS_DIR)
+    db_path: Path | None = Field(default=None, validation_alias=ENV_DB_PATH)
+    models_config: Path | None = Field(default=None, validation_alias=ENV_MODELS_CONFIG)
+    server_config: Path | None = Field(default=None, validation_alias=ENV_SERVER_CONFIG)
+
+
+class _ServerEnvSettings(BaseSettings):
+    """Raw env-var reads for :class:`ServerConfig`'s port precedence.
+
+    Two separate optional fields (rather than one field with ``AliasChoices``)
+    so ``ServerConfig.load()`` can report exactly which env var supplied the
+    port in ``port_source``, matching the pre-migration behavior.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    server_port: int | None = Field(default=None, validation_alias=ENV_SERVER_PORT)
+    model_server_port: int | None = Field(default=None, validation_alias=ENV_MODEL_SERVER_PORT)
+
+
+class _APIEnvSettings(BaseSettings):
+    """Raw env-var reads for :class:`APIConfig`."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    api_port: int | None = Field(default=None, validation_alias=ENV_API_PORT)
+    api_public_url: str | None = Field(default=None, validation_alias=ENV_API_PUBLIC_URL)
+
+
+class _InferenceEnvSettings(BaseSettings):
+    """Raw env-var reads for :class:`InferenceConfig`."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    hf_hub_cache: str = Field(default="", validation_alias=ENV_HF_HUB_CACHE)
+    hf_token: str = Field(default="", validation_alias=ENV_HF_TOKEN)
+    default_model: str = Field(default="", validation_alias=ENV_DEFAULT_MODEL)
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -90,25 +141,18 @@ class PathConfig:
     def load(cls) -> PathConfig:
         """Load paths from environment variables and defaults."""
         base_dir = Path(__file__).parent.parent
+        env = _PathEnvSettings()
 
         return PathConfig(
             base_dir=base_dir,
-            models_dir=Path(
-                os.environ.get(ENV_MODELS_DIR, str(base_dir / "models")),
-            ),
+            models_dir=env.models_dir or base_dir / "models",
             pending_dir=base_dir / "data" / "pending",
             labels_dir=base_dir / "data" / "labels",
             images_dir=base_dir / "data" / "images",
             data_yaml_path=base_dir / "data" / "data.yaml",
-            db_path=Path(
-                os.environ.get(ENV_DB_PATH, str(base_dir / "data" / "manifest.db")),
-            ),
-            config_file=Path(
-                os.environ.get(ENV_MODELS_CONFIG, str(base_dir / "config" / "models.toml")),
-            ),
-            server_config_file=Path(
-                os.environ.get(ENV_SERVER_CONFIG, str(base_dir / "config" / "server.toml")),
-            ),
+            db_path=env.db_path or base_dir / "data" / "manifest.db",
+            config_file=env.models_config or base_dir / "config" / "models.toml",
+            server_config_file=env.server_config or base_dir / "config" / "server.toml",
         )
 
 
@@ -133,20 +177,16 @@ class ServerConfig:
         """Load server configuration from environment, config file, or defaults."""
         server_config_dict = _load_toml(paths.server_config_file).get("server", {})
         default_port = 8765
+        env = _ServerEnvSettings()
 
-        port, source = (
-            (int(os.environ.get(ENV_SERVER_PORT)), f"env:{ENV_SERVER_PORT}")
-            if os.environ.get(ENV_SERVER_PORT)
-            else (
-                (int(os.environ.get(ENV_MODEL_SERVER_PORT)), f"env:{ENV_MODEL_SERVER_PORT}")
-                if os.environ.get(ENV_MODEL_SERVER_PORT)
-                else (
-                    (int(server_config_dict.get("port")), f"config:{paths.server_config_file.name}")
-                    if server_config_dict.get("port")
-                    else (default_port, "default")
-                )
-            )
-        )
+        if env.server_port is not None:
+            port, source = env.server_port, f"env:{ENV_SERVER_PORT}"
+        elif env.model_server_port is not None:
+            port, source = env.model_server_port, f"env:{ENV_MODEL_SERVER_PORT}"
+        elif server_config_dict.get("port"):
+            port, source = int(server_config_dict["port"]), f"config:{paths.server_config_file.name}"
+        else:
+            port, source = default_port, "default"
 
         return ServerConfig(
             host="127.0.0.1",
@@ -171,13 +211,11 @@ class APIConfig:
     @classmethod
     def load(cls) -> APIConfig:
         """Load API configuration from environment variables."""
-        port = int(os.environ.get(ENV_API_PORT, "8000"))
+        env = _APIEnvSettings()
+        port = env.api_port if env.api_port is not None else 8000
         return APIConfig(
             port=port,
-            public_url=os.environ.get(
-                ENV_API_PUBLIC_URL,
-                f"http://localhost:{port}",
-            ),
+            public_url=env.api_public_url if env.api_public_url is not None else f"http://localhost:{port}",
         )
 
 
@@ -208,15 +246,16 @@ class InferenceConfig:
     @classmethod
     def load(cls) -> InferenceConfig:
         """Load inference configuration from environment and defaults."""
+        env = _InferenceEnvSettings()
         return InferenceConfig(
             sam2_checkpoint_filename="sam2.1_l.pt",
             sam2_hf_repo="facebook/sam2.1-hiera-large",
             sam2_config_path="configs/sam2.1/sam2.1_hiera_l.yaml",
             default_mask_score=1.0,
             mask_labels=["Precise (0)", "Object (1)", "Broad (2)"],
-            hf_hub_cache=os.environ.get(ENV_HF_HUB_CACHE, ""),
-            hf_token=os.environ.get(ENV_HF_TOKEN, ""),
-            default_model=os.environ.get(ENV_DEFAULT_MODEL, ""),
+            hf_hub_cache=env.hf_hub_cache,
+            hf_token=env.hf_token,
+            default_model=env.default_model,
         )
 
 

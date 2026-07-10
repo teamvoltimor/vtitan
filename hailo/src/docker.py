@@ -11,12 +11,9 @@ from pathlib import Path
 
 from src.log import get_logger
 
-DOCKER_CONTAINER = "hailo8_ai_sw_suite_2025-10_container"
-DOCKER_IMAGE = "hailo8_ai_sw_suite_2025-10:1"
+# Fixed contract with the Hailo AI Software Suite image's own internal mount
+# expectations -- not host-specific, so not sourced from HailoSettings.
 DOCKER_SHARED_MOUNT = "/local/shared_with_docker"
-
-_HOST_UID = 1000
-_VIDEO_GID = 44
 
 log = get_logger(__name__)
 
@@ -45,19 +42,26 @@ def run_or_print(cmd: list[str], docker: str | None, workdir: str | None = None)
 class DockerRunConfig:
     """Parameters for starting the Hailo AI Software Suite container.
 
+    Field defaults mirror :class:`~src.settings.HailoSettings`'s defaults;
+    ``main.py`` populates them from settings/env vars at CLI-parser
+    construction time, so these are only a fallback for direct/programmatic use.
+
     Args:
         shared_dir: Host path mounted as ``/local/shared_with_docker`` inside
             the container. Resolved to an absolute path at runtime.
         container: Name assigned to the running container instance.
-        image: Suite image ``repo:tag`` to launch. Override to point at a
-            different suite build than the :data:`DOCKER_IMAGE` default.
+        image: Suite image ``repo:tag`` to launch.
+        host_uid: Host UID for the container's ``XDG_RUNTIME_DIR`` mount.
+        video_gid: Host video group GID for ``--group-add``.
         display: X11 ``DISPLAY`` variable forwarded into the container.
         dry_run: When ``True``, print the command instead of executing it.
     """
 
     shared_dir: str
-    container: str = DOCKER_CONTAINER
-    image: str = DOCKER_IMAGE
+    container: str = "hailo8_ai_sw_suite_2025-10_container"
+    image: str = "hailo8_ai_sw_suite_2025-10:1"
+    host_uid: int = 1000
+    video_gid: int = 44
     display: str = ":0"
     dry_run: bool = False
 
@@ -92,11 +96,11 @@ def docker_run(config: DockerRunConfig) -> None:
         "-e",
         f"DISPLAY={config.display}",
         "-e",
-        f"XDG_RUNTIME_DIR=/run/user/{_HOST_UID}/",
+        f"XDG_RUNTIME_DIR=/run/user/{config.host_uid}/",
         "--device=/dev/dri:/dev/dri",
         "--ipc=host",
         "--group-add",
-        str(_VIDEO_GID),
+        str(config.video_gid),
         "-v",
         "/dev:/dev",
         "-v",

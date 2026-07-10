@@ -278,11 +278,23 @@ tasks:
     cmds:
       - uv run ruff check --fix .
 
+  typecheck:
+    desc: 'Run mypy --strict-equivalent type checking'
+    cmds:
+      - uv run mypy .
+
+  test:unit:
+    desc: 'Run the pytest unit suite (tests/, not the CLI test subcommand)'
+    cmds:
+      - uv run pytest -v
+
   check:
-    desc: 'Format check + lint (no changes)'
+    desc: 'Format check + lint + typecheck + unit tests (no changes)'
     cmds:
       - task: format:check
       - task: lint
+      - task: typecheck
+      - task: test:unit
 
 # Logging & Debugging
 
