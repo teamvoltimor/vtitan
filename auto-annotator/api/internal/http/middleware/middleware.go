@@ -65,13 +65,21 @@ func CORS(allowed []string) gin.HandlerFunc {
 	}
 	return func(c *gin.Context) {
 		origin := c.GetHeader(HeaderOrigin)
-		if origin != "" && set[origin] {
+		isAllowed := origin != "" && set[origin]
+		if isAllowed {
 			c.Header(HeaderAccessControlAllowOrig, origin)
 			c.Header(HeaderAccessControlMethods, CORSAllowedMethods)
 			c.Header(HeaderAccessControlHeaders, CORSAllowAllHeaders)
 			c.Header(HeaderVary, CORSHeaderVaryValue)
 		}
 		if c.Request.Method == http.MethodOptions {
+			// A cross-origin preflight from a non-allow-listed origin must not be
+			// answered with a blanket success: only same-origin/no-Origin OPTIONS
+			// calls (e.g. internal tooling) and allow-listed preflights get 204.
+			if origin != "" && !isAllowed {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}

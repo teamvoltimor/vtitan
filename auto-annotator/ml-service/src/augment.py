@@ -124,6 +124,63 @@ def _augment_seg(
     return results
 
 
+def _augment_and_write(
+    image_path: str,
+    num_augmentations: int,
+    label_store: LabelStore,
+    images_dir: Path,
+    labels_dir: Path,
+) -> Iterator[tuple[str, str]]:
+    """Augment one image, writing augmented image+label files to disk.
+
+    Shared by :func:`augment_image` (DB-backed) and :func:`augment_image_files`
+    (DB-free): both need identical path resolution, image/label loading, and
+    per-copy file writing -- they differ only in how each augmented copy gets
+    persisted (a registered DB row vs. a yielded DTO), which is left to the caller.
+
+    Yields:
+        ``(augmented_image_path, augmented_stem)`` for each copy written to disk.
+    """
+    img_path = Path(image_path)
+    class_dir = img_path.parent.name
+    label_path = labels_dir / class_dir / (img_path.stem + ".txt")
+
+    records = label_store.load_raw(label_path)
+    if not records:
+        logger.info("label_not_found_or_empty", extra={"path": str(label_path)})
+        return
+
+    image_bgr = cv2.imread(str(img_path))
+    if image_bgr is None:
+        logger.info("image_not_readable", extra={"path": str(img_path)})
+        return
+
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    class_ids = [r.class_id for r in records]
+    coords = [r.coords for r in records]
+
+    if _is_bbox(coords[0]):
+        aug_results = _augment_det(image_rgb, class_ids, coords, num_augmentations)
+    else:
+        aug_results = _augment_seg(image_rgb, class_ids, coords, num_augmentations)
+
+    for i, (aug_img, new_classes, new_coords) in enumerate(aug_results):
+        if not new_classes:
+            continue
+
+        aug_stem = f"{img_path.stem}_aug_{i}"
+        aug_img_path = images_dir / class_dir / f"{aug_stem}.jpg"
+        aug_lbl_path = labels_dir / class_dir / f"{aug_stem}.txt"
+
+        aug_img_path.parent.mkdir(parents=True, exist_ok=True)
+        aug_lbl_path.parent.mkdir(parents=True, exist_ok=True)
+
+        cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
+        label_store.save(aug_lbl_path, [LabelRecord(cid, c) for cid, c in zip(new_classes, new_coords, strict=False)])
+
+        yield str(aug_img_path), aug_stem
+
+
 def augment_image(
     record: ImageRecord,
     num_augmentations: int,
@@ -152,50 +209,13 @@ def augment_image(
     _images_dir, _labels_dir = _resolve_paths(images_dir, labels_dir)
     img_path = Path(record.path)
     class_dir = img_path.parent.name
-    label_path = _labels_dir / class_dir / (img_path.stem + ".txt")
-
-    records = label_store.load_raw(label_path)
-    if not records:
-        logger.info("label_not_found_or_empty", extra={"path": str(label_path)})
-        return []
-
-    image_bgr = cv2.imread(str(img_path))
-    if image_bgr is None:
-        logger.info("image_not_readable", extra={"path": str(img_path)})
-        return []
-
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    class_ids = [r.class_id for r in records]
-    coords = [r.coords for r in records]
-
     fmt = record.format_used or "det"
-    is_det = _is_bbox(coords[0])
-
-    if is_det:
-        aug_results = _augment_det(image_rgb, class_ids, coords, num_augmentations)
-    else:
-        aug_results = _augment_seg(image_rgb, class_ids, coords, num_augmentations)
 
     new_ids: list[int] = []
-    for i, (aug_img, new_classes, new_coords) in enumerate(aug_results):
-        if not new_classes:
-            continue
-
-        aug_stem = f"{img_path.stem}_aug_{i}"
-        aug_img_path = _images_dir / class_dir / f"{aug_stem}.jpg"
-        aug_lbl_path = _labels_dir / class_dir / f"{aug_stem}.txt"
-
-        aug_img_path.parent.mkdir(parents=True, exist_ok=True)
-        aug_lbl_path.parent.mkdir(parents=True, exist_ok=True)
-
-        cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
-        label_store.save(aug_lbl_path, [LabelRecord(cid, c) for cid, c in zip(new_classes, new_coords, strict=False)])
-
-        aug_record = AugmentedImage(
-            path=str(aug_img_path),
-            format_used=fmt,
-            parent_id=record.id,
-        )
+    for i, (aug_img_path, aug_stem) in enumerate(
+        _augment_and_write(record.path, num_augmentations, label_store, _images_dir, _labels_dir),
+    ):
+        aug_record = AugmentedImage(path=aug_img_path, format_used=fmt, parent_id=record.id)
         new_id = repository.images.register_augmented(aug_record)
         new_ids.append(new_id)
 
@@ -236,47 +256,11 @@ def augment_image_files(
         An :class:`AugmentedImage` for each augmented copy written to disk.
     """
     _images_dir, _labels_dir = _resolve_paths(images_dir, labels_dir)
-    img_path = Path(image_path)
-    class_dir = img_path.parent.name
-    label_path = _labels_dir / class_dir / (img_path.stem + ".txt")
-
-    records = label_store.load_raw(label_path)
-    if not records:
-        logger.info("label_not_found_or_empty", extra={"path": str(label_path)})
-        return
-
-    image_bgr = cv2.imread(str(img_path))
-    if image_bgr is None:
-        logger.info("image_not_readable", extra={"path": str(img_path)})
-        return
-
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    class_ids = [r.class_id for r in records]
-    coords = [r.coords for r in records]
-
     fmt = format_used or "det"
-    if _is_bbox(coords[0]):
-        aug_results = _augment_det(image_rgb, class_ids, coords, num_augmentations)
-    else:
-        aug_results = _augment_seg(image_rgb, class_ids, coords, num_augmentations)
-
-    for i, (aug_img, new_classes, new_coords) in enumerate(aug_results):
-        if not new_classes:
-            continue
-
-        aug_stem = f"{img_path.stem}_aug_{i}"
-        aug_img_path = _images_dir / class_dir / f"{aug_stem}.jpg"
-        aug_lbl_path = _labels_dir / class_dir / f"{aug_stem}.txt"
-
-        aug_img_path.parent.mkdir(parents=True, exist_ok=True)
-        aug_lbl_path.parent.mkdir(parents=True, exist_ok=True)
-
-        cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
-        label_store.save(
-            aug_lbl_path, [LabelRecord(cid, c) for cid, c in zip(new_classes, new_coords, strict=False)],
-        )
-
-        yield AugmentedImage(path=str(aug_img_path), format_used=fmt, parent_id=parent_id)
+    for aug_img_path, _aug_stem in _augment_and_write(
+        image_path, num_augmentations, label_store, _images_dir, _labels_dir,
+    ):
+        yield AugmentedImage(path=aug_img_path, format_used=fmt, parent_id=parent_id)
 
 
 def run_augmentation_job(

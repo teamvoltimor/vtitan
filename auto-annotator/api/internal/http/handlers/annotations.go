@@ -9,6 +9,16 @@ import (
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
 )
 
+// RegisterRoutes wires the annotation and class routes onto rg.
+func (h *AnnotationHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET(RouteAnnotations, h.GetAnnotations)
+	rg.POST(RouteSaveAnnotations, h.SaveAnnotations)
+	rg.POST(RouteSkipAnnotation, h.SkipImage)
+
+	rg.GET(RouteListClasses, h.ListClasses)
+	rg.POST(RouteUpsertClass, h.UpsertClass)
+}
+
 // GetAnnotations returns the saved annotation shapes for an image. GET /annotations/:id
 func (h *AnnotationHandler) GetAnnotations(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param(AnnotationIDParamName), 10, 64)

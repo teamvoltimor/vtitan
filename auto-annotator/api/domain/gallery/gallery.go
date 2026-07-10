@@ -11,22 +11,22 @@ import (
 type (
 	// BrowseImage is the minimal image record for gallery listing.
 	BrowseImage struct {
-		ID         int64
 		Path       string
-		Status     int64
 		FormatUsed string
 		UpdatedAt  string
+		ID         int64
+		Status     int64
 	}
 
 	// GroupedImage is a parent image with augmentation count, returned by GetGroupedGallery.
 	GroupedImage struct {
-		ID         int64
 		Path       string
 		ImageURL   string
 		Label      string
-		Status     int64
 		FormatUsed string
 		UpdatedAt  string
+		ID         int64
+		Status     int64
 		AugCount   int64
 	}
 
@@ -47,7 +47,6 @@ type (
 
 	// GalleryItem is a single image entry in the gallery, with its annotations.
 	GalleryItem struct {
-		ID          int64
 		Path        string
 		ImageURL    string
 		ThumbURL    string
@@ -55,6 +54,7 @@ type (
 		Status      string
 		UpdatedAt   string
 		Annotations []annotation.Shape
+		ID          int64
 	}
 
 	// Gallery is the gallery response with items and statistics.

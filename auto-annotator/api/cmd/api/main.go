@@ -4,10 +4,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,10 +25,17 @@ import (
 	gallerydomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery"
 	gallerysqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery/sqlite"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/store"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/handlers"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/store"
 )
+
+const readHeaderTimeout = 5 * time.Second
+
+// shutdownGracePeriod bounds how long we wait for in-flight requests (e.g. a
+// SaveAnnotations or ImportGallery mid-write) to finish once a shutdown
+// signal arrives, before forcing the listener closed.
+const shutdownGracePeriod = 10 * time.Second
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
@@ -60,9 +73,36 @@ func run() error {
 	router := app.Router()
 
 	addr := ":" + strconv.Itoa(cfg.APIPort)
-	slog.Info("starting api", "addr", addr, "db_path", cfg.DBPath, "data_dir", cfg.DataDir)
-	if err := router.Run(addr); err != nil {
-		return fmt.Errorf("server: %w", err)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
-	return nil
+
+	serveErr := make(chan error, 1)
+	go func() {
+		slog.Info("starting api", "addr", addr, "db_path", cfg.DBPath, "data_dir", cfg.DataDir)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- fmt.Errorf("server: %w", err)
+			return
+		}
+		serveErr <- nil
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+	}
+
+	slog.Info("shutdown signal received, draining connections")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+	return <-serveErr
 }

@@ -97,8 +97,8 @@ type (
 
 	// SegmentReq is the service-level segmentation request (image resolved, coords float64).
 	SegmentReq struct {
-		ImageID int64
 		Points  []ClickPoint
+		ImageID int64
 	}
 
 	// AugmentJobReq is the service-level augmentation job request.
@@ -143,9 +143,9 @@ type Store interface {
 
 // ImageRef is the minimal image info needed by the compute service.
 type ImageRef struct {
-	ID         int64
 	Path       string
 	FormatUsed string
+	ID         int64
 }
 
 // Service is the compute domain service interface.

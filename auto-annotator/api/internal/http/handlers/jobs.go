@@ -14,6 +14,21 @@ import (
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
 )
 
+// RegisterRoutes wires the model listing, segmentation, and augment/train job
+// routes onto rg.
+func (h *ComputeHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET(RouteListModels, h.ListModels)
+	rg.POST(RouteSegment, h.Segment)
+
+	rg.POST(RouteStartAugment, h.StartAugment)
+	rg.GET(RouteStatusAugment, h.JobStatus)
+	rg.GET(RouteStreamAugment, h.StreamAugment)
+
+	rg.POST(RouteStartTrain, h.StartTrain)
+	rg.GET(RouteStatusTrain, h.JobStatus)
+	rg.GET(RouteStreamTrain, h.StreamTrain)
+}
+
 // JobStatus reports whether any job is running. GET /augment/status, /train/status
 func (h *ComputeHandler) JobStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, JobStatusResponse{Running: h.svc.JobRunning()})
@@ -55,9 +70,15 @@ func (h *ComputeHandler) StartTrain(c *gin.Context) {
 	c.JSON(http.StatusAccepted, JobStatusResponse{Running: true, Message: MsgTrainingStarted})
 }
 
-// StreamAugment / StreamTrain expose the single active job's progress as SSE.
-func (h *ComputeHandler) StreamAugment(c *gin.Context) { h.streamJob(c, "augmentation") }
-func (h *ComputeHandler) StreamTrain(c *gin.Context)   { h.streamJob(c, "training") }
+// StreamAugment exposes the active augmentation job's progress as SSE. GET /augment/stream
+func (h *ComputeHandler) StreamAugment(c *gin.Context) {
+	h.streamJob(c, "augmentation")
+}
+
+// StreamTrain exposes the active training job's progress as SSE. GET /train/stream
+func (h *ComputeHandler) StreamTrain(c *gin.Context) {
+	h.streamJob(c, "training")
+}
 
 func (h *ComputeHandler) streamJob(c *gin.Context, name string) {
 	_, ch, ok := h.svc.Subscribe()

@@ -11,6 +11,11 @@ const (
 	DefaultOpenAPIPath = "api/openapi.yaml"
 )
 
+// RegisterRoutes wires the OpenAPI spec route onto rg.
+func (h *SystemHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET(RouteOpenAPISpec, h.ServeOpenAPISpec)
+}
+
 // ServeOpenAPISpec serves the OpenAPI YAML spec. GET /api/v1/openapi.yaml
 func (h *SystemHandler) ServeOpenAPISpec(c *gin.Context) {
 	data, err := h.svc.OpenAPISpec()

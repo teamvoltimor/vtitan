@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import numpy as np
 
+    from src.coordinates import NormalizedPoint
     from src.enums import Status
     from src.types import ClassId, ImageId, ModelId
 
@@ -338,4 +339,4 @@ class Shape:
 
     id: str
     class_name: str
-    points: list[Any]  # Any allows passing NormalizedPoint without circular imports or we can import from coordinates
+    points: list[NormalizedPoint]

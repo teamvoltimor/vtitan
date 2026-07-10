@@ -15,11 +15,11 @@ import (
 	annotsqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation/sqlite"
 	computedomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
 	computesqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute/sqlite"
-	gallerysqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery/sqlite"
 	gallerydomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery"
+	gallerysqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery/sqlite"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/store"
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
 )
 
 // fakeClients is a stand-in compute.Clients so handlers can be tested without
@@ -140,6 +140,35 @@ func TestSegment(t *testing.T) {
 			t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
+}
+
+// TestValidationErrorFieldPath locks in that problem.ValidationError's structured
+// []FieldError path (problem.go:86-100) actually fires now that the openapi.yaml
+// `required:` fields carry `x-oapi-codegen-extra-tags: {binding: required}` and
+// reach the generated DTOs -- previously only SegmentationRequest's points had
+// binding tags, so every other endpoint fell through to the generic 400 branch.
+func TestValidationErrorFieldPath(t *testing.T) {
+	app, _ := newTestApp(t, &fakeClients{})
+	router := app.Router()
+
+	// numAugmentations is entirely absent (not just zero-valued), which fails
+	// go-playground/validator's `binding:"required"` check on AugmentRequest.
+	rec := doJSON(t, router, http.MethodPost, "/api/v1/augment/start", `{"imageIds":[1]}`)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("want 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Errors) != 1 || resp.Errors[0].Field != "numaugmentations" {
+		t.Fatalf("expected a single numaugmentations field error, got %+v", resp.Errors)
+	}
 }
 
 func TestAugmentJobLifecycle(t *testing.T) {

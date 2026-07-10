@@ -8,6 +8,7 @@ availability checks in loader.py with type-safe registry lookups.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 from src.exceptions import ModelNotAvailable, ModelNotFound
@@ -27,6 +28,7 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 
+@dataclass(slots=True)
 class ModelCapabilities:
     """Describes what a loaded model can do.
 
@@ -36,10 +38,9 @@ class ModelCapabilities:
         supports_iterative: Model returns logits for iterative refinement.
     """
 
-    def __init__(self, supports_points: bool = False, supports_text: bool = False, supports_iterative: bool = False):
-        self.supports_points = supports_points
-        self.supports_text = supports_text
-        self.supports_iterative = supports_iterative
+    supports_points: bool = False
+    supports_text: bool = False
+    supports_iterative: bool = False
 
     def __repr__(self) -> str:
         parts = []

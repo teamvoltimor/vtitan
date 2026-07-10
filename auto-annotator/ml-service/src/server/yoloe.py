@@ -42,7 +42,13 @@ class _NoopPredictor:
     def set_image(self, image: np.ndarray) -> None:
         """Accept a set_image call without storing anything (auto-detect models set image internally)."""
 
-    def predict(self, **_kwargs: Any) -> None:
+    def predict(
+        self,
+        point_coords: np.ndarray,
+        point_labels: np.ndarray,
+        mask_input: np.ndarray | None = None,
+        multimask_output: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray, Any]:
         """Raise NotImplementedError — YOLOE only supports text-prompted auto-annotation."""
         msg = "YOLOE does not support point-prompted inference. Use Auto-annotate instead."
         raise NotImplementedError(msg)

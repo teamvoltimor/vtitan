@@ -51,8 +51,8 @@ type Problem struct {
 	Title         string       `json:"title"`
 	Instance      string       `json:"instance"`
 	CorrelationID string       `json:"correlation_id"`
-	Status        int          `json:"status"`
 	Errors        []FieldError `json:"errors,omitempty"`
+	Status        int          `json:"status"`
 }
 
 // Write renders a Problem Details response. The type URI is derived from the

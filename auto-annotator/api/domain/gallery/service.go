@@ -9,8 +9,12 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+
+	// Registers the PNG decoder with image.Decode; imports for uploaded images may
+	// be PNG even though generated thumbnails are always re-encoded as JPEG.
 	_ "image/png"
 	"io"
+	"log/slog"
 	"math"
 	"mime/multipart"
 	"os"
@@ -22,29 +26,6 @@ import (
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
-)
-
-const (
-	pendingDirName    = "pending"
-	thumbsDirName     = "thumbs"
-	labelsDirName     = "labels"
-	thumbMaxWidth     = 320
-	thumbJPEGQuality  = 80
-	thumbFileExt      = ".jpg"
-	thumbTempPattern  = "thumb-*.jpg"
-	underscoreSep     = "_"
-	fallbackHex       = "00000000000000000000000000000000"
-	randomHexBytes    = 16
-	percentageScale   = 1000
-	percentageDivisor = 10
-	dirPerm           = 0o750
-
-	relativeImageURLTemplate = "/api/v1/images/%d"
-	imageURLTemplate         = "%s/api/v1/images/%d"
-
-	errCtxListImages   = "list images"
-	errCtxStatusCounts = "status counts"
-	errCtxListClasses  = "list classes"
 )
 
 type galleryService struct {
@@ -79,7 +60,7 @@ func (s *galleryService) Import(ctx context.Context, files []*multipart.FileHead
 	}
 	for _, fh := range files {
 		safe := filepath.Base(fh.Filename)
-		dest := filepath.Join(s.pendingDir(), randomHex()+underscoreSep+safe)
+		dest := filepath.Join(s.pendingDir(), randomHex()+domain.UnderscoreSep+safe)
 		src, err := fh.Open()
 		if err != nil {
 			return Gallery{}, fmt.Errorf("open upload %q: %w", safe, err)
@@ -126,11 +107,16 @@ func (s *galleryService) ThumbPath(ctx context.Context, id int64) (string, error
 	if err != nil {
 		return "", err
 	}
-	thumbPath := filepath.Join(s.thumbsDir(), strconv.FormatInt(id, 10)+thumbFileExt)
+	thumbPath := filepath.Join(s.thumbsDir(), strconv.FormatInt(id, 10)+domain.ThumbFileExt)
 	if thumbIsFresh(thumbPath, img.Path) {
 		return thumbPath, nil
 	}
 	if err := s.generateThumbnail(img.Path, thumbPath); err != nil {
+		// Falling back to the original image is intentional (still lets the
+		// gallery render), but a systematically broken thumbnailer should be
+		// visible in the logs rather than silent.
+		slog.Warn("thumbnail generation failed, falling back to original image",
+			"image_id", id, "image_path", img.Path, "error", err)
 		return img.Path, nil
 	}
 	return thumbPath, nil
@@ -139,15 +125,15 @@ func (s *galleryService) ThumbPath(ctx context.Context, id int64) (string, error
 func (s *galleryService) buildGallery(ctx context.Context) (Gallery, error) {
 	rows, err := s.store.ListImagesForBrowse(ctx)
 	if err != nil {
-		return Gallery{}, fmt.Errorf("%s: %w", errCtxListImages, err)
+		return Gallery{}, fmt.Errorf("%s: %w", domain.ErrCtxListImages, err)
 	}
 	counts, err := s.store.GetStatusCounts(ctx)
 	if err != nil {
-		return Gallery{}, fmt.Errorf("%s: %w", errCtxStatusCounts, err)
+		return Gallery{}, fmt.Errorf("%s: %w", domain.ErrCtxStatusCounts, err)
 	}
 	classNames, err := s.store.ListClassNames(ctx)
 	if err != nil {
-		return Gallery{}, fmt.Errorf("%s: %w", errCtxListClasses, err)
+		return Gallery{}, fmt.Errorf("%s: %w", domain.ErrCtxListClasses, err)
 	}
 
 	items := make([]GalleryItem, 0, len(rows))
@@ -182,9 +168,9 @@ func (s *galleryService) generateThumbnail(srcPath, thumbPath string) error {
 
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
-	if w > thumbMaxWidth {
-		h = h * thumbMaxWidth / w
-		w = thumbMaxWidth
+	if w > domain.ThumbMaxWidth {
+		h = h * domain.ThumbMaxWidth / w
+		w = domain.ThumbMaxWidth
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
@@ -192,12 +178,12 @@ func (s *galleryService) generateThumbnail(srcPath, thumbPath string) error {
 	if err := ensureDir(s.thumbsDir()); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(s.thumbsDir(), thumbTempPattern)
+	tmp, err := os.CreateTemp(s.thumbsDir(), domain.ThumbTempPattern)
 	if err != nil {
 		return err
 	}
 	tmpName := tmp.Name()
-	if err := jpeg.Encode(tmp, dst, &jpeg.Options{Quality: thumbJPEGQuality}); err != nil {
+	if err := jpeg.Encode(tmp, dst, &jpeg.Options{Quality: domain.ThumbJPEGQuality}); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
 		return err
@@ -211,16 +197,22 @@ func (s *galleryService) generateThumbnail(srcPath, thumbPath string) error {
 
 func (s *galleryService) imageURL(id int64) string {
 	if s.cfg.APIPublicURL == "" {
-		return fmt.Sprintf(relativeImageURLTemplate, id)
+		return fmt.Sprintf(domain.RelativeImageURLTemplate, id)
 	}
-	return fmt.Sprintf(imageURLTemplate, s.cfg.APIPublicURL, id)
+	return fmt.Sprintf(domain.ImageURLTemplate, s.cfg.APIPublicURL, id)
 }
 
 func (s *galleryService) thumbURL(id int64) string { return s.imageURL(id) + "/thumb" }
 
-func (s *galleryService) labelsDir() string  { return filepath.Join(s.cfg.DataDir, labelsDirName) }
-func (s *galleryService) pendingDir() string { return filepath.Join(s.cfg.DataDir, pendingDirName) }
-func (s *galleryService) thumbsDir() string  { return filepath.Join(s.cfg.DataDir, thumbsDirName) }
+func (s *galleryService) labelsDir() string {
+	return filepath.Join(s.cfg.DataDir, domain.LabelsDirName)
+}
+func (s *galleryService) pendingDir() string {
+	return filepath.Join(s.cfg.DataDir, domain.PendingDirName)
+}
+func (s *galleryService) thumbsDir() string {
+	return filepath.Join(s.cfg.DataDir, domain.ThumbsDirName)
+}
 
 func computeStats(counts []StatusCount) Stats {
 	var pending, done, skipped int64
@@ -237,7 +229,7 @@ func computeStats(counts []StatusCount) Stats {
 	total := pending + done + skipped
 	var pct float64
 	if total > 0 {
-		pct = math.Round(float64(done)/float64(total)*percentageScale) / percentageDivisor
+		pct = math.Round(float64(done)/float64(total)*domain.PercentageScale) / domain.PercentageDivisor
 	}
 	return Stats{
 		Pending: int(pending),
@@ -261,9 +253,9 @@ func thumbIsFresh(thumbPath, srcPath string) bool {
 }
 
 func randomHex() string {
-	var b [randomHexBytes]byte
+	var b [domain.RandomHexBytes]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return fallbackHex
+		return domain.FallbackHexString
 	}
 	return hex.EncodeToString(b[:])
 }
@@ -281,5 +273,5 @@ func saveReader(src io.Reader, dest string) error {
 }
 
 func ensureDir(path string) error {
-	return os.MkdirAll(path, dirPerm)
+	return os.MkdirAll(path, domain.DirPerm)
 }

@@ -62,7 +62,7 @@ class SAM3Predictor:
         point_coords: np.ndarray,
         point_labels: np.ndarray,
         mask_input: np.ndarray | None = None,
-        _multimask_output: bool = True,
+        multimask_output: bool = True,  # noqa: ARG002 — ignored; kept for API compatibility with SAM 1/2
     ) -> tuple[np.ndarray, np.ndarray, Any]:
         """Run point-prompted mask prediction on the stored image.
 

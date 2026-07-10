@@ -33,7 +33,13 @@ class _NoopPredictor:
     def set_image(self, image: np.ndarray) -> None:
         """Accept set_image silently — YOLOv11 sets the image during predict."""
 
-    def predict(self, **_kwargs: Any) -> None:
+    def predict(
+        self,
+        point_coords: np.ndarray,
+        point_labels: np.ndarray,
+        mask_input: np.ndarray | None = None,
+        multimask_output: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray, Any]:
         """Raise NotImplementedError — YOLOv11 only supports auto-annotate."""
         msg = "YOLOv11 does not support point-prompted inference. Use Auto-annotate instead."
         raise NotImplementedError(msg)

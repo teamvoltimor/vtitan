@@ -15,19 +15,6 @@ import (
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
 )
 
-const (
-	formatSegAbbr    = "seg"
-	exportFormatSeg  = "segmentation"
-	labelsDirName    = "labels"
-	imagesDirName    = "images"
-	labelFileExt     = ".txt"
-	dirPerm          = 0o750
-
-	errAtLeastOneShape    = "At least one shape required"
-	errFmtUnknownClass    = "Unknown class '%s'"
-	errFmtUnknownPrimary  = "Unknown primary class '%s'"
-)
-
 type annotationService struct {
 	store Store
 	cfg   config.Config
@@ -79,9 +66,9 @@ func (s *annotationService) Save(ctx context.Context, req SaveRequest) error {
 		nameToYOLO[cls.Name] = i
 	}
 
-	exportFmt := formatDetAbbr
-	if req.ExportFormat == exportFormatSeg {
-		exportFmt = formatSegAbbr
+	exportFmt := domain.FormatDetectionAbbr
+	if req.ExportFormat == domain.ExportFormatSegmentation {
+		exportFmt = domain.FormatSegmentationAbbr
 	}
 
 	records := make([]dataset.Record, 0, len(req.Shapes))
@@ -91,7 +78,7 @@ func (s *annotationService) Save(ctx context.Context, req SaveRequest) error {
 			continue
 		}
 		var coords []float64
-		if exportFmt == formatSegAbbr {
+		if exportFmt == domain.FormatSegmentationAbbr {
 			coords = make([]float64, 0, len(shape.Points)*2)
 			for _, p := range shape.Points {
 				coords = append(coords, p.X, p.Y)
@@ -144,7 +131,7 @@ func (s *annotationService) markDone(
 		return fmt.Errorf("copy image: %w", err)
 	}
 	stem := strings.TrimSuffix(base, filepath.Ext(base))
-	if err := dataset.Write(filepath.Join(lblDestDir, stem+labelFileExt), records); err != nil {
+	if err := dataset.Write(filepath.Join(lblDestDir, stem+domain.LabelFileExt), records); err != nil {
 		return fmt.Errorf("write label: %w", err)
 	}
 
@@ -159,23 +146,27 @@ func (s *annotationService) markDone(
 	return dataset.WriteDataYAML(s.cfg.DataDir, classNames)
 }
 
-func (s *annotationService) labelsDir() string { return filepath.Join(s.cfg.DataDir, labelsDirName) }
-func (s *annotationService) imagesDir() string { return filepath.Join(s.cfg.DataDir, imagesDirName) }
+func (s *annotationService) labelsDir() string {
+	return filepath.Join(s.cfg.DataDir, domain.LabelsDirName)
+}
+func (s *annotationService) imagesDir() string {
+	return filepath.Join(s.cfg.DataDir, domain.ImagesDirName)
+}
 
 func validateSave(req SaveRequest, classes []Class) string {
 	if len(req.Shapes) == 0 {
-		return errAtLeastOneShape
+		return domain.ErrAtLeastOneShape
 	}
 	known := make(map[string]bool, len(classes))
 	for _, cls := range classes {
 		known[cls.Name] = true
 	}
 	if primary := req.Shapes[0].ClassName; !known[primary] {
-		return fmt.Sprintf(errFmtUnknownPrimary, primary)
+		return fmt.Sprintf(domain.ErrFmtUnknownPrimaryClass, primary)
 	}
 	for _, shape := range req.Shapes {
 		if !known[shape.ClassName] {
-			return fmt.Sprintf(errFmtUnknownClass, shape.ClassName)
+			return fmt.Sprintf(domain.ErrFmtUnknownClass, shape.ClassName)
 		}
 	}
 	return ""
@@ -190,7 +181,7 @@ func toDatasetPoints(pts []Point) []dataset.Point {
 }
 
 func ensureDir(path string) error {
-	return os.MkdirAll(path, dirPerm)
+	return os.MkdirAll(path, domain.DirPerm)
 }
 
 func copyFile(src, dst string) error {

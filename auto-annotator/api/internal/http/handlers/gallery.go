@@ -8,6 +8,17 @@ import (
 	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
 )
 
+// RegisterRoutes wires the gallery and image routes onto rg.
+func (h *GalleryHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET(RouteGallery, h.GetGallery)
+	rg.GET(RouteGalleryGrouped, h.GetGroupedGallery)
+	rg.POST(RouteGalleryImport, h.ImportGallery)
+
+	rg.GET(RouteImages, h.ServeImage)
+	rg.GET(RouteImageThumb, h.ServeThumbnail)
+	rg.POST(RouteImagesDelete, h.DeleteImages)
+}
+
 // GetGallery returns all images with status counts. GET /gallery
 func (h *GalleryHandler) GetGallery(c *gin.Context) {
 	g, err := h.svc.GetGallery(c.Request.Context())

@@ -3,6 +3,7 @@ package compute
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
@@ -13,28 +14,9 @@ import (
 )
 
 const (
-	defaultNumAugmentations = 9
-	defaultTrainModel       = "yolo11s.pt"
-	defaultTrainEpochs      = int32(50)
-	defaultTrainBatch       = int32(16)
-	defaultTrainImgsz       = int32(640)
-	dataYAMLName            = "data.yaml"
-
-	errNoImagesSpecified   = "No images specified"
-	errAugmentationRunning = "Augmentation already running"
-	errTrainingRunning     = "Training already running"
-	errAtLeastOnePoint     = "At least one point required"
-	errFmtUnknownClass     = "Unknown class '%s'"
-	errFmtInvalidXCoord    = "invalid x coordinate: %s"
-	errFmtInvalidYCoord    = "invalid y coordinate: %s"
-	msgAugmentCompleted    = "Augmentation completed"
-	msgTrainCompleted      = "Training completed"
-
-	mapKeyError    = "error"
-	mapKeyFinished = "finished"
-	mapKeyStage    = "stage"
-	mapKeyProgress = "progress"
-	mapKeyDetails  = "details"
+	defaultTrainEpochs = int32(domain.DefaultTrainEpochs)
+	defaultTrainBatch  = int32(domain.DefaultTrainBatch)
+	defaultTrainImgsz  = int32(domain.DefaultTrainImgsz)
 )
 
 type modelsConfig struct {
@@ -62,6 +44,11 @@ func NewService(clients Clients, jm *job.Manager, store Store, cfg config.Config
 func (s *computeService) ListModels() ([]Model, error) {
 	var cfg modelsConfig
 	if _, err := toml.DecodeFile(s.cfg.ModelsConfig, &cfg); err != nil {
+		// A missing/malformed models.toml is an operator misconfiguration,
+		// not "zero models configured" -- the caller still gets an empty
+		// list (unchanged behavior), but this is no longer silent.
+		slog.Warn("failed to load models config, returning empty model list",
+			"path", s.cfg.ModelsConfig, "error", err)
 		return []Model{}, nil
 	}
 	items := make([]Model, 0, len(cfg.Models))
@@ -93,7 +80,7 @@ func (s *computeService) Segment(ctx context.Context, req SegmentReq) (SegmentRe
 		return SegmentResult{}, err
 	}
 	if len(req.Points) == 0 {
-		return SegmentResult{}, fmt.Errorf("%s: %w", errAtLeastOnePoint, domain.ErrInvalidInput)
+		return SegmentResult{}, fmt.Errorf("%s: %w", domain.ErrAtLeastOnePoint, domain.ErrInvalidInput)
 	}
 	known := make(map[string]bool, len(classNames))
 	for _, name := range classNames {
@@ -101,7 +88,11 @@ func (s *computeService) Segment(ctx context.Context, req SegmentReq) (SegmentRe
 	}
 	for _, p := range req.Points {
 		if !known[p.ClassName] {
-			return SegmentResult{}, fmt.Errorf(errFmtUnknownClass+": %w", p.ClassName, domain.ErrInvalidInput)
+			// domain.ErrFmtUnknownClass is capitalized intentionally: problem.FromDomain
+			// echoes err.Error() verbatim as the HTTP Problem Detail "detail" field, so
+			// this is user-facing API response text, not just an internal wrapped error.
+			return SegmentResult{}, fmt.Errorf(domain.ErrFmtUnknownClass+": %w", //nolint:staticcheck
+				p.ClassName, domain.ErrInvalidInput)
 		}
 	}
 
@@ -115,15 +106,15 @@ func (s *computeService) Segment(ctx context.Context, req SegmentReq) (SegmentRe
 
 func (s *computeService) StartAugment(ctx context.Context, req AugmentJobReq) error {
 	if len(req.ImageIDs) == 0 {
-		return fmt.Errorf("%s: %w", errNoImagesSpecified, domain.ErrInvalidInput)
+		return fmt.Errorf("%s: %w", domain.ErrNoImagesSpecified, domain.ErrInvalidInput)
 	}
 	if s.jobs.Running() {
-		return fmt.Errorf("%s: %w", errAugmentationRunning, domain.ErrConflict)
+		return fmt.Errorf("%s: %w", domain.ErrAugmentationRunning, domain.ErrConflict)
 	}
 
 	num := req.NumAugmentations
 	if num <= 0 {
-		num = defaultNumAugmentations
+		num = domain.DefaultNumAugmentations
 	}
 
 	sources := make([]AugmentSource, 0, len(req.ImageIDs))
@@ -139,29 +130,33 @@ func (s *computeService) StartAugment(ctx context.Context, req AugmentJobReq) er
 		sources = append(sources, AugmentSource{ImageID: img.ID, Path: img.Path, FormatUsed: format})
 	}
 
-	if _, err := s.jobs.Start(func(ctx context.Context, emit job.EmitFunc) {
-		s.runAugment(ctx, emit, AugmentInput{Sources: sources, NumAugmentations: num})
+	// jobCtx is a fresh context owned by the job manager, not the incoming request's
+	// ctx: the job must keep running after this HTTP handler returns.
+	if _, err := s.jobs.Start(func(jobCtx context.Context, emit job.EmitFunc) { //nolint:contextcheck
+		s.runAugment(jobCtx, emit, AugmentInput{Sources: sources, NumAugmentations: num})
 	}); err != nil {
-		return fmt.Errorf("%s: %w", errAugmentationRunning, domain.ErrConflict)
+		return fmt.Errorf("%s: %w", domain.ErrAugmentationRunning, domain.ErrConflict)
 	}
 	return nil
 }
 
 func (s *computeService) StartTrain(ctx context.Context, req TrainJobReq) error {
 	if s.jobs.Running() {
-		return fmt.Errorf("%s: %w", errTrainingRunning, domain.ErrConflict)
+		return fmt.Errorf("%s: %w", domain.ErrTrainingRunning, domain.ErrConflict)
 	}
 	in := TrainInput{
-		ModelName:    orStr(req.ModelName, defaultTrainModel),
+		ModelName:    orStr(req.ModelName, domain.DefaultTrainModel),
 		Epochs:       orInt(req.Epochs, defaultTrainEpochs),
 		Batch:        orInt(req.Batch, defaultTrainBatch),
 		Imgsz:        orInt(req.Imgsz, defaultTrainImgsz),
-		DataYamlPath: filepath.Join(s.cfg.DataDir, dataYAMLName),
+		DataYamlPath: filepath.Join(s.cfg.DataDir, domain.DataYAMLName),
 	}
-	if _, err := s.jobs.Start(func(ctx context.Context, emit job.EmitFunc) {
-		s.runTrain(ctx, emit, in)
+	// jobCtx is a fresh context owned by the job manager, not the incoming request's
+	// ctx: the job must keep running after this HTTP handler returns.
+	if _, err := s.jobs.Start(func(jobCtx context.Context, emit job.EmitFunc) { //nolint:contextcheck
+		s.runTrain(jobCtx, emit, in)
 	}); err != nil {
-		return fmt.Errorf("%s: %w", errTrainingRunning, domain.ErrConflict)
+		return fmt.Errorf("%s: %w", domain.ErrTrainingRunning, domain.ErrConflict)
 	}
 	return nil
 }
@@ -181,7 +176,7 @@ func (s *computeService) runAugment(ctx context.Context, emit job.EmitFunc, in A
 			emit(job.StatusRunning, p.Message, progressData(p))
 		}
 	})
-	emitTerminal(emit, msgAugmentCompleted, err)
+	emitTerminal(emit, domain.MsgAugmentationCompleted, err)
 }
 
 func (s *computeService) runTrain(ctx context.Context, emit job.EmitFunc, in TrainInput) {
@@ -190,19 +185,23 @@ func (s *computeService) runTrain(ctx context.Context, emit job.EmitFunc, in Tra
 			emit(job.StatusRunning, p.Message, progressData(p))
 		}
 	})
-	emitTerminal(emit, msgTrainCompleted, err)
+	emitTerminal(emit, domain.MsgTrainingCompleted, err)
 }
 
 func emitTerminal(emit job.EmitFunc, doneMsg string, err error) {
 	if err != nil {
-		emit(job.StatusFailed, err.Error(), map[string]any{mapKeyError: err.Error()})
+		emit(job.StatusFailed, err.Error(), map[string]any{domain.MapKeyError: err.Error()})
 		return
 	}
-	emit(job.StatusCompleted, doneMsg, map[string]any{mapKeyFinished: true})
+	emit(job.StatusCompleted, doneMsg, map[string]any{domain.MapKeyFinished: true})
 }
 
 func progressData(p Progress) map[string]any {
-	return map[string]any{mapKeyStage: p.Stage, mapKeyProgress: p.Progress, mapKeyDetails: p.Details}
+	return map[string]any{
+		domain.MapKeyStage:    p.Stage,
+		domain.MapKeyProgress: p.Progress,
+		domain.MapKeyDetails:  p.Details,
+	}
 }
 
 func orStr(v, fallback string) string {

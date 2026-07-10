@@ -77,7 +77,7 @@ def handle_ping(_msg: dict, ctx: ServerContext) -> PingResponse:
     """Respond to a liveness probe with device and model status.
 
     Args:
-        msg: Incoming request dict (payload ignored).
+        _msg: Incoming request dict (payload ignored).
         ctx: Current server context.
 
     Returns:
@@ -94,7 +94,7 @@ def handle_list_models(_msg: dict, ctx: ServerContext) -> ListModelsResponse:
     """Return descriptors for all configured models.
 
     Args:
-        msg: Incoming request dict (payload ignored).
+        _msg: Incoming request dict (payload ignored).
         ctx: Current server context.
 
     Returns:
@@ -147,6 +147,12 @@ def handle_set_image(msg: dict, ctx: ServerContext) -> SetImageResponse:
         :class:`~src.server.responses.SetImageResponse` (always ok if no exception).
     """
     img = msg[MSG_KEY_IMAGE]
+    if ctx.predictor is None:
+        # dispatch() only routes here via _MODEL_HANDLERS after confirming
+        # ctx.predictor is not None; reaching this is an internal invariant
+        # violation, not a normal "no model loaded" response.
+        msg_text = "handle_set_image called with no predictor loaded"
+        raise ModelNotAvailable(msg_text)
     with torch.inference_mode(), _autocast_ctx(ctx.device):
         ctx.predictor.set_image(img)
     _empty_cache()
@@ -167,6 +173,13 @@ def handle_predict(msg: dict, ctx: ServerContext) -> PredictResponse:
     coords = msg[MSG_KEY_COORDS]
     labels = msg[MSG_KEY_LABELS]
     mask_input = msg.get(MSG_KEY_MASK_INPUT)
+
+    if ctx.predictor is None:
+        # dispatch() only routes here via _MODEL_HANDLERS after confirming
+        # ctx.predictor is not None; reaching this is an internal invariant
+        # violation, not a normal "no model loaded" response.
+        msg_text = "handle_predict called with no predictor loaded"
+        raise ModelNotAvailable(msg_text)
 
     with torch.inference_mode(), _autocast_ctx(ctx.device):
         masks, scores, logits = ctx.predictor.predict(

@@ -6,29 +6,14 @@ Watches the label directory for changes and invalidates on updates.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from src.utils import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class CacheInvalidationEvent:
-    """Event signaling that cache entries should be invalidated.
-
-    Attributes:
-        class_dir: Directory containing the images (e.g. 'car', 'pedestrian').
-        image_stem: Image filename stem (without extension), or None to invalidate all in class_dir.
-    """
-
-    class_dir: str
-    image_stem: str | None = None
 
 
 class AnnotationCache:
@@ -40,7 +25,6 @@ class AnnotationCache:
         _labels_dir: Root directory containing per-class label subdirectories.
         _cache: Dict mapping (class_dir, image_stem) → list of label lines.
         _mtime: Dict mapping file path → modification time for change detection.
-        _event_handlers: List of callbacks to invoke on invalidation events.
     """
 
     def __init__(self, labels_dir: Path | None = None):
@@ -55,7 +39,6 @@ class AnnotationCache:
         self._labels_dir: Path = labels_dir
         self._cache: dict[tuple[str, str], list[str]] = {}
         self._mtime: dict[Path, float] = {}
-        self._event_handlers: list[Callable[[CacheInvalidationEvent], None]] = []
 
     def get(self, class_dir: str, image_stem: str) -> list[str]:
         """Get parsed annotation lines for an image.
@@ -98,32 +81,8 @@ class AnnotationCache:
 
         return lines
 
-    def on_invalidation(self, handler: Callable[[CacheInvalidationEvent], None]) -> None:
-        """Register a callback to be invoked on cache invalidation events.
-
-        Args:
-            handler: Callable receiving CacheInvalidationEvent.
-        """
-        self._event_handlers.append(handler)
-
-    def _emit_event(self, event: CacheInvalidationEvent) -> None:
-        """Emit invalidation event to all registered handlers."""
-        for handler in self._event_handlers:
-            self._safe_invoke_handler(handler, event)
-
-    def _safe_invoke_handler(
-        self, handler: Callable[[CacheInvalidationEvent], None], event: CacheInvalidationEvent,
-    ) -> None:
-        """Invoke a single handler, logging but not propagating exceptions."""
-        try:
-            handler(event)
-        except Exception as e:  # noqa: BLE001 — callback may raise anything; log and continue
-            logger.warning("Cache invalidation handler failed", extra={"_extra": {"error": str(e)}})
-
     def invalidate(self, class_dir: str | None = None, image_stem: str | None = None) -> None:
         """Clear cached annotations for a directory or entire cache.
-
-        Emits CacheInvalidationEvent to registered handlers after invalidation.
 
         Args:
             class_dir: Optional directory to invalidate. If None, clears all.
@@ -132,7 +91,6 @@ class AnnotationCache:
         if class_dir is None:
             self._cache.clear()
             self._mtime.clear()
-            self._emit_event(CacheInvalidationEvent(class_dir="*"))
         elif image_stem is None:
             keys_to_remove = [k for k in self._cache if k[0] == class_dir]
             for k in keys_to_remove:
@@ -140,13 +98,11 @@ class AnnotationCache:
             paths_to_remove = [p for p in self._mtime if p.parent.name == class_dir]
             for p in paths_to_remove:
                 self._mtime.pop(p, None)
-            self._emit_event(CacheInvalidationEvent(class_dir=class_dir))
         else:
             cache_key = (class_dir, image_stem)
             self._cache.pop(cache_key, None)
             label_path = self._labels_dir / class_dir / (image_stem + ".txt")
             self._mtime.pop(label_path, None)
-            self._emit_event(CacheInvalidationEvent(class_dir=class_dir, image_stem=image_stem))
 
     def __repr__(self) -> str:
         return f"AnnotationCache({len(self._cache)} cached, {len(self._mtime)} watched)"

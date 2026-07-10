@@ -1,6 +1,10 @@
 package handlers
 
-import "time"
+import (
+	"time"
+
+	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+)
 
 const (
 	// RouteLiveness is the health probe liveness route (unversioned, mirroring FastAPI).
@@ -68,30 +72,30 @@ const (
 	RouteStreamTrain = "/train/stream"
 
 	// ExportFormatSegmentation is the export format constant for segmentation annotations.
-	ExportFormatSegmentation = "segmentation"
+	ExportFormatSegmentation = domain.ExportFormatSegmentation
 	// ExportFormatDetection is the export format constant for detection annotations.
-	ExportFormatDetection = "detection"
+	ExportFormatDetection = domain.ExportFormatDetection
 	// FormatDetectionAbbr is the abbreviation for detection format.
-	FormatDetectionAbbr = "det"
+	FormatDetectionAbbr = domain.FormatDetectionAbbr
 	// FormatSegmentationAbbr is the abbreviation for segmentation format.
-	FormatSegmentationAbbr = "seg"
+	FormatSegmentationAbbr = domain.FormatSegmentationAbbr
 
 	// LabelsDirName is the directory name for annotation labels.
-	LabelsDirName = "labels"
+	LabelsDirName = domain.LabelsDirName
 	// ImagesDirName is the directory name for images.
-	ImagesDirName = "images"
+	ImagesDirName = domain.ImagesDirName
 	// PendingDirName is the directory name for pending exports.
-	PendingDirName = "pending"
+	PendingDirName = domain.PendingDirName
 	// ThumbsDirName is the directory where generated thumbnails are cached.
-	ThumbsDirName = "thumbs"
+	ThumbsDirName = domain.ThumbsDirName
 	// DataYAMLName is the data.yaml file name for training.
-	DataYAMLName = "data.yaml"
+	DataYAMLName = domain.DataYAMLName
 
 	// ThumbMaxWidth is the max width (px) of generated thumbnails; height scales
 	// to preserve aspect ratio.
-	ThumbMaxWidth = 320
+	ThumbMaxWidth = domain.ThumbMaxWidth
 	// ThumbJPEGQuality is the JPEG quality used when encoding cached thumbnails.
-	ThumbJPEGQuality = 80
+	ThumbJPEGQuality = domain.ThumbJPEGQuality
 	// ThumbCacheControl lets browsers cache thumbnails aggressively.
 	ThumbCacheControl = "public, max-age=86400"
 
@@ -100,11 +104,11 @@ const (
 
 	// ImageURLTemplate is the absolute URL template for image routes, used when
 	// API_PUBLIC_URL is explicitly configured.
-	ImageURLTemplate = "%s/api/v1/images/%d"
+	ImageURLTemplate = domain.ImageURLTemplate
 
 	// RelativeImageURLTemplate is the proxy-relative image URL, used by default
 	// so image requests share the frontend's origin.
-	RelativeImageURLTemplate = "/api/v1/images/%d"
+	RelativeImageURLTemplate = domain.RelativeImageURLTemplate
 
 	// ImageCacheControl lets the browser cache served image files so repeated
 	// gallery/preview renders don't refetch them.
@@ -115,67 +119,67 @@ const (
 	TimeFormatISO8601 = "2006-01-02T15:04:05.000000-07:00"
 
 	// DefaultNumAugmentations is the default number of augmentations.
-	DefaultNumAugmentations = 9
+	DefaultNumAugmentations = domain.DefaultNumAugmentations
 	// DefaultTrainModel is the default training model.
-	DefaultTrainModel = "yolo11s.pt"
+	DefaultTrainModel = domain.DefaultTrainModel
 	// DefaultTrainEpochs is the default number of training epochs.
-	DefaultTrainEpochs = 50
+	DefaultTrainEpochs = domain.DefaultTrainEpochs
 	// DefaultTrainBatch is the default training batch size.
-	DefaultTrainBatch = 16
+	DefaultTrainBatch = domain.DefaultTrainBatch
 	// DefaultTrainImgsz is the default training image size.
-	DefaultTrainImgsz = 640
+	DefaultTrainImgsz = domain.DefaultTrainImgsz
 
 	// SSEHeartbeatInterval is the SSE streaming heartbeat interval.
 	SSEHeartbeatInterval = 30 * time.Second
 
 	// PercentageScale is the percentage calculation scale (multiply by 1000, divide by 10 for decimal precision).
-	PercentageScale = 1000
+	PercentageScale = domain.PercentageScale
 	// PercentageDivisor is the divisor to convert from PercentageScale back to percentage.
-	PercentageDivisor = 10
+	PercentageDivisor = domain.PercentageDivisor
 
 	// --- Error titles ---
 	ErrTitleValidation = "Validation Error"
 
 	// --- Error messages ---
-	ErrImageNotFound   = "Image not found"
-	ErrInvalidImageID  = "invalid image id"
-	ErrNoFilesProvided = "No files provided"
-	ErrNoImagesToDelete = "No images to delete"
-	ErrNoImagesSpecified = "No images specified"
-	ErrAugmentationRunning = "Augmentation already running"
-	ErrTrainingRunning     = "Training already running"
-	ErrAtLeastOneShape     = "At least one shape required"
-	ErrAtLeastOnePoint     = "At least one point required"
+	ErrImageNotFound       = "Image not found"
+	ErrInvalidImageID      = "invalid image id"
+	ErrNoFilesProvided     = "No files provided"
+	ErrNoImagesToDelete    = "No images to delete"
+	ErrNoImagesSpecified   = domain.ErrNoImagesSpecified
+	ErrAugmentationRunning = domain.ErrAugmentationRunning
+	ErrTrainingRunning     = domain.ErrTrainingRunning
+	ErrAtLeastOneShape     = domain.ErrAtLeastOneShape
+	ErrAtLeastOnePoint     = domain.ErrAtLeastOnePoint
 
 	// --- Error format strings ---
-	ErrFmtImageNotFound         = "Image %d not found"
-	ErrFmtUnknownClass          = "Unknown class '%s'"
-	ErrFmtUnknownPrimaryClass   = "Unknown primary class '%s'"
-	ErrFmtNoJobRunning          = "No %s job running"
-	ErrFmtInvalidXCoord         = "invalid x coordinate: %s"
-	ErrFmtInvalidYCoord         = "invalid y coordinate: %s"
+	ErrFmtImageNotFound       = "Image %d not found"
+	ErrFmtUnknownClass        = domain.ErrFmtUnknownClass
+	ErrFmtUnknownPrimaryClass = domain.ErrFmtUnknownPrimaryClass
+	ErrFmtNoJobRunning        = "No %s job running"
+	ErrFmtInvalidXCoord       = domain.ErrFmtInvalidXCoord
+	ErrFmtInvalidYCoord       = domain.ErrFmtInvalidYCoord
 
 	// --- Status / success messages ---
-	MsgSystemReady             = "System ready"
-	MsgDatabaseError           = "Database error"
-	MsgAugmentationStarted     = "Augmentation started"
-	MsgTrainingStarted         = "Training started"
-	MsgAugmentationCompleted   = "Augmentation completed"
-	MsgTrainingCompleted       = "Training completed"
+	MsgSystemReady           = "System ready"
+	MsgDatabaseError         = "Database error"
+	MsgAugmentationStarted   = "Augmentation started"
+	MsgTrainingStarted       = "Training started"
+	MsgAugmentationCompleted = domain.MsgAugmentationCompleted
+	MsgTrainingCompleted     = domain.MsgTrainingCompleted
 
 	// --- Magic numbers ---
-	NumBBoxCoords     = 4
-	MinPolygonCoords  = 4
-	CoordPairSize     = 2
-	RandomHexBytes    = 16
+	NumBBoxCoords    = domain.NumBBoxCoords
+	MinPolygonCoords = domain.MinPolygonCoords
+	CoordPairSize    = domain.CoordPairSize
+	RandomHexBytes   = domain.RandomHexBytes
 
 	// --- Directory / file permissions ---
-	DirPerm = 0o750
+	DirPerm = domain.DirPerm
 
 	// --- File extensions ---
-	ThumbFileExt    = ".jpg"
-	ThumbTempPattern = "thumb-*.jpg"
-	LabelFileExt    = ".txt"
+	ThumbFileExt     = domain.ThumbFileExt
+	ThumbTempPattern = domain.ThumbTempPattern
+	LabelFileExt     = domain.LabelFileExt
 
 	// --- Content types ---
 	ContentTypeYAML = "application/yaml"
@@ -193,20 +197,20 @@ const (
 	SSEHeartbeatFormat = "data: {\"heartbeat\": true}\n\n"
 
 	// --- SSE payload map keys ---
-	MapKeyError    = "error"
-	MapKeyFinished = "finished"
-	MapKeyStage    = "stage"
-	MapKeyProgress = "progress"
-	MapKeyDetails  = "details"
+	MapKeyError    = domain.MapKeyError
+	MapKeyFinished = domain.MapKeyFinished
+	MapKeyStage    = domain.MapKeyStage
+	MapKeyProgress = domain.MapKeyProgress
+	MapKeyDetails  = domain.MapKeyDetails
 
 	// --- Image/annotation metadata ---
-	ClassFallbackNameFmt = "class_%d"
-	ShapeIDLoadedFmt     = "loaded-%d-%d"
-	UnderscoreSep        = "_"
-	FallbackHexString    = "00000000000000000000000000000000"
+	ClassFallbackNameFmt = domain.ClassFallbackNameFmt
+	ShapeIDLoadedFmt     = domain.ShapeIDLoadedFmt
+	UnderscoreSep        = domain.UnderscoreSep
+	FallbackHexString    = domain.FallbackHexString
 
 	// --- Error context prefixes (fmt.Errorf wraparound) ---
-	ErrCtxListImages   = "list images"
-	ErrCtxStatusCounts = "status counts"
-	ErrCtxListClasses  = "list classes"
+	ErrCtxListImages   = domain.ErrCtxListImages
+	ErrCtxStatusCounts = domain.ErrCtxStatusCounts
+	ErrCtxListClasses  = domain.ErrCtxListClasses
 )

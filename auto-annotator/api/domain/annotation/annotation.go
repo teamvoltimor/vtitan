@@ -27,24 +27,24 @@ type (
 
 	// Class is an annotation class definition.
 	Class struct {
-		ID    int64
 		Name  string
 		Color string
+		ID    int64
 	}
 
 	// Image is the minimal image representation needed by the annotation domain.
 	Image struct {
-		ID         int64
 		Path       string
-		Status     int64
 		FormatUsed string
+		ID         int64
+		Status     int64
 	}
 
 	// SaveRequest is the annotation save payload.
 	SaveRequest struct {
-		ImageID      int64
-		ExportFormat string // "segmentation" | "detection"
+		ExportFormat string
 		Shapes       []Shape
+		ImageID      int64
 	}
 
 	// UpsertClassReq is the class upsert payload.
@@ -78,15 +78,6 @@ type Service interface {
 	UpsertClass(ctx context.Context, req UpsertClassReq) error
 }
 
-const (
-	fmtShapeIDLoaded  = "loaded-%d-%d"
-	fmtClassFallback  = "class_%d"
-	numBBoxCoords     = 4
-	minPolygonCoords  = 4
-	coordPairSize     = 2
-	formatDetAbbr     = "det"
-)
-
 // LoadAnnotations reads saved YOLO labels for a done image and returns its shapes.
 // Returns an empty slice when the image is not done or has no format.
 func LoadAnnotations(imageID int64, imagePath, status, format string, classNames []string, labelsDir string) []Shape {
@@ -99,16 +90,16 @@ func LoadAnnotations(imageID int64, imagePath, status, format string, classNames
 	records := dataset.Load(labelsDir, classDir, stem)
 	shapes := make([]Shape, 0, len(records))
 	for i, rec := range records {
-		name := fmt.Sprintf(fmtClassFallback, rec.ClassID)
+		name := fmt.Sprintf(domain.ClassFallbackNameFmt, rec.ClassID)
 		if rec.ClassID >= 0 && rec.ClassID < len(classNames) {
 			name = classNames[rec.ClassID]
 		}
 
 		var pts []dataset.Point
 		switch {
-		case format == formatDetAbbr && len(rec.Coords) == numBBoxCoords:
+		case format == domain.FormatDetectionAbbr && len(rec.Coords) == domain.NumBBoxCoords:
 			pts = dataset.CornersFromBBox(rec.Coords[0], rec.Coords[1], rec.Coords[2], rec.Coords[3])
-		case len(rec.Coords) >= minPolygonCoords && len(rec.Coords)%coordPairSize == 0:
+		case len(rec.Coords) >= domain.MinPolygonCoords && len(rec.Coords)%domain.CoordPairSize == 0:
 			pts = dataset.PolygonFromCoords(rec.Coords)
 		default:
 			continue
@@ -119,7 +110,7 @@ func LoadAnnotations(imageID int64, imagePath, status, format string, classNames
 			points[j] = Point{X: p.X, Y: p.Y}
 		}
 		shapes = append(shapes, Shape{
-			ID:        fmt.Sprintf(fmtShapeIDLoaded, imageID, i),
+			ID:        fmt.Sprintf(domain.ShapeIDLoadedFmt, imageID, i),
 			ClassName: name,
 			Points:    points,
 		})
