@@ -157,7 +157,7 @@ class TestObstaclesDemoScenariosRun:
 
     @pytest.mark.xfail(
         reason="ParkController collides near the staging approach — unrelated to sign routing, "
-        "reproduces identically with signs removed. See module docstring.", strict=False,
+        "reproduces identically with signs removed. See module docstring.", strict=True,
     )
     def test_parking_scenarios_engage_and_finish(self) -> None:
         for scenario in all_obstacles_demo_scenarios():

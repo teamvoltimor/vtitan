@@ -45,6 +45,14 @@ class StuckDetector:
             timeout_frames: Frames before timeout (at 20Hz, 40≈2s)
             history_size: Max position history to maintain
         """
+        if history_size < timeout_frames:
+            msg = (
+                f"history_size ({history_size}) must be >= timeout_frames ({timeout_frames}), "
+                "otherwise the position history evicts entries before the timeout window "
+                "is reached and the stuck check silently becomes less sensitive."
+            )
+            raise ValueError(msg)
+
         self.move_threshold = move_threshold
         self.timeout_frames = timeout_frames
         self.history_size = history_size

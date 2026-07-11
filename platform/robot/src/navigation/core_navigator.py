@@ -295,6 +295,10 @@ class CoreNavigator:
         """Latch an escape maneuver so it executes for its full duration."""
         self._active_maneuver = maneuver
         self._maneuver_frames_left = max(1, maneuver.duration_frames)
+        # An escape maneuver drives steering directly, bypassing pure pursuit.
+        # Clear the rate-limit memory so pure pursuit doesn't rate-limit its
+        # first post-maneuver command against a stale pre-maneuver angle.
+        self._waypoint_controller.reset()
 
     def _drive_active_maneuver(self) -> None:
         """Publish the active escape command and count down its latched duration."""

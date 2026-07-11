@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 _WAYPOINT_REACHED_DISTANCE_M: float = 0.01
 """Distance below which the current target waypoint is considered reached."""
 
+_DEFAULT_CONTROL_DT_S: float = 0.05
+"""Control-loop tick interval, matching the 20 Hz loop assumed throughout
+navigation tuning (see e.g. ``EscapeManeuverParams.STUCK_TIMEOUT_FRAMES``)."""
+
 
 class WaypointController:
     """Pure pursuit steering controller for waypoint following.
@@ -58,6 +62,7 @@ class WaypointController:
         self.lookahead_transition = lookahead_transition
         self.steer_kp = steer_kp
         self.max_steering_rate = max_steering_rate
+        self._prev_steering_rad = 0.0
 
     def select_lookahead(self, forward_clearance: float) -> float:
         """Select lookahead distance based on forward clearance.
@@ -103,12 +108,23 @@ class WaypointController:
                 return waypoints[i]
         return waypoints[-1]
 
+    def reset(self) -> None:
+        """Clear the steering-rate-limit memory.
+
+        Call this whenever something other than this controller has just
+        driven the steering command (e.g. an escape maneuver just finished),
+        so the next pure-pursuit tick isn't rate-limited against a stale
+        pre-maneuver angle.
+        """
+        self._prev_steering_rad = 0.0
+
     def compute_steering(
         self,
         current_pos: tuple[float, float],
         current_yaw: float,
         target_waypoint: tuple[float, float],
         forward_clearance: float,
+        dt: float = _DEFAULT_CONTROL_DT_S,
     ) -> tuple[float, float]:
         """Compute steering angle and lookahead for next control step.
 
@@ -121,6 +137,8 @@ class WaypointController:
             current_yaw: Robot heading (radians)
             target_waypoint: Next waypoint (x, y)
             forward_clearance: Distance to forward obstacle (meters)
+            dt: Time since the previous call (seconds), used to cap the
+                steering delta at ``max_steering_rate * dt``
 
         Returns:
             Tuple of (steering_angle, lookahead_distance)
@@ -151,6 +169,15 @@ class WaypointController:
         # P-controller on angle error
         steering_rad = self.steer_kp * angle_error
         steering_rad = max(-self.max_steering_angle, min(self.max_steering_angle, steering_rad))
+
+        # Rate-limit against the previous tick's command so a large angle
+        # error can't demand a full-deflection step in a single tick.
+        max_delta = self.max_steering_rate * dt
+        steering_rad = max(
+            self._prev_steering_rad - max_delta,
+            min(self._prev_steering_rad + max_delta, steering_rad),
+        )
+        self._prev_steering_rad = steering_rad
 
         # Normalize to [-1, 1]
         steering_normalized = steering_rad / self.max_steering_angle
