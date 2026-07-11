@@ -268,6 +268,29 @@ class CollisionAvoidanceController:
             return 10.0
         return float(np.min(rear))
 
+    def compute_min_clearance(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        center_rad: float = 0.0,
+        half_fov_rad: float = math.pi / 2,
+    ) -> float:
+        """Minimum clearance over a wide sector (default: front ±90°).
+
+        ``compute_forward_clearance`` averages a narrow ±30° cone — fine for normal
+        driving, but blind to a lateral clip (e.g. a maneuver that swings the chassis
+        sideways into an obstacle that was never in front of it). Used to gate
+        maneuvers where the robot's path isn't a straight line, so a side contact is
+        caught before it happens instead of only checking what's dead ahead.
+        """
+        if lidar_ranges is None or len(lidar_ranges) == 0:
+            return 10.0
+
+        sector = self._sector_ranges(lidar_ranges, lidar_angles, center_rad, half_fov_rad)
+        if sector.size == 0:
+            return 10.0
+        return float(np.min(sector))
+
     def detect_threat_direction(
         self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> ThreatDirection:

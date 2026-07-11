@@ -160,7 +160,8 @@ class WaypointParams:
 
     Attributes:
         ARC_RADIUS: Corner arc radius (m). Must exceed the Ackermann minimum
-            turning radius (~0.294 m) — enforced by a fail-fast width
+            turning radius (~0.329 m, from the measured WHEELBASE=0.19/
+            MAX_STEERING_ANGLE=0.5236) — enforced by a fail-fast width
             assertion in ``calculate_waypoints``.
     """
 

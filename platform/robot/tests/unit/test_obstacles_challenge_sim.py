@@ -49,13 +49,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-
-import pytest
+from typing import TYPE_CHECKING
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.gateway as gateway_module
 from src.simulation.gateway import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+
+if TYPE_CHECKING:
+    import pytest
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +159,20 @@ class TestObstaclesDemoScenariosRun:
 
         assert not under_engaged, f"sign engaged on fewer than {scenario.laps} laps: {under_engaged}"
 
-    @pytest.mark.xfail(
-        reason="ParkController collides near the staging approach — unrelated to sign routing, "
-        "reproduces identically with signs removed. See module docstring.", strict=True,
-    )
     def test_parking_scenarios_engage_and_finish(self) -> None:
+        """No longer xfail (2026-07-11): the ParkController staging-approach collision
+        (STAGE's bearing-proportional pursuit orbiting into the inner keep-out square)
+        is fixed -- see docs/internal/2026-07-11-navigation-logic-review.md §2.3.
+
+        ``result.parked`` isn't asserted True here: ENTER's pure-pursuit-toward-a-point
+        doesn't explicitly steer toward the required final yaw, so some approach
+        geometries safely time out (ParkController's own max_frames give-up, holding
+        position) rather than threading the gap cleanly within budget -- a known,
+        pre-existing limitation distinct from the collision bug this test targets. What
+        matters here is captured by the two asserts below: it never hits a wall, and
+        parking always resolves definitively one way or the other (never left
+        mid-maneuver).
+        """
         for scenario in all_obstacles_demo_scenarios():
             if not scenario.metadata["has_parking_lot"]:
                 continue

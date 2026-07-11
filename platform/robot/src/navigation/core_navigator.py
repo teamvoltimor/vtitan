@@ -63,7 +63,13 @@ class CoreNavigator:
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
         self._parking_engaged = False
-        self._park_engage_dist = 0.30  # Engage parking within 30 cm of staging
+        # Must clear the chassis's Ackermann minimum turning radius (~0.329 m, from the
+        # measured WHEELBASE/MAX_STEERING_ANGLE) with real margin: engaging any closer than
+        # that hands ParkController a staging target already inside its own turning circle,
+        # which no forward-only steering law can reach (see
+        # docs/internal/2026-07-11-navigation-logic-review.md §2.3). Reuses ARC_RADIUS, same
+        # as ParkController's own staging stand-off, rather than a disconnected literal.
+        self._park_engage_dist = self._tuning.waypoints.ARC_RADIUS
 
         # Escape-maneuver latching: an escape runs for its full duration_frames
         # instead of a single 50 ms tick, and repeated escapes escalate (reverse
@@ -143,7 +149,18 @@ class CoreNavigator:
         # deliberate stop (open-challenge hold, or parking done): otherwise a
         # robot correctly holding position at zero velocity would eventually
         # read as "stuck" and reverse itself back out of a completed park.
-        if not self._is_holding():
+        # Also suspended while ParkController is mid reverse-and-reorient recovery
+        # (see ParkController.is_repositioning) — that maneuver is itself a deliberate,
+        # low-net-displacement reverse burst, and the generic escape it would otherwise
+        # trigger is blind to the inner keep-out block ParkController is navigating around.
+        # Reset (not just skip) during repositioning: otherwise the history queue still
+        # spans across the gap, and the first check afterward compares a newest position
+        # against an oldest one from well before the reposition started — reintroducing
+        # the same false "stuck" trigger one tick later instead of preventing it.
+        pc = self._park_controller
+        if pc is not None and pc.is_repositioning:
+            self._stuck_detector.reset()
+        elif not self._is_holding():
             self._stuck_detector.update((robot_x, robot_y))
             if self._stuck_detector.is_stuck:
                 self._handle_stuck_escape()
@@ -363,11 +380,43 @@ class CoreNavigator:
 
         cmd = pc.update((robot_x, robot_y), robot_yaw)
         linear = cmd.linear
-        # Forward-clearance gate so the staging vector never drives into a wall.
         scan = self._gateway.get_lidar_scan()
         if scan:
+            # Forward-clearance gate so the staging vector never drives into a wall head-on.
             fwd = self._collision_controller.compute_forward_clearance(scan.ranges_m, scan.angles_rad)
-            if fwd < self._tuning.clearance.CONTACT_DIST:
+            # Full-sweep gate (all 360°) so any maneuver that swings the chassis sideways or
+            # threads a tight gap (ParkController's STAGE arc/reposition, or its ENTER
+            # approach into the block gap) is stopped before ANY-direction clip that the
+            # narrow forward cone alone would never see coming -- parking geometry can clip
+            # a wall or block edge from the side or even slightly behind the direction of
+            # travel, not just from in front.
+            #
+            # CONTACT_DIST alone isn't a safe threshold here: LIDAR range is measured from
+            # roughly the chassis centre, but the chassis itself extends up to WIDTH/2
+            # (0.10m) or LENGTH/2 (0.15m) from that centre depending on bearing -- a raw
+            # centre-to-obstacle reading of CONTACT_DIST can already mean the footprint
+            # edge, not just the sensor, has reached the obstacle. Pad by the chassis
+            # half-width so the gate reacts while there's still real clearance left.
+            #
+            # CONTACT_DIST alone isn't a safe threshold here: LIDAR range is measured from
+            # roughly the chassis centre, but the chassis itself extends up to WIDTH/2
+            # (0.10m) or LENGTH/2 (0.15m) from that centre depending on bearing -- a raw
+            # centre-to-obstacle reading of CONTACT_DIST can already mean the footprint
+            # edge, not just the sensor, has reached the obstacle. Pad by the chassis
+            # half-width so the gate reacts while there's still real clearance left.
+            #
+            # This applies in both phases, including ENTER: a smaller pad there still let
+            # the chassis clip a block edge in testing (the WRO-regulation gap is only
+            # ~4cm wider than the chassis per side, tighter than this controller's approach
+            # precision can reliably guarantee). Full padding means ENTER can stall short of
+            # a clean park (see ParkController's own max_frames give-up) rather than thread
+            # the gap in every case -- a known, documented limitation, not a silent one.
+            # Not colliding takes priority over completing the maneuver.
+            side = self._collision_controller.compute_min_clearance(
+                scan.ranges_m, scan.angles_rad, half_fov_rad=math.pi,
+            )
+            side_margin = self._tuning.clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
+            if fwd < self._tuning.clearance.CONTACT_DIST or side < side_margin:
                 linear = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         return True

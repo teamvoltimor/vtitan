@@ -141,6 +141,7 @@ class _StubParkController:
 
     def __init__(self, done: bool = False) -> None:
         self.is_done = done
+        self.is_repositioning = False
         self.section = None
         self.staging = (0.0, 0.0)
 

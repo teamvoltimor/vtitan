@@ -2,7 +2,7 @@
 
 Computes a list of (x, y) waypoints that the TrackNavigator follows.
 Uses circular arc waypoints at corners to stay within the Ackermann robot's
-minimum turning radius (~0.294 m).
+minimum turning radius (~0.329 m).
 
 All functions are pure — they accept data and return results without I/O.
 """
@@ -42,7 +42,7 @@ def calculate_waypoints(
         metadata: Scenario metadata dict (from ScenarioGenerator._build_metadata).
         num_laps: Total laps the robot must complete.
         arc_radius: Corner arc radius (m). Must exceed the Ackermann minimum
-            turning radius (~0.294 m). Defaults to the tuning profile's value
+            turning radius (~0.329 m). Defaults to the tuning profile's value
             so a loaded profile actually takes effect instead of a value
             frozen at import time.
 
