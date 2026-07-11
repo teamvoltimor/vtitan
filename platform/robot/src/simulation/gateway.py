@@ -29,13 +29,14 @@ from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
+from src.navigation.planning.sign_router import SignRouter, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel
+from src.simulation.vision_emulator import emulate_sign_detections
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -60,12 +61,14 @@ class SimulatedHardwareGateway:
         lidar_rays: int = RobotSpecs.LIDAR_SAMPLES,
         lidar_noise_std: float = RobotSpecs.LIDAR_NOISE_STDDEV,
         rng: np.random.Generator | None = None,
+        signs: list[SignSpec] | None = None,
     ) -> None:
         self._track = track
         self._state = initial_state
         self._kin = kinematics or AckermannKinematics()
         self._rng = rng or np.random.default_rng(0)
         self._lidar_noise_std = lidar_noise_std
+        self._signs = signs
 
         # Full 360 sweep, robot frame, 0 = forward, +pi/2 = left, -pi/2 = right.
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
@@ -96,8 +99,10 @@ class SimulatedHardwareGateway:
         return IMUReading(yaw=self._state.yaw, pitch=0.0, roll=0.0)
 
     def get_vision_detections(self) -> list[Detection]:
-        """Return an empty list — the Open Challenge has no traffic signs."""
-        return []
+        """Return synthetic detections for ``signs``, or ``[]`` if none were provided."""
+        if not self._signs:
+            return []
+        return emulate_sign_detections(self._signs, (self._state.x, self._state.y), self._state.yaw)
 
     # Simulation stepping
 
@@ -183,12 +188,14 @@ class ScenarioSimulator:
     Sign routing and parking are wired in exactly like the real ROS2 node
     (``TrackNavigator`` in ``src/ros2/navigation/node.py``): a ``SignRouter`` is
     built from ``metadata["sign_positions"]`` and a ``ParkController`` from
-    ``metadata["parking_lot"]``, both ``None`` for the Open Challenge. Camera
-    detections are simulated as always-empty (``SimulatedHardwareGateway`` has
-    no vision model), so sign colors resolve from scenario-metadata ground
+    ``metadata["parking_lot"]``, both ``None`` for the Open Challenge. By default
+    camera detections are simulated as always-empty (``SimulatedHardwareGateway``
+    has no vision model), so sign colors resolve from scenario-metadata ground
     truth rather than a detector — the same simplification the Open Challenge
     sim already makes for pose (perfect odometry) and LIDAR (ground-truth
-    raycasts).
+    raycasts). Pass ``emit_vision_detections=True`` to instead exercise the real
+    camera confirmation path in ``sign_router.py`` via a synthetic emulator
+    (``src/simulation/vision_emulator.py``).
     """
 
     def __init__(
@@ -199,6 +206,7 @@ class ScenarioSimulator:
         lidar_noise_std: float = RobotSpecs.LIDAR_NOISE_STDDEV,
         kinematics: AckermannKinematics | None = None,
         seed: int = 0,
+        emit_vision_detections: bool = False,
     ) -> None:
         self._metadata = metadata
         self._num_laps = num_laps
@@ -213,12 +221,15 @@ class ScenarioSimulator:
         # navigator's waypoint-wrap + LapDetector lap counting.
         self._waypoints = calculate_waypoints(metadata, num_laps=1, arc_radius=nav_tuning.waypoints.ARC_RADIUS)
 
+        signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata)
+
         self._gateway = SimulatedHardwareGateway(
             track=self._track,
             initial_state=AckermannState(x=start.x, y=start.y, yaw=start.yaw),
             kinematics=kinematics,
             lidar_noise_std=lidar_noise_std,
             rng=np.random.default_rng(seed),
+            signs=signs if emit_vision_detections else None,
         )
 
         lap_detector = LapDetector(
@@ -228,10 +239,8 @@ class ScenarioSimulator:
         )
 
         sign_router: SignRouter | None = None
-        if not is_open_challenge:
-            signs = signs_from_metadata(metadata)
-            if signs:
-                sign_router = SignRouter(signs, direction=start.direction)
+        if signs:
+            sign_router = SignRouter(signs, direction=start.direction)
 
         self._park_controller: ParkController | None = None
         if not is_open_challenge:

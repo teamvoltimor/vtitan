@@ -48,10 +48,12 @@ the absolute rule instead of the travel-relative one.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 
 import pytest
 
 import src.navigation.planning.sign_router as sign_router_module
+import src.simulation.gateway as gateway_module
 from src.simulation.gateway import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
@@ -175,3 +177,92 @@ class TestObstaclesDemoScenariosRun:
             assert result.laps_completed >= scenario.laps, scenario.label
             # Parking always resolves one way or the other (never left "mid-maneuver").
             assert result.parked is not None, scenario.label
+
+
+class TestVisionConfirmedSignRouting:
+    """Closed-loop coverage for the camera-detection confirmation path.
+
+    Every test above drives ``SignRouter`` with ``detections=None`` (ground
+    truth only) — ``_match_detection_to_sign`` / ``_detection_to_world``, the
+    one part of the stack where a live sensor reading can override
+    known-good scenario metadata, was previously never exercised end-to-end
+    (review 2026-07-11 §2.2 / recommendation #1). These tests drive the same
+    demo scenarios through a synthetic camera (``src/simulation/vision_emulator.py``)
+    instead of bypassing vision entirely.
+    """
+
+    def test_vision_confirmed_sign_scenarios_complete_without_collision(self) -> None:
+        failures = []
+        for scenario in all_obstacles_demo_scenarios():
+            if scenario.metadata["has_parking_lot"]:
+                continue
+            result = ScenarioSimulator(
+                scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+                emit_vision_detections=True,
+            ).run(max_steps=4000)
+            logger.info(
+                "%s | laps=%d/%d collided=%s timeout=%s",
+                scenario.label, result.laps_completed, result.target_laps,
+                result.collided, result.timed_out,
+            )
+            if result.collided or result.laps_completed < scenario.laps:
+                failures.append((scenario.label, result))
+        assert not failures, [(label, r.collision_xy or r.final_pose) for label, r in failures]
+
+    def test_wrong_camera_color_overrides_ground_truth_mid_run(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A camera detection that disagrees with scenario metadata actually wins.
+
+        Monkeypatches the vision emulator to report every sign's color
+        flipped from its ground-truth metadata color, then spies on
+        ``_apply_deformation`` (the function ``SignRouter.deform_waypoint``
+        calls with whichever color it decided to use) to prove the flipped
+        camera color — not the ground-truth metadata color — is what actually
+        drove steering. Closes the review's "no scenario where a wrong/late
+        camera confirmation changes sign-avoidance direction" gap.
+        """
+        scenario = next(
+            s for s in all_obstacles_demo_scenarios() if not s.metadata["has_parking_lot"]
+        )
+
+        original_emulate = gateway_module.emulate_sign_detections
+
+        def flipped_color_emulate(signs, robot_pos, robot_yaw):
+            detections = original_emulate(signs, robot_pos, robot_yaw)
+            return [
+                replace(d, class_name="green" if d.class_name == "red" else "red")
+                for d in detections
+            ]
+
+        monkeypatch.setattr(gateway_module, "emulate_sign_detections", flipped_color_emulate)
+
+        # ``sign.color`` is always the untouched ground-truth metadata color
+        # (SignRouter._signs is never mutated); ``color`` is whatever
+        # deform_waypoint() actually decided to use. Comparing the two per
+        # call — rather than comparing global color sets — stays correct even
+        # when a scenario's two signs have different ground-truth colors.
+        used_pairs: list[tuple[str, str]] = []
+        original_apply = sign_router_module._apply_deformation
+
+        def spying_apply_deformation(waypoint, sign, color, corridor, direction, lateral_offset):
+            used_pairs.append((sign.color, color))
+            return original_apply(waypoint, sign, color, corridor, direction, lateral_offset)
+
+        monkeypatch.setattr(sign_router_module, "_apply_deformation", spying_apply_deformation)
+
+        result = ScenarioSimulator(
+            scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+            emit_vision_detections=True,
+        ).run(max_steps=4000)
+
+        assert not result.collided, scenario.label
+        assert used_pairs, "sign never engaged — nothing to prove the override with"
+        # Activation is distance-only (not FOV-gated), so a sign can be
+        # "engaged" while briefly outside the camera's cone — deform_waypoint()
+        # correctly falls back to ground truth on those ticks. What matters is
+        # that the override actually won at least once during the run.
+        overridden = [(gt, eff) for gt, eff in used_pairs if eff != gt]
+        assert overridden, (
+            f"camera detection never overrode ground-truth color in this run: {used_pairs[:10]}"
+        )

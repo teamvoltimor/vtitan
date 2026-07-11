@@ -12,16 +12,23 @@ Verifies:
 
 from __future__ import annotations
 
+import math
+
 import pytest
-from shared.config.constants import TrackDimensions
+from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
+from shared.domain.models import Detection
 
 from src.navigation.planning.sign_router import (
+    _CAMERA_FOCAL_PX,
+    _MIN_RELIABLE_BBOX_HEIGHT_PX,
     _ROUTING_TABLE,
     SignRouter,
     SignRouterConfig,
     SignSpec,
     _apply_deformation,
+    _detection_to_world,
+    _match_detection_to_sign,
 )
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
@@ -330,6 +337,151 @@ class TestEngagementGating:
             corridor=Section.SOUTH,
         )
         assert approached != (2.0, 0.4)
+
+
+# ── Camera-detection confirmation (pinhole projection) ───────────────────────
+
+# All direct _detection_to_world / _match_detection_to_sign cases below use a
+# robot at the origin facing east (yaw=0) unless stated otherwise, so
+# theta_h == bearing and world position == (distance*cos, distance*sin).
+
+
+def _detection_at_distance_bearing(
+    distance: float, theta_h: float, *, color: str = "red", confidence: float = 0.9,
+) -> Detection:
+    """Build a Detection whose bbox pinhole-decodes to the given distance/bearing.
+
+    Inverts exactly the formula ``_detection_to_world`` decodes: pixel height
+    from distance, bbox center from horizontal angle.
+    """
+    pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / distance
+    cx = (theta_h / RobotSpecs.CAMERA_HFOV + 0.5) * RobotSpecs.CAMERA_WIDTH
+    cy = RobotSpecs.CAMERA_HEIGHT / 2
+    half = pixel_height / 2
+    bbox = (cx - half, cy - half, cx + half, cy + half)
+    return Detection(
+        class_name=color,
+        confidence=confidence,
+        bbox=bbox,
+        x=cx,
+        y=cy,
+        width=pixel_height,
+        height=pixel_height,
+        area=pixel_height * pixel_height,
+    )
+
+
+class TestDetectionToWorld:
+    """Pins the pinhole-projection math ``_detection_to_world`` uses to turn a
+    bbox into a world position — previously untested (review 2026-07-11 §2.2).
+    """
+
+    def test_round_trip_recovers_distance_and_bearing(self):
+        distance, theta_h = 0.6, 0.15
+        det = _detection_at_distance_bearing(distance, theta_h)
+        world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0)
+        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        assert world == pytest.approx(expected, abs=1e-6)
+
+    def test_round_trip_with_nonzero_robot_pose(self):
+        robot_pos = (1.2, 0.4)
+        robot_yaw = 0.3
+        distance, theta_h = 0.5, -0.1
+        det = _detection_at_distance_bearing(distance, theta_h)
+        world = _detection_to_world(det, robot_pos=robot_pos, robot_yaw=robot_yaw)
+        bearing = robot_yaw + theta_h
+        expected = (
+            robot_pos[0] + distance * math.cos(bearing),
+            robot_pos[1] + distance * math.sin(bearing),
+        )
+        assert world == pytest.approx(expected, abs=1e-6)
+
+    def test_bbox_shorter_than_minimum_returns_none(self):
+        tiny_height = _MIN_RELIABLE_BBOX_HEIGHT_PX - 1
+        bbox = (100.0, 100.0, 101.0, 100.0 + tiny_height)
+        det = Detection(
+            class_name="red",
+            confidence=0.9,
+            bbox=bbox,
+            x=100.5,
+            y=100.0 + tiny_height / 2,
+            width=1.0,
+            height=tiny_height,
+            area=tiny_height,
+        )
+        assert _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0) is None
+
+
+class TestMatchDetectionToSign:
+    """Pins the confidence/match-distance/class gating in ``_match_detection_to_sign``."""
+
+    def test_low_confidence_detection_rejected(self):
+        det = _detection_at_distance_bearing(0.5, 0.0, color="red", confidence=0.1)
+        result = _match_detection_to_sign(
+            [det], expected_world_pos=(0.5, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+        )
+        assert result is None
+
+    def test_far_match_rejected(self):
+        det = _detection_at_distance_bearing(2.0, 0.0, color="red", confidence=0.9)
+        result = _match_detection_to_sign(
+            [det], expected_world_pos=(0.0, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+        )
+        assert result is None
+
+    def test_non_sign_class_ignored(self):
+        det = _detection_at_distance_bearing(0.5, 0.0, color="blue", confidence=0.9)
+        result = _match_detection_to_sign(
+            [det], expected_world_pos=(0.5, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+        )
+        assert result is None
+
+    @pytest.mark.parametrize("order", [("near", "far"), ("far", "near")])
+    def test_nearest_candidate_wins_regardless_of_order(self, order):
+        expected = (0.5, 0.0)
+        near = _detection_at_distance_bearing(0.5, 0.0, color="green", confidence=0.9)  # dist 0.0
+        far = _detection_at_distance_bearing(0.65, 0.0, color="red", confidence=0.9)  # dist 0.15
+        candidates = [near, far] if order[0] == "near" else [far, near]
+
+        result = _match_detection_to_sign(
+            candidates, expected_world_pos=expected, robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+        )
+        assert result == "green"
+
+
+class TestCameraDetectionOverridesGroundTruth:
+    """A confident camera detection can override scenario-metadata ground truth.
+
+    This is the one part of the navigation stack where a live sensor reading
+    beats known-good ground truth (review 2026-07-11 §2.2) — proves the
+    override actually changes which side the robot passes on, not just that
+    the private color-matching helpers return the right string in isolation.
+    """
+
+    def test_camera_color_flips_avoidance_side(self):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
+        sign = _sign_at(sx, sy, "red")  # ground truth: red
+        router = _router([sign])
+
+        robot_pos = (sx - 0.3, sy)
+        det = _detection_at_distance_bearing(0.3, 0.0, color="green", confidence=0.9)
+
+        result = router.deform_waypoint(
+            waypoint=(sx, sy),
+            robot_pos=robot_pos,
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
+            detections=[det],
+        )
+
+        expected_if_green = _apply_deformation(
+            (sx, sy), sign, "green", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+        )
+        expected_if_red = _apply_deformation(
+            (sx, sy), sign, "red", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+        )
+        assert result == pytest.approx(expected_if_green, abs=1e-6)
+        assert result != pytest.approx(expected_if_red, abs=1e-6)
 
 
 # ── 5. No-op with empty sign list ─────────────────────────────────────────────
