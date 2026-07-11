@@ -51,7 +51,7 @@ const BrowseTab = () => {
   };
 
   const progressValue = Math.min(
-    (parseInt(stats.processed) / Math.max(gallery.length, 1)) * 100,
+    (parseInt(stats.processed, 10) / Math.max(gallery.length, 1)) * 100,
     100
   );
 
@@ -168,12 +168,11 @@ const BrowseTab = () => {
                       variant="outlined"
                       sx={{
                         cursor: 'pointer',
-                        borderColor:
-                          selectedGalleryIds.has(item.id)
+                        borderColor: selectedGalleryIds.has(item.id)
+                          ? 'primary.main'
+                          : selectedGalleryItem?.id === item.id
                             ? 'primary.main'
-                            : selectedGalleryItem?.id === item.id
-                              ? 'primary.main'
-                              : 'divider',
+                            : 'divider',
                         transition: 'border-color 100ms ease',
                         opacity: selectedGalleryIds.has(item.id) ? 0.7 : 1,
                       }}
@@ -200,7 +199,8 @@ const BrowseTab = () => {
                             }}
                           />
                           <Typography variant="caption" color="text.disabled">
-                            {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
+                            {item.format ? `${item.format.toUpperCase()} · ` : ''}
+                            {item.status}
                           </Typography>
                         </Stack>
                       </Stack>
@@ -239,16 +239,15 @@ const BrowseTab = () => {
                           ? theme.palette.primary.main
                           : 'transparent'
                       }`,
-                      bgcolor:
-                        selectedGalleryIds.has(item.id)
+                      bgcolor: selectedGalleryIds.has(item.id)
+                        ? theme.palette.mode === 'dark'
+                          ? 'rgba(94,106,210,0.15)'
+                          : 'rgba(79,92,200,0.08)'
+                        : selectedGalleryItem?.id === item.id
                           ? theme.palette.mode === 'dark'
-                            ? 'rgba(94,106,210,0.15)'
-                            : 'rgba(79,92,200,0.08)'
-                          : selectedGalleryItem?.id === item.id
-                            ? theme.palette.mode === 'dark'
-                              ? 'rgba(94,106,210,0.08)'
-                              : 'rgba(79,92,200,0.05)'
-                            : 'transparent',
+                            ? 'rgba(94,106,210,0.08)'
+                            : 'rgba(79,92,200,0.05)'
+                          : 'transparent',
                       transition: 'background-color 80ms ease, border-color 80ms ease',
                       '&:hover': {
                         bgcolor:
@@ -295,7 +294,8 @@ const BrowseTab = () => {
                           }}
                         />
                         <Typography variant="caption" color="text.disabled">
-                          {item.format ? `${item.format.toUpperCase()} · ` : ''}{item.status}
+                          {item.format ? `${item.format.toUpperCase()} · ` : ''}
+                          {item.status}
                         </Typography>
                       </Stack>
                     </Stack>

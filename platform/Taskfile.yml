@@ -423,7 +423,7 @@ tasks:
   frontend:docker:run:
     desc: Run frontend container serving on http://localhost:8080
     cmds:
-      - docker run --rm -p 8080:80 voldemorbot-frontend
+      - docker run --rm -p 8080:8080 voldemorbot-frontend
 
   # GEN (track + scenario generation)
 

@@ -23,8 +23,9 @@ COPY frontend/ .
 RUN pnpm build
 
 
-# Runtime stage – serve the built frontend with nginx.
-FROM nginx:1.27-alpine
+# Runtime stage – serve the built frontend with nginx, running as a non-root
+# user (nginx-unprivileged listens on 8080 by default — see nginx.conf).
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 # Use the repo's real nginx config (frontend/nginx.conf), which proxies
 # /api/v1|healthz|readyz to the Go API service -- an inline config here
@@ -35,7 +36,9 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built frontend from builder stage.
 COPY --from=builder /build/dist /usr/share/nginx/html
 
-ARG FRONTEND_PORT=80
-EXPOSE ${FRONTEND_PORT}
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=5s \
+    CMD wget --spider -q http://localhost:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

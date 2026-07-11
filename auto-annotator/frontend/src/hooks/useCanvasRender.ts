@@ -146,7 +146,7 @@ export const useCanvasRender = (
     [annotationPoints, classColors]
   );
 
-  const ensureCanvasResolution = () => {
+  const ensureCanvasResolution = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -165,7 +165,7 @@ export const useCanvasRender = (
       canvasHeight: pixelHeight,
       dpr,
     };
-  };
+  }, []);
 
   const drawCanvas = useCallback(
     (ctx: CanvasRenderingContext2D, image: HTMLImageElement) => {
@@ -193,7 +193,14 @@ export const useCanvasRender = (
       drawAnnotations(ctx, imageBoundsRef.current);
       drawQueuedPoints(ctx, imageBoundsRef.current);
     },
-    [zoom, drawSegmentationPreview, drawMockMask, drawAnnotations, drawQueuedPoints]
+    [
+      zoom,
+      ensureCanvasResolution,
+      drawSegmentationPreview,
+      drawMockMask,
+      drawAnnotations,
+      drawQueuedPoints,
+    ]
   );
 
   // Load the image only when the selected source changes. Keying on `src`
@@ -202,6 +209,7 @@ export const useCanvasRender = (
   // classColors — changes its identity. Redraws against the cached image are
   // handled by the effect below.
   const src = selectedGalleryItem?.src ?? null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: drawCanvas/recordAction are stable enough; we deliberately reload only on src.
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
@@ -226,8 +234,6 @@ export const useCanvasRender = (
       recordAction(`Preview failed to load: ${src}`);
     };
     image.src = src;
-    // drawCanvas/recordAction are stable enough; we deliberately reload only on src.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   useEffect(() => {
@@ -235,7 +241,7 @@ export const useCanvasRender = (
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx || !imageRef.current) return;
     drawCanvas(ctx, imageRef.current);
-  }, [annotationPoints, queuedPoints, zoom, classColors, segmentationPreview, drawCanvas]);
+  }, [drawCanvas]);
 
   useEffect(() => {
     if (segmentationPreview.length === 0) {
@@ -264,7 +270,7 @@ export const useCanvasRender = (
         animationFrame.current = null;
       }
     };
-  }, [segmentationPreview, annotationPoints, queuedPoints, zoom, classColors, drawCanvas]);
+  }, [segmentationPreview, drawCanvas]);
 
   return { canvasRef, imageBounds: imageBoundsRef };
 };

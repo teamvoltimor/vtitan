@@ -15,23 +15,28 @@ export type {
   ConfigResponse,
   SpeedRequest,
   SpeedUpdateResponse,
-} from './api/generated'
+} from './api/generated';
 
 // Backward-compat aliases for renamed generated types.
-export type { Position3d as Position3D } from './api/generated'
-export type { SessionResponse as ReplaySessionInfo } from './api/generated'
+export type { Position3d as Position3D } from './api/generated';
+export type { SessionResponse as ReplaySessionInfo } from './api/generated';
 
 // RobotSnapshot: generated type has optional arrays; Zod `.default([])` in schemas.ts
 // guarantees they're always present after validation, so we override them as required here.
-import type { RobotSnapshot as ApiRobotSnapshot, Position3d, TelemetryMetrics } from './api/generated'
-export interface RobotSnapshot extends Omit<ApiRobotSnapshot, 'lidar_points' | 'path_history' | 'logs'> {
-  lidar_points: Array<Position3d>
-  path_history: Array<Position3d>
-  logs: Array<string>
+import type {
+  RobotSnapshot as ApiRobotSnapshot,
+  Position3d,
+  TelemetryMetrics,
+} from './api/generated';
+export interface RobotSnapshot
+  extends Omit<ApiRobotSnapshot, 'lidar_points' | 'path_history' | 'logs'> {
+  lidar_points: Array<Position3d>;
+  path_history: Array<Position3d>;
+  logs: Array<string>;
 }
 
 // NodeHealthValue is the discriminated union from the generated TelemetryMetrics.
-export type NodeHealthValue = TelemetryMetrics['node_health']
+export type NodeHealthValue = TelemetryMetrics['node_health'];
 
 // ============================================================================
 // FRONTEND-SPECIFIC CONSTANTS (not derived from the OpenAPI spec)
@@ -57,9 +62,9 @@ export const RosMessageType = {
 // Values match proto enum names emitted by protojson.
 export const NodeHealth = {
   UNSPECIFIED: 'NODE_HEALTH_UNSPECIFIED',
-  NOMINAL:     'NODE_HEALTH_NOMINAL',
-  WATCHDOG:    'NODE_HEALTH_WATCHDOG',
-  REPLANNING:  'NODE_HEALTH_REPLANNING',
+  NOMINAL: 'NODE_HEALTH_NOMINAL',
+  WATCHDOG: 'NODE_HEALTH_WATCHDOG',
+  REPLANNING: 'NODE_HEALTH_REPLANNING',
 } as const;
 
 // Detection class names emitted by the vision pipeline.
@@ -68,10 +73,10 @@ export const DetectionClass = {
   GREEN_SIGN: 'green_sign',
 } as const;
 
-export type DetectionClassValue = typeof DetectionClass[keyof typeof DetectionClass];
+export type DetectionClassValue = (typeof DetectionClass)[keyof typeof DetectionClass];
 
 // A point/vector in Three.js space (X right, Y up, Z toward camera).
-export type Vec3 = [number, number, number]
+export type Vec3 = [number, number, number];
 
 // ============================================================================
 // ROS MESSAGE PAYLOADS (raw TopicUpdate.data shapes)
@@ -82,64 +87,64 @@ export type Vec3 = [number, number, number]
 // ============================================================================
 
 export interface Quaternion {
-  x: number
-  y: number
-  z: number
-  w: number
+  x: number;
+  y: number;
+  z: number;
+  w: number;
 }
 
 /** sensor_msgs/LaserScan */
 export interface LaserScanMsg {
-  ranges: number[]
-  angle_min: number
-  angle_max: number
-  angle_increment: number
-  range_min: number
-  range_max: number
+  ranges: number[];
+  angle_min: number;
+  angle_max: number;
+  angle_increment: number;
+  range_min: number;
+  range_max: number;
 }
 
 /** geometry_msgs/Twist */
 export interface TwistMsg {
-  linear: Position3d
-  angular: Position3d
+  linear: Position3d;
+  angular: Position3d;
 }
 
 /** sensor_msgs/Imu */
 export interface ImuMsg {
-  orientation: Quaternion
-  linear_acceleration: Position3d
-  angular_velocity: Position3d
+  orientation: Quaternion;
+  linear_acceleration: Position3d;
+  angular_velocity: Position3d;
 }
 
 /** sensor_msgs/JointState */
 export interface JointStateMsg {
-  name: string[]
-  position: number[]
-  velocity?: number[]
-  effort?: number[]
+  name: string[];
+  position: number[];
+  velocity?: number[];
+  effort?: number[];
 }
 
 /** nav_msgs/Odometry (subset used by the dashboard) */
 export interface OdometryMsg {
-  pose: { position: Position3d; orientation: Partial<Quaternion> }
-  twist: { linear: Partial<Position3d>; angular: Partial<Position3d> }
+  pose: { position: Position3d; orientation: Partial<Quaternion> };
+  twist: { linear: Partial<Position3d>; angular: Partial<Position3d> };
 }
 
 /** std_msgs/String */
 export interface StringMsg {
-  data: string
+  data: string;
 }
 
 /** vision_msgs/Detection2DArray (subset used by the dashboard) */
 export interface Detection2DMsg {
-  results: Array<{ hypothesis: { class_id: string; score: number } }>
+  results: Array<{ hypothesis: { class_id: string; score: number } }>;
   bbox: {
-    center: { position: { x: number; y: number } }
-    size_x: number
-    size_y: number
-  }
+    center: { position: { x: number; y: number } };
+    size_x: number;
+    size_y: number;
+  };
 }
 
 export interface Detection2DArrayMsg {
-  detections: Detection2DMsg[]
+  detections: Detection2DMsg[];
 }

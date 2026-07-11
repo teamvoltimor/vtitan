@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 export type PointType = 'positive' | 'negative';
 export type ExportFormat = 'segmentation' | 'detection';
@@ -168,22 +176,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     setSegmentationMessage('Running SAM ...');
   }, []);
 
-  const completeSegmentationRequest = useCallback(
-    (state: SegmentationStatus, message: string) => {
-      pendingSegmentationRequests.current = Math.max(pendingSegmentationRequests.current - 1, 0);
-      setSegmentationMessage(message);
-      if (pendingSegmentationRequests.current === 0) {
-        setSegmentationStatus(state);
-      }
-    },
-    []
-  );
+  const completeSegmentationRequest = useCallback((state: SegmentationStatus, message: string) => {
+    pendingSegmentationRequests.current = Math.max(pendingSegmentationRequests.current - 1, 0);
+    setSegmentationMessage(message);
+    if (pendingSegmentationRequests.current === 0) {
+      setSegmentationStatus(state);
+    }
+  }, []);
 
   const _applyClasses = useCallback((items: ClassItem[]) => {
     setClasses(items.map((c) => c.name));
-    setClassColors(
-      Object.fromEntries(items.map((c) => [c.name, c.color]))
-    );
+    setClassColors(Object.fromEntries(items.map((c) => [c.name, c.color])));
   }, []);
 
   const addClass = useCallback(
@@ -193,7 +196,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setActiveClass(name);
       recordAction(`Created class ${name}`);
     },
-    [_applyClasses, recordAction],
+    [_applyClasses, recordAction]
   );
 
   const updateClassColor = useCallback(
@@ -202,7 +205,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       _applyClasses(items);
       recordAction(`Updated color for ${name}`);
     },
-    [_applyClasses, recordAction],
+    [_applyClasses, recordAction]
   );
 
   const _handleGalleryResponse = useCallback((response: GalleryResponse) => {
@@ -254,10 +257,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     void load();
-  }, [refreshGallery]);
+  }, [refreshGallery, _applyClasses, recordAction]);
 
   useEffect(() => {
-    if (!selectedGalleryItem || selectedGalleryItem.status !== 'done') {
+    if (selectedGalleryItem?.status !== 'done') {
       setSegmentationPreview([]);
       return;
     }
@@ -268,14 +271,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             id: s.id,
             className: s.className,
             points: s.points.map((p) => ({ x: parseFloat(p.x), y: parseFloat(p.y) })),
-          })),
-        ),
+          }))
+        )
       )
       .catch((err: unknown) => {
         setSegmentationPreview([]);
         recordAction(`Failed to load annotations: ${(err as Error).message}`);
       });
-  }, [selectedGalleryItem?.id]);
+  }, [selectedGalleryItem, recordAction]);
 
   const loadModel = useCallback(
     (modelId: string) => {
@@ -290,12 +293,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     recordAction('Auto-annotated current image (stub)');
   }, [recordAction]);
 
-  const addAnnotationPoint = useCallback(
-    (point: AnnotationPoint) => {
-      setAnnotationPoints((prev) => [...prev, point]);
-    },
-    []
-  );
+  const addAnnotationPoint = useCallback((point: AnnotationPoint) => {
+    setAnnotationPoints((prev) => [...prev, point]);
+  }, []);
 
   const clearAnnotationPoints = useCallback(() => {
     setAnnotationPoints([]);
@@ -372,7 +372,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setSelectedGalleryItem(nextItem ?? null);
       recordAction(actionLabel);
     },
-    [_handleGalleryResponse, recordAction],
+    [_handleGalleryResponse, recordAction]
   );
 
   const saveAndNext = useCallback(async () => {
@@ -552,8 +552,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       toggleGallerySelection,
       clearGallerySelection,
       deleteSelectedImages,
-      _advanceNext,
-      _runSegmentation,
     ]
   );
 

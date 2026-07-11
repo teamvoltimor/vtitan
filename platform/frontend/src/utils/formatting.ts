@@ -16,14 +16,14 @@ export function formatNumber(
   value: number | null | undefined,
   options: { decimals?: number; unit?: string; default?: string } = {}
 ): string {
-  const { decimals = 2, unit = '', default: fallback = 'N/A' } = options
+  const { decimals = 2, unit = '', default: fallback = 'N/A' } = options;
 
   if (value == null) {
-    return fallback
+    return fallback;
   }
 
-  const formatted = value.toFixed(decimals)
-  return unit ? `${formatted} ${unit}` : formatted
+  const formatted = value.toFixed(decimals);
+  return unit ? `${formatted} ${unit}` : formatted;
 }
 
 /**
@@ -39,21 +39,21 @@ export function formatTimestamp(
   format: 'time' | 'full' = 'time'
 ): string {
   if (value == null) {
-    return 'N/A'
+    return 'N/A';
   }
 
-  const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value)
+  const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return 'N/A'
+    return 'N/A';
   }
 
-  return format === 'time' ? date.toLocaleTimeString() : date.toLocaleString()
+  return format === 'time' ? date.toLocaleTimeString() : date.toLocaleString();
 }
 
 /** Age in seconds of an ISO-8601 timestamp relative to now. */
 export function timestampAgeSeconds(iso: string): number {
-  const ms = new Date(iso).getTime()
-  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : (Date.now() - ms) / 1000
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : (Date.now() - ms) / 1000;
 }
 
 /**
@@ -65,20 +65,20 @@ export function timestampAgeSeconds(iso: string): number {
  */
 export function getErrorMessage(error: unknown, fallback: string = 'An error occurred'): string {
   if (error instanceof Error) {
-    return error.message
+    return error.message;
   }
   if (typeof error === 'string') {
-    return error
+    return error;
   }
-  return fallback
+  return fallback;
 }
 
 /** Clamp a number to the [min, max] range. */
 export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
+  return Math.max(min, Math.min(max, value));
 }
 
 /** Convert radians to degrees. */
 export function radiansToDegrees(radians: number): number {
-  return radians * (180 / Math.PI)
+  return radians * (180 / Math.PI);
 }

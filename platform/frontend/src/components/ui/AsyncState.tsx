@@ -1,13 +1,13 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface AsyncStateProps {
-  loading: boolean
-  error: string | null
-  children: ReactNode
+  loading: boolean;
+  error: string | null;
+  children: ReactNode;
   /** Optional extra actions rendered next to Retry on the error screen. */
-  errorActions?: ReactNode
-  onRetry?: () => void
-  loadingLabel?: string
+  errorActions?: ReactNode;
+  onRetry?: () => void;
+  loadingLabel?: string;
 }
 
 /**
@@ -36,7 +36,7 @@ export function AsyncState({
           {errorActions}
         </div>
       </div>
-    )
+    );
   }
 
   if (loading) {
@@ -45,8 +45,8 @@ export function AsyncState({
         <span className="spinner" aria-hidden="true" />
         <span>{loadingLabel}</span>
       </div>
-    )
+    );
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }

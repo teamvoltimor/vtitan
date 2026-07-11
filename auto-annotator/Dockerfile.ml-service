@@ -57,7 +57,22 @@ COPY ml-service/grpc_main.py .
 COPY ml-service/config/ config/
 COPY ml-service/src/ src/
 
+# Run as a dedicated non-root user. /app/data and /app/models are
+# volume-mounted at runtime (docker-compose.yml) and must stay writable by
+# this uid, since Docker preserves the host mount's ownership over any image
+# layer's chown -- ensure the host-side directories are owned by 10001:10001
+# (or world-writable) before first run.
+RUN groupadd -g 10001 mlservice && useradd -u 10001 -g mlservice -M mlservice \
+    && mkdir -p /app/data /app/models && chown -R mlservice:mlservice /app
+USER mlservice
+
 EXPOSE ${SERVER_PORT} ${GRPC_PORT}
+
+# grpc_main.py opens the gRPC port early (before any lazy model load), so a
+# bare TCP connect is a sufficient readiness signal without depending on the
+# grpc.health.v1 protocol, which this server doesn't implement.
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
+    CMD python3 -c "import socket; socket.create_connection(('localhost', ${GRPC_PORT}), timeout=3)" || exit 1
 
 # DEFAULT_MODEL is optional; skip --model flag when unset.
 CMD ["sh", "-c", "python grpc_main.py ${DEFAULT_MODEL:+--model $DEFAULT_MODEL}"]

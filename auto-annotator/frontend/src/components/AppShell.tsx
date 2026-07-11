@@ -78,7 +78,8 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
     const shortcuts: Record<string, number> = { a: 0, b: 1, u: 2, t: 3, s: 4 };
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable)
+        return;
       const index = shortcuts[e.key.toLowerCase()];
       if (index !== undefined) setActiveTabIndex(index);
     };
@@ -321,7 +322,12 @@ const AppShell = ({ onToggleTheme }: AppShellProps) => {
                 >
                   auto-annotator
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }} noWrap>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: '0.65rem' }}
+                  noWrap
+                >
                   {modelStatus}
                 </Typography>
               </Stack>

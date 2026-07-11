@@ -7,8 +7,8 @@
  * `demoMode` branching: it just selects a source and calls it uniformly.
  */
 
-import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types'
-import type { TelemetryMessage } from './guards'
+import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import type { TelemetryMessage } from './guards';
 import {
   fetchLatestTelemetry,
   fetchRawTopics,
@@ -17,61 +17,61 @@ import {
   fetchSession,
   connectTelemetryWS,
   updateRobotSpeed,
-} from './telemetry'
+} from './telemetry';
 import {
   generateMockSnapshot,
   generateMockTopics,
   generateMockSession,
   generateMockSessions,
-} from './mockData'
-import { TELEMETRY_CONFIG } from '../config'
+} from './mockData';
+import { TELEMETRY_CONFIG } from '../config';
 
 /** Number of snapshots pre-seeded into history when Demo Mode starts. */
-export const DEMO_SEED_FRAMES = 24
+export const DEMO_SEED_FRAMES = 24;
 
 export interface TelemetrySource {
-  fetchLatest(): Promise<RobotSnapshot>
-  fetchTopics(): Promise<TopicsSnapshot>
-  fetchHistory(): Promise<RobotSnapshot[]>
-  fetchSessions(): Promise<ReplaySessionInfo[]>
-  fetchSession(id: string): Promise<RobotSnapshot[]>
+  fetchLatest(): Promise<RobotSnapshot>;
+  fetchTopics(): Promise<TopicsSnapshot>;
+  fetchHistory(): Promise<RobotSnapshot[]>;
+  fetchSessions(): Promise<ReplaySessionInfo[]>;
+  fetchSession(id: string): Promise<RobotSnapshot[]>;
   /** Subscribe to the live stream. Returns an unsubscribe function. */
-  connect(onMessage: (msg: TelemetryMessage) => void, onError?: (error: Error) => void): () => void
-  updateSpeed(speed: number): Promise<void>
+  connect(onMessage: (msg: TelemetryMessage) => void, onError?: (error: Error) => void): () => void;
+  updateSpeed(speed: number): Promise<void>;
 }
 
 /** Real backend: HTTP fetches + WebSocket stream. */
 export class LiveSource implements TelemetrySource {
-  fetchLatest = fetchLatestTelemetry
-  fetchTopics = fetchRawTopics
-  fetchHistory = fetchHistory
-  fetchSessions = fetchSessions
-  fetchSession = fetchSession
-  updateSpeed = updateRobotSpeed
+  fetchLatest = fetchLatestTelemetry;
+  fetchTopics = fetchRawTopics;
+  fetchHistory = fetchHistory;
+  fetchSessions = fetchSessions;
+  fetchSession = fetchSession;
+  updateSpeed = updateRobotSpeed;
 
   connect(onMessage: (msg: TelemetryMessage) => void, onError?: (error: Error) => void) {
-    return connectTelemetryWS(onMessage, onError)
+    return connectTelemetryWS(onMessage, onError);
   }
 }
 
 /** Locally generated demo data; live stream driven by a timer. */
 export class MockSource implements TelemetrySource {
-  private tick = DEMO_SEED_FRAMES - 1
+  private tick = DEMO_SEED_FRAMES - 1;
 
   async fetchLatest() {
-    return generateMockSnapshot(this.tick)
+    return generateMockSnapshot(this.tick);
   }
   async fetchTopics() {
-    return generateMockTopics(this.tick)
+    return generateMockTopics(this.tick);
   }
   async fetchHistory() {
-    return Array.from({ length: DEMO_SEED_FRAMES }, (_, i) => generateMockSnapshot(i))
+    return Array.from({ length: DEMO_SEED_FRAMES }, (_, i) => generateMockSnapshot(i));
   }
   async fetchSessions() {
-    return generateMockSessions()
+    return generateMockSessions();
   }
   async fetchSession(id: string) {
-    return generateMockSession(id)
+    return generateMockSession(id);
   }
   async updateSpeed() {
     /* no backend in demo mode */
@@ -79,15 +79,15 @@ export class MockSource implements TelemetrySource {
 
   connect(onMessage: (msg: TelemetryMessage) => void) {
     const intervalId = window.setInterval(() => {
-      this.tick += 1
-      onMessage(generateMockSnapshot(this.tick))
-      onMessage(generateMockTopics(this.tick))
-    }, TELEMETRY_CONFIG.POLL_INTERVAL_MS)
-    return () => window.clearInterval(intervalId)
+      this.tick += 1;
+      onMessage(generateMockSnapshot(this.tick));
+      onMessage(generateMockTopics(this.tick));
+    }, TELEMETRY_CONFIG.POLL_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
   }
 }
 
 /** Factory: pick the source implementation for the current mode. */
 export function createTelemetrySource(demoMode: boolean): TelemetrySource {
-  return demoMode ? new MockSource() : new LiveSource()
+  return demoMode ? new MockSource() : new LiveSource();
 }

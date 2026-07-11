@@ -5,24 +5,24 @@
  * replay sessions and the event feed. Consumes TelemetryContext directly.
  */
 
-import { NodeHealth } from '../types'
-import { useTelemetry } from '../contexts/telemetryState'
-import { formatNumber, formatTimestamp } from '../utils/formatting'
-import { SENSOR_CONFIG, SPEED_CONTROL_CONFIG, UI_STRINGS, THEME } from '../config'
-import { Label, MetricRow, StatTile } from './ui'
+import { NodeHealth } from '../types';
+import { useTelemetry } from '../contexts/telemetryState';
+import { formatNumber, formatTimestamp } from '../utils/formatting';
+import { SENSOR_CONFIG, SPEED_CONTROL_CONFIG, UI_STRINGS, THEME } from '../config';
+import { Label, MetricRow, StatTile } from './ui';
 
 /** Sensor health status grid. */
 function SensorHealthPanel() {
-  const { snapshot } = useTelemetry()
-  if (!snapshot) return null
-  const metrics = snapshot.metrics
+  const { snapshot } = useTelemetry();
+  if (!snapshot) return null;
+  const metrics = snapshot.metrics;
 
   return (
     <div className="sensor-health">
       <Label>{UI_STRINGS.SENSOR_STATUS}</Label>
       <div className="sensor-grid">
         {SENSOR_CONFIG.map(({ id, name, key }) => {
-          const available = metrics[key]
+          const available = metrics[key];
           return (
             <div key={id} className={`sensor-item ${available ? 'online' : 'offline'}`}>
               <span className="sensor-dot" />
@@ -33,11 +33,11 @@ function SensorHealthPanel() {
                 </span>
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 export function Sidebar() {
@@ -52,18 +52,18 @@ export function Sidebar() {
     goLive,
     loadSession,
     updateSpeed,
-  } = useTelemetry()
+  } = useTelemetry();
 
-  if (!snapshot) return null
+  if (!snapshot) return null;
 
-  const metrics = snapshot.metrics
+  const metrics = snapshot.metrics;
 
   const statRows: Array<[string, number | null | undefined]> = [
     ['Forward', metrics.forward],
     ['Left', metrics.left],
     ['Right', metrics.right],
     ['Back', metrics.back],
-  ]
+  ];
 
   const telemetryEntries: Array<[string, string]> = [
     ['Node Health', metrics.node_health],
@@ -73,23 +73,23 @@ export function Sidebar() {
     ['Range Mean', formatNumber(metrics.range_mean)],
     ['Range Max', formatNumber(metrics.range_max)],
     ['Points', metrics.points_captured?.toString() ?? '0'],
-  ]
+  ];
 
-  const hasHistory = history.length > 0
-  const timelineLength = history.length
+  const hasHistory = history.length > 0;
+  const timelineLength = history.length;
   const timelineTimestamp =
     history.length > 0
-      ? history[timelineIndex]?.timestamp ?? snapshot.timestamp
-      : snapshot.timestamp
+      ? (history[timelineIndex]?.timestamp ?? snapshot.timestamp)
+      : snapshot.timestamp;
   const timelineLabel = liveMode
     ? 'Live timeline'
     : selectedSessionId
       ? 'Replay timeline'
-      : 'Timeline'
+      : 'Timeline';
 
   const handleSpeedChange = (value: string) => {
-    updateSpeed(parseFloat(value))
-  }
+    updateSpeed(parseFloat(value));
+  };
 
   return (
     <aside className="control-panel" style={{ background: THEME.COLORS.PANEL }}>
@@ -162,7 +162,7 @@ export function Sidebar() {
         <div className="session-list">
           <Label>{UI_STRINGS.REPLAYS}</Label>
           {sessions.map((session) => {
-            const isSelected = session.session_id === selectedSessionId
+            const isSelected = session.session_id === selectedSessionId;
             return (
               <button
                 key={session.session_id}
@@ -174,7 +174,7 @@ export function Sidebar() {
                 <small>{formatTimestamp(session.created_at, 'full')}</small>
                 <strong>{session.entry_count} snaps</strong>
               </button>
-            )
+            );
           })}
         </div>
       )}
@@ -186,10 +186,11 @@ export function Sidebar() {
         </div>
         <ul>
           {snapshot.logs.map((log, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: logs is fully replaced each snapshot, has no stable id, and entries may repeat
             <li key={i}>{log}</li>
           ))}
         </ul>
       </div>
     </aside>
-  )
+  );
 }

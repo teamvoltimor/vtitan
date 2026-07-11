@@ -1,6 +1,6 @@
 /**
  * src/config/app.config.ts
- * 
+ *
  * Centralized application configuration.
  * All magic numbers, strings, and constants are defined here.
  * This eliminates hardcoded values scattered throughout the codebase.
@@ -27,7 +27,7 @@ export const COLORS = {
   ERROR: '#ff0000',
   GRID_LINE: 'rgba(255, 255, 255, 0.1)',
   FORWARD_INDICATOR: 'rgba(255, 255, 255, 0.3)',
-} as const
+} as const;
 
 // ============================================================================
 // SIMULATION & 3D RENDERING
@@ -36,24 +36,24 @@ export const COLORS = {
 export const SIMULATION_CONFIG = {
   // Track geometry
   TRACK: {
-    CENTER: { x: 1.5, y: 1.5, z: 0 },  // Origin of simulation coordinate system
+    CENTER: { x: 1.5, y: 1.5, z: 0 }, // Origin of simulation coordinate system
     SIZE: { width: 3.2, height: 3.2 },
   },
 
   // Robot model & defaults
   ROBOT: {
-    DEFAULT_POSITION: { x: 1.5, y: 1.5, z: 0.1 },  // Position3D (sim coords)
+    DEFAULT_POSITION: { x: 1.5, y: 1.5, z: 0.1 }, // Position3D (sim coords)
     DEFAULT_ORIENTATION_RADIANS: 0,
-    DIMENSIONS: [0.2, 0.08, 0.14] as const,  // [width, height, depth]
+    DIMENSIONS: [0.2, 0.08, 0.14] as const, // [width, height, depth]
   },
 
   // 3D camera configuration
   CAMERA: {
     POSITION: [0, 5, 3] as const,
     FOV: 45,
-    MAX_POLAR_ANGLE: Math.PI / 2.1,  // Prevent camera from going below ground
+    MAX_POLAR_ANGLE: Math.PI / 2.1, // Prevent camera from going below ground
   },
-} as const
+} as const;
 
 // ============================================================================
 // 3D SCENE (lighting, materials, track geometry)
@@ -76,7 +76,7 @@ export const SCENE_CONFIG = {
     COLOR_INACTIVE: '#666666',
     EMISSIVE_INACTIVE: '#333333',
     INACTIVE_OPACITY: 0.5,
-    HEADING_LENGTH: 0.22,   // length of the forward-heading arrow (metres)
+    HEADING_LENGTH: 0.22, // length of the forward-heading arrow (metres)
   },
   // WRO track: 3×3 m outer, 1×2 m inner square — rendered as low walls.
   TRACK: {
@@ -98,7 +98,7 @@ export const SCENE_CONFIG = {
     POSITION: [0, 0.5, 0] as const,
     SEGMENTS: 8,
   },
-} as const
+} as const;
 
 // ============================================================================
 // LIDAR VISUALIZATION
@@ -113,7 +113,7 @@ export const LIDAR_CONFIG = {
       AVAILABLE: 0.9,
       UNAVAILABLE: 0.3,
     },
-    NO_DATA_RADIUS: 0.05,  // Fallback sphere when no LIDAR data
+    NO_DATA_RADIUS: 0.05, // Fallback sphere when no LIDAR data
   },
 
   RADAR_CHART: {
@@ -125,27 +125,27 @@ export const LIDAR_CONFIG = {
     COLORS: {
       GRID: COLORS.GRID_LINE,
       FORWARD_INDICATOR: COLORS.FORWARD_INDICATOR,
-      DANGER: COLORS.DANGER,    // < 0.3 meters
-      WARNING: COLORS.WARNING,  // 0.3-0.8 meters
-      SAFE: COLORS.SUCCESS,     // > 0.8 meters
+      DANGER: COLORS.DANGER, // < 0.3 meters
+      WARNING: COLORS.WARNING, // 0.3-0.8 meters
+      SAFE: COLORS.SUCCESS, // > 0.8 meters
     },
     DISTANCE_THRESHOLDS: {
       DANGER: 0.3,
       WARNING: 0.8,
     },
   },
-} as const
+} as const;
 
 // ============================================================================
 // ROBOT PATH VISUALIZATION
 // ============================================================================
 
 export const ROBOT_PATH_CONFIG = {
-  Y_OFFSET: 0.03,           // Vertical offset from ground
-  TUBE_SEGMENTS: 80,        // Number of segments in tube geometry
-  TUBE_RADIUS: 0.01,        // Radius of the path tube
-  TUBE_RADIAL_SEGMENTS: 5,  // Radial subdivisions
-} as const
+  Y_OFFSET: 0.03, // Vertical offset from ground
+  TUBE_SEGMENTS: 80, // Number of segments in tube geometry
+  TUBE_RADIUS: 0.01, // Radius of the path tube
+  TUBE_RADIAL_SEGMENTS: 5, // Radial subdivisions
+} as const;
 
 // ============================================================================
 // SPEED GAUGE VISUALIZATION
@@ -169,9 +169,9 @@ export const SPEED_GAUGE_CONFIG = {
   NEEDLE_LENGTH: 70,
   NEEDLE_STROKE: 2,
   HUB_RADIUS: 6,
-  MAX_LINEAR_SPEED: 0.60,    // Max speed shown on gauge
-  STEERING_SENSITIVITY: 2.0,  // Divider for angular speed (higher = less sensitive)
-} as const
+  MAX_LINEAR_SPEED: 0.6, // Max speed shown on gauge
+  STEERING_SENSITIVITY: 2.0, // Divider for angular speed (higher = less sensitive)
+} as const;
 
 // ============================================================================
 // ROBOT SPEED CONTROL
@@ -182,7 +182,7 @@ export const SPEED_CONTROL_CONFIG = {
   MAX: 2,
   STEP: 0.1,
   DEFAULT: 1.0,
-} as const
+} as const;
 
 // ============================================================================
 // API CONFIGURATION
@@ -192,13 +192,13 @@ export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
 
   ENDPOINTS: {
-    LATEST:      '/v1/telemetry/latest',
-    TOPICS:      '/v1/telemetry/topics',
-    HISTORY:     '/v1/telemetry/history',
-    SESSIONS:    '/v1/telemetry/sessions',
-    SESSION:     (id: string) => `/v1/telemetry/sessions/${id}`,
+    LATEST: '/v1/telemetry/latest',
+    TOPICS: '/v1/telemetry/topics',
+    HISTORY: '/v1/telemetry/history',
+    SESSIONS: '/v1/telemetry/sessions',
+    SESSION: (id: string) => `/v1/telemetry/sessions/${id}`,
     ROBOT_SPEED: '/v1/telemetry/robot/config/speed',
-    STREAM:      '/v1/telemetry/ws',
+    STREAM: '/v1/telemetry/ws',
   },
 
   FETCH_CACHE: 'no-store' as const,
@@ -209,7 +209,7 @@ export const API_CONFIG = {
     RECONNECT_MAX_ATTEMPTS: 5,
     RECONNECT_BACKOFF_MULTIPLIER: 1.5,
   },
-} as const
+} as const;
 
 // ============================================================================
 // PROTOCOL CONVERSION
@@ -218,7 +218,7 @@ export const API_CONFIG = {
 export const URL_PROTOCOL_MAP = {
   'http://': 'ws://',
   'https://': 'wss://',
-} as const
+} as const;
 
 // ============================================================================
 // UI STRINGS
@@ -234,19 +234,17 @@ export const UI_STRINGS = {
   GO_LIVE: 'Go live',
   LIVE: 'Live',
   FILTER_TOPICS: 'Filter topics...',
-} as const
+} as const;
 
 // ============================================================================
 // TELEMETRY SETTINGS
 // ============================================================================
 
 export const TELEMETRY_CONFIG = {
-  HISTORY_MAX_SIZE: 60,                    // Max snapshots kept in memory
+  HISTORY_MAX_SIZE: 60, // Max snapshots kept in memory
   TOPIC_STALENESS_THRESHOLD_SECONDS: 2.0, // Mark topic stale after this duration
-  POLL_INTERVAL_MS: parseInt(
-    import.meta.env.VITE_POLL_INTERVAL_MS ?? '2500'
-  ),
-} as const
+  POLL_INTERVAL_MS: parseInt(import.meta.env.VITE_POLL_INTERVAL_MS ?? '2500', 10),
+} as const;
 
 // ============================================================================
 // THEME COLORS
@@ -262,18 +260,18 @@ export const THEME = {
     SUCCESS: COLORS.SUCCESS,
     WARNING: COLORS.WARNING,
   },
-} as const
+} as const;
 
 // ============================================================================
 // SENSOR CONFIGURATION
 // ============================================================================
 
 export const SENSOR_CONFIG = [
-  { id: 'lidar',    name: 'LiDAR',    key: 'lidar_available'    as const },
-  { id: 'imu',      name: 'IMU',      key: 'imu_available'      as const },
-  { id: 'camera',   name: 'Camera',   key: 'camera_available'   as const },
+  { id: 'lidar', name: 'LiDAR', key: 'lidar_available' as const },
+  { id: 'imu', name: 'IMU', key: 'imu_available' as const },
+  { id: 'camera', name: 'Camera', key: 'camera_available' as const },
   { id: 'odometry', name: 'Odometry', key: 'odometry_available' as const },
-] as const
+] as const;
 
 // ============================================================================
 // IMU VISUALIZATION
@@ -286,7 +284,7 @@ export const IMU_METRICS_CONFIG = [
   { label: 'Gyro X', range: [-5, 5], unit: 'rad/s', key: 'angular_velocity.x' },
   { label: 'Gyro Y', range: [-5, 5], unit: 'rad/s', key: 'angular_velocity.y' },
   { label: 'Gyro Z', range: [-5, 5], unit: 'rad/s', key: 'angular_velocity.z' },
-] as const
+] as const;
 
 // ============================================================================
 // MOTOR DIALS VISUALIZATION
@@ -303,7 +301,7 @@ export const MOTOR_DIALS_CONFIG = {
   NEEDLE_STROKE: 2,
   HUB_RADIUS: 5,
   LABEL_Y: 75,
-} as const
+} as const;
 
 // ============================================================================
 // VISION VISUALIZATION
@@ -323,7 +321,7 @@ export const VISION_CONFIG = {
     GREEN: COLORS.SUCCESS,
     BLUE: COLORS.BLUE,
   },
-} as const
+} as const;
 
 // ============================================================================
 // JSON VIEW CONFIGURATION
@@ -333,4 +331,4 @@ export const JSON_VIEW_CONFIG = {
   ARRAY_PREVIEW_LIMIT: 10,
   DECIMAL_PRECISION: 4,
   INDENT_PER_LEVEL: 16,
-} as const
+} as const;

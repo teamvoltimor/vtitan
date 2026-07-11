@@ -124,3 +124,47 @@ jobs:
 
       - name: Unit tests
         run: uv run pytest -q
+
+  docker:
+    name: "Docker — build + Trivy scan (${{ matrix.image }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: auto-annotator-api
+            context: auto-annotator
+            dockerfile: auto-annotator/Dockerfile.api
+          - image: auto-annotator-frontend
+            context: auto-annotator
+            dockerfile: auto-annotator/Dockerfile.frontend
+          - image: auto-annotator-ml-service
+            context: auto-annotator
+            dockerfile: auto-annotator/Dockerfile.ml-service
+          - image: platform-frontend
+            context: platform/frontend
+            dockerfile: platform/frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: "${{ matrix.image }}:ci"
+          cache-from: "type=gha,scope=${{ matrix.image }}"
+          cache-to: "type=gha,mode=max,scope=${{ matrix.image }}"
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ matrix.image }}:ci"
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true

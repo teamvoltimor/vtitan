@@ -90,6 +90,7 @@ const AnnotateInsights = () => {
             </Typography>
             {logEntries.map((entry, i) => (
               <Typography
+                // biome-ignore lint/suspicious/noArrayIndexKey: log entries are plain strings with no stable id and may repeat
                 key={i}
                 variant="caption"
                 sx={{

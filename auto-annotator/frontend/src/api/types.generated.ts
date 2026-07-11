@@ -4,1010 +4,1010 @@
  */
 
 export interface paths {
-    "/healthz": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Liveness probe */
-        get: operations["liveness"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/healthz': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/readyz": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Readiness probe */
-        get: operations["readiness"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Liveness probe */
+    get: operations['liveness'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/readyz': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health check */
-        get: operations["health"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Readiness probe */
+    get: operations['readiness'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/health': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/gallery": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List images with annotations */
-        get: operations["getGallery"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Health check */
+    get: operations['health'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/gallery': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/gallery/grouped": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List parent images with augmentation counts */
-        get: operations["getGroupedGallery"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List images with annotations */
+    get: operations['getGallery'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/gallery/grouped': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/gallery/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload images to gallery */
-        post: operations["importGallery"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List parent images with augmentation counts */
+    get: operations['getGroupedGallery'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/gallery/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/images/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream raw image file */
-        get: operations["serveImage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Upload images to gallery */
+    post: operations['importGallery'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/images/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/images/{id}/thumb": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream downscaled thumbnail */
-        get: operations["serveThumbnail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Stream raw image file */
+    get: operations['serveImage'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/images/{id}/thumb': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/images/delete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Soft-delete images by id */
-        post: operations["deleteImages"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Stream downscaled thumbnail */
+    get: operations['serveThumbnail'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/images/delete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/annotations/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get saved annotation shapes for an image */
-        get: operations["getAnnotations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Soft-delete images by id */
+    post: operations['deleteImages'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/annotations/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/annotations/save": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Write label file, mark image done, return updated gallery */
-        post: operations["saveAnnotations"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get saved annotation shapes for an image */
+    get: operations['getAnnotations'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/annotations/save': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/annotations/skip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Mark image as skipped */
-        post: operations["skipImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Write label file, mark image done, return updated gallery */
+    post: operations['saveAnnotations'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/annotations/skip': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/classes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all annotation classes */
-        get: operations["listClasses"];
-        put?: never;
-        /** Insert or update a class by name */
-        post: operations["upsertClass"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Mark image as skipped */
+    post: operations['skipImage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/classes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/models": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List configured ML models */
-        get: operations["listModels"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List all annotation classes */
+    get: operations['listClasses'];
+    put?: never;
+    /** Insert or update a class by name */
+    post: operations['upsertClass'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/models': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/segment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Run SAM inference for click points */
-        post: operations["segment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List configured ML models */
+    get: operations['listModels'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/segment': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/augment/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Launch augmentation job */
-        post: operations["startAugment"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Run SAM inference for click points */
+    post: operations['segment'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/augment/start': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/augment/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Check if augmentation job is running */
-        get: operations["getAugmentStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Launch augmentation job */
+    post: operations['startAugment'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/augment/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/augment/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** SSE stream of augmentation progress */
-        get: operations["streamAugment"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Check if augmentation job is running */
+    get: operations['getAugmentStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/augment/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/train/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Launch YOLO training job */
-        post: operations["startTrain"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** SSE stream of augmentation progress */
+    get: operations['streamAugment'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/train/start': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/train/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Check if training job is running */
-        get: operations["getTrainStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Launch YOLO training job */
+    post: operations['startTrain'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/train/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/train/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** SSE stream of training progress */
-        get: operations["streamTrain"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Check if training job is running */
+    get: operations['getTrainStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/train/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /** SSE stream of training progress */
+    get: operations['streamTrain'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        LivenessResponse: {
-            /** @enum {string} */
-            status: "ok";
-        };
-        HealthStatus: {
-            message: string;
-            ready: boolean;
-            inferenceAvailable: boolean;
-            databaseAccessible: boolean;
-        };
-        Point: {
-            /**
-             * @description X coordinate (decimal string for precision)
-             * @example 123.45
-             */
-            x: string;
-            /**
-             * @description Y coordinate (decimal string for precision)
-             * @example 456.78
-             */
-            y: string;
-        };
-        Shape: {
-            /** @description Unique annotation ID */
-            id: string;
-            /** @description Annotation class/label */
-            className: string;
-            /** @description Polygon vertices */
-            points: components["schemas"]["Point"][];
-        };
-        GalleryStats: {
-            pending: number;
-            done: number;
-            skipped: number;
-            total: number;
-            /**
-             * Format: double
-             * @description Completion percentage (0.0 - 100.0)
-             */
-            pct: number;
-        };
-        GalleryItem: {
-            /** Format: int64 */
-            id: number;
-            label: string;
-            /** Format: uri */
-            src: string;
-            /** Format: uri */
-            thumbSrc: string;
-            format: string;
-            /** @enum {string} */
-            status: "pending" | "done" | "skipped";
-            /** @description Last update timestamp (RFC 3339 or empty) */
-            updated: string;
-            annotations?: components["schemas"]["Shape"][];
-        };
-        GalleryResponse: {
-            items: components["schemas"]["GalleryItem"][];
-            stats: components["schemas"]["GalleryStats"];
-        };
-        ParentImageItem: {
-            /** Format: int64 */
-            id: number;
-            label: string;
-            /** Format: uri */
-            src: string;
-            format: string;
-            /** @enum {string} */
-            status: "pending" | "done" | "skipped";
-            /** @description Last update timestamp (RFC 3339 or empty) */
-            updated_at: string;
-            /** Format: int64 */
-            aug_count: number;
-        };
-        DeleteImagesRequest: {
-            imageIds: number[];
-        };
-        ClassItem: {
-            /** Format: int64 */
-            id: number;
-            name: string;
-            color: string;
-        };
-        UpsertClassRequest: {
-            name: string;
-            color: string;
-        };
-        ModelItem: {
-            id: string;
-            label: string;
-            modelType: string;
-            available: boolean;
-            active: boolean;
-            supportsText: boolean;
-        };
-        SegmentationPoint: {
-            /** @enum {string} */
-            pointType: "positive" | "negative";
-            className: string;
-            x: string;
-            y: string;
-        };
-        SegmentationRequest: {
-            points: components["schemas"]["SegmentationPoint"][];
-            /** Format: int64 */
-            imageId: number;
-        };
-        SegmentationResponse: {
-            /** @enum {string} */
-            state: "idle" | "pending" | "ready" | "error";
-            message: string;
-            shapes: components["schemas"]["Shape"][];
-        };
-        SaveAnnotationsRequest: {
-            /** @enum {string} */
-            exportFormat: "segmentation" | "detection";
-            shapes: components["schemas"]["Shape"][];
-            /** Format: int64 */
-            imageId: number;
-        };
-        SkipRequest: {
-            /** Format: int64 */
-            imageId: number;
-        };
-        JobStatusResponse: {
-            running: boolean;
-            message: string;
-        };
-        AugmentRequest: {
-            imageIds: number[];
-            /**
-             * Format: int32
-             * @default 9
-             */
-            numAugmentations: number;
-        };
-        TrainRequest: {
-            modelName: string;
-            /**
-             * Format: int32
-             * @default 50
-             */
-            epochs: number;
-            /**
-             * Format: int32
-             * @default 16
-             */
-            batch: number;
-            /**
-             * Format: int32
-             * @default 640
-             */
-            imgsz: number;
-        };
+  schemas: {
+    LivenessResponse: {
+      /** @enum {string} */
+      status: 'ok';
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    HealthStatus: {
+      message: string;
+      ready: boolean;
+      inferenceAvailable: boolean;
+      databaseAccessible: boolean;
+    };
+    Point: {
+      /**
+       * @description X coordinate (decimal string for precision)
+       * @example 123.45
+       */
+      x: string;
+      /**
+       * @description Y coordinate (decimal string for precision)
+       * @example 456.78
+       */
+      y: string;
+    };
+    Shape: {
+      /** @description Unique annotation ID */
+      id: string;
+      /** @description Annotation class/label */
+      className: string;
+      /** @description Polygon vertices */
+      points: components['schemas']['Point'][];
+    };
+    GalleryStats: {
+      pending: number;
+      done: number;
+      skipped: number;
+      total: number;
+      /**
+       * Format: double
+       * @description Completion percentage (0.0 - 100.0)
+       */
+      pct: number;
+    };
+    GalleryItem: {
+      /** Format: int64 */
+      id: number;
+      label: string;
+      /** Format: uri */
+      src: string;
+      /** Format: uri */
+      thumbSrc: string;
+      format: string;
+      /** @enum {string} */
+      status: 'pending' | 'done' | 'skipped';
+      /** @description Last update timestamp (RFC 3339 or empty) */
+      updated: string;
+      annotations?: components['schemas']['Shape'][];
+    };
+    GalleryResponse: {
+      items: components['schemas']['GalleryItem'][];
+      stats: components['schemas']['GalleryStats'];
+    };
+    ParentImageItem: {
+      /** Format: int64 */
+      id: number;
+      label: string;
+      /** Format: uri */
+      src: string;
+      format: string;
+      /** @enum {string} */
+      status: 'pending' | 'done' | 'skipped';
+      /** @description Last update timestamp (RFC 3339 or empty) */
+      updated_at: string;
+      /** Format: int64 */
+      aug_count: number;
+    };
+    DeleteImagesRequest: {
+      imageIds: number[];
+    };
+    ClassItem: {
+      /** Format: int64 */
+      id: number;
+      name: string;
+      color: string;
+    };
+    UpsertClassRequest: {
+      name: string;
+      color: string;
+    };
+    ModelItem: {
+      id: string;
+      label: string;
+      modelType: string;
+      available: boolean;
+      active: boolean;
+      supportsText: boolean;
+    };
+    SegmentationPoint: {
+      /** @enum {string} */
+      pointType: 'positive' | 'negative';
+      className: string;
+      x: string;
+      y: string;
+    };
+    SegmentationRequest: {
+      points: components['schemas']['SegmentationPoint'][];
+      /** Format: int64 */
+      imageId: number;
+    };
+    SegmentationResponse: {
+      /** @enum {string} */
+      state: 'idle' | 'pending' | 'ready' | 'error';
+      message: string;
+      shapes: components['schemas']['Shape'][];
+    };
+    SaveAnnotationsRequest: {
+      /** @enum {string} */
+      exportFormat: 'segmentation' | 'detection';
+      shapes: components['schemas']['Shape'][];
+      /** Format: int64 */
+      imageId: number;
+    };
+    SkipRequest: {
+      /** Format: int64 */
+      imageId: number;
+    };
+    JobStatusResponse: {
+      running: boolean;
+      message: string;
+    };
+    AugmentRequest: {
+      imageIds: number[];
+      /**
+       * Format: int32
+       * @default 9
+       */
+      numAugmentations: number;
+    };
+    TrainRequest: {
+      modelName: string;
+      /**
+       * Format: int32
+       * @default 50
+       */
+      epochs: number;
+      /**
+       * Format: int32
+       * @default 16
+       */
+      batch: number;
+      /**
+       * Format: int32
+       * @default 640
+       */
+      imgsz: number;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    liveness: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Process is alive */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LivenessResponse"];
-                };
-            };
-        };
+  liveness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    readiness: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Process is alive */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Service readiness status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthStatus"];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['LivenessResponse'];
         };
+      };
     };
-    health: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Service health status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthStatus"];
-                };
-            };
-        };
+  };
+  readiness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getGallery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Service readiness status */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Gallery with items and stats */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryResponse"];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['HealthStatus'];
         };
+      };
     };
-    getGroupedGallery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Grouped gallery items */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ParentImageItem"][];
-                };
-            };
-        };
+  };
+  health: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    importGallery: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Service health status */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "multipart/form-data": {
-                    /** @description Image files to upload */
-                    files: string[];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['HealthStatus'];
         };
-        responses: {
-            /** @description Updated gallery */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryResponse"];
-                };
-            };
-        };
+      };
     };
-    serveImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Image file */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "image/*": string;
-                };
-            };
-        };
+  };
+  getGallery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    serveThumbnail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Gallery with items and stats */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Thumbnail image */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "image/jpeg": string;
-                };
-            };
+        content: {
+          'application/json': components['schemas']['GalleryResponse'];
         };
+      };
     };
-    deleteImages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DeleteImagesRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated gallery */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryResponse"];
-                };
-            };
-        };
+  };
+  getGroupedGallery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getAnnotations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Grouped gallery items */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Annotation shapes */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Shape"][];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['ParentImageItem'][];
         };
+      };
     };
-    saveAnnotations: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SaveAnnotationsRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated gallery */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryResponse"];
-                };
-            };
-        };
+  };
+  importGallery: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    skipImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** @description Image files to upload */
+          files: string[];
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SkipRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated gallery */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GalleryResponse"];
-                };
-            };
-        };
+      };
     };
-    listClasses: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Updated gallery */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Class list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClassItem"][];
-                };
-            };
+        content: {
+          'application/json': components['schemas']['GalleryResponse'];
         };
+      };
     };
-    upsertClass: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertClassRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated class list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClassItem"][];
-                };
-            };
-        };
+  };
+  serveImage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: number;
+      };
+      cookie?: never;
     };
-    listModels: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Image file */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Model list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelItem"][];
-                };
-            };
+        content: {
+          'image/*': string;
         };
+      };
     };
-    segment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SegmentationRequest"];
-            };
-        };
-        responses: {
-            /** @description Segmentation result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SegmentationResponse"];
-                };
-            };
-        };
+  };
+  serveThumbnail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: number;
+      };
+      cookie?: never;
     };
-    startAugment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Thumbnail image */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AugmentRequest"];
-            };
+        content: {
+          'image/jpeg': string;
         };
-        responses: {
-            /** @description Augmentation started */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"];
-                };
-            };
-        };
+      };
     };
-    getAugmentStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Job running status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"];
-                };
-            };
-        };
+  };
+  deleteImages: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    streamAugment: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description SSE event stream */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeleteImagesRequest'];
+      };
     };
-    startTrain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Updated gallery */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrainRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['GalleryResponse'];
         };
-        responses: {
-            /** @description Training started */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"];
-                };
-            };
-        };
+      };
     };
-    getTrainStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Job running status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobStatusResponse"];
-                };
-            };
-        };
+  };
+  getAnnotations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: number;
+      };
+      cookie?: never;
     };
-    streamTrain: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Annotation shapes */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description SSE event stream */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
+        content: {
+          'application/json': components['schemas']['Shape'][];
         };
+      };
     };
+  };
+  saveAnnotations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SaveAnnotationsRequest'];
+      };
+    };
+    responses: {
+      /** @description Updated gallery */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GalleryResponse'];
+        };
+      };
+    };
+  };
+  skipImage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SkipRequest'];
+      };
+    };
+    responses: {
+      /** @description Updated gallery */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GalleryResponse'];
+        };
+      };
+    };
+  };
+  listClasses: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Class list */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ClassItem'][];
+        };
+      };
+    };
+  };
+  upsertClass: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpsertClassRequest'];
+      };
+    };
+    responses: {
+      /** @description Updated class list */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ClassItem'][];
+        };
+      };
+    };
+  };
+  listModels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Model list */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ModelItem'][];
+        };
+      };
+    };
+  };
+  segment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SegmentationRequest'];
+      };
+    };
+    responses: {
+      /** @description Segmentation result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SegmentationResponse'];
+        };
+      };
+    };
+  };
+  startAugment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AugmentRequest'];
+      };
+    };
+    responses: {
+      /** @description Augmentation started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JobStatusResponse'];
+        };
+      };
+    };
+  };
+  getAugmentStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Job running status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JobStatusResponse'];
+        };
+      };
+    };
+  };
+  streamAugment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description SSE event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/event-stream': string;
+        };
+      };
+    };
+  };
+  startTrain: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TrainRequest'];
+      };
+    };
+    responses: {
+      /** @description Training started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JobStatusResponse'];
+        };
+      };
+    };
+  };
+  getTrainStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Job running status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JobStatusResponse'];
+        };
+      };
+    };
+  };
+  streamTrain: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description SSE event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/event-stream': string;
+        };
+      };
+    };
+  };
 }

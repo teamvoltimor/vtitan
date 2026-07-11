@@ -15,6 +15,14 @@ services:
       - ./ml-service/data:/app/data:rw
       - ./ml-service/models:/app/models:rw
     # gRPC is only reachable within the compose network — no external port binding.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('localhost', ${GRPC_PORT:-50051}), timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 16g
+    cpus: 4
 
   api:
     build:
@@ -34,13 +42,18 @@ services:
       - ./ml-service/models:/app/models:ro
       - ./ml-service/config:/app/config:ro
     depends_on:
-      - ml-service
+      ml-service:
+        condition: service_healthy
+    # The distroless runtime image has no shell/wget -- /app/bin/healthcheck
+    # is the Go-native probe binary built alongside the API in Dockerfile.api.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${API_PORT:-8000}/readyz"]
+      test: ["CMD", "/app/bin/healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    mem_limit: 512m
+    cpus: 1
 
   frontend:
     build:
@@ -48,7 +61,9 @@ services:
       dockerfile: Dockerfile.frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-80}:8080"
     depends_on:
       api:
         condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.5

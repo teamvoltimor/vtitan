@@ -1,11 +1,11 @@
-import type { Detection2DArrayMsg } from '../../types'
-import { formatNumber } from '../../utils/formatting'
-import { VISION_CONFIG, COLORS } from '../../config'
+import type { Detection2DArrayMsg } from '../../types';
+import { formatNumber } from '../../utils/formatting';
+import { VISION_CONFIG, COLORS } from '../../config';
 
 /** Draws vision detection bounding boxes, coloured by class, from a Detection2DArray. */
 export function VisionBoundingBoxes({ data }: { data: Detection2DArrayMsg }) {
   if (!data?.detections || data.detections.length === 0) {
-    return <div className="specialized-viz">No detections</div>
+    return <div className="specialized-viz">No detections</div>;
   }
 
   return (
@@ -16,28 +16,29 @@ export function VisionBoundingBoxes({ data }: { data: Detection2DArrayMsg }) {
         viewBox={VISION_CONFIG.VIEWBOX}
         style={{ background: '#111', borderRadius: '4px' }}
       >
-        {data.detections.map((det, i) => {
-          const hypothesis = det.results?.[0]?.hypothesis
-          const classId = hypothesis?.class_id ?? 'unknown'
-          const score = hypothesis?.score ?? 0
+        <title>{data.detections.length} vision detection(s)</title>
+        {data.detections.map((det) => {
+          const hypothesis = det.results?.[0]?.hypothesis;
+          const classId = hypothesis?.class_id ?? 'unknown';
+          const score = hypothesis?.score ?? 0;
 
-          const bbox = det.bbox
-          const cx = bbox?.center?.position?.x ?? 0
-          const cy = bbox?.center?.position?.y ?? 0
-          const w = bbox?.size_x ?? 0
-          const h = bbox?.size_y ?? 0
+          const bbox = det.bbox;
+          const cx = bbox?.center?.position?.x ?? 0;
+          const cy = bbox?.center?.position?.y ?? 0;
+          const w = bbox?.size_x ?? 0;
+          const h = bbox?.size_y ?? 0;
 
-          const x = cx - w / 2
-          const y = cy - h / 2
+          const x = cx - w / 2;
+          const y = cy - h / 2;
 
           const color = classId.includes('red')
             ? VISION_CONFIG.COLORS.RED
             : classId.includes('green')
               ? VISION_CONFIG.COLORS.GREEN
-              : VISION_CONFIG.COLORS.BLUE
+              : VISION_CONFIG.COLORS.BLUE;
 
           return (
-            <g key={i}>
+            <g key={`${classId}-${cx}-${cy}-${w}-${h}`}>
               <rect
                 x={x}
                 y={y}
@@ -50,7 +51,10 @@ export function VisionBoundingBoxes({ data }: { data: Detection2DArrayMsg }) {
               <rect
                 x={x}
                 y={y - 20}
-                width={Math.max(VISION_CONFIG.MIN_LABEL_WIDTH, classId.length * VISION_CONFIG.LABEL_WIDTH_PER_CHAR)}
+                width={Math.max(
+                  VISION_CONFIG.MIN_LABEL_WIDTH,
+                  classId.length * VISION_CONFIG.LABEL_WIDTH_PER_CHAR
+                )}
                 height="20"
                 fill={color}
               />
@@ -58,9 +62,9 @@ export function VisionBoundingBoxes({ data }: { data: Detection2DArrayMsg }) {
                 {classId} ({formatNumber(score * 100, { decimals: 0, unit: '%' })})
               </text>
             </g>
-          )
+          );
         })}
       </svg>
     </div>
-  )
+  );
 }

@@ -83,7 +83,15 @@ const SettingsTab = () => {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     void updateClassColor(cls, e.target.value)
                   }
-                  sx={{ width: 28, height: 28, border: 'none', p: 0, cursor: 'pointer', borderRadius: '4px', bgcolor: 'transparent' }}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    border: 'none',
+                    p: 0,
+                    cursor: 'pointer',
+                    borderRadius: '4px',
+                    bgcolor: 'transparent',
+                  }}
                 />
                 <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }}>
                   {cls}
@@ -98,8 +106,18 @@ const SettingsTab = () => {
               component="input"
               type="color"
               value={newClassColor}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewClassColor(e.target.value)}
-              sx={{ width: 28, height: 28, border: 'none', p: 0, cursor: 'pointer', borderRadius: '4px', bgcolor: 'transparent' }}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setNewClassColor(e.target.value)
+              }
+              sx={{
+                width: 28,
+                height: 28,
+                border: 'none',
+                p: 0,
+                cursor: 'pointer',
+                borderRadius: '4px',
+                bgcolor: 'transparent',
+              }}
             />
             <TextField
               size="small"

@@ -97,7 +97,7 @@ describe('POST /annotations/* endpoints', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageId: 1, exportFormat: 'detection', shapes: [] }),
-      }),
+      })
     );
   });
 
@@ -110,7 +110,7 @@ describe('POST /annotations/* endpoints', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ imageId: 7 }),
-      }),
+      })
     );
   });
 });
@@ -126,7 +126,7 @@ describe('POST /segment', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ imageId: 3, points }),
-      }),
+      })
     );
   });
 });
@@ -141,7 +141,7 @@ describe('POST /classes', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ name: 'dog', color: '#ff0000' }),
-      }),
+      })
     );
   });
 });
@@ -156,7 +156,7 @@ describe('POST /images/delete', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ imageIds: [1, 2, 3] }),
-      }),
+      })
     );
   });
 });
@@ -193,7 +193,7 @@ describe('POST /augment/start and /train/start', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ imageIds: [4, 5], numAugmentations: 10 }),
-      }),
+      })
     );
   });
 
@@ -207,7 +207,7 @@ describe('POST /augment/start and /train/start', () => {
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify(params),
-      }),
+      })
     );
   });
 });

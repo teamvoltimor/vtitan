@@ -9,12 +9,27 @@ interface AnnotatedThumbnailProps {
   borderRadius?: string;
 }
 
-const COLORS = ['#ef5350', '#66bb6a', '#42a5f5', '#ffa726', '#ab47bc', '#ec407a', '#26a69a', '#ff7043'];
+const COLORS = [
+  '#ef5350',
+  '#66bb6a',
+  '#42a5f5',
+  '#ffa726',
+  '#ab47bc',
+  '#ec407a',
+  '#26a69a',
+  '#ff7043',
+];
 
-const AnnotatedThumbnail = ({ src, alt, annotations, borderRadius = '6px' }: AnnotatedThumbnailProps) => {
+const AnnotatedThumbnail = ({
+  src,
+  alt,
+  annotations,
+  borderRadius = '6px',
+}: AnnotatedThumbnailProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: src is a re-run trigger for the ref-based img element, not read by name in the effect
   useEffect(() => {
     const canvas = canvasRef.current;
     const img = imgRef.current;

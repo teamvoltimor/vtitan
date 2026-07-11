@@ -1,15 +1,15 @@
-import type { RobotSnapshot } from '../../types'
-import { SIMULATION_CONFIG, SCENE_CONFIG } from '../../config'
-import { simToThree } from '../../utils/coords'
+import type { RobotSnapshot } from '../../types';
+import { SIMULATION_CONFIG, SCENE_CONFIG } from '../../config';
+import { simToThree } from '../../utils/coords';
 
 /** Renders the robot chassis plus a forward-heading marker. */
 export function RobotModel({ snapshot }: { snapshot: RobotSnapshot }) {
-  const robot = SCENE_CONFIG.ROBOT
-  const dims = SIMULATION_CONFIG.ROBOT.DIMENSIONS
-  const position = snapshot.robot_position ?? SIMULATION_CONFIG.ROBOT.DEFAULT_POSITION
+  const robot = SCENE_CONFIG.ROBOT;
+  const dims = SIMULATION_CONFIG.ROBOT.DIMENSIONS;
+  const position = snapshot.robot_position ?? SIMULATION_CONFIG.ROBOT.DEFAULT_POSITION;
   const orientation =
-    snapshot.robot_orientation ?? SIMULATION_CONFIG.ROBOT.DEFAULT_ORIENTATION_RADIANS
-  const available = snapshot.metrics.odometry_available
+    snapshot.robot_orientation ?? SIMULATION_CONFIG.ROBOT.DEFAULT_ORIENTATION_RADIANS;
+  const available = snapshot.metrics.odometry_available;
 
   return (
     <group position={simToThree(position)} rotation={[0, -orientation, 0]}>
@@ -23,10 +23,13 @@ export function RobotModel({ snapshot }: { snapshot: RobotSnapshot }) {
         />
       </mesh>
       {/* Forward-heading marker (points along the robot's local +X / front). */}
-      <mesh position={[dims[0] / 2 + robot.HEADING_LENGTH / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+      <mesh
+        position={[dims[0] / 2 + robot.HEADING_LENGTH / 2, 0, 0]}
+        rotation={[0, 0, -Math.PI / 2]}
+      >
         <coneGeometry args={[dims[1], robot.HEADING_LENGTH, 8]} />
         <meshStandardMaterial color={robot.EMISSIVE_ACTIVE} emissive={robot.EMISSIVE_ACTIVE} />
       </mesh>
     </group>
-  )
+  );
 }

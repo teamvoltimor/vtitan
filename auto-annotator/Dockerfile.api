@@ -17,20 +17,46 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
 
+# healthcheck is a tiny HTTP readiness probe, used in place of curl/wget so
+# the runtime image doesn't need either installed.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -o /app/healthcheck ./cmd/healthcheck
+
 
 # Runtime stage – minimal Alpine image with no build tools.
+#
+# NOT distroless: modernc.org/sqlite (the pure-Go SQLite driver used here)
+# fails to open its database file under gcr.io/distroless/static-debian12
+# AND gcr.io/distroless/base-debian12, both as root and as the nonroot user
+# ("ping db: unable to open database file (14)") -- verified locally across
+# both variants and multiple writable paths (/app, /home/nonroot) before
+# reverting. Root cause not pinned down (a distroless VFS/locking gap, not
+# a permissions issue, since it reproduces as root too); revisit if a fixed
+# driver version resolves it upstream.
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates wget
+RUN addgroup -g 10001 apiuser && adduser -D -u 10001 -G apiuser apiuser \
+    && apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-COPY --from=builder /app/api .
+# Binaries go under bin/ so ./api/openapi.yaml below (read at runtime via
+# DefaultOpenAPIPath = "api/openapi.yaml") doesn't collide with a file
+# also named /app/api.
+COPY --from=builder /app/api ./bin/api
+COPY --from=builder /app/healthcheck ./bin/healthcheck
 COPY --from=builder /build/openapi.yaml ./api/openapi.yaml
+
+RUN chown -R apiuser:apiuser /app
+USER apiuser
 
 ARG API_PORT=8000
 ENV API_PORT=${API_PORT}
 
 EXPOSE ${API_PORT}
 
-CMD ["/app/api"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
+    CMD ["/app/bin/healthcheck"]
+
+CMD ["/app/bin/api"]

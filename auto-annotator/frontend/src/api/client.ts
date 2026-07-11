@@ -41,7 +41,9 @@ export const getGallery = async (): Promise<GalleryResponse> => {
 
 export const importGalleryImages = async (files: FileList): Promise<GalleryResponse> => {
   const form = new FormData();
-  Array.from(files).forEach((file) => form.append('files', file));
+  for (const file of files) {
+    form.append('files', file);
+  }
   const response = await fetch(`${API}/gallery/import`, {
     method: 'POST',
     body: form,
@@ -49,13 +51,15 @@ export const importGalleryImages = async (files: FileList): Promise<GalleryRespo
   return handleResponse<GalleryResponse>(response);
 };
 
-export const segmentImage = (imageId: number, points: SegmentationPoint[]): Promise<SegmentationResponse> =>
-  postJSON('/segment', { imageId, points });
+export const segmentImage = (
+  imageId: number,
+  points: SegmentationPoint[]
+): Promise<SegmentationResponse> => postJSON('/segment', { imageId, points });
 
 export const saveAnnotations = (
   imageId: number,
   exportFormat: 'segmentation' | 'detection',
-  shapes: SegmentationShape[],
+  shapes: SegmentationShape[]
 ): Promise<GalleryResponse> => postJSON('/annotations/save', { imageId, exportFormat, shapes });
 
 export const skipImage = (imageId: number): Promise<GalleryResponse> =>
@@ -79,8 +83,10 @@ export const deleteImages = (imageIds: number[]): Promise<GalleryResponse> =>
 export const getGroupedGallery = (): Promise<GroupedGalleryItem[]> =>
   fetch(`${API}/gallery/grouped`).then((r) => handleResponse<GroupedGalleryItem[]>(r));
 
-export const startAugment = (imageIds: number[], numAugmentations: number): Promise<JobStatusResponse> =>
-  postJSON('/augment/start', { imageIds, numAugmentations });
+export const startAugment = (
+  imageIds: number[],
+  numAugmentations: number
+): Promise<JobStatusResponse> => postJSON('/augment/start', { imageIds, numAugmentations });
 
 export const getAugmentStatus = (): Promise<JobStatusResponse> =>
   fetch(`${API}/augment/status`).then((r) => handleResponse<JobStatusResponse>(r));

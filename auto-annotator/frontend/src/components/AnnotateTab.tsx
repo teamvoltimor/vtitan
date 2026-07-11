@@ -83,9 +83,14 @@ const AnnotateTab = () => {
   // Ref holds the authoritative queue; state mirrors it for canvas rendering.
   const clickQueue = useRef<AnnotationPoint[]>([]);
   const [queuedPoints, setQueuedPoints] = useState<AnnotationPoint[]>([]);
-  const { canvasRef, imageBounds } = useCanvasRender(annotationPoints, segmentationPreview, queuedPoints);
+  const { canvasRef, imageBounds } = useCanvasRender(
+    annotationPoints,
+    segmentationPreview,
+    queuedPoints
+  );
 
   // Clear the queue whenever the user switches to a different image.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedGalleryItem?.id is an intentional re-run trigger, not read inside the effect
   useEffect(() => {
     clickQueue.current = [];
     setQueuedPoints([]);
@@ -296,7 +301,10 @@ const AnnotateTab = () => {
           <ToggleButton value="auto" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
             Auto
           </ToggleButton>
-          <ToggleButton value="manual" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
+          <ToggleButton
+            value="manual"
+            sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}
+          >
             Manual
           </ToggleButton>
         </ToggleButtonGroup>
@@ -329,8 +337,18 @@ const AnnotateTab = () => {
         </Button>
         <ButtonGroup size="small" sx={{ ml: 0.5 }}>
           <Button onClick={acceptMask}>Accept</Button>
-          <Button onClick={undoAnnotationPoint} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Undo</Button>
-          <Button onClick={clearAnnotationPoints} disabled={annotationMode !== 'manual' || annotationPoints.length === 0}>Clear</Button>
+          <Button
+            onClick={undoAnnotationPoint}
+            disabled={annotationMode !== 'manual' || annotationPoints.length === 0}
+          >
+            Undo
+          </Button>
+          <Button
+            onClick={clearAnnotationPoints}
+            disabled={annotationMode !== 'manual' || annotationPoints.length === 0}
+          >
+            Clear
+          </Button>
         </ButtonGroup>
 
         <Box sx={{ flex: 1 }} />
@@ -338,7 +356,12 @@ const AnnotateTab = () => {
         <Button variant="text" size="small" onClick={goToPrev} disabled={!selectedGalleryItem}>
           Previous
         </Button>
-        <Button variant="text" size="small" onClick={() => void skipAndNext()} disabled={!selectedGalleryItem}>
+        <Button
+          variant="text"
+          size="small"
+          onClick={() => void skipAndNext()}
+          disabled={!selectedGalleryItem}
+        >
           Skip
         </Button>
         <Button

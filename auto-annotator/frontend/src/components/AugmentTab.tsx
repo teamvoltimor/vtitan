@@ -13,7 +13,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   augmentStreamUrl,
   getGroupedGallery,
@@ -27,24 +27,26 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [numAugmentations, setNumAugmentations] = useState(9);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number; step: string } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; step: string } | null>(
+    null
+  );
   const [finished, setFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     try {
       const items = await getGroupedGallery();
       setGroups(items.filter((g) => g.status === 'done'));
     } catch {
       setError('Failed to load images');
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadGroups();
     return () => esRef.current?.close();
-  }, []);
+  }, [loadGroups]);
 
   const toggleSelect = (id: number) =>
     setSelected((prev) => {
@@ -105,7 +107,9 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
   };
 
   const doneImages = groups.filter((g) => g.status === 'done');
-  const progressPct = progress ? Math.round((progress.done / Math.max(progress.total, 1)) * 100) : 0;
+  const progressPct = progress
+    ? Math.round((progress.done / Math.max(progress.total, 1)) * 100)
+    : 0;
 
   return (
     <Stack spacing={2.5}>
@@ -132,7 +136,8 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               size="small"
             />
             <Typography variant="caption" color="text.disabled">
-              Transforms: random brightness/contrast, horizontal flip, shift/scale/rotate, random crop
+              Transforms: random brightness/contrast, horizontal flip, shift/scale/rotate, random
+              crop
             </Typography>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center">
@@ -143,7 +148,9 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               disabled={running || selected.size === 0}
               size="small"
             >
-              {running ? 'Augmenting...' : `Augment ${selected.size} group${selected.size !== 1 ? 's' : ''}`}
+              {running
+                ? 'Augmenting...'
+                : `Augment ${selected.size} group${selected.size !== 1 ? 's' : ''}`}
             </Button>
             {selected.size > 0 && !running && (
               <Typography variant="caption" color="text.disabled">
@@ -167,7 +174,11 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                 {progress?.done ?? 0} / {progress?.total ?? 0}
               </Typography>
             </Stack>
-            <LinearProgress variant="determinate" value={progressPct} color={finished ? 'success' : 'primary'} />
+            <LinearProgress
+              variant="determinate"
+              value={progressPct}
+              color={finished ? 'success' : 'primary'}
+            />
             {progress?.step && (
               <Typography variant="caption" color="text.disabled" noWrap>
                 {progress.step}
@@ -236,7 +247,13 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                     <Box
                       component="img"
                       src={item.src}
-                      sx={{ width: 48, height: 32, objectFit: 'cover', borderRadius: '3px', flexShrink: 0 }}
+                      sx={{
+                        width: 48,
+                        height: 32,
+                        objectFit: 'cover',
+                        borderRadius: '3px',
+                        flexShrink: 0,
+                      }}
                     />
                     <Stack flex={1} minWidth={0}>
                       <Typography variant="body2" fontWeight={500} noWrap>
@@ -247,7 +264,13 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                       </Typography>
                     </Stack>
                     {item.aug_count > 0 && (
-                      <Chip label={`+${item.aug_count} aug`} size="small" color="success" variant="outlined" sx={{ fontSize: '0.6rem' }} />
+                      <Chip
+                        label={`+${item.aug_count} aug`}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        sx={{ fontSize: '0.6rem' }}
+                      />
                     )}
                   </Box>
                 ))}

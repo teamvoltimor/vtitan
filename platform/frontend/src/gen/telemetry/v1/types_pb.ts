@@ -2,25 +2,32 @@
 // @generated from file telemetry/v1/types.proto (package klevor.telemetry.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv1";
-import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv1";
-import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
-import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { file_google_protobuf_struct, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import type { JsonObject, Message } from "@bufbuild/protobuf";
+import type { GenEnum, GenFile, GenMessage } from '@bufbuild/protobuf/codegenv1';
+import { enumDesc, fileDesc, messageDesc } from '@bufbuild/protobuf/codegenv1';
+import { file_buf_validate_validate } from '../../buf/validate/validate_pb';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import {
+  file_google_protobuf_struct,
+  file_google_protobuf_timestamp,
+} from '@bufbuild/protobuf/wkt';
+import type { JsonObject, Message } from '@bufbuild/protobuf';
 
 /**
  * Describes the file telemetry/v1/types.proto.
  */
-export const file_telemetry_v1_types: GenFile = /*@__PURE__*/
-  fileDesc("Chh0ZWxlbWV0cnkvdjEvdHlwZXMucHJvdG8SE2tsZXZvci50ZWxlbWV0cnkudjEiLQoKUG9zaXRpb24zRBIJCgF4GAEgASgBEgkKAXkYAiABKAESCQoBehgDIAEoASLeAQoHSW11RGF0YRI8ChNsaW5lYXJfYWNjZWxlcmF0aW9uGAEgASgLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNEEjkKEGFuZ3VsYXJfdmVsb2NpdHkYAiABKAsyHy5rbGV2b3IudGVsZW1ldHJ5LnYxLlBvc2l0aW9uM0QSFQoNb3JpZW50YXRpb25feBgDIAEoARIVCg1vcmllbnRhdGlvbl95GAQgASgBEhUKDW9yaWVudGF0aW9uX3oYBSABKAESFQoNb3JpZW50YXRpb25fdxgGIAEoASKMAQoJRGV0ZWN0aW9uEhIKCmNsYXNzX25hbWUYASABKAkSKwoKY29uZmlkZW5jZRgCIAEoAUIXukgUEhIZAAAAAAAA8D8pAAAAAAAAAAASDgoGYmJveF94GAMgASgBEg4KBmJib3hfeRgEIAEoARIOCgZiYm94X3cYBSABKAESDgoGYmJveF9oGAYgASgBIlMKCk1vdG9yU3RhdGUSFgoOc3RlZXJpbmdfYW5nbGUYASABKAESEwoLZHJpdmVfc3BlZWQYAiABKAESGAoQZW5jb2Rlcl9wb3NpdGlvbhgDIAEoBSKgBQoQVGVsZW1ldHJ5TWV0cmljcxI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESNAoLbm9kZV9oZWFsdGgYAiABKA4yHy5rbGV2b3IudGVsZW1ldHJ5LnYxLk5vZGVIZWFsdGgSIAoPcG9pbnRzX2NhcHR1cmVkGAMgASgFQge6SAQaAigAEiYKCXJhbmdlX21pbhgEIAEoAUIOukgLEgkpAAAAAAAAAABIAIgBARImCglyYW5nZV9tYXgYBSABKAFCDrpICxIJKQAAAAAAAAAASAGIAQESJwoKcmFuZ2VfbWVhbhgGIAEoAUIOukgLEgkpAAAAAAAAAABIAogBARIkCgdmb3J3YXJkGAcgASgBQg66SAsSCSkAAAAAAAAAAEgDiAEBEiEKBGxlZnQYCCABKAFCDrpICxIJKQAAAAAAAAAASASIAQESIgoFcmlnaHQYCSABKAFCDrpICxIJKQAAAAAAAAAASAWIAQESIQoEYmFjaxgKIAEoAUIOukgLEgkpAAAAAAAAAABIBogBARIiCgVzcGVlZBgLIAEoAUIOukgLEgkpAAAAAAAAAABIB4gBARINCgVzdGFnZRgMIAEoCRIXCg9saWRhcl9hdmFpbGFibGUYDSABKAgSFQoNaW11X2F2YWlsYWJsZRgOIAEoCBIYChBjYW1lcmFfYXZhaWxhYmxlGA8gASgIEhoKEm9kb21ldHJ5X2F2YWlsYWJsZRgQIAEoCEIMCgpfcmFuZ2VfbWluQgwKCl9yYW5nZV9tYXhCDQoLX3JhbmdlX21lYW5CCgoIX2ZvcndhcmRCBwoFX2xlZnRCCAoGX3JpZ2h0QgcKBV9iYWNrQggKBl9zcGVlZCLwBAoNUm9ib3RTbmFwc2hvdBI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESHQoMbWlzc2lvbl9uYW1lGAIgASgJQge6SARyAhABEjwKDnJvYm90X3Bvc2l0aW9uGAMgASgLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNESACIAQESHgoRcm9ib3Rfb3JpZW50YXRpb24YBCABKAFIAYgBARI1CgxsaWRhcl9wb2ludHMYBSADKAsyHy5rbGV2b3IudGVsZW1ldHJ5LnYxLlBvc2l0aW9uM0QSNQoMcGF0aF9oaXN0b3J5GAYgAygLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNEEgwKBGxvZ3MYByADKAkSPgoHbWV0cmljcxgIIAEoCzIlLmtsZXZvci50ZWxlbWV0cnkudjEuVGVsZW1ldHJ5TWV0cmljc0IGukgDyAEBEjMKCGltdV9kYXRhGAkgASgLMhwua2xldm9yLnRlbGVtZXRyeS52MS5JbXVEYXRhSAKIAQESOQoRdmlzaW9uX2RldGVjdGlvbnMYCiADKAsyHi5rbGV2b3IudGVsZW1ldHJ5LnYxLkRldGVjdGlvbhI5Cgttb3Rvcl9zdGF0ZRgLIAEoCzIfLmtsZXZvci50ZWxlbWV0cnkudjEuTW90b3JTdGF0ZUgDiAEBQhEKD19yb2JvdF9wb3NpdGlvbkIUChJfcm9ib3Rfb3JpZW50YXRpb25CCwoJX2ltdV9kYXRhQg4KDF9tb3Rvcl9zdGF0ZSLGAQoLVG9waWNVcGRhdGUSGwoKdG9waWNfbmFtZRgBIAEoCUIHukgEcgIQARIUCgxtZXNzYWdlX3R5cGUYAiABKAkSNQoJdGltZXN0YW1wGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEiYKDnVwZGF0ZV9yYXRlX2h6GAQgASgBQg66SAsSCSEAAAAAAAAAABIlCgRkYXRhGAUgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdCJ5Cg5Ub3BpY3NTbmFwc2hvdBI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESMAoGdG9waWNzGAIgAygLMiAua2xldm9yLnRlbGVtZXRyeS52MS5Ub3BpY1VwZGF0ZSKGAQoRUmVwbGF5U2Vzc2lvbkluZm8SGwoKc2Vzc2lvbl9pZBgBIAEoCUIHukgEcgIQARI2CgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEhwKC2VudHJ5X2NvdW50GAMgASgFQge6SAQaAigAKngKCk5vZGVIZWFsdGgSGwoXTk9ERV9IRUFMVEhfVU5TUEVDSUZJRUQQABIXChNOT0RFX0hFQUxUSF9OT01JTkFMEAESGAoUTk9ERV9IRUFMVEhfV0FUQ0hET0cQAhIaChZOT0RFX0hFQUxUSF9SRVBMQU5OSU5HEANCQlpAZ2l0aHViLmNvbS9rbGV2b3IvdGVsZW1ldHJ5LWJhY2tlbmQvZ2VuL3RlbGVtZXRyeS92MTt0ZWxlbWV0cnl2MWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_struct, file_google_protobuf_timestamp]);
+export const file_telemetry_v1_types: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    'Chh0ZWxlbWV0cnkvdjEvdHlwZXMucHJvdG8SE2tsZXZvci50ZWxlbWV0cnkudjEiLQoKUG9zaXRpb24zRBIJCgF4GAEgASgBEgkKAXkYAiABKAESCQoBehgDIAEoASLeAQoHSW11RGF0YRI8ChNsaW5lYXJfYWNjZWxlcmF0aW9uGAEgASgLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNEEjkKEGFuZ3VsYXJfdmVsb2NpdHkYAiABKAsyHy5rbGV2b3IudGVsZW1ldHJ5LnYxLlBvc2l0aW9uM0QSFQoNb3JpZW50YXRpb25feBgDIAEoARIVCg1vcmllbnRhdGlvbl95GAQgASgBEhUKDW9yaWVudGF0aW9uX3oYBSABKAESFQoNb3JpZW50YXRpb25fdxgGIAEoASKMAQoJRGV0ZWN0aW9uEhIKCmNsYXNzX25hbWUYASABKAkSKwoKY29uZmlkZW5jZRgCIAEoAUIXukgUEhIZAAAAAAAA8D8pAAAAAAAAAAASDgoGYmJveF94GAMgASgBEg4KBmJib3hfeRgEIAEoARIOCgZiYm94X3cYBSABKAESDgoGYmJveF9oGAYgASgBIlMKCk1vdG9yU3RhdGUSFgoOc3RlZXJpbmdfYW5nbGUYASABKAESEwoLZHJpdmVfc3BlZWQYAiABKAESGAoQZW5jb2Rlcl9wb3NpdGlvbhgDIAEoBSKgBQoQVGVsZW1ldHJ5TWV0cmljcxI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESNAoLbm9kZV9oZWFsdGgYAiABKA4yHy5rbGV2b3IudGVsZW1ldHJ5LnYxLk5vZGVIZWFsdGgSIAoPcG9pbnRzX2NhcHR1cmVkGAMgASgFQge6SAQaAigAEiYKCXJhbmdlX21pbhgEIAEoAUIOukgLEgkpAAAAAAAAAABIAIgBARImCglyYW5nZV9tYXgYBSABKAFCDrpICxIJKQAAAAAAAAAASAGIAQESJwoKcmFuZ2VfbWVhbhgGIAEoAUIOukgLEgkpAAAAAAAAAABIAogBARIkCgdmb3J3YXJkGAcgASgBQg66SAsSCSkAAAAAAAAAAEgDiAEBEiEKBGxlZnQYCCABKAFCDrpICxIJKQAAAAAAAAAASASIAQESIgoFcmlnaHQYCSABKAFCDrpICxIJKQAAAAAAAAAASAWIAQESIQoEYmFjaxgKIAEoAUIOukgLEgkpAAAAAAAAAABIBogBARIiCgVzcGVlZBgLIAEoAUIOukgLEgkpAAAAAAAAAABIB4gBARINCgVzdGFnZRgMIAEoCRIXCg9saWRhcl9hdmFpbGFibGUYDSABKAgSFQoNaW11X2F2YWlsYWJsZRgOIAEoCBIYChBjYW1lcmFfYXZhaWxhYmxlGA8gASgIEhoKEm9kb21ldHJ5X2F2YWlsYWJsZRgQIAEoCEIMCgpfcmFuZ2VfbWluQgwKCl9yYW5nZV9tYXhCDQoLX3JhbmdlX21lYW5CCgoIX2ZvcndhcmRCBwoFX2xlZnRCCAoGX3JpZ2h0QgcKBV9iYWNrQggKBl9zcGVlZCLwBAoNUm9ib3RTbmFwc2hvdBI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESHQoMbWlzc2lvbl9uYW1lGAIgASgJQge6SARyAhABEjwKDnJvYm90X3Bvc2l0aW9uGAMgASgLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNESACIAQESHgoRcm9ib3Rfb3JpZW50YXRpb24YBCABKAFIAYgBARI1CgxsaWRhcl9wb2ludHMYBSADKAsyHy5rbGV2b3IudGVsZW1ldHJ5LnYxLlBvc2l0aW9uM0QSNQoMcGF0aF9oaXN0b3J5GAYgAygLMh8ua2xldm9yLnRlbGVtZXRyeS52MS5Qb3NpdGlvbjNEEgwKBGxvZ3MYByADKAkSPgoHbWV0cmljcxgIIAEoCzIlLmtsZXZvci50ZWxlbWV0cnkudjEuVGVsZW1ldHJ5TWV0cmljc0IGukgDyAEBEjMKCGltdV9kYXRhGAkgASgLMhwua2xldm9yLnRlbGVtZXRyeS52MS5JbXVEYXRhSAKIAQESOQoRdmlzaW9uX2RldGVjdGlvbnMYCiADKAsyHi5rbGV2b3IudGVsZW1ldHJ5LnYxLkRldGVjdGlvbhI5Cgttb3Rvcl9zdGF0ZRgLIAEoCzIfLmtsZXZvci50ZWxlbWV0cnkudjEuTW90b3JTdGF0ZUgDiAEBQhEKD19yb2JvdF9wb3NpdGlvbkIUChJfcm9ib3Rfb3JpZW50YXRpb25CCwoJX2ltdV9kYXRhQg4KDF9tb3Rvcl9zdGF0ZSLGAQoLVG9waWNVcGRhdGUSGwoKdG9waWNfbmFtZRgBIAEoCUIHukgEcgIQARIUCgxtZXNzYWdlX3R5cGUYAiABKAkSNQoJdGltZXN0YW1wGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEiYKDnVwZGF0ZV9yYXRlX2h6GAQgASgBQg66SAsSCSEAAAAAAAAAABIlCgRkYXRhGAUgASgLMhcuZ29vZ2xlLnByb3RvYnVmLlN0cnVjdCJ5Cg5Ub3BpY3NTbmFwc2hvdBI1Cgl0aW1lc3RhbXAYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQga6SAPIAQESMAoGdG9waWNzGAIgAygLMiAua2xldm9yLnRlbGVtZXRyeS52MS5Ub3BpY1VwZGF0ZSKGAQoRUmVwbGF5U2Vzc2lvbkluZm8SGwoKc2Vzc2lvbl9pZBgBIAEoCUIHukgEcgIQARI2CgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEIGukgDyAEBEhwKC2VudHJ5X2NvdW50GAMgASgFQge6SAQaAigAKngKCk5vZGVIZWFsdGgSGwoXTk9ERV9IRUFMVEhfVU5TUEVDSUZJRUQQABIXChNOT0RFX0hFQUxUSF9OT01JTkFMEAESGAoUTk9ERV9IRUFMVEhfV0FUQ0hET0cQAhIaChZOT0RFX0hFQUxUSF9SRVBMQU5OSU5HEANCQlpAZ2l0aHViLmNvbS9rbGV2b3IvdGVsZW1ldHJ5LWJhY2tlbmQvZ2VuL3RlbGVtZXRyeS92MTt0ZWxlbWV0cnl2MWIGcHJvdG8z',
+    [file_buf_validate_validate, file_google_protobuf_struct, file_google_protobuf_timestamp]
+  );
 
 /**
  * Position3D is a point in 3-D space (meters).
  *
  * @generated from message klevor.telemetry.v1.Position3D
  */
-export type Position3D = Message<"klevor.telemetry.v1.Position3D"> & {
+export type Position3D = Message<'klevor.telemetry.v1.Position3D'> & {
   /**
    * @generated from field: double x = 1;
    */
@@ -41,7 +48,8 @@ export type Position3D = Message<"klevor.telemetry.v1.Position3D"> & {
  * Describes the message klevor.telemetry.v1.Position3D.
  * Use `create(Position3DSchema)` to create a new message.
  */
-export const Position3DSchema: GenMessage<Position3D> = /*@__PURE__*/
+export const Position3DSchema: GenMessage<Position3D> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 0);
 
 /**
@@ -49,7 +57,7 @@ export const Position3DSchema: GenMessage<Position3D> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.ImuData
  */
-export type ImuData = Message<"klevor.telemetry.v1.ImuData"> & {
+export type ImuData = Message<'klevor.telemetry.v1.ImuData'> & {
   /**
    * linear_acceleration in m/s² (x, y, z)
    *
@@ -91,7 +99,8 @@ export type ImuData = Message<"klevor.telemetry.v1.ImuData"> & {
  * Describes the message klevor.telemetry.v1.ImuData.
  * Use `create(ImuDataSchema)` to create a new message.
  */
-export const ImuDataSchema: GenMessage<ImuData> = /*@__PURE__*/
+export const ImuDataSchema: GenMessage<ImuData> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 1);
 
 /**
@@ -99,7 +108,7 @@ export const ImuDataSchema: GenMessage<ImuData> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.Detection
  */
-export type Detection = Message<"klevor.telemetry.v1.Detection"> & {
+export type Detection = Message<'klevor.telemetry.v1.Detection'> & {
   /**
    * "red_sign" | "green_sign"
    *
@@ -139,7 +148,8 @@ export type Detection = Message<"klevor.telemetry.v1.Detection"> & {
  * Describes the message klevor.telemetry.v1.Detection.
  * Use `create(DetectionSchema)` to create a new message.
  */
-export const DetectionSchema: GenMessage<Detection> = /*@__PURE__*/
+export const DetectionSchema: GenMessage<Detection> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 2);
 
 /**
@@ -147,7 +157,7 @@ export const DetectionSchema: GenMessage<Detection> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.MotorState
  */
-export type MotorState = Message<"klevor.telemetry.v1.MotorState"> & {
+export type MotorState = Message<'klevor.telemetry.v1.MotorState'> & {
   /**
    * radians
    *
@@ -174,7 +184,8 @@ export type MotorState = Message<"klevor.telemetry.v1.MotorState"> & {
  * Describes the message klevor.telemetry.v1.MotorState.
  * Use `create(MotorStateSchema)` to create a new message.
  */
-export const MotorStateSchema: GenMessage<MotorState> = /*@__PURE__*/
+export const MotorStateSchema: GenMessage<MotorState> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 3);
 
 /**
@@ -182,7 +193,7 @@ export const MotorStateSchema: GenMessage<MotorState> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.TelemetryMetrics
  */
-export type TelemetryMetrics = Message<"klevor.telemetry.v1.TelemetryMetrics"> & {
+export type TelemetryMetrics = Message<'klevor.telemetry.v1.TelemetryMetrics'> & {
   /**
    * @generated from field: google.protobuf.Timestamp timestamp = 1;
    */
@@ -274,7 +285,8 @@ export type TelemetryMetrics = Message<"klevor.telemetry.v1.TelemetryMetrics"> &
  * Describes the message klevor.telemetry.v1.TelemetryMetrics.
  * Use `create(TelemetryMetricsSchema)` to create a new message.
  */
-export const TelemetryMetricsSchema: GenMessage<TelemetryMetrics> = /*@__PURE__*/
+export const TelemetryMetricsSchema: GenMessage<TelemetryMetrics> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 4);
 
 /**
@@ -282,7 +294,7 @@ export const TelemetryMetricsSchema: GenMessage<TelemetryMetrics> = /*@__PURE__*
  *
  * @generated from message klevor.telemetry.v1.RobotSnapshot
  */
-export type RobotSnapshot = Message<"klevor.telemetry.v1.RobotSnapshot"> & {
+export type RobotSnapshot = Message<'klevor.telemetry.v1.RobotSnapshot'> & {
   /**
    * @generated from field: google.protobuf.Timestamp timestamp = 1;
    */
@@ -345,7 +357,8 @@ export type RobotSnapshot = Message<"klevor.telemetry.v1.RobotSnapshot"> & {
  * Describes the message klevor.telemetry.v1.RobotSnapshot.
  * Use `create(RobotSnapshotSchema)` to create a new message.
  */
-export const RobotSnapshotSchema: GenMessage<RobotSnapshot> = /*@__PURE__*/
+export const RobotSnapshotSchema: GenMessage<RobotSnapshot> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 5);
 
 /**
@@ -353,7 +366,7 @@ export const RobotSnapshotSchema: GenMessage<RobotSnapshot> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.TopicUpdate
  */
-export type TopicUpdate = Message<"klevor.telemetry.v1.TopicUpdate"> & {
+export type TopicUpdate = Message<'klevor.telemetry.v1.TopicUpdate'> & {
   /**
    * @generated from field: string topic_name = 1;
    */
@@ -386,7 +399,8 @@ export type TopicUpdate = Message<"klevor.telemetry.v1.TopicUpdate"> & {
  * Describes the message klevor.telemetry.v1.TopicUpdate.
  * Use `create(TopicUpdateSchema)` to create a new message.
  */
-export const TopicUpdateSchema: GenMessage<TopicUpdate> = /*@__PURE__*/
+export const TopicUpdateSchema: GenMessage<TopicUpdate> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 6);
 
 /**
@@ -394,7 +408,7 @@ export const TopicUpdateSchema: GenMessage<TopicUpdate> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.TopicsSnapshot
  */
-export type TopicsSnapshot = Message<"klevor.telemetry.v1.TopicsSnapshot"> & {
+export type TopicsSnapshot = Message<'klevor.telemetry.v1.TopicsSnapshot'> & {
   /**
    * @generated from field: google.protobuf.Timestamp timestamp = 1;
    */
@@ -410,7 +424,8 @@ export type TopicsSnapshot = Message<"klevor.telemetry.v1.TopicsSnapshot"> & {
  * Describes the message klevor.telemetry.v1.TopicsSnapshot.
  * Use `create(TopicsSnapshotSchema)` to create a new message.
  */
-export const TopicsSnapshotSchema: GenMessage<TopicsSnapshot> = /*@__PURE__*/
+export const TopicsSnapshotSchema: GenMessage<TopicsSnapshot> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 7);
 
 /**
@@ -418,7 +433,7 @@ export const TopicsSnapshotSchema: GenMessage<TopicsSnapshot> = /*@__PURE__*/
  *
  * @generated from message klevor.telemetry.v1.ReplaySessionInfo
  */
-export type ReplaySessionInfo = Message<"klevor.telemetry.v1.ReplaySessionInfo"> & {
+export type ReplaySessionInfo = Message<'klevor.telemetry.v1.ReplaySessionInfo'> & {
   /**
    * @generated from field: string session_id = 1;
    */
@@ -439,7 +454,8 @@ export type ReplaySessionInfo = Message<"klevor.telemetry.v1.ReplaySessionInfo">
  * Describes the message klevor.telemetry.v1.ReplaySessionInfo.
  * Use `create(ReplaySessionInfoSchema)` to create a new message.
  */
-export const ReplaySessionInfoSchema: GenMessage<ReplaySessionInfo> = /*@__PURE__*/
+export const ReplaySessionInfoSchema: GenMessage<ReplaySessionInfo> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_types, 8);
 
 /**
@@ -472,6 +488,6 @@ export enum NodeHealth {
 /**
  * Describes the enum klevor.telemetry.v1.NodeHealth.
  */
-export const NodeHealthSchema: GenEnum<NodeHealth> = /*@__PURE__*/
+export const NodeHealthSchema: GenEnum<NodeHealth> =
+  /*@__PURE__*/
   enumDesc(file_telemetry_v1_types, 0);
-

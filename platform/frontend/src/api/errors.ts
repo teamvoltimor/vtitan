@@ -1,6 +1,6 @@
 /**
  * src/api/errors.ts
- * 
+ *
  * Telemetry-specific error types with classification for retry logic.
  * Follows SOLID principles: error handling is centralized and reusable.
  */
@@ -17,10 +17,10 @@ export class TelemetryError extends Error {
     | 'TIMEOUT'
     | 'UNAUTHORIZED'
     | 'NOT_FOUND'
-    | 'SERVER_ERROR'
+    | 'SERVER_ERROR';
 
-  readonly statusCode?: number
-  readonly originalError?: unknown
+  readonly statusCode?: number;
+  readonly originalError?: unknown;
 
   constructor(
     code:
@@ -35,12 +35,12 @@ export class TelemetryError extends Error {
     statusCode?: number,
     originalError?: unknown
   ) {
-    super(message)
-    this.name = 'TelemetryError'
-    this.code = code
-    this.statusCode = statusCode
-    this.originalError = originalError
-    Object.setPrototypeOf(this, TelemetryError.prototype)
+    super(message);
+    this.name = 'TelemetryError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.originalError = originalError;
+    Object.setPrototypeOf(this, TelemetryError.prototype);
   }
 
   /**
@@ -49,29 +49,21 @@ export class TelemetryError extends Error {
    * Not retryable: validation errors, auth errors, 404s
    */
   isRetryable(): boolean {
-    return (
-      this.code === 'NETWORK' ||
-      this.code === 'TIMEOUT' ||
-      this.code === 'SERVER_ERROR'
-    )
+    return this.code === 'NETWORK' || this.code === 'TIMEOUT' || this.code === 'SERVER_ERROR';
   }
 
   /**
    * Determine if this error is permanent and won't be resolved by retrying.
    */
   isPermanent(): boolean {
-    return (
-      this.code === 'VALIDATION' ||
-      this.code === 'UNAUTHORIZED' ||
-      this.code === 'NOT_FOUND'
-    )
+    return this.code === 'VALIDATION' || this.code === 'UNAUTHORIZED' || this.code === 'NOT_FOUND';
   }
 }
 
 /**
  * Exponential backoff calculator for retry logic.
  * Prevents overwhelming servers during outages.
- * 
+ *
  * @example
  * const backoff = new ExponentialBackoff(1000, 30000, 5, 1.5)
  * const { delay, canRetry } = backoff.getNextDelay()
@@ -80,12 +72,12 @@ export class TelemetryError extends Error {
  * // After 5 attempts: canRetry = false
  */
 export class ExponentialBackoff {
-  private attemptCount = 0
+  private attemptCount = 0;
 
-  private readonly initialDelayMs: number
-  private readonly maxDelayMs: number
-  private readonly maxAttempts: number
-  private readonly multiplier: number
+  private readonly initialDelayMs: number;
+  private readonly maxDelayMs: number;
+  private readonly maxAttempts: number;
+  private readonly multiplier: number;
 
   constructor(
     initialDelayMs: number = 1000,
@@ -93,10 +85,10 @@ export class ExponentialBackoff {
     maxAttempts: number = 5,
     multiplier: number = 1.5
   ) {
-    this.initialDelayMs = initialDelayMs
-    this.maxDelayMs = maxDelayMs
-    this.maxAttempts = maxAttempts
-    this.multiplier = multiplier
+    this.initialDelayMs = initialDelayMs;
+    this.maxDelayMs = maxDelayMs;
+    this.maxAttempts = maxAttempts;
+    this.multiplier = multiplier;
   }
 
   /**
@@ -106,32 +98,32 @@ export class ExponentialBackoff {
   getNextDelay(): { delay: number; canRetry: boolean } {
     // Guard clause: max attempts reached
     if (this.attemptCount >= this.maxAttempts) {
-      return { delay: 0, canRetry: false }
+      return { delay: 0, canRetry: false };
     }
 
     // Calculate exponential delay with cap
     const delay = Math.min(
-      this.initialDelayMs * Math.pow(this.multiplier, this.attemptCount),
+      this.initialDelayMs * this.multiplier ** this.attemptCount,
       this.maxDelayMs
-    )
+    );
 
-    this.attemptCount++
+    this.attemptCount++;
 
-    return { delay, canRetry: this.attemptCount < this.maxAttempts }
+    return { delay, canRetry: this.attemptCount < this.maxAttempts };
   }
 
   /**
    * Reset attempt counter (e.g., after successful connection).
    */
   reset(): void {
-    this.attemptCount = 0
+    this.attemptCount = 0;
   }
 
   /**
    * Get current attempt number.
    */
   getAttemptCount(): number {
-    return this.attemptCount
+    return this.attemptCount;
   }
 }
 
@@ -139,9 +131,9 @@ export class ExponentialBackoff {
  * Helper to classify fetch/HTTP errors.
  */
 export function classifyHttpError(statusCode: number): TelemetryError['code'] {
-  if (statusCode === 401) return 'UNAUTHORIZED'
-  if (statusCode === 404) return 'NOT_FOUND'
-  if (statusCode >= 500) return 'SERVER_ERROR'
-  if (statusCode >= 400) return 'VALIDATION'
-  return 'NETWORK'
+  if (statusCode === 401) return 'UNAUTHORIZED';
+  if (statusCode === 404) return 'NOT_FOUND';
+  if (statusCode >= 500) return 'SERVER_ERROR';
+  if (statusCode >= 400) return 'VALIDATION';
+  return 'NETWORK';
 }

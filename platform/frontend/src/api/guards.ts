@@ -7,14 +7,14 @@
  * TopicsSnapshot carries `topics`.
  */
 
-import type { RobotSnapshot, TopicsSnapshot } from '../types'
+import type { RobotSnapshot, TopicsSnapshot } from '../types';
 
-export type TelemetryMessage = RobotSnapshot | TopicsSnapshot
+export type TelemetryMessage = RobotSnapshot | TopicsSnapshot;
 
 export function isRobotSnapshot(msg: TelemetryMessage): msg is RobotSnapshot {
-  return 'metrics' in msg
+  return 'metrics' in msg;
 }
 
 export function isTopicsSnapshot(msg: TelemetryMessage): msg is TopicsSnapshot {
-  return 'topics' in msg && !('metrics' in msg)
+  return 'topics' in msg && !('metrics' in msg);
 }

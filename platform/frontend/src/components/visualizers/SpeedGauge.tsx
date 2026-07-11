@@ -1,12 +1,12 @@
-import type { TwistMsg } from '../../types'
-import { formatNumber } from '../../utils/formatting'
-import { SPEED_GAUGE_CONFIG } from '../../config'
-import { Gauge } from '../ui'
+import type { TwistMsg } from '../../types';
+import { formatNumber } from '../../utils/formatting';
+import { SPEED_GAUGE_CONFIG } from '../../config';
+import { Gauge } from '../ui';
 
 /** Linear-speed gauge plus a steering-rate indicator, driven by a Twist. */
 export function SpeedGauge({ data }: { data: TwistMsg }) {
-  const linearSpeed = data?.linear?.x || 0
-  const angularSpeed = data?.angular?.z || 0
+  const linearSpeed = data?.linear?.x || 0;
+  const angularSpeed = data?.angular?.z || 0;
 
   return (
     <div className="specialized-viz speed-gauge">
@@ -25,5 +25,5 @@ export function SpeedGauge({ data }: { data: TwistMsg }) {
         <span>{formatNumber(angularSpeed, { decimals: 2, unit: 'rad/s' })}</span>
       </div>
     </div>
-  )
+  );
 }

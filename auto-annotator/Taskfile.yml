@@ -244,9 +244,9 @@ tasks:
       GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:up:
-    desc: Start all services with docker-compose (ml-service + api + frontend)
+    desc: Start all services with docker compose (ml-service + api + frontend)
     cmds:
-      - docker-compose up --build
+      - docker compose up --build
     env:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
@@ -254,9 +254,9 @@ tasks:
       GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:up:detached:
-    desc: Start all services in background with docker-compose
+    desc: Start all services in background with docker compose
     cmds:
-      - docker-compose up -d --build
+      - docker compose up -d --build
     env:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
@@ -264,29 +264,29 @@ tasks:
       GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:down:
-    desc: Stop and remove docker-compose services
+    desc: Stop and remove docker compose services
     cmds:
-      - docker-compose down
+      - docker compose down
 
   docker:logs:
-    desc: Follow docker-compose logs
+    desc: Follow docker compose logs
     cmds:
-      - docker-compose logs -f
+      - docker compose logs -f
 
   docker:logs:api:
     desc: Follow Go API service logs
     cmds:
-      - docker-compose logs -f api
+      - docker compose logs -f api
 
   docker:logs:ml-service:
     desc: Follow ML service logs
     cmds:
-      - docker-compose logs -f ml-service
+      - docker compose logs -f ml-service
 
   docker:logs:frontend:
     desc: Follow frontend service logs
     cmds:
-      - docker-compose logs -f frontend
+      - docker compose logs -f frontend
 
   # Full Stack
 

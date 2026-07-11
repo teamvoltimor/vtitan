@@ -2,23 +2,27 @@
 // @generated from file telemetry/v1/ingest.proto (package klevor.telemetry.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv1";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv1";
-import { file_buf_validate_validate } from "../../buf/validate/validate_pb";
-import type { RobotSnapshot, TopicsSnapshot } from "./types_pb";
-import { file_telemetry_v1_types } from "./types_pb";
-import type { Message } from "@bufbuild/protobuf";
+import type { GenFile, GenMessage, GenService } from '@bufbuild/protobuf/codegenv1';
+import { fileDesc, messageDesc, serviceDesc } from '@bufbuild/protobuf/codegenv1';
+import { file_buf_validate_validate } from '../../buf/validate/validate_pb';
+import type { RobotSnapshot, TopicsSnapshot } from './types_pb';
+import { file_telemetry_v1_types } from './types_pb';
+import type { Message } from '@bufbuild/protobuf';
 
 /**
  * Describes the file telemetry/v1/ingest.proto.
  */
-export const file_telemetry_v1_ingest: GenFile = /*@__PURE__*/
-  fileDesc("Chl0ZWxlbWV0cnkvdjEvaW5nZXN0LnByb3RvEhNrbGV2b3IudGVsZW1ldHJ5LnYxIlUKFUluZ2VzdFNuYXBzaG90UmVxdWVzdBI8CghzbmFwc2hvdBgBIAEoCzIiLmtsZXZvci50ZWxlbWV0cnkudjEuUm9ib3RTbmFwc2hvdEIGukgDyAEBIjQKFkluZ2VzdFNuYXBzaG90UmVzcG9uc2USGgoSc25hcHNob3RzX3JlY2VpdmVkGAEgASgEIlIKE0luZ2VzdFRvcGljc1JlcXVlc3QSOwoGdG9waWNzGAEgASgLMiMua2xldm9yLnRlbGVtZXRyeS52MS5Ub3BpY3NTbmFwc2hvdEIGukgDyAEBIjAKFEluZ2VzdFRvcGljc1Jlc3BvbnNlEhgKEHVwZGF0ZXNfcmVjZWl2ZWQYASABKAQy7QEKFlRlbGVtZXRyeUluZ2VzdFNlcnZpY2USbAoPU3RyZWFtU25hcHNob3RzEioua2xldm9yLnRlbGVtZXRyeS52MS5Jbmdlc3RTbmFwc2hvdFJlcXVlc3QaKy5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFNuYXBzaG90UmVzcG9uc2UoARJlCgxTdHJlYW1Ub3BpY3MSKC5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1JlcXVlc3QaKS5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1Jlc3BvbnNlKAFCQlpAZ2l0aHViLmNvbS9rbGV2b3IvdGVsZW1ldHJ5LWJhY2tlbmQvZ2VuL3RlbGVtZXRyeS92MTt0ZWxlbWV0cnl2MWIGcHJvdG8z", [file_buf_validate_validate, file_telemetry_v1_types]);
+export const file_telemetry_v1_ingest: GenFile =
+  /*@__PURE__*/
+  fileDesc(
+    'Chl0ZWxlbWV0cnkvdjEvaW5nZXN0LnByb3RvEhNrbGV2b3IudGVsZW1ldHJ5LnYxIlUKFUluZ2VzdFNuYXBzaG90UmVxdWVzdBI8CghzbmFwc2hvdBgBIAEoCzIiLmtsZXZvci50ZWxlbWV0cnkudjEuUm9ib3RTbmFwc2hvdEIGukgDyAEBIjQKFkluZ2VzdFNuYXBzaG90UmVzcG9uc2USGgoSc25hcHNob3RzX3JlY2VpdmVkGAEgASgEIlIKE0luZ2VzdFRvcGljc1JlcXVlc3QSOwoGdG9waWNzGAEgASgLMiMua2xldm9yLnRlbGVtZXRyeS52MS5Ub3BpY3NTbmFwc2hvdEIGukgDyAEBIjAKFEluZ2VzdFRvcGljc1Jlc3BvbnNlEhgKEHVwZGF0ZXNfcmVjZWl2ZWQYASABKAQy7QEKFlRlbGVtZXRyeUluZ2VzdFNlcnZpY2USbAoPU3RyZWFtU25hcHNob3RzEioua2xldm9yLnRlbGVtZXRyeS52MS5Jbmdlc3RTbmFwc2hvdFJlcXVlc3QaKy5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFNuYXBzaG90UmVzcG9uc2UoARJlCgxTdHJlYW1Ub3BpY3MSKC5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1JlcXVlc3QaKS5rbGV2b3IudGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1Jlc3BvbnNlKAFCQlpAZ2l0aHViLmNvbS9rbGV2b3IvdGVsZW1ldHJ5LWJhY2tlbmQvZ2VuL3RlbGVtZXRyeS92MTt0ZWxlbWV0cnl2MWIGcHJvdG8z',
+    [file_buf_validate_validate, file_telemetry_v1_types]
+  );
 
 /**
  * @generated from message klevor.telemetry.v1.IngestSnapshotRequest
  */
-export type IngestSnapshotRequest = Message<"klevor.telemetry.v1.IngestSnapshotRequest"> & {
+export type IngestSnapshotRequest = Message<'klevor.telemetry.v1.IngestSnapshotRequest'> & {
   /**
    * @generated from field: klevor.telemetry.v1.RobotSnapshot snapshot = 1;
    */
@@ -29,13 +33,14 @@ export type IngestSnapshotRequest = Message<"klevor.telemetry.v1.IngestSnapshotR
  * Describes the message klevor.telemetry.v1.IngestSnapshotRequest.
  * Use `create(IngestSnapshotRequestSchema)` to create a new message.
  */
-export const IngestSnapshotRequestSchema: GenMessage<IngestSnapshotRequest> = /*@__PURE__*/
+export const IngestSnapshotRequestSchema: GenMessage<IngestSnapshotRequest> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 0);
 
 /**
  * @generated from message klevor.telemetry.v1.IngestSnapshotResponse
  */
-export type IngestSnapshotResponse = Message<"klevor.telemetry.v1.IngestSnapshotResponse"> & {
+export type IngestSnapshotResponse = Message<'klevor.telemetry.v1.IngestSnapshotResponse'> & {
   /**
    * @generated from field: uint64 snapshots_received = 1;
    */
@@ -46,13 +51,14 @@ export type IngestSnapshotResponse = Message<"klevor.telemetry.v1.IngestSnapshot
  * Describes the message klevor.telemetry.v1.IngestSnapshotResponse.
  * Use `create(IngestSnapshotResponseSchema)` to create a new message.
  */
-export const IngestSnapshotResponseSchema: GenMessage<IngestSnapshotResponse> = /*@__PURE__*/
+export const IngestSnapshotResponseSchema: GenMessage<IngestSnapshotResponse> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 1);
 
 /**
  * @generated from message klevor.telemetry.v1.IngestTopicsRequest
  */
-export type IngestTopicsRequest = Message<"klevor.telemetry.v1.IngestTopicsRequest"> & {
+export type IngestTopicsRequest = Message<'klevor.telemetry.v1.IngestTopicsRequest'> & {
   /**
    * @generated from field: klevor.telemetry.v1.TopicsSnapshot topics = 1;
    */
@@ -63,13 +69,14 @@ export type IngestTopicsRequest = Message<"klevor.telemetry.v1.IngestTopicsReque
  * Describes the message klevor.telemetry.v1.IngestTopicsRequest.
  * Use `create(IngestTopicsRequestSchema)` to create a new message.
  */
-export const IngestTopicsRequestSchema: GenMessage<IngestTopicsRequest> = /*@__PURE__*/
+export const IngestTopicsRequestSchema: GenMessage<IngestTopicsRequest> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 2);
 
 /**
  * @generated from message klevor.telemetry.v1.IngestTopicsResponse
  */
-export type IngestTopicsResponse = Message<"klevor.telemetry.v1.IngestTopicsResponse"> & {
+export type IngestTopicsResponse = Message<'klevor.telemetry.v1.IngestTopicsResponse'> & {
   /**
    * @generated from field: uint64 updates_received = 1;
    */
@@ -80,7 +87,8 @@ export type IngestTopicsResponse = Message<"klevor.telemetry.v1.IngestTopicsResp
  * Describes the message klevor.telemetry.v1.IngestTopicsResponse.
  * Use `create(IngestTopicsResponseSchema)` to create a new message.
  */
-export const IngestTopicsResponseSchema: GenMessage<IngestTopicsResponse> = /*@__PURE__*/
+export const IngestTopicsResponseSchema: GenMessage<IngestTopicsResponse> =
+  /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 3);
 
 /**
@@ -98,10 +106,10 @@ export const TelemetryIngestService: GenService<{
    * @generated from rpc klevor.telemetry.v1.TelemetryIngestService.StreamSnapshots
    */
   streamSnapshots: {
-    methodKind: "client_streaming";
+    methodKind: 'client_streaming';
     input: typeof IngestSnapshotRequestSchema;
     output: typeof IngestSnapshotResponseSchema;
-  },
+  };
   /**
    * StreamTopics accepts a continuous stream of ROS2 topic frames.
    * Populates the data exposed by GET /v1/telemetry/topics on the REST edge.
@@ -109,10 +117,8 @@ export const TelemetryIngestService: GenService<{
    * @generated from rpc klevor.telemetry.v1.TelemetryIngestService.StreamTopics
    */
   streamTopics: {
-    methodKind: "client_streaming";
+    methodKind: 'client_streaming';
     input: typeof IngestTopicsRequestSchema;
     output: typeof IngestTopicsResponseSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_telemetry_v1_ingest, 0);
-
+  };
+}> = /*@__PURE__*/ serviceDesc(file_telemetry_v1_ingest, 0);

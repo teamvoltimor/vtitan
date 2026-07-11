@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getGroupedGallery,
   startTrain,
@@ -47,19 +47,19 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
   const [log, setLog] = useState<string[]>([]);
   const esRef = useRef<EventSource | null>(null);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     try {
       const items = await getGroupedGallery();
       setGroups(items.filter((g) => g.status === 'done'));
     } catch {
       setError('Failed to load groups');
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadGroups();
     return () => esRef.current?.close();
-  }, []);
+  }, [loadGroups]);
 
   const toggleGroup = (id: number) =>
     setSelectedGroups((prev) => {
@@ -136,7 +136,9 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
     }
   };
 
-  const progressPct = progress ? Math.round((progress.epoch / Math.max(progress.total, 1)) * 100) : 0;
+  const progressPct = progress
+    ? Math.round((progress.epoch / Math.max(progress.total, 1)) * 100)
+    : 0;
 
   return (
     <Stack spacing={2.5}>
@@ -169,7 +171,7 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               label="Epochs"
               type="number"
               value={epochs}
-              onChange={(e) => setEpochs(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => setEpochs(Math.max(1, parseInt(e.target.value, 10) || 1))}
               disabled={running}
               size="small"
               sx={{ width: 100 }}
@@ -179,7 +181,7 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               label="Batch"
               type="number"
               value={batch}
-              onChange={(e) => setBatch(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => setBatch(Math.max(1, parseInt(e.target.value, 10) || 1))}
               disabled={running}
               size="small"
               sx={{ width: 100 }}
@@ -189,7 +191,7 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               label="Image size"
               type="number"
               value={imgsz}
-              onChange={(e) => setImgsz(Math.max(32, parseInt(e.target.value) || 640))}
+              onChange={(e) => setImgsz(Math.max(32, parseInt(e.target.value, 10) || 640))}
               disabled={running}
               size="small"
               sx={{ width: 110 }}
@@ -204,7 +206,9 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               disabled={running}
               size="small"
             >
-              {running ? `Training epoch ${progress?.epoch ?? 0}/${progress?.total ?? epochs}...` : 'Start training'}
+              {running
+                ? `Training epoch ${progress?.epoch ?? 0}/${progress?.total ?? epochs}...`
+                : 'Start training'}
             </Button>
             {totalImages > 0 && !running && (
               <Typography variant="caption" color="text.disabled">
@@ -228,19 +232,35 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                 Epoch {progress.epoch} / {progress.total}
               </Typography>
             </Stack>
-            <LinearProgress variant="determinate" value={progressPct} color={finished ? 'success' : 'primary'} />
+            <LinearProgress
+              variant="determinate"
+              value={progressPct}
+              color={finished ? 'success' : 'primary'}
+            />
             <Stack direction="row" spacing={3}>
               <Stack spacing={0.25}>
-                <Typography variant="caption" color="text.disabled">box loss</Typography>
-                <Typography variant="body2" fontWeight={600}>{progress.box_loss.toFixed(4)}</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  box loss
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {progress.box_loss.toFixed(4)}
+                </Typography>
               </Stack>
               <Stack spacing={0.25}>
-                <Typography variant="caption" color="text.disabled">cls loss</Typography>
-                <Typography variant="body2" fontWeight={600}>{progress.cls_loss.toFixed(4)}</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  cls loss
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {progress.cls_loss.toFixed(4)}
+                </Typography>
               </Stack>
               <Stack spacing={0.25}>
-                <Typography variant="caption" color="text.disabled">mAP50</Typography>
-                <Typography variant="body2" fontWeight={600}>{progress.map50.toFixed(4)}</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  mAP50
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {progress.map50.toFixed(4)}
+                </Typography>
               </Stack>
             </Stack>
             {log.length > 0 && (
@@ -256,6 +276,7 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                   }}
                 >
                   {log.map((l, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: training log lines are plain strings with no stable id and may repeat
                     <div key={i}>{l}</div>
                   ))}
                 </Box>
@@ -278,8 +299,12 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
               <Typography variant="caption" color="text.disabled">
                 {groups.length} groups · {selectedGroups.size} selected · {totalImages} images
               </Typography>
-              <Button size="small" variant="text" onClick={selectAll} disabled={running}>All</Button>
-              <Button size="small" variant="text" onClick={clearAll} disabled={running}>None</Button>
+              <Button size="small" variant="text" onClick={selectAll} disabled={running}>
+                All
+              </Button>
+              <Button size="small" variant="text" onClick={clearAll} disabled={running}>
+                None
+              </Button>
             </Stack>
           </Stack>
 
@@ -320,7 +345,13 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                     <Box
                       component="img"
                       src={g.src}
-                      sx={{ width: 48, height: 32, objectFit: 'cover', borderRadius: '3px', flexShrink: 0 }}
+                      sx={{
+                        width: 48,
+                        height: 32,
+                        objectFit: 'cover',
+                        borderRadius: '3px',
+                        flexShrink: 0,
+                      }}
                     />
                     <Stack flex={1} minWidth={0}>
                       <Typography variant="body2" fontWeight={500} noWrap>
@@ -331,7 +362,13 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
                       </Typography>
                     </Stack>
                     {g.aug_count > 0 && (
-                      <Chip label={`+${g.aug_count}`} size="small" color="success" variant="outlined" sx={{ fontSize: '0.6rem' }} />
+                      <Chip
+                        label={`+${g.aug_count}`}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        sx={{ fontSize: '0.6rem' }}
+                      />
                     )}
                   </Box>
                 ))}

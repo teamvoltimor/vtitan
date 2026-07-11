@@ -1,18 +1,18 @@
-import { formatNumber } from '../../utils/formatting'
-import { COLORS } from '../../config'
+import { formatNumber } from '../../utils/formatting';
+import { COLORS } from '../../config';
 
 interface BarChartProps {
-  label: string
-  value: number
-  range: [number, number]
-  unit: string
+  label: string;
+  value: number;
+  range: [number, number];
+  unit: string;
 }
 
 /** Horizontal centre-zero bar, red when the value nears the range edges. */
 export function BarChart({ label, value, range, unit }: BarChartProps) {
-  const [min, max] = range
-  const percentage = ((value - min) / (max - min)) * 100
-  const color = Math.abs(value) > (max - min) * 0.8 ? COLORS.DANGER : COLORS.SUCCESS
+  const [min, max] = range;
+  const percentage = ((value - min) / (max - min)) * 100;
+  const color = Math.abs(value) > (max - min) * 0.8 ? COLORS.DANGER : COLORS.SUCCESS;
 
   return (
     <div className="bar-chart">
@@ -32,5 +32,5 @@ export function BarChart({ label, value, range, unit }: BarChartProps) {
         <span className="bar-value">{formatNumber(value, { decimals: 2, unit })}</span>
       </div>
     </div>
-  )
+  );
 }

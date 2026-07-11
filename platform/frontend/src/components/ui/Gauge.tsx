@@ -1,12 +1,12 @@
-import { calculateGaugePath, calculateNeedle } from '../../utils/gauges'
-import { formatNumber } from '../../utils/formatting'
-import { SPEED_GAUGE_CONFIG, COLORS } from '../../config'
+import { calculateGaugePath, calculateNeedle } from '../../utils/gauges';
+import { formatNumber } from '../../utils/formatting';
+import { SPEED_GAUGE_CONFIG, COLORS } from '../../config';
 
 interface GaugeProps {
-  value: number
-  max: number
-  unit?: string
-  decimals?: number
+  value: number;
+  max: number;
+  unit?: string;
+  decimals?: number;
 }
 
 /**
@@ -14,7 +14,7 @@ interface GaugeProps {
  * Geometry comes entirely from SPEED_GAUGE_CONFIG.
  */
 export function Gauge({ value, max, unit = '', decimals = 2 }: GaugeProps) {
-  const cfg = SPEED_GAUGE_CONFIG
+  const cfg = SPEED_GAUGE_CONFIG;
 
   const arcPath = calculateGaugePath(value, {
     center: cfg.CENTER,
@@ -22,17 +22,20 @@ export function Gauge({ value, max, unit = '', decimals = 2 }: GaugeProps) {
     radius: cfg.ARC.RADIUS,
     max,
     angleRange: { start: Math.PI, end: 2 * Math.PI },
-  })
+  });
 
   const needle = calculateNeedle(value, {
     center: cfg.CENTER,
     length: cfg.NEEDLE_LENGTH,
     max,
     angle: Math.PI,
-  })
+  });
 
   return (
     <svg width={cfg.CANVAS_WIDTH} height={cfg.CANVAS_HEIGHT} viewBox={cfg.VIEWBOX}>
+      <title>
+        Gauge: {formatNumber(value, { decimals })} {unit} of {max} max
+      </title>
       <path
         d={cfg.BG_ARC_PATH}
         fill="none"
@@ -77,5 +80,5 @@ export function Gauge({ value, max, unit = '', decimals = 2 }: GaugeProps) {
         </text>
       )}
     </svg>
-  )
+  );
 }
