@@ -41,8 +41,18 @@ def _yaw_to_quaternion(yaw: float) -> Quaternion:
     return Quaternion(x=0.0, y=0.0, z=math.sin(yaw / 2.0), w=math.cos(yaw / 2.0))
 
 
+def _pitch_to_quaternion(pitch: float) -> Quaternion:
+    return Quaternion(x=0.0, y=math.sin(pitch / 2.0), z=0.0, w=math.cos(pitch / 2.0))
+
+
 class LiveScenarioVisualizer(Node):
     """Publishes one running scenario's pose/LIDAR/track to ROS2 topics."""
+
+    _TRACK_REPUBLISH_EVERY_N_TICKS = 20
+    """Re-send the cached track/robot MarkerArray about once a second (at the default 20Hz
+    sim rate) instead of relying on a single one-shot publish. A late-connecting or
+    reconnecting RViz subscriber can otherwise miss that first publish entirely and never
+    show the markers, since a plain volatile-QoS publish isn't retained for late joiners."""
 
     def __init__(self, track: TrackModel, node_name: str = "sim_live_visualizer") -> None:
         super().__init__(node_name)
@@ -50,6 +60,8 @@ class LiveScenarioVisualizer(Node):
         self._scan_pub = self.create_publisher(LaserScan, "/scan", 10)
         self._track_pub = self.create_publisher(MarkerArray, "/sim/track", 1)
         self._tf_broadcaster = TransformBroadcaster(self)
+        self._cached_track_markers: MarkerArray | None = None
+        self._tick_count = 0
         self.set_track(track)
 
     def set_track(
@@ -67,10 +79,18 @@ class LiveScenarioVisualizer(Node):
         if parking_lot is not None:
             markers.markers.append(self._parking_block_marker(10, parking_lot["block1_position"]))
             markers.markers.append(self._parking_block_marker(11, parking_lot["block2_position"]))
+        markers.markers.extend(self._robot_model_markers())
+        self._cached_track_markers = markers
         self._track_pub.publish(markers)
 
     def publish(self, state: AckermannState, scan: LidarScan | None) -> None:
         """Publish one tick's pose (odom + TF) and LIDAR sweep."""
+        self._tick_count += 1
+        if self._cached_track_markers is not None and (
+            self._tick_count % self._TRACK_REPUBLISH_EVERY_N_TICKS == 0
+        ):
+            self._track_pub.publish(self._cached_track_markers)
+
         stamp = self.get_clock().now().to_msg()
         quat = _yaw_to_quaternion(state.yaw)
 
@@ -177,6 +197,86 @@ class LiveScenarioVisualizer(Node):
         m.scale.y = ParkingLotSpecs.WIDTH
         m.scale.z = ParkingLotSpecs.HEIGHT
         m.color.r, m.color.g, m.color.b, m.color.a = *ParkingLotSpecs.COLOR, 1.0
+        return m
+
+    def _robot_model_markers(self) -> list[Marker]:
+        """Chassis/LIDAR/camera geometry, static relative to ``base_link``.
+
+        This sim/RViz path has no URDF or Gazebo mesh — this is the only place these
+        mount offsets (LIDAR front-mount, camera-over-LIDAR pitch) are visible without
+        launching Gazebo. Positioned directly from ``RobotSpecs`` (not a duplicate copy)
+        so it can't itself drift from the values it's meant to let you check.
+        """
+        cam_quat = _pitch_to_quaternion(math.radians(RobotSpecs.CAMERA_MOUNT_PITCH_DEG))
+        return [
+            self._chassis_marker(),
+            self._robot_lidar_marker(),
+            self._camera_marker(cam_quat),
+            self._camera_facing_marker(cam_quat),
+        ]
+
+    def _chassis_marker(self) -> Marker:
+        m = Marker()
+        m.header.frame_id = _ROBOT_FRAME
+        m.ns = "robot"
+        m.id = 0
+        m.type = Marker.CUBE
+        m.action = Marker.ADD
+        m.pose.position.z = RobotSpecs.HEIGHT / 2.0
+        m.pose.orientation.w = 1.0
+        m.scale.x = RobotSpecs.LENGTH
+        m.scale.y = RobotSpecs.WIDTH
+        m.scale.z = RobotSpecs.HEIGHT
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.8, 0.6
+        return m
+
+    def _robot_lidar_marker(self) -> Marker:
+        # z = HEIGHT + 0.02 = 0.12, matching static_tfs.launch.py / the Go SDF generator.
+        m = Marker()
+        m.header.frame_id = _ROBOT_FRAME
+        m.ns = "robot"
+        m.id = 1
+        m.type = Marker.CYLINDER
+        m.action = Marker.ADD
+        m.pose.position.x = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+        m.pose.position.z = RobotSpecs.HEIGHT + 0.02
+        m.pose.orientation.w = 1.0
+        m.scale.x = RobotSpecs.LIDAR_DIAMETER
+        m.scale.y = RobotSpecs.LIDAR_DIAMETER
+        m.scale.z = RobotSpecs.LIDAR_HEIGHT
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.1, 0.1, 0.1, 1.0
+        return m
+
+    def _camera_marker(self, orientation: Quaternion) -> Marker:
+        m = Marker()
+        m.header.frame_id = _ROBOT_FRAME
+        m.ns = "robot"
+        m.id = 2
+        m.type = Marker.CUBE
+        m.action = Marker.ADD
+        m.pose.position.x = RobotSpecs.CAMERA_MOUNT_X_OFFSET
+        m.pose.position.z = RobotSpecs.CAMERA_MOUNT_Z_OFFSET
+        m.pose.orientation = orientation
+        m.scale.x = m.scale.y = m.scale.z = 0.025
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.2, 0.2, 0.2, 1.0
+        return m
+
+    def _camera_facing_marker(self, orientation: Quaternion) -> Marker:
+        # A plain cube's own rotation is hard to read at a glance -- this arrow makes the
+        # camera's actual look direction (including the downward pitch) unambiguous.
+        m = Marker()
+        m.header.frame_id = _ROBOT_FRAME
+        m.ns = "robot"
+        m.id = 3
+        m.type = Marker.ARROW
+        m.action = Marker.ADD
+        m.pose.position.x = RobotSpecs.CAMERA_MOUNT_X_OFFSET
+        m.pose.position.z = RobotSpecs.CAMERA_MOUNT_Z_OFFSET
+        m.pose.orientation = orientation
+        m.scale.x = 0.15  # shaft length
+        m.scale.y = 0.02  # shaft diameter
+        m.scale.z = 0.02  # head diameter
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 0.0, 1.0
         return m
 
 

@@ -15,12 +15,11 @@ inverted -- its raw angle-zero points opposite robot-front. Confirmed empiricall
 sensor verification: the sector with the largest ranges (open space, robot-front) lands
 at +-180 deg in the raw /scan data, not 0 deg.
 
-camera_link's x/z position is an estimate pending a real measurement -- verify visually in
-RViz and correct RobotSpecs.CAMERA_MOUNT_X_OFFSET/CAMERA_MOUNT_Z_OFFSET if wrong. Its pitch
-SIGN follows precedent already in this repo: wro_robot.urdf.xacro's camera_joint used
-`rpy="0 0.2 0"` (positive Y) for what its own "camera would be over the lidar, tilted down"
-intent implies is a downward tilt, so positive pitch = down is treated as this codebase's
-established convention here too, not re-derived from first principles.
+camera_link's x/z position is still an estimate pending a real measurement -- if it looks off
+in RViz, correct RobotSpecs.CAMERA_MOUNT_X_OFFSET/CAMERA_MOUNT_Z_OFFSET. Its pitch SIGN
+(positive = tilts the view down) has been visually confirmed against the live sim/RViz robot
+markers in src/simulation/live_visualizer.py -- positive pitch really does point the camera
+down and forward, not up.
 """
 
 import math

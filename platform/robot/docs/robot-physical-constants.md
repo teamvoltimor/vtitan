@@ -25,7 +25,7 @@ collision box, wrong sensor placement, wrong steering geometry) rather than erro
 | LIDAR mount x-offset (front of chassis, centered) | 0.1222 m | derived: `chassis_length/2 − lidar mesh radius (0.0278)` — the C1 mounted flush with the front edge. Mounted upside-down (180° yaw), inverted left/right (see `docs/sensor-verification.md` Phase 2). |
 | Camera mount x-offset | 0.1222 m (same as LIDAR — mounted directly over it) | **estimate**, not measured |
 | Camera mount z-offset | 0.16 m | **estimate**, not measured |
-| Camera mount pitch | ~30° down | **estimate** ("like 30 degrees"), not precision-measured. Sign convention (positive = down) follows precedent already in `wro_robot.urdf.xacro`'s old `rpy="0 0.2 0"` camera pitch — **not independently re-derived or verified in RViz**. If the camera renders tilted up instead of down, flip the sign at the one place each file applies it (see file list below). |
+| Camera mount pitch | ~30° down | Magnitude is still an **estimate** ("like 30 degrees"), not precision-measured. Sign convention (positive = down) is confirmed correct — both by a rotation-matrix derivation (`R = Rz(yaw)·Ry(pitch)·Rx(roll)`, standard REP-103/tf2 convention) and visually, via the yellow direction-arrow marker added to `src/simulation/live_visualizer.py` and checked live in RViz 2026-07-11. |
 
 ## Where each constant lives (update all, or drift happens again)
 
@@ -44,6 +44,17 @@ Known Python consumer that *used to* duplicate instead of importing:
 `platform/robot/ros2_ws/src/voldemorbot_bringup/launch/static_tfs.launch.py` — imports
 `RobotSpecs` directly (the one place in this list that already reads from the canonical
 Python source rather than duplicating). `camera_link`/`lidar_link` poses.
+
+### Closed-loop sim / RViz (no URDF or Gazebo in this path)
+`platform/robot/src/simulation/live_visualizer.py`'s `_robot_model_markers()` (and its
+per-marker helpers `_chassis_marker`/`_robot_lidar_marker`/`_camera_marker`/
+`_camera_facing_marker`) — imports `RobotSpecs` directly, same as `static_tfs.launch.py`.
+Renders the chassis box, LIDAR cylinder, and a camera cube + direction arrow as
+`visualization_msgs/Marker`s relative to `base_link`, published on the same `/sim/track`
+topic the track walls use. This is the *only* place `task sim:navigate:rviz` /
+`visualize_scenario.py` can show these mount offsets — that path never loads a URDF, so
+without this there's nothing to look at. Markers are re-published every ~20 ticks (not just
+once) so a late-connecting RViz subscriber doesn't miss them.
 
 ### URDF/xacro (RViz + Gazebo mesh/joints — hand-duplicated, does NOT import RobotSpecs)
 - `platform/gazebo/runtime/robot_description/wro_robot.urdf.xacro` — the `xacro:property`
