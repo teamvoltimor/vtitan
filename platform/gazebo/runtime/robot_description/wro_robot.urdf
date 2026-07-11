@@ -1,8 +1,10 @@
 <?xml version="1.0"?>
 <!--
   WRO Future Engineers 2026 — Robot URDF
-  Used by RViz and the ROS2 TF tree. Poses match the Gazebo SDF model in
-  simulation/src/generation/sdf_robot_builder.py.
+  Used by RViz and the ROS2 TF tree. Poses match wro_robot.urdf.xacro (this file's own
+  base_link/box/joints -- NOT the full mechanical xacro with wheels/steering) and the Go
+  Gazebo SDF generator (platform/gazebo/generator/internal/sdf/robot.go). Measurements
+  updated 2026-07-11 -- see ../../../robot/docs/robot-physical-constants.md.
 
   Coordinate convention: base_link origin at ground-wheel contact plane centre.
     - x forward, y left, z up (REP-103)
@@ -15,7 +17,7 @@
     <visual>
       <origin xyz="0 0 0.05" rpy="0 0 0"/>
       <geometry>
-        <box size="0.28 0.15 0.10"/>
+        <box size="0.30 0.20 0.10"/>
       </geometry>
       <material name="blue">
         <color rgba="0 0 0.8 1"/>
@@ -24,19 +26,20 @@
     <collision>
       <origin xyz="0 0 0.05" rpy="0 0 0"/>
       <geometry>
-        <box size="0.28 0.15 0.10"/>
+        <box size="0.30 0.20 0.10"/>
       </geometry>
     </collision>
     <inertial>
       <mass value="0.8"/>
       <origin xyz="0 0 0.05" rpy="0 0 0"/>
-      <inertia ixx="0.001825" iyy="0.005293" izz="0.006133"
+      <inertia ixx="0.003333" iyy="0.006667" izz="0.008667"
                ixy="0" ixz="0" iyz="0"/>
     </inertial>
   </link>
 
   <!-- ─────────────────────── camera_link ──────────────────────────────── -->
-  <!-- Front-top of chassis: x = LENGTH/2 = 0.14, z = HEIGHT = 0.10       -->
+  <!-- Over the LIDAR, tilted down ~30deg (measured 2026-07-11; x/z are an estimate --
+       see RobotSpecs.CAMERA_MOUNT_* in shared/config/constants.py) -->
   <link name="camera_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -57,11 +60,12 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="0.14 0 0.10" rpy="0 0 0"/>
+    <origin xyz="0.1222 0 0.16" rpy="0 0.5236 0"/>
   </joint>
 
   <!-- ────────────────────── lidar_link (laser_frame) ─────────────────── -->
-  <!-- Centred on top of chassis: z = HEIGHT + 0.02 = 0.12               -->
+  <!-- Front of chassis, centred left/right (measured 2026-07-11):
+       x = LENGTH/2 - lidar mesh radius = 0.1222, z = HEIGHT + 0.02 = 0.12 -->
   <link name="lidar_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -82,7 +86,7 @@
   <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="lidar_link"/>
-    <origin xyz="0 0 0.12" rpy="0 0 0"/>
+    <origin xyz="0.1222 0 0.12" rpy="0 0 0"/>
   </joint>
 
   <!-- ─────────────────────── imu_link ─────────────────────────────────── -->

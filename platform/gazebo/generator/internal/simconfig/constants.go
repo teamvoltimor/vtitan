@@ -114,17 +114,33 @@ var (
 )
 
 // Robot chassis dimensions (meters). LEGO Bugatti Bolide + Ackermann.
+// Measured 2026-07-11 — must match platform/shared/src/shared/config/constants.py's
+// RobotSpecs and wro_robot.urdf.xacro's top-of-file xacro:property values; there is no
+// single source of truth across Python/Go/xacro yet, see
+// platform/robot/docs/robot-physical-constants.md.
 const (
-	RobotLength      = 0.28
-	RobotWidth       = 0.15
+	RobotLength      = 0.30
+	RobotWidth       = 0.20
 	RobotHeight      = 0.10
-	RobotWheelbase   = 0.17
-	RobotTrackWidth  = 0.105
-	RobotWheelRadius = 0.0216
-	RobotWheelWidth  = 0.020
+	RobotWheelbase   = 0.19
+	RobotTrackWidth  = 0.1675
+	RobotWheelRadius = 0.035
+	RobotWheelWidth  = 0.025
 	RobotMaxSteering = 0.5236 // ~30°
 	RobotChassisMass = 0.8    // kg
 	RobotWheelMass   = 0.05   // kg per wheel
+
+	// RobotLidarMountXOffset: chassis_length/2 - the lidar mesh's own radius (0.0278,
+	// matching wro_robot.urdf.xacro's lidar_link visual/collision cylinder) — the C1
+	// mounted flush with the front edge, centered left/right, upside-down.
+	RobotLidarMountXOffset = 0.1222
+
+	// Camera mounted directly over the LIDAR, tilted down. x/z are an estimate pending a
+	// real measurement (see RobotSpecs.CAMERA_MOUNT_* in constants.py); pitch follows the
+	// same "positive = down" convention already used by wro_robot.urdf.xacro/static_tfs.
+	RobotCameraMountXOffset = RobotLidarMountXOffset
+	RobotCameraMountZOffset = 0.16
+	RobotCameraPitchRad     = 0.5236 // ~30°, tilted down
 )
 
 // Camera sensor (Raspberry Pi Camera Module 3 Wide).

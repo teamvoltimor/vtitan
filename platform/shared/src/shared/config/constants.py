@@ -151,18 +151,19 @@ class RobotSpecs:
     WIDTH: Final[float] = 0.20  # 200mm chassis width
     HEIGHT: Final[float] = 0.10  # 100mm chassis height
 
-    # Ackermann geometry
-    WHEELBASE: Final[float] = 0.17  # 170mm axle-to-axle distance
-    TRACK_WIDTH: Final[float] = 0.105  # 105mm wheel-to-wheel distance
-    WHEEL_RADIUS: Final[float] = 0.0216  # 21.6mm LEGO Technic wheel radius
+    # Ackermann geometry (measured 2026-07-11)
+    WHEELBASE: Final[float] = 0.19  # 190mm axle-to-axle distance
+    TRACK_WIDTH: Final[float] = 0.1675  # 167.5mm wheel-to-wheel distance
+    WHEEL_RADIUS: Final[float] = 0.035  # 35mm (measured 70mm wheel diameter / 2)
     MAX_STEERING_ANGLE: Final[float] = 0.5236  # ~30 degrees max front wheel angle
 
-    # Wheel details
-    WHEEL_WIDTH: Final[float] = 0.020  # 20mm LEGO Technic wheel width
+    # Wheel details (measured 2026-07-11)
+    WHEEL_WIDTH: Final[float] = 0.025  # 25mm
     WHEEL_MASS: Final[float] = 0.05  # 50g per wheel
     CHASSIS_MASS: Final[float] = 0.8  # 800g total chassis
 
-    # LIDAR (Slamtec C1)
+    # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
+    # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
     LIDAR_MIN_RANGE: Final[float] = 0.05  # 50mm minimum detection range (real sensor)
     LIDAR_SIM_MIN_RANGE: Final[float] = (
         0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
@@ -171,6 +172,18 @@ class RobotSpecs:
     LIDAR_SAMPLES: Final[int] = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE: Final[float] = 10.0  # 10 Hz scan rate
     LIDAR_NOISE_STDDEV: Final[float] = 0.03  # 30mm noise
+    # 55.6mm diameter x 41.3mm height: matches the lidar_link visual/collision mesh already
+    # modeled in wro_robot.urdf.xacro (radius=0.0278, length=0.0413) — used here instead of
+    # the C1's raw datasheet form factor so the mount-offset derivation below stays
+    # self-consistent with the mesh actually rendered in sim.
+    LIDAR_DIAMETER: Final[float] = 0.0556
+    LIDAR_HEIGHT: Final[float] = 0.0413
+    # = LENGTH/2 - LIDAR_DIAMETER/2 = 0.15 - 0.0278: the C1 mounted flush with the front
+    # edge, offset back by its own puck radius (same derivation style as the camera mount
+    # offset below). Cross-checked against the existing z-mount height (HEIGHT + LIDAR_HEIGHT/2
+    # = 0.10 + 0.0207 ~= 0.1207, matching the long-standing z=0.12 lidar_link offset in
+    # static_tfs.launch.py / the URDF within rounding).
+    LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
     # Rays that clip the chassis body itself (mount occlusion, cable clutter)
     # return as a self-reflection, not a real obstacle. Never applied to the
     # pure-forward bearing, where a genuine near-contact must still register.
@@ -183,13 +196,21 @@ class RobotSpecs:
     IMU_MASS: Final[float] = 0.0025  # 2.5g board mass
     IMU_SIZE: Final[tuple[float, float, float]] = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
 
-    # Camera (RPi Camera 3 Wide)
+    # Camera (RPi Camera 3 Wide) — mounted above the LIDAR, angled down (measured 2026-07-11,
+    # approximate; see docs/robot-physical-constants.md).
     CAMERA_HFOV: Final[float] = 1.7802  # 102 degrees horizontal FOV (radians)
     CAMERA_WIDTH: Final[int] = 1536  # Horizontal resolution (pixels)
     CAMERA_HEIGHT: Final[int] = 864  # Vertical resolution (pixels)
     CAMERA_UPDATE_RATE: Final[float] = 30.0  # 30 FPS
     CAMERA_NEAR_CLIP: Final[float] = 0.05  # 50mm near clip
     CAMERA_FAR_CLIP: Final[float] = 10.0  # 10m far clip
+    # Directly over the LIDAR (same x as LIDAR_MOUNT_X_OFFSET), mounted above its top edge
+    # (LIDAR z=0.12 + LIDAR_HEIGHT/2 ~= 0.14) with a small mounting-bracket gap. Unlike
+    # LIDAR_MOUNT_X_OFFSET, this z isn't derived from a datasheet — it's an estimate pending
+    # a real measurement.
+    CAMERA_MOUNT_X_OFFSET: Final[float] = LIDAR_MOUNT_X_OFFSET
+    CAMERA_MOUNT_Z_OFFSET: Final[float] = 0.16
+    CAMERA_MOUNT_PITCH_DEG: Final[float] = 30.0  # tilted down; angle is an estimate ("~30")
 
 
 class TrackMarkings:

@@ -1,21 +1,33 @@
 <?xml version="1.0"?>
 <robot name="wro_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- Chassis properties (LEGO Bugatti Bolide) -->
-  <xacro:property name="chassis_length" value="0.28"/>
-  <xacro:property name="chassis_width" value="0.15"/>
+  <!-- Chassis properties (LEGO Bugatti Bolide) -- measured 2026-07-11, see
+       ../../../robot/docs/robot-physical-constants.md. Must match
+       platform/shared/src/shared/config/constants.py's RobotSpecs -- kept in sync by hand,
+       there is no single source of truth across Python/xacro/the Go SDF generator yet. -->
+  <xacro:property name="chassis_length" value="0.30"/>
+  <xacro:property name="chassis_width" value="0.20"/>
   <xacro:property name="chassis_height" value="0.10"/>
   <xacro:property name="chassis_mass" value="0.8"/>
 
   <!-- Ackermann geometry -->
-  <xacro:property name="wheelbase" value="0.17"/>
-  <xacro:property name="track_width" value="0.105"/>
+  <xacro:property name="wheelbase" value="0.19"/>
+  <xacro:property name="track_width" value="0.1675"/>
   <xacro:property name="max_steering_angle" value="0.5236"/>
 
-  <!-- Wheel properties (LEGO Technic wheels) -->
-  <xacro:property name="wheel_radius" value="0.0216"/>
-  <xacro:property name="wheel_width" value="0.020"/>
+  <!-- Wheel properties -->
+  <xacro:property name="wheel_radius" value="0.035"/>
+  <xacro:property name="wheel_width" value="0.025"/>
   <xacro:property name="wheel_mass" value="0.05"/>
+
+  <!-- Sensor mount offsets. lidar_mount_x = chassis_length/2 - lidar_link's own mesh radius
+       (0.0278, see below): the C1 mounted flush with the front edge. camera_mount_x/z/pitch
+       are an estimate pending a real measurement -- see RobotSpecs.CAMERA_MOUNT_* in
+       constants.py. Must match RobotSpecs.LIDAR_MOUNT_X_OFFSET / CAMERA_MOUNT_*. -->
+  <xacro:property name="lidar_mount_x" value="0.1222"/>
+  <xacro:property name="camera_mount_x" value="0.1222"/>
+  <xacro:property name="camera_mount_z" value="0.16"/>
+  <xacro:property name="camera_mount_pitch" value="0.5236"/>  <!-- ~30 degrees, tilted down -->
 
   <!-- Derived properties -->
   <xacro:property name="half_wheelbase" value="${wheelbase / 2}"/>
@@ -188,7 +200,7 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="${chassis_length/2 - 0.02} 0 ${chassis_height/2 + 0.01}" rpy="0 0.2 0"/>
+    <origin xyz="${camera_mount_x} 0 ${camera_mount_z}" rpy="0 ${camera_mount_pitch} 0"/>
   </joint>
 
   <gazebo reference="camera_link">
@@ -249,7 +261,7 @@
   <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
     <child link="lidar_link"/>
-    <origin xyz="0 0 ${chassis_height/2 + 0.025}" rpy="0 0 0"/>
+    <origin xyz="${lidar_mount_x} 0 ${chassis_height/2 + 0.025}" rpy="0 0 0"/>
   </joint>
 
   <gazebo reference="lidar_link">

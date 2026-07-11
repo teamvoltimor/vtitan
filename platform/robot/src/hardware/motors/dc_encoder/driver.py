@@ -18,6 +18,8 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from shared.config.constants import RobotSpecs
+
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors.base import DriveOdometry, EncodedDriveDriver
 from src.hardware.motors.dc_encoder.control import (
@@ -34,7 +36,10 @@ logger = logging.getLogger(__name__)
 
 # JGB37-520 1590 RPM variant defaults — confirm the printed gear ratio per unit.
 _DEFAULT_COUNTS_PER_REV = 194.0  # 11 PPR x4 quadrature x ~4.4 gear ratio
-_DEFAULT_WHEEL_DIAMETER_M = 0.056
+# Previously an independent hardcoded 0.056m, drifted from RobotSpecs.WHEEL_RADIUS (a
+# placeholder pending hardware bring-up, per the module docstring). Derived from the same
+# measured wheel radius the rest of the stack uses instead of a second independent guess.
+_DEFAULT_WHEEL_DIAMETER_M = RobotSpecs.WHEEL_RADIUS * 2
 _DEFAULT_MAX_RPM = 1590.0
 
 

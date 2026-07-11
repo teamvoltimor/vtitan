@@ -62,8 +62,8 @@ SIGN_GRID_POSITIONS: list[tuple[float, float]] = [
 ]
 
 # Robot Specs
-ROBOT_CHASSIS_WIDTH = 0.15  # m
-ROBOT_FOOTPRINT_RADIUS = 0.075  # m
+ROBOT_CHASSIS_WIDTH = 0.20  # m — matches RobotSpecs.WIDTH, was a stale pre-correction duplicate
+ROBOT_FOOTPRINT_RADIUS = 0.10  # m — half of ROBOT_CHASSIS_WIDTH
 
 # Start Positions
 START_POSITION_SOUTH = (1.5, 0.3)

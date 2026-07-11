@@ -273,7 +273,10 @@ func buildFrontSteering(robot *Node) {
 }
 
 func buildCameraLink(robot *Node) {
-	camPose := fmt.Sprintf("%s 0 %s 0 0 0", ff(simconfig.RobotLength/2), ff(simconfig.RobotHeight))
+	camPose := pose6(
+		simconfig.RobotCameraMountXOffset, 0, simconfig.RobotCameraMountZOffset,
+		0, simconfig.RobotCameraPitchRad, 0,
+	)
 
 	camLink := robot.Sub("link", "name", simconfig.RobotLinkCamera)
 	camLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(camPose)
@@ -305,7 +308,7 @@ func buildLidarLink(robot *Node) {
 
 	lidarLink := robot.Sub("link", "name", simconfig.RobotLinkLidar)
 	lidarLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(
-		fmt.Sprintf("0 0 %s 0 0 0", ff(lidarZ)))
+		pose6(simconfig.RobotLidarMountXOffset, 0, lidarZ, 0, 0, 0))
 	setNominalInertial(lidarLink, simconfig.RobotLidarLinkMass)
 
 	sensor := lidarLink.Sub("sensor", "name", "lidar", "type", "gpu_lidar")
