@@ -15,6 +15,7 @@ import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose
 
+from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.ports import DriveCommand, LidarScan
 from tests.test_constants import (
@@ -171,3 +172,111 @@ class TestMissingSensorsDegradeSafely:
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps <= tuning.speed.SLOW_SPEED
+
+
+class TestEscapeEscalation:
+    """_maybe_escalate: after ESCALATE_AFTER_ATTEMPTS consecutive failed escapes,
+    the next escape should reverse longer and swing to the opposite side instead
+    of repeating an identical pulse into the same wall (open recommendation from
+    the 2026-07-03 navigation review, docs/internal/2026-07-03-navigation-review-findings.md).
+    """
+
+    @staticmethod
+    def _navigator(waypoints) -> CoreNavigator:
+        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), lidar=None)
+        return CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+
+    @staticmethod
+    def _maneuver(steering: float = 0.4, duration: int = 6) -> EscapeManeuver:
+        return EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN, steering=steering, speed=-0.2, duration_frames=duration,
+        )
+
+    def test_within_threshold_returns_maneuver_unchanged(self, waypoints):
+        nav = self._navigator(waypoints)
+        maneuver = self._maneuver()
+
+        for count in range(1, nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1):
+            nav._escape_count = count
+            assert nav._maybe_escalate(maneuver) is maneuver
+
+    def test_beyond_threshold_flips_side_and_extends_duration(self, waypoints):
+        nav = self._navigator(waypoints)
+        maneuver = self._maneuver(steering=0.4, duration=6)
+        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+        starting_sign = nav._escape_steer_sign
+
+        result = nav._maybe_escalate(maneuver)
+
+        assert result.duration_frames == min(6 * 2, nav._tuning.escape.MAX_ESCAPE_FRAMES)
+        assert math.copysign(1.0, result.steering) == -starting_sign
+        assert abs(result.steering) == pytest.approx(abs(maneuver.steering))
+        assert result.maneuver_type == maneuver.maneuver_type
+        assert result.speed == maneuver.speed
+
+    def test_successive_escalations_alternate_sides(self, waypoints):
+        nav = self._navigator(waypoints)
+        maneuver = self._maneuver(steering=0.4, duration=6)
+        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+
+        first = nav._maybe_escalate(maneuver)
+        second = nav._maybe_escalate(maneuver)
+
+        assert math.copysign(1.0, first.steering) == -math.copysign(1.0, second.steering)
+
+    def test_duration_caps_at_max_escape_frames(self, waypoints):
+        nav = self._navigator(waypoints)
+        maneuver = self._maneuver(steering=0.4, duration=nav._tuning.escape.MAX_ESCAPE_FRAMES)
+        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+
+        result = nav._maybe_escalate(maneuver)
+
+        assert result.duration_frames == nav._tuning.escape.MAX_ESCAPE_FRAMES
+
+    def test_straight_reverse_has_no_side_to_flip(self, waypoints):
+        """A zero-steering escape (e.g. a straight stuck-reverse) stays at zero
+        when escalated — only its duration should extend.
+        """
+        nav = self._navigator(waypoints)
+        maneuver = self._maneuver(steering=0.0, duration=6)
+        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+
+        result = nav._maybe_escalate(maneuver)
+
+        assert result.steering == 0.0
+        assert result.duration_frames == 12
+
+
+class TestEscapeEscalationIntegration:
+    """End-to-end through CoreNavigator.step(): a threat that never clears must
+    drive a sequence of full escape maneuvers whose duration/side escalates,
+    not the same short pulse repeated forever.
+    """
+
+    def test_persistent_front_threat_escalates_after_repeated_escapes(self, waypoints):
+        ranges = _scan_with_sectors(front=0.06)
+        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
+        tuning = NavigationTuning()
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+
+        maneuvers_begun: list[EscapeManeuver] = []
+        was_active = False
+        target = tuning.escape.ESCALATE_AFTER_ATTEMPTS + 2
+        for _ in range(500):
+            nav.step()
+            now_active = nav._active_maneuver is not None
+            if now_active and not was_active:
+                maneuvers_begun.append(nav._active_maneuver)
+                if len(maneuvers_begun) >= target:
+                    break
+            was_active = now_active
+
+        assert len(maneuvers_begun) == target, "threat never cleared, so every maneuver should re-trigger a new escape"
+
+        pre_escalation = maneuvers_begun[: tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        escalated = maneuvers_begun[tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        last_pre_escalation = pre_escalation[-1]
+
+        assert escalated.duration_frames > last_pre_escalation.duration_frames
+        if last_pre_escalation.steering:
+            assert math.copysign(1.0, escalated.steering) == -math.copysign(1.0, last_pre_escalation.steering)
