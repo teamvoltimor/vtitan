@@ -396,22 +396,47 @@ class CollisionAvoidanceController:
             # Threat on the left — steer right (away). Positive steering is left
             # (CCW) throughout the stack, so steering away from a left threat is
             # negative.
+            already_touching = self._side_clearance(math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=-self.side_correction_steer,
-                speed=self.side_correction_speed,
-                duration_frames=self.side_correction_frames,
+                speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
+                duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
                 priority=1,
             )
 
         if threat_dir == ThreatDirection.RIGHT:
             # Threat on the right — steer left (away): positive steering.
+            already_touching = self._side_clearance(-math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
                 steering=self.side_correction_steer,
-                speed=self.side_correction_speed,
-                duration_frames=self.side_correction_frames,
+                speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
+                duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
                 priority=1,
             )
 
         return None
+
+    def _side_clearance(
+        self,
+        center_rad: float,
+        lidar_ranges: np.ndarray | tuple[float, ...] | None,
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
+    ) -> float:
+        """Minimum clearance in a +/-45 deg sector about ``center_rad``.
+
+        Used to tell "obstacle getting close" from "chassis is already at the
+        wall" for a side threat: the default forward-creep ``SIDE_CORRECTION``
+        assumes there's still room to rotate clear before translating into the
+        obstacle. When there's none left (clearance already at or below
+        ``contact_dist`` — e.g. a starting position placed right at a narrow
+        corridor's edge, with zero margin by construction), creeping forward
+        while steering away deepens the overlap faster than the chassis can
+        rotate out of it, in the same tick. Reversing instead opens real
+        separation before any forward motion resumes.
+        """
+        sect = self._sector_ranges(
+            lidar_ranges, lidar_angles, center_rad, math.radians(45), filter_self_detection=True,
+        )
+        return float(np.min(sect)) if sect.size > 0 else 10.0

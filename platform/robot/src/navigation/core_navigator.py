@@ -201,6 +201,24 @@ class CoreNavigator:
 
         raw_wp = self._waypoints[self._waypoint_index]
 
+        # Advance past any waypoint the robot has already gone by — not just
+        # one it happens to pass within waypoint_threshold of. A robot that
+        # starts somewhere other than exactly on the planned centerline (e.g.
+        # anywhere in an official starting zone) can curve past a waypoint
+        # without ever entering that radius; left un-advanced, the lookahead
+        # search below keeps re-targeting that same, increasingly stale point
+        # long after the robot has passed it. Once far enough away, that
+        # stale point can itself satisfy the search's lookahead-distance test
+        # and get selected as the steering target even though it's now behind
+        # the robot, spiraling the heading around to chase a point it already
+        # passed instead of the path ahead.
+        while self._waypoint_index + 1 < len(self._waypoints) and math.hypot(
+            self._waypoints[self._waypoint_index + 1][0] - robot_x,
+            self._waypoints[self._waypoint_index + 1][1] - robot_y,
+        ) < math.hypot(raw_wp[0] - robot_x, raw_wp[1] - robot_y):
+            self._waypoint_index += 1
+            raw_wp = self._waypoints[self._waypoint_index]
+
         # Get LIDAR scan from gateway
         scan = self._gateway.get_lidar_scan()
         if scan:
@@ -222,7 +240,7 @@ class CoreNavigator:
         # point — checking that point would freeze waypoint_index indefinitely
         # while the sign stays engaged, corrupting every later tick's lookahead
         # search with a stale target.
-        dist_to_wp = math.sqrt((raw_wp[0] - robot_x) ** 2 + (raw_wp[1] - robot_y) ** 2)
+        dist_to_wp = math.hypot(raw_wp[0] - robot_x, raw_wp[1] - robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
             return

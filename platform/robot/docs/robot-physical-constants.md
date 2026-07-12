@@ -57,12 +57,14 @@ camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
   simulation, ROS2 nodes — e.g. `static_tfs.launch.py`, `live_visualizer.py`) still imports
   `RobotSpecs`, unchanged.
 
-### Not yet generated (pre-existing gaps, unrelated to the drift this doc used to describe)
+### Not yet generated (pre-existing gap, unrelated to the drift this doc used to describe)
 - `platform/gazebo/runtime/robot_description/wro_robot.urdf` — a **separate, simplified,
   hand-maintained snapshot** (RViz/TF visualization only — no wheels/joints/steering), not
   generated from the xacro above. Its own `<box>`/`<cylinder>` sizes and joint `<origin>`s are
-  still updated by hand. Its own `lidar_link` mesh uses a *different* radius (0.035) than the
-  xacro's (0.0278) — a pre-existing inconsistency between the two files, not reconciled here.
+  still updated by hand, so any future measurement change must be applied here manually too.
+  Its `lidar_link` mesh radius/length (previously a stale 0.035/0.040, vs. the xacro's
+  0.0278/0.0413) was corrected by hand to match on 2026-07-12 — re-check it against `robot.toml`
+  after any future LIDAR mount change.
 - `LIDAR_DIAMETER`/`LIDAR_HEIGHT` in `RobotSpecs` are not in `robot.toml` — they're only used
   to derive `LIDAR_MOUNT_X_OFFSET` in a comment, not independently duplicated elsewhere.
 

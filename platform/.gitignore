@@ -225,3 +225,6 @@ shared/dist/
 
 # Task checksum
 .task/
+
+# Backups
+*.bak*

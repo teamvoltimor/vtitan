@@ -118,12 +118,13 @@ func (r *Randomizer) GenerateStartingZone(
 		return zoneFromParking(section, parking, defaultLength)
 	}
 
-	// Open challenge: random width and length offset
-	widthSections := simconfig.StartingZoneWideOffsets[:]
-	if corridorWidth < simconfig.CorridorWide {
-		widthSections = simconfig.StartingZoneNarrowOffsets[:]
-	}
-	widthOffset := widthSections[r.rng.Intn(len(widthSections))]
+	// Open challenge: random width and length offset. The width offset is a
+	// fraction of this corridor's own width (not a fixed absolute meter
+	// value) so the spawn always keeps chassis clearance from both the inner
+	// block and the outer wall, regardless of which width the corridor
+	// randomizer assigned this section.
+	fractions := simconfig.StartingZoneWidthFractions[:]
+	widthOffset := fractions[r.rng.Intn(len(fractions))] * corridorWidth
 	lengthOffsets := []float64{
 		simconfig.GridLengthSectionLeft,
 		simconfig.GridLengthSectionRight,
@@ -275,6 +276,16 @@ func parkingPositionsForSection(
 }
 
 // zoneFromParking computes the starting zone position and size based on parking block positions.
+//
+// The along-travel coordinate (X for a north/south section, Y for east/west)
+// comes from the parking blocks' own midpoint, so the robot starts near where
+// it will eventually park. The cross-corridor coordinate deliberately does
+// NOT reuse the parking blocks' own position: they sit ParkingWallOffset
+// (0.10m — exactly RobotWidth/2) from the outer wall, which is correct for a
+// thin parking marker but leaves zero chassis clearance for the robot itself.
+// Use the corridor centerline instead, which — for the fixed-width Obstacles
+// Challenge corridor — comfortably clears both the inner block and the outer
+// wall.
 func zoneFromParking(
 	section simconfig.Section,
 	parking *simconfig.ParkingConfig,
@@ -282,16 +293,23 @@ func zoneFromParking(
 ) simconfig.StartingZone {
 	b1, b2 := parking.Block1Pos, parking.Block2Pos
 	isNS := section == simconfig.SectionNorth || section == simconfig.SectionSouth
+	invertWidth := section == simconfig.SectionNorth || section == simconfig.SectionEast
+
+	corridorCenter := simconfig.CorridorObstacles / 2
+	widthCoord := corridorCenter
+	if invertWidth {
+		widthCoord = simconfig.TrackMaxCoord - corridorCenter
+	}
 
 	var spacing, zoneX, zoneY float64
 	if isNS {
 		spacing = math.Abs(b2[0] - b1[0])
 		zoneX = (b1[0] + b2[0]) / 2
-		zoneY = b1[1]
+		zoneY = widthCoord
 	} else {
 		spacing = math.Abs(b2[1] - b1[1])
 		zoneY = (b1[1] + b2[1]) / 2
-		zoneX = b1[0]
+		zoneX = widthCoord
 	}
 
 	availableGap := spacing - simconfig.ParkingWidth

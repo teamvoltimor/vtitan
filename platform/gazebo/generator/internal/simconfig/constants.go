@@ -442,11 +442,14 @@ const (
 )
 
 var (
-	// StartingZoneWideOffsets are the width section offsets for starting zone placement in wide corridors.
-	StartingZoneWideOffsets = [3]float64{0.2, 0.5, 0.8}
-
-	// StartingZoneNarrowOffsets are the width section offsets for starting zone placement in narrow corridors.
-	StartingZoneNarrowOffsets = [2]float64{0.2, 0.5}
+	// StartingZoneWidthFractions are candidate cross-corridor spawn positions,
+	// expressed as a fraction of corridor width rather than an absolute
+	// offset — so the choice always scales with narrow vs. wide corridors.
+	// A fixed offset (e.g. 0.5m) can sit flush against a narrow (0.6m)
+	// corridor's inner wall, leaving less than RobotWidth/2 clearance; 0.3/0.7
+	// keeps at least 0.3*CorridorMinWidth (0.15m) clear on both sides, comfortably
+	// more than RobotWidth/2 (0.1m).
+	StartingZoneWidthFractions = [3]float64{0.3, 0.5, 0.7}
 
 	// StartPositionOffsets are the centerline offsets for robot spawn position selection.
 	StartPositionOffsets = [3]float64{-0.5, 0.0, 0.5}

@@ -16,7 +16,9 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 import numpy as np
@@ -39,6 +41,28 @@ def corridor_widths_from_metadata(metadata: dict[str, Any]) -> dict[Section, flo
         Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0
         for side in ("north", "south", "east", "west")
     }
+
+
+def cross_track_error(waypoints: list[tuple[float, float]], x: float, y: float) -> float:
+    """Perpendicular distance (metres) from ``(x, y)`` to the waypoint polyline.
+
+    The minimum point-to-segment distance over every consecutive waypoint
+    pair — used to measure how far off-path the robot has drifted, e.g. after
+    an injected pose disturbance.
+    """
+    best = math.inf
+    for (ax, ay), (bx, by) in pairwise(waypoints):
+        abx, aby = bx - ax, by - ay
+        seg_len_sq = abx * abx + aby * aby
+        if seg_len_sq == 0.0:
+            t = 0.0
+        else:
+            t = ((x - ax) * abx + (y - ay) * aby) / seg_len_sq
+            t = min(1.0, max(0.0, t))
+        px, py = ax + t * abx, ay + t * aby
+        dist = math.hypot(x - px, y - py)
+        best = min(best, dist)
+    return best
 
 
 @dataclass(frozen=True, slots=True)

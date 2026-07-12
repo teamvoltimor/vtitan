@@ -28,12 +28,21 @@ need this env, only this script does):
     # battery, see scenario_catalog.all_obstacles_demo_scenarios):
     pixi run -e dev visualize-scenario -- --challenge obstacles --list
     pixi run -e dev visualize-scenario -- --challenge obstacles --interactive
+
+    # Real official-scenario metadata from the Go generator (the actual WRO
+    # 2026 36-scenario sign table), visualized live instead of the demo layout
+    # above. From platform/gazebo/generator:
+    #   go run ./cmd/simgen generate --challenge obstacles --num-scenarios 1 --deterministic --output-dir ../training_data
+    # Then from platform/robot:
+    pixi run -e dev visualize-scenario -- --metadata-file ../training_data/scenarios/scenario_0000_metadata.json
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import CorridorDimensions
@@ -101,6 +110,11 @@ def _parse_args() -> argparse.Namespace:
         "--challenge", choices=["open", "obstacles"], default="open",
         help="Which catalog --list/--scenario/--interactive operate over.",
     )
+    parser.add_argument(
+        "--metadata-file", metavar="PATH",
+        help="Run a *_metadata.json file directly (e.g. from `simgen generate`) "
+             "instead of a catalog scenario or the ad-hoc widths above.",
+    )
     return parser.parse_args()
 
 
@@ -114,7 +128,9 @@ def _track_for(metadata: dict[str, Any]) -> TrackModel:
 
 
 def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], track: TrackModel) -> None:
-    visualizer.set_track(track, sign_positions=metadata["sign_positions"], parking_lot=metadata["parking_lot"])
+    visualizer.set_track(
+        track, sign_positions=metadata["sign_positions"], parking_lot=metadata.get("parking_lot"),
+    )
 
 
 def _run_one(
@@ -139,6 +155,19 @@ def _log_result(label: str, result: SimResult) -> None:
         status, label, result.laps_completed, result.target_laps,
         result.collided, result.timed_out, result.distance_m, result.sim_time_s,
     )
+
+
+def _run_and_visualize(scenario: NamedScenario, rate: float) -> None:
+    scenario_track = _track_for(scenario.metadata)
+    visualizer = LiveScenarioVisualizer(scenario_track)
+    _set_track(visualizer, scenario.metadata, scenario_track)
+    logger.info(
+        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
+        "in another terminal to watch.",
+    )
+    result = _run_one(scenario, visualizer, rate)
+    _log_result(scenario.label, result)
+    visualizer.destroy_node()
 
 
 def main() -> None:
@@ -174,18 +203,16 @@ def main() -> None:
         visualizer.destroy_node()
         return
 
+    if args.metadata_file is not None:
+        path = Path(args.metadata_file)
+        metadata = json.loads(path.read_text())
+        scenario = NamedScenario(label=path.name, metadata=metadata, laps=args.laps, seed=0)
+        _run_and_visualize(scenario, args.rate)
+        return
+
     if args.scenario is not None:
         scenario = find_scenario(args.scenario, _catalog(args.challenge))
-        scenario_track = _track_for(scenario.metadata)
-        visualizer = LiveScenarioVisualizer(scenario_track)
-        _set_track(visualizer, scenario.metadata, scenario_track)
-        logger.info(
-            "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
-            "in another terminal to watch.",
-        )
-        result = _run_one(scenario, visualizer, args.rate)
-        _log_result(scenario.label, result)
-        visualizer.destroy_node()
+        _run_and_visualize(scenario, args.rate)
         return
 
     widths = uniform_widths(_WIDE_MM)

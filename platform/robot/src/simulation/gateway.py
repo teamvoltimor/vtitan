@@ -18,7 +18,7 @@ No Gazebo, no ROS2, no physics engine — pure Python, runs anywhere.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -43,6 +43,13 @@ if TYPE_CHECKING:
 
 CONTROL_HZ = 20.0
 CONTROL_DT = 1.0 / CONTROL_HZ
+
+START_COLLISION_WINDOW_S = 2.0
+"""A collision streak beginning within this long of run start is judged as a
+starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake."""
+
+START_COLLISION_GRACE_S = 15.0
+"""How long a starting-position collision streak may continue before it's a real failure."""
 
 
 class SimulatedHardwareGateway:
@@ -112,18 +119,41 @@ class SimulatedHardwareGateway:
         return self._state
 
     def advance(self, dt: float = CONTROL_DT) -> None:
-        """Integrate the last command over ``dt`` and regenerate the sensors."""
+        """Integrate the last command over ``dt`` and regenerate the sensors.
+
+        ``collided`` reflects the *current* tick only (re-evaluated every
+        call, not latched) — a scenario placed at a legally tight starting
+        position can be in wall contact before it's moved at all, and needs a
+        moment to steer clear; whether that streak counts as a real failure
+        is a run-level policy (see ``ScenarioSimulator.run``'s start-collision
+        grace), not something the gateway itself should decide by freezing
+        the flag the instant contact first occurs.
+        """
         self._state = self._kin.step(
             self._state,
             target_speed=self._command.speed_mps,
             target_steer_norm=self._command.steering_norm,
             dt=dt,
         )
-        if not self.collided and self._track.footprint_collides(
+        self.collided = self._track.footprint_collides(
             self._state.x, self._state.y, self._state.yaw,
-        ):
-            self.collided = True
+        )
+        if self.collided:
             self.collision_xy = (self._state.x, self._state.y)
+        self._refresh_sensors()
+
+    def apply_disturbance(self, lateral_m: float, heading_rad: float = 0.0) -> None:
+        """Kick the body sideways and/or off-heading, e.g. to test recovery from drift.
+
+        ``lateral_m`` offsets the pose perpendicular to the current heading
+        (positive = left of travel direction); ``heading_rad`` adds to yaw.
+        Speed is left untouched — this models a pose disturbance, not a
+        velocity change.
+        """
+        s = self._state
+        nx = s.x - lateral_m * math.sin(s.yaw)
+        ny = s.y + lateral_m * math.cos(s.yaw)
+        self._state = replace(s, x=nx, y=ny, yaw=s.yaw + heading_rad)
         self._refresh_sensors()
 
     def _refresh_sensors(self) -> None:
@@ -171,6 +201,18 @@ class SimResult:
             and not self.collided
             and self.parked is not False
         )
+
+
+@dataclass(frozen=True, slots=True)
+class PoseDisturbance:
+    """A one-time pose kick applied mid-run, e.g. to test recovery from drift.
+
+    ``lateral_m`` offsets perpendicular to the current heading (positive =
+    left of travel direction); ``heading_rad`` adds to yaw.
+    """
+
+    lateral_m: float
+    heading_rad: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +313,10 @@ class ScenarioSimulator:
         max_steps: int = 4000,
         dt: float = CONTROL_DT,
         on_step: Callable[[AckermannState, LidarScan], None] | None = None,
+        disturb_at_step: int | None = None,
+        disturbance: PoseDisturbance | None = None,
+        start_collision_window_s: float = START_COLLISION_WINDOW_S,
+        start_collision_grace_s: float = START_COLLISION_GRACE_S,
     ) -> SimResult:
         """Run the control loop until all laps finish, a wall is hit, or timeout.
 
@@ -281,6 +327,20 @@ class ScenarioSimulator:
                 every tick — used by the live Gazebo/RViz visualizer to publish
                 the ground-truth pose and LIDAR sweep. ``None`` in the headless
                 test battery, so it costs nothing there beyond one attribute check.
+            disturb_at_step: If set together with ``disturbance``, the control
+                tick at which to apply a one-time pose kick — for testing the
+                navigator's ability to recover from drift.
+            disturbance: The pose kick to apply at ``disturb_at_step``.
+            start_collision_window_s: A collision streak that *begins* within
+                this many seconds of the run's start is judged under the grace
+                policy below, rather than failing the run immediately — an
+                official starting zone can legally place the chassis right at
+                a wall, and the robot needs a moment to react. A streak that
+                begins later (a real driving mistake, not a starting
+                position) still fails immediately, same as before.
+            start_collision_grace_s: How long a start-window collision streak
+                may continue before it's judged a real, terminal failure
+                rather than "still working on steering clear."
 
         Returns:
             A populated :class:`SimResult`.
@@ -295,12 +355,17 @@ class ScenarioSimulator:
         min_range = math.inf
         prev_laps = 0
         lap_steps: list[int] = []
+        collision_streak_start_step: int | None = None
+        terminal_collision = False
 
         step = 0
         while step < max_steps:
             nav.step()
             gw.advance(dt)
             step += 1
+
+            if disturbance is not None and step == disturb_at_step:
+                gw.apply_disturbance(disturbance.lateral_m, disturbance.heading_rad)
 
             scan = gw.get_lidar_scan()
             if on_step is not None and scan is not None:
@@ -319,7 +384,16 @@ class ScenarioSimulator:
                 prev_laps = nav.laps_completed
 
             if gw.collided:
-                break
+                if collision_streak_start_step is None:
+                    collision_streak_start_step = step
+                streak_started_at_start = (collision_streak_start_step - 1) * dt <= start_collision_window_s
+                streak_duration_s = (step - collision_streak_start_step) * dt
+                if not streak_started_at_start or streak_duration_s >= start_collision_grace_s:
+                    terminal_collision = True
+                    break
+            else:
+                collision_streak_start_step = None
+
             if nav.laps_completed >= self._num_laps and (
                 self._park_controller is None or self._park_controller.is_done
             ):
@@ -333,7 +407,7 @@ class ScenarioSimulator:
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,
-            collided=gw.collided,
+            collided=terminal_collision,
             timed_out=timed_out,
             steps=step,
             sim_time_s=step * dt,

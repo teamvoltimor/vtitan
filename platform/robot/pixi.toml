@@ -128,6 +128,7 @@ sim     = { features = ["dev", "sim"], solve-group = "default" }
 navigate = "python main.py navigate --metadata ../training_data/open/scenarios/scenario_0000_metadata.json"
 drive    = "python main.py drive"
 visualize-scenario = { cmd = "python -m src.simulation.visualize_scenario", env = { PYTHONPATH = "." } }
+deviation-envelope = { cmd = "python -m src.simulation.find_recovery_envelope", env = { PYTHONPATH = "." } }
 
 # ROS2 utilities
 graph = "ros2 run rqt_graph rqt_graph"

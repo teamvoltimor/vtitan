@@ -1,4 +1,4 @@
-"""The live-visualizer's scenario catalog must mirror TestThreeLapSolvability exactly."""
+"""The live-visualizer's Open Challenge catalog loads the Go-generated fixtures."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import pytest
 from src.simulation.scenario_catalog import all_test_scenarios, find_scenario
 
 
-def test_catalog_has_one_entry_per_test_case() -> None:
-    # 8 symmetric-wide + 8 symmetric-narrow + 4 mixed + 8 random = 28.
+def test_catalog_loads_all_fixtures() -> None:
+    # tests/fixtures/scenarios/open/*_metadata.json
     assert len(all_test_scenarios()) == 28
 
 
@@ -30,13 +30,13 @@ def test_find_scenario_by_index_out_of_range_raises() -> None:
 
 def test_find_scenario_by_unique_label_substring() -> None:
     scenarios = all_test_scenarios()
-    found = find_scenario("random#3", scenarios)
-    assert found.label.startswith("random#3")
+    found = find_scenario("go_open_0003", scenarios)
+    assert found.label.startswith("go_open_0003")
 
 
 def test_find_scenario_by_ambiguous_label_raises() -> None:
     with pytest.raises(ValueError, match="multiple scenarios"):
-        find_scenario("symmetric_wide", all_test_scenarios())
+        find_scenario("go_open", all_test_scenarios())
 
 
 def test_find_scenario_by_unknown_label_raises() -> None:
