@@ -8,9 +8,11 @@ Official Source: WRO Future Engineers Competition Rules 2026
 Last Updated: 2026-02-08
 """
 
+import math
 from dataclasses import dataclass
 from typing import Final
 
+from shared.config import robot_constants_gen as _gen
 from shared.domain.enums import LightingScenario, Section
 
 
@@ -144,23 +146,29 @@ class StartingZoneSpecs:
 
 
 class RobotSpecs:
-    """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann)."""
+    """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann).
+
+    Physical constants (chassis, Ackermann geometry, wheel, LIDAR/camera mount offsets) are
+    generated from platform/shared/config/robot.toml — see robot_constants_gen.py — and must
+    not be hand-edited here. Everything else in this class (LIDAR/IMU/camera sim parameters)
+    is not duplicated in Go/xacro and stays hand-maintained.
+    """
 
     # Chassis dimensions
-    LENGTH: Final[float] = 0.30  # 300mm chassis length
-    WIDTH: Final[float] = 0.20  # 200mm chassis width
-    HEIGHT: Final[float] = 0.10  # 100mm chassis height
+    LENGTH: Final[float] = _gen.CHASSIS_LENGTH  # 300mm chassis length
+    WIDTH: Final[float] = _gen.CHASSIS_WIDTH  # 200mm chassis width
+    HEIGHT: Final[float] = _gen.CHASSIS_HEIGHT  # 100mm chassis height
 
     # Ackermann geometry (measured 2026-07-11)
-    WHEELBASE: Final[float] = 0.19  # 190mm axle-to-axle distance
-    TRACK_WIDTH: Final[float] = 0.1675  # 167.5mm wheel-to-wheel distance
-    WHEEL_RADIUS: Final[float] = 0.035  # 35mm (measured 70mm wheel diameter / 2)
-    MAX_STEERING_ANGLE: Final[float] = 0.5236  # ~30 degrees max front wheel angle
+    WHEELBASE: Final[float] = _gen.WHEELBASE  # 190mm axle-to-axle distance
+    TRACK_WIDTH: Final[float] = _gen.TRACK_WIDTH  # 167.5mm wheel-to-wheel distance
+    WHEEL_RADIUS: Final[float] = _gen.WHEEL_RADIUS  # 35mm (measured 70mm wheel diameter / 2)
+    MAX_STEERING_ANGLE: Final[float] = _gen.MAX_STEERING_ANGLE  # ~30 degrees max front wheel angle
 
     # Wheel details (measured 2026-07-11)
-    WHEEL_WIDTH: Final[float] = 0.025  # 25mm
-    WHEEL_MASS: Final[float] = 0.05  # 50g per wheel
-    CHASSIS_MASS: Final[float] = 0.8  # 800g total chassis
+    WHEEL_WIDTH: Final[float] = _gen.WHEEL_WIDTH  # 25mm
+    WHEEL_MASS: Final[float] = _gen.WHEEL_MASS  # 50g per wheel
+    CHASSIS_MASS: Final[float] = _gen.CHASSIS_MASS  # 800g total chassis
 
     # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
     # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
@@ -183,7 +191,7 @@ class RobotSpecs:
     # offset below). Cross-checked against the existing z-mount height (HEIGHT + LIDAR_HEIGHT/2
     # = 0.10 + 0.0207 ~= 0.1207, matching the long-standing z=0.12 lidar_link offset in
     # static_tfs.launch.py / the URDF within rounding).
-    LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
+    LIDAR_MOUNT_X_OFFSET: Final[float] = _gen.LIDAR_MOUNT_X_OFFSET
     # Rays that clip the chassis body itself (mount occlusion, cable clutter)
     # return as a self-reflection, not a real obstacle. Never applied to the
     # pure-forward bearing, where a genuine near-contact must still register.
@@ -208,9 +216,11 @@ class RobotSpecs:
     # (LIDAR z=0.12 + LIDAR_HEIGHT/2 ~= 0.14) with a small mounting-bracket gap. Unlike
     # LIDAR_MOUNT_X_OFFSET, this z isn't derived from a datasheet — it's an estimate pending
     # a real measurement.
-    CAMERA_MOUNT_X_OFFSET: Final[float] = LIDAR_MOUNT_X_OFFSET
-    CAMERA_MOUNT_Z_OFFSET: Final[float] = 0.16
-    CAMERA_MOUNT_PITCH_DEG: Final[float] = 30.0  # tilted down; angle is an estimate ("~30")
+    CAMERA_MOUNT_X_OFFSET: Final[float] = _gen.CAMERA_MOUNT_X_OFFSET
+    CAMERA_MOUNT_Z_OFFSET: Final[float] = _gen.CAMERA_MOUNT_Z_OFFSET
+    CAMERA_MOUNT_PITCH_DEG: Final[float] = math.degrees(
+        _gen.CAMERA_MOUNT_PITCH_RAD,
+    )  # tilted down; angle is an estimate ("~30")
 
 
 class TrackMarkings:

@@ -24,6 +24,9 @@ cache-dir = ".ruff_cache"
 # Files to include
 include = ["*.py", "*.pyi", "**/pyproject.toml"]
 
+# Respect `exclude` even when a file is passed explicitly on the command line.
+force-exclude = true
+
 # Files and directories to exclude
 exclude = [
     # Version control
@@ -77,6 +80,7 @@ exclude = [
     # Generated files
     "*_pb2.py",
     "*_pb2_grpc.py",
+    "*_gen.py",
     "*.pyi",
 ]
 

@@ -6,7 +6,7 @@
 # Environment variables override every key below.
 # Priority order: env var > server.toml > built-in default.
 
-# ── TCP model server ──────────────────────────────────────────────────────────
+# TCP model server
 # The SAM model server runs as a daemon thread inside the ml-service process.
 # It keeps the model loaded in GPU memory and serves inference requests over a
 # local TCP socket so the gRPC servicers can reuse weights across requests.
@@ -20,7 +20,7 @@ port = 8765
 # Override: not available via env — set here.
 recv_chunk_size = 65536
 
-# ── gRPC compute server ───────────────────────────────────────────────────────
+# gRPC compute server
 # The gRPC server is the boundary between the Go API and Python compute.
 # All three services (Segmentation, Augmentation, Training) share one port.
 [grpc]

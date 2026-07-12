@@ -112,10 +112,22 @@ func TestOpenChallenge_StartingConditionsValid(t *testing.T) {
 
 		// Position within track
 		if sc.Position.X < simconfig.TrackMinCoord || sc.Position.X > simconfig.TrackMaxCoord {
-			t.Errorf("scenario %d: x=%.3f outside [%.1f, %.1f]", i, sc.Position.X, simconfig.TrackMinCoord, simconfig.TrackMaxCoord)
+			t.Errorf(
+				"scenario %d: x=%.3f outside [%.1f, %.1f]",
+				i,
+				sc.Position.X,
+				simconfig.TrackMinCoord,
+				simconfig.TrackMaxCoord,
+			)
 		}
 		if sc.Position.Y < simconfig.TrackMinCoord || sc.Position.Y > simconfig.TrackMaxCoord {
-			t.Errorf("scenario %d: y=%.3f outside [%.1f, %.1f]", i, sc.Position.Y, simconfig.TrackMinCoord, simconfig.TrackMaxCoord)
+			t.Errorf(
+				"scenario %d: y=%.3f outside [%.1f, %.1f]",
+				i,
+				sc.Position.Y,
+				simconfig.TrackMinCoord,
+				simconfig.TrackMaxCoord,
+			)
 		}
 
 		// Yaw is one of the 4 cardinal values

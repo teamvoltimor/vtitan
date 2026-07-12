@@ -1,15 +1,24 @@
-# Robot Physical Constants — Canonical Values and Where They're Duplicated
+# Robot Physical Constants — Canonical Values
 
-There is **no single source of truth** for the robot's physical dimensions across this
-monorepo. The same numbers are hand-duplicated in Python, Go, and XML/xacro, and they have
-already drifted out of sync once (chassis `LENGTH`/`WIDTH` were corrected from 0.28×0.15 to
-0.30×0.20 in Python but never updated in the Go Gazebo generator or the xacro — both silently
-kept using the old numbers for months). This doc exists so the next correction doesn't repeat
-that.
+**Single source of truth (2026-07-11 fix):** `platform/shared/config/robot.toml`. It used to
+be hand-duplicated across Python, Go, and XML/xacro, and had already drifted out of sync once
+(chassis `LENGTH`/`WIDTH` were corrected from 0.28×0.15 to 0.30×0.20 in Python but never updated
+in the Go Gazebo generator or the xacro — both silently kept using the old numbers for months).
 
-**If you change any measurement below, update every file listed for it.** There's no
-build-time check that catches drift between these — if one is missed, it fails silently (wrong
-collision box, wrong sensor placement, wrong steering geometry) rather than erroring.
+**To change a measurement:** edit `platform/shared/config/robot.toml`, then run
+`task gen:robot-constants` (wraps `simgen generate-robot-constants`, see
+`platform/gazebo/generator/internal/robotconfig`). This regenerates all three consumers below —
+do not hand-edit any of them, they're marked `DO NOT EDIT` and will be silently overwritten:
+
+- `platform/gazebo/generator/internal/simconfig/robot_constants.gen.go` (Go)
+- `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` (`xacro:include`d from
+  `wro_robot.urdf.xacro`)
+- `platform/shared/src/shared/config/robot_constants_gen.py` (imported by `RobotSpecs` in
+  `platform/shared/src/shared/config/constants.py`)
+
+The rest of this doc records the canonical values and remaining known gaps (a second
+hand-maintained `wro_robot.urdf` snapshot, and the sign-router pitch follow-up) — read on for
+those, but the "update every file by hand" duplication problem itself is fixed.
 
 ## Canonical values (measured 2026-07-11)
 
@@ -27,63 +36,35 @@ collision box, wrong sensor placement, wrong steering geometry) rather than erro
 | Camera mount z-offset | 0.16 m | **estimate**, not measured |
 | Camera mount pitch | ~30° down | Magnitude is still an **estimate** ("like 30 degrees"), not precision-measured. Sign convention (positive = down) is confirmed correct — both by a rotation-matrix derivation (`R = Rz(yaw)·Ry(pitch)·Rx(roll)`, standard REP-103/tf2 convention) and visually, via the yellow direction-arrow marker added to `src/simulation/live_visualizer.py` and checked live in RViz 2026-07-11. |
 
-## Where each constant lives (update all, or drift happens again)
+## Where each constant lives
 
-### Canonical Python source
-`platform/shared/src/shared/config/constants.py`, `RobotSpecs` class — `LENGTH`, `WIDTH`,
-`HEIGHT`, `WHEELBASE`, `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_DIAMETER`,
-`LIDAR_HEIGHT`, `LIDAR_MOUNT_X_OFFSET`, `CAMERA_MOUNT_X_OFFSET`, `CAMERA_MOUNT_Z_OFFSET`,
-`CAMERA_MOUNT_PITCH_DEG`. Every Python consumer (navigation, simulation, ROS2 nodes) should
-import from here — nowhere else in Python should hardcode these numbers.
+### Source of truth
+`platform/shared/config/robot.toml` — chassis, Ackermann geometry, wheel, LIDAR mount offset,
+camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
 
-Known Python consumer that *used to* duplicate instead of importing:
-`src/hardware/motors/dc_encoder/driver.py`'s `_DEFAULT_WHEEL_DIAMETER_M` — now derived as
-`RobotSpecs.WHEEL_RADIUS * 2` instead of its own literal.
+### Generated (do not hand-edit)
+- `platform/gazebo/generator/internal/simconfig/robot_constants.gen.go` — the `Robot*` const
+  block, consumed by `platform/gazebo/generator/internal/sdf/robot.go` (chassis box/inertia,
+  wheel joints, Ackermann plugin params, `buildCameraLink`/`buildLidarLink` poses) and
+  transitively by `internal/validate/validate.go` and `internal/preview/svg.go`.
+- `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` — `xacro:include`d
+  from `wro_robot.urdf.xacro`, which still hand-defines wheel joints, links, and sensors below
+  it using the included properties (`chassis_length`, `wheelbase`, `lidar_mount_x`, etc.).
+- `platform/shared/src/shared/config/robot_constants_gen.py` — imported by `RobotSpecs` in
+  `platform/shared/src/shared/config/constants.py` (`LENGTH`, `WIDTH`, `HEIGHT`, `WHEELBASE`,
+  `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_MOUNT_X_OFFSET`, `CAMERA_MOUNT_X_OFFSET`,
+  `CAMERA_MOUNT_Z_OFFSET`, `CAMERA_MOUNT_PITCH_DEG`). Every other Python consumer (navigation,
+  simulation, ROS2 nodes — e.g. `static_tfs.launch.py`, `live_visualizer.py`) still imports
+  `RobotSpecs`, unchanged.
 
-### Real-robot TF (ROS2)
-`platform/robot/ros2_ws/src/voldemorbot_bringup/launch/static_tfs.launch.py` — imports
-`RobotSpecs` directly (the one place in this list that already reads from the canonical
-Python source rather than duplicating). `camera_link`/`lidar_link` poses.
-
-### Closed-loop sim / RViz (no URDF or Gazebo in this path)
-`platform/robot/src/simulation/live_visualizer.py`'s `_robot_model_markers()` (and its
-per-marker helpers `_chassis_marker`/`_robot_lidar_marker`/`_camera_marker`/
-`_camera_facing_marker`) — imports `RobotSpecs` directly, same as `static_tfs.launch.py`.
-Renders the chassis box, LIDAR cylinder, and a camera cube + direction arrow as
-`visualization_msgs/Marker`s relative to `base_link`, published on the same `/sim/track`
-topic the track walls use. This is the *only* place `task sim:navigate:rviz` /
-`visualize_scenario.py` can show these mount offsets — that path never loads a URDF, so
-without this there's nothing to look at. Markers are re-published every ~20 ticks (not just
-once) so a late-connecting RViz subscriber doesn't miss them.
-
-### URDF/xacro (RViz + Gazebo mesh/joints — hand-duplicated, does NOT import RobotSpecs)
-- `platform/gazebo/runtime/robot_description/wro_robot.urdf.xacro` — the `xacro:property`
-  block near the top (`chassis_length`, `chassis_width`, `wheelbase`, `track_width`,
-  `wheel_radius`, `wheel_width`, `lidar_mount_x`, `camera_mount_x`, `camera_mount_z`,
-  `camera_mount_pitch`). Drives wheel joint offsets, the Ackermann Gazebo plugin's
-  `wheel_base`/`wheel_separation`/`wheel_radius`, and the `lidar_joint`/`camera_joint`
-  origins.
+### Not yet generated (pre-existing gaps, unrelated to the drift this doc used to describe)
 - `platform/gazebo/runtime/robot_description/wro_robot.urdf` — a **separate, simplified,
   hand-maintained snapshot** (RViz/TF visualization only — no wheels/joints/steering), not
-  generated from the xacro above. Its own `<box>`/`<cylinder>` sizes and joint `<origin>`s
-  must be updated by hand in parallel. Its own `lidar_link` mesh uses a *different* radius
-  (0.035) than the xacro's (0.0278) — a pre-existing inconsistency between the two files,
-  not reconciled as part of this pass.
-
-### Go Gazebo generator (hand-duplicated, does NOT import RobotSpecs)
-`platform/gazebo/generator/internal/simconfig/constants.go` — the `Robot*` const block
-(`RobotLength`, `RobotWidth`, `RobotHeight`, `RobotWheelbase`, `RobotTrackWidth`,
-`RobotWheelRadius`, `RobotWheelWidth`, `RobotLidarMountXOffset`, `RobotCameraMountXOffset`,
-`RobotCameraMountZOffset`, `RobotCameraPitchRad`). Consumed in
-`platform/gazebo/generator/internal/sdf/robot.go` (chassis box/inertia, wheel joints, the
-Ackermann plugin params, `buildCameraLink`/`buildLidarLink` poses) and transitively by
-`internal/validate/validate.go` (spawn-clearance checks) and `internal/preview/svg.go`
-(top-down preview rendering) — those two read the constants, not hardcode them, so they pick
-up corrections automatically.
-
-### Tests
-`platform/robot/tests/test_constants.py`'s `ROBOT_CHASSIS_WIDTH`/`ROBOT_FOOTPRINT_RADIUS` —
-another independent duplicate, not imported from `RobotSpecs`.
+  generated from the xacro above. Its own `<box>`/`<cylinder>` sizes and joint `<origin>`s are
+  still updated by hand. Its own `lidar_link` mesh uses a *different* radius (0.035) than the
+  xacro's (0.0278) — a pre-existing inconsistency between the two files, not reconciled here.
+- `LIDAR_DIAMETER`/`LIDAR_HEIGHT` in `RobotSpecs` are not in `robot.toml` — they're only used
+  to derive `LIDAR_MOUNT_X_OFFSET` in a comment, not independently duplicated elsewhere.
 
 ## Known follow-up (not fixed by this pass)
 
@@ -101,6 +82,5 @@ Worth its own change once the camera's real x/z/pitch are confirmed rather than 
 
 ## The actual structural fix (not done here, flagged for later)
 
-The right long-term fix is generating the Go and xacro values from the Python `RobotSpecs`
-source (or a shared JSON/YAML config all three read) instead of three independently
-hand-maintained copies. This doc is the interim mitigation, not a replacement for that.
+Done (2026-07-11): `platform/shared/config/robot.toml` is now the shared source all three read,
+via `task gen:robot-constants` (see "Where each constant lives" above).

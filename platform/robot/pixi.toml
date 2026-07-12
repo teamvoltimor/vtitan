@@ -3,13 +3,15 @@ name = "voldemorbot-robot"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — ROS2 navigation runtime (hardware + simulation)"
 channels = ["robostack-kilted", "conda-forge"]
-platforms = ["linux-64", "linux-aarch64", "win-64"]
-
-# lgpio (Pi 5 GPIO backend) ships only builds requiring glibc >=2.34. Pixi
-# defaults to an older minimum, so declare it explicitly. Satisfied by Debian
-# 12+/Ubuntu 22.04+ and the Pi OS image (glibc 2.41).
-[system-requirements]
-libc = { family = "glibc", version = "2.34" }
+# lgpio (Pi 5 GPIO backend) ships only builds requiring glibc >=2.34. Pixi defaults to an
+# older minimum, so declare it explicitly per-platform (the modern replacement for the
+# deprecated top-level [system-requirements] table). Satisfied by Debian 12+/Ubuntu 22.04+
+# and the Pi OS image (glibc 2.41). win-64 has no glibc concept, left unconstrained.
+platforms = [
+  { platform = "linux-64", glibc = "2.34" },
+  { platform = "linux-aarch64", glibc = "2.34" },
+  "win-64",
+]
 
 [dependencies]
 # ROS2 Kilted base

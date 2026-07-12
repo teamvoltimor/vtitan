@@ -209,7 +209,7 @@ def test_routing_decision_all_grid_positions(
         assert result_x == pytest.approx(expected_x, abs=1e-6)
 
 
-# ── 3. Activation distance guard ──────────────────────────────────────────────
+# 3. Activation distance guard
 
 
 class TestActivationDistance:
@@ -239,7 +239,7 @@ class TestActivationDistance:
         assert result != wp
 
 
-# ── 4. Passed signs ignored ───────────────────────────────────────────────────
+# 4. Passed signs ignored
 
 
 class TestPassedSigns:
@@ -339,7 +339,7 @@ class TestEngagementGating:
         assert approached != (2.0, 0.4)
 
 
-# ── Camera-detection confirmation (pinhole projection) ───────────────────────
+# Camera-detection confirmation (pinhole projection)
 
 # All direct _detection_to_world / _match_detection_to_sign cases below use a
 # robot at the origin facing east (yaw=0) unless stated otherwise, so
@@ -484,7 +484,7 @@ class TestCameraDetectionOverridesGroundTruth:
         assert result != pytest.approx(expected_if_red, abs=1e-6)
 
 
-# ── 5. No-op with empty sign list ─────────────────────────────────────────────
+# 5. No-op with empty sign list
 
 
 def test_empty_sign_list_returns_waypoint_unchanged():
@@ -499,7 +499,7 @@ def test_empty_sign_list_returns_waypoint_unchanged():
     assert result == wp
 
 
-# ── 6. WP-1: deformation stays clear of the inner square and outer wall ──────
+# 6. WP-1: deformation stays clear of the inner square and outer wall
 
 
 class TestDeformationClamping:

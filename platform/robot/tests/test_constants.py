@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from shared.config.constants import RobotSpecs
 
 # LIDAR Geometry
 NUM_RAYS = 360
@@ -62,8 +63,8 @@ SIGN_GRID_POSITIONS: list[tuple[float, float]] = [
 ]
 
 # Robot Specs
-ROBOT_CHASSIS_WIDTH = 0.20  # m — matches RobotSpecs.WIDTH, was a stale pre-correction duplicate
-ROBOT_FOOTPRINT_RADIUS = 0.10  # m — half of ROBOT_CHASSIS_WIDTH
+ROBOT_CHASSIS_WIDTH = RobotSpecs.WIDTH  # m
+ROBOT_FOOTPRINT_RADIUS = ROBOT_CHASSIS_WIDTH / 2  # m
 
 # Start Positions
 START_POSITION_SOUTH = (1.5, 0.3)

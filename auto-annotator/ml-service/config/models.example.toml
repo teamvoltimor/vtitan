@@ -6,7 +6,7 @@
 # The server loads the model whose id matches default_model on startup.
 # Override at runtime: --model <id> CLI flag or DEFAULT_MODEL env var.
 #
-# ── Field reference ───────────────────────────────────────────────────────────
+# Field reference
 #   id             Unique key used by the API and UI dropdown.
 #   label          Human-readable name shown in the frontend.
 #   type           One of: "sam1" | "sam2" | "sam3" | "yolo11" | "yoloe" | "grounding_dino"
@@ -21,7 +21,7 @@
 
 default_model = "sam2.1-large"
 
-# ── SAM 2.1 (recommended default) ────────────────────────────────────────────
+# SAM 2.1 (recommended default)
 
 [[models]]
 id           = "sam2.1-large"
@@ -48,7 +48,7 @@ checkpoint   = "models/sam2.1_s.pt"
 hiera_config = "configs/sam2.1/sam2.1_hiera_s.yaml"
 hf_repo      = "facebook/sam2.1-hiera-small"
 
-# ── SAM 2.0 ──────────────────────────────────────────────────────────────────
+# SAM 2.0
 
 [[models]]
 id           = "sam2-large"
@@ -58,7 +58,7 @@ checkpoint   = "models/sam2_l.pt"
 hiera_config = "configs/sam2/sam2_hiera_l.yaml"
 hf_repo      = "facebook/sam2-hiera-large"
 
-# ── SAM 1 (ViT checkpoints, CPU-friendly) ────────────────────────────────────
+# SAM 1 (ViT checkpoints, CPU-friendly)
 
 [[models]]
 id         = "sam1-vit-h"
@@ -81,7 +81,7 @@ type       = "sam1"
 checkpoint = "models/sam_vit_b_01ec64.pth"
 variant    = "vit_b"
 
-# ── Text-prompted models ──────────────────────────────────────────────────────
+# Text-prompted models
 # These accept free-text class labels instead of click points.
 
 [[models]]
@@ -104,7 +104,7 @@ label         = "Grounding DINO + SAM"
 type          = "grounding_dino"
 supports_text = true
 
-# ── Custom YOLO11 (example — replace with your trained model) ─────────────────
+# Custom YOLO11 (example — replace with your trained model)
 # Use this template for any model you exported with `yolo export`.
 
 # [[models]]
