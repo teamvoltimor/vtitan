@@ -43,6 +43,16 @@ have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
   the systemd units is belt-and-suspenders for the same reason.
 - Check `systemctl is-active voldemorbot-pi5.service` / `-pi-zero.service` before assuming a node
   is running — a Pi can have the repo cloned and built but the service never installed/enabled.
+- **Passwordless `sudo` must be set up per Pi** before the service unit files can be installed or
+  managed remotely (`systemctl enable`/`start`/`restart` need root, and there's no way to supply a
+  password over a non-interactive SSH session). Raspberry Pi OS's own imager sets this up for the
+  default user automatically on first boot (`/etc/sudoers.d/010_pi-nopasswd`), but it isn't
+  guaranteed on every image/provisioning path — verify with `sudo -n true` (silent exit 0 = already
+  passwordless). If it prompts for a password, set it up once interactively:
+  ```bash
+  echo 'ralvarezdev ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/010_pi-nopasswd
+  sudo chmod 0440 /etc/sudoers.d/010_pi-nopasswd
+  ```
 
 ## General SSH/shell gotchas hit during testing
 
