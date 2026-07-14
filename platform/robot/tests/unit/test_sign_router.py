@@ -49,6 +49,10 @@ CFG = SignRouterConfig(
     lateral_offset=SIGN_LATERAL_OFFSET,
     activation_dist=SIGN_ACTIVATION_DIST,
     passed_dist=SIGN_PASSED_DIST,
+    # These tests exercise engage/pass logic directly, in isolation, over a
+    # handful of calls — not the settle-window feature itself (see
+    # TestSettleWindow below), so disable it here.
+    settle_ticks=0,
 )
 LATERAL = SIGN_LATERAL_OFFSET
 
@@ -309,6 +313,97 @@ class TestPassedSigns:
             waypoint=wp, robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
         )
         assert result != wp
+
+
+class TestSettleWindow:
+    """Engage/pass bookkeeping is deferred for the first ``settle_ticks`` of a lap.
+
+    Regression guard for a real bug: right after spawn (or a lap boundary),
+    the robot can briefly swing toward a corridor it hasn't actually reached
+    yet while settling onto its planned route. If that swing grazes a
+    not-yet-really-encountered sign's activation radius, engage+pass bookkeeping
+    with no settle window retires the sign before its genuine pass ever happens.
+    """
+
+    def test_engage_and_pass_suppressed_within_settle_window(self):
+        cfg = SignRouterConfig(
+            lateral_offset=SIGN_LATERAL_OFFSET,
+            activation_dist=SIGN_ACTIVATION_DIST,
+            passed_dist=SIGN_PASSED_DIST,
+            settle_ticks=3,
+        )
+        sign = _sign_at(1.5, 0.4, "red")
+        router = SignRouter([sign], config=cfg)
+
+        # Within the settle window (ticks 1-2, settle_ticks=3): engage-then-leave
+        # must NOT retire the sign, even though the same sequence would retire
+        # it once settled (see the follow-up calls below).
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert router.active_sign_count == 1
+
+        # Burn the remaining unsettled tick (tick 3) so both calls below (ticks
+        # 4-5) land past the settle window.
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(10.0, 10.0), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+
+        # Past the settle window, the same engage-then-leave sequence retires it.
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert router.active_sign_count == 0
+
+    def test_candidate_selection_not_suppressed_within_settle_window(self):
+        """A sign in the robot's real corridor still deforms during the settle window."""
+        cfg = SignRouterConfig(
+            lateral_offset=SIGN_LATERAL_OFFSET,
+            activation_dist=SIGN_ACTIVATION_DIST,
+            passed_dist=SIGN_PASSED_DIST,
+            settle_ticks=100,
+        )
+        sign = _sign_at(1.5, 0.4, "red")
+        router = SignRouter([sign], config=cfg)
+        wp = (1.5, 0.4)
+        result = router.deform_waypoint(
+            waypoint=wp, robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert result != wp
+
+    def test_reset_for_new_lap_restarts_the_settle_window(self):
+        cfg = SignRouterConfig(
+            lateral_offset=SIGN_LATERAL_OFFSET,
+            activation_dist=SIGN_ACTIVATION_DIST,
+            passed_dist=SIGN_PASSED_DIST,
+            settle_ticks=3,
+        )
+        sign = _sign_at(1.5, 0.4, "red")
+        router = SignRouter([sign], config=cfg)
+        for _ in range(4):
+            router.deform_waypoint(
+                waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert router.active_sign_count == 0  # settled already, so this retired it
+
+        router.reset_for_new_lap()
+        # Immediately after reset, back inside a fresh settle window.
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        assert router.active_sign_count == 1
 
 
 class TestEngagementGating:

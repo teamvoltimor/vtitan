@@ -16,17 +16,18 @@ need this env, only this script does):
     pixi run -e dev visualize-scenario
     pixi run -e dev visualize-scenario -- --south 600 --north 600 --section south --direction cw --rate 2
 
-    # The exact scenarios TestThreeLapSolvability runs, by index or label:
+    # The catalog scenarios, by index or label — omit --challenge to see both
+    # catalogs (Open Challenge then Obstacles Challenge); pass --challenge
+    # open|obstacles to scope to just one:
     pixi run -e dev visualize-scenario -- --list
     pixi run -e dev visualize-scenario -- --scenario 0
-    pixi run -e dev visualize-scenario -- --scenario symmetric_narrow[South/clockwise]
-
-    # Step through all 28 test scenarios, pausing between each:
-    pixi run -e dev visualize-scenario -- --interactive
-
-    # Obstacles Challenge demo scenarios (sign routing + parking — NOT a pytest
-    # battery, see scenario_catalog.all_obstacles_demo_scenarios):
+    pixi run -e dev visualize-scenario -- --challenge open --scenario go_open_0000
     pixi run -e dev visualize-scenario -- --challenge obstacles --list
+
+    # Step through every catalog scenario, pausing between each. No
+    # --challenge means both catalogs back-to-back (Open, then Obstacles);
+    # --challenge open|obstacles scopes to just one:
+    pixi run -e dev visualize-scenario -- --interactive
     pixi run -e dev visualize-scenario -- --challenge obstacles --interactive
 
     # Real official-scenario metadata from the Go generator (the actual WRO
@@ -107,8 +108,9 @@ def _parse_args() -> argparse.Namespace:
         help="Step through every test scenario in order, pausing between each.",
     )
     parser.add_argument(
-        "--challenge", choices=["open", "obstacles"], default="open",
-        help="Which catalog --list/--scenario/--interactive operate over.",
+        "--challenge", choices=["open", "obstacles"], default=None,
+        help="Which catalog --list/--scenario/--interactive operate over. "
+             "Omit to run both catalogs (Open Challenge scenarios, then Obstacles Challenge).",
     )
     parser.add_argument(
         "--metadata-file", metavar="PATH",
@@ -118,8 +120,13 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _catalog(challenge: str) -> list[NamedScenario]:
-    return all_test_scenarios() if challenge == "open" else all_obstacles_demo_scenarios()
+def _catalog(challenge: str | None) -> list[NamedScenario]:
+    """Scenarios for the given challenge, or both catalogs (Open then Obstacles) if omitted."""
+    if challenge == "open":
+        return all_test_scenarios()
+    if challenge == "obstacles":
+        return all_obstacles_demo_scenarios()
+    return all_test_scenarios() + all_obstacles_demo_scenarios()
 
 
 def _track_for(metadata: dict[str, Any]) -> TrackModel:

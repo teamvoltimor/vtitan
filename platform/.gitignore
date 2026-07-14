@@ -222,6 +222,7 @@ docs/internal/
 telemetry_sessions/
 backend/telemetry_sessions/
 shared/dist/
+fixtures/
 
 # Task checksum
 .task/

@@ -109,6 +109,18 @@ class SignRouterConfig:
     min_confidence: float = 0.25
     """Minimum detection confidence to accept a camera-based color update."""
 
+    settle_ticks: int = 150
+    """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
+    before a sign may be engaged/passed at all. Right after spawn (or a lap
+    boundary), the robot can briefly swing toward a corridor it hasn't
+    actually reached yet while settling onto its planned route — if that
+    swing grazes a not-yet-really-encountered sign's activation radius, it
+    gets engaged and then marked passed as the robot continues on its real
+    route away from it, retiring the sign before its genuine pass ever
+    happens. Deferring bookkeeping (not candidate selection — a sign already
+    in the robot's actual corridor still deforms normally) for this settle
+    window prevents that incidental graze from ever registering."""
+
 
 class SignRouter:
     """Routes the robot past traffic signs using lateral waypoint deformations.
@@ -139,6 +151,7 @@ class SignRouter:
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
+        self._lap_tick = 0
         # Each sign's own corridor, precomputed once — deform_waypoint() must
         # never apply a sign's (x, y) through a different corridor's axis
         # convention (see _nearest_active_sign).
@@ -159,6 +172,7 @@ class SignRouter:
         """
         self._passed.clear()
         self._engaged.clear()
+        self._lap_tick = 0
 
     def deform_waypoint(
         self,
@@ -262,11 +276,16 @@ class SignRouter:
         over can be geometrically within ``activation_dist`` right at a corner,
         and applying its (x, y) through this corridor's axis/clamp convention
         produces a nonsensical waypoint (deforms the wrong axis, clamped against
-        the wrong wall).
+        the wrong wall). Engage/pass bookkeeping itself is suppressed for the
+        first ``settle_ticks`` of a lap (see ``SignRouterConfig.settle_ticks``);
+        candidate selection isn't, so a sign genuinely in the robot's current
+        corridor still deforms normally even during that window.
 
         Returns:
             ``(index, distance)``; index is -1 when no active sign remains.
         """
+        self._lap_tick += 1
+        settled = self._lap_tick > self._config.settle_ticks
         nearest_dist = float("inf")
         nearest_idx = -1
 
@@ -274,10 +293,10 @@ class SignRouter:
             if i in self._passed:
                 continue
             d = _dist2d(robot_pos, (sign.x, sign.y))
-            if d < self._config.activation_dist:
+            if settled and d < self._config.activation_dist:
                 self._engaged.add(i)
             if d > self._config.passed_dist:
-                if i in self._engaged:
+                if settled and i in self._engaged:
                     self._passed.add(i)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
                 continue
