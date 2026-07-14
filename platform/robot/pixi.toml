@@ -44,6 +44,10 @@ pydantic-settings = ">=2.14.0,<3"
 # pull ultralytics/rviz2 through the same conda-mapping path, silently dropping it
 # from default/dev and breaking every "from PIL import Image" in the OLED code.
 pillow = ">=8"
+# Runtime dependency of telemetry_bridge_node (posts to the backend over
+# HTTP) -- only types-requests (the mypy stub) was declared before, so the
+# node imported cleanly under type-checking but crashed at runtime.
+requests = ">=2.32,<3"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"
