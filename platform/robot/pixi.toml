@@ -196,10 +196,10 @@ test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH 
 # real Python modules (find_packages() non-empty) -- ros2 run/ros2 pkg list
 # can't find them even though the build succeeds. Merging into one shared
 # prefix sidesteps the per-package hook-generation gap entirely.
-build-ws = "colcon build --symlink-install --merged-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
+build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
 
 [feature.dev.target.linux-aarch64.tasks]
-build-ws = "colcon build --symlink-install --merged-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
+build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install"
 
 [target.linux-aarch64.tasks]
 # frame_id matches static_tfs.launch.py's child_frame_id for lidar -- must stay in sync.
