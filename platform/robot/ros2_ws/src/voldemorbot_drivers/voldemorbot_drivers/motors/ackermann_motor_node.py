@@ -53,7 +53,16 @@ from std_msgs.msg import Float32
 
 from src.hardware.motors.config import Config
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
+from src.logger import configure_json_logging
 from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
+
+# .env loading is a side effect of importing src.logger.config -- the
+# servo/dc_encoder backends (this node's defaults) never import src.logger
+# themselves (only build_hat's driver does), and even then only inside
+# on_configure()'s try block, well after Config() below would already have
+# run. Trigger it explicitly here so Config() sees MOTOR_STEERING__*/
+# MOTOR_DRIVE__* regardless of which backend is selected.
+configure_json_logging()
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
