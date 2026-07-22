@@ -287,6 +287,58 @@ unlike a continuous stream (where you can just wait longer), a single missed pre
 to a real failure. Retry at least once, and bisect down a layer if it keeps failing, before
 treating it as a genuine bug.
 
+## Pi Zero deployment: never run `pixi install`/`build-ws` directly on it
+
+The Pi Zero 2 W has ~415MB usable RAM. Resolving/installing the full `dev`
+pixi environment (ROS2 Kilted base + opencv/scipy/pydantic/etc. via
+robostack/conda) or rebuilding `ros2_ws` there directly is heavy enough to
+swap-thrash the SD card into double-digit load averages, make SSH
+unresponsive for many minutes at a stretch, and — confirmed the hard way —
+crash the board with an unclean shutdown (fsck found a dirty bit and a
+corrupted systemd-journald file on the next boot; no reported ext4 data
+corruption that time, but repeat hard resets are a real risk to the
+filesystem, not just an inconvenience).
+
+**Two compounding traps found doing this:**
+1. **`pixi run` silently self-repairs a stale/broken env before running
+   anything.** If `voldemorbot-pi-zero.service` is `enabled` and the Zero
+   reboots (e.g. mid-recovery) with an incomplete `dev` env, the service
+   auto-starts on boot and its `pixi run -e dev launch-rpi-zero` immediately
+   re-triggers a full install in the background — silently fighting any
+   manual recovery attempt for the same disk I/O. **Always
+   `sudo systemctl disable voldemorbot-pi-zero.service` before doing any
+   maintenance on the Zero's pixi env**, and only re-enable once it's
+   confirmed working standalone.
+2. Aggressively retrying SSH connections against an already I/O-starved board
+   compounds the problem — each connection spawns a new sshd session with its
+   own overhead. Prefer long, sparse, patient checks over tight retry loops
+   when the board is already struggling.
+
+**The fix: build on Pi 5, ship the result to the Zero as tarballs.** Pi 5 has
+15GB+ RAM and does the same `pixi install -e dev` + `colcon build` in under a
+minute. Both boards are `linux-aarch64` with the same username and identical
+absolute repo path (`~/voldemorbot/platform/robot/...`), so a straight copy
+of `.pixi/envs/dev` and a `ros2_ws` build produced with `-e dev` works without
+any conda/mamba resolution happening on the Zero at all.
+
+Automated via `pixi run -e dev deploy-dev-env-to-zero`, run **on Pi 5**
+(see `scripts/deploy-dev-env-to-zero.sh`). One-time prerequisite: Pi 5's own
+SSH key needs to be in the Zero's `~/.ssh/authorized_keys` (they don't trust
+each other by default) — generate one with `ssh-keygen -t ed25519` on Pi 5 if
+`~/.ssh/id_ed25519.pub` doesn't already exist, then append it on the Zero.
+Transferring over the USB-gadget link (`192.168.250.1`, wired) rather than
+the Zero's own WiFi radio is markedly more reliable — the ~850MB compressed
+`dev` env transfer is large enough that WiFi drops repeatedly restart it from
+scratch (`scp` doesn't resume).
+
+The script extracts under `_new`-suffixed names and atomically renames them
+into place (`dev` → `dev_old_<timestamp>`, `dev_new` → `dev`, same for
+`ros2_ws/build`/`install`) rather than deleting the old broken env first —
+`rm -rf` on a large, deeply-nested conda env (e.g. bundled Qt/WebEngine
+license trees with huge file counts) can itself hang for a very long time on
+the Zero's slow SD card. Clean up the timestamped `*_old_*` leftovers
+manually once the new env is confirmed working.
+
 ## Template for future phases
 
 For each new sensor, document here: what bugs were found, what prerequisite gaps existed, and

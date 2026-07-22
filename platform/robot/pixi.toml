@@ -212,3 +212,9 @@ build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/
 # scan (confirmed empirically: front/back read correctly with just the yaw offset, but
 # left and right came out swapped until this was set).
 run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=true'"
+
+# Run ON Pi 5 -- builds the dev env + ros2_ws there and ships it to the Pi
+# Zero as tarballs instead of running pixi/colcon directly on the Zero's
+# ~415MB RAM (see scripts/deploy-dev-env-to-zero.sh's header and
+# docs/sensor-verification.md's Pi Zero deployment section for why).
+deploy-dev-env-to-zero = "bash scripts/deploy-dev-env-to-zero.sh"
