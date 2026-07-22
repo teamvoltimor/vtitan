@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,14 +73,15 @@ class Config(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    # MotorSteeringConfig/MotorDriveConfig have no field defaults for the
-    # physical parameters (port, angle limits, speeds) -- there is no safe
-    # universal default for those, so this factory only succeeds when the
-    # nested env vars (MOTOR_STEERING__*/MOTOR_DRIVE__*) are set; mypy can't
-    # see that env resolution, hence the ignores.
-    steering: MotorSteeringConfig = Field(default_factory=lambda: MotorSteeringConfig())  # type: ignore[call-arg]
+    # Plain required nested fields (no default_factory): a default_factory
+    # would construct the nested BaseModel with zero arguments, bypassing
+    # pydantic-settings' env_nested_delimiter resolution entirely and always
+    # failing validation regardless of whether MOTOR_STEERING__*/
+    # MOTOR_DRIVE__* are set. Leaving them required lets the parent
+    # BaseSettings populate them from the nested env vars itself.
+    steering: MotorSteeringConfig
 
-    drive: MotorDriveConfig = Field(default_factory=lambda: MotorDriveConfig())  # type: ignore[call-arg]
+    drive: MotorDriveConfig
 
     test_duration: float
     """
