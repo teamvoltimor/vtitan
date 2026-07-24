@@ -218,3 +218,10 @@ run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 s
 # ~415MB RAM (see scripts/deploy-dev-env-to-zero.sh's header and
 # docs/sensor-verification.md's Pi Zero deployment section for why).
 deploy-dev-env-to-zero = "bash scripts/deploy-dev-env-to-zero.sh"
+
+# Run ON Pi 5 -- cleanly shuts the Zero down (stop service, sync, shutdown -h
+# now) before you cut its power. See docs/sensor-verification.md's "Always
+# shut the Zero down cleanly before cutting power" section for why: pulling
+# power on a running Zero leaves the ext4 journal uncommitted and has
+# corrupted the filesystem before.
+safe-shutdown-zero = "bash scripts/safe-shutdown-zero.sh"

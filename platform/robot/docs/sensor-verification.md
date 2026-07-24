@@ -339,6 +339,23 @@ license trees with huge file counts) can itself hang for a very long time on
 the Zero's slow SD card. Clean up the timestamped `*_old_*` leftovers
 manually once the new env is confirmed working.
 
+### Always shut the Zero down cleanly before cutting power
+
+Pulling power on a running Zero (instead of shutting it down first) leaves the ext4 journal
+uncommitted. Confirmed the hard way: this showed up on next boot as free-block/inode count
+mismatches and a stale orphan-file flag (`e2fsck -f` fixed it), and the board wouldn't come back
+up on its own because boot was hung waiting on an interactive fsck prompt with no display
+attached. Repeat occurrences risk worse (real ext4 data-structure corruption, not just accounting).
+
+Run `bash scripts/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero — it
+stops `voldemorbot-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
+Zero is actually offline before telling you it's safe to unplug it.
+
+If it's already wedged in a dirty-fsck state with no display attached: pull the microSD card, plug
+it into another Pi (or a USB reader) that can mount ext4 natively, and run
+`sudo e2fsck -n -f /dev/<partition>` read-only first to see what's wrong, then `sudo e2fsck -f -y
+/dev/<partition>` to fix it.
+
 ## Template for future phases
 
 For each new sensor, document here: what bugs were found, what prerequisite gaps existed, and
