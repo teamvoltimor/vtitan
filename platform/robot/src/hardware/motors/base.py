@@ -75,10 +75,10 @@ class SteeringDriver(ABC):
         """Absolute steering angle (deg) that corresponds to wheels-straight."""
         return STEERING_CENTER_DEG
 
-    def connect(self) -> None:
+    def connect(self) -> None:  # noqa: B027 -- intentional concrete no-op default, not a forgotten abstractmethod
         """Open the steering hardware. No-op unless a backend needs it."""
 
-    def disconnect(self) -> None:
+    def disconnect(self) -> None:  # noqa: B027 -- intentional concrete no-op default, not a forgotten abstractmethod
         """Release the steering hardware. No-op unless a backend needs it."""
 
     @abstractmethod

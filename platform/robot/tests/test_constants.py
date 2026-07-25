@@ -48,7 +48,7 @@ INNER_BLOCK_MIN = 1.0  # m
 INNER_BLOCK_MAX = 2.0  # m
 
 # Sign Router Test Config
-SIGN_LATERAL_OFFSET = 0.15  # m
+SIGN_LATERAL_OFFSET = 0.20  # m — RobotSpecs.WIDTH/2 + TrafficSignSpecs.WIDTH/2 + 0.075m margin
 SIGN_ACTIVATION_DIST = 0.80  # m
 SIGN_PASSED_DIST = 1.20  # m
 

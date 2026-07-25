@@ -30,7 +30,7 @@ tasks:
         echo "
         VOLDEMORBOT PLATFORM — Taskfile Commands
 
-        Convention: module:verb (e.g. backend:test, sim:gazebo:world).
+        Convention: module:verb (e.g. backend:test, sim:gazebo).
         Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
 
         UMBRELLAS (run across every module)
@@ -59,10 +59,7 @@ tasks:
           task frontend:api:generate  Generate TypeScript client from OpenAPI specs
 
         PROTO (buf toolchain — requires buf CLI)
-          task proto:update         Update buf registry dependencies
-          task proto:generate       Generate Go, Python, and TypeScript code from .proto
-          task proto:lint           Lint proto files
-          task proto:breaking       Check proto for breaking changes vs master
+          task proto ACTION=update|generate|lint|breaking
 
         SIMGEN (Go scenario generator)
           task simgen:install       Build simgen binary (Go compilation)
@@ -74,8 +71,7 @@ tasks:
 
         FRONTEND (Vite + React telemetry dashboard)
           task frontend:install     Install Node.js dependencies
-          task frontend:dev         Run dev server (http://localhost:5173) — append ?demo for mock data
-          task frontend:dev:demo    Run dev server in Demo Mode (mock telemetry, no backend)
+          task frontend:dev         Run dev server (http://localhost:5173) — DEMO=true for mock telemetry, no backend
           task frontend:build       Type-check + production build (dist/)
           task frontend:preview     Preview the production build locally
           task frontend:typecheck   Type-check only (tsc -b)
@@ -86,8 +82,7 @@ tasks:
         GEN (track + scenario generation)
           task gen:track            Generate/regenerate WRO 2026 base track SDF
           task gen:robot-constants  Regenerate robot constants (Go/xacro/Python) from robot.toml
-          task gen:open             Generate open-challenge scenarios (SCENARIOS=10 default)
-          task gen:obstacles        Generate obstacles-challenge scenarios
+          task gen:scenarios        Generate scenarios for CHALLENGE=open|obstacles (SCENARIOS=10 default)
           task gen:all              Generate both open and obstacles scenarios
           task gen:preview          Render SVG top-down preview (METADATA=path)
           task gen:rviz             Stream one scenario's layout live to RViz2 (METADATA=path)
@@ -96,47 +91,27 @@ tasks:
         SIM (Gazebo / ROS2 runtime)
           task sim:install          Install simulation dependencies (UV + Pixi)
           task sim:init             Initialize Gazebo/ROS2 env via pixi (run once)
-          task sim:gazebo:world     Launch Gazebo with the base WRO 2026 track SDF
-          task sim:gazebo:scenario  Launch Gazebo with a scenario SDF (SCENARIO_SDF=path)
+          task sim:gazebo           Launch Gazebo with an SDF world (SDF=path, default base WRO 2026 track)
           task sim:rviz             Launch RViz visualization
           task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
           task sim:navigate:rviz    Launch RViz pre-configured for live visualization
           task sim:navigate:visualize  Run scenario(s) live in RViz (--challenge open|obstacles, --list/--scenario/--interactive)
           task sim:navigate:visualize:all  Same as above, but also launches RViz2 itself (one command)
           task sim:analyze          Analyze generated scenarios (statistics)
-          task sim:test             Run simulation tests
-          task sim:test:quick       Quick test run (fail fast, short traceback)
+          task sim:test             Run simulation tests — QUICK=true for fail-fast, short traceback
           task sim:lint             Lint simulation code
           task sim:lint:fix         Auto-fix simulation lint issues
 
         ROBOT (on-robot platform — run build-ws before any run-/launch- task)
           task robot:install        Install robot platform dependencies (default + dev envs)
-          task robot:test           Run robot tests (excludes on-device hardware tests)
-          task robot:test:unit      Run robot unit tests only
-          task robot:test:hardware  Run on-device hardware tests (real Pi + peripherals)
+          task robot:test           Run robot tests (SCOPE=all|unit|hardware, default all excludes on-device hardware tests)
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
-          task robot:bootstrap-fresh-zero  One-shot setup for a freshly-flashed Pi Zero — run on Pi 5
-          task robot:deploy-dev-env-to-zero  Build dev env + ros2_ws on Pi 5, ship to Pi Zero — run on Pi 5
-          task robot:safe-shutdown-zero  Cleanly shut down the Pi Zero before cutting power — run on Pi 5
-          task robot:verify-zero-integration  Health check: USB link, service, ROS2 discovery, motor round-trip — run on Pi 5
-          task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
-          task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
+          task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
-          task robot:run-lidar      Run Slamtec C1 LIDAR node (Linux/aarch64 only)
-          task robot:run-state-machine  Run the WRO state machine node
-          task robot:run-oled       Run the SSD1306 OLED display node
-          task robot:run-motor      Run the Ackermann motor control node
-          task robot:run-telemetry  Run the telemetry bridge node
-          task robot:run-vision     Run the YOLO vision detection node
-          task robot:run-navigator  Run the track navigator node (default scenario_0000)
-          task robot:launch-rpi5    Launch the Pi 5 node set (state machine + telemetry + OLED)
-          task robot:launch-rpi-zero  Launch the Pi Zero node set (Ackermann motor)
-          task robot:launch-state-machine  Launch full WRO state-machine stack
-          task robot:launch-telemetry  Launch the telemetry bridge
-          task robot:launch-simulator  Launch the simulator node set
-          task robot:launch-lidar   Launch the Slamtec C1 LIDAR
+          task robot:run            Run a single node (NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator)
+          task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar)
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -192,7 +167,9 @@ tasks:
       - task: backend:lint
       - task: simgen:lint
       - task: frontend:lint
-      - task: proto:lint
+      - task: proto
+        vars:
+          ACTION: lint
 
   lint:fix:
     desc: Auto-fix linting issues in all modules
@@ -213,8 +190,12 @@ tasks:
   backend:install:
     desc: Bootstrap Go backend — update buf deps, generate proto code, sqlc, tidy Go modules
     cmds:
-      - task: proto:update
-      - task: proto:generate
+      - task: proto
+        vars:
+          ACTION: update
+      - task: proto
+        vars:
+          ACTION: generate
       - task: backend:sqlc
       - task: backend:tidy
 
@@ -303,29 +284,21 @@ tasks:
 
   # PROTO (buf toolchain)
 
-  proto:update:
-    desc: Update buf registry dependencies (buf.build BSR)
+  proto:
+    desc: "Buf toolchain ops (usage: task proto ACTION=update|generate|lint|breaking)"
     dir: proto
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - buf dep update
-
-  proto:generate:
-    desc: Generate Go, Python, and TypeScript code from .proto definitions
-    dir: proto
-    cmds:
-      - buf generate
-
-  proto:lint:
-    desc: Lint proto files against STANDARD buf rule set
-    dir: proto
-    cmds:
-      - buf lint
-
-  proto:breaking:
-    desc: Check proto files for breaking changes against master branch
-    dir: proto
-    cmds:
-      - buf breaking --against '.git#branch=master,subdir=platform/proto'
+      - cmd: |
+          case "{{.ACTION}}" in
+            update) buf dep update ;;
+            generate) buf generate ;;
+            lint) buf lint ;;
+            breaking) buf breaking --against '.git#branch=master,subdir=platform/proto' ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking" && exit 1 ;;
+          esac
 
   # SIMGEN (Go scenario generator)
 
@@ -379,16 +352,10 @@ tasks:
       - npm ci
 
   frontend:dev:
-    desc: Run frontend dev server (Vite, http://localhost:5173) — append ?demo to the URL for mock data
-    dir: frontend
-    cmds:
-      - npm run dev
-
-  frontend:dev:demo:
-    desc: Run frontend dev server in Demo Mode (mock telemetry, no backend required)
+    desc: "Run frontend dev server (Vite, http://localhost:5173) — DEMO=true for Demo Mode (mock telemetry, no backend required); append ?demo to the URL instead for an ad-hoc one-off"
     dir: frontend
     env:
-      VITE_DEMO: "true"
+      VITE_DEMO: '{{.DEMO | default "false"}}'
     cmds:
       - npm run dev
 
@@ -447,23 +414,24 @@ tasks:
     cmds:
       - "{{.SIMGEN}} generate-robot-constants"
 
-  gen:open:
-    desc: Generate open-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
+  gen:scenarios:
+    desc: "Generate scenarios for a challenge (usage: task gen:scenarios CHALLENGE=open|obstacles, SCENARIOS={{.SCENARIOS}} default)"
     deps: [simgen:build]
+    requires:
+      vars:
+        - CHALLENGE
     cmds:
-      - "{{.SIMGEN}} generate --challenge open --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/open"
-
-  gen:obstacles:
-    desc: Generate obstacles-challenge scenarios (SCENARIOS={{.SCENARIOS}} default)
-    deps: [simgen:build]
-    cmds:
-      - "{{.SIMGEN}} generate --challenge obstacles --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/obstacles"
+      - "{{.SIMGEN}} generate --challenge {{.CHALLENGE}} --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}"
 
   gen:all:
     desc: Generate both open and obstacles scenarios
     cmds:
-      - task: gen:open
-      - task: gen:obstacles
+      - task: gen:scenarios
+        vars:
+          CHALLENGE: open
+      - task: gen:scenarios
+        vars:
+          CHALLENGE: obstacles
 
   gen:preview:
     desc: Render SVG top-down preview from metadata JSON (METADATA=path/to/*_metadata.json)
@@ -509,17 +477,13 @@ tasks:
     cmds:
       - pixi install
 
-  sim:gazebo:world:
-    desc: Launch Gazebo with the base WRO 2026 track SDF (run sim:init first)
+  sim:gazebo:
+    desc: "Launch Gazebo with an SDF world (run sim:init first). Usage: task sim:gazebo [SDF=path/to/scenario.sdf], default is the base WRO 2026 track"
     dir: gazebo/runtime
+    vars:
+      SDF: '{{.SDF | default "worlds/wro_track_2026.sdf"}}'
     cmds:
-      - pixi run gazebo --verbose worlds/wro_track_2026.sdf
-
-  sim:gazebo:scenario:
-    desc: Launch Gazebo with a generated scenario SDF (SCENARIO_SDF=path/to/scenario.sdf)
-    dir: gazebo/runtime
-    cmds:
-      - pixi run gazebo --verbose {{.SCENARIO_SDF}}
+      - pixi run gazebo --verbose {{.SDF}}
 
   sim:rviz:
     desc: Launch RViz visualization
@@ -575,16 +539,17 @@ tasks:
       - uv run python -m src.analysis.scenario_analyzer --output-dir {{.OUTPUT_DIR}}
 
   sim:test:
-    desc: Run simulation tests
+    desc: "Run simulation tests (usage: task sim:test [QUICK=true] for fail-fast, short traceback)"
     dir: gazebo/runtime
+    vars:
+      QUICK: '{{.QUICK | default "false"}}'
     cmds:
-      - uv run pytest tests/ -v
-
-  sim:test:quick:
-    desc: Quick test run — fail fast, short traceback (gazebo/runtime suite)
-    dir: gazebo/runtime
-    cmds:
-      - cmd: uv run pytest tests/ -x --tb=short
+      - cmd: |
+          if [ "{{.QUICK}}" = "true" ]; then
+            uv run pytest tests/ -x --tb=short
+          else
+            uv run pytest tests/ -v
+          fi
 
   sim:lint:
     desc: Lint simulation code
@@ -608,22 +573,18 @@ tasks:
       - pixi install -e dev
 
   robot:test:
-    desc: Run robot tests excluding on-device hardware tests (pixi dev env — robot is pixi-only, not uv)
+    desc: "Run robot tests (pixi dev env — robot is pixi-only, not uv). Usage: task robot:test [SCOPE=all|unit|hardware], default all (excludes on-device hardware tests). unit: no hardware/ROS2 deps required. hardware: requires a real Raspberry Pi with peripherals attached."
     dir: robot
+    vars:
+      SCOPE: '{{.SCOPE | default "all"}}'
     cmds:
-      - pixi run -e dev pytest tests/ -m "not hardware" -v
-
-  robot:test:unit:
-    desc: Run robot unit tests only (no hardware/ROS2 deps required)
-    dir: robot
-    cmds:
-      - pixi run -e dev pytest tests/unit -q
-
-  robot:test:hardware:
-    desc: Run on-device hardware tests (requires a real Raspberry Pi with peripherals attached)
-    dir: robot
-    cmds:
-      - pixi run -e dev pytest tests/hardware -m hardware -v
+      - cmd: |
+          case "{{.SCOPE}}" in
+            all) pixi run -e dev pytest tests/ -m "not hardware" -v ;;
+            unit) pixi run -e dev pytest tests/unit -q ;;
+            hardware) pixi run -e dev pytest tests/hardware -m hardware -v ;;
+            *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|hardware" && exit 1 ;;
+          esac
 
   robot:lint:
     desc: Lint robot code
@@ -643,50 +604,34 @@ tasks:
     cmds:
       - pixi run -e dev build-ws
 
-  robot:bootstrap-fresh-zero:
-    desc: "One-shot setup for a freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd unit) — run ON Pi 5, before deploy-dev-env-to-zero. Idempotent. (usage: task robot:bootstrap-fresh-zero [ZERO_HOST=user@host])"
+  robot:zero:
+    desc: >-
+      Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
+      ACTION=bootstrap|deploy|shutdown|verify [ZERO_HOST=user@host]
+      [ZERO_HOST_USB=user@host] [ZERO_HOST_WIFI=user@host]). bootstrap:
+      one-shot setup for a freshly-flashed Pi Zero (SSH trust, .env, pixi
+      CLI, I2C, systemd unit), idempotent, run before deploy. deploy: build
+      the dev pixi env + ros2_ws on Pi 5 and ship to the Pi Zero as
+      tarballs. shutdown: cleanly shut down the Pi Zero before cutting its
+      power. verify: end-to-end health check (USB-gadget link, service
+      state, ROS2 discovery, a real motor command round-trip).
     dir: robot
-    cmds:
-      - pixi run -e dev bootstrap-fresh-zero
+    requires:
+      vars:
+        - ACTION
     env:
       ZERO_HOST: '{{.ZERO_HOST | default ""}}'
-
-  robot:deploy-dev-env-to-zero:
-    desc: "Build the dev pixi env + ros2_ws on Pi 5 and ship to the Pi Zero as tarballs — run ON Pi 5 (usage: task robot:deploy-dev-env-to-zero [ZERO_HOST=user@host])"
-    dir: robot
-    cmds:
-      - pixi run -e dev deploy-dev-env-to-zero
-    env:
-      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
-
-  robot:safe-shutdown-zero:
-    desc: "Cleanly shut down the Pi Zero before cutting its power — run ON Pi 5 (usage: task robot:safe-shutdown-zero [ZERO_HOST=user@host])"
-    dir: robot
-    cmds:
-      - pixi run -e dev safe-shutdown-zero
-    env:
-      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
-
-  robot:verify-zero-integration:
-    desc: "End-to-end health check: USB-gadget link, service state, ROS2 discovery, and a real motor command round-trip — run ON Pi 5 (usage: task robot:verify-zero-integration [ZERO_HOST_USB=user@host] [ZERO_HOST_WIFI=user@host])"
-    dir: robot
-    cmds:
-      - pixi run -e dev verify-zero-integration
-    env:
       ZERO_HOST_USB: '{{.ZERO_HOST_USB | default ""}}'
       ZERO_HOST_WIFI: '{{.ZERO_HOST_WIFI | default ""}}'
-
-  robot:run-imu-i2c:
-    desc: Run BNO08x IMU node (I2C mode) — requires build-ws first
-    dir: robot
     cmds:
-      - pixi run run-imu-i2c
-
-  robot:run-imu-rvc:
-    desc: Run BNO08x IMU node (UART RVC mode) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-imu-rvc
+      - cmd: |
+          case "{{.ACTION}}" in
+            bootstrap) pixi run -e dev bootstrap-fresh-zero ;;
+            deploy) pixi run -e dev deploy-dev-env-to-zero ;;
+            shutdown) pixi run -e dev safe-shutdown-zero ;;
+            verify) pixi run -e dev verify-zero-integration ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|verify" && exit 1 ;;
+          esac
 
   robot:fetch-lidar-driver:
     desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
@@ -694,83 +639,23 @@ tasks:
     cmds:
       - pixi run fetch-lidar-driver
 
-  robot:run-lidar:
-    desc: Run Slamtec C1 LIDAR node (Linux/aarch64 only) — requires fetch-lidar-driver + build-ws first
+  robot:run:
+    desc: "Run a single robot node (usage: task robot:run NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator) — requires build-ws first (lidar also needs fetch-lidar-driver)"
     dir: robot
+    requires:
+      vars:
+        - NODE
     cmds:
-      - pixi run run-lidar
+      - pixi run run-{{.NODE}}
 
-  robot:run-state-machine:
-    desc: Run the WRO state machine node — requires build-ws first
+  robot:launch:
+    desc: "Launch a robot node set (usage: task robot:launch SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar) — requires build-ws first"
     dir: robot
+    requires:
+      vars:
+        - SET
     cmds:
-      - pixi run run-state-machine
-
-  robot:run-oled:
-    desc: Run the SSD1306 OLED display node — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-oled
-
-  robot:run-motor:
-    desc: Run the Ackermann motor control node — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-motor
-
-  robot:run-telemetry:
-    desc: Run the telemetry bridge node — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-telemetry
-
-  robot:run-vision:
-    desc: Run the YOLO vision detection node — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-vision
-
-  robot:run-navigator:
-    desc: Run the track navigator node (default scenario_0000 metadata) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run run-navigator
-
-  robot:launch-rpi5:
-    desc: Launch the Pi 5 node set (state machine + telemetry + OLED) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-rpi5
-
-  robot:launch-rpi-zero:
-    desc: Launch the Pi Zero node set (Ackermann motor) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-rpi-zero
-
-  robot:launch-state-machine:
-    desc: Launch the full WRO state-machine stack — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-state-machine
-
-  robot:launch-telemetry:
-    desc: Launch the telemetry bridge — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-telemetry
-
-  robot:launch-simulator:
-    desc: Launch the simulator node set (state machine + telemetry) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-simulator
-
-  robot:launch-lidar:
-    desc: Launch the Slamtec C1 LIDAR (Linux/aarch64 only) — requires build-ws first
-    dir: robot
-    cmds:
-      - pixi run launch-lidar
+      - pixi run launch-{{.SET}}
 
   # RECORD (video + frame pipeline)
 

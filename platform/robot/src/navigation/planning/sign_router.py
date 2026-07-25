@@ -54,6 +54,16 @@ _MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
 # square or against a wall for a sign positioned near a corridor edge.
 _WALL_CLEARANCE = RobotSpecs.WIDTH / 2 + 0.02
 
+# Default lateral deformation magnitude, derived the same way as
+# _WALL_CLEARANCE above: chassis half-width + the sign's own half-width (the
+# offset is applied from the sign's CENTER, so its footprint eats into the
+# gap too) + a safety margin. A flat 0.15m default here previously left only
+# ~2.5cm of actual edge-to-edge clearance once those two half-widths were
+# subtracted — the robot visibly grazed signs in RViz even though it wasn't
+# technically colliding.
+_SIGN_CLEARANCE_MARGIN = 0.075
+_SIGN_LATERAL_OFFSET = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
+
 # How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
 # axis may drift and still count as a valid straight-corridor deformation
 # candidate — see _is_squarely_in_corridor.
@@ -94,7 +104,7 @@ class SignSpec:
 class SignRouterConfig:
     """Tuning parameters for the sign router."""
 
-    lateral_offset: float = 0.15
+    lateral_offset: float = _SIGN_LATERAL_OFFSET
     """Metres of lateral deformation perpendicular to the corridor."""
 
     activation_dist: float = 0.80
@@ -245,7 +255,12 @@ class SignRouter:
         effective_offset = self._config.lateral_offset * taper
 
         deformed = _apply_deformation(
-            waypoint, sign, color, corridor, self._direction, effective_offset,
+            waypoint,
+            sign,
+            color,
+            corridor,
+            self._direction,
+            effective_offset,
         )
 
         if deformed != waypoint:
@@ -263,7 +278,9 @@ class SignRouter:
         return deformed
 
     def _nearest_active_sign(
-        self, robot_pos: tuple[float, float], corridor: Section,
+        self,
+        robot_pos: tuple[float, float],
+        corridor: Section,
     ) -> tuple[int, float]:
         """Index and distance of the nearest not-yet-passed sign in ``corridor``.
 

@@ -76,17 +76,35 @@ tasks:
         - CMD
 
   windows:setup-usb-gadget:
-    desc: "Install rpi-usb-gadget on a Pi and enable it (usage: task windows:setup-usb-gadget SSH_HOST=alias PING_HOST=address)"
+    desc: "Install rpi-usb-gadget on a Pi and enable it — run from Windows or a Linux/macOS host, e.g. another Pi (usage: task windows:setup-usb-gadget SSH_HOST=alias PING_HOST=address [DRY_RUN=true])"
+    requires:
+      vars:
+        - SSH_HOST
+        - PING_HOST
+    vars:
+      DRY_RUN: '{{.DRY_RUN | default "false"}}'
     cmds:
-      - echo "Installing rpi-usb-gadget on {{.SSH_HOST}}..."
-      - ssh {{.SSH_HOST}} "sudo apt update && sudo apt install -y rpi-usb-gadget"
-      - ssh {{.SSH_HOST}} "sudo rpi-usb-gadget on"
-      - echo "Installation complete. Rebooting {{.SSH_HOST}}..."
-      - ssh {{.SSH_HOST}} "sudo reboot"
-      - echo "Waiting for {{.SSH_HOST}} ({{.PING_HOST}}) to come back online..."
-      - cmd: powershell -NoProfile -Command "$count = 0; do { Start-Sleep -Seconds {{.RPI_PING_INTERVAL}}; $count++; $ok = Test-Connection -ComputerName '{{.PING_HOST}}' -Count 1 -Quiet } while (-not $ok -and $count -lt {{.RPI_PING_RETRIES}}); if ($ok) { Write-Host '{{.SSH_HOST}} is back online!' } else { Write-Host 'Timed out waiting for {{.SSH_HOST}}' }"
+      - cmd: |
+          if [ "{{.DRY_RUN}}" = "true" ]; then
+            echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo apt update && sudo apt install -y rpi-usb-gadget\""
+            echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo rpi-usb-gadget on\""
+            echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo reboot\""
+            exit 0
+          fi
+          echo "Installing rpi-usb-gadget on {{.SSH_HOST}}..."
+          ssh {{.SSH_HOST}} "sudo apt update && sudo apt install -y rpi-usb-gadget"
+          ssh {{.SSH_HOST}} "sudo rpi-usb-gadget on"
+          echo "Installation complete. Rebooting {{.SSH_HOST}}..."
+          ssh {{.SSH_HOST}} "sudo reboot"
+        platforms: [linux, darwin]
+      - cmd: powershell -NoProfile -Command "if ('{{.DRY_RUN}}' -eq 'true') { Write-Host \"[DRY-RUN] ssh {{.SSH_HOST}} 'sudo apt update && sudo apt install -y rpi-usb-gadget'\"; Write-Host \"[DRY-RUN] ssh {{.SSH_HOST}} 'sudo rpi-usb-gadget on'\"; Write-Host \"[DRY-RUN] ssh {{.SSH_HOST}} 'sudo reboot'\"; exit 0 }; Write-Host 'Installing rpi-usb-gadget on {{.SSH_HOST}}...'; ssh {{.SSH_HOST}} 'sudo apt update && sudo apt install -y rpi-usb-gadget'; ssh {{.SSH_HOST}} 'sudo rpi-usb-gadget on'; Write-Host 'Installation complete. Rebooting {{.SSH_HOST}}...'; ssh {{.SSH_HOST}} 'sudo reboot'"
+        platforms: [windows]
+      - cmd: echo "Waiting for {{.SSH_HOST}} ({{.PING_HOST}}) to come back online..."
+        ignore_error: true
+      - cmd: powershell -NoProfile -Command "if ('{{.DRY_RUN}}' -eq 'true') { exit 0 }; $count = 0; do { Start-Sleep -Seconds {{.RPI_PING_INTERVAL}}; $count++; $ok = Test-Connection -ComputerName '{{.PING_HOST}}' -Count 1 -Quiet } while (-not $ok -and $count -lt {{.RPI_PING_RETRIES}}); if ($ok) { Write-Host '{{.SSH_HOST}} is back online!' } else { Write-Host 'Timed out waiting for {{.SSH_HOST}}' }"
         platforms: [windows]
       - cmd: |
+          [ "{{.DRY_RUN}}" = "true" ] && exit 0
           count=0
           until ping -c1 {{.PING_HOST}} >/dev/null 2>&1; do
             sleep {{.RPI_PING_INTERVAL}}
@@ -95,28 +113,6 @@ tasks:
           done
           echo "{{.SSH_HOST}} is back online!"
         platforms: [linux, darwin]
-
-  windows:setup-usb-gadget:dry-run:
-    desc: "Show setup commands without executing"
-    cmds:
-      - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo apt update && sudo apt install -y rpi-usb-gadget\""
-      - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo rpi-usb-gadget on\""
-      - echo "[DRY-RUN] ssh {{.SSH_HOST}} \"sudo reboot\""
-
-  rpi:setup-usb-gadget:
-    desc: "Install rpi-usb-gadget on a target Pi via SSH (run from another Pi, usage: task rpi:setup-usb-gadget SSH_HOST=alias PING_HOST=address)"
-    cmds:
-      - echo "Installing rpi-usb-gadget on {{.SSH_HOST}}..."
-      - ssh {{.SSH_HOST}} "sudo apt update && sudo apt install -y rpi-usb-gadget"
-      - ssh {{.SSH_HOST}} "sudo rpi-usb-gadget on"
-      - echo "Installation complete. Rebooting {{.SSH_HOST}}..."
-      - ssh {{.SSH_HOST}} "sudo reboot"
-      - echo "Waiting for {{.PING_HOST}} to come back online..."
-      - count=0; until ping -c1 {{.PING_HOST}} >/dev/null 2>&1; do sleep {{.RPI_PING_INTERVAL}}; count=$((count+1)); [ $count -ge {{.RPI_PING_RETRIES}} ] && echo "Timed out waiting for {{.SSH_HOST}}" && exit 1; done; echo "{{.SSH_HOST}} is back online!"
-    requires:
-      vars:
-        - SSH_HOST
-        - PING_HOST
 
   # WiFi band management (Pi Zero is 2.4 GHz only; lock Pi 5 to same band to provision)
 
@@ -249,28 +245,23 @@ tasks:
       SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
       SSH_ZERO_HOSTNAME: "{{.SSH_ZERO_HOSTNAME | default \"YOUR_PI_ZERO_HOSTNAME.local\"}}"
 
-  windows:ethernet:set-ip:
-    desc: Set Windows Ethernet adapter IP for direct link to a Pi (run as Admin)
+  windows:ethernet:configure:
+    desc: "Set Windows Ethernet adapter state for a direct Pi link (run as Admin, usage: task windows:ethernet:configure MODE=static|remove|dhcp)"
+    requires:
+      vars:
+        - MODE
     cmds:
-      - cmd: powershell -NoProfile -Command "New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -PrefixLength 24 -ErrorAction SilentlyContinue; if (-not (Get-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -ErrorAction SilentlyContinue)) { Write-Host 'IP already set or adapter not found'; Get-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 | Select-Object IPAddress } else { Write-Host 'Set {{.WINDOWS_ETHERNET_IP}} on Ethernet adapter' }"
-
-  windows:ethernet:remove-ip:
-    desc: Remove the direct-link IP from the Windows Ethernet adapter (run as Admin)
-    cmds:
-      - cmd: netsh interface ip delete address "Ethernet" addr={{.WINDOWS_ETHERNET_IP}} & echo Removed {{.WINDOWS_ETHERNET_IP}} from Ethernet adapter
-        platforms: [windows]
-
-  windows:ethernet:set-dhcp:
-    desc: Remove static IP and re-enable DHCP on the Windows Ethernet adapter (run as Admin)
-    cmds:
-      - cmd: powershell -NoProfile -Command "Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled; Remove-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 -ErrorAction SilentlyContinue; Write-Host 'DHCP enabled on Ethernet adapter'"
+      - cmd: |
+          powershell -NoProfile -Command "switch ('{{.MODE}}') { 'static' { New-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -PrefixLength 24 -ErrorAction SilentlyContinue; if (-not (Get-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress '{{.WINDOWS_ETHERNET_IP}}' -ErrorAction SilentlyContinue)) { Write-Host 'IP already set or adapter not found'; Get-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 | Select-Object IPAddress } else { Write-Host 'Set {{.WINDOWS_ETHERNET_IP}} on Ethernet adapter' } } 'remove' { & netsh interface ip delete address 'Ethernet' addr={{.WINDOWS_ETHERNET_IP}}; Write-Host 'Removed {{.WINDOWS_ETHERNET_IP}} from Ethernet adapter' } 'dhcp' { Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled; Remove-NetIPAddress -InterfaceAlias 'Ethernet' -AddressFamily IPv4 -ErrorAction SilentlyContinue; Write-Host 'DHCP enabled on Ethernet adapter' } default { Write-Host 'Unknown MODE: {{.MODE}}. Use static|remove|dhcp'; exit 1 } }"
         platforms: [windows]
 
   windows:ethernet:setup-link:
     desc: "Configure direct ethernet link: set Windows IP + Pi Ethernet IP (run as Admin, usage: task windows:ethernet:setup-link [SSH_HOST=alias])"
     cmds:
       - echo "[1/3] Setting Windows Ethernet adapter IP to {{.WINDOWS_ETHERNET_IP}}..."
-      - task: windows:ethernet:set-ip
+      - task: windows:ethernet:configure
+        vars:
+          MODE: static
       - echo "[2/3] Setting Pi Ethernet IP to {{.RPI_DIRECT_IP}} (gateway {{.WINDOWS_ETHERNET_IP}})..."
       - echo "      (Configuring via Cloudflare tunnel — VPN safe)"
       - ssh {{.SSH_HOST}} "sudo nmcli con modify 'Wired connection 1' ipv4.addresses {{.RPI_DIRECT_IP}}/24 ipv4.gateway {{.WINDOWS_ETHERNET_IP}} ipv4.dns {{.WINDOWS_ETHERNET_IP}} ipv4.method manual ipv4.never-default yes connection.autoconnect-priority -10 && (sudo nmcli con down 'Wired connection 1' 2>/dev/null || true) && sudo nmcli con up 'Wired connection 1' 2>/dev/null || true"
@@ -287,6 +278,7 @@ tasks:
 
   windows:route:add:ethernet:
     desc: "Add persistent route for direct ethernet link (run as Admin)"
+    internal: true
     cmds:
       - echo "Adding persistent route for {{.SUBNET}}/{{.MASK}} via {{.GATEWAY}}..."
       - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
@@ -299,6 +291,7 @@ tasks:
 
   windows:route:add:wifi:
     desc: "Add persistent route for WiFi subnet to bypass VPN (run as Admin)"
+    internal: true
     cmds:
       - echo "Adding persistent route for {{.SUBNET}}/{{.MASK}} via {{.GATEWAY}}..."
       - cmd: route add {{.SUBNET}} mask {{.MASK}} {{.GATEWAY}} IF {{.INTERFACE}} metric 1 -p
@@ -322,7 +315,9 @@ tasks:
     desc: "Tear down direct ethernet link: revert Windows + Pi to DHCP (run as Admin, usage: task windows:ethernet:unlink [SSH_HOST=alias])"
     cmds:
       - echo "[1/2] Reverting Windows Ethernet adapter to DHCP..."
-      - task: windows:ethernet:set-dhcp
+      - task: windows:ethernet:configure
+        vars:
+          MODE: dhcp
       - echo "[2/2] Reverting Pi Ethernet to DHCP..."
       - ssh {{.SSH_HOST}} "sudo nmcli con modify 'Wired connection 1' ipv4.method auto && (sudo nmcli con down 'Wired connection 1' 2>/dev/null || true) && sudo nmcli con up 'Wired connection 1' 2>/dev/null || true"
       - echo "Direct link torn down. Pi Ethernet back on DHCP."
@@ -332,20 +327,12 @@ tasks:
 
   # Raspberry Pi commands (run directly on the Pi)
 
-  rpi:ip:
-    desc: Show usb0 (gadget) IP address
+  rpi:iface-ip:
+    desc: "Show IP address for a network interface (usage: task rpi:iface-ip IFACE=usb0|eth0|wlan0, default usb0)"
     cmds:
-      - ip -4 a show usb0
-
-  rpi:eth-ip:
-    desc: Show Ethernet IP address
-    cmds:
-      - ip -4 a show eth0
-
-  rpi:wlan-ip:
-    desc: Show WiFi IP address
-    cmds:
-      - ip -4 a show wlan0
+      - ip -4 a show {{.IFACE}}
+    vars:
+      IFACE: '{{.IFACE | default "usb0"}}'
 
   rpi:nudge:
     desc: Force usb0 gadget-link profile up
@@ -372,30 +359,21 @@ tasks:
 
   # Health & thermal
 
-  rpi:temp:
-    desc: Show CPU/GPU temperature
+  rpi:stat:
+    desc: "Show a single health stat (usage: task rpi:stat NAME=temp|throttled|disk|mem|uptime)"
+    requires:
+      vars:
+        - NAME
     cmds:
-      - vcgencmd measure_temp
-
-  rpi:throttled:
-    desc: Show throttling / under-voltage status (0x0 = healthy)
-    cmds:
-      - vcgencmd get_throttled
-
-  rpi:disk:
-    desc: Show root filesystem disk usage
-    cmds:
-      - df -h /
-
-  rpi:mem:
-    desc: Show memory usage
-    cmds:
-      - free -h
-
-  rpi:uptime:
-    desc: Show uptime and load average
-    cmds:
-      - uptime
+      - cmd: |
+          case "{{.NAME}}" in
+            temp) vcgencmd measure_temp ;;
+            throttled) vcgencmd get_throttled ;;
+            disk) df -h / ;;
+            mem) free -h ;;
+            uptime) uptime ;;
+            *) echo "Unknown NAME: {{.NAME}}. Use temp|throttled|disk|mem|uptime" && exit 1 ;;
+          esac
 
   # Power & lifecycle
 
@@ -497,60 +475,51 @@ tasks:
 
   # Hailo AI accelerator
 
-  rpi:hailo:status:
-    desc: Show HailoRT service status
+  rpi:hailo:
+    desc: "HailoRT service ops (usage: task rpi:hailo ACTION=status|restart|logs|models)"
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - systemctl status hailort
-
-  rpi:hailo:restart:
-    desc: Restart HailoRT service
-    cmds:
-      - sudo systemctl restart hailort
-
-  rpi:hailo:logs:
-    desc: Tail HailoRT service logs (last 50 lines)
-    cmds:
-      - journalctl -u hailort -n 50 --no-pager
-
-  rpi:hailo:models:
-    desc: List compiled HEF models in home directory
-    cmds:
-      - ls -lh ~/*.hef
+      - cmd: |
+          case "{{.ACTION}}" in
+            status) systemctl status hailort ;;
+            restart) sudo systemctl restart hailort ;;
+            logs) journalctl -u hailort -n 50 --no-pager ;;
+            models) ls -lh ~/*.hef ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use status|restart|logs|models" && exit 1 ;;
+          esac
 
   # Camera
 
-  rpi:camera:info:
-    desc: List detected cameras
+  rpi:camera:
+    desc: "Camera ops (usage: task rpi:camera ACTION=info|test|capture)"
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - rpicam-hello --list-cameras
-
-  rpi:camera:test:
-    desc: Run 2-second camera preview (smoke test)
-    cmds:
-      - rpicam-hello -t 2000
-
-  rpi:camera:capture:
-    desc: Capture a still to /tmp/snap.jpg
-    cmds:
-      - rpicam-still -o /tmp/snap.jpg && echo "Saved to /tmp/snap.jpg"
+      - cmd: |
+          case "{{.ACTION}}" in
+            info) rpicam-hello --list-cameras ;;
+            test) rpicam-hello -t 2000 ;;
+            capture) rpicam-still -o /tmp/snap.jpg && echo "Saved to /tmp/snap.jpg" ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use info|test|capture" && exit 1 ;;
+          esac
 
   # Repos
 
-  rpi:repos:pull:
-    desc: Pull latest on all voldemorbot repos
+  rpi:repos:
+    desc: "Ops across all voldemorbot repos (usage: task rpi:repos ACTION=pull|status)"
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - |
-        for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do
-          echo "=== $d ===" && git -C $d pull
-        done
-
-  rpi:repos:status:
-    desc: Show git status across all voldemorbot repos
-    cmds:
-      - |
-        for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do
-          echo "=== $d ===" && git -C $d status -sb
-        done
+      - cmd: |
+          case "{{.ACTION}}" in
+            pull) for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do echo "=== $d ===" && git -C $d pull; done ;;
+            status) for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do echo "=== $d ===" && git -C $d status -sb; done ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use pull|status" && exit 1 ;;
+          esac
 
   # System logging
 

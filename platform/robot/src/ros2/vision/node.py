@@ -97,7 +97,6 @@ class VisionNode(Node):
         except Exception as e:  # noqa: BLE001
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
-
     def destroy_node(self) -> None:
         """Release the detector context, then tear down the node."""
         if hasattr(self.detector, "__exit__"):

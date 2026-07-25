@@ -1,6 +1,8 @@
-"""Bench-test launch file: runs the state machine plus its Pi 5 and Pi Zero
-peripherals together on a single machine (all hardware wired directly to one
-board), rather than split across two networked boards.
+"""Bench-test launch file: runs the state machine plus its peripherals.
+
+Runs the state machine plus its Pi 5 and Pi Zero peripherals together on a
+single machine (all hardware wired directly to one board), rather than split
+across two networked boards.
 
 For the real two-board competition topology, use ``rpi5_nodes.launch.py`` on
 the Pi 5 and ``rpi_zero_nodes.launch.py`` on the Pi Zero instead -- do not run

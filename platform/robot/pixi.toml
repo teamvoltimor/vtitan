@@ -187,9 +187,9 @@ viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
 [feature.dev.tasks]
 # check-only by default (CI-safe -- fails on violations instead of silently
 # rewriting files); use lint-fix for the old auto-fix convenience locally.
-lint       = "ruff check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
-lint-fix   = "ruff check --fix src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
-format-check = "ruff format --check src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine"
+lint       = "ruff check ."
+lint-fix   = "ruff check --fix ."
+format-check = "ruff format --check ."
 typecheck  = { cmd = "mypy src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine", env = { PYTHONPATH = "." } }
 test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
 test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }

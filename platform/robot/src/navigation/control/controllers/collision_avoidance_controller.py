@@ -127,7 +127,9 @@ class CollisionAvoidanceController:
         self.side_correction_frames = side_correction_frames
 
     def _forward_path_ranges(
-        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
     ) -> np.ndarray:
         """Ranges of points ahead of the robot inside its driving lane.
 
@@ -153,7 +155,9 @@ class CollisionAvoidanceController:
         return np.asarray(ranges[mask])
 
     def assess_risk(
-        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> RiskLevel:
         """Assess collision risk from obstacles in the robot's forward path.
 
@@ -229,7 +233,9 @@ class CollisionAvoidanceController:
         return np.asarray(ranges[mask])
 
     def compute_forward_clearance(
-        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> float:
         """Mean clearance in the forward +/-30 deg sector (0 rad = forward).
 
@@ -249,7 +255,9 @@ class CollisionAvoidanceController:
         return float(np.mean(forward))
 
     def compute_rear_clearance(
-        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> float:
         """Minimum clearance in the rear +/-45 deg sector (+/-pi rad = rear).
 
@@ -262,7 +270,11 @@ class CollisionAvoidanceController:
             return 10.0
 
         rear = self._sector_ranges(
-            lidar_ranges, lidar_angles, math.pi, math.radians(45), filter_self_detection=True,
+            lidar_ranges,
+            lidar_angles,
+            math.pi,
+            math.radians(45),
+            filter_self_detection=True,
         )
         if rear.size == 0:
             return 10.0
@@ -292,7 +304,9 @@ class CollisionAvoidanceController:
         return float(np.min(sector))
 
     def detect_threat_direction(
-        self, lidar_ranges: np.ndarray | tuple[float, ...], lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> ThreatDirection:
         """Direction of the closest obstacle: front, left, right, back, or none.
 
@@ -312,7 +326,11 @@ class CollisionAvoidanceController:
 
         def sector_min(center_rad: float, filter_self_detection: bool = False) -> float:
             sect = self._sector_ranges(
-                lidar_ranges, lidar_angles, center_rad, math.radians(45), filter_self_detection,
+                lidar_ranges,
+                lidar_angles,
+                center_rad,
+                math.radians(45),
+                filter_self_detection,
             )
             return float(np.min(sect)) if sect.size > 0 else 10.0
 
@@ -331,7 +349,9 @@ class CollisionAvoidanceController:
         return closest
 
     def _k_turn_steer_sign(
-        self, lidar_ranges: np.ndarray | tuple[float, ...] | None, lidar_angles: np.ndarray | tuple[float, ...] | None,
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...] | None,
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
     ) -> float:
         """Steering sign that swings the nose toward the clearer side in reverse.
 
@@ -346,10 +366,18 @@ class CollisionAvoidanceController:
         if lidar_ranges is None:
             return 1.0
         left = self._sector_ranges(
-            lidar_ranges, lidar_angles, math.pi / 2, math.radians(45), filter_self_detection=True,
+            lidar_ranges,
+            lidar_angles,
+            math.pi / 2,
+            math.radians(45),
+            filter_self_detection=True,
         )
         right = self._sector_ranges(
-            lidar_ranges, lidar_angles, -math.pi / 2, math.radians(45), filter_self_detection=True,
+            lidar_ranges,
+            lidar_angles,
+            -math.pi / 2,
+            math.radians(45),
+            filter_self_detection=True,
         )
         left_clear = float(np.min(left)) if left.size > 0 else 10.0
         right_clear = float(np.min(right)) if right.size > 0 else 10.0
@@ -437,6 +465,10 @@ class CollisionAvoidanceController:
         separation before any forward motion resumes.
         """
         sect = self._sector_ranges(
-            lidar_ranges, lidar_angles, center_rad, math.radians(45), filter_self_detection=True,
+            lidar_ranges,
+            lidar_angles,
+            center_rad,
+            math.radians(45),
+            filter_self_detection=True,
         )
         return float(np.min(sect)) if sect.size > 0 else 10.0

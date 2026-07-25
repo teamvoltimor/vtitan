@@ -45,18 +45,18 @@ tasks:
       - hugo server --disableFastRender
 
   site:build:
-    desc: Build the site (incremental)
+    desc: "Build the site (usage: task site:build [PROD=true] for a minified production build to public/)"
     aliases: [build]
     deps: [theme:init, content:sync]
+    vars:
+      PROD: '{{.PROD | default "false"}}'
     cmds:
-      - hugo
-
-  site:build-prod:
-    desc: Build the site with minification for production
-    aliases: [build:prod]
-    deps: [theme:init, content:sync]
-    cmds:
-      - hugo --minify --destination public
+      - cmd: |
+          if [ "{{.PROD}}" = "true" ]; then
+            hugo --minify --destination public
+          else
+            hugo
+          fi
 
   site:clean:
     desc: Remove the public/ build output directory
@@ -90,7 +90,10 @@ tasks:
   deploy:github:
     desc: Build and deploy to GitHub Pages (requires GITHUB_TOKEN env var)
     aliases: [deploy]
-    deps: [site:build-prod]
+    deps:
+      - task: site:build
+        vars:
+          PROD: "true"
     dir: public
     cmds:
       - cmd: |
@@ -110,7 +113,10 @@ tasks:
   deploy:cloudflare:
     desc: Build for Cloudflare Pages (outputs to public/)
     aliases: [cloudflare]
-    deps: [site:build-prod]
+    deps:
+      - task: site:build
+        vars:
+          PROD: "true"
     cmds:
       - cmd: echo "Built to public/ — connect your repo in the Cloudflare Pages dashboard and set output dir to public"
         silent: true

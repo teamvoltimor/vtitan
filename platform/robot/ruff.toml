@@ -253,6 +253,7 @@ ignore = [
     "E114",    # Indentation
     "E117",    # Over-indented
     "E501",    # Line too long (handled by formatter)
+    "COM812",  # Trailing comma missing (ruff's own formatter warns this rule fights it)
 
     # Docstring rules (too strict for all code)
     "D100",    # Missing docstring in public module

@@ -64,7 +64,10 @@ class TestTrackModelGeometry:
         track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
         # Stand in the south corridor centerline, facing north (+y).
         ranges = track.raycast_scan(
-            x=TRACK_CENTER_X, y=0.5, yaw=math.pi / 2, angles_robot=np.array([0.0]),
+            x=TRACK_CENTER_X,
+            y=0.5,
+            yaw=math.pi / 2,
+            angles_robot=np.array([0.0]),
         )
         # Distance to inner block south face at y=1.0 -> 0.5 m.
         assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
@@ -73,7 +76,10 @@ class TestTrackModelGeometry:
         track = TrackModel(dict.fromkeys(Section, TRACK_MODEL_CORRIDOR_WIDTH_WIDE))
         # Facing north, the rear ray (pi) points south to the outer wall at y=0.
         ranges = track.raycast_scan(
-            x=TRACK_CENTER_X, y=0.5, yaw=math.pi / 2, angles_robot=np.array([math.pi]),
+            x=TRACK_CENTER_X,
+            y=0.5,
+            yaw=math.pi / 2,
+            angles_robot=np.array([math.pi]),
         )
         assert math.isclose(ranges[0], COLLISION_TEST_RAYCAST_CLEARANCE, abs_tol=1e-6)
 
@@ -108,7 +114,11 @@ class TestPlannedWaypointsClearCorridor:
         ],
     )
     def test_waypoints_in_free_space(
-        self, south: int, north: int, east: int, west: int,
+        self,
+        south: int,
+        north: int,
+        east: int,
+        west: int,
     ) -> None:
         meta = build_open_metadata(
             {"south": south, "north": north, "east": east, "west": west},
@@ -118,11 +128,7 @@ class TestPlannedWaypointsClearCorridor:
         sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
         # Chassis half-width clearance to the nearest visual wall.
         clearance = RobotSpecs.WIDTH / 2
-        offenders = [
-            wp
-            for wp in sim.waypoints
-            if not sim.track.point_in_free_space(wp[0], wp[1], clearance)
-        ]
+        offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp[0], wp[1], clearance)]
         assert not offenders, f"{len(offenders)} waypoints too close to a wall: {offenders[:3]}"
 
 
@@ -132,8 +138,7 @@ class TestPlannedWaypointsClearCorridor:
 def _log_result(label: str, result: Any) -> None:
     status = "OK " if result.success else "FAIL"
     logger.info(
-        "%s | %s laps=%d/%d collided=%s timeout=%s | dist=%.2fm t=%.1fs "
-        "vmax=%.2f vavg=%.2f minLIDAR=%.2fm",
+        "%s | %s laps=%d/%d collided=%s timeout=%s | dist=%.2fm t=%.1fs vmax=%.2f vavg=%.2f minLIDAR=%.2fm",
         status,
         label,
         result.laps_completed,
@@ -194,7 +199,11 @@ class TestThreeLapSolvability:
         ],
     )
     def test_mixed_width_combos(
-        self, south: int, north: int, east: int, west: int,
+        self,
+        south: int,
+        north: int,
+        east: int,
+        west: int,
     ) -> None:
         meta = build_open_metadata(
             {"south": south, "north": north, "east": east, "west": west},
@@ -214,10 +223,7 @@ class TestThreeLapSolvability:
         rng = np.random.default_rng(2026)
         failures = []
         for i in range(8):
-            widths = {
-                s: int(rng.choice([_NARROW_MM, _WIDE_MM]))
-                for s in ("north", "south", "east", "west")
-            }
+            widths = {s: int(rng.choice([_NARROW_MM, _WIDE_MM])) for s in ("north", "south", "east", "west")}
             section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
             direction = _ALL_DIRECTIONS[int(rng.integers(len(_ALL_DIRECTIONS)))]
             meta = build_open_metadata(widths, section, direction, scenario_id=i)

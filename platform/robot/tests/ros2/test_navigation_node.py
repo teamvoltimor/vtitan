@@ -37,7 +37,7 @@ def ros_context():
         rclpy.init()
         yield
         rclpy.shutdown()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         pytest.skip(f"ROS2 initialization failed: {e}")
 
 

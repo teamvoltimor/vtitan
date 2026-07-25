@@ -6,17 +6,17 @@ the current robot uses the servo + DC-encoder pair, so the LEGO stack can be
 re-selected for steering and/or drive (independently) without code changes.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SteeringBackend(str, Enum):
+class SteeringBackend(StrEnum):
     """Steering actuator backend."""
 
     SERVO = "servo"
     BUILD_HAT = "build_hat"
 
 
-class DriveBackend(str, Enum):
+class DriveBackend(StrEnum):
     """Drive actuator backend."""
 
     DC_ENCODER = "dc_encoder"

@@ -10,14 +10,17 @@ matching what button_node actually publishes.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 import rclpy
-from ackermann_msgs.msg import AckermannDriveStamped
 from std_msgs.msg import String
 
 from src.hardware.button.event import ButtonEvent
 from src.state_machine import RobotState
+
+if TYPE_CHECKING:
+    from ackermann_msgs.msg import AckermannDriveStamped
 
 
 @pytest.fixture()
@@ -27,7 +30,7 @@ def ros_context():
         rclpy.init()
         yield
         rclpy.shutdown()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         pytest.skip(f"ROS2 initialization failed: {e}")
 
 
@@ -35,7 +38,7 @@ def ros_context():
 def state_machine_node_class():
     from voldemorbot_state_machine.state_machine_node import StateMachineNode
 
-    yield StateMachineNode
+    return StateMachineNode
 
 
 def _mark_all_sensors_ready(node) -> None:

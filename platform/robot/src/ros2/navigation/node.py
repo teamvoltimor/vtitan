@@ -134,7 +134,10 @@ class ROS2HardwareGateway(HardwareGateway):
         # scans, so that prior is always a tight, reliable search start).
         prior_pose = self._estimator.estimate_pose()
         est_x, est_y = self._localizer.estimate_position(
-            (prior_pose.x, prior_pose.y), prior_pose.yaw, raw.tolist(), angles,
+            (prior_pose.x, prior_pose.y),
+            prior_pose.yaw,
+            raw.tolist(),
+            angles,
         )
         self._estimator.update_position(est_x, est_y)
 
@@ -172,7 +175,8 @@ class ROS2HardwareGateway(HardwareGateway):
         msg.header.stamp = self._node.get_clock().now().to_msg()
         msg.drive.speed = float(command.speed_mps)
         msg.drive.steering_angle = steering_norm_to_angle_rad(
-            command.steering_norm, RobotSpecs.MAX_STEERING_ANGLE,
+            command.steering_norm,
+            RobotSpecs.MAX_STEERING_ANGLE,
         )
         self._drive_publisher.publish(msg)
 

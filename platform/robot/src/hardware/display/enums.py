@@ -9,10 +9,10 @@ tests that the hardware/kernel/wiring are completely reliable, then ported off
 smbus2 itself after it repeatedly destabilized `pixi install` on the Pi Zero 2W).
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class DisplayBackend(str, Enum):
+class DisplayBackend(StrEnum):
     """OLED display I2C backend."""
 
     BLINKA = "blinka"

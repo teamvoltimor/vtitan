@@ -24,7 +24,9 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 
 
 def start_pose(
-    section: Section, direction: Direction, widths_m: dict[str, float],
+    section: Section,
+    direction: Direction,
+    widths_m: dict[str, float],
 ) -> tuple[float, float, float]:
     """Spawn pose on the biased corridor centerline, aligned with travel."""
     south_cy = widths_m["south"] / 2 - _OUTER_WALL_BIAS

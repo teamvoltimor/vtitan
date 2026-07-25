@@ -4,7 +4,7 @@ Every test under ``tests/hardware/`` talks to a physical peripheral (Build HAT
 motors, I2C/UART IMU, camera, Hailo NPU). They can only pass on a real robot,
 so they are auto-tagged with the ``hardware`` marker and excluded from the
 default test run (``-m "not hardware"``). Run them on-device with the
-``robot:test:hardware`` task.
+``robot:test SCOPE=hardware`` task.
 """
 
 from pathlib import Path

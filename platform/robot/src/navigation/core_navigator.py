@@ -170,7 +170,9 @@ class CoreNavigator:
         # in the parking corridor and within reach of the staging point. Until
         # then keep navigating so the handoff never fires mid-corridor.
         if self._laps_completed >= self._num_laps and self._handle_finish(
-            robot_x, robot_y, robot_yaw,
+            robot_x,
+            robot_y,
+            robot_yaw,
         ):
             return
 
@@ -223,7 +225,8 @@ class CoreNavigator:
         scan = self._gateway.get_lidar_scan()
         if scan:
             forward_clearance = self._collision_controller.compute_forward_clearance(
-                scan.ranges_m, scan.angles_rad,
+                scan.ranges_m,
+                scan.angles_rad,
             )
             risk = self._collision_controller.assess_risk(scan.ranges_m, scan.angles_rad)
         else:
@@ -302,7 +305,10 @@ class CoreNavigator:
         if risk == RiskLevel.CRITICAL and scan:
             threat_dir = self._collision_controller.detect_threat_direction(scan.ranges_m, scan.angles_rad)
             maneuver = self._collision_controller.compute_escape_maneuver(
-                risk, threat_dir, scan.ranges_m, scan.angles_rad,
+                risk,
+                threat_dir,
+                scan.ranges_m,
+                scan.angles_rad,
             )
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
                 # Blocked at both ends: fall through to the capped creep-speed
@@ -431,7 +437,9 @@ class CoreNavigator:
             # the gap in every case -- a known, documented limitation, not a silent one.
             # Not colliding takes priority over completing the maneuver.
             side = self._collision_controller.compute_min_clearance(
-                scan.ranges_m, scan.angles_rad, half_fov_rad=math.pi,
+                scan.ranges_m,
+                scan.angles_rad,
+                half_fov_rad=math.pi,
             )
             side_margin = self._tuning.clearance.CONTACT_DIST + RobotSpecs.WIDTH / 2
             if fwd < self._tuning.clearance.CONTACT_DIST or side < side_margin:
@@ -462,7 +470,8 @@ class CoreNavigator:
         scan = self._gateway.get_lidar_scan()
         if scan:
             rear_clear = self._collision_controller.compute_rear_clearance(
-                scan.ranges_m, scan.angles_rad,
+                scan.ranges_m,
+                scan.angles_rad,
             )
         if rear_clear < self._tuning.clearance.CONTACT_DIST:
             logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)

@@ -189,7 +189,10 @@ class TestEscapeEscalation:
     @staticmethod
     def _maneuver(steering: float = 0.4, duration: int = 6) -> EscapeManeuver:
         return EscapeManeuver(
-            maneuver_type=ManeuverType.K_TURN, steering=steering, speed=-0.2, duration_frames=duration,
+            maneuver_type=ManeuverType.K_TURN,
+            steering=steering,
+            speed=-0.2,
+            duration_frames=duration,
         )
 
     def test_within_threshold_returns_maneuver_unchanged(self, waypoints):

@@ -153,7 +153,6 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 
 | Task | Description |
 |---|---|
-| `task test:pt` | Test with PyTorch backend |
 | `task test:onnx` | Test with raw ONNX backend |
 | `task test:ultraonnx` | Test with Ultralytics ONNX backend |
 | `task test:run BACKEND=<backend>` | Run with explicit backend |
@@ -202,9 +201,7 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `task clean:output` | Remove test outputs and exported models |
 | `task clean:calib` | Remove calibration data |
 | `task clean:all` | Remove all generated files |
-| `task log:debug ARGS=<cmd>` | Run a command with DEBUG logging |
-| `task log:info ARGS=<cmd>` | Run a command with INFO logging |
-| `task log:warning ARGS=<cmd>` | Run a command with WARNING logging |
+| `task log:run LEVEL=DEBUG\|INFO\|WARNING ARGS=<cmd>` | Run a command with a specific log level |
 
 ## Model Registry
 

@@ -104,7 +104,10 @@ class TestSimulatedEncoderDriver:
     def test_odometry_distance(self):
         clock = FakeClock()
         drv = SimulatedEncoderDriver(
-            counts_per_rev=200, wheel_diameter_m=0.06, max_rpm=600, time_source=clock,
+            counts_per_rev=200,
+            wheel_diameter_m=0.06,
+            max_rpm=600,
+            time_source=clock,
         )
         drv.connect()
         drv.run_drive_at_rpm(600)
@@ -126,7 +129,10 @@ class TestSimulatedEncoderDriver:
     def test_invert_reverses_sign(self):
         clock = FakeClock()
         drv = SimulatedEncoderDriver(
-            counts_per_rev=200, max_rpm=600, invert=True, time_source=clock,
+            counts_per_rev=200,
+            max_rpm=600,
+            invert=True,
+            time_source=clock,
         )
         drv.connect()
         drv.run_drive_at_rpm(600)

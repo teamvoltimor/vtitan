@@ -93,7 +93,12 @@ func (r *Randomizer) GenerateParkingLotPositions(startSection simconfig.Section)
 		simconfig.SignGridDepthFar,
 	}
 	depth := depthChoices[r.rng.Intn(len(depthChoices))]
-	spacing := simconfig.ParkingSpacingFactor * simconfig.RobotWidth
+	// Along-travel gap between the two blocks — the actual usable bay length
+	// the robot must pull into. Must scale with RobotLength (the dimension
+	// that has to fit inside the bay), not RobotWidth: at RobotWidth (0.2m)
+	// this came out to exactly RobotLength (0.3m), a zero-clearance bay the
+	// robot could never actually enter.
+	spacing := simconfig.ParkingSpacingFactor * simconfig.RobotLength
 	depth2 := r.computeSecondBlockDepth(depth, spacing)
 
 	b1, b2, yaw := parkingPositionsForSection(startSection, depth, depth2, simconfig.ParkingWallOffset)

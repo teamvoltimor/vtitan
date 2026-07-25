@@ -12,13 +12,13 @@ Usage:
     ros2 launch voldemorbot_bringup race.launch.py metadata:=... laps:=3 params:=... tuning:=...
 """
 
-from launch import LaunchDescription
+from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def _launch_setup(context, *_args, **_kwargs):
+def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list[Node]:
     arguments = ["--metadata", LaunchConfiguration("metadata").perform(context)]
 
     laps = LaunchConfiguration("laps").perform(context)
@@ -42,25 +42,27 @@ def _launch_setup(context, *_args, **_kwargs):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            "metadata",
-            description="Path to the scenario metadata JSON for this round (required)",
-        ),
-        DeclareLaunchArgument(
-            "laps",
-            default_value="3",
-            description="Laps to complete",
-        ),
-        DeclareLaunchArgument(
-            "params",
-            default_value="",
-            description="Optional navigator_params.json for runtime overrides",
-        ),
-        DeclareLaunchArgument(
-            "tuning",
-            default_value="",
-            description="Optional navigation tuning YAML",
-        ),
-        OpaqueFunction(function=_launch_setup),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "metadata",
+                description="Path to the scenario metadata JSON for this round (required)",
+            ),
+            DeclareLaunchArgument(
+                "laps",
+                default_value="3",
+                description="Laps to complete",
+            ),
+            DeclareLaunchArgument(
+                "params",
+                default_value="",
+                description="Optional navigator_params.json for runtime overrides",
+            ),
+            DeclareLaunchArgument(
+                "tuning",
+                default_value="",
+                description="Optional navigation tuning YAML",
+            ),
+            OpaqueFunction(function=_launch_setup),
+        ],
+    )

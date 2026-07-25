@@ -13,6 +13,7 @@ found and fixed).
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -21,13 +22,15 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from shared.config.constants import RobotSpecs
 from shared.config.enums import Section
 from shared.domain.steering import steering_norm_to_angle_rad
-from std_msgs.msg import String
 
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from src.navigation.ports import DriveCommand
 from src.ros2.navigation.node import ROS2HardwareGateway
+
+if TYPE_CHECKING:
+    from std_msgs.msg import String
 
 _WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
 
@@ -193,7 +196,9 @@ class TestButtonNodeToStateMachine:
             button_node.trigger_activate()
 
         mock_button_driver.get_state.return_value = ButtonState(
-            is_pressed=False, press_duration=0.0, last_event=ButtonEvent.SHORT_PRESS,
+            is_pressed=False,
+            press_duration=0.0,
+            last_event=ButtonEvent.SHORT_PRESS,
         )
         published: list[String] = []
         button_node.pub.publish = published.append

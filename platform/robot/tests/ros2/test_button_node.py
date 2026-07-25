@@ -94,7 +94,9 @@ class TestButtonNodePolling:
         node.trigger_activate()
 
         mock_driver.get_state.return_value = ButtonState(
-            is_pressed=False, press_duration=0.0, last_event=ButtonEvent.SHORT_PRESS,
+            is_pressed=False,
+            press_duration=0.0,
+            last_event=ButtonEvent.SHORT_PRESS,
         )
         published = []
         node.pub.publish = published.append
@@ -113,7 +115,9 @@ class TestButtonNodePolling:
         node.trigger_activate()
 
         mock_driver.get_state.return_value = ButtonState(
-            is_pressed=True, press_duration=2.5, last_event=ButtonEvent.LONG_PRESS,
+            is_pressed=True,
+            press_duration=2.5,
+            last_event=ButtonEvent.LONG_PRESS,
         )
         published = []
         node.pub.publish = published.append

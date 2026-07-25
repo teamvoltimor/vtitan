@@ -17,9 +17,12 @@ wall", which a direct geometric (wall-distance) approach would need.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from src.navigation.track_geometry import TrackWalls
+if TYPE_CHECKING:
+    from src.navigation.track_geometry import TrackWalls
 
 
 class LidarLocalizer:

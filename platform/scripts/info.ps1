@@ -11,7 +11,7 @@ if (-not $?) { Write-Host "Go not installed" }
 Write-Host ""
 Write-Host "=== BUF ==="
 buf --version
-if (-not $?) { Write-Host "buf not installed (needed for proto:generate)" }
+if (-not $?) { Write-Host "buf not installed (needed for proto ACTION=generate)" }
 Write-Host ""
 Write-Host "=== DIRECTORIES ==="
 Write-Host "Output dir:   $($args[0])"

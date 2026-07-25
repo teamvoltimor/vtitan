@@ -12,8 +12,8 @@ hardware imposes:
 
 The bicycle model uses the rear-axle reference point::
 
-    x   += v * cos(yaw) * dt
-    y   += v * sin(yaw) * dt
+    x += v * cos(yaw) * dt
+    y += v * sin(yaw) * dt
     yaw += (v / wheelbase) * tan(steer) * dt
 
 Integration is sub-stepped for accuracy at the 20 Hz control rate.

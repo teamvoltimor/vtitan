@@ -246,11 +246,13 @@ for _section, _cfg in (
 def test_degenerate_approach_never_collides_and_still_parks(section):
     cfg, start_pos, start_yaw = _DEGENERATE_CFGS[section]
     done, steps, final_pos, final_yaw, collided = _simulate_park(
-        cfg, section, start_pos, start_yaw, max_steps=800,
+        cfg,
+        section,
+        start_pos,
+        start_yaw,
+        max_steps=800,
     )
-    assert not collided, (
-        f"{section}: collided with the inner keep-out square at step {steps} — pos={final_pos}"
-    )
+    assert not collided, f"{section}: collided with the inner keep-out square at step {steps} — pos={final_pos}"
     assert done, f"{section}: did not park after {steps} steps — pos={final_pos}"
 
 

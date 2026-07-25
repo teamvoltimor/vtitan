@@ -115,7 +115,7 @@ class ParkingLotSpecs:
 
     # Positioning
     WALL_OFFSET: Final[float] = 0.1  # Half of LENGTH (100mm from wall edge)
-    BLOCK_SPACING_FACTOR: Final[float] = 1.5  # Spacing = 1.5 × robot_width
+    BLOCK_SPACING_FACTOR: Final[float] = 1.5  # Spacing = 1.5 × robot_length (bay length the robot must pull into)
 
 
 class CompetitionSpecs:

@@ -84,8 +84,12 @@ class RawI2CDriver(ABC_Driver):
 
     def _set_addressing_window(self) -> None:
         self._write_command(
-            _COLUMNADDR, 0, self.config.width - 1,
-            _PAGEADDR, 0, self._pages - 1,
+            _COLUMNADDR,
+            0,
+            self.config.width - 1,
+            _PAGEADDR,
+            0,
+            self._pages - 1,
         )
 
     @override
@@ -112,18 +116,27 @@ class RawI2CDriver(ABC_Driver):
 
         self._write_command(
             _DISPLAYOFF,
-            _SETDISPLAYCLOCKDIV, 0x80,
-            _SETMULTIPLEX, multiplex,
-            _SETDISPLAYOFFSET, 0x00,
+            _SETDISPLAYCLOCKDIV,
+            0x80,
+            _SETMULTIPLEX,
+            multiplex,
+            _SETDISPLAYOFFSET,
+            0x00,
             _SETSTARTLINE,
-            _CHARGEPUMP, 0x14,
-            _MEMORYMODE, 0x00,
+            _CHARGEPUMP,
+            0x14,
+            _MEMORYMODE,
+            0x00,
             _SEGREMAP,
             _COMSCANDEC,
-            _SETCOMPINS, com_pins,
-            _SETCONTRAST, 0xCF,
-            _SETPRECHARGE, 0xF1,
-            _SETVCOMDETECT, 0x40,
+            _SETCOMPINS,
+            com_pins,
+            _SETCONTRAST,
+            0xCF,
+            _SETPRECHARGE,
+            0xF1,
+            _SETVCOMDETECT,
+            0x40,
             _DISPLAYALLON_RESUME,
             _NORMALDISPLAY,
             _DISPLAYON,

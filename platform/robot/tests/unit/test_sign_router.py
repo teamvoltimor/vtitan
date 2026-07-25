@@ -298,10 +298,16 @@ class TestPassedSigns:
         sign = _sign_at(1.5, 0.4, "red")
         router = _router([sign])
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 0
 
@@ -310,7 +316,10 @@ class TestPassedSigns:
 
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
-            waypoint=wp, robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=wp,
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert result != wp
 
@@ -339,25 +348,40 @@ class TestSettleWindow:
         # must NOT retire the sign, even though the same sequence would retire
         # it once settled (see the follow-up calls below).
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 1
 
         # Burn the remaining unsettled tick (tick 3) so both calls below (ticks
         # 4-5) land past the settle window.
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(10.0, 10.0), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(10.0, 10.0),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
 
         # Past the settle window, the same engage-then-leave sequence retires it.
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 0
 
@@ -373,7 +397,10 @@ class TestSettleWindow:
         router = SignRouter([sign], config=cfg)
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
-            waypoint=wp, robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=wp,
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert result != wp
 
@@ -388,20 +415,32 @@ class TestSettleWindow:
         router = SignRouter([sign], config=cfg)
         for _ in range(4):
             router.deform_waypoint(
-                waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+                waypoint=(1.5, 0.4),
+                robot_pos=(1.5 - 0.2, 0.4),
+                robot_yaw=0.0,
+                corridor=Section.SOUTH,
             )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 0  # settled already, so this retired it
 
         router.reset_for_new_lap()
         # Immediately after reset, back inside a fresh settle window.
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(1.5 - 0.2, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - 0.2, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(1.5 + 1.5, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + 1.5, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         assert router.active_sign_count == 1
 
@@ -442,7 +481,11 @@ class TestEngagementGating:
 
 
 def _detection_at_distance_bearing(
-    distance: float, theta_h: float, *, color: str = "red", confidence: float = 0.9,
+    distance: float,
+    theta_h: float,
+    *,
+    color: str = "red",
+    confidence: float = 0.9,
 ) -> Detection:
     """Build a Detection whose bbox pinhole-decodes to the given distance/bearing.
 
@@ -513,21 +556,33 @@ class TestMatchDetectionToSign:
     def test_low_confidence_detection_rejected(self):
         det = _detection_at_distance_bearing(0.5, 0.0, color="red", confidence=0.1)
         result = _match_detection_to_sign(
-            [det], expected_world_pos=(0.5, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+            [det],
+            expected_world_pos=(0.5, 0.0),
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            config=CFG,
         )
         assert result is None
 
     def test_far_match_rejected(self):
         det = _detection_at_distance_bearing(2.0, 0.0, color="red", confidence=0.9)
         result = _match_detection_to_sign(
-            [det], expected_world_pos=(0.0, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+            [det],
+            expected_world_pos=(0.0, 0.0),
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            config=CFG,
         )
         assert result is None
 
     def test_non_sign_class_ignored(self):
         det = _detection_at_distance_bearing(0.5, 0.0, color="blue", confidence=0.9)
         result = _match_detection_to_sign(
-            [det], expected_world_pos=(0.5, 0.0), robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+            [det],
+            expected_world_pos=(0.5, 0.0),
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            config=CFG,
         )
         assert result is None
 
@@ -539,7 +594,11 @@ class TestMatchDetectionToSign:
         candidates = [near, far] if order[0] == "near" else [far, near]
 
         result = _match_detection_to_sign(
-            candidates, expected_world_pos=expected, robot_pos=(0.0, 0.0), robot_yaw=0.0, config=CFG,
+            candidates,
+            expected_world_pos=expected,
+            robot_pos=(0.0, 0.0),
+            robot_yaw=0.0,
+            config=CFG,
         )
         assert result == "green"
 
@@ -570,10 +629,20 @@ class TestCameraDetectionOverridesGroundTruth:
         )
 
         expected_if_green = _apply_deformation(
-            (sx, sy), sign, "green", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+            (sx, sy),
+            sign,
+            "green",
+            Section.SOUTH,
+            Direction.COUNTERCLOCKWISE,
+            LATERAL,
         )
         expected_if_red = _apply_deformation(
-            (sx, sy), sign, "red", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+            (sx, sy),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.COUNTERCLOCKWISE,
+            LATERAL,
         )
         assert result == pytest.approx(expected_if_green, abs=1e-6)
         assert result != pytest.approx(expected_if_red, abs=1e-6)
@@ -607,7 +676,12 @@ class TestDeformationClamping:
         # unclamped this deforms to y=1.15 — inside the restricted square.
         sign = _sign_at(1.5, 1.0, "red")
         wx, wy = _apply_deformation(
-            (1.5, 1.0), sign, "red", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+            (1.5, 1.0),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.COUNTERCLOCKWISE,
+            LATERAL,
         )
         assert wx == pytest.approx(1.5)
         assert wy < 1.0, "deformed waypoint must stay below the inner square"
@@ -617,7 +691,12 @@ class TestDeformationClamping:
         # deforms to y=-0.15 — beyond the track boundary.
         sign = _sign_at(1.5, 0.0, "green")
         wx, wy = _apply_deformation(
-            (1.5, 0.0), sign, "green", Section.SOUTH, Direction.COUNTERCLOCKWISE, LATERAL,
+            (1.5, 0.0),
+            sign,
+            "green",
+            Section.SOUTH,
+            Direction.COUNTERCLOCKWISE,
+            LATERAL,
         )
         assert wx == pytest.approx(1.5)
         assert wy >= 0.0, "deformed waypoint must stay on the track"
@@ -628,7 +707,12 @@ class TestDeformationClamping:
         # inner square.
         sign = _sign_at(2.0, 1.5, "red")
         wx, wy = _apply_deformation(
-            (2.0, 1.5), sign, "red", Section.EAST, Direction.COUNTERCLOCKWISE, LATERAL,
+            (2.0, 1.5),
+            sign,
+            "red",
+            Section.EAST,
+            Direction.COUNTERCLOCKWISE,
+            LATERAL,
         )
         assert wy == pytest.approx(1.5)
         assert wx > 2.0, "deformed waypoint must stay clear of the inner square"
@@ -665,7 +749,12 @@ class TestPassSideRule:
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
         wx, wy = _apply_deformation(
-            (sign.x, sign.y), sign, color, section, direction, LATERAL,
+            (sign.x, sign.y),
+            sign,
+            color,
+            section,
+            direction,
+            LATERAL,
         )
         ox, oy = _OUTWARD_DIR[section]
         outward_component = ox * (wx - sign.x) + oy * (wy - sign.y)
@@ -673,3 +762,27 @@ class TestPassSideRule:
             assert outward_component > 0, "red must be avoided on the outward side"
         else:
             assert outward_component < 0, "green must be avoided on the inward side"
+
+
+# 7. Minimum edge-to-edge clearance from the sign's own footprint
+
+# The offset is applied from the sign's CENTER (see _apply_deformation), so
+# both the robot's own half-width and the sign's half-width eat into the
+# nominal lateral_offset before any real gap is left. A flat/undersized
+# lateral_offset can pass every TestPassSideRule case above (correct side)
+# while still leaving the chassis grazing the sign in practice.
+_MIN_SIGN_EDGE_CLEARANCE_M = 0.05
+
+
+class TestMinimumClearance:
+    """Guards against lateral_offset regressing to a value too small to
+    give real edge-to-edge clearance, even though direction/side tests
+    would still pass."""
+
+    def test_default_offset_clears_sign_footprint(self):
+        edge_clearance = SIGN_LATERAL_OFFSET - RobotSpecs.WIDTH / 2 - TrafficSignSpecs.WIDTH / 2
+        assert edge_clearance >= _MIN_SIGN_EDGE_CLEARANCE_M, (
+            f"lateral_offset={SIGN_LATERAL_OFFSET} leaves only {edge_clearance:.3f}m "
+            f"edge-to-edge clearance between chassis and sign — below the "
+            f"{_MIN_SIGN_EDGE_CLEARANCE_M}m minimum"
+        )

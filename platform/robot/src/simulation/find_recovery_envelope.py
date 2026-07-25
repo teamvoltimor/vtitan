@@ -102,9 +102,10 @@ def main() -> None:
     """Entry point for `python -m src.simulation.find_recovery_envelope`."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger.info(
-        "Recovery envelope: disturb at step %d, must recover within %d steps "
-        "(cross-track error <= %.2fm).",
-        _DISTURB_AT_STEP, _RECOVERY_WINDOW_STEPS, _RECOVERY_THRESHOLD_M,
+        "Recovery envelope: disturb at step %d, must recover within %d steps (cross-track error <= %.2fm).",
+        _DISTURB_AT_STEP,
+        _RECOVERY_WINDOW_STEPS,
+        _RECOVERY_THRESHOLD_M,
     )
     logger.info("%-12s %-10s %s", "scenario", "axis", "max recoverable")
     for scenario in _SCENARIOS:

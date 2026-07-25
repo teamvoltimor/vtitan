@@ -70,14 +70,17 @@ if TYPE_CHECKING:
     from rclpy.subscription import Subscription
     from rclpy.timer import Timer
 
-    from src.hardware.motors.base import DriveDriver, SteeringDriver
-    from src.hardware.motors.base import Driver as CombinedDriver
+    from src.hardware.motors.base import (
+        DriveDriver,
+        Driver as CombinedDriver,
+        SteeringDriver,
+    )
 
 
 NODE_NAME = "ackermann_motor_node"
 """ROS2 node name for Ackermann motor controller."""
 
-PUBLISHER_RATE_HZ = 20.0
+PUBLISHER_RATE_HZ = 100.0
 """Rate for publishing motor state and diagnostics."""
 
 STEERING_COMMAND_SPEED = 30

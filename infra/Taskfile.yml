@@ -8,34 +8,32 @@ tasks:
 
   # Cloudflare Tunnel
 
-  cloudflare:status:
-    desc: Show Cloudflare tunnel service status
+  cloudflare:
+    desc: "Cloudflare tunnel service ops (usage: task cloudflare ACTION=status|restart|logs)"
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - systemctl status cloudflared
-
-  cloudflare:restart:
-    desc: Restart Cloudflare tunnel service
-    cmds:
-      - sudo systemctl restart cloudflared
-
-  cloudflare:logs:
-    desc: Tail Cloudflare tunnel logs (last 50 lines)
-    cmds:
-      - journalctl -u cloudflared -n 50 --no-pager
+      - cmd: |
+          case "{{.ACTION}}" in
+            status) systemctl status cloudflared ;;
+            restart) sudo systemctl restart cloudflared ;;
+            logs) journalctl -u cloudflared -n 50 --no-pager ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use status|restart|logs" && exit 1 ;;
+          esac
 
   # VPN (Windscribe)
 
-  vpn:connect:
-    desc: Connect Windscribe VPN
+  vpn:
+    desc: "Windscribe VPN ops (usage: task vpn ACTION=connect|disconnect|status)"
+    requires:
+      vars:
+        - ACTION
     cmds:
-      - windscribe-cli connect
-
-  vpn:disconnect:
-    desc: Disconnect Windscribe VPN
-    cmds:
-      - windscribe-cli disconnect
-
-  vpn:status:
-    desc: Show Windscribe VPN connection status
-    cmds:
-      - windscribe-cli status
+      - cmd: |
+          case "{{.ACTION}}" in
+            connect) windscribe-cli connect ;;
+            disconnect) windscribe-cli disconnect ;;
+            status) windscribe-cli status ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use connect|disconnect|status" && exit 1 ;;
+          esac

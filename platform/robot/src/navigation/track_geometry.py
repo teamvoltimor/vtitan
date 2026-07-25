@@ -1,4 +1,4 @@
-"""Shared track wall geometry — the single source of truth for where the WRO
+"""Shared track wall geometry — the single source of truth for where the WRO.
 
 2026 track's walls sit, given each corridor's width. Both the headless
 simulator (:class:`~src.simulation.track_model.TrackModel`, generating a
@@ -38,8 +38,7 @@ def corridor_widths_from_metadata(metadata: dict[str, Any]) -> dict[Section, flo
     """
     raw = metadata[DictKeys.CORRIDOR_WIDTHS]
     return {
-        Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0
-        for side in ("north", "south", "east", "west")
+        Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0 for side in ("north", "south", "east", "west")
     }
 
 
@@ -153,7 +152,11 @@ class TrackWalls:
 
         # Vectorise across rays, loop the 8 segments (cheap).
         for ax, ay, ex, ey in zip(
-            self._seg_ax, self._seg_ay, self._seg_ex, self._seg_ey, strict=True,
+            self._seg_ax,
+            self._seg_ay,
+            self._seg_ex,
+            self._seg_ey,
+            strict=True,
         ):
             denom = dx * ey - dy * ex
             # Avoid divide-by-zero for parallel rays.
@@ -175,7 +178,4 @@ class TrackWalls:
         ):
             return False
         iv = self.inner_block
-        return not (
-            iv.x_min + clearance < x < iv.x_max - clearance
-            and iv.y_min + clearance < y < iv.y_max - clearance
-        )
+        return not (iv.x_min + clearance < x < iv.x_max - clearance and iv.y_min + clearance < y < iv.y_max - clearance)

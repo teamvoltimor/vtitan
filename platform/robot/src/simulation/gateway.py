@@ -136,7 +136,9 @@ class SimulatedHardwareGateway:
             dt=dt,
         )
         self.collided = self._track.footprint_collides(
-            self._state.x, self._state.y, self._state.yaw,
+            self._state.x,
+            self._state.y,
+            self._state.yaw,
         )
         if self.collided:
             self.collision_xy = (self._state.x, self._state.y)
@@ -158,7 +160,10 @@ class SimulatedHardwareGateway:
 
     def _refresh_sensors(self) -> None:
         ranges = self._track.raycast_scan(
-            self._state.x, self._state.y, self._state.yaw, self._angles,
+            self._state.x,
+            self._state.y,
+            self._state.yaw,
+            self._angles,
         )
         if self._lidar_noise_std > 0.0:
             ranges = ranges + self._rng.normal(0.0, self._lidar_noise_std, ranges.shape)
@@ -196,11 +201,7 @@ class SimResult:
     @property
     def success(self) -> bool:
         """Completed all target laps without a wall contact (and parked cleanly, if required)."""
-        return (
-            self.laps_completed >= self.target_laps
-            and not self.collided
-            and self.parked is not False
-        )
+        return self.laps_completed >= self.target_laps and not self.collided and self.parked is not False
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,9 +402,7 @@ class ScenarioSimulator:
 
         pc = self._park_controller
         parked = None if pc is None else (pc.is_done and not pc.is_timed_out)
-        timed_out = step >= max_steps and (
-            nav.laps_completed < self._num_laps or (pc is not None and not pc.is_done)
-        )
+        timed_out = step >= max_steps and (nav.laps_completed < self._num_laps or (pc is not None and not pc.is_done))
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,
@@ -425,10 +424,14 @@ class ScenarioSimulator:
 def _start_conditions(metadata: dict[str, Any]) -> _StartConditions:
     sc = metadata[DictKeys.STARTING_CONDITIONS]
     pos = sc[DictKeys.POSITION]
+    # Whole-number JSON metadata values parse as Python int, not float. Coerce here so a
+    # downstream int never reaches a ROS message field, where CDR serialization would
+    # corrupt it (bit-reinterpreted as float64 instead of converted — see live_visualizer's
+    # _sign_marker for the same class of bug with sign/parking coordinates).
     return _StartConditions(
         section=Section.from_string(sc[DictKeys.SECTION]),
         direction=Direction.from_string(sc[DictKeys.DIRECTION]),
-        x=pos[DictKeys.X],
-        y=pos[DictKeys.Y],
-        yaw=sc[DictKeys.YAW],
+        x=float(pos[DictKeys.X]),
+        y=float(pos[DictKeys.Y]),
+        yaw=float(sc[DictKeys.YAW]),
     )

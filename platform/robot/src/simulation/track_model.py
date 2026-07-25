@@ -28,12 +28,15 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.enums import Section
 
 from src.navigation.track_geometry import TrackWalls
+
+if TYPE_CHECKING:
+    from shared.config.enums import Section
 
 # Wall thickness halves (metres) — straight from the generator's constants:
 # WallThickness = 0.10 (visual), WallCollisionThickness = 0.18 (collision).
@@ -159,10 +162,7 @@ class TrackModel:
             return False
         iv = self._inner_visual
         # Inside the inner block (with clearance shrinking the safe corridor) -> blocked.
-        return not (
-            iv.x_min + clearance < x < iv.x_max - clearance
-            and iv.y_min + clearance < y < iv.y_max - clearance
-        )
+        return not (iv.x_min + clearance < x < iv.x_max - clearance and iv.y_min + clearance < y < iv.y_max - clearance)
 
     @property
     def inner_block_visual(self) -> tuple[float, float, float, float]:
@@ -172,16 +172,17 @@ class TrackModel:
 
 
 def _rect_corners(
-    cx: float, cy: float, yaw: float, length: float, width: float,
+    cx: float,
+    cy: float,
+    yaw: float,
+    length: float,
+    width: float,
 ) -> list[tuple[float, float]]:
     """Four corners of an oriented rectangle centred at (cx, cy)."""
     hl, hw = length / 2.0, width / 2.0
     cos_y, sin_y = np.cos(yaw), np.sin(yaw)
     local = ((hl, hw), (hl, -hw), (-hl, -hw), (-hl, hw))
-    return [
-        (cx + lx * cos_y - ly * sin_y, cy + lx * sin_y + ly * cos_y)
-        for lx, ly in local
-    ]
+    return [(cx + lx * cos_y - ly * sin_y, cy + lx * sin_y + ly * cos_y) for lx, ly in local]
 
 
 def _convex_overlap(

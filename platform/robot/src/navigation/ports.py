@@ -15,9 +15,10 @@ now decodes/encodes the same ``steering_norm: float  # [-1, 1], + = left``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from shared.domain.models import Detection, IMUReading, Pose
+if TYPE_CHECKING:
+    from shared.domain.models import Detection, IMUReading, Pose
 
 
 @dataclass(frozen=True, slots=True)

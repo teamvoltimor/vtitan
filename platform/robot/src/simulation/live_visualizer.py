@@ -72,6 +72,12 @@ class LiveScenarioVisualizer(Node):
     ) -> None:
         """(Re)publish the track walls, signs, and parking lot — call again per scenario."""
         markers = MarkerArray()
+        # Clear every previously published marker first. Sign/parking marker IDs are just
+        # 0..N-1 within their namespace — switching to a scenario with fewer signs (or no
+        # parking lot) would otherwise leave the previous scenario's markers stuck on screen,
+        # rendered at positions that belong to a different track layout entirely (e.g. sitting
+        # on/through the new track's wall).
+        markers.markers.append(Marker(action=Marker.DELETEALL))
         markers.markers.append(self._outer_boundary_marker())
         markers.markers.append(self._inner_block_marker(track))
         for i, sign in enumerate(sign_positions or []):
@@ -90,9 +96,7 @@ class LiveScenarioVisualizer(Node):
     def publish(self, state: AckermannState, scan: LidarScan | None) -> None:
         """Publish one tick's pose (odom + TF) and LIDAR sweep."""
         self._tick_count += 1
-        if self._cached_track_markers is not None and (
-            self._tick_count % self._TRACK_REPUBLISH_EVERY_N_TICKS == 0
-        ):
+        if self._cached_track_markers is not None and (self._tick_count % self._TRACK_REPUBLISH_EVERY_N_TICKS == 0):
             self._track_pub.publish(self._cached_track_markers)
 
         stamp = self.get_clock().now().to_msg()
@@ -173,16 +177,18 @@ class LiveScenarioVisualizer(Node):
         m.id = index
         m.type = Marker.CYLINDER
         m.action = Marker.ADD
-        m.pose.position.x = sign["x"]
-        m.pose.position.y = sign["y"]
+        # Whole-number scenario-metadata coordinates parse from JSON as Python int, not
+        # float. Assigning an int straight to a Point field looks fine in-memory (Python
+        # doesn't care), but CDR serialization onto the wire reinterprets its bits as a
+        # float64 instead of converting the value — the sign silently jumps to ~0.0.
+        m.pose.position.x = float(sign["x"])
+        m.pose.position.y = float(sign["y"])
         m.pose.position.z = TrafficSignSpecs.Z_POSITION
         m.pose.orientation.w = 1.0
         m.scale.x = TrafficSignSpecs.WIDTH
         m.scale.y = TrafficSignSpecs.DEPTH
         m.scale.z = TrafficSignSpecs.HEIGHT
-        color = (
-            TrafficSignSpecs.RED_COLOR if sign["color"] == ColorNames.RED else TrafficSignSpecs.GREEN_COLOR
-        )
+        color = TrafficSignSpecs.RED_COLOR if sign["color"] == ColorNames.RED else TrafficSignSpecs.GREEN_COLOR
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         return m
 
@@ -193,8 +199,10 @@ class LiveScenarioVisualizer(Node):
         m.id = index
         m.type = Marker.CUBE
         m.action = Marker.ADD
-        m.pose.position.x = block["x"]
-        m.pose.position.y = block["y"]
+        # See _sign_marker: JSON-int coordinates must be coerced to float before
+        # reaching a Point field, or CDR serialization corrupts them to ~0.0.
+        m.pose.position.x = float(block["x"])
+        m.pose.position.y = float(block["y"])
         m.pose.position.z = ParkingLotSpecs.Z_POSITION
         m.pose.orientation = _yaw_to_quaternion(yaw)
         m.scale.x = ParkingLotSpecs.LENGTH

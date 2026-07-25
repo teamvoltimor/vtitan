@@ -292,7 +292,9 @@ class ParkController:
         # Sign-flipped for reverse Ackermann geometry (v<0 inverts the yaw-rate response
         # to a given steer sign), biased toward whichever side the target currently bears.
         self._reposition_steer = -_clamp(
-            _REPOSITION_STEER_MAG * (1.0 if bearing_err > 0 else -1.0), -1.0, 1.0,
+            _REPOSITION_STEER_MAG * (1.0 if bearing_err > 0 else -1.0),
+            -1.0,
+            1.0,
         )
         self._reposition_frames_left -= 1
         return ParkCommand(linear=self._reposition_speed, steering=self._reposition_steer, phase=phase_name)

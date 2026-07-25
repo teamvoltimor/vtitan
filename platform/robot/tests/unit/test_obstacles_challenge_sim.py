@@ -69,12 +69,18 @@ class TestObstaclesDemoScenariosRun:
         failures = []
         for scenario in all_obstacles_demo_scenarios():
             result = ScenarioSimulator(
-                scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+                scenario.metadata,
+                num_laps=scenario.laps,
+                seed=scenario.seed,
             ).run(max_steps=_MAX_STEPS)
             logger.info(
                 "%s | laps=%d/%d collided=%s timeout=%s parked=%s",
-                scenario.label, result.laps_completed, result.target_laps,
-                result.collided, result.timed_out, result.parked,
+                scenario.label,
+                result.laps_completed,
+                result.target_laps,
+                result.collided,
+                result.timed_out,
+                result.parked,
             )
             if result.collided or result.laps_completed < scenario.laps or result.parked is None:
                 failures.append((scenario.label, result))
@@ -99,14 +105,18 @@ class TestObstaclesDemoScenariosRun:
             return result
 
         monkeypatch.setattr(
-            sign_router_module.SignRouter, "deform_waypoint", counting_deform_waypoint,
+            sign_router_module.SignRouter,
+            "deform_waypoint",
+            counting_deform_waypoint,
         )
 
         never_engaged = []
         for scenario in all_obstacles_demo_scenarios():
             current_label[0] = scenario.label
             ScenarioSimulator(
-                scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+                scenario.metadata,
+                num_laps=scenario.laps,
+                seed=scenario.seed,
             ).run(max_steps=_MAX_STEPS)
             count = deform_counts.get(scenario.label, 0)
             logger.info("%s | deformations=%d", scenario.label, count)
@@ -136,7 +146,9 @@ class TestObstaclesDemoScenariosRun:
             return result
 
         monkeypatch.setattr(
-            sign_router_module.SignRouter, "deform_waypoint", recording_deform_waypoint,
+            sign_router_module.SignRouter,
+            "deform_waypoint",
+            recording_deform_waypoint,
         )
 
         under_engaged = []
@@ -169,20 +181,26 @@ class TestVisionConfirmedSignRouting:
         failures = []
         for scenario in all_obstacles_demo_scenarios():
             result = ScenarioSimulator(
-                scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+                scenario.metadata,
+                num_laps=scenario.laps,
+                seed=scenario.seed,
                 emit_vision_detections=True,
             ).run(max_steps=_MAX_STEPS)
             logger.info(
                 "%s | laps=%d/%d collided=%s timeout=%s",
-                scenario.label, result.laps_completed, result.target_laps,
-                result.collided, result.timed_out,
+                scenario.label,
+                result.laps_completed,
+                result.target_laps,
+                result.collided,
+                result.timed_out,
             )
             if result.collided or result.laps_completed < scenario.laps:
                 failures.append((scenario.label, result))
         assert not failures, [(label, r.collision_xy or r.final_pose) for label, r in failures]
 
     def test_wrong_camera_color_overrides_ground_truth_mid_run(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A camera detection that disagrees with scenario metadata actually wins.
 
@@ -200,10 +218,7 @@ class TestVisionConfirmedSignRouting:
 
         def flipped_color_emulate(signs, robot_pos, robot_yaw):
             detections = original_emulate(signs, robot_pos, robot_yaw)
-            return [
-                replace(d, class_name="green" if d.class_name == "red" else "red")
-                for d in detections
-            ]
+            return [replace(d, class_name="green" if d.class_name == "red" else "red") for d in detections]
 
         monkeypatch.setattr(gateway_module, "emulate_sign_detections", flipped_color_emulate)
 
@@ -222,7 +237,9 @@ class TestVisionConfirmedSignRouting:
         monkeypatch.setattr(sign_router_module, "_apply_deformation", spying_apply_deformation)
 
         result = ScenarioSimulator(
-            scenario.metadata, num_laps=scenario.laps, seed=scenario.seed,
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
             emit_vision_detections=True,
         ).run(max_steps=_MAX_STEPS)
 
@@ -233,6 +250,4 @@ class TestVisionConfirmedSignRouting:
         # correctly falls back to ground truth on those ticks. What matters is
         # that the override actually won at least once during the run.
         overridden = [(gt, eff) for gt, eff in used_pairs if eff != gt]
-        assert overridden, (
-            f"camera detection never overrode ground-truth color in this run: {used_pairs[:10]}"
-        )
+        assert overridden, f"camera detection never overrode ground-truth color in this run: {used_pairs[:10]}"

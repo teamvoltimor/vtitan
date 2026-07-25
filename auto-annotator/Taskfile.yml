@@ -15,21 +15,20 @@ tasks:
   # ML Service (SAM model server + gRPC compute workers)
 
   ml-service:dev:
-    desc: Start SAM model server + gRPC compute service (local development)
+    desc: "Start SAM model server + gRPC compute service (local development). Usage: task ml-service:dev [MODEL_ID=sam2_hiera_large] to pre-load a specific model"
     dir: ml-service
-    cmds:
-      - uv run python grpc_main.py
-
-  ml-service:dev:model:
-    desc: Start ML service with a specific SAM model pre-loaded
-    dir: ml-service
-    cmds:
-      - uv run python grpc_main.py --model {{.MODEL_ID}}
     vars:
-      MODEL_ID: sam2_hiera_large
+      MODEL_ID: '{{.MODEL_ID | default ""}}'
     env:
       SERVER_PORT: '{{.SERVER_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
+    cmds:
+      - cmd: |
+          if [ -n "{{.MODEL_ID}}" ]; then
+            uv run python grpc_main.py --model {{.MODEL_ID}}
+          else
+            uv run python grpc_main.py
+          fi
 
   ml-service:legacy:
     desc: Start legacy SAM model server + FastAPI API (pre-cutover compatibility)
@@ -244,19 +243,11 @@ tasks:
       GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:up:
-    desc: Start all services with docker compose (ml-service + api + frontend)
+    desc: "Start all services with docker compose (ml-service + api + frontend). Usage: task docker:up [DETACHED=true]"
+    vars:
+      DETACHED_FLAG: '{{if eq .DETACHED "true"}}-d {{end}}'
     cmds:
-      - docker compose up --build
-    env:
-      API_PORT: '{{.API_PORT}}'
-      FRONTEND_PORT: '{{.FRONTEND_PORT}}'
-      SERVER_PORT: '{{.SERVER_PORT}}'
-      GRPC_PORT: '{{.GRPC_PORT}}'
-
-  docker:up:detached:
-    desc: Start all services in background with docker compose
-    cmds:
-      - docker compose up -d --build
+      - docker compose up {{.DETACHED_FLAG}}--build
     env:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
@@ -269,24 +260,11 @@ tasks:
       - docker compose down
 
   docker:logs:
-    desc: Follow docker compose logs
+    desc: "Follow docker compose logs (usage: task docker:logs [SERVICE=api|ml-service|frontend], default all services)"
+    vars:
+      SERVICE: '{{.SERVICE | default ""}}'
     cmds:
-      - docker compose logs -f
-
-  docker:logs:api:
-    desc: Follow Go API service logs
-    cmds:
-      - docker compose logs -f api
-
-  docker:logs:ml-service:
-    desc: Follow ML service logs
-    cmds:
-      - docker compose logs -f ml-service
-
-  docker:logs:frontend:
-    desc: Follow frontend service logs
-    cmds:
-      - docker compose logs -f frontend
+      - docker compose logs -f {{.SERVICE}}
 
   # Full Stack
 
@@ -305,14 +283,11 @@ tasks:
       - task: dev:serve
 
   dev:docker:
-    desc: Start full Docker stack (ml-service + api + frontend)
+    desc: "Start full Docker stack (ml-service + api + frontend). Usage: task dev:docker [DETACHED=true]"
     cmds:
       - task: docker:up
-
-  dev:docker:detached:
-    desc: Start full Docker stack in background
-    cmds:
-      - task: docker:up:detached
+        vars:
+          DETACHED: '{{.DETACHED | default "false"}}'
 
   # Utility
 

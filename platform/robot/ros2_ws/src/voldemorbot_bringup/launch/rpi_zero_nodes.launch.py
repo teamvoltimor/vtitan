@@ -12,12 +12,11 @@ are still available standalone for development/testing.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
-from launch.substitutions import LaunchConfiguration
+from launch.actions import OpaqueFunction
 from launch_ros.actions import Node
 
 
-def _launch_setup(context, *_args, **_kwargs):
+def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
     ackermann_motor_node = Node(
         package="voldemorbot_drivers",
         executable="ackermann_motor_node",
@@ -38,6 +37,8 @@ def _launch_setup(context, *_args, **_kwargs):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        OpaqueFunction(function=_launch_setup),
-    ])
+    return LaunchDescription(
+        [
+            OpaqueFunction(function=_launch_setup),
+        ],
+    )

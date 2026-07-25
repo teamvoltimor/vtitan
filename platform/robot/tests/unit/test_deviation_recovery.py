@@ -52,7 +52,8 @@ _HEADING_KICK_RAD = 0.35
 
 
 def _run_with_disturbance(
-    meta: dict[str, Any], disturbance: PoseDisturbance,
+    meta: dict[str, Any],
+    disturbance: PoseDisturbance,
 ) -> tuple[Any, list[float]]:
     sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
     trace: list[float] = []
@@ -77,7 +78,12 @@ def _assert_recovers(meta: dict[str, Any], disturbance: PoseDisturbance, label: 
     recovered_in = _steps_to_recover(trace)
     logger.info(
         "%s | recovered_in=%s steps success=%s collided=%s laps=%d/%d",
-        label, recovered_in, result.success, result.collided, result.laps_completed, _N_LAPS,
+        label,
+        recovered_in,
+        result.success,
+        result.collided,
+        result.laps_completed,
+        _N_LAPS,
     )
     assert not result.collided, f"{label}: collided after disturbance at {result.collision_xy}"
     assert result.success, f"{label}: did not complete the round after disturbance"
@@ -94,7 +100,8 @@ class TestRecoversFromLateralKick:
     def test_wide_corridor(self, section: Section, direction: Direction) -> None:
         meta = build_open_metadata(uniform_widths(_WIDE_MM), section, direction)
         _assert_recovers(
-            meta, PoseDisturbance(lateral_m=_LATERAL_KICK_M),
+            meta,
+            PoseDisturbance(lateral_m=_LATERAL_KICK_M),
             f"WIDE {section.capitalized}/{direction} lateral",
         )
 
@@ -102,7 +109,8 @@ class TestRecoversFromLateralKick:
     def test_narrow_corridor(self, section: Section, direction: Direction) -> None:
         meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction)
         _assert_recovers(
-            meta, PoseDisturbance(lateral_m=_LATERAL_KICK_M),
+            meta,
+            PoseDisturbance(lateral_m=_LATERAL_KICK_M),
             f"NARROW {section.capitalized}/{direction} lateral",
         )
 
@@ -114,6 +122,7 @@ class TestRecoversFromHeadingKick:
     def test_wide_corridor(self, section: Section, direction: Direction) -> None:
         meta = build_open_metadata(uniform_widths(_WIDE_MM), section, direction)
         _assert_recovers(
-            meta, PoseDisturbance(lateral_m=0.0, heading_rad=_HEADING_KICK_RAD),
+            meta,
+            PoseDisturbance(lateral_m=0.0, heading_rad=_HEADING_KICK_RAD),
             f"WIDE {section.capitalized}/{direction} heading",
         )

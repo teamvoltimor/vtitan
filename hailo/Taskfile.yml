@@ -94,11 +94,6 @@ tasks:
       vars:
         - BACKEND
 
-  test:pt:
-    desc: 'Test PyTorch model (.pt)'
-    cmds:
-      - uv run hailo test --model {{.MODEL}} --backend pt --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
-
   test:onnx:
     desc: 'Test ONNX model (.onnx)'
     cmds:
@@ -254,19 +249,17 @@ tasks:
 # Code Quality
 
   format:
-    desc: 'Format Python code with ruff'
+    desc: "Format Python code with ruff (usage: task format [MODE=check|diff], default writes in place)"
+    vars:
+      MODE: '{{.MODE | default "write"}}'
     cmds:
-      - uv run ruff format .
-
-  format:check:
-    desc: 'Check if code needs formatting (no changes)'
-    cmds:
-      - uv run ruff format --check .
-
-  format:diff:
-    desc: 'Show formatting changes without applying'
-    cmds:
-      - uv run ruff format --diff .
+      - cmd: |
+          case "{{.MODE}}" in
+            write) uv run ruff format . ;;
+            check) uv run ruff format --check . ;;
+            diff) uv run ruff format --diff . ;;
+            *) echo "Unknown MODE: {{.MODE}}. Use write|check|diff" && exit 1 ;;
+          esac
 
   lint:
     desc: 'Run ruff linter'
@@ -291,33 +284,20 @@ tasks:
   check:
     desc: 'Format check + lint + typecheck + unit tests (no changes)'
     cmds:
-      - task: format:check
+      - task: format
+        vars:
+          MODE: check
       - task: lint
       - task: typecheck
       - task: test:unit
 
 # Logging & Debugging
 
-  log:debug:
-    desc: 'Run a command with DEBUG logging level (requires ARGS)'
+  log:run:
+    desc: 'Run a command with a specific log level (usage: task log:run LEVEL=DEBUG|INFO|WARNING ARGS="...")'
     cmds:
-      - uv run hailo --log-level DEBUG {{.ARGS}}
+      - uv run hailo --log-level {{.LEVEL}} {{.ARGS}}
     requires:
       vars:
-        - ARGS
-
-  log:info:
-    desc: 'Run a command with INFO logging level (requires ARGS)'
-    cmds:
-      - uv run hailo --log-level INFO {{.ARGS}}
-    requires:
-      vars:
-        - ARGS
-
-  log:warning:
-    desc: 'Run a command with WARNING logging level (requires ARGS)'
-    cmds:
-      - uv run hailo --log-level WARNING {{.ARGS}}
-    requires:
-      vars:
+        - LEVEL
         - ARGS

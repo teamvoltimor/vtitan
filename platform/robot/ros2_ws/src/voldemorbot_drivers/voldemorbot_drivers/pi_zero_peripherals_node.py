@@ -17,12 +17,13 @@ Or via launch file:
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
+from voldemorbot_drivers.button_node import ButtonNode
+from voldemorbot_drivers.oled_display_node import OLEDDisplayNode
+
 
 def main(args: list[str] | None = None) -> None:
+    """Run button_node and oled_display_node in one process/rclpy init."""
     rclpy.init(args=args)
-
-    from voldemorbot_drivers.button_node import ButtonNode
-    from voldemorbot_drivers.oled_display_node import OLEDDisplayNode
 
     button = ButtonNode()
     oled = OLEDDisplayNode()

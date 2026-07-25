@@ -94,7 +94,7 @@ task backend:sqlc       # Regenerate DB layer from SQL
 ```bash
 task frontend:install       # npm ci
 task frontend:dev           # Dev server (:5173), ?demo for mock data
-task frontend:dev:demo      # Dev server with VITE_DEMO=true
+task frontend:dev DEMO=true # Dev server with VITE_DEMO=true
 task frontend:build         # tsc -b + vite build → dist/
 task frontend:preview       # Preview production build
 task frontend:typecheck     # tsc -b only
@@ -123,8 +123,8 @@ task simgen:lint         # golangci-lint
 
 ```bash
 task gen:track           # Generate/regenerate base track SDF (once)
-task gen:open            # Open-challenge scenarios (SCENARIOS=10)
-task gen:obstacles       # Obstacles-challenge scenarios
+task gen:scenarios CHALLENGE=open       # Open-challenge scenarios (SCENARIOS=10)
+task gen:scenarios CHALLENGE=obstacles  # Obstacles-challenge scenarios
 task gen:all             # Both challenges
 task gen:preview         # SVG top-down preview (METADATA=path)
 ```
@@ -136,13 +136,13 @@ Gazebo simulation, navigation, recording, and analysis.
 ```bash
 task sim:install           # Install deps (UV + Pixi)
 task sim:init              # Init ROS2 env via pixi (one-time)
-task sim:gazebo:world      # Launch Gazebo with base track
-task sim:gazebo:scenario   # Launch Gazebo with scenario SDF
+task sim:gazebo            # Launch Gazebo with base track
+task sim:gazebo SDF=path   # Launch Gazebo with a scenario SDF
 task sim:rviz              # Launch RViz
 task sim:navigate          # Run navigator (METADATA, LAPS overrides)
 task sim:analyze           # Analyze generated scenarios
 task sim:test              # Run tests
-task sim:test:quick        # Fail-fast tests
+task sim:test QUICK=true   # Fail-fast tests
 task sim:lint              # ruff
 ```
 
@@ -152,17 +152,17 @@ ROS2 waypoint-following navigator (Pixi + RoboStack).
 
 ```bash
 task robot:install   # pixi install
-task robot:test      # Run tests (pixi -e dev)
+task robot:test      # Run tests (pixi -e dev), SCOPE=all|unit|hardware
 task robot:lint      # ruff
 ```
 
 ### Proto (buf toolchain)
 
 ```bash
-task proto:update      # Update buf deps
-task proto:generate    # Generate Go + Python + TS stubs
-task proto:lint        # Lint proto files
-task proto:breaking    # Breaking change check vs master
+task proto ACTION=update      # Update buf deps
+task proto ACTION=generate    # Generate Go + Python + TS stubs
+task proto ACTION=lint        # Lint proto files
+task proto ACTION=breaking    # Breaking change check vs master
 ```
 
 ### Recording pipeline

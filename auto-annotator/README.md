@@ -41,8 +41,7 @@ All commands are available via `task <name>` (see `Taskfile.yml`):
 
 | Task | Description |
 |---|---|
-| `ml-service:dev` | Start SAM + gRPC compute service |
-| `ml-service:dev:model` | Start with a specific SAM model (`MODEL_ID=sam2_hiera_large`) |
+| `ml-service:dev` | Start SAM + gRPC compute service — `MODEL_ID=sam2_hiera_large` to pre-load a specific model |
 | `ml-service:legacy` | Legacy FastAPI server (pre-cutover) |
 | `ml-service:sync` | Install dependencies with `uv sync` |
 
@@ -88,10 +87,9 @@ All commands are available via `task <name>` (see `Taskfile.yml`):
 |---|---|
 | `docker:build:api` | Build Go API image |
 | `docker:build:ml-service` | Build ML service image |
-| `docker:up` | Start all services via docker-compose |
-| `docker:up:detached` | Start in background |
+| `docker:up` | Start all services via docker-compose — `DETACHED=true` to run in background |
 | `docker:down` | Stop services |
-| `docker:logs` | Follow logs |
+| `docker:logs` | Follow logs — `SERVICE=api\|ml-service\|frontend` to filter to one service |
 
 ### Full Stack
 

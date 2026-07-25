@@ -76,46 +76,59 @@ _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--south", type=int, default=_WIDE_MM, help="South corridor width (mm).")
     parser.add_argument("--north", type=int, default=_WIDE_MM, help="North corridor width (mm).")
     parser.add_argument("--east", type=int, default=_WIDE_MM, help="East corridor width (mm).")
     parser.add_argument("--west", type=int, default=_WIDE_MM, help="West corridor width (mm).")
     parser.add_argument(
-        "--section", choices=["south", "north", "east", "west"], default="south",
+        "--section",
+        choices=["south", "north", "east", "west"],
+        default="south",
         help="Starting section (ignored with --scenario/--interactive).",
     )
     parser.add_argument(
-        "--direction", choices=["cw", "ccw"], default="cw",
+        "--direction",
+        choices=["cw", "ccw"],
+        default="cw",
         help="Travel direction (ignored with --scenario/--interactive).",
     )
     parser.add_argument("--laps", type=int, default=3, help="Target lap count.")
     parser.add_argument(
-        "--rate", type=float, default=1.0,
+        "--rate",
+        type=float,
+        default=1.0,
         help="Playback speed multiplier (1.0 = real time, 0 = as fast as possible).",
     )
     parser.add_argument(
-        "--list", action="store_true",
+        "--list",
+        action="store_true",
         help="List the scenarios TestThreeLapSolvability runs, then exit.",
     )
     parser.add_argument(
-        "--scenario", metavar="INDEX_OR_LABEL",
+        "--scenario",
+        metavar="INDEX_OR_LABEL",
         help="Run one named test scenario (see --list) instead of an ad-hoc one.",
     )
     parser.add_argument(
-        "--interactive", action="store_true",
+        "--interactive",
+        action="store_true",
         help="Step through every test scenario in order, pausing between each.",
     )
     parser.add_argument(
-        "--challenge", choices=["open", "obstacles"], default=None,
+        "--challenge",
+        choices=["open", "obstacles"],
+        default=None,
         help="Which catalog --list/--scenario/--interactive operate over. "
-             "Omit to run both catalogs (Open Challenge scenarios, then Obstacles Challenge).",
+        "Omit to run both catalogs (Open Challenge scenarios, then Obstacles Challenge).",
     )
     parser.add_argument(
-        "--metadata-file", metavar="PATH",
+        "--metadata-file",
+        metavar="PATH",
         help="Run a *_metadata.json file directly (e.g. from `simgen generate`) "
-             "instead of a catalog scenario or the ad-hoc widths above.",
+        "instead of a catalog scenario or the ad-hoc widths above.",
     )
     return parser.parse_args()
 
@@ -136,12 +149,16 @@ def _track_for(metadata: dict[str, Any]) -> TrackModel:
 
 def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], track: TrackModel) -> None:
     visualizer.set_track(
-        track, sign_positions=metadata["sign_positions"], parking_lot=metadata.get("parking_lot"),
+        track,
+        sign_positions=metadata["sign_positions"],
+        parking_lot=metadata.get("parking_lot"),
     )
 
 
 def _run_one(
-    scenario: NamedScenario, visualizer: LiveScenarioVisualizer, rate: float,
+    scenario: NamedScenario,
+    visualizer: LiveScenarioVisualizer,
+    rate: float,
 ) -> SimResult:
     """Run a single named scenario against the live visualizer."""
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
@@ -159,8 +176,14 @@ def _log_result(label: str, result: SimResult) -> None:
     status = "SUCCESS" if result.success else "FAILED"
     logger.info(
         "%s | %s | laps=%d/%d collided=%s timeout=%s dist=%.2fm t=%.1fs",
-        status, label, result.laps_completed, result.target_laps,
-        result.collided, result.timed_out, result.distance_m, result.sim_time_s,
+        status,
+        label,
+        result.laps_completed,
+        result.target_laps,
+        result.collided,
+        result.timed_out,
+        result.distance_m,
+        result.sim_time_s,
     )
 
 
@@ -169,8 +192,7 @@ def _run_and_visualize(scenario: NamedScenario, rate: float) -> None:
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
-        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
-        "in another terminal to watch.",
+        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` in another terminal to watch.",
     )
     result = _run_one(scenario, visualizer, rate)
     _log_result(scenario.label, result)
@@ -196,7 +218,8 @@ def main() -> None:
         _set_track(visualizer, scenarios[0].metadata, first_track)
         logger.info(
             "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
-            "in another terminal to watch. %d scenarios queued.", len(scenarios),
+            "in another terminal to watch. %d scenarios queued.",
+            len(scenarios),
         )
         try:
             for i, scenario in enumerate(scenarios):
