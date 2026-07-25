@@ -1,12 +1,14 @@
-"""Launch file for the Raspberry Pi Zero 2W — single-process merged node.
+"""Launch file for the Raspberry Pi Zero 2W — two processes.
 
-Runs all three Pi Zero responsibilities (motors, button, OLED display) as
-separate LifecycleNodes inside a single Python process with a shared rclpy
-init. This replaces the old three-process approach and saves ~60-100 MB of
-RAM — critical on the Pi Zero 2W's 512 MB budget.
+ackermann_motor_node (steering + drive) runs on its own so it isn't sharing
+executor threads/CPU with the lower-rate peripherals -- see
+platform/robot/docs/sensor-verification.md's feedback-rate tuning section
+for the measurements behind this split. button_node and oled_display_node
+stay merged into pi_zero_peripherals_node (fewer DDS participants, less RAM
+-- neither is latency-sensitive enough to need its own process).
 
 Individual entry points (ackermann_motor_node, button_node, oled_display_node)
-are still available for development/testing.
+are still available standalone for development/testing.
 """
 
 from launch import LaunchDescription
@@ -16,15 +18,23 @@ from launch_ros.actions import Node
 
 
 def _launch_setup(context, *_args, **_kwargs):
-    pi_zero_node = Node(
+    ackermann_motor_node = Node(
         package="voldemorbot_drivers",
-        executable="pi_zero_node",
-        name="pi_zero_node",
+        executable="ackermann_motor_node",
+        name="ackermann_motor_node",
         output="screen",
         respawn=True,
         respawn_delay=2.0,
     )
-    return [pi_zero_node]
+    pi_zero_peripherals_node = Node(
+        package="voldemorbot_drivers",
+        executable="pi_zero_peripherals_node",
+        name="pi_zero_peripherals_node",
+        output="screen",
+        respawn=True,
+        respawn_delay=2.0,
+    )
+    return [ackermann_motor_node, pi_zero_peripherals_node]
 
 
 def generate_launch_description():

@@ -77,8 +77,12 @@ class LiveScenarioVisualizer(Node):
         for i, sign in enumerate(sign_positions or []):
             markers.markers.append(self._sign_marker(i, sign))
         if parking_lot is not None:
-            markers.markers.append(self._parking_block_marker(10, parking_lot["block1_position"]))
-            markers.markers.append(self._parking_block_marker(11, parking_lot["block2_position"]))
+            markers.markers.append(
+                self._parking_block_marker(10, parking_lot["block1_position"], parking_lot.get("block1_yaw", 0.0)),
+            )
+            markers.markers.append(
+                self._parking_block_marker(11, parking_lot["block2_position"], parking_lot.get("block2_yaw", 0.0)),
+            )
         markers.markers.extend(self._robot_model_markers())
         self._cached_track_markers = markers
         self._track_pub.publish(markers)
@@ -182,7 +186,7 @@ class LiveScenarioVisualizer(Node):
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         return m
 
-    def _parking_block_marker(self, index: int, block: dict) -> Marker:
+    def _parking_block_marker(self, index: int, block: dict, yaw: float) -> Marker:
         m = Marker()
         m.header.frame_id = _MAP_FRAME
         m.ns = "parking"
@@ -192,7 +196,7 @@ class LiveScenarioVisualizer(Node):
         m.pose.position.x = block["x"]
         m.pose.position.y = block["y"]
         m.pose.position.z = ParkingLotSpecs.Z_POSITION
-        m.pose.orientation.w = 1.0
+        m.pose.orientation = _yaw_to_quaternion(yaw)
         m.scale.x = ParkingLotSpecs.LENGTH
         m.scale.y = ParkingLotSpecs.WIDTH
         m.scale.z = ParkingLotSpecs.HEIGHT

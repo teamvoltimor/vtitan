@@ -1,12 +1,14 @@
-"""Single-process entry point for all Pi Zero nodes.
+"""Single-process entry point for the Pi Zero's low-rate peripherals.
 
-Replaces three separate ROS2 processes (ackermann_motor_node, button_node,
-oled_display_node) with one process and one rclpy init. Saves ~2 Python
-interpreters and ~2 DDS participants (~60-100 MB on Pi Zero 2W's 512 MB
-budget).
+Runs button_node and oled_display_node together in one process/rclpy init,
+same rationale as the old 3-way pi_zero_node merge (fewer DDS participants,
+less RAM). ackermann_motor_node now runs as its own process instead, so it
+gets a dedicated core and isn't sharing executor threads with these two --
+see platform/robot/docs/sensor-verification.md's feedback-rate tuning
+section for why.
 
 Usage:
-    ros2 run voldemorbot_drivers pi_zero_node
+    ros2 run voldemorbot_drivers pi_zero_peripherals_node
 
 Or via launch file:
     ros2 launch voldemorbot_bringup rpi_zero_nodes.launch.py
@@ -19,23 +21,18 @@ from rclpy.executors import MultiThreadedExecutor
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
 
-    from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
     from voldemorbot_drivers.button_node import ButtonNode
     from voldemorbot_drivers.oled_display_node import OLEDDisplayNode
 
-    ackermann = AckermannMotorNode()
     button = ButtonNode()
     oled = OLEDDisplayNode()
 
-    ackermann.trigger_configure()
-    ackermann.trigger_activate()
     button.trigger_configure()
     button.trigger_activate()
     oled.trigger_configure()
     oled.trigger_activate()
 
     executor = MultiThreadedExecutor()
-    executor.add_node(ackermann)
     executor.add_node(button)
     executor.add_node(oled)
 
@@ -44,7 +41,6 @@ def main(args: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        ackermann.destroy_node()
         button.destroy_node()
         oled.destroy_node()
         rclpy.shutdown()

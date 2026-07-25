@@ -90,6 +90,8 @@ tasks:
           task gen:obstacles        Generate obstacles-challenge scenarios
           task gen:all              Generate both open and obstacles scenarios
           task gen:preview          Render SVG top-down preview (METADATA=path)
+          task gen:rviz             Stream one scenario's layout live to RViz2 (METADATA=path)
+          task gen:rviz:all         Same as gen:rviz, but also launches RViz2 itself (one command)
 
         SIM (Gazebo / ROS2 runtime)
           task sim:install          Install simulation dependencies (UV + Pixi)
@@ -99,7 +101,8 @@ tasks:
           task sim:rviz             Launch RViz visualization
           task sim:navigate         Run navigator on a scenario (METADATA, LAPS overrides)
           task sim:navigate:rviz    Launch RViz pre-configured for live visualization
-          task sim:navigate:visualize  Run scenario(s) live in RViz (--list/--scenario/--interactive)
+          task sim:navigate:visualize  Run scenario(s) live in RViz (--challenge open|obstacles, --list/--scenario/--interactive)
+          task sim:navigate:visualize:all  Same as above, but also launches RViz2 itself (one command)
           task sim:analyze          Analyze generated scenarios (statistics)
           task sim:test             Run simulation tests
           task sim:test:quick       Quick test run (fail fast, short traceback)
@@ -468,6 +471,29 @@ tasks:
     cmds:
       - "{{.SIMGEN}} preview --metadata {{.METADATA}}"
 
+  gen:rviz:
+    desc: >-
+      Stream one generated scenario's static layout (walls, signs, parking
+      blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
+      navigator run. METADATA=path/to/*_metadata.json (relative to platform/,
+      same var as gen:preview). Run `task sim:navigate:rviz` in another
+      terminal first (NOT `task sim:rviz`, which is a separate pixi/ROS2
+      install that may not discover these topics).
+    dir: robot
+    cmds:
+      - pixi run -e dev visualize-scenario -- --metadata-file ../{{.METADATA}} {{.CLI_ARGS}}
+
+  gen:rviz:all:
+    desc: >-
+      One-command version of gen:rviz — launches RViz2 (pre-configured) AND
+      streams the scenario to it concurrently, instead of needing
+      `task sim:navigate:rviz` and `task gen:rviz` in two separate terminals.
+      METADATA=path/to/*_metadata.json (same var as gen:rviz). Closing the
+      RViz2 window ends the task.
+    deps:
+      - sim:navigate:rviz
+      - gen:rviz
+
   # SIM (Gazebo / ROS2 runtime)
 
   sim:install:
@@ -513,12 +539,27 @@ tasks:
       Run closed-loop scenario(s) live at wall-clock speed, publishing pose/LIDAR/track to
       ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which is a
       separate pixi/ROS2 install under gazebo/runtime and may not discover these topics).
-      `-- --list` lists the 28 TestThreeLapSolvability scenarios; `-- --scenario 5` or
-      `-- --scenario random#3` runs one of them; `-- --interactive` steps through all 28,
-      pausing between each; otherwise runs one ad-hoc scenario, e.g. `-- --south 600 --rate 2`
+      `-- --challenge open|obstacles` scopes to one catalog (omit for both, Open then
+      Obstacles); add `-- --list` to list its scenarios, `-- --scenario 5` (or a label from
+      --list) to run one, `-- --interactive` to step through every scenario in the catalog,
+      pausing between each; otherwise runs one ad-hoc Open Challenge scenario, e.g.
+      `-- --south 600 --rate 2`.
     dir: robot
     cmds:
       - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
+
+  sim:navigate:visualize:all:
+    desc: >-
+      One-command version of sim:navigate:visualize — launches RViz2 (pre-configured) AND
+      runs the scenario(s) concurrently, instead of needing task sim:navigate:rviz +
+      task sim:navigate:visualize in two terminals. Same CLI_ARGS, e.g.
+      `-- --challenge obstacles --interactive` to step through every Obstacles Challenge
+      scenario, or `-- --challenge open --interactive` for Open Challenge.
+    deps:
+      - sim:navigate:rviz
+      - task: sim:navigate:visualize
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
 
   sim:navigate:rviz:
     desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
@@ -588,13 +629,13 @@ tasks:
     desc: Lint robot code
     dir: robot
     cmds:
-      - pixi run -e dev ruff check src/ tests/
+      - pixi run -e dev lint
 
   robot:lint:fix:
     desc: Auto-fix robot linting issues
     dir: robot
     cmds:
-      - pixi run -e dev ruff check src/ tests/ --fix
+      - pixi run -e dev lint-fix
 
   robot:build-ws:
     desc: Build ROS2 workspace via colcon (Linux only — sllidar_ros2 requires Linux)

@@ -46,10 +46,12 @@ type (
 		Y     float64 `json:"y"`
 	}
 
-	// ParkingMeta describes the positions and spacing of parking blocks (obstacles challenge).
+	// ParkingMeta describes the positions, orientation, and spacing of parking blocks (obstacles challenge).
 	ParkingMeta struct {
 		Block1Position PosMeta `json:"block1_position"`
 		Block2Position PosMeta `json:"block2_position"`
+		Block1Yaw      float64 `json:"block1_yaw"`
+		Block2Yaw      float64 `json:"block2_yaw"`
 		Depth          float64 `json:"depth"`
 	}
 )
@@ -83,6 +85,8 @@ func BuildMetadata(
 		parkMeta = &ParkingMeta{
 			Block1Position: PosMeta{X: parking.Block1Pos[0], Y: parking.Block1Pos[1]},
 			Block2Position: PosMeta{X: parking.Block2Pos[0], Y: parking.Block2Pos[1]},
+			Block1Yaw:      parking.Block1Yaw,
+			Block2Yaw:      parking.Block2Yaw,
 			Depth:          parking.Depth,
 		}
 	}

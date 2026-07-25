@@ -54,7 +54,14 @@ rm -rf ros2_ws/build-zero ros2_ws/install-zero
 
 log "3/6 tar dev env + ros2_ws build for transfer"
 tar czf ~/dev_env.tar.gz -C .pixi/envs dev
-tar czf ~/ros2_ws_zero.tar.gz -C ros2_ws build-zero install-zero
+# -h/--dereference: colcon --symlink-install makes data_files (launch files,
+# package.xml, etc.) symlinks back into ros2_ws/src using an *absolute* path.
+# Since both Pis share the same absolute repo path, an un-dereferenced
+# symlink extracted on the Zero silently resolves to the Zero's own (stale)
+# src tree instead of the content just built here -- packaging real file
+# content instead of the symlink is what makes this tarball actually
+# self-contained regardless of whether the Zero's src happens to be in sync.
+tar czhf ~/ros2_ws_zero.tar.gz -C ros2_ws build-zero install-zero
 
 log "4/6 transfer tarballs to Zero (retrying on drops -- the Zero's link can flake under its own load)"
 for f in ros2_ws_zero.tar.gz dev_env.tar.gz; do
