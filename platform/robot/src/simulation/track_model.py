@@ -27,16 +27,29 @@ Geometry recap (WRO 2026, bottom-left origin, 3.0 x 3.0 m track):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.constants import RobotSpecs, TrackDimensions
+from shared.config.constants import (
+    DictKeys,
+    ParkingLotSpecs,
+    RobotSpecs,
+    TrackDimensions,
+    TrafficSignSpecs,
+)
 
 from src.navigation.track_geometry import TrackWalls
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from shared.config.enums import Section
+
+# |cos(yaw)| below this counts as a quarter-turn, so a block's extents are
+# swapped rather than treated as axis-aligned.
+_AXIS_ALIGN_TOLERANCE = 1e-6
 
 # Wall thickness halves (metres) — straight from the generator's constants:
 # WallThickness = 0.10 (visual), WallCollisionThickness = 0.18 (collision).
@@ -68,18 +81,100 @@ class _Box:
         ]
 
 
+@dataclass(frozen=True, slots=True)
+class ObstacleBox:
+    """A ground obstacle — a traffic sign or a parking block.
+
+    Both are short boxes standing on the mat, so they are modelled the same
+    way: an axis-aligned footprint the chassis can hit and the LIDAR can see.
+    ``yaw`` is only ever 0 or +-90 degrees for the objects the WRO generator
+    emits, so a rotated block is represented by swapping its extents rather
+    than carrying a general oriented box through the raycast maths.
+    """
+
+    cx: float
+    cy: float
+    size_x: float
+    size_y: float
+
+    @classmethod
+    def from_pose(cls, cx: float, cy: float, length: float, width: float, yaw: float = 0.0) -> ObstacleBox:
+        """Build a box from a centre pose, swapping extents for a quarter-turn ``yaw``."""
+        quarter_turned = abs(math.cos(yaw)) < _AXIS_ALIGN_TOLERANCE
+        size_x, size_y = (width, length) if quarter_turned else (length, width)
+        return cls(cx=cx, cy=cy, size_x=size_x, size_y=size_y)
+
+    def to_box(self, margin: float = 0.0) -> _Box:
+        """Return the axis-aligned bounds, optionally grown by ``margin``."""
+        half_x = self.size_x / 2.0 + margin
+        half_y = self.size_y / 2.0 + margin
+        return _Box(self.cx - half_x, self.cy - half_y, self.cx + half_x, self.cy + half_y)
+
+
+def obstacles_from_metadata(metadata: dict) -> list[ObstacleBox]:
+    """Collect every physical obstacle in a scenario: traffic signs and parking blocks.
+
+    Open Challenge metadata has neither, so this returns an empty list and the
+    resulting :class:`TrackModel` behaves exactly as before.
+    """
+    boxes = [
+        ObstacleBox.from_pose(
+            cx=float(sign[DictKeys.X]),
+            cy=float(sign[DictKeys.Y]),
+            length=TrafficSignSpecs.WIDTH,
+            width=TrafficSignSpecs.DEPTH,
+        )
+        for sign in metadata.get(DictKeys.SIGN_POSITIONS, [])
+    ]
+
+    parking = metadata.get(DictKeys.PARKING_LOT)
+    if parking:
+        for pos_key, yaw_key in (("block1_position", "block1_yaw"), ("block2_position", "block2_yaw")):
+            block = parking[pos_key]
+            boxes.append(
+                ObstacleBox.from_pose(
+                    cx=float(block[DictKeys.X]),
+                    cy=float(block[DictKeys.Y]),
+                    length=ParkingLotSpecs.LENGTH,
+                    width=ParkingLotSpecs.WIDTH,
+                    yaw=float(parking.get(yaw_key, 0.0)),
+                ),
+            )
+    return boxes
+
+
 class TrackModel:
     """Wall geometry + sensor/collision queries for one Open Challenge layout."""
 
-    def __init__(self, corridor_widths_m: dict[Section, float]) -> None:
+    def __init__(
+        self,
+        corridor_widths_m: dict[Section, float],
+        obstacles: Sequence[ObstacleBox] | None = None,
+        lidar_sees_obstacles: bool = True,
+    ) -> None:
         """Build the track from per-side corridor widths.
 
         Args:
             corridor_widths_m: Navigable corridor width (metres) for each of the
                 four sections, e.g. ``{Section.SOUTH: 0.6, ...}``.
+            obstacles: Traffic signs and parking blocks standing on the mat.
+                Empty for the Open Challenge, which has neither.
+            lidar_sees_obstacles: Whether obstacles occlude LIDAR rays. Both
+                signs and parking blocks are 0.10 m tall — exactly the chassis
+                height — so a deck-mounted C1 scans right at their top edge and
+                real-world detection is marginal. Defaults to modelling them as
+                visible; set False to simulate a LIDAR mounted above them, in
+                which case the camera (mounted higher and pitched down) is the
+                only sensor that perceives them.
         """
         self._widths = corridor_widths_m
         self._walls = TrackWalls(corridor_widths_m)
+        self._obstacles = list(obstacles or [])
+        self._lidar_sees_obstacles = lidar_sees_obstacles
+        # Signs and parking blocks are small, rigid and modelled at their true
+        # size — unlike the walls there is no separate fatter collision mesh,
+        # so visual and collision bounds are the same box.
+        self._obstacle_boxes = [ob.to_box() for ob in self._obstacles]
 
         inner = self._walls.inner_block
         self._inner_visual = _Box(inner.x_min, inner.y_min, inner.x_max, inner.y_max)
@@ -119,7 +214,19 @@ class TrackModel:
         Returns:
             Range (metres) for each bearing, clamped to ``[LIDAR_MIN_RANGE, max_range]``.
         """
-        return self._walls.raycast(x, y, yaw, angles_robot, max_range)
+        ranges = self._walls.raycast(x, y, yaw, angles_robot, max_range)
+        if not (self._lidar_sees_obstacles and self._obstacle_boxes):
+            return ranges
+
+        # An obstacle only shortens a ray — never lengthens it — so fold each
+        # box in with an elementwise minimum against the wall ranges.
+        world_ang = yaw + angles_robot
+        dx = np.cos(world_ang)
+        dy = np.sin(world_ang)
+        for box in self._obstacle_boxes:
+            hits = _raycast_box(x, y, dx, dy, box, max_range)
+            np.minimum(ranges, hits, out=ranges)
+        return np.clip(ranges, RobotSpecs.LIDAR_MIN_RANGE, max_range)
 
     # Collision
 
@@ -131,10 +238,13 @@ class TrackModel:
         length: float = RobotSpecs.LENGTH,
         width: float = RobotSpecs.WIDTH,
     ) -> bool:
-        """Return ``True`` if the oriented chassis rectangle hits any wall.
+        """Return ``True`` if the oriented chassis rectangle hits a wall or an obstacle.
 
         Checks the chassis footprint against the outer collision boundary and
-        the inner keep-out block, both built from the 0.18 m collision meshes.
+        the inner keep-out block, both built from the 0.18 m collision meshes,
+        then against every traffic sign and parking block on the mat. Knocking
+        a sign over is a scored failure in the Obstacles Challenge, so it has
+        to register here exactly like hitting a wall does.
         """
         corners = _rect_corners(x, y, yaw, length, width)
 
@@ -145,7 +255,10 @@ class TrackModel:
                 return True
 
         # Inner block: oriented footprint must not overlap the keep-out box.
-        return _convex_overlap(corners, self._inner_collision.corners(), yaw)
+        if _convex_overlap(corners, self._inner_collision.corners(), yaw):
+            return True
+
+        return any(_convex_overlap(corners, box.corners(), yaw) for box in self._obstacle_boxes)
 
     # Geometry helpers exposed for tests / planners
 
@@ -169,6 +282,40 @@ class TrackModel:
         """Inner-block visual bounds ``(x_min, y_min, x_max, y_max)`` in metres."""
         iv = self._inner_visual
         return (iv.x_min, iv.y_min, iv.x_max, iv.y_max)
+
+
+def _raycast_box(
+    x: float,
+    y: float,
+    dx: np.ndarray,
+    dy: np.ndarray,
+    box: _Box,
+    max_range: float,
+) -> np.ndarray:
+    """Distance from ``(x, y)`` to an axis-aligned box, per ray, vectorised.
+
+    Standard slab method: intersect the ray against the box's x- and y-bounded
+    strips and keep the overlap. Rays that miss (or that only hit behind the
+    sensor) return ``max_range`` so the caller's elementwise minimum leaves
+    them untouched.
+    """
+    # errstate: rays exactly parallel to an axis divide by zero here, which is
+    # well-defined for the slab method (+-inf correctly means "never leaves
+    # this strip") — only the warning is unwanted.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tx1 = (box.x_min - x) / dx
+        tx2 = (box.x_max - x) / dx
+        ty1 = (box.y_min - y) / dy
+        ty2 = (box.y_max - y) / dy
+
+    t_near = np.maximum(np.minimum(tx1, tx2), np.minimum(ty1, ty2))
+    t_far = np.minimum(np.maximum(tx1, tx2), np.maximum(ty1, ty2))
+
+    # A hit needs the slabs to overlap and the exit point to be in front of the
+    # sensor. Starting inside the box yields t_near < 0, reported as range 0.
+    hit = np.isfinite(t_near) & (t_far >= np.maximum(t_near, 0.0))
+    distance = np.maximum(t_near, 0.0)
+    return np.where(hit, distance, max_range)
 
 
 def _rect_corners(

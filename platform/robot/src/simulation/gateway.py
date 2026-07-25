@@ -35,7 +35,7 @@ from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
-from src.simulation.track_model import TrackModel
+from src.simulation.track_model import TrackModel, obstacles_from_metadata
 from src.simulation.vision_emulator import emulate_sign_detections
 
 if TYPE_CHECKING:
@@ -256,9 +256,12 @@ class ScenarioSimulator:
         nav_tuning = tuning or NavigationTuning()
 
         widths = corridor_widths_from_metadata(metadata)
-        self._track = TrackModel(widths)
         start = _start_conditions(metadata)
         is_open_challenge = metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
+        # Traffic signs and parking blocks are real objects: the chassis can hit
+        # them and the LIDAR can see them. Without them in the track model the
+        # run reports success while driving straight through every sign.
+        self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata))
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
