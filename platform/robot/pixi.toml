@@ -213,6 +213,12 @@ build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/
 # left and right came out swapped until this was set).
 run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=true'"
 
+# Run ON Pi 5 -- one-shot setup for a freshly-flashed Pi Zero (SSH trust,
+# .env, pixi CLI, I2C, systemd unit). Idempotent, safe to re-run. See
+# docs/sensor-verification.md's "Setting up a freshly-flashed Pi Zero" section.
+# Run this BEFORE deploy-dev-env-to-zero for a Zero that's never been set up.
+bootstrap-fresh-zero = "bash scripts/bootstrap-fresh-zero.sh"
+
 # Run ON Pi 5 -- builds the dev env + ros2_ws there and ships it to the Pi
 # Zero as tarballs instead of running pixi/colcon directly on the Zero's
 # ~415MB RAM (see scripts/deploy-dev-env-to-zero.sh's header and

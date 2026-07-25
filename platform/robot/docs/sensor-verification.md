@@ -314,6 +314,53 @@ filesystem, not just an inconvenience).
    own overhead. Prefer long, sparse, patient checks over tight retry loops
    when the board is already struggling.
 
+### Setting up a freshly-flashed Pi Zero
+
+Automated via `pixi run -e dev bootstrap-fresh-zero`, run **on Pi 5** (see
+`scripts/bootstrap-fresh-zero.sh`). Idempotent — safe to re-run on a Zero
+that's already set up. Covers, in order:
+
+1. Trusting Pi 5's SSH key into the Zero's `~/.ssh/authorized_keys` (needs
+   *some* existing trusted path in first — e.g. Raspberry Pi Imager's own SSH
+   key customization on first boot — the script can't bootstrap first contact
+   from nothing).
+2. Verifying passwordless sudo on both boards.
+3. Copying `platform/robot` **and `platform/shared`** onto the Zero via
+   `git archive HEAD | ssh ... tar -x` from Pi 5's own checkout, piped
+   straight over the already-trusted SSH link. This sidesteps needing GitHub
+   auth on the Zero at all (the repo is private; Pi 5 authenticates via `gh`,
+   which isn't worth replicating on a throwaway/resource-constrained board).
+   **`platform/shared` is easy to forget**: `pixi.toml` installs it as an
+   editable dependency (`voldemorbot-shared = { path = "../shared" }`), so
+   anything importing `shared.*` (e.g. `oled_display_node`'s
+   `shared.config.constants`) fails with `ModuleNotFoundError: No module
+   named 'shared'` if only `platform/robot` was copied — confirmed the hard
+   way testing the merged `pi_zero_node` on a freshly re-imaged Zero.
+4. `cp .env.example .env` on the Zero, **only if `.env` doesn't already
+   exist** — never overwrites a hand-tuned one.
+5. Installing the `pixi` CLI itself on the Zero (just the ~20MB binary via
+   `curl -fsSL https://pixi.sh/install.sh | sh` — NOT `pixi install`, which
+   is the heavy conda/mamba resolve step this whole deployment approach
+   exists to avoid running on the Zero; see below).
+6. Enabling I2C — **off by default on a fresh Raspberry Pi OS image**,
+   required for the SSD1306 OLED display. `dtparam=i2c_arm=on` in
+   `/boot/firmware/config.txt` loads the `i2c_bcm2835` bus driver, but the
+   `/dev/i2c-*` character device nodes additionally need the `i2c-dev` kernel
+   module (`echo i2c-dev | sudo tee -a /etc/modules` to persist across
+   reboots, not just a one-off `modprobe`). Confirmed via
+   `i2cdetect -y 1` showing the display responding at `0x3c`, matching
+   `.env`'s `SSD1306_I2C_ADDRESS`.
+7. Templating `systemd/voldemorbot-pi-zero.service`'s `__TARGET_USER__` /
+   `__TARGET_HOME__` placeholders and installing it to
+   `/etc/systemd/system/` — left **disabled**. Don't `systemctl enable` it
+   until you've confirmed `sudo systemctl start
+   voldemorbot-pi-zero.service` works standalone (same reasoning as the
+   "two compounding traps" above — an enabled service auto-starting mid
+   troubleshooting fights you for the same constrained resources).
+
+A reboot is needed after step 6 for the I2C change to take effect — use
+`safe-shutdown-zero` (below), never pull power directly.
+
 **The fix: build on Pi 5, ship the result to the Zero as tarballs.** Pi 5 has
 15GB+ RAM and does the same `pixi install -e dev` + `colcon build` in under a
 minute. Both boards are `linux-aarch64` with the same username and identical
@@ -355,6 +402,31 @@ If it's already wedged in a dirty-fsck state with no display attached: pull the 
 it into another Pi (or a USB reader) that can mount ext4 natively, and run
 `sudo e2fsck -n -f /dev/<partition>` read-only first to see what's wrong, then `sudo e2fsck -f -y
 /dev/<partition>` to fix it.
+
+### Merged `pi_zero_node` — verification and resource baseline
+
+Verified end-to-end on a freshly-flashed Zero (bootstrap → deploy →
+`systemctl restart voldemorbot-pi-zero.service`): the motor, button, and OLED
+nodes that used to run as 3 separate `ros2 run` processes now construct and
+activate inside a single `pi_zero_node` process
+(`ros2_ws/install/lib/voldemorbot_drivers/pi_zero_node`). `ps`/`systemctl
+status` cgroup output confirms one Python PID owns all three lifecycle
+nodes; the `ros2 launch` parent process is normal launch-file overhead, not
+a second node.
+
+Idle resource baseline (no driving, no LIDAR/vision — just motor+button+OLED
+holding steady state), sampled ~19 minutes after boot on the Pi Zero 2 W's
+415MB usable RAM:
+
+- **CPU**: ~65-70% of one core sustained (fluctuates 50-75%), i.e. roughly
+  16-19% of total system CPU capacity on the quad-core Zero 2 W. Higher than
+  it might look at a glance — likely GPIO/encoder polling loops rather than
+  a leak; not yet root-caused, worth profiling if it becomes a bottleneck
+  once LIDAR/vision are running concurrently.
+- **Memory**: ~106MB RSS for the node process (~25% of total RAM), ~247MB
+  used system-wide (~59%), ~167MB available. Comfortable headroom at idle,
+  but worth re-checking once the full stack (LIDAR + vision + navigation) is
+  running on the same board simultaneously.
 
 ## Template for future phases
 
