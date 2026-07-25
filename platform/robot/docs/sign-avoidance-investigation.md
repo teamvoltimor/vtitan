@@ -407,9 +407,13 @@ mean the robot stopped moving.
 
 - Is the outer-lane red-sign squeeze (+-6.7cm) actually achievable on hardware,
   or does the pass-side rule need re-checking for that case?
-- Signs and the chassis are both 0.10m tall, so a deck-mounted C1 scans at their
-  top edge; real LIDAR detection is marginal and the camera may be the only
-  reliable sensor. `lidar_sees_obstacles` exists to model both cases. If the real
-  LIDAR turns out not to see signs, the conflict above becomes moot in hardware
-  and the camera/Hailo path carries sign avoidance alone — worth settling on the
-  bench before investing in a fix.
+- ~~Can the C1 see a 0.10m sign from a 0.10m-high mount?~~ **ANSWERED
+  (user-confirmed 2026-07-25): yes, the C1 detects the signs.** So
+  `lidar_sees_obstacles=True` is the correct model, the sim is representative on
+  this point, and the router/collision-controller interaction documented above is
+  real on hardware rather than a simulation artifact. This also means tracking
+  work here is justified: the numbers it would be tuned against are trustworthy.
+- The parking pocket is `ParkingLotSpecs.LENGTH` (0.200 m) deep and the chassis is
+  ~0.20 m wide, so full containment has ~zero margin. Pin down the true chassis
+  width to the millimetre — at this scale 19.0 mm vs 20.0 mm is the difference
+  between a 10 mm margin and none at all.
