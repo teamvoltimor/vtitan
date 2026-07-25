@@ -231,3 +231,8 @@ deploy-dev-env-to-zero = "bash scripts/deploy-dev-env-to-zero.sh"
 # power on a running Zero leaves the ext4 journal uncommitted and has
 # corrupted the filesystem before.
 safe-shutdown-zero = "bash scripts/safe-shutdown-zero.sh"
+
+# Run ON Pi 5 -- end-to-end health check: USB-gadget link, systemd service
+# state, ROS2 cross-board topic discovery, and a real AckermannDriveStamped
+# publish -> motor driver -> feedback round-trip. Safe with motors unpowered.
+verify-zero-integration = "bash scripts/verify-zero-integration.sh"

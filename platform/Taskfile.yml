@@ -117,6 +117,7 @@ tasks:
           task robot:bootstrap-fresh-zero  One-shot setup for a freshly-flashed Pi Zero — run on Pi 5
           task robot:deploy-dev-env-to-zero  Build dev env + ros2_ws on Pi 5, ship to Pi Zero — run on Pi 5
           task robot:safe-shutdown-zero  Cleanly shut down the Pi Zero before cutting power — run on Pi 5
+          task robot:verify-zero-integration  Health check: USB link, service, ROS2 discovery, motor round-trip — run on Pi 5
           task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
           task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
@@ -624,6 +625,15 @@ tasks:
       - pixi run -e dev safe-shutdown-zero
     env:
       ZERO_HOST: '{{.ZERO_HOST | default ""}}'
+
+  robot:verify-zero-integration:
+    desc: "End-to-end health check: USB-gadget link, service state, ROS2 discovery, and a real motor command round-trip — run ON Pi 5 (usage: task robot:verify-zero-integration [ZERO_HOST_USB=user@host] [ZERO_HOST_WIFI=user@host])"
+    dir: robot
+    cmds:
+      - pixi run -e dev verify-zero-integration
+    env:
+      ZERO_HOST_USB: '{{.ZERO_HOST_USB | default ""}}'
+      ZERO_HOST_WIFI: '{{.ZERO_HOST_WIFI | default ""}}'
 
   robot:run-imu-i2c:
     desc: Run BNO08x IMU node (I2C mode) — requires build-ws first
