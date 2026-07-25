@@ -253,11 +253,18 @@ class ScenarioSimulator:
     ) -> None:
         self._metadata = metadata
         self._num_laps = num_laps
-        nav_tuning = tuning or NavigationTuning()
 
         widths = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
         is_open_challenge = metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
+        # Obstacles needs tighter path tracking than Open: the margin for
+        # threading past a sign is far smaller than the corridor the Open
+        # Challenge drives, so it defaults to the shorter-lookahead profile.
+        # An explicit `tuning` argument still wins.
+        if tuning is not None:
+            nav_tuning = tuning
+        else:
+            nav_tuning = NavigationTuning() if is_open_challenge else NavigationTuning.for_obstacles()
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
