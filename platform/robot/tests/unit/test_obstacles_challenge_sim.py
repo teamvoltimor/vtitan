@@ -137,7 +137,8 @@ class TestObstaclesDemoScenariosRun:
         navigator_ref: list = [None]
 
         def recording_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, detections=None):
-            nearest_idx, _ = self._nearest_active_sign(robot_pos, corridor)
+            candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
+            nearest_idx = candidates[0][0] if candidates else -1
             result = orig(self, waypoint, robot_pos, robot_yaw, corridor, detections)
             if result != waypoint and nearest_idx >= 0:
                 laps_seen_per_sign.setdefault(nearest_idx, set()).add(

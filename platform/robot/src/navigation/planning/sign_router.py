@@ -64,6 +64,12 @@ _WALL_CLEARANCE = RobotSpecs.WIDTH / 2 + 0.02
 _SIGN_CLEARANCE_MARGIN = 0.075
 _SIGN_LATERAL_OFFSET = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
 
+# How far behind the robot's own origin a sign may still sit and remain an
+# avoidance candidate. Half the chassis length, so a sign level with the rear
+# bumper still counts (it's alongside, not cleared) but one genuinely receding
+# behind stops competing with the sign coming up next.
+_BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
+
 # How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
 # axis may drift and still count as a valid straight-corridor deformation
 # candidate — see _is_squarely_in_corridor.
@@ -208,30 +214,47 @@ class SignRouter:
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
         """
-        nearest_idx, nearest_dist = self._nearest_active_sign(robot_pos, corridor)
-        if nearest_idx < 0 or nearest_dist > self._config.activation_dist:
-            return waypoint
+        candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
 
-        # Key the corner check and the deformation math off the CANDIDATE
-        # SIGN's own corridor, not the robot's current corridor label. The two
-        # can legitimately disagree right at a corner — see
-        # _nearest_active_sign's same-corridor-OR-within-activation_dist
-        # comment — and the sign's own corridor is what actually determines
-        # which world axis is "lateral" for it; using the robot's (possibly
-        # stale, pre-corner) label here would deform the wrong axis.
-        sign_corridor = self._sign_corridors[nearest_idx]
+        # Walk candidates nearest-first and use the first whose deformation is
+        # actually applicable, rather than giving up entirely if the closest one
+        # is not. The nearest sign is often one the robot is still alongside but
+        # has effectively cleared, sitting in the corridor just left behind; its
+        # own deformation no longer applies to a target point that has already
+        # moved into the next corridor. Returning the waypoint untouched in that
+        # case blanks out avoidance for exactly the stretch approaching the NEXT
+        # sign — which, if that sign sits near the corner exit, is the entire
+        # runway available to steer around it.
+        for nearest_idx, nearest_dist in candidates:
+            # Sorted nearest-first, so once one is out of range every later one
+            # is too — nothing further can apply.
+            if nearest_dist > self._config.activation_dist:
+                return waypoint
 
-        # The deformation model assumes a straight corridor segment (hold the
-        # depth axis, override the lateral axis with a value derived from the
-        # sign's fixed position). Once the *target* waypoint itself has curved
-        # into a corner, that override is stale and increasingly wrong — skip
-        # it rather than fight the path's own curve. Deliberately stricter than
-        # corridor_for_position()'s corner tie-break (which exists to always
-        # assign the ROBOT some corridor, even ambiguously): a corner waypoint
-        # like (2.42, 2.42) ties NORTH vs EAST there and gets assigned NORTH by
-        # insertion order, but it's still on the turning arc, not the straight
-        # segment this deformation model assumes.
-        if not _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor):
+            # Key the corner check and the deformation math off the CANDIDATE
+            # SIGN's own corridor, not the robot's current corridor label. The
+            # two can legitimately disagree right at a corner — see
+            # _active_sign_candidates' same-corridor-OR-within-activation_dist
+            # comment — and the sign's own corridor is what actually determines
+            # which world axis is "lateral" for it; using the robot's (possibly
+            # stale, pre-corner) label here would deform the wrong axis.
+            sign_corridor = self._sign_corridors[nearest_idx]
+
+            # The deformation model assumes a straight corridor segment (hold
+            # the depth axis, override the lateral axis with a value derived
+            # from the sign's fixed position). Once the *target* waypoint itself
+            # has curved into a corner, that override is stale and increasingly
+            # wrong — skip it rather than fight the path's own curve.
+            # Deliberately stricter than corridor_for_position()'s corner
+            # tie-break (which exists to always assign the ROBOT some corridor,
+            # even ambiguously): a corner waypoint like (2.42, 2.42) ties NORTH
+            # vs EAST there and gets assigned NORTH by insertion order, but it's
+            # still on the turning arc, not the straight segment this
+            # deformation model assumes.
+            if _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor):
+                break
+        else:
+            # No candidate produced an applicable deformation.
             return waypoint
 
         sign = self._signs[nearest_idx]
@@ -249,18 +272,28 @@ class SignRouter:
             if camera_color is not None:
                 color = camera_color
 
-        # Taper the offset by *this waypoint's* own distance to the sign (not
-        # the robot's — that only gates whether the sign is engaged at all).
-        # A single target-point substitution never needed this: it was always
-        # the point nearest the robot's own engagement. But biasing a whole
-        # forward window the same fixed amount regardless of how far each
-        # point already is from the sign snaps the offset from full magnitude
-        # to zero in a single waypoint step at the corridor boundary — a kink
-        # arriving at exactly the same place the car is also turning through.
-        # Fading it out over `passed_dist` keeps every existing single-point
-        # call (waypoint == sign position, taper == 1.0) byte-identical.
-        waypoint_dist = _dist2d(waypoint, (sign.x, sign.y))
-        taper = max(0.0, 1.0 - waypoint_dist / self._config.passed_dist)
+        # Taper the offset so it fades in and out over `passed_dist` instead of
+        # snapping between full magnitude and zero in a single waypoint step at
+        # a corridor boundary — a kink arriving at exactly the same place the
+        # car is also turning through.
+        #
+        # Taper on whichever of the ROBOT or the TARGET POINT is nearer the
+        # sign, not the target point alone. The lookahead target runs 0.2-0.4m
+        # ahead of the robot, so keying on it alone means that at the instant
+        # the robot draws level with the sign — the one moment full offset is
+        # actually needed — the target is already that far PAST the sign and
+        # the taper has quietly cut the offset by a third or more. The robot
+        # then chases a half-hearted target and grazes the sign it was supposed
+        # to clear. Taking the minimum holds full strength across the whole real
+        # pass (either the robot or its target is near the sign throughout) and
+        # decays only once both are clear, which preserves the smoothing this
+        # taper exists for. Waypoint-at-sign callers still see taper == 1.0, so
+        # single-point behaviour is unchanged.
+        influence_dist = min(
+            _dist2d(waypoint, (sign.x, sign.y)),
+            _dist2d(robot_pos, (sign.x, sign.y)),
+        )
+        taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
         effective_offset = self._config.lateral_offset * taper
 
         deformed = _apply_deformation(
@@ -286,12 +319,13 @@ class SignRouter:
 
         return deformed
 
-    def _nearest_active_sign(
+    def _active_sign_candidates(
         self,
         robot_pos: tuple[float, float],
+        robot_yaw: float,
         corridor: Section,
-    ) -> tuple[int, float]:
-        """Index and distance of the nearest not-yet-passed sign near ``corridor``.
+    ) -> list[tuple[int, float]]:
+        """Not-yet-passed signs near ``corridor``, as ``(index, distance)`` nearest-first.
 
         Also maintains engagement/passed bookkeeping: a sign is engaged once the
         robot comes within activation distance, and retired only after it has
@@ -299,7 +333,18 @@ class SignRouter:
         afar (which would silently disable routing at spawn). Bookkeeping runs
         for every sign regardless of corridor.
 
-        The returned *candidate* is restricted to signs that either belong to
+        Candidates are additionally restricted to signs not already behind the
+        robot (measured along its heading, with ``_BEHIND_TOLERANCE`` slack so a
+        sign still alongside the chassis keeps holding the line out). A receding
+        sign stays geometrically nearer than the next one for a while, so
+        without this the nearest-wins rule below masks the upcoming sign until
+        it is far too close to steer around.
+
+        The full ranked list is returned, not just the nearest, so the caller can
+        fall through to the next one when the closest sign's deformation is not
+        applicable to the current target point.
+
+        Candidates are restricted to signs that either belong to
         ``corridor`` or are within ``activation_dist`` of the robot — not
         strict same-corridor equality. A sign one corridor over can sit right
         at a corner (e.g. at that corridor's own "near" grid depth, exactly on
@@ -318,12 +363,12 @@ class SignRouter:
         corridor still deforms normally even during that window.
 
         Returns:
-            ``(index, distance)``; index is -1 when no active sign remains.
+            ``[(index, distance), ...]`` sorted nearest-first; empty when no
+            active sign remains.
         """
         self._lap_tick += 1
         settled = self._lap_tick > self._config.settle_ticks
-        nearest_dist = float("inf")
-        nearest_idx = -1
+        candidates: list[tuple[int, float]] = []
 
         for i, sign in enumerate(self._signs):
             if i in self._passed:
@@ -335,6 +380,18 @@ class SignRouter:
                 if settled and i in self._engaged:
                     self._passed.add(i)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
+                continue
+            # A sign the robot has already driven past needs no avoidance, and
+            # letting one stay a candidate actively HARMS the next sign: the
+            # nearest-first ordering would keep ranking the receding sign
+            # (still geometrically closer for a while) above the one actually
+            # coming up, masking it until it's too close to steer around.
+            # Measure along the robot's own heading and keep signs still
+            # alongside the chassis (they must go on holding the line out until
+            # fully cleared).
+            dx, dy = sign.x - robot_pos[0], sign.y - robot_pos[1]
+            along_track = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
+            if along_track < -_BEHIND_TOLERANCE:
                 continue
             same_corridor = self._sign_corridors[i] == corridor
             # A sign in a DIFFERENT corridor than the robot's current label only
@@ -351,11 +408,10 @@ class SignRouter:
             # letting a genuinely close one start bending the path early.
             if not same_corridor and d > self._config.activation_dist:
                 continue
-            if d < nearest_dist:
-                nearest_dist = d
-                nearest_idx = i
+            candidates.append((i, d))
 
-        return nearest_idx, nearest_dist
+        candidates.sort(key=lambda entry: entry[1])
+        return candidates
 
 
 def _apply_deformation(
