@@ -16,6 +16,9 @@
 #      running on the Zero at all; see that script's header)
 #   6. Enable I2C (dtparam=i2c_arm=on + i2c-dev kernel module) -- off by
 #      default on a fresh Raspberry Pi OS image, required for the OLED display
+#   6b. Map the hardware PWM overlay onto the servo pin, so the steering servo
+#      is driven by the SoC peripheral instead of gpiozero's jittery software
+#      PWM (see the step's inline comment and docs/sensor-verification.md)
 #   7. Template and install the voldemorbot-pi-zero.service systemd unit
 #      (left DISABLED -- confirm it works standalone first, see
 #      docs/sensor-verification.md's Pi Zero deployment section)
@@ -39,6 +42,9 @@ cd "$ROBOT_DIR"
 ZERO_HOST="${ZERO_HOST:-ralvarezdev@192.168.250.1}"
 ZERO_USER="${ZERO_HOST%@*}"
 SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+# Must match SERVO_GPIO_PIN in .env -- the overlay decides which pin the PWM
+# peripheral drives, and the driver just opens the resulting pwmchip channel.
+SERVO_PWM_PIN="${SERVO_PWM_PIN:-12}"
 
 log() { echo "[bootstrap-fresh-zero] $*"; }
 
@@ -80,6 +86,22 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo usermod -a -G i2c,gpio,spi,dialout,video '$ZERO_USER'
 "
 
+log "6b/7 Enabling hardware PWM on the servo pin (GPIO $SERVO_PWM_PIN)"
+# The steering servo must be driven by the SoC's PWM peripheral, not gpiozero's
+# software PWM: under LGPIOFactory (what the Zero uses) the pulse train is
+# generated in software, so scheduling jitter lands on the pulse width and the
+# servo visibly twitches even while holding a fixed angle. Confirmed on
+# hardware -- the twitching survived removing all PWM rewrites and swapping in
+# a fresh battery. func=4 selects ALT0, GPIO 12's PWM function.
+#
+# Deliberately a single-channel overlay: the two-channel variant's second pin
+# would claim GPIO 13, which the drive motor uses via gpiozero. A DC motor
+# doesn't care about PWM jitter, so it keeps the software path.
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
+  sudo sed -i '/^dtoverlay=pwm\(-2chan\)\?\(,\|\$\)/d' /boot/firmware/config.txt
+  echo 'dtoverlay=pwm,pin=$SERVO_PWM_PIN,func=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
+"
+
 log "7/7 Templating and installing the systemd service unit (left DISABLED)"
 ZERO_HOME="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" 'echo $HOME')"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
@@ -89,6 +111,6 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo systemctl daemon-reload
 "
 
-log "Done. A reboot is needed for the I2C change to take effect (use safe-shutdown-zero.sh, don't pull power)."
+log "Done. A reboot is needed for the I2C and PWM overlay changes to take effect (use safe-shutdown-zero.sh, don't pull power)."
 log "Next: bash scripts/deploy-dev-env-to-zero.sh, then after reboot:"
 log "  ssh $ZERO_HOST 'sudo systemctl start voldemorbot-pi-zero.service'"

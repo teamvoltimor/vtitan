@@ -24,12 +24,26 @@ DEFAULT_RANGE_DEG = 180.0
 DEFAULT_CENTER_PULSE_US = 1500.0
 """Pulse width (us) for wheels-straight."""
 
+DEFAULT_PWMCHIP = 0
+"""sysfs PWM controller index (``/sys/class/pwm/pwmchip<N>``)."""
+
+DEFAULT_PWM_CHANNEL = 0
+"""Channel within the PWM controller.
+
+With ``dtoverlay=pwm,pin=12,func=4`` the overlay exposes a single channel, so
+GPIO 12 is channel 0. A two-channel overlay (``pwm-2chan``) would map its
+second pin to channel 1.
+"""
+
 # Control constants
 PWM_FREQUENCY_HZ = 50
 """Servo PWM carrier frequency."""
 
 US_PER_SECOND = 1_000_000
 """Microseconds per second, for pulse-width to duty-cycle conversion."""
+
+NS_PER_US = 1_000
+"""Nanoseconds per microsecond -- the sysfs PWM interface works in ns."""
 
 
 class ServoConfig(BaseSettings):
@@ -38,7 +52,18 @@ class ServoConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="servo_")
 
     gpio_pin: int = DEFAULT_SERVO_GPIO_PIN
-    """BCM pin driving the servo signal."""
+    """BCM pin driving the servo signal.
+
+    Informational only: which pin the PWM peripheral actually drives is fixed
+    by the ``dtoverlay=pwm,pin=...`` line in ``/boot/firmware/config.txt``, not
+    by this value. Kept for logging and to document the wiring.
+    """
+
+    pwmchip: int = DEFAULT_PWMCHIP
+    """sysfs PWM controller index."""
+
+    pwm_channel: int = DEFAULT_PWM_CHANNEL
+    """Channel within the PWM controller."""
 
     min_pulse_us: float = DEFAULT_MIN_PULSE_US
     """Pulse width (us) at full-left travel."""
