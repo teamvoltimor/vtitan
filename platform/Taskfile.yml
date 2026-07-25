@@ -114,6 +114,9 @@ tasks:
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
+          task robot:bootstrap-fresh-zero  One-shot setup for a freshly-flashed Pi Zero — run on Pi 5
+          task robot:deploy-dev-env-to-zero  Build dev env + ros2_ws on Pi 5, ship to Pi Zero — run on Pi 5
+          task robot:safe-shutdown-zero  Cleanly shut down the Pi Zero before cutting power — run on Pi 5
           task robot:run-imu-i2c    Run BNO08x IMU node (I2C mode)
           task robot:run-imu-rvc    Run BNO08x IMU node (UART RVC mode)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
@@ -597,6 +600,30 @@ tasks:
     dir: robot
     cmds:
       - pixi run -e dev build-ws
+
+  robot:bootstrap-fresh-zero:
+    desc: "One-shot setup for a freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd unit) — run ON Pi 5, before deploy-dev-env-to-zero. Idempotent. (usage: task robot:bootstrap-fresh-zero [ZERO_HOST=user@host])"
+    dir: robot
+    cmds:
+      - pixi run -e dev bootstrap-fresh-zero
+    env:
+      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
+
+  robot:deploy-dev-env-to-zero:
+    desc: "Build the dev pixi env + ros2_ws on Pi 5 and ship to the Pi Zero as tarballs — run ON Pi 5 (usage: task robot:deploy-dev-env-to-zero [ZERO_HOST=user@host])"
+    dir: robot
+    cmds:
+      - pixi run -e dev deploy-dev-env-to-zero
+    env:
+      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
+
+  robot:safe-shutdown-zero:
+    desc: "Cleanly shut down the Pi Zero before cutting its power — run ON Pi 5 (usage: task robot:safe-shutdown-zero [ZERO_HOST=user@host])"
+    dir: robot
+    cmds:
+      - pixi run -e dev safe-shutdown-zero
+    env:
+      ZERO_HOST: '{{.ZERO_HOST | default ""}}'
 
   robot:run-imu-i2c:
     desc: Run BNO08x IMU node (I2C mode) — requires build-ws first
