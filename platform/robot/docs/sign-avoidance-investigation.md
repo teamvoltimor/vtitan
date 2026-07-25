@@ -182,11 +182,52 @@ Interpretation: past ~0.20 the deformed line runs too close to the outer wall,
 and the wall-clamp (`_clamp_lateral`) plus collision-avoidance reactions fight
 the router. The corridor genuinely has no more room.
 
-**Status: improved 16/16 -> 9/16, not solved.** The remaining 9 are still
-corner-boundary signs (depth 1.0/2.0). The 9/16 plateau across both lookahead
-and offset suggests a further binding constraint not yet identified — most
-likely that corner-adjacent avoidance must begin *during* the preceding arc,
-which no amount of straight-segment tuning can supply.
+### Clamp sized on the chassis half-diagonal (9/16 -> 7/16)
+
+Classifying what each remaining footprint actually overlapped showed the 9
+failures were **three different bugs**, not one:
+
+| Failure mode | Count |
+|---|---|
+| Inner-block collision | 3 |
+| Outer-wall collision | 1 |
+| Actual sign contact | 5 |
+
+`_WALL_CLEARANCE` was `RobotSpecs.WIDTH / 2 + 0.02` = 0.12 — the chassis
+half-*width*. That only bounds a robot travelling parallel to the surface it is
+clamped against. A robot still *turning* presents its corner, reaching the
+half-*diagonal* 0.180m. Since sign deformations bite hardest right at a corner —
+exactly where the robot is mid-turn — the clamp let the corner clip the inner
+block while the waypoint itself was still nominally legal.
+
+Resized to `hypot(LENGTH/2, WIDTH/2) + 0.04` = 0.220:
+
+| `_WALL_CLEARANCE` | Collisions |
+|---|---|
+| 0.12 (half-width, old) | 9/16 |
+| 0.16 / 0.20 | 9/16 |
+| **0.22 (half-diagonal + 0.04)** | **7/16** |
+| 0.24 | 10/16 (over-constrains the deformation) |
+
+Removed one inner-block and one sign collision. Note this makes the clamp bind
+at standard grid positions, clipping roughly the last 2cm of offset for
+inner/outer-lane signs — `test_sign_router.py` expectations now mirror that.
+
+### Rejected after the retune
+
+- **Path-level deformation, retried with the tighter lookahead.** The original
+  rejection could have been a tracking artifact, so it was retested once
+  tracking improved. Still worse: 10-16/16 against the 9/16 baseline, with or
+  without the runtime router also active.
+- **Smaller corner arc radius**, to finish the turn earlier and buy straight
+  runway before a corner-adjacent sign. `ARC_RADIUS` 0.45 (current) is already
+  best: 0.40 -> 13/16, 0.36 -> 10/16, 0.33 -> 12/16.
+
+**Status: improved 16/16 -> 7/16, not solved.** The remaining failures are still
+concentrated on corner-boundary signs (depth 1.0/2.0). Tuning levers are
+exhausted — lookahead, speed, offset, arc radius and clamp have all been swept
+and are at their optima. What remains needs corner-adjacent avoidance to begin
+*during* the preceding arc, which no straight-segment parameter can supply.
 
 ## Architectural context
 

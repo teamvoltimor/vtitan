@@ -48,11 +48,22 @@ _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CA
 # pinhole distance estimate.
 _MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
 
-# Chassis half-width plus a small margin: how far a deformed waypoint must
-# stay clear of the restricted inner square and the outer wall (WP-1). An
-# unclamped deformation can otherwise place the waypoint inside the inner
-# square or against a wall for a sign positioned near a corridor edge.
-_WALL_CLEARANCE = RobotSpecs.WIDTH / 2 + 0.02
+# How far a deformed waypoint must stay clear of the restricted inner square
+# and the outer wall (WP-1). An unclamped deformation can otherwise place the
+# waypoint inside the inner square or against a wall for a sign positioned near
+# a corridor edge.
+#
+# Sized on the chassis half-DIAGONAL, not half-width. Half-width only bounds a
+# robot travelling parallel to the surface it is clamped against; a robot still
+# turning presents its corner instead, which reaches 0.18m rather than 0.10m.
+# Sign deformations bite hardest right at a corner — exactly where the robot is
+# mid-turn — so a half-width clamp let the corner clip the inner block while the
+# waypoint itself was still nominally legal. Measured over the obstacles
+# fixtures, widening this removed one inner-block and one sign collision (9/16
+# -> 7/16); going further to 0.24 over-constrains the deformation and regresses
+# to 10/16.
+_CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
+_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + 0.04
 
 # Default lateral deformation magnitude, derived the same way as
 # _WALL_CLEARANCE above: chassis half-width + the sign's own half-width (the

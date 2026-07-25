@@ -23,6 +23,7 @@ from src.navigation.planning.sign_router import (
     _CAMERA_FOCAL_PX,
     _MIN_RELIABLE_BBOX_HEIGHT_PX,
     _ROUTING_TABLE,
+    _WALL_CLEARANCE,
     SignRouter,
     SignRouterConfig,
     SignSpec,
@@ -104,11 +105,14 @@ class TestDeformationDirections:
         sign = _sign_at(sx, sy, color)
         rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
         expected = red_mult * color_sign * SIGN_LATERAL_OFFSET
+        # Inner/outer-lane signs cannot always take the full offset — the
+        # router clamps clear of the inner square and the outer wall.
+        low_side = section in (Section.SOUTH, Section.WEST)
         if axis == "y":
-            assert ry == pytest.approx(sy + expected)
+            assert ry == pytest.approx(_expected_lateral(sy + expected, low_side=low_side))
             assert rx == pytest.approx(sx)
         else:
-            assert rx == pytest.approx(sx + expected)
+            assert rx == pytest.approx(_expected_lateral(sx + expected, low_side=low_side))
             assert ry == pytest.approx(sy)
 
 
@@ -123,6 +127,26 @@ _GRID_POSITIONS = SIGN_GRID_POSITIONS
 # Scenarios 13-36: double pillar
 # We only exercise the core rule: red right, green left — no exhaustive enumeration needed
 # Instead, verify all 6 grid positions × 2 colors × 4 sections = 48 routing decisions.
+
+
+def _expected_lateral(value: float, *, low_side: bool) -> float:
+    """Clamp an expected lateral coordinate into the corridor's legal band.
+
+    The router refuses to deform a waypoint into the inner square or the outer
+    wall, so for signs in the inner/outer lanes the full ``SIGN_LATERAL_OFFSET``
+    is not always reachable — the last ~2cm is clipped. Mirroring that here
+    keeps these cases pinning the pass *side* and offset magnitude, while
+    ``TestClamping`` separately pins the clamp itself.
+    """
+    if low_side:
+        return min(
+            max(value, TrackDimensions.MIN_COORD + _WALL_CLEARANCE),
+            TrackDimensions.CORNER_MIN - _WALL_CLEARANCE,
+        )
+    return max(
+        min(value, TrackDimensions.MAX_COORD - _WALL_CLEARANCE),
+        TrackDimensions.CORNER_MAX + _WALL_CLEARANCE,
+    )
 
 
 def _make_single_sign_scenario_cases():
@@ -144,7 +168,7 @@ def _make_single_sign_scenario_cases():
                 expected_y = sy - SIGN_LATERAL_OFFSET
             else:
                 expected_y = sy + SIGN_LATERAL_OFFSET
-            cases.append(("south", sx, sy, color, expected_y, None))
+            cases.append(("south", sx, sy, color, _expected_lateral(expected_y, low_side=True), None))
 
             # NORTH corridor: sign at (depth, TRACK_MAX - width). Outward = north (higher y).
             sx, sy = depth, TrackDimensions.MAX_COORD - width
@@ -152,7 +176,7 @@ def _make_single_sign_scenario_cases():
                 expected_y = sy + SIGN_LATERAL_OFFSET
             else:
                 expected_y = sy - SIGN_LATERAL_OFFSET
-            cases.append(("north", sx, sy, color, expected_y, None))
+            cases.append(("north", sx, sy, color, _expected_lateral(expected_y, low_side=False), None))
 
             # EAST corridor: sign at (TRACK_MAX - width, depth). Outward = east (higher x).
             sx, sy = TrackDimensions.MAX_COORD - width, depth
@@ -160,7 +184,7 @@ def _make_single_sign_scenario_cases():
                 expected_x = sx + SIGN_LATERAL_OFFSET
             else:
                 expected_x = sx - SIGN_LATERAL_OFFSET
-            cases.append(("east", sx, sy, color, None, expected_x))
+            cases.append(("east", sx, sy, color, None, _expected_lateral(expected_x, low_side=False)))
 
             # WEST corridor: sign at (width, depth). Outward = west (lower x).
             sx, sy = width, depth
@@ -168,7 +192,7 @@ def _make_single_sign_scenario_cases():
                 expected_x = sx - SIGN_LATERAL_OFFSET
             else:
                 expected_x = sx + SIGN_LATERAL_OFFSET
-            cases.append(("west", sx, sy, color, None, expected_x))
+            cases.append(("west", sx, sy, color, None, _expected_lateral(expected_x, low_side=True)))
 
     return cases
 
