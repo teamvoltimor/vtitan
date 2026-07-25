@@ -212,6 +212,15 @@ class SignRouter:
         if nearest_idx < 0 or nearest_dist > self._config.activation_dist:
             return waypoint
 
+        # Key the corner check and the deformation math off the CANDIDATE
+        # SIGN's own corridor, not the robot's current corridor label. The two
+        # can legitimately disagree right at a corner — see
+        # _nearest_active_sign's same-corridor-OR-within-activation_dist
+        # comment — and the sign's own corridor is what actually determines
+        # which world axis is "lateral" for it; using the robot's (possibly
+        # stale, pre-corner) label here would deform the wrong axis.
+        sign_corridor = self._sign_corridors[nearest_idx]
+
         # The deformation model assumes a straight corridor segment (hold the
         # depth axis, override the lateral axis with a value derived from the
         # sign's fixed position). Once the *target* waypoint itself has curved
@@ -222,7 +231,7 @@ class SignRouter:
         # like (2.42, 2.42) ties NORTH vs EAST there and gets assigned NORTH by
         # insertion order, but it's still on the turning arc, not the straight
         # segment this deformation model assumes.
-        if not _is_squarely_in_corridor(waypoint[0], waypoint[1], corridor):
+        if not _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor):
             return waypoint
 
         sign = self._signs[nearest_idx]
@@ -258,7 +267,7 @@ class SignRouter:
             waypoint,
             sign,
             color,
-            corridor,
+            sign_corridor,
             self._direction,
             effective_offset,
         )
@@ -282,19 +291,29 @@ class SignRouter:
         robot_pos: tuple[float, float],
         corridor: Section,
     ) -> tuple[int, float]:
-        """Index and distance of the nearest not-yet-passed sign in ``corridor``.
+        """Index and distance of the nearest not-yet-passed sign near ``corridor``.
 
         Also maintains engagement/passed bookkeeping: a sign is engaged once the
         robot comes within activation distance, and retired only after it has
         been engaged and then left beyond ``passed_dist`` — never discarded from
         afar (which would silently disable routing at spawn). Bookkeeping runs
-        for every sign regardless of corridor; only the returned *candidate* is
-        restricted to signs that belong to ``corridor`` — a sign one corridor
-        over can be geometrically within ``activation_dist`` right at a corner,
-        and applying its (x, y) through this corridor's axis/clamp convention
-        produces a nonsensical waypoint (deforms the wrong axis, clamped against
-        the wrong wall). Engage/pass bookkeeping itself is suppressed for the
-        first ``settle_ticks`` of a lap (see ``SignRouterConfig.settle_ticks``);
+        for every sign regardless of corridor.
+
+        The returned *candidate* is restricted to signs that either belong to
+        ``corridor`` or are within ``activation_dist`` of the robot — not
+        strict same-corridor equality. A sign one corridor over can sit right
+        at a corner (e.g. at that corridor's own "near" grid depth, exactly on
+        CORNER_MIN/MAX); the robot's corridor label only flips once its
+        cornering arc has already carried it past that point, which is too
+        late for any deformation to matter. Requiring same-corridor OR
+        within-activation_dist lets a genuinely close cross-corridor sign start
+        bending the path before the label flips, while still keeping distant
+        cross-corridor signs from being engaged prematurely. The caller
+        (``deform_waypoint``) uses the CANDIDATE's own corridor — not this
+        method's ``corridor`` argument — for the actual axis/clamp math, so a
+        cross-corridor candidate is never run through the wrong convention.
+        Engage/pass bookkeeping itself is suppressed for the first
+        ``settle_ticks`` of a lap (see ``SignRouterConfig.settle_ticks``);
         candidate selection isn't, so a sign genuinely in the robot's current
         corridor still deforms normally even during that window.
 
@@ -317,7 +336,20 @@ class SignRouter:
                     self._passed.add(i)
                     logger.debug("Sign %d marked as passed (dist=%.2f m)", i, d)
                 continue
-            if self._sign_corridors[i] != corridor:
+            same_corridor = self._sign_corridors[i] == corridor
+            # A sign in a DIFFERENT corridor than the robot's current label only
+            # qualifies once the robot is within activation_dist of it — i.e.
+            # close enough that the sign's own geometry is what actually
+            # matters, not the robot's corridor bookkeeping. Without this, a
+            # sign sitting right at a corner (e.g. at the corridor's own "near"
+            # depth, exactly on CORNER_MIN/MAX) never becomes a deformation
+            # candidate until the robot's corridor label flips — which happens
+            # only once the robot's cornering arc has already carried it
+            # straight past the sign, too late for any deformation to matter.
+            # Requiring same-corridor OR within-activation_dist keeps distant
+            # cross-corridor signs from being engaged prematurely while still
+            # letting a genuinely close one start bending the path early.
+            if not same_corridor and d > self._config.activation_dist:
                 continue
             if d < nearest_dist:
                 nearest_dist = d

@@ -607,14 +607,18 @@ tasks:
   robot:zero:
     desc: >-
       Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
-      ACTION=bootstrap|deploy|shutdown|verify [ZERO_HOST=user@host]
-      [ZERO_HOST_USB=user@host] [ZERO_HOST_WIFI=user@host]). bootstrap:
-      one-shot setup for a freshly-flashed Pi Zero (SSH trust, .env, pixi
-      CLI, I2C, systemd unit), idempotent, run before deploy. deploy: build
-      the dev pixi env + ros2_ws on Pi 5 and ship to the Pi Zero as
-      tarballs. shutdown: cleanly shut down the Pi Zero before cutting its
-      power. verify: end-to-end health check (USB-gadget link, service
-      state, ROS2 discovery, a real motor command round-trip).
+      ACTION=bootstrap|deploy|shutdown|shutdown-both|verify
+      [ZERO_HOST=user@host] [ZERO_HOST_USB=user@host]
+      [ZERO_HOST_WIFI=user@host]). bootstrap: one-shot setup for a
+      freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd
+      unit), idempotent, run before deploy. deploy: build the dev pixi env +
+      ros2_ws on Pi 5 and ship to the Pi Zero as tarballs. shutdown: cleanly
+      shut down the Pi Zero before cutting its power. shutdown-both: shut
+      the Zero down first, then Pi 5 itself last, once the Zero is
+      confirmed offline — use before switching the robot's power source
+      (e.g. wall/USB -> battery). verify: end-to-end health check
+      (USB-gadget link, service state, ROS2 discovery, a real motor command
+      round-trip).
     dir: robot
     requires:
       vars:
@@ -629,8 +633,9 @@ tasks:
             bootstrap) pixi run -e dev bootstrap-fresh-zero ;;
             deploy) pixi run -e dev deploy-dev-env-to-zero ;;
             shutdown) pixi run -e dev safe-shutdown-zero ;;
+            shutdown-both) pixi run -e dev safe-shutdown-both ;;
             verify) pixi run -e dev verify-zero-integration ;;
-            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|verify" && exit 1 ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify" && exit 1 ;;
           esac
 
   robot:fetch-lidar-driver:

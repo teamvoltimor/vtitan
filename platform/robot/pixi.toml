@@ -232,6 +232,12 @@ deploy-dev-env-to-zero = "bash scripts/deploy-dev-env-to-zero.sh"
 # corrupted the filesystem before.
 safe-shutdown-zero = "bash scripts/safe-shutdown-zero.sh"
 
+# Run ON Pi 5 -- shuts the Zero down first (via safe-shutdown-zero, above),
+# then shuts Pi 5 itself down last, once the Zero is confirmed offline. Use
+# this before switching the robot's power source (e.g. wall/USB -> battery)
+# so both boards go down cleanly in the right order with one command.
+safe-shutdown-both = "bash scripts/safe-shutdown-both.sh"
+
 # Run ON Pi 5 -- end-to-end health check: USB-gadget link, systemd service
 # state, ROS2 cross-board topic discovery, and a real AckermannDriveStamped
 # publish -> motor driver -> feedback round-trip. Safe with motors unpowered.

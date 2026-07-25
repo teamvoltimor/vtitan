@@ -398,6 +398,11 @@ Run `bash scripts/safe-shutdown-zero.sh` **on Pi 5** before ever removing power 
 stops `voldemorbot-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
 Zero is actually offline before telling you it's safe to unplug it.
 
+To power both boards down in one command (e.g. before switching the robot from wall/USB power to
+battery), run `bash scripts/safe-shutdown-both.sh` **on Pi 5** instead — it runs the same Zero
+shutdown first, then syncs and shuts Pi 5 itself down last, once the Zero is confirmed offline. Also
+available as `task robot:zero ACTION=shutdown-both` from the repo root.
+
 If it's already wedged in a dirty-fsck state with no display attached: pull the microSD card, plug
 it into another Pi (or a USB reader) that can mount ext4 natively, and run
 `sudo e2fsck -n -f /dev/<partition>` read-only first to see what's wrong, then `sudo e2fsck -f -y
