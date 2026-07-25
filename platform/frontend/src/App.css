@@ -527,3 +527,64 @@
     display: none;
   }
 }
+
+/* Phone-width tuning on top of the tablet breakpoint above: tighter spacing,
+   single-column grids (2-column sensor/metric tiles get cramped under ~360px
+   of usable width), and touch-sized interactive targets. */
+@media (max-width: 640px) {
+  .canvas-wrapper {
+    height: 38vh;
+  }
+
+  .control-panel {
+    padding: 1.25rem;
+    gap: 1.1rem;
+  }
+
+  .panel-header h1 {
+    font-size: 1rem;
+  }
+
+  .metrics-grid,
+  .sensor-grid {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .speed-control {
+    padding: 0;
+  }
+
+  .connection-banner {
+    top: 0.5rem;
+    font-size: 0.62rem;
+    padding: 0.35rem 0.85rem;
+    max-width: calc(100% - 2rem);
+    text-align: center;
+  }
+
+  .demo-toggle {
+    top: 0.5rem;
+    left: 0.5rem;
+    font-size: 0.6rem;
+    padding: 0.35rem 0.8rem;
+  }
+
+  /* Touch targets: range inputs and small icon buttons are otherwise too
+     small to reliably hit on a phone. */
+  .timeline input[type='range'],
+  .speed-control input[type='range'] {
+    min-height: 32px;
+  }
+
+  .timeline-button,
+  .mode-toggle,
+  .topic-expand-btn,
+  .modal-close {
+    min-height: 36px;
+  }
+
+  .inspector-panel {
+    max-height: 45vh;
+  }
+}

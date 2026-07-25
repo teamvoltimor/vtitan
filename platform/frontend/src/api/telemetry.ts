@@ -7,6 +7,7 @@
  */
 
 import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
+import type { HealthResponse } from '../api/generated';
 import { TelemetryError, ExponentialBackoff, classifyHttpError } from './errors';
 import { API_CONFIG, URL_PROTOCOL_MAP } from '../config';
 import { getErrorMessage } from '../utils/formatting';
@@ -104,6 +105,19 @@ async function fetchJson<T>(
 // ============================================================================
 // API ENDPOINTS
 // ============================================================================
+
+/**
+ * Health check — an independent backstop for connection status. A wedged
+ * backend process can hold a WebSocket connection open (no onerror/onclose
+ * event fires) while failing to actually serve requests; polling this
+ * catches that in a way the WS callbacks alone can't.
+ */
+export const fetchHealth = (): Promise<HealthResponse> =>
+  fetchJson(
+    API_CONFIG.ENDPOINTS.HEALTH,
+    AbortSignal.timeout(API_CONFIG.HEALTH_CHECK_INTERVAL_MS),
+    schemas.HealthResponse
+  );
 
 /**
  * Fetch the latest robot telemetry snapshot.

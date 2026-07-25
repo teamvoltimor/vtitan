@@ -8,8 +8,10 @@
  */
 
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import type { HealthResponse } from './generated';
 import type { TelemetryMessage } from './guards';
 import {
+  fetchHealth,
   fetchLatestTelemetry,
   fetchRawTopics,
   fetchHistory,
@@ -30,6 +32,8 @@ import { TELEMETRY_CONFIG } from '../config';
 export const DEMO_SEED_FRAMES = 24;
 
 export interface TelemetrySource {
+  /** Independent connectivity backstop — see fetchHealth's docstring in telemetry.ts. */
+  fetchHealth(): Promise<HealthResponse>;
   fetchLatest(): Promise<RobotSnapshot>;
   fetchTopics(): Promise<TopicsSnapshot>;
   fetchHistory(): Promise<RobotSnapshot[]>;
@@ -50,6 +54,7 @@ export interface TelemetrySource {
 
 /** Real backend: HTTP fetches + WebSocket stream. */
 export class LiveSource implements TelemetrySource {
+  fetchHealth = fetchHealth;
   fetchLatest = fetchLatestTelemetry;
   fetchTopics = fetchRawTopics;
   fetchHistory = fetchHistory;
@@ -70,6 +75,9 @@ export class LiveSource implements TelemetrySource {
 export class MockSource implements TelemetrySource {
   private tick = DEMO_SEED_FRAMES - 1;
 
+  async fetchHealth(): Promise<HealthResponse> {
+    return { status: 'ok', version: 'demo' };
+  }
   async fetchLatest() {
     return generateMockSnapshot(this.tick);
   }

@@ -198,6 +198,7 @@ export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
 
   ENDPOINTS: {
+    HEALTH: '/v1/telemetry/health',
     LATEST: '/v1/telemetry/latest',
     TOPICS: '/v1/telemetry/topics',
     HISTORY: '/v1/telemetry/history',
@@ -209,6 +210,11 @@ export const API_CONFIG = {
 
   FETCH_CACHE: 'no-store' as const,
   TIMEOUT_MS: 30000,
+
+  // Independent backstop for connection status — a stalled/wedged backend
+  // process can hold a WebSocket connection open (no onerror/onclose event)
+  // while failing to actually serve requests; polling health catches that.
+  HEALTH_CHECK_INTERVAL_MS: 5000,
 
   WEBSOCKET: {
     RECONNECT_DELAY_MS: 2000,

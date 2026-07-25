@@ -11,7 +11,7 @@ import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types'
 import { isRobotSnapshot, isTopicsSnapshot } from '../api/guards';
 import { createTelemetrySource } from '../api/source';
 import { getErrorMessage } from '../utils/formatting';
-import { TELEMETRY_CONFIG } from '../config';
+import { TELEMETRY_CONFIG, API_CONFIG } from '../config';
 import { TelemetryContext, type TelemetryContextType } from './telemetryState';
 
 /**
@@ -54,7 +54,12 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(true);
+  // Two independent connectivity signals, combined into the exposed
+  // `connected` value: the WebSocket pipe (fast, but a wedged backend can
+  // hold a socket open with no onerror/onclose) and a periodic health poll
+  // (catches that case, and generally any request-serving failure).
+  const [wsConnected, setWsConnected] = useState(true);
+  const [healthOk, setHealthOk] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
 
   const mounted = useRef(true);
@@ -124,7 +129,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       );
       setSelectedSessionId(null);
       setTimelineIndex(Math.max(historyData.length - 1, 0));
-      setConnected(true);
+      setWsConnected(true);
+      setHealthOk(true);
     } catch (err) {
       if (!mounted.current) return;
       setError(getErrorMessage(err, 'Failed to load telemetry data'));
@@ -211,7 +217,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       },
       (err) => {
         if (!mounted.current) return;
-        setConnected(false);
+        setWsConnected(false);
         // Only fatal (blocks the whole dashboard behind AsyncState) if we've
         // never successfully loaded any data. Once there's a last-good
         // snapshot on screen, a dropped connection is transient — surfaced
@@ -222,12 +228,42 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       },
       () => {
         if (!mounted.current) return;
-        setConnected(true);
+        setWsConnected(true);
       }
     );
 
     return unsubscribe;
   }, [liveMode, source, pushHistory, pushLogs]);
+
+  // Periodic health poll — independent of the WebSocket callbacks above, so a
+  // backend that's wedged (socket stays open, but stops actually serving
+  // requests) still gets caught instead of showing a false "connected" state.
+  useEffect(() => {
+    if (!liveMode) return;
+
+    let cancelled = false;
+    const checkHealth = () => {
+      source
+        .fetchHealth()
+        .then((health) => {
+          if (cancelled || !mounted.current) return;
+          setHealthOk(health.status === 'ok');
+        })
+        .catch(() => {
+          if (cancelled || !mounted.current) return;
+          setHealthOk(false);
+        });
+    };
+
+    checkHealth();
+    const intervalId = window.setInterval(checkHealth, API_CONFIG.HEALTH_CHECK_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [liveMode, source]);
+
+  const connected = wsConnected && healthOk;
 
   // displaySnapshot is what the UI should render: the live snapshot while
   // live, or the scrubbed history frame while replaying/paused on the

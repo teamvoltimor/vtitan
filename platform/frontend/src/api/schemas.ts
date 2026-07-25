@@ -15,6 +15,7 @@ import type {
   TopicUpdate,
   TopicsSnapshot,
   SessionResponse,
+  HealthResponse,
 } from '../api/generated';
 import type { RobotSnapshot } from '../types';
 
@@ -128,6 +129,11 @@ const ErrorResponseSchema = z.object({
   statusCode: z.number().int().optional(),
 });
 
+const HealthResponseSchema = z.object({
+  status: z.string(),
+  version: z.string(),
+}) as z.ZodType<HealthResponse>;
+
 export const schemas = {
   Position3D: Position3DSchema,
   ImuData: ImuDataSchema,
@@ -140,6 +146,7 @@ export const schemas = {
   ReplaySessionInfo: ReplaySessionInfoSchema,
   SessionsResponse: SessionsResponseSchema,
   ErrorResponse: ErrorResponseSchema,
+  HealthResponse: HealthResponseSchema,
 };
 
 export function validateRobotSnapshot(data: unknown): RobotSnapshot {
