@@ -368,7 +368,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Component statuses
         y = 14
-        components = ["IMU", "LiDAR", "Hailo", "Drive", "Network"]
+        components = ["IMU", "LiDAR", "Hailo", "Drive", "Network", "ChallengeMode"]
 
         for component in components:
             if component in self.system_status:
@@ -381,11 +381,34 @@ class OLEDDisplayNode(LifecycleNode):
                     ip = status["values"]["ip_address"]
                     text = f"{symbol} IP:{ip}"
 
+                # ChallengeMode's message is the detected mode (or a fault) once known --
+                # a distinct "CHECK JUMPER" page while unstable so it stands out.
+                if component == "ChallengeMode":
+                    if status["level"] == 0:
+                        text = f"MODE: {status['message']}"
+                    else:
+                        return self._render_challenge_mode_fault()
+
                 draw.text((0, y), text, fill=255)
             else:
                 draw.text((0, y), f"? {component}", fill=255)
 
             y += 10
+
+        return image
+
+    def _render_challenge_mode_fault(self) -> Image.Image:
+        """Render a distinct fault page while the challenge-mode jumper reading is unstable."""
+        assert self.display_driver is not None
+        image = self.display_driver.get_blank_image()
+        draw = ImageDraw.Draw(image)
+
+        draw.text((0, 0), "CHECK JUMPER", fill=255)
+        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((0, 20), "Challenge-mode jumper", fill=255)
+        draw.text((0, 30), "reading is unstable.", fill=255)
+        draw.text((0, 44), "Reseat the GPIO23/GND", fill=255)
+        draw.text((0, 54), "jumper cap.", fill=255)
 
         return image
 
@@ -409,8 +432,11 @@ class OLEDDisplayNode(LifecycleNode):
         # AI Model
         draw.text((0, 24), "Model: yolov8n.hef", fill=255)
 
-        # Steering status
-        draw.text((0, 34), "Steering: READY", fill=255)
+        # Challenge mode (visual pre-race confirmation of the jumper reading)
+        mode = "?"
+        if "ChallengeMode" in self.system_status:
+            mode = self.system_status["ChallengeMode"].get("message", "?")
+        draw.text((0, 34), f"MODE: {mode}", fill=255)
 
         # Instruction
         draw.text((0, 50), "Press to START", fill=255)

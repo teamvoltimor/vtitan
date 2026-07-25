@@ -10,13 +10,16 @@ States:
 from dataclasses import dataclass
 from enum import Enum
 
-# Re-export RobotState from shared module (single source of truth).
-from shared.config.enums import RobotState
+# Re-export RobotState/ScenarioType from shared module (single source of truth). ScenarioType
+# is the existing open-vs-obstacles concept (already used by the navigator's scenario
+# metadata) -- the challenge-mode jumper reuses it rather than introducing a duplicate enum.
+from shared.config.enums import RobotState, ScenarioType
 
 __all__ = [
     "LidarMetrics",
     "RaceMetrics",
     "RobotState",
+    "ScenarioType",
     "SensorStatus",
     "StateTransitionReason",
     "SystemStatus",
@@ -54,11 +57,17 @@ class SystemStatus:
     drive_status: SensorStatus
     """Ackermann drive system status."""
 
+    challenge_mode_status: SensorStatus
+    """Challenge-mode jumper (GPIO23) status -- not ready while the reading is unstable."""
+
     network_status: str
     """Network status: IP address or 'OFFLINE'."""
 
     all_ready: bool
     """True if all required components are ready."""
+
+    challenge_mode: ScenarioType | None = None
+    """Detected challenge mode once the jumper reading has stabilized, else None."""
 
 
 @dataclass

@@ -23,6 +23,7 @@ Topics:
 import json
 import socket
 import time
+from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, override
 
@@ -41,10 +42,12 @@ from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Float32, String
 
+from src.hardware.challenge_mode.driver import Driver as ChallengeModeDriver
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.state_machine import (
     RaceMetrics,
     RobotState,
+    ScenarioType,
     SensorStatus,
     StateMachine,
     StateTransition,
@@ -83,6 +86,12 @@ _DEFAULT_TARGET_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 """Default laps required to complete race; overridable via the
 ``target_laps`` ROS2 parameter."""
 
+_CHALLENGE_MODE_SAMPLES_REQUIRED = 3
+"""Consecutive agreeing BOOT_CHECK-tick samples required before trusting the challenge-mode
+jumper reading. At the default 10 Hz state-machine loop rate this spans ~300 ms -- the
+200-300 ms debounce window from the jumper spec -- without a blocking sleep in the ROS2
+spin loop (each tick takes one instantaneous GPIO read, not a driver-internal sample loop)."""
+
 
 class StateMachineNode(Node):
     """ROS2 node that manages the 4-stage state machine for WRO competition.
@@ -111,6 +120,9 @@ class StateMachineNode(Node):
 
         self.publisher_rate_hz = declare_and_get_float_param(self, "publisher_rate_hz", _DEFAULT_PUBLISHER_RATE_HZ)
         self.target_laps = declare_and_get_int_param(self, "target_laps", _DEFAULT_TARGET_LAPS)
+        # If the launch file explicitly overrode target_laps, honor that override instead of
+        # letting jumper-based detection silently replace it once the mode is known below.
+        self._target_laps_explicit = self.target_laps != _DEFAULT_TARGET_LAPS
 
         # State machine
         self.state_machine = StateMachine()
@@ -163,6 +175,14 @@ class StateMachineNode(Node):
         self.lidar_last_msg_time: float | None = None
         self.hailo_last_msg_time: float | None = None
         self.hailo_fps: float = 0.0
+
+        # Challenge-mode jumper (GPIO23) -- same Pi 5 board, so read directly rather than via
+        # a topic (unlike the button, which lives on the Pi Zero). Skipped entirely under
+        # simulation: scenario_catalog.py already encodes open-vs-obstacles per scenario.
+        self.challenge_mode_driver = ChallengeModeDriver()
+        self._challenge_mode_samples: deque[bool] = deque(maxlen=_CHALLENGE_MODE_SAMPLES_REQUIRED)
+        self._challenge_mode_error: str | None = None
+        self.challenge_mode: ScenarioType | None = None
 
         # Network status
         self.ip_address: str = "FETCHING..."
@@ -265,8 +285,44 @@ class StateMachineNode(Node):
         self._publish_state()
         self._publish_diagnostics()
 
+    def _sample_challenge_mode(self) -> None:
+        """Take one non-blocking GPIO read per BOOT_CHECK tick; stop once the reading stabilizes.
+
+        Deliberately fail-closed: disagreeing samples (bounce/intermittent contact) clear
+        progress and keep BOOT_CHECK waiting rather than guessing a mode.
+        """
+        if self.is_simulation or self.challenge_mode is not None:
+            return
+
+        try:
+            inserted = self.challenge_mode_driver.is_jumper_inserted()
+        except Exception as e:  # gpiozero raises GPIOZeroError/OSError families
+            self._challenge_mode_error = f"{type(e).__name__}: {e}"
+            self._challenge_mode_samples.clear()
+            return
+
+        self._challenge_mode_error = None
+        self._challenge_mode_samples.append(inserted)
+        if (
+            len(self._challenge_mode_samples) < _CHALLENGE_MODE_SAMPLES_REQUIRED
+            or len(set(self._challenge_mode_samples)) != 1
+        ):
+            return
+
+        self.challenge_mode = ScenarioType.OBSTACLES if inserted else ScenarioType.OPEN
+        if not self._target_laps_explicit:
+            self.target_laps = (
+                CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+                if self.challenge_mode == ScenarioType.OBSTACLES
+                else CompetitionSpecs.OPEN_CHALLENGE_LAPS
+            )
+        self.get_logger().info(
+            f"Challenge mode detected: {self.challenge_mode.value} (target_laps={self.target_laps})",
+        )
+
     def _handle_boot_check(self) -> None:
         """Handle BOOT_CHECK state - verify all hardware."""
+        self._sample_challenge_mode()
         system_status = self._check_system_status()
 
         if system_status.all_ready:
@@ -280,6 +336,10 @@ class StateMachineNode(Node):
                 self.get_logger().warning(f"LiDAR not ready: {system_status.lidar_status.error_message}")
             if not system_status.hailo_status.is_ready:
                 self.get_logger().warning(f"Hailo not ready: {system_status.hailo_status.error_message}")
+            if not system_status.challenge_mode_status.is_ready:
+                self.get_logger().warning(
+                    f"Challenge mode not ready: {system_status.challenge_mode_status.error_message}",
+                )
 
     def _handle_ready(self) -> None:
         """Handle READY state - wait for button press."""
@@ -316,6 +376,7 @@ class StateMachineNode(Node):
             imu_status = SensorStatus(name="IMU", is_ready=True, error_message=None)
             lidar_status = SensorStatus(name="LiDAR", is_ready=True, error_message=None)
             hailo_status = SensorStatus(name="Hailo", is_ready=True, error_message=None)
+            challenge_mode_status = SensorStatus(name="ChallengeMode", is_ready=True, error_message=None)
         else:
             # Check IMU
             imu_ready = self.imu_last_msg_time is not None and (current_time - self.imu_last_msg_time) < timeout
@@ -345,21 +406,39 @@ class StateMachineNode(Node):
                 error_message=None if hailo_ready else "Hailo model not loaded or no inference",
             )
 
+            challenge_mode_ready = self.challenge_mode is not None
+            challenge_mode_status = SensorStatus(
+                name="ChallengeMode",
+                is_ready=challenge_mode_ready,
+                error_message=None
+                if challenge_mode_ready
+                else (self._challenge_mode_error or "Jumper reading not yet stable"),
+            )
+
         # Check Drive (assume ready if we can publish - actual motor verification would need hardware driver)
         drive_status = SensorStatus(name="Drive", is_ready=True, error_message=None)
 
         # Network status (non-blocking)
         network_status = self.ip_address if self.ip_fetch_complete else "FETCHING..."
 
-        all_ready = imu_ready and lidar_ready and hailo_ready and drive_status.is_ready and self.ip_fetch_complete
+        all_ready = (
+            imu_ready
+            and lidar_ready
+            and hailo_ready
+            and drive_status.is_ready
+            and challenge_mode_status.is_ready
+            and self.ip_fetch_complete
+        )
 
         return SystemStatus(
             imu_status=imu_status,
             lidar_status=lidar_status,
             hailo_status=hailo_status,
             drive_status=drive_status,
+            challenge_mode_status=challenge_mode_status,
             network_status=network_status,
             all_ready=all_ready,
+            challenge_mode=self.challenge_mode,
         )
 
     def _publish_state(self) -> None:
@@ -381,11 +460,15 @@ class StateMachineNode(Node):
             system_status.lidar_status,
             system_status.hailo_status,
             system_status.drive_status,
+            system_status.challenge_mode_status,
         ]:
             status = DiagnosticStatus()
             status.name = sensor.name
             status.level = DiagnosticStatus.OK if sensor.is_ready else DiagnosticStatus.ERROR
-            status.message = sensor.error_message or "OK"
+            if sensor.name == "ChallengeMode" and system_status.challenge_mode is not None:
+                status.message = system_status.challenge_mode.value.upper()
+            else:
+                status.message = sensor.error_message or "OK"
             msg.status.append(status)
 
         # Add network status
@@ -454,6 +537,8 @@ class StateMachineNode(Node):
 
         # Shutdown executor
         self._executor.shutdown(wait=False)
+
+        self.challenge_mode_driver.close()
 
         super().destroy_node()
 

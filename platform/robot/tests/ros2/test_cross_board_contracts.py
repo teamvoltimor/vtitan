@@ -212,9 +212,11 @@ class TestButtonNodeToStateMachine:
         sm_node.hailo_last_msg_time = now
         sm_node.hailo_fps = 30.0
         sm_node.ip_fetch_complete = True
-        sm_node._handle_boot_check()
 
-        from src.state_machine import RobotState
+        from src.state_machine import RobotState, ScenarioType
+
+        sm_node.challenge_mode = ScenarioType.OPEN
+        sm_node._handle_boot_check()
 
         assert sm_node.state_machine.current_state == RobotState.READY
 

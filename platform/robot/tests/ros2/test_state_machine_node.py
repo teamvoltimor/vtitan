@@ -14,10 +14,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 import rclpy
+from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import String
 
 from src.hardware.button.event import ButtonEvent
-from src.state_machine import RobotState
+from src.state_machine import RobotState, ScenarioType
 
 if TYPE_CHECKING:
     from ackermann_msgs.msg import AckermannDriveStamped
@@ -42,7 +43,7 @@ def state_machine_node_class():
 
 
 def _mark_all_sensors_ready(node) -> None:
-    """Fast-forward the node past BOOT_CHECK without waiting on real sensors/IP."""
+    """Fast-forward the node past BOOT_CHECK without waiting on real sensors/IP/jumper."""
     now = time.time()
     node.imu_last_msg_time = now
     node.lidar_last_msg_time = now
@@ -50,6 +51,7 @@ def _mark_all_sensors_ready(node) -> None:
     node.hailo_fps = 30.0
     node.ip_fetch_complete = True
     node.ip_address = "192.0.2.1"
+    node.challenge_mode = ScenarioType.OPEN
 
 
 class TestStateMachineNodeInit:
@@ -101,6 +103,66 @@ class TestBootCheckTransition:
         node._handle_boot_check()
 
         assert node.state_machine.current_state == RobotState.BOOT_CHECK
+        node.destroy_node()
+
+    def test_undetected_challenge_mode_blocks_transition(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        _mark_all_sensors_ready(node)
+        node.challenge_mode = None  # jumper reading hasn't stabilized yet
+
+        node._handle_boot_check()
+
+        assert node.state_machine.current_state == RobotState.BOOT_CHECK
+        node.destroy_node()
+
+
+class TestChallengeModeDetection:
+    """Pin the fail-closed sampling behavior from the jumper spec (no blocking sleeps)."""
+
+    def test_stable_low_reading_selects_obstacles_and_its_lap_count(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        node.challenge_mode_driver.is_jumper_inserted = lambda: True  # shorted to GND
+
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        assert node.challenge_mode == ScenarioType.OBSTACLES
+        assert node.target_laps == CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS
+        node.destroy_node()
+
+    def test_stable_high_reading_selects_open(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        node.challenge_mode_driver.is_jumper_inserted = lambda: False  # pulled up, no jumper
+
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        assert node.challenge_mode == ScenarioType.OPEN
+        assert node.target_laps == CompetitionSpecs.OPEN_CHALLENGE_LAPS
+        node.destroy_node()
+
+    def test_bouncing_reading_never_resolves(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        readings = iter([True, False, True, False, True, False])
+        node.challenge_mode_driver.is_jumper_inserted = lambda: next(readings)
+
+        for _ in range(6):
+            node._sample_challenge_mode()
+
+        assert node.challenge_mode is None
+        node.destroy_node()
+
+    def test_explicit_target_laps_param_is_not_overridden_by_detection(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        node.target_laps = 5  # simulates an explicit launch-time override
+        node._target_laps_explicit = True
+        node.challenge_mode_driver.is_jumper_inserted = lambda: True
+
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        assert node.challenge_mode == ScenarioType.OBSTACLES
+        assert node.target_laps == 5
         node.destroy_node()
 
 

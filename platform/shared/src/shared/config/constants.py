@@ -123,6 +123,7 @@ class CompetitionSpecs:
 
     ROUND_TIME_LIMIT_S: Final[float] = 180.0  # Official round duration: 3 minutes
     OPEN_CHALLENGE_LAPS: Final[int] = 3  # Laps required per Open Challenge run
+    OBSTACLE_CHALLENGE_LAPS: Final[int] = 3  # Laps required per Obstacle Challenge run
 
 
 class StartingZoneSpecs:
