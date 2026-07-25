@@ -3,7 +3,7 @@ import { SENSOR_CONFIG, UI_STRINGS } from '../../config';
 import { Label } from '../ui';
 
 export function SensorHealthPanel() {
-  const { snapshot } = useTelemetry();
+  const { displaySnapshot: snapshot } = useTelemetry();
   if (!snapshot) return null;
   const metrics = snapshot.metrics;
 

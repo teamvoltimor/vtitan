@@ -1,4 +1,4 @@
-import { formatNumber } from '../../utils/formatting';
+import { formatNumber, clamp } from '../../utils/formatting';
 import { COLORS } from '../../config';
 
 interface BarChartProps {
@@ -11,8 +11,12 @@ interface BarChartProps {
 /** Horizontal centre-zero bar, red when the value nears the range edges. */
 export function BarChart({ label, value, range, unit }: BarChartProps) {
   const [min, max] = range;
-  const percentage = ((value - min) / (max - min)) * 100;
-  const color = Math.abs(value) > (max - min) * 0.8 ? COLORS.DANGER : COLORS.SUCCESS;
+  const clamped = clamp(value, min, max);
+  const percentage = ((clamped - min) / (max - min)) * 100;
+  // Danger threshold is 80% of the axis's own extent, not of its full span
+  // (min..max) — for a symmetric range like [-10, 10] that's 8, not 16.
+  const dangerThreshold = Math.max(Math.abs(min), Math.abs(max)) * 0.8;
+  const color = Math.abs(value) > dangerThreshold ? COLORS.DANGER : COLORS.SUCCESS;
 
   return (
     <div className="bar-chart">

@@ -18,3 +18,13 @@ export function isRobotSnapshot(msg: TelemetryMessage): msg is RobotSnapshot {
 export function isTopicsSnapshot(msg: TelemetryMessage): msg is TopicsSnapshot {
   return 'topics' in msg && !('metrics' in msg);
 }
+
+/**
+ * Same structural discriminator as `isRobotSnapshot`, but usable on raw,
+ * not-yet-validated JSON (e.g. straight from `JSON.parse`) so callers can
+ * pick the right Zod schema before parsing instead of parsing against one
+ * schema, catching the failure, and retrying against the other.
+ */
+export function isRobotSnapshotShape(data: unknown): boolean {
+  return typeof data === 'object' && data !== null && 'metrics' in data;
+}

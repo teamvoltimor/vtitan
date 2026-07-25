@@ -41,7 +41,10 @@ export function calculateGaugePath(value: number, config: GaugeConfig): string {
 
   const endX = center.x + radius * Math.cos(angle);
   const endY = center.y + radius * Math.sin(angle);
-  const largeArc = percent > 0.5 ? 1 : 0;
+  // SVG's large-arc-flag reflects the actual angle traversed, not the percent
+  // of `max` — for a 180° sweep (this app's only usage) that traversal never
+  // exceeds π, so this only matters if angleRange ever spans more than π.
+  const largeArc = Math.abs(angleSpan * percent) > Math.PI ? 1 : 0;
 
   return `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY}`;
 }

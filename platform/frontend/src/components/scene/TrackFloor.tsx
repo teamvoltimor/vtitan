@@ -1,8 +1,8 @@
-import * as THREE from 'three';
+import { memo } from 'react';
 import { SIMULATION_CONFIG, SCENE_CONFIG } from '../../config';
 
-/** Flat reflective track floor. */
-export function TrackFloor() {
+/** Flat reflective track floor. Static geometry — memoized since it takes no props. */
+export const TrackFloor = memo(function TrackFloor() {
   const size = SIMULATION_CONFIG.TRACK.SIZE;
   const floor = SCENE_CONFIG.FLOOR;
   return (
@@ -12,8 +12,7 @@ export function TrackFloor() {
         color={floor.COLOR}
         metalness={floor.METALNESS}
         roughness={floor.ROUGHNESS}
-        side={THREE.DoubleSide}
       />
     </mesh>
   );
-}
+});

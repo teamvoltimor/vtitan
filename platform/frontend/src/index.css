@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+/* Self-hosted (was a render-blocking Google Fonts @import to a third-party
+   CDN — a poor fit for a robot dashboard that may run on a competition-venue
+   LAN with no internet access). Weights match what was previously loaded. */
+@import '@fontsource/chakra-petch/latin-400.css';
+@import '@fontsource/chakra-petch/latin-600.css';
+@import '@fontsource/chakra-petch/latin-700.css';
+@import '@fontsource/share-tech-mono/latin-400.css';
 
 :root {
   --font-display: 'Chakra Petch', sans-serif;
@@ -29,4 +35,24 @@ body {
   margin: 0;
   min-height: 100vh;
   background: var(--color-bg);
+}
+
+/* Consistent keyboard-focus ring across every interactive element — previously
+   only .topic-search had explicit focus styling, so buttons, sliders, and
+   session items fell back to (and relied on) inconsistent browser defaults
+   against this dark theme. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-teal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

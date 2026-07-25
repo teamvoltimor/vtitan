@@ -40,11 +40,14 @@ export const SIMULATION_CONFIG = {
     SIZE: { width: 3.2, height: 3.2 },
   },
 
-  // Robot model & defaults
+  // Robot model & defaults. Matches the measured chassis in
+  // platform/shared/config/robot.toml (chassis.length/width/height) — the
+  // single source of truth for the real robot's physical dimensions.
   ROBOT: {
     DEFAULT_POSITION: { x: 1.5, y: 1.5, z: 0.1 }, // Position3D (sim coords)
     DEFAULT_ORIENTATION_RADIANS: 0,
-    DIMENSIONS: [0.2, 0.08, 0.14] as const, // [width, height, depth]
+    // [length, height, width] — length is the forward (local +X) axis.
+    DIMENSIONS: [0.3, 0.1, 0.2] as const,
   },
 
   // 3D camera configuration
@@ -63,7 +66,9 @@ export const SCENE_CONFIG = {
   AMBIENT_INTENSITY: 0.6,
   DIRECTIONAL: {
     INTENSITY: 1.1,
-    POSITION: [3, -3, 4] as const,
+    // Three.js is Y-up; this must sit above the floor plane (y > 0) or the
+    // scene has no key light and reads as flat, ambient-only.
+    POSITION: [3, 4, 3] as const,
   },
   FLOOR: {
     COLOR: COLORS.SURFACE,
@@ -76,9 +81,10 @@ export const SCENE_CONFIG = {
     COLOR_INACTIVE: '#666666',
     EMISSIVE_INACTIVE: '#333333',
     INACTIVE_OPACITY: 0.5,
-    HEADING_LENGTH: 0.22, // length of the forward-heading arrow (metres)
+    HEADING_LENGTH: 0.08, // length of the forward-heading arrow (metres) — shorter than the chassis
+    HEADING_RADIUS: 0.05, // base radius of the forward-heading cone (metres)
   },
-  // WRO track: 3×3 m outer, 1×2 m inner square — rendered as low walls.
+  // WRO track: 3×3 m outer, 1×1 m inner square — rendered as low walls.
   TRACK: {
     OUTER_MIN: 0,
     OUTER_MAX: 3,
@@ -109,6 +115,9 @@ export const LIDAR_CONFIG = {
 
   POINT_CLOUD: {
     POINT_SIZE: 0.03,
+    // Slamtec C1 at ~0.25° angular resolution over 360° — fixed buffer capacity
+    // so the GPU attribute is allocated once instead of reallocated per snapshot.
+    MAX_POINTS: 1440,
     OPACITY: {
       AVAILABLE: 0.9,
       UNAVAILABLE: 0.3,
@@ -142,9 +151,6 @@ export const LIDAR_CONFIG = {
 
 export const ROBOT_PATH_CONFIG = {
   Y_OFFSET: 0.03, // Vertical offset from ground
-  TUBE_SEGMENTS: 80, // Number of segments in tube geometry
-  TUBE_RADIUS: 0.01, // Radius of the path tube
-  TUBE_RADIAL_SEGMENTS: 5, // Radial subdivisions
 } as const;
 
 // ============================================================================
@@ -242,6 +248,7 @@ export const UI_STRINGS = {
 
 export const TELEMETRY_CONFIG = {
   HISTORY_MAX_SIZE: 60, // Max snapshots kept in memory
+  LOG_BUFFER_MAX_SIZE: 200, // Max accumulated log lines kept for the Event Feed
   TOPIC_STALENESS_THRESHOLD_SECONDS: 2.0, // Mark topic stale after this duration
   POLL_INTERVAL_MS: parseInt(import.meta.env.VITE_POLL_INTERVAL_MS ?? '2500', 10),
 } as const;
@@ -307,15 +314,20 @@ export const MOTOR_DIALS_CONFIG = {
 // VISION VISUALIZATION
 // ============================================================================
 
+// Raspberry Pi Camera Module 3 Wide native resolution (16:9). The
+// vision_msgs/Detection2DArray topic carries pixel-space bboxes with no
+// per-message image dimensions, so this can't be derived from the wire data —
+// it must track the camera's actual configured resolution. If the vision
+// pipeline ever changes capture resolution, update this to match.
 export const VISION_CONFIG = {
   CANVAS_WIDTH: 320,
-  CANVAS_HEIGHT: 240,
-  VIEWBOX: '0 0 640 480',
+  CANVAS_HEIGHT: 180,
+  VIEWBOX: '0 0 1536 864',
   LABEL_WIDTH_PER_CHAR: 10,
   MIN_LABEL_WIDTH: 100,
   BBOX_STROKE_WIDTH: 4,
-  IMG_WIDTH: 640,
-  IMG_HEIGHT: 480,
+  IMG_WIDTH: 1536,
+  IMG_HEIGHT: 864,
   COLORS: {
     RED: COLORS.DANGER,
     GREEN: COLORS.SUCCESS,
@@ -329,6 +341,13 @@ export const VISION_CONFIG = {
 
 export const JSON_VIEW_CONFIG = {
   ARRAY_PREVIEW_LIMIT: 10,
+  ARRAY_EXPAND_STEP: 20,
   DECIMAL_PRECISION: 4,
   INDENT_PER_LEVEL: 16,
 } as const;
+
+// ============================================================================
+// SPEED CONTROL VALIDATION
+// ============================================================================
+
+export const SPEED_CONTROL_DEBOUNCE_MS = 250;

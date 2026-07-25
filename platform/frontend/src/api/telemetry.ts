@@ -11,6 +11,7 @@ import { TelemetryError, ExponentialBackoff, classifyHttpError } from './errors'
 import { API_CONFIG, URL_PROTOCOL_MAP } from '../config';
 import { getErrorMessage } from '../utils/formatting';
 import { schemas } from './schemas';
+import { isRobotSnapshotShape } from './guards';
 
 /**
  * Resolve URL with base path configuration.
@@ -37,7 +38,7 @@ const httpToWsUrl = (url: string): string => {
  */
 async function fetchJson<T>(
   path: string,
-  signal?: AbortSignal,
+  signal: AbortSignal = AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
   schema?: { parse: (data: unknown) => T }
 ): Promise<T> {
   try {
@@ -151,6 +152,7 @@ export const updateRobotSpeed = async (speed: number): Promise<void> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ maxLinearSpeed: speed }),
+      signal: AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -228,11 +230,15 @@ export function connectTelemetryWS(
   let ws: WebSocket | null = null;
   let isClosed = false;
 
-  // Exponential backoff for reconnection attempts
+  // Exponential backoff for reconnection attempts. A live telemetry dashboard
+  // should keep trying indefinitely (e.g. across a robot reboot) rather than
+  // give up after a fixed attempt count and require a manual page refresh —
+  // maxAttempts is Infinity so `canRetry` never goes false; the delay still
+  // grows exponentially up to maxDelayMs.
   const backoff = new ExponentialBackoff(
     API_CONFIG.WEBSOCKET.RECONNECT_DELAY_MS,
     30000, // max delay of 30 seconds
-    API_CONFIG.WEBSOCKET.RECONNECT_MAX_ATTEMPTS,
+    Number.POSITIVE_INFINITY,
     API_CONFIG.WEBSOCKET.RECONNECT_BACKOFF_MULTIPLIER
   );
 
@@ -255,26 +261,22 @@ export function connectTelemetryWS(
       ws.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data);
-          // Validate WebSocket message structure (could be RobotSnapshot or TopicsSnapshot)
-          // For now, we accept either type by validating against RobotSnapshot first
+          // Discriminate structurally (only RobotSnapshot carries `metrics`)
+          // before parsing, rather than trying RobotSnapshot, catching the
+          // failure, and retrying against TopicsSnapshot on every message.
           try {
-            const validated = schemas.RobotSnapshot.parse(parsed);
+            const validated = isRobotSnapshotShape(parsed)
+              ? schemas.RobotSnapshot.parse(parsed)
+              : schemas.TopicsSnapshot.parse(parsed);
             onMessage(validated);
-          } catch {
-            // If not a RobotSnapshot, try TopicsSnapshot
-            try {
-              const validated = schemas.TopicsSnapshot.parse(parsed);
-              onMessage(validated);
-            } catch (validationErr) {
-              // If neither validates, report the error
-              const error = new TelemetryError(
-                'PARSE',
-                `Invalid WebSocket message structure: ${getErrorMessage(validationErr)}`,
-                undefined,
-                validationErr
-              );
-              onError?.(error);
-            }
+          } catch (validationErr) {
+            const error = new TelemetryError(
+              'PARSE',
+              `Invalid WebSocket message structure: ${getErrorMessage(validationErr)}`,
+              undefined,
+              validationErr
+            );
+            onError?.(error);
           }
         } catch (err) {
           // Handle parse errors
@@ -297,19 +299,16 @@ export function connectTelemetryWS(
         // Guard clause: connection was explicitly closed
         if (isClosed) return;
 
-        // Attempt to reconnect with exponential backoff
-        const { delay, canRetry } = backoff.getNextDelay();
-
-        if (canRetry) {
-          setTimeout(connect, delay);
-        } else {
-          // Max retry attempts exceeded
-          const error = new TelemetryError(
-            'NETWORK',
-            `Failed to reconnect after ${backoff.getAttemptCount()} attempts`
-          );
-          onError?.(error);
-        }
+        // Always retry — connection loss is reported to the caller but is
+        // never treated as fatal, so a robot reboot mid-run doesn't strand
+        // the dashboard on a dead connection requiring a manual refresh.
+        const { delay } = backoff.getNextDelay();
+        const error = new TelemetryError(
+          'NETWORK',
+          `Live connection lost — reconnecting (attempt ${backoff.getAttemptCount()})`
+        );
+        onError?.(error);
+        setTimeout(connect, delay);
       };
     } catch (err) {
       // Handle WebSocket creation errors
@@ -323,10 +322,8 @@ export function connectTelemetryWS(
 
       // Attempt to reconnect
       if (!isClosed) {
-        const { delay, canRetry } = backoff.getNextDelay();
-        if (canRetry) {
-          setTimeout(connect, delay);
-        }
+        const { delay } = backoff.getNextDelay();
+        setTimeout(connect, delay);
       }
     }
   };

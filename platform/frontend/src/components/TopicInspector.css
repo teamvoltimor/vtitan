@@ -212,6 +212,21 @@
   color: #dcdcaa;
 }
 
+.json-array-more {
+  border: none;
+  background: transparent;
+  color: var(--color-accent-teal);
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0 0.25em;
+}
+
+.json-array-more:hover {
+  color: var(--color-text);
+}
+
 .inspector-empty {
   color: var(--color-text-muted);
   text-align: center;
@@ -325,6 +340,13 @@
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
+}
+
+.state-diagram-unknown {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-accent-orange, #ffaa00);
+  text-align: center;
 }
 
 .orientation-values {

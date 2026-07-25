@@ -4,19 +4,29 @@ import { MOTOR_DIALS_CONFIG, COLORS } from '../../config';
 
 const { CIRCLE_CENTER: C, CIRCLE_RADIUS: R } = MOTOR_DIALS_CONFIG;
 
-/** Radial dial arc path for an angle (radians) around the dial centre. */
+/**
+ * Angle convention shared by the arc and the needle: 0 rad points to 12
+ * o'clock, increasing clockwise. Both must use this exact mapping or they
+ * visually disagree for the same value.
+ */
+function dialAngle(pos: number): number {
+  return pos - Math.PI / 2;
+}
+
+function pointOnDial(angle: number, radius: number): { x: number; y: number } {
+  return { x: C.x + radius * Math.cos(angle), y: C.y + radius * Math.sin(angle) };
+}
+
+/** Radial dial arc path, sweeping clockwise from the 12 o'clock zero reference to `value`. */
 function arcPath(value: number): string {
   let normalized = value % (Math.PI * 2);
-  if (normalized < -Math.PI) normalized += Math.PI * 2;
-  if (normalized > Math.PI) normalized -= Math.PI * 2;
+  if (normalized < 0) normalized += Math.PI * 2; // [0, 2π)
 
-  const percent = (normalized + Math.PI) / (Math.PI * 2);
-  const angle = Math.PI - percent * Math.PI * 2;
+  const start = pointOnDial(dialAngle(0), R);
+  const end = pointOnDial(dialAngle(normalized), R);
+  const largeArc = normalized > Math.PI ? 1 : 0;
 
-  const endX = C.x - R * Math.cos(Math.PI - angle);
-  const endY = C.y - R * Math.sin(Math.PI - angle);
-
-  return `M ${C.x} ${C.y + R} A ${R} ${R} 0 ${percent > 0.5 ? 1 : 0} 1 ${endX} ${endY}`;
+  return `M ${start.x} ${start.y} A ${R} ${R} 0 ${largeArc} 1 ${end.x} ${end.y}`;
 }
 
 /** Per-joint radial dials, driven by a JointState message. */
@@ -28,6 +38,10 @@ export function MotorDials({ data }: { data: JointStateMsg }) {
     <div className="motor-dials specialized-viz">
       {data.name.map((name, index) => {
         const pos = data.position[index];
+        // Ragged JointState (names/positions of different lengths) — skip rather
+        // than draw a NaN path.
+        if (pos == null || Number.isNaN(pos)) return null;
+        const needle = pointOnDial(dialAngle(pos), cfg.NEEDLE_LENGTH);
         return (
           <div key={name} className="motor-dial">
             <svg width={cfg.CANVAS_WIDTH} height={cfg.CANVAS_HEIGHT} viewBox={cfg.VIEWBOX}>
@@ -45,8 +59,8 @@ export function MotorDials({ data }: { data: JointStateMsg }) {
               <line
                 x1={C.x}
                 y1={C.y}
-                x2={C.x + cfg.NEEDLE_LENGTH * Math.cos(pos - Math.PI / 2)}
-                y2={C.y + cfg.NEEDLE_LENGTH * Math.sin(pos - Math.PI / 2)}
+                x2={needle.x}
+                y2={needle.y}
                 stroke={COLORS.WHITE}
                 strokeWidth={cfg.NEEDLE_STROKE}
               />

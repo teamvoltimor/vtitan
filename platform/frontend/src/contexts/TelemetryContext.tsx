@@ -28,11 +28,24 @@ function initialDemoMode(): boolean {
   return import.meta.env.VITE_DEMO === 'true';
 }
 
+/** Append `logs` to a buffer, skipping an exact repeat of the last entry, capped at LOG_BUFFER_MAX_SIZE. */
+function appendLogs(prev: string[], logs: string[]): string[] {
+  if (!logs || logs.length === 0) return prev;
+  const lastExisting = prev[prev.length - 1];
+  const incoming = logs.filter((line, i) => !(i === 0 && line === lastExisting));
+  if (incoming.length === 0) return prev;
+  const updated = [...prev, ...incoming];
+  return updated.length > TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE
+    ? updated.slice(-TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE)
+    : updated;
+}
+
 export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<RobotSnapshot | null>(null);
   const [topics, setTopics] = useState<TopicsSnapshot | null>(null);
   const [history, setHistory] = useState<RobotSnapshot[]>([]);
   const [sessions, setSessions] = useState<ReplaySessionInfo[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [timelineIndex, setTimelineIndex] = useState(0);
@@ -41,9 +54,14 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connected, setConnected] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
 
   const mounted = useRef(true);
+  // Mirrors `snapshot` for use inside the live-subscription effect's callbacks
+  // without adding `snapshot` to that effect's dependency array (which would
+  // tear down and reopen the WebSocket on every incoming frame).
+  const snapshotRef = useRef<RobotSnapshot | null>(null);
 
   // Select the data source for the current mode. Recreated when demoMode flips.
   const source = useMemo(() => createTelemetrySource(demoMode), [demoMode]);
@@ -55,6 +73,10 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
   // Append a snapshot to history, capped at HISTORY_MAX_SIZE.
   const pushHistory = useCallback((snap: RobotSnapshot) => {
     setHistory((prev) => {
@@ -64,6 +86,19 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         : updated;
     });
   }, []);
+
+  const pushLogs = useCallback((snap: RobotSnapshot) => {
+    setLogs((prev) => appendLogs(prev, snap.logs));
+  }, []);
+
+  // While live, the timeline should always track the newest frame — clamped
+  // to the actual (capped) history length rather than incremented without
+  // bound, which previously let the counter run far past `history.length`.
+  useEffect(() => {
+    if (liveMode) {
+      setTimelineIndex(history.length > 0 ? history.length - 1 : 0);
+    }
+  }, [history, liveMode]);
 
   // Initial load (and on retry / source change).
   const loadInitialData = useCallback(async () => {
@@ -84,8 +119,12 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       setTopics(rawTopics);
       setHistory(historyData);
       setSessions(sessionsList);
+      setLogs(
+        historyData.flatMap((snap) => snap.logs ?? []).slice(-TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE)
+      );
       setSelectedSessionId(null);
       setTimelineIndex(Math.max(historyData.length - 1, 0));
+      setConnected(true);
     } catch (err) {
       if (!mounted.current) return;
       setError(getErrorMessage(err, 'Failed to load telemetry data'));
@@ -110,6 +149,11 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         if (!mounted.current) return;
 
         setHistory(sessionSnapshots);
+        setLogs(
+          sessionSnapshots
+            .flatMap((snap) => snap.logs ?? [])
+            .slice(-TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE)
+        );
         setTimelineIndex(Math.max(sessionSnapshots.length - 1, 0));
         setSelectedSessionId(sessionId);
         setLiveMode(false);
@@ -142,11 +186,11 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const toggleDemoMode = useCallback(() => setDemoMode(!demoMode), [demoMode, setDemoMode]);
 
   const updateSpeed = useCallback(
-    (speed: number) => {
+    (speed: number): Promise<void> =>
       source.updateSpeed(speed).catch((err) => {
         console.error('Failed to update robot speed:', err);
-      });
-    },
+        throw err;
+      }),
     [source]
   );
 
@@ -160,39 +204,83 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         if (isRobotSnapshot(msg)) {
           setSnapshot(msg);
           pushHistory(msg);
-          setTimelineIndex((prev) => prev + 1);
+          pushLogs(msg);
         } else if (isTopicsSnapshot(msg)) {
           setTopics(msg);
         }
       },
       (err) => {
         if (!mounted.current) return;
-        setError(getErrorMessage(err, 'Live telemetry connection error'));
+        setConnected(false);
+        // Only fatal (blocks the whole dashboard behind AsyncState) if we've
+        // never successfully loaded any data. Once there's a last-good
+        // snapshot on screen, a dropped connection is transient — surfaced
+        // via `connected` for a small reconnecting indicator instead.
+        if (!snapshotRef.current) {
+          setError(getErrorMessage(err, 'Live telemetry connection error'));
+        }
+      },
+      () => {
+        if (!mounted.current) return;
+        setConnected(true);
       }
     );
 
     return unsubscribe;
-  }, [liveMode, source, pushHistory]);
+  }, [liveMode, source, pushHistory, pushLogs]);
 
-  const value: TelemetryContextType = {
-    snapshot,
-    topics,
-    history,
-    sessions,
-    selectedSessionId,
-    timelineIndex,
-    liveMode,
-    demoMode,
-    loading,
-    error,
-    retry,
-    setTimelineIndex,
-    loadSession,
-    goLive,
-    setDemoMode,
-    toggleDemoMode,
-    updateSpeed,
-  };
+  // displaySnapshot is what the UI should render: the live snapshot while
+  // live, or the scrubbed history frame while replaying/paused on the
+  // timeline. Previously the scene always rendered the live `snapshot`
+  // regardless of `timelineIndex`, so dragging the timeline changed only the
+  // label, not the 3D view or sidebar.
+  const displaySnapshot = liveMode ? snapshot : (history[timelineIndex] ?? snapshot);
+
+  const value: TelemetryContextType = useMemo(
+    () => ({
+      snapshot,
+      displaySnapshot,
+      topics,
+      history,
+      sessions,
+      logs,
+      selectedSessionId,
+      timelineIndex,
+      liveMode,
+      demoMode,
+      loading,
+      error,
+      connected,
+      retry,
+      setTimelineIndex,
+      loadSession,
+      goLive,
+      setDemoMode,
+      toggleDemoMode,
+      updateSpeed,
+    }),
+    [
+      snapshot,
+      displaySnapshot,
+      topics,
+      history,
+      sessions,
+      logs,
+      selectedSessionId,
+      timelineIndex,
+      liveMode,
+      demoMode,
+      loading,
+      error,
+      connected,
+      retry,
+      loadSession,
+      goLive,
+      setDemoMode,
+      toggleDemoMode,
+      updateSpeed,
+    ]
+  );
 
   return <TelemetryContext.Provider value={value}>{children}</TelemetryContext.Provider>;
 }

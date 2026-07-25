@@ -1,38 +1,45 @@
+import { useId } from 'react';
 import type { StringMsg } from '../../types';
 import { RobotState } from '../../types';
 import { COLORS } from '../../config';
 
-const STATES = [
-  { name: RobotState.BOOT_CHECK, x: 50, y: 30 },
-  { name: RobotState.READY, x: 150, y: 30 },
-  { name: RobotState.RACING, x: 250, y: 30 },
-  { name: RobotState.FINISHED, x: 350, y: 30 },
-];
-const TRANSITIONS = [
-  [90, 120],
-  [190, 220],
-  [290, 320],
-];
+const STATE_NAMES = Object.values(RobotState);
+const NODE_SPACING = 100;
+const NODE_Y = 30;
+const NODE_RADIUS = 20;
+const DIAGRAM_HEIGHT = 80;
+const DIAGRAM_WIDTH = NODE_SPACING * STATE_NAMES.length + 50;
+
+const STATES = STATE_NAMES.map((name, i) => ({ name, x: 50 + i * NODE_SPACING, y: NODE_Y }));
 
 /** Robot state-machine diagram, highlighting the current state. */
 export function StateDiagram({ data }: { data: StringMsg }) {
   const currentState = data?.data || 'UNKNOWN';
+  const isKnownState = (STATE_NAMES as readonly string[]).includes(currentState);
   const muted = 'rgba(255,255,255,0.3)';
+  // Unique per instance — the inspector and the "expand to full view" modal
+  // can render this diagram simultaneously, and a duplicate DOM id makes
+  // marker resolution undefined per the SVG spec.
+  const arrowId = useId();
 
   return (
     <div className="state-diagram specialized-viz">
-      <svg width="400" height="80" viewBox="0 0 400 80">
+      <svg
+        width={DIAGRAM_WIDTH}
+        height={DIAGRAM_HEIGHT}
+        viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`}
+      >
         <title>Robot state: {currentState}</title>
-        {TRANSITIONS.map(([x1, x2]) => (
+        {STATES.slice(0, -1).map((state, i) => (
           <line
-            key={x1}
-            x1={x1}
-            y1="30"
-            x2={x2}
-            y2="30"
+            key={state.name}
+            x1={state.x + NODE_RADIUS}
+            y1={NODE_Y}
+            x2={STATES[i + 1].x - NODE_RADIUS}
+            y2={NODE_Y}
             stroke={muted}
             strokeWidth="2"
-            markerEnd="url(#arrow)"
+            markerEnd={`url(#${arrowId})`}
           />
         ))}
 
@@ -43,7 +50,7 @@ export function StateDiagram({ data }: { data: StringMsg }) {
               <circle
                 cx={state.x}
                 cy={state.y}
-                r="20"
+                r={NODE_RADIUS}
                 fill={active ? COLORS.SUCCESS : 'rgba(255,255,255,0.1)'}
                 stroke={active ? COLORS.SUCCESS : muted}
                 strokeWidth="2"
@@ -63,11 +70,12 @@ export function StateDiagram({ data }: { data: StringMsg }) {
         })}
 
         <defs>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+          <marker id={arrowId} markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
             <polygon points="0,0 10,5 0,10" fill={muted} />
           </marker>
         </defs>
       </svg>
+      {!isKnownState && <p className="state-diagram-unknown">Unrecognized state: {currentState}</p>}
     </div>
   );
 }

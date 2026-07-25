@@ -13,7 +13,7 @@ export function RobotModel({ snapshot }: { snapshot: RobotSnapshot }) {
 
   return (
     <group position={simToThree(position)} rotation={[0, -orientation, 0]}>
-      <mesh>
+      <mesh castShadow>
         <boxGeometry args={[...dims]} />
         <meshStandardMaterial
           color={available ? robot.COLOR_ACTIVE : robot.COLOR_INACTIVE}
@@ -27,7 +27,7 @@ export function RobotModel({ snapshot }: { snapshot: RobotSnapshot }) {
         position={[dims[0] / 2 + robot.HEADING_LENGTH / 2, 0, 0]}
         rotation={[0, 0, -Math.PI / 2]}
       >
-        <coneGeometry args={[dims[1], robot.HEADING_LENGTH, 8]} />
+        <coneGeometry args={[robot.HEADING_RADIUS, robot.HEADING_LENGTH, 8]} />
         <meshStandardMaterial color={robot.EMISSIVE_ACTIVE} emissive={robot.EMISSIVE_ACTIVE} />
       </mesh>
     </group>

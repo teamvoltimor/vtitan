@@ -15,6 +15,8 @@ type Axis = 'x' | 'y' | 'z';
 
 /** IMU orientation + per-axis acceleration/gyro bars, driven by an Imu message. */
 export function ImuCompass({ data }: { data: ImuMsg }) {
+  if (!data?.orientation || !data?.linear_acceleration || !data?.angular_velocity) return null;
+
   const { roll, pitch, yaw } = quaternionToEuler(data.orientation);
 
   return (

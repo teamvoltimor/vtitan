@@ -35,8 +35,16 @@ export interface TelemetrySource {
   fetchHistory(): Promise<RobotSnapshot[]>;
   fetchSessions(): Promise<ReplaySessionInfo[]>;
   fetchSession(id: string): Promise<RobotSnapshot[]>;
-  /** Subscribe to the live stream. Returns an unsubscribe function. */
-  connect(onMessage: (msg: TelemetryMessage) => void, onError?: (error: Error) => void): () => void;
+  /**
+   * Subscribe to the live stream. `onConnected` fires on (re)connect so
+   * callers can distinguish "briefly reconnecting" from "never connected".
+   * Returns an unsubscribe function.
+   */
+  connect(
+    onMessage: (msg: TelemetryMessage) => void,
+    onError?: (error: Error) => void,
+    onConnected?: () => void
+  ): () => void;
   updateSpeed(speed: number): Promise<void>;
 }
 
@@ -49,8 +57,12 @@ export class LiveSource implements TelemetrySource {
   fetchSession = fetchSession;
   updateSpeed = updateRobotSpeed;
 
-  connect(onMessage: (msg: TelemetryMessage) => void, onError?: (error: Error) => void) {
-    return connectTelemetryWS(onMessage, onError);
+  connect(
+    onMessage: (msg: TelemetryMessage) => void,
+    onError?: (error: Error) => void,
+    onConnected?: () => void
+  ) {
+    return connectTelemetryWS(onMessage, onError, onConnected);
   }
 }
 
@@ -77,7 +89,12 @@ export class MockSource implements TelemetrySource {
     /* no backend in demo mode */
   }
 
-  connect(onMessage: (msg: TelemetryMessage) => void) {
+  connect(
+    onMessage: (msg: TelemetryMessage) => void,
+    _onError?: (error: Error) => void,
+    onConnected?: () => void
+  ) {
+    onConnected?.();
     const intervalId = window.setInterval(() => {
       this.tick += 1;
       onMessage(generateMockSnapshot(this.tick));

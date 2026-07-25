@@ -1,12 +1,18 @@
 import { useTelemetry } from '../contexts/telemetryState';
 import { formatNumber } from '../utils/formatting';
 import { formatTimestamp } from '../utils/formatting';
-import { UI_STRINGS, THEME } from '../config';
+import { UI_STRINGS } from '../config';
 import { Label, MetricRow, StatTile } from './ui';
-import { SensorHealthPanel, SpeedControl, TimelineSlider, SessionList, LogPanel } from './sidebar';
+import {
+  SensorHealthPanel,
+  SpeedControl,
+  TimelineSlider,
+  SessionList,
+  LogPanel,
+} from './sidebar-panels';
 
 export function Sidebar() {
-  const { snapshot, liveMode } = useTelemetry();
+  const { displaySnapshot: snapshot, liveMode } = useTelemetry();
 
   if (!snapshot) return null;
 
@@ -30,7 +36,7 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="control-panel" style={{ background: THEME.COLORS.PANEL }}>
+    <aside className="control-panel">
       <div className="panel-header">
         <Label>{liveMode ? UI_STRINGS.LIVE_TRACKING : 'REPLAY'}</Label>
         <h1>{snapshot.mission_name}</h1>

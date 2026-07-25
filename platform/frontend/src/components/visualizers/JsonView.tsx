@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatNumber } from '../../utils/formatting';
 import { JSON_VIEW_CONFIG } from '../../config';
 
@@ -24,26 +25,7 @@ export function JsonView({ data, level = 0 }: { data: unknown; level?: number })
   }
 
   if (Array.isArray(data)) {
-    if (data.length > JSON_VIEW_CONFIG.ARRAY_PREVIEW_LIMIT) {
-      return (
-        <span className="json-array">
-          [Array({data.length})] {data.slice(0, 3).map(String).join(', ')}...
-        </span>
-      );
-    }
-    return (
-      <span className="json-array">
-        [
-        {data.map((item, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: arbitrary JSON array of primitives/objects with no stable id; position is the only available identity
-          <span key={i}>
-            <JsonView data={item} level={level + 1} />
-            {i < data.length - 1 && ', '}
-          </span>
-        ))}
-        ]
-      </span>
-    );
+    return <JsonArrayView data={data} level={level} />;
   }
 
   if (typeof data === 'object') {
@@ -63,4 +45,38 @@ export function JsonView({ data, level = 0 }: { data: unknown; level?: number })
   }
 
   return <span>{String(data)}</span>;
+}
+
+/**
+ * Array rendering with a "show N more" control instead of a dead-end
+ * stringified preview — long arrays of objects previously collapsed to
+ * unreadable `[object Object]` text with no way to expand.
+ */
+function JsonArrayView({ data, level }: { data: unknown[]; level: number }) {
+  const [visibleCount, setVisibleCount] = useState<number>(JSON_VIEW_CONFIG.ARRAY_PREVIEW_LIMIT);
+  const visible = data.slice(0, visibleCount);
+  const remaining = data.length - visible.length;
+
+  return (
+    <span className="json-array">
+      [
+      {visible.map((item, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: arbitrary JSON array of primitives/objects with no stable id; position is the only available identity
+        <span key={i}>
+          <JsonView data={item} level={level + 1} />
+          {(i < visible.length - 1 || remaining > 0) && ', '}
+        </span>
+      ))}
+      {remaining > 0 && (
+        <button
+          type="button"
+          className="json-array-more"
+          onClick={() => setVisibleCount((count) => count + JSON_VIEW_CONFIG.ARRAY_EXPAND_STEP)}
+        >
+          show {Math.min(remaining, JSON_VIEW_CONFIG.ARRAY_EXPAND_STEP)} more ({remaining} left)
+        </button>
+      )}
+      ]
+    </span>
+  );
 }

@@ -125,6 +125,36 @@ jobs:
       - name: Unit tests
         run: uv run pytest -q
 
+  frontend:
+    name: Platform Frontend — lint + format + test + build (pnpm)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26.5.0"
+
+      - run: corepack enable pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
   docker:
     name: "Docker — build + Trivy scan (${{ matrix.image }})"
     runs-on: ubuntu-latest

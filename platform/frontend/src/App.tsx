@@ -6,10 +6,20 @@ import { TelemetryScene } from './components/scene/TelemetryScene';
 import { Sidebar } from './components/Sidebar';
 import { DemoToggle } from './components/ui/DemoToggle';
 import { InspectorPanel } from './components/InspectorPanel';
-import { AsyncState } from './components/ui';
+import { AsyncState, ErrorBoundary } from './components/ui';
 
 function AppContent() {
-  const { snapshot, topics, loading, error, retry, demoMode, setDemoMode } = useTelemetry();
+  const {
+    snapshot,
+    displaySnapshot,
+    topics,
+    loading,
+    error,
+    connected,
+    retry,
+    demoMode,
+    setDemoMode,
+  } = useTelemetry();
 
   return (
     <AsyncState
@@ -25,12 +35,23 @@ function AppContent() {
       }
     >
       <div className="shell">
+        {!connected && (
+          <div className="connection-banner" role="status">
+            Reconnecting to robot…
+          </div>
+        )}
         <div className="canvas-wrapper">
-          {snapshot && <TelemetryScene snapshot={snapshot} />}
+          <ErrorBoundary fallback={<div className="scene-error">3D scene failed to render</div>}>
+            {displaySnapshot && <TelemetryScene snapshot={displaySnapshot} />}
+          </ErrorBoundary>
           <DemoToggle />
         </div>
         <Sidebar />
-        <InspectorPanel topics={topics} />
+        <ErrorBoundary
+          fallback={<div className="inspector-error">Topic inspector failed to render</div>}
+        >
+          <InspectorPanel topics={topics} />
+        </ErrorBoundary>
       </div>
     </AsyncState>
   );
@@ -38,9 +59,13 @@ function AppContent() {
 
 function App() {
   return (
-    <TelemetryProvider>
-      <AppContent />
-    </TelemetryProvider>
+    <ErrorBoundary
+      fallback={<div className="app-fatal-error">Something went wrong. Please reload.</div>}
+    >
+      <TelemetryProvider>
+        <AppContent />
+      </TelemetryProvider>
+    </ErrorBoundary>
   );
 }
 
