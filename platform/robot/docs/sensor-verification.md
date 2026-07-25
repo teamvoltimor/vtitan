@@ -524,6 +524,93 @@ a worse failure mode than the current ~41ms latency. **Decision: reverted to 20H
 own process, separate from button+OLED — giving it a dedicated core — rather than raising
 `PUBLISHER_RATE_HZ` on the current shared-process setup. Not yet implemented.
 
+### Drive-motor characterisation on battery power (2026-07-25)
+
+First tests with the drive motor actually powered — it is wired **only** to the battery, so every
+prior session's "motor" testing had exercised the software path with no current reaching the motor
+at all. Run with `scripts/test-motors.py` (see below); all figures are `/motor/drive_speed` encoder
+feedback averaged over the steady-state portion of a 5s hold.
+
+#### Direction was inverted (fixed via config, not rewiring)
+
+A positive commanded speed drove the robot **backwards**. Fixed by setting
+`MOTOR_DRIVE__REVERSED=true` (note the double underscore — it is a nested pydantic-settings field;
+the single-underscore `MOTOR_REVERSE_DRIVE` named in the node's docstring never existed and was
+silently ignored. Docstring corrected). No rewiring needed. `.env.example` now ships `true`, since
+`.env` is gitignored and a fresh bootstrap would otherwise silently drive the robot in reverse.
+
+#### Deadband: nothing moves below ~0.7 m/s commanded
+
+Stepping upward from 0.02 m/s, **every** command from 0.02 through 0.6 m/s produced zero encoder
+movement; 0.7 m/s was the first to move the wheels. With `MOTOR_DRIVE__SPEED_SCALE=30.0` that is
+`int(0.7 * 30) = 21`, i.e. roughly a **21% duty-cycle stiction threshold**. Commands below this are
+not "slow", they are "nothing happens" — speed-control logic (navigator speed tables, any future
+PID) must treat sub-0.7 m/s as a dead command rather than a small one. 0.7 m/s itself is marginal
+and did not reliably sustain motion over a 5s hold; ~1.4 m/s was the lowest speed that moved
+dependably.
+
+#### Forward/reverse asymmetry: ~1.7x, and it is physical
+
+At *identical* 100% duty (3.5 m/s commanded, which clamps to the `MOTOR_DRIVE__MAX_SPEED=100` cap):
+
+| Direction | Mean       | Min    | Max    | Stdev | n   |
+|-----------|-----------|--------|--------|-------|-----|
+| Forward   | 336.6 deg/s | 252.3 | 486.8 | 40.2  | 370 |
+| Reverse   | 193.7 deg/s | 77.3  | 343.6 | 42.2  | 384 |
+
+The ~143 deg/s gap is >3x either sample's stdev, so it is not measurement noise. It is also **not**
+a software artifact: `SpeedEstimator.update()` (`src/hardware/motors/dc_encoder/control.py`) derives
+speed from a signed `delta = counts - prev_counts` with no direction-dependent branch. And it is not
+traction/weight-transfer, because the same asymmetry appeared in earlier **off-ground** runs
+(~1.5-1.65x there). Most likely cause is brush timing advance in the brushed DC motor (brushes
+optimised for one rotation direction), possibly compounded by gearbox drag.
+
+Practical consequence: **reverse is ~40% slower than forward for the same command.**
+`CoreNavigator`'s escape maneuvers (reverse bursts when stuck or too close to a wall) will travel
+correspondingly less than a symmetric model would predict.
+
+#### Known inconsistency: feedback sign vs command sign
+
+With `MOTOR_DRIVE__REVERSED=true`, `_ackermann_callback` negates the command sent to the hardware
+but `get_drive_speed()` still reports the encoder's raw *physical* direction — so commanding `+3.5`
+publishes `-346 deg/s`. Harmless today (nothing subscribes to `/motor/drive_speed`;
+`ROS2HardwareGateway` takes position from LIDAR and yaw from the IMU only), but it must be resolved
+before any consumer — telemetry, or the encoder-feedback ideas discussed for the navigator — relies
+on that topic, since an inverted feedback sign in a closed loop is a runaway.
+
+#### Measure steady-state, not a single sample
+
+The first version of `test-motors.py` reported one end-of-hold feedback sample and produced wildly
+inconsistent numbers (e.g. 48 deg/s at 2.8 m/s but 144 deg/s at 3.0 m/s). The signal is noisy enough
+(stdev ~40 deg/s) that a lone sample says almost nothing. The script now records every sample via
+the subscription callback, discards a `--spinup-s` acceleration window, and reports mean/min/max/
+stdev — which is what made the forward/reverse asymmetry above legible rather than looking like
+scatter.
+
+### `scripts/test-motors.py`
+
+Hardware smoke test driving the real `ackermann_motor_node` over ROS2, run **on Pi 5**
+(`pixi run -e dev test-motors`, or `python3 scripts/test-motors.py` for the flags below):
+
+- Steering sweep (left/center/right/center) checking `/motor/steering_position` converges to each
+  commanded angle. Safe with the robot stationary.
+- Drive hold at `--drive-speed` for `--drive-duration-s`, reporting steady-state statistics, then a
+  stop check. **Spins the wheels** — prompts for typed confirmation unless `--yes` is passed;
+  `--skip-drive` omits it.
+- `--find-min-speed` steps through `--min-speed-candidates` (ascending) and reports the first that
+  actually moves the motor — how the deadband above was found.
+
+Two gotchas it encodes, both learned the hard way:
+
+1. **The motor node has a 1s command watchdog.** A single publish followed by `sleep` lets the
+   watchdog fire mid-test and stop the motor ("No Ackermann commands received for 1.27s - stopping
+   motors for safety" in the journal, wheels never move). The drive hold republishes at 10Hz
+   throughout, like a real controller would.
+2. **Don't trust the first feedback message after a command.** The feedback topic streams
+   continuously, so the subscription queue can already hold pre-command samples the instant you
+   publish; reading the "next" message reports the *previous* state. The script spins until the
+   reading actually satisfies the expected condition instead.
+
 ## Template for future phases
 
 For each new sensor, document here: what bugs were found, what prerequisite gaps existed, and

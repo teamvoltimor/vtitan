@@ -26,17 +26,26 @@ Topics:
         - /motor/status (diagnostic_msgs/DiagnosticStatus) - Motor status diagnostics
 
 Environment Variables:
+    Note the DOUBLE underscore in the MOTOR_* names: they are nested
+    pydantic-settings fields (Config.steering / Config.drive), so the
+    delimiter is ``__``. ``MOTOR_DRIVE_REVERSED`` (single) is silently
+    ignored; it must be ``MOTOR_DRIVE__REVERSED``.
+
     STEERING_BACKEND: servo | build_hat (default: servo)
     DRIVE_BACKEND: dc_encoder | build_hat (default: dc_encoder)
-    MOTOR_STEERING_OFFSET: Steering center angle offset in degrees (default: 0.0)
-    MOTOR_REVERSE_DRIVE: Reverse drive motor direction (default: False)
-    MOTOR_MAX_SPEED: Maximum drive speed 0-100 (default: 50)
-    MOTOR_MAX_STEERING_ANGLE: Maximum steering angle in degrees (default: 45.0)
-    MOTOR_SPEED_SCALE: Scale factor for velocity to motor speed (default: 30.0)
+    MOTOR_STEERING__OFFSET: Steering center angle offset in degrees
+    MOTOR_STEERING__MAX_STEERING_ANGLE: Maximum steering angle in degrees
+    MOTOR_STEERING__REVERSED: Invert steering direction
+    MOTOR_DRIVE__REVERSED: Invert drive motor direction (true on this robot --
+        see .env.example and docs/sensor-verification.md)
+    MOTOR_DRIVE__MIN_SPEED / MOTOR_DRIVE__MAX_SPEED: Drive speed clamp
+    MOTOR_DRIVE__SPEED_SCALE: motor_speed = velocity_m_s * scale
+    See src.hardware.motors.config.Config for the full set and defaults.
+
     DC-encoder drive pins: MOTOR_PWM_PIN (ENB), MOTOR_IN3_PIN, MOTOR_IN4_PIN,
         MOTOR_ENCODER_A_PIN, MOTOR_ENCODER_B_PIN
     Servo steering: SERVO_* (see src.hardware.motors.servo.config.ServoConfig)
-    Build HAT (when selected): MOTOR_STEERING_PORT, MOTOR_DRIVE_PORT, ...
+    Build HAT (when selected): MOTOR_STEERING__PORT, MOTOR_DRIVE__PORT, ...
 """
 
 from __future__ import annotations
