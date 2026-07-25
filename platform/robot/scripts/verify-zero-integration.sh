@@ -92,8 +92,12 @@ fi
 
 # 4. ROS2 cross-board discovery
 step "4/5 ROS2 topic discovery"
+# ROS2/colcon setup scripts reference unset variables internally and are not
+# set -u safe, so disable it just for the source.
+set +u
 # shellcheck disable=SC1091
 source ros2_ws/install/setup.bash 2>/dev/null
+set -u
 topics="$(ROS_DOMAIN_ID=0 timeout 8 ros2 topic list 2>/dev/null || true)"
 for t in /ackermann_cmd /motor/steering_position /motor/drive_speed /button/event; do
   if echo "$topics" | grep -qxF "$t"; then

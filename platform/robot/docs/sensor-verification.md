@@ -428,6 +428,97 @@ holding steady state), sampled ~19 minutes after boot on the Pi Zero 2 W's
   but worth re-checking once the full stack (LIDAR + vision + navigation) is
   running on the same board simultaneously.
 
+### USB-gadget link: end-to-end verification (`verify-zero-integration.sh`)
+
+Run **on Pi 5** via `bash scripts/verify-zero-integration.sh` (or `pixi run -e dev
+verify-zero-integration`), after bootstrap + deploy have shipped code to the Zero and its service is
+running. Checks, in order: SSH reachability over both the USB-gadget IP (`192.168.250.1`) and WiFi;
+`usb0` carrier state, ping, and `dmesg` for `cdc_ether` TX-watchdog faults; the systemd service's
+active/enabled state and `--as-is` `ExecStart`; ROS2 topic discovery across the two boards; and a
+real `AckermannDriveStamped` publish → motor driver → feedback round-trip (safe with motors
+unpowered — it only checks the software position-tracking value, not physical motion).
+
+#### Bug found and fixed
+
+**`set -uo pipefail` + sourcing `ros2_ws/install/setup.bash` kills the whole script.** ROS2/colcon's
+generated setup scripts reference unset variables internally and are not `set -u` safe — sourcing
+one under `-u` throws an "unbound variable" error that terminates the entire script immediately,
+silently, with no useful output (looks exactly like the script hanging, not erroring). Fixed by
+wrapping just the `source` line in `set +u` / `set -u`. Any script in this repo that sources a ROS2
+setup file needs the same guard if it also uses `set -u`.
+
+#### Isolating "over USB" from "over WiFi" — the duplicate-node false alarm
+
+Both boards can have `usb0` and `wlan0` up simultaneously, which makes it easy to *think* something
+is working over USB when WiFi is silently carrying the traffic instead. Two things worth knowing:
+
+- **To actually prove USB-only operation**, disable WiFi on the Zero (`sudo nmcli radio wifi off`)
+  and re-run discovery — don't just trust that the USB path "looks" reachable while WiFi is also up.
+  All topics (`/ackermann_cmd`, `/motor/*`, `/button/event`, `/ui/oled_mirror`, etc.) stayed fully
+  discoverable and functional with the Zero's WiFi fully off, confirming the ROS2 graph genuinely
+  works over the USB-gadget link alone, not just alongside WiFi.
+- **`ros2 node list` showing `/pi_zero_node` three times, with a "nodes share an exact name"
+  warning, is a DDS multi-locator discovery artifact, not three real processes** — this persisted
+  even with the Zero's WiFi off, because the *Pi 5* side still had both `usb0` and `wlan0` active,
+  so CycloneDDS advertises/discovers the same single participant via multiple network paths. Verify
+  with `ps aux | grep pi_zero_node` (one PID) and `ros2 topic info <topic> --verbose` (publisher
+  count: 1, one `Node name` entry) before assuming duplicate nodes are actually publishing
+  duplicate/racing messages — they aren't; `ros2 topic hz` on affected topics showed a single clean
+  steady rate with no doubling.
+
+#### Measured latency
+
+- Raw USB-gadget link (ICMP ping, Pi 5 → Zero): **avg 0.22ms, min 0.15ms, max 0.28ms**, 0% loss over
+  20 pings — effectively negligible for control-loop purposes.
+- ROS2-level round-trip (publish `/ackermann_cmd` → observe the matching value land on
+  `/motor/steering_position`, averaged over 5 distinct steering angles) at the default 20Hz feedback
+  rate: **avg 41.15ms, min 22.12ms, max 60.57ms**. The gap between this and the raw ping time
+  confirms the bottleneck is the motor node's own feedback publish cadence, not the USB transport.
+
+### `AckermannMotorNode` owns both steering and drive
+
+`ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers/motors/ackermann_motor_node.py`'s
+`AckermannMotorNode` is a single node/process responsible for **both** the steering servo
+(`self.steering`) and the drive motor (`self.drive`), each independently backend-configurable
+(`steering_backend`, `drive_backend` params). One shared `_publish_feedback` timer, running at
+`PUBLISHER_RATE_HZ` (module constant, default `20.0`), publishes both `/motor/steering_position` and
+`/motor/drive_speed` together — bumping that one constant affects both feedback streams at once. On
+the BuildHAT backend specifically, a single `CombinedDriver` object satisfies both the
+`SteeringDriver` and `DriveDriver` interfaces, so steering and drive can be literally the same
+underlying hardware object accessed through two different type interfaces.
+
+### Feedback-rate tuning: CPU/latency tradeoff (tested, not currently adopted)
+
+`pi_zero_node` already runs `ackermann`/`button`/`oled` under one `MultiThreadedExecutor`
+(`pi_zero_node.py`) rather than a single-threaded spin — each node gets its own default callback
+group, so e.g. a slow OLED I2C write can't block the motor feedback timer. This gives real
+concurrency for I/O-bound hardware calls (most driver-level GPIO/I2C/serial calls release the GIL
+while blocked on the bus), but **not** genuine CPU-bound multicore parallelism — it's still one
+Python process/one GIL, so pure-Python compute across all three sub-nodes is still serialized
+regardless of the Zero 2 W's 4 cores. True multicore parallelism would require splitting back into
+separate OS processes, which is exactly what the `pi_zero_node` merge undid (fewer DDS participants,
+one systemd unit, simpler ops) — not worth reverting unless a specific sub-node becomes CPU-starved.
+
+Measured on live hardware, `PUBLISHER_RATE_HZ` 20 vs 30 (steady-state, `pi_zero_node` idle otherwise):
+
+| Metric                      | 20Hz (default)      | 30Hz                |
+|------------------------------|---------------------|----------------------|
+| CPU (`pi_zero_node` process) | ~50% of one core     | ~78% of one core      |
+| Round-trip latency avg       | 41.15ms              | 28.45ms (-31%)        |
+| Round-trip latency max       | 60.57ms              | 49.01ms (-19%)        |
+
+CPU scales roughly linearly with the rate. 30Hz leaves only ~22% headroom on that core, which is
+shared with button and OLED callback threads — under real competition load (driving + button
+presses + OLED refresh concurrently) this is close enough to saturation to risk jitter or a delayed
+watchdog check (`_watchdog_check` runs on a fixed 500ms timer looking for stale commands), which is
+a worse failure mode than the current ~41ms latency. **Decision: reverted to 20Hz for now** — the
+~30% latency win isn't worth the headroom risk without also splitting the motor node out.
+
+**If lower feedback latency is needed later**, the concrete next step is splitting
+`AckermannMotorNode` (steering+drive, since they're already merged as one responsibility) into its
+own process, separate from button+OLED — giving it a dedicated core — rather than raising
+`PUBLISHER_RATE_HZ` on the current shared-process setup. Not yet implemented.
+
 ## Template for future phases
 
 For each new sensor, document here: what bugs were found, what prerequisite gaps existed, and
