@@ -109,9 +109,9 @@ Originally recorded here as "not the cause", on the grounds that toggling
 compared only the *collision* count. Collisions are not the only way a run
 fails. Toggling the flag swaps one failure mode for another — the totals stayed
 flat while the behaviour changed completely. See
-"Router vs. collision-controller conflict" below, which is now the leading
-blocker. When judging a change here, always report collisions, laps completed
-and timeouts together; any one of them alone hides the others.
+"Router vs. collision-controller conflict" below for what that flag actually
+trades off. When judging a change here, always report collisions, laps
+completed, timeouts and success together; any one alone hides the others.
 
 ## What the numbers actually show
 
@@ -238,7 +238,7 @@ levers are exhausted — lookahead, speed, offset, arc radius and clamp have all
 been swept and are at their optima. Note the 7/16 headline counts collisions
 only; see below for what the same runs do instead of colliding.
 
-## Router vs. collision-controller conflict (leading blocker)
+## Router vs. collision-controller conflict (real, but NOT the blocker)
 
 Two subsystems hold incompatible assumptions about how close the robot may
 legitimately come to a traffic sign.
@@ -274,12 +274,43 @@ Both fail all 16, differently. Perception is doing its job — seeing signs is w
 cuts collisions from 16 to 7. The defect is that the escape logic converts
 "legitimately close" into a deadlock instead of a controlled squeeze.
 
-Fixing this by loosening `contact_dist` is not safe: 0.10 m is the chassis
-half-width, so lowering it invites real wall contact. The principled fix is to
-make the escape path aware that a *known, expected* sign the router is actively
-routing past is not an emergency — the collision controller currently cannot
-distinguish it from an unmodelled wall. That spans two controllers and is a
-design change, not a constant.
+### Resolving the conflict does NOT help — tested
+
+The obvious fixes were prototyped. Both clear the deadlock and both make the
+outcome worse, because **the escape maneuver was the only thing preventing those
+collisions**, not a spurious panic.
+
+Lowering `contact_dist` (the escape trigger):
+
+| `CONTACT_DIST` | Collisions | Completed 3 laps | Timeouts |
+|---|---|---|---|
+| 0.10 (current) | 7/16 | 0/16 | 9/16 |
+| 0.07 | 15/16 | 5/16 | 0/16 |
+| 0.05 | 11/16 | 5/16 | 0/16 |
+| 0.03 | 13/16 | 5/16 | 0/16 |
+
+Sign-aware escape suppression — skip the escape maneuver when the near obstacle
+is a known sign the router is actively routing past, keeping the 0.10 m guard
+for walls. This is the "principled" fix this section previously recommended:
+
+| Suppression radius | Collisions | Completed 3 laps | Timeouts | **Success** |
+|---|---|---|---|---|
+| 0 (off) | 7/16 | 0/16 | 9/16 | **0/16** |
+| 0.30 m | 14/16 | 5/16 | 0/16 | **0/16** |
+| 0.40 m | 14/16 | 5/16 | 0/16 | **0/16** |
+| 0.50 m | 14/16 | 5/16 | 0/16 | **0/16** |
+
+**Success is 0/16 in every configuration**, including every tuning combination
+tried elsewhere in this document. The deadlock is a *symptom*: the commanded
+trajectory genuinely aims into the sign, the collision controller catches it at
+the last moment, and with nowhere to go it oscillates. Remove the catch and the
+robot simply hits the sign instead.
+
+So this conflict is real and worth knowing about, but it is **not** the blocker —
+fixing it in isolation buys nothing. Loosening `contact_dist` is separately
+unsafe anyway: 0.10 m is the chassis half-width, so lowering it invites real wall
+contact. The trajectory has to stop aiming at the sign in the first place; only
+then does escape behaviour matter.
 
 ## Architectural context
 
@@ -294,15 +325,15 @@ physical robot** — these are not simulation artifacts.
 Done: obstacles tuning profile (`NavigationTuning.for_obstacles()`, lookahead
 0.12/0.24 + 0.30 m/s) and the half-diagonal clamp.
 
-1. **Resolve the router/collision-controller conflict** — the leading blocker,
-   and the reason 9/16 runs now deadlock. The escape path needs to treat a sign
-   the router is deliberately passing differently from an unmodelled obstacle.
-   Everything below is likely blocked behind this, since a robot that cannot
-   complete a lap cannot exercise the rest.
-2. Corner-adjacent avoidance beginning *during* the preceding arc, for the
-   depth-1.0/2.0 signs that straight-segment tuning cannot reach. Note
-   path-level deformation has already failed this twice — a different approach
-   is needed, not another iteration of that one.
+1. **Corner-adjacent avoidance beginning *during* the preceding arc**, for the
+   depth-1.0/2.0 signs that straight-segment tuning cannot reach. This is the
+   actual blocker: the commanded trajectory aims into those signs, and every
+   downstream symptom (deadlock, collision) follows from that. Note path-level
+   deformation has already failed twice — a different approach is needed, not
+   another iteration of that one.
+2. Do NOT spend further effort on the escape/collision-controller conflict on its
+   own; it is measured above and fixing it in isolation yields success 0/16.
+   Revisit only once trajectories actually clear the signs.
 3. Only then revisit the steering law, with retuned lookahead and a plan for the
    Open Challenge deviation-recovery regressions.
 
