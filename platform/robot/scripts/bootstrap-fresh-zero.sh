@@ -19,6 +19,9 @@
 #   6b. Map the hardware PWM overlay onto the servo pin, so the steering servo
 #      is driven by the SoC peripheral instead of gpiozero's jittery software
 #      PWM (see the step's inline comment and docs/sensor-verification.md)
+#   6c. Configure the USB-gadget link to Pi 5 (dwc2 + g_ether + fixed MACs +
+#      a static usb0 profile) -- the competition-critical path, since WiFi may
+#      not be available at the venue. A fresh flash sets up none of it.
 #   7. Template and install the voldemorbot-pi-zero.service systemd unit
 #      (left DISABLED -- confirm it works standalone first, see
 #      docs/sensor-verification.md's Pi Zero deployment section)
@@ -45,6 +48,11 @@ SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
 # Must match SERVO_GPIO_PIN in .env -- the overlay decides which pin the PWM
 # peripheral drives, and the driver just opens the resulting pwmchip channel.
 SERVO_PWM_PIN="${SERVO_PWM_PIN:-12}"
+# USB-gadget link addressing. Fixed MACs so NetworkManager sees the same device
+# across reboots; the .1/.2 split matches ZERO_HOST's default above.
+ZERO_USB_IP="${ZERO_USB_IP:-192.168.250.1}"
+ZERO_USB_MAC="${ZERO_USB_MAC:-02:00:00:00:ce:01}"
+PI5_USB_MAC="${PI5_USB_MAC:-02:00:00:00:ce:02}"
 
 log() { echo "[bootstrap-fresh-zero] $*"; }
 
@@ -100,6 +108,38 @@ log "6b/7 Enabling hardware PWM on the servo pin (GPIO $SERVO_PWM_PIN)"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo sed -i '/^dtoverlay=pwm\(-2chan\)\?\(,\|\$\)/d' /boot/firmware/config.txt
   echo 'dtoverlay=pwm,pin=$SERVO_PWM_PIN,func=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
+"
+
+log "6c/7 Configuring the USB-gadget (Ethernet-over-USB) link to Pi 5"
+# This is the competition-critical path: WiFi may not be available at the
+# venue, so Pi 5 <-> Zero ROS2 traffic has to work over the USB cable alone.
+# A fresh Raspberry Pi Imager flash does NOT set any of this up, and losing it
+# is silent -- the Zero simply never appears on 192.168.250.1.
+#
+# Four separate pieces, all required:
+#   - dtoverlay=dwc2      : put the USB controller in a mode that can act as a
+#                           peripheral at all (a stock image leaves it host-only)
+#   - modules-load=...    : load dwc2 + g_ether from initramfs, early enough that
+#                           the host sees the gadget on its first enumeration
+#   - fixed MACs          : without these the gadget gets a random MAC each boot,
+#                           so NetworkManager treats it as a new device and the
+#                           static profile below never binds
+#   - static usb0 profile : the link is point-to-point with no DHCP server on it
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
+  grep -qxF 'dtoverlay=dwc2' /boot/firmware/config.txt \
+    || echo 'dtoverlay=dwc2' | sudo tee -a /boot/firmware/config.txt >/dev/null
+
+  # cmdline.txt must stay a SINGLE line -- appending a newline makes the kernel
+  # silently ignore everything after it, including rootwait.
+  grep -q 'modules-load=dwc2,g_ether' /boot/firmware/cmdline.txt \
+    || sudo sed -i 's/\$/ modules-load=dwc2,g_ether/' /boot/firmware/cmdline.txt
+
+  echo 'options g_ether dev_addr=$ZERO_USB_MAC host_addr=$PI5_USB_MAC' \
+    | sudo tee /etc/modprobe.d/g_ether.conf >/dev/null
+
+  sudo nmcli connection show usb0 >/dev/null 2>&1 || sudo nmcli connection add \
+    type ethernet ifname usb0 con-name usb0 \
+    ipv4.method manual ipv4.addresses '$ZERO_USB_IP/24' ipv6.method disabled
 "
 
 log "7/7 Templating and installing the systemd service unit (left DISABLED)"

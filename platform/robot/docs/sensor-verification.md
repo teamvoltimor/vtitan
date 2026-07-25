@@ -587,6 +587,31 @@ the subscription callback, discards a `--spinup-s` acceleration window, and repo
 stdev — which is what made the forward/reverse asymmetry above legible rather than looking like
 scatter.
 
+### Steering servo jitter -- fixed by moving to hardware PWM (2026-07-25)
+
+The servo twitched continuously, including while holding a fixed angle. Bisected on hardware by
+elimination: it persisted with a **single** command and zero PWM rewrites (ruling out command
+traffic), and on a **fresh battery** (ruling out supply sag). Cause was gpiozero's pin factory --
+the Zero resolves to `LGPIOFactory`, whose `PWMOutputDevice` generates the pulse train in software,
+so kernel scheduling jitter lands straight on the servo's pulse width. No pin choice fixes that;
+gpiozero never touches the SoC PWM peripheral here.
+
+Fixed by rewriting the driver onto `/sys/class/pwm` and pointing the overlay at the servo's pin.
+The overlay was `pwm-2chan` with no parameters, which defaults to GPIO 18/19 -- pins nothing on this
+robot uses -- while the servo sits on GPIO 12, so both hardware channels were idle. Now
+`dtoverlay=pwm,pin=12,func=4` (`func=4` is ALT0, GPIO 12's PWM function), applied by
+`bootstrap-fresh-zero.sh`. Single-channel deliberately: the two-channel variant's second pin would
+claim GPIO 13, which the drive motor uses via gpiozero, and a DC motor is indifferent to PWM jitter.
+
+**Confirmed fixed on hardware** -- the servo now holds a commanded angle steady. Steering travel was
+also verified across the full range in both directions, and the direction convention is correct
+(positive = left, per REP-103), so `SERVO_REVERSED` stays `false`.
+
+Access is group-based, not root: Raspberry Pi OS's `99-com.rules` chgrps `/sys/class/pwm` to `gpio`
+and the service user is in that group. The driver fails loudly if the overlay is missing rather than
+falling back to software PWM, so a re-flash that loses the config surfaces as an error instead of
+silently reintroducing the twitch.
+
 ### USB-gadget link is intermittent across Zero reboots (2026-07-25)
 
 The `cdc_ether` TX-watchdog failure is **not** a cable, power, or config fault, despite looking like
