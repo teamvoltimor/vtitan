@@ -312,6 +312,61 @@ unsafe anyway: 0.10 m is the chassis half-width, so lowering it invites real wal
 contact. The trajectory has to stop aiming at the sign in the first place; only
 then does escape behaviour matter.
 
+## Lane planning — tried, marginal
+
+The trajectory has to be in the correct lane *before* the corner, so avoidance
+cannot start inside the corridor. Two versions were prototyped.
+
+**Feasibility first — the maneuver is provably possible.** For a red sign at
+(1.0, 0.4) approached from the west corridor, with Ackermann minimum turn radius
+0.329 m:
+
+* required south-corridor lane: `y = 0.195` (0.205 m corner-on clearance)
+* wall limit: `y >= 0.140` -> feasible, 5.5 cm to spare
+* starting the 90-degree arc anywhere in `x = 0.30-0.50` exits at
+  `x = 0.63-0.83`, leaving 0.17-0.37 m of straight run before the sign
+
+So the geometry is not the obstacle. The planner simply never produces this path.
+
+**Version 1 (wrong).** Shifted only the straight-segment waypoints onto the
+chosen lane and left the corner arcs alone, on the assumption that the arcs
+already terminate on the lanes they join. They do not — they terminate on the
+corridor *centrelines*, so this injected a lateral step at every arc/straight
+junction. Unfollowable: 0/16 completed a lap, 14-16/16 collided.
+
+**Version 2 (correct construction).** The whole path is determined by four
+numbers — `north_cy`, `south_cy`, `east_cx`, `west_cx` — and the arc ICRs are
+derived from them (`sw_icr = (west_cx + r, south_cy + r)`). Rebuilding the path
+with sign-derived lanes therefore moves straights *and* arcs together, with no
+discontinuity:
+
+| Config | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| lane 0.20, runtime router on | 12/16 | 0/16 | 0/16 |
+| lane 0.20, router off | 14/16 | 2/16 | 1/16 |
+| lane 0.28, router off | 14/16 | **3/16** | 0/16 |
+
+Better than nothing (0/16 -> 3/16 completing a lap) but nowhere near enough. Note
+the runtime router is actively *harmful* once lanes are planned — the two
+deformations compound.
+
+### Why it still fails: reliability has to compound
+
+A lap crosses roughly 4-6 signs. Completing one needs per-sign success chained:
+at ~75% per sign, a lap is ~0.75^5 ~ 24%, which matches the observed 3/16. To
+finish three laps reliably each sign needs >95%.
+
+With +-6.7 cm of slack and 11.7 cm peak cross-track error, per-sign reliability
+cannot get there. **Tracking accuracy is the binding constraint** — the same
+conclusion reached from the geometry early on, now confirmed from the other
+direction. Lane planning removes the *timing* excuse (the robot is in the right
+lane on corridor entry) and the failures persist, which isolates tracking as the
+remaining variable.
+
+Closing this needs a genuinely better path tracker. The obvious candidate, true
+pure pursuit, is measured above: it regressed the Open Challenge and did not help
+here. That makes this a real piece of control work, not a tuning pass.
+
 ## Architectural context
 
 `CoreNavigator` is shared by both challenges; they diverge only by which
