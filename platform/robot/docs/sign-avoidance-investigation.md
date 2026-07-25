@@ -100,9 +100,18 @@ Prototyped shifting the waypoint path itself perpendicular to the local tangent
 path is genuinely clean — clears every sign by 0.28-0.47m at offset 0.30 — yet
 the sim still collided 15/16.
 
-### LIDAR-visible signs confusing the collision controller — not the cause
+### LIDAR-visible signs confusing the collision controller — SUPERSEDED
 
-Tested with `lidar_sees_obstacles` on and off: 15/16 either way.
+Originally recorded here as "not the cause", on the grounds that toggling
+`lidar_sees_obstacles` gave 15/16 either way.
+
+**That conclusion was wrong**, and the error is worth keeping visible: it
+compared only the *collision* count. Collisions are not the only way a run
+fails. Toggling the flag swaps one failure mode for another — the totals stayed
+flat while the behaviour changed completely. See
+"Router vs. collision-controller conflict" below, which is now the leading
+blocker. When judging a change here, always report collisions, laps completed
+and timeouts together; any one of them alone hides the others.
 
 ## What the numbers actually show
 
@@ -223,11 +232,54 @@ inner/outer-lane signs — `test_sign_router.py` expectations now mirror that.
   runway before a corner-adjacent sign. `ARC_RADIUS` 0.45 (current) is already
   best: 0.40 -> 13/16, 0.36 -> 10/16, 0.33 -> 12/16.
 
-**Status: improved 16/16 -> 7/16, not solved.** The remaining failures are still
-concentrated on corner-boundary signs (depth 1.0/2.0). Tuning levers are
-exhausted — lookahead, speed, offset, arc radius and clamp have all been swept
-and are at their optima. What remains needs corner-adjacent avoidance to begin
-*during* the preceding arc, which no straight-segment parameter can supply.
+**Status: improved 16/16 -> 7/16 on collisions, not solved.** The remaining
+failures are still concentrated on corner-boundary signs (depth 1.0/2.0). Tuning
+levers are exhausted — lookahead, speed, offset, arc radius and clamp have all
+been swept and are at their optima. Note the 7/16 headline counts collisions
+only; see below for what the same runs do instead of colliding.
+
+## Router vs. collision-controller conflict (leading blocker)
+
+Two subsystems hold incompatible assumptions about how close the robot may
+legitimately come to a traffic sign.
+
+* `SignRouter` **deliberately** routes past a sign at ~0.20 m centre-to-centre,
+  which is ~0.175 m from the sign's surface. That gap is the entire mechanism —
+  `lateral_offset` exists to produce it, and the corridor has no room for more
+  (see the offset sweep above).
+* `CollisionAvoidanceController.assess_risk` returns `CRITICAL` when the nearest
+  range in the forward path drops below `contact_dist` (0.10 m), which triggers
+  a reversing escape maneuver. The forward path is a corridor of `path_margin`
+  (0.10 m) either side of the heading.
+
+While the robot is **turning** past a corner-adjacent sign, the sign sweeps into
+that forward corridor. The collision controller reads a critical threat and
+reverses — out of a gap the router aimed for on purpose. The robot re-approaches,
+panics again, and oscillates until the run times out.
+
+Observed on `go_obstacles_0000`: the robot wedges at (0.44, 1.10) and again at
+(0.84, 0.30), each **0.19 m from a sign** ((0.6, 1.0) and (1.0, 0.4)), thrashing
+forward/reverse for 500+ ticks with `laps=0` until the 200 s cap. The repeated
+`Robot stuck - triggering escape` log is this loop, **not** a ParkController
+problem — parking never engages, because no lap ever completes.
+
+Toggling `lidar_sees_obstacles` trades one failure mode for the other:
+
+| `lidar_sees_obstacles` | Collisions | Completed 3 laps | Timeouts |
+|---|---|---|---|
+| True (current default) | 7/16 | 0/16 | 9/16 |
+| False | 16/16 | 5/16 | 0/16 |
+
+Both fail all 16, differently. Perception is doing its job — seeing signs is what
+cuts collisions from 16 to 7. The defect is that the escape logic converts
+"legitimately close" into a deadlock instead of a controlled squeeze.
+
+Fixing this by loosening `contact_dist` is not safe: 0.10 m is the chassis
+half-width, so lowering it invites real wall contact. The principled fix is to
+make the escape path aware that a *known, expected* sign the router is actively
+routing past is not an emergency — the collision controller currently cannot
+distinguish it from an unmodelled wall. That spans two controllers and is a
+design change, not a constant.
 
 ## Architectural context
 
@@ -239,10 +291,31 @@ physical robot** — these are not simulation artifacts.
 
 ## Next steps
 
-1. Lookahead sweep 0.12-0.18, landed as an obstacles tuning profile.
-2. Set speed 0.25-0.30 m/s for hardware realism.
+Done: obstacles tuning profile (`NavigationTuning.for_obstacles()`, lookahead
+0.12/0.24 + 0.30 m/s) and the half-diagonal clamp.
+
+1. **Resolve the router/collision-controller conflict** — the leading blocker,
+   and the reason 9/16 runs now deadlock. The escape path needs to treat a sign
+   the router is deliberately passing differently from an unmodelled obstacle.
+   Everything below is likely blocked behind this, since a robot that cannot
+   complete a lap cannot exercise the rest.
+2. Corner-adjacent avoidance beginning *during* the preceding arc, for the
+   depth-1.0/2.0 signs that straight-segment tuning cannot reach. Note
+   path-level deformation has already failed this twice — a different approach
+   is needed, not another iteration of that one.
 3. Only then revisit the steering law, with retuned lookahead and a plan for the
    Open Challenge deviation-recovery regressions.
+
+Unrelated but adjacent, found while doing the above: `tuning_profiles/*.json`
+cannot be loaded at all (lowercase JSON keys vs uppercase dataclass fields), so
+every profile file in that directory is currently dead.
+
+## Measuring changes here
+
+Report **collisions, laps completed and timeouts together**. The
+`lidar_sees_obstacles` mistake above came from tracking collisions alone, which
+stayed flat while the actual behaviour inverted. A drop in collisions can simply
+mean the robot stopped moving.
 
 ## Open questions
 
@@ -250,4 +323,7 @@ physical robot** — these are not simulation artifacts.
   or does the pass-side rule need re-checking for that case?
 - Signs and the chassis are both 0.10m tall, so a deck-mounted C1 scans at their
   top edge; real LIDAR detection is marginal and the camera may be the only
-  reliable sensor. `lidar_sees_obstacles` exists to model both cases.
+  reliable sensor. `lidar_sees_obstacles` exists to model both cases. If the real
+  LIDAR turns out not to see signs, the conflict above becomes moot in hardware
+  and the camera/Hailo path carries sign avoidance alone — worth settling on the
+  bench before investing in a fix.
