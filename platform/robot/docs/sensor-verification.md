@@ -587,6 +587,39 @@ the subscription callback, discards a `--spinup-s` acceleration window, and repo
 stdev — which is what made the forward/reverse asymmetry above legible rather than looking like
 scatter.
 
+### USB-gadget link is intermittent across Zero reboots (2026-07-25)
+
+The `cdc_ether` TX-watchdog failure is **not** a cable, power, or config fault, despite looking like
+all three. Established by elimination on hardware:
+
+- **Not config.** `config.txt` diffed clean against a pre-edit backup; both sides had matching
+  subnet, distinct MACs, `LOWER_UP` carrier, `g_ether` loaded, offloads already disabled.
+- **Not signal integrity / speed fallback.** The `new full-speed ... new high-speed` pairs in
+  `dmesg` are ordinary USB enumeration (devices chirp up to high-speed after connecting), not
+  degradation. The link sat at **high-speed for the entire 24-minute failure window**.
+- **Not power.** `vcgencmd get_throttled` reported `0x0` -- no undervoltage, no throttling -- even
+  with the Zero drawing its power through the same micro-USB port carrying the data.
+- **Not the port.** Already on a Pi 5 USB 2.0 port.
+
+What it actually is: the gadget link comes up either working or dead, decided at enumeration time,
+and each power-cycle re-rolls it. Same `config.txt`, same cable, same port -- dead after one boot,
+0.3 ms round-trip after the next.
+
+**A soft `reboot` is the bad case.** `shutdown -r now` re-initialises the gadget without the host
+seeing a true disconnect/reconnect, and dwc2 does not reliably recover from that -- the link
+enumerates, reports carrier, and silently passes no traffic in either direction (both sides' ARP
+stays `INCOMPLETE`/`FAILED`). A full power-cycle recovered it every time.
+
+Practical rule: **after any Zero reboot, run `verify-zero-integration.sh`. If the USB link is dead,
+power-cycle the Zero rather than rebooting it again.** Note the Zero is currently powered *through*
+the Pi 5's USB port, so "power-cycle" means unplugging that cable -- which is a hard power cut, so
+shut the Zero down cleanly first (`ZERO_HOST=<wifi-ip> bash scripts/safe-shutdown-zero.sh`, since
+the USB path is by definition unusable at that point).
+
+Things tried that did **not** help, so don't burn time on them again: `ethtool -K usb0 tx off rx off
+tso off gso off gro off`, bouncing `usb0` down/up, reloading `g_ether` on the Zero, and dropping MTU
+to 1000 on both sides.
+
 ### `scripts/test-motors.py`
 
 Hardware smoke test driving the real `ackermann_motor_node` over ROS2, run **on Pi 5**

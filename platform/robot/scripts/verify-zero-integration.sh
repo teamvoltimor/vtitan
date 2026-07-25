@@ -70,11 +70,19 @@ if ping -c 3 -W 3 192.168.250.1 >/dev/null 2>&1; then
 else
   bad "Zero does NOT answer ping on USB-gadget IP -- link is up but not passing traffic"
 fi
-recent_watchdog="$(dmesg 2>/dev/null | grep -c 'cdc_ether.*NETDEV WATCHDOG' || true)"
+# Only count watchdog entries from the CURRENT link session. The gadget link
+# is intermittent across Zero reboots -- a dead one leaves a burst of these in
+# the ring buffer, and grepping all of dmesg then reports a long-since-fixed
+# fault forever (seen: 97 stale entries flagged while the link was demonstrably
+# passing traffic at 0.3ms). journalctl -k --since gives a real time window;
+# dmesg's own timestamps are seconds-since-boot and awkward to compare.
+WATCHDOG_WINDOW="${WATCHDOG_WINDOW:-5 minutes ago}"
+recent_watchdog="$(journalctl -k --since "$WATCHDOG_WINDOW" --no-pager 2>/dev/null \
+  | grep -c 'cdc_ether.*NETDEV WATCHDOG' || true)"
 if [ "$recent_watchdog" -gt 0 ]; then
-  bad "Found $recent_watchdog cdc_ether NETDEV WATCHDOG (TX timeout) entries in dmesg -- link-layer fault, not a config issue"
+  bad "Found $recent_watchdog cdc_ether NETDEV WATCHDOG (TX timeout) entries since '$WATCHDOG_WINDOW' -- link-layer fault, not a config issue"
 else
-  ok "No cdc_ether NETDEV WATCHDOG entries in dmesg"
+  ok "No cdc_ether NETDEV WATCHDOG entries since '$WATCHDOG_WINDOW'"
 fi
 
 # 3. systemd service state on the Zero
