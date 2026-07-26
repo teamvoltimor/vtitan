@@ -123,3 +123,22 @@ class NodeHealth(StrEnum):
             raise ValueError(
                 f"Invalid node health: {value!r}. Expected one of {options}"
             ) from err
+
+
+# The class ids the retrained GMR traffic-sign detector emits, in the order the
+# checkpoint itself declares them. Confirmed by running the checkpoint over the
+# per-class image folders: green_prism images predict green, red_prism predict
+# red. This is the single source of truth for that order.
+#
+# Do NOT take it from auto-annotator's data.yaml, which says (red, green,
+# magenta) and is stale -- its `path` points at an archived directory. Consuming
+# the HEF with that order swaps red and green, inverting the WRO pass-side rule
+# on every obstacle, and nothing about it fails loudly.
+#
+# Regenerate after retraining with:
+#   python -c "import onnx; print(onnx.load('hailo/data/gmr.onnx').metadata_props)"
+GMR_CLASS_NAMES: dict[int, str] = {
+    0: "green",
+    1: "magenta",
+    2: "red",
+}

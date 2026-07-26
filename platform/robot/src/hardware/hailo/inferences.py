@@ -2,11 +2,99 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple
 
+import numpy as np
+
 if TYPE_CHECKING:
-    import numpy as np
+    from collections.abc import Iterator
 
 _BATCHED_NMS_TENSOR_NDIM = 4
 """Rank of a Hailo NMS output tensor that still carries its batch dimension."""
+
+_BOX_FIELDS = 5
+"""Values per NMS box: ``[y_min, x_min, y_max, x_max, confidence]``."""
+
+_NMS_TENSOR_NDIM = 3
+"""Rank of a by-class NMS tensor once any batch dimension is stripped."""
+
+Detection = tuple[int, float, tuple[float, float, float, float]]
+
+
+class NmsFormatError(ValueError):
+    """Raised when an NMS output tensor has no recognised by-class layout."""
+
+
+def _unpack(class_id: int, box: np.ndarray) -> Detection:
+    """Return one box as ``(class_id, confidence, corners)``."""
+    return class_id, float(box[4]), (float(box[0]), float(box[1]), float(box[2]), float(box[3]))
+
+
+def _as_boxes_last(tensor: np.ndarray) -> np.ndarray:
+    """Normalise a by-class tensor to ``(n_classes, n_boxes, 5)``.
+
+    Raises:
+        NmsFormatError: When no axis holds the five box fields.
+    """
+    if tensor.ndim == _BATCHED_NMS_TENSOR_NDIM and tensor.shape[0] == 1:
+        tensor = tensor[0]
+
+    if tensor.ndim != _NMS_TENSOR_NDIM:
+        msg = f"Expected a {_NMS_TENSOR_NDIM}-D NMS-by-class tensor, got shape {tensor.shape}."
+        raise NmsFormatError(msg)
+
+    # Prefer the boxes-last reading; fall back to the emulator's transposed one.
+    if tensor.shape[-1] == _BOX_FIELDS:
+        return tensor
+    if tensor.shape[1] == _BOX_FIELDS:
+        return tensor.transpose(0, 2, 1)
+
+    msg = f"NMS tensor {tensor.shape} has no axis of {_BOX_FIELDS} box fields."
+    raise NmsFormatError(msg)
+
+
+def _iter_per_class_sequence(sequence: list | tuple) -> Iterator[Detection]:
+    """Yield boxes from one variable-length array per class."""
+    for class_id, boxes in enumerate(sequence):
+        array = np.asarray(boxes)
+        if array.size == 0:
+            continue
+        for box in array.reshape(-1, array.shape[-1]):
+            yield _unpack(class_id, box)
+
+
+def iter_nms_by_class(raw_output: object) -> Iterator[Detection]:
+    """Yield ``(class_id, confidence, (ymin, xmin, ymax, xmax))`` from NMS output.
+
+    The GMR HEF's output is ``HAILO NMS BY CLASS``: class identity is
+    *positional*, and each box carries only five values, so there is no class-id
+    column to read. HailoRT reports this in several shapes depending on version
+    and whether the batch dimension survives, and the SDK emulator packs it
+    differently again, so every known layout is normalised here rather than
+    assumed at each call site.
+
+    Accepted:
+        * a sequence of per-class arrays, each ``(n_boxes, 5)``
+        * ``(n_classes, n_boxes, 5)``
+        * ``(1, n_classes, n_boxes, 5)``
+        * ``(n_classes, 5, n_boxes)`` -- the SDK emulator's packing
+
+    Args:
+        raw_output: Whatever the driver returned for the NMS output.
+
+    Yields:
+        One tuple per box, with normalised corner coordinates.
+
+    Raises:
+        NmsFormatError: When the layout matches none of the above -- better a
+            loud failure than silently reading coordinates as confidences.
+    """
+    # A list of per-class arrays: the class is the index, boxes vary per class.
+    if isinstance(raw_output, (list, tuple)):
+        yield from _iter_per_class_sequence(raw_output)
+        return
+
+    for class_id, boxes in enumerate(_as_boxes_last(np.asarray(raw_output))):
+        for box in boxes:
+            yield _unpack(class_id, box)
 
 
 class BoundingBox(NamedTuple):
@@ -91,41 +179,24 @@ class InferenceResult(NamedTuple):
             InferenceResult containing a list of YoloDetections and the latency.
         """
         detections = []
+        for class_id, confidence, (ymin, xmin, ymax, xmax) in iter_nms_by_class(raw_tensor):
+            if confidence < conf_threshold:
+                continue
 
-        # The raw tensor may have an extra batch dimension (e.g., shape [1, num_classes, max_boxes, 5])
-        if raw_tensor.ndim == _BATCHED_NMS_TENSOR_NDIM and raw_tensor.shape[0] == 1:
-            raw_tensor = raw_tensor[0]
-
-        # The tensor is expected to have shape [num_classes, max_boxes, 5] where the last dimension contains [ymin, xmin, ymax, xmax, confidence]
-        num_classes = raw_tensor.shape[0]
-
-        # Iterate over each class and its detected boxes
-        for class_id in range(num_classes):
-            class_boxes = raw_tensor[class_id]
-
-            # Each box is expected to be in the format [ymin, xmin, ymax, xmax, confidence]
-            for box in class_boxes:
-                confidence = box[4]
-                if confidence < conf_threshold:
-                    continue
-
-                bbox = BoundingBox.parse_from_yolo_format(
-                    ymin=box[0],
-                    xmin=box[1],
-                    ymax=box[2],
-                    xmax=box[3],
-                    img_width=img_width,
-                    img_height=img_height,
-                )
-
-                # Create a YoloDetection instance with the class ID, class name, confidence, and bounding box
-                detection = YoloDetection(
+            detections.append(
+                YoloDetection(
                     class_id=class_id,
                     class_name=class_map.get(class_id, f"Unknown_{class_id}"),
                     confidence=confidence,
-                    bbox=bbox,
-                )
-
-                detections.append(detection)
+                    bbox=BoundingBox.parse_from_yolo_format(
+                        ymin=ymin,
+                        xmin=xmin,
+                        ymax=ymax,
+                        xmax=xmax,
+                        img_width=img_width,
+                        img_height=img_height,
+                    ),
+                ),
+            )
 
         return InferenceResult(detections=detections, latency_ms=latency_ms, image=image)

@@ -2,6 +2,7 @@ from typing import Self
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from shared.domain.enums import GMR_CLASS_NAMES
 
 from src.hardware.camera.config import Config as CameraConfig
 from src.hardware.hailo.utils import load_class_map_from_yaml
@@ -14,7 +15,7 @@ class Config(BaseSettings):
         env_prefix="hailo_",
     )
 
-    model_path: str = "/usr/local/hailo/models/yolo11n.hef"
+    model_path: str = "/usr/local/hailo/models/gmr.hef"
     """
     Path to the Hailo HEF model file. This should point to the compiled model that the Hailo driver will load for inference. If not provided, a default path will be used.
     """
@@ -39,10 +40,14 @@ class Config(BaseSettings):
 
     @model_validator(mode="after")
     def _load_class_map(self) -> Self:
+        # Falls back to the detector's own declared class order rather than a
+        # separate guess. The previous fallback was (red_pillar, green_pillar,
+        # wall) -- the wrong order, plus a class this model does not have --
+        # which mislabels every detection without erroring.
         try:
             self.class_map = load_class_map_from_yaml(self.data_yaml_path)
         except (FileNotFoundError, ValueError, KeyError):
-            self.class_map = {0: "red_pillar", 1: "green_pillar", 2: "wall"}
+            self.class_map = dict(GMR_CLASS_NAMES)
         return self
 
 

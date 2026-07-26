@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import contextlib
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
 from pydantic import BaseModel
+from shared.domain.enums import GMR_CLASS_NAMES
 from shared.domain.models import Detection
+
+from src.hardware.hailo.inferences import iter_nms_by_class
 
 if TYPE_CHECKING:
     from src.hardware.hailo.base import Driver as HailoDriver
@@ -28,15 +32,11 @@ class TrafficSignColor(Enum):
         return self.value
 
 
-# Class ids as the retrained GMR detector emits them, taken from the
-# checkpoint's own metadata and confirmed by running it per class folder.
-# Do NOT take this order from auto-annotator's data.yaml: that file is stale
-# (0=red, 1=green, 2=magenta) and using it swaps red and green, which inverts
-# the WRO pass-side rule on every obstacle without failing loudly.
-DEFAULT_CLASS_TO_COLOR = {
-    0: TrafficSignColor.GREEN,
-    1: TrafficSignColor.MAGENTA,
-    2: TrafficSignColor.RED,
+# Derived from the one declaration of the detector's class order, rather than
+# restated here -- this map and the driver's id-to-name map drifted apart from
+# it once already, and a mismatch swaps red for green silently.
+DEFAULT_CLASS_TO_COLOR: dict[int, TrafficSignColor] = {
+    class_id: TrafficSignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
 }
 
 
@@ -146,7 +146,7 @@ class LocalYoloDetector(DetectorBase):
 
             color = self.config.get_color(class_id)
             if color is not None:
-                detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
+                detections.append(SignDetection(color=color, bbox=(x1, y1, x2, y2), confidence=conf))
 
         return detections
 
@@ -177,32 +177,27 @@ class HailoDetector(DetectorBase):
         """Detect objects using Hailo 8 NPU."""
         shape = self._driver.get_input_shape()  # (H, W, C)
         h, w = shape[0], shape[1]
+        # The HEF's input is UINT8 and the graph carries its own normalization,
+        # so the resized frame is fed through unscaled.
         img_resized = cv2.resize(image, (w, h))
         output = self._driver.infer(np.expand_dims(img_resized, axis=0))
 
         detections = []
-        for box in output:
-            conf = float(box[4])
+        for class_id, conf, (ymin, xmin, ymax, xmax) in iter_nms_by_class(output):
             if conf < self._config.min_confidence:
                 continue
-            color = self._config.get_color(int(box[5]))
+            color = self._config.get_color(class_id)
             if color is None:
                 continue
 
-            # Hailo NMS output rows: [y_min, x_min, y_max, x_max, confidence, class_id]
             if self._config.output_format is BBoxFormat.NORMALIZED:
-                y1 = box[0] * image.shape[0]
-                x1 = box[1] * image.shape[1]
-                y2 = box[2] * image.shape[0]
-                x2 = box[3] * image.shape[1]
+                y1, x1 = ymin * image.shape[0], xmin * image.shape[1]
+                y2, x2 = ymax * image.shape[0], xmax * image.shape[1]
             else:
-                scale_y = image.shape[0] / h
-                scale_x = image.shape[1] / w
-                y1 = box[0] * scale_y
-                x1 = box[1] * scale_x
-                y2 = box[2] * scale_y
-                x2 = box[3] * scale_x
+                scale_y, scale_x = image.shape[0] / h, image.shape[1] / w
+                y1, x1 = ymin * scale_y, xmin * scale_x
+                y2, x2 = ymax * scale_y, xmax * scale_x
 
-            detections.append(SignDetection(color, (x1, y1, x2, y2), conf))
+            detections.append(SignDetection(color=color, bbox=(x1, y1, x2, y2), confidence=conf))
 
         return detections

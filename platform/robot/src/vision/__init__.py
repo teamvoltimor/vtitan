@@ -54,7 +54,10 @@ def create_detector(backend: str = "yolo", config: DetectorConfig | None = None)
             msg = "hailo_platform not found. Are you running on the Raspberry Pi 5 with HailoRT installed?"
             raise ImportError(msg) from e
         if config is None:
-            config = DetectorConfig(model_path="models/gmr.hef", class_to_color=DEFAULT_CLASS_TO_COLOR)
+            config = DetectorConfig(
+                model_path=HailoConfig().model_path,
+                class_to_color=DEFAULT_CLASS_TO_COLOR,
+            )
         return HailoDetector(Driver(HailoConfig(model_path=config.model_path)), config)
     msg = f"Unknown detector backend: {backend}"
     raise ValueError(msg)

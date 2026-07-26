@@ -29,9 +29,14 @@ configure_json_logging()
 
 
 def preprocess(frame: np.ndarray, target_width: int, target_height: int) -> np.ndarray:
-    """Preprocess frame for inference: resize and normalize."""
+    """Resize a frame to the model's input size.
+
+    Deliberately no scaling to [0, 1]: the HEF's input tensor is UINT8 and the
+    compiled graph carries its own ``normalization`` layer, so dividing here
+    would both mismatch the dtype and normalize twice.
+    """
     resized = cv2.resize(frame, (target_width, target_height))
-    return resized.astype(np.float32) / 255.0
+    return resized.astype(np.uint8)
 
 
 class StreamingDriver:
