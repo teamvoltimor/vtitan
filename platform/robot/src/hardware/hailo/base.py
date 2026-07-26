@@ -37,6 +37,15 @@ class Driver(ABC):
         """Run inference on input data."""
 
     @abstractmethod
+    def close(self) -> None:
+        """Release the device and any activated model.
+
+        Part of the interface rather than optional: an activated Hailo model
+        holds a live runtime thread, so a driver that never releases keeps the
+        process alive after its work is done.
+        """
+
+    @abstractmethod
     def infer_with_timing(self, input_data: np.ndarray) -> InferenceResult:
         """Run inference and measure latency."""
 

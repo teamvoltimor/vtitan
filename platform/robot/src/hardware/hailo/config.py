@@ -20,6 +20,11 @@ class Config(BaseSettings):
     Path to the Hailo HEF model file. This should point to the compiled model that the Hailo driver will load for inference. If not provided, a default path will be used.
     """
 
+    inference_timeout_ms: int = 10000
+    """
+    Milliseconds to wait for a single async inference job before giving up. Guards against a wedged pipeline blocking the control loop forever.
+    """
+
     benchmark_iterations: int = 10
     """
     Number of iterations to run when benchmarking latency. If not provided, a default value will be used.

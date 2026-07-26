@@ -1,5 +1,6 @@
 """Hailo 8 NPU driver implementation."""
 
+import contextlib
 import logging
 import threading
 import time
@@ -70,28 +71,67 @@ class Driver(ABC_Driver):
 
     @property
     def configured_model(self) -> ConfiguredInferModel:
-        """Get configured infer model (activates hardware)."""
+        """Get the configured, activated infer model.
+
+        Activation is explicit and held for the driver's lifetime. HailoRT does
+        not activate on ``configure()``, and re-activating per frame would pay
+        that cost on every inference.
+        """
         if self._configured_model is None:
-            self._configured_model = self.infer_model.configure()
+            configured = self.infer_model.configure()
+            configured.activate()
+            self._configured_model = configured
         return self._configured_model
 
     def get_input_shape(self) -> tuple[int, ...]:
         """Get model input shape."""
-        input_info = self.infer_model.inputs()[0]
-        return tuple(input_info.shape)
+        return tuple(self.infer_model.input().shape)
 
     def get_output_shape(self) -> tuple[int, ...]:
         """Get model output shape."""
-        output_info = self.infer_model.outputs()[0]
-        return tuple(output_info.shape)
+        return tuple(self.infer_model.output().shape)
 
     def infer(self, input_data: np.ndarray) -> Any:
-        """Run inference on input data."""
-        with self.configured_model as configured:
-            bindings = configured.create_bindings()
-            bindings.input().set_buffer(input_data)
-            configured.run_async(bindings).wait()
-            return bindings.output().get_buffer()
+        """Run inference and return the raw output buffer.
+
+        For an NMS-by-class model that buffer is a list of per-class arrays of
+        ``(n_boxes, 5)``; decode it with
+        :func:`~src.hardware.hailo.inferences.iter_nms_by_class` rather than
+        indexing it directly, since the box count differs per class.
+
+        Args:
+            input_data: HWC frame matching the model's input shape and dtype.
+
+        Returns:
+            The raw output buffer as HailoRT hands it back.
+        """
+        configured = self.configured_model
+        bindings = configured.create_bindings()
+        bindings.input().set_buffer(np.ascontiguousarray(input_data))
+        # The output binding must be given a buffer up front: without one
+        # HailoRT refuses the run with "not configured as view".
+        bindings.output().set_buffer(np.empty(self.get_output_shape(), dtype=np.float32))
+        configured.run_async([bindings]).wait(self.config.inference_timeout_ms)
+        return bindings.output().get_buffer()
+
+    def close(self) -> None:
+        """Deactivate the model and release the device.
+
+        Activation is held for the driver's lifetime, and an activated model
+        keeps a non-daemon HailoRT thread alive: without this the interpreter
+        never exits, which looks like a hang rather than a leak. Safe to call
+        more than once.
+        """
+        if self._configured_model is not None:
+            with contextlib.suppress(Exception):
+                self._configured_model.deactivate()
+            self._configured_model = None
+        self._infer_model = None
+        if self._vdevice is not None:
+            with contextlib.suppress(Exception):
+                self._vdevice.release()
+            self._vdevice = None
+        self.logger.info("Released Hailo 8 NPU")
 
     def infer_with_timing(self, input_data: np.ndarray) -> InferenceResult:
         """Run inference and measure latency."""
@@ -111,24 +151,18 @@ class Driver(ABC_Driver):
     ) -> InferenceResult:
         """Run inference with image dimensions for scaling bounding boxes."""
         start = time.perf_counter()
+        raw_output = self.infer(input_data)
+        latency_ms = (time.perf_counter() - start) * 1000
 
-        with self.configured_model as configured:
-            bindings = configured.create_bindings()
-            bindings.input().set_buffer(input_data)
-            configured.run_async(bindings).wait()
-            raw_output = bindings.output().get_buffer()
-
-            latency_ms = (time.perf_counter() - start) * 1000
-
-            return InferenceResult.parse_yolo_nms_output(
-                raw_tensor=raw_output,
-                img_width=original_width,
-                img_height=original_height,
-                class_map=self.config.class_map,
-                latency_ms=latency_ms,
-                conf_threshold=self.config.min_confidence,
-                image=image,
-            )
+        return InferenceResult.parse_yolo_nms_output(
+            raw_tensor=raw_output,
+            img_width=original_width,
+            img_height=original_height,
+            class_map=self.config.class_map,
+            latency_ms=latency_ms,
+            conf_threshold=self.config.min_confidence,
+            image=image,
+        )
 
     def benchmark_latency(self, num_iterations: int | None = None) -> float:
         """Benchmark inference latency."""

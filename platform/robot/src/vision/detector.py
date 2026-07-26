@@ -9,7 +9,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
-import numpy as np
 from pydantic import BaseModel
 from shared.domain.enums import GMR_CLASS_NAMES
 from shared.domain.models import Detection
@@ -17,6 +16,8 @@ from shared.domain.models import Detection
 from src.hardware.hailo.inferences import iter_nms_by_class
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from src.hardware.hailo.base import Driver as HailoDriver
 
 
@@ -56,8 +57,13 @@ class SignDetection(BaseModel):
     position_estimate: tuple[float, float] | None = None
 
     def to_dict(self) -> dict:
-        """Convert detection to a dictionary for JSON serialization."""
-        return self.model_dump(include={"color", "bbox", "confidence"})
+        """Convert detection to a dictionary for JSON serialization.
+
+        ``mode="json"`` is what makes this JSON-serializable: a plain
+        ``model_dump()`` leaves ``color`` as a ``TrafficSignColor`` member, and
+        the vision node's ``json.dumps`` then raises on every frame.
+        """
+        return self.model_dump(mode="json", include={"color", "bbox", "confidence"})
 
     def to_detection(self) -> Detection:
         """Convert to the shared domain Detection for interop with non-vision modules."""
@@ -168,10 +174,10 @@ class HailoDetector(DetectorBase):
         return self
 
     def __exit__(self, *args: object) -> None:
-        vdevice = getattr(self._driver, "_vdevice", None)
-        if vdevice is not None:
-            with contextlib.suppress(Exception):
-                vdevice.release()
+        # Deactivates the model as well as releasing the device; releasing the
+        # VDevice alone leaves an activated model holding a live HailoRT thread.
+        with contextlib.suppress(Exception):
+            self._driver.close()
 
     def detect(self, image: np.ndarray) -> list[SignDetection]:
         """Detect objects using Hailo 8 NPU."""
@@ -180,7 +186,8 @@ class HailoDetector(DetectorBase):
         # The HEF's input is UINT8 and the graph carries its own normalization,
         # so the resized frame is fed through unscaled.
         img_resized = cv2.resize(image, (w, h))
-        output = self._driver.infer(np.expand_dims(img_resized, axis=0))
+        # HailoRT takes the frame as HWC; a batch axis is rejected.
+        output = self._driver.infer(img_resized)
 
         detections = []
         for class_id, conf, (ymin, xmin, ymax, xmax) in iter_nms_by_class(output):

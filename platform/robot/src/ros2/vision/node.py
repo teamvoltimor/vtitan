@@ -33,15 +33,15 @@ class VisionNode(Node):
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
-        from src.vision.detector import DetectorConfig, TrafficSignColor  # noqa: PLC0415
+        from src.vision.detector import DEFAULT_CLASS_TO_COLOR, DetectorConfig  # noqa: PLC0415
 
+        # Take the mapping from the detector rather than restating it: this copy
+        # said (red, green, magenta), which is the dataset's stale order and the
+        # opposite of what the model emits for red and green. It silently
+        # inverts the WRO pass side on every obstacle.
         config = DetectorConfig(
             model_path=model_path,
-            class_to_color={
-                0: TrafficSignColor.RED,
-                1: TrafficSignColor.GREEN,
-                2: TrafficSignColor.MAGENTA,
-            },
+            class_to_color=DEFAULT_CLASS_TO_COLOR,
         )
         detector = create_detector(backend, config)
         # Enter context manager for backends that hold hardware resources (Hailo).
