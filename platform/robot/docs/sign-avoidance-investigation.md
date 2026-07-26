@@ -6,6 +6,28 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
+> **STALE — every measurement below predates `8eb3c38` ("model the chassis as
+> counter-phase four-wheel steer, not front-only").** They were taken against a
+> front-only bicycle model with roughly half the real robot's yaw authority
+> (min turn radius 0.329 m simulated vs 0.165 m actual). Treat the *reasoning*
+> as usable and every *number* as needing re-measurement.
+>
+> First re-run after the 4WS change: collisions 7/16 -> 16/16, timeouts
+> 9/16 -> 0/16, laps>=1 still 0/16. The deadlocks turned into collisions; the
+> underlying failure did not move.
+>
+> Specifically invalidated:
+> * `NavigationTuning.for_obstacles()` (lookahead 0.12/0.24 + 0.30 m/s) was
+>   fitted to the old model. Re-sweeping lookahead 0.12/0.20/0.30/0.40 under 4WS
+>   gives 15-16/16 collisions at every value — the profile no longer helps and
+>   needs refitting from scratch.
+> * The `ARC_RADIUS` sweep was already void: 0.33 m was *at* the old model's
+>   0.329 m limit, so it measured a physics wall. The real robot can run ~0.165 m
+>   arcs, which is exactly the "clear the corner sooner" move ruled out there.
+> * The "tracking accuracy is the binding constraint" conclusion rests on a
+>   0.117 m peak cross-track error produced by a robot that could not steer hard
+>   enough to correct. Re-measure before trusting it.
+
 ## The problem
 
 In closed-loop obstacles scenarios the robot drives over traffic signs it has
