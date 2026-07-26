@@ -10,13 +10,12 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.exceptions import ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CFG_KEY_CHECKPOINT,
-    CFG_KEY_HF_REPO,
-    CFG_KEY_ID,
-    CFG_KEY_TYPE,
     MODEL_TYPE_SAM1,
     MODEL_TYPE_SAM2,
     MODEL_TYPE_SAM3,
@@ -26,6 +25,32 @@ from src.server.constants import (
 from src.utils import get_logger
 
 logger = get_logger(__name__)
+
+
+class ModelConfig(BaseModel):
+    """Configuration for a single model entry loaded from ``models.toml``.
+
+    Attributes:
+        id:             Unique model identifier string used in API calls and the UI.
+        label:          Human-readable model label displayed in the Settings dropdown.
+        model_type:     Model family (``sam1``, ``sam2``, ``sam3``, ``yolo11``, ``yoloe``).
+        checkpoint:     Relative or absolute path to a local model checkpoint file.
+        hf_repo:        HuggingFace repository ID used when no local checkpoint is present.
+        variant:        SAM 1 architecture variant (``vit_h``, ``vit_l``, …).
+        hiera_config:   Relative path to the SAM 2 Hiera YAML configuration file.
+        supports_text:  Whether the model supports text-prompted segmentation.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    label: str = ""
+    model_type: str = Field(default="", alias="type")
+    checkpoint: str | None = None
+    hf_repo: str | None = None
+    variant: str | None = None
+    hiera_config: str | None = None
+    supports_text: bool = False
 
 
 @dataclass(slots=True)
@@ -70,7 +95,7 @@ def _resolve(p: str | None, base: Path) -> Path | None:
     return path if path.is_absolute() else base / path
 
 
-def _is_available(cfg: dict, base: Path) -> bool:
+def _is_available(cfg: ModelConfig, base: Path) -> bool:
     """Check if a model config meets availability rules.
 
     Rules per type:
@@ -79,19 +104,18 @@ def _is_available(cfg: dict, base: Path) -> bool:
       * ``sam3``: requires a non-empty hf_repo.
       * ``yoloe``: requires a resolvable checkpoint file.
     """
-    mtype = cfg.get(CFG_KEY_TYPE, "")
-    ckpt = _resolve(cfg.get(CFG_KEY_CHECKPOINT), base)
-    hf = cfg.get(CFG_KEY_HF_REPO, "")
+    ckpt = _resolve(cfg.checkpoint, base)
+    hf = cfg.hf_repo or ""
 
-    if mtype == MODEL_TYPE_SAM1:
+    if cfg.model_type == MODEL_TYPE_SAM1:
         return ckpt is not None and ckpt.exists()
-    if mtype == MODEL_TYPE_SAM2:
+    if cfg.model_type == MODEL_TYPE_SAM2:
         return bool(hf) or (ckpt is not None and ckpt.exists())
-    if mtype == MODEL_TYPE_SAM3:
+    if cfg.model_type == MODEL_TYPE_SAM3:
         return bool(hf)
-    if mtype == MODEL_TYPE_YOLOE:
+    if cfg.model_type == MODEL_TYPE_YOLOE:
         return ckpt is not None and ckpt.exists()
-    if mtype == MODEL_TYPE_YOLO11:
+    if cfg.model_type == MODEL_TYPE_YOLO11:
         return ckpt is not None and ckpt.exists()
     return False
 
@@ -103,26 +127,25 @@ class ModelRegistry:
         models: Dict mapping model_id → (config, available, capabilities).
     """
 
-    def __init__(self, configs: list[dict], base_dir: Path):
+    def __init__(self, configs: list[ModelConfig], base_dir: Path):
         """Initialize registry by checking all models in parallel.
 
         Args:
-            configs: List of model config dicts from models.toml.
+            configs: List of model configs from models.toml.
             base_dir: Base directory for resolving relative paths.
         """
-        self.models: dict[str, tuple[dict, bool, ModelCapabilities]] = {}
+        self.models: dict[str, tuple[ModelConfig, bool, ModelCapabilities]] = {}
         self._base_dir = base_dir
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(_is_available, cfg, base_dir): cfg for cfg in configs}
             for future, cfg in futures.items():
-                model_id = cfg.get(CFG_KEY_ID, "unknown")
+                model_id = cfg.id or "unknown"
                 available = future.result()
-                mtype = cfg.get(CFG_KEY_TYPE, "")
-                capabilities = _CAPABILITIES.get(mtype, ModelCapabilities())
+                capabilities = _CAPABILITIES.get(cfg.model_type, ModelCapabilities())
                 self.models[model_id] = (cfg, available, capabilities)
 
-    def get(self, model_id: str) -> tuple[dict, ModelCapabilities]:
+    def get(self, model_id: str) -> tuple[ModelConfig, ModelCapabilities]:
         """Get config and capabilities for a model.
 
         Raises:

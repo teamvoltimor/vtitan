@@ -1,8 +1,9 @@
-"""src.sam_client – TCP client and request dataclasses for the model-server microservice.
+"""src.sam_client – TCP client and request Pydantic models for the model-server microservice.
 
 :class:`ModelServerClient` sends length-prefixed pickle messages to the server and
-returns decoded responses.  Each public method constructs a typed request dataclass,
-converts it to a dict via ``.to_dict()``, serialises it, and deserialises the response.
+returns decoded responses.  Each public method constructs a typed request model,
+converts it to a dict via ``.model_dump(by_alias=True)``, serialises it, and
+deserialises the response.
 
 All command and response key strings come from :mod:`src.server.constants` so no
 magic strings appear here.
@@ -11,8 +12,9 @@ magic strings appear here.
 from __future__ import annotations
 
 import socket
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     import numpy as np
@@ -45,36 +47,26 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 
-# Request dataclasses – one per TCP command.
-# Each provides a to_dict() method that produces the plain dict expected by the server.
-
-
-@dataclass(frozen=True)
-class PingRequest:
+class PingRequest(BaseModel):
     """Liveness probe request; no payload required."""
 
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {MSG_KEY_CMD: CMD_PING}
+    model_config = ConfigDict(frozen=True)
+    cmd: str = CMD_PING
 
 
-@dataclass
-class SetImageRequest:
+class SetImageRequest(BaseModel):
     """Request to encode *image* with SAM's image encoder on the server.
 
     Attributes:
         image: RGB uint8 numpy array to send.
     """
 
-    image: np.ndarray
-
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {MSG_KEY_CMD: CMD_SET_IMAGE, MSG_KEY_IMAGE: self.image}
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    cmd: str = CMD_SET_IMAGE
+    image: Any = None
 
 
-@dataclass
-class PredictRequest:
+class PredictRequest(BaseModel):
     """Request to run point-prompted mask prediction on the server.
 
     Attributes:
@@ -83,46 +75,33 @@ class PredictRequest:
         mask_input: Optional logit mask from a previous call for iterative refinement.
     """
 
-    coords: np.ndarray
-    labels: np.ndarray
-    mask_input: np.ndarray | None = None
-
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {
-            MSG_KEY_CMD: CMD_PREDICT,
-            MSG_KEY_COORDS: self.coords,
-            MSG_KEY_LABELS: self.labels,
-            MSG_KEY_MASK_INPUT: self.mask_input,
-        }
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    cmd: str = CMD_PREDICT
+    coords: Any = None
+    labels: Any = None
+    mask_input: Any = None
 
 
-@dataclass(frozen=True)
-class ListModelsRequest:
+class ListModelsRequest(BaseModel):
     """Request to retrieve descriptors for all configured models."""
 
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {MSG_KEY_CMD: CMD_LIST_MODELS}
+    model_config = ConfigDict(frozen=True)
+    cmd: str = CMD_LIST_MODELS
 
 
-@dataclass(frozen=True)
-class SetModelRequest:
+class SetModelRequest(BaseModel):
     """Request to load a different SAM model on the server.
 
     Attributes:
         model_id: Unique model identifier string matching a config entry.
     """
 
-    model_id: str
-
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {MSG_KEY_CMD: CMD_SET_MODEL, MSG_KEY_MODEL_ID: self.model_id}
+    model_config = ConfigDict(frozen=True)
+    cmd: str = CMD_SET_MODEL
+    model_id: str = ""
 
 
-@dataclass
-class PredictTextRequest:
+class PredictTextRequest(BaseModel):
     """Request to run text-prompted segmentation for a list of class names (SAM 3 only).
 
     Attributes:
@@ -130,16 +109,10 @@ class PredictTextRequest:
         class_names: List of class-name strings used as text prompts.
     """
 
-    image: np.ndarray
-    class_names: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        """Serialise to the wire-protocol request dict."""
-        return {
-            MSG_KEY_CMD: CMD_PREDICT_TEXT,
-            MSG_KEY_IMAGE: self.image,
-            MSG_KEY_CLASS_NAMES: self.class_names,
-        }
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    cmd: str = CMD_PREDICT_TEXT
+    image: Any = None
+    class_names: list[str] = Field(default_factory=list)
 
 
 class ModelServerClient:
@@ -158,11 +131,11 @@ class ModelServerClient:
         self.addr = (host, port)
         self._recv_chunk_size = recv_chunk_size
 
-    def _call(self, req: Any) -> dict:
-        """Serialise *req* via ``.to_dict()``, send it, and return the decoded response.
+    def _call(self, req: BaseModel) -> dict:
+        """Serialise *req* via ``.model_dump(by_alias=True)``, send it, and return the decoded response.
 
         Args:
-            req: A request dataclass instance with a ``to_dict()`` method.
+            req: A request Pydantic model instance.
 
         Returns:
             Decoded response dict from the server.
@@ -170,7 +143,7 @@ class ModelServerClient:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(120)
             s.connect(self.addr)
-            wire.send(s, req.to_dict())
+            wire.send(s, req.model_dump(by_alias=True))
             return wire.recv(s, self._recv_chunk_size)
 
     def ping(self) -> bool:

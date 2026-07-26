@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
+from pydantic import BaseModel
 
 # ROS2 bag imports
 ROS2_AVAILABLE = False
@@ -46,6 +47,34 @@ else:
         print("WARNING: ROS2 not available. Some features disabled.")
 
 
+class CameraPose(BaseModel):
+    """Camera mount pose in world frame.
+
+    Attributes:
+        x:     Forward offset from robot origin (m).
+        y:     Lateral offset from robot origin (m).
+        z:     Height offset from robot origin (m).
+        pitch: Downward tilt (radians).
+    """
+
+    x: float = 0.08
+    y: float = 0.0
+    z: float = 0.05
+    pitch: float = 0.2
+
+
+class CameraParams(BaseModel):
+    """Camera intrinsic and extrinsic parameters.
+
+    Attributes:
+        pose: Camera mount pose.
+        fov:  Horizontal field of view (radians).
+    """
+
+    pose: CameraPose = CameraPose()
+    fov: float = 2.094
+
+
 class YOLOAnnotator:
     """Generates YOLO format annotations from simulation metadata"""
 
@@ -65,19 +94,18 @@ class YOLOAnnotator:
         x: float,
         y: float,
         z: float,
-        camera_params: dict[str, Any],
+        camera_params: CameraParams,
     ) -> tuple[int | None, int | None]:
         """
         Project 3D world coordinates to 2D image coordinates
 
         Simplified projection assuming camera looking forward with slight tilt
         """
-        # Camera parameters (from URDF)
-        camera_x = camera_params["pose"]["x"]
-        camera_y = camera_params["pose"]["y"]
-        camera_z = camera_params["pose"]["z"]
-        camera_pitch = camera_params["pose"]["pitch"]  # radians
-        fov_horizontal = camera_params["fov"]  # radians (2.094 = 120 degrees)
+        camera_x = camera_params.pose.x
+        camera_y = camera_params.pose.y
+        camera_z = camera_params.pose.z
+        camera_pitch = camera_params.pose.pitch
+        fov_horizontal = camera_params.fov
         fov_vertical = fov_horizontal * (self.image_height / self.image_width)
 
         # Transform to camera frame
@@ -116,7 +144,7 @@ class YOLOAnnotator:
         y: float,
         z: float,
         object_radius: float,
-        camera_params: dict[str, Any],
+        camera_params: CameraParams,
     ) -> tuple[float, float, float, float] | None:
         """
         Estimate 2D bounding box for a cylindrical object
@@ -130,16 +158,15 @@ class YOLOAnnotator:
         if u_center is None or v_center is None:
             return None  # Not visible
 
-        # Estimate apparent size based on distance
         distance = np.sqrt(
-            (x - camera_params["pose"]["x"]) ** 2 + (y - camera_params["pose"]["y"]) ** 2
+            (x - camera_params.pose.x) ** 2 + (y - camera_params.pose.y) ** 2
         )
 
         if distance < 0.1:
             return None  # Too close
 
         # Apparent radius decreases with distance (perspective)
-        focal_length = self.image_width / (2 * np.tan(camera_params["fov"] / 2))
+        focal_length = self.image_width / (2 * np.tan(camera_params.fov / 2))
         apparent_radius = (object_radius * focal_length) / distance
 
         # Bounding box size (pixels)
@@ -161,7 +188,7 @@ class YOLOAnnotator:
     def generate_annotation(
         self,
         metadata: dict[str, Any],
-        camera_params: dict[str, Any],
+        camera_params: CameraParams,
     ) -> list[list[float]]:
         """
         Generate YOLO annotation for a scenario
@@ -288,16 +315,7 @@ def create_yolo_dataset(
 
     annotator = YOLOAnnotator()
 
-    # Camera parameters (from robot URDF)
-    camera_params = {
-        "pose": {
-            "x": 0.08,  # Forward offset
-            "y": 0.0,
-            "z": 0.05,  # Height offset
-            "pitch": 0.2,  # Downward tilt (radians)
-        },
-        "fov": 2.094,  # 120 degrees horizontal FOV
-    }
+    camera_params = CameraParams()
 
     train_count = 0
     val_count = 0

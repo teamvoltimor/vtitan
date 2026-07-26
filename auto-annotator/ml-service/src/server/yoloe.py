@@ -22,11 +22,13 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
-from src.server.constants import CFG_KEY_CHECKPOINT, CFG_KEY_SUPPORTS_TEXT, PROJECT_ROOT
+from src.server.constants import PROJECT_ROOT
+from src.server.context import TextSegmentationResult
 from src.utils import get_logger
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
+    from src.server.registry import ModelConfig
 
 logger = get_logger(__name__)
 
@@ -78,7 +80,7 @@ class YOLOETextSegmenter:
         if device == "cuda":
             self.model.to(device)
 
-    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[dict]:
+    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
         """Run text-prompted detection + segmentation for the given class names.
 
         YOLOE processes all classes in a single forward pass.  Results are grouped
@@ -99,8 +101,8 @@ class YOLOETextSegmenter:
 
         results = self.model.predict(image, verbose=False)
 
-        per_class: dict[str, dict] = {
-            name: {"class_name": name, "masks": [], "scores": [], "boxes": []} for name in class_names
+        per_class: dict[str, TextSegmentationResult] = {
+            name: TextSegmentationResult(class_name=name) for name in class_names
         }
 
         if not results:
@@ -131,14 +133,14 @@ class YOLOETextSegmenter:
             score = float(result.boxes.conf[i].item())
             box = result.boxes.xyxy[i].cpu().numpy().tolist()
 
-            per_class[cls_name]["masks"].append(mask_bool)
-            per_class[cls_name]["scores"].append(score)
-            per_class[cls_name]["boxes"].append(box)
+            per_class[cls_name].masks.append(mask_bool)
+            per_class[cls_name].scores.append(score)
+            per_class[cls_name].boxes.append(box)
 
         return list(per_class.values())
 
 
-def load_yoloe(cfg: dict, ctx: ServerContext) -> None:
+def load_yoloe(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load the YOLOE segmenter into *ctx*.
 
     Sets ``ctx.predictor`` to a :class:`_NoopPredictor` (satisfies the dispatch
@@ -150,7 +152,10 @@ def load_yoloe(cfg: dict, ctx: ServerContext) -> None:
              and optionally ``supports_text`` (bool).
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
-    ckpt = Path(cfg[CFG_KEY_CHECKPOINT])
+    if not cfg.checkpoint:
+        msg = "YOLOE requires 'checkpoint' in config"
+        raise ValueError(msg)
+    ckpt = Path(cfg.checkpoint)
     if not ckpt.is_absolute():
         ckpt = PROJECT_ROOT / ckpt
 
@@ -158,6 +163,6 @@ def load_yoloe(cfg: dict, ctx: ServerContext) -> None:
     ctx.predictor = _NoopPredictor()
     ctx.text_seg = None
 
-    if cfg.get(CFG_KEY_SUPPORTS_TEXT):
+    if cfg.supports_text:
         ctx.text_seg = YOLOETextSegmenter(str(ckpt), ctx.device)
         logger.info("YOLOE text segmenter ready on %s", ctx.device)

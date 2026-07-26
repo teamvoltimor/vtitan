@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import contextlib
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
+from pydantic import BaseModel
 from shared.domain.models import Detection
 
 if TYPE_CHECKING:
@@ -35,8 +35,7 @@ class BBoxFormat(Enum):
     ABSOLUTE = "absolute"
 
 
-@dataclass
-class SignDetection:
+class SignDetection(BaseModel):
     """A detected traffic sign or parking block."""
 
     color: TrafficSignColor
@@ -46,11 +45,7 @@ class SignDetection:
 
     def to_dict(self) -> dict:
         """Convert detection to a dictionary for JSON serialization."""
-        return {
-            "color": str(self.color),
-            "bbox": self.bbox,
-            "confidence": self.confidence,
-        }
+        return self.model_dump(include={"color", "bbox", "confidence"})
 
     def to_detection(self) -> Detection:
         """Convert to the shared domain Detection for interop with non-vision modules."""

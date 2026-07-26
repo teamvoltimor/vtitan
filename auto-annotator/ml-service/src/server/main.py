@@ -38,6 +38,7 @@ from src.server import wire
 from src.server.context import ServerContext
 from src.server.dispatch import dispatch
 from src.server.loader import initial_load
+from src.server.registry import ModelConfig
 from src.utils import get_logger
 
 logger = get_logger(__name__)
@@ -50,12 +51,13 @@ class _ServerState:
 _server_state = _ServerState()
 
 
-def _load_models_config(config_file: Path) -> list[dict]:
+def _load_models_config(config_file: Path) -> list[ModelConfig]:
     if not config_file.exists():
         logger.warning("Config not found, no models configured: %s", config_file)
         return []
     with config_file.open("rb") as f:
-        return tomllib.load(f).get("models", [])
+        raw: list[dict] = tomllib.load(f).get("models", [])
+    return [ModelConfig.model_validate(m) for m in raw]
 
 
 def _handle_client(conn: socket.socket, context: ServerContext, lock: threading.Lock) -> None:

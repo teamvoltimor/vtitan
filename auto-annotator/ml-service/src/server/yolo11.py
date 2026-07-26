@@ -13,11 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from src.server.constants import CFG_KEY_CHECKPOINT, PROJECT_ROOT
+from src.server.constants import PROJECT_ROOT
+from src.server.context import TextSegmentationResult
 from src.utils import get_logger
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
+    from src.server.registry import ModelConfig
 
 logger = get_logger(__name__)
 
@@ -73,7 +75,7 @@ class Yolo11Detector:
         self._class_names: list[str] = list(self.model.names.values())
         logger.info("YOLOv11 loaded: %d classes: %s", len(self._class_names), self._class_names)
 
-    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[dict]:
+    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
         """Run detection and return bounding-box masks for matching classes.
 
         Each detected box is rasterised into a rectangular boolean mask (H×W).
@@ -91,8 +93,8 @@ class Yolo11Detector:
         """
         results = self.model.predict(image, verbose=False, device=self.device)
 
-        per_class: dict[str, dict] = {
-            name: {"class_name": name, "masks": [], "scores": [], "boxes": []}
+        per_class: dict[str, TextSegmentationResult] = {
+            name: TextSegmentationResult(class_name=name)
             for name in class_names
         }
 
@@ -117,14 +119,14 @@ class Yolo11Detector:
             mask = np.zeros((h, w), dtype=bool)
             mask[max(0, int(y1)):min(h, int(y2)), max(0, int(x1)):min(w, int(x2))] = True
 
-            per_class[cls_name]["masks"].append(mask)
-            per_class[cls_name]["scores"].append(score)
-            per_class[cls_name]["boxes"].append([x1, y1, x2, y2])
+            per_class[cls_name].masks.append(mask)
+            per_class[cls_name].scores.append(score)
+            per_class[cls_name].boxes.append([x1, y1, x2, y2])
 
         return list(per_class.values())
 
 
-def load_yolo11(cfg: dict, ctx: ServerContext) -> None:
+def load_yolo11(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load a YOLOv11 detector into *ctx*.
 
     Sets ``ctx.predictor`` to a :class:`_NoopPredictor` (satisfies the dispatch
@@ -135,7 +137,10 @@ def load_yolo11(cfg: dict, ctx: ServerContext) -> None:
         cfg: Model config dict from ``models.toml``; must contain ``checkpoint``.
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
-    ckpt = Path(cfg[CFG_KEY_CHECKPOINT])
+    if not cfg.checkpoint:
+        msg = "YOLOv11 requires 'checkpoint' in config"
+        raise ValueError(msg)
+    ckpt = Path(cfg.checkpoint)
     if not ckpt.is_absolute():
         ckpt = PROJECT_ROOT / ckpt
 

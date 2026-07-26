@@ -13,7 +13,6 @@ import torch
 
 from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CFG_KEY_TYPE,
     MODEL_TYPE_SAM1,
     MODEL_TYPE_SAM2,
     MODEL_TYPE_SAM3,
@@ -21,7 +20,7 @@ from src.server.constants import (
     MODEL_TYPE_YOLOE,
     PROJECT_ROOT,
 )
-from src.server.registry import ModelRegistry
+from src.server.registry import ModelConfig, ModelRegistry
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
 from src.server.sam3 import load_sam3
@@ -36,7 +35,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_MODEL_LOADERS: dict[str, Callable[[dict, ServerContext], None]] = {
+_MODEL_LOADERS: dict[str, Callable[[ModelConfig, ServerContext], None]] = {
     MODEL_TYPE_SAM1: load_sam1,
     MODEL_TYPE_SAM2: load_sam2,
     MODEL_TYPE_SAM3: load_sam3,
@@ -68,8 +67,7 @@ def load_model(model_id: str, ctx: ServerContext, registry: ModelRegistry) -> No
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    mtype = cfg.get(CFG_KEY_TYPE, "")
-    loader = _MODEL_LOADERS.get(mtype)
+    loader = _MODEL_LOADERS.get(cfg.model_type)
     if loader is None:
         err_msg = f"Unknown model type: {mtype!r}"
         raise ModelLoadError(err_msg)
@@ -85,7 +83,7 @@ def load_model(model_id: str, ctx: ServerContext, registry: ModelRegistry) -> No
         raise ModelLoadError(err_msg) from e
 
 
-def initial_load(ctx: ServerContext, configs: list[dict], default_model: str = "") -> None:
+def initial_load(ctx: ServerContext, configs: list[ModelConfig], default_model: str = "") -> None:
     """Try to load the best available model on server startup.
 
     Uses ModelRegistry to perform parallel availability checks, then tries

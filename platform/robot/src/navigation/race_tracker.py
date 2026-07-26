@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, Field
 from shared.config.enums import Direction, Section
 
 logger = logging.getLogger(__name__)
@@ -106,8 +106,7 @@ class LapDetector:
         return False
 
 
-@dataclass
-class RaceMetrics:
+class RaceMetrics(BaseModel):
     """Performance metrics for a race run."""
 
     elapsed_time: float = 0.0  # seconds
@@ -120,25 +119,12 @@ class RaceMetrics:
     escape_maneuvers: int = 0
     stuck_detections: int = 0
     collision_warnings: int = 0
-    lap_splits: list[float] = field(default_factory=list)  # elapsed time at each lap completion
-    extra_data: dict[str, Any] = field(default_factory=dict)
+    lap_splits: list[float] = Field(default_factory=list)  # elapsed time at each lap completion
+    extra_data: dict[str, Any] = Field(default_factory=dict, alias="extra")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
-            "elapsed_time": self.elapsed_time,
-            "total_distance": self.total_distance,
-            "current_lap": self.current_lap,
-            "completed_laps": self.completed_laps,
-            "waypoint_index": self.waypoint_index,
-            "max_speed": self.max_speed,
-            "avg_speed": self.avg_speed,
-            "escape_maneuvers": self.escape_maneuvers,
-            "stuck_detections": self.stuck_detections,
-            "collision_warnings": self.collision_warnings,
-            "lap_splits": list(self.lap_splits),
-            "extra": self.extra_data,
-        }
+        return self.model_dump(by_alias=True)
 
 
 class RaceTracker:

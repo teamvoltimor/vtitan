@@ -22,6 +22,7 @@ from shared.config.enums import Direction, Section
 
 from src.navigation.maneuvers.parking import (
     ParkController,
+    ParkingLotConfig,
     _build_zone,
     _inside_zone,
     _normalise_angle,
@@ -45,10 +46,10 @@ from tests.test_constants import (
 _CW = Direction.CLOCKWISE
 _CCW = Direction.COUNTERCLOCKWISE
 
-_SOUTH_CFG = {"block1_pos": PARKING_SOUTH_BLOCK1, "block2_pos": PARKING_SOUTH_BLOCK2}
-_NORTH_CFG = {"block1_pos": PARKING_NORTH_BLOCK1, "block2_pos": PARKING_NORTH_BLOCK2}
-_EAST_CFG = {"block1_pos": PARKING_EAST_BLOCK1, "block2_pos": PARKING_EAST_BLOCK2}
-_WEST_CFG = {"block1_pos": PARKING_WEST_BLOCK1, "block2_pos": PARKING_WEST_BLOCK2}
+_SOUTH_CFG = ParkingLotConfig(block1_pos=PARKING_SOUTH_BLOCK1, block2_pos=PARKING_SOUTH_BLOCK2)
+_NORTH_CFG = ParkingLotConfig(block1_pos=PARKING_NORTH_BLOCK1, block2_pos=PARKING_NORTH_BLOCK2)
+_EAST_CFG = ParkingLotConfig(block1_pos=PARKING_EAST_BLOCK1, block2_pos=PARKING_EAST_BLOCK2)
+_WEST_CFG = ParkingLotConfig(block1_pos=PARKING_WEST_BLOCK1, block2_pos=PARKING_WEST_BLOCK2)
 
 
 # Zone geometry
@@ -176,7 +177,7 @@ class TestInsideZone:
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.WIDE)
 
 
-def _parking_fins(cfg: dict, section: Section) -> list[ObstacleBox]:
+def _parking_fins(cfg: ParkingLotConfig, section: Section) -> list[ObstacleBox]:
     """The two magenta markers as physical obstacles.
 
     They became collidable in the simulator in commit fd33fd5, but this harness kept
@@ -194,7 +195,7 @@ def _parking_fins(cfg: dict, section: Section) -> list[ObstacleBox]:
             width=ParkingLotSpecs.WIDTH,
             yaw=yaw,
         )
-        for pos in (cfg["block1_pos"], cfg["block2_pos"])
+        for pos in (cfg.block1_pos, cfg.block2_pos)
     ]
 
 
@@ -227,7 +228,7 @@ class ParkRun:
 
 
 def _simulate_park(
-    cfg: dict,
+    cfg: ParkingLotConfig,
     section: Section,
     start_pos: tuple[float, float],
     start_yaw: float,
@@ -338,14 +339,14 @@ def test_south_park_from_4_approaches(start_pos, start_yaw):
 # the robot. The old bearing-proportional `_pursuit_steer` orbited into the inner
 # block trying to reach it; the fixed controller must reverse-and-reorient instead.
 
-_DEGENERATE_CFGS: dict[Section, tuple[dict, tuple[float, float], float]] = {}
+_DEGENERATE_CFGS: dict[Section, tuple[ParkingLotConfig, tuple[float, float], float]] = {}
 for _section, _cfg in (
     (Section.SOUTH, _SOUTH_CFG),
     (Section.NORTH, _NORTH_CFG),
     (Section.EAST, _EAST_CFG),
     (Section.WEST, _WEST_CFG),
 ):
-    _zone = _build_zone(_cfg["block1_pos"], _cfg["block2_pos"], _section, _CCW)
+    _zone = _build_zone(_cfg.block1_pos, _cfg.block2_pos, _section, _CCW)
     _staging = _staging_pos(_zone, _section)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0

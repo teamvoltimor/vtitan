@@ -9,17 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.server.constants import (
-    CFG_KEY_CHECKPOINT,
-    CFG_KEY_VARIANT,
-    SAM1_DEFAULT_VARIANT,
-)
+from src.server.constants import SAM1_DEFAULT_VARIANT
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
+    from src.server.registry import ModelConfig
 
 
-def load_sam1(cfg: dict, ctx: ServerContext) -> None:
+def load_sam1(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load a SAM 1 checkpoint into ``ctx.predictor``.
 
     Resolves the checkpoint path relative to the project root when the value
@@ -35,17 +32,15 @@ def load_sam1(cfg: dict, ctx: ServerContext) -> None:
     """
     from segment_anything import SamPredictor, sam_model_registry  # type: ignore[import-untyped]
 
-    ckpt_str = cfg.get(CFG_KEY_CHECKPOINT)
-    if not ckpt_str:
+    if not cfg.checkpoint:
         msg = "SAM1 requires a 'checkpoint' path in config"
         raise ValueError(msg)
 
-    ckpt = Path(ckpt_str)
+    ckpt = Path(cfg.checkpoint)
     if not ckpt.is_absolute():
-        # Resolve relative to the project root (three levels up from this file).
         ckpt = Path(__file__).parent.parent.parent / ckpt
 
-    variant = cfg.get(CFG_KEY_VARIANT, SAM1_DEFAULT_VARIANT)
+    variant = cfg.variant or SAM1_DEFAULT_VARIANT
     sam = sam_model_registry[variant](checkpoint=str(ckpt))
     sam.to(device=ctx.device)
     ctx.predictor = SamPredictor(sam)

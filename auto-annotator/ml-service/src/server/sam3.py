@@ -24,10 +24,13 @@ import numpy as np
 import torch
 from PIL import Image as _PIL
 
-from src.server.constants import CFG_KEY_HF_REPO, CFG_KEY_SUPPORTS_TEXT, SAM3_MASK_TENSOR_NDIM
+from src.server.constants import SAM3_MASK_TENSOR_NDIM
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
+
+from src.server.context import TextSegmentationResult
+from src.server.registry import ModelConfig
 
 
 class SAM3Predictor:
@@ -165,7 +168,7 @@ class SAM3TextSegmenter:
             self.model = AutoModel.from_pretrained(hf_repo).to(device)
         self.device = device
 
-    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[dict]:
+    def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
         """Run text-prompted segmentation for each class name in *class_names*.
 
         Each class is segmented independently; failures are captured per-class and
@@ -240,29 +243,25 @@ class SAM3TextSegmenter:
                         )
 
                 results.append(
-                    {
-                        "class_name": class_name,
-                        "masks": [masks_np[i] for i in range(len(masks_np))],
-                        "scores": scores,
-                        "boxes": boxes,
-                    },
+                    TextSegmentationResult(
+                        class_name=class_name,
+                        masks=[masks_np[i] for i in range(len(masks_np))],
+                        scores=scores,
+                        boxes=boxes,
+                    ),
                 )
             except Exception as e:
-                # Capture per-class failure so other classes are not discarded.
                 results.append(
-                    {
-                        "class_name": class_name,
-                        "masks": [],
-                        "scores": [],
-                        "boxes": [],
-                        "error": str(e),
-                    },
+                    TextSegmentationResult(
+                        class_name=class_name,
+                        error=str(e),
+                    ),
                 )
 
         return results
 
 
-def load_sam3(cfg: dict, ctx: ServerContext) -> None:
+def load_sam3(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load the SAM 3 interactive predictor (and optional text segmenter) into *ctx*.
 
     Attempts to import ``Sam3TrackerModel`` and ``Sam3TrackerProcessor`` from
@@ -274,7 +273,10 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
              optionally ``supports_text`` (bool).
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
-    hf_repo = cfg[CFG_KEY_HF_REPO]
+    hf_repo = cfg.hf_repo
+    if not hf_repo:
+        msg = "SAM3 requires 'hf_repo' in config"
+        raise ValueError(msg)
 
     try:
         from transformers import Sam3TrackerModel, Sam3TrackerProcessor  # type: ignore[import-untyped]
@@ -290,7 +292,7 @@ def load_sam3(cfg: dict, ctx: ServerContext) -> None:
     ctx.predictor = SAM3Predictor(tracker, tracker_proc)
     ctx.text_seg = None
 
-    if cfg.get(CFG_KEY_SUPPORTS_TEXT):
+    if cfg.supports_text:
         import contextlib as _ctx
 
         with _ctx.suppress(Exception):

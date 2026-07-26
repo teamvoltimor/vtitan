@@ -1,38 +1,27 @@
-"""src.server.responses – Typed response dataclasses for the dispatch layer.
+"""src.server.responses – Typed response Pydantic models for the dispatch layer.
 
-Each handler in :mod:`src.server.dispatch` returns one of these dataclasses.
-The :func:`src.server.dispatch.dispatch` function calls ``.to_dict()`` on the
+Each handler in :mod:`src.server.dispatch` returns one of these models.
+The :func:`src.server.dispatch.dispatch` function calls ``.model_dump()`` on the
 result before pickling it and sending it back over the TCP socket.  This keeps
 handler logic typed and testable while preserving the wire-protocol contract.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from src.server.constants import (
-    CFG_KEY_ID,
-    CFG_KEY_LABEL,
-    CFG_KEY_TYPE,
-    RESP_KEY_ACTIVE,
-    RESP_KEY_AVAILABLE,
-    RESP_KEY_DEVICE,
     RESP_KEY_ERROR,
-    RESP_KEY_LOGITS,
-    RESP_KEY_MASKS,
     RESP_KEY_MODEL_ID,
-    RESP_KEY_MODEL_LOADED,
-    RESP_KEY_MODELS,
     RESP_KEY_OK,
     RESP_KEY_RESULTS,
-    RESP_KEY_SCORES,
-    RESP_KEY_SUPPORTS_TEXT,
 )
+from src.server.context import TextSegmentationResult
 
 
-@dataclass
-class PingResponse:
+class PingResponse(BaseModel):
     """Response to the ``ping`` command.
 
     Attributes:
@@ -41,22 +30,13 @@ class PingResponse:
         model_id:     Identifier of the active model, or ``None`` if none is loaded.
     """
 
-    device: str
-    model_loaded: bool
-    model_id: str | None
-
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        return {
-            RESP_KEY_OK: True,
-            RESP_KEY_DEVICE: self.device,
-            RESP_KEY_MODEL_LOADED: self.model_loaded,
-            RESP_KEY_MODEL_ID: self.model_id,
-        }
+    ok: bool = True
+    device: str = ""
+    model_loaded: bool = False
+    model_id: str | None = None
 
 
-@dataclass
-class ModelDescriptor:
+class ModelDescriptor(BaseModel):
     """A single model entry in the list-models response.
 
     Attributes:
@@ -70,40 +50,23 @@ class ModelDescriptor:
 
     id: str
     label: str
-    model_type: str
-    available: bool
-    active: bool
-    supports_text: bool
-
-    def to_dict(self) -> dict:
-        """Serialise to the dict format expected by the client."""
-        return {
-            CFG_KEY_ID: self.id,
-            CFG_KEY_LABEL: self.label,
-            CFG_KEY_TYPE: self.model_type,
-            RESP_KEY_AVAILABLE: self.available,
-            RESP_KEY_ACTIVE: self.active,
-            RESP_KEY_SUPPORTS_TEXT: self.supports_text,
-        }
+    model_type: str = Field(alias="type")
+    available: bool = False
+    active: bool = False
+    supports_text: bool = False
 
 
-@dataclass
-class ListModelsResponse:
+class ListModelsResponse(BaseModel):
     """Response to the ``list_models`` command.
 
     Attributes:
         models: List of :class:`ModelDescriptor` instances for each configured model.
     """
 
-    models: list[ModelDescriptor] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        return {RESP_KEY_MODELS: [m.to_dict() for m in self.models]}
+    models: list[ModelDescriptor] = Field(default_factory=list)
 
 
-@dataclass
-class SetModelResponse:
+class SetModelResponse(BaseModel):
     """Response to the ``set_model`` command.
 
     Attributes:
@@ -111,7 +74,7 @@ class SetModelResponse:
         error:    Non-empty error string on failure; empty on success.
     """
 
-    model_id: str
+    model_id: str = ""
     error: str = ""
 
     @property
@@ -126,17 +89,13 @@ class SetModelResponse:
         return {RESP_KEY_OK: True, RESP_KEY_MODEL_ID: self.model_id}
 
 
-@dataclass
-class SetImageResponse:
+class SetImageResponse(BaseModel):
     """Response to the ``set_image`` command (always successful if no exception)."""
 
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        return {RESP_KEY_OK: True}
+    ok: bool = True
 
 
-@dataclass
-class PredictResponse:
+class PredictResponse(BaseModel):
     """Response to the ``predict`` command.
 
     Attributes:
@@ -145,29 +104,22 @@ class PredictResponse:
         logits: Raw SAM logit tensor for iterative refinement.
     """
 
-    masks: list[Any]
-    scores: list[float]
-    logits: Any
+    masks: list[Any] = Field(default_factory=list)
+    scores: list[float] = Field(default_factory=list)
+    logits: Any = None
 
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        return {
-            RESP_KEY_MASKS: self.masks,
-            RESP_KEY_SCORES: self.scores,
-            RESP_KEY_LOGITS: self.logits,
-        }
+    model_config = {"arbitrary_types_allowed": True}
 
 
-@dataclass
-class PredictTextResponse:
+class PredictTextResponse(BaseModel):
     """Response to the ``predict_text`` command.
 
     Attributes:
-        results: List of per-class segmentation result dicts.
+        results: List of per-class segmentation result models.
         error:   Non-empty error string on failure; empty on success.
     """
 
-    results: list[dict] = field(default_factory=list)
+    results: list[TextSegmentationResult] = Field(default_factory=list)
     error: str = ""
 
     @property
@@ -179,11 +131,10 @@ class PredictTextResponse:
         """Serialise to a wire-protocol response dict."""
         if self.error:
             return {RESP_KEY_ERROR: self.error}
-        return {RESP_KEY_RESULTS: self.results}
+        return {RESP_KEY_RESULTS: [r.model_dump() for r in self.results]}
 
 
-@dataclass
-class ErrorResponse:
+class ErrorResponse(BaseModel):
     """Generic error response returned for unknown commands or missing models.
 
     Attributes:
@@ -191,7 +142,3 @@ class ErrorResponse:
     """
 
     error: str
-
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        return {RESP_KEY_ERROR: self.error}

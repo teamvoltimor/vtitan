@@ -1,4 +1,4 @@
-"""Build valid Open Challenge scenario metadata dicts (same schema as simgen).
+"""Build valid Open Challenge scenario metadata (same schema as simgen).
 
 Shared by the headless test battery (``tests/unit/test_open_challenge_sim.py``)
 and by ``find_recovery_envelope.py``/``test_deviation_recovery.py`` so both
@@ -10,10 +10,16 @@ and Obstacles Challenge scenarios instead load Go-generated fixtures — see
 from __future__ import annotations
 
 import math
-from typing import Any
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.enums import Direction, Section
+from shared.domain.models import (
+    CorridorWidthEntry,
+    CorridorWidths,
+    Position2D,
+    ScenarioMetadata,
+    StartingConditions,
+)
 
 from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
 from src.navigation.race_tracker import TRAVEL_DIRS
@@ -48,32 +54,33 @@ def build_open_metadata(
     section: Section,
     direction: Direction,
     scenario_id: int = 0,
-) -> dict[str, Any]:
-    """Construct a valid Open Challenge metadata dict (same schema as simgen)."""
+) -> ScenarioMetadata:
+    """Construct a valid Open Challenge metadata (same schema as simgen)."""
     widths_m = {k: v / 1000.0 for k, v in widths_mm.items()}
     sx, sy, yaw = start_pose(section, direction, widths_m)
-    return {
-        "scenario_id": scenario_id,
-        "challenge_type": "open",
-        "seed": None,
-        "num_signs": 0,
-        "has_parking_lot": False,
-        "parking_lot": None,
-        "sign_positions": [],
-        "corridor_widths": {
-            side: {
-                "type": "narrow" if widths_mm[side] == _NARROW_MM else "wide",
-                "width_mm": widths_mm[side],
-            }
-            for side in ("north", "south", "east", "west")
-        },
-        "starting_conditions": {
-            "direction": str(direction),
-            "section": section.capitalized,
-            "position": {"x": sx, "y": sy},
-            "yaw": yaw,
-        },
-    }
+    return ScenarioMetadata(
+        scenario_id=scenario_id,
+        challenge_type="open",
+        num_signs=0,
+        has_parking_lot=False,
+        parking_lot=None,
+        sign_positions=[],
+        corridor_widths=CorridorWidths(
+            **{
+                side: CorridorWidthEntry(
+                    type="narrow" if widths_mm[side] == _NARROW_MM else "wide",
+                    width_mm=widths_mm[side],
+                )
+                for side in ("north", "south", "east", "west")
+            },
+        ),
+        starting_conditions=StartingConditions(
+            direction=str(direction),
+            section=section.capitalized,
+            position=Position2D(x=sx, y=sy),
+            yaw=yaw,
+        ),
+    )
 
 
 def uniform_widths(mm: int) -> dict[str, int]:

@@ -11,15 +11,13 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
+from pydantic import BaseModel
+
 import numpy as np
 import torch
 
 from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CFG_KEY_ID,
-    CFG_KEY_LABEL,
-    CFG_KEY_SUPPORTS_TEXT,
-    CFG_KEY_TYPE,
     CMD_LIST_MODELS,
     CMD_PING,
     CMD_PREDICT,
@@ -104,12 +102,12 @@ def handle_list_models(_msg: dict, ctx: ServerContext) -> ListModelsResponse:
     registry = ModelRegistry(ctx.models_config, PROJECT_ROOT)
     descriptors = [
         ModelDescriptor(
-            id=cfg[CFG_KEY_ID],
-            label=cfg.get(CFG_KEY_LABEL, cfg[CFG_KEY_ID]),
-            model_type=cfg.get(CFG_KEY_TYPE, ""),
-            available=cfg[CFG_KEY_ID] in registry.all_available(),
-            active=cfg[CFG_KEY_ID] == ctx.model_id,
-            supports_text=cfg.get(CFG_KEY_SUPPORTS_TEXT, False),
+            id=cfg.id,
+            label=cfg.label or cfg.id,
+            model_type=cfg.model_type,
+            available=cfg.id in registry.all_available(),
+            active=cfg.id == ctx.model_id,
+            supports_text=cfg.supports_text,
         )
         for cfg in ctx.models_config
     ]
@@ -231,6 +229,19 @@ _MODEL_HANDLERS: dict[str, Any] = {
 }
 
 
+def _dump(resp: BaseModel) -> dict:
+    """Serialise a response model to a wire-protocol dict.
+
+    Uses ``.to_dict()`` when the model defines custom serialisation logic,
+    otherwise falls back to ``.model_dump(by_alias=True)`` so that fields
+    with ``Field(alias=...)`` are serialised under their wire-protocol key.
+    """
+    to_dict = getattr(resp, "to_dict", None)
+    if to_dict is not None:
+        return to_dict()
+    return resp.model_dump(by_alias=True)
+
+
 def dispatch(msg: dict, ctx: ServerContext) -> dict:
     """Route a decoded request dict to the appropriate command handler.
 
@@ -248,12 +259,12 @@ def dispatch(msg: dict, ctx: ServerContext) -> dict:
     cmd = msg.get(MSG_KEY_CMD, "")
 
     if cmd in _HANDLERS:
-        return _HANDLERS[cmd](msg, ctx).to_dict()
+        return _dump(_HANDLERS[cmd](msg, ctx))
 
     if ctx.predictor is None:
-        return ErrorResponse(error="No model loaded").to_dict()
+        return _dump(ErrorResponse(error="No model loaded"))
 
     if cmd in _MODEL_HANDLERS:
-        return _MODEL_HANDLERS[cmd](msg, ctx).to_dict()
+        return _dump(_MODEL_HANDLERS[cmd](msg, ctx))
 
-    return ErrorResponse(error=f"Unknown command: {cmd!r}").to_dict()
+    return _dump(ErrorResponse(error=f"Unknown command: {cmd!r}"))

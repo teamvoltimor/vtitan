@@ -26,11 +26,32 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
+from pydantic import BaseModel
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
+
+
+class BlockPosition(BaseModel):
+    """A single parking block position in world coordinates."""
+
+    x: float
+    y: float
+
+
+class ParkingLotConfig(BaseModel):
+    """Parking lot configuration extracted from scenario metadata.
+
+    Attributes:
+        block1_pos: (x, y) world position of the first parking block.
+        block2_pos: (x, y) world position of the second parking block.
+    """
+
+    block1_pos: tuple[float, float]
+    block2_pos: tuple[float, float]
+
 
 _PARALLEL_TOLERANCE_M = 0.02
 """WRO rule: the two wheels on one side may differ by at most 2 cm in wall distance."""
@@ -166,7 +187,7 @@ class ParkController:
 
     def __init__(
         self,
-        parking_config: dict,
+        parking_config: ParkingLotConfig,
         start_section: Section,
         direction: Direction,
         speed: float = 0.12,
@@ -184,8 +205,8 @@ class ParkController:
         self._reposition_steer = 0.0
         self._saturated_ticks = 0
 
-        b1 = parking_config["block1_pos"]
-        b2 = parking_config["block2_pos"]
+        b1 = parking_config.block1_pos
+        b2 = parking_config.block2_pos
         self._zone = _build_zone(b1, b2, start_section, direction)
         self._staging = _staging_pos(self._zone, start_section)
 
@@ -697,7 +718,7 @@ def park_controller_from_metadata(
     b1 = (parking["block1_position"]["x"], parking["block1_position"]["y"])
     b2 = (parking["block2_position"]["x"], parking["block2_position"]["y"])
     return ParkController(
-        parking_config={"block1_pos": b1, "block2_pos": b2},
+        parking_config=ParkingLotConfig(block1_pos=b1, block2_pos=b2),
         start_section=start_section,
         direction=direction,
     )
