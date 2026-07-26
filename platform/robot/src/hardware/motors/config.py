@@ -38,6 +38,19 @@ class MotorSteeringConfig(BaseModel):
     reversed: bool = False
     """Whether the steering motor is reversed. This can be used to invert the direction of the steering motor if it is mounted in a way that causes left commands to actually turn the wheels right."""
 
+    linkage_ratio: float = 1.0
+    """Road-wheel degrees produced per servo degree.
+
+    Measured 0.78 on this chassis (servo 90 deg -> wheels ~70 deg). Everything
+    upstream -- /ackermann_cmd, the navigator, the simulator -- speaks in WHEEL
+    angles, per the ROS convention; only the servo speaks servo angles. Without
+    this conversion the node fed a wheel angle straight to the servo and the
+    wheels under-turned by ~22%, so the robot consistently cornered wider than
+    the path it was following.
+
+    1.0 means "servo angle is the wheel angle", i.e. direct-drive steering.
+    """
+
 
 class MotorDriveConfig(BaseModel):
     """Drive configuration."""

@@ -387,20 +387,24 @@ class AckermannMotorNode(LifecycleNode):
         velocity = msg.drive.speed  # m/s
         steering_angle_rad = msg.drive.steering_angle  # radians
 
-        # Convert steering angle from radians to degrees
-        steering_angle_deg = math.degrees(steering_angle_rad)
+        # The message carries a WHEEL angle (ROS convention, and what the
+        # navigator and simulator both reason about). The servo needs a SERVO
+        # angle, and the linkage is geared between them -- feeding one straight
+        # into the other made the wheels under-turn by ~22%.
+        wheel_angle_deg = math.degrees(steering_angle_rad)
+        servo_angle_deg = wheel_angle_deg / self.config.steering.linkage_ratio
 
-        # Apply steering offset calibration
-        calibrated_steering = steering_angle_deg + self.config.steering.offset
+        # Offset is a servo-side mechanical trim, so it applies after conversion.
+        calibrated_steering = servo_angle_deg + self.config.steering.offset
 
-        # Clamp steering to safe limits
+        # max_steering_angle is the SERVO's travel limit, not the wheel's.
         max_angle = self.config.steering.max_steering_angle
         clamped_steering = max(-max_angle, min(max_angle, calibrated_steering))
 
         if abs(calibrated_steering) > max_angle:
             self.get_logger().warning(
-                f"Steering angle {calibrated_steering:.2f}° exceeds limit ±{max_angle}°, "
-                f"clamped to {clamped_steering:.2f}°",
+                f"Servo angle {calibrated_steering:.2f}° (wheel {wheel_angle_deg:.2f}°) "
+                f"exceeds limit ±{max_angle}°, clamped to {clamped_steering:.2f}°",
             )
 
         # Convert velocity to motor speed percentage
@@ -460,8 +464,12 @@ class AckermannMotorNode(LifecycleNode):
             return
 
         try:
-            # Get current motor states
-            steering_pos = self.steering.get_steering_position()
+            # Get current motor states. The driver reports a SERVO angle;
+            # convert back to a WHEEL angle so the published feedback is in the
+            # same frame as the commands on /ackermann_cmd. Publishing servo
+            # degrees against wheel-degree commands would make any consumer
+            # comparing the two -- or closing a loop on them -- silently wrong.
+            steering_pos = self.steering.get_steering_position() * self.config.steering.linkage_ratio
             drive_speed = self.drive.get_drive_speed()
 
             # Publish steering position
