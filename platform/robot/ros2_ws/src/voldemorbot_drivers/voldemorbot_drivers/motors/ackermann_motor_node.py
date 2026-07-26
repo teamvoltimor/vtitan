@@ -227,6 +227,11 @@ class AckermannMotorNode(LifecycleNode):
         self.joint_state_pub: Publisher | None = None
         self.ackermann_sub: Subscription | None = None
         self.feedback_timer: Timer | None = None
+        # Initialised here, not only in on_activate(): _destroy_sub_and_timers
+        # reads all three by name, so a node torn down before activation raised
+        # AttributeError and never reached _stop_motors_safely() -- on the one
+        # path where the motors are least likely to already be stopped.
+        self.control_timer: Timer | None = None
         self.watchdog_timer: Timer | None = None
 
         # Current command tracking

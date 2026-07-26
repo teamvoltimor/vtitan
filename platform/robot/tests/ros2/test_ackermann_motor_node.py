@@ -14,6 +14,7 @@ from unittest import mock
 import pytest
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
+from shared.config.constants import RobotSpecs
 
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 
@@ -22,6 +23,27 @@ from src.hardware.motors.enums import DriveBackend, SteeringBackend
 # of repeating the literal and risking silent drift between them.
 _MOCK_MAX_STEERING_DEG = 30.0
 _MOCK_SPEED_SCALE = 30.0
+
+_MOCK_LINKAGE_RATIO = 1.0
+"""Servo-to-wheel gearing, held at 1:1 so servo and wheel angles coincide.
+
+Every steering assertion below was written when the node fed the wheel angle
+straight to the servo, so 1:1 preserves their arithmetic. It also has to be a
+real number rather than a MagicMock: the node divides by it and then clamps the
+result, and a MagicMock reaching that comparison raises TypeError -- which is
+what failed 13 of these tests, in code paths that have nothing to do with
+steering linkage.
+"""
+
+
+def _wheel_rpm_for(velocity_mps: float) -> float:
+    """The wheel-rpm setpoint the node derives from a commanded m/s.
+
+    Mirrors the node's conversion rather than hardcoding a number, so the
+    expectation tracks RobotSpecs.WHEEL_RADIUS instead of silently drifting
+    from it the way the old open-loop duty assertions did.
+    """
+    return velocity_mps / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
 
 
 @pytest.fixture()
@@ -41,10 +63,15 @@ def ackermann_node_class(monkeypatch):
     monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
     monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
 
+    # Every numeric field the node reads must be stubbed. A MagicMock left in
+    # any of them propagates through the arithmetic and only fails later, at
+    # whichever comparison it reaches first, in a test that looks unrelated.
     mock_config = mock.MagicMock()
     mock_config.steering.offset = 0.0
     mock_config.steering.max_steering_angle = _MOCK_MAX_STEERING_DEG
+    mock_config.steering.linkage_ratio = _MOCK_LINKAGE_RATIO
     mock_config.drive.reversed = False
+    mock_config.drive.encoder_reversed = False
     mock_config.drive.max_speed = 100
     mock_config.drive.speed_scale = _MOCK_SPEED_SCALE
 
@@ -147,9 +174,13 @@ class TestAckermannMotorNodeDecode:
         assert angle_deg == pytest.approx(15.0)
         assert kwargs["speed"] == STEERING_COMMAND_SPEED
 
-        mock_drive.run_drive_forward.assert_called_once_with(pytest.approx(0.3 * _MOCK_SPEED_SCALE))
+        # Decode sets a wheel-rpm setpoint; the 50 Hz control loop is what
+        # commands the driver. Asserting on run_drive_forward here tested an
+        # open-loop API the node stopped using when it moved to closed-loop
+        # speed control, and had been failing ever since.
+        assert node.target_wheel_rpm == pytest.approx(_wheel_rpm_for(0.3))
+        mock_drive.run_drive_forward.assert_not_called()
         mock_drive.run_drive_reverse.assert_not_called()
-        mock_drive.stop_drive.assert_not_called()
 
         node.destroy_node()
 
@@ -164,8 +195,12 @@ class TestAckermannMotorNodeDecode:
 
         node._ackermann_callback(msg)
 
-        mock_drive.run_drive_reverse.assert_called_once_with(pytest.approx(abs(-0.2 * _MOCK_SPEED_SCALE)))
+        # Reverse is a negative setpoint now, not a separate driver call: the
+        # driver owns direction, so the node no longer picks forward/reverse.
+        assert node.target_wheel_rpm == pytest.approx(_wheel_rpm_for(-0.2))
+        assert node.target_wheel_rpm < 0
         mock_drive.run_drive_forward.assert_not_called()
+        mock_drive.run_drive_reverse.assert_not_called()
 
         node.destroy_node()
 
@@ -217,7 +252,15 @@ class TestAckermannMotorNodeDecode:
 
         node.destroy_node()
 
-    def test_drive_reversed_flips_direction(self, ros_context, ackermann_node_class):
+    def test_drive_reversed_does_not_flip_the_setpoint(self, ros_context, ackermann_node_class):
+        """Direction inversion belongs to the driver, not to this node.
+
+        This test previously asserted the opposite -- that drive.reversed made
+        a forward command run the reverse output -- which was true before the
+        driver took ownership of direction. Negating in both places would
+        cancel out, and would report a commanded_speed whose sign disagreed
+        with the actual motion, so the setpoint must come through untouched.
+        """
         AckermannMotorNode, _, mock_drive, mock_config = ackermann_node_class
         mock_config.drive.reversed = True
         node = AckermannMotorNode()
@@ -229,9 +272,10 @@ class TestAckermannMotorNodeDecode:
 
         node._ackermann_callback(msg)
 
-        # A forward command on a reversed motor must run the reverse output.
-        mock_drive.run_drive_reverse.assert_called_once()
+        assert node.target_wheel_rpm == pytest.approx(_wheel_rpm_for(0.3))
+        assert node.target_wheel_rpm > 0
         mock_drive.run_drive_forward.assert_not_called()
+        mock_drive.run_drive_reverse.assert_not_called()
 
         node.destroy_node()
 
@@ -418,8 +462,7 @@ class TestJointStateFeedback:
 
     def test_publishes_si_units_not_degrees(self, ros_context, ackermann_node_class):
         """The Float32 topics are degrees; JointState is radians."""
-        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
-        mock_config.steering.linkage_ratio = 1.0
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
         published = []
         node.joint_state_pub.publish = published.append
@@ -435,8 +478,7 @@ class TestJointStateFeedback:
 
     def test_carries_a_timestamp(self, ros_context, ackermann_node_class):
         """The reason for the message: integrating distance needs sample times."""
-        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
-        mock_config.steering.linkage_ratio = 1.0
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
         published = []
         node.joint_state_pub.publish = published.append
@@ -448,8 +490,7 @@ class TestJointStateFeedback:
         node.destroy_node()
 
     def test_names_both_joints(self, ros_context, ackermann_node_class):
-        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
-        mock_config.steering.linkage_ratio = 1.0
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
         published = []
         node.joint_state_pub.publish = published.append
@@ -469,8 +510,7 @@ class TestJointStateFeedback:
         and the 50 Hz control loop stole windows from each other when both
         called it. Publishing JointState must not add a third consumer.
         """
-        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
-        mock_config.steering.linkage_ratio = 1.0
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
         mock_drive.reset_mock()
 
@@ -482,8 +522,7 @@ class TestJointStateFeedback:
 
     def test_float32_topics_still_published(self, ros_context, ackermann_node_class):
         """Additive: the telemetry payload fields must keep flowing."""
-        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
-        mock_config.steering.linkage_ratio = 1.0
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
         node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
         steering_pub, speed_pub = [], []
         node.steering_pos_pub.publish = steering_pub.append
