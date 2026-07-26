@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from src.config import ExportConfig  # noqa: TC001
@@ -56,5 +57,15 @@ def run(config: ExportConfig) -> None:
         opset,
         export_kwargs,
     )
-    model.export(**export_kwargs)
+    produced = Path(model.export(**export_kwargs))
+
+    # Ultralytics writes the ONNX next to the checkpoint. For checkpoints that
+    # live outside `data/` (retrained models kept with their training run) that
+    # is not where the rest of the pipeline looks, so move it into place.
+    destination = Path(entry.onnx_file)
+    if produced.resolve() != destination.resolve():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(produced), destination)
+        log.info("Moved %s → %s", produced, destination)
+
     log.info("Export complete → %s", entry.onnx_file)

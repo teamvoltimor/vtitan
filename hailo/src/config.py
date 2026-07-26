@@ -88,11 +88,15 @@ class StageConfig:
             Pass ``None`` to skip copying calibration data.
         shared_dir: Host path of the Docker-shared volume
             (default: ``shared_with_docker``).
+        calib_name: Subdirectory name for the staged calibration images.
+            Give a per-model name to keep domain-specific calibration sets
+            from overwriting each other.
     """
 
     model: str
     calib: str | None
     shared_dir: str = SHARED_WITH_DOCKER
+    calib_name: str = "calib_data"
 
 
 @dataclass(slots=True, frozen=True)
@@ -108,6 +112,9 @@ class CompileConfig:
             (default: ``/local/shared_with_docker/calib_data``).
         docker: Docker container name for ``docker exec``.
             When ``None`` the command is printed instead of executed.
+        classes: Detection class count for a retrained checkpoint. Falls back
+            to the registry entry's ``classes`` when ``None``; when both are
+            ``None`` the zoo model's own class count is used.
     """
 
     model: str
@@ -115,6 +122,7 @@ class CompileConfig:
     hw: HWArch
     calib_path: str
     docker: str | None
+    classes: int | None = None
 
 
 @dataclass(slots=True, frozen=True)

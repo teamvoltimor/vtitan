@@ -59,6 +59,36 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
 # Public commands
 
 
+IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
+
+
+def _stage_calibration_images(source: Path, dest: Path) -> int:
+    """Copy every image under *source* into a flat *dest* directory.
+
+    ``hailomz`` reads calibration images from a single directory, so nested
+    dataset layouts (``images/<class>/*.jpg``) are flattened. Names are
+    prefixed with their relative parent to keep collisions apart.
+
+    Args:
+        source: Root directory to walk for images.
+        dest: Flat destination directory, created if absent.
+
+    Returns:
+        Number of images copied.
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for image in sorted(source.rglob("*")):
+        if image.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        relative_parent = image.parent.relative_to(source)
+        prefix = "_".join(relative_parent.parts)
+        name = f"{prefix}_{image.name}" if prefix else image.name
+        shutil.copy2(image, dest / name)
+        count += 1
+    return count
+
+
 def stage(config: StageConfig) -> None:
     """Copy ONNX and calibration data into ``shared_with_docker/``.
 
@@ -87,9 +117,12 @@ def stage(config: StageConfig) -> None:
         if not calib_src.exists():
             msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
             raise HailoError(msg)
-        calib_dest = shared / "calib_data"
-        shutil.copytree(calib_src, calib_dest, dirs_exist_ok=True)
-        log.info("Staged calibration data → %s", calib_dest)
+        calib_dest = shared / config.calib_name
+        staged = _stage_calibration_images(calib_src, calib_dest)
+        if staged == 0:
+            msg = f"No calibration images found under {calib_src}."
+            raise HailoError(msg)
+        log.info("Staged %d calibration images → %s", staged, calib_dest)
 
     log.info(
         "Stage complete. Files are at %s (%s inside Docker).",
@@ -123,6 +156,12 @@ def compile_model(config: CompileConfig) -> None:
         "--hw-arch",
         str(config.hw),
     ]
+
+    # A retrained checkpoint keeps the zoo model's graph but not its class
+    # count, so the NMS config has to be regenerated for the real one.
+    classes = config.classes if config.classes is not None else (entry.classes if entry else None)
+    if classes is not None:
+        cmd += ["--classes", str(classes)]
     # Pin the working directory to the shared mount so the resulting HAR/HEF
     # land where `eval`/`profile` look for them by default.
     run_or_print(cmd, config.docker, workdir=DOCKER_SHARED_MOUNT)

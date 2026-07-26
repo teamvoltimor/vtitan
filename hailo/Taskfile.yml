@@ -17,6 +17,8 @@ vars:
   HW_ARCH: hailo8
   TARGET: emulator
   DATA_COUNT: 512
+  GMR_CALIB_SRC: ../auto-annotator/ml-service/data/images
+  GMR_CALIB_NAME: calib_data_gmr
 
 tasks:
   default:
@@ -195,6 +197,39 @@ tasks:
     desc: 'Profile HEF model for performance (print command only)'
     cmds:
       - uv run hailo profile --model {{.MODEL}}
+
+# GMR (retrained 3-class YOLO11n: green / red / magenta prism)
+#
+# Unlike the stock models, this one calibrates on the auto-annotator's own
+# prism photographs rather than COCO — quantisation ranges derived from
+# out-of-domain images cost real accuracy on a colour-critical detector.
+
+  gmr:export:
+    desc: 'Export the retrained GMR checkpoint to ONNX'
+    cmds:
+      - uv run hailo export --model gmr --imgsz {{.IMGSZ}}
+
+  gmr:stage:
+    desc: 'Stage GMR ONNX + prism calibration images for Docker'
+    cmds:
+      - uv run hailo stage --model gmr --calib {{.GMR_CALIB_SRC}} --calib-name {{.GMR_CALIB_NAME}} --shared-dir {{.SHARED_DIR}}
+
+  gmr:compile:
+    desc: 'Compile GMR ONNX to Hailo HEF (requires running container)'
+    cmds:
+      - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}} --docker {{.DOCKER_CONTAINER}}
+
+  gmr:compile-dry:
+    desc: 'Print the GMR compile command without executing it'
+    cmds:
+      - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}}
+
+  gmr:workflow:
+    desc: 'GMR pipeline: export -> stage -> compile in Docker'
+    cmds:
+      - task: gmr:export
+      - task: gmr:stage
+      - task: gmr:compile
 
 # End-to-End Workflows
 

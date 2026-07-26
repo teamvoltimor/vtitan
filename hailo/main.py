@@ -92,6 +92,7 @@ def _cmd_stage(args: argparse.Namespace) -> None:
             model=args.model,
             calib=args.calib,
             shared_dir=args.shared_dir,
+            calib_name=args.calib_name,
         ),
     )
 
@@ -104,6 +105,7 @@ def _cmd_compile(args: argparse.Namespace) -> None:
             hw=HWArch(args.hw),
             calib_path=args.calib_path,
             docker=args.docker,
+            classes=args.classes,
         ),
     )
 
@@ -249,12 +251,18 @@ def _add_stage_parser(sub: argparse._SubParsersAction) -> None:
         "--calib",
         default=None,
         metavar="DIR",
-        help="Local calibration image directory to copy (optional)",
+        help="Local calibration image directory to copy (optional, searched recursively)",
     )
     parser.add_argument(
         "--shared-dir",
         default=SHARED_WITH_DOCKER,
         help=f"Host path of the Docker-shared volume (default: {SHARED_WITH_DOCKER})",
+    )
+    parser.add_argument(
+        "--calib-name",
+        default="calib_data",
+        metavar="NAME",
+        help="Subdirectory to stage calibration images into (default: calib_data)",
     )
     parser.set_defaults(func=_cmd_stage)
 
@@ -283,6 +291,16 @@ def _add_compile_parser(
         "--calib-path",
         default=f"{DOCKER_SHARED_MOUNT}/calib_data",
         help=f"Calibration path inside Docker (default: {DOCKER_SHARED_MOUNT}/calib_data)",
+    )
+    parser.add_argument(
+        "--classes",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Detection class count for a retrained checkpoint. Defaults to the "
+            "registry entry's class count, or the zoo model's when unset."
+        ),
     )
     parser.set_defaults(func=_cmd_compile)
 

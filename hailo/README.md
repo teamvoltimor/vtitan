@@ -124,6 +124,8 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `HW_ARCH` | `hailo8` | Target hardware |
 | `TARGET` | `emulator` | Evaluation target |
 | `DATA_COUNT` | `512` | Evaluation samples |
+| `GMR_CALIB_SRC` | `../auto-annotator/ml-service/data/images` | Prism calibration images for `gmr` |
+| `GMR_CALIB_NAME` | `calib_data_gmr` | Staged calibration subdirectory for `gmr` |
 
 ### Environment
 
@@ -186,6 +188,16 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `task profile:run` | Profile HEF performance |
 | `task profile:dry` | Print profile command only |
 
+### GMR (retrained 3-class model)
+
+| Task | Description |
+|---|---|
+| `task gmr:export` | Export the retrained checkpoint to ONNX |
+| `task gmr:stage` | Stage ONNX + prism calibration images |
+| `task gmr:compile` | Compile to HEF (requires running container) |
+| `task gmr:compile-dry` | Print the compile command only |
+| `task gmr:workflow` | export → stage → compile |
+
 ### End-to-End Workflows
 
 | Task | Description |
@@ -216,8 +228,39 @@ their export metadata and Hailo Model Zoo identifiers:
 | `yolo26n` | detect | 11 | — | No zoo entry |
 | `yolo26l` | detect | 11 | — | No zoo entry |
 | `yolo26l-seg` | segment | 11 | — | Segmentation variant |
+| `gmr` | detect | 13 | `yolov11n` | Retrained, 3 classes |
 
 Models without a zoo name require `--zoo-name` when calling `compile`/`eval`/`profile`.
+
+### Retrained models
+
+`gmr` is the auto-annotator's retrained YOLO11n — green / red / magenta
+rectangular prism — living at
+`../auto-annotator/ml-service/models/gmr/best.pt`. It shares the stock
+`yolo11n` architecture, so it compiles against the zoo's `yolov11n` graph
+config; only the class count differs. The registry entry carries
+`classes=3`, which `compile` forwards as `hailomz --classes 3` so the NMS
+config is regenerated for the real class count instead of COCO's 80.
+
+Two things differ from the stock workflow:
+
+- **Calibration data is domain-specific.** `task gmr:stage` calibrates on the
+  auto-annotator's own prism photographs, not COCO. Quantisation ranges
+  derived from out-of-domain images cost real accuracy on a colour-critical
+  detector. The images are nested per class, so `stage` walks the source
+  directory recursively and flattens it — `hailomz` reads calibration images
+  from a single flat directory.
+- **The staged calibration set is namespaced.** `--calib-name calib_data_gmr`
+  keeps it from overwriting the COCO set used by the stock models. Pass the
+  matching `--calib-path` to `compile`.
+
+```bash
+task gmr:workflow          # export → stage → compile
+task gmr:compile-dry       # print the hailomz command without a container
+```
+
+For any other retrained checkpoint, add a registry entry with its `.pt` path,
+the zoo name of its base architecture, and its `classes` count.
 
 ## Docker Workflow
 

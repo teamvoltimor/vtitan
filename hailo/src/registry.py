@@ -27,6 +27,10 @@ class ModelEntry:
             ``YOLO.export()``, stored as an immutable tuple of pairs.
         zoo_name: Hailo Model Zoo identifier used by ``hailomz`` CLI
             (e.g. ``"yolov11s"``). ``None`` if the model is not in the zoo.
+        classes: Number of detection classes. Set this for retrained
+            checkpoints whose class count differs from the zoo model's COCO
+            default, so ``hailomz compile`` regenerates the NMS config to
+            match. ``None`` keeps the zoo model's own class count.
     """
 
     pt_file: str
@@ -35,6 +39,7 @@ class ModelEntry:
     opset: int
     export_extras: tuple[tuple[str, Any], ...]
     zoo_name: str | None = None
+    classes: int | None = None
 
     def extra_kwargs(self) -> dict[str, Any]:
         """Materialise ``export_extras`` back into a plain dict."""
@@ -89,6 +94,19 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         opset=11,
         export_extras=(("simplify", True), ("nms", False)),
         zoo_name=None,
+    ),
+    # Retrained YOLO11n owned by the auto-annotator: 3 classes
+    # (green / red / magenta rectangular prism). Same architecture as
+    # `yolo11n`, so it reuses the zoo's yolov11n graph config; only the class
+    # count differs, which `classes` feeds to `hailomz compile --classes`.
+    "gmr": ModelEntry(
+        pt_file="../auto-annotator/ml-service/models/gmr/best.pt",
+        onnx_file=f"{DATA_DIR}/gmr.onnx",
+        task=Task.DETECT,
+        opset=13,
+        export_extras=(),
+        zoo_name="yolov11n",
+        classes=3,
     ),
 }
 
