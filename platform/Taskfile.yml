@@ -110,8 +110,11 @@ tasks:
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
           task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
-          task robot:run            Run a single node (NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator)
-          task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar)
+          task robot:run            Run a single node (NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator|joy-teleop)
+          task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
+          task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
+          task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
+          task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -654,13 +657,53 @@ tasks:
       - pixi run run-{{.NODE}}
 
   robot:launch:
-    desc: "Launch a robot node set (usage: task robot:launch SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar) — requires build-ws first"
+    desc: "Launch a robot node set (usage: task robot:launch SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop) — requires build-ws first"
     dir: robot
     requires:
       vars:
         - SET
     cmds:
       - pixi run launch-{{.SET}}
+
+  robot:drive:
+    desc: >-
+      Switch the robot's control mode — run ON the Pi 5 (usage: task
+      robot:drive ACTION=navigation|controller [METADATA=path]). navigation:
+      runs race.launch.py (autonomous navigator). controller: runs
+      joy_teleop_launch.py (joystick bench testing, e.g. 8BitDo Ultimate 2
+      over Bluetooth). Only one should run at a time -- both publish to
+      /ackermann_cmd and nothing arbitrates between them. Stop the running
+      one (Ctrl+C), run robot:reset-motors, then start the other.
+    dir: robot
+    requires:
+      vars:
+        - ACTION
+    env:
+      SCENARIO_METADATA: '{{.METADATA | default ""}}'
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            navigation) pixi run drive-navigation ;;
+            controller) pixi run drive-controller ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use navigation|controller" && exit 1 ;;
+          esac
+
+  robot:reset-motors:
+    desc: Zero the drive command and recenter steering immediately (run after robot:drive switches modes, or after Ctrl+C)
+    dir: robot
+    cmds:
+      - pixi run reset-motors
+
+  robot:joystick-setup:
+    desc: >-
+      One-shot Bluetooth pairing for a joystick used with robot:drive
+      ACTION=controller (e.g. 8BitDo Ultimate 2) — run ON Pi 5. Put the
+      controller in pairing mode first. Idempotent, safe to re-run.
+      CONTROLLER_MAC=AA:BB:CC:DD:EE:FF skips the interactive scan. See
+      docs/joystick-teleop.md.
+    dir: robot
+    cmds:
+      - pixi run setup-joystick
 
   # RECORD (video + frame pipeline)
 

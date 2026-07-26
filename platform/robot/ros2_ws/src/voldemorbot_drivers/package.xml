@@ -16,6 +16,7 @@
   <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>joy</exec_depend>
 
   <!-- Intentionally no <test_depend>: tests run via pixi/pytest (see
        platform/robot/tests/), not colcon/ament_lint -- ruff is this repo's

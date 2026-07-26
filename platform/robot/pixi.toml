@@ -21,6 +21,7 @@ ros-kilted-nav-msgs       = "*"
 ros-kilted-sensor-msgs    = "*"
 ros-kilted-ackermann-msgs = "*"
 ros-kilted-vision-msgs    = "*"
+ros-kilted-joy            = "*"
 
 # ROS2 Kilted tools
 ros-kilted-std-srvs = ">=5.5.1,<6"
@@ -155,6 +156,7 @@ run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run 
 run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_state_machine state_machine_node'", env = { PYTHONPATH = "." } }
 run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers oled_display_node'", env = { PYTHONPATH = "." } }
 run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers ackermann_motor_node'", env = { PYTHONPATH = "." } }
+run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers joy_teleop_node'", env = { PYTHONPATH = "." } }
 run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_state_machine telemetry_bridge_node'", env = { PYTHONPATH = "." } }
 run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_vision vision_node'", env = { PYTHONPATH = "." } }
 run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json'", env = { PYTHONPATH = "." } }
@@ -166,6 +168,25 @@ launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 
 launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
 launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup simulator.launch.py'", env = { PYTHONPATH = "." } }
 launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup lidar_launch.py'", env = { PYTHONPATH = "." } }
+launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
+
+# Control mode switching -- exactly one of these should be running on the Pi
+# 5 at a time (both publish to /ackermann_cmd; nothing arbitrates between
+# them). ackermann_motor_node on the Pi Zero stays running throughout either
+# way, so switching just means stopping one of these and starting the other.
+# `drive-mode` picks between them at runtime via ROBOT_CONTROL_MODE (default
+# navigation) so the same command works from a script/alias regardless of
+# mode; `drive-navigation`/`drive-controller` are the explicit equivalents.
+# (Not named `drive` -- that task already runs the simulation's main.py.)
+# SCENARIO_METADATA overrides the default scenario for drive-navigation/drive-mode.
+drive-navigation       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json}'", env = { PYTHONPATH = "." } }
+drive-controller       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
+drive-mode             = { cmd = "bash -c '. ros2_ws/install/setup.bash && case \"${ROBOT_CONTROL_MODE:-navigation}\" in joystick) ros2 launch voldemorbot_bringup joy_teleop_launch.py ;; navigation) ros2 launch voldemorbot_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json} ;; *) echo \"Unknown ROBOT_CONTROL_MODE: ${ROBOT_CONTROL_MODE} (expected joystick or navigation)\" 1>&2; exit 1 ;; esac'", env = { PYTHONPATH = "." } }
+# Zeros the drive command and recenters steering immediately -- run after
+# switching modes (or after Ctrl+C'ing either drive-* task) instead of
+# waiting on ackermann_motor_node's 1s watchdog, which stops the drive motor
+# but never recenters steering. See scripts/reset-motors.py.
+reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/reset-motors.py'", env = { PYTHONPATH = "." } }
 
 # Fetch the third-party Slamtec LIDAR driver into the workspace (idempotent).
 # Required before build-ws if you intend to use run-lidar / launch-lidar.
@@ -242,3 +263,16 @@ safe-shutdown-both = "bash scripts/safe-shutdown-both.sh"
 # state, ROS2 cross-board topic discovery, and a real AckermannDriveStamped
 # publish -> motor driver -> feedback round-trip. Safe with motors unpowered.
 verify-zero-integration = "bash scripts/verify-zero-integration.sh"
+
+# Run ON Pi 5 -- one-shot Bluetooth pairing for a joystick used with
+# joy_teleop_node (e.g. 8BitDo Ultimate 2). Idempotent, safe to re-run. Put
+# the controller in pairing mode first. See docs/joystick-teleop.md.
+setup-joystick = "bash scripts/setup-joystick.sh"
+
+# Run ON Pi 5 -- hardware smoke test for ackermann_motor_node: steering servo
+# range of motion, then a low-speed drive pulse, checking real feedback (not
+# just that the topics exist) after each command. Steering-only is safe with
+# the robot sitting still; the drive test spins the wheels and asks for a
+# typed confirmation first (pass --yes to skip the prompt, --skip-drive to
+# omit it entirely). See scripts/test-motors.py --help for all options.
+test-motors = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/test-motors.py'"

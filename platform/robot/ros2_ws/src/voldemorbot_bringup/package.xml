@@ -15,6 +15,7 @@
   <exec_depend>voldemorbot_state_machine</exec_depend>
   <exec_depend>sllidar_ros2</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>joy</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
