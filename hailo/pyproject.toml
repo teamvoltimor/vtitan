@@ -22,6 +22,17 @@ dev = ["ruff>=0.15.4", "mypy>=1.13.0", "pytest>=8.0.0"]
 [project.scripts]
 hailo = "main:main"
 
+# Without a build backend uv treats this as a bare virtual project and silently
+# skips `[project.scripts]`, so every `uv run hailo ...` in Taskfile.yml fails
+# with "program not found". Declaring one installs the entry point (editable, so
+# source edits still take effect immediately).
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+include = ["main.py", "src"]
+
 [tool.pytest.ini_options]
 # Scope discovery to tests/ only -- src/test.py is the CLI's `test`
 # subcommand module, not a test suite, and must never be collected.

@@ -106,6 +106,8 @@ def _cmd_compile(args: argparse.Namespace) -> None:
             calib_path=args.calib_path,
             docker=args.docker,
             classes=args.classes,
+            model_script=args.model_script,
+            performance=args.performance,
         ),
     )
 
@@ -146,6 +148,9 @@ def _cmd_docker(args: argparse.Namespace) -> None:
                 video_gid=args.video_gid,
                 display=args.display,
                 dry_run=args.dry_run,
+                compile_only=args.compile_only,
+                gpu=not args.no_gpu,
+                cuda_device=args.cuda_device,
             ),
         )
 
@@ -302,6 +307,22 @@ def _add_compile_parser(
             "registry entry's class count, or the zoo model's when unset."
         ),
     )
+    quality = parser.add_mutually_exclusive_group()
+    quality.add_argument(
+        "--model-script",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path inside Docker to an .alls model script, replacing the zoo's own. "
+            "Use to raise calibset_size above the SDK's 64-entry default; the script "
+            "must restate normalization, output activations and nms_postprocess."
+        ),
+    )
+    quality.add_argument(
+        "--performance",
+        action="store_true",
+        help="Compile at the highest optimization level (much slower; needs a GPU)",
+    )
     parser.set_defaults(func=_cmd_compile)
 
 
@@ -388,6 +409,31 @@ def _add_docker_parser(sub: argparse._SubParsersAction, settings: HailoSettings)
         "--display",
         default=settings.x11_display,
         help=f"X11 DISPLAY to forward (default: {settings.x11_display}, override via HAILO_X11_DISPLAY)",
+    )
+    p_docker_run.add_argument(
+        "--compile-only",
+        action="store_true",
+        help=(
+            "Start a minimal detached container with only the shared mount. "
+            "Required on Docker Desktop, where the Linux device and X11 mounts "
+            "do not exist. Sufficient for export/stage/compile; `eval --target "
+            "hailo8` still needs the full Linux run for NPU access."
+        ),
+    )
+    p_docker_run.add_argument(
+        "--no-gpu",
+        action="store_true",
+        help="Drop --gpus all, for hosts without an NVIDIA GPU",
+    )
+    p_docker_run.add_argument(
+        "--cuda-device",
+        default=None,
+        metavar="INDEX",
+        help=(
+            "Pin CUDA_VISIBLE_DEVICES. Without it the optimizer's GPU selector "
+            "skips any GPU over 5%% utilised -- which a laptop GPU driving a "
+            "desktop always is -- and silently drops to optimization level 0."
+        ),
     )
     p_docker_run.add_argument(
         "--dry-run",

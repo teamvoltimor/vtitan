@@ -115,6 +115,13 @@ class CompileConfig:
         classes: Detection class count for a retrained checkpoint. Falls back
             to the registry entry's ``classes`` when ``None``; when both are
             ``None`` the zoo model's own class count is used.
+        model_script: Path *inside Docker* to an ``.alls`` model script. This
+            replaces the zoo's own script rather than extending it, so a custom
+            script must restate the model's normalization, output activations
+            and ``nms_postprocess`` or the compiled HEF will be wrong. Its main
+            use is raising ``calibset_size`` above the SDK's 64-entry default.
+        performance: Emit ``--performance`` to compile at the highest
+            optimization level. Mutually exclusive with ``model_script``.
     """
 
     model: str
@@ -123,6 +130,8 @@ class CompileConfig:
     calib_path: str
     docker: str | None
     classes: int | None = None
+    model_script: str | None = None
+    performance: bool = False
 
 
 @dataclass(slots=True, frozen=True)

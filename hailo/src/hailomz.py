@@ -138,7 +138,8 @@ def compile_model(config: CompileConfig) -> None:
         config: Compile parameters.
 
     Raises:
-        HailoError: When the zoo name cannot be resolved.
+        HailoError: When the zoo name cannot be resolved, or when both
+            ``model_script`` and ``performance`` are requested.
     """
     zoo_name = _resolve_zoo_name(config.model, config.zoo_name)
     entry = MODEL_REGISTRY.get(config.model)
@@ -162,6 +163,16 @@ def compile_model(config: CompileConfig) -> None:
     classes = config.classes if config.classes is not None else (entry.classes if entry else None)
     if classes is not None:
         cmd += ["--classes", str(classes)]
+
+    # hailomz rejects these two together -- they are one argparse mutually
+    # exclusive group -- so guard rather than let the container fail late.
+    if config.model_script and config.performance:
+        msg = "Pass either --model-script or --performance, not both."
+        raise HailoError(msg)
+    if config.model_script:
+        cmd += ["--model-script", config.model_script]
+    elif config.performance:
+        cmd.append("--performance")
     # Pin the working directory to the shared mount so the resulting HAR/HEF
     # land where `eval`/`profile` look for them by default.
     run_or_print(cmd, config.docker, workdir=DOCKER_SHARED_MOUNT)

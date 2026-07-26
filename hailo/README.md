@@ -62,13 +62,25 @@ hailo/
 The host-side commands (`export`, `calib`, `inspect`, `test`, `stage`) run on
 any platform, including Windows.
 
-The Hailo AI Software Suite is Linux-only, so `docker run`, `compile`, `eval`,
-and `profile` require a Linux environment:
+The Hailo AI Software Suite ships as a Linux container image, so `docker run`,
+`compile`, `eval`, and `profile` all go through Docker:
 
 - **Compile and emulator-based eval** (`--target emulator`) need no Hailo
-  hardware and can run inside **WSL2**.
+  hardware. They run on **WSL2**, and on **Docker Desktop** via
+  `hailo docker run --compile-only`.
 - **Hardware eval/profile** (`--target hailo8`) need a native Linux host with
   the Hailo-8 device attached (PCIe passthrough is not available under WSL2).
+
+`task docker:run` reproduces the vendor script's full mount set, which only
+exists on a Linux host. On Docker Desktop use `task docker:run-compile-only`,
+which starts a minimal detached container carrying just the shared mount.
+
+The suite image itself is a manual download from the Hailo Developer Zone —
+`docker pull` will not find it. Load it once with `task docker:load`.
+
+> Compiling on Windows has several non-obvious failure modes, including one that
+> silently produces a *less accurate* HEF rather than an error. See
+> [docs/hef-compile-runbook.md](docs/hef-compile-runbook.md).
 
 The suite image and container are overridable per build: pass `--image`/
 `--container` to `hailo docker run`, or override `DOCKER_IMAGE`/`DOCKER_CONTAINER`
@@ -170,7 +182,9 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 
 | Task | Description |
 |---|---|
-| `task docker:run` | Start the Hailo AI Software Suite container |
+| `task docker:load` | Load the suite image from its Developer Zone tarball |
+| `task docker:run` | Start the container with the full Linux mount set |
+| `task docker:run-compile-only` | Start a minimal detached container (Docker Desktop / Windows) |
 | `task docker:dry` | Print the docker run command without executing |
 | `task docker:status` | Check if the container is running |
 | `task docker:stop` | Stop the container |
@@ -195,6 +209,7 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `task gmr:export` | Export the retrained checkpoint to ONNX |
 | `task gmr:stage` | Stage ONNX + prism calibration images |
 | `task gmr:compile` | Compile to HEF (requires running container) |
+| `task gmr:compile-performance` | Compile at the highest optimization level (needs a GPU) |
 | `task gmr:compile-dry` | Print the compile command only |
 | `task gmr:workflow` | export → stage → compile |
 
