@@ -193,10 +193,19 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_lidar = LidarScan(ranges_m=tuple(raw.tolist()), angles_rad=tuple(angles))
         self._lidar_stamp = self._now()
 
-        # No wheel odometry exists on real hardware, so this scan is also the
-        # position source: match it against the known wall geometry, seeded
-        # from the previous estimate (the robot moves only centimetres between
-        # scans, so that prior is always a tight, reliable search start).
+        # This scan is the position source: match it against the known wall
+        # geometry, seeded from the previous estimate.
+        #
+        # Seeding it with encoder dead reckoning instead was tried and
+        # rejected. The robot covers 0.8 cm between scans in simulation and
+        # about 1.6 cm on the real C1 at full speed, against 3 cm of LIDAR
+        # noise -- so "assume it barely moved" is not an approximation, it is
+        # true, and the correction is smaller than the noise on the
+        # measurement it would seed. Measured over the 28 fixtures it changed
+        # the sighted peak error not at all and made the blind peak error 2.5x
+        # worse (20.8 -> 52.2 cm), because blind means the wall model itself is
+        # wrong and dead reckoning between poor fixes compounds drift rather
+        # than staying anchored to the last one.
         prior_pose = self._estimator.estimate_pose()
         est_x, est_y = self._localizer.estimate_position(
             (prior_pose.x, prior_pose.y),

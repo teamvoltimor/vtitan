@@ -378,7 +378,7 @@ class SimulatedHardwareGateway:
         the flag the instant contact first occurs.
         """
         self._elapsed_s += dt
-        prev_x, prev_y = self._state.x, self._state.y
+        prev_x, prev_y, prev_yaw = self._state.x, self._state.y, self._state.yaw
         candidate = self._kin.step(
             self._state,
             target_speed=self._command.speed_mps,
@@ -403,7 +403,16 @@ class SimulatedHardwareGateway:
         # wrapping back to zero at +/-pi.
         self._rotation_rad += _wrap_angle(self._state.yaw - self._prev_true_yaw)
         self._prev_true_yaw = self._state.yaw
-        self._wheel_distance_m += math.hypot(self._state.x - prev_x, self._state.y - prev_y)
+        # Signed along the heading, not unsigned path length: a quadrature
+        # encoder counts down in reverse, so counts_to_distance() decreases and
+        # the real distance_m is signed. Accumulating hypot() here would make a
+        # reversing robot report travel forwards, and any motion prior built on
+        # it would push the position estimate the wrong way during exactly the
+        # manoeuvre -- the escape reverse -- where the robot is already in
+        # trouble.
+        self._wheel_distance_m += (self._state.x - prev_x) * math.cos(prev_yaw) + (
+            self._state.y - prev_y
+        ) * math.sin(prev_yaw)
 
         settled = self._track.contact_surface(self._state.x, self._state.y, self._state.yaw)
         # With solid walls the refused move names the surface, since the pose

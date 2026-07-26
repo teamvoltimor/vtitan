@@ -67,13 +67,21 @@ class TestSimulatedWheelOdometry:
         displacement = math.hypot(state.x - 1.5, state.y - 0.45)
         assert gw.get_wheel_odometry().distance_m > displacement
 
-    def test_reversing_still_adds_distance(self) -> None:
-        """Wheel travel is unsigned; direction lives in the speed sign."""
+    def test_reversing_subtracts_distance(self) -> None:
+        """Travel is signed, because quadrature counts are.
+
+        A real encoder counts down in reverse, so counts_to_distance()
+        decreases. Accumulating unsigned path length would make a reversing
+        robot report travel forwards -- and a motion prior built on it would
+        push the estimate the wrong way during the escape reverse, which is
+        precisely when the robot is already in trouble.
+        """
         gw = _gateway()
         _drive(gw, 0.15, 20)
         forward = gw.get_wheel_odometry().distance_m
+        assert forward > 0
         _drive(gw, -0.15, 20)
-        assert gw.get_wheel_odometry().distance_m > forward
+        assert gw.get_wheel_odometry().distance_m < forward
 
     def test_speed_is_signed(self) -> None:
         gw = _gateway()

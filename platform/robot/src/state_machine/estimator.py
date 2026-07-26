@@ -67,6 +67,7 @@ class StateEstimator:
         self._x = x
         self._y = y
 
+
     def estimate_pose(self) -> Pose:
         """Calculate and return the current fused Pose in the world frame."""
         if self._relative_imu_yaw is not None:
