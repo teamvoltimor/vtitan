@@ -31,7 +31,13 @@ from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
 from src.navigation.core_navigator import CoreNavigator
-from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
+from src.navigation.corridor_estimator import (
+    CorridorWidthEstimator,
+    measure_corridor_width,
+    section_from_heading,
+)
+from src.navigation.corridor_follower import follow_corridor
+from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
@@ -305,10 +311,18 @@ class TrackNavigator(Node):
         # the chassis half-diagonal, and clips it mid-turn.
         self._arc_radius = tuning.waypoints.ARC_RADIUS
         self._direction = start_direction
+        self._start_xy = (start_x, start_y)
+        self._start_section = start_section
         self._width_estimator = CorridorWidthEstimator() if self._blind else None
-        corridor_widths_m = (
-            self._width_estimator.widths if self._width_estimator else corridor_widths_from_metadata(self._metadata)
-        )
+        # Blind implies inferring the direction: it is drawn at random on the
+        # day, so a blind robot cannot be handed it either. ``direction`` is
+        # only the provisional the first path is built from, and is replaced
+        # the moment the inference settles.
+        self._direction_estimator = DirectionEstimator() if self._blind else None
+        self._creep_widths: list[tuple[float, float]] = []
+        self._creep_speed = tuning.speed.SLOW_SPEED
+        self._told_widths = corridor_widths_from_metadata(self._metadata) if not self._blind else {}
+        corridor_widths_m = self._width_estimator.widths if self._width_estimator else self._told_widths
 
         self._gateway = ROS2HardwareGateway(
             self,
@@ -380,6 +394,71 @@ class TrackNavigator(Node):
             "holding until /robot_state reports racing",
         )
 
+    def _resolve_direction(self) -> bool:
+        """Creep along the corridor until the travel direction is inferable.
+
+        Returns:
+            ``True`` while the direction is still unknown, meaning this tick
+            was driven by the corridor follower and there is no plan to step.
+        """
+        estimator = self._direction_estimator
+        if estimator is None or estimator.is_settled:
+            return False
+
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            return True
+
+        # Width readings taken now cannot be filed under a corridor yet -- that
+        # needs the direction -- but they are the cleanest of the round, taken
+        # driving straight down a corridor. Buffer and replay them, or the
+        # first surviving readings are taken at a corner where the side rays
+        # span the *next* corridor and get attributed to this one.
+        if self._width_estimator is not None:
+            measured = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
+            if measured is not None:
+                self._creep_widths.append((pose.yaw, measured))
+
+        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
+            inferred = estimator.direction
+            if inferred is not None:
+                self._commit_direction(inferred, pose)
+            return False
+
+        self._gateway.publish_drive(follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed))
+        return True
+
+    def _commit_direction(self, inferred: Direction, pose: Pose) -> None:
+        """Adopt the inferred direction and rebuild everything derived from it."""
+        changed = inferred is not self._direction
+        self._direction = inferred
+        if self._width_estimator is not None:
+            for buffered_yaw, buffered_width in self._creep_widths:
+                self._width_estimator.observe_measurement(
+                    section_from_heading(buffered_yaw, inferred),
+                    buffered_width,
+                )
+            self._creep_widths.clear()
+            self._gateway.set_believed_walls(TrackWalls(self._width_estimator.widths))
+        if changed:
+            # The finish line's normal is the travel direction, so a detector
+            # built for the provisional one counts crossings inverted.
+            self._core_navigator.replace_lap_detector(
+                LapDetector(
+                    start_pos=(self._start_xy),
+                    start_section=self._start_section,
+                    direction=inferred,
+                ),
+            )
+        widths = self._width_estimator.widths if self._width_estimator else self._told_widths
+        # Resync unconditionally: the navigator did not step during the creep,
+        # so its waypoint index is still 0 while the robot has driven a metre
+        # past it, and it would resume by chasing a waypoint behind itself.
+        self._core_navigator.replace_path(self._plan(widths), (pose.x, pose.y))
+        self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
+
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on.
 
@@ -392,6 +471,13 @@ class TrackNavigator(Node):
         planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
             section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
         }
+        # The travel direction has to be overridden too, not just the widths.
+        # calculate_waypoints reads it from starting_conditions, so a path
+        # replanned after the direction was inferred would otherwise still run
+        # the provisional way round the loop -- and the robot would drive it.
+        start_conditions = dict(planning_metadata[DictKeys.STARTING_CONDITIONS])
+        start_conditions[DictKeys.DIRECTION] = str(self._direction)
+        planning_metadata[DictKeys.STARTING_CONDITIONS] = start_conditions
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
 
     def _update_layout_belief(self) -> bool:
@@ -453,6 +539,10 @@ class TrackNavigator(Node):
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return
         try:
+            if self._resolve_direction():
+                # Direction unknown: the corridor follower drove this tick and
+                # there is no usable plan to step yet.
+                return
             if self._blind:
                 self._update_layout_belief()
             self._core_navigator.step()

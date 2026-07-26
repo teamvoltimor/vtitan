@@ -160,6 +160,54 @@ class TestRunsWithNoScenarioFile:
             navigator.destroy_node()
 
 
+class TestBlindImpliesDirectionInference:
+    """A blind robot cannot be handed the direction either.
+
+    The round's travel direction is drawn at random on the day, so a "blind"
+    run that is told it measures a robot with information no robot has. Blind
+    therefore implies inferring it from LIDAR, on the deployed node and not
+    only in the simulator -- for a while the estimator existed only in the
+    harness, which made every measured pass rate a statement about the sim.
+    """
+
+    def test_blind_node_has_a_direction_estimator(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3)
+        try:
+            assert navigator._direction_estimator is not None
+            assert not navigator._direction_estimator.is_settled
+        finally:
+            navigator.destroy_node()
+
+    def test_direction_is_provisional_until_it_settles(self, ros_context) -> None:  # noqa: F811
+        """The constructor's direction is a placeholder, not an input."""
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            assert navigator._direction is Direction.CLOCKWISE
+            # Nothing has been observed, so nothing has been committed.
+            assert navigator._direction_estimator.direction is None
+        finally:
+            navigator.destroy_node()
+
+    def test_committing_a_direction_replans(self, ros_context) -> None:  # noqa: F811
+        from shared.domain.models import Pose
+
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            before = list(navigator._core_navigator._waypoints)
+            navigator._commit_direction(Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0))
+            assert navigator._direction is Direction.COUNTERCLOCKWISE
+            # The lap is now driven the other way round, so the path differs.
+            assert list(navigator._core_navigator._waypoints) != before
+        finally:
+            navigator.destroy_node()
+
+
 class TestAssumedStartConditions:
     """Section can be assumed; direction cannot."""
 

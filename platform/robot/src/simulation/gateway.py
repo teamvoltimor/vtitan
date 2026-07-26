@@ -622,7 +622,7 @@ class ScenarioSimulator:
         blind: bool = False,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
-        infer_direction: bool = False,
+        infer_direction: bool | None = None,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -663,6 +663,13 @@ class ScenarioSimulator:
         # settles there is no usable plan -- the path for the wrong direction
         # runs the opposite way down this same corridor -- so the robot follows
         # the corridor reactively and only then plans.
+        # Blind implies inferring the direction. The round's direction is drawn
+        # at random on the day, so a "blind" run that is handed it is not blind
+        # -- it measures a robot with information no robot has. Pass
+        # ``infer_direction=False`` explicitly only to keep the told-direction
+        # control condition for comparison.
+        if infer_direction is None:
+            infer_direction = blind
         self._direction_estimator = DirectionEstimator() if infer_direction else None
         self._creep_speed = nav_tuning.speed.SLOW_SPEED
         self._creep_widths: list[tuple[float, float]] = []
@@ -729,6 +736,15 @@ class ScenarioSimulator:
         planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
             section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
         }
+        # Plan for the direction the robot *believes*, not the one the scenario
+        # was written with. Without this the replan silently used the true
+        # direction from the metadata whatever the inference concluded, so a
+        # wrong inference still produced a correct path -- which flattered
+        # every measurement of the inference and cannot happen on a robot,
+        # where there is no scenario file to fall back on.
+        start_conditions = dict(planning_metadata[DictKeys.STARTING_CONDITIONS])
+        start_conditions[DictKeys.DIRECTION] = str(self._direction)
+        planning_metadata[DictKeys.STARTING_CONDITIONS] = start_conditions
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
 
     def _resolve_direction(self) -> bool:
