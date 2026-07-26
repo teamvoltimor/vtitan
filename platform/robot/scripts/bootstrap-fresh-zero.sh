@@ -39,6 +39,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROBOT_DIR"
 
@@ -57,12 +59,10 @@ PI5_USB_MAC="${PI5_USB_MAC:-02:00:00:00:ce:02}"
 log() { echo "[bootstrap-fresh-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-if ! ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$ZERO_HOST" "echo ok" >/dev/null 2>&1; then
-  echo "ERROR: cannot reach $ZERO_HOST over SSH with key auth yet." >&2
-  echo "This script trusts Pi 5's key INTO the Zero, but needs some existing" >&2
-  echo "trusted path in first (e.g. Raspberry Pi Imager's own SSH key customization)." >&2
-  exit 1
-fi
+# shellcheck source=scripts/_ssh_preflight.sh
+. "$SCRIPT_DIR/_ssh_preflight.sh"
+SSH_PREFLIGHT_INTERACTIVE=0 SSH_PREFLIGHT_HINT="This script trusts Pi 5's key INTO the Zero, but needs some existing
+trusted path in first (e.g. Raspberry Pi Imager's own SSH key customization)."   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
 log "1/7 Trusting Pi 5's SSH key into the Zero's authorized_keys"
 if [ ! -f ~/.ssh/id_ed25519.pub ]; then

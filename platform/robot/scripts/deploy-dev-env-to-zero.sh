@@ -22,6 +22,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROBOT_DIR"
 
@@ -31,12 +33,13 @@ SSH_OPTS=(-o ConnectTimeout=10)
 log() { echo "[deploy-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-if ! ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$ZERO_HOST" "echo ok" >/dev/null 2>&1; then
-  echo "ERROR: cannot reach $ZERO_HOST over SSH with key auth." >&2
-  echo "One-time setup: copy this Pi's ~/.ssh/id_ed25519.pub into the Zero's ~/.ssh/authorized_keys" >&2
-  echo "(see docs/sensor-verification.md's Pi Zero deployment section)." >&2
-  exit 1
-fi
+# shellcheck source=scripts/_ssh_preflight.sh
+. "$SCRIPT_DIR/_ssh_preflight.sh"
+# No interactive fallback: this runs on the Pi 5, sometimes unattended, where a
+# password prompt would hang rather than fail. The retries cover the USB-gadget
+# link coming up a moment after the Zero boots.
+SSH_PREFLIGHT_INTERACTIVE=0 SSH_PREFLIGHT_HINT="One-time setup: copy this Pi's ~/.ssh/id_ed25519.pub into the Zero's ~/.ssh/authorized_keys
+(see docs/sensor-verification.md's Pi Zero deployment section)."   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
 log "Warning: if voldemorbot-pi-zero.service is currently enabled/running on the Zero, stop it first --"
 log "it will fight this transfer for CPU/disk I/O on the same constrained hardware."

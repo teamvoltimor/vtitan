@@ -47,8 +47,9 @@ SSH_OPTS=(-o ConnectTimeout=15)
 log() { echo "[deploy-pi5] $*"; }
 die() { echo "[deploy-pi5] ERROR: $*" >&2; exit 1; }
 
-ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$PI5_HOST" "echo ok" >/dev/null 2>&1 ||
-  die "cannot reach $PI5_HOST over SSH with key auth."
+# shellcheck source=scripts/_ssh_preflight.sh
+. "$ROBOT_DIR/scripts/_ssh_preflight.sh"
+pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 log "Target: $PI5_HOST  branch: $BRANCH"
 
 # 1. Code. Push through a bundle rather than a remote: this works when the

@@ -29,8 +29,9 @@ SSH_OPTS=(-o ConnectTimeout=15)
 log() { echo "[record-vision] $*"; }
 die() { echo "[record-vision] ERROR: $*" >&2; exit 1; }
 
-ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$PI5_HOST" "echo ok" >/dev/null 2>&1 ||
-  die "cannot reach $PI5_HOST over SSH with key auth."
+# shellcheck source=scripts/_ssh_preflight.sh
+. "$ROBOT_DIR/scripts/_ssh_preflight.sh"
+pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 
 REMOTE_ROBOT="$PI5_REPO/platform/robot"
 PREVIOUS="$(ssh "${SSH_OPTS[@]}" "$PI5_HOST" \

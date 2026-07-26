@@ -16,16 +16,17 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ZERO_HOST="${ZERO_HOST:-ralvarezdev@192.168.250.1}"
 SSH_OPTS=(-o ConnectTimeout=10)
 
 log() { echo "[safe-shutdown-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-if ! ssh "${SSH_OPTS[@]}" -o BatchMode=yes "$ZERO_HOST" "echo ok" >/dev/null 2>&1; then
-  echo "ERROR: cannot reach $ZERO_HOST over SSH with key auth." >&2
-  exit 1
-fi
+# shellcheck source=scripts/_ssh_preflight.sh
+. "$SCRIPT_DIR/_ssh_preflight.sh"
+SSH_PREFLIGHT_INTERACTIVE=0   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
 log "Stopping voldemorbot-pi-zero.service and syncing disks before shutdown"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl stop voldemorbot-pi-zero.service; sync; sudo shutdown -h now" || true
