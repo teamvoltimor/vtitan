@@ -149,25 +149,51 @@ again. If `data_yaml_path` resolves to a real file it still wins, so a stale
 `data.yaml` deployed beside the HEF can still override it — ship one in *model*
 order or delete it.
 
-## No camera node — the remaining blocker
+## The camera feed (resolved 2026-07-26)
 
-`/camera/image_raw` has a subscriber (the vision node) and **no publisher**. The
-camera driver in `src/hardware/camera/` is a plain Python class with no ROS
-wrapper, and `rpi5_nodes.launch.py` starts no camera node, so on the real robot
-the detector never receives a frame. Until that bridge exists, obstacle
-navigation cannot use vision no matter how correct the detector is.
+The vision node now opens the camera itself and feeds frames straight to the
+NPU. There is no `sensor_msgs/Image` hop in the normal path, so a race run
+publishes `/vision/detections` and nothing else — confirmed: with
+`VISION_DEBUG_VIDEO=0` the only vision topic on the graph is that one.
 
-The hardware itself is fine — `rpicam-hello --list-cameras` reports
-`imx708_wide` and `rpicam-still` captures at 1536×864 (specs in
-[robot-physical-constants.md](robot-physical-constants.md)). A test capture on
-2026-07-26 came back framed on the robot's own ribbon cable and badly out of
-focus at close range, so **check aim and obstruction** before reading anything
-into an empty detection list.
+Live rate through the whole chain (capture → letterbox → NPU → decode →
+publish) is **15 Hz**, set by `capture_fps`; the HEF itself benchmarks at 101
+FPS, so the cap is the timer, not the model.
 
-Writing the node is small: capture with Picamera2, publish `sensor_msgs/Image`
-with encoding `rgb8` on `/camera/image_raw`. The vision node converts `bgr8` to
-RGB itself, so either encoding is safe as long as it is labelled honestly —
-mislabelling is the silent red/green swap again.
+**`picamera2` is not installed anywhere on this Pi** — not in the pixi envs, not
+in system python, not via apt — and it cannot simply be added, because its
+`libcamera` bindings are built for the system interpreter while the ROS nodes
+run a pixi Python of a different minor version. OpenCV is no substitute either:
+the Pi 5's `/dev/video*` entries are libcamera media nodes and `VideoCapture`
+fails on them with *"Not a video capture device"*. So
+`src/hardware/camera/rpicam/driver.py` streams MJPEG from `rpicam-vid` and
+decodes frame by frame, needing no Python bindings. The Picamera2 driver is
+still preferred when importable; the node falls back automatically and logs
+which backend it opened.
+
+Both drivers expose `to_rgb()`, and calling it is not optional. Picamera2's
+`"RGB888"` and `cv2.imdecode` **both hand back B,G,R**, and feeding that to the
+model swaps red with blue — which reads red prisms as green, inverting the
+pass-side rule with no error anywhere.
+
+### Watching it
+
+`VISION_DEBUG_VIDEO=1` in `.env` adds `/camera/image_raw` and
+`/vision/image_annotated` (boxes + labels). View with
+`rqt_image_view /vision/image_annotated` or an RViz Image display; record with
+`python scripts/record_vision_video.py --seconds 20 --out /tmp/run.mp4` and copy
+it off with `scp`. Leave it `0` for a run: the two streams cost roughly 4 MB per
+frame at 1536×864.
+
+Note `/vision/detections` is `std_msgs/String` carrying JSON, so **RViz cannot
+display it** — the annotated image topic is the way to see detections visually.
+
+### Aim and focus
+
+A capture on 2026-07-26 came back framed on the robot's own ribbon cable and
+badly out of focus at close range. **Check aim and obstruction before reading
+anything into an empty detection list** — an empty list is the correct answer
+when nothing is in view.
 
 ## Needs the Pi in front of you
 

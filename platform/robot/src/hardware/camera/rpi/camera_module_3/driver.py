@@ -21,6 +21,10 @@ from src.logger import configure_json_logging
 configure_json_logging()
 
 
+_COLOUR_NDIM = 3
+_RGBA_CHANNELS = 4
+
+
 class Config(BaseSettings):
     """Camera configuration for RPi Camera Module 3.
 
@@ -35,9 +39,26 @@ class Config(BaseSettings):
     width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
     height: int = Field(default=864, validation_alias="CAMERA_HEIGHT")
     fps: int = Field(default=30, validation_alias="CAMERA_FPS")
-    rotation: int = 0
-    hflip: bool = False
-    vflip: bool = False
+
+    inverted: bool = Field(default=False, validation_alias="CAMERA_INVERTED")
+    """
+    True when the camera is mounted upside-down, as the LIDAR already is. Applies a 180 degree rotation so frames come out the right way up. Without it the image is not merely upside-down for a human: it flips which side of the frame a sign appears on, so a sign the robot should pass on its left is reported to the right of centre.
+    """
+
+    rotation: int = Field(default=0, validation_alias="CAMERA_ROTATION")
+    """
+    Extra rotation in degrees, applied on top of `inverted` for mounts that are neither upright nor a clean 180.
+    """
+
+    hflip: bool = Field(default=False, validation_alias="CAMERA_HFLIP")
+    """
+    Mirror horizontally. Note a horizontal flip alone also swaps left and right in the detections.
+    """
+
+    vflip: bool = Field(default=False, validation_alias="CAMERA_VFLIP")
+    """
+    Mirror vertically. Prefer `inverted` for an upside-down mount: a 180 degree rotation is hflip and vflip together, and setting only one of them mirrors the scene rather than righting it.
+    """
 
 
 class Driver(CameraDriver):
@@ -66,8 +87,12 @@ class Driver(CameraDriver):
 
         self._picamera2 = Picamera2(self.config.device)
 
+        # Pin the format. Without it Picamera2 defaults to XBGR8888 and
+        # capture_array() returns four channels, which every downstream
+        # consumer here assumes is three. Note the naming is a trap:
+        # Picamera2's "RGB888" hands back B,G,R in numpy order -- see to_rgb().
         config = self._picamera2.create_video_configuration(
-            main={"size": (self.config.width, self.config.height)},
+            main={"size": (self.config.width, self.config.height), "format": "RGB888"},
             controls={
                 "AnalogueGain": 1.0,
                 "FrameRate": self.config.fps,
@@ -75,11 +100,17 @@ class Driver(CameraDriver):
         )
         self._picamera2.configure(config)
 
+        # An upside-down mount is a 180 degree rotation, which is exactly both
+        # mirrors at once. Expressing it that way rather than as "Rotation"
+        # keeps it composable with an explicit rotation and works on sensors
+        # whose driver exposes the flips but not arbitrary rotation.
+        hflip = self.config.hflip != self.config.inverted
+        vflip = self.config.vflip != self.config.inverted
         if self.config.rotation:
             self._picamera2.set_controls({"Rotation": self.config.rotation})
-        if self.config.hflip:
+        if hflip:
             self._picamera2.set_controls({"HFlip": True})
-        if self.config.vflip:
+        if vflip:
             self._picamera2.set_controls({"VFlip": True})
 
         self._picamera2.start()
@@ -100,6 +131,27 @@ class Driver(CameraDriver):
 
         self.logger.debug("Frame captured", extra={"details": {"width": width, "height": height}})
         return Frame(frame=frame, timestamp=timestamp, width=width, height=height)
+
+    @staticmethod
+    def to_rgb(frame: np.ndarray) -> np.ndarray:
+        """Convert a captured frame to RGB channel order.
+
+        Picamera2's ``"RGB888"`` is named for the packed byte layout, not the
+        numpy axis order: the array comes back B,G,R. Feeding that to the
+        detector unconverted swaps red and blue, which reads red prisms as
+        green -- the failure that inverts the WRO pass-side rule, and which
+        produces no error at all.
+
+        Args:
+            frame: Array straight from ``capture_array()``.
+
+        Returns:
+            The same pixels in R,G,B order. Four-channel captures are narrowed
+            to three first.
+        """
+        if frame.ndim == _COLOUR_NDIM and frame.shape[2] == _RGBA_CHANNELS:
+            frame = frame[:, :, :3]
+        return frame[:, :, ::-1]
 
     def get_resolution(self) -> tuple[int, int]:
         """Get current resolution."""

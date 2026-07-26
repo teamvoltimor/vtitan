@@ -4,6 +4,7 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 """
 
 import json
+from contextlib import suppress
 from dataclasses import asdict
 
 import numpy as np
@@ -14,6 +15,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 from src.vision import create_detector
+from src.vision.overlay import annotate
 
 
 class VisionNode(Node):
@@ -26,11 +28,26 @@ class VisionNode(Node):
         self.declare_parameter("detections_topic", "/vision/detections")
         self.declare_parameter("model_path", "yolov8n.pt")
         self.declare_parameter("backend", "yolo")  # 'yolo' or 'hailo'
+        # 'direct' opens the camera in this process and feeds frames straight to
+        # the model -- no sensor_msgs/Image on the wire, which is what a race
+        # run wants. 'topic' keeps the subscription, for bag replay and sim.
+        self.declare_parameter("camera_source", "topic")  # 'topic' or 'direct'
+        self.declare_parameter("capture_fps", 15.0)
+        # Debug video, off by default: a race publishes detections and nothing
+        # else. Both of these cost real bandwidth at speed.
+        self.declare_parameter("publish_annotated", value=False)
+        self.declare_parameter("annotated_topic", "/vision/image_annotated")
+        self.declare_parameter("publish_raw", value=False)
 
         camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
         detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
         model_path = self.get_parameter("model_path").get_parameter_value().string_value
         backend = self.get_parameter("backend").get_parameter_value().string_value
+        camera_source = self.get_parameter("camera_source").get_parameter_value().string_value
+        capture_fps = self.get_parameter("capture_fps").get_parameter_value().double_value
+        self._publish_annotated = self.get_parameter("publish_annotated").get_parameter_value().bool_value
+        annotated_topic = self.get_parameter("annotated_topic").get_parameter_value().string_value
+        self._publish_raw = self.get_parameter("publish_raw").get_parameter_value().bool_value
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
@@ -52,16 +69,69 @@ class VisionNode(Node):
         self.detector = detector
 
         self._publisher = self.create_publisher(String, detections_topic, 10)
+        self._annotated_publisher = (
+            self.create_publisher(Image, annotated_topic, 1) if self._publish_annotated else None
+        )
+        self._raw_publisher = self.create_publisher(Image, camera_topic, 1) if self._publish_raw else None
 
-        self._subscription = self.create_subscription(
-            Image,
-            camera_topic,
-            self._image_callback,
-            qos_profile_sensor_data,
-        )
+        self._camera = None
+        self._subscription = None
+        if camera_source == "direct":
+            self._start_direct_capture(capture_fps)
+            self.get_logger().info(
+                f"Vision Node ready. Capturing directly at {capture_fps:g} fps, publishing to {detections_topic}"
+                + (f" (+ annotated on {annotated_topic})" if self._publish_annotated else ""),
+            )
+        else:
+            self._subscription = self.create_subscription(
+                Image,
+                camera_topic,
+                self._image_callback,
+                qos_profile_sensor_data,
+            )
+            self.get_logger().info(
+                f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",
+            )
+
+    def _start_direct_capture(self, capture_fps: float) -> None:
+        """Open the camera in-process and drive detection from a timer.
+
+        Prefers Picamera2 and falls back to the rpicam CLI, because picamera2
+        is absent from every environment on the robot and cannot be installed
+        into the pixi env its bindings would have to match.
+        """
+        try:
+            from src.hardware.camera.rpi.camera_module_3.driver import (  # noqa: PLC0415
+                Config as CameraConfig,
+                Driver as CameraDriver,
+            )
+
+            backend = "picamera2"
+        except ImportError:
+            from src.hardware.camera.rpicam.driver import (  # noqa: PLC0415
+                Config as CameraConfig,
+                Driver as CameraDriver,
+            )
+
+            backend = "rpicam-cli"
+
+        camera_config = CameraConfig()
+        self._camera = CameraDriver(camera_config)
+        self._camera.connect()
         self.get_logger().info(
-            f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",
+            f"Camera opened via {backend} at {camera_config.width}x{camera_config.height}, "
+            f"inverted={camera_config.inverted}",
         )
+        self._timer = self.create_timer(1.0 / max(capture_fps, 1.0), self._capture_once)
+
+    def _capture_once(self) -> None:
+        """Grab one frame and run the detection/publish path over it."""
+        try:
+            frame = self._camera.capture_frame().frame
+        except Exception as err:  # noqa: BLE001
+            self.get_logger().error(f"Camera capture failed: {err}", throttle_duration_sec=5.0)
+            return
+        self._process(self._camera.to_rgb(frame))
 
     def _image_callback(self, msg: Image) -> None:
         """Process incoming image and publish detections."""
@@ -83,8 +153,17 @@ class VisionNode(Node):
             if msg.encoding == "bgr8":
                 img = img[:, :, ::-1]  # Convert BGR to RGB
 
-            # Perform detection
-            detections = self.detector.detect(img)
+            self._process(img)
+
+        except (RuntimeError, ValueError, TypeError) as e:
+            self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
+        except Exception as e:  # noqa: BLE001
+            self.get_logger().error(f"Unexpected error processing image: {e}")
+
+    def _process(self, rgb: np.ndarray) -> None:
+        """Detect on one RGB frame, publish detections and any debug video."""
+        try:
+            detections = self.detector.detect(rgb)
 
             # Publish the shared-domain Detection, not SignDetection's compact
             # form. The navigator rebuilds Detection from this payload and keys
@@ -97,13 +176,33 @@ class VisionNode(Node):
             out_msg.data = json.dumps(data)
             self._publisher.publish(out_msg)
 
+            if self._raw_publisher is not None:
+                self._raw_publisher.publish(self._to_image_msg(rgb))
+            if self._annotated_publisher is not None:
+                self._annotated_publisher.publish(self._to_image_msg(annotate(rgb, detections)))
+
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             self.get_logger().error(f"Unexpected error processing image: {e}")
 
+    def _to_image_msg(self, rgb: np.ndarray) -> Image:
+        """Wrap an RGB array as a sensor_msgs/Image."""
+        msg = Image()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "camera_link"
+        msg.height, msg.width = rgb.shape[:2]
+        msg.encoding = "rgb8"
+        msg.is_bigendian = 0
+        msg.step = msg.width * 3
+        msg.data = np.ascontiguousarray(rgb).tobytes()
+        return msg
+
     def destroy_node(self) -> None:
-        """Release the detector context, then tear down the node."""
+        """Release the camera and detector, then tear down the node."""
+        if self._camera is not None:
+            with suppress(Exception):
+                self._camera.close()
         if hasattr(self.detector, "__exit__"):
             self.detector.__exit__(None, None, None)
         super().destroy_node()
