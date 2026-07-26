@@ -659,6 +659,53 @@ tasks:
             *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify" && exit 1 ;;
           esac
 
+  robot:deploy:
+    desc: >-
+      Ship code + the detector HEF to the Pi 5, rebuild ros2_ws and restart the
+      service (usage: task robot:deploy [PI5_HOST=user@host] [HEF=] [SKIP_RESTART=1]).
+      Run FROM a dev machine. Transfers commits as a git bundle over SSH, so it
+      works on a branch that was never pushed and publishes nothing. HEF= skips
+      the model and ships code only.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SKIP_RESTART: '{{.SKIP_RESTART | default ""}}'
+    cmds:
+      - bash scripts/deploy-to-pi5.sh
+
+  robot:record-vision:
+    desc: >-
+      Record the annotated detection video on the Pi 5 and copy it back here
+      (usage: task robot:record-vision [SECONDS_TO_RECORD=20] [OUT=path]
+      [KEEP_DEBUG=1] [PI5_HOST=user@host]). Run FROM a dev machine. Enables the
+      debug video stream, records, fetches the mp4, then restores the previous
+      debug setting — a race publishes detections only.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+      OUT: '{{.OUT | default ""}}'
+      KEEP_DEBUG: '{{.KEEP_DEBUG | default ""}}'
+    cmds:
+      - bash scripts/record-vision-from-pi5.sh
+
+  robot:watch-vision:
+    desc: >-
+      Print live detections as they are published, one line per frame (usage:
+      task robot:watch-vision [SECONDS_TO_RECORD=60] [PI5_HOST=user@host]). Run
+      FROM a dev machine; reads the topic only, so it is safe against a live
+      robot and needs no debug video.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default "rpi-5-local"}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default "60"}}'
+    cmds:
+      - cmd: |
+          ssh -o ConnectTimeout=15 "$PI5_HOST" \
+            'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/voldemorbot/platform/robot \
+             && bash -c ". ros2_ws/install/setup.bash && PYTHONPATH=. python \
+                scripts/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
+
   robot:fetch-lidar-driver:
     desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)
     dir: robot

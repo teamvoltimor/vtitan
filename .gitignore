@@ -159,3 +159,6 @@ CLAUDE.md
 
 # Internal docs
 docs/internal/
+
+# Debug recordings pulled off the robot by task robot:record-vision
+platform/robot/vision-*.mp4
