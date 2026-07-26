@@ -29,6 +29,8 @@ from shared.domain.models import Detection, IMUReading, Pose, ScenarioMetadata
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
+from src.navigation.corridor_follower import follow_corridor
+from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignSpec, signs_from_metadata
@@ -616,6 +618,7 @@ class ScenarioSimulator:
         blind: bool = False,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
+        infer_direction: bool = False,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -644,14 +647,24 @@ class ScenarioSimulator:
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
         self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata.model_dump()))
+        self._true_widths = widths
 
         # What the robot is allowed to believe about the layout. Sighted runs
         # get the truth (as the ROS2 node does, from its metadata file); blind
         # runs start with every corridor assumed narrow and correct it from
         # LIDAR as they go.
         self._arc_radius = nav_tuning.waypoints.ARC_RADIUS
-        self._direction = start.direction
         self._width_estimator = CorridorWidthEstimator() if blind else None
+        # Travel direction is inferred from LIDAR too when asked. Until it
+        # settles there is no usable plan -- the path for the wrong direction
+        # runs the opposite way down this same corridor -- so the robot follows
+        # the corridor reactively and only then plans.
+        self._direction_estimator = DirectionEstimator() if infer_direction else None
+        self._creep_speed = nav_tuning.speed.SLOW_SPEED
+        self._start = start
+        # Provisional until inference settles. Everything built from it -- the
+        # path and the lap detector's finish-line normal -- is rebuilt then.
+        self._direction = start.direction
         believed = self._width_estimator.widths if self._width_estimator else widths
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
@@ -711,6 +724,47 @@ class ScenarioSimulator:
             section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
         }
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
+
+    def _resolve_direction(self) -> bool:
+        """Creep along the corridor until the travel direction is inferable.
+
+        Returns:
+            ``True`` while the direction is still unknown, meaning the caller
+            drove the corridor follower this tick instead of the navigator.
+        """
+        estimator = self._direction_estimator
+        if estimator is None or estimator.is_settled:
+            return False
+
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            return True
+
+        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
+            inferred = estimator.direction
+            if inferred is not None and inferred is not self._direction:
+                # Everything built from the provisional direction is now wrong:
+                # the path runs the other way round the loop and the finish
+                # line's normal is inverted.
+                self._direction = inferred
+                self._waypoints = self._plan(
+                    self._width_estimator.widths if self._width_estimator else self._true_widths,
+                )
+                self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
+                self._navigator.replace_lap_detector(
+                    LapDetector(
+                        start_pos=(self._start.x, self._start.y),
+                        start_section=self._start.section,
+                        direction=inferred,
+                    ),
+                )
+            return False
+
+        self._gateway.publish_drive(
+            follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed),
+        )
+        return True
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.
@@ -832,6 +886,15 @@ class ScenarioSimulator:
 
         step = 0
         while step < max_steps:
+            if self._resolve_direction():
+                # Direction still unknown: the corridor follower published this
+                # tick's command, and there is no usable plan to step yet.
+                gw.advance(dt)
+                step += 1
+                if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
+                    terminal_collision = True
+                    break
+                continue
             if self._blind:
                 self._update_layout_belief()
             nav.step()

@@ -147,6 +147,21 @@ class CoreNavigator:
             key=lambda i: math.hypot(waypoints[i][0] - robot_x, waypoints[i][1] - robot_y),
         )
 
+    def replace_lap_detector(self, lap_detector: LapDetector) -> None:
+        """Swap in a lap detector built for a different travel direction.
+
+        The finish line's normal is the travel direction, so a detector built
+        for the wrong one counts crossings with the sign inverted. Blind rounds
+        infer the direction from LIDAR after they have started driving (see
+        :mod:`src.navigation.direction_estimator`), so the detector that was
+        provisional at startup has to be replaced once the answer arrives.
+
+        Only valid before any lap has been counted, which is guaranteed here:
+        the direction settles inside the first metre of travel, long before the
+        finish line is re-crossed.
+        """
+        self._lap_detector = lap_detector
+
     @property
     def laps_completed(self) -> int:
         """Number of laps confirmed completed so far."""
