@@ -180,6 +180,14 @@ def _parse_args() -> argparse.Namespace:
         "turned rather than per second, so it grows with corners driven. Implies --localize.",
     )
     parser.add_argument(
+        "--imu-noise",
+        type=float,
+        default=0.0,
+        metavar="DEG",
+        help="Per-reading Gaussian yaw noise (standard deviation, degrees). Bounded and "
+        "self-cancelling, unlike drift and scale. Implies --localize.",
+    )
+    parser.add_argument(
         "--recover",
         action="store_true",
         help="Make walls solid and let the robot escape from contact instead of ending "
@@ -248,6 +256,7 @@ class _RunOptions:
                 yaw_bias_rad=math.radians(args.yaw_bias),
                 imu_drift_rad_per_s=math.radians(args.imu_drift),
                 gyro_scale_error=args.gyro_scale / 100.0,
+                imu_noise_rad=math.radians(args.imu_noise),
             ),
             recover=args.recover,
             contact_grace_s=args.contact_grace,

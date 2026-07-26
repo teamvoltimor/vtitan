@@ -524,6 +524,22 @@ tasks:
       task sim:navigate:visualize in two terminals. Same CLI_ARGS, e.g.
       `-- --challenge obstacles --interactive` to step through every Obstacles Challenge
       scenario, or `-- --challenge open --interactive` for Open Challenge.
+    # Blind navigation with realistic sensor error -- RViz draws the TRUE track and pose
+    # while the robot steers on its estimate, so any divergence is state-estimation error
+    # reaching control. Measured pass rates and where each axis breaks down:
+    # platform/robot/docs/blind-navigation-evaluation.md
+    #
+    #   BNO085 at datasheet spec (27/28 fixtures, 0 collisions):
+    #     task sim:navigate:visualize:all -- --challenge open --interactive --blind \
+    #       --place-error 2 --yaw-bias 2 --imu-drift 0.0083 --gyro-scale 0.25 --imu-noise 0.5 --rate 3
+    #
+    #   Realistic, ~2x spec (23/28, 2 collisions):
+    #     task sim:navigate:visualize:all -- --challenge open --interactive --blind \
+    #       --place-error 5 --yaw-bias 3 --imu-drift 0.02 --gyro-scale 0.5 --imu-noise 1.0 --rate 3
+    #
+    # Swap --interactive for --scenario go_open_0015 for the fixture that fails in both.
+    # Add --recover to make walls solid and let it reverse out of contact instead of
+    # ending the run at first touch -- that distinguishes a graze from a genuine pin.
     deps:
       - sim:navigate:rviz
       - task: sim:navigate:visualize
