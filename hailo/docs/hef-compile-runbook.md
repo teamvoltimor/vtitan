@@ -255,9 +255,33 @@ Both builds of the same checkpoint, evaluated through identical preprocessing in
 Level 0 is within 0.01% of float at mAP@0.5 and 0.8% at mAP@0.5:0.95 — there was
 almost no quantization error left to recover. Quantization-Aware Fine-Tuning
 optimizes a distillation loss over *unlabelled* calibration images, and with that
-little headroom it moved the weights away from the optimum instead of toward it,
-costing the most on the red class. Confirmed on two independent subsets (300 and
-600 images): −2.0% to −2.7% mAP@0.5, −7.5% to −8.1% mAP@0.5:0.95.
+little headroom it moved the weights away from the optimum instead of toward it.
+Confirmed on two independent subsets (300 and 600 images): −2.0% to −2.7%
+mAP@0.5, −7.5% to −8.1% mAP@0.5:0.95.
+
+Per-class mAP@0.5 saturates and hides the shape of the loss; at mAP@0.5:0.95 the
+regression is uniform rather than concentrated on any one colour:
+
+| Model | green | magenta | red |
+|---|---|---|---|
+| level 0, CPU | 0.8661 | 0.9135 | 0.8688 |
+| level 2 + QAT | 0.7950 | 0.8592 | 0.7955 |
+
+The confusion counts matter more than mAP for this robot, because misclassifying
+red as green inverts the pass side while merely *missing* a sign does not
+(600 images, conf ≥ 0.25, IoU ≥ 0.5):
+
+| Model | misclassified | missed | false positives |
+|---|---|---|---|
+| level 0, CPU | none | 2 | 119 |
+| level 2 + QAT | magenta→red 1, red→magenta 1 | 23 | 31 |
+
+Neither model ever confuses red with green. QAT's lower false-positive count is
+not better precision — it detects less across the board, which is also where its
+23 missed detections come from. The level-0 build's 119 false positives are
+unaudited: with multiple prisms per image and one folder per dominant class,
+some may be unlabelled ground truth rather than true errors. A deployment
+confidence threshold above 0.25 suppresses most of them.
 
 The lesson is not "skip optimization" — it is that the optimization level is an
 empirical question per model, and cheap to settle. Compile both and measure
