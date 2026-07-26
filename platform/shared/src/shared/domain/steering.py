@@ -14,6 +14,12 @@ headless simulator, and the Build HAT motor adapter cannot drift apart.
 
 from __future__ import annotations
 
+from typing import Final
+
+STEERING_NORM_MIN: Final[float] = -1.0
+STEERING_NORM_MAX: Final[float] = 1.0
+STEERING_NORM_MAX = 1.0
+
 
 def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) -> float:
     """Decode a normalised steering command into a physical front-wheel angle.
@@ -26,7 +32,7 @@ def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) 
     Returns:
         Front-wheel steering angle in radians, ``+`` = left (counter-clockwise).
     """
-    clamped = max(-1.0, min(1.0, steering_norm))
+    clamped = max(STEERING_NORM_MIN, min(STEERING_NORM_MAX, steering_norm))
     return clamped * max_steering_angle
 
 
@@ -45,4 +51,4 @@ def angle_rad_to_steering_norm(angle_rad: float, max_steering_angle: float) -> f
     """
     if max_steering_angle <= 0.0:
         return 0.0
-    return max(-1.0, min(1.0, angle_rad / max_steering_angle))
+    return max(STEERING_NORM_MIN, min(STEERING_NORM_MAX, angle_rad / max_steering_angle))

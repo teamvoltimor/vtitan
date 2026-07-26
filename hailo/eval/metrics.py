@@ -9,6 +9,7 @@ difference between them can only come from the model.
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -27,6 +28,23 @@ IMAGE_SIZE = 640
 # there swaps red and green, which inverts the WRO pass-side rule.
 LABEL_TO_MODEL = {0: 2, 1: 0, 2: 1}
 MODEL_NAMES = {0: "green", 1: "magenta", 2: "red"}
+
+# Kept local — this module is copied into the Hailo SDK container and cannot
+# import from src.constants.
+LETTERBOX_PAD_COLOR = (114, 114, 114)
+
+
+@dataclass(frozen=True, slots=True)
+class MetricsResult:
+    """Typed result bundle returned by ``summarise()``."""
+
+    mAP50: float
+    mAP75: float
+    mAP50_95: float
+    per_class: dict[int, float]
+    per_class_5095: dict[int, float]
+    confusion: dict[tuple[int, int], int]
+
 
 # Pillow moved the resampling enum in 9.1; the suite image predates the move.
 _BILINEAR = getattr(Image, "Resampling", Image).BILINEAR
@@ -49,7 +67,7 @@ def letterbox(img: Image.Image) -> tuple[np.ndarray, float, int, int]:
     width, height = img.size
     scale = min(IMAGE_SIZE / width, IMAGE_SIZE / height)
     new_w, new_h = round(width * scale), round(height * scale)
-    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), (114, 114, 114))
+    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), LETTERBOX_PAD_COLOR)
     pad_x, pad_y = (IMAGE_SIZE - new_w) // 2, (IMAGE_SIZE - new_h) // 2
     canvas.paste(img.resize((new_w, new_h), _BILINEAR), (pad_x, pad_y))
     return np.asarray(canvas, dtype=np.uint8), scale, pad_x, pad_y
@@ -235,7 +253,7 @@ def sample(paths: list[Path], limit: int) -> list[Path]:
     return paths[:: max(1, len(paths) // limit)][:limit]
 
 
-def summarise(predictions: list[list[Prediction]], truth: list[GroundTruth]) -> dict[str, object]:
+def summarise(predictions: list[list[Prediction]], truth: list[GroundTruth]) -> MetricsResult:
     """Compute the full metric set for one model.
 
     Per-class AP at 0.5 saturates on this dataset, so the per-class view is
@@ -247,35 +265,36 @@ def summarise(predictions: list[list[Prediction]], truth: list[GroundTruth]) -> 
     per_class_swept = {
         class_id: float(np.nanmean([classes.get(class_id, np.nan) for _, classes in sweep])) for class_id in per_class
     }
-    return {
-        "mAP50": map50,
-        "mAP75": map75,
-        "mAP50_95": float(np.nanmean([value for value, _ in sweep])),
-        "per_class": per_class,
-        "per_class_5095": per_class_swept,
-        "confusion": confusion(predictions, truth),
-    }
+    return MetricsResult(
+        mAP50=map50,
+        mAP75=map75,
+        mAP50_95=float(np.nanmean([value for value, _ in sweep])),
+        per_class=per_class,
+        per_class_5095=per_class_swept,
+        confusion=confusion(predictions, truth),
+    )
 
 
-def print_report(results: dict[str, dict[str, object]]) -> None:
+def print_report(results: dict[str, MetricsResult]) -> None:
     """Print the comparison tables for one or more named models."""
     print("\n=== SUMMARY ===")
     print(f"{'model':14s} {'mAP@0.5':>8s} {'mAP@0.75':>9s} {'mAP@0.5:0.95':>13s}   per-class mAP@0.5")
     for name, result in results.items():
-        per = " ".join(f"{MODEL_NAMES[c]}={v:.3f}" for c, v in result["per_class"].items())  # type: ignore[attr-defined]
-        print(f"{name:14s} {result['mAP50']:8.4f} {result['mAP75']:9.4f} {result['mAP50_95']:13.4f}   [{per}]")
+        per = " ".join(f"{MODEL_NAMES[c]}={v:.3f}" for c, v in result.per_class.items())
+        print(f"{name:14s} {result.mAP50:8.4f} {result.mAP75:9.4f} {result.mAP50_95:13.4f}   [{per}]")
 
     print("\n=== PER-CLASS mAP@0.5:0.95 (discriminating; @0.5 saturates) ===")
     print(f"{'model':14s} " + " ".join(f"{MODEL_NAMES[c]:>9s}" for c in sorted(MODEL_NAMES)))
     for name, result in results.items():
-        swept: dict[int, float] = result["per_class_5095"]  # type: ignore[assignment]
-        print(f"{name:14s} " + " ".join(f"{swept.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)))
+        print(
+            f"{name:14s} "
+            + " ".join(f"{result.per_class_5095.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)),
+        )
 
     print("\n=== CLASS CONFUSION (conf >= 0.25, IoU >= 0.5) ===")
     for name, result in results.items():
-        counts: dict[tuple[int, int], int] = result["confusion"]  # type: ignore[assignment]
-        wrong = {k: v for k, v in counts.items() if k[0] >= 0 and k[1] >= 0 and k[0] != k[1]}
-        missed = sum(v for k, v in counts.items() if k[1] == -1)
-        spurious = sum(v for k, v in counts.items() if k[0] == -1)
+        wrong = {k: v for k, v in result.confusion.items() if k[0] >= 0 and k[1] >= 0 and k[0] != k[1]}
+        missed = sum(v for k, v in result.confusion.items() if k[1] == -1)
+        spurious = sum(v for k, v in result.confusion.items() if k[0] == -1)
         detail = ", ".join(f"{MODEL_NAMES[t]}->{MODEL_NAMES[p]}={v}" for (t, p), v in sorted(wrong.items())) or "none"
         print(f"{name:14s} misclassified: {detail} | missed: {missed} | false positives: {spurious}")

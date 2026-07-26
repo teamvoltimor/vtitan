@@ -19,6 +19,12 @@ from src.grpc_server.pb import (
     compute_pb2 as pb,
     compute_pb2_grpc as pb_grpc,
 )
+from src.constants import (
+    DEFAULT_TRAIN_BATCH,
+    DEFAULT_TRAIN_EPOCHS,
+    DEFAULT_TRAIN_IMGSZ,
+    DEFAULT_TRAIN_MODEL,
+)
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -27,11 +33,6 @@ if TYPE_CHECKING:
     from src.models import AppContext, Shape
 
 logger = get_logger(__name__)
-
-_DEFAULT_TRAIN_MODEL = "yolo11s.pt"
-_DEFAULT_EPOCHS = 50
-_DEFAULT_BATCH = 16
-_DEFAULT_IMGSZ = 640
 
 
 def _to_pb_shape(shape: Shape) -> pb.Shape:
@@ -152,10 +153,10 @@ class TrainingServicer(pb_grpc.TrainingServiceServicer):
         def worker() -> None:
             try:
                 run_training_job(
-                    model_name=request.model_name or _DEFAULT_TRAIN_MODEL,
-                    epochs=request.epochs or _DEFAULT_EPOCHS,
-                    batch=request.batch or _DEFAULT_BATCH,
-                    imgsz=request.imgsz or _DEFAULT_IMGSZ,
+                    model_name=request.model_name or DEFAULT_TRAIN_MODEL,
+                    epochs=request.epochs or DEFAULT_TRAIN_EPOCHS,
+                    batch=request.batch or DEFAULT_TRAIN_BATCH,
+                    imgsz=request.imgsz or DEFAULT_TRAIN_IMGSZ,
                     data_yaml=Path(request.data_yaml_path) if request.data_yaml_path else None,
                     reporter=_QueueReporter(),
                 )

@@ -19,6 +19,7 @@ import shutil
 from pathlib import Path
 
 from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig  # noqa: TC001
+from src.constants import IMAGE_EXTENSIONS
 from src.docker import (
     DOCKER_SHARED_MOUNT,
     run_or_print,
@@ -59,7 +60,7 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
 # Public commands
 
 
-IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
+IMAGE_SUFFIXES = frozenset(IMAGE_EXTENSIONS)
 LABEL_SUFFIXES = frozenset({".txt"})
 
 

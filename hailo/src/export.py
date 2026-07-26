@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from src.config import ExportConfig  # noqa: TC001
+from src.enums import ExportExtra
 from src.errors import ModelNotFoundError, require_dep
 from src.log import get_logger
 from src.registry import get_entry
@@ -39,7 +40,7 @@ def run(config: ExportConfig) -> None:
     opset = config.opset if config.opset is not None else entry.opset
     extra = entry.extra_kwargs()
     if config.no_simplify:
-        extra.pop("simplify", None)
+        extra.pop(ExportExtra.SIMPLIFY.value, None)
 
     export_kwargs = {
         "format": "onnx",

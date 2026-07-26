@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 
+from shared.config.constants import TrackDimensions
 from shared.domain.enums import Direction, Section
 from src.scenario.models import ScenarioMetadata
 
@@ -30,8 +31,6 @@ logger = logging.getLogger(__name__)
 _VALID_WIDTHS_MM = frozenset({600, 1000})
 _VALID_SECTIONS = frozenset({"South", "North", "East", "West"})
 _VALID_DIRECTIONS = frozenset({"clockwise", "counterclockwise"})
-_TRACK_MIN = 0.0
-_TRACK_MAX = 3.0
 _VALID_YAWS = (0.0, math.pi, math.pi / 2, -(math.pi / 2))
 _YAW_TOL = 1e-9
 _EXPECTED_COUNT = 10
@@ -117,11 +116,11 @@ class TestOpenChallengeInvariants:
             sc = m["starting_conditions"]
             pos = sc["position"]
             sid = m["scenario_id"]
-            assert _TRACK_MIN <= pos["x"] <= _TRACK_MAX, (
-                f"scenario {sid}: x={pos['x']:.3f} outside [{_TRACK_MIN}, {_TRACK_MAX}]"
+            assert TrackDimensions.MIN_COORD <= pos["x"] <= TrackDimensions.MAX_COORD, (
+                f"scenario {sid}: x={pos['x']:.3f} outside [{TrackDimensions.MIN_COORD}, {TrackDimensions.MAX_COORD}]"
             )
-            assert _TRACK_MIN <= pos["y"] <= _TRACK_MAX, (
-                f"scenario {sid}: y={pos['y']:.3f} outside [{_TRACK_MIN}, {_TRACK_MAX}]"
+            assert TrackDimensions.MIN_COORD <= pos["y"] <= TrackDimensions.MAX_COORD, (
+                f"scenario {sid}: y={pos['y']:.3f} outside [{TrackDimensions.MIN_COORD}, {TrackDimensions.MAX_COORD}]"
             )
 
     def test_starting_yaw_is_cardinal(self, open_metadata_list: list[dict[str, Any]]) -> None:
@@ -265,8 +264,8 @@ class TestOpenChallengeRandomVariety:
             sc = m["starting_conditions"]
             assert sc["section"] in _VALID_SECTIONS
             assert sc["direction"] in _VALID_DIRECTIONS
-            assert _TRACK_MIN <= sc["position"]["x"] <= _TRACK_MAX
-            assert _TRACK_MIN <= sc["position"]["y"] <= _TRACK_MAX
+            assert TrackDimensions.MIN_COORD <= sc["position"]["x"] <= TrackDimensions.MAX_COORD
+            assert TrackDimensions.MIN_COORD <= sc["position"]["y"] <= TrackDimensions.MAX_COORD
             assert _yaw_valid(sc["yaw"])
 
 

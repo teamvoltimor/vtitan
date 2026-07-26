@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.config import SERVER_DEFAULT_HOST, SERVER_DEFAULT_PORT, SERVER_DEFAULT_RECV_CHUNK_SIZE
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -127,7 +129,7 @@ class ModelServerClient:
         port: TCP port of the model server (default: ``SERVER_PORT``).
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8765, recv_chunk_size: int = 65536) -> None:
+    def __init__(self, host: str = SERVER_DEFAULT_HOST, port: int = SERVER_DEFAULT_PORT, recv_chunk_size: int = SERVER_DEFAULT_RECV_CHUNK_SIZE) -> None:
         self.addr = (host, port)
         self._recv_chunk_size = recv_chunk_size
 

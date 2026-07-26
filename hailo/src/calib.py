@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 
 from src.config import ConvertConfig, DownloadConfig  # noqa: TC001
+from src.constants import NORMALIZE_FACTOR
 from src.errors import CalibrationDataError, require_dep
 from src.image import iter_images
 from src.log import get_logger
@@ -72,7 +73,7 @@ def convert(config: ConvertConfig) -> None:
             continue
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (config.size, config.size))
-        img = img.astype(np.float32) / 255.0  # HWC, [0, 1] — expected by Hailo DFC
+        img = img.astype(np.float32) / NORMALIZE_FACTOR  # HWC, [0, 1] — expected by Hailo DFC
         npy_path = output_path / (Path(fname).stem + ".npy")
         np.save(str(npy_path), img)
         count += 1

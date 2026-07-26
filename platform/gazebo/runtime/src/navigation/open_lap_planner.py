@@ -32,11 +32,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from shared.config.constants import CompetitionSpecs, TrackDimensions
 from shared.domain.enums import Direction, Section
 from src.scenario.models import ScenarioMetadata
-
-_TRACK_MIN = 0.0
-_TRACK_MAX = 3.0
 
 # Ordered corner sequences for each starting section, by direction.
 # Each tuple is the order in which the 4 corners are visited during one lap.
@@ -109,7 +107,7 @@ class MockLapRunner:
         corners: TrackCorners,
         section: Section,
         direction: Direction,
-        n_laps: int = 3,
+        n_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
     ) -> bool:
         """Navigate n_laps around the track.  Returns True if all laps succeed."""
         ordered = corners.ordered_for(section, direction)
@@ -153,7 +151,7 @@ class MockLapRunner:
 class OpenLapPlanner:
     """Computes the corner waypoints for any Open Challenge track layout."""
 
-    _TRACK_MAX = _TRACK_MAX
+    _TRACK_MAX = TrackDimensions.MAX_COORD
 
     def corners(self, scenario: ScenarioMetadata) -> TrackCorners:
         """Compute the 4 corridor centerline corners from a scenario's widths."""
@@ -168,7 +166,7 @@ class OpenLapPlanner:
             nw=(west_x, north_y),
         )
 
-    def plan(self, scenario: ScenarioMetadata, n_laps: int = 3) -> MockLapRunner:
+    def plan(self, scenario: ScenarioMetadata, n_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS) -> MockLapRunner:
         """Create a runner pre-loaded with the scenario start position."""
         sc = scenario.starting_conditions
         runner = MockLapRunner(position=(sc.position.x, sc.position.y))
@@ -182,4 +180,4 @@ def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 def _in_bounds(pt: tuple[float, float]) -> bool:
-    return _TRACK_MIN <= pt[0] <= _TRACK_MAX and _TRACK_MIN <= pt[1] <= _TRACK_MAX
+    return TrackDimensions.MIN_COORD <= pt[0] <= TrackDimensions.MAX_COORD and TrackDimensions.MIN_COORD <= pt[1] <= TrackDimensions.MAX_COORD

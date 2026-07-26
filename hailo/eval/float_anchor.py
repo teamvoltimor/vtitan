@@ -27,6 +27,8 @@ from metrics import (
     summarise,
 )
 
+from src.constants import GMR_CHECKPOINT_PATH
+
 
 def parse_args() -> argparse.Namespace:
     """Parse the evaluator's command-line arguments."""
@@ -34,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=300, help="Number of images to evaluate")
     parser.add_argument("--images", default="shared_with_docker/calib_data_gmr")
     parser.add_argument("--labels", default="shared_with_docker/calib_labels_gmr")
-    parser.add_argument("--checkpoint", default="../auto-annotator/ml-service/models/gmr/best.pt")
+    parser.add_argument("--checkpoint", default=GMR_CHECKPOINT_PATH)
     parser.add_argument("--conf", type=float, default=0.01, help="Score floor for the metrics")
     return parser.parse_args()
 

@@ -156,6 +156,14 @@ class PathConfig:
         )
 
 
+SERVER_DEFAULT_PORT: int = 8765
+"""Port the model-server microservice listens on by default."""
+SERVER_DEFAULT_HOST: str = "127.0.0.1"
+"""TCP host the model server connects to by default."""
+SERVER_DEFAULT_RECV_CHUNK_SIZE: int = 65536
+"""Chunk size (bytes) for receiving TCP responses from the model server."""
+
+
 @dataclass(frozen=True)
 class ServerConfig:
     """Server network configuration (model server, TCP).
@@ -176,7 +184,7 @@ class ServerConfig:
     def load(cls, paths: PathConfig) -> ServerConfig:
         """Load server configuration from environment, config file, or defaults."""
         server_config_dict = _load_toml(paths.server_config_file).get("server", {})
-        default_port = 8765
+        default_port = SERVER_DEFAULT_PORT
         env = _ServerEnvSettings()
 
         if env.server_port is not None:
@@ -189,10 +197,10 @@ class ServerConfig:
             port, source = default_port, "default"
 
         return ServerConfig(
-            host="127.0.0.1",
+            host=SERVER_DEFAULT_HOST,
             port=port,
             port_source=source,
-            recv_chunk_size=65536,
+            recv_chunk_size=SERVER_DEFAULT_RECV_CHUNK_SIZE,
         )
 
 

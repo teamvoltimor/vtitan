@@ -28,5 +28,12 @@ DEFAULT_COCO_SAMPLES = 2048
 DEFAULT_CONFIDENCE = 0.3
 DEFAULT_CALIB_INPUT = "./calib_data"
 DEFAULT_CALIB_OUTPUT = "./calib_data_npy"
+
+# ONNX opset versions
+OPSET_YOLO11 = 13
+OPSET_YOLO12 = 11
+
+# Cross-repo checkpoints
+GMR_CHECKPOINT_PATH = "../auto-annotator/ml-service/models/gmr/best.pt"
 # X11 display default now lives in src.settings.HailoSettings (host-specific,
 # HAILO_X11_DISPLAY-overridable), not here.

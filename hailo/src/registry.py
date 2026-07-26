@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, NewType
+from typing import NewType
 
+from src.constants import GMR_CHECKPOINT_PATH, OPSET_YOLO11, OPSET_YOLO12
 from src.enums import ExportExtra, Task
 from src.errors import HailoError
 
@@ -42,6 +43,7 @@ class ModelEntry:
     classes: int | None = None
 
     def extra_kwargs(self) -> dict[str, bool]:
+        """Return the export flags as the keyword arguments ``YOLO.export()`` takes."""
         return {k.value: v for k, v in self.export_extras}
 
 
@@ -50,7 +52,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         pt_file=f"{DATA_DIR}/yolo11n.pt",
         onnx_file=f"{DATA_DIR}/yolo11n.onnx",
         task=Task.DETECT,
-        opset=13,
+        opset=OPSET_YOLO11,
         export_extras=(),
         zoo_name="yolov11n",
     ),
@@ -58,7 +60,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         pt_file=f"{DATA_DIR}/yolo11s.pt",
         onnx_file=f"{DATA_DIR}/yolo11s.onnx",
         task=Task.DETECT,
-        opset=13,
+        opset=OPSET_YOLO11,
         export_extras=(),
         zoo_name="yolov11s",
     ),
@@ -66,7 +68,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         pt_file=f"{DATA_DIR}/yolo12n.pt",
         onnx_file=f"{DATA_DIR}/yolo12n.onnx",
         task=Task.DETECT,
-        opset=11,
+        opset=OPSET_YOLO12,
         export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False), (ExportExtra.OPTIMIZE, False)),
         zoo_name="yolov12n",
     ),
@@ -74,7 +76,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         pt_file=f"{DATA_DIR}/yolo26n.pt",
         onnx_file=f"{DATA_DIR}/yolo26n.onnx",
         task=Task.DETECT,
-        opset=11,
+        opset=OPSET_YOLO12,
         export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False), (ExportExtra.OPTIMIZE, False)),
         zoo_name=None,
     ),
@@ -82,16 +84,16 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         pt_file=f"{DATA_DIR}/yolo26l.pt",
         onnx_file=f"{DATA_DIR}/yolo26l.onnx",
         task=Task.DETECT,
-        opset=11,
-        export_extras=(("simplify", True), ("nms", False)),
+        opset=OPSET_YOLO12,
+        export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False)),
         zoo_name=None,
     ),
     "yolo26l-seg": ModelEntry(
         pt_file=f"{DATA_DIR}/yolo26l-seg.pt",
         onnx_file=f"{DATA_DIR}/yolo26l-seg.onnx",
         task=Task.SEGMENT,
-        opset=11,
-        export_extras=(("simplify", True), ("nms", False)),
+        opset=OPSET_YOLO12,
+        export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False)),
         zoo_name=None,
     ),
     # Retrained YOLO11n owned by the auto-annotator: 3 classes
@@ -99,7 +101,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
     # `yolo11n`, so it reuses the zoo's yolov11n graph config; only the class
     # count differs, which `classes` feeds to `hailomz compile --classes`.
     "gmr": ModelEntry(
-        pt_file="../auto-annotator/ml-service/models/gmr/best.pt",
+        pt_file=GMR_CHECKPOINT_PATH,
         onnx_file=f"{DATA_DIR}/gmr.onnx",
         task=Task.DETECT,
         opset=13,

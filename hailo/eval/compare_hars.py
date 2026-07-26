@@ -99,7 +99,7 @@ def main() -> None:
             outputs = np.asarray(runner.infer(context, stacked, batch_size=8))
         predictions = [decode(outputs[i], args.conf) for i in range(len(truth))]
         results[name] = summarise(predictions, truth)
-        print(f"{name}: mAP@0.5 = {results[name]['mAP50']:.4f}", flush=True)
+        print(f"{name}: mAP@0.5 = {results[name].mAP50:.4f}", flush=True)
 
     print_report(results)
 

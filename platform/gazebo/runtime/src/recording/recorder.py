@@ -52,7 +52,7 @@ except ImportError:
     sys.exit(1)
 
 # Import scenario generator
-from shared.config.constants import DictKeys, FileExtensions, FilePaths, FolderNames
+from shared.config.constants import CompetitionSpecs, DictKeys, FileExtensions, FilePaths, FolderNames
 
 from src.generation.generator import ScenarioGenerator
 
@@ -463,7 +463,7 @@ class PipelineOrchestrator:
                     "--metadata",
                     str(metadata_path),
                     "--laps",
-                    "3",  # WRO requirement: 3 laps
+                    str(CompetitionSpecs.OPEN_CHALLENGE_LAPS),  # WRO requirement: 3 laps
                 ],
                 stdout=None,  # Show output in terminal
                 stderr=None,  # Show errors in terminal
@@ -473,7 +473,7 @@ class PipelineOrchestrator:
             time.sleep(2)
 
             direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]
-            print(f"  ✓ Track navigator launched ({direction} direction, 3 laps)")
+            print(f"  ✓ Track navigator launched ({direction} direction, {CompetitionSpecs.OPEN_CHALLENGE_LAPS} laps)")
             return True
 
         except FileNotFoundError as e:

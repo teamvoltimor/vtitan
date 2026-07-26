@@ -21,6 +21,7 @@ from itertools import product
 
 import pytest
 
+from shared.config.constants import CompetitionSpecs, TrackDimensions
 from shared.domain.enums import Direction, Section
 from src.navigation.open_lap_planner import (
     MockLapRunner,
@@ -32,10 +33,6 @@ from src.scenario.models import CorridorWidth, Position, ScenarioMetadata, Start
 logger = logging.getLogger(__name__)
 
 _PLANNER = OpenLapPlanner()
-
-_TRACK_MIN = 0.0
-_TRACK_MAX = 3.0
-_N_LAPS = 3
 _CORNER_TOL = 1e-9
 
 # Allowed corridor widths for Open challenge
@@ -117,8 +114,8 @@ class TestCornerComputation:
             s = _make_scenario(sw, sn, se_w, ww)
             c = _PLANNER.corners(s)
             for pt in (c.sw, c.se, c.ne, c.nw):
-                assert _TRACK_MIN <= pt[0] <= _TRACK_MAX, f"x={pt[0]} out of bounds"
-                assert _TRACK_MIN <= pt[1] <= _TRACK_MAX, f"y={pt[1]} out of bounds"
+                assert TrackDimensions.MIN_COORD <= pt[0] <= TrackDimensions.MAX_COORD, f"x={pt[0]} out of bounds"
+                assert TrackDimensions.MIN_COORD <= pt[1] <= TrackDimensions.MAX_COORD, f"y={pt[1]} out of bounds"
 
     def test_corner_order_cw_south(self) -> None:
         s = _make_scenario(1.0, 1.0, 1.0, 1.0)
@@ -181,7 +178,7 @@ class TestMockLapRunner:
 
     def test_runner_all_waypoints_in_bounds(self) -> None:
         s = _make_scenario(0.6, 0.6, 0.6, 0.6)
-        runner = _PLANNER.plan(s, n_laps=_N_LAPS)
+        runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
         for lap in runner.laps:
             assert lap.all_in_bounds, f"lap {lap.lap}: waypoints out of bounds"
 
@@ -203,10 +200,10 @@ class TestOpenChallengeSolvability:
         failed = []
         for sw, sn, se_w, ww in product(_WIDTH_CHOICES, repeat=4):
             s = _make_scenario(sw, sn, se_w, ww)
-            runner = _PLANNER.plan(s, n_laps=_N_LAPS)
-            if runner.completed_laps != _N_LAPS:
+            runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
+            if runner.completed_laps != CompetitionSpecs.OPEN_CHALLENGE_LAPS:
                 failed.append((sw, sn, se_w, ww))
-        assert not failed, f"Could not complete {_N_LAPS} laps for combos: {failed}"
+        assert not failed, f"Could not complete {CompetitionSpecs.OPEN_CHALLENGE_LAPS} laps for combos: {failed}"
 
     def test_all_8_starting_configs_3_laps(self) -> None:
         """All 4 sections × 2 directions complete 3 laps on a symmetric track."""
@@ -214,8 +211,8 @@ class TestOpenChallengeSolvability:
         for section in _ALL_SECTIONS:
             for direction in _ALL_DIRECTIONS:
                 s = _make_scenario(0.8, 0.8, 0.8, 0.8, section, direction)
-                runner = _PLANNER.plan(s, n_laps=_N_LAPS)
-                if runner.completed_laps != _N_LAPS:
+                runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
+                if runner.completed_laps != CompetitionSpecs.OPEN_CHALLENGE_LAPS:
                     failed.append((section, direction))
         assert not failed, f"Could not complete 3 laps for configs: {failed}"
 
@@ -226,8 +223,8 @@ class TestOpenChallengeSolvability:
             for section in _ALL_SECTIONS:
                 for direction in _ALL_DIRECTIONS:
                     s = _make_scenario(sw, sn, se_w, ww, section, direction)
-                    runner = _PLANNER.plan(s, n_laps=_N_LAPS)
-                    if runner.completed_laps != _N_LAPS:
+                    runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
+                    if runner.completed_laps != CompetitionSpecs.OPEN_CHALLENGE_LAPS:
                         failed.append((sw, sn, se_w, ww, section, direction))
         assert not failed, (
             f"{len(failed)}/128 combinations failed to complete 3 laps: {failed[:5]}..."
@@ -237,10 +234,10 @@ class TestOpenChallengeSolvability:
         """The 10 seeded generated scenarios are all solvable in 3 laps."""
         failed = []
         for s in open_scenarios:
-            runner = _PLANNER.plan(s, n_laps=_N_LAPS)
-            if runner.completed_laps != _N_LAPS:
+            runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
+            if runner.completed_laps != CompetitionSpecs.OPEN_CHALLENGE_LAPS:
                 failed.append(s.scenario_id)
-        assert not failed, f"Scenarios {failed} did not complete {_N_LAPS} laps"
+        assert not failed, f"Scenarios {failed} did not complete {CompetitionSpecs.OPEN_CHALLENGE_LAPS} laps"
 
 
 class TestNavigationSummaryLog:
@@ -263,10 +260,10 @@ class TestNavigationSummaryLog:
         logger.info(sep)
 
         for s in open_scenarios:
-            runner = _PLANNER.plan(s, n_laps=_N_LAPS)
+            runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
             sc = s.starting_conditions
             widths = {k: v.width_mm for k, v in s.corridor_widths.items()}
-            solved = "✓" if runner.completed_laps == _N_LAPS else "✗"
+            solved = "✓" if runner.completed_laps == CompetitionSpecs.OPEN_CHALLENGE_LAPS else "✗"
             logger.info(
                 "  %02d    %s  %-16s  %s %d/%d   %7.2f   %d/%d/%d/%d",
                 s.scenario_id,
@@ -274,7 +271,7 @@ class TestNavigationSummaryLog:
                 sc.section.capitalize(),
                 solved,
                 runner.completed_laps,
-                _N_LAPS,
+                CompetitionSpecs.OPEN_CHALLENGE_LAPS,
                 runner.total_distance_m,
                 widths[Section.SOUTH],
                 widths[Section.NORTH],
@@ -289,15 +286,15 @@ class TestNavigationSummaryLog:
         print(f"  {'#ID':<4}  {'DIR':<5}  {'SECTION':<16}  {'LAPS':<7}  {'DIST':>8}  CORRIDORS S/N/E/W mm")
         print(sep)
         for s in open_scenarios:
-            runner = _PLANNER.plan(s, n_laps=_N_LAPS)
+            runner = _PLANNER.plan(s, n_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
             sc = s.starting_conditions
             widths = {k: v.width_mm for k, v in s.corridor_widths.items()}
-            solved = "✓" if runner.completed_laps == _N_LAPS else "✗"
+            solved = "✓" if runner.completed_laps == CompetitionSpecs.OPEN_CHALLENGE_LAPS else "✗"
             print(
                 f"  {s.scenario_id:02d}    "
                 f"{'CW ' if sc.direction == Direction.CLOCKWISE else 'CCW'}  "
                 f"{sc.section.capitalize():<16}  "
-                f"{solved} {runner.completed_laps}/{_N_LAPS}   "
+                f"{solved} {runner.completed_laps}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS}   "
                 f"{runner.total_distance_m:7.2f}m  "
                 f"{widths[Section.SOUTH]}/{widths[Section.NORTH]}/{widths[Section.EAST]}/{widths[Section.WEST]}"
             )

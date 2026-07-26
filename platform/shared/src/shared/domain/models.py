@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from shared.domain.enums import Direction, ScenarioType, Section
+
 
 @dataclass(slots=True, frozen=True)
 class Pose:
@@ -100,8 +102,8 @@ class Position2D(BaseModel):
 class StartingConditions(BaseModel):
     """Robot starting pose and direction."""
 
-    direction: str = "counterclockwise"
-    section: str = "south"
+    direction: str = Direction.COUNTERCLOCKWISE.value
+    section: str = Section.SOUTH.value
     position: Position2D = Position2D()
     yaw: float = 0.0
 
@@ -142,7 +144,7 @@ class ScenarioMetadata(BaseModel):
     """
 
     scenario_id: int = 0
-    challenge_type: str = "open"
+    challenge_type: str = ScenarioType.OPEN.value
     seed: int | None = None
     num_signs: int = 0
     has_parking_lot: bool = False

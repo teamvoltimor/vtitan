@@ -9,7 +9,9 @@ import pickle
 import socket  # noqa: TC003
 import struct
 
-_DEFAULT_RECV_CHUNK_SIZE: int = 65536
+from src.config import SERVER_DEFAULT_RECV_CHUNK_SIZE
+
+_DEFAULT_RECV_CHUNK_SIZE: int = SERVER_DEFAULT_RECV_CHUNK_SIZE
 """Fallback chunk size used when no ServerConfig is provided."""
 
 

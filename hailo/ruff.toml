@@ -306,6 +306,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # sees the copied eval/ directory and cannot import src.log.
 "eval/*.py" = [
     "T201", # print() -- the report is the program's output
+    "N815", # mAP50/mAP75 etc. are domain-standard metric names
 ]
 # Tests
 "test_*.py" = [
