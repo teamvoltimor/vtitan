@@ -24,6 +24,13 @@ Topics:
         - /motor/steering_position (std_msgs/Float32) - Current steering position in degrees
         - /motor/drive_speed (std_msgs/Float32) - Current drive speed in degrees/s
         - /motor/status (diagnostic_msgs/DiagnosticStatus) - Motor status diagnostics
+        - /joint_states (sensor_msgs/JointState) - Wheel angle + rate and steering
+          angle, in SI units. Carries a header timestamp and an accumulating
+          wheel angle, neither of which the Float32 topics above can express;
+          wheel distance is angle x wheel radius. Published alongside them
+          rather than replacing them, because drive_speed and steering_position
+          are telemetry payload fields reaching the proto, OpenAPI contract and
+          frontend dials.
 
 Environment Variables:
     Note the DOUBLE underscore in the MOTOR_* names: they are nested
@@ -58,9 +65,10 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from sensor_msgs.msg import JointState
+from shared.config.constants import RobotSpecs
 from std_msgs.msg import Float32
 
-from shared.config.constants import RobotSpecs
 from src.hardware.motors.config import Config
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from src.logger import configure_json_logging
@@ -103,6 +111,10 @@ Must stay 50 Hz: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` both hardcode
 ``dt=0.02``, so running the loop at any other rate silently rescales the PID
 gains and the speed estimate without changing a single number in the tuning.
 """
+
+_DRIVE_JOINT = "drive_wheel"
+_STEERING_JOINT = "steering"
+"""Joint names on /joint_states. Consumers index by name, not position."""
 
 
 # Backend selection (from environment)
@@ -212,6 +224,7 @@ class AckermannMotorNode(LifecycleNode):
         self.steering_pos_pub: Publisher | None = None
         self.drive_speed_pub: Publisher | None = None
         self.status_pub: Publisher | None = None
+        self.joint_state_pub: Publisher | None = None
         self.ackermann_sub: Subscription | None = None
         self.feedback_timer: Timer | None = None
         self.watchdog_timer: Timer | None = None
@@ -290,6 +303,7 @@ class AckermannMotorNode(LifecycleNode):
         self.steering_pos_pub = self.create_lifecycle_publisher(Float32, "/motor/steering_position", 10)
         self.drive_speed_pub = self.create_lifecycle_publisher(Float32, "/motor/drive_speed", 10)
         self.status_pub = self.create_lifecycle_publisher(DiagnosticStatus, "/motor/status", 10)
+        self.joint_state_pub = self.create_lifecycle_publisher(JointState, "/joint_states", 10)
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -370,7 +384,7 @@ class AckermannMotorNode(LifecycleNode):
                 setattr(self, timer_attr, None)
 
     def _destroy_publishers(self) -> None:
-        for pub_attr in ("steering_pos_pub", "drive_speed_pub", "status_pub"):
+        for pub_attr in ("steering_pos_pub", "drive_speed_pub", "status_pub", "joint_state_pub"):
             pub = getattr(self, pub_attr)
             if pub is not None:
                 self.destroy_publisher(pub)
@@ -500,6 +514,35 @@ class AckermannMotorNode(LifecycleNode):
             speed_msg = Float32()
             speed_msg.data = drive_speed
             self.drive_speed_pub.publish(speed_msg)
+
+            # Publish the same feedback as JointState, which telemetry_bridge_node
+            # already subscribes to and which nothing has ever published.
+            #
+            # It carries what the two Float32 topics cannot: a header timestamp,
+            # and an *accumulating* wheel angle rather than an instantaneous
+            # speed. Both are what a motion prior needs -- wheel distance is
+            # angle x wheel radius, and integrating it between LIDAR scans is
+            # only meaningful if you know when each sample was taken.
+            #
+            # Deliberately alongside the Float32 topics rather than replacing
+            # them: drive_speed and steering_position are telemetry payload
+            # fields carried through the proto, the OpenAPI contract, generated
+            # Go and the frontend dials, so the ROS-side representation can move
+            # to SI units here without disturbing any of that.
+            if self.joint_state_pub is not None:
+                joint_msg = JointState()
+                joint_msg.header.stamp = self.get_clock().now().to_msg()
+                joint_msg.name = [_DRIVE_JOINT, _STEERING_JOINT]
+                # SI, unlike the degree-based Float32 topics above.
+                joint_msg.position = [
+                    math.radians(self.drive.get_drive_position()),
+                    math.radians(steering_pos),
+                ]
+                # Steering velocity is left at zero: the servo reports position
+                # only, and a derived rate would be a differentiated command
+                # rather than a measurement.
+                joint_msg.velocity = [math.radians(drive_speed), 0.0]
+                self.joint_state_pub.publish(joint_msg)
 
             # Publish status diagnostics
             status_msg = DiagnosticStatus()

@@ -388,3 +388,109 @@ class TestAckermannMotorNodeSafetyLifecycle:
         mock_drive.stop_drive.side_effect = RuntimeError("bus error")
 
         node.destroy_node()  # must not raise
+
+
+class TestJointStateFeedback:
+    """/joint_states carries what the Float32 feedback topics cannot.
+
+    telemetry_bridge_node has subscribed to /joint_states since it was written
+    and nothing ever published it, so this connects existing plumbing rather
+    than replacing anything. The Float32 topics stay: drive_speed and
+    steering_position are telemetry payload fields reaching the proto, the
+    OpenAPI contract and the frontend dials.
+    """
+
+    @staticmethod
+    def _activated(node_cls, mock_drive, mock_steering, *, wheel_deg=180.0, speed_deg_s=90.0, steer_deg=10.0):
+        mock_drive.get_drive_position.return_value = wheel_deg
+        mock_drive.get_drive_speed.return_value = speed_deg_s
+        mock_steering.get_steering_position.return_value = steer_deg
+        node = node_cls()
+        node.trigger_configure()
+        node.trigger_activate()
+        return node
+
+    def test_publisher_exists_after_activate(self, ros_context, ackermann_node_class):
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        assert node.joint_state_pub is not None
+        node.destroy_node()
+
+    def test_publishes_si_units_not_degrees(self, ros_context, ackermann_node_class):
+        """The Float32 topics are degrees; JointState is radians."""
+        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
+        mock_config.steering.linkage_ratio = 1.0
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        published = []
+        node.joint_state_pub.publish = published.append
+
+        node._publish_feedback()
+
+        assert len(published) == 1
+        msg = published[0]
+        drive_i = msg.name.index("drive_wheel")
+        assert msg.position[drive_i] == pytest.approx(math.pi)  # 180 deg
+        assert msg.velocity[drive_i] == pytest.approx(math.pi / 2)  # 90 deg/s
+        node.destroy_node()
+
+    def test_carries_a_timestamp(self, ros_context, ackermann_node_class):
+        """The reason for the message: integrating distance needs sample times."""
+        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
+        mock_config.steering.linkage_ratio = 1.0
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        published = []
+        node.joint_state_pub.publish = published.append
+
+        node._publish_feedback()
+
+        stamp = published[0].header.stamp
+        assert (stamp.sec, stamp.nanosec) != (0, 0)
+        node.destroy_node()
+
+    def test_names_both_joints(self, ros_context, ackermann_node_class):
+        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
+        mock_config.steering.linkage_ratio = 1.0
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        published = []
+        node.joint_state_pub.publish = published.append
+
+        node._publish_feedback()
+
+        msg = published[0]
+        assert set(msg.name) == {"drive_wheel", "steering"}
+        assert len(msg.position) == len(msg.name)
+        assert len(msg.velocity) == len(msg.name)
+        node.destroy_node()
+
+    def test_does_not_consume_the_rpm_window(self, ros_context, ackermann_node_class):
+        """get_drive_rpm() consumes the counts since its last call.
+
+        The driver's own docstring records that the 100 Hz feedback publisher
+        and the 50 Hz control loop stole windows from each other when both
+        called it. Publishing JointState must not add a third consumer.
+        """
+        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
+        mock_config.steering.linkage_ratio = 1.0
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        mock_drive.reset_mock()
+
+        node._publish_feedback()
+
+        mock_drive.get_drive_rpm.assert_not_called()
+        mock_drive.get_drive_odometry.assert_not_called()
+        node.destroy_node()
+
+    def test_float32_topics_still_published(self, ros_context, ackermann_node_class):
+        """Additive: the telemetry payload fields must keep flowing."""
+        AckermannMotorNode, mock_steering, mock_drive, mock_config = ackermann_node_class
+        mock_config.steering.linkage_ratio = 1.0
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        steering_pub, speed_pub = [], []
+        node.steering_pos_pub.publish = steering_pub.append
+        node.drive_speed_pub.publish = speed_pub.append
+
+        node._publish_feedback()
+
+        assert len(steering_pub) == 1
+        assert len(speed_pub) == 1
+        node.destroy_node()
