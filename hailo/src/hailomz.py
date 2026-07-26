@@ -60,31 +60,35 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
 
 
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
+LABEL_SUFFIXES = frozenset({".txt"})
 
 
-def _stage_calibration_images(source: Path, dest: Path) -> int:
-    """Copy every image under *source* into a flat *dest* directory.
+def _stage_flat(source: Path, dest: Path, suffixes: frozenset[str]) -> int:
+    """Copy every matching file under *source* into a flat *dest* directory.
 
     ``hailomz`` reads calibration images from a single directory, so nested
     dataset layouts (``images/<class>/*.jpg``) are flattened. Names are
-    prefixed with their relative parent to keep collisions apart.
+    prefixed with their relative parent to keep collisions apart -- and because
+    labels are flattened with the same rule, an image and its label keep a
+    matching stem on the other side.
 
     Args:
-        source: Root directory to walk for images.
+        source: Root directory to walk.
         dest: Flat destination directory, created if absent.
+        suffixes: Lowercased file extensions to copy.
 
     Returns:
-        Number of images copied.
+        Number of files copied.
     """
     dest.mkdir(parents=True, exist_ok=True)
     count = 0
-    for image in sorted(source.rglob("*")):
-        if image.suffix.lower() not in IMAGE_SUFFIXES:
+    for path in sorted(source.rglob("*")):
+        if path.suffix.lower() not in suffixes:
             continue
-        relative_parent = image.parent.relative_to(source)
+        relative_parent = path.parent.relative_to(source)
         prefix = "_".join(relative_parent.parts)
-        name = f"{prefix}_{image.name}" if prefix else image.name
-        shutil.copy2(image, dest / name)
+        name = f"{prefix}_{path.name}" if prefix else path.name
+        shutil.copy2(path, dest / name)
         count += 1
     return count
 
@@ -118,11 +122,23 @@ def stage(config: StageConfig) -> None:
             msg = f"Calibration directory not found: {calib_src}. Run `hailo calib download` first."
             raise HailoError(msg)
         calib_dest = shared / config.calib_name
-        staged = _stage_calibration_images(calib_src, calib_dest)
+        staged = _stage_flat(calib_src, calib_dest, IMAGE_SUFFIXES)
         if staged == 0:
             msg = f"No calibration images found under {calib_src}."
             raise HailoError(msg)
         log.info("Staged %d calibration images → %s", staged, calib_dest)
+
+    if config.labels:
+        labels_src = Path(config.labels)
+        if not labels_src.exists():
+            msg = f"Label directory not found: {labels_src}."
+            raise HailoError(msg)
+        labels_dest = shared / config.labels_name
+        staged = _stage_flat(labels_src, labels_dest, LABEL_SUFFIXES)
+        if staged == 0:
+            msg = f"No label files found under {labels_src}."
+            raise HailoError(msg)
+        log.info("Staged %d label files → %s", staged, labels_dest)
 
     log.info(
         "Stage complete. Files are at %s (%s inside Docker).",

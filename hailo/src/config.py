@@ -91,12 +91,18 @@ class StageConfig:
         calib_name: Subdirectory name for the staged calibration images.
             Give a per-model name to keep domain-specific calibration sets
             from overwriting each other.
+        labels: YOLO label directory to flatten alongside the images, so the
+            evaluators can score inside the container (which mounts nothing
+            else). Pass ``None`` to skip.
+        labels_name: Subdirectory name for the staged labels.
     """
 
     model: str
     calib: str | None
     shared_dir: str = SHARED_WITH_DOCKER
     calib_name: str = "calib_data"
+    labels: str | None = None
+    labels_name: str = "calib_labels"
 
 
 @dataclass(slots=True, frozen=True)

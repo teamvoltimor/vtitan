@@ -19,6 +19,11 @@ vars:
   DATA_COUNT: 512
   GMR_CALIB_SRC: ../auto-annotator/ml-service/data/images
   GMR_CALIB_NAME: calib_data_gmr
+  GMR_LABEL_SRC: ../auto-annotator/ml-service/data/labels
+  GMR_LABEL_NAME: calib_labels_gmr
+  GMR_CHECKPOINT: ../auto-annotator/ml-service/models/gmr/best.pt
+  EVAL_LIMIT: 300
+  DOCKER_MOUNT: /local/shared_with_docker
   # Pins CUDA_VISIBLE_DEVICES so the optimizer's GPU selector is bypassed --
   # see docs/hef-compile-runbook.md, "Optimization silently drops to level 0".
   CUDA_DEVICE: 0
@@ -233,6 +238,11 @@ tasks:
     cmds:
       - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}} --docker {{.DOCKER_CONTAINER}}
 
+  gmr:stage-eval:
+    desc: 'Stage GMR images + labels for the evaluators'
+    cmds:
+      - uv run hailo stage --model gmr --calib {{.GMR_CALIB_SRC}} --calib-name {{.GMR_CALIB_NAME}} --labels {{.GMR_LABEL_SRC}} --labels-name {{.GMR_LABEL_NAME}} --shared-dir {{.SHARED_DIR}}
+
   gmr:compile-performance:
     desc: 'Compile GMR at the highest optimization level (needs a GPU-enabled container)'
     cmds:
@@ -249,6 +259,32 @@ tasks:
       - task: gmr:export
       - task: gmr:stage
       - task: gmr:compile
+
+# Accuracy Evaluation
+# Distinct from the eval:* tasks above, which wrap `hailomz eval` against a
+# target. These score a compiled model's detections and compare builds.
+
+  accuracy:sync:
+    desc: 'Copy the evaluators into the shared mount so the container can see them'
+    cmds:
+      - uv run python -c "import pathlib,shutil; d=pathlib.Path('{{.SHARED_DIR}}/eval'); d.mkdir(parents=True,exist_ok=True); [shutil.copy2(p,d/p.name) for p in pathlib.Path('eval').glob('*.py')]"
+
+  accuracy:compare:
+    desc: 'Score the compiled HARs against each other (requires running container)'
+    deps: [accuracy:sync]
+    cmds:
+      - docker exec -w {{.DOCKER_MOUNT}} {{.DOCKER_CONTAINER}} python eval/compare_hars.py --limit {{.EVAL_LIMIT}}
+
+  accuracy:float:
+    desc: 'Score the float checkpoint as the accuracy ceiling (host, no container)'
+    cmds:
+      - uv run python eval/float_anchor.py --limit {{.EVAL_LIMIT}} --checkpoint {{.GMR_CHECKPOINT}} --images {{.SHARED_DIR}}/{{.GMR_CALIB_NAME}} --labels {{.SHARED_DIR}}/{{.GMR_LABEL_NAME}}
+
+  accuracy:all:
+    desc: 'Full accuracy comparison: float ceiling, then every compiled HAR'
+    cmds:
+      - task: accuracy:float
+      - task: accuracy:compare
 
 # End-to-End Workflows
 

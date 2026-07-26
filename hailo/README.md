@@ -48,6 +48,10 @@ hailo/
 │   ├── enums.py          # Backend, Task, HWArch, EvalTarget
 │   ├── errors.py         # HailoError hierarchy + require_dep guard
 │   └── log.py            # Structured JSON logging
+├── eval/                 # Accuracy comparison between compiled builds
+│   ├── metrics.py        # mAP, per-class AP, class confusion (no SDK deps)
+│   ├── compare_hars.py   # Scores quantized HARs — runs inside the container
+│   └── float_anchor.py   # Scores the float checkpoint — runs on the host
 ├── pyproject.toml
 ├── Taskfile.yml          # Task runner workflows
 ├── shared_with_docker/   # Mounted into the Hailo suite container
@@ -212,6 +216,23 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 | `task gmr:compile-performance` | Compile at the highest optimization level (needs a GPU) |
 | `task gmr:compile-dry` | Print the compile command only |
 | `task gmr:workflow` | export → stage → compile |
+
+### Accuracy Evaluation
+
+Distinct from `eval:*` above, which wraps `hailomz eval` against a target.
+These score detections and compare compiled builds against the float ceiling —
+the optimization level that produces the most accurate HEF is an empirical
+question per model, not a given. See
+[docs/hef-compile-runbook.md](docs/hef-compile-runbook.md).
+
+| Task | Description |
+|---|---|
+| `task gmr:stage-eval` | Stage GMR images **and labels** for the evaluators |
+| `task accuracy:float` | Score the float checkpoint (host) — the ceiling |
+| `task accuracy:compare` | Score every compiled HAR (in the container) |
+| `task accuracy:all` | Float ceiling, then every HAR |
+
+Override the sample size with `task accuracy:all EVAL_LIMIT=600`.
 
 ### End-to-End Workflows
 

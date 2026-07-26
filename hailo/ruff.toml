@@ -300,6 +300,13 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Per-file Rule Ignores
 # ============================================================================
 [lint.per-file-ignores]
+# Accuracy evaluators. These are report-emitting CLIs whose product *is* the
+# table on stdout, so print() is the output channel rather than logging that
+# escaped review. They also run inside the Hailo suite container, which only
+# sees the copied eval/ directory and cannot import src.log.
+"eval/*.py" = [
+    "T201", # print() -- the report is the program's output
+]
 # Tests
 "test_*.py" = [
     "S101",    # Use of assert

@@ -93,6 +93,8 @@ def _cmd_stage(args: argparse.Namespace) -> None:
             calib=args.calib,
             shared_dir=args.shared_dir,
             calib_name=args.calib_name,
+            labels=args.labels,
+            labels_name=args.labels_name,
         ),
     )
 
@@ -268,6 +270,22 @@ def _add_stage_parser(sub: argparse._SubParsersAction) -> None:
         default="calib_data",
         metavar="NAME",
         help="Subdirectory to stage calibration images into (default: calib_data)",
+    )
+    parser.add_argument(
+        "--labels",
+        default=None,
+        metavar="DIR",
+        help=(
+            "Local YOLO label directory to copy (optional, searched recursively). "
+            "Needed by the evaluators, which run inside the container and can "
+            "only see the shared mount."
+        ),
+    )
+    parser.add_argument(
+        "--labels-name",
+        default="calib_labels",
+        metavar="NAME",
+        help="Subdirectory to stage label files into (default: calib_labels)",
     )
     parser.set_defaults(func=_cmd_stage)
 

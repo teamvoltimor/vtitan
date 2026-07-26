@@ -287,9 +287,12 @@ The lesson is not "skip optimization" — it is that the optimization level is a
 empirical question per model, and cheap to settle. Compile both and measure
 before shipping either.
 
-Both eval harnesses live in `shared_with_docker/` (gitignored):
-`eval_compare.py` runs inside the container over the HARs, `eval_float.py` runs
-on the host for the float anchor. Two traps they encode:
+Reproduce with `task gmr:stage-eval` then `task accuracy:all`. The harnesses
+live in `eval/`: `compare_hars.py` runs inside the container over the HARs,
+`float_anchor.py` runs on the host for the float anchor, and both score through
+the same `metrics.py` so any difference comes from the model rather than the
+scoring. `accuracy:sync` copies them into the shared mount, since the container
+sees nothing else. Two traps they encode:
 
 - Ground-truth ids are in the *dataset's* class space while the model predicts
   in its own; `LABEL_TO_MODEL` bridges them. See "Class ordering" below.
