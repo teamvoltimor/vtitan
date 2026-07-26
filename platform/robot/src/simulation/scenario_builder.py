@@ -16,7 +16,7 @@ from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
-from src.navigation.race_tracker import _TRAVEL_DIRS
+from src.navigation.race_tracker import TRAVEL_DIRS
 
 _TRACK_MAX = TrackDimensions.MAX_COORD
 _TRACK_CENTER = _TRACK_MAX / 2
@@ -39,7 +39,7 @@ def start_pose(
         Section.EAST: (east_cx, _TRACK_CENTER),
         Section.WEST: (west_cx, _TRACK_CENTER),
     }[section]
-    nx, ny = _TRAVEL_DIRS[(section, direction)]
+    nx, ny = TRAVEL_DIRS[(section, direction)]
     return center[0], center[1], math.atan2(ny, nx)
 
 

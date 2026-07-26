@@ -121,6 +121,32 @@ class CoreNavigator:
         """Current track corridor derived from robot position. None before first step."""
         return self._current_corridor
 
+    def replace_path(self, waypoints: list[tuple[float, float]], robot_xy: tuple[float, float]) -> None:
+        """Swap in a new planned path mid-run, resuming at the nearest point.
+
+        Needed when the layout the path was planned against turns out to be
+        wrong — the robot estimates corridor widths from LIDAR as it drives
+        (see :mod:`src.navigation.corridor_estimator`), so the path has to be
+        rebuilt when an estimate changes rather than being fixed at startup.
+
+        The waypoint index cannot carry over: the new path has its own indexing
+        and the old index would point somewhere arbitrary on it. Re-seeking to
+        the nearest waypoint keeps progress instead of restarting the lap, and
+        matters because the paths differ by centimetres, not corridors — the
+        nearest point on the new path is essentially where the robot already
+        was on the old one.
+
+        Args:
+            waypoints: The replacement path (single canonical lap).
+            robot_xy: Current position, used to resume at the nearest waypoint.
+        """
+        self._waypoints = waypoints
+        robot_x, robot_y = robot_xy
+        self._waypoint_index = min(
+            range(len(waypoints)),
+            key=lambda i: math.hypot(waypoints[i][0] - robot_x, waypoints[i][1] - robot_y),
+        )
+
     @property
     def laps_completed(self) -> int:
         """Number of laps confirmed completed so far."""

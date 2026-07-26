@@ -28,15 +28,18 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
+from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
-from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import TrackModel, obstacles_from_metadata
 from src.simulation.vision_emulator import emulate_sign_detections
+from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -69,6 +72,7 @@ class SimulatedHardwareGateway:
         lidar_noise_std: float = RobotSpecs.LIDAR_NOISE_STDDEV,
         rng: np.random.Generator | None = None,
         signs: list[SignSpec] | None = None,
+        localize: bool = False,
     ) -> None:
         self._track = track
         self._state = initial_state
@@ -80,6 +84,16 @@ class SimulatedHardwareGateway:
         # Full 360 sweep, robot frame, 0 = forward, +pi/2 = left, -pi/2 = right.
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
         self._angles_list = self._angles.tolist()
+
+        # Position estimation, mirroring ``ROS2HardwareGateway`` in
+        # ``src/ros2/navigation/node.py``: heading from the IMU, position from
+        # matching each LIDAR sweep against the known wall geometry, seeded
+        # from the previous estimate. Off by default so the existing battery
+        # keeps its perfect-odometry control condition.
+        self._localize = localize
+        self._estimator = StateEstimator(initial_state.x, initial_state.y, initial_state.yaw)
+        self._localizer = LidarLocalizer(track.walls) if localize else None
+        self._believed_walls: TrackWalls | None = None
 
         self._command = DriveCommand(speed_mps=0.0, steering_norm=0.0)
         self._scan_ranges: list[float] = []
@@ -94,8 +108,45 @@ class SimulatedHardwareGateway:
         self._command = command
 
     def get_current_pose(self) -> Pose | None:
-        """Return the ground-truth pose (perfect odometry)."""
+        """Return the pose the navigator gets to see.
+
+        Ground truth by default (perfect odometry), which isolates control
+        behaviour from state-estimation error. With ``localize=True`` this is
+        instead the LIDAR-matched estimate the real robot actually navigates
+        on, so the error the localizer makes reaches the controller.
+        """
+        if self._localize:
+            return self._estimator.estimate_pose()
         return Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
+
+    def set_believed_walls(self, walls: TrackWalls) -> None:
+        """Re-point the localizer at the layout the robot currently *believes* in.
+
+        Without this the localizer matches against ``track.walls`` — the true
+        geometry — which quietly hands the robot the map it is supposed to be
+        working out for itself. In blind mode the belief comes from
+        :class:`~src.navigation.corridor_estimator.CorridorWidthEstimator`, so
+        a wrong belief produces a wrong position fix, exactly as it would on
+        the real mat.
+        """
+        self._believed_walls = walls
+        if self._localize:
+            self._localizer = LidarLocalizer(walls)
+
+    @property
+    def position_error_m(self) -> float:
+        """How far the pose the navigator sees is from ground truth (metres).
+
+        0.0 without ``localize`` — the navigator is handed ground truth, so by
+        definition it sees no error. (The estimator still exists in that mode
+        but is never fed, so its own state is meaningless and deliberately not
+        reported here.) The point of the flag is to make this non-zero and
+        measure what state estimation costs.
+        """
+        if not self._localize:
+            return 0.0
+        pose = self._estimator.estimate_pose()
+        return math.hypot(pose.x - self._state.x, pose.y - self._state.y)
 
     def get_lidar_scan(self) -> LidarScan | None:
         """Return the most recent simulated LIDAR sweep (ranges, robot-frame angles)."""
@@ -170,6 +221,21 @@ class SimulatedHardwareGateway:
             ranges = np.clip(ranges, RobotSpecs.LIDAR_MIN_RANGE, RobotSpecs.LIDAR_MAX_RANGE)
         self._scan_ranges = ranges.tolist()
         self._last_min_range = float(np.min(ranges))
+
+        if self._localizer is None:
+            return
+        # Same order as the node's LIDAR callback: fuse heading first (the
+        # localizer takes yaw as given), then search for the position that best
+        # explains this sweep, seeded from the previous estimate.
+        self._estimator.update_imu(IMUReading(yaw=self._state.yaw, pitch=0.0, roll=0.0))
+        prior = self._estimator.estimate_pose()
+        est_x, est_y = self._localizer.estimate_position(
+            (prior.x, prior.y),
+            prior.yaw,
+            self._scan_ranges,
+            self._angles_list,
+        )
+        self._estimator.update_position(est_x, est_y)
 
     @property
     def last_min_range(self) -> float:
@@ -249,6 +315,23 @@ class ScenarioSimulator:
     raycasts). Pass ``emit_vision_detections=True`` to instead exercise the real
     camera confirmation path in ``sign_router.py`` via a synthetic emulator
     (``src/simulation/vision_emulator.py``).
+
+    Pose is ground truth by default. Pass ``use_lidar_localization=True`` to
+    navigate on the ``LidarLocalizer`` estimate instead — the same position
+    source the real robot uses, and otherwise exercised by no closed-loop test
+    at all. Keeping it opt-in preserves the perfect-odometry runs as a control,
+    so the difference between the two is a direct measure of what state
+    estimation costs.
+
+    ``blind=True`` goes further and withholds the *layout*. Normally the
+    corridor widths in the metadata reach the robot twice over — the planned
+    path is built from them and the localizer matches scans against a wall
+    model built from them — which is only honest if someone measured the mat
+    first. WRO randomises the inner walls each round, so in blind mode the
+    robot starts assuming every corridor is narrow (the safe prior) and
+    estimates the real widths from LIDAR as it drives, replanning whenever an
+    estimate changes. The metadata is then used only to build the physical
+    track the robot is driving on, never to tell it anything.
     """
 
     def __init__(
@@ -260,9 +343,15 @@ class ScenarioSimulator:
         kinematics: AckermannKinematics | None = None,
         seed: int = 0,
         emit_vision_detections: bool = False,
+        use_lidar_localization: bool = False,
+        blind: bool = False,
     ) -> None:
         self._metadata = metadata
         self._num_laps = num_laps
+        # Blind mode implies LIDAR localization: navigating on ground-truth
+        # pose while pretending not to know the layout would be incoherent.
+        self._blind = blind
+        use_lidar_localization = use_lidar_localization or blind
 
         widths = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
@@ -277,9 +366,18 @@ class ScenarioSimulator:
         # run reports success while driving straight through every sign.
         self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata))
 
+        # What the robot is allowed to believe about the layout. Sighted runs
+        # get the truth (as the ROS2 node does, from its metadata file); blind
+        # runs start with every corridor assumed narrow and correct it from
+        # LIDAR as they go.
+        self._arc_radius = nav_tuning.waypoints.ARC_RADIUS
+        self._direction = start.direction
+        self._width_estimator = CorridorWidthEstimator() if blind else None
+        believed = self._width_estimator.widths if self._width_estimator else widths
+
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
-        self._waypoints = calculate_waypoints(metadata, num_laps=1, arc_radius=nav_tuning.waypoints.ARC_RADIUS)
+        self._waypoints = self._plan(believed)
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata)
 
@@ -290,7 +388,10 @@ class ScenarioSimulator:
             lidar_noise_std=lidar_noise_std,
             rng=np.random.default_rng(seed),
             signs=signs if emit_vision_detections else None,
+            localize=use_lidar_localization,
         )
+        if blind:
+            self._gateway.set_believed_walls(TrackWalls(believed))
 
         lap_detector = LapDetector(
             start_pos=(start.x, start.y),
@@ -315,6 +416,49 @@ class ScenarioSimulator:
             lap_detector=lap_detector,
             park_controller=self._park_controller,
         )
+
+    def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
+        """Build a one-lap path for the layout the robot believes it is on."""
+        planning_metadata = dict(self._metadata)
+        planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
+            section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
+        }
+        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
+
+    def _update_layout_belief(self) -> bool:
+        """Fold the latest scan into the width estimate; replan if it moved.
+
+        Returns:
+            ``True`` if the belief changed and the path was rebuilt.
+        """
+        estimator = self._width_estimator
+        if estimator is None:
+            return False
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            return False
+        # Attribute the reading by HEADING, not position. Position would be
+        # circular — it comes from matching against a wall model built from the
+        # very widths being estimated, so a wrong belief mis-attributes the
+        # reading that would have corrected it and the error locks in (measured:
+        # 8 of 28 fixtures learned a wrong layout and drove into a wall, all
+        # with ~40 cm of position error). Heading comes from the IMU and owes
+        # nothing to the map.
+        section = section_from_heading(pose.yaw, self._direction)
+        if not estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw):
+            return False
+
+        believed = estimator.widths
+        self._waypoints = self._plan(believed)
+        self._gateway.set_believed_walls(TrackWalls(believed))
+        self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
+        return True
+
+    @property
+    def believed_widths(self) -> dict[Section, float] | None:
+        """What the robot currently thinks the layout is, or ``None`` if told."""
+        return self._width_estimator.widths if self._width_estimator else None
 
     @property
     def track(self) -> TrackModel:
@@ -383,6 +527,8 @@ class ScenarioSimulator:
 
         step = 0
         while step < max_steps:
+            if self._blind:
+                self._update_layout_belief()
             nav.step()
             gw.advance(dt)
             step += 1

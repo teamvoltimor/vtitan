@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 # Travel direction unit vectors for each (section, direction) combination.
-# Used by LapDetector as the finish-line normal.
-_TRAVEL_DIRS: dict[tuple[Section, Direction], tuple[float, float]] = {
+# Used by LapDetector as the finish-line normal, and by
+# ``corridor_estimator.section_from_heading`` — for a fixed travel direction all
+# four vectors are distinct, so a heading identifies the corridor outright.
+TRAVEL_DIRS: dict[tuple[Section, Direction], tuple[float, float]] = {
     (Section.SOUTH, Direction.CLOCKWISE): (-1.0, 0.0),
     (Section.NORTH, Direction.CLOCKWISE): (1.0, 0.0),
     (Section.EAST, Direction.CLOCKWISE): (0.0, -1.0),
@@ -55,7 +57,7 @@ class LapDetector:
         direction: Direction,
     ) -> None:
         self._origin: tuple[float, float] = start_pos
-        self._normal: tuple[float, float] = _TRAVEL_DIRS[(start_section, direction)]
+        self._normal: tuple[float, float] = TRAVEL_DIRS[(start_section, direction)]
         self._start_section = start_section
         self._prev_dot: float | None = None
         self._waypoint_pending: bool = False

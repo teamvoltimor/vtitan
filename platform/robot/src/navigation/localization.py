@@ -43,11 +43,13 @@ class LidarLocalizer:
         search_radius_m: float = 0.15,
         passes: int = 4,
         grid_points: int = 5,
+        residual_clip_m: float = 0.25,
     ) -> None:
         self._walls = walls
         self._search_radius = search_radius_m
         self._passes = passes
         self._grid_points = grid_points
+        self._residual_clip = residual_clip_m
 
     def estimate_position(
         self,
@@ -84,7 +86,19 @@ class LidarLocalizer:
                 for dy in offsets:
                     y = best_y + dy
                     predicted = self._walls.raycast(x, y, yaw, angles)
-                    cost = float(np.sum((predicted - ranges) ** 2))
+                    # Clip each ray's contribution instead of summing raw
+                    # squares. A plain least-squares fit is dominated by its
+                    # worst rays, and the worst rays are exactly the ones whose
+                    # geometry isn't in ``walls``: a traffic sign or parking
+                    # block standing in the beam, or — when the corridor widths
+                    # are still being estimated rather than known — a whole
+                    # stretch of far wall in the wrong place. Those rays then
+                    # drag the fit toward a pose that "explains" geometry that
+                    # does not exist. Clipping bounds how far any single ray can
+                    # pull, so the majority of correctly-modelled rays win.
+                    residual = np.abs(predicted - ranges)
+                    np.minimum(residual, self._residual_clip, out=residual)
+                    cost = float(np.sum(residual**2))
                     if cost < best_cost:
                         best_cost = cost
                         cand_x, cand_y = x, y

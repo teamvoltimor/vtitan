@@ -1,0 +1,106 @@
+"""Why the Open Challenge narrow-corridor runs started colliding.
+
+Bisected to ``668e40a``, whose only simulation-side change was clamping the
+integrated speed to the measured 0.156 m/s drivetrain ceiling. That is
+counterintuitive — driving slower should make control easier — so this isolates
+the interaction rather than assuming one.
+
+The suspicion is a speed-dependent steering law. ``WaypointController`` is a
+P-controller on bearing error with a rate limit (``MAX_STEERING_RATE`` rad/s).
+The rate limit is per *second*, so at lower speed the steering winds up further
+per metre travelled, and the same gain carves a tighter arc. Combined with
+counter-phase 4WS (``8eb3c38``, half the effective wheelbase) and the raised
+steering limit (``9ce0514``, 0.5236 -> 1.2253 rad), the commanded curvature at a
+given bearing error is far higher than the gain was ever fitted to.
+
+Sweeps the two knobs that would confirm it — the speed ceiling and
+``STEER_KP`` — over the 8 symmetric-narrow starts the test battery uses.
+
+Usage (from ``platform/robot``, with PYTHONPATH=.)::
+
+    python scripts/diag_open_narrow.py
+"""
+
+from __future__ import annotations
+
+import sys
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, replace
+from itertools import product
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from shared.config.constants import CompetitionSpecs, CorridorDimensions
+from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
+
+from src.simulation.gateway import ScenarioSimulator
+from src.simulation.kinematics import AckermannKinematics
+from src.simulation.scenario_builder import build_open_metadata, uniform_widths
+
+_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
+_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
+_STARTS = list(product(Section, Direction))
+
+
+@dataclass(frozen=True, slots=True)
+class Case:
+    """One (max speed, steering gain, steering rate) point."""
+
+    max_speed: float
+    steer_kp: float
+    max_steer_rate: float
+
+    @property
+    def label(self) -> str:
+        """One-line description of this sweep point."""
+        return f"max_speed {self.max_speed:.3f}  steer_kp {self.steer_kp:.2f}  rate {self.max_steer_rate:.1f}"
+
+
+def _run(args: tuple[Case, int]) -> tuple[bool, int, float]:
+    case, index = args
+    section, direction = _STARTS[index]
+    meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction)
+    base = NavigationTuning()
+    tuning = replace(
+        base,
+        pursuit=replace(base.pursuit, STEER_KP=case.steer_kp, MAX_STEERING_RATE=case.max_steer_rate),
+    )
+    result = ScenarioSimulator(
+        meta,
+        num_laps=_N_LAPS,
+        tuning=tuning,
+        kinematics=AckermannKinematics(
+            max_speed_mps=case.max_speed,
+            max_steer_rate=case.max_steer_rate,
+        ),
+    ).run()
+    within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+    return within, result.laps_completed, result.sim_time_s
+
+
+def main() -> None:
+    """Sweep speed ceiling and steering gain over the 8 narrow starts."""
+    cases = [
+        # Speed ceiling, at the shipped gain — does restoring headroom fix it?
+        *(Case(s, 1.5, 2.0) for s in (0.156, 0.25, 0.35, 0.50)),
+        # Steering gain, at the real 0.156 m/s ceiling — does softening fix it?
+        *(Case(0.156, k, 2.0) for k in (1.2, 1.0, 0.8, 0.6, 0.4)),
+        # Steering rate, at the real ceiling and shipped gain.
+        *(Case(0.156, 1.5, r) for r in (1.0, 4.0)),
+    ]
+    with ProcessPoolExecutor(max_workers=8) as pool:
+        for case in cases:
+            results = list(pool.map(_run, [(case, i) for i in range(len(_STARTS))]))
+            passed = sum(1 for within, _, _ in results if within)
+            worst = min(laps for _, laps, _ in results)
+            slowest = max(t for _, _, t in results)
+            print(
+                f"{case.label:<48} pass {passed}/{len(_STARTS)}  min_laps {worst}  slowest {slowest:5.1f}s",
+                flush=True,
+            )
+
+
+if __name__ == "__main__":
+    main()

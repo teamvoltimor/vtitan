@@ -30,6 +30,11 @@ need this env, only this script does):
     pixi run -e dev visualize-scenario -- --interactive
     pixi run -e dev visualize-scenario -- --challenge obstacles --interactive
 
+    # Blind: the robot is not handed the corridor widths and estimates them
+    # from LIDAR. Implies --localize, so it also steers on its own position
+    # estimate. RViz still draws the true track.
+    pixi run -e dev visualize-scenario -- --challenge open --interactive --blind --rate 5
+
     # Real official-scenario metadata from the Go generator (the actual WRO
     # 2026 36-scenario sign table), visualized live instead of the demo layout
     # above. From platform/gazebo/generator:
@@ -125,6 +130,22 @@ def _parse_args() -> argparse.Namespace:
         "Omit to run both catalogs (Open Challenge scenarios, then Obstacles Challenge).",
     )
     parser.add_argument(
+        "--localize",
+        action="store_true",
+        help="Navigate on the LidarLocalizer position estimate instead of ground-truth "
+        "pose, matching what the real robot does. The published pose stays ground "
+        "truth, so RViz shows where the robot actually is while it steers on the "
+        "estimate — any wandering you see is state-estimation error reaching control.",
+    )
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Withhold the corridor layout too, so the robot estimates the widths from "
+        "LIDAR instead of being handed them. Implies --localize. RViz shows the true "
+        "track, so a corridor the robot has mis-learned shows up as a path hugging the "
+        "wrong wall.",
+    )
+    parser.add_argument(
         "--metadata-file",
         metavar="PATH",
         help="Run a *_metadata.json file directly (e.g. from `simgen generate`) "
@@ -159,9 +180,17 @@ def _run_one(
     scenario: NamedScenario,
     visualizer: LiveScenarioVisualizer,
     rate: float,
+    localize: bool = False,
+    blind: bool = False,
 ) -> SimResult:
     """Run a single named scenario against the live visualizer."""
-    sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
+    sim = ScenarioSimulator(
+        scenario.metadata,
+        num_laps=scenario.laps,
+        seed=scenario.seed,
+        use_lidar_localization=localize,
+        blind=blind,
+    )
     _set_track(visualizer, scenario.metadata, sim.track)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=rate)
 
@@ -187,14 +216,19 @@ def _log_result(label: str, result: SimResult) -> None:
     )
 
 
-def _run_and_visualize(scenario: NamedScenario, rate: float) -> None:
+def _run_and_visualize(
+    scenario: NamedScenario,
+    rate: float,
+    localize: bool = False,
+    blind: bool = False,
+) -> None:
     scenario_track = _track_for(scenario.metadata)
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
         "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` in another terminal to watch.",
     )
-    result = _run_one(scenario, visualizer, rate)
+    result = _run_one(scenario, visualizer, rate, localize, blind)
     _log_result(scenario.label, result)
     visualizer.destroy_node()
 
@@ -224,7 +258,7 @@ def main() -> None:
         try:
             for i, scenario in enumerate(scenarios):
                 logger.info("--- [%d/%d] %s ---", i + 1, len(scenarios), scenario.label)
-                result = _run_one(scenario, visualizer, args.rate)
+                result = _run_one(scenario, visualizer, args.rate, args.localize, args.blind)
                 _log_result(scenario.label, result)
                 if i < len(scenarios) - 1:
                     input("Press Enter for the next scenario (Ctrl+C to stop)... ")
@@ -237,12 +271,12 @@ def main() -> None:
         path = Path(args.metadata_file)
         metadata = json.loads(path.read_text())
         scenario = NamedScenario(label=path.name, metadata=metadata, laps=args.laps, seed=0)
-        _run_and_visualize(scenario, args.rate)
+        _run_and_visualize(scenario, args.rate, args.localize, args.blind)
         return
 
     if args.scenario is not None:
         scenario = find_scenario(args.scenario, _catalog(args.challenge))
-        _run_and_visualize(scenario, args.rate)
+        _run_and_visualize(scenario, args.rate, args.localize, args.blind)
         return
 
     widths = uniform_widths(_WIDE_MM)
@@ -250,7 +284,12 @@ def main() -> None:
     section = Section.from_string(args.section)
     direction = Direction.CLOCKWISE if args.direction == "cw" else Direction.COUNTERCLOCKWISE
     metadata = build_open_metadata(widths, section, direction)
-    sim = ScenarioSimulator(metadata, num_laps=args.laps)
+    sim = ScenarioSimulator(
+        metadata,
+        num_laps=args.laps,
+        use_lidar_localization=args.localize,
+        blind=args.blind,
+    )
 
     visualizer = LiveScenarioVisualizer(sim.track)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=args.rate)

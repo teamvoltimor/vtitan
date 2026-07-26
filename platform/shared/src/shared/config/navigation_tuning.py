@@ -87,7 +87,7 @@ class PurePursuitParams:
     LOOKAHEAD_SHORT: float = 0.20  # Close to corner
     LOOKAHEAD_LONG: float = 0.40  # Normal straight
     LOOKAHEAD_TRANSITION: float = 0.30  # Crosstrack threshold
-    STEER_KP: float = 1.5  # Steering P-gain
+    STEER_KP: float = 1.2  # Steering P-gain
     MAX_STEERING_RATE: float = 2.0  # rad/s
 
 

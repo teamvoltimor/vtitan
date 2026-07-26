@@ -510,7 +510,9 @@ tasks:
       Obstacles); add `-- --list` to list its scenarios, `-- --scenario 5` (or a label from
       --list) to run one, `-- --interactive` to step through every scenario in the catalog,
       pausing between each; otherwise runs one ad-hoc Open Challenge scenario, e.g.
-      `-- --south 600 --rate 2`.
+      `-- --south 600 --rate 2`. Add `-- --localize` to steer on the LIDAR position
+      estimate, or `-- --blind` to also withhold the corridor layout so the robot
+      estimates the widths from LIDAR (implies --localize).
     dir: robot
     cmds:
       - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}

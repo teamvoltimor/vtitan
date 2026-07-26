@@ -192,6 +192,16 @@ class TrackModel:
             _TRACK_MAX - _COLLISION_MARGIN,
         )
 
+    @property
+    def walls(self) -> TrackWalls:
+        """The wall geometry, for code that needs to predict scans from a pose.
+
+        Exposed for :class:`~src.navigation.localization.LidarLocalizer`, which
+        matches a real sweep against a predicted one — the same object the ROS2
+        node builds for itself from scenario metadata.
+        """
+        return self._walls
+
     # Simulated LIDAR
 
     def raycast_scan(
