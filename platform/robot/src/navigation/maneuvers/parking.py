@@ -1,15 +1,20 @@
 """Parallel-park controller for WRO 2026 obstacles challenge.
 
-Drives the robot into the gap between the two magenta parking blocks after
+Drives the robot into the bay between the two magenta parking blocks after
 completing 3 laps.  Uses a two-phase pure-pursuit strategy:
 
-  Phase 1 — STAGE : drive to a staging position directly in front of the gap
-                    opening (perpendicular approach from the track side).
-  Phase 2 — ENTER : drive straight into the gap, correcting heading toward
-                    the gap centre.
+  Phase 1 — STAGE : drive to a staging position in front of the bay opening.
+  Phase 2 — ENTER : drive toward the bay, correcting heading toward its centre.
 
-Stop condition: chassis centre inside the parking-zone bounding box AND
-yaw within ±10° (0.1745 rad) of the expected parking angle.
+Stop condition (WRO rule): the robot's whole projection on the mat must lie
+inside the rectangle between the two markers, and the robot must be parallel to
+the field wall — "parallel" meaning the two wheels on one side differ by no more
+than 2 cm in their distance to that wall.
+
+Bay geometry — the two markers are fins standing *perpendicular* to the outer
+wall, each ``ParkingLotSpecs.LENGTH`` long and spanning the bay's full depth, so
+the bay is a pocket closed on three sides and open only toward the corridor. The
+final pose is therefore parallel to the outer wall, and the entry is lateral.
 
 Pure Python — no ROS2 dependencies. Unit testable.
 """
@@ -21,13 +26,23 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
-from shared.config.constants import ParkingLotSpecs, RobotSpecs
-from shared.config.enums import Section
+from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
-_YAW_TOLERANCE = math.radians(10.0)  # ±10° stop condition
+_PARALLEL_TOLERANCE_M = 0.02
+"""WRO rule: the two wheels on one side may differ by at most 2 cm in wall distance."""
+
+_YAW_TOLERANCE = math.atan2(_PARALLEL_TOLERANCE_M, RobotSpecs.WHEELBASE)
+"""Heading tolerance implied by the rule above (~6.0 deg at WHEELBASE=0.19).
+
+Derived from the rule rather than picked: the "two wheels on one side" are the front and
+rear wheel of one flank, i.e. WHEELBASE apart along the chassis, so a heading error of
+``theta`` puts ``WHEELBASE * sin(theta)`` between their wall distances. Note this is the
+*looser* of the two stop criteria -- footprint containment (``_footprint_inside``) binds
+first for any chassis whose width approaches the bay depth."""
 # Staging stand-off, perpendicular to the gap opening. Reuses ARC_RADIUS (not a fresh
 # literal) because both share the same real constraint: must clear the chassis's Ackermann
 # minimum turning radius. At the old 0.25m this was smaller than R_min, and for N/S
@@ -37,7 +52,6 @@ _YAW_TOLERANCE = math.radians(10.0)  # ±10° stop condition
 # docs/internal/2026-07-11-navigation-logic-review.md §2.3 for the full trace.
 _APPROACH_CLEARANCE = NavigationTuning().waypoints.ARC_RADIUS
 _POS_REACH_DIST = 0.04  # metres: "reached staging" threshold
-_INSIDE_TOLERANCE = 0.02  # metres: zone wall clearance
 _DEFAULT_MAX_FRAMES = 400  # 20s at 20Hz: bound on the parking maneuver's duration
 
 _SATURATED_STEER_THRESHOLD = 0.999
@@ -66,15 +80,23 @@ _REPOSITION_FRAMES = _escape_tuning.MAX_ESCAPE_FRAMES
 
 @dataclass(frozen=True)
 class ParkZone:
-    """Bounding box and parking angle for the zone."""
+    """The parking lot rectangle (WRO: "the rectangle between the two markers").
+
+    This is the bay itself, not a tolerance box around it: bounded along the wall by the
+    two fins' inner faces, and in depth by the outer wall and the fins' inner ends. The
+    robot's whole projection has to fit inside it, so it is deliberately the *true* lot
+    outline with no slack added — containment margin belongs in the stop check, not here.
+    """
 
     x_min: float
     x_max: float
     y_min: float
     y_max: float
-    target_yaw: float  # expected robot yaw when parked (radians)
-    gap_cx: float  # lateral centre of gap (world x or y)
-    gap_cy: float  # depth centre of gap
+    target_yaw: float  # expected robot yaw when parked (radians), parallel to the outer wall
+    gap_cx: float  # centre of the bay (world x)
+    gap_cy: float  # centre of the bay (world y)
+    wall_is_x: bool  # whether the field wall backing this lot runs along x (E/W sections)
+    wall_coord: float  # the wall's coordinate on the axis normal to it
 
 
 @dataclass
@@ -98,14 +120,24 @@ class ParkPhase(StrEnum):
 class ParkController:
     """Two-phase park controller.
 
-    Phase 1 — STAGE: pure-pursuit toward the staging position directly in
-        front of the gap opening (on the track side).
-    Phase 2 — ENTER: pure-pursuit toward the gap centre; switches to DONE
-        when both position and yaw are within tolerance.
+    Phase 1 — STAGE: pure-pursuit toward the staging position in front of the
+        bay opening (on the track side).
+    Phase 2 — ENTER: pure-pursuit toward the bay centre; switches to DONE only
+        when the whole footprint is inside the lot AND the heading is parallel
+        to the wall within tolerance.
+
+    Note: ENTER still pure-pursues a single point, which steers for position
+    without controlling the final heading. With the stop condition now requiring
+    genuine containment, that is not sufficient to park this chassis — the
+    controller will honestly time out rather than falsely report success. The
+    entry maneuver itself is a separate piece of work; see
+    ``platform/docs/internal/2026-07-25-parking-review.md``.
 
     Args:
         parking_config: Dict with 'block1_pos' and 'block2_pos' keys.
         start_section: Corridor that contains the parking lot.
+        direction: Traversal direction, which selects between the two wall-parallel
+            headings so the robot parks facing the way it was already travelling.
         speed: Constant driving speed (m/s).
         max_frames: Hard bound on how many control ticks the maneuver may run
             before giving up and holding position. Without this, a robot that
@@ -118,10 +150,12 @@ class ParkController:
         self,
         parking_config: dict,
         start_section: Section,
+        direction: Direction,
         speed: float = 0.12,
         max_frames: int = _DEFAULT_MAX_FRAMES,
     ) -> None:
         self._section = start_section
+        self._direction = direction
         self._speed = speed
         self._phase = ParkPhase.STAGE
         self._max_frames = max_frames
@@ -134,14 +168,15 @@ class ParkController:
 
         b1 = parking_config["block1_pos"]
         b2 = parking_config["block2_pos"]
-        self._zone = _build_zone(b1, b2, start_section)
+        self._zone = _build_zone(b1, b2, start_section, direction)
         self._staging = _staging_pos(self._zone, start_section)
 
         logger.info(
-            "ParkController: zone=%s staging=%s section=%s",
+            "ParkController: zone=%s staging=%s section=%s direction=%s",
             self._zone,
             self._staging,
             start_section,
+            direction,
         )
 
     @property
@@ -164,13 +199,28 @@ class ParkController:
 
     @property
     def is_timed_out(self) -> bool:
-        """Whether the maneuver gave up on its frame budget rather than parking cleanly."""
+        """Whether the maneuver gave up rather than parking cleanly.
+
+        Two ways to give up: exhausting the frame budget, or ENTER reaching the field wall
+        without achieving containment (see ``_footprint_breaches_wall``). Both mean "stopped,
+        not parked", which is the distinction callers actually act on.
+        """
         return self._timed_out
 
     @property
     def section(self) -> Section:
         """Corridor that contains the parking lot."""
         return self._section
+
+    @property
+    def direction(self) -> Direction:
+        """Traversal direction the parked heading was chosen to match."""
+        return self._direction
+
+    @property
+    def zone(self) -> ParkZone:
+        """The parking lot rectangle and target heading this controller is aiming for."""
+        return self._zone
 
     @property
     def staging(self) -> tuple[float, float]:
@@ -325,7 +375,13 @@ class ParkController:
 
         pos_inside, yaw_ok = _inside_zone(rx, ry, robot_yaw, z)
         if pos_inside and yaw_ok:
-            logger.info("ParkController: DONE — inside zone, yaw ok")
+            logger.info("ParkController: DONE — fully inside the lot, wall-parallel")
+            self._phase = ParkPhase.DONE
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+
+        if _footprint_breaches_wall(rx, ry, robot_yaw, z):
+            logger.warning("ParkController: giving up — footprint reached the field wall without parking")
+            self._timed_out = True
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
 
@@ -339,39 +395,50 @@ def _build_zone(
     b1: tuple[float, float],
     b2: tuple[float, float],
     section: Section,
+    direction: Direction,
 ) -> ParkZone:
-    """Compute parking bounding box from block positions."""
-    hw = ParkingLotSpecs.WIDTH / 2  # half block width (10 mm)
-    hl = ParkingLotSpecs.LENGTH / 2  # half block length (100 mm)
+    """Compute the parking lot rectangle and the wall-parallel target yaw.
+
+    The markers are fins perpendicular to the outer wall: ``ParkingLotSpecs.WIDTH`` (20 mm)
+    thick along the wall, ``ParkingLotSpecs.LENGTH`` (200 mm) deep out from it. So the lot
+    spans, along the wall, between the fins' inner faces, and in depth from the wall out to
+    the fins' inner ends.
+
+    ``target_yaw`` is parallel to the outer wall — the lot is only as deep as the chassis is
+    wide, so a nose-in pose cannot fit and is not what the rule asks for. Of the two parallel
+    headings, the one matching ``direction`` of travel is chosen, so the robot never has to
+    turn around inside a bay with no room to do it.
+    """
+    half_fin_thickness = ParkingLotSpecs.WIDTH / 2
+    bay_depth = ParkingLotSpecs.LENGTH
+    cw = direction is Direction.CLOCKWISE
 
     if section in (Section.SOUTH, Section.NORTH):
         x1, x2 = sorted([b1[0], b2[0]])
-        gap_cx = (b1[0] + b2[0]) / 2
-        gap_cy = (b1[1] + b2[1]) / 2
-        x_min = x1 + hw
-        x_max = x2 - hw
+        x_min = x1 + half_fin_thickness
+        x_max = x2 - half_fin_thickness
         if section is Section.SOUTH:
-            y_min = 0.0
-            y_max = gap_cy + hl + _INSIDE_TOLERANCE
-            target_yaw = -math.pi / 2
+            y_min, y_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + bay_depth
+            target_yaw = math.pi if cw else 0.0
         else:
-            y_min = gap_cy - hl - _INSIDE_TOLERANCE
-            y_max = 3.0
-            target_yaw = math.pi / 2
+            y_min, y_max = TrackDimensions.MAX_COORD - bay_depth, TrackDimensions.MAX_COORD
+            target_yaw = 0.0 if cw else math.pi
     else:
         y1, y2 = sorted([b1[1], b2[1]])
-        gap_cx = (b1[0] + b2[0]) / 2
-        gap_cy = (b1[1] + b2[1]) / 2
-        y_min = y1 + hw
-        y_max = y2 - hw
+        y_min = y1 + half_fin_thickness
+        y_max = y2 - half_fin_thickness
         if section is Section.EAST:
-            x_min = gap_cx - hl - _INSIDE_TOLERANCE
-            x_max = 3.0
-            target_yaw = 0.0
+            x_min, x_max = TrackDimensions.MAX_COORD - bay_depth, TrackDimensions.MAX_COORD
+            target_yaw = math.pi / 2 if cw else -math.pi / 2
         else:
-            x_min = 0.0
-            x_max = gap_cx + hl + _INSIDE_TOLERANCE
-            target_yaw = math.pi
+            x_min, x_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + bay_depth
+            target_yaw = -math.pi / 2 if cw else math.pi / 2
+
+    wall_is_x = section in (Section.EAST, Section.WEST)
+    if wall_is_x:
+        wall_coord = x_max if section is Section.EAST else x_min
+    else:
+        wall_coord = y_max if section is Section.NORTH else y_min
 
     return ParkZone(
         x_min=x_min,
@@ -379,8 +446,10 @@ def _build_zone(
         y_min=y_min,
         y_max=y_max,
         target_yaw=target_yaw,
-        gap_cx=gap_cx,
-        gap_cy=gap_cy,
+        gap_cx=(x_min + x_max) / 2,
+        gap_cy=(y_min + y_max) / 2,
+        wall_is_x=wall_is_x,
+        wall_coord=wall_coord,
     )
 
 
@@ -430,8 +499,15 @@ def _pure_pursuit_steer(x_local: float, y_local: float) -> float:
     Standard formulation, treating the target itself as the lookahead point (unlike
     ``WaypointController``, which searches a path for a point at a fixed lookahead
     distance, ParkController always aims directly at a single fixed target):
-    curvature = 2*y_local / L_d**2, steering angle = atan(curvature * wheelbase), clamped
+    curvature = 2*y_local / L_d**2, steering angle = atan(curvature * L_eff), clamped
     to the chassis's physical steering limit.
+
+    ``L_eff`` is the wheelbase HALVED, not the wheelbase: this chassis steers both
+    axles in opposite directions by the same amount (confirmed on hardware
+    2026-07-25), which pivots it about its centre instead of the rear axle and
+    doubles the yaw rate for a given steering angle. Using the full wheelbase here
+    -- the previous behaviour -- asked for twice the steering angle each curvature
+    actually needs, so every parking arc over-steered.
 
     Only valid for a target roughly ahead (``x_local > 0``) — the formula gives a
     plausible-looking but wrong result for a target behind the robot; callers must check
@@ -439,9 +515,82 @@ def _pure_pursuit_steer(x_local: float, y_local: float) -> float:
     """
     lookahead = max(math.hypot(x_local, y_local), _MIN_LOOKAHEAD_DIST)
     curvature = 2.0 * y_local / (lookahead**2)
-    steer_angle = math.atan(curvature * RobotSpecs.WHEELBASE)
+    steer_angle = math.atan(curvature * RobotSpecs.WHEELBASE / 2.0)
     steer_angle = _clamp(steer_angle, -RobotSpecs.MAX_STEERING_ANGLE, RobotSpecs.MAX_STEERING_ANGLE)
     return steer_angle / RobotSpecs.MAX_STEERING_ANGLE
+
+
+def _chassis_corners(
+    rx: float,
+    ry: float,
+    robot_yaw: float,
+) -> list[tuple[float, float]]:
+    """The four corners of the chassis footprint at this pose (world frame)."""
+    half_l, half_w = RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2
+    cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+    return [
+        (rx + dx * cos_yaw - dy * sin_yaw, ry + dx * sin_yaw + dy * cos_yaw)
+        for dx, dy in ((half_l, half_w), (half_l, -half_w), (-half_l, -half_w), (-half_l, half_w))
+    ]
+
+
+_WALL_STANDOFF = 0.05
+"""Closest the chassis footprint may come to the field wall backing the parking lot.
+
+The lot's far edge *is* the wall, so "drive to the lot centre" and "don't touch the wall"
+pull against each other for a chassis as wide as the lot is deep. Something has to give,
+and it must be the maneuver, not the wall. Sized above the simulator's own wall collision
+margin (0.04 m: the 0.18 m collision mesh vs the 0.10 m visual thickness), which is the
+tightest the sim will let anything approach before registering a contact anyway."""
+
+
+def _footprint_breaches_wall(
+    rx: float,
+    ry: float,
+    robot_yaw: float,
+    zone: ParkZone,
+) -> bool:
+    """Whether any chassis corner has come within ``_WALL_STANDOFF`` of the field wall.
+
+    ENTER pure-pursues the lot centre, which controls position but not heading, so a robot
+    that arrives across the lot rather than along it drives its nose at the wall and keeps
+    going. Previously this was masked: the old zone extended past the lot's real far edge
+    and used a centre-in-box test, so the maneuver "succeeded" and stopped short of the wall
+    by accident. With the stop condition corrected to the actual rule, nothing stops it any
+    more -- so the maneuver gives up here instead of pushing into the wall. Not colliding
+    takes priority over completing the park.
+    """
+    for cx, cy in _chassis_corners(rx, ry, robot_yaw):
+        coord = cx if zone.wall_is_x else cy
+        if abs(coord - zone.wall_coord) < _WALL_STANDOFF and _is_beyond_lot_centre(coord, zone):
+            return True
+    return False
+
+
+def _is_beyond_lot_centre(coord: float, zone: ParkZone) -> bool:
+    """Whether ``coord`` lies on the wall side of the lot's midline."""
+    centre = zone.gap_cx if zone.wall_is_x else zone.gap_cy
+    return coord > centre if zone.wall_coord > centre else coord < centre
+
+
+def _footprint_inside(
+    rx: float,
+    ry: float,
+    robot_yaw: float,
+    zone: ParkZone,
+) -> bool:
+    """Whether the robot's whole projection on the mat lies inside the parking lot.
+
+    This is the rule as written ("the projection of the robot on the mat is fully inside the
+    rectangle between the two markers"), not the centre-of-chassis approximation it replaces.
+    The difference is not cosmetic: a centre-in-box test reports a successful park for a robot
+    sitting mostly in the corridor, or with its nose through the outer wall, because neither
+    the footprint nor the heading enters into it.
+    """
+    return all(
+        zone.x_min <= cx <= zone.x_max and zone.y_min <= cy <= zone.y_max
+        for cx, cy in _chassis_corners(rx, ry, robot_yaw)
+    )
 
 
 def _inside_zone(
@@ -450,10 +599,9 @@ def _inside_zone(
     robot_yaw: float,
     zone: ParkZone,
 ) -> tuple[bool, bool]:
-    """Return (position_inside, yaw_ok)."""
-    pos_inside = zone.x_min <= rx <= zone.x_max and zone.y_min <= ry <= zone.y_max
+    """Return (fully_parked, parallel_ok) per the WRO parking rule."""
     yaw_err = abs(_normalise_angle(robot_yaw - zone.target_yaw))
-    return pos_inside, yaw_err <= _YAW_TOLERANCE
+    return _footprint_inside(rx, ry, robot_yaw, zone), yaw_err <= _YAW_TOLERANCE
 
 
 def _normalise_angle(angle: float) -> float:
@@ -471,14 +619,23 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 def park_controller_from_metadata(
     metadata: dict,
     start_section: Section,
+    direction: Direction | None = None,
 ) -> ParkController | None:
-    """Construct a ParkController from scenario metadata. None for open challenge."""
+    """Construct a ParkController from scenario metadata. None for open challenge.
+
+    ``direction`` falls back to the scenario's own ``starting_conditions.direction`` when not
+    passed explicitly, so callers that already hold it (the sim) and callers that only hold
+    the metadata (the ROS2 node) both get the correct wall-parallel target heading.
+    """
     parking = metadata.get("parking_lot")
     if parking is None:
         return None
+    if direction is None:
+        direction = Direction.from_string(metadata["starting_conditions"]["direction"])
     b1 = (parking["block1_position"]["x"], parking["block1_position"]["y"])
     b2 = (parking["block2_position"]["x"], parking["block2_position"]["y"])
     return ParkController(
         parking_config={"block1_pos": b1, "block2_pos": b2},
         start_section=start_section,
+        direction=direction,
     )

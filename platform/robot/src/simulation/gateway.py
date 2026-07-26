@@ -297,7 +297,7 @@ class ScenarioSimulator:
 
         self._park_controller: ParkController | None = None
         if not is_open_challenge:
-            self._park_controller = park_controller_from_metadata(metadata, start.section)
+            self._park_controller = park_controller_from_metadata(metadata, start.section, start.direction)
 
         self._navigator = CoreNavigator(
             gateway=self._gateway,

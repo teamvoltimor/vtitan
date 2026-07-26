@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from shared.config.constants import RobotSpecs
+from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
 
 # LIDAR Geometry
 NUM_RAYS = 360
@@ -106,14 +106,30 @@ COLLISION_TEST_INNER_PENETRATION = 1.05  # m — point just inside inner block
 COLLISION_TEST_RAYCAST_CLEARANCE = 0.5  # m — raycast distance result
 
 # Parking test configurations (block positions per section)
-PARKING_SOUTH_BLOCK1 = (1.00, 0.10)
-PARKING_SOUTH_BLOCK2 = (1.30, 0.10)
-PARKING_NORTH_BLOCK1 = (1.00, 2.90)
-PARKING_NORTH_BLOCK2 = (1.30, 2.90)
-PARKING_EAST_BLOCK1 = (2.90, 1.00)
-PARKING_EAST_BLOCK2 = (2.90, 1.30)
-PARKING_WEST_BLOCK1 = (0.10, 1.00)
-PARKING_WEST_BLOCK2 = (0.10, 1.30)
+#
+# Spacing is derived from the same rule the Go generator uses
+# (``ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH``, see
+# ``randomize.go::GenerateParkingLotPositions``) rather than written as a literal. It used
+# to be a hardcoded 0.30 m, which is exactly the chassis length — a zero-clearance bay the
+# robot can never enter, and 0.15 m narrower than any bay the generator actually emits. Tests
+# built on it were parking into geometry that does not occur in a real scenario.
+#
+# The blocks sit ``ParkingLotSpecs.WALL_OFFSET`` from the outer wall and stand perpendicular
+# to it, so the bay they form is ``ParkingLotSpecs.LENGTH`` deep.
+PARKING_BLOCK_SPACING = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH  # 0.45 m
+_PARK_A = 1.00
+_PARK_B = _PARK_A + PARKING_BLOCK_SPACING
+_PARK_NEAR = ParkingLotSpecs.WALL_OFFSET  # 0.10 m from the wall
+_PARK_FAR = TrackDimensions.MAX_COORD - ParkingLotSpecs.WALL_OFFSET  # 2.90 m
+
+PARKING_SOUTH_BLOCK1 = (_PARK_A, _PARK_NEAR)
+PARKING_SOUTH_BLOCK2 = (_PARK_B, _PARK_NEAR)
+PARKING_NORTH_BLOCK1 = (_PARK_A, _PARK_FAR)
+PARKING_NORTH_BLOCK2 = (_PARK_B, _PARK_FAR)
+PARKING_EAST_BLOCK1 = (_PARK_FAR, _PARK_A)
+PARKING_EAST_BLOCK2 = (_PARK_FAR, _PARK_B)
+PARKING_WEST_BLOCK1 = (_PARK_NEAR, _PARK_A)
+PARKING_WEST_BLOCK2 = (_PARK_NEAR, _PARK_B)
 
 # Parking zone detection thresholds
 PARKING_ZONE_CENTER_Y = 0.08  # m

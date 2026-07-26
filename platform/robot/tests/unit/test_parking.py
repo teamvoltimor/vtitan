@@ -14,10 +14,11 @@ Verifies:
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import pytest
-from shared.config.constants import CorridorDimensions
-from shared.config.enums import Section
+from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
+from shared.config.enums import Direction, Section
 
 from src.navigation.maneuvers.parking import (
     ParkController,
@@ -27,7 +28,7 @@ from src.navigation.maneuvers.parking import (
     _staging_pos,
 )
 from src.simulation.kinematics import AckermannKinematics, AckermannState
-from src.simulation.track_model import TrackModel
+from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 from tests.test_constants import (
     PARKING_EAST_BLOCK1,
     PARKING_EAST_BLOCK2,
@@ -37,13 +38,12 @@ from tests.test_constants import (
     PARKING_SOUTH_BLOCK2,
     PARKING_WEST_BLOCK1,
     PARKING_WEST_BLOCK2,
-    YAW_EAST,
-    YAW_NORTH,
-    YAW_SOUTH,
-    YAW_WEST,
 )
 
 # Test configs
+
+_CW = Direction.CLOCKWISE
+_CCW = Direction.COUNTERCLOCKWISE
 
 _SOUTH_CFG = {"block1_pos": PARKING_SOUTH_BLOCK1, "block2_pos": PARKING_SOUTH_BLOCK2}
 _NORTH_CFG = {"block1_pos": PARKING_NORTH_BLOCK1, "block2_pos": PARKING_NORTH_BLOCK2}
@@ -55,66 +55,118 @@ _WEST_CFG = {"block1_pos": PARKING_WEST_BLOCK1, "block2_pos": PARKING_WEST_BLOCK
 
 
 class TestBuildZone:
-    def test_south_gap_centre(self):
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
-        assert z.gap_cx == pytest.approx(1.15)
-        assert z.gap_cy == pytest.approx(0.10)
+    """The zone is the parking lot rectangle itself — "between the two markers"."""
 
-    def test_south_x_bounds_inside_blocks(self):
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
-        assert z.x_min > PARKING_SOUTH_BLOCK1[0]
-        assert z.x_max < PARKING_SOUTH_BLOCK2[0]
-        assert z.x_min < z.x_max
+    def test_south_bay_centre(self):
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        assert z.gap_cx == pytest.approx((PARKING_SOUTH_BLOCK1[0] + PARKING_SOUTH_BLOCK2[0]) / 2)
+        assert z.gap_cy == pytest.approx(ParkingLotSpecs.LENGTH / 2)
 
-    def test_south_target_yaw(self):
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
-        assert z.target_yaw == pytest.approx(YAW_SOUTH)
+    def test_south_x_bounds_are_the_fins_inner_faces(self):
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        assert z.x_min == pytest.approx(PARKING_SOUTH_BLOCK1[0] + ParkingLotSpecs.WIDTH / 2)
+        assert z.x_max == pytest.approx(PARKING_SOUTH_BLOCK2[0] - ParkingLotSpecs.WIDTH / 2)
 
-    def test_north_target_yaw(self):
-        z = _build_zone(PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, Section.NORTH)
-        assert z.target_yaw == pytest.approx(YAW_NORTH)
+    def test_bay_depth_is_the_marker_length(self):
+        """The markers are fins standing perpendicular to the wall, so they set the depth."""
+        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        assert z.y_min == pytest.approx(0.0)
+        assert z.y_max == pytest.approx(ParkingLotSpecs.LENGTH)
 
-    def test_east_target_yaw(self):
-        z = _build_zone(PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, Section.EAST)
-        assert z.target_yaw == pytest.approx(YAW_EAST)
+    @pytest.mark.parametrize(
+        "section,block1,block2,direction,expected_yaw",
+        [
+            (Section.SOUTH, PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, _CW, math.pi),
+            (Section.SOUTH, PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, _CCW, 0.0),
+            (Section.NORTH, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, _CW, 0.0),
+            (Section.NORTH, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, _CCW, math.pi),
+            (Section.EAST, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, _CW, math.pi / 2),
+            (Section.EAST, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, _CCW, -math.pi / 2),
+            (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, _CW, -math.pi / 2),
+            (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, _CCW, math.pi / 2),
+        ],
+    )
+    def test_target_yaw_is_parallel_to_the_wall_and_matches_travel(
+        self,
+        section,
+        block1,
+        block2,
+        direction,
+        expected_yaw,
+    ):
+        """WRO requires the robot parked parallel to the field wall.
 
-    def test_west_target_yaw(self):
-        z = _build_zone(PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, Section.WEST)
-        assert abs(_normalise_angle(z.target_yaw)) == pytest.approx(YAW_WEST)
+        A nose-in heading (what this used to return) cannot satisfy the rule: the lot is
+        ParkingLotSpecs.LENGTH deep and the chassis is RobotSpecs.LENGTH long, so a
+        perpendicular pose protrudes by the difference no matter how well it is driven.
+        """
+        z = _build_zone(block1, block2, section, direction)
+        assert _normalise_angle(z.target_yaw - expected_yaw) == pytest.approx(0.0, abs=1e-9)
+
+    def test_target_yaw_is_never_perpendicular_to_the_wall(self):
+        """Regression guard for the pre-2026-07-25 nose-in geometry."""
+        for section, b1, b2 in (
+            (Section.SOUTH, PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2),
+            (Section.NORTH, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2),
+            (Section.EAST, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2),
+            (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2),
+        ):
+            for direction in (_CW, _CCW):
+                z = _build_zone(b1, b2, section, direction)
+                wall_normal = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
+                err = abs(_normalise_angle(z.target_yaw - wall_normal))
+                assert min(err, abs(math.pi - err)) > math.radians(45)
 
 
-# Inside-zone detection
+# Parked detection — the WRO rule, not a centre-in-box approximation
 
 
 class TestInsideZone:
-    def _zone(self):
-        return _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH)
+    def _zone(self, direction=_CCW):
+        return _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, direction)
 
-    def test_inside_pos_and_yaw(self):
+    def _bay_centre(self, z):
+        return z.gap_cx, z.gap_cy
+
+    def test_perfectly_placed_footprint_is_parked(self):
         z = self._zone()
-        pos_ok, yaw_ok = _inside_zone(1.15, 0.08, YAW_SOUTH, z)
+        cx, cy = self._bay_centre(z)
+        pos_ok, yaw_ok = _inside_zone(cx, cy, z.target_yaw, z)
         assert pos_ok
         assert yaw_ok
 
-    def test_outside_x(self):
+    def test_centre_inside_but_footprint_protruding_is_not_parked(self):
+        """The exact failure the old centre-in-box test could not see.
+
+        A robot parked across the bay has its centre well inside the rectangle while most of
+        the chassis sits out in the corridor. The old check called this a successful park.
+        """
         z = self._zone()
-        pos_ok, _ = _inside_zone(0.80, 0.08, YAW_SOUTH, z)
+        cx, cy = self._bay_centre(z)
+        pos_ok, _ = _inside_zone(cx, cy, z.target_yaw + math.pi / 2, z)
         assert not pos_ok
 
-    def test_bad_yaw(self):
+    def test_nose_through_the_outer_wall_is_not_parked(self):
         z = self._zone()
-        _, yaw_ok = _inside_zone(1.15, 0.08, 0.0, z)
-        assert not yaw_ok
+        cx, _ = self._bay_centre(z)
+        pos_ok, _ = _inside_zone(cx, 0.02, z.target_yaw + math.pi / 2, z)
+        assert not pos_ok
 
-    def test_yaw_within_10_degrees(self):
+    def test_outside_along_the_wall_is_not_parked(self):
         z = self._zone()
-        _, yaw_ok = _inside_zone(1.15, 0.08, -math.pi / 2 + math.radians(9), z)
-        assert yaw_ok
+        _, cy = self._bay_centre(z)
+        pos_ok, _ = _inside_zone(z.x_min - 0.30, cy, z.target_yaw, z)
+        assert not pos_ok
 
-    def test_yaw_outside_10_degrees(self):
+    def test_parallel_tolerance_follows_the_two_wheel_rule(self):
+        """+-2 cm between the two wheels on one side, i.e. atan(0.02 / WHEELBASE) ~ 6 deg."""
         z = self._zone()
-        _, yaw_ok = _inside_zone(1.15, 0.08, -math.pi / 2 + math.radians(11), z)
-        assert not yaw_ok
+        cx, cy = self._bay_centre(z)
+        limit = math.atan2(0.02, RobotSpecs.WHEELBASE)
+        _, just_inside = _inside_zone(cx, cy, z.target_yaw + limit * 0.9, z)
+        _, just_outside = _inside_zone(cx, cy, z.target_yaw + limit * 1.1, z)
+        assert just_inside
+        assert not just_outside
 
 
 # ── Controller simulation ─────────────────────────────────────────────────────
@@ -124,43 +176,106 @@ class TestInsideZone:
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.WIDE)
 
 
+def _parking_fins(cfg: dict, section: Section) -> list[ObstacleBox]:
+    """The two magenta markers as physical obstacles.
+
+    They became collidable in the simulator in commit fd33fd5, but this harness kept
+    building an obstacle-free ``TrackModel``, so ``ever_collided`` could only ever mean
+    "hit a wall or the inner square" — a park that drove straight through a marker was
+    recorded as clean. They stand perpendicular to the outer wall, hence the quarter-turn
+    yaw for a north/south bay.
+    """
+    yaw = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
+    return [
+        ObstacleBox.from_pose(
+            cx=pos[0],
+            cy=pos[1],
+            length=ParkingLotSpecs.LENGTH,
+            width=ParkingLotSpecs.WIDTH,
+            yaw=yaw,
+        )
+        for pos in (cfg["block1_pos"], cfg["block2_pos"])
+    ]
+
+
+@dataclass
+class ParkRun:
+    """Outcome of one isolated ParkController run."""
+
+    stopped: bool
+    """The controller returned ``done`` — which includes giving up on its frame budget."""
+
+    parked: bool
+    """A genuine park: stopped without timing out, footprint inside the lot, wall-parallel.
+
+    Kept distinct from ``stopped`` because ``ParkController.is_done`` is true for a timeout
+    too. The previous tests asserted only the equivalent of ``stopped``, so a maneuver that
+    ran out its budget and held position counted as a successful park.
+    """
+
+    steps: int
+    final_pos: tuple[float, float]
+    final_yaw: float
+    hits: set[str]
+    """Which objects the footprint touched at any tick: 'wall-or-inner' and/or 'marker'.
+
+    Split because they are different claims with different owners: 'wall-or-inner' is the
+    2026-07-11 non-convergent-orbit guarantee, 'marker' is whether the maneuver clears the
+    parking lot's own geometry -- previously unmeasurable, since the harness built an
+    obstacle-free TrackModel even after the markers became collidable in fd35dd5.
+    """
+
+
 def _simulate_park(
     cfg: dict,
     section: Section,
     start_pos: tuple[float, float],
     start_yaw: float,
     max_steps: int = 800,
-) -> tuple[bool, int, tuple[float, float], float, bool]:
+    direction: Direction = _CCW,
+) -> ParkRun:
     """Real Ackermann bicycle-model simulation (matches the production sim/hardware).
 
-    Returns (done, steps, final_pos, final_yaw, ever_collided). ``ever_collided`` is
-    checked every tick against the actual chassis footprint, not just the final pose --
-    this is what would have caught the non-convergent-orbit bug (2026-07-11 review §2.3):
-    a controller that eventually reaches ``done`` can still have driven through the inner
-    keep-out square getting there. Simulation continues even after a collision (recording
-    it, not stopping) rather than treating it as fatal: this drives ``ParkController`` in
+    Collision is checked every tick against the actual chassis footprint, not just the final
+    pose -- this is what would have caught the non-convergent-orbit bug (2026-07-11 review
+    §2.3): a controller that eventually reaches ``done`` can still have driven through the
+    inner keep-out square getting there. Simulation continues after a contact (recording it,
+    not stopping) rather than treating it as fatal: this drives ``ParkController`` in
     isolation, without ``CoreNavigator``'s own defense-in-depth clearance gate
     (`core_navigator.py::_handle_finish`) that the full system relies on for the final
-    guarantee -- ParkController alone threading the WRO-regulation gap (only ~4cm wider
-    than the chassis per side) at the very end of ENTER can still clip on its own, which
-    the gated system's tests (`test_obstacles_challenge_sim.py`) confirm doesn't happen
-    end-to-end. Callers decide whether ``ever_collided`` is asserted on.
+    guarantee. Callers decide which contacts they assert on.
     """
-    ctrl = ParkController(cfg, section)
+    ctrl = ParkController(cfg, section, direction)
     kin = AckermannKinematics()
-    track = TrackModel(_TRACK_WIDTHS)
+    bare_track = TrackModel(_TRACK_WIDTHS)
+    markers = _parking_fins(cfg, section)
     dt = 0.05
     state = AckermannState(x=start_pos[0], y=start_pos[1], yaw=start_yaw)
-    ever_collided = False
+    hits: set[str] = set()
+
+    def _finish(stopped: bool, steps: int) -> ParkRun:
+        pos_ok, yaw_ok = _inside_zone(state.x, state.y, state.yaw, ctrl.zone)
+        return ParkRun(
+            stopped=stopped,
+            parked=stopped and not ctrl.is_timed_out and pos_ok and yaw_ok,
+            steps=steps,
+            final_pos=(state.x, state.y),
+            final_yaw=state.yaw,
+            hits=hits,
+        )
 
     for step in range(max_steps):
         cmd = ctrl.update((state.x, state.y), state.yaw)
         if cmd.done:
-            return True, step, (state.x, state.y), state.yaw, ever_collided
+            return _finish(stopped=True, steps=step)
         state = kin.step(state, target_speed=cmd.linear, target_steer_norm=cmd.steering, dt=dt)
-        ever_collided = ever_collided or track.footprint_collides(state.x, state.y, state.yaw)
+        if bare_track.footprint_collides(state.x, state.y, state.yaw):
+            hits.add("wall-or-inner")
+        corners = _rect_corners(state.x, state.y, state.yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
+        if any(_convex_overlap(corners, m.to_box().corners(), state.yaw) for m in markers):
+            hits.add("marker")
 
-    return False, max_steps, (state.x, state.y), state.yaw, ever_collided
+    return _finish(stopped=False, steps=max_steps)
 
 
 # 4 canonical approach poses for SOUTH section
@@ -192,27 +307,27 @@ _SOUTH_APPROACHES = [
 ]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "ENTER pure-pursues a single point, which controls position but not final heading, "
+        "so it cannot satisfy the WRO containment rule. This used to 'pass' only because the "
+        "stop condition was a centre-in-box test that reported a park for a robot sitting "
+        "perpendicular and mostly out in the corridor (measured: 0/240 swept approaches "
+        "actually contained, 176 of them reported done). Now that the stop condition is "
+        "honest, the missing entry maneuver is what fails. See "
+        "platform/docs/internal/2026-07-25-parking-review.md."
+    ),
+)
 @pytest.mark.parametrize("start_pos,start_yaw", _SOUTH_APPROACHES)
 def test_south_park_from_4_approaches(start_pos, start_yaw):
     # Convergence only (not collision-free): these poses drive ParkController without
-    # CoreNavigator's own defense-in-depth clearance gate -- see _simulate_park's
-    # docstring. TestDegenerateApproach below is the one that targets and confirms the
-    # actual reported bug (non-convergent orbit into the inner square).
-    done, steps, final_pos, final_yaw, _ever_collided = _simulate_park(
-        _SOUTH_CFG,
-        Section.SOUTH,
-        start_pos,
-        start_yaw,
+    # CoreNavigator's own defense-in-depth clearance gate -- see _simulate_park's docstring.
+    run = _simulate_park(_SOUTH_CFG, Section.SOUTH, start_pos, start_yaw)
+    assert run.parked, (
+        f"Did not park after {run.steps} steps — pos={run.final_pos}, "
+        f"yaw={math.degrees(run.final_yaw):.1f}°"
     )
-    assert done, f"Did not park after {steps} steps — pos={final_pos}, yaw={math.degrees(final_yaw):.1f}°"
-    zone = _build_zone(
-        _SOUTH_CFG["block1_pos"],
-        _SOUTH_CFG["block2_pos"],
-        Section.SOUTH,
-    )
-    pos_ok, yaw_ok = _inside_zone(final_pos[0], final_pos[1], final_yaw, zone)
-    assert pos_ok, f"Final pos {final_pos} not inside zone"
-    assert yaw_ok, f"Final yaw {math.degrees(final_yaw):.1f}° not within ±10° of target"
 
 
 # ── Degenerate approach: target behind the robot / inside its turning radius ──────
@@ -230,7 +345,7 @@ for _section, _cfg in (
     (Section.EAST, _EAST_CFG),
     (Section.WEST, _WEST_CFG),
 ):
-    _zone = _build_zone(_cfg["block1_pos"], _cfg["block2_pos"], _section)
+    _zone = _build_zone(_cfg["block1_pos"], _cfg["block2_pos"], _section, _CCW)
     _staging = _staging_pos(_zone, _section)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0
@@ -243,17 +358,49 @@ for _section, _cfg in (
 
 
 @pytest.mark.parametrize("section", list(_DEGENERATE_CFGS))
-def test_degenerate_approach_never_collides_and_still_parks(section):
+def test_degenerate_approach_never_hits_a_wall_or_the_inner_block(section):
+    """The 2026-07-11 non-convergent-orbit guarantee. Markers excluded deliberately.
+
+    This is the regression guard for the orbit-into-the-inner-square bug, and it still
+    holds. It is kept separate from the marker check below so that a future regression here
+    fails loudly instead of hiding behind that check's xfail.
+    """
     cfg, start_pos, start_yaw = _DEGENERATE_CFGS[section]
-    done, steps, final_pos, final_yaw, collided = _simulate_park(
-        cfg,
-        section,
-        start_pos,
-        start_yaw,
-        max_steps=800,
+    run = _simulate_park(cfg, section, start_pos, start_yaw, max_steps=800)
+    assert "wall-or-inner" not in run.hits, (
+        f"{section}: hit a wall or the inner square by step {run.steps} — pos={run.final_pos}"
     )
-    assert not collided, f"{section}: collided with the inner keep-out square at step {steps} — pos={final_pos}"
-    assert done, f"{section}: did not park after {steps} steps — pos={final_pos}"
+
+
+@pytest.mark.parametrize("section", list(_DEGENERATE_CFGS))
+def test_degenerate_approach_never_hits_the_markers(section):
+    """Marker clearance, measurable for the first time.
+
+    The markers became collidable in fd33fd5, but this harness kept building an
+    obstacle-free ``TrackModel``, so marker contact went unmeasured until now. It turns out
+    the maneuver does clear them — what it does not clear is the field wall behind the lot,
+    which is a separate test.
+    """
+    cfg, start_pos, start_yaw = _DEGENERATE_CFGS[section]
+    run = _simulate_park(cfg, section, start_pos, start_yaw, max_steps=800)
+    assert "marker" not in run.hits, (
+        f"{section}: hit a parking marker by step {run.steps} — pos={run.final_pos}"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Same missing entry maneuver as test_south_park_from_4_approaches — split out so the "
+        "collision-free guarantee above (which does hold, and is the safety-critical half of "
+        "this test) keeps failing loudly on regression instead of being masked by an xfail."
+    ),
+)
+@pytest.mark.parametrize("section", list(_DEGENERATE_CFGS))
+def test_degenerate_approach_still_parks(section):
+    cfg, start_pos, start_yaw = _DEGENERATE_CFGS[section]
+    run = _simulate_park(cfg, section, start_pos, start_yaw, max_steps=800)
+    assert run.parked, f"{section}: did not park after {run.steps} steps — pos={run.final_pos}"
 
 
 # ── Basic controller behaviour ────────────────────────────────────────────────
@@ -261,23 +408,26 @@ def test_degenerate_approach_never_collides_and_still_parks(section):
 
 class TestParkControllerBasics:
     def test_not_done_initially(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
         assert not ctrl.is_done
 
     def test_done_returns_zero_speed(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH)
-        # Force done by placing robot perfectly inside zone
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
+        # Hold the robot at a genuinely parked pose: the lot centre, wall-parallel. Taken
+        # from the zone rather than hardcoded, so it stays a parked pose if the geometry
+        # moves (the old literal was a perpendicular pose that no longer qualifies).
+        parked_pose = ((ctrl.zone.gap_cx, ctrl.zone.gap_cy), ctrl.zone.target_yaw)
         for _ in range(800):
-            cmd = ctrl.update((1.15, 0.08), -math.pi / 2)
+            cmd = ctrl.update(*parked_pose)
             if cmd.done:
                 break
         assert ctrl.is_done
-        cmd2 = ctrl.update((1.15, 0.08), -math.pi / 2)
+        cmd2 = ctrl.update(*parked_pose)
         assert cmd2.linear == 0.0
         assert cmd2.done
 
     def test_far_robot_drives_nonzero_speed(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
         cmd = ctrl.update((1.15, 2.5), 0.0)
         assert cmd.linear > 0
         assert not cmd.done
@@ -291,7 +441,7 @@ class TestParkControllerTimeout:
     def test_unreachable_target_times_out_instead_of_running_forever(self):
         # Robot held exactly on the far side of the field, never approaching
         # the zone (a stand-in for "wedged, can't make progress").
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=50)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=50)
 
         for _ in range(51):
             cmd = ctrl.update((2.9, 2.9), 0.0)
@@ -302,9 +452,10 @@ class TestParkControllerTimeout:
         assert cmd.steering == 0.0
 
     def test_successful_park_is_not_flagged_as_timed_out(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, max_frames=400)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=400)
+        parked_pose = ((ctrl.zone.gap_cx, ctrl.zone.gap_cy), ctrl.zone.target_yaw)
         for _ in range(400):
-            cmd = ctrl.update((1.15, 0.08), -math.pi / 2)
+            cmd = ctrl.update(*parked_pose)
             if cmd.done:
                 break
         assert ctrl.is_done

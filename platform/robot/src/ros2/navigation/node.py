@@ -278,7 +278,11 @@ class TrackNavigator(Node):
 
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
-            park_controller = park_controller_from_metadata(self._metadata, start_section)
+            park_controller = park_controller_from_metadata(
+                self._metadata,
+                start_section,
+                start_direction,
+            )
 
         self._core_navigator = CoreNavigator(
             gateway=self._gateway,
