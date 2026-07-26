@@ -3,6 +3,7 @@
 from shared.domain.models import Detection
 
 from src.vision.detector import (
+    DEFAULT_CLASS_TO_COLOR,
     BBoxFormat,
     DetectorBase,
     DetectorConfig,
@@ -25,11 +26,7 @@ __all__ = [
 ]
 
 
-_DEFAULT_CLASS_TO_COLOR = {
-    0: TrafficSignColor.RED,
-    1: TrafficSignColor.GREEN,
-    2: TrafficSignColor.MAGENTA,
-}
+_DEFAULT_CLASS_TO_COLOR = DEFAULT_CLASS_TO_COLOR
 
 
 def create_detector(backend: str = "yolo", config: DetectorConfig | None = None) -> DetectorBase:

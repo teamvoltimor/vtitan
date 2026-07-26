@@ -113,6 +113,12 @@ or run from PowerShell, which does not do this.
 
 ### Optimization silently drops to level 0
 
+> **Measured caveat, GMR 2026-07-26.** Everything below is the vendor's
+> reasoning, and it is a sound default — but it did not hold for this model.
+> Level 0 came out near-lossless and the fully optimized build was *worse*. See
+> "Measured: level 0 beat level 2" at the end of this document before spending
+> hours on a GPU compile.
+
 The most damaging failure, because it produces a valid HEF rather than an error:
 
 ```
@@ -234,3 +240,51 @@ Artifacts land in `shared_with_docker/`, named after the *zoo* model rather than
 the registry key — so a GMR compile writes `yolov11n.har` / `yolov11n.hef`.
 Rename on the way to `platform/robot` to avoid confusing it with the stock
 COCO-trained `yolov11n.hef`.
+
+## Measured: level 0 beat level 2 (GMR, 2026-07-26)
+
+Both builds of the same checkpoint, evaluated through identical preprocessing in
+`SDK_QUANTIZED` emulation, against the float checkpoint as the ceiling:
+
+| Model | mAP@0.5 | mAP@0.75 | mAP@0.5:0.95 | red @0.5 |
+|---|---|---|---|---|
+| float (ceiling) | 0.9955 | 0.9767 | 0.8885 | 0.987 |
+| level 0, CPU | 0.9954 | 0.9741 | 0.8808 | 0.986 |
+| level 2 + QAT, GPU | 0.9689 | 0.9468 | 0.8096 | 0.930 |
+
+Level 0 is within 0.01% of float at mAP@0.5 and 0.8% at mAP@0.5:0.95 — there was
+almost no quantization error left to recover. Quantization-Aware Fine-Tuning
+optimizes a distillation loss over *unlabelled* calibration images, and with that
+little headroom it moved the weights away from the optimum instead of toward it,
+costing the most on the red class. Confirmed on two independent subsets (300 and
+600 images): −2.0% to −2.7% mAP@0.5, −7.5% to −8.1% mAP@0.5:0.95.
+
+The lesson is not "skip optimization" — it is that the optimization level is an
+empirical question per model, and cheap to settle. Compile both and measure
+before shipping either.
+
+Both eval harnesses live in `shared_with_docker/` (gitignored):
+`eval_compare.py` runs inside the container over the HARs, `eval_float.py` runs
+on the host for the float anchor. Two traps they encode:
+
+- Ground-truth ids are in the *dataset's* class space while the model predicts
+  in its own; `LABEL_TO_MODEL` bridges them. See "Class ordering" below.
+- Ultralytics reads numpy input as **BGR**. Feeding RGB silently collapses the
+  red class (AP 0.99 → 0.17) and makes the float model look worse than its own
+  quantization — a wrong conclusion that looks entirely plausible.
+
+## Class ordering
+
+Three orderings are in circulation and only one is authoritative:
+
+| Source | 0 | 1 | 2 |
+|---|---|---|---|
+| **Checkpoint / ONNX metadata (authoritative)** | green | magenta | red |
+| `auto-annotator/ml-service/data/data.yaml` + label files | red | green | magenta |
+| `platform/robot` `_DEFAULT_CLASS_TO_COLOR` (before 2026-07-26) | red | green | magenta |
+
+The checkpoint wins: running it on the per-class image folders predicts "green"
+on `green_prism`, "red" on `red_prism`. The `data.yaml` in the dataset directory
+is stale — its `path` points at an archived OneDrive location. Consuming the HEF
+with the dataset ordering swaps red and green, which inverts the WRO pass-side
+rule on every obstacle, and nothing about it fails loudly.

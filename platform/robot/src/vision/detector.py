@@ -28,6 +28,18 @@ class TrafficSignColor(Enum):
         return self.value
 
 
+# Class ids as the retrained GMR detector emits them, taken from the
+# checkpoint's own metadata and confirmed by running it per class folder.
+# Do NOT take this order from auto-annotator's data.yaml: that file is stale
+# (0=red, 1=green, 2=magenta) and using it swaps red and green, which inverts
+# the WRO pass-side rule on every obstacle without failing loudly.
+DEFAULT_CLASS_TO_COLOR = {
+    0: TrafficSignColor.GREEN,
+    1: TrafficSignColor.MAGENTA,
+    2: TrafficSignColor.RED,
+}
+
+
 class BBoxFormat(Enum):
     """Output bounding-box coordinate convention."""
 
@@ -112,11 +124,7 @@ class LocalYoloDetector(DetectorBase):
         if config is None:
             config = DetectorConfig(
                 model_path="yolov8n.pt",
-                class_to_color={
-                    0: TrafficSignColor.RED,
-                    1: TrafficSignColor.GREEN,
-                    2: TrafficSignColor.MAGENTA,
-                },
+                class_to_color=DEFAULT_CLASS_TO_COLOR,
             )
 
         self.config = config

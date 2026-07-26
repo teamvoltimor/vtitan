@@ -9,10 +9,9 @@ and Obstacles Challenge scenarios instead load Go-generated fixtures — see
 
 from __future__ import annotations
 
-import math
+from typing import TYPE_CHECKING
 
-from shared.config.constants import CorridorDimensions, TrackDimensions
-from shared.config.enums import Direction, Section
+from shared.config.constants import CorridorDimensions
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
@@ -21,32 +20,18 @@ from shared.domain.models import (
     StartingConditions,
 )
 
-from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
-from src.navigation.race_tracker import TRAVEL_DIRS
+# Re-exported: the start-pose geometry moved to the navigation layer so the
+# deployed node can derive a starting pose without a scenario file. Kept here
+# because the test battery and the recovery-envelope scripts import it from
+# this module.
+from src.navigation.start_conditions import start_pose
 
-_TRACK_MAX = TrackDimensions.MAX_COORD
-_TRACK_CENTER = _TRACK_MAX / 2
+if TYPE_CHECKING:
+    from shared.config.enums import Direction, Section
+
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 
-
-def start_pose(
-    section: Section,
-    direction: Direction,
-    widths_m: dict[str, float],
-) -> tuple[float, float, float]:
-    """Spawn pose on the biased corridor centerline, aligned with travel."""
-    south_cy = widths_m["south"] / 2 - _OUTER_WALL_BIAS
-    north_cy = _TRACK_MAX - widths_m["north"] / 2 + _OUTER_WALL_BIAS
-    east_cx = _TRACK_MAX - widths_m["east"] / 2 + _OUTER_WALL_BIAS
-    west_cx = widths_m["west"] / 2 - _OUTER_WALL_BIAS
-    center = {
-        Section.SOUTH: (_TRACK_CENTER, south_cy),
-        Section.NORTH: (_TRACK_CENTER, north_cy),
-        Section.EAST: (east_cx, _TRACK_CENTER),
-        Section.WEST: (west_cx, _TRACK_CENTER),
-    }[section]
-    nx, ny = TRAVEL_DIRS[(section, direction)]
-    return center[0], center[1], math.atan2(ny, nx)
+__all__ = ["build_open_metadata", "start_pose", "uniform_widths"]
 
 
 def build_open_metadata(

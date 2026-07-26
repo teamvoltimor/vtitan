@@ -38,6 +38,7 @@ from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan
 from src.navigation.race_tracker import LapDetector
+from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.state_machine.estimator import StateEstimator
 
@@ -227,32 +228,44 @@ class TrackNavigator(Node):
 
     def __init__(
         self,
-        metadata_path: str | Path,
+        metadata_path: str | Path | None = None,
         num_laps: int = 3,
         params_path: str | Path | None = None,
         tuning_path: str | Path | None = None,
         blind: bool = False,
+        direction: Direction = Direction.CLOCKWISE,
     ) -> None:
         """Drive the track.
 
         Args:
-            metadata_path: Scenario metadata. Under ``blind`` its corridor
-                widths are ignored and only the start conditions are read --
-                section, direction, starting pose and challenge type, all of
-                which are known before a round. The file is then a small start
-                configuration rather than a description of the track.
+            metadata_path: Scenario metadata. Omit it entirely to run with no
+                scenario file at all, which is what competition requires: the
+                robot knows the corridor width *possibilities* (60 or 100 cm)
+                but not which corridor is which, and no file describing the
+                round exists on the day. Omitting it implies ``blind``.
             num_laps: Laps to complete.
             params_path: Optional JSON of ROS parameter overrides.
             tuning_path: Optional navigation tuning YAML.
             blind: Estimate the corridor layout from LIDAR instead of being
-                told it. WRO randomises the inner walls before each round, so
-                the widths in a metadata file cannot be known on the day; this
-                is the mode that matches competition.
+                told it. Implied when ``metadata_path`` is omitted, since there
+                is then nothing to be told.
+            direction: Travel direction for the round. This is the one starting
+                condition that cannot be assumed -- the section can, because
+                assuming it only rotates the robot's private world frame, but
+                the direction is a reflection and no amount of width learning
+                recovers from getting it wrong. See
+                :mod:`src.navigation.start_conditions`. Ignored when
+                ``metadata_path`` supplies one.
         """
         super().__init__("track_navigator")
 
-        self._metadata = _load_json(metadata_path)
-        self._blind = blind
+        # No file means nothing to be sighted with.
+        self._blind = blind or metadata_path is None
+        self._metadata = (
+            _load_json(metadata_path)
+            if metadata_path is not None
+            else {DictKeys.STARTING_CONDITIONS: assumed_start_conditions(direction)}
+        )
         self._is_open_challenge = self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
         # Start conditions
@@ -292,7 +305,7 @@ class TrackNavigator(Node):
         # the chassis half-diagonal, and clips it mid-turn.
         self._arc_radius = tuning.waypoints.ARC_RADIUS
         self._direction = start_direction
-        self._width_estimator = CorridorWidthEstimator() if blind else None
+        self._width_estimator = CorridorWidthEstimator() if self._blind else None
         corridor_widths_m = (
             self._width_estimator.widths if self._width_estimator else corridor_widths_from_metadata(self._metadata)
         )
@@ -487,7 +500,13 @@ class TrackNavigator(Node):
 def main(args: list[str] | None = None) -> None:
     """Run the ROS2 track navigator node (``ros2 run voldemorbot_navigation track_navigator_node``)."""
     parser = argparse.ArgumentParser(description="WRO 2026 track navigator ROS2 node.")
-    parser.add_argument("--metadata", required=True, help="Path to scenario metadata JSON.")
+    parser.add_argument(
+        "--metadata",
+        help="Path to scenario metadata JSON. Omit to run with no scenario file at "
+        "all, which is what competition requires -- the layout is then estimated "
+        "from LIDAR and --direction supplies the only start condition that cannot "
+        "be assumed.",
+    )
     parser.add_argument("--laps", type=int, default=3, help="Laps to complete (default: 3).")
     parser.add_argument("--params", help="Optional navigator_params.json for runtime overrides.")
     parser.add_argument("--tuning", help="Optional navigation tuning YAML.")
@@ -499,12 +518,23 @@ def main(args: list[str] | None = None) -> None:
         "walls before each round, so the widths in a file cannot be known on the "
         "day. Only the start conditions are then read from --metadata.",
     )
+    parser.add_argument(
+        "--direction",
+        choices=["cw", "ccw"],
+        default="cw",
+        help="Travel direction for the round (default: cw). Used only when --metadata "
+        "is omitted. The starting section does not need one of these because assuming "
+        "it merely rotates the robot's own world frame; the direction is a reflection "
+        "and has to be right.",
+    )
     parsed, _ = parser.parse_known_args(args)
 
-    metadata_path = Path(parsed.metadata)
-    if not metadata_path.exists():
-        logger.error("Metadata file not found: %s", metadata_path)
-        raise SystemExit(1)
+    metadata_path: Path | None = None
+    if parsed.metadata:
+        metadata_path = Path(parsed.metadata)
+        if not metadata_path.exists():
+            logger.error("Metadata file not found: %s", metadata_path)
+            raise SystemExit(1)
 
     rclpy.init(args=args)
     navigator: TrackNavigator | None = None
@@ -515,6 +545,7 @@ def main(args: list[str] | None = None) -> None:
             params_path=parsed.params,
             tuning_path=parsed.tuning,
             blind=parsed.blind,
+            direction=Direction.CLOCKWISE if parsed.direction == "cw" else Direction.COUNTERCLOCKWISE,
         )
         while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
             rclpy.spin_once(navigator, timeout_sec=0.1)

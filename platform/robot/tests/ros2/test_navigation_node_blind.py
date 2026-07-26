@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 import rclpy
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Section
+from shared.config.enums import Direction, Section
 from shared.domain.models import IMUReading
 
 from src.ros2.navigation.node import ROS2HardwareGateway
@@ -127,6 +127,77 @@ class TestBlindPrior:
         estimator = CorridorWidthEstimator()
         assert estimator.observed_sections == set()
         assert not estimator.is_complete
+
+
+class TestRunsWithNoScenarioFile:
+    """Competition has no metadata file, so the node must start without one."""
+
+    def test_node_constructs_with_no_metadata(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3)
+        try:
+            assert navigator._blind is True, "no file must imply blind"
+            assert navigator._width_estimator is not None
+            assert navigator._core_navigator is not None
+        finally:
+            navigator.destroy_node()
+
+    def test_no_metadata_plans_a_full_lap(self, ros_context) -> None:  # noqa: F811
+        """A path built from the prior still has to be a drivable loop."""
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3)
+        try:
+            waypoints = navigator._plan(dict.fromkeys(Section, _NARROW))
+            assert len(waypoints) > 4
+            # Closes back on itself: a lap, not an out-and-back.
+            span_x = max(p[0] for p in waypoints) - min(p[0] for p in waypoints)
+            span_y = max(p[1] for p in waypoints) - min(p[1] for p in waypoints)
+            assert span_x > 1.0
+            assert span_y > 1.0
+        finally:
+            navigator.destroy_node()
+
+
+class TestAssumedStartConditions:
+    """Section can be assumed; direction cannot."""
+
+    def test_direction_reverses_the_start_heading(self) -> None:
+        from src.navigation.start_conditions import assumed_start_conditions
+
+        cw = assumed_start_conditions(Direction.CLOCKWISE)
+        ccw = assumed_start_conditions(Direction.COUNTERCLOCKWISE)
+        delta = abs(cw["yaw"] - ccw["yaw"])
+        assert delta == pytest.approx(math.pi)
+
+    def test_direction_does_not_move_the_start_position(self) -> None:
+        """Only the heading flips -- the robot still starts in the same corridor."""
+        from src.navigation.start_conditions import assumed_start_conditions
+
+        cw = assumed_start_conditions(Direction.CLOCKWISE)
+        ccw = assumed_start_conditions(Direction.COUNTERCLOCKWISE)
+        assert cw["position"] == ccw["position"]
+
+    def test_defaults_to_the_narrow_prior(self) -> None:
+        """The start pose must come from the safe prior, not a wide guess."""
+        from src.navigation.start_conditions import assumed_start_conditions, start_pose
+
+        assumed = assumed_start_conditions(Direction.CLOCKWISE)
+        expected = start_pose(
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            dict.fromkeys(("north", "south", "east", "west"), _NARROW),
+        )
+        assert assumed["position"]["x"] == pytest.approx(expected[0])
+        assert assumed["position"]["y"] == pytest.approx(expected[1])
+
+    def test_scenario_builder_still_exports_start_pose(self) -> None:
+        """The geometry moved to navigation; sim callers must be unaffected."""
+        from src.navigation.start_conditions import start_pose as moved
+        from src.simulation.scenario_builder import start_pose as reexported
+
+        assert reexported is moved
 
 
 if __name__ == "__main__":

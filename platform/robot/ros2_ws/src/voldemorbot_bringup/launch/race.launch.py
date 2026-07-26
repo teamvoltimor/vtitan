@@ -48,7 +48,10 @@ _BAG_TOPICS = [
 
 def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list:
     metadata = LaunchConfiguration("metadata").perform(context)
-    arguments = ["--metadata", metadata]
+    arguments = ["--metadata", metadata] if metadata else []
+    direction = LaunchConfiguration("direction").perform(context)
+    if direction:
+        arguments += ["--direction", direction]
 
     laps = LaunchConfiguration("laps").perform(context)
     if laps:
@@ -92,20 +95,31 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "metadata",
+                default_value="",
                 description=(
-                    "Path to the scenario metadata JSON for this round (required). "
-                    "With blind:=true only its start conditions are read -- section, "
-                    "direction and starting pose -- and the corridor widths are ignored, "
-                    "so it is a small start configuration rather than a track description."
+                    "Path to the scenario metadata JSON. Leave empty for competition: the "
+                    "robot then runs with no scenario file at all, estimating the layout "
+                    "from LIDAR. Supplying one is for reproducing a known layout in "
+                    "testing, and implies the sighted navigator unless blind:=true."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "direction",
+                default_value="cw",
+                description=(
+                    "Travel direction for the round (cw|ccw). The only start condition "
+                    "that cannot be assumed: assuming the starting section merely rotates "
+                    "the robot's own world frame, but the direction is a reflection and "
+                    "getting it wrong puts the inner block on the wrong side."
                 ),
             ),
             DeclareLaunchArgument(
                 "blind",
                 default_value="false",
                 description=(
-                    "Estimate the corridor layout from LIDAR instead of reading it from "
-                    "metadata. This is what competition requires: WRO randomises the inner "
-                    "walls before each round, so the widths in a file cannot be known."
+                    "Force layout estimation even when metadata is supplied. Implied "
+                    "automatically when metadata is empty, since there is then nothing "
+                    "to be told."
                 ),
             ),
             DeclareLaunchArgument(
