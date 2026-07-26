@@ -31,6 +31,7 @@ from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
 from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
@@ -104,6 +105,20 @@ class ROS2HardwareGateway(HardwareGateway):
             self._imu_callback,
             qos_profile_sensor_data,
         )
+
+    def set_believed_walls(self, walls: TrackWalls) -> None:
+        """Re-point the localizer at the layout the robot currently believes in.
+
+        Blind operation estimates corridor widths as it drives, so the wall
+        model the scans are matched against changes mid-round. Without this the
+        localizer keeps matching against the layout assumed at startup, and a
+        corrected belief never reaches the position fix.
+        """
+        self._localizer = LidarLocalizer(walls)
+
+    def reset_heading_reference(self) -> None:
+        """Re-zero the estimator's heading against the next IMU reading."""
+        self._estimator.reset_heading_reference()
 
     def _imu_callback(self, msg: Imu) -> None:
         q = msg.orientation
@@ -216,10 +231,28 @@ class TrackNavigator(Node):
         num_laps: int = 3,
         params_path: str | Path | None = None,
         tuning_path: str | Path | None = None,
+        blind: bool = False,
     ) -> None:
+        """Drive the track.
+
+        Args:
+            metadata_path: Scenario metadata. Under ``blind`` its corridor
+                widths are ignored and only the start conditions are read --
+                section, direction, starting pose and challenge type, all of
+                which are known before a round. The file is then a small start
+                configuration rather than a description of the track.
+            num_laps: Laps to complete.
+            params_path: Optional JSON of ROS parameter overrides.
+            tuning_path: Optional navigation tuning YAML.
+            blind: Estimate the corridor layout from LIDAR instead of being
+                told it. WRO randomises the inner walls before each round, so
+                the widths in a metadata file cannot be known on the day; this
+                is the mode that matches competition.
+        """
         super().__init__("track_navigator")
 
         self._metadata = _load_json(metadata_path)
+        self._blind = blind
         self._is_open_challenge = self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
         # Start conditions
@@ -246,8 +279,24 @@ class TrackNavigator(Node):
         # Setup Tuning
         tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning()
 
-        # Gateway & Core Logic
-        corridor_widths_m = corridor_widths_from_metadata(self._metadata)
+        start_section = Section.from_string(start_cond[DictKeys.SECTION])
+        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
+
+        # What the robot is allowed to believe about the layout. Sighted runs
+        # read it from the metadata; blind runs start with every corridor
+        # assumed narrow and correct it from LIDAR as they drive.
+        #
+        # Narrow is the safe prior: planning a 1.0 m corridor as if it were
+        # 0.6 m puts the path nearer the outer wall, which is still inside it.
+        # The converse puts the path 0.15 m from the inner block face, inside
+        # the chassis half-diagonal, and clips it mid-turn.
+        self._arc_radius = tuning.waypoints.ARC_RADIUS
+        self._direction = start_direction
+        self._width_estimator = CorridorWidthEstimator() if blind else None
+        corridor_widths_m = (
+            self._width_estimator.widths if self._width_estimator else corridor_widths_from_metadata(self._metadata)
+        )
+
         self._gateway = ROS2HardwareGateway(
             self,
             start_x,
@@ -256,14 +305,7 @@ class TrackNavigator(Node):
             corridor_widths_m,
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
         )
-        # num_laps=1 is intentional: calculate_waypoints bakes the lap count into
-        # the list, but CoreNavigator already cycles one canonical lap `num_laps`
-        # times (see step() waypoint-wrap). Passing the real count would multiply
-        # laps (e.g. 3 -> 9). Keep this at 1.
-        waypoints = calculate_waypoints(self._metadata, num_laps=1, arc_radius=tuning.waypoints.ARC_RADIUS)
-
-        start_section = Section.from_string(start_cond[DictKeys.SECTION])
-        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
+        waypoints = self._plan(corridor_widths_m)
 
         sign_router: SignRouter | None = None
         if not self._is_open_challenge:
@@ -325,6 +367,52 @@ class TrackNavigator(Node):
             "holding until /robot_state reports racing",
         )
 
+    def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
+        """Build a one-lap path for the layout the robot believes it is on.
+
+        num_laps=1 is intentional: calculate_waypoints bakes the lap count into
+        the list, but CoreNavigator already cycles one canonical lap `num_laps`
+        times (see step() waypoint-wrap). Passing the real count would multiply
+        laps (e.g. 3 -> 9). Keep this at 1.
+        """
+        planning_metadata = dict(self._metadata)
+        planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
+            section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
+        }
+        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
+
+    def _update_layout_belief(self) -> bool:
+        """Fold the latest scan into the width estimate; replan if it moved.
+
+        Returns:
+            ``True`` if the belief changed and the path was rebuilt.
+        """
+        estimator = self._width_estimator
+        if estimator is None:
+            return False
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            return False
+
+        # Attribute the reading by HEADING, not position. Position would be
+        # circular -- it comes from matching against a wall model built from the
+        # very widths being estimated, so a wrong belief mis-attributes the
+        # reading that would have corrected it and the error locks in. Heading
+        # comes from the IMU and owes nothing to the map.
+        section = section_from_heading(pose.yaw, self._direction)
+        if not estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw):
+            return False
+
+        believed = estimator.widths
+        self._gateway.set_believed_walls(TrackWalls(believed))
+        self._core_navigator.replace_path(self._plan(believed), (pose.x, pose.y))
+        self.get_logger().info(
+            "Layout belief updated: "
+            + ", ".join(f"{s.value}={w * 100:.0f}cm" for s, w in sorted(believed.items(), key=lambda kv: kv[0].value)),
+        )
+        return True
+
     def _on_robot_state(self, msg: String) -> None:
         """Track whether the state machine says we are racing."""
         was_racing = self._racing
@@ -340,7 +428,7 @@ class TrackNavigator(Node):
             # offset latched by the first IMU reading refers to whatever
             # orientation it happened to be held in. This is the one instant the
             # robot is known to be in its starting pose.
-            self._estimator.reset_heading_reference()
+            self._gateway.reset_heading_reference()
             self.get_logger().info("Race started - heading reference zeroed, navigator driving")
 
     def _control_loop(self) -> None:
@@ -352,6 +440,8 @@ class TrackNavigator(Node):
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             return
         try:
+            if self._blind:
+                self._update_layout_belief()
             self._core_navigator.step()
         except RuntimeError as e:
             self.get_logger().error(f"Runtime error in control loop: {e}")
@@ -401,6 +491,14 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument("--laps", type=int, default=3, help="Laps to complete (default: 3).")
     parser.add_argument("--params", help="Optional navigator_params.json for runtime overrides.")
     parser.add_argument("--tuning", help="Optional navigation tuning YAML.")
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Estimate the corridor layout from LIDAR instead of reading it from "
+        "--metadata, which is what competition requires: WRO randomises the inner "
+        "walls before each round, so the widths in a file cannot be known on the "
+        "day. Only the start conditions are then read from --metadata.",
+    )
     parsed, _ = parser.parse_known_args(args)
 
     metadata_path = Path(parsed.metadata)
@@ -416,6 +514,7 @@ def main(args: list[str] | None = None) -> None:
             num_laps=parsed.laps,
             params_path=parsed.params,
             tuning_path=parsed.tuning,
+            blind=parsed.blind,
         )
         while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
             rclpy.spin_once(navigator, timeout_sec=0.1)

@@ -59,6 +59,9 @@ def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list:
     tuning = LaunchConfiguration("tuning").perform(context)
     if tuning:
         arguments += ["--tuning", tuning]
+    blind = LaunchConfiguration("blind").perform(context).lower() not in ("false", "0", "")
+    if blind:
+        arguments += ["--blind"]
 
     track_navigator_node = Node(
         package="voldemorbot_navigation",
@@ -89,7 +92,21 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "metadata",
-                description="Path to the scenario metadata JSON for this round (required)",
+                description=(
+                    "Path to the scenario metadata JSON for this round (required). "
+                    "With blind:=true only its start conditions are read -- section, "
+                    "direction and starting pose -- and the corridor widths are ignored, "
+                    "so it is a small start configuration rather than a track description."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "blind",
+                default_value="false",
+                description=(
+                    "Estimate the corridor layout from LIDAR instead of reading it from "
+                    "metadata. This is what competition requires: WRO randomises the inner "
+                    "walls before each round, so the widths in a file cannot be known."
+                ),
             ),
             DeclareLaunchArgument(
                 "laps",
