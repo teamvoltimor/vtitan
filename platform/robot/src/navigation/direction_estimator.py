@@ -50,13 +50,15 @@ if TYPE_CHECKING:
 
 _WIDE = CorridorDimensions.WIDE
 
-OPENING_RANGE_M = _WIDE + 0.35
-"""A side ray beyond this cannot be the far wall of any legal corridor.
+_MAX_PLAUSIBLE_SPAN_M = _WIDE + 0.25
+"""Beyond this, left + right is no longer two walls of one corridor.
 
-The widest corridor is 1.0 m and the LIDAR sits at the chassis centre, so a
-side ray in a corridor returns at most about 1.0 m. Anything substantially past
-that has missed the inner block and is looking down the next corridor. The
-margin absorbs the robot sitting off-centre and scanning slightly off-axis.
+The widest legal corridor is 1.0 m and the LIDAR sits at the chassis centre, so
+the two side rays sum to the corridor width wherever the robot sits across it.
+A sum past this has to mean one ray missed the inner block and ran off down the
+next corridor. The margin absorbs scanning slightly off-axis; it is the same
+plausibility bound :mod:`src.navigation.corridor_estimator` uses to reject the
+readings this module is looking for.
 """
 
 _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
@@ -65,13 +67,20 @@ _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
 _MIN_VALID_RANGE_M = 0.01
 """Below this a return is the driver's invalid-reading sentinel, not a wall."""
 
-CORNER_CLEARANCE_M = 0.75
-"""Forward clearance below which the corridor is treated as ending.
+CORNER_CLEARANCE_M = 1.00
+"""Forward clearance below which the corridor counts as ending, for inference.
 
-Shared with :mod:`src.navigation.corridor_follower`, which starts turning at
-the same point -- the corner rule below and the turn have to agree about when
-a corner has arrived, or the robot commits to a turn the estimator has not
-justified.
+Deliberately *larger* than the clearance at which
+:mod:`src.navigation.corridor_follower` starts turning. The two must not
+coincide. Turning swings the heading past the alignment gate below, which then
+refuses every reading -- so a robot that begins its turn at the same instant
+the comparison becomes decisive rotates straight through its only measurement
+window and comes out the far side with a wall on both sides again and nothing
+learned. Measured with both at 0.75 m: three fixtures never settled at all and
+two settled wrong after 20-plus seconds of wandering.
+
+The gap between this and the turn threshold is the window in which the robot is
+still square to the corridor and the way ahead is visibly closing.
 """
 
 _FORWARD_ARC_RAD_FWD = math.radians(8.0)
@@ -134,27 +143,26 @@ def infer_direction(
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
 
-    left_open = left > OPENING_RANGE_M
-    right_open = right > OPENING_RANGE_M
-    if left_open != right_open and abs(left - right) >= _MIN_ASYMMETRY_M:
-        # The inner block is on the side that opened, and the block's side is
-        # the rotational sense: block on the right means going clockwise.
-        return Direction.CLOCKWISE if right_open else Direction.COUNTERCLOCKWISE
-
-    # Corner rule. The absolute test above wants a side to see clear down the
-    # next corridor, which does not always happen before the wall ahead
-    # arrives: from far enough off-centre the block-side ray can clear the
-    # block and still land on the next corridor's far wall inside the
-    # threshold. Once the corridor is visibly ending, the *comparison* is still
-    # decisive even when neither side passes the absolute bar -- one ray is
-    # looking along a corridor and the other at a wall a corridor-width away.
+    # Decide on the SPAN, not on either range alone. Two walls span the
+    # corridor wherever the chassis sits between them, so left + right stays at
+    # the corridor width until one side stops being a wall -- at which point it
+    # jumps by a corridor length. That makes the test immune to being
+    # off-centre, which is the whole difficulty:
     #
-    # Without this the robot reaches the corner undecided, and having no plan
-    # and no corner behaviour it simply stops: measured, that deadlock was
-    # every one of the 7 closed-loop failures, none of them a wrong answer.
-    if _forward_clearance(ranges_m, angles_rad) < CORNER_CLEARANCE_M and abs(left - right) >= _MIN_ASYMMETRY_M:
-        return Direction.CLOCKWISE if right > left else Direction.COUNTERCLOCKWISE
-    return None
+    # Comparing the two ranges directly does not work. Drifted toward the inner
+    # block, a robot reads 0.27 m to the block on its left and 0.72 m to the
+    # outer wall on its right, and "the larger side is open" then picks the
+    # outer wall and returns exactly the wrong answer. That is which wall is
+    # *nearer*, not which side is *open*, and it cost two fixtures a confident
+    # wrong direction inside six seconds.
+    if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+        return None
+    if abs(left - right) < _MIN_ASYMMETRY_M:
+        return None
+
+    # The inner block is on the side that opened, and the block's side fixes
+    # the rotational sense: block on the right means going clockwise.
+    return Direction.CLOCKWISE if right > left else Direction.COUNTERCLOCKWISE
 
 
 class DirectionEstimator:

@@ -28,7 +28,11 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, ScenarioMetadata
 
 from src.navigation.core_navigator import CoreNavigator
-from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
+from src.navigation.corridor_estimator import (
+    CorridorWidthEstimator,
+    measure_corridor_width,
+    section_from_heading,
+)
 from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.localization import LidarLocalizer
@@ -661,6 +665,8 @@ class ScenarioSimulator:
         # the corridor reactively and only then plans.
         self._direction_estimator = DirectionEstimator() if infer_direction else None
         self._creep_speed = nav_tuning.speed.SLOW_SPEED
+        self._creep_widths: list[tuple[float, float]] = []
+        """(yaw, measured width) taken before the direction was known."""
         self._start = start
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
@@ -741,17 +747,27 @@ class ScenarioSimulator:
         if scan is None or pose is None:
             return True
 
+        # Take width readings during the creep as well. They cannot be filed
+        # under a corridor yet -- that needs the direction -- but they are the
+        # cleanest readings of the whole round, taken driving straight down a
+        # corridor. Discarding them leaves the first surviving readings to be
+        # taken at a corner, where the side rays span the next corridor and get
+        # attributed to this one. Measured: that alone mislearned the starting
+        # corridor on fixtures whose direction was inferred perfectly.
+        if self._width_estimator is not None:
+            measured = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
+            if measured is not None:
+                self._creep_widths.append((pose.yaw, measured))
+
         if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
             inferred = estimator.direction
             if inferred is not None and inferred is not self._direction:
-                # Everything built from the provisional direction is now wrong:
-                # the path runs the other way round the loop and the finish
-                # line's normal is inverted.
+                # The path runs the other way round the loop and the finish
+                # line's normal is inverted, so both are rebuilt.
                 self._direction = inferred
                 self._waypoints = self._plan(
                     self._width_estimator.widths if self._width_estimator else self._true_widths,
                 )
-                self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
                 self._navigator.replace_lap_detector(
                     LapDetector(
                         start_pos=(self._start.x, self._start.y),
@@ -759,12 +775,42 @@ class ScenarioSimulator:
                         direction=inferred,
                     ),
                 )
+            # Replay the buffered widths now that they can be attributed.
+            if self._width_estimator is not None and inferred is not None:
+                for buffered_yaw, buffered_width in self._creep_widths:
+                    self._width_estimator.observe_measurement(
+                        section_from_heading(buffered_yaw, inferred),
+                        buffered_width,
+                    )
+                self._creep_widths.clear()
+                self._waypoints = self._plan(self._width_estimator.widths)
+                self._gateway.set_believed_walls(TrackWalls(self._width_estimator.widths))
+
+            # Resync unconditionally, including when the inference agreed with
+            # the provisional direction and the path is unchanged. The
+            # navigator did not step during the creep, so its waypoint index is
+            # still 0 while the robot has driven a metre past it -- it would
+            # resume by chasing a waypoint behind itself. Measured: this alone
+            # cost fixtures that had inferred the direction perfectly.
+            self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
             return False
 
         self._gateway.publish_drive(
             follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed),
         )
         return True
+
+    def _creep_telemetry(
+        self,
+        prev_xy: tuple[float, float],
+        on_step: Callable[[AckermannState, LidarScan], None] | None,
+    ) -> float:
+        """Publish and measure a creep tick; return the distance it covered."""
+        scan = self._gateway.get_lidar_scan()
+        if on_step is not None and scan is not None:
+            on_step(self._gateway.state, scan)
+        state = self._gateway.state
+        return math.hypot(state.x - prev_xy[0], state.y - prev_xy[1])
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.
@@ -888,9 +934,15 @@ class ScenarioSimulator:
         while step < max_steps:
             if self._resolve_direction():
                 # Direction still unknown: the corridor follower published this
-                # tick's command, and there is no usable plan to step yet.
+                # tick's command, and there is no usable plan to step yet. The
+                # tick is otherwise accounted for exactly like a driving one --
+                # telemetry, distance and contact all still apply, and skipping
+                # them hides the creep from the visualizer and every diagnostic.
                 gw.advance(dt)
                 step += 1
+                distance += self._creep_telemetry(prev_xy, on_step)
+                prev_xy = (gw.state.x, gw.state.y)
+                min_range = min(min_range, gw.last_min_range)
                 if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
                     terminal_collision = True
                     break
@@ -930,13 +982,43 @@ class ScenarioSimulator:
             ):
                 break
 
+        return self._build_result(
+            step=step,
+            dt=dt,
+            max_steps=max_steps,
+            collided=terminal_collision,
+            contacts=contacts,
+            distance=distance,
+            max_speed=max_speed,
+            speed_sum=speed_sum,
+            min_range=min_range,
+            lap_steps=lap_steps,
+        )
+
+    def _build_result(
+        self,
+        *,
+        step: int,
+        dt: float,
+        max_steps: int,
+        collided: bool,
+        contacts: _ContactTracker,
+        distance: float,
+        max_speed: float,
+        speed_sum: float,
+        min_range: float,
+        lap_steps: list[int],
+    ) -> SimResult:
+        """Assemble the run outcome from the loop's accumulators."""
+        gw = self._gateway
+        nav = self._navigator
         pc = self._park_controller
         parked = None if pc is None else (pc.is_done and not pc.is_timed_out)
         timed_out = step >= max_steps and (nav.laps_completed < self._num_laps or (pc is not None and not pc.is_done))
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,
-            collided=terminal_collision,
+            collided=collided,
             timed_out=timed_out,
             steps=step,
             sim_time_s=step * dt,

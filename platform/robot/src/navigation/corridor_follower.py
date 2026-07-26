@@ -23,8 +23,17 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
-from src.navigation.direction_estimator import CORNER_CLEARANCE_M
 from src.navigation.ports import DriveCommand
+
+TURN_CLEARANCE_M = 0.60
+"""Forward clearance at which to start turning the corner.
+
+Strictly below :data:`~src.navigation.direction_estimator.CORNER_CLEARANCE_M`,
+and the gap matters. Turning swings the heading past the direction estimator's
+alignment gate, so beginning the turn as soon as the corner is detectable
+rotates the robot straight through the only window in which it can read which
+side is open. Hold the line for that window first, then turn.
+"""
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -107,7 +116,7 @@ def follow_corridor(
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
 
-    if forward < CORNER_CLEARANCE_M:
+    if forward < TURN_CLEARANCE_M:
         # The corridor is ending. Turn toward the side with more room, which is
         # where the track continues -- and is the same observation the
         # direction estimator settles on, so the turn and the answer agree.

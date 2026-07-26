@@ -193,7 +193,20 @@ class CorridorWidthEstimator:
         measured = measure_corridor_width(ranges_m, angles_rad, yaw)
         if measured is None:
             return False
+        return self.observe_measurement(section, measured)
 
+    def observe_measurement(self, section: Section, measured: float) -> bool:
+        """Fold in a width already measured by :func:`measure_corridor_width`.
+
+        Separate from :meth:`observe` so a reading can be taken before it can
+        be attributed. A blind round infers its travel direction after it has
+        started driving, and attribution needs that direction, so the scans
+        from before it settles would otherwise be discarded -- which throws
+        away the cleanest readings of the starting corridor and leaves the
+        first surviving ones to be taken at a corner, where the side rays span
+        the *next* corridor. Buffer the measurements, replay them here once the
+        direction is known.
+        """
         votes = self._votes[section]
         votes[1 if measured >= _DECISION_BOUNDARY else 0] += 1
         if sum(votes) < self._min_samples:
