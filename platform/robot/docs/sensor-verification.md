@@ -587,6 +587,49 @@ the subscription callback, discards a `--spinup-s` acceleration window, and repo
 stdev — which is what made the forward/reverse asymmetry above legible rather than looking like
 scatter.
 
+### Drive encoder calibration -- counts_per_rev was 3.5x wrong (2026-07-25)
+
+`_DEFAULT_COUNTS_PER_REV` was `194.0`, derived from the datasheet as 11 PPR x4 quadrature x an
+assumed ~4.4 gear ratio. Measured against tape, the real figure is **676** (~15.4:1 gearing), so
+`counts_to_distance()` was under-counting revolutions and over-reporting distance by ~3.5x.
+
+Calibrated from **raw quadrature counts** (`get_drive_counts()`), now exposed as `encoder_counts` in
+`/motor/status` -- it wasn't published anywhere before, which is why the first attempt had to
+integrate `/motor/drive_speed` instead. Don't do that: that feedback is exponentially smoothed and
+rate-derived, and integrating it gave counts ~2.4x low (683 vs a true 1650), which in turn produced
+a confidently-wrong CPR estimate of ~349-369.
+
+| Run | Raw counts | Measured | Implied CPR |
+|-----|-----------|----------|-------------|
+| 90% duty, 5s | 1650 | 54 cm | 672 |
+| 100% duty, 5s | 2447 | 79 cm | 681 |
+
+The two agreeing to **1.3%** is the important part, not either number alone: wheel slip only ever
+inflates the count for a given distance, so agreement across a 10-point duty spread means slip is
+negligible and this is the true geometric ratio. Validated afterwards on an **independent** run not
+used to derive it -- 1341 counts predicted 43.6 cm, tape said 44 cm (0.9%).
+
+Re-measure with `scripts/calibrate-encoder.py` if the drivetrain changes.
+
+#### Why duty-based speed calibration was abandoned
+
+The original plan was to calibrate commanded speed against duty cycle. That is worthless here,
+because duty->speed depends on battery voltage. Demonstrated accidentally: the *identical* command
+(3.0 = 90% duty, 5 s) travelled **43 cm on a nearly-flat battery and 54 cm on a fresh one** -- 26%
+apart. The encoder->distance ratio is geometric and holds regardless.
+
+The consequence is that `MOTOR_DRIVE__SPEED_SCALE` (`motor_speed = velocity * 30`) is not a unit
+conversion at all -- it claims 100% duty is 3.33 m/s when the robot actually tops out near 0.13 m/s.
+Commanded "m/s" values are therefore meaningless today; anything above ~3.33 simply saturates.
+
+**Not yet done:** closing the loop. `run_drive_at_rpm()` and a `PIDController` already exist in
+`dc_encoder/driver.py` but nothing calls them -- `ackermann_motor_node` uses the open-loop
+`run_drive_forward/reverse`. Switching to the closed-loop path would make commands true m/s and
+self-correct for battery droop. Two caveats when that happens: the PID gains
+(`kp=0.002, ki=0.004, ff=1/max_rpm`) have never run on hardware, and both `run_drive_at_rpm()` and
+`get_drive_rpm()` hardcode `dt=0.02`, so the loop must be driven at 50 Hz or the gains silently mean
+something else.
+
 ### Steering servo jitter -- fixed by moving to hardware PWM (2026-07-25)
 
 The servo twitched continuously, including while holding a fixed angle. Bisected on hardware by

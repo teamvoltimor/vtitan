@@ -478,6 +478,11 @@ class AckermannMotorNode(LifecycleNode):
 
             status_msg.values.append(KeyValue(key="steering_position", value=f"{steering_pos:.2f}"))
             status_msg.values.append(KeyValue(key="drive_speed", value=f"{drive_speed:.2f}"))
+            # Raw quadrature counts. drive_speed above is smoothed and rate-derived,
+            # so integrating it to recover distance folds in the estimator's
+            # smoothing and sampling interval; the counter is exact and is what
+            # encoder calibration must be measured against.
+            status_msg.values.append(KeyValue(key="encoder_counts", value=str(self.drive.get_drive_counts())))
             status_msg.values.append(KeyValue(key="commanded_speed", value=f"{self.current_speed}"))
             status_msg.values.append(KeyValue(key="commanded_steering", value=f"{self.current_steering_angle:.2f}"))
             status_msg.values.append(KeyValue(key="steering_offset", value=f"{self.config.steering.offset:.2f}"))

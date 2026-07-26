@@ -35,7 +35,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # JGB37-520 1590 RPM variant defaults — confirm the printed gear ratio per unit.
-_DEFAULT_COUNTS_PER_REV = 194.0  # 11 PPR x4 quadrature x ~4.4 gear ratio
+# MEASURED on hardware 2026-07-25, not derived from the datasheet: the previous
+# 194.0 (11 PPR x4 quadrature x an assumed ~4.4 gear ratio) made
+# counts_to_distance() over-report by ~3.5x. Calibrated from raw quadrature
+# counts against tape-measured travel, at two duty levels:
+#     1650 counts / 54 cm  -> 672 counts per wheel revolution
+#     2447 counts / 79 cm  -> 681 counts per wheel revolution
+# The two agree to 1.3%, which is the point: wheel slip only ever inflates the
+# count for a given distance, so agreement across speeds means slip is
+# negligible and this is the true geometric ratio. Back-predicts both runs to
+# within 1%. Implies ~15.4:1 gearing (676/44 counts per motor revolution).
+#
+# Measure with scripts/calibrate-encoder.py if the drivetrain changes. Do NOT
+# derive it by integrating /motor/drive_speed -- that feedback is exponentially
+# smoothed and rate-derived, and doing so gave answers ~2x wrong.
+_DEFAULT_COUNTS_PER_REV = 676.0
 # Previously an independent hardcoded 0.056m, drifted from RobotSpecs.WHEEL_RADIUS (a
 # placeholder pending hardware bring-up, per the module docstring). Derived from the same
 # measured wheel radius the rest of the stack uses instead of a second independent guess.
