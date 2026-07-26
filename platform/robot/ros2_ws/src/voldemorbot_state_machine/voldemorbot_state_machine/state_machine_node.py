@@ -13,6 +13,7 @@ Topics:
         - /hailo/fps (std_msgs/Float32) - Hailo inference FPS
     Subscribed:
         - /button/event (std_msgs/String) — button events from button_node (Pi Zero)
+        - /challenge_mode/jumper_inserted (std_msgs/Bool) — challenge-mode jumper (Pi Zero)
     Published:
         - /robot_state (std_msgs/String) - Current robot state
         - /ackermann_cmd (ackermann_msgs/AckermannDriveStamped) - Drive commands
@@ -40,9 +41,8 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
-from std_msgs.msg import Float32, String
+from std_msgs.msg import Bool, Float32, String
 
-from src.hardware.challenge_mode.driver import Driver as ChallengeModeDriver
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.state_machine import (
     RaceMetrics,
@@ -90,7 +90,20 @@ _CHALLENGE_MODE_SAMPLES_REQUIRED = 3
 """Consecutive agreeing BOOT_CHECK-tick samples required before trusting the challenge-mode
 jumper reading. At the default 10 Hz state-machine loop rate this spans ~300 ms -- the
 200-300 ms debounce window from the jumper spec -- without a blocking sleep in the ROS2
-spin loop (each tick takes one instantaneous GPIO read, not a driver-internal sample loop)."""
+spin loop (each tick reads the latest value received from the Pi Zero, not a driver-internal
+sample loop)."""
+
+_CHALLENGE_MODE_TIMEOUT_SEC = 15.0
+"""How long to wait for the Pi Zero's jumper reading before defaulting to Open.
+
+Generous on purpose: the Zero takes ~10 s from power-on to having its nodes up
+(it shares power with this board), so a shorter window would routinely default
+before the reading ever arrives. The topic is TRANSIENT_LOCAL, so a value
+published before this node subscribed still arrives immediately.
+"""
+
+_JUMPER_TOPIC = "/challenge_mode/jumper_inserted"
+"""Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to)."""
 
 
 class StateMachineNode(Node):
@@ -176,13 +189,32 @@ class StateMachineNode(Node):
         self.hailo_last_msg_time: float | None = None
         self.hailo_fps: float = 0.0
 
-        # Challenge-mode jumper (GPIO23) -- same Pi 5 board, so read directly rather than via
-        # a topic (unlike the button, which lives on the Pi Zero). Skipped entirely under
-        # simulation: scenario_catalog.py already encodes open-vs-obstacles per scenario.
-        self.challenge_mode_driver = ChallengeModeDriver()
+        # Skipped entirely under simulation: scenario_catalog.py already encodes
+        # open-vs-obstacles per scenario.
+        # The jumper lives on the Pi Zero's GPIO23, so its state arrives as a
+        # topic rather than a local GPIO read (see _sample_challenge_mode).
+        self._jumper_inserted: bool | None = None
+        self._challenge_mode_wait_started = self.get_clock().now().nanoseconds / 1e9
+        self.create_subscription(
+            Bool,
+            _JUMPER_TOPIC,
+            self._on_jumper_state,
+            QoSProfile(
+                depth=1,
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                # Must match the publisher: the mode is latched once at setup,
+                # so a late-joining subscriber has to receive the last value
+                # rather than wait for the next periodic publish.
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
         self._challenge_mode_samples: deque[bool] = deque(maxlen=_CHALLENGE_MODE_SAMPLES_REQUIRED)
         self._challenge_mode_error: str | None = None
         self.challenge_mode: ScenarioType | None = None
+
+    def _on_jumper_state(self, msg: Bool) -> None:
+        """Latest challenge-mode jumper reading from the Pi Zero."""
+        self._jumper_inserted = msg.data
 
         # Network status
         self.ip_address: str = "FETCHING..."
@@ -286,18 +318,28 @@ class StateMachineNode(Node):
         self._publish_diagnostics()
 
     def _sample_challenge_mode(self) -> None:
-        """Take one non-blocking GPIO read per BOOT_CHECK tick; stop once the reading stabilizes.
+        """Sample the jumper state published by the Pi Zero; stop once it stabilizes.
 
-        Deliberately fail-closed: disagreeing samples (bounce/intermittent contact) clear
-        progress and keep BOOT_CHECK waiting rather than guessing a mode.
+        The jumper is wired to the ZERO's GPIO23, so this consumes
+        ``/challenge_mode/jumper_inserted`` rather than reading GPIO locally.
+        Reading it here used to mean reading *Pi 5's* GPIO23, which nothing is
+        attached to -- with the internal pull-up that always reads HIGH, so it
+        silently latched Open Challenge on every boot and Obstacle could never
+        be selected.
+
+        Disagreeing samples (bounce/intermittent contact) clear progress and
+        keep BOOT_CHECK waiting rather than guessing a mode. If the Zero never
+        publishes at all, ``_challenge_mode_timed_out`` falls back to Open.
         """
         if self.is_simulation or self.challenge_mode is not None:
             return
 
-        try:
-            inserted = self.challenge_mode_driver.is_jumper_inserted()
-        except Exception as e:  # gpiozero raises GPIOZeroError/OSError families
-            self._challenge_mode_error = f"{type(e).__name__}: {e}"
+        inserted = self._jumper_inserted
+        if inserted is None:
+            if self._challenge_mode_timed_out():
+                self._latch_challenge_mode(inserted=False, reason="no reading from the Pi Zero")
+                return
+            self._challenge_mode_error = "waiting for /challenge_mode/jumper_inserted from the Pi Zero"
             self._challenge_mode_samples.clear()
             return
 
@@ -309,6 +351,15 @@ class StateMachineNode(Node):
         ):
             return
 
+        self._latch_challenge_mode(inserted=inserted)
+
+    def _challenge_mode_timed_out(self) -> bool:
+        """True once we've waited long enough for the Zero to publish the jumper state."""
+        waited = self.get_clock().now().nanoseconds / 1e9 - self._challenge_mode_wait_started
+        return waited >= _CHALLENGE_MODE_TIMEOUT_SEC
+
+    def _latch_challenge_mode(self, *, inserted: bool, reason: str | None = None) -> None:
+        """Fix the challenge mode for this run and derive the lap count."""
         self.challenge_mode = ScenarioType.OBSTACLES if inserted else ScenarioType.OPEN
         if not self._target_laps_explicit:
             self.target_laps = (
@@ -316,8 +367,21 @@ class StateMachineNode(Node):
                 if self.challenge_mode == ScenarioType.OBSTACLES
                 else CompetitionSpecs.OPEN_CHALLENGE_LAPS
             )
-        self.get_logger().info(
-            f"Challenge mode detected: {self.challenge_mode.value} (target_laps={self.target_laps})",
+        if reason is None:
+            self._challenge_mode_error = None
+            self.get_logger().info(
+                f"Challenge mode detected: {self.challenge_mode.value} (target_laps={self.target_laps})",
+            )
+            return
+
+        # Fell back rather than detected. Keep the error set so the OLED shows
+        # the challenge-mode fault screen and the operator can see the jumper
+        # was never read, instead of silently racing the wrong challenge.
+        self._challenge_mode_error = f"defaulted to {self.challenge_mode.value}: {reason}"
+        self.get_logger().error(
+            f"Challenge-mode jumper unreadable ({reason}) after {_CHALLENGE_MODE_TIMEOUT_SEC}s - "
+            f"defaulting to {self.challenge_mode.value} (target_laps={self.target_laps}). "
+            "Check the jumper wiring on the Pi Zero's GPIO23.",
         )
 
     def _handle_boot_check(self) -> None:
@@ -537,8 +601,6 @@ class StateMachineNode(Node):
 
         # Shutdown executor
         self._executor.shutdown(wait=False)
-
-        self.challenge_mode_driver.close()
 
         super().destroy_node()
 

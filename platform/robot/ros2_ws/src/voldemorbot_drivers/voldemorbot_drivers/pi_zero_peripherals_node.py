@@ -18,15 +18,22 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
 from voldemorbot_drivers.button_node import ButtonNode
+from voldemorbot_drivers.challenge_mode_node import ChallengeModeNode
 from voldemorbot_drivers.oled_display_node import OLEDDisplayNode
 
 
 def main(args: list[str] | None = None) -> None:
-    """Run button_node and oled_display_node in one process/rclpy init."""
+    """Run the Zero's GPIO peripherals in one process/rclpy init.
+
+    button_node, oled_display_node and challenge_mode_node -- the challenge
+    jumper is wired to the ZERO's GPIO23, so it has to be read here and
+    published for state_machine_node on the Pi 5.
+    """
     rclpy.init(args=args)
 
     button = ButtonNode()
     oled = OLEDDisplayNode()
+    challenge_mode = ChallengeModeNode()
 
     button.trigger_configure()
     button.trigger_activate()
@@ -36,6 +43,7 @@ def main(args: list[str] | None = None) -> None:
     executor = MultiThreadedExecutor()
     executor.add_node(button)
     executor.add_node(oled)
+    executor.add_node(challenge_mode)
 
     try:
         executor.spin()
@@ -44,6 +52,7 @@ def main(args: list[str] | None = None) -> None:
     finally:
         button.destroy_node()
         oled.destroy_node()
+        challenge_mode.destroy_node()
         rclpy.shutdown()
 
 

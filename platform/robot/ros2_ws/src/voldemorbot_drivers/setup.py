@@ -21,6 +21,7 @@ setup(
             "ackermann_motor_node = voldemorbot_drivers.motors.ackermann_motor_node:main",
             "oled_display_node = voldemorbot_drivers.oled_display_node:main",
             "button_node = voldemorbot_drivers.button_node:main",
+            "challenge_mode_node = voldemorbot_drivers.challenge_mode_node:main",
             "pi_zero_peripherals_node = voldemorbot_drivers.pi_zero_peripherals_node:main",
             "joy_teleop_node = voldemorbot_drivers.teleop.joy_teleop_node:main",
         ],
