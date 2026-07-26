@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -57,6 +58,20 @@ _WALL_VISUAL_HALF = 0.05
 _WALL_COLLISION_HALF = 0.09
 # How much further the collision mesh protrudes past the visual face.
 _COLLISION_MARGIN = _WALL_COLLISION_HALF - _WALL_VISUAL_HALF  # 0.04 m
+
+
+class ContactSurface(StrEnum):
+    """What the chassis is touching.
+
+    Kept distinct because the challenges forbid different walls — see
+    :meth:`TrackModel.contact_surface`.
+    """
+
+    NONE = "none"
+    OUTER_WALL = "outer_wall"
+    INNER_WALL = "inner_wall"
+    OBSTACLE = "obstacle"
+    """A traffic sign or parking block, which belongs to neither wall."""
 
 _TRACK_MIN = 0.0
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
@@ -248,13 +263,28 @@ class TrackModel:
         length: float = RobotSpecs.LENGTH,
         width: float = RobotSpecs.WIDTH,
     ) -> bool:
-        """Return ``True`` if the oriented chassis rectangle hits a wall or an obstacle.
+        """Return ``True`` if the oriented chassis rectangle hits a wall or an obstacle."""
+        return self.contact_surface(x, y, yaw, length, width) is not ContactSurface.NONE
 
-        Checks the chassis footprint against the outer collision boundary and
-        the inner keep-out block, both built from the 0.18 m collision meshes,
-        then against every traffic sign and parking block on the mat. Knocking
-        a sign over is a scored failure in the Obstacles Challenge, so it has
-        to register here exactly like hitting a wall does.
+    def contact_surface(
+        self,
+        x: float,
+        y: float,
+        yaw: float,
+        length: float = RobotSpecs.LENGTH,
+        width: float = RobotSpecs.WIDTH,
+    ) -> ContactSurface:
+        """Which surface the oriented chassis rectangle is touching, if any.
+
+        The caller needs the distinction because the two challenges forbid
+        different walls: the Open Challenge is scored on not touching the
+        *outer* wall, the Obstacles Challenge on not touching the *inner* one.
+        Collapsing all three surfaces into one boolean makes both rules
+        unrepresentable.
+
+        Checked outer first, then inner, then obstacles. The order only decides
+        what a simultaneous multi-surface contact reports, which is a wedged
+        robot either way.
         """
         corners = _rect_corners(x, y, yaw, length, width)
 
@@ -262,13 +292,15 @@ class TrackModel:
         ob = self._outer_collision
         for cx, cy in corners:
             if cx < ob.x_min or cx > ob.x_max or cy < ob.y_min or cy > ob.y_max:
-                return True
+                return ContactSurface.OUTER_WALL
 
         # Inner block: oriented footprint must not overlap the keep-out box.
         if _convex_overlap(corners, self._inner_collision.corners(), yaw):
-            return True
+            return ContactSurface.INNER_WALL
 
-        return any(_convex_overlap(corners, box.corners(), yaw) for box in self._obstacle_boxes)
+        if any(_convex_overlap(corners, box.corners(), yaw) for box in self._obstacle_boxes):
+            return ContactSurface.OBSTACLE
+        return ContactSurface.NONE
 
     # Geometry helpers exposed for tests / planners
 

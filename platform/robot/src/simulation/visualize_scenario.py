@@ -48,6 +48,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -55,7 +57,7 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.gateway import CONTROL_DT, ScenarioSimulator, SimResult
+from src.simulation.gateway import CONTROL_DT, ScenarioSimulator, SensorErrors, SimResult
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
     RealTimePacer,
@@ -146,6 +148,54 @@ def _parse_args() -> argparse.Namespace:
         "wrong wall.",
     )
     parser.add_argument(
+        "--place-error",
+        type=float,
+        default=0.0,
+        metavar="CM",
+        help="Withhold the exact starting pose: seed the estimator this far (cm, random "
+        "bearing) from where the chassis actually is, as a hand placement in the "
+        "starting zone would. Implies --localize.",
+    )
+    parser.add_argument(
+        "--yaw-bias",
+        type=float,
+        default=0.0,
+        metavar="DEG",
+        help="Constant offset between the IMU's yaw zero and the world frame. Never "
+        "corrected — nothing else observes absolute heading. Implies --localize.",
+    )
+    parser.add_argument(
+        "--imu-drift",
+        type=float,
+        default=0.0,
+        metavar="DEG_PER_S",
+        help="IMU yaw drift rate, accumulated over the run. Implies --localize.",
+    )
+    parser.add_argument(
+        "--gyro-scale",
+        type=float,
+        default=0.0,
+        metavar="PCT",
+        help="Gyro scale-factor error as a percentage (e.g. 0.5). Accumulates per degree "
+        "turned rather than per second, so it grows with corners driven. Implies --localize.",
+    )
+    parser.add_argument(
+        "--recover",
+        action="store_true",
+        help="Make walls solid and let the robot escape from contact instead of ending "
+        "the run at the first touch. The chassis is held where it is rather than "
+        "passing through, so the navigator's reversing escape has to actually free "
+        "it; the run ends only if it stays pinned for --contact-grace seconds.",
+    )
+    parser.add_argument(
+        "--contact-grace",
+        type=float,
+        default=5.0,
+        metavar="SEC",
+        help="With --recover, how long the robot may stay pinned before the run is "
+        "called a failure (default: 5).",
+    )
+    parser.add_argument(
         "--metadata-file",
         metavar="PATH",
         help="Run a *_metadata.json file directly (e.g. from `simgen generate`) "
@@ -176,35 +226,66 @@ def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], tra
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _RunOptions:
+    """Everything the CLI can vary about how a scenario is driven."""
+
+    rate: float = 1.0
+    localize: bool = False
+    blind: bool = False
+    errors: SensorErrors | None = None
+    recover: bool = False
+    contact_grace_s: float = 5.0
+
+    @classmethod
+    def from_args(cls, args: argparse.Namespace) -> _RunOptions:
+        return cls(
+            rate=args.rate,
+            localize=args.localize,
+            blind=args.blind,
+            errors=SensorErrors(
+                start_pos_error_m=args.place_error / 100.0,
+                yaw_bias_rad=math.radians(args.yaw_bias),
+                imu_drift_rad_per_s=math.radians(args.imu_drift),
+                gyro_scale_error=args.gyro_scale / 100.0,
+            ),
+            recover=args.recover,
+            contact_grace_s=args.contact_grace,
+        )
+
+
 def _run_one(
     scenario: NamedScenario,
     visualizer: LiveScenarioVisualizer,
-    rate: float,
-    localize: bool = False,
-    blind: bool = False,
+    opts: _RunOptions,
 ) -> SimResult:
     """Run a single named scenario against the live visualizer."""
     sim = ScenarioSimulator(
         scenario.metadata,
         num_laps=scenario.laps,
         seed=scenario.seed,
-        use_lidar_localization=localize,
-        blind=blind,
+        use_lidar_localization=opts.localize,
+        blind=opts.blind,
+        sensor_errors=opts.errors,
+        solid_walls=opts.recover,
     )
     _set_track(visualizer, scenario.metadata, sim.track)
-    pacer = RealTimePacer(dt=CONTROL_DT, rate=rate)
+    pacer = RealTimePacer(dt=CONTROL_DT, rate=opts.rate)
 
     def on_step(state: AckermannState, scan: LidarScan | None) -> None:
         visualizer.publish(state, scan)
         pacer.wait()
 
-    return sim.run(on_step=on_step)
+    return sim.run(
+        on_step=on_step,
+        contact_grace_s=opts.contact_grace_s if opts.recover else None,
+    )
 
 
 def _log_result(label: str, result: SimResult) -> None:
     status = "SUCCESS" if result.success else "FAILED"
     logger.info(
-        "%s | %s | laps=%d/%d collided=%s timeout=%s dist=%.2fm t=%.1fs",
+        "%s | %s | laps=%d/%d collided=%s timeout=%s dist=%.2fm t=%.1fs contacts=%d (%.1fs)",
         status,
         label,
         result.laps_completed,
@@ -213,22 +294,19 @@ def _log_result(label: str, result: SimResult) -> None:
         result.timed_out,
         result.distance_m,
         result.sim_time_s,
+        result.contact_count,
+        result.contact_time_s,
     )
 
 
-def _run_and_visualize(
-    scenario: NamedScenario,
-    rate: float,
-    localize: bool = False,
-    blind: bool = False,
-) -> None:
+def _run_and_visualize(scenario: NamedScenario, opts: _RunOptions) -> None:
     scenario_track = _track_for(scenario.metadata)
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
         "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` in another terminal to watch.",
     )
-    result = _run_one(scenario, visualizer, rate, localize, blind)
+    result = _run_one(scenario, visualizer, opts)
     _log_result(scenario.label, result)
     visualizer.destroy_node()
 
@@ -237,6 +315,7 @@ def main() -> None:
     """Entry point for `python -m src.simulation.visualize_scenario`."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = _parse_args()
+    opts = _RunOptions.from_args(args)
 
     if args.list:
         for i, s in enumerate(_catalog(args.challenge)):
@@ -258,7 +337,7 @@ def main() -> None:
         try:
             for i, scenario in enumerate(scenarios):
                 logger.info("--- [%d/%d] %s ---", i + 1, len(scenarios), scenario.label)
-                result = _run_one(scenario, visualizer, args.rate, args.localize, args.blind)
+                result = _run_one(scenario, visualizer, opts)
                 _log_result(scenario.label, result)
                 if i < len(scenarios) - 1:
                     input("Press Enter for the next scenario (Ctrl+C to stop)... ")
@@ -271,12 +350,12 @@ def main() -> None:
         path = Path(args.metadata_file)
         metadata = json.loads(path.read_text())
         scenario = NamedScenario(label=path.name, metadata=metadata, laps=args.laps, seed=0)
-        _run_and_visualize(scenario, args.rate, args.localize, args.blind)
+        _run_and_visualize(scenario, opts)
         return
 
     if args.scenario is not None:
         scenario = find_scenario(args.scenario, _catalog(args.challenge))
-        _run_and_visualize(scenario, args.rate, args.localize, args.blind)
+        _run_and_visualize(scenario, opts)
         return
 
     widths = uniform_widths(_WIDE_MM)
@@ -284,27 +363,10 @@ def main() -> None:
     section = Section.from_string(args.section)
     direction = Direction.CLOCKWISE if args.direction == "cw" else Direction.COUNTERCLOCKWISE
     metadata = build_open_metadata(widths, section, direction)
-    sim = ScenarioSimulator(
-        metadata,
-        num_laps=args.laps,
-        use_lidar_localization=args.localize,
-        blind=args.blind,
+    _run_and_visualize(
+        NamedScenario(label="ad-hoc", metadata=metadata, laps=args.laps, seed=0),
+        opts,
     )
-
-    visualizer = LiveScenarioVisualizer(sim.track)
-    pacer = RealTimePacer(dt=CONTROL_DT, rate=args.rate)
-
-    def on_step(state: AckermannState, scan: LidarScan | None) -> None:
-        visualizer.publish(state, scan)
-        pacer.wait()
-
-    logger.info(
-        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` "
-        "in another terminal to watch (displays pre-configured).",
-    )
-    result = sim.run(on_step=on_step)
-    _log_result("ad-hoc", result)
-    visualizer.destroy_node()
 
 
 if __name__ == "__main__":

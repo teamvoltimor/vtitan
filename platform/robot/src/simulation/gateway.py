@@ -25,7 +25,7 @@ import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import Detection, IMUReading, Pose, ScenarioMetadata
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import CorridorWidthEstimator, section_from_heading
@@ -37,7 +37,7 @@ from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
-from src.simulation.track_model import TrackModel, obstacles_from_metadata
+from src.simulation.track_model import ContactSurface, TrackModel, obstacles_from_metadata
 from src.simulation.vision_emulator import emulate_sign_detections
 from src.state_machine.estimator import StateEstimator
 
@@ -53,6 +53,96 @@ starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake."
 
 START_COLLISION_GRACE_S = 15.0
 """How long a starting-position collision streak may continue before it's a real failure."""
+
+TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
+    ScenarioType.OPEN: frozenset({ContactSurface.OUTER_WALL}),
+    ScenarioType.OBSTACLES: frozenset({ContactSurface.INNER_WALL, ContactSurface.OBSTACLE}),
+}
+"""Which contacts end a run, per challenge.
+
+Each challenge forbids one wall: the Open Challenge the *outer* one, the
+Obstacles Challenge the *inner* one. Contact with the other wall is still
+recorded in ``SimResult.contact_count`` but does not end the run, so a scrape
+the robot drives out of no longer scores the same as failing to complete.
+
+Obstacles are grouped with the inner wall rather than given a rule of their
+own: knocking a traffic sign or parking block over is a scored failure and only
+exists in the Obstacles Challenge. The user's rule covers walls, so this half
+is an assumption -- if a sign is meant to be a survivable penalty instead, this
+is the one line to change.
+"""
+
+
+def _wrap_angle(angle: float) -> float:
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+
+@dataclass(frozen=True, slots=True)
+class SensorErrors:
+    """Imperfections in what the robot knows about itself, as opposed to the track.
+
+    The layout is withheld by ``blind``; this withholds the two things the sim
+    otherwise hands over for free about the *robot*:
+
+    Where it starts. The estimator is normally seeded with the exact pose the
+    body was placed at, which no operator can supply — the robot is set down
+    by hand somewhere inside a starting zone, not on a surveyed point. The
+    localizer can only correct that error by matching scans, so a bad seed is
+    a real search problem, not a bookkeeping one.
+
+    Which way it is pointing. IMU yaw is otherwise ground truth forever. A
+    BNO085 drifts, and blind mode leans on heading harder than anything else
+    does: ``corridor_estimator.section_from_heading`` attributes every width
+    reading by heading, so yaw error does not merely steer badly, it can
+    file a measurement under the wrong corridor.
+
+    All heading error is modelled on the *reading*, never as a one-off seed of
+    the estimator. The estimator takes yaw from the IMU on every update, so a
+    seeded yaw offset would be overwritten on the first tick and measure
+    nothing. That is also the physical truth: the BNO085's yaw zero is fixed at
+    boot, so a chassis set down askew is wrong by that angle for the whole
+    round rather than converging out of it.
+
+    All values are magnitudes; the sign and bearing are drawn from the run's
+    seeded RNG, so a scenario perturbs the same way every time it is run while
+    different scenarios perturb differently.
+
+    Attributes:
+        start_pos_error_m: Distance between where the body is and where the
+            estimator is told it is (random bearing). The localizer can work
+            this off by matching scans; it is a search problem, not a fixed
+            handicap.
+        yaw_bias_rad: Constant offset between the IMU's yaw zero and the world
+            frame -- the chassis set down askew, or the IMU zeroed askew.
+            Never corrected, because nothing else observes absolute heading.
+        imu_drift_rad_per_s: Yaw drift rate accumulated over elapsed time
+            (random sign). This is the BNO085's quoted 0.5 deg/min figure.
+        gyro_scale_error: Fractional error in how much rotation the gyro
+            reports, e.g. ``0.005`` for 0.5%. Accumulates per *degree turned*
+            rather than per second, which is why it is modelled separately from
+            drift: a lap-driving robot turns 12 corners of 90 degrees in three
+            laps, so it banks over 1080 degrees of deliberate rotation and the
+            error scales with the course rather than the clock. A robot vacuum
+            wanders and largely cancels this out; this one does not.
+        imu_noise_rad: Per-reading Gaussian yaw noise.
+    """
+
+    start_pos_error_m: float = 0.0
+    yaw_bias_rad: float = 0.0
+    imu_drift_rad_per_s: float = 0.0
+    gyro_scale_error: float = 0.0
+    imu_noise_rad: float = 0.0
+
+    @property
+    def any_error(self) -> bool:
+        """True if this configures any perturbation at all."""
+        return bool(
+            self.start_pos_error_m
+            or self.yaw_bias_rad
+            or self.imu_drift_rad_per_s
+            or self.gyro_scale_error
+            or self.imu_noise_rad,
+        )
 
 
 class SimulatedHardwareGateway:
@@ -73,8 +163,17 @@ class SimulatedHardwareGateway:
         rng: np.random.Generator | None = None,
         signs: list[SignSpec] | None = None,
         localize: bool = False,
+        sensor_errors: SensorErrors | None = None,
+        solid_walls: bool = False,
+        solid_surfaces: frozenset[ContactSurface] | None = None,
     ) -> None:
         self._track = track
+        # Which surfaces physically stop the chassis. ``solid_walls`` makes all
+        # of them solid; ``solid_surfaces`` names a subset, which is how a
+        # surface that no longer ends the run is kept from being driven through.
+        self._solid_surfaces = (
+            frozenset(ContactSurface) - {ContactSurface.NONE} if solid_walls else (solid_surfaces or frozenset())
+        )
         self._state = initial_state
         self._kin = kinematics or AckermannKinematics()
         self._rng = rng or np.random.default_rng(0)
@@ -91,13 +190,46 @@ class SimulatedHardwareGateway:
         # from the previous estimate. Off by default so the existing battery
         # keeps its perfect-odometry control condition.
         self._localize = localize
-        self._estimator = StateEstimator(initial_state.x, initial_state.y, initial_state.yaw)
+        self._errors = sensor_errors or SensorErrors()
+        # A stream of its own, spawned from the run seed. Drawing these from
+        # ``_rng`` would shift the LIDAR noise sequence and silently change every
+        # existing result, including the unperturbed control runs.
+        self._error_rng = np.random.default_rng(self._rng.bit_generator.seed_seq.spawn(1)[0])
+        # Both signs are fixed per run, not re-rolled per tick: a gyro bias is a
+        # constant, and a sign that wandered would average itself out and
+        # understate the damage.
+        self._drift_sign = float(self._error_rng.choice([-1.0, 1.0]))
+        self._bias_sign = float(self._error_rng.choice([-1.0, 1.0]))
+        self._scale_sign = float(self._error_rng.choice([-1.0, 1.0]))
+        self._elapsed_s = 0.0
+        # Signed rotation the body has actually turned through, unwrapped, so
+        # three laps of one-way cornering accumulate rather than cancel.
+        self._rotation_rad = 0.0
+        self._prev_true_yaw = initial_state.yaw
+        # Seed the estimator where the robot *thinks* it was placed. Offset at a
+        # random bearing so the error is not systematically along-track (which
+        # the localizer finds far easier to correct than a lateral one).
+        seed_bearing = float(self._error_rng.uniform(-math.pi, math.pi))
+        self._estimator = StateEstimator(
+            initial_state.x + self._errors.start_pos_error_m * math.cos(seed_bearing),
+            initial_state.y + self._errors.start_pos_error_m * math.sin(seed_bearing),
+            self._imu_yaw(),
+        )
         self._localizer = LidarLocalizer(track.walls) if localize else None
         self._believed_walls: TrackWalls | None = None
 
         self._command = DriveCommand(speed_mps=0.0, steering_norm=0.0)
         self._scan_ranges: list[float] = []
         self.collided = False
+        self.contact_surface = ContactSurface.NONE
+        """Which surface the chassis is against this tick, blocked or penetrating."""
+        self.blocked = False
+        """Last :meth:`advance` was refused because it would have entered a wall.
+
+        Only ever True with ``solid_walls``, and it — not ``collided`` — is the
+        contact signal in that mode: a refused move leaves the chassis at its
+        last legal pose, which by construction is *not* penetrating, so
+        ``collided`` stays False however hard the robot pushes."""
         self.collision_xy: tuple[float, float] | None = None
         self._refresh_sensors()
 
@@ -153,8 +285,43 @@ class SimulatedHardwareGateway:
         return LidarScan(ranges_m=tuple(self._scan_ranges), angles_rad=tuple(self._angles_list))
 
     def get_imu_reading(self) -> IMUReading | None:
-        """Return the IMU yaw from ground truth (pitch/roll are zero on a flat mat)."""
-        return IMUReading(yaw=self._state.yaw, pitch=0.0, roll=0.0)
+        """Return the IMU yaw (pitch/roll are zero on a flat mat).
+
+        Ground truth unless ``SensorErrors`` configures drift or noise.
+        """
+        return IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0)
+
+    def _imu_yaw(self) -> float:
+        """Heading as the IMU reports it: truth plus accumulated drift and noise.
+
+        Every consumer must go through here rather than reading ``state.yaw``,
+        or the robot would navigate on a corrupted heading while some other
+        part of the loop quietly used the true one.
+        """
+        errors = self._errors
+        yaw = (
+            self._state.yaw
+            + self._bias_sign * errors.yaw_bias_rad
+            + self._drift_sign * errors.imu_drift_rad_per_s * self._elapsed_s
+            + self._scale_sign * errors.gyro_scale_error * self._rotation_rad
+        )
+        if errors.imu_noise_rad > 0.0:
+            yaw += float(self._error_rng.normal(0.0, errors.imu_noise_rad))
+        return yaw
+
+    @property
+    def heading_error_rad(self) -> float:
+        """Signed difference between the IMU heading and ground truth."""
+        return _wrap_angle(self._imu_yaw() - self._state.yaw)
+
+    @property
+    def rotation_rad(self) -> float:
+        """Signed rotation the body has turned through since the run started.
+
+        Unwrapped, so three laps of one-way cornering accumulate. This is the
+        quantity a gyro scale-factor error multiplies.
+        """
+        return self._rotation_rad
 
     def get_vision_detections(self) -> list[Detection]:
         """Return synthetic detections for ``signs``, or ``[]`` if none were provided."""
@@ -180,17 +347,37 @@ class SimulatedHardwareGateway:
         grace), not something the gateway itself should decide by freezing
         the flag the instant contact first occurs.
         """
-        self._state = self._kin.step(
+        self._elapsed_s += dt
+        candidate = self._kin.step(
             self._state,
             target_speed=self._command.speed_mps,
             target_steer_norm=self._command.steering_norm,
             dt=dt,
         )
-        self.collided = self._track.footprint_collides(
-            self._state.x,
-            self._state.y,
-            self._state.yaw,
-        )
+        # With solid walls a move that would put the chassis inside one is
+        # refused outright and the body stops where it is, so driving into a
+        # wall makes no progress and only a move that clears the wall is
+        # allowed through. That is what makes reversing out a real escape
+        # rather than a cosmetic one: without it the chassis passes straight
+        # through and "recovered" would mean "drove through the wall".
+        blocked_surface = self._track.contact_surface(candidate.x, candidate.y, candidate.yaw)
+        if blocked_surface in self._solid_surfaces:
+            self._state = replace(self._state, v=0.0)
+            self.blocked = True
+        else:
+            self._state = candidate
+            self.blocked = False
+            blocked_surface = ContactSurface.NONE
+        # Unwrapped so a lap's worth of same-sign cornering adds up instead of
+        # wrapping back to zero at +/-pi.
+        self._rotation_rad += _wrap_angle(self._state.yaw - self._prev_true_yaw)
+        self._prev_true_yaw = self._state.yaw
+
+        settled = self._track.contact_surface(self._state.x, self._state.y, self._state.yaw)
+        # With solid walls the refused move names the surface, since the pose
+        # actually held is by construction clear of it.
+        self.contact_surface = settled if settled is not ContactSurface.NONE else blocked_surface
+        self.collided = settled is not ContactSurface.NONE
         if self.collided:
             self.collision_xy = (self._state.x, self._state.y)
         self._refresh_sensors()
@@ -227,7 +414,7 @@ class SimulatedHardwareGateway:
         # Same order as the node's LIDAR callback: fuse heading first (the
         # localizer takes yaw as given), then search for the position that best
         # explains this sweep, seeded from the previous estimate.
-        self._estimator.update_imu(IMUReading(yaw=self._state.yaw, pitch=0.0, roll=0.0))
+        self._estimator.update_imu(IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0))
         prior = self._estimator.estimate_pose()
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
@@ -269,6 +456,19 @@ class SimResult:
     min_lidar_range_m: float
     collision_xy: tuple[float, float] | None
     final_pose: tuple[float, float, float]
+    contact_count: int = 0
+    """Distinct wall-contact episodes, whether or not any was terminal.
+
+    Always recorded, so a run that recovers from contact is not scored as if
+    it never touched anything — under ``contact_grace_s`` this is the number
+    that stands in for a penalty."""
+
+    contact_time_s: float = 0.0
+    """Total time spent in contact with a run-ending surface."""
+
+    terminal_surface: ContactSurface = ContactSurface.NONE
+    """Which surface ended the run, or ``NONE`` if contact did not end it."""
+
     lap_step_indices: list[int] = field(default_factory=list)
     parked: bool | None = None
     """``None`` when the scenario has no parking lot; else whether parking finished cleanly
@@ -290,6 +490,69 @@ class PoseDisturbance:
 
     lateral_m: float
     heading_rad: float = 0.0
+
+
+class _ContactTracker:
+    """Decides when a wall-contact streak stops being survivable and ends the run.
+
+    Two policies. By default contact is terminal on the first tick, except
+    within the opening seconds, where a legal starting position may already sit
+    against a wall and the robot is allowed a grace period to steer clear.
+    Setting ``grace_s`` switches to treating contact as recoverable everywhere:
+    a streak ends the run only if the robot cannot free itself in time, which
+    is the only policy under which the navigator's reversing escape is
+    observable at all.
+    """
+
+    def __init__(
+        self,
+        dt: float,
+        start_window_s: float,
+        start_grace_s: float,
+        grace_s: float | None,
+        forbidden: frozenset[ContactSurface],
+    ) -> None:
+        self._dt = dt
+        self._start_window_s = start_window_s
+        self._start_grace_s = start_grace_s
+        self._grace_s = grace_s
+        self._forbidden = forbidden
+        self._streak_start_step: int | None = None
+        self._in_contact = False
+        self.count = 0
+        self.time_s = 0.0
+        self.surface = ContactSurface.NONE
+        """The surface that ended the run, once :meth:`update` has returned True."""
+
+    def update(self, step: int, surface: ContactSurface) -> bool:
+        """Fold in one tick's contact; return True if the run should end.
+
+        Every contact counts toward :attr:`count`, but only a forbidden surface
+        can end the run or accrue :attr:`time_s` — touching the wall this
+        challenge permits is recorded, not punished.
+        """
+        touching = surface is not ContactSurface.NONE
+        if touching and not self._in_contact:
+            self.count += 1
+        self._in_contact = touching
+
+        if surface not in self._forbidden:
+            self._streak_start_step = None
+            return False
+
+        if self._streak_start_step is None:
+            self._streak_start_step = step
+        self.time_s += self._dt
+        streak_s = (step - self._streak_start_step) * self._dt
+
+        if self._grace_s is not None:
+            ended = streak_s >= self._grace_s
+        else:
+            began_at_start = (self._streak_start_step - 1) * self._dt <= self._start_window_s
+            ended = not began_at_start or streak_s >= self._start_grace_s
+        if ended:
+            self.surface = surface
+        return ended
 
 
 @dataclass(frozen=True, slots=True)
@@ -332,11 +595,17 @@ class ScenarioSimulator:
     estimates the real widths from LIDAR as it drives, replanning whenever an
     estimate changes. The metadata is then used only to build the physical
     track the robot is driving on, never to tell it anything.
+
+    ``blind`` covers what the robot knows about the *track*. ``sensor_errors``
+    covers what it knows about *itself* — where it was placed and which way it
+    is pointing — which the sim otherwise supplies exactly. See
+    :class:`SensorErrors`; it implies ``use_lidar_localization`` for the same
+    reason ``blind`` does.
     """
 
     def __init__(
         self,
-        metadata: dict[str, Any],
+        metadata: ScenarioMetadata | dict[str, Any],
         num_laps: int = 3,
         tuning: NavigationTuning | None = None,
         lidar_noise_std: float = RobotSpecs.LIDAR_NOISE_STDDEV,
@@ -345,17 +614,27 @@ class ScenarioSimulator:
         emit_vision_detections: bool = False,
         use_lidar_localization: bool = False,
         blind: bool = False,
+        sensor_errors: SensorErrors | None = None,
+        solid_walls: bool = False,
     ) -> None:
+        if isinstance(metadata, dict):
+            metadata = ScenarioMetadata.model_validate(metadata)
         self._metadata = metadata
         self._num_laps = num_laps
         # Blind mode implies LIDAR localization: navigating on ground-truth
         # pose while pretending not to know the layout would be incoherent.
         self._blind = blind
-        use_lidar_localization = use_lidar_localization or blind
+        # Sensor error is only observable through the estimate, so it implies
+        # localization for the same reason blind mode does: on ground-truth pose
+        # a mis-seeded estimator is never consulted and the run is unaffected.
+        self._errors = sensor_errors or SensorErrors()
+        use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
-        widths = corridor_widths_from_metadata(metadata)
+        widths = corridor_widths_from_metadata(metadata.model_dump())
         start = _start_conditions(metadata)
-        is_open_challenge = metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
+        challenge = metadata.challenge_type
+        is_open_challenge = challenge == ScenarioType.OPEN
+        self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
         # Both challenges run the same tuning. An Obstacles-specific profile
         # (shorter lookahead + capped top speed) used to be applied here; it was
         # removed once re-measurement showed it changed nothing — see the note in
@@ -364,7 +643,7 @@ class ScenarioSimulator:
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
-        self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata))
+        self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata.model_dump()))
 
         # What the robot is allowed to believe about the layout. Sighted runs
         # get the truth (as the ROS2 node does, from its metadata file); blind
@@ -379,7 +658,7 @@ class ScenarioSimulator:
         # navigator's waypoint-wrap + LapDetector lap counting.
         self._waypoints = self._plan(believed)
 
-        signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata)
+        signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
 
         self._gateway = SimulatedHardwareGateway(
             track=self._track,
@@ -389,6 +668,14 @@ class ScenarioSimulator:
             rng=np.random.default_rng(seed),
             signs=signs if emit_vision_detections else None,
             localize=use_lidar_localization,
+            sensor_errors=self._errors,
+            solid_walls=solid_walls,
+            # A surface that no longer ends the run has to stop the chassis
+            # instead, or the robot simply drives through the inner block and
+            # goes on counting laps. Nothing enforced this before because every
+            # contact was terminal on the tick it happened, so a pass-through
+            # could never be observed.
+            solid_surfaces=frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces,
         )
         if blind:
             self._gateway.set_believed_walls(TrackWalls(believed))
@@ -405,7 +692,7 @@ class ScenarioSimulator:
 
         self._park_controller: ParkController | None = None
         if not is_open_challenge:
-            self._park_controller = park_controller_from_metadata(metadata, start.section, start.direction)
+            self._park_controller = park_controller_from_metadata(metadata.model_dump(), start.section, start.direction)
 
         self._navigator = CoreNavigator(
             gateway=self._gateway,
@@ -419,7 +706,7 @@ class ScenarioSimulator:
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on."""
-        planning_metadata = dict(self._metadata)
+        planning_metadata = self._metadata.model_dump()
         planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
             section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
         }
@@ -484,6 +771,7 @@ class ScenarioSimulator:
         disturbance: PoseDisturbance | None = None,
         start_collision_window_s: float = START_COLLISION_WINDOW_S,
         start_collision_grace_s: float = START_COLLISION_GRACE_S,
+        contact_grace_s: float | None = None,
     ) -> SimResult:
         """Run the control loop until all laps finish, a wall is hit, or timeout.
 
@@ -508,6 +796,17 @@ class ScenarioSimulator:
             start_collision_grace_s: How long a start-window collision streak
                 may continue before it's judged a real, terminal failure
                 rather than "still working on steering clear."
+            contact_grace_s: Opt in to treating wall contact as *recoverable*
+                anywhere in the run, not only at the start. A streak then ends
+                the run only if the robot fails to free itself within this many
+                seconds; brief contact it escapes from is recorded in
+                ``contact_count`` instead. Touching a wall does not end a real
+                round, and the navigator already has a reversing escape, but
+                the default policy breaks the loop on the first contacting tick
+                so that escape can never be observed. Only meaningful with
+                ``solid_walls`` — otherwise the chassis passes through the wall
+                and "recovery" measures nothing. ``None`` keeps the strict
+                policy, under which every prior pass rate was measured.
 
         Returns:
             A populated :class:`SimResult`.
@@ -522,8 +821,14 @@ class ScenarioSimulator:
         min_range = math.inf
         prev_laps = 0
         lap_steps: list[int] = []
-        collision_streak_start_step: int | None = None
         terminal_collision = False
+        contacts = _ContactTracker(
+            dt=dt,
+            start_window_s=start_collision_window_s,
+            start_grace_s=start_collision_grace_s,
+            grace_s=contact_grace_s,
+            forbidden=self._terminal_surfaces,
+        )
 
         step = 0
         while step < max_steps:
@@ -552,16 +857,10 @@ class ScenarioSimulator:
                 lap_steps.append(step)
                 prev_laps = nav.laps_completed
 
-            if gw.collided:
-                if collision_streak_start_step is None:
-                    collision_streak_start_step = step
-                streak_started_at_start = (collision_streak_start_step - 1) * dt <= start_collision_window_s
-                streak_duration_s = (step - collision_streak_start_step) * dt
-                if not streak_started_at_start or streak_duration_s >= start_collision_grace_s:
-                    terminal_collision = True
-                    break
-            else:
-                collision_streak_start_step = None
+            surface = gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE
+            if contacts.update(step, surface):
+                terminal_collision = True
+                break
 
             if nav.laps_completed >= self._num_laps and (
                 self._park_controller is None or self._park_controller.is_done
@@ -583,23 +882,25 @@ class ScenarioSimulator:
             avg_speed_mps=(speed_sum / step) if step else 0.0,
             min_lidar_range_m=(min_range if math.isfinite(min_range) else 0.0),
             collision_xy=gw.collision_xy,
+            contact_count=contacts.count,
+            contact_time_s=contacts.time_s,
+            terminal_surface=contacts.surface,
             parked=parked,
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
         )
 
 
-def _start_conditions(metadata: dict[str, Any]) -> _StartConditions:
-    sc = metadata[DictKeys.STARTING_CONDITIONS]
-    pos = sc[DictKeys.POSITION]
+def _start_conditions(metadata: ScenarioMetadata) -> _StartConditions:
+    sc = metadata.starting_conditions
     # Whole-number JSON metadata values parse as Python int, not float. Coerce here so a
     # downstream int never reaches a ROS message field, where CDR serialization would
     # corrupt it (bit-reinterpreted as float64 instead of converted — see live_visualizer's
     # _sign_marker for the same class of bug with sign/parking coordinates).
     return _StartConditions(
-        section=Section.from_string(sc[DictKeys.SECTION]),
-        direction=Direction.from_string(sc[DictKeys.DIRECTION]),
-        x=float(pos[DictKeys.X]),
-        y=float(pos[DictKeys.Y]),
-        yaw=float(sc[DictKeys.YAW]),
+        section=Section.from_string(sc.section),
+        direction=Direction.from_string(sc.direction),
+        x=float(sc.position.x),
+        y=float(sc.position.y),
+        yaw=float(sc.yaw),
     )

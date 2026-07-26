@@ -16,13 +16,20 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
     python scripts/diag_localization.py open
     python scripts/diag_localization.py obstacles
+    python scripts/diag_localization.py blind
+    python scripts/diag_localization.py perturbed --sweep all
+
+``perturbed`` goes furthest: blind to the track *and* unsure of its own pose,
+which is the only configuration that matches what the robot faces on the mat.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 
@@ -32,7 +39,7 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.gateway import ScenarioSimulator, SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios, all_test_scenarios
 
@@ -156,6 +163,194 @@ def report_blind(workers: int) -> None:
             )
 
 
+@dataclass(frozen=True, slots=True)
+class _PerturbedRun:
+    """One blind fixture run under a given sensor-error configuration."""
+
+    label: str
+    passed: bool
+    laps: int
+    collided: bool
+    layout_ok: bool
+    peak_pos_err: float
+    final_pos_err: float
+    peak_heading_err: float
+
+
+def _run_perturbed(args: tuple[int, SensorErrors]) -> _PerturbedRun:
+    """One blind fixture, with the robot also unsure where it is and where it points."""
+    index, errors = args
+    scenario = all_test_scenarios()[index]
+    true_widths = corridor_widths_from_metadata(scenario.metadata)
+    sim = ScenarioSimulator(
+        scenario.metadata,
+        num_laps=scenario.laps,
+        seed=scenario.seed,
+        blind=True,
+        sensor_errors=errors,
+    )
+    peak_pos = [0.0]
+    peak_yaw = [0.0]
+
+    def on_step(_state: object, _scan: object) -> None:
+        peak_pos[0] = max(peak_pos[0], sim.gateway.position_error_m)
+        peak_yaw[0] = max(peak_yaw[0], abs(sim.gateway.heading_error_rad))
+
+    result = sim.run(on_step=on_step)
+    believed = sim.believed_widths or {}
+    layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_widths.items())
+    return _PerturbedRun(
+        label=scenario.label,
+        passed=result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S,
+        laps=result.laps_completed,
+        collided=result.collided,
+        layout_ok=layout_ok,
+        peak_pos_err=peak_pos[0],
+        final_pos_err=sim.gateway.position_error_m,
+        peak_heading_err=peak_yaw[0],
+    )
+
+
+def _deg(degrees: float) -> float:
+    return math.radians(degrees)
+
+
+# One axis at a time, so a drop is attributable. The combined rows are the ones
+# that matter for a hardware prediction -- the errors are simultaneous on the mat.
+_SWEEPS: dict[str, list[tuple[str, SensorErrors]]] = {
+    "placement": [
+        ("exact placement", SensorErrors()),
+        ("placement 2cm", SensorErrors(start_pos_error_m=0.02)),
+        ("placement 5cm", SensorErrors(start_pos_error_m=0.05)),
+        ("placement 10cm", SensorErrors(start_pos_error_m=0.10)),
+        ("placement 20cm", SensorErrors(start_pos_error_m=0.20)),
+    ],
+    "heading": [
+        ("exact heading", SensorErrors()),
+        ("yaw bias 2deg", SensorErrors(yaw_bias_rad=_deg(2))),
+        ("yaw bias 5deg", SensorErrors(yaw_bias_rad=_deg(5))),
+        ("yaw bias 10deg", SensorErrors(yaw_bias_rad=_deg(10))),
+    ],
+    "drift": [
+        ("perfect IMU", SensorErrors()),
+        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.1))),
+        ("drift 0.25deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.25))),
+        ("drift 0.5deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.5))),
+        ("drift 1.0deg/s", SensorErrors(imu_drift_rad_per_s=_deg(1.0))),
+    ],
+    # 0.1 deg/s already scores 6/28, so the usable ceiling is somewhere below
+    # it and the coarse ladder never sampled that range. These are the values
+    # a BNO085 spec sheet actually lives at.
+    "drift-fine": [
+        ("perfect IMU", SensorErrors()),
+        ("drift 0.01deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.01))),
+        ("drift 0.02deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.02))),
+        ("drift 0.03deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.03))),
+        ("drift 0.05deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.05))),
+        ("drift 0.07deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.07))),
+        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.1))),
+    ],
+    # Gyro scale-factor error: accumulates per degree turned, not per second.
+    # Three laps is 12 corners of 90 degrees, so >1080 deg of deliberate
+    # rotation is banked before steering corrections. Reported BNO08x behaviour
+    # is ~1-2 deg per full revolution (~0.3-0.6%), which is anecdotal rather
+    # than a datasheet figure -- hence the spread either side of it.
+    "scale": [
+        ("perfect gyro", SensorErrors()),
+        ("scale 0.1%", SensorErrors(gyro_scale_error=0.001)),
+        ("scale 0.25%", SensorErrors(gyro_scale_error=0.0025)),
+        ("scale 0.5%", SensorErrors(gyro_scale_error=0.005)),
+        ("scale 1.0%", SensorErrors(gyro_scale_error=0.01)),
+        ("scale 2.0%", SensorErrors(gyro_scale_error=0.02)),
+    ],
+    "noise": [
+        ("clean IMU", SensorErrors()),
+        ("yaw noise 0.5deg", SensorErrors(imu_noise_rad=_deg(0.5))),
+        ("yaw noise 1deg", SensorErrors(imu_noise_rad=_deg(1.0))),
+        ("yaw noise 2deg", SensorErrors(imu_noise_rad=_deg(2.0))),
+    ],
+    # Anchored on the BNO085 in UART-RVC mode: 6-axis fusion, so the drift term
+    # is the datasheet's 0.5 deg/min (0.0083 deg/s) rather than a guess, and the
+    # bias term is placement error, since RVC yaw is relative to power-on with
+    # no absolute reference to correct it.
+    "combined": [
+        ("ideal", SensorErrors()),
+        (
+            "bno085 at spec",
+            SensorErrors(
+                start_pos_error_m=0.02,
+                yaw_bias_rad=_deg(2),
+                imu_drift_rad_per_s=_deg(0.0083),
+                gyro_scale_error=0.0025,
+                imu_noise_rad=_deg(0.5),
+            ),
+        ),
+        (
+            "realistic",
+            SensorErrors(
+                start_pos_error_m=0.05,
+                yaw_bias_rad=_deg(3),
+                imu_drift_rad_per_s=_deg(0.02),
+                gyro_scale_error=0.005,
+                imu_noise_rad=_deg(1.0),
+            ),
+        ),
+        (
+            "pessimistic",
+            SensorErrors(
+                start_pos_error_m=0.10,
+                yaw_bias_rad=_deg(5),
+                imu_drift_rad_per_s=_deg(0.05),
+                gyro_scale_error=0.01,
+                imu_noise_rad=_deg(2.0),
+            ),
+        ),
+    ],
+}
+
+
+def report_perturbed(workers: int, sweep: str, verbose: bool) -> None:
+    """Blind navigation when the robot is also unsure of its own pose.
+
+    ``blind`` withholds the track. This withholds the robot's own starting pose
+    and lets its heading drift, which is the harder of the two for blind mode:
+    width readings are attributed to a corridor by heading, so yaw error can
+    file a measurement under the wrong corridor entirely.
+    """
+    count = len(all_test_scenarios())
+    names = list(_SWEEPS) if sweep == "all" else [sweep]
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for name in names:
+            print(f"\n== {name.upper()} ==  ({count} blind Open Challenge fixtures)", flush=True)
+            print(
+                f"{'configuration':<22} {'pass':>7} {'layout':>7} {'collide':>8} "
+                f"{'peak_pos':>9} {'final_pos':>10} {'peak_yaw':>9}",
+                flush=True,
+            )
+            for label, errors in _SWEEPS[name]:
+                runs = list(pool.map(_run_perturbed, [(i, errors) for i in range(count)]))
+                passed = sum(1 for r in runs if r.passed)
+                layout = sum(1 for r in runs if r.layout_ok)
+                collided = sum(1 for r in runs if r.collided)
+                print(
+                    f"{label:<22} {f'{passed}/{count}':>7} {f'{layout}/{count}':>7} "
+                    f"{f'{collided}/{count}':>8} "
+                    f"{max(r.peak_pos_err for r in runs) * 100:8.1f}cm "
+                    f"{max(r.final_pos_err for r in runs) * 100:9.1f}cm "
+                    f"{math.degrees(max(r.peak_heading_err for r in runs)):8.1f}d",
+                    flush=True,
+                )
+                if verbose:
+                    for r in runs:
+                        if not (r.passed and r.layout_ok):
+                            print(
+                                f"     {r.label:<32} pass={r.passed} laps={r.laps}/3 "
+                                f"collided={r.collided} layout_ok={r.layout_ok} "
+                                f"pos_err={r.peak_pos_err * 100:.1f}cm",
+                                flush=True,
+                            )
+
+
 def _run_open_fixture(args: tuple[int, bool]) -> tuple[str, bool, int, bool, float]:
     index, localize = args
     scenario = all_test_scenarios()[index]
@@ -208,8 +403,19 @@ def report_open_fixtures(workers: int) -> None:
 def main() -> None:
     """Run the requested comparison."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["open", "obstacles", "open-fixtures", "blind"])
+    parser.add_argument("mode", choices=["open", "obstacles", "open-fixtures", "blind", "perturbed"])
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument(
+        "--sweep",
+        choices=[*_SWEEPS, "all"],
+        default="combined",
+        help="Which error axis to sweep in 'perturbed' mode (default: combined).",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="List the individual failing fixtures under each configuration.",
+    )
     args = parser.parse_args()
     if args.mode == "open":
         report_open(args.workers)
@@ -217,6 +423,8 @@ def main() -> None:
         report_open_fixtures(args.workers)
     elif args.mode == "blind":
         report_blind(args.workers)
+    elif args.mode == "perturbed":
+        report_perturbed(args.workers, args.sweep, args.verbose)
     else:
         report_obstacles(args.workers)
 
