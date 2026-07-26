@@ -5,9 +5,24 @@ measured, and the robot-side code path now consumes it: the blocking items
 below are **done**. What remains needs the Pi, plus deployment of the artifact
 itself.
 
-Done — output parsing, input dtype, class ordering, and the model path
-(`iter_nms_by_class`, `preprocess`, `GMR_CLASS_NAMES`, `HAILO_MODEL_PATH`).
-Outstanding — items 4, 5, 8, 10, 11 below.
+**Deployed and verified on the Pi 5, 2026-07-26.** The detector runs on the
+Hailo-8 and publishes correct colours on `/vision/detections`. Deploy with
+`bash scripts/deploy-to-pi5.sh`; verify with `scripts/diag_hailo_detector.py`
+(direct, needs the NPU free) or `scripts/diag_vision_topic.py` (through the
+running stack).
+
+Measured on device:
+
+| Check | Result |
+|---|---|
+| HEF throughput | 101.5 FPS (`hailortcli run`, 3 contexts) |
+| Runtime NMS layout | `list` of per-class `(n_boxes, 5)` arrays |
+| Channel order | **RGB**. BGR reads red as green or drops it entirely |
+| End-to-end colours | red 0.74 · green 0.94 · magenta 0.95 on known photographs |
+
+**The one thing still missing is the camera feed.** Nothing publishes
+`/camera/image_raw`, so the detector has no live input — see "No camera node"
+below. Everything above was verified by injecting frames onto that topic.
 
 Compile-side background lives in
 [`hailo/docs/hef-compile-runbook.md`](../../../hailo/docs/hef-compile-runbook.md).
@@ -77,6 +92,16 @@ used `@dataclass` without importing it (`NameError` at import), and constructed
 `SignDetection` — now a pydantic `BaseModel` — positionally (`TypeError` at
 runtime). Both fixed.
 
+### 1b. The published payload was not the one the navigator reads
+
+The vision node published `SignDetection.to_dict()` — `color`, `bbox`,
+`confidence`. The navigator's `_vision_callback` rebuilds a `Detection` from
+`class_name`, `x`, `y`, `width`, `height`, `area`, and `sign_router` keys colour
+confirmation off `class_name in (RED, GREEN)`. None of those keys were present,
+so every detection arrived with an empty `class_name` and a zero centroid, and
+colour confirmation could never fire — with no error anywhere. The node now
+publishes `asdict(d.to_detection())`, which is that schema.
+
 ### 2. The streaming path double-normalized
 
 `platform/robot/src/hardware/hailo/streaming.py:33`
@@ -123,6 +148,26 @@ driver's fallback `class_map` is a copy of it, so the two cannot drift apart
 again. If `data_yaml_path` resolves to a real file it still wins, so a stale
 `data.yaml` deployed beside the HEF can still override it — ship one in *model*
 order or delete it.
+
+## No camera node — the remaining blocker
+
+`/camera/image_raw` has a subscriber (the vision node) and **no publisher**. The
+camera driver in `src/hardware/camera/` is a plain Python class with no ROS
+wrapper, and `rpi5_nodes.launch.py` starts no camera node, so on the real robot
+the detector never receives a frame. Until that bridge exists, obstacle
+navigation cannot use vision no matter how correct the detector is.
+
+The hardware itself is fine — `rpicam-hello --list-cameras` reports
+`imx708_wide` and `rpicam-still` captures at 1536×864 (specs in
+[robot-physical-constants.md](robot-physical-constants.md)). A test capture on
+2026-07-26 came back framed on the robot's own ribbon cable and badly out of
+focus at close range, so **check aim and obstruction** before reading anything
+into an empty detection list.
+
+Writing the node is small: capture with Picamera2, publish `sensor_msgs/Image`
+with encoding `rgb8` on `/camera/image_raw`. The vision node converts `bgr8` to
+RGB itself, so either encoding is safe as long as it is labelled honestly —
+mislabelling is the silent red/green swap again.
 
 ## Needs the Pi in front of you
 

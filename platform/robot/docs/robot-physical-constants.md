@@ -36,6 +36,23 @@ those, but the "update every file by hand" duplication problem itself is fixed.
 | Camera mount z-offset | 0.16 m | **estimate**, not measured |
 | Camera mount pitch | ~30° down | Magnitude is still an **estimate** ("like 30 degrees"), not precision-measured. Sign convention (positive = down) is confirmed correct — both by a rotation-matrix derivation (`R = Rz(yaw)·Ry(pitch)·Rx(roll)`, standard REP-103/tf2 convention) and visually, via the yellow direction-arrow marker added to `src/simulation/live_visualizer.py` and checked live in RViz 2026-07-11. |
 
+## Camera sensor
+
+Read off the device with `rpicam-hello --list-cameras` (2026-07-26), rather than
+from the datasheet, so it reflects what is actually fitted:
+
+| Property | Value |
+|---|---|
+| Sensor | `imx708_wide` — Camera Module 3 **Wide** |
+| Full resolution | 4608×2592, 10-bit RGGB |
+| Mode used by the detector | 1536×864 @ 120.13 fps (crop `(768,432)/3072×1728`) |
+| Other modes | 2304×1296 @ 56.03 fps · 4608×2592 @ 14.35 fps |
+| Horizontal FOV | 102° (Module 3 Wide spec; not measured on this build) |
+
+The detector's input is 640×640 letterboxed from whatever frame it is given, so
+capture resolution trades field detail against frame rate rather than changing
+what the model sees.
+
 ## Where each constant lives
 
 ### Source of truth

@@ -4,6 +4,7 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 """
 
 import json
+from dataclasses import asdict
 
 import numpy as np
 import rclpy
@@ -85,8 +86,12 @@ class VisionNode(Node):
             # Perform detection
             detections = self.detector.detect(img)
 
-            # Serialize and publish
-            data = [d.to_dict() for d in detections]
+            # Publish the shared-domain Detection, not SignDetection's compact
+            # form. The navigator rebuilds Detection from this payload and keys
+            # sign confirmation off class_name; to_dict() emits "color" and no
+            # centroid, so every field the navigator reads came back empty and
+            # colour confirmation silently never fired.
+            data = [asdict(d.to_detection()) for d in detections]
 
             out_msg = String()
             out_msg.data = json.dumps(data)
