@@ -45,6 +45,23 @@ class StateEstimator:
 
         self._relative_imu_yaw = wrap_angle(reading.yaw - self._imu_yaw_offset)
 
+    def reset_heading_reference(self) -> None:
+        """Re-zero the heading reference against the next IMU reading.
+
+        The BNO085 in UART-RVC mode reports yaw relative to power-on and has no
+        absolute reference, so the offset latched by the first reading is only
+        meaningful if the robot was already sitting on the track, aligned, when
+        the node started. It usually is not: the robot is powered up, carried to
+        the track and set down, which can rotate it arbitrarily -- easily 90 or
+        180 degrees, against a heading budget where 5 degrees already costs
+        real pass rate.
+
+        Call this at the moment the robot is known to be in its starting pose,
+        which is the start-button press. Everything before then is transport.
+        """
+        self._imu_yaw_offset = None
+        self._relative_imu_yaw = None
+
     def update_position(self, x: float, y: float) -> None:
         """Process an absolute world-frame position fix (from LIDAR localization)."""
         self._x = x

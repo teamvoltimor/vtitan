@@ -335,7 +335,13 @@ class TrackNavigator(Node):
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped")
         elif not was_racing and self._racing:
-            self.get_logger().info("Race started - navigator driving")
+            # Re-zero heading here, not at startup. RVC yaw is relative to
+            # power-on, and the robot is carried to the track after that, so the
+            # offset latched by the first IMU reading refers to whatever
+            # orientation it happened to be held in. This is the one instant the
+            # robot is known to be in its starting pose.
+            self._estimator.reset_heading_reference()
+            self.get_logger().info("Race started - heading reference zeroed, navigator driving")
 
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""
