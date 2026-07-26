@@ -18,6 +18,16 @@ def wrap_angle(angle: float) -> float:
     return math.remainder(angle, 2 * math.pi)
 
 
+YAW_CORRECTION_GAIN = 0.05
+"""Fraction of the wall-vs-IMU heading discrepancy absorbed per scan.
+
+At the C1's ~10 Hz that is a time constant near two seconds: fast enough to
+absorb gyro drift and scale error, which accumulate over a whole round, and
+slow enough that the wall estimate's own per-sample noise (measured 0.35 deg
+mean, 1.4 deg worst) is averaged away rather than steered on.
+"""
+
+
 class StateEstimator:
     """Combines IMU heading and LIDAR-fixed position into a world-frame Pose."""
 
@@ -37,6 +47,7 @@ class StateEstimator:
 
         self._x = start_x
         self._y = start_y
+        self._yaw_correction = 0.0
 
     def update_imu(self, reading: IMUReading) -> None:
         """Process incoming IMU orientation data."""
@@ -67,12 +78,34 @@ class StateEstimator:
         self._x = x
         self._y = y
 
+    def correct_yaw(self, measured_yaw: float, gain: float = YAW_CORRECTION_GAIN) -> None:
+        """Pull the heading estimate toward an absolute measurement of it.
+
+        A complementary filter, and the only thing that bounds heading. The IMU
+        supplies the high-frequency truth -- it is fast, smooth and locally
+        excellent -- but a 6-axis fusion with no magnetometer has no absolute
+        reference, so its error is a ramp. The walls supply the low-frequency
+        truth: noisier per sample, but it does not grow with time.
+
+        Applied as a slowly-moving offset rather than by overwriting yaw. A
+        hard assignment would inject the wall estimate's per-scan noise
+        straight into steering at 10 Hz, and discard the IMU's short-term
+        accuracy, which is the half of the pair worth keeping.
+
+        Args:
+            measured_yaw: Absolute yaw from
+                :func:`~src.navigation.wall_heading.estimate_yaw_from_walls`.
+            gain: Fraction of the discrepancy absorbed per correction.
+        """
+        error = wrap_angle(measured_yaw - self.estimate_pose().yaw)
+        self._yaw_correction = wrap_angle(self._yaw_correction + gain * error)
+
 
     def estimate_pose(self) -> Pose:
         """Calculate and return the current fused Pose in the world frame."""
         if self._relative_imu_yaw is not None:
-            world_yaw = wrap_angle(self._relative_imu_yaw + self._start_yaw)
+            world_yaw = wrap_angle(self._relative_imu_yaw + self._start_yaw + self._yaw_correction)
         else:
-            world_yaw = self._start_yaw
+            world_yaw = wrap_angle(self._start_yaw + self._yaw_correction)
 
         return Pose(x=self._x, y=self._y, yaw=world_yaw)

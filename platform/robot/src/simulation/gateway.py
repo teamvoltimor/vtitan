@@ -42,6 +42,7 @@ from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
+from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel, obstacles_from_metadata
 from src.simulation.vision_emulator import emulate_sign_detections
@@ -212,6 +213,7 @@ class SimulatedHardwareGateway:
         solid_surfaces: frozenset[ContactSurface] | None = None,
         lidar_hz: float = LIDAR_SCAN_HZ,
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
+        wall_heading: bool = True,
     ) -> None:
         self._track = track
         # Which surfaces physically stop the chassis. ``solid_walls`` makes all
@@ -269,6 +271,7 @@ class SimulatedHardwareGateway:
         self._localizer = LidarLocalizer(track.walls) if localize else None
         self._believed_walls: TrackWalls | None = None
 
+        self._wall_heading = wall_heading
         self._lidar_period_s = (1.0 / lidar_hz) if lidar_hz > 0 else 0.0
         self._lidar_invalid_rate = lidar_invalid_rate
         self._last_scan_s = 0.0
@@ -522,6 +525,16 @@ class SimulatedHardwareGateway:
         # control tick in ``advance``, not here -- the BNO085 runs an order of
         # magnitude faster than the LIDAR, so gating it on a scan would make
         # the sim's heading staler than the robot's.
+        # Correct heading against the walls before solving for position: the
+        # localizer takes yaw as given, so a better yaw makes a better fix.
+        # This is the only bound on heading -- the IMU has no absolute
+        # reference, so without it drift and scale error accumulate for the
+        # whole round.
+        if self._wall_heading:
+            measured = estimate_yaw_from_walls(self._scan_ranges, self._angles_list, prior_yaw=self._estimator.estimate_pose().yaw)
+            if measured is not None:
+                self._estimator.correct_yaw(measured)
+
         prior = self._estimator.estimate_pose()
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
@@ -726,6 +739,7 @@ class ScenarioSimulator:
         infer_direction: bool | None = None,
         lidar_hz: float = LIDAR_SCAN_HZ,
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
+        wall_heading: bool = True,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -807,6 +821,7 @@ class ScenarioSimulator:
             solid_surfaces=frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces,
             lidar_hz=lidar_hz,
             lidar_invalid_rate=lidar_invalid_rate,
+            wall_heading=wall_heading,
         )
         if blind:
             self._gateway.set_believed_walls(TrackWalls(believed))

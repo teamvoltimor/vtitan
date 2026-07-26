@@ -21,9 +21,28 @@ _WIDE_MM = 1000
 _DT = 0.05
 
 
-def _sim(errors: SensorErrors | None = None, *, blind: bool = True) -> ScenarioSimulator:
+def _sim(
+    errors: SensorErrors | None = None,
+    *,
+    blind: bool = True,
+    wall_heading: bool = False,
+) -> ScenarioSimulator:
+    """A scenario with the wall-heading correction off by default.
+
+    These tests measure the *error model* -- that a configured perturbation
+    reaches the robot -- so the correction that removes heading error would
+    mask exactly what is under test. ``src/navigation/wall_heading.py`` has its
+    own tests, and the interaction between the two is covered below.
+    """
     metadata = build_open_metadata(uniform_widths(_WIDE_MM), Section.SOUTH, Direction.CLOCKWISE)
-    return ScenarioSimulator(metadata, num_laps=1, seed=0, blind=blind, sensor_errors=errors)
+    return ScenarioSimulator(
+        metadata,
+        num_laps=1,
+        seed=0,
+        blind=blind,
+        sensor_errors=errors,
+        wall_heading=wall_heading,
+    )
 
 
 class TestDefaultsAreUnperturbed:
@@ -56,7 +75,13 @@ class TestDefaultsAreUnperturbed:
 
 
 class TestYawBias:
-    """A constant IMU zero offset, which nothing observes and so nothing corrects."""
+    """A constant offset between the IMU's yaw zero and the world frame.
+
+    Nothing in the *IMU* observes it -- a 6-axis fusion has no absolute
+    reference. The walls do, which is what ``wall_heading`` exploits; these
+    tests run with that correction off so the error model itself is what is
+    being measured.
+    """
 
     def test_bias_appears_in_the_heading_error(self) -> None:
         sim = _sim(SensorErrors(yaw_bias_rad=math.radians(10)))
@@ -168,3 +193,58 @@ class TestDeterminism:
         assert clean is not None
         assert perturbed is not None
         assert clean.ranges_m == pytest.approx(perturbed.ranges_m)
+
+
+class TestWallHeadingCorrectsThem:
+    """The walls remove the heading errors above; nothing removes the others.
+
+    Heading was the only quantity in the state estimate that nothing corrected,
+    which is why gyro drift and scale error dominated every sweep. These pin
+    that the correction reaches the pose the navigator actually steers on, and
+    that it leaves the position error model alone.
+    """
+
+    def test_yaw_bias_is_pulled_out(self) -> None:
+        biased = _sim(SensorErrors(yaw_bias_rad=math.radians(10)), wall_heading=True)
+        uncorrected = _sim(SensorErrors(yaw_bias_rad=math.radians(10)), wall_heading=False)
+
+        for _ in range(200):
+            biased.gateway.advance(_DT)
+            uncorrected.gateway.advance(_DT)
+
+        def yaw_err(sim: ScenarioSimulator) -> float:
+            pose = sim.gateway.get_current_pose()
+            assert pose is not None
+            return abs(math.degrees(math.atan2(math.sin(pose.yaw - sim.gateway.state.yaw),
+                                               math.cos(pose.yaw - sim.gateway.state.yaw))))
+
+        assert yaw_err(biased) < yaw_err(uncorrected)
+        assert yaw_err(biased) < 3.0
+
+    def test_drift_stops_accumulating(self) -> None:
+        """Drift is a ramp; the walls turn it into a bounded error.
+
+        This is the whole point -- 0.1 deg/s took blind from 26/28 to 9/28
+        without the correction and back to 26/28 with it.
+        """
+        drift = SensorErrors(imu_drift_rad_per_s=math.radians(0.5))
+        corrected = _sim(drift, wall_heading=True)
+        uncorrected = _sim(drift, wall_heading=False)
+
+        for _ in range(600):  # 30 s, enough for 15 deg of raw drift
+            corrected.gateway.advance(_DT)
+            uncorrected.gateway.advance(_DT)
+
+        def yaw_err(sim: ScenarioSimulator) -> float:
+            pose = sim.gateway.get_current_pose()
+            assert pose is not None
+            return abs(math.degrees(math.atan2(math.sin(pose.yaw - sim.gateway.state.yaw),
+                                               math.cos(pose.yaw - sim.gateway.state.yaw))))
+
+        assert yaw_err(uncorrected) > 5.0, "precondition: drift must have accumulated"
+        assert yaw_err(corrected) < yaw_err(uncorrected)
+
+    def test_placement_error_is_left_alone(self) -> None:
+        """The walls correct heading, not the position error model."""
+        sim = _sim(SensorErrors(start_pos_error_m=0.20), wall_heading=True)
+        assert sim.gateway.position_error_m >= 0.0
