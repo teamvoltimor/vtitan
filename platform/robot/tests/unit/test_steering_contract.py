@@ -50,10 +50,12 @@ def test_out_of_range_is_clamped():
 
 def test_half_command_is_half_angle_not_half_radian():
     # Regression: the motor node treated 0.5 as 0.5 rad (~28.6 deg). The contract
-    # says 0.5 is half of max steering (~15 deg).
-    angle_deg = math.degrees(steering_norm_to_angle_rad(0.5, MAX))
-    assert angle_deg == pytest.approx(15.0, abs=0.5)
-    assert math.degrees(0.5) == pytest.approx(28.6, abs=0.5)  # the old buggy value
+    # says 0.5 is half of MAX -- expressed against MAX rather than a literal, since
+    # the literal silently pinned a stale 30 deg steering limit and had to be edited
+    # when the real ~70 deg lock was plumbed through.
+    angle = steering_norm_to_angle_rad(0.5, MAX)
+    assert angle == pytest.approx(MAX / 2)
+    assert angle != pytest.approx(0.5)  # the old buggy value: 0.5 read as radians
 
 
 @pytest.mark.parametrize("norm", [-1.0, -0.3, 0.0, 0.3, 1.0])

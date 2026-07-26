@@ -6,27 +6,156 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
-> **STALE — every measurement below predates `8eb3c38` ("model the chassis as
-> counter-phase four-wheel steer, not front-only").** They were taken against a
-> front-only bicycle model with roughly half the real robot's yaw authority
-> (min turn radius 0.329 m simulated vs 0.165 m actual). Treat the *reasoning*
-> as usable and every *number* as needing re-measurement.
->
-> First re-run after the 4WS change: collisions 7/16 -> 16/16, timeouts
-> 9/16 -> 0/16, laps>=1 still 0/16. The deadlocks turned into collisions; the
-> underlying failure did not move.
->
-> Specifically invalidated:
-> * `NavigationTuning.for_obstacles()` (lookahead 0.12/0.24 + 0.30 m/s) was
->   fitted to the old model. Re-sweeping lookahead 0.12/0.20/0.30/0.40 under 4WS
->   gives 15-16/16 collisions at every value — the profile no longer helps and
->   needs refitting from scratch.
-> * The `ARC_RADIUS` sweep was already void: 0.33 m was *at* the old model's
->   0.329 m limit, so it measured a physics wall. The real robot can run ~0.165 m
->   arcs, which is exactly the "clear the corner sooner" move ruled out there.
-> * The "tracking accuracy is the binding constraint" conclusion rests on a
->   0.117 m peak cross-track error produced by a robot that could not steer hard
->   enough to correct. Re-measure before trusting it.
+> **Everything below the "Re-measured under 4WS" section is the ORIGINAL log,
+> taken against a front-only bicycle model with roughly half the real robot's
+> yaw authority (min turn radius 0.329 m simulated vs 0.165 m actual).** It was
+> invalidated by `8eb3c38` ("model the chassis as counter-phase four-wheel
+> steer, not front-only") and again by `668e40a` (drive loop closed, sim speed
+> clamped to the measured 0.156 m/s ceiling). Treat its *reasoning* as usable
+> and every *number* in it as superseded by the section immediately below.
+
+## Re-measured under 4WS (the current numbers)
+
+All figures here are over the 16 Go-generated obstacles fixtures via
+`ScenarioSimulator(...).run()`, reported as collisions / laps>=1 / laps>=3 /
+timeouts together. Reproduce with `scripts/diag_sign_sweep.py` (see
+"Harnesses" at the end). Runs are deterministic: the same config repeated three
+times gives byte-identical counts.
+
+`success` is never the headline — it also requires `parked`, and parking is
+independently blocked by chassis-vs-pocket geometry, so it is 0/16 in every
+configuration ever tried. `laps>=3` is the driving-success metric.
+
+### The failure is entirely traffic signs, and the path tracker is fine
+
+Making each obstacle class non-physical in turn isolates the cause completely:
+
+| Physical objects | Collisions | laps>=1 | laps>=3 | Timeouts |
+|---|---|---|---|---|
+| signs + parking (default) | 16/16 (2 wall, 14 sign) | 0/16 | 0/16 | 0/16 |
+| parking only | **0/16** | **16/16** | **16/16** | 0/16 |
+| signs only | 16/16 (2 wall, 14 sign) | 0/16 | 0/16 | 0/16 |
+| neither | **0/16** | **16/16** | **16/16** | 0/16 |
+
+**Parking blocks are never hit.** Remove the signs and all 16 fixtures drive
+three clean laps on the identical corridor layout, start pose and lap count.
+Even the two "wall" collisions are sign-induced — they vanish with the signs.
+
+### Cross-track error — the old headline conclusion is dead
+
+Measured as point-to-*segment* distance from the chassis to its own planned
+path (nearest-*waypoint* distance overstates it by up to half the waypoint
+spacing), on the clean runs above:
+
+| | Old model | **Under 4WS** |
+|---|---|---|
+| median | 4.7 cm | **1.7 cm** |
+| p90 | 8.4 cm | **5.1 cm** |
+| max | 11.7 cm | **8.6 cm** |
+
+p90 is now inside the ±6.7 cm slack the outer-lane squeeze allows, and the
+16/16 clean three-lap result is direct proof the tracker can hold its line.
+**"Tracking accuracy is the binding constraint" no longer holds** in the form
+stated below. Tracking *lag against a freshly-deformed target* still matters —
+see the mechanism section — but that is a different claim from raw path
+accuracy, and it is not fixed by making the tracker more accurate.
+
+### Every tuning knob is flat
+
+Each swept independently, all 16 fixtures, collisions shown:
+
+| Knob | Values swept | Result |
+|---|---|---|
+| `ARC_RADIUS` | 0.20 0.25 0.30 0.35 0.40 0.45 | 16/16 at every value |
+| lookahead (short/long=2x) | 0.10 0.12 0.16 0.20 0.30 0.40 | 16/16 at every value |
+| `lateral_offset` | 0.20 0.22 0.24 0.26 0.28 0.30 | 15-16/16 at every value |
+| `_DEFORM_DEPTH_BUFFER` | 0.30 0.45 0.60 0.80 1.00 | 16/16 at every value |
+| `lidar_sees_obstacles` | True / False | 16/16 either way |
+
+`laps>=3` is 0/16 throughout. Two notes:
+
+* **The `ARC_RADIUS` re-sweep was the one the old log could not do** — 0.33 m
+  was *at* the old model's 0.329 m limit, so it measured a physics wall. The
+  real robot runs 0.165 m arcs. Tightening the arc to 0.20 m is now feasible
+  and still does nothing, so "clear the corner sooner, gain runway" is
+  genuinely ruled out rather than merely untested.
+* **Shortening the lookahead is actively harmful**, not neutral: wall
+  collisions go 2 -> 4 -> 8 as it drops 0.20 -> 0.12 -> 0.10. It converts sign
+  contacts into wall contacts.
+
+### The sign router is inert
+
+| Configuration | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| physical signs, router on | 16/16 (16 sign) | 0/16 | 0/16 |
+| physical signs, router **off** (`lateral_offset=0`) | 16/16 (16 sign) | 0/16 | 0/16 |
+| ghost signs (routed around, non-collidable), router on | 0/16 | 16/16 | 16/16 |
+
+Turning avoidance off changes nothing. And the ghost-sign row is not a success:
+with nothing able to stop it the robot simply *drives through* the signs, which
+is what the router is supposed to prevent. Whatever the router computes is not
+reaching the trajectory in a useful amount.
+
+### Why: three shortfalls compound at the moment of the pass
+
+Traced tick-by-tick on `go_obstacles_0004` past its red sign at (2.40, 1.00),
+grid depth 1.0 in the east corridor — i.e. right at the corner exit
+(`scripts/diag_sign_trace.py 4 --around-sign 2`). The chassis needs its centre
+≥ 0.205 m from the sign centre while turning (half-*diagonal* 0.180 + sign half
+0.025); it achieves **0.105 m**. The deficit is three separate things, and no
+single one of them explains it:
+
+1. **`lateral_offset` is derived from the chassis half-*width*.**
+   `_SIGN_LATERAL_OFFSET = WIDTH/2 + sign_half + margin` = 0.10 + 0.025 + 0.075
+   = 0.20. That is the correct figure for a robot travelling *parallel* to the
+   corridor. A robot mid-turn presents its corner, reaching 0.180 m — so 0.20 m
+   is ~8 cm short exactly at corner-adjacent signs. **This is the same bug
+   already fixed in `_WALL_CLEARANCE` by `47827ca` and never fixed here.**
+2. **The taper removes another ~2.8 cm at the worst moment.** At the traced
+   tick `taper = 1 - 0.166/1.20 = 0.862`, so the commanded offset is 0.172, not
+   0.200.
+3. **The commanded offset is reached one lookahead too late.** The deformation
+   is applied to the *lookahead target*, which sits ~0.25 m ahead. The robot
+   converges onto the offset line at the target's location, not its own: at the
+   traced tick the target line is at x=2.572 while the chassis is at x=2.505.
+   The bearing error to that target is only 2.4°, so the P-on-bearing law
+   commands almost no correction — it is already pointed at it. Depth-1.5 signs
+   have enough straight runway for this to converge, which is exactly why they
+   never fail; depth-1.0/2.0 signs do not.
+
+This is why every knob above is flat. Fixing any one shortfall leaves the other
+two, and the total deficit (~0.10 m) is larger than any single one.
+
+The escape maneuver then fires at 0.199 m and thrashes the chassis
+forward/reverse into the sign — but that is a *consequence*, not the cause:
+with signs invisible to LIDAR (no escape trigger at all) the result is
+unchanged at 16/16.
+
+### Sign depth confirms the mechanism
+
+Every collision, attributed to the specific sign hit
+(`scripts/diag_sign_hits.py`):
+
+```
+depth 1.00: 8      depth 1.50: 0      depth 2.00: 8
+```
+
+16/16, all on a corner boundary, none mid-corridor — the original log's central
+observation, re-confirmed exactly. Two-thirds of legal WRO sign positions sit
+on a corner boundary.
+
+### What this means for the next attempt
+
+The trajectory has to be laterally displaced *before* the corner, and hold that
+displacement through the arc. Note the ordering: fixing shortfall 1 alone
+(sizing the offset on the half-diagonal) was swept above as `lateral_offset`
+0.20→0.30 and did nothing, because shortfalls 2 and 3 still apply. A change has
+to address the lag as well, which means the offset has to be a function of
+where the *robot* is, not where its lookahead target is.
+
+---
+
+## Original log (superseded — kept for the reasoning and the rejected list)
 
 ## The problem
 
@@ -165,6 +294,14 @@ mid-maneuver is therefore ~0.205m, not the 0.125m a straight side-pass needs.
 Required accuracy (<6.7cm) is tighter than actual (11.7cm). That is the whole
 problem. It is not offset, not speed, not planning.
 
+> **SUPERSEDED.** Under 4WS the same measurement gives median 1.7 cm / p90
+> 5.1 cm / max 8.6 cm, and the robot completes 16/16 three-lap runs on these
+> layouts once the signs are removed. Raw path-tracking accuracy is no longer
+> the binding constraint. What survives is a *related but different* claim: the
+> robot lags the sign router's freshly-deformed target by ~6.7 cm, because the
+> deformation is applied a lookahead ahead of the chassis. See "Why: three
+> shortfalls compound at the moment of the pass" at the top.
+
 ## Best configuration found — lookahead tuning
 
 Shortening lookahead is the tightest-tracking knob and the single biggest
@@ -193,6 +330,16 @@ Combined with the speed cap, which only pays off once the lookahead is short:
 whenever the challenge is obstacles and no explicit tuning is passed. This keeps
 one steering law for both challenges and expresses the difference as tuning,
 rather than forking the shared `CoreNavigator`.
+
+> **REVERTED.** Re-measured under 4WS, both halves of this profile are inert.
+> The speed cap cannot do anything at all: `668e40a` clamps the simulated
+> drivetrain to its measured 0.156 m/s ceiling, so FAST_SPEED 0.30 and 0.50
+> saturate to the same value — the "lower top speed buys steering travel"
+> argument above never applied once the drive loop was closed. The lookahead
+> change measures 16/16 collisions at every value from 0.10 to 0.40 and
+> actively converts sign hits into wall hits below 0.16. The profile and its
+> `ScenarioSimulator` wiring were removed; a comment where it used to live
+> records why, so it does not get re-added from this section.
 
 Note it is a typed factory, **not** a JSON profile: the existing
 `tuning_profiles/*.json` files cannot be loaded at all. They use lowercase keys
@@ -252,7 +399,11 @@ inner/outer-lane signs — `test_sign_router.py` expectations now mirror that.
   without the runtime router also active.
 - **Smaller corner arc radius**, to finish the turn earlier and buy straight
   runway before a corner-adjacent sign. `ARC_RADIUS` 0.45 (current) is already
-  best: 0.40 -> 13/16, 0.36 -> 10/16, 0.33 -> 12/16.
+  best: 0.40 -> 13/16, 0.36 -> 10/16, 0.33 -> 12/16. *(These numbers were void —
+  0.33 sat at the old model's 0.329 m minimum radius, so the sweep measured a
+  physics wall rather than the idea. Re-swept under 4WS down to 0.20 m, which is
+  comfortably feasible: flat 16/16 at every radius. The conclusion survives, for
+  a different reason.)*
 
 **Status: improved 16/16 -> 7/16 on collisions, not solved.** The remaining
 failures are still concentrated on corner-boundary signs (depth 1.0/2.0). Tuning
@@ -389,6 +540,12 @@ Closing this needs a genuinely better path tracker. The obvious candidate, true
 pure pursuit, is measured above: it regressed the Open Challenge and did not help
 here. That makes this a real piece of control work, not a tuning pass.
 
+> **The compounding argument still holds; its inputs do not.** Peak cross-track
+> error is 8.6 cm, not 11.7 cm, and the median is 1.7 cm — so a *better tracker*
+> is no longer the indicated fix. The per-sign budget is blown by the three
+> compounding shortfalls documented at the top (offset sized on half-width, the
+> taper, and lookahead lag), only the third of which is a tracking problem.
+
 ## Architectural context
 
 `CoreNavigator` is shared by both challenges; they diverge only by which
@@ -399,31 +556,57 @@ physical robot** — these are not simulation artifacts.
 
 ## Next steps
 
-Done: obstacles tuning profile (`NavigationTuning.for_obstacles()`, lookahead
-0.12/0.24 + 0.30 m/s) and the half-diagonal clamp.
+Done: the half-diagonal clamp (`47827ca`). The obstacles tuning profile is
+**reverted**, not done — see the REVERTED note above.
 
-1. **Corner-adjacent avoidance beginning *during* the preceding arc**, for the
-   depth-1.0/2.0 signs that straight-segment tuning cannot reach. This is the
-   actual blocker: the commanded trajectory aims into those signs, and every
-   downstream symptom (deadlock, collision) follows from that. Note path-level
-   deformation has already failed twice — a different approach is needed, not
-   another iteration of that one.
+1. **Make the commanded offset a function of the robot's own position, sized on
+   the chassis half-diagonal.** This is the actual blocker and it is three
+   defects, not one (see "Why: three shortfalls compound"). Any fix has to
+   close all three or it measures as flat, which is exactly what every sweep in
+   this document has done. In particular, do not re-try `lateral_offset` alone —
+   it is swept to 0.30 above and does nothing while the lag remains.
 2. Do NOT spend further effort on the escape/collision-controller conflict on its
-   own; it is measured above and fixing it in isolation yields success 0/16.
-   Revisit only once trajectories actually clear the signs.
-3. Only then revisit the steering law, with retuned lookahead and a plan for the
-   Open Challenge deviation-recovery regressions.
+   own. Confirmed again under 4WS: signs invisible to LIDAR (no escape trigger
+   at all) still gives 16/16. It is a consequence of aiming into the sign.
+3. Do not re-try arc radius, lookahead, or LIDAR visibility. All swept flat
+   under the current model.
+4. The steering law is worth revisiting only after 1, and only with an Open
+   Challenge regression gate — true pure pursuit regressed 3 deviation-recovery
+   tests when tried.
 
-Unrelated but adjacent, found while doing the above: `tuning_profiles/*.json`
-cannot be loaded at all (lowercase JSON keys vs uppercase dataclass fields), so
-every profile file in that directory is currently dead.
+Unrelated but adjacent: `tuning_profiles/*.json` is dead config. Confirmed by
+attempting every loader on every file — all three raise `TypeError` via both
+`load_from_json` and `load_from_yaml`, and the schema mismatch is structural
+(groups `heading_error`/`lookahead`/`collision`/`steering`/`stuck`/`vision`
+have no dataclass counterpart), not just key casing. Nothing references them;
+`node.py`'s `--tuning` defaults to unset.
 
 ## Measuring changes here
 
-Report **collisions, laps completed and timeouts together**. The
+Report **collisions, laps>=1, laps>=3 and timeouts together**. The
 `lidar_sees_obstacles` mistake above came from tracking collisions alone, which
 stayed flat while the actual behaviour inverted. A drop in collisions can simply
-mean the robot stopped moving.
+mean the robot stopped moving. Report the wall/sign/parking split too — the
+lookahead sweep looks flat on the total while silently trading sign contacts for
+wall contacts.
+
+Never read `success`: it also requires `parked`, which is blocked by chassis
+geometry, so it is 0/16 regardless of any driving change.
+
+## Harnesses
+
+Run from `platform/robot` with `PYTHONPATH=.` under `pixi run -e dev`.
+
+| Script | What it answers |
+|---|---|
+| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures for a swept parameter. Modes: `baseline` `lookahead` `arc` `offset` `buffer` `speed` `diagnose` `ghost` `lidar` `crosstrack` `profile`. `--verbose` adds per-scenario rows. |
+| `scripts/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
+| `scripts/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
+| `scripts/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |
+
+`diag_sign_sweep.py diagnose` is the one to run first on any change — it
+separates "the tracker broke" from "sign avoidance failed", which no aggregate
+collision count can do.
 
 ## Open questions
 

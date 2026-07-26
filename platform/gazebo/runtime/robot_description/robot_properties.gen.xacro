@@ -11,7 +11,7 @@
   <!-- Ackermann geometry -->
   <xacro:property name="wheelbase" value="0.19"/>
   <xacro:property name="track_width" value="0.1675"/>
-  <xacro:property name="max_steering_angle" value="0.5236"/>
+  <xacro:property name="max_steering_angle" value="1.2253"/>
 
   <!-- Wheel properties -->
   <xacro:property name="wheel_radius" value="0.035"/>

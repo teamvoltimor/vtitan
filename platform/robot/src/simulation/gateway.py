@@ -257,14 +257,11 @@ class ScenarioSimulator:
         widths = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
         is_open_challenge = metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
-        # Obstacles needs tighter path tracking than Open: the margin for
-        # threading past a sign is far smaller than the corridor the Open
-        # Challenge drives, so it defaults to the shorter-lookahead profile.
-        # An explicit `tuning` argument still wins.
-        if tuning is not None:
-            nav_tuning = tuning
-        else:
-            nav_tuning = NavigationTuning() if is_open_challenge else NavigationTuning.for_obstacles()
+        # Both challenges run the same tuning. An Obstacles-specific profile
+        # (shorter lookahead + capped top speed) used to be applied here; it was
+        # removed once re-measurement showed it changed nothing — see the note in
+        # ``NavigationTuning`` where ``for_obstacles()`` used to be.
+        nav_tuning = tuning if tuning is not None else NavigationTuning()
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.

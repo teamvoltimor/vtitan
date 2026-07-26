@@ -1,5 +1,5 @@
-# Single source of truth for the WRO robot's physical constants (LEGO Bugatti Bolide +
-# Ackermann steering). Measured 2026-07-11 — see platform/robot/docs/robot-physical-constants.md.
+# Single source of truth for the WRO robot's physical constants (custom chassis, counter-phase
+# four-wheel steering). Measured 2026-07-11 — see platform/robot/docs/robot-physical-constants.md.
 #
 # Edit this file, then regenerate every consumer with `task shared:gen-robot-constants`:
 #   - platform/gazebo/generator/internal/simconfig/robot_constants.gen.go
@@ -19,8 +19,17 @@ mass = 0.8
 wheelbase = 0.19
 # Left wheel to right wheel distance.
 track_width = 0.1675
-# ~30 degrees.
-max_steering_angle = 0.5236
+# ~70.2 degrees of ROAD-WHEEL angle at full lock. Not a free parameter: it is fixed by the
+# steering hardware, as MOTOR_STEERING__MAX_STEERING_ANGLE (90 servo degrees, the servo's
+# full travel at SERVO_RANGE_DEG=180 and a 500-2500us pulse span) times
+# MOTOR_STEERING__LINKAGE_RATIO (0.78 road-wheel degrees per servo degree). Both are measured
+# values in platform/robot/.env.example; change them there and this follows.
+#
+# Was 0.5236 (~30 deg), which understated the chassis by more than half. Since
+# ackermann_motor_node clamps against the SERVO limit, the navigator's own decode of
+# steering_norm through this constant was the binding limit -- a full-lock command reached
+# only 38.5 of the servo's 90 degrees and the clamp never fired to say so.
+max_steering_angle = 1.2253
 
 [wheel]
 radius = 0.035

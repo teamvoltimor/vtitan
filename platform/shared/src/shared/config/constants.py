@@ -164,7 +164,7 @@ class RobotSpecs:
     WHEELBASE: Final[float] = _gen.WHEELBASE  # 190mm axle-to-axle distance
     TRACK_WIDTH: Final[float] = _gen.TRACK_WIDTH  # 167.5mm wheel-to-wheel distance
     WHEEL_RADIUS: Final[float] = _gen.WHEEL_RADIUS  # 35mm (measured 70mm wheel diameter / 2)
-    MAX_STEERING_ANGLE: Final[float] = _gen.MAX_STEERING_ANGLE  # ~30 degrees max front wheel angle
+    MAX_STEERING_ANGLE: Final[float] = _gen.MAX_STEERING_ANGLE  # ~70.2 deg road-wheel angle at full lock
 
     # Wheel details (measured 2026-07-11)
     WHEEL_WIDTH: Final[float] = _gen.WHEEL_WIDTH  # 25mm

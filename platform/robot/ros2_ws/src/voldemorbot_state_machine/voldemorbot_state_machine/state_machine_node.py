@@ -398,7 +398,9 @@ class StateMachineNode(Node):
                 self.get_logger().warning(f"IMU not ready: {system_status.imu_status.error_message}")
             if not system_status.lidar_status.is_ready:
                 self.get_logger().warning(f"LiDAR not ready: {system_status.lidar_status.error_message}")
-            if not system_status.hailo_status.is_ready:
+            # Not warned about in the Open Challenge: vision is not required there,
+            # so warning would report a blocker that is not blocking anything.
+            if not system_status.hailo_status.is_ready and self.challenge_mode != ScenarioType.OPEN:
                 self.get_logger().warning(f"Hailo not ready: {system_status.hailo_status.error_message}")
             if not system_status.challenge_mode_status.is_ready:
                 self.get_logger().warning(
@@ -485,10 +487,19 @@ class StateMachineNode(Node):
         # Network status (non-blocking)
         network_status = self.ip_address if self.ip_fetch_complete else "FETCHING..."
 
+        # Vision is only needed to read traffic signs, which exist solely in the
+        # Obstacle Challenge -- the Open Challenge navigates on LIDAR alone. Gating
+        # it unconditionally meant an unloaded Hailo model blocked BOOT_CHECK for
+        # both challenges, so the robot could not race at all without vision.
+        # challenge_mode is latched earlier in BOOT_CHECK, so it is known here;
+        # while it is still None the challenge_mode_status term below keeps us
+        # waiting anyway, so treating vision as required until then is safe.
+        hailo_required = self.challenge_mode != ScenarioType.OPEN
+
         all_ready = (
             imu_ready
             and lidar_ready
-            and hailo_ready
+            and (hailo_ready or not hailo_required)
             and drive_status.is_ready
             and challenge_mode_status.is_ready
             and self.ip_fetch_complete

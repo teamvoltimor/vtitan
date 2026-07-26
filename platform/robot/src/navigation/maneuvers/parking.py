@@ -98,6 +98,24 @@ class ParkZone:
     wall_is_x: bool  # whether the field wall backing this lot runs along x (E/W sections)
     wall_coord: float  # the wall's coordinate on the axis normal to it
 
+    def project(self, x: float, y: float) -> tuple[float, float]:
+        """Split a world point into (along-wall, depth) coordinates for this lot.
+
+        Which world axis plays which role flips between the N/S and E/W corridors, and
+        getting it backwards silently swaps the bay's 0.43 m mouth for its 0.20 m depth.
+        Both guards below need the same split, so it is derived once here rather than
+        re-spelled at each use.
+        """
+        return (y, x) if self.wall_is_x else (x, y)
+
+    def bounds_along(self) -> tuple[float, float]:
+        """The lot's extent along the wall — i.e. between the two fins' inner faces."""
+        return (self.y_min, self.y_max) if self.wall_is_x else (self.x_min, self.x_max)
+
+    def bounds_depth(self) -> tuple[float, float]:
+        """The lot's extent out from the wall — i.e. the depth the fins span."""
+        return (self.x_min, self.x_max) if self.wall_is_x else (self.y_min, self.y_max)
+
 
 @dataclass
 class ParkCommand:
@@ -385,6 +403,12 @@ class ParkController:
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
 
+        if _footprint_breaches_markers(rx, ry, robot_yaw, z):
+            logger.warning("ParkController: giving up — footprint reached a marker fin without parking")
+            self._timed_out = True
+            self._phase = ParkPhase.DONE
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+
         return self._pursue_with_reposition(robot_pos, robot_yaw, (z.gap_cx, z.gap_cy), "enter")
 
 
@@ -563,6 +587,44 @@ def _footprint_breaches_wall(
     for cx, cy in _chassis_corners(rx, ry, robot_yaw):
         coord = cx if zone.wall_is_x else cy
         if abs(coord - zone.wall_coord) < _WALL_STANDOFF and _is_beyond_lot_centre(coord, zone):
+            return True
+    return False
+
+
+_MARKER_STANDOFF = 0.01
+"""Closest the chassis footprint may come to either marker fin's inner face.
+
+Much smaller than ``_WALL_STANDOFF`` because the budget is smaller: the mouth between the
+fins is ``BLOCK_SPACING_FACTOR`` x chassis length, leaving only ~6.5 cm of longitudinal
+clearance per end once a 0.30 m chassis is centred in it. A wall-sized 5 cm standoff would
+consume nearly all of that and abort approaches that are in fact clean, so this is sized to
+catch an actual graze rather than to reserve maneuvering room."""
+
+
+def _footprint_breaches_markers(
+    rx: float,
+    ry: float,
+    robot_yaw: float,
+    zone: ParkZone,
+) -> bool:
+    """Whether any chassis corner has come within ``_MARKER_STANDOFF`` of a marker fin.
+
+    The wall guard alone used to be sufficient by accident: with the steering limit modelled
+    at 30 deg the chassis could not turn tightly enough to swing a corner into a fin before
+    the wall stopped it. At the real ~70 deg lock (R_min 0.034 m rather than 0.165 m) ENTER's
+    pure pursuit of the lot centre turns hard enough to reach them, so the fins need the same
+    explicit give-up the wall has. Same priority as there: not colliding beats parking.
+
+    A fin flanks the lot along the wall and spans its full depth, so a corner is in fin
+    territory when it lies within the lot's depth band and at or past a fin's inner face.
+    """
+    depth_min, depth_max = zone.bounds_depth()
+    along_min, along_max = zone.bounds_along()
+    for cx, cy in _chassis_corners(rx, ry, robot_yaw):
+        along, depth = zone.project(cx, cy)
+        if not (depth_min - _MARKER_STANDOFF <= depth <= depth_max + _MARKER_STANDOFF):
+            continue  # out in the corridor, past the fins' ends — nothing to hit
+        if along <= along_min + _MARKER_STANDOFF or along >= along_max - _MARKER_STANDOFF:
             return True
     return False
 

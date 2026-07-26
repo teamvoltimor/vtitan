@@ -11,7 +11,7 @@ const (
 	RobotTrackWidth  = 0.1675
 	RobotWheelRadius = 0.035
 	RobotWheelWidth  = 0.025
-	RobotMaxSteering = 0.5236 // ~30°
+	RobotMaxSteering = 1.2253 // ~30°
 	RobotChassisMass = 0.8    // kg
 	RobotWheelMass   = 0.05   // kg per wheel
 

@@ -13,7 +13,7 @@ CHASSIS_MASS: Final[float] = 0.8
 # Ackermann geometry (meters, radians)
 WHEELBASE: Final[float] = 0.19
 TRACK_WIDTH: Final[float] = 0.1675
-MAX_STEERING_ANGLE: Final[float] = 0.5236
+MAX_STEERING_ANGLE: Final[float] = 1.2253
 
 # Wheel (meters, kg)
 WHEEL_RADIUS: Final[float] = 0.035

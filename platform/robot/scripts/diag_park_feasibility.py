@@ -118,7 +118,11 @@ def _simulate_two_arc(
 def report_search() -> None:
     """Brute-force two-arc reverse parallel-park search; report the least-protruding result."""
     print("\n=== Two-arc reverse parallel park: brute-force search ===\n")
-    print(f"R_min = {RobotSpecs.WHEELBASE / math.tan(RobotSpecs.MAX_STEERING_ANGLE):.3f} m")
+    # Counter-phase steering pivots about the chassis centre, so the turn reference length is
+    # WHEELBASE/2, not WHEELBASE -- the bicycle-model formula printed here previously reported
+    # twice the radius the trajectories below are actually flown at.
+    r_min = RobotSpecs.WHEELBASE / 2.0 / math.tan(RobotSpecs.MAX_STEERING_ANGLE)
+    print(f"R_min = {r_min:.3f} m (counter-phase 4WS, wheel lock {math.degrees(RobotSpecs.MAX_STEERING_ANGLE):.1f} deg)")
     print("searching lat0 x ahead x arc durations, both steer senses, under real Ackermann physics\n")
 
     best = None

@@ -226,42 +226,22 @@ class NavigationTuning:
         ("waypoints", WaypointParams),
     )
 
-    @classmethod
-    def for_obstacles(cls) -> NavigationTuning:
-        """Defaults retuned for the Obstacles Challenge.
-
-        Same navigator, same steering law — only the lookahead is shortened and
-        the top speed capped. Threading a 0.20 m-wide chassis past a traffic
-        sign in a 1.0 m corridor leaves roughly +-6.7 cm of slack, so
-        path-tracking error dominates whether the pass succeeds. A shorter
-        lookahead tracks the sign-router's lateral deformation far more tightly,
-        at the cost of some smoothness the Open Challenge would rather keep.
-
-        The two settings only work together. Speed alone changes nothing
-        (Ackermann turn radius is speed-independent), but once the lookahead is
-        short the steering-rate limit becomes the binding constraint, and a
-        lower top speed buys more steering travel per metre advanced. Measured
-        over the 16 obstacles fixtures:
-
-        * 0.20/0.40 lookahead, 0.5 m/s (defaults) - 16/16 collide
-        * 0.12/0.24 lookahead, 0.5 m/s            - 12/16 collide
-        * 0.12/0.24 lookahead, 0.30 m/s           -  9/16 collide
-
-        Lookahead has a broad optimum across 0.12-0.14; 0.10 over-tightens and
-        weaves. Raising ``SignRouterConfig.lateral_offset`` past 0.20 makes
-        things worse at any lookahead, trading sign contacts for wall contacts.
-
-        This does NOT solve sign avoidance — the remaining failures are signs on
-        a corner boundary, which need avoidance to begin during the preceding
-        arc. See ``platform/robot/docs/sign-avoidance-investigation.md`` for the
-        full measurement log and the approaches already ruled out.
-        """
-        base = cls()
-        return replace(
-            base,
-            pursuit=replace(base.pursuit, LOOKAHEAD_SHORT=0.12, LOOKAHEAD_LONG=0.24),
-            speed=replace(base.speed, FAST_SPEED=0.30),
-        )
+    # No ``for_obstacles()`` profile. One existed (lookahead 0.12/0.24 +
+    # FAST_SPEED 0.30) and was removed after re-measurement against the
+    # corrected four-wheel-steer kinematics (8eb3c38) and the closed drive loop
+    # (668e40a) showed both halves of it were inert:
+    #
+    # * The speed cap cannot do anything. ``AckermannKinematics`` clamps to the
+    #   measured 0.156 m/s drivetrain ceiling, so FAST_SPEED 0.30 and 0.50 both
+    #   saturate to the same 0.156 m/s. The profile's own justification — that a
+    #   lower top speed buys steering travel per metre — never applied.
+    # * The lookahead change does not help. Swept over the 16 obstacles
+    #   fixtures, collisions are 16/16 at every value from 0.10 to 0.40, and
+    #   shortening it past 0.16 actively converts sign contacts into wall
+    #   contacts (8 wall hits at 0.10/0.20 vs 2 at the 0.20/0.40 default).
+    #
+    # See ``platform/robot/docs/sign-avoidance-investigation.md``. Re-add a
+    # profile here only with a measurement that survives the current model.
 
     @classmethod
     def _from_mapping(cls, data: dict[str, Any]) -> NavigationTuning:
