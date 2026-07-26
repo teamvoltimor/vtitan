@@ -145,9 +145,12 @@ $ nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,no
 0, 657, 6141          # 10.7% -> rejected -> CUDA_VISIBLE_DEVICES=99 -> CPU
 ```
 
+Nothing about this is Windows-specific — any GPU also driving a display sits
+above the threshold — so both `task docker:run` and
+`task docker:run-compile-only` pass `--cuda-device 0`.
+
 The guard is the fix: setting `CUDA_VISIBLE_DEVICES` explicitly skips the
-selector. `task docker:run-compile-only` passes `--cuda-device 0` for this
-reason. Measured side by side in the same container:
+selector. Measured side by side in the same container:
 
 ```sh
 $ docker exec $C python -c "import hailo_model_optimization, os, tensorflow as tf; \
@@ -161,6 +164,20 @@ $ docker exec -e CUDA_VISIBLE_DEVICES=0 $C python -c "...same..."
 
 After a compile, confirm the level-0 warning is absent from the log — that, not
 the env var alone, is what proves the optimization actually ran.
+
+### Container flags appear to have no effect
+
+`docker run` reuses an existing container of the same name — it `docker start`s
+it rather than recreating it, so anything baked in at creation time (the GPU
+flags, `CUDA_VISIBLE_DEVICES`, the shared mount) keeps its old value however you
+change the command line. Symptom: `--cuda-device` is passed, yet the compile
+still reports level 0. Check what the container actually has, and recreate it if
+it disagrees:
+
+```sh
+docker exec $C sh -c 'echo $CUDA_VISIBLE_DEVICES'
+docker rm -f $C && task docker:run-compile-only
+```
 
 ### The image's driver pin rejects modern drivers
 

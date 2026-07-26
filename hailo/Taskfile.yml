@@ -133,7 +133,7 @@ tasks:
   docker:run:
     desc: 'Start the Hailo AI Software Suite Docker container'
     cmds:
-      - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --image {{.DOCKER_IMAGE}} --shared-dir {{.SHARED_DIR}} --display {{.DISPLAY}}
+      - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --image {{.DOCKER_IMAGE}} --shared-dir {{.SHARED_DIR}} --display {{.DISPLAY}} --cuda-device {{.CUDA_DEVICE}}
 
   docker:run-compile-only:
     desc: 'Start a minimal detached container (required on Docker Desktop/Windows)'
