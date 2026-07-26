@@ -128,9 +128,19 @@ class WaypointController:
     ) -> tuple[float, float]:
         """Compute steering angle and lookahead for next control step.
 
-        Uses pure pursuit: finds the intersection of circle centered at robot
-        position (with radius = lookahead distance) with the planned path,
-        then steers toward that intersection point.
+        NOT pure pursuit, despite the lookahead: this is a proportional
+        controller on heading error (``steer_kp * angle_error``), with no
+        vehicle geometry in it at all. The lookahead only selects *which*
+        waypoint to aim at, not the steering law. Real pure pursuit would
+        convert a curvature to a steering angle via the wheelbase, as
+        ``ParkController._pure_pursuit_steer`` does.
+
+        This matters when tuning: ``steer_kp`` has no physical units, so it
+        absorbs whatever the plant does. The simulation previously modelled
+        this chassis as a front-steer car when it actually steers both axles
+        in counter-phase (twice the yaw rate), so a gain tuned in sim is
+        hotter on hardware. Re-tune against the corrected kinematics rather
+        than reasoning from the old value.
 
         Args:
             current_pos: Robot position (x, y)

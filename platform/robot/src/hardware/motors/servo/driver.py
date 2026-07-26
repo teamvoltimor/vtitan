@@ -1,4 +1,12 @@
-"""RC servo steering driver (single servo, parallel/crab steering).
+"""RC servo steering driver (single servo, counter-phase four-wheel steering).
+
+One servo drives both axles through the linkage: the rear wheels turn by the
+same amount as the front but in the OPPOSITE direction (confirmed on hardware
+2026-07-25 -- this was previously documented as "parallel/crab steering",
+which is the opposite geometry). The consequence for anything reasoning about
+motion is that the chassis pivots about its centre, not the rear axle, and
+yaws twice as fast as a front-steer car at the same angle -- see
+src/simulation/kinematics.py.
 
 Implements the ``SteeringDriver`` port for a hobby RC servo driven by a 50 Hz
 PWM signal, using the kernel's **hardware** PWM peripheral via

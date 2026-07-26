@@ -1,4 +1,4 @@
-"""Ackermann bicycle-model kinematics for the headless car simulation.
+"""Counter-phase four-wheel-steer kinematics for the headless car simulation.
 
 Integrates the same motion a real LEGO Bugatti Bolide chassis produces from a
 ``(linear_speed, steering)`` command, honouring the physical limits the actual
@@ -10,13 +10,26 @@ hardware imposes:
   clamped to ``max_accel`` (m/s²), the physical acceleration limit of the drive motor.
 * **Steering limit** — front-wheel angle saturates at ``MAX_STEERING_ANGLE``.
 
-The bicycle model uses the rear-axle reference point::
+**Both axles steer, in opposite directions and by the same amount** -- confirmed
+on the real chassis 2026-07-25. That is not the textbook bicycle model, and the
+difference is not subtle: counter-phase steering moves the instantaneous centre
+of rotation from the rear axle to the chassis centre, so the robot yaws *twice
+as fast* as a front-steer car at the same steering angle::
 
     x += v * cos(yaw) * dt
     y += v * sin(yaw) * dt
-    yaw += (v / wheelbase) * tan(steer) * dt
+    yaw += (v / L_eff) * tan(steer) * dt      # L_eff = wheelbase / (1 + rear_ratio)
+
+With ``rear_steer_ratio = 1.0`` that is ``wheelbase / 2``. Modelling this as a
+front-steer car (the previous behaviour) made the simulation turn half as
+sharply as the hardware, so any gain tuned against it -- notably
+``WaypointController.steer_kp`` -- is hotter on the real robot than in sim.
 
 Integration is sub-stepped for accuracy at the 20 Hz control rate.
+
+Note the reference point: with symmetric counter-steer the body rotates about
+its own centre, so ``(x, y)`` tracks the chassis centre rather than the rear
+axle.
 """
 
 from __future__ import annotations
@@ -28,6 +41,14 @@ from shared.config.constants import RobotSpecs
 
 _DEFAULT_MAX_STEER_RATE = 2.0  # rad/s (NavigationTuning.pursuit.MAX_STEERING_RATE)
 _DEFAULT_MAX_ACCEL = 2.0  # m/s² (drive motor's physical acceleration limit)
+
+_DEFAULT_REAR_STEER_RATIO = 1.0
+"""Rear steering magnitude relative to the front, counter-phase.
+
+1.0 = rear wheels turn equally and oppositely to the front (confirmed on the
+real chassis 2026-07-25: both axles steer, at the same ratio, in opposite
+directions). 0.0 would be a conventional front-only car.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +63,7 @@ class AckermannState:
 
 
 class AckermannKinematics:
-    """Sub-stepped bicycle-model integrator with hardware rate limits."""
+    """Sub-stepped counter-phase four-wheel-steer integrator with hardware rate limits."""
 
     def __init__(
         self,
@@ -51,12 +72,19 @@ class AckermannKinematics:
         max_steer_rate: float = _DEFAULT_MAX_STEER_RATE,
         max_accel: float = _DEFAULT_MAX_ACCEL,
         substeps: int = 5,
+        rear_steer_ratio: float = _DEFAULT_REAR_STEER_RATIO,
     ) -> None:
         self._wheelbase = wheelbase
         self._max_steer = max_steer
         self._max_steer_rate = max_steer_rate
         self._max_accel = max_accel
         self._substeps = max(1, substeps)
+        self._rear_steer_ratio = rear_steer_ratio
+        # Effective turn length: the yaw rate is v/L_eff * tan(steer). Front-only
+        # steering pivots about the rear axle (L_eff = L); counter-phase steering
+        # with equal angles pivots about the chassis centre (L_eff = L/2), i.e.
+        # twice the yaw rate for the same steering angle.
+        self._turn_reference_len = wheelbase / (1.0 + abs(rear_steer_ratio))
 
     def step(
         self,
@@ -92,7 +120,7 @@ class AckermannKinematics:
 
             x += v * math.cos(yaw) * h
             y += v * math.sin(yaw) * h
-            yaw += (v / self._wheelbase) * math.tan(steer) * h
+            yaw += (v / self._turn_reference_len) * math.tan(steer) * h
 
         yaw = _wrap_angle(yaw)
         return replace(state, x=x, y=y, yaw=yaw, v=v, steer=steer)
