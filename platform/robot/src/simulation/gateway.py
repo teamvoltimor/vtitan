@@ -60,6 +60,30 @@ starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake."
 START_COLLISION_GRACE_S = 15.0
 """How long a starting-position collision streak may continue before it's a real failure."""
 
+LIDAR_SCAN_HZ = 10.0
+"""Sweep rate of the Slamtec C1, which is what the robot actually has.
+
+The simulator previously regenerated the scan on every control tick, so the
+navigator saw a fresh position fix at 20 Hz with no age. Real scans arrive at
+half that rate and asynchronously, so most control ticks act on a fix up to a
+scan period old -- during which the chassis has moved up to 1.6 cm at full
+speed. Pass rates measured against a perfectly fresh scan are optimistic by
+however much that staleness costs.
+
+Set to 0 to restore the old always-fresh behaviour.
+"""
+
+LIDAR_INVALID_RAY_RATE = 0.01
+"""Fraction of rays returning no measurement, as NaN/inf.
+
+Slamtec drivers emit these off dark or shallow-incidence surfaces, and
+``ROS2HardwareGateway._lidar_callback`` has always substituted max range for
+them -- a filter that had never seen a value it was written for, because this
+simulator only ever produced finite ranges. 1% is a placeholder: the real rate
+depends on the mat's surface and is worth measuring from a recorded bag rather
+than guessed at.
+"""
+
 TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
     ScenarioType.OPEN: frozenset({ContactSurface.OUTER_WALL}),
     ScenarioType.OBSTACLES: frozenset({ContactSurface.INNER_WALL, ContactSurface.OBSTACLE}),
@@ -81,6 +105,20 @@ is the one line to change.
 
 def _wrap_angle(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def _sanitize_ranges(ranges: np.ndarray) -> list[float]:
+    """Replace no-return rays with max range, exactly as the ROS2 node does.
+
+    Mirrors ``ROS2HardwareGateway._lidar_callback``: NaN silently drops out of
+    every downstream mask and inf reads as "far away", so both become max range
+    before the scan is handed to navigation. Duplicated here deliberately --
+    the point of emitting invalid returns in simulation is that navigation
+    receives the same *sanitised* scan it would on the robot, so the two paths
+    have to agree on what sanitised means.
+    """
+    cleaned = np.where(np.isfinite(ranges), ranges, RobotSpecs.LIDAR_MAX_RANGE)
+    return np.clip(cleaned, 0.0, RobotSpecs.LIDAR_MAX_RANGE).tolist()
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +210,8 @@ class SimulatedHardwareGateway:
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         solid_surfaces: frozenset[ContactSurface] | None = None,
+        lidar_hz: float = LIDAR_SCAN_HZ,
+        lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
     ) -> None:
         self._track = track
         # Which surfaces physically stop the chassis. ``solid_walls`` makes all
@@ -228,6 +268,10 @@ class SimulatedHardwareGateway:
         )
         self._localizer = LidarLocalizer(track.walls) if localize else None
         self._believed_walls: TrackWalls | None = None
+
+        self._lidar_period_s = (1.0 / lidar_hz) if lidar_hz > 0 else 0.0
+        self._lidar_invalid_rate = lidar_invalid_rate
+        self._last_scan_s = 0.0
 
         self._command = DriveCommand(speed_mps=0.0, steering_norm=0.0)
         self._scan_ranges: list[float] = []
@@ -421,7 +465,19 @@ class SimulatedHardwareGateway:
         self.collided = settled is not ContactSurface.NONE
         if self.collided:
             self.collision_xy = (self._state.x, self._state.y)
-        self._refresh_sensors()
+
+        # The IMU is fused every tick; the LIDAR only when a sweep completes.
+        # Real hardware runs them an order of magnitude apart -- BNO085 at
+        # 100 Hz against a C1 spinning near 10 Hz -- so with a 20 Hz control
+        # loop most ticks steer on a position fix that is up to a scan period
+        # old while the heading is current. Refreshing both every tick, as this
+        # did, gives the navigator a perfectly fresh position it will never
+        # have, and leaves no interval for wheel odometry to fill.
+        if self._localizer is not None:
+            self._estimator.update_imu(IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0))
+        if self._elapsed_s - self._last_scan_s >= self._lidar_period_s:
+            self._last_scan_s = self._elapsed_s
+            self._refresh_sensors()
 
     def apply_disturbance(self, lateral_m: float, heading_rad: float = 0.0) -> None:
         """Kick the body sideways and/or off-heading, e.g. to test recovery from drift.
@@ -447,15 +503,25 @@ class SimulatedHardwareGateway:
         if self._lidar_noise_std > 0.0:
             ranges = ranges + self._rng.normal(0.0, self._lidar_noise_std, ranges.shape)
             ranges = np.clip(ranges, RobotSpecs.LIDAR_MIN_RANGE, RobotSpecs.LIDAR_MAX_RANGE)
-        self._scan_ranges = ranges.tolist()
-        self._last_min_range = float(np.min(ranges))
+        if self._lidar_invalid_rate > 0.0:
+            # Slamtec drivers emit no-return rays as NaN/inf, most often off
+            # dark or shallow-incidence surfaces. ``_lidar_callback`` in the
+            # ROS2 node substitutes max range for them -- a filter that has
+            # never once seen a value it was written for, because this
+            # simulator produced only finite ranges.
+            invalid = self._rng.random(ranges.shape) < self._lidar_invalid_rate
+            ranges = np.where(invalid, np.inf, ranges)
+        self._scan_ranges = _sanitize_ranges(ranges)
+        self._last_min_range = min(self._scan_ranges)
 
         if self._localizer is None:
             return
-        # Same order as the node's LIDAR callback: fuse heading first (the
-        # localizer takes yaw as given), then search for the position that best
-        # explains this sweep, seeded from the previous estimate.
-        self._estimator.update_imu(IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0))
+        # Same order as the node's LIDAR callback: the localizer takes yaw as
+        # given, then searches for the position that best explains this sweep,
+        # seeded from the previous estimate. Heading itself is fused every
+        # control tick in ``advance``, not here -- the BNO085 runs an order of
+        # magnitude faster than the LIDAR, so gating it on a scan would make
+        # the sim's heading staler than the robot's.
         prior = self._estimator.estimate_pose()
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
@@ -658,6 +724,8 @@ class ScenarioSimulator:
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         infer_direction: bool | None = None,
+        lidar_hz: float = LIDAR_SCAN_HZ,
+        lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -737,6 +805,8 @@ class ScenarioSimulator:
             # contact was terminal on the tick it happened, so a pass-through
             # could never be observed.
             solid_surfaces=frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces,
+            lidar_hz=lidar_hz,
+            lidar_invalid_rate=lidar_invalid_rate,
         )
         if blind:
             self._gateway.set_believed_walls(TrackWalls(believed))
