@@ -62,6 +62,25 @@ margin absorbs the robot sitting off-centre and scanning slightly off-axis.
 _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
 """Beyond this off the corridor axis the side rays cut a diagonal and mean little."""
 
+_MIN_VALID_RANGE_M = 0.01
+"""Below this a return is the driver's invalid-reading sentinel, not a wall."""
+
+CORNER_CLEARANCE_M = 0.75
+"""Forward clearance below which the corridor is treated as ending.
+
+Shared with :mod:`src.navigation.corridor_follower`, which starts turning at
+the same point -- the corner rule below and the turn have to agree about when
+a corner has arrived, or the robot commits to a turn the estimator has not
+justified.
+"""
+
+_FORWARD_ARC_RAD_FWD = math.radians(8.0)
+"""Narrow, so the forward check sees ahead rather than the near side wall.
+
+In a 0.6 m corridor a ray 25 degrees off the nose already returns the side
+wall, which reads as an obstacle in front when the way ahead is clear.
+"""
+
 _MIN_ASYMMETRY_M = 0.30
 """How much further the open side must see than the closed one.
 
@@ -78,6 +97,15 @@ def _wrap(angle: float) -> float:
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
     index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
     return ranges_m[index]
+
+
+def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> float:
+    forward = [
+        r
+        for r, a in zip(ranges_m, angles_rad, strict=False)
+        if abs(_wrap(a)) <= _FORWARD_ARC_RAD_FWD and r > _MIN_VALID_RANGE_M
+    ]
+    return min(forward) if forward else math.inf
 
 
 def infer_direction(
@@ -108,15 +136,25 @@ def infer_direction(
 
     left_open = left > OPENING_RANGE_M
     right_open = right > OPENING_RANGE_M
-    if left_open == right_open:
-        # Neither has opened yet, or both have -- no evidence either way.
-        return None
-    if abs(left - right) < _MIN_ASYMMETRY_M:
-        return None
+    if left_open != right_open and abs(left - right) >= _MIN_ASYMMETRY_M:
+        # The inner block is on the side that opened, and the block's side is
+        # the rotational sense: block on the right means going clockwise.
+        return Direction.CLOCKWISE if right_open else Direction.COUNTERCLOCKWISE
 
-    # The inner block is on the side that opened, and the block's side is the
-    # rotational sense: block on the right means going clockwise.
-    return Direction.CLOCKWISE if right_open else Direction.COUNTERCLOCKWISE
+    # Corner rule. The absolute test above wants a side to see clear down the
+    # next corridor, which does not always happen before the wall ahead
+    # arrives: from far enough off-centre the block-side ray can clear the
+    # block and still land on the next corridor's far wall inside the
+    # threshold. Once the corridor is visibly ending, the *comparison* is still
+    # decisive even when neither side passes the absolute bar -- one ray is
+    # looking along a corridor and the other at a wall a corridor-width away.
+    #
+    # Without this the robot reaches the corner undecided, and having no plan
+    # and no corner behaviour it simply stops: measured, that deadlock was
+    # every one of the 7 closed-loop failures, none of them a wrong answer.
+    if _forward_clearance(ranges_m, angles_rad) < CORNER_CLEARANCE_M and abs(left - right) >= _MIN_ASYMMETRY_M:
+        return Direction.CLOCKWISE if right > left else Direction.COUNTERCLOCKWISE
+    return None
 
 
 class DirectionEstimator:

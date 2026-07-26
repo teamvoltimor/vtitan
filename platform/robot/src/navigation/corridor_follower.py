@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
+from src.navigation.direction_estimator import CORNER_CLEARANCE_M
 from src.navigation.ports import DriveCommand
 
 if TYPE_CHECKING:
@@ -51,6 +52,10 @@ rather than anything ahead: parked 0.28 m off the outer wall, a ray only 25 deg
 off the nose already returns 0.73 m, which reads as an obstacle in front when
 the corridor is actually clear for another 1.8 m.
 """
+
+_CORNER_SPEED_SCALE = 0.6
+"""Fraction of creep speed while turning a corner blind. Slower than straight
+running, because the turn is committed on one comparison rather than a plan."""
 
 _MIN_VALID_RANGE_M = 0.01
 """Below this a return is the driver's invalid-reading sentinel, not a wall."""
@@ -98,11 +103,21 @@ def follow_corridor(
         A drive command centring the chassis, or a stop if the corridor ends
         before the direction resolved.
     """
-    if _forward_clearance(ranges_m, angles_rad) < _MIN_FORWARD_CLEARANCE_M:
-        return DriveCommand(speed_mps=0.0, steering_norm=0.0)
-
+    forward = _forward_clearance(ranges_m, angles_rad)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+
+    if forward < CORNER_CLEARANCE_M:
+        # The corridor is ending. Turn toward the side with more room, which is
+        # where the track continues -- and is the same observation the
+        # direction estimator settles on, so the turn and the answer agree.
+        #
+        # Stopping here instead is a deadlock: with no direction there is no
+        # plan to hand over to, so the robot would sit at the corner until the
+        # round expired. That was every closed-loop failure of this feature.
+        steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
+        crawl = 0.0 if forward < _MIN_FORWARD_CLEARANCE_M else speed_mps * _CORNER_SPEED_SCALE
+        return DriveCommand(speed_mps=crawl, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a
     # corridor wall, and centring against it would steer into the other one.

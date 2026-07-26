@@ -38,3 +38,11 @@ class EvalTarget(StrEnum):
 
     EMULATOR = "emulator"
     HAILO8 = "hailo8"
+
+
+class ExportExtra(StrEnum):
+    """Ultralytics ``YOLO.export()`` keyword flags stored in the model registry."""
+
+    SIMPLIFY = "simplify"
+    NMS = "nms"
+    OPTIMIZE = "optimize"

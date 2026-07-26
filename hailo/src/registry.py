@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, NewType
 
-from src.enums import Task
+from src.enums import ExportExtra, Task
 from src.errors import HailoError
 
 ModelName = NewType("ModelName", str)
@@ -37,13 +37,12 @@ class ModelEntry:
     onnx_file: str
     task: Task
     opset: int
-    export_extras: tuple[tuple[str, Any], ...]
+    export_extras: tuple[tuple[ExportExtra, bool], ...]
     zoo_name: str | None = None
     classes: int | None = None
 
-    def extra_kwargs(self) -> dict[str, Any]:
-        """Materialise ``export_extras`` back into a plain dict."""
-        return dict(self.export_extras)
+    def extra_kwargs(self) -> dict[str, bool]:
+        return {k.value: v for k, v in self.export_extras}
 
 
 MODEL_REGISTRY: dict[str, ModelEntry] = {
@@ -68,7 +67,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         onnx_file=f"{DATA_DIR}/yolo12n.onnx",
         task=Task.DETECT,
         opset=11,
-        export_extras=(("simplify", True), ("nms", False), ("optimize", False)),
+        export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False), (ExportExtra.OPTIMIZE, False)),
         zoo_name="yolov12n",
     ),
     "yolo26n": ModelEntry(
@@ -76,7 +75,7 @@ MODEL_REGISTRY: dict[str, ModelEntry] = {
         onnx_file=f"{DATA_DIR}/yolo26n.onnx",
         task=Task.DETECT,
         opset=11,
-        export_extras=(("simplify", True), ("nms", False), ("optimize", False)),
+        export_extras=((ExportExtra.SIMPLIFY, True), (ExportExtra.NMS, False), (ExportExtra.OPTIMIZE, False)),
         zoo_name=None,
     ),
     "yolo26l": ModelEntry(
