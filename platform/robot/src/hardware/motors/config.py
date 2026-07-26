@@ -50,6 +50,18 @@ class MotorDriveConfig(BaseModel):
     reversed: bool = False
     """Whether the drive motor is reversed. This can be used to invert the direction of the drive motor if it is mounted in a way that causes forward commands to actually move the robot backward."""
 
+    encoder_reversed: bool = False
+    """Whether the encoder counts up when the robot moves backward.
+
+    Independent of ``reversed`` on purpose: the motor leads and the encoder's
+    A/B channels are separate connections, so inverting one does not invert the
+    other. ``reversed`` also negates the command in software rather than
+    rewiring, which leaves the encoder reporting true physical rotation against
+    a flipped command frame -- so on this robot both flags are set. Wrong here
+    and odometry integrates backwards and a closed speed loop sees inverted
+    error, which is a runaway rather than a wrong number.
+    """
+
     min_speed: int
     """Minimum speed for drive motor. This can be used to define the lowest speed at which the drive motor can operate effectively."""
 

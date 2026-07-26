@@ -172,6 +172,7 @@ class Driver(EncodedDriveDriver):
         max_rpm: float = _DEFAULT_MAX_RPM,
         pid: PIDController | None = None,
         invert: bool = False,
+        invert_encoder: bool = False,
     ) -> None:
         self._pins = (pwm_pin, dir_a_pin, dir_b_pin, encoder_a_pin, encoder_b_pin)
         self._standby_pin = standby_pin
@@ -179,6 +180,15 @@ class Driver(EncodedDriveDriver):
         self._wheel_diameter_m = wheel_diameter_m
         self._max_rpm = max_rpm
         self._sign = -1.0 if invert else 1.0
+        # Deliberately independent of ``invert``: the motor leads and the
+        # encoder's A/B channels are separate connections, so swapping one does
+        # not swap the other. ``invert`` also negates the command in software
+        # rather than physically, which leaves the encoder reporting true
+        # physical rotation while the command frame is flipped -- exactly the
+        # case on this robot, where driving forward reads negative counts.
+        # Anything integrating this feedback (odometry, a closed speed loop)
+        # needs it in the command frame or it accumulates backwards.
+        self._encoder_sign = -1 if invert_encoder else 1
         self._pid = pid or PIDController(kp=0.002, ki=0.004, kd=0.0, feedforward=1.0 / max_rpm)
         self._estimator = SpeedEstimator(counts_per_rev)
         self._encoder = None
@@ -262,8 +272,13 @@ class Driver(EncodedDriveDriver):
         self._estimator.reset()
 
     def get_drive_counts(self) -> int:
-        """Raw quadrature counts (0 until connected)."""
-        return 0 if self._encoder is None else int(self._encoder.steps)
+        """Quadrature counts in the COMMAND frame (0 until connected).
+
+        Sign-corrected here rather than at each call site so every derived
+        quantity -- revolutions, RPM, distance, speed -- inherits it
+        consistently and cannot disagree with the others.
+        """
+        return 0 if self._encoder is None else self._encoder_sign * int(self._encoder.steps)
 
     def get_drive_rpm(self) -> float:
         """Smoothed output-shaft RPM from the encoder."""

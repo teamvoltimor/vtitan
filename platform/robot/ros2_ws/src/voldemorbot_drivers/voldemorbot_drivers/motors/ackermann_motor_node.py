@@ -168,6 +168,11 @@ class _DriverFactory:
             encoder_a_pin=pins.encoder_a_pin,
             encoder_b_pin=pins.encoder_b_pin,
             standby_pin=None,  # L298N has no STBY line
+            # Note: ``invert`` is deliberately NOT wired to drive.reversed here.
+            # _ackermann_callback already negates motor_speed for that flag, so
+            # passing it again would cancel out. Only the encoder frame needs
+            # correcting at the driver.
+            invert_encoder=self._config.drive.encoder_reversed,
         )
 
 
