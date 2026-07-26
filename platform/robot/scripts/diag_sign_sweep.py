@@ -23,27 +23,37 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
 from __future__ import annotations
 
 import argparse
+import itertools
 import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shared.config.constants import DictKeys  # noqa: E402
-from shared.config.navigation_tuning import NavigationTuning  # noqa: E402
+from shared.config.constants import DictKeys
+from shared.config.navigation_tuning import NavigationTuning
 
-import src.navigation.planning.sign_router as sign_router_module  # noqa: E402
-import src.simulation.gateway as gateway_module  # noqa: E402
-from src.navigation.track_geometry import corridor_widths_from_metadata  # noqa: E402
-from src.simulation.gateway import ScenarioSimulator  # noqa: E402
-from src.simulation.scenario_catalog import all_obstacles_demo_scenarios  # noqa: E402
-from src.simulation.track_model import TrackModel, obstacles_from_metadata  # noqa: E402
+import src.navigation.planning.sign_router as sign_router_module
+import src.simulation.gateway as gateway_module
+from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+from src.simulation.track_model import TrackModel, obstacles_from_metadata
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 MAX_STEPS = 6000
 """Matches ``tests/unit/test_obstacles_challenge_sim.py``."""
+
+_TARGET_LAPS = 3
+"""Laps a scenario must finish to count as a driving success."""
+
+_DEPTH_BUFFER_ATTR = "_DEFORM_DEPTH_BUFFER"
+"""Module-level knob in ``sign_router`` with no public seam, swept via setattr."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,8 +206,8 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             lidar_sees_obstacles=False,
         )
     if config.deform_depth_buffer is not None:
-        restore.append((sign_router_module, "_DEFORM_DEPTH_BUFFER", sign_router_module._DEFORM_DEPTH_BUFFER))
-        sign_router_module._DEFORM_DEPTH_BUFFER = config.deform_depth_buffer
+        restore.append((sign_router_module, _DEPTH_BUFFER_ATTR, getattr(sign_router_module, _DEPTH_BUFFER_ATTR)))
+        setattr(sign_router_module, _DEPTH_BUFFER_ATTR, config.deform_depth_buffer)
 
     try:
         sim = ScenarioSimulator(
@@ -236,24 +246,30 @@ class SweepResult:
 
     @property
     def collisions(self) -> int:
+        """Scenarios that ended in a terminal collision."""
         return sum(1 for o in self.outcomes if o.collided)
 
     @property
     def laps_ge_1(self) -> int:
+        """Scenarios that completed at least one lap."""
         return sum(1 for o in self.outcomes if o.laps >= 1)
 
     @property
     def laps_ge_3(self) -> int:
-        return sum(1 for o in self.outcomes if o.laps >= 3)
+        """Scenarios that completed the full three laps — the driving-success metric."""
+        return sum(1 for o in self.outcomes if o.laps >= _TARGET_LAPS)
 
     @property
     def timeouts(self) -> int:
+        """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
 
     def kind(self, name: str) -> int:
+        """Scenarios whose collision was of the given kind (wall/sign/parking)."""
         return sum(1 for o in self.outcomes if o.collision_kind == name)
 
     def row(self) -> str:
+        """The one-line summary: all four metrics plus the collision-kind split."""
         n = len(self.outcomes)
         return (
             f"RESULT {self.config.label:<32} "
@@ -265,6 +281,7 @@ class SweepResult:
         )
 
     def detail(self) -> str:
+        """Per-scenario rows, for when an aggregate needs breaking down."""
         return "\n".join(
             f"DETAIL   {o.label:<34} {o.collision_kind:<9} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy[0], 2), round(o.collision_xy[1], 2))}"
@@ -290,7 +307,7 @@ def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -
 # Cross-track error measurement
 
 
-def _cross_track_errors(index: int) -> list[float]:
+def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     """Per-tick distance from the robot to its own planned path.
 
     Run with signs and parking stripped, deliberately. With signs present the
@@ -299,14 +316,20 @@ def _cross_track_errors(index: int) -> list[float]:
     in a collision after a few hundred ticks anyway. Stripping them gives the
     honest "how far off its own line does the chassis sit" number that the
     +-6.7 cm sign-pass slack budget has to be compared against.
+
+    ``lookahead`` dominates this measurement — a longer lookahead cuts corners —
+    so it is an explicit argument rather than whatever the default happens to
+    be. ``None`` means the shipped default.
     """
+    index, lookahead = args
     scenario = all_obstacles_demo_scenarios()[index]
-    metadata = {
-        k: v for k, v in scenario.metadata.items() if k not in (DictKeys.SIGN_POSITIONS, DictKeys.PARKING_LOT)
-    }
-    sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed)
+    metadata = {k: v for k, v in scenario.metadata.items() if k not in (DictKeys.SIGN_POSITIONS, DictKeys.PARKING_LOT)}
+    config = SweepConfig(
+        "crosstrack", lookahead_short=lookahead, lookahead_long=None if lookahead is None else lookahead * 2
+    )
+    sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=config.tuning())
     path = sim.waypoints
-    segments = list(zip(path, path[1:], strict=False))
+    segments = list(itertools.pairwise(path))
     errors: list[float] = []
 
     def record(state: Any, _scan: Any) -> None:
@@ -334,56 +357,96 @@ def _point_segment_dist(px: float, py: float, a: tuple[float, float], b: tuple[f
 
 
 def _percentile(values: list[float], q: float) -> float:
+    """Linear-interpolated percentile ``q`` (0-1) of ``values``."""
     if not values:
         return math.nan
     ordered = sorted(values)
     pos = q * (len(ordered) - 1)
-    lo = int(math.floor(pos))
+    lo = math.floor(pos)
     hi = min(lo + 1, len(ordered) - 1)
     return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
 
 
-def report_cross_track(workers: int) -> None:
-    """Print per-scenario and pooled cross-track error under the current model."""
-    scenario_count = len(all_obstacles_demo_scenarios())
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        per_scenario = list(pool.map(_cross_track_errors, range(scenario_count)))
+def report_cross_track(workers: int, lookaheads: list[float]) -> None:
+    """Print pooled cross-track error, one row per lookahead setting.
 
-    pooled: list[float] = []
-    for scenario, errors in zip(all_obstacles_demo_scenarios(), per_scenario, strict=True):
-        pooled.extend(errors)
-        print(
-            f"{scenario.label:<34} "
-            f"median {_percentile(errors, 0.5) * 100:5.1f}cm  "
-            f"p90 {_percentile(errors, 0.9) * 100:5.1f}cm  "
-            f"max {max(errors) * 100:5.1f}cm",
-            flush=True,
-        )
-    print(
-        f"\n{'POOLED':<34} "
-        f"median {_percentile(pooled, 0.5) * 100:5.1f}cm  "
-        f"p90 {_percentile(pooled, 0.9) * 100:5.1f}cm  "
-        f"max {max(pooled) * 100:5.1f}cm"
-    )
+    With no values given, measures the shipped default only.
+    """
+    scenario_count = len(all_obstacles_demo_scenarios())
+    settings: list[float | None] = list(lookaheads) if lookaheads else [None]
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for lookahead in settings:
+            per_scenario = pool.map(_cross_track_errors, [(i, lookahead) for i in range(scenario_count)])
+            pooled = [e for errors in per_scenario for e in errors]
+            label = "default (0.20/0.40)" if lookahead is None else f"lookahead {lookahead:.2f}/{lookahead * 2:.2f}"
+            print(
+                f"CROSSTRACK {label:<24} "
+                f"median {_percentile(pooled, 0.5) * 100:5.1f}cm  "
+                f"p90 {_percentile(pooled, 0.9) * 100:5.1f}cm  "
+                f"max {max(pooled) * 100:5.1f}cm",
+                flush=True,
+            )
+
+
+_SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
+    "lookahead": lambda v: SweepConfig(
+        f"lookahead {v:.2f}/{v * 2:.2f}",
+        lookahead_short=v,
+        lookahead_long=v * 2,
+    ),
+    "arc": lambda v: SweepConfig(f"arc_radius {v:.2f}", arc_radius=v),
+    "speed": lambda v: SweepConfig(f"fast_speed {v:.2f}", fast_speed=v),
+    "offset": lambda v: SweepConfig(f"lateral_offset {v:.3f}", lateral_offset=v),
+    "buffer": lambda v: SweepConfig(f"depth_buffer {v:.2f}", deform_depth_buffer=v),
+}
+"""Modes that sweep one numeric knob across the values given on the CLI."""
+
+_FIXED_MODES: dict[str, list[SweepConfig]] = {
+    "baseline": [SweepConfig("defaults")],
+    "profile": [
+        SweepConfig("defaults"),
+        SweepConfig("for_obstacles (removed)", lookahead_short=0.12, lookahead_long=0.24, fast_speed=0.30),
+    ],
+    # Separates "the tracker broke" from "sign avoidance failed" — run this
+    # first on any change; no aggregate collision count can tell them apart.
+    "diagnose": [
+        SweepConfig("everything physical"),
+        SweepConfig("no signs, parking physical", strip_signs=True),
+        SweepConfig("signs physical, no parking", strip_parking=True),
+        SweepConfig("nothing physical", strip_obstacles=True),
+    ],
+    "ghost": [
+        SweepConfig("ghost signs, router on", ghost_signs=True),
+        SweepConfig("ghost signs, router off", ghost_signs=True, lateral_offset=0.0),
+        SweepConfig("physical signs, router off", lateral_offset=0.0),
+    ],
+    "lidar": [
+        SweepConfig("lidar sees signs (default)"),
+        SweepConfig("lidar blind to signs", lidar_blind=True),
+        SweepConfig("lidar blind, router off", lidar_blind=True, lateral_offset=0.0),
+    ],
+}
+"""Modes with a fixed comparison set, ignoring any CLI values."""
+
+MODES = ("crosstrack", *_FIXED_MODES, *_SWEPT_MODES)
+
+
+def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
+    """Map a CLI mode plus its numeric arguments to the configs to run."""
+    if mode in _FIXED_MODES:
+        return _FIXED_MODES[mode]
+    if mode in _SWEPT_MODES:
+        return [_SWEPT_MODES[mode](v) for v in values]
+    msg = f"unhandled mode {mode!r}"
+    raise ValueError(msg)
 
 
 def main() -> None:
+    """Parse arguments and run the requested sweep."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "mode",
-        choices=[
-            "baseline",
-            "lookahead",
-            "arc",
-            "speed",
-            "crosstrack",
-            "profile",
-            "diagnose",
-            "ghost",
-            "offset",
-            "buffer",
-            "lidar",
-        ],
+        choices=MODES,
     )
     parser.add_argument("values", nargs="*", type=float)
     parser.add_argument("--workers", type=int, default=8)
@@ -391,50 +454,10 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.mode == "crosstrack":
-        report_cross_track(args.workers)
+        report_cross_track(args.workers, args.values)
         return
 
-    if args.mode == "baseline":
-        configs = [SweepConfig("defaults")]
-    elif args.mode == "lookahead":
-        configs = [
-            SweepConfig(f"lookahead {v:.2f}/{v * 2:.2f}", lookahead_short=v, lookahead_long=v * 2)
-            for v in args.values
-        ]
-    elif args.mode == "arc":
-        configs = [SweepConfig(f"arc_radius {v:.2f}", arc_radius=v) for v in args.values]
-    elif args.mode == "speed":
-        configs = [SweepConfig(f"fast_speed {v:.2f}", fast_speed=v) for v in args.values]
-    elif args.mode == "profile":
-        configs = [
-            SweepConfig("defaults"),
-            SweepConfig("for_obstacles (committed)", lookahead_short=0.12, lookahead_long=0.24, fast_speed=0.30),
-        ]
-    elif args.mode == "diagnose":
-        configs = [
-            SweepConfig("everything physical"),
-            SweepConfig("no signs, parking physical", strip_signs=True),
-            SweepConfig("signs physical, no parking", strip_parking=True),
-            SweepConfig("nothing physical", strip_obstacles=True),
-        ]
-    elif args.mode == "ghost":
-        configs = [
-            SweepConfig("ghost signs, router on", ghost_signs=True),
-            SweepConfig("ghost signs, router off", ghost_signs=True, lateral_offset=0.0),
-            SweepConfig("physical signs, router off", lateral_offset=0.0),
-        ]
-    elif args.mode == "lidar":
-        configs = [
-            SweepConfig("lidar sees signs (default)"),
-            SweepConfig("lidar blind to signs", lidar_blind=True),
-            SweepConfig("lidar blind, router off", lidar_blind=True, lateral_offset=0.0),
-        ]
-    elif args.mode == "offset":
-        configs = [SweepConfig(f"lateral_offset {v:.3f}", lateral_offset=v) for v in args.values]
-    else:  # buffer
-        configs = [SweepConfig(f"depth_buffer {v:.2f}", deform_depth_buffer=v) for v in args.values]
-
-    run_sweep(configs, args.workers, verbose=args.verbose)
+    run_sweep(_build_configs(args.mode, args.values), args.workers, verbose=args.verbose)
 
 
 if __name__ == "__main__":

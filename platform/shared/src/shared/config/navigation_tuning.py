@@ -236,9 +236,10 @@ class NavigationTuning:
     #   saturate to the same 0.156 m/s. The profile's own justification — that a
     #   lower top speed buys steering travel per metre — never applied.
     # * The lookahead change does not help. Swept over the 16 obstacles
-    #   fixtures, collisions are 16/16 at every value from 0.10 to 0.40, and
-    #   shortening it past 0.16 actively converts sign contacts into wall
-    #   contacts (8 wall hits at 0.10/0.20 vs 2 at the 0.20/0.40 default).
+    #   fixtures, collisions are 16/16 at every value from 0.10 to 0.40. It is
+    #   not inert — 0.12/0.24 cuts cross-track error from p90 12.9 cm to
+    #   5.1 cm — but that is a path-quality result, not the sign-avoidance one
+    #   the profile claimed, and buying that accuracy changes no outcome.
     #
     # See ``platform/robot/docs/sign-avoidance-investigation.md``. Re-add a
     # profile here only with a measurement that survives the current model.

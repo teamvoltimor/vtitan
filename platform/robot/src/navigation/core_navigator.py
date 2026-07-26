@@ -63,12 +63,19 @@ class CoreNavigator:
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
         self._parking_engaged = False
-        # Must clear the chassis's Ackermann minimum turning radius (~0.329 m, from the
-        # measured WHEELBASE/MAX_STEERING_ANGLE) with real margin: engaging any closer than
-        # that hands ParkController a staging target already inside its own turning circle,
-        # which no forward-only steering law can reach (see
+        # Must clear the chassis's minimum turning radius with real margin: engaging any
+        # closer than that hands ParkController a staging target already inside its own
+        # turning circle, which no forward-only steering law can reach (see
         # docs/internal/2026-07-11-navigation-logic-review.md §2.3). Reuses ARC_RADIUS, same
         # as ParkController's own staging stand-off, rather than a disconnected literal.
+        #
+        # That margin is now much larger than it needs to be. This was sized against a
+        # ~0.329 m R_min, computed as WHEELBASE/tan(MAX_STEERING_ANGLE) with the steering
+        # limit still modelled at 30 deg. Both inputs were wrong: the real lock is ~70 deg,
+        # and counter-phase steering pivots about the chassis centre, so the reference
+        # length is WHEELBASE/2. True R_min is ~0.034 m -- an order of magnitude smaller,
+        # meaning ARC_RADIUS (0.45 m) is no longer near this constraint and the engage
+        # distance could be tightened on its own merits rather than on this one.
         self._park_engage_dist = self._tuning.waypoints.ARC_RADIUS
 
         # Escape-maneuver latching: an escape runs for its full duration_frames

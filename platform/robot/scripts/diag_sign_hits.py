@@ -22,18 +22,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shared.config.constants import DictKeys  # noqa: E402
-from shared.config.enums import Section  # noqa: E402
+from shared.config.enums import Section
 
-from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata  # noqa: E402
-from src.simulation.gateway import ScenarioSimulator  # noqa: E402
-from src.simulation.scenario_catalog import all_obstacles_demo_scenarios  # noqa: E402
+from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
+from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
 MAX_STEPS = 6000
 
 
 @dataclass(frozen=True, slots=True)
 class HitReport:
+    """One scenario's collision, attributed to the nearest sign."""
+
     label: str
     collided: bool
     laps: int
@@ -81,6 +82,7 @@ def _analyse(index: int) -> HitReport:
 
 
 def main() -> None:
+    """Run every fixture and print which sign each collision belongs to."""
     with ProcessPoolExecutor(max_workers=8) as pool:
         reports = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
 

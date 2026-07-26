@@ -19,12 +19,13 @@ import numpy as np
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning, SensorHealthParams
+from shared.domain.enums import RobotState
 from shared.domain.models import Detection, IMUReading, Pose
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
@@ -294,13 +295,56 @@ class TrackNavigator(Node):
             park_controller=park_controller,
         )
 
+        # Race-state gate. Without this the navigator drives the moment it has a
+        # pose -- before the start button is pressed, and straight through an
+        # E-STOP, since stopping the state machine does not stop this node. The
+        # button is the operator's only physical control, so it has to gate the
+        # thing that actually moves the robot.
+        #
+        # TRANSIENT_LOCAL matches state_machine_node's /robot_state publisher, so
+        # the current state arrives immediately rather than only on the next
+        # transition -- otherwise launching mid-race would sit idle until the
+        # state happened to change.
+        self._racing = False
+        self.create_subscription(
+            String,
+            "/robot_state",
+            self._on_robot_state,
+            QoSProfile(
+                depth=1,
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            ),
+        )
+
         # Control Loop
         self.create_timer(0.05, self._control_loop)  # 20 Hz
 
-        self.get_logger().info(f"Navigator ready: {len(waypoints)} waypoints, {num_laps} lap(s)")
+        self.get_logger().info(
+            f"Navigator ready: {len(waypoints)} waypoints, {num_laps} lap(s) - "
+            "holding until /robot_state reports racing",
+        )
+
+    def _on_robot_state(self, msg: String) -> None:
+        """Track whether the state machine says we are racing."""
+        was_racing = self._racing
+        self._racing = msg.data.strip().lower() == RobotState.RACING.value
+        if was_racing and not self._racing:
+            # Left RACING (finished, or E-STOP). Command a stop immediately
+            # rather than waiting for the next control tick.
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped")
+        elif not was_racing and self._racing:
+            self.get_logger().info("Race started - navigator driving")
 
     def _control_loop(self) -> None:
-        """Execute one control step."""
+        """Execute one control step, or hold the robot stopped when not racing."""
+        if not self._racing:
+            # Keep publishing zeros rather than going silent: ackermann_motor_node
+            # has a 1 s command watchdog, and silence would let it latch a stop
+            # only after that delay.
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            return
         try:
             self._core_navigator.step()
         except RuntimeError as e:

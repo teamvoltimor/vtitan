@@ -30,15 +30,22 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shared.config.enums import Section  # noqa: E402
+from shared.config.enums import Section
 
-import src.navigation.planning.sign_router as sign_router_module  # noqa: E402
-from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata  # noqa: E402
-from src.simulation.gateway import ScenarioSimulator  # noqa: E402
-from src.simulation.scenario_catalog import all_obstacles_demo_scenarios  # noqa: E402
+import src.navigation.planning.sign_router as sign_router_module
+from src.navigation.planning.sign_router import SignRouter, corridor_for_position, signs_from_metadata
+from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+
+if TYPE_CHECKING:
+    from shared.domain.models import Detection
+
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
 
 MAX_STEPS = 6000
 
@@ -89,8 +96,16 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
     latest_target: list[tuple[float, float] | None] = [None]
     original_deform = sign_router_module.SignRouter.deform_waypoint
 
-    def capturing_deform(self, waypoint, robot_pos, robot_yaw, corridor, detections=None):
-        result = original_deform(self, waypoint, robot_pos, robot_yaw, corridor, detections)
+    def capturing_deform(
+        router: SignRouter,
+        waypoint: tuple[float, float],
+        robot_pos: tuple[float, float],
+        robot_yaw: float,
+        corridor: Section,
+        detections: list[Detection] | None = None,
+    ) -> tuple[float, float]:
+        """Stand-in for ``SignRouter.deform_waypoint`` that records its output."""
+        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, detections)
         latest_target[0] = result
         return result
 
@@ -98,7 +113,7 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
     try:
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
 
-        def record(state, _scan) -> None:
+        def record(state: AckermannState, _scan: LidarScan) -> None:
             for rec in records:
                 sx, sy = rec.sign_xy
                 dist = math.hypot(sx - state.x, sy - state.y)
@@ -128,6 +143,7 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
 
 
 def main() -> None:
+    """Run every fixture and print achieved vs commanded clearance per sign."""
     with ProcessPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
 

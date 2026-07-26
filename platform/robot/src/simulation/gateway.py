@@ -176,6 +176,16 @@ class SimulatedHardwareGateway:
         """Closest range in the most recent LIDAR sweep (metres)."""
         return self._last_min_range
 
+    @property
+    def last_command(self) -> DriveCommand:
+        """The most recent :class:`DriveCommand`, as published by the navigator.
+
+        Read-only view for diagnostics that need the *commanded* speed/steering
+        rather than the integrated result — the two differ whenever the
+        acceleration or steering-slew limits bind.
+        """
+        return self._command
+
 
 @dataclass(slots=True)
 class SimResult:
@@ -310,6 +320,11 @@ class ScenarioSimulator:
     def track(self) -> TrackModel:
         """The track geometry model for this scenario."""
         return self._track
+
+    @property
+    def gateway(self) -> SimulatedHardwareGateway:
+        """The simulated hardware this scenario drives."""
+        return self._gateway
 
     @property
     def waypoints(self) -> list[tuple[float, float]]:

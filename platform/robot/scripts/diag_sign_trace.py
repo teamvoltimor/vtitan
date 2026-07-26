@@ -17,18 +17,27 @@ import argparse
 import math
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import src.navigation.planning.sign_router as sign_router_module  # noqa: E402
-from src.navigation.planning.sign_router import signs_from_metadata  # noqa: E402
-from src.simulation.gateway import ScenarioSimulator  # noqa: E402
-from src.simulation.scenario_catalog import all_obstacles_demo_scenarios  # noqa: E402
+import src.navigation.planning.sign_router as sign_router_module
+from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
+from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+
+if TYPE_CHECKING:
+    from shared.config.enums import Section
+    from shared.domain.models import Detection
+
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
 
 MAX_STEPS = 6000
 
 
 def main() -> None:
+    """Trace one scenario and print the ticks near the chosen sign."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scenario", type=int, help="index into all_obstacles_demo_scenarios()")
     parser.add_argument("--around-sign", type=int, default=None, help="only print ticks near this sign")
@@ -48,38 +57,41 @@ def main() -> None:
     last: dict[str, object] = {}
     original_deform = sign_router_module.SignRouter.deform_waypoint
 
-    def capturing_deform(self, waypoint, robot_pos, robot_yaw, corridor, detections=None):
-        result = original_deform(self, waypoint, robot_pos, robot_yaw, corridor, detections)
+    def capturing_deform(
+        router: SignRouter,
+        waypoint: tuple[float, float],
+        robot_pos: tuple[float, float],
+        robot_yaw: float,
+        corridor: Section,
+        detections: list[Detection] | None = None,
+    ) -> tuple[float, float]:
+        """Stand-in for ``SignRouter.deform_waypoint`` that records its output."""
+        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, detections)
         last["raw"] = waypoint
         last["deformed"] = result
         last["corridor"] = corridor
-        last["candidates"] = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
         return result
-
 
     sign_router_module.SignRouter.deform_waypoint = capturing_deform
     try:
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
-        gw = sim._gateway
+        gw = sim.gateway
         step = [0]
 
-        def record(state, _scan) -> None:
+        def record(state: AckermannState, _scan: LidarScan) -> None:
             step[0] += 1
-            if focus is not None:
-                if math.hypot(focus.x - state.x, focus.y - state.y) > args.radius:
-                    last.clear()
-                    return
+            if focus is not None and math.hypot(focus.x - state.x, focus.y - state.y) > args.radius:
+                last.clear()
+                return
             raw = last.get("raw")
             deformed = last.get("deformed")
-            cands = last.get("candidates") or []
             deformed_by = "" if raw == deformed else "DEFORM"
-            cmd = gw._command
+            cmd = gw.last_command
             dist = "" if focus is None else f" d_sign={math.hypot(focus.x - state.x, focus.y - state.y):.3f}"
             rows.append(
                 f"t={step[0]:>4} pos=({state.x:.3f},{state.y:.3f}) yaw={math.degrees(state.yaw):7.1f} "
                 f"raw={_fmt(raw)} def={_fmt(deformed)} {deformed_by:<6} "
-                f"steer={cmd.steering_norm:+.3f} v={cmd.speed_mps:.3f} "
-                f"cands={[(i, round(d, 2)) for i, d in cands]}{dist}"
+                f"steer={cmd.steering_norm:+.3f} v={cmd.speed_mps:.3f}{dist}"
             )
 
         result = sim.run(max_steps=MAX_STEPS, on_step=record)
@@ -94,6 +106,7 @@ def main() -> None:
 
 
 def args_limit(rows: list[str]) -> int:
+    """Cap how many trailing trace rows get printed."""
     return min(len(rows), 200)
 
 
