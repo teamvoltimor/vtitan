@@ -26,6 +26,26 @@ times gives byte-identical counts.
 independently blocked by chassis-vs-pocket geometry, so it is 0/16 in every
 configuration ever tried. `laps>=3` is the driving-success metric.
 
+**Measured against this plant.** Everything in this document has now been
+invalidated twice by a change to the vehicle model, so pin it explicitly and
+re-check these values before trusting any number below:
+
+| Constant | Value |
+|---|---|
+| `RobotSpecs.LENGTH` / `WIDTH` | 0.30 / 0.20 m |
+| `RobotSpecs.WHEELBASE` | 0.19 m |
+| `RobotSpecs.MAX_STEERING_ANGLE` | **1.2253 rad** (~70.2°) |
+| `rear_steer_ratio` | 1.0 (counter-phase, `L_eff` = wheelbase/2) |
+| minimum turn radius | **0.034 m** |
+| `kinematics._DEFAULT_MAX_SPEED_MPS` | 0.156 m/s |
+
+Derived from those: chassis half-diagonal 0.1803 m, so a sign pass needs
+**0.205 m** centre-to-centre while turning and **0.125 m** square.
+
+If any of those changed, re-run before citing anything here. The steering angle
+in particular went 0.5236 -> 1.2253 on 2026-07-25, which alone moved the
+minimum turn radius from 0.165 m to 0.034 m.
+
 ### The failure is entirely traffic signs, and the path tracker is fine
 
 Making each obstacle class non-physical in turn isolates the cause completely:
@@ -632,7 +652,7 @@ Run from `platform/robot` with `PYTHONPATH=.` under `pixi run -e dev`.
 
 | Script | What it answers |
 |---|---|
-| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures for a swept parameter. Modes: `baseline` `lookahead` `arc` `offset` `buffer` `speed` `diagnose` `ghost` `lidar` `crosstrack` `profile`. `--verbose` adds per-scenario rows. |
+| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `buffer` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
 | `scripts/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
 | `scripts/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
 | `scripts/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |

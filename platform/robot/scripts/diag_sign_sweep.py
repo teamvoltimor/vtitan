@@ -14,10 +14,15 @@ metric.
 
 Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
-    python scripts/diag_sign_sweep.py baseline
+    python scripts/diag_sign_sweep.py diagnose          # run this one first
     python scripts/diag_sign_sweep.py lookahead 0.12 0.20 0.30 0.40
     python scripts/diag_sign_sweep.py arc 0.25 0.30 0.35 0.40 0.45
-    python scripts/diag_sign_sweep.py crosstrack
+    python scripts/diag_sign_sweep.py crosstrack 0.12 0.20
+
+Swept modes (``lookahead`` ``arc`` ``speed`` ``offset`` ``buffer``
+``crosstrack``) take the values to sweep as positional arguments. Fixed
+comparison modes (``baseline`` ``profile`` ``diagnose`` ``ghost`` ``lidar``)
+ignore them.
 """
 
 from __future__ import annotations
