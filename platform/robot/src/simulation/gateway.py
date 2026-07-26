@@ -39,7 +39,7 @@ from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
-from src.navigation.ports import DriveCommand, LidarScan
+from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
 from src.navigation.race_tracker import LapDetector
 from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
@@ -212,6 +212,11 @@ class SimulatedHardwareGateway:
         # three laps of one-way cornering accumulate rather than cancel.
         self._rotation_rad = 0.0
         self._prev_true_yaw = initial_state.yaw
+        # Path length covered, which is what a wheel encoder integrates. Note
+        # this accumulates while blocked by a solid wall only if the body
+        # actually moved -- a chassis held against a wall reports no travel,
+        # matching an encoder on a stalled but not slipping wheel.
+        self._wheel_distance_m = 0.0
         # Seed the estimator where the robot *thinks* it was placed. Offset at a
         # random bearing so the error is not systematically along-track (which
         # the localizer finds far easier to correct than a lateral one).
@@ -329,6 +334,25 @@ class SimulatedHardwareGateway:
         """
         return self._rotation_rad
 
+    def get_wheel_odometry(self) -> WheelOdometry:
+        """Wheel travel and speed, as an encoder on this chassis would report it.
+
+        Distance is the path length the body has actually covered, which is
+        what a wheel encoder measures -- not displacement from the start, and
+        not anything that knows the heading.
+
+        Perfect by default. The real encoder was calibrated against a tape at
+        two distances that agreed to ~1%, and the agreement across speeds is
+        itself evidence that slip is negligible on this surface, so a noiseless
+        encoder is a defensible model. It is still a model: on a mat with
+        different grip the same argument would have to be re-made.
+        """
+        return WheelOdometry(
+            distance_m=self._wheel_distance_m,
+            speed_mps=self._state.v,
+            stamp_s=self._elapsed_s,
+        )
+
     def get_vision_detections(self) -> list[Detection]:
         """Return synthetic detections for ``signs``, or ``[]`` if none were provided."""
         if not self._signs:
@@ -354,6 +378,7 @@ class SimulatedHardwareGateway:
         the flag the instant contact first occurs.
         """
         self._elapsed_s += dt
+        prev_x, prev_y = self._state.x, self._state.y
         candidate = self._kin.step(
             self._state,
             target_speed=self._command.speed_mps,
@@ -378,6 +403,7 @@ class SimulatedHardwareGateway:
         # wrapping back to zero at +/-pi.
         self._rotation_rad += _wrap_angle(self._state.yaw - self._prev_true_yaw)
         self._prev_true_yaw = self._state.yaw
+        self._wheel_distance_m += math.hypot(self._state.x - prev_x, self._state.y - prev_y)
 
         settled = self._track.contact_surface(self._state.x, self._state.y, self._state.yaw)
         # With solid walls the refused move names the surface, since the pose

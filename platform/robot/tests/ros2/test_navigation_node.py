@@ -48,6 +48,7 @@ def _make_host_node() -> Node:
     node.declare_parameter("lidar_topic", "/scan")
     node.declare_parameter("vision_topic", "/vision/detections")
     node.declare_parameter("imu_topic", "/imu/data")
+    node.declare_parameter("joint_states_topic", "/joint_states")
     return node
 
 
@@ -154,3 +155,101 @@ class TestGatewayLidarLocalization:
         )
 
         node.destroy_node()
+
+
+class TestWheelOdometryWiring:
+    """The encoder's travel has to reach the navigation port.
+
+    The driver has exposed distance since it was calibrated against a tape, and
+    the motor node now publishes it, but the navigator is where it has to
+    arrive to be usable as a motion prior.
+    """
+
+    def test_gateway_subscribes_to_joint_states(self, ros_context):
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        subs = dict(node.get_subscriber_names_and_types_by_node(node.get_name(), ""))
+        assert "/joint_states" in subs
+        assert subs["/joint_states"] == ["sensor_msgs/msg/JointState"]
+
+        node.destroy_node()
+
+    def test_none_before_the_first_message(self, ros_context):
+        """A drive backend with no encoder never reports, which is normal."""
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        assert gateway.get_wheel_odometry() is None
+
+        node.destroy_node()
+
+    def test_wheel_angle_becomes_linear_travel(self, ros_context):
+        from sensor_msgs.msg import JointState
+
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        msg = JointState()
+        msg.name = ["drive_wheel", "steering"]
+        msg.position = [2 * math.pi, 0.0]  # exactly one wheel revolution
+        msg.velocity = [1.0, 0.0]
+        gateway._joint_state_callback(msg)
+
+        odom = gateway.get_wheel_odometry()
+        assert odom is not None
+        # One revolution is one circumference of travel.
+        assert odom.distance_m == pytest.approx(2 * math.pi * RobotSpecs.WHEEL_RADIUS)
+        assert odom.speed_mps == pytest.approx(RobotSpecs.WHEEL_RADIUS)
+
+        node.destroy_node()
+
+    def test_indexed_by_name_not_array_position(self, ros_context):
+        """JointState carries an arbitrary set of joints in an arbitrary order.
+
+        Assuming index 0 is the drive wheel would break silently the first time
+        another joint is added ahead of it.
+        """
+        from sensor_msgs.msg import JointState
+
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        msg = JointState()
+        msg.name = ["steering", "drive_wheel"]  # drive wheel second
+        msg.position = [0.0, 2 * math.pi]
+        msg.velocity = [0.0, 1.0]
+        gateway._joint_state_callback(msg)
+
+        odom = gateway.get_wheel_odometry()
+        assert odom is not None
+        assert odom.distance_m == pytest.approx(2 * math.pi * RobotSpecs.WHEEL_RADIUS)
+
+        node.destroy_node()
+
+    def test_a_message_without_the_drive_joint_is_ignored(self, ros_context):
+        from sensor_msgs.msg import JointState
+
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        msg = JointState()
+        msg.name = ["steering"]
+        msg.position = [0.5]
+        gateway._joint_state_callback(msg)
+
+        assert gateway.get_wheel_odometry() is None
+
+        node.destroy_node()
+
+    def test_publisher_and_consumer_agree_on_the_joint_name(self):
+        """Different packages, neither importing the other.
+
+        A rename on either side raises nothing -- the navigator would just stop
+        receiving odometry, which is exactly the drift this file exists to stop.
+        """
+        from voldemorbot_drivers.motors import ackermann_motor_node as motor_node
+
+        from src.ros2.navigation import node as nav_node
+
+        assert motor_node._DRIVE_JOINT == nav_node._DRIVE_JOINT

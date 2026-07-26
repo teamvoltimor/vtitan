@@ -37,6 +37,28 @@ class DriveCommand:
     steering_norm: float  # [-1, 1], + = left
 
 
+@dataclass(frozen=True, slots=True)
+class WheelOdometry:
+    """Distance travelled at the wheel, and the rate it is travelling.
+
+    Deliberately not a pose. The encoder measures wheel rotation and nothing
+    else -- turning that into a position needs a heading, which lives with the
+    IMU, and fusing it with a position fix needs the LIDAR. Publishing a pose
+    from the wheel alone would put dead reckoning in the component with the
+    least information and create a second, worse answer competing with the
+    localizer's.
+
+    ``distance_m`` accumulates from an arbitrary zero, so only differences
+    between samples are meaningful. ``stamp_s`` is required for the same
+    reason: integrating a distance between LIDAR scans means nothing without
+    knowing when each sample was taken.
+    """
+
+    distance_m: float
+    speed_mps: float
+    stamp_s: float
+
+
 class HardwareGateway(Protocol):
     """Interface for robot hardware interaction (ROS2 or simulation)."""
 
@@ -54,3 +76,11 @@ class HardwareGateway(Protocol):
 
     def get_vision_detections(self) -> list[Detection]:
         """Get the latest object detections from the camera."""
+
+    def get_wheel_odometry(self) -> WheelOdometry | None:
+        """Get the latest wheel travel and speed, or ``None`` if unavailable.
+
+        ``None`` is a normal state, not an error: a drive backend without an
+        encoder has nothing to report, and on the real robot nothing has
+        arrived until the first ``/joint_states`` message.
+        """

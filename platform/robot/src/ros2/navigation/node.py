@@ -20,7 +20,7 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
-from sensor_msgs.msg import Imu, LaserScan
+from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
@@ -42,13 +42,21 @@ from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
-from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan
+from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
+
+_DRIVE_JOINT = "drive_wheel"
+"""Drive-wheel joint name on /joint_states.
+
+Must match ackermann_motor_node's ``_DRIVE_JOINT``; the topic-contract test
+pins the two together, since a rename on either side would otherwise just stop
+producing odometry with no error anywhere.
+"""
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -80,6 +88,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
+        self._latest_wheel: WheelOdometry | None = None
         # Receipt timestamp (seconds) for staleness / dropout detection. LIDAR
         # is the position source (no wheel odometry exists on real hardware),
         # so its staleness gates get_current_pose() too.
@@ -112,6 +121,12 @@ class ROS2HardwareGateway(HardwareGateway):
             self._imu_callback,
             qos_profile_sensor_data,
         )
+        node.create_subscription(
+            JointState,
+            node.get_parameter("joint_states_topic").get_parameter_value().string_value,
+            self._joint_state_callback,
+            qos_profile_sensor_data,
+        )
 
     def set_believed_walls(self, walls: TrackWalls) -> None:
         """Re-point the localizer at the layout the robot currently believes in.
@@ -126,6 +141,33 @@ class ROS2HardwareGateway(HardwareGateway):
     def reset_heading_reference(self) -> None:
         """Re-zero the estimator's heading against the next IMU reading."""
         self._estimator.reset_heading_reference()
+
+    def _joint_state_callback(self, msg: JointState) -> None:
+        """Convert the drive wheel's angle and rate into linear travel.
+
+        Indexed by joint name rather than array position: JointState carries an
+        arbitrary set of joints in an arbitrary order, and assuming index 0 is
+        the drive wheel would break silently the moment another joint is added.
+        """
+        try:
+            i = msg.name.index(_DRIVE_JOINT)
+        except ValueError:
+            return
+        if i >= len(msg.position):
+            return
+
+        radius = RobotSpecs.WHEEL_RADIUS
+        speed = msg.velocity[i] * radius if i < len(msg.velocity) else 0.0
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        self._latest_wheel = WheelOdometry(
+            distance_m=msg.position[i] * radius,
+            speed_mps=speed,
+            stamp_s=stamp,
+        )
+
+    def get_wheel_odometry(self) -> WheelOdometry | None:
+        """Latest wheel travel, or ``None`` before the first /joint_states message."""
+        return self._latest_wheel
 
     def _imu_callback(self, msg: Imu) -> None:
         q = msg.orientation
@@ -290,6 +332,7 @@ class TrackNavigator(Node):
         self.declare_parameter("lidar_topic", "/scan")
         self.declare_parameter("vision_topic", "/vision/detections")
         self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("joint_states_topic", "/joint_states")
         self.declare_parameter("is_simulation", value=False)
 
         if params_path is not None:
