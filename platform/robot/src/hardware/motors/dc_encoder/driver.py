@@ -54,7 +54,28 @@ _DEFAULT_COUNTS_PER_REV = 676.0
 # placeholder pending hardware bring-up, per the module docstring). Derived from the same
 # measured wheel radius the rest of the stack uses instead of a second independent guess.
 _DEFAULT_WHEEL_DIAMETER_M = RobotSpecs.WHEEL_RADIUS * 2
-_DEFAULT_MAX_RPM = 1590.0
+_NOMINAL_DT_S = 0.02
+"""Assumed step on the first call, before a real interval can be measured."""
+
+_MIN_DT_S = 0.001
+_MAX_DT_S = 0.5
+"""Bounds on a measured step, so a duplicate call or a stall can't blow up the loop."""
+
+_DEFAULT_MAX_RPM = 42.5
+"""Maximum achievable WHEEL rpm, measured 2026-07-25 (2447 counts / 5.11 s).
+
+Was 1590.0 -- the motor's free-running rpm from the datasheet, which is the
+wrong quantity twice over: it is the motor shaft rather than the wheel (~15.4:1
+apart), and it is the unloaded figure. Since counts_per_rev counts WHEEL
+revolutions, get_drive_rpm() reports wheel rpm, so the PID's feedforward term
+(1/max_rpm) was scaled ~37x too small -- it would contribute ~3% duty where
+~70% is needed to overcome stiction, leaving the integrator to crawl there
+alone.
+
+Corresponds to ~0.156 m/s. Note the achievable maximum sags with battery
+charge (0.129 m/s measured on a tired pack), so commanded speeds should stay
+below this for the loop to have headroom to correct.
+"""
 
 
 class SimulatedEncoderDriver(EncodedDriveDriver):
@@ -189,7 +210,14 @@ class Driver(EncodedDriveDriver):
         # Anything integrating this feedback (odometry, a closed speed loop)
         # needs it in the command frame or it accumulates backwards.
         self._encoder_sign = -1 if invert_encoder else 1
-        self._pid = pid or PIDController(kp=0.002, ki=0.004, kd=0.0, feedforward=1.0 / max_rpm)
+        self._last_rpm = 0.0
+        # Tuned on hardware 2026-07-25 against the corrected wheel-rpm units.
+        # The original kp=0.002/ki=0.004 were set when max_rpm was the motor's
+        # 1590 free-running figure; at true wheel rpm they left the integrator
+        # closing the gap at ~0.11 duty/s, so a 0.10 m/s step took ~3.5 s to
+        # settle. Feedforward (1/max_rpm) now lands near the stiction duty on
+        # its own, and these gains close the remainder without overshoot.
+        self._pid = pid or PIDController(kp=0.010, ki=0.020, kd=0.0, feedforward=1.0 / max_rpm)
         self._estimator = SpeedEstimator(counts_per_rev)
         self._encoder = None
         self._pwm = None
@@ -252,11 +280,11 @@ class Driver(EncodedDriveDriver):
     def run_drive_at_rpm(self, rpm: float) -> None:
         """One closed-loop step: PID the duty toward ``rpm`` from encoder feedback.
 
-        A node/timer is expected to call this at a fixed rate against fresh
-        encoder readings.
+        Uses real elapsed time rather than assuming a fixed call rate, so the
+        loop stays correct if the timer jitters or the rate changes.
         """
         measured = self.get_drive_rpm()
-        duty = self._pid.update(rpm, measured, dt=0.02)
+        duty = self._pid.update(rpm, measured, dt=self._elapsed("_last_pid_time"))
         self._set_output(duty)
 
     def stop_drive(self) -> None:
@@ -281,8 +309,29 @@ class Driver(EncodedDriveDriver):
         return 0 if self._encoder is None else self._encoder_sign * int(self._encoder.steps)
 
     def get_drive_rpm(self) -> float:
-        """Smoothed output-shaft RPM from the encoder."""
-        return self._estimator.update(self.get_drive_counts(), dt=0.02)
+        """Smoothed wheel RPM from the encoder.
+
+        NOTE this MUTATES the speed estimator -- it consumes the counts accrued
+        since the previous call. It is called from more than one place (the
+        closed loop and the feedback publisher, at different rates), so the
+        elapsed time must be measured rather than assumed: with a hardcoded
+        dt=0.02 each caller divided a partial count window by a full period and
+        under-read the speed by roughly the number of callers, which made the
+        closed loop settle ~40% below its setpoint.
+        """
+        self._last_rpm = self._estimator.update(self.get_drive_counts(), dt=self._elapsed("_last_rpm_time"))
+        return self._last_rpm
+
+    def _elapsed(self, attr: str) -> float:
+        """Seconds since this named checkpoint, seeding it on first use."""
+        now = time.monotonic()
+        previous = getattr(self, attr, None)
+        setattr(self, attr, now)
+        if previous is None:
+            return _NOMINAL_DT_S
+        # Guard against a zero/absurd dt (two calls in the same instant, or a
+        # long stall) turning into a divide-by-zero or a huge derivative kick.
+        return min(max(now - previous, _MIN_DT_S), _MAX_DT_S)
 
     def get_drive_odometry(self) -> DriveOdometry:
         """Full odometry sample (counts, revolutions, RPM, distance)."""
@@ -299,5 +348,14 @@ class Driver(EncodedDriveDriver):
         return counts_to_revolutions(self.get_drive_counts(), self._counts_per_rev) * 360.0
 
     def get_drive_speed(self) -> float:
-        """Output-shaft speed in degrees/s."""
-        return self.get_drive_rpm() / 60.0 * 360.0
+        """Wheel speed in degrees/s, from the last sampled estimate.
+
+        Deliberately does NOT re-sample: ``get_drive_rpm()`` consumes the counts
+        accrued since its previous call, so a second consumer calling it at a
+        different rate steals part of each window from the first. When the
+        feedback publisher (100 Hz) and the control loop (50 Hz) both did that,
+        the loop's speed estimate was mis-scaled and it settled ~40% off its
+        setpoint -- in either direction depending on how the rates interleaved.
+        Only the control loop samples now; everyone else reads this cache.
+        """
+        return self._last_rpm / 60.0 * 360.0

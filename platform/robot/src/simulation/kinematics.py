@@ -42,6 +42,18 @@ from shared.config.constants import RobotSpecs
 _DEFAULT_MAX_STEER_RATE = 2.0  # rad/s (NavigationTuning.pursuit.MAX_STEERING_RATE)
 _DEFAULT_MAX_ACCEL = 2.0  # m/s² (drive motor's physical acceleration limit)
 
+_DEFAULT_MAX_SPEED_MPS = 0.156
+"""Top speed the real drivetrain reaches, measured 2026-07-25 (0.796 m / 5.11 s).
+
+The simulator previously integrated whatever speed it was handed, and the
+tuning profiles asked for 0.7-0.8 m/s -- roughly 6x what the hardware can do.
+Clamping here means a profile that over-asks produces the same saturated
+behaviour in sim as on the robot instead of a lap time that cannot happen.
+
+Sags with battery charge (0.129 m/s measured on a tired pack), so this is a
+ceiling rather than a guarantee.
+"""
+
 _DEFAULT_REAR_STEER_RATIO = 1.0
 """Rear steering magnitude relative to the front, counter-phase.
 
@@ -73,7 +85,9 @@ class AckermannKinematics:
         max_accel: float = _DEFAULT_MAX_ACCEL,
         substeps: int = 5,
         rear_steer_ratio: float = _DEFAULT_REAR_STEER_RATIO,
+        max_speed_mps: float = _DEFAULT_MAX_SPEED_MPS,
     ) -> None:
+        self._max_speed = max_speed_mps
         self._wheelbase = wheelbase
         self._max_steer = max_steer
         self._max_steer_rate = max_steer_rate
@@ -116,7 +130,7 @@ class AckermannKinematics:
             steer = _approach(steer, target_steer, self._max_steer_rate * h)
             steer = _clamp(steer, -self._max_steer, self._max_steer)
             # Drive acceleration clamp toward the target speed.
-            v = _approach(v, target_speed, self._max_accel * h)
+            v = _approach(v, _clamp(target_speed, -self._max_speed, self._max_speed), self._max_accel * h)
 
             x += v * math.cos(yaw) * h
             y += v * math.sin(yaw) * h

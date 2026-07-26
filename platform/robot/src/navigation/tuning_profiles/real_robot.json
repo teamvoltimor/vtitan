@@ -1,9 +1,9 @@
 {
   "clearance": {
-    "contact_dist": 0.10,
+    "contact_dist": 0.1,
     "slow_dist": 0.25,
-    "medium_dist": 0.50,
-    "fast_dist": 1.00
+    "medium_dist": 0.5,
+    "fast_dist": 1.0
   },
   "heading_error": {
     "crawl": 1.0,
@@ -11,29 +11,29 @@
     "medium": 0.4
   },
   "speed": {
-    "contact": 0.15,
-    "slow": 0.35,
-    "medium": 0.50,
-    "fast": 0.70,
-    "full": 1.00,
-    "err_crawl": 0.25,
-    "err_slow": 0.35,
-    "err_medium": 0.55,
-    "max_accel_mps2": 2.0
+    "contact": 0.0195,
+    "slow": 0.0455,
+    "medium": 0.065,
+    "fast": 0.091,
+    "full": 0.13,
+    "err_crawl": 0.0325,
+    "err_slow": 0.0455,
+    "err_medium": 0.0715,
+    "max_accel_mps2": 0.5
   },
   "lookahead": {
-    "short": 0.20,
-    "long": 0.40,
-    "threshold": 0.30
+    "short": 0.2,
+    "long": 0.4,
+    "threshold": 0.3
   },
   "escape": {
-    "rev_speed": -0.20,
+    "rev_speed": -0.2,
     "steer_scale": 0.8,
     "obs_rev_speed": -0.25,
     "obs_fwd_speed": 0.15,
-    "obs_steer_scale": 0.70,
-    "obs_fwd_steer_scale": 0.50,
-    "obs_reverse_fraction": 0.70
+    "obs_steer_scale": 0.7,
+    "obs_fwd_steer_scale": 0.5,
+    "obs_reverse_fraction": 0.7
   },
   "stuck": {
     "move_threshold": 0.03,
@@ -42,7 +42,7 @@
   },
   "collision": {
     "side_gain": 0.08,
-    "obstacle_gain": 0.30,
+    "obstacle_gain": 0.3,
     "active_fwd_dist": 0.35,
     "critical_dist": 0.05,
     "warning_dist": 0.15,

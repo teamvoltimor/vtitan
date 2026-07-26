@@ -60,6 +60,7 @@ from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from std_msgs.msg import Float32
 
+from shared.config.constants import RobotSpecs
 from src.hardware.motors.config import Config
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from src.logger import configure_json_logging
@@ -94,6 +95,14 @@ PUBLISHER_RATE_HZ = 100.0
 
 STEERING_COMMAND_SPEED = 30
 """Steering move speed (deg/s) commanded per update. Used by geared backends; the servo self-paces."""
+
+DRIVE_CONTROL_RATE_HZ = 50.0
+"""Rate of the closed-loop drive step.
+
+Must stay 50 Hz: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` both hardcode
+``dt=0.02``, so running the loop at any other rate silently rescales the PID
+gains and the speed estimate without changing a single number in the tuning.
+"""
 
 
 # Backend selection (from environment)
@@ -168,10 +177,11 @@ class _DriverFactory:
             encoder_a_pin=pins.encoder_a_pin,
             encoder_b_pin=pins.encoder_b_pin,
             standby_pin=None,  # L298N has no STBY line
-            # Note: ``invert`` is deliberately NOT wired to drive.reversed here.
-            # _ackermann_callback already negates motor_speed for that flag, so
-            # passing it again would cancel out. Only the encoder frame needs
-            # correcting at the driver.
+            # Direction lives in the driver, not the node: the closed loop runs
+            # PID -> _set_output() and never passes through the node, so a
+            # negation applied there would be silently skipped (it was, and the
+            # robot drove backwards on the first closed-loop run).
+            invert=self._config.drive.reversed,
             invert_encoder=self._config.drive.encoder_reversed,
         )
 
@@ -208,6 +218,7 @@ class AckermannMotorNode(LifecycleNode):
 
         # Current command tracking
         self.current_speed: float = 0.0
+        self.target_wheel_rpm: float = 0.0
         self.current_steering_angle: float = 0.0
         self.last_command_time: float = 0.0
 
@@ -294,6 +305,7 @@ class AckermannMotorNode(LifecycleNode):
             10,
         )
         self.feedback_timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._publish_feedback)
+        self.control_timer = self.create_timer(1.0 / DRIVE_CONTROL_RATE_HZ, self._drive_control_step)
         self.watchdog_timer = self.create_timer(0.5, self._watchdog_check)  # 500ms watchdog
 
         return super().on_activate(state)
@@ -335,6 +347,9 @@ class AckermannMotorNode(LifecycleNode):
 
     def _stop_motors_safely(self) -> None:
         """Command the motors to a safe stopped state. Never raises."""
+        # Zero the setpoint before stopping so a still-running control timer
+        # cannot immediately re-command the motor it was just asked to stop.
+        self.target_wheel_rpm = 0.0
         if self.steering is not None and self.drive is not None:
             try:
                 self.drive.stop_drive()
@@ -347,7 +362,7 @@ class AckermannMotorNode(LifecycleNode):
         if self.ackermann_sub is not None:
             self.destroy_subscription(self.ackermann_sub)
             self.ackermann_sub = None
-        for timer_attr in ("feedback_timer", "watchdog_timer"):
+        for timer_attr in ("feedback_timer", "control_timer", "watchdog_timer"):
             timer = getattr(self, timer_attr)
             if timer is not None:
                 timer.cancel()
@@ -407,12 +422,17 @@ class AckermannMotorNode(LifecycleNode):
                 f"exceeds limit ±{max_angle}°, clamped to {clamped_steering:.2f}°",
             )
 
-        # Convert velocity to motor speed percentage
-        motor_speed = int(velocity * self.config.drive.speed_scale)
+        # Convert velocity (true m/s) to a WHEEL rpm setpoint for the closed
+        # loop. Open-loop duty was battery-dependent -- the identical command
+        # travelled 43 cm on a tired pack and 54 cm on a fresh one -- so a
+        # commanded speed only means something if the loop measures it.
+        target_wheel_rpm = velocity / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
 
-        # Apply drive reversal if configured
-        if self.config.drive.reversed:
-            motor_speed = -motor_speed
+        # Kept only for the diagnostics/clamp below, which still report duty.
+        # Deliberately NOT negated for drive.reversed any more -- the driver
+        # owns direction now (see the factory), and negating here as well would
+        # report a commanded_speed whose sign disagrees with the actual motion.
+        motor_speed = int(velocity * self.config.drive.speed_scale)
 
         # Clamp motor speed to safe limits
         max_speed = self.config.drive.max_speed
@@ -425,6 +445,7 @@ class AckermannMotorNode(LifecycleNode):
 
         # Update tracking variables
         self.current_speed = clamped_speed
+        self.target_wheel_rpm = target_wheel_rpm
         self.current_steering_angle = clamped_steering
         self.last_command_time = self.get_clock().now().nanoseconds / 1e9
 
@@ -433,12 +454,10 @@ class AckermannMotorNode(LifecycleNode):
             # Set steering position
             self.steering.move_steering_to(clamped_steering, speed=STEERING_COMMAND_SPEED)
 
-            # Set drive motor speed
-            if clamped_speed > 0:
-                self.drive.run_drive_forward(abs(clamped_speed))
-            elif clamped_speed < 0:
-                self.drive.run_drive_reverse(abs(clamped_speed))
-            else:
+            # The drive is NOT actuated here: the PID needs a fixed 50 Hz step
+            # (see DRIVE_CONTROL_RATE_HZ) whereas commands arrive at whatever
+            # rate the publisher chooses. _drive_control_step() applies it.
+            if target_wheel_rpm == 0.0:
                 self.drive.stop_drive()
 
             self.get_logger().debug(
@@ -506,6 +525,30 @@ class AckermannMotorNode(LifecycleNode):
         except (RuntimeError, OSError, ValueError) as e:
             self.get_logger().warning(f"Failed to read motor feedback: {e}")
 
+    def _drive_control_step(self) -> None:
+        """One closed-loop drive step: PID the duty toward the target wheel rpm.
+
+        Runs on its own fixed-rate timer rather than in the command callback so
+        the PID sees the constant dt it assumes. A zero setpoint goes through
+        stop_drive() instead of the loop, so the integrator cannot wind up
+        against a target the motor is not meant to reach.
+        """
+        if self.drive is None:
+            return
+        try:
+            if self.target_wheel_rpm == 0.0:
+                # Still sample, so the speed estimate this loop owns stays
+                # current for the feedback publisher (which no longer samples
+                # for itself) and reads ~0 while stopped rather than freezing
+                # at the last moving value.
+                self.drive.get_drive_rpm()
+                return
+            self.drive.run_drive_at_rpm(self.target_wheel_rpm)
+        except Exception:
+            self.get_logger().exception("Closed-loop drive step failed; stopping motors")
+            self.drive.stop_drive()
+            self.target_wheel_rpm = 0.0
+
     def _watchdog_check(self) -> None:
         """Watchdog to stop motors if no commands received recently."""
         if self.drive is None:
@@ -520,6 +563,10 @@ class AckermannMotorNode(LifecycleNode):
                 f"No Ackermann commands received for {time_since_last_command:.2f}s - stopping motors for safety",
             )
             try:
+                # Clear the setpoint FIRST: the closed loop re-commands the
+                # target every 20 ms, so stopping the motor without zeroing it
+                # would just be undone on the next control step.
+                self.target_wheel_rpm = 0.0
                 self.drive.stop_drive()
                 self.current_speed = 0.0
             except (RuntimeError, OSError, ValueError) as e:
