@@ -28,7 +28,14 @@ def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
     pi_zero_peripherals_node = Node(
         package="voldemorbot_drivers",
         executable="pi_zero_peripherals_node",
-        name="pi_zero_peripherals_node",
+        # Deliberately unnamed. launch_ros turns ``name`` into
+        # ``--ros-args -r __node:=...``, which is process-wide -- and this
+        # process hosts three nodes. Naming it renamed button_node,
+        # oled_display_node and challenge_mode_node all to the same string, so
+        # the graph carried three identical node names and DDS discovery kept
+        # only one of their subscriptions. Symptom: the OLED stayed on "Press
+        # to START" through a real transition to RACING, because its
+        # /robot_state subscription was the one that lost.
         output="screen",
         respawn=True,
         respawn_delay=2.0,
