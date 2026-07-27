@@ -38,6 +38,17 @@ class InferencePrediction:
     logits: np.ndarray | None
 
 
+@dataclass
+class InferenceConfigPaths:
+    """Configuration and paths for SAM inference.
+
+    Bundles inference settings with filesystem paths, loaded from AppConfig.
+    """
+
+    inference: InferenceConfig
+    paths: PathConfig
+
+
 class InferenceBackend(Protocol):
     """Interface for SAM inference adapters.
 
@@ -159,7 +170,7 @@ class UltralyticsBackend:
             raise InferenceBackendError(msg)
         self.predictor = context.predictor
         self.default_mask_score = default_mask_score
-        self.current_image = None
+        self.current_image: np.ndarray | None = None
 
     def set_image(self, image: np.ndarray) -> None:
         """Store image for Ultralytics inference."""
@@ -204,11 +215,11 @@ class UltralyticsBackend:
             raise InferenceBackendError(err_msg) from e
 
 
-def _get_inference_config() -> tuple[InferenceConfig, PathConfig]:
-    """Return InferenceConfig and PathConfig from AppConfig (lazy load)."""
+def _get_inference_config() -> InferenceConfigPaths:
+    """Return inference config and paths from AppConfig (lazy load)."""
     from src.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load()
-    return cfg.inference, cfg.paths
+    return InferenceConfigPaths(inference=cfg.inference, paths=cfg.paths)
 
 
 def load_native_sam2(
@@ -229,9 +240,9 @@ def load_native_sam2(
         InferenceBackendError: If both local and HuggingFace loading fail.
     """
     if inference_cfg is None or paths_cfg is None:
-        _inf, _paths = _get_inference_config()
-        inference_cfg = inference_cfg or _inf
-        paths_cfg = paths_cfg or _paths
+        cfg_paths = _get_inference_config()
+        inference_cfg = inference_cfg or cfg_paths.inference
+        paths_cfg = paths_cfg or cfg_paths.paths
 
     try:
         import torch  # noqa: PLC0415
@@ -279,9 +290,9 @@ def load_ultralytics_fallback(
         InferenceBackendError: If loading fails.
     """
     if inference_cfg is None or paths_cfg is None:
-        _inf, _paths = _get_inference_config()
-        inference_cfg = inference_cfg or _inf
-        paths_cfg = paths_cfg or _paths
+        cfg_paths = _get_inference_config()
+        inference_cfg = inference_cfg or cfg_paths.inference
+        paths_cfg = paths_cfg or cfg_paths.paths
 
     try:
         from ultralytics import SAM as UltralyticsSAM  # type: ignore[import-untyped]  # noqa: PLC0415

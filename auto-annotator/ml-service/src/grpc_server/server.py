@@ -48,9 +48,10 @@ class _GrpcEnvSettings(BaseSettings):
 def _load_grpc_config() -> GrpcConfig:
     """Return gRPC config from config file, with env var override for port."""
     import tomllib  # noqa: PLC0415 — stdlib, cheap import
+    from typing import Any  # noqa: PLC0415
 
     paths = AppConfig.load().paths
-    grpc_cfg: dict = {}
+    grpc_cfg: dict[str, Any] = {}
     if paths.server_config_file.exists():
         with paths.server_config_file.open("rb") as f:
             grpc_cfg = tomllib.load(f).get("grpc", {})
@@ -74,7 +75,7 @@ def build_server(port: int, max_workers: int = _DEFAULT_MAX_WORKERS) -> grpc.Ser
 def serve(port: int | None = None) -> None:
     """Start the gRPC server and block until terminated."""
     cfg = _load_grpc_config()
-    resolved = port or cfg.port
+    resolved = port if port is not None else cfg.port
     server = build_server(resolved, cfg.max_workers)
     server.start()
     logger.info("grpc_server_started", extra={"port": resolved, "max_workers": cfg.max_workers})

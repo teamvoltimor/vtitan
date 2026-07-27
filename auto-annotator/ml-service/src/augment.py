@@ -61,13 +61,23 @@ def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> DataPath
 
 logger = get_logger(__name__)
 
+# Augmentation transform parameters
+SHIFT_LIMIT = 0.2
+SCALE_LIMIT = 0.2
+ROTATE_LIMIT = 25
+AUGMENT_PROB_BRIGHTNESS = 0.5
+AUGMENT_PROB_FLIP = 0.5
+AUGMENT_PROB_SHIFT = 0.5
+AUGMENT_PROB_CROP = 0.3
+CROP_SCALE = 0.9
 
-def _build_transforms(image_height: int, image_width: int) -> list:
+
+def _build_transforms(image_height: int, image_width: int) -> list[object]:
     return [
-        RandomBrightnessContrast(p=0.5),
-        HorizontalFlip(p=0.5),
-        ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=25, p=0.5),
-        RandomCrop(width=int(image_width * 0.9), height=int(image_height * 0.9), p=0.3),
+        RandomBrightnessContrast(p=AUGMENT_PROB_BRIGHTNESS),
+        HorizontalFlip(p=AUGMENT_PROB_FLIP),
+        ShiftScaleRotate(shift_limit=SHIFT_LIMIT, scale_limit=SCALE_LIMIT, rotate_limit=ROTATE_LIMIT, p=AUGMENT_PROB_SHIFT),
+        RandomCrop(width=int(image_width * CROP_SCALE), height=int(image_height * CROP_SCALE), p=AUGMENT_PROB_CROP),
     ]
 
 
@@ -119,6 +129,7 @@ def _augment_seg(
         new_h, new_w = out["image"].shape[:2]
 
         groups: dict[int, list[float]] = collections.defaultdict(list)
+        # strict=False: albumentations may filter keypoints; length mismatch is expected
         for (kx, ky), pidx in zip(out["keypoints"], out["poly_idx"], strict=False):
             groups[pidx].extend([kx / new_w, ky / new_h])
 
@@ -185,6 +196,7 @@ def _augment_and_write(
         aug_lbl_path.parent.mkdir(parents=True, exist_ok=True)
 
         cv2.imwrite(str(aug_img_path), cv2.cvtColor(aug_img, cv2.COLOR_RGB2BGR))
+        # strict=False: augmentation may filter objects; length mismatch is expected
         label_store.save(aug_lbl_path, [LabelRecord(cid, c) for cid, c in zip(new_classes, new_coords, strict=False)])
 
         yield str(aug_img_path), aug_stem

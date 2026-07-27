@@ -8,6 +8,7 @@ difference between them can only come from the model.
 
 from __future__ import annotations
 
+import operator
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -28,6 +29,14 @@ IMAGE_SIZE = 640
 # there swaps red and green, which inverts the WRO pass-side rule.
 LABEL_TO_MODEL = {0: 2, 1: 0, 2: 1}
 MODEL_NAMES = {0: "green", 1: "magenta", 2: "red"}
+
+# Letterbox canvas configuration
+LETTERBOX_CANVAS_COLOR = (114, 114, 114)
+
+# Average precision evaluation thresholds (IoU ranges)
+AP_THRESHOLD_START = 0.5
+AP_THRESHOLD_END = 1.0
+AP_THRESHOLD_STEP = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +109,7 @@ def letterbox(img: Image.Image) -> LetterboxResult:
     width, height = img.size
     scale = min(IMAGE_SIZE / width, IMAGE_SIZE / height)
     new_w, new_h = round(width * scale), round(height * scale)
-    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), (114, 114, 114))
+    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), LETTERBOX_CANVAS_COLOR)
     pad_x, pad_y = (IMAGE_SIZE - new_w) // 2, (IMAGE_SIZE - new_h) // 2
     canvas.paste(img.resize((new_w, new_h), _BILINEAR), (pad_x, pad_y))
     return LetterboxResult(
@@ -185,7 +194,7 @@ def average_precision(scored: list[tuple[float, bool]], n_ground_truth: int) -> 
     if not scored:
         return 0.0
 
-    ordered = sorted(scored, key=lambda entry: -entry[0])
+    ordered = sorted(scored, key=operator.itemgetter(0), reverse=True)
     true_positives = np.cumsum([hit for _, hit in ordered])
     false_positives = np.cumsum([not hit for _, hit in ordered])
     recall = true_positives / n_ground_truth
@@ -297,7 +306,7 @@ def summarise(predictions: list[list[Prediction]], truth: list[GroundTruth]) -> 
     Per-class AP at 0.5 saturates on this dataset, so the per-class view is
     also reported averaged across the 0.5:0.95 sweep where it discriminates.
     """
-    sweep = [mean_average_precision(predictions, truth, t) for t in np.arange(0.5, 1.0, 0.05)]
+    sweep = [mean_average_precision(predictions, truth, t) for t in np.arange(AP_THRESHOLD_START, AP_THRESHOLD_END, AP_THRESHOLD_STEP)]
     map50, per_class = mean_average_precision(predictions, truth, 0.5)
     map75, _ = mean_average_precision(predictions, truth, 0.75)
     per_class_swept = {

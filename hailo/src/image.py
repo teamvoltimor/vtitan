@@ -23,6 +23,7 @@ from src.constants import (
     IMAGE_EXTENSIONS,
     LETTERBOX_PAD_COLOR,
     NORMALIZE_FACTOR,
+    SCORE_DISPLAY_PRECISION,
     TEXT_FONT_SCALE,
     TEXT_THICKNESS,
     TEXT_Y_OFFSET,
@@ -172,11 +173,12 @@ def draw_boxes(
             the COCO class list is used. Pass the model's own names to label
             custom-trained classes correctly.
     """
+    # strict=False: arrays may have been filtered; length mismatch is expected
     for box, score, cls in zip(boxes, scores, classes, strict=False):
         x1, y1, x2, y2 = map(int, box)
         class_id = int(cls)
         color = COLORS[class_id % len(COLORS)]
-        label = f"{_class_label(class_id, names)} {score:.2f}"
+        label = f"{_class_label(class_id, names)} {score:.{SCORE_DISPLAY_PRECISION}f}"
         cv2.rectangle(image, (x1, y1), (x2, y2), color, BOX_LINE_THICKNESS)
         cv2.putText(
             image,
