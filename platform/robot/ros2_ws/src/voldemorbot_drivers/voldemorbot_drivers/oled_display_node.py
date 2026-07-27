@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import json
 import math
-import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, override
 
@@ -44,13 +43,14 @@ from sensor_msgs.msg import (
     LaserScan,
 )
 from std_msgs.msg import Float32, String
+from vision_msgs.msg import Detection2DArray
 
 from src.hardware.display.enums import DisplayBackend
 from src.hardware.display.ssd1306 import (
     Driver as BlinkaDriver,
     RawI2CDriver,
 )
-from src.state_machine import RobotState
+from src.state_machine import RobotState, ScenarioType
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -70,17 +70,14 @@ class NodeConfig(BaseSettings):
 
     Matches every hardware driver's Config pattern. Timing fields were previously hardcoded
     as plain module constants, silently ignoring
-    .env.example's documented UI_REFRESH_RATE_HZ / PAGE_CYCLE_INTERVAL_SEC entirely --
-    changing those values had zero effect.
+    .env.example's documented UI_REFRESH_RATE_HZ entirely --
+    changing that value had zero effect.
     """
 
     model_config = SettingsConfigDict(env_prefix="")
 
     ui_refresh_rate_hz: float = Field(default=10.0, validation_alias="UI_REFRESH_RATE_HZ")
     """Rate for updating display data (fast updates)."""
-
-    page_cycle_interval_sec: float = Field(default=1.2, validation_alias="PAGE_CYCLE_INTERVAL_SEC")
-    """Interval for cycling between pages during RACING state."""
 
     display_backend: DisplayBackend = Field(default=DisplayBackend.BLINKA, validation_alias="DISPLAY_BACKEND")
     """SSD1306 I2C backend -- blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N
@@ -132,7 +129,12 @@ restarted independently of the Pi 5 -- so it has to request the latched value
 rather than wait for the next transition, which may be minutes away or may
 already have happened.
 """
-PAGE_CYCLE_INTERVAL_SEC = _node_config.page_cycle_interval_sec
+
+_DEG_PER_REV = 360.0
+"""/motor/drive_speed reports the wheel's angular speed in degrees/s (from real
+encoder feedback, see dc_encoder/driver.py's get_drive_speed()) -- rev/s is
+just that divided by 360, with no wheel-radius conversion (and its
+measurement uncertainty) involved at all."""
 
 _DISPLAY_DRIVER_BY_BACKEND = {
     DisplayBackend.BLINKA: BlinkaDriver,
@@ -142,12 +144,6 @@ _DISPLAY_DRIVER_BY_BACKEND = {
 _MIN_VALID_LIDAR_RANGE_M = 0.01
 """LIDAR ranges at or below this are treated as invalid (no-return) readings."""
 
-_PATH_BLOCKED_CLEARANCE_CM = 30
-"""Front clearance below this (cm) is shown as a blocked path on the OLED."""
-
-_PATH_NARROW_CLEARANCE_CM = 20
-"""Side clearance below this (cm) is shown as a narrow path on the OLED."""
-
 
 class OLEDDisplayNode(LifecycleNode):
     """ROS2 lifecycle node that manages the OLED display with state-based views.
@@ -155,7 +151,8 @@ class OLEDDisplayNode(LifecycleNode):
     Responsibilities:
     - Display live hardware checklist during BOOT_CHECK
     - Display IP address and AI model during READY
-    - Auto-cycle through Ackermann, Hailo, and LiDAR pages during RACING
+    - Display speed, steering, lidar clearances, yaw, and (Obstacles only) the
+      most salient detection all at once during RACING
     - Display final race results during FINISHED
     - Publish live mirror of display to /ui/oled_mirror for remote viewing
     """
@@ -174,6 +171,14 @@ class OLEDDisplayNode(LifecycleNode):
         self.imu_sub: Subscription | None = None
         self.lidar_sub: Subscription | None = None
         self.hailo_fps_sub: Subscription | None = None
+        self.detections_sub: Subscription | None = None
+        # drive_speed/steering_position come from ackermann_motor_node, which
+        # runs on this same board (the Zero) -- subscribed directly rather
+        # than round-tripped through state_machine_node's /race_metrics on the
+        # Pi 5, which never actually wires them up (race_metrics.current_velocity
+        # /current_steering are hardcoded 0.0 there; nothing populates them).
+        self.drive_speed_sub: Subscription | None = None
+        self.steering_position_sub: Subscription | None = None
         self.ui_timer: Timer | None = None
 
         # State tracking
@@ -187,11 +192,11 @@ class OLEDDisplayNode(LifecycleNode):
         self.lidar_left: float = 0.0
         self.lidar_right: float = 0.0
         self.hailo_fps: float = 0.0
-
-        # Page cycling for RACING state
-        self.current_page: int = 0
-        self.last_page_cycle_time: float = time.time()
-        self.racing_pages = ["ackermann", "hailo", "lidar"]
+        self.drive_speed_dps: float = 0.0
+        self.steering_position_deg: float = 0.0
+        self.best_detection: tuple[str, float] | None = None
+        """(class_id, confidence) of the detection scoring highest on
+        confidence x bbox area, or None with no current detections."""
 
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -253,6 +258,26 @@ class OLEDDisplayNode(LifecycleNode):
             qos_profile_sensor_data,
         )
         self.hailo_fps_sub = self.create_subscription(Float32, "/hailo/fps", self._hailo_fps_callback, 10)
+        self.detections_sub = self.create_subscription(
+            Detection2DArray,
+            "/hailo/detections",
+            self._detections_callback,
+            10,
+        )
+        # ackermann_motor_node runs on this same board -- default (reliable,
+        # volatile) QoS matches its create_lifecycle_publisher(..., 10) calls.
+        self.drive_speed_sub = self.create_subscription(
+            Float32,
+            "/motor/drive_speed",
+            self._drive_speed_callback,
+            10,
+        )
+        self.steering_position_sub = self.create_subscription(
+            Float32,
+            "/motor/steering_position",
+            self._steering_position_callback,
+            10,
+        )
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -303,7 +328,17 @@ class OLEDDisplayNode(LifecycleNode):
             self.display_driver = None
 
     def _destroy_pub_and_subs(self) -> None:
-        for sub_attr in ("state_sub", "diagnostics_sub", "metrics_sub", "imu_sub", "lidar_sub", "hailo_fps_sub"):
+        for sub_attr in (
+            "state_sub",
+            "diagnostics_sub",
+            "metrics_sub",
+            "imu_sub",
+            "lidar_sub",
+            "hailo_fps_sub",
+            "detections_sub",
+            "drive_speed_sub",
+            "steering_position_sub",
+        ):
             sub = getattr(self, sub_attr)
             if sub is not None:
                 self.destroy_subscription(sub)
@@ -382,17 +417,43 @@ class OLEDDisplayNode(LifecycleNode):
         """Handle Hailo FPS updates."""
         self.hailo_fps = msg.data
 
+    def _drive_speed_callback(self, msg: Float32) -> None:
+        """Wheel angular speed in degrees/s, from ackermann_motor_node's real encoder feedback."""
+        self.drive_speed_dps = msg.data
+
+    def _steering_position_callback(self, msg: Float32) -> None:
+        """Current steering angle in degrees, from ackermann_motor_node's real feedback."""
+        self.steering_position_deg = msg.data
+
+    def _detections_callback(self, msg: Detection2DArray) -> None:
+        """Track the single most salient detection.
+
+        Ranked by confidence x bbox area rather than confidence alone: a small,
+        high-confidence false positive and a large, low-confidence smear are
+        both less trustworthy than one detection that scores well on both axes.
+        """
+        best: tuple[str, float] | None = None
+        best_score = -1.0
+        for det in msg.detections:
+            if not det.results:
+                continue
+            hyp = det.results[0]
+            # Handle varying vision_msgs versions, same as telemetry_bridge_node.
+            if hasattr(hyp, "hypothesis"):
+                class_id, confidence = hyp.hypothesis.class_id, hyp.hypothesis.score
+            else:
+                class_id, confidence = hyp.id, hyp.score
+            area = det.bbox.size_x * det.bbox.size_y
+            score = confidence * area
+            if score > best_score:
+                best_score = score
+                best = (class_id, confidence)
+        self.best_detection = best
+
     def _update_display(self) -> None:
         """Update display based on current state."""
         if self.display_driver is None:
             return
-
-        # Check if we need to cycle pages (only in RACING state)
-        if self.current_state == RobotState.RACING.value:
-            current_time = time.time()
-            if current_time - self.last_page_cycle_time >= PAGE_CYCLE_INTERVAL_SEC:
-                self.current_page = (self.current_page + 1) % len(self.racing_pages)
-                self.last_page_cycle_time = current_time
 
         # Create display image based on state
         if self.current_state == RobotState.BOOT_CHECK.value:
@@ -400,13 +461,7 @@ class OLEDDisplayNode(LifecycleNode):
         elif self.current_state == RobotState.READY.value:
             image = self._render_ready()
         elif self.current_state == RobotState.RACING.value:
-            page_name = self.racing_pages[self.current_page]
-            if page_name == "ackermann":
-                image = self._render_ackermann()
-            elif page_name == "hailo":
-                image = self._render_hailo()
-            else:  # lidar
-                image = self._render_lidar()
+            image = self._render_racing()
         elif self.current_state == RobotState.FINISHED.value:
             image = self._render_finished()
         else:
@@ -515,78 +570,54 @@ class OLEDDisplayNode(LifecycleNode):
 
         return image
 
-    def _render_ackermann(self) -> Image.Image:
-        """Render Ackermann page - velocity, steering, gyro."""
+    def _render_racing(self) -> Image.Image:
+        """Render the single consolidated RACING page.
+
+        Everything at once instead of cycling three pages: speed (rev/s),
+        steering, the three lidar clearances, IMU yaw, and -- Obstacles
+        Challenge only -- the current most salient detection. IP/mode are
+        READY-only by design: they're only useful before the round starts.
+        """
         assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
-        # Title
-        draw.text((_MARGIN_X, _TITLE_Y), "ACKERMANN", fill=_ON)
+        draw.text((_MARGIN_X, _TITLE_Y), "RACING", fill=_ON)
         draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
-        # Velocity
-        velocity = self.race_metrics.get("current_velocity", 0.0)
-        draw.text((_MARGIN_X, _BODY_TOP_Y), f"Vel: {velocity:.2f} m/s", fill=_ON)
+        rev_per_s = self.drive_speed_dps / _DEG_PER_REV
+        draw.text(
+            (_MARGIN_X, _BODY_TOP_Y),
+            f"V:{rev_per_s:.1f}rev/s St:{self.steering_position_deg:+.0f}deg",
+            fill=_ON,
+        )
 
-        # Steering
-        steering = self.race_metrics.get("current_steering", 0.0)
-        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), f"Steer: {steering:.1f} deg", fill=_ON)
+        draw.text(
+            (_MARGIN_X, _BODY_TOP_Y + _ROW_H),
+            f"F:{self.lidar_front:.0f} L:{self.lidar_left:.0f} R:{self.lidar_right:.0f}cm",
+            fill=_ON,
+        )
 
-        # Gyro Yaw
-        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Yaw: {self.gyro_yaw:.1f} deg", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Yaw:{self.gyro_yaw:+.0f}deg", fill=_ON)
 
-        # Laps
-        laps = self.race_metrics.get("laps_completed", 0)
-        draw.text((_MARGIN_X, _FOOTER_Y), f"Laps: {laps}/{self.race_metrics.get('target_laps', _DEFAULT_TARGET_LAPS)}", fill=_ON)
+        # Detection is Obstacles-only: the Open Challenge never runs vision, so
+        # showing a stale/empty detection line there would be noise, not signal.
+        if self._is_obstacles_challenge() and self.best_detection is not None:
+            class_id, confidence = self.best_detection
+            draw.text((_MARGIN_X, _BODY_TOP_Y + 3 * _ROW_H), f"Obj:{class_id} {confidence:.2f}", fill=_ON)
 
         return image
 
-    def _render_hailo(self) -> Image.Image:
-        """Render Hailo Vision page - NPU FPS, detections."""
-        assert self.display_driver is not None
-        image = self.display_driver.get_blank_image()
-        draw = ImageDraw.Draw(image)
+    def _is_obstacles_challenge(self) -> bool:
+        """True once BOOT_CHECK has latched the Obstacles Challenge.
 
-        # Title
-        draw.text((_MARGIN_X, _TITLE_Y), "HAILO VISION", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
-
-        # NPU FPS
-        draw.text((_MARGIN_X, _BODY_TOP_Y), f"NPU: {self.hailo_fps:.1f} FPS", fill=_ON)
-
-        # Target detection (placeholder - would need actual detection data)
-        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), "Target: SEARCHING", fill=_ON)
-        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), "Conf: --", fill=_ON)
-        draw.text((_MARGIN_X, _FOOTER_Y), "Dist: -- m", fill=_ON)
-
-        return image
-
-    def _render_lidar(self) -> Image.Image:
-        """Render LiDAR page - spatial clearances."""
-        assert self.display_driver is not None
-        image = self.display_driver.get_blank_image()
-        draw = ImageDraw.Draw(image)
-
-        # Title
-        draw.text((_MARGIN_X, _TITLE_Y), "LIDAR", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
-
-        # Clearances
-        draw.text((_MARGIN_X, _BODY_TOP_Y), f"Front: {self.lidar_front:.0f} cm", fill=_ON)
-        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), f"Left:  {self.lidar_left:.0f} cm", fill=_ON)
-        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Right: {self.lidar_right:.0f} cm", fill=_ON)
-
-        # Path status
-        path_status = "CLEAR"
-        if self.lidar_front < _PATH_BLOCKED_CLEARANCE_CM:
-            path_status = "BLOCKED"
-        elif min(self.lidar_left, self.lidar_right) < _PATH_NARROW_CLEARANCE_CM:
-            path_status = "NARROW"
-
-        draw.text((_MARGIN_X, _FOOTER_Y), f"Path: {path_status}", fill=_ON)
-
-        return image
+        Reads the same ChallengeMode diagnostic message the BOOT_CHECK page
+        already renders (state_machine_node sets it to the ScenarioType value,
+        upper-cased, once the jumper reading is stable) rather than a second,
+        possibly-diverging source of truth.
+        """
+        message = self.system_status.get("ChallengeMode", {}).get("message", "")
+        return bool(message == ScenarioType.OBSTACLES.value.upper())
 
     def _render_finished(self) -> Image.Image:
         """Render FINISHED view - final results."""

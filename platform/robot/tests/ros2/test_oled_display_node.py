@@ -22,6 +22,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from PIL import Image
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, String
+from vision_msgs.msg import BoundingBox2D, Detection2D, Detection2DArray, ObjectHypothesisWithPose
 
 # oled_display_node imports both display backends unconditionally at module
 # scope (src.hardware.display.ssd1306's __init__ re-exports both), which pulls
@@ -110,6 +111,9 @@ class TestOLEDDisplayNodeInit:
         assert node.imu_sub is not None
         assert node.lidar_sub is not None
         assert node.hailo_fps_sub is not None
+        assert node.detections_sub is not None
+        assert node.drive_speed_sub is not None
+        assert node.steering_position_sub is not None
 
         node.destroy_node()
 
@@ -252,6 +256,69 @@ class TestOLEDDisplayNodeCallbacks:
         assert node.hailo_fps == 27.5
         node.destroy_node()
 
+    def test_drive_speed_callback_updates_dps(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Float32()
+        msg.data = 360.0
+        node._drive_speed_callback(msg)
+
+        assert node.drive_speed_dps == 360.0
+        node.destroy_node()
+
+    def test_steering_position_callback_updates_degrees(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Float32()
+        msg.data = -12.5
+        node._steering_position_callback(msg)
+
+        assert node.steering_position_deg == -12.5
+        node.destroy_node()
+
+    @staticmethod
+    def _detection(class_id: str, score: float, size_x: float, size_y: float) -> Detection2D:
+        det = Detection2D()
+        hyp = ObjectHypothesisWithPose()
+        hyp.hypothesis.class_id = class_id
+        hyp.hypothesis.score = score
+        det.results.append(hyp)
+        det.bbox = BoundingBox2D(size_x=size_x, size_y=size_y)
+        return det
+
+    def test_detections_callback_picks_confidence_times_area(self, ros_context, oled_node_class):
+        """Neither the highest-confidence nor the largest box alone -- the product."""
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Detection2DArray()
+        # High confidence, tiny box: 0.95 * (5*5) = 23.75
+        msg.detections.append(self._detection("small_far_sign", 0.95, 5.0, 5.0))
+        # Lower confidence, much larger box: 0.6 * (40*40) = 960
+        msg.detections.append(self._detection("large_near_sign", 0.6, 40.0, 40.0))
+        node._detections_callback(msg)
+
+        assert node.best_detection == ("large_near_sign", 0.6)
+        node.destroy_node()
+
+    def test_detections_callback_skips_results_without_a_hypothesis(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+
+        msg = Detection2DArray()
+        empty = Detection2D()  # no results appended -- must not raise
+        msg.detections.append(empty)
+        node._detections_callback(msg)  # must not raise
+
+        assert node.best_detection is None
+        node.destroy_node()
+
     def test_imu_callback_computes_gyro_yaw(self, ros_context, oled_node_class):
         OLEDDisplayNode, _ = oled_node_class
         node = OLEDDisplayNode()
@@ -334,14 +401,38 @@ class TestEveryStateRenders:
         finally:
             node.destroy_node()
 
-    def test_every_racing_page_renders(self, ros_context, oled_node_class):
-        """RACING cycles three pages; a fault on one only shows every ~4s."""
+    def test_racing_renders_with_no_data_yet(self, ros_context, oled_node_class):
+        """Before any /motor_* or /hailo/detections message has arrived."""
         OLEDDisplayNode, mock_driver = oled_node_class
         node = self._active(OLEDDisplayNode, "racing")
         try:
-            for page in range(len(node.racing_pages)):
-                node.current_page = page
-                node._update_display()
+            node._update_display()
+            assert mock_driver.show_image.called
+        finally:
+            node.destroy_node()
+
+    def test_is_obstacles_challenge_reads_the_challenge_mode_diagnostic(self, ros_context, oled_node_class):
+        """The Open Challenge never runs vision -- no detection line should show there."""
+        OLEDDisplayNode, _ = oled_node_class
+        node = self._active(OLEDDisplayNode, "racing")
+        try:
+            node.system_status = {"ChallengeMode": {"message": "OPEN"}}
+            assert node._is_obstacles_challenge() is False
+
+            node.system_status = {"ChallengeMode": {"message": "OBSTACLES"}}
+            assert node._is_obstacles_challenge() is True
+        finally:
+            node.destroy_node()
+
+    def test_racing_renders_with_a_pending_detection_in_obstacles_challenge(self, ros_context, oled_node_class):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = self._active(OLEDDisplayNode, "racing")
+        try:
+            node.system_status = {"ChallengeMode": {"message": "OBSTACLES"}}
+            node.best_detection = ("red_sign", 0.9)
+
+            node._update_display()  # must not raise with real detection data present
+            assert mock_driver.show_image.called
         finally:
             node.destroy_node()
 
