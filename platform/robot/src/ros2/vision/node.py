@@ -60,6 +60,7 @@ class VisionNode(Node):
         config = DetectorConfig(
             model_path=model_path,
             class_to_color=DEFAULT_CLASS_TO_COLOR,
+            min_confidence=self._detection_threshold(backend),
         )
         detector = create_detector(backend, config)
         # Enter context manager for backends that hold hardware resources (Hailo).
@@ -92,6 +93,24 @@ class VisionNode(Node):
             self.get_logger().info(
                 f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",
             )
+
+    @staticmethod
+    def _detection_threshold(backend: str) -> float:
+        """Return the confidence floor detections must clear.
+
+        For the Hailo backend this comes from HailoConfig, so HAILO_MIN_CONFIDENCE
+        actually governs what reaches the navigator. It previously did not:
+        HailoDetector filters on DetectorConfig.min_confidence, which nobody set,
+        so the effective threshold was that dataclass's 0.25 default while the
+        documented variable only fed a driver path the vision node never calls.
+        """
+        from src.vision.detector import DetectorConfig  # noqa: PLC0415
+
+        if backend != "hailo":
+            return DetectorConfig.min_confidence
+        from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
+
+        return HailoConfig().min_confidence
 
     def _start_direct_capture(self, capture_fps: float) -> None:
         """Open the camera in-process and drive detection from a timer.
