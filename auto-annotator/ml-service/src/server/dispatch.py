@@ -16,15 +16,9 @@ from pydantic import BaseModel
 import numpy as np
 import torch
 
+from src.enums import ComputeDevice, ServerCommand
 from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import (
-    CMD_LIST_MODELS,
-    CMD_PING,
-    CMD_PREDICT,
-    CMD_PREDICT_TEXT,
-    CMD_SET_IMAGE,
-    CMD_SET_MODEL,
-    DEVICE_CUDA,
     MSG_KEY_CLASS_NAMES,
     MSG_KEY_CMD,
     MSG_KEY_COORDS,
@@ -55,13 +49,13 @@ def _autocast_ctx(device: str) -> contextlib.AbstractContextManager:
     """Return ``torch.autocast`` for CUDA or a no-op context for CPU.
 
     Args:
-        device: Device string, e.g. ``DEVICE_CUDA`` or ``DEVICE_CPU``.
+        device: Device string (ComputeDevice.CUDA or ComputeDevice.CPU).
 
     Returns:
         Context manager suitable for use in a ``with`` block.
     """
-    if device == DEVICE_CUDA:
-        return torch.autocast(DEVICE_CUDA, dtype=torch.bfloat16)
+    if device == ComputeDevice.CUDA:
+        return torch.autocast(ComputeDevice.CUDA, dtype=torch.bfloat16)
     return contextlib.nullcontext()
 
 
@@ -216,16 +210,16 @@ def handle_predict_text(msg: dict, ctx: ServerContext) -> PredictTextResponse:
 # Command routing tables.
 # Commands that do not require a loaded predictor.
 _HANDLERS: dict[str, Any] = {
-    CMD_PING: handle_ping,
-    CMD_LIST_MODELS: handle_list_models,
-    CMD_SET_MODEL: handle_set_model,
+    ServerCommand.PING: handle_ping,
+    ServerCommand.LIST_MODELS: handle_list_models,
+    ServerCommand.SET_MODEL: handle_set_model,
 }
 
 # Commands that require an active predictor (model must be loaded first).
 _MODEL_HANDLERS: dict[str, Any] = {
-    CMD_SET_IMAGE: handle_set_image,
-    CMD_PREDICT: handle_predict,
-    CMD_PREDICT_TEXT: handle_predict_text,
+    ServerCommand.SET_IMAGE: handle_set_image,
+    ServerCommand.PREDICT: handle_predict,
+    ServerCommand.PREDICT_TEXT: handle_predict_text,
 }
 
 

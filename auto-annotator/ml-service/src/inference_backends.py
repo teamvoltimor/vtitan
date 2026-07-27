@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
-from src.constants import (
-    DEVICE_CPU,
-    DEVICE_CUDA,
-)
+from src.enums import ComputeDevice
 from src.exceptions import InferenceBackendError, InferenceGPUMemory
 from src.utils import get_logger
 
@@ -148,7 +145,7 @@ class SAM2Backend:
 
     def _autocast_ctx(self) -> contextlib.AbstractContextManager:
         if self.torch_module.cuda.is_available():
-            return self.torch_module.autocast(DEVICE_CUDA, dtype=self.torch_module.bfloat16)
+            return self.torch_module.autocast(ComputeDevice.CUDA, dtype=self.torch_module.bfloat16)
         return contextlib.nullcontext()
 
 

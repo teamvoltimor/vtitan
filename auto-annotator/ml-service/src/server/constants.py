@@ -7,28 +7,15 @@ that server modules never scatter bare string literals in their code.
 
 from pathlib import Path
 
+from src.enums import ComputeDevice, ModelType, ServerCommand
+
 # Absolute path to the project root (three levels above src/server/).
 # Used when resolving relative checkpoint paths from models.toml.
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
 """Absolute path to the project root directory."""
 
-# Model type identifiers.
+# Model type identifiers (see ModelType enum in src.enums).
 # Match the value of the ``type`` field in each [[models]] entry of models.toml.
-
-MODEL_TYPE_SAM1: str = "sam1"
-"""Model family identifier for Segment Anything Model 1 (Meta, ViT-based)."""
-
-MODEL_TYPE_SAM2: str = "sam2"
-"""Model family identifier for Segment Anything Model 2 / 2.1 (Meta, Hiera-based)."""
-
-MODEL_TYPE_SAM3: str = "sam3"
-"""Model family identifier for Segment Anything Model 3 (Meta, transformer-based)."""
-
-MODEL_TYPE_YOLOE: str = "yoloe"
-"""Model family identifier for YOLOE open-vocabulary detection + segmentation (Ultralytics)."""
-
-MODEL_TYPE_YOLO11: str = "yolo11"
-"""Model family identifier for YOLOv11 closed-vocabulary detection (Ultralytics)."""
 
 # Model config dictionary keys.
 # Used when reading ``cfg`` dicts parsed from models.toml [[models]] entries.
@@ -65,33 +52,9 @@ SAM1_DEFAULT_VARIANT: str = "vit_h"
 SAM2_DEFAULT_HIERA_CONFIG: str = "configs/sam2.1/sam2.1_hiera_l.yaml"
 """Default path to the Hiera YAML config used when ``hiera_config`` is absent."""
 
-# Compute device names used when selecting CPU vs GPU backends.
+# Compute device names (see ComputeDevice enum in src.enums).
 
-DEVICE_CUDA: str = "cuda"
-"""CUDA GPU device identifier passed to torch and model loading functions."""
-
-DEVICE_CPU: str = "cpu"
-"""CPU device identifier used as the fallback when no CUDA GPU is available."""
-
-# TCP command strings matched against the ``cmd`` field in incoming requests.
-
-CMD_PING: str = "ping"
-"""Command: check server liveness; no model required."""
-
-CMD_LIST_MODELS: str = "list_models"
-"""Command: retrieve the list of all configured models and their availability."""
-
-CMD_SET_MODEL: str = "set_model"
-"""Command: load a different SAM model by id."""
-
-CMD_SET_IMAGE: str = "set_image"
-"""Command: set the current image for subsequent segmentation calls."""
-
-CMD_PREDICT: str = "predict"
-"""Command: run point-prompted mask prediction on the current image."""
-
-CMD_PREDICT_TEXT: str = "predict_text"
-"""Command: run text-prompted segmentation (SAM 3 only)."""
+# TCP command strings (see ServerCommand enum in src.enums).
 
 # Request message payload keys present in incoming request dicts.
 
