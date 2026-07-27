@@ -17,8 +17,20 @@ import pytest
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
 
+from src.hardware.button import base as button_base
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
+
+
+def _mock_driver() -> mock.MagicMock:
+    """A driver mock spec'd against the real interface.
+
+    Spec'd, not bare: a bare MagicMock answers to any attribute, so a node that
+    called a method the driver does not have would still pass here and only fail
+    on the robot -- exactly how the OLED node's `.width`-vs-`get_width()` slip
+    survived a green suite.
+    """
+    return mock.MagicMock(spec=button_base.Driver)
 
 
 @pytest.fixture()
@@ -35,7 +47,7 @@ def ros_context():
 @pytest.fixture()
 def button_node_class():
     """Import ButtonNode with a mocked GPIO driver."""
-    mock_driver = mock.MagicMock()
+    mock_driver = _mock_driver()
 
     with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
         from voldemorbot_drivers.button_node import ButtonNode
@@ -70,7 +82,7 @@ class TestButtonNodeInit:
         node.destroy_node()
 
     def test_driver_connect_failure_degrades_safely(self, ros_context):
-        mock_driver = mock.MagicMock()
+        mock_driver = _mock_driver()
         mock_driver.connect.side_effect = RuntimeError("gpio busy")
 
         with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
@@ -81,6 +93,34 @@ class TestButtonNodeInit:
 
         assert node.driver is None
         node._poll()  # must not raise with no driver
+        node.destroy_node()
+
+    def test_dead_driver_keeps_reporting_the_fault_on_every_poll(self, ros_context):
+        """A silent dead button is the failure mode that costs a round.
+
+        Without this the node sits ACTIVE, publishes nothing, and the only trace
+        is one startup line -- so the operator presses, nothing happens, and the
+        log at that moment looks clean.
+        """
+        mock_driver = _mock_driver()
+        mock_driver.connect.side_effect = RuntimeError("gpio busy")
+
+        with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
+            from voldemorbot_drivers.button_node import ButtonNode
+
+            node = ButtonNode()
+            node.trigger_configure()
+
+        with mock.patch.object(node, "get_logger") as get_logger:
+            node._poll()
+
+        get_logger.return_value.error.assert_called_once()
+        message = get_logger.return_value.error.call_args.args[0]
+        assert "no button events" in message
+        # The cause travels with it: a missing BUTTON_GPIO_PIN and a wiring
+        # fault are indistinguishable without it, and both reach here.
+        assert "gpio busy" in message
+
         node.destroy_node()
 
 

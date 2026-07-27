@@ -51,6 +51,9 @@ class ButtonNode(LifecycleNode):
         self.driver: ButtonDriver | None = None
         self.pub: Publisher | None = None
         self.timer: Timer | None = None
+        self.driver_fault: str | None = None
+        """Why the driver is unavailable, replayed by _poll so the reason is in
+        the log at press time rather than only in a startup line."""
 
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -62,8 +65,13 @@ class ButtonNode(LifecycleNode):
         try:
             self.driver = ButtonDriver()
             self.driver.connect()
+            self.driver_fault = None
             self.get_logger().info("Button driver connected")
         except (RuntimeError, OSError, ValueError, ImportError) as e:
+            # ValueError covers pydantic's ValidationError too, so a .env
+            # missing BUTTON_GPIO_PIN / BUTTON__* lands here and looks exactly
+            # like a wiring fault. Keep the text -- it names the missing key.
+            self.driver_fault = f"{type(e).__name__}: {e}"
             self.get_logger().error(f"Failed to connect button driver: {e}")
             self.driver = None
 
@@ -121,6 +129,17 @@ class ButtonNode(LifecycleNode):
     def _poll(self) -> None:
         """Check for a new button event and publish if one occurred."""
         if self.driver is None or self.pub is None:
+            # on_configure returns SUCCESS even when connect() fails, so a dead
+            # driver leaves this node ACTIVE with a button that can never emit:
+            # the state machine simply never hears an event and the OLED goes on
+            # showing a healthy "Press to START". Repeat the fault while it
+            # lasts, so it is in the log at the moment the operator presses --
+            # not only in a startup line that scrolled away minutes ago.
+            self.get_logger().error(
+                f"Button driver not connected - no button events will be published "
+                f"({self.driver_fault or 'driver never configured'})",
+                throttle_duration_sec=5.0,
+            )
             return
         state = self.driver.get_state()
         if state.last_event:

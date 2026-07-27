@@ -3,22 +3,22 @@ ROS2 test fixtures and configuration.
 """
 
 import sys
-import threading
 from pathlib import Path
 from unittest import mock
 
-# Mock buildhat to avoid import errors when testing ROS2 nodes
+# Mock buildhat to avoid import errors when testing ROS2 nodes.
+#
+# Only the BuildHAT motor backend imports it, and only lazily -- see
+# ackermann_motor_node._shared_build_hat, reached solely when
+# STEERING_BACKEND/DRIVE_BACKEND select build_hat. The default backends
+# (servo / dc_encoder) never touch it.
+#
+# No "buildhat.serinterface" shim any more: the button driver used to do
+# `from buildhat.serinterface import threading` -- an accidental route to the
+# stdlib that made an unrelated LEGO serial module a hard dependency of the
+# button on the Pi Zero. It imports plain `threading` now, so mocking the
+# submodule would only hide a reintroduction of that import.
 sys.modules["buildhat"] = mock.MagicMock()
-
-# src/hardware/button/gpio/driver.py does `from buildhat.serinterface import
-# threading` — a real (if accidental) source dependency on an unrelated
-# buildhat internal module, present only because it happens to import the
-# stdlib threading module at its own top level. A bare MagicMock for
-# "buildhat" doesn't behave like a package (no __path__), so importing the
-# submodule "buildhat.serinterface" fails outright unless it's mocked too.
-_mock_serinterface = mock.MagicMock()
-_mock_serinterface.threading = threading
-sys.modules["buildhat.serinterface"] = _mock_serinterface
 
 # Adafruit Blinka's "board" raises NotImplementedError at import on any host it
 # cannot identify, which is every dev machine that is not the Pi. It is reached

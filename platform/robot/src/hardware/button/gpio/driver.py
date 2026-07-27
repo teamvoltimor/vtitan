@@ -1,10 +1,10 @@
 """GPIO button driver with debouncing and long-press detection."""
 
 import logging
+import threading
 import time
 from typing import override
 
-from buildhat.serinterface import threading
 from gpiozero import Button
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
