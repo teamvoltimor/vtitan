@@ -43,7 +43,6 @@ from sensor_msgs.msg import (
     Imu,
     LaserScan,
 )
-from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Float32, String
 
 from src.hardware.display.enums import DisplayBackend
@@ -91,6 +90,35 @@ class NodeConfig(BaseSettings):
 
 _node_config = NodeConfig()
 UI_REFRESH_RATE_HZ = _node_config.ui_refresh_rate_hz
+
+_MARGIN_X = 0
+"""Left margin for every line. The panel is 128px wide; text starts flush."""
+
+_TITLE_Y = 0
+_SEPARATOR_Y = 10
+"""Baseline of the title and the rule drawn under it, on every page."""
+
+_BODY_TOP_Y = 14
+"""First body row, just below the separator."""
+
+_ROW_H = 10
+"""Vertical step between body rows, sized for the default PIL bitmap font."""
+
+_FOOTER_Y = 50
+"""Bottom row, used for the one instruction or headline value per page."""
+
+_ON = 255
+"""Monochrome "lit pixel" for a 1-bit SSD1306."""
+
+_DEFAULT_TARGET_LAPS = 3
+"""Shown only until /race_metrics arrives with the real figure."""
+
+_NO_IP_VALUES = frozenset({"OFFLINE", "FETCHING...", "unknown", "-"})
+"""Placeholders the state machine reports when there is no address to show.
+
+Treated as "no IP" rather than printed: at competition there is no network, so
+these are the normal case, not a fault worth a line on a 128x64 display.
+"""
 
 _QOS_LATCHED = QoSProfile(
     depth=1,
@@ -388,8 +416,8 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "BOOT CHECK", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "BOOT CHECK", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Component statuses
         y = 14
@@ -414,9 +442,9 @@ class OLEDDisplayNode(LifecycleNode):
                     else:
                         return self._render_challenge_mode_fault()
 
-                draw.text((0, y), text, fill=255)
+                draw.text((_MARGIN_X, y), text, fill=_ON)
             else:
-                draw.text((0, y), f"? {component}", fill=255)
+                draw.text((_MARGIN_X, y), f"? {component}", fill=_ON)
 
             y += 10
 
@@ -428,12 +456,12 @@ class OLEDDisplayNode(LifecycleNode):
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
 
-        draw.text((0, 0), "CHECK JUMPER", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
-        draw.text((0, 20), "Challenge-mode jumper", fill=255)
-        draw.text((0, 30), "reading is unstable.", fill=255)
-        draw.text((0, 44), "Reseat the GPIO23/GND", fill=255)
-        draw.text((0, 54), "jumper cap.", fill=255)
+        draw.text((_MARGIN_X, _TITLE_Y), "CHECK JUMPER", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), "Challenge-mode jumper", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), "reading is unstable.", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 3 * _ROW_H), "Reseat the GPIO23/GND", fill=_ON)
+        draw.text((_MARGIN_X, _FOOTER_Y + _ROW_H // 2), "jumper cap.", fill=_ON)
 
         return image
 
@@ -444,27 +472,37 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "READY TO START", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "READY TO START", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
-        # IP Address
-        ip_address = "OFFLINE"
-        if "Network" in self.system_status and "ip_address" in self.system_status["Network"].get("values", {}):
-            ip_address = self.system_status["Network"]["values"]["ip_address"]
+        # IP address, only when there is one. At competition the robot runs off
+        # any network, so this resolves to OFFLINE and the line becomes a
+        # permanent non-warning -- it draws the eye at the start line and
+        # crowds out the challenge mode, which is the one thing actually worth
+        # checking there. Shown on a bench where it is genuinely useful for
+        # SSHing in, omitted where it is noise.
+        ip_address = ""
+        if "Network" in self.system_status:
+            ip_address = self.system_status["Network"].get("values", {}).get("ip_address", "")
+        has_ip = bool(ip_address) and ip_address not in _NO_IP_VALUES
 
-        draw.text((0, 14), f"IP: {ip_address}", fill=255)
+        row = 14
+        if has_ip:
+            draw.text((_MARGIN_X, row), f"IP: {ip_address}", fill=_ON)
+            row += 10
 
         # AI Model
-        draw.text((0, 24), "Model: yolov8n.hef", fill=255)
+        draw.text((_MARGIN_X, row), "Model: yolov8n.hef", fill=_ON)
+        row += 10
 
         # Challenge mode (visual pre-race confirmation of the jumper reading)
         mode = "?"
         if "ChallengeMode" in self.system_status:
             mode = self.system_status["ChallengeMode"].get("message", "?")
-        draw.text((0, 34), f"MODE: {mode}", fill=255)
+        draw.text((_MARGIN_X, row), f"MODE: {mode}", fill=_ON)
 
         # Instruction
-        draw.text((0, 50), "Press to START", fill=255)
+        draw.text((_MARGIN_X, _FOOTER_Y), "Press to START", fill=_ON)
 
         return image
 
@@ -475,23 +513,23 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "ACKERMANN", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "ACKERMANN", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Velocity
         velocity = self.race_metrics.get("current_velocity", 0.0)
-        draw.text((0, 14), f"Vel: {velocity:.2f} m/s", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y), f"Vel: {velocity:.2f} m/s", fill=_ON)
 
         # Steering
         steering = self.race_metrics.get("current_steering", 0.0)
-        draw.text((0, 26), f"Steer: {steering:.1f} deg", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), f"Steer: {steering:.1f} deg", fill=_ON)
 
         # Gyro Yaw
-        draw.text((0, 38), f"Yaw: {self.gyro_yaw:.1f} deg", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Yaw: {self.gyro_yaw:.1f} deg", fill=_ON)
 
         # Laps
         laps = self.race_metrics.get("laps_completed", 0)
-        draw.text((0, 50), f"Laps: {laps}/3", fill=255)
+        draw.text((_MARGIN_X, _FOOTER_Y), f"Laps: {laps}/{self.race_metrics.get('target_laps', _DEFAULT_TARGET_LAPS)}", fill=_ON)
 
         return image
 
@@ -502,16 +540,16 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "HAILO VISION", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "HAILO VISION", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         # NPU FPS
-        draw.text((0, 14), f"NPU: {self.hailo_fps:.1f} FPS", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y), f"NPU: {self.hailo_fps:.1f} FPS", fill=_ON)
 
         # Target detection (placeholder - would need actual detection data)
-        draw.text((0, 26), "Target: SEARCHING", fill=255)
-        draw.text((0, 38), "Conf: --", fill=255)
-        draw.text((0, 50), "Dist: -- m", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), "Target: SEARCHING", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), "Conf: --", fill=_ON)
+        draw.text((_MARGIN_X, _FOOTER_Y), "Dist: -- m", fill=_ON)
 
         return image
 
@@ -522,13 +560,13 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "LIDAR", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "LIDAR", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Clearances
-        draw.text((0, 14), f"Front: {self.lidar_front:.0f} cm", fill=255)
-        draw.text((0, 26), f"Left:  {self.lidar_left:.0f} cm", fill=255)
-        draw.text((0, 38), f"Right: {self.lidar_right:.0f} cm", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y), f"Front: {self.lidar_front:.0f} cm", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), f"Left:  {self.lidar_left:.0f} cm", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Right: {self.lidar_right:.0f} cm", fill=_ON)
 
         # Path status
         path_status = "CLEAR"
@@ -537,7 +575,7 @@ class OLEDDisplayNode(LifecycleNode):
         elif min(self.lidar_left, self.lidar_right) < _PATH_NARROW_CLEARANCE_CM:
             path_status = "NARROW"
 
-        draw.text((0, 50), f"Path: {path_status}", fill=255)
+        draw.text((_MARGIN_X, _FOOTER_Y), f"Path: {path_status}", fill=_ON)
 
         return image
 
@@ -548,22 +586,30 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         # Title
-        draw.text((0, 0), "RACE FINISHED", fill=255)
-        draw.line([(0, 10), (128, 10)], fill=255, width=1)
+        draw.text((_MARGIN_X, _TITLE_Y), "RACE FINISHED", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Laps completed
         laps = self.race_metrics.get("laps_completed", 0)
-        draw.text((0, 18), f"Laps: {laps}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS}", fill=255)
+        # Target comes from /race_metrics, not CompetitionSpecs.OPEN_CHALLENGE_LAPS:
+        # the state machine picks the count from the challenge jumper, so
+        # naming the Open Challenge constant here reports the wrong target for
+        # an Obstacles run the moment the two figures differ.
+        target = self.race_metrics.get("target_laps", _DEFAULT_TARGET_LAPS)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H // 2), f"Laps: {laps}/{target}", fill=_ON)
 
         # Total time
         race_time = self.race_metrics.get("total_race_time", 0.0)
         minutes = int(race_time // 60)
         seconds = race_time % 60
-        draw.text((0, 30), f"Time: {minutes}:{seconds:05.2f}", fill=255)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Time: {minutes}:{seconds:05.2f}", fill=_ON)
 
         # Status
-        status = "COMPLETE" if laps >= CompetitionSpecs.OPEN_CHALLENGE_LAPS else "E-STOP"
-        draw.text((0, 50), f"Status: {status}", fill=255)
+        # Same reason as the lap count above: judged against the round's own
+        # target, not the Open Challenge's, or an Obstacles run that finished
+        # correctly would be reported as an E-STOP.
+        status = "COMPLETE" if laps >= target else "E-STOP"
+        draw.text((_MARGIN_X, _FOOTER_Y), f"Status: {status}", fill=_ON)
 
         return image
 

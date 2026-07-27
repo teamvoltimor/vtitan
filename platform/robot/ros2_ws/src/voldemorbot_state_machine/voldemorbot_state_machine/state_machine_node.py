@@ -306,6 +306,20 @@ class StateMachineNode(Node):
             self.state_machine.transition_to(RobotState.FINISHED, StateTransitionReason.EMERGENCY_STOP)
             self._publish_stop_command()
 
+        elif current_state == RobotState.FINISHED and event == "long_press":
+            # The only way out of FINISHED. SYSTEM_RESET was the sole
+            # transition defined from it and nothing in the codebase emitted
+            # it, so finishing a race or hitting the E-STOP left the robot
+            # unrecoverable from its own controls -- between rounds that meant
+            # an SSH session or a power cycle.
+            #
+            # A hold rather than a tap, deliberately: the button is the only
+            # control the operator has, and a knock against the chassis after a
+            # round should not restart the boot sequence.
+            self.get_logger().info("Reset requested - returning to BOOT_CHECK")
+            self.state_machine.transition_to(RobotState.BOOT_CHECK, StateTransitionReason.SYSTEM_RESET)
+            self._reset_race_metrics()
+
     def _state_machine_loop(self) -> None:
         """Main state machine loop - runs at 10Hz."""
         current_state = self.state_machine.current_state
@@ -322,6 +336,23 @@ class StateMachineNode(Node):
         # Always publish current state and diagnostics
         self._publish_state()
         self._publish_diagnostics()
+
+    def _reset_race_metrics(self) -> None:
+        """Clear per-round state so BOOT_CHECK starts genuinely fresh.
+
+        The challenge mode is cleared too, not just the lap counters: between
+        rounds the operator may move the jumper, and ``_sample_challenge_mode``
+        returns early once it is latched. Leaving it set would silently carry
+        the previous round's challenge -- and its lap count -- into the next
+        one. The jumper topic is latched, so re-sampling costs nothing.
+        """
+        self.race_start_time = None
+        self.laps_completed = 0
+        self.current_velocity = 0.0
+        self.current_steering = 0.0
+        self.challenge_mode = None
+        self._challenge_mode_samples.clear()
+        self._challenge_mode_error = None
 
     def _sample_challenge_mode(self) -> None:
         """Sample the jumper state published by the Pi Zero; stop once it stabilizes.
@@ -579,6 +610,10 @@ class StateMachineNode(Node):
         msg.data = json.dumps(
             {
                 "laps_completed": metrics.laps_completed,
+                # Published so consumers do not have to assume it. The OLED
+                # rendered "Laps: n/3" as a literal, which is right only for as
+                # long as both challenges require three laps.
+                "target_laps": self.target_laps,
                 "total_race_time": round(metrics.total_race_time, 2),
                 "current_velocity": round(metrics.current_velocity, 2),
                 "current_steering": round(metrics.current_steering, 2),
