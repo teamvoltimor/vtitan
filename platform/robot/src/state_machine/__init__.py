@@ -3,7 +3,7 @@
 from src.state_machine.core import StateMachine, StateTransition
 from src.state_machine.types import (
     LidarMetrics,
-    RaceMetrics,
+    RaceStatus,
     RobotState,
     ScenarioType,
     SensorStatus,
@@ -14,7 +14,7 @@ from src.state_machine.types import (
 
 __all__ = [
     "LidarMetrics",
-    "RaceMetrics",
+    "RaceStatus",
     "RobotState",
     "ScenarioType",
     "SensorStatus",

@@ -71,8 +71,10 @@ class SegmentationServicer(pb_grpc.SegmentationServiceServicer):
         from src.types import ClassId
 
         classes = [ClassInfo(id=ClassId(i), name=name, color="") for i, name in enumerate(request.class_names)]
+        from src.models import ClickPoint
+
         points = [
-            {"x": p.x, "y": p.y, "point_type": p.point_type, "class_name": p.class_name}
+            ClickPoint(x=p.x, y=p.y, point_type=p.point_type, class_name=p.class_name)
             for p in request.points
         ]
 

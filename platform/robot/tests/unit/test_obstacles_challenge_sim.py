@@ -45,11 +45,13 @@ the absolute rule instead of the travel-relative one.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.gateway as gateway_module
+from src.navigation.planning.sign_router import signs_from_metadata
 from src.simulation.gateway import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
@@ -252,3 +254,56 @@ class TestVisionConfirmedSignRouting:
         # that the override actually won at least once during the run.
         overridden = [(gt, eff) for gt, eff in used_pairs if eff != gt]
         assert overridden, f"camera detection never overrode ground-truth color in this run: {used_pairs[:10]}"
+
+
+class TestBlindSignDiscovery:
+    """A blind run has to find the signs with its camera, not be handed them.
+
+    WRO randomises the sign layout every round and no scenario file exists on
+    the mat, so ``blind=True`` withholds the sign positions exactly as it
+    already withholds the corridor widths and the travel direction. These pin
+    that the withholding is real and that what replaces it is accurate enough
+    to route on — the driving outcome is a separate question, currently blocked
+    upstream (see ``docs/sign-avoidance-investigation.md``).
+    """
+
+    def test_blind_router_starts_with_no_signs(self) -> None:
+        """Nothing is handed over: the router is empty before the robot moves."""
+        scenario = all_obstacles_demo_scenarios()[0]
+        sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
+
+        assert sim.routed_signs == []
+
+    def test_blind_run_discovers_signs_the_robot_drives_past(self) -> None:
+        """Discovery finds real signs, in the right place and the right colour.
+
+        Only signs the robot actually reaches can be discovered, so this
+        asserts on the quality of what was found rather than on finding all of
+        them — the runs still end early on a sign collision, which caps how
+        much of the layout is ever seen.
+        """
+        failures = []
+        for scenario in all_obstacles_demo_scenarios():
+            metadata = scenario.metadata
+            truth = signs_from_metadata(metadata if isinstance(metadata, dict) else metadata.model_dump())
+
+            sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
+            sim.run(max_steps=_MAX_STEPS)
+            discovered = sim.routed_signs
+
+            if not discovered:
+                failures.append((scenario.label, "discovered nothing"))
+                continue
+
+            for spec in discovered:
+                nearest = min(truth, key=lambda t: math.dist((t.x, t.y), (spec.x, spec.y)))
+                error = math.dist((nearest.x, nearest.y), (spec.x, spec.y))
+                # A sign sits on a grid whose lanes are ~0.20 m apart, so an
+                # error near that would put it in the wrong lane and route the
+                # robot to the wrong side of it. 10 cm keeps a clear margin.
+                if error > 0.10:
+                    failures.append((scenario.label, f"{spec} is {error * 100:.0f} cm from any real sign"))
+                elif nearest.color != spec.color:
+                    failures.append((scenario.label, f"{spec} mis-coloured (truth {nearest.color})"))
+
+        assert not failures, failures

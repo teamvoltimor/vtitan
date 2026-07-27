@@ -39,6 +39,8 @@ from dataclasses import dataclass, replace
 
 from shared.config.constants import RobotSpecs
 
+from src.simulation.geometry import _clamp, _wrap_angle
+
 _DEFAULT_MAX_STEER_RATE = 2.0  # rad/s (NavigationTuning.pursuit.MAX_STEERING_RATE)
 _DEFAULT_MAX_ACCEL = 2.0  # m/s² (drive motor's physical acceleration limit)
 
@@ -140,10 +142,6 @@ class AckermannKinematics:
         return replace(state, x=x, y=y, yaw=yaw, v=v, steer=steer)
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
-
-
 def _approach(current: float, target: float, max_delta: float) -> float:
     """Move ``current`` toward ``target`` by at most ``max_delta``."""
     delta = target - current
@@ -152,8 +150,3 @@ def _approach(current: float, target: float, max_delta: float) -> float:
     if delta < -max_delta:
         return current - max_delta
     return target
-
-
-def _wrap_angle(angle: float) -> float:
-    """Wrap to ``[-pi, pi]``."""
-    return math.atan2(math.sin(angle), math.cos(angle))

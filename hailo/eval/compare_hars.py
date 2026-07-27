@@ -84,9 +84,9 @@ def main() -> None:
     batch, truth = [], []
     for path in files:
         img = Image.open(path).convert("RGB")
-        canvas, scale, pad_x, pad_y = letterbox(img)
-        batch.append(canvas)
-        truth.append(load_ground_truth(label_dir, path.stem, img.size, (scale, pad_x, pad_y)))
+        result = letterbox(img)
+        batch.append(result.canvas)
+        truth.append(load_ground_truth(label_dir, path.stem, img.size, (result.scale, result.pad_x, result.pad_y)))
     stacked = np.stack(batch)
     print(f"Ground-truth boxes: {sum(len(t) for t in truth)}", flush=True)
 

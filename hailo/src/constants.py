@@ -28,6 +28,25 @@ DEFAULT_COCO_SAMPLES = 2048
 DEFAULT_CONFIDENCE = 0.3
 DEFAULT_CALIB_INPUT = "./calib_data"
 DEFAULT_CALIB_OUTPUT = "./calib_data_npy"
+DEFAULT_CALIB_NAME = "calib_data"
+
+# Export format identifiers
+EXPORT_FORMAT_ONNX = "onnx"
+
+# COCO dataset identifiers
+COCO_DATASET = "coco-2017"
+COCO_SPLIT = "validation"
+
+# File-handling extensions
+LABEL_EXTENSIONS: frozenset[str] = frozenset({".txt"})
+
+# Path flattening separator
+FLATTEN_SEPARATOR = "_"
+
+# Visualisation / overlay constants
+MASK_THRESHOLD = 0.5
+OVERLAY_ALPHA = 0.7
+OVERLAY_BETA = 0.3
 
 # ONNX opset versions
 OPSET_YOLO11 = 13

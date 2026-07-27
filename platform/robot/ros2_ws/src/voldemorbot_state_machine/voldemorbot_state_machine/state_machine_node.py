@@ -45,7 +45,7 @@ from std_msgs.msg import Bool, Float32, String
 
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.state_machine import (
-    RaceMetrics,
+    RaceStatus,
     RobotState,
     ScenarioType,
     SensorStatus,
@@ -597,7 +597,7 @@ class StateMachineNode(Node):
         """Publish current race metrics."""
         elapsed_time = 0.0 if self.race_start_time is None else time.time() - self.race_start_time
 
-        metrics = RaceMetrics(
+        metrics = RaceStatus(
             laps_completed=self.laps_completed,
             total_race_time=elapsed_time,
             current_velocity=self.current_velocity,

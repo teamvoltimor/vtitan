@@ -150,6 +150,23 @@ class Point:
 
 
 @dataclass(frozen=True, slots=True)
+class ClickPoint:
+    """A click point from the external API (normalised coords, string identifiers).
+
+    Attributes:
+        x:           Normalised x-coordinate (``0.0``–``1.0``).
+        y:           Normalised y-coordinate (``0.0``–``1.0``).
+        point_type:  ``"positive"`` or ``"negative"``.
+        class_name:  Class name string for this click.
+    """
+
+    x: float
+    y: float
+    point_type: str
+    class_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class ImageRecord:
     """A row from the ``images`` DB table.
 

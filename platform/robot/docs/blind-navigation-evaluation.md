@@ -212,6 +212,33 @@ scenario.
 
 ## Scope
 
-This is the **Open Challenge**. The Obstacles Challenge genuinely needs layout
-knowledge -- sign positions break the symmetry and determine pass side -- so
-blind operation there is a different and harder problem.
+The results above are the **Open Challenge**. The Obstacles Challenge needs one
+more thing withheld -- the sign layout, which breaks the symmetry and
+determines pass side -- and that is now wired up too.
+
+`blind=True` on an obstacles scenario withholds the corridor widths, the travel
+direction **and** the sign positions. What replaces the last of these is
+`navigation/planning/sign_discovery.py`: the mocked vision node projects each
+detection to a world position through the pinhole model the router already
+used for colour confirmation, and those observations are accumulated into
+persistent sign tracks. Measured over the 16 obstacles fixtures, the signs the
+robot drives past are found with **1.9 cm median position error (p90 3.4 cm),
+every colour correct, and no spurious tracks**.
+
+Two things that measurement does *not* say:
+
+- **The camera is perfect in sim.** `vision_emulator.py` inverts the same
+  projection `_detection_to_world` decodes, with no pixel noise, no
+  quantisation and no occlusion, so the residual error above is almost entirely
+  robot-pose error rather than perception error. This is the same category of
+  giveaway that "perfect wheel traction, zero control latency" is above, and
+  every one of those removed so far has cost real pass rate. Treat 1.9 cm as a
+  floor.
+- **Discovery is not the blocker, and blind is not what makes obstacles fail.**
+  Blind and sighted score identically (16/16 collisions, 0/16 laps), because
+  both are stopped further upstream by the reactive collision layer -- see
+  [sign-avoidance-investigation.md](sign-avoidance-investigation.md).
+
+The same wiring is on the real robot: `node.py` previously built a `SignRouter`
+only when metadata supplied the signs, so a blind run on the mat had **no sign
+avoidance at all**. It now always builds one and discovers into it.

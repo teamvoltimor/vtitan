@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from src.utils import get_logger
@@ -12,11 +13,19 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_paths() -> tuple[Path, Path]:
-    """Return (base_dir, data_yaml_path) from AppConfig."""
+@dataclass
+class TrainPaths:
+    """Paths needed for YOLO training."""
+
+    base_dir: Path
+    data_yaml_path: Path
+
+
+def _get_paths() -> TrainPaths:
+    """Return training paths from AppConfig."""
     from src.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load().paths
-    return cfg.base_dir, cfg.data_yaml_path
+    return TrainPaths(base_dir=cfg.base_dir, data_yaml_path=cfg.data_yaml_path)
 
 
 def run_training_job(
@@ -40,9 +49,9 @@ def run_training_job(
     """
     from ultralytics import YOLO  # lazy import — heavy dependency  # noqa: PLC0415
 
-    base_dir, default_data_yaml = _get_paths()
-    runs_dir = base_dir / "data" / "runs"
-    yaml_path = data_yaml or default_data_yaml
+    paths = _get_paths()
+    runs_dir = paths.base_dir / "data" / "runs"
+    yaml_path = data_yaml or paths.data_yaml_path
     if not yaml_path.exists():
         if reporter:
             reporter.update("error", 0.0, f"data.yaml not found at {yaml_path}")

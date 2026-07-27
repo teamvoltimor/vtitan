@@ -41,6 +41,7 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.race_tracker import TRAVEL_DIRS
+from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -54,9 +55,6 @@ _DECISION_BOUNDARY = (_NARROW + _WIDE) / 2.0
 _MIN_PLAUSIBLE_WIDTH = _NARROW - 0.25
 _MAX_PLAUSIBLE_WIDTH = _WIDE + 0.25
 """Outside this band the inward ray has missed the inner block (a corner)."""
-
-_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
-"""Maximum heading error off the corridor axis for the side rays to be trusted."""
 
 _MIN_SAMPLES = 12
 """Readings for a corridor before its width is called at all.
@@ -74,10 +72,6 @@ Majority voting over a decent sample is immune to that — the leaked readings
 are a minority of any corridor's traverse — which is why this counts votes
 rather than streaks.
 """
-
-
-def _wrap(angle: float) -> float:
-    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 def measure_corridor_width(
@@ -109,11 +103,6 @@ def measure_corridor_width(
     if not (_MIN_PLAUSIBLE_WIDTH < width < _MAX_PLAUSIBLE_WIDTH):
         return None
     return width
-
-
-def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
-    index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
-    return ranges_m[index]
 
 
 def classify_width(width_m: float) -> float:

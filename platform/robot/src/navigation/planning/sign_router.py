@@ -29,11 +29,17 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from shared.config.constants import ColorNames, RobotSpecs, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
 
+from src.navigation.planning.sign_discovery import (
+    ObservedSignMap,
+    SignSpec,
+    _detection_to_world,
+    _dist2d,
+)
 from src.navigation.planning.waypoints import corridor_for_position
 
 if TYPE_CHECKING:
@@ -41,12 +47,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Camera focal length in pixels — derived from HFOV and image width.
-_CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
-
-# Bounding boxes shorter than this (px) are too degenerate for a reliable
-# pinhole distance estimate.
-_MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
+# Re-exported from sign_discovery, which owns the projection primitives this
+# module routes on top of. Kept importable from here because that is where
+# every caller and test already reaches for them.
+__all__ = [
+    "SignRouter",
+    "SignRouterConfig",
+    "SignSpec",
+    "signs_from_metadata",
+]
 
 # How far a deformed waypoint must stay clear of the restricted inner square
 # and the outer wall (WP-1). An unclamped deformation can otherwise place the
@@ -109,15 +118,6 @@ _ROUTING_TABLE: dict[tuple[Section, Direction], tuple[str, int, int]] = {
 
 
 @dataclass(frozen=True)
-class SignSpec:
-    """Expected traffic sign location and color from scenario metadata."""
-
-    x: float
-    y: float
-    color: str  # ColorNames.RED or ColorNames.GREEN
-
-
-@dataclass(frozen=True)
 class SignRouterConfig:
     """Tuning parameters for the sign router."""
 
@@ -172,17 +172,69 @@ class SignRouter:
         signs: list[SignSpec],
         config: SignRouterConfig | None = None,
         direction: Direction = Direction.COUNTERCLOCKWISE,
+        discover: bool = False,
     ) -> None:
-        self._signs = signs
+        self._signs = list(signs)
         self._config = config or SignRouterConfig()
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
         self._lap_tick = 0
-        # Each sign's own corridor, precomputed once — deform_waypoint() must
-        # never apply a sign's (x, y) through a different corridor's axis
-        # convention (see _nearest_active_sign).
-        self._sign_corridors = [corridor_for_position(s.x, s.y) for s in signs]
+        # Each sign's own corridor, kept in step with _signs — deform_waypoint()
+        # must never apply a sign's (x, y) through a different corridor's axis
+        # convention (see _nearest_active_sign). Recomputed per sign rather than
+        # once up front, since discovery can both append signs and move an
+        # existing one across a corridor boundary as its estimate improves.
+        self._sign_corridors = [corridor_for_position(s.x, s.y) for s in self._signs]
+        # Discovery mode: the sign layout is randomised every round and no
+        # scenario file exists on the mat, so a blind robot has to find the
+        # signs with its camera rather than be handed them. See sign_discovery.
+        self._sign_map = ObservedSignMap(self._config.min_confidence) if discover else None
+
+    @property
+    def signs(self) -> list[SignSpec]:
+        """Signs currently being routed around — discovered ones included."""
+        return list(self._signs)
+
+    def _ingest_detections(
+        self,
+        detections: list[Detection] | None,
+        robot_pos: tuple[float, float],
+        robot_yaw: float,
+    ) -> None:
+        """Fold a frame of detections into the discovered sign list.
+
+        Appending only ever grows ``_signs``, which is what keeps the
+        index-keyed ``_passed``/``_engaged`` bookkeeping valid. A published
+        sign's position is refined in place for the same reason.
+        """
+        if self._sign_map is None:
+            return
+
+        self._sign_map.observe(detections, robot_pos, robot_yaw)
+
+        for track in self._sign_map.newly_confirmed():
+            track.published_index = len(self._signs)
+            spec = track.as_spec()
+            self._signs.append(spec)
+            self._sign_corridors.append(corridor_for_position(spec.x, spec.y))
+            logger.info(
+                "Discovered %s sign %d at (%.2f, %.2f) from %d detections",
+                spec.color,
+                track.published_index,
+                spec.x,
+                spec.y,
+                track.hits,
+            )
+
+        for track in self._sign_map.published():
+            index = track.published_index
+            if index is None:
+                continue
+            spec = track.as_spec()
+            if spec != self._signs[index]:
+                self._signs[index] = spec
+                self._sign_corridors[index] = corridor_for_position(spec.x, spec.y)
 
     @property
     def active_sign_count(self) -> int:
@@ -225,6 +277,11 @@ class SignRouter:
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
         """
+        # Discovery first: in blind mode this frame may be what reveals the
+        # sign about to be routed around, so it has to land before candidate
+        # selection rather than after it.
+        self._ingest_detections(detections, robot_pos, robot_yaw)
+
         candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
 
         # Walk candidates nearest-first and use the first whose deformation is
@@ -524,57 +581,24 @@ def _match_detection_to_sign(
     return best_color
 
 
-def _detection_to_world(
-    det: Detection,
-    robot_pos: tuple[float, float],
-    robot_yaw: float,
-) -> tuple[float, float] | None:
-    """Project a bbox detection to an approximate world position.
-
-    Uses known sign height (TrafficSignSpecs.HEIGHT) as the reference to
-    estimate distance from the pixel-space bounding-box height.
-
-    Args:
-        det: Single camera detection with bbox (x1, y1, x2, y2).
-        robot_pos: Robot (x, y) position (metres).
-        robot_yaw: Robot heading (radians, 0 = east).
-
-    Returns:
-        Estimated world (x, y) of the sign, or None if bbox is too small.
-    """
-    x1, y1, x2, y2 = det.bbox
-    pixel_height = abs(y2 - y1)
-    if pixel_height < _MIN_RELIABLE_BBOX_HEIGHT_PX:
-        return None
-
-    # Estimate distance using pinhole model: d = (f * real_h) / pixel_h
-    distance = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / pixel_height
-
-    # Horizontal angle from image centre.
-    cx = (x1 + x2) / 2.0
-    theta_h = (cx / RobotSpecs.CAMERA_WIDTH - 0.5) * RobotSpecs.CAMERA_HFOV
-
-    bearing = robot_yaw + theta_h
-    wx = robot_pos[0] + distance * math.cos(bearing)
-    wy = robot_pos[1] + distance * math.sin(bearing)
-    return wx, wy
-
-
-def signs_from_metadata(metadata: dict) -> list[SignSpec]:
+def signs_from_metadata(metadata: dict | Any) -> list[SignSpec]:
     """Extract sign specs from scenario metadata.
 
     Args:
-        metadata: Scenario metadata dict (from ScenarioGenerator).
+        metadata: Scenario metadata (Pydantic model or coercible dict).
 
     Returns:
         List of SignSpec for all signs in the scenario.
     """
-    sign_positions = metadata.get("sign_positions", [])
-    return [SignSpec(x=entry["x"], y=entry["y"], color=entry["color"]) for entry in sign_positions]
+    from shared.domain.models import ScenarioMetadata
 
-
-def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+    if isinstance(metadata, ScenarioMetadata):
+        return [SignSpec(x=s.x, y=s.y, color=s.color) for s in metadata.sign_positions]
+    sign_positions = metadata.get(DictKeys.SIGN_POSITIONS, [])
+    return [
+        SignSpec(x=entry[DictKeys.X], y=entry[DictKeys.Y], color=entry[DictKeys.COLOR])
+        for entry in sign_positions
+    ]
 
 
 def _is_squarely_in_corridor(x: float, y: float, corridor: Section) -> bool:

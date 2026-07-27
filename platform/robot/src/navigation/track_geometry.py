@@ -29,13 +29,23 @@ _TRACK_MIN = 0.0
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
 
 
-def corridor_widths_from_metadata(metadata: dict[str, Any]) -> dict[Section, float]:
+def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> dict[Section, float]:
     """Extract per-side corridor widths (metres) from scenario metadata.
 
     Shared by every consumer that needs to build a :class:`TrackWalls` from a
     scenario's metadata dict (the simulator and the real ROS2 localizer), so
     this parsing lives in exactly one place.
     """
+    from shared.domain.models import ScenarioMetadata
+
+    if isinstance(metadata, ScenarioMetadata):
+        cw = metadata.corridor_widths
+        return {
+            Section.NORTH: cw.north.width_mm / 1000.0,
+            Section.SOUTH: cw.south.width_mm / 1000.0,
+            Section.EAST: cw.east.width_mm / 1000.0,
+            Section.WEST: cw.west.width_mm / 1000.0,
+        }
     raw = metadata[DictKeys.CORRIDOR_WIDTHS]
     return {
         Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0 for side in ("north", "south", "east", "west")

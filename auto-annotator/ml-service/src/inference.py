@@ -90,10 +90,12 @@ def _filter_connected_components(mask: np.ndarray, positive_points: list[Point])
     return np.isin(label_map, list(keep))
 
 
-def _empty_cache(context: InferenceContext) -> None:
-    """Free CUDA cache if torch is loaded."""
-    if context.torch_module is not None and context.torch_module.cuda.is_available():
-        context.torch_module.cuda.empty_cache()
+def _empty_cache() -> None:
+    """Free the CUDA memory cache when a GPU is available."""
+    import torch  # noqa: PLC0415
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def run_sam_inference(
@@ -126,25 +128,27 @@ def run_sam_inference(
     try:
         if client is not None:
             client.set_image(request.image)
-            all_masks, scores_flat, _ = client.predict(coords, labels)
+            prediction = client.predict(coords, labels)
+            all_masks, scores_flat = prediction.masks, prediction.scores
         else:
             backend = get_backend(context)
             backend.set_image(request.image)
-            all_masks, scores_flat, _ = backend.predict(coords, labels)
+            prediction = backend.predict(coords, labels)
+            all_masks, scores_flat = prediction.masks, prediction.scores
 
     except InferenceGPUMemory:
-        _empty_cache(context)
+        _empty_cache()
         return InferenceResult(masks=None, best_idx=0, scores_str="", error="CUDA OOM — try a smaller image.")
     except InferenceBackendError as e:
-        _empty_cache(context)
+        _empty_cache()
         return InferenceResult(masks=None, best_idx=0, scores_str="", error=f"Inference error: {e}")
     except Exception as e:
-        _empty_cache(context)
+        _empty_cache()
         logger.exception("Unexpected inference error", extra={"_extra": {"error": str(e)}})
         return InferenceResult(masks=None, best_idx=0, scores_str="", error=f"Unexpected error: {e}")
     finally:
         if client is None:
-            _empty_cache(context)
+            _empty_cache()
 
     positive_points = [p for p in request.points if p.label == 1]
     all_masks = [_filter_connected_components(mask, positive_points) for mask in all_masks]

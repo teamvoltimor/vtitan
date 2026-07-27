@@ -402,6 +402,20 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     "arc": lambda v: SweepConfig(f"arc_radius {v:.2f}", arc_radius=v),
     "speed": lambda v: SweepConfig(f"fast_speed {v:.2f}", fast_speed=v),
     "offset": lambda v: SweepConfig(f"lateral_offset {v:.3f}", lateral_offset=v),
+    # The offset sweep CROSSED with lidar_blind, which is the only way to see
+    # that the two interact. Swept alone, `offset` is byte-identical from 0.20
+    # to 0.32 — the reactive escape layer fires at every sign pass and decides
+    # the run before the router's aim can matter, so the knob reads inert.
+    # Take the signs away from the collision controller (they stay physical,
+    # so collisions are still real) and the same knob becomes monotone:
+    # 16/16 -> 15/16 -> 14/16 over 0.20/0.24/0.28. Neither single-knob mode
+    # shows this; `offset` says the router does nothing and `lidar` says
+    # perception is a wash.
+    "masked-offset": lambda v: SweepConfig(
+        f"lateral_offset {v:.3f}, lidar blind to signs",
+        lateral_offset=v,
+        lidar_blind=True,
+    ),
     "buffer": lambda v: SweepConfig(f"depth_buffer {v:.2f}", deform_depth_buffer=v),
 }
 """Modes that sweep one numeric knob across the values given on the CLI."""

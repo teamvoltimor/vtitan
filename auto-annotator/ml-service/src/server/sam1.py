@@ -6,10 +6,9 @@ All config-dict key strings come from :mod:`src.server.constants`.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.server.constants import SAM1_DEFAULT_VARIANT
+from src.server.constants import ERR_SAM1_NO_CHECKPOINT, SAM1_DEFAULT_VARIANT, resolve_checkpoint_path
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
@@ -33,12 +32,9 @@ def load_sam1(cfg: ModelConfig, ctx: ServerContext) -> None:
     from segment_anything import SamPredictor, sam_model_registry  # type: ignore[import-untyped]
 
     if not cfg.checkpoint:
-        msg = "SAM1 requires a 'checkpoint' path in config"
-        raise ValueError(msg)
+        raise ValueError(ERR_SAM1_NO_CHECKPOINT)
 
-    ckpt = Path(cfg.checkpoint)
-    if not ckpt.is_absolute():
-        ckpt = Path(__file__).parent.parent.parent / ckpt
+    ckpt = resolve_checkpoint_path(cfg.checkpoint)
 
     variant = cfg.variant or SAM1_DEFAULT_VARIANT
     sam = sam_model_registry[variant](checkpoint=str(ckpt))

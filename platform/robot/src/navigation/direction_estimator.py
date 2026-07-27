@@ -45,6 +45,8 @@ from typing import TYPE_CHECKING
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction
 
+from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, _wrap
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -60,12 +62,6 @@ next corridor. The margin absorbs scanning slightly off-axis; it is the same
 plausibility bound :mod:`src.navigation.corridor_estimator` uses to reject the
 readings this module is looking for.
 """
-
-_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
-"""Beyond this off the corridor axis the side rays cut a diagonal and mean little."""
-
-_MIN_VALID_RANGE_M = 0.01
-"""Below this a return is the driver's invalid-reading sentinel, not a wall."""
 
 CORNER_CLEARANCE_M = 1.00
 """Forward clearance below which the corridor counts as ending, for inference.
@@ -83,13 +79,6 @@ The gap between this and the turn threshold is the window in which the robot is
 still square to the corridor and the way ahead is visibly closing.
 """
 
-_FORWARD_ARC_RAD_FWD = math.radians(8.0)
-"""Narrow, so the forward check sees ahead rather than the near side wall.
-
-In a 0.6 m corridor a ray 25 degrees off the nose already returns the side
-wall, which reads as an obstacle in front when the way ahead is clear.
-"""
-
 _MIN_ASYMMETRY_M = 0.30
 """How much further the open side must see than the closed one.
 
@@ -97,24 +86,6 @@ Guards the case where both sides read long -- at the very corner the robot can
 briefly see past the block on one side and down the finishing corridor on the
 other, and a marginal difference there is not evidence.
 """
-
-
-def _wrap(angle: float) -> float:
-    return math.atan2(math.sin(angle), math.cos(angle))
-
-
-def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
-    index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
-    return ranges_m[index]
-
-
-def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> float:
-    forward = [
-        r
-        for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= _FORWARD_ARC_RAD_FWD and r > _MIN_VALID_RANGE_M
-    ]
-    return min(forward) if forward else math.inf
 
 
 def infer_direction(

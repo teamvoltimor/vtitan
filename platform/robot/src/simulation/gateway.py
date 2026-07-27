@@ -22,7 +22,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from shared.config.constants import DictKeys, RobotSpecs
+from shared.config.constants import RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose, ScenarioMetadata
@@ -45,6 +45,7 @@ from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metad
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel, obstacles_from_metadata
+from src.simulation.geometry import _wrap_angle
 from src.simulation.vision_emulator import emulate_sign_detections
 from src.state_machine.estimator import StateEstimator
 
@@ -102,10 +103,6 @@ exists in the Obstacles Challenge. The user's rule covers walls, so this half
 is an assumption -- if a sign is meant to be a survivable penalty instead, this
 is the one line to change.
 """
-
-
-def _wrap_angle(angle: float) -> float:
-    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 def _sanitize_ranges(ranges: np.ndarray) -> list[float]:
@@ -754,7 +751,7 @@ class ScenarioSimulator:
         self._errors = sensor_errors or SensorErrors()
         use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
-        widths = corridor_widths_from_metadata(metadata.model_dump())
+        widths = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
@@ -803,6 +800,18 @@ class ScenarioSimulator:
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
 
+        # Where the signs are is drawn at random on the day and no scenario file
+        # exists on the mat, so a blind run cannot be handed the sign layout any
+        # more than it can be handed the corridor widths. The router discovers
+        # them from the camera instead (see sign_discovery). ``signs`` still
+        # reaches the *gateway*, because that is the emulated camera's own view
+        # of the world -- the sensor's ground truth, not the navigator's
+        # knowledge -- and a mocked vision node with nothing to project would
+        # make blind mode measure a robot with no perception at all rather than
+        # one that has to use it.
+        discover_signs = blind and not is_open_challenge
+        emit_vision_detections = emit_vision_detections or discover_signs
+
         self._gateway = SimulatedHardwareGateway(
             track=self._track,
             initial_state=AckermannState(x=start.x, y=start.y, yaw=start.yaw),
@@ -834,7 +843,11 @@ class ScenarioSimulator:
 
         sign_router: SignRouter | None = None
         if signs:
-            sign_router = SignRouter(signs, direction=start.direction)
+            sign_router = SignRouter(
+                [] if discover_signs else signs,
+                direction=start.direction,
+                discover=discover_signs,
+            )
 
         self._park_controller: ParkController | None = None
         if not is_open_challenge:
@@ -852,19 +865,20 @@ class ScenarioSimulator:
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on."""
-        planning_metadata = self._metadata.model_dump()
-        planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
-            section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
-        }
-        # Plan for the direction the robot *believes*, not the one the scenario
-        # was written with. Without this the replan silently used the true
-        # direction from the metadata whatever the inference concluded, so a
-        # wrong inference still produced a correct path -- which flattered
-        # every measurement of the inference and cannot happen on a robot,
-        # where there is no scenario file to fall back on.
-        start_conditions = dict(planning_metadata[DictKeys.STARTING_CONDITIONS])
-        start_conditions[DictKeys.DIRECTION] = str(self._direction)
-        planning_metadata[DictKeys.STARTING_CONDITIONS] = start_conditions
+        from shared.domain.models import CorridorWidthEntry, CorridorWidths
+
+        new_widths = CorridorWidths(
+            **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
+        )
+        new_starting = self._metadata.starting_conditions.model_copy(
+            update={"direction": str(self._direction)},
+        )
+        planning_metadata = self._metadata.model_copy(
+            update={
+                "corridor_widths": new_widths,
+                "starting_conditions": new_starting,
+            },
+        )
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
 
     def _resolve_direction(self) -> bool:
@@ -997,6 +1011,17 @@ class ScenarioSimulator:
     def waypoints(self) -> list[tuple[float, float]]:
         """The single-lap canonical waypoint path fed to the navigator."""
         return self._waypoints
+
+    @property
+    def routed_signs(self) -> list[SignSpec]:
+        """Signs the router is currently routing around.
+
+        In a blind run this starts empty and fills in as the camera finds them,
+        so it is the counterpart of :attr:`believed_widths`: what the robot has
+        worked out for itself, not what the scenario file says.
+        """
+        router = self._navigator.sign_router
+        return router.signs if router else []
 
     def run(
         self,

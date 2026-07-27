@@ -71,8 +71,8 @@ class SystemStatus:
 
 
 @dataclass
-class RaceMetrics:
-    """Race performance metrics."""
+class RaceStatus:
+    """Instantaneous race-state snapshot for telemetry display."""
 
     laps_completed: int
     """Number of laps completed (0-3)."""

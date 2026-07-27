@@ -6,17 +6,12 @@ import shutil
 from pathlib import Path
 
 from src.config import ExportConfig  # noqa: TC001
+from src.constants import EXPORT_FORMAT_ONNX
 from src.enums import ExportExtra
+from src.deps import YOLO, _yolo_import_err
 from src.errors import ModelNotFoundError, require_dep
 from src.log import get_logger
 from src.registry import get_entry
-
-_yolo_import_err: ImportError | None = None
-try:
-    from ultralytics import YOLO
-except ImportError as _exc:
-    YOLO = None  # type: ignore[assignment, misc]
-    _yolo_import_err = _exc
 
 log = get_logger(__name__)
 
@@ -43,7 +38,7 @@ def run(config: ExportConfig) -> None:
         extra.pop(ExportExtra.SIMPLIFY.value, None)
 
     export_kwargs = {
-        "format": "onnx",
+        "format": EXPORT_FORMAT_ONNX,
         "imgsz": config.imgsz,
         "opset": opset,
         "dynamic": False,

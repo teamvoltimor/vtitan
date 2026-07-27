@@ -7,6 +7,7 @@ with explicit exception types instead of bare exception catching.
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
@@ -23,6 +24,18 @@ if TYPE_CHECKING:
     from src.models import InferenceContext
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class InferencePrediction:
+    """Result of SAM inference on a set of points.
+
+    Bundles the masks, confidence scores, and optional logits from a single predict call.
+    """
+
+    masks: list[np.ndarray]
+    scores: np.ndarray
+    logits: np.ndarray | None
 
 
 class InferenceBackend(Protocol):
@@ -48,7 +61,7 @@ class InferenceBackend(Protocol):
         coords: np.ndarray,
         labels: np.ndarray,
         mask_input: np.ndarray | None = None,
-    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+    ) -> InferencePrediction:
         """Run inference on points.
 
         Args:
@@ -57,10 +70,7 @@ class InferenceBackend(Protocol):
             mask_input: Optional logit mask for iterative refinement.
 
         Returns:
-            Three-tuple:
-              - masks: List of boolean arrays, one per output.
-              - scores: 1D array of confidence scores for each mask.
-              - logits: Optional logit array for iterative refinement, or None.
+            InferencePrediction with masks, scores, and optional logits.
 
         Raises:
             InferenceBackendError: If inference fails.
@@ -102,7 +112,7 @@ class SAM2Backend:
         coords: np.ndarray,
         labels: np.ndarray,
         mask_input: np.ndarray | None = None,
-    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+    ) -> InferencePrediction:
         """Run SAM2 predict."""
         try:
             with self.torch_module.inference_mode(), self._autocast_ctx():
@@ -113,7 +123,11 @@ class SAM2Backend:
                     multimask_output=True,
                 )
             all_masks = [masks[i].astype(bool) for i in range(len(masks))]
-            return all_masks, scores.flatten(), logits
+            return InferencePrediction(
+                masks=all_masks,
+                scores=scores.flatten(),
+                logits=logits,
+            )
         except self.oom_error:
             err_msg = "CUDA out of memory"
             raise InferenceGPUMemory(err_msg) from None
@@ -153,7 +167,7 @@ class UltralyticsBackend:
 
     def _ultralytics_predict(
         self, coords: np.ndarray, labels: np.ndarray,
-    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+    ) -> InferencePrediction:
         """Run actual Ultralytics prediction."""
         if self.current_image is None:
             err_msg = "Image must be set before calling predict"
@@ -170,14 +184,18 @@ class UltralyticsBackend:
             raise InferenceBackendError(err_msg)
 
         single_mask = results[0].masks.data[0].cpu().numpy().astype(bool)
-        return [single_mask], np.array([self.default_mask_score]), None
+        return InferencePrediction(
+            masks=[single_mask],
+            scores=np.array([self.default_mask_score]),
+            logits=None,
+        )
 
     def predict(
         self,
         coords: np.ndarray,
         labels: np.ndarray,
         _mask_input: np.ndarray | None = None,
-    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray | None]:
+    ) -> InferencePrediction:
         """Run Ultralytics predict (positive points only, no logits)."""
         try:
             return self._ultralytics_predict(coords, labels)

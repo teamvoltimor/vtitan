@@ -1,6 +1,6 @@
 """Mock-hardware tests for oled_display_node — the real node deployed on the
 
-Raspberry Pi 5. No real I2C/display hardware is touched: the display driver
+Raspberry Pi Zero. No real I2C/display hardware is touched: the display driver
 class table is mocked so the test exercises the node's lifecycle and callback
 logic against fake driver state.
 
@@ -20,9 +20,7 @@ import pytest
 import rclpy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from PIL import Image
-from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, String
-from vision_msgs.msg import BoundingBox2D, Detection2D, Detection2DArray, ObjectHypothesisWithPose
 
 # oled_display_node imports both display backends unconditionally at module
 # scope (src.hardware.display.ssd1306's __init__ re-exports both), which pulls
@@ -108,10 +106,7 @@ class TestOLEDDisplayNodeInit:
         assert node.state_sub is not None
         assert node.diagnostics_sub is not None
         assert node.metrics_sub is not None
-        assert node.imu_sub is not None
-        assert node.lidar_sub is not None
-        assert node.hailo_fps_sub is not None
-        assert node.detections_sub is not None
+        assert node.ui_summary_sub is not None
         assert node.drive_speed_sub is not None
         assert node.steering_position_sub is not None
 
@@ -244,16 +239,54 @@ class TestOLEDDisplayNodeCallbacks:
         assert node.race_metrics == {"laps_completed": 1}
         node.destroy_node()
 
-    def test_hailo_fps_callback_updates_fps(self, ros_context, oled_node_class):
+    def test_ui_summary_callback_parses_json(self, ros_context, oled_node_class):
         OLEDDisplayNode, _ = oled_node_class
         node = OLEDDisplayNode()
         node.trigger_configure()
 
-        msg = Float32()
-        msg.data = 27.5
-        node._hailo_fps_callback(msg)
+        msg = String()
+        msg.data = (
+            '{"lidar_front_cm": 18.6, "lidar_left_cm": 142.8, "lidar_right_cm": 21.4, '
+            '"gyro_yaw_deg": -12.0, "best_detection_class_id": "red_sign", '
+            '"best_detection_confidence": 0.9}'
+        )
+        node._ui_summary_callback(msg)
 
-        assert node.hailo_fps == 27.5
+        assert node.lidar_front == 18.6
+        assert node.lidar_left == 142.8
+        assert node.lidar_right == 21.4
+        assert node.gyro_yaw == -12.0
+        assert node.best_detection == ("red_sign", 0.9)
+        node.destroy_node()
+
+    def test_ui_summary_callback_ignores_invalid_json(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.lidar_front = 5.0
+
+        msg = String()
+        msg.data = "not valid json"
+        node._ui_summary_callback(msg)  # must not raise
+
+        assert node.lidar_front == 5.0
+        node.destroy_node()
+
+    def test_ui_summary_callback_null_detection_clears_best_detection(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.best_detection = ("red_sign", 0.9)
+
+        msg = String()
+        msg.data = (
+            '{"lidar_front_cm": 0.0, "lidar_left_cm": 0.0, "lidar_right_cm": 0.0, '
+            '"gyro_yaw_deg": 0.0, "best_detection_class_id": null, '
+            '"best_detection_confidence": null}'
+        )
+        node._ui_summary_callback(msg)
+
+        assert node.best_detection is None
         node.destroy_node()
 
     def test_drive_speed_callback_updates_dps(self, ros_context, oled_node_class):
@@ -279,61 +312,6 @@ class TestOLEDDisplayNodeCallbacks:
 
         assert node.steering_position_deg == -12.5
         node.destroy_node()
-
-    @staticmethod
-    def _detection(class_id: str, score: float, size_x: float, size_y: float) -> Detection2D:
-        det = Detection2D()
-        hyp = ObjectHypothesisWithPose()
-        hyp.hypothesis.class_id = class_id
-        hyp.hypothesis.score = score
-        det.results.append(hyp)
-        det.bbox = BoundingBox2D(size_x=size_x, size_y=size_y)
-        return det
-
-    def test_detections_callback_picks_confidence_times_area(self, ros_context, oled_node_class):
-        """Neither the highest-confidence nor the largest box alone -- the product."""
-        OLEDDisplayNode, _ = oled_node_class
-        node = OLEDDisplayNode()
-        node.trigger_configure()
-
-        msg = Detection2DArray()
-        # High confidence, tiny box: 0.95 * (5*5) = 23.75
-        msg.detections.append(self._detection("small_far_sign", 0.95, 5.0, 5.0))
-        # Lower confidence, much larger box: 0.6 * (40*40) = 960
-        msg.detections.append(self._detection("large_near_sign", 0.6, 40.0, 40.0))
-        node._detections_callback(msg)
-
-        assert node.best_detection == ("large_near_sign", 0.6)
-        node.destroy_node()
-
-    def test_detections_callback_skips_results_without_a_hypothesis(self, ros_context, oled_node_class):
-        OLEDDisplayNode, _ = oled_node_class
-        node = OLEDDisplayNode()
-        node.trigger_configure()
-
-        msg = Detection2DArray()
-        empty = Detection2D()  # no results appended -- must not raise
-        msg.detections.append(empty)
-        node._detections_callback(msg)  # must not raise
-
-        assert node.best_detection is None
-        node.destroy_node()
-
-    def test_imu_callback_computes_gyro_yaw(self, ros_context, oled_node_class):
-        OLEDDisplayNode, _ = oled_node_class
-        node = OLEDDisplayNode()
-        node.trigger_configure()
-
-        msg = Imu()
-        msg.orientation.x = 0.0
-        msg.orientation.y = 0.0
-        msg.orientation.z = 0.707
-        msg.orientation.w = 0.707
-        node._imu_callback(msg)
-
-        assert node.gyro_yaw == pytest.approx(90.0, abs=1.0)
-        node.destroy_node()
-
 
 class TestOLEDDisplayNodeUpdate:
     def test_update_display_calls_show_image_and_publishes_mirror_when_active(self, ros_context, oled_node_class):

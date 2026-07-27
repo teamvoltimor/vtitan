@@ -8,13 +8,12 @@ with the handle_predict_text dispatch path.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.server.constants import PROJECT_ROOT
-from src.server.context import TextSegmentationResult
+from src.server.constants import DEVICE_CUDA, ERR_YOLO11_NO_CHECKPOINT, resolve_checkpoint_path
+from src.server.context import NoopPredictor, TextSegmentationResult
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -22,29 +21,6 @@ if TYPE_CHECKING:
     from src.server.registry import ModelConfig
 
 logger = get_logger(__name__)
-
-
-class _NoopPredictor:
-    """Sentinel that satisfies the dispatch guard without supporting point inference.
-
-    YOLOv11 is a detection model and does not accept SAM-style point prompts.
-    This class exists so that ``ctx.predictor is not None`` passes in dispatch
-    while making unsupported calls fail with a clear error message.
-    """
-
-    def set_image(self, image: np.ndarray) -> None:
-        """Accept set_image silently — YOLOv11 sets the image during predict."""
-
-    def predict(
-        self,
-        point_coords: np.ndarray,
-        point_labels: np.ndarray,
-        mask_input: np.ndarray | None = None,
-        multimask_output: bool = True,
-    ) -> tuple[np.ndarray, np.ndarray, Any]:
-        """Raise NotImplementedError — YOLOv11 only supports auto-annotate."""
-        msg = "YOLOv11 does not support point-prompted inference. Use Auto-annotate instead."
-        raise NotImplementedError(msg)
 
 
 try:
@@ -70,7 +46,7 @@ class Yolo11Detector:
     def __init__(self, checkpoint: str, device: str) -> None:
         self.model = YOLO(checkpoint)
         self.device = device
-        if device == "cuda":
+        if device == DEVICE_CUDA:
             self.model.to(device)
         self._class_names: list[str] = list(self.model.names.values())
         logger.info("YOLOv11 loaded: %d classes: %s", len(self._class_names), self._class_names)
@@ -129,7 +105,7 @@ class Yolo11Detector:
 def load_yolo11(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load a YOLOv11 detector into *ctx*.
 
-    Sets ``ctx.predictor`` to a :class:`_NoopPredictor` (satisfies the dispatch
+    Sets ``ctx.predictor`` to a :class:`NoopPredictor` (satisfies the dispatch
     guard) and ``ctx.text_seg`` to a :class:`Yolo11Detector` so the auto-annotate
     (``predict_text``) command works.
 
@@ -138,13 +114,10 @@ def load_yolo11(cfg: ModelConfig, ctx: ServerContext) -> None:
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
     if not cfg.checkpoint:
-        msg = "YOLOv11 requires 'checkpoint' in config"
-        raise ValueError(msg)
-    ckpt = Path(cfg.checkpoint)
-    if not ckpt.is_absolute():
-        ckpt = PROJECT_ROOT / ckpt
+        raise ValueError(ERR_YOLO11_NO_CHECKPOINT)
+    ckpt = resolve_checkpoint_path(cfg.checkpoint)
 
     logger.info("Loading YOLOv11 from %s", ckpt)
-    ctx.predictor = _NoopPredictor()
+    ctx.predictor = NoopPredictor()
     ctx.text_seg = Yolo11Detector(str(ckpt), ctx.device)
     logger.info("YOLOv11 detector ready on %s", ctx.device)

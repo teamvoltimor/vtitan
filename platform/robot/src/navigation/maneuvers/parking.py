@@ -26,31 +26,12 @@ import math
 from dataclasses import dataclass
 from enum import StrEnum
 
-from pydantic import BaseModel
-from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import BlockPosition, ParkingLot
 
 logger = logging.getLogger(__name__)
-
-
-class BlockPosition(BaseModel):
-    """A single parking block position in world coordinates."""
-
-    x: float
-    y: float
-
-
-class ParkingLotConfig(BaseModel):
-    """Parking lot configuration extracted from scenario metadata.
-
-    Attributes:
-        block1_pos: (x, y) world position of the first parking block.
-        block2_pos: (x, y) world position of the second parking block.
-    """
-
-    block1_pos: tuple[float, float]
-    block2_pos: tuple[float, float]
 
 
 _PARALLEL_TOLERANCE_M = 0.02
@@ -187,7 +168,7 @@ class ParkController:
 
     def __init__(
         self,
-        parking_config: ParkingLotConfig,
+        parking_config: ParkingLot,
         start_section: Section,
         direction: Direction,
         speed: float = 0.12,
@@ -205,9 +186,12 @@ class ParkController:
         self._reposition_steer = 0.0
         self._saturated_ticks = 0
 
-        b1 = parking_config.block1_pos
-        b2 = parking_config.block2_pos
-        self._zone = _build_zone(b1, b2, start_section, direction)
+        self._zone = _build_zone(
+            parking_config.block1_position,
+            parking_config.block2_position,
+            start_section,
+            direction,
+        )
         self._staging = _staging_pos(self._zone, start_section)
 
         logger.info(
@@ -437,8 +421,8 @@ class ParkController:
 
 
 def _build_zone(
-    b1: tuple[float, float],
-    b2: tuple[float, float],
+    b1: BlockPosition,
+    b2: BlockPosition,
     section: Section,
     direction: Direction,
 ) -> ParkZone:
@@ -459,7 +443,7 @@ def _build_zone(
     cw = direction is Direction.CLOCKWISE
 
     if section in (Section.SOUTH, Section.NORTH):
-        x1, x2 = sorted([b1[0], b2[0]])
+        x1, x2 = sorted([b1.x, b2.x])
         x_min = x1 + half_fin_thickness
         x_max = x2 - half_fin_thickness
         if section is Section.SOUTH:
@@ -469,7 +453,7 @@ def _build_zone(
             y_min, y_max = TrackDimensions.MAX_COORD - bay_depth, TrackDimensions.MAX_COORD
             target_yaw = 0.0 if cw else math.pi
     else:
-        y1, y2 = sorted([b1[1], b2[1]])
+        y1, y2 = sorted([b1.y, b2.y])
         y_min = y1 + half_fin_thickness
         y_max = y2 - half_fin_thickness
         if section is Section.EAST:
@@ -710,15 +694,22 @@ def park_controller_from_metadata(
     passed explicitly, so callers that already hold it (the sim) and callers that only hold
     the metadata (the ROS2 node) both get the correct wall-parallel target heading.
     """
-    parking = metadata.get("parking_lot")
+    parking = metadata.get(DictKeys.PARKING_LOT)
     if parking is None:
         return None
     if direction is None:
-        direction = Direction.from_string(metadata["starting_conditions"]["direction"])
-    b1 = (parking["block1_position"]["x"], parking["block1_position"]["y"])
-    b2 = (parking["block2_position"]["x"], parking["block2_position"]["y"])
+        direction = Direction.from_string(metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION])
     return ParkController(
-        parking_config=ParkingLotConfig(block1_pos=b1, block2_pos=b2),
+        parking_config=ParkingLot(
+            block1_position=BlockPosition(
+                x=parking[DictKeys.BLOCK1_POSITION][DictKeys.X],
+                y=parking[DictKeys.BLOCK1_POSITION][DictKeys.Y],
+            ),
+            block2_position=BlockPosition(
+                x=parking[DictKeys.BLOCK2_POSITION][DictKeys.X],
+                y=parking[DictKeys.BLOCK2_POSITION][DictKeys.Y],
+            ),
+        ),
         start_section=start_section,
         direction=direction,
     )

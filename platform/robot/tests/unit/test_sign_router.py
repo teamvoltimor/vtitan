@@ -19,16 +19,18 @@ from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpec
 from shared.config.enums import Direction, Section
 from shared.domain.models import Detection
 
-from src.navigation.planning.sign_router import (
+from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
     _MIN_RELIABLE_BBOX_HEIGHT_PX,
+    _detection_to_world,
+)
+from src.navigation.planning.sign_router import (
     _ROUTING_TABLE,
     _WALL_CLEARANCE,
     SignRouter,
     SignRouterConfig,
     SignSpec,
     _apply_deformation,
-    _detection_to_world,
     _match_detection_to_sign,
 )
 from tests.test_constants import (

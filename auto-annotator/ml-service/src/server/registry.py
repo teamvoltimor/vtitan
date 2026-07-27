@@ -21,6 +21,7 @@ from src.server.constants import (
     MODEL_TYPE_SAM3,
     MODEL_TYPE_YOLO11,
     MODEL_TYPE_YOLOE,
+    resolve_checkpoint_path,
 )
 from src.utils import get_logger
 
@@ -87,14 +88,6 @@ _CAPABILITIES: dict[str, ModelCapabilities] = {
 }
 
 
-def _resolve(p: str | None, base: Path) -> Path | None:
-    """Resolve a config path string relative to *base* when not absolute."""
-    if p is None:
-        return None
-    path = Path(p)
-    return path if path.is_absolute() else base / path
-
-
 def _is_available(cfg: ModelConfig, base: Path) -> bool:
     """Check if a model config meets availability rules.
 
@@ -104,7 +97,7 @@ def _is_available(cfg: ModelConfig, base: Path) -> bool:
       * ``sam3``: requires a non-empty hf_repo.
       * ``yoloe``: requires a resolvable checkpoint file.
     """
-    ckpt = _resolve(cfg.checkpoint, base)
+    ckpt = resolve_checkpoint_path(cfg.checkpoint, base)
     hf = cfg.hf_repo or ""
 
     if cfg.model_type == MODEL_TYPE_SAM1:

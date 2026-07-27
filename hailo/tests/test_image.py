@@ -11,45 +11,45 @@ from src.image import apply_boxes, letterbox, scale_coords, unletterbox_mask
 
 def test_letterbox_preserves_aspect_ratio_for_wide_image() -> None:
     img = np.zeros((100, 200, 3), dtype=np.uint8)
-    padded, ratio, dw, dh = letterbox(img, new_shape=(640, 640))
+    result = letterbox(img, new_shape=(640, 640))
 
-    assert padded.shape[:2] == (640, 640)
+    assert result.image.shape[:2] == (640, 640)
     # Width is the limiting dimension for a wide image, so height gets padded.
-    assert ratio == pytest.approx(640 / 200)
-    assert dw == pytest.approx(0.0)
-    assert dh > 0
+    assert result.ratio == pytest.approx(640 / 200)
+    assert result.pad_width == pytest.approx(0.0)
+    assert result.pad_height > 0
 
 
 def test_letterbox_preserves_aspect_ratio_for_tall_image() -> None:
     img = np.zeros((200, 100, 3), dtype=np.uint8)
-    padded, ratio, dw, dh = letterbox(img, new_shape=(640, 640))
+    result = letterbox(img, new_shape=(640, 640))
 
-    assert padded.shape[:2] == (640, 640)
-    assert ratio == pytest.approx(640 / 200)
-    assert dh == pytest.approx(0.0)
-    assert dw > 0
+    assert result.image.shape[:2] == (640, 640)
+    assert result.ratio == pytest.approx(640 / 200)
+    assert result.pad_height == pytest.approx(0.0)
+    assert result.pad_width > 0
 
 
 def test_letterbox_square_image_has_no_padding() -> None:
     img = np.zeros((320, 320, 3), dtype=np.uint8)
-    padded, ratio, dw, dh = letterbox(img, new_shape=(640, 640))
+    result = letterbox(img, new_shape=(640, 640))
 
-    assert padded.shape[:2] == (640, 640)
-    assert ratio == pytest.approx(2.0)
-    assert dw == pytest.approx(0.0)
-    assert dh == pytest.approx(0.0)
+    assert result.image.shape[:2] == (640, 640)
+    assert result.ratio == pytest.approx(2.0)
+    assert result.pad_width == pytest.approx(0.0)
+    assert result.pad_height == pytest.approx(0.0)
 
 
 def test_scale_coords_round_trips_through_letterbox() -> None:
     # A 100x200 (HxW) image letterboxed into 640x640: ratio=3.2, dw=0, dh=240.
     img = np.zeros((100, 200, 3), dtype=np.uint8)
-    _, ratio, dw, dh = letterbox(img, new_shape=(640, 640))
+    result = letterbox(img, new_shape=(640, 640))
 
     # A box drawn directly on the padded 640x640 canvas at its full extent
     # (accounting for the vertical letterbox bars) should map back to the
     # original image's full extent.
-    boxes = np.array([[0.0, dh, 640.0, 640.0 - dh]])
-    scaled = scale_coords(boxes, ratio, dw, dh, img.shape)
+    boxes = np.array([[0.0, result.pad_height, 640.0, 640.0 - result.pad_height]])
+    scaled = scale_coords(boxes, result.ratio, result.pad_width, result.pad_height, img.shape)
 
     assert scaled[0] == pytest.approx([0.0, 0.0, 200.0, 100.0])
 

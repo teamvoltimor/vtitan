@@ -4,10 +4,7 @@ YOLOE is an open-vocabulary detection + segmentation model from Ultralytics.
 It accepts a list of class-name strings as text prompts (``set_classes``), then
 runs standard detection on an image and returns per-detection segmentation masks.
 
-Two classes are provided:
-
-* :class:`_NoopPredictor` – sentinel that satisfies the ``ctx.predictor is not None``
-  guard in the dispatch layer without exposing unsupported point-prompted inference.
+One class is provided:
 
 * :class:`YOLOETextSegmenter` – wraps the YOLOE model and exposes the same
   ``segment_by_text`` interface as :class:`src.server.sam3.SAM3TextSegmenter`, so
@@ -16,14 +13,13 @@ Two classes are provided:
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
-from src.server.constants import PROJECT_ROOT
-from src.server.context import TextSegmentationResult
+from src.server.constants import DEVICE_CUDA, ERR_YOLOE_NO_CHECKPOINT, resolve_checkpoint_path
+from src.server.context import NoopPredictor, TextSegmentationResult
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -31,29 +27,6 @@ if TYPE_CHECKING:
     from src.server.registry import ModelConfig
 
 logger = get_logger(__name__)
-
-
-class _NoopPredictor:
-    """Sentinel predictor that satisfies the dispatch guard without point-prompted inference.
-
-    YOLOE does not support point-prompted segmentation (SAM-style click interaction).
-    This class exists only so that ``ctx.predictor is not None`` passes in dispatch,
-    while making unsupported calls fail with a clear error message.
-    """
-
-    def set_image(self, image: np.ndarray) -> None:
-        """Accept a set_image call without storing anything (auto-detect models set image internally)."""
-
-    def predict(
-        self,
-        point_coords: np.ndarray,
-        point_labels: np.ndarray,
-        mask_input: np.ndarray | None = None,
-        multimask_output: bool = True,
-    ) -> tuple[np.ndarray, np.ndarray, Any]:
-        """Raise NotImplementedError — YOLOE only supports text-prompted auto-annotation."""
-        msg = "YOLOE does not support point-prompted inference. Use Auto-annotate instead."
-        raise NotImplementedError(msg)
 
 
 try:
@@ -77,7 +50,7 @@ class YOLOETextSegmenter:
     def __init__(self, checkpoint: str, device: str) -> None:
         self.model = YOLOE(checkpoint)
         self.device = device
-        if device == "cuda":
+        if device == DEVICE_CUDA:
             self.model.to(device)
 
     def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
@@ -143,7 +116,7 @@ class YOLOETextSegmenter:
 def load_yoloe(cfg: ModelConfig, ctx: ServerContext) -> None:
     """Load the YOLOE segmenter into *ctx*.
 
-    Sets ``ctx.predictor`` to a :class:`_NoopPredictor` (satisfies the dispatch
+    Sets ``ctx.predictor`` to a :class:`NoopPredictor` (satisfies the dispatch
     guard) and, when ``supports_text`` is enabled in the config, sets
     ``ctx.text_seg`` to a :class:`YOLOETextSegmenter`.
 
@@ -153,14 +126,11 @@ def load_yoloe(cfg: ModelConfig, ctx: ServerContext) -> None:
         ctx: Mutable server context; ``predictor`` and ``text_seg`` are updated in-place.
     """
     if not cfg.checkpoint:
-        msg = "YOLOE requires 'checkpoint' in config"
-        raise ValueError(msg)
-    ckpt = Path(cfg.checkpoint)
-    if not ckpt.is_absolute():
-        ckpt = PROJECT_ROOT / ckpt
+        raise ValueError(ERR_YOLOE_NO_CHECKPOINT)
+    ckpt = resolve_checkpoint_path(cfg.checkpoint)
 
     logger.info("Loading YOLOE from %s", ckpt)
-    ctx.predictor = _NoopPredictor()
+    ctx.predictor = NoopPredictor()
     ctx.text_seg = None
 
     if cfg.supports_text:

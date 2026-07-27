@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.constants import DEFAULT_CALIB_NAME
 from src.registry import SHARED_WITH_DOCKER, ModelName
 
 if TYPE_CHECKING:
@@ -100,13 +101,29 @@ class StageConfig:
     model: str
     calib: str | None
     shared_dir: str = SHARED_WITH_DOCKER
-    calib_name: str = "calib_data"
+    calib_name: str = DEFAULT_CALIB_NAME
     labels: str | None = None
     labels_name: str = "calib_labels"
 
 
 @dataclass(slots=True, frozen=True)
-class CompileConfig:
+class HailoMZConfig:
+    """Shared fields for Hailo Model Zoo commands (compile / eval / profile).
+
+    Args:
+        model: Registry key used to resolve the zoo name and related artifacts.
+        zoo_name: Override the Hailo Model Zoo identifier.
+        docker: Docker container name for ``docker exec``. When ``None`` the
+            command is printed instead of executed.
+    """
+
+    model: str
+    zoo_name: str | None
+    docker: str | None
+
+
+@dataclass(slots=True, frozen=True)
+class CompileConfig(HailoMZConfig):
     """Parameters for ``hailomz compile``.
 
     Args:
@@ -130,18 +147,15 @@ class CompileConfig:
             optimization level. Mutually exclusive with ``model_script``.
     """
 
-    model: str
-    zoo_name: str | None
     hw: HWArch
     calib_path: str
-    docker: str | None
     classes: int | None = None
     model_script: str | None = None
     performance: bool = False
 
 
 @dataclass(slots=True, frozen=True)
-class EvalConfig:
+class EvalConfig(HailoMZConfig):
     """Parameters for ``hailomz eval``.
 
     Args:
@@ -155,17 +169,14 @@ class EvalConfig:
         docker: Docker container name. ``None`` → print command.
     """
 
-    model: str
-    zoo_name: str | None
     har: str | None
     target: EvalTarget
     data_count: int
     visualize: bool
-    docker: str | None
 
 
 @dataclass(slots=True, frozen=True)
-class ProfileConfig:
+class ProfileConfig(HailoMZConfig):
     """Parameters for ``hailomz profile``.
 
     Args:
@@ -176,7 +187,4 @@ class ProfileConfig:
         docker: Docker container name. ``None`` → print command.
     """
 
-    model: str
-    zoo_name: str | None
     hef: str | None
-    docker: str | None

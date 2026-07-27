@@ -161,3 +161,28 @@ RESP_KEY_SUPPORTS_TEXT: str = "supports_text"
 
 SAM3_MASK_TENSOR_NDIM: int = 4
 """Rank of a batched SAM 3 mask tensor (batch, channel, height, width)."""
+
+
+# Validator error messages for model loader functions.
+
+ERR_SAM1_NO_CHECKPOINT: str = "SAM1 requires a 'checkpoint' path in config"
+ERR_SAM2_NO_CONFIG: str = "SAM2 requires either 'checkpoint' or 'hf_repo' in config"
+ERR_SAM3_NO_HF_REPO: str = "SAM3 requires 'hf_repo' in config"
+ERR_YOLO11_NO_CHECKPOINT: str = "YOLOv11 requires 'checkpoint' in config"
+ERR_YOLOE_NO_CHECKPOINT: str = "YOLOE requires 'checkpoint' in config"
+
+
+def resolve_checkpoint_path(checkpoint: str | None, base: Path = PROJECT_ROOT) -> Path | None:
+    """Resolve a config path relative to *base* when not absolute.
+
+    Args:
+        checkpoint: Path string from a model config, or ``None``.
+        base: Directory to resolve relative paths against (defaults to project root).
+
+    Returns:
+        Absolute ``Path`` when *checkpoint* is set, or ``None`` when it is ``None``.
+    """
+    if checkpoint is None:
+        return None
+    path = Path(checkpoint)
+    return path if path.is_absolute() else base / path

@@ -1,6 +1,6 @@
 """ROS2 lifecycle node for OLED display with async page cycling and image mirroring.
 
-Run on: Raspberry Pi 5
+Run on: Raspberry Pi Zero
 
 Hardware connects in on_configure() and page-update publishing starts in
 on_activate(), matching the driver lifecycle pattern used by every hardware
@@ -14,9 +14,7 @@ Topics:
         - /robot_state (std_msgs/String) - Current robot state
         - /system_status (diagnostic_msgs/DiagnosticArray) - System diagnostics
         - /race_metrics (std_msgs/String) - Race metrics (JSON)
-        - /imu/data (sensor_msgs/Imu) - IMU data for gyro yaw
-        - /scan (sensor_msgs/LaserScan) - LiDAR data for clearances
-        - /hailo/fps (std_msgs/Float32) - Hailo inference FPS
+        - /ui/telemetry_summary (std_msgs/String) - Aggregated lidar/yaw/detection summary
     Published:
         - /ui/oled_mirror (sensor_msgs/Image) - Live mirror of OLED display
 """
@@ -24,7 +22,6 @@ Topics:
 from __future__ import annotations
 
 import json
-import math
 from contextlib import suppress
 from typing import TYPE_CHECKING, override
 
@@ -36,14 +33,9 @@ from PIL import Image, ImageDraw
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
-from sensor_msgs.msg import (
-    Image as ImageMsg,
-    Imu,
-    LaserScan,
-)
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
+from sensor_msgs.msg import Image as ImageMsg
 from std_msgs.msg import Float32, String
-from vision_msgs.msg import Detection2DArray
 
 from src.hardware.display.enums import DisplayBackend
 from src.hardware.display.ssd1306 import (
@@ -141,9 +133,6 @@ _DISPLAY_DRIVER_BY_BACKEND = {
     DisplayBackend.RAW_I2C: RawI2CDriver,
 }
 
-_MIN_VALID_LIDAR_RANGE_M = 0.01
-"""LIDAR ranges at or below this are treated as invalid (no-return) readings."""
-
 
 class OLEDDisplayNode(LifecycleNode):
     """ROS2 lifecycle node that manages the OLED display with state-based views.
@@ -168,10 +157,7 @@ class OLEDDisplayNode(LifecycleNode):
         self.state_sub: Subscription | None = None
         self.diagnostics_sub: Subscription | None = None
         self.metrics_sub: Subscription | None = None
-        self.imu_sub: Subscription | None = None
-        self.lidar_sub: Subscription | None = None
-        self.hailo_fps_sub: Subscription | None = None
-        self.detections_sub: Subscription | None = None
+        self.ui_summary_sub: Subscription | None = None
         # drive_speed/steering_position come from ackermann_motor_node, which
         # runs on this same board (the Zero) -- subscribed directly rather
         # than round-tripped through state_machine_node's /race_metrics on the
@@ -191,7 +177,6 @@ class OLEDDisplayNode(LifecycleNode):
         self.lidar_front: float = 0.0
         self.lidar_left: float = 0.0
         self.lidar_right: float = 0.0
-        self.hailo_fps: float = 0.0
         self.drive_speed_dps: float = 0.0
         self.steering_position_deg: float = 0.0
         self.best_detection: tuple[str, float] | None = None
@@ -245,23 +230,10 @@ class OLEDDisplayNode(LifecycleNode):
             10,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
-        self.imu_sub = self.create_subscription(
-            Imu,
-            "/imu/data",
-            self._imu_callback,
-            qos_profile_sensor_data,
-        )
-        self.lidar_sub = self.create_subscription(
-            LaserScan,
-            "/scan",
-            self._lidar_callback,
-            qos_profile_sensor_data,
-        )
-        self.hailo_fps_sub = self.create_subscription(Float32, "/hailo/fps", self._hailo_fps_callback, 10)
-        self.detections_sub = self.create_subscription(
-            Detection2DArray,
-            "/hailo/detections",
-            self._detections_callback,
+        self.ui_summary_sub = self.create_subscription(
+            String,
+            "/ui/telemetry_summary",
+            self._ui_summary_callback,
             10,
         )
         # ackermann_motor_node runs on this same board -- default (reliable,
@@ -332,10 +304,7 @@ class OLEDDisplayNode(LifecycleNode):
             "state_sub",
             "diagnostics_sub",
             "metrics_sub",
-            "imu_sub",
-            "lidar_sub",
-            "hailo_fps_sub",
-            "detections_sub",
+            "ui_summary_sub",
             "drive_speed_sub",
             "steering_position_sub",
         ):
@@ -377,45 +346,25 @@ class OLEDDisplayNode(LifecycleNode):
         with suppress(json.JSONDecodeError):
             self.race_metrics = json.loads(msg.data)
 
-    def _imu_callback(self, msg: Imu) -> None:
-        """Handle IMU data for gyro yaw."""
-        # Convert quaternion to yaw (simplified Euler extraction)
-        qx, qy, qz, qw = msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w
-        siny_cosp = 2.0 * (qw * qz + qx * qy)
-        cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
-        self.gyro_yaw = math.degrees(math.atan2(siny_cosp, cosy_cosp))
+    def _ui_summary_callback(self, msg: String) -> None:
+        """Handle aggregated lidar/yaw/detection telemetry from telemetry_bridge_node.
 
-    def _lidar_callback(self, msg: LaserScan) -> None:
-        """Handle LiDAR data for spatial clearances."""
-        ranges = msg.ranges
-        num_points = len(ranges)
-
-        if num_points == 0:
-            return
-
-        # Calculate clearances in different directions
-        # Front: center ±15 degrees
-        front_indices = list(range(num_points // 2 - 20, num_points // 2 + 20))
-        front_ranges = [
-            ranges[i] for i in front_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M
-        ]
-        self.lidar_front = min(front_ranges) * 100 if front_ranges else 0.0  # Convert to cm
-
-        # Left: 60-120 degrees
-        left_indices = list(range(num_points // 4, num_points // 3))
-        left_ranges = [ranges[i] for i in left_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
-        self.lidar_left = min(left_ranges) * 100 if left_ranges else 0.0  # Convert to cm
-
-        # Right: -60 to -120 degrees
-        right_indices = list(range(2 * num_points // 3, 3 * num_points // 4))
-        right_ranges = [
-            ranges[i] for i in right_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M
-        ]
-        self.lidar_right = min(right_ranges) * 100 if right_ranges else 0.0  # Convert to cm
-
-    def _hailo_fps_callback(self, msg: Float32) -> None:
-        """Handle Hailo FPS updates."""
-        self.hailo_fps = msg.data
+        Replaces this node's old direct /scan, /imu/data and /hailo/detections
+        subscriptions -- those crossed the USB-gadget link to the Pi Zero at
+        full sensor rate to feed a display that only samples them a couple
+        times a second, and were suspected (confirmed live on hardware) of
+        starving on the Zero's single weak core.
+        """
+        with suppress(json.JSONDecodeError):
+            data = json.loads(msg.data)
+            self.lidar_front = data.get("lidar_front_cm", self.lidar_front)
+            self.lidar_left = data.get("lidar_left_cm", self.lidar_left)
+            self.lidar_right = data.get("lidar_right_cm", self.lidar_right)
+            self.gyro_yaw = data.get("gyro_yaw_deg", self.gyro_yaw)
+            class_id = data.get("best_detection_class_id")
+            self.best_detection = (
+                (class_id, data["best_detection_confidence"]) if class_id is not None else None
+            )
 
     def _drive_speed_callback(self, msg: Float32) -> None:
         """Wheel angular speed in degrees/s, from ackermann_motor_node's real encoder feedback."""
@@ -424,31 +373,6 @@ class OLEDDisplayNode(LifecycleNode):
     def _steering_position_callback(self, msg: Float32) -> None:
         """Current steering angle in degrees, from ackermann_motor_node's real feedback."""
         self.steering_position_deg = msg.data
-
-    def _detections_callback(self, msg: Detection2DArray) -> None:
-        """Track the single most salient detection.
-
-        Ranked by confidence x bbox area rather than confidence alone: a small,
-        high-confidence false positive and a large, low-confidence smear are
-        both less trustworthy than one detection that scores well on both axes.
-        """
-        best: tuple[str, float] | None = None
-        best_score = -1.0
-        for det in msg.detections:
-            if not det.results:
-                continue
-            hyp = det.results[0]
-            # Handle varying vision_msgs versions, same as telemetry_bridge_node.
-            if hasattr(hyp, "hypothesis"):
-                class_id, confidence = hyp.hypothesis.class_id, hyp.hypothesis.score
-            else:
-                class_id, confidence = hyp.id, hyp.score
-            area = det.bbox.size_x * det.bbox.size_y
-            score = confidence * area
-            if score > best_score:
-                best_score = score
-                best = (class_id, confidence)
-        self.best_detection = best
 
     def _update_display(self) -> None:
         """Update display based on current state."""

@@ -6,6 +6,109 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
+> **The "Re-measured under 4WS" section's central conclusion is wrong.** It
+> reports every tuning knob as flat and concludes the router's commanded offset
+> never reaches the chassis. The knobs are flat, but not for that reason, and
+> the section it points at as the fix ("What this means for the next attempt")
+> is not reachable from the current state. See "The escape layer is the gate"
+> immediately below, measured 2026-07-27. Its *measurements* still stand; its
+> diagnosis does not.
+
+## The escape layer is the gate (2026-07-27)
+
+Baseline unchanged from the section below: **16/16 collisions (15 sign, 1 inner
+wall), 0/16 complete even one lap**, and 16/16 drive three clean laps once the
+signs are removed. The tracker is fine.
+
+### `lateral_offset` is not flat, it is inert
+
+Swept 0.20 / 0.24 / 0.28 / 0.32 the results are **byte-identical** — same
+collision count, same wall/sign/parking split, same laps, same timeouts. A knob
+that genuinely reached the trajectory and merely failed to help would move
+*something* across a 60% change in magnitude. Nothing moves. (The value was
+asserted to reach the live `SignRouter`, so this is not a broken harness.)
+
+Two candidate explanations were tested and **both ruled out**:
+
+* **The corner-arc guard.** `_is_squarely_in_corridor` rejects the target as a
+  corner-arc point, and the tick trace of `go_obstacles_0000` shows `def == raw`
+  through the entire fatal pass — so it looked like the guard blanks avoidance
+  exactly where it decides the outcome. Forcing the guard permanently open
+  changes **one** fixture (an inner-wall contact becomes a sign contact) and
+  nothing else. Not the gate.
+* **Offset magnitude.** Covered by the sweep above.
+
+### What is actually happening
+
+Take the signs away from the *reactive* layer only — `lidar_blind`, so they stay
+physical and collisions stay real, but `CollisionAvoidanceController` can no
+longer see them — and the identical offset sweep stops being inert:
+
+| `lateral_offset` | lidar sees signs | lidar blind to signs |
+|---|---|---|
+| 0.20 | 16/16, 0 laps | 16/16, 0 laps |
+| 0.24 | 16/16, 0 laps | **15/16, 1 lap** |
+| 0.28 | 16/16, 0 laps | **14/16, 2 laps** |
+| 0.32 | 16/16, 0 laps | 14/16, 2 laps |
+
+Reproduce with `scripts/diag_sign_sweep.py masked-offset 0.20 0.24 0.28 0.32`.
+
+So the router works. It is **masked**: while the robot turns past a
+corner-adjacent sign, the sign enters the collision controller's forward
+corridor, `assess_risk` returns `CRITICAL`, and the escape maneuver fires. The
+tick trace shows the consequence directly — the robot pins itself ~0.18 m from
+the first sign of the run and oscillates forward/reverse (`v` alternating
+-0.200 / +0.150) with its target waypoint frozen on the corner arc, until it
+clips the sign. **The run is decided by the reactive layer before the router's
+aim can matter**, which is why every planning-side knob measures flat.
+
+This is the conflict the "Router vs. collision-controller conflict" section
+below describes and then dismisses as "real, but NOT the blocker". It is the
+blocker. That section reached its conclusion by reading **`success`**, which is
+0/16 in every configuration ever tried because parking is independently blocked
+by chassis-vs-pocket geometry — the exact metric this document's own
+"Measuring changes here" section says never to read. Its own numbers show
+sign-aware escape suppression taking `laps>=3` from 0/16 to 5/16.
+
+### The second ceiling, behind the first
+
+Masking is necessary but not sufficient: with signs hidden the sweep plateaus at
+**14/16 from 0.28 onward**, because `_WALL_CLEARANCE` (0.220, the half-diagonal
+clamp) binds and further offset produces no further lateral movement. So there
+are two independent ceilings stacked, and only the first is currently visible.
+Expect to have to clear both.
+
+### Blind changes nothing, which is itself the useful result
+
+Since 2026-07-27 an obstacles scenario can be run properly blind: `blind=True`
+withholds the corridor widths, the travel direction *and* the sign positions,
+and the router rebuilds the sign layout from the mocked vision node (see
+`navigation/planning/sign_discovery.py` and
+[blind-navigation-evaluation.md](blind-navigation-evaluation.md)).
+
+| Configuration | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| sighted (signs from metadata) | 16/16 (15 sign, 1 wall) | 0/16 | 0/16 |
+| sighted + mocked vision colours | 16/16 (15 sign, 1 wall) | 0/16 | 0/16 |
+| **blind (track, direction, signs)** | **16/16 (16 sign)** | **0/16** | **0/16** |
+
+Discovery is accurate — 1.9 cm median position error, every colour correct, no
+spurious tracks — so this is not "blind fails because it cannot find the
+signs". Both regimes are stopped at the same place by the same thing, which
+means **the escape-layer gate is the blocker for the competition
+configuration**, not only for the instrumented one. Nothing above needs
+re-measuring against blind before it is fixed.
+
+`lidar_blind` is a *diagnostic*, not a fix — the C1 really does see the signs
+(user-confirmed 2026-07-25) and blinding the safety layer to a whole obstacle
+class is not shippable. The indicated fix is the standard split: a known,
+mapped obstacle the planner is already routing around belongs to the planner,
+not to the reactive escape trigger, while walls and genuinely unknown returns
+keep the full guard. That is a real change to the safety layer and it has not
+been made.
+
+---
+
 > **Everything below the "Re-measured under 4WS" section is the ORIGINAL log,
 > taken against a front-only bicycle model with roughly half the real robot's
 > yaw authority (min turn radius 0.329 m simulated vs 0.165 m actual).** It was
@@ -609,23 +712,32 @@ physical robot** — these are not simulation artifacts.
 
 ## Next steps
 
-Done: the half-diagonal clamp (`47827ca`). The obstacles tuning profile is
-**reverted**, not done — see the REVERTED note above.
+Superseded by "The escape layer is the gate" at the top of this document. The
+ordering below was built on the diagnosis that the commanded offset never
+reaches the chassis; it does reach it, and the reactive layer overrides it.
 
-1. **Make the commanded offset a function of the robot's own position, sized on
-   the chassis half-diagonal.** This is the actual blocker and it is three
-   defects, not one (see "Why: three shortfalls compound"). Any fix has to
-   close all three or it measures as flat, which is exactly what every sweep in
-   this document has done. In particular, do not re-try `lateral_offset` alone —
-   it is swept to 0.30 above and does nothing while the lag remains.
-2. Do NOT spend further effort on the escape/collision-controller conflict on its
-   own. Confirmed again under 4WS: signs invisible to LIDAR (no escape trigger
-   at all) still gives 16/16. It is a consequence of aiming into the sign.
-3. Do not re-try arc radius, lookahead, or LIDAR visibility. All swept flat
-   under the current model.
-4. The steering law is worth revisiting only after 1, and only with an Open
-   Challenge regression gate — true pure pursuit regressed 3 deviation-recovery
-   tests when tried.
+1. **Stop the escape maneuver firing at known signs.** Nothing else here is
+   measurable until this lands — every planning-side knob reads flat because
+   the run is decided before planning matters. The fix is the ordinary split
+   between mapped and unmapped obstacles, not a blanket suppression radius and
+   emphatically not `lidar_blind`, which is a diagnostic only.
+2. **Then** revisit the offset. Behind the escape ceiling there is a second one
+   at 14/16, where `_WALL_CLEARANCE` binds. Sizing the offset on the chassis
+   half-diagonal (the original item 1 here, still a real defect) becomes
+   testable at that point and not before.
+3. Do not re-try arc radius, lookahead, speed or the depth buffer *as single
+   knobs* — all swept flat, and now known to be flat for a reason that has
+   nothing to do with them. They deserve one re-sweep after step 1, since every
+   number in this document was taken in the masked regime.
+4. The steering law is worth revisiting only after 1 and 2, and only with an
+   Open Challenge regression gate — true pure pursuit regressed 3
+   deviation-recovery tests when tried.
+
+Also unexplained and worth 20 minutes: collisions measured 10/16 at `47827ca`
+and 16/16 at `edace67` ("navigate without being handed the corridor layout"),
+a 6-fixture regression in the *sighted* path from a blind-navigation change.
+`STEER_KP` 1.5 -> 1.2 was the obvious suspect and is not it — restoring 1.5
+leaves 16/16.
 
 Unrelated but adjacent: `tuning_profiles/*.json` is dead config. Confirmed by
 attempting every loader on every file — all three raise `TypeError` via both
@@ -652,7 +764,7 @@ Run from `platform/robot` with `PYTHONPATH=.` under `pixi run -e dev`.
 
 | Script | What it answers |
 |---|---|
-| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `buffer` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
+| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `masked-offset` `buffer` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
 | `scripts/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
 | `scripts/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
 | `scripts/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |

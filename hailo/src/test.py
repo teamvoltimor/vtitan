@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from src.config import TestConfig  # noqa: TC001
+from src.constants import MASK_THRESHOLD, OVERLAY_ALPHA, OVERLAY_BETA
 from src.enums import Backend, Task
 from src.errors import HailoError, require_dep
 from src.image import (
@@ -19,21 +20,8 @@ from src.image import (
     preprocess,
     unletterbox_mask,
 )
+from src.deps import YOLO, _ort_import_err, _yolo_import_err, ort
 from src.log import get_logger
-
-_yolo_import_err: ImportError | None = None
-try:
-    from ultralytics import YOLO
-except ImportError as _exc:
-    YOLO = None  # type: ignore[assignment, misc]
-    _yolo_import_err = _exc
-
-_ort_import_err: ImportError | None = None
-try:
-    import onnxruntime as ort
-except ImportError as _exc:
-    ort = None
-    _ort_import_err = _exc
 
 log = get_logger(__name__)
 
@@ -59,8 +47,8 @@ class InferenceHandler(Protocol):
         ...
 
 
-class _PTHandler:
-    """PyTorch backend handler via Ultralytics."""
+class _UltralyticsBackend:
+    """Base for handlers that load the model via Ultralytics YOLO."""
 
     def __init__(self, config: TestConfig):
         self.config = config
@@ -68,6 +56,10 @@ class _PTHandler:
     def setup(self) -> None:
         require_dep(YOLO, "ultralytics", cause=_yolo_import_err)
         self.model = YOLO(self.config.model)
+
+
+class _PTHandler(_UltralyticsBackend):
+    """PyTorch backend handler via Ultralytics."""
 
     def infer(self, img_path: str) -> np.ndarray:
         results = self.model(img_path)
@@ -82,15 +74,8 @@ class _PTHandler:
         return cast("np.ndarray", orig)
 
 
-class _UltraONNXHandler:
+class _UltraONNXHandler(_UltralyticsBackend):
     """ONNX backend handler via Ultralytics."""
-
-    def __init__(self, config: TestConfig):
-        self.config = config
-
-    def setup(self) -> None:
-        require_dep(YOLO, "ultralytics", cause=_yolo_import_err)
-        self.model = YOLO(self.config.model)
 
     def infer(self, img_path: str) -> np.ndarray:
         results = self.model(img_path)
@@ -99,13 +84,8 @@ class _UltraONNXHandler:
         return cast("np.ndarray", results[0].plot())
 
 
-class _ONNXDetectHandler:
-    """Raw ONNX backend handler for detection task.
-
-    Requires an NMS-embedded model (post-NMS ``(N, 6)`` output). Models exported
-    with ``nms=False`` raise a clear error via :func:`apply_boxes`; use the
-    ``ultraonnx`` backend for those instead.
-    """
+class _ONNXBackend:
+    """Base for handlers that run a raw ONNX session."""
 
     def __init__(self, config: TestConfig):
         self.config = config
@@ -115,6 +95,15 @@ class _ONNXDetectHandler:
         self.session = ort.InferenceSession(self.config.model)
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]
+
+
+class _ONNXDetectHandler(_ONNXBackend):
+    """Raw ONNX backend handler for detection task.
+
+    Requires an NMS-embedded model (post-NMS ``(N, 6)`` output). Models exported
+    with ``nms=False`` raise a clear error via :func:`apply_boxes`; use the
+    ``ultraonnx`` backend for those instead.
+    """
 
     def infer(self, img_path: str) -> np.ndarray:
         img_input, ratio, dw, dh, orig = preprocess(img_path)
@@ -130,17 +119,8 @@ class _ONNXDetectHandler:
         return orig
 
 
-class _ONNXSegmentHandler:
+class _ONNXSegmentHandler(_ONNXBackend):
     """Raw ONNX backend handler for segmentation task."""
-
-    def __init__(self, config: TestConfig):
-        self.config = config
-
-    def setup(self) -> None:
-        require_dep(ort, "onnxruntime", cause=_ort_import_err)
-        self.session = ort.InferenceSession(self.config.model)
-        self.input_name = self.session.get_inputs()[0].name
-        self.output_names = [o.name for o in self.session.get_outputs()]
 
     def infer(self, img_path: str) -> np.ndarray:
         img_input, ratio, dw, dh, orig = preprocess(img_path)
@@ -159,7 +139,7 @@ class _ONNXSegmentHandler:
                 mask_raw.max(),
             )
             for i in range(mask_raw.shape[0]):
-                ch = (mask_raw[i] > 0.5).astype(np.uint8) * 255
+                ch = (mask_raw[i] > MASK_THRESHOLD).astype(np.uint8) * 255
                 ch = unletterbox_mask(ch, orig.shape, ratio, dw, dh)
                 cv2.imwrite(
                     str(Path(self.config.output) / f"mask_ch{i}_{Path(img_path).name}"),
@@ -171,11 +151,11 @@ class _ONNXSegmentHandler:
                 str(Path(self.config.output) / f"mask_argmax_{Path(img_path).name}"),
                 argmax,
             )
-            mask_img = (mask_raw[0] > 0.5).astype(np.uint8) * 255
+            mask_img = (mask_raw[0] > MASK_THRESHOLD).astype(np.uint8) * 255
             mask_img = unletterbox_mask(mask_img, orig.shape, ratio, dw, dh)
             color_mask = np.zeros_like(orig)
             color_mask[:, :, 1] = mask_img
-            overlay = cv2.addWeighted(orig, 0.7, color_mask, 0.3, 0)
+            overlay = cv2.addWeighted(orig, OVERLAY_ALPHA, color_mask, OVERLAY_BETA, 0)
 
         apply_boxes(boxes_raw, self.config.conf, ratio, dw, dh, overlay)
         return overlay

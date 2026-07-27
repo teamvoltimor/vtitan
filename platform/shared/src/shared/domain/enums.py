@@ -10,9 +10,28 @@ here so there is exactly one definition.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Self
 
 
-class Section(StrEnum):
+class _FromStringEnum(StrEnum):
+    """Mixin providing a ``from_string`` classmethod to any ``StrEnum`` subclass.
+
+    Eliminates the identical try/except boilerplate that every enum in this
+    module was repeating.
+    """
+
+    @classmethod
+    def from_string(cls, value: str) -> Self:
+        try:
+            return cls(value.lower())
+        except ValueError as err:
+            options = tuple(s.value for s in cls)
+            raise ValueError(
+                f"Invalid {cls.__name__.lower()}: {value!r}. Expected one of {options}"
+            ) from err
+
+
+class Section(_FromStringEnum):
     """Four navigable corridors of the WRO 2026 track."""
 
     NORTH = "north"
@@ -20,53 +39,23 @@ class Section(StrEnum):
     EAST = "east"
     WEST = "west"
 
-    @classmethod
-    def from_string(cls, value: str) -> Section:
-        try:
-            return cls(value.lower())
-        except ValueError as err:
-            options = tuple(s.value for s in cls)
-            raise ValueError(
-                f"Invalid section: {value!r}. Expected one of {options}"
-            ) from err
-
     @property
     def capitalized(self) -> str:
         return self.value.capitalize()
 
 
-class Direction(StrEnum):
+class Direction(_FromStringEnum):
     """Robot traversal direction around the WRO track."""
 
     CLOCKWISE = "clockwise"
     COUNTERCLOCKWISE = "counterclockwise"
 
-    @classmethod
-    def from_string(cls, value: str) -> Direction:
-        try:
-            return cls(value.lower())
-        except ValueError as err:
-            options = tuple(d.value for d in cls)
-            raise ValueError(
-                f"Invalid direction: {value!r}. Expected one of {options}"
-            ) from err
 
-
-class ScenarioType(StrEnum):
+class ScenarioType(_FromStringEnum):
     """WRO 2026 challenge type."""
 
     OPEN = "open"
     OBSTACLES = "obstacles"
-
-    @classmethod
-    def from_string(cls, value: str) -> ScenarioType:
-        try:
-            return cls(value.lower())
-        except ValueError as err:
-            options = tuple(s.value for s in cls)
-            raise ValueError(
-                f"Invalid scenario type: {value!r}. Expected one of {options}"
-            ) from err
 
 
 class RiskLevel(StrEnum):
@@ -88,7 +77,7 @@ class LightingScenario(StrEnum):
     MIXED = "mixed"
 
 
-class RobotState(StrEnum):
+class RobotState(_FromStringEnum):
     """Robot state machine states."""
 
     BOOT_CHECK = "boot_check"
@@ -96,33 +85,13 @@ class RobotState(StrEnum):
     RACING = "racing"
     FINISHED = "finished"
 
-    @classmethod
-    def from_string(cls, value: str) -> RobotState:
-        try:
-            return cls(value.lower())
-        except ValueError as err:
-            options = tuple(s.value for s in cls)
-            raise ValueError(
-                f"Invalid robot state: {value!r}. Expected one of {options}"
-            ) from err
 
-
-class NodeHealth(StrEnum):
+class NodeHealth(_FromStringEnum):
     """Telemetry node health status."""
 
     NOMINAL = "nominal"
     WATCHDOG = "watchdog"
     REPLANNING = "replanning"
-
-    @classmethod
-    def from_string(cls, value: str) -> NodeHealth:
-        try:
-            return cls(value.lower())
-        except ValueError as err:
-            options = tuple(n.value for n in cls)
-            raise ValueError(
-                f"Invalid node health: {value!r}. Expected one of {options}"
-            ) from err
 
 
 # The class ids the retrained GMR traffic-sign detector emits, in the order the

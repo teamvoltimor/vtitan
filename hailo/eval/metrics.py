@@ -29,14 +29,10 @@ IMAGE_SIZE = 640
 LABEL_TO_MODEL = {0: 2, 1: 0, 2: 1}
 MODEL_NAMES = {0: "green", 1: "magenta", 2: "red"}
 
-# Kept local — this module is copied into the Hailo SDK container and cannot
-# import from src.constants.
-LETTERBOX_PAD_COLOR = (114, 114, 114)
-
 
 @dataclass(frozen=True, slots=True)
 class MetricsResult:
-    """Typed result bundle returned by ``summarise()``."""
+    """Typed result bundle returned by :func:`summarise`."""
 
     mAP50: float
     mAP75: float
@@ -45,32 +41,74 @@ class MetricsResult:
     per_class_5095: dict[int, float]
     confusion: dict[tuple[int, int], int]
 
+    def to_dict(self) -> dict[str, object]:
+        """Serialize to a plain dict for JSON/Docker-bound transport."""
+        return {
+            "mAP50": self.mAP50,
+            "mAP75": self.mAP75,
+            "mAP50_95": self.mAP50_95,
+            "per_class": self.per_class,
+            "per_class_5095": self.per_class_5095,
+            "confusion": self.confusion,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> MetricsResult:
+        """Deserialize from a dict produced by :meth:`to_dict`."""
+        return cls(
+            mAP50=float(data["mAP50"]),
+            mAP75=float(data["mAP75"]),
+            mAP50_95=float(data["mAP50_95"]),
+            per_class=dict(data["per_class"]),  # type: ignore[arg-type]
+            per_class_5095=dict(data["per_class_5095"]),  # type: ignore[arg-type]
+            confusion=dict(data["confusion"]),  # type: ignore[arg-type]
+        )
+
 
 # Pillow moved the resampling enum in 9.1; the suite image predates the move.
 _BILINEAR = getattr(Image, "Resampling", Image).BILINEAR
 
-Box = np.ndarray
-Prediction = tuple[int, float, Box]
-GroundTruth = list[tuple[int, Box]]
+Box = np.ndarray  # xyxy float[4]
+Prediction = tuple[int, float, Box]  # class_id, score, xyxy
+GroundTruthItem = tuple[int, Box]  # class_id, xyxy
+GroundTruth = list[GroundTruthItem]
 
 
-def letterbox(img: Image.Image) -> tuple[np.ndarray, float, int, int]:
+@dataclass
+class LetterboxResult:
+    """Result of letterboxing an image to a square canvas.
+
+    Used by metrics.py for preprocessing before model inference.
+    """
+
+    canvas: np.ndarray
+    scale: float
+    pad_x: int
+    pad_y: int
+
+
+def letterbox(img: Image.Image) -> LetterboxResult:
     """Resize onto a square grey canvas without distorting the aspect ratio.
 
     Args:
         img: Source image in RGB.
 
     Returns:
-        Tuple of the canvas array, the scale applied, and the x/y padding --
-        enough to map ground-truth boxes into the same space.
+        LetterboxResult with canvas array, scale applied, and x/y padding
+        sufficient to map ground-truth boxes into the same space.
     """
     width, height = img.size
     scale = min(IMAGE_SIZE / width, IMAGE_SIZE / height)
     new_w, new_h = round(width * scale), round(height * scale)
-    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), LETTERBOX_PAD_COLOR)
+    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), (114, 114, 114))
     pad_x, pad_y = (IMAGE_SIZE - new_w) // 2, (IMAGE_SIZE - new_h) // 2
     canvas.paste(img.resize((new_w, new_h), _BILINEAR), (pad_x, pad_y))
-    return np.asarray(canvas, dtype=np.uint8), scale, pad_x, pad_y
+    return LetterboxResult(
+        canvas=np.asarray(canvas, dtype=np.uint8),
+        scale=scale,
+        pad_x=pad_x,
+        pad_y=pad_y,
+    )
 
 
 def load_ground_truth(
@@ -286,10 +324,7 @@ def print_report(results: dict[str, MetricsResult]) -> None:
     print("\n=== PER-CLASS mAP@0.5:0.95 (discriminating; @0.5 saturates) ===")
     print(f"{'model':14s} " + " ".join(f"{MODEL_NAMES[c]:>9s}" for c in sorted(MODEL_NAMES)))
     for name, result in results.items():
-        print(
-            f"{name:14s} "
-            + " ".join(f"{result.per_class_5095.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)),
-        )
+        print(f"{name:14s} " + " ".join(f"{result.per_class_5095.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)))
 
     print("\n=== CLASS CONFUSION (conf >= 0.25, IoU >= 0.5) ===")
     for name, result in results.items():

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from collections import deque
+from dataclasses import asdict, dataclass
 from http import HTTPStatus
-from typing import Any, TypedDict
+from typing import Any
 
 import rclpy
 import requests
@@ -35,8 +37,20 @@ _MIN_POINTS_FOR_SIDE_WINDOW = 4
 _MIN_POINTS_FOR_BACK_WINDOW = 16
 """Minimum LIDAR points needed to safely slice the n/8 back window."""
 
+_MIN_VALID_LIDAR_RANGE_M = 0.01
+"""LIDAR ranges at or below this are treated as invalid (no-return) readings.
 
-class _IMUPayload(TypedDict):
+Relocated verbatim from oled_display_node.py, which used to compute this
+itself from the raw /scan topic. That direct subscription (along with
+/imu/data and /hailo/detections) got replaced by this node publishing a
+single low-rate /ui/telemetry_summary instead -- the Pi Zero's USB-gadget
+link and single weak core were paying for the full sensor-rate traffic to
+feed a 128x64 display that only ever samples it a couple times a second.
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class _IMUPayload:
     """IMU section of a RobotSnapshot."""
 
     linearAcceleration: list[float]
@@ -44,7 +58,8 @@ class _IMUPayload(TypedDict):
     orientationQuaternion: list[float]
 
 
-class _MotorStatePayload(TypedDict):
+@dataclass(frozen=True, slots=True)
+class _MotorStatePayload:
     """Motor-state section of a RobotSnapshot."""
 
     steeringAngle: float
@@ -52,7 +67,8 @@ class _MotorStatePayload(TypedDict):
     encoderPosition: int
 
 
-class _VisionDetectionPayload(TypedDict):
+@dataclass(frozen=True, slots=True)
+class _VisionDetectionPayload:
     """A single Hailo detection, as reported in a RobotSnapshot."""
 
     className: int | str
@@ -60,7 +76,8 @@ class _VisionDetectionPayload(TypedDict):
     bbox: list[float]
 
 
-class TelemetryMetrics(TypedDict):
+@dataclass(frozen=True, slots=True)
+class TelemetryMetrics:
     """Backend-facing telemetry metrics payload (POSTed as part of RobotSnapshot)."""
 
     timestamp: float
@@ -81,7 +98,8 @@ class TelemetryMetrics(TypedDict):
     odometryAvailable: bool
 
 
-class RobotSnapshot(TypedDict):
+@dataclass(frozen=True, slots=True)
+class RobotSnapshot:
     """Backend-facing telemetry snapshot POSTed to /telemetry/record."""
 
     timestamp: float
@@ -97,7 +115,8 @@ class RobotSnapshot(TypedDict):
     motorState: _MotorStatePayload | None
 
 
-class _TopicUpdatePayload(TypedDict):
+@dataclass(frozen=True, slots=True)
+class _TopicUpdatePayload:
     """Per-topic diagnostic entry in a TopicsSnapshot.
 
     "data" is a recursive reflection of an arbitrary ROS2 message's __slots__
@@ -112,7 +131,8 @@ class _TopicUpdatePayload(TypedDict):
     data: dict[str, Any]
 
 
-class TopicsSnapshot(TypedDict):
+@dataclass(frozen=True, slots=True)
+class TopicsSnapshot:
     """Backend-facing topic-health snapshot POSTed to /telemetry/topics/update."""
 
     timestamp: float
@@ -143,6 +163,59 @@ class RosMsgType:
     DETECTION_2D_ARRAY = "vision_msgs/Detection2DArray"
 
 
+def _lidar_clearances_cm(ranges: list[float]) -> tuple[float, float, float]:
+    """Front/left/right clearances in cm for the OLED's RACING page.
+
+    Relocated verbatim from oled_display_node.py's old _lidar_callback --
+    deliberately a different windowing scheme than _build_metrics' own
+    forward/left/right/back calc below (different indices, meters not cm,
+    different consumer). Don't merge the two.
+    """
+    num_points = len(ranges)
+    if num_points == 0:
+        return 0.0, 0.0, 0.0
+
+    front_indices = range(num_points // 2 - 20, num_points // 2 + 20)
+    front_ranges = [ranges[i] for i in front_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
+    front = min(front_ranges) * 100 if front_ranges else 0.0
+
+    left_indices = range(num_points // 4, num_points // 3)
+    left_ranges = [ranges[i] for i in left_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
+    left = min(left_ranges) * 100 if left_ranges else 0.0
+
+    right_indices = range(2 * num_points // 3, 3 * num_points // 4)
+    right_ranges = [ranges[i] for i in right_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
+    right = min(right_ranges) * 100 if right_ranges else 0.0
+
+    return front, left, right
+
+
+def _best_detection(msg: Detection2DArray) -> tuple[str, float] | None:
+    """Track the single most salient detection for the OLED's RACING page.
+
+    Relocated verbatim from oled_display_node.py's old _detections_callback.
+    Ranked by confidence x bbox area rather than confidence alone: a small,
+    high-confidence false positive and a large, low-confidence smear are
+    both less trustworthy than one detection that scores well on both axes.
+    """
+    best: tuple[str, float] | None = None
+    best_score = -1.0
+    for det in msg.detections:
+        if not det.results:
+            continue
+        hyp = det.results[0]
+        if hasattr(hyp, "hypothesis"):
+            class_id, confidence = hyp.hypothesis.class_id, hyp.hypothesis.score
+        else:
+            class_id, confidence = hyp.id, hyp.score
+        area = det.bbox.size_x * det.bbox.size_y
+        score = confidence * area
+        if score > best_score:
+            best_score = score
+            best = (class_id, confidence)
+    return best
+
+
 class TelemetryBridgeNode(Node):
     """Subscribes to robot topics and POSTs telemetry to backend API."""
 
@@ -153,10 +226,17 @@ class TelemetryBridgeNode(Node):
         self.declare_parameter("backend_url", "http://localhost:8010")
         self.declare_parameter("publish_rate_hz", 10.0)
         self.declare_parameter("max_path_history", 120)
+        # Independent from publish_rate_hz above: that one drives the HTTP
+        # POST to the backend over WiFi/LAN. This one drives a small JSON
+        # blob to the Pi Zero over the USB-gadget link -- a 128x64 display
+        # doesn't need fresher-than-2Hz numbers, and keeping it decoupled
+        # means tuning one doesn't silently affect the other.
+        self.declare_parameter("ui_summary_rate_hz", 2.0)
 
         self._backend_url = self.get_parameter("backend_url").value
         self._rate = self.get_parameter("publish_rate_hz").value
         self._max_history = self.get_parameter("max_path_history").value
+        self._ui_summary_rate = self.get_parameter("ui_summary_rate_hz").value
 
         # Subscriptions — sensor topics use qos_profile_sensor_data to match
         # the BEST_EFFORT QoS that hardware drivers publish with.
@@ -191,6 +271,11 @@ class TelemetryBridgeNode(Node):
         # Backend-status publisher (reuses system_status topic).
         self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", 10)
 
+        # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
+        # the only sensor telemetry it needs, so it doesn't have to
+        # subscribe to /scan, /imu/data and /hailo/detections directly.
+        self._ui_summary_pub = self.create_publisher(String, "/ui/telemetry_summary", 10)
+
         # HTTP: single session for connection pooling; backoff state.
         self._session = requests.Session()
         self._backend_down = False
@@ -199,6 +284,7 @@ class TelemetryBridgeNode(Node):
 
         # Timer for publishing
         self.create_timer(1.0 / self._rate, self._publish_telemetry)
+        self.create_timer(1.0 / self._ui_summary_rate, self._publish_ui_summary)
 
         self.get_logger().info(f"Telemetry bridge started → {self._backend_url}")
 
@@ -250,13 +336,13 @@ class TelemetryBridgeNode(Node):
 
         msg_dict = self._msg_to_dict(msg)
 
-        self._topic_updates[topic_name] = {
-            "topicName": topic_name,
-            "messageType": msg_type,
-            "timestamp": current_time,
-            "updateRateHz": round(update_rate, 2),
-            "data": msg_dict,
-        }
+        self._topic_updates[topic_name] = _TopicUpdatePayload(
+            topicName=topic_name,
+            messageType=msg_type,
+            timestamp=current_time,
+            updateRateHz=round(update_rate, 2),
+            data=msg_dict,
+        )
 
     def _msg_to_dict(self, msg: object) -> dict[str, Any]:
         """Recursively reflect an arbitrary ROS2 message's __slots__ into a dict.
@@ -280,10 +366,10 @@ class TelemetryBridgeNode(Node):
         return result
 
     def _build_topics_snapshot(self) -> TopicsSnapshot:
-        return {
-            "timestamp": time.time(),
-            "topics": list(self._topic_updates.values()),
-        }
+        return TopicsSnapshot(
+            timestamp=time.time(),
+            topics=list(self._topic_updates.values()),
+        )
 
     def _publish_telemetry(self) -> None:
         """Aggregate data and POST to backend with exponential backoff."""
@@ -295,12 +381,9 @@ class TelemetryBridgeNode(Node):
         topics_snapshot = self._build_topics_snapshot()
 
         try:
-            # requests' stubs want a plain dict for `json=`; a TypedDict is one
-            # at runtime (json.dumps() doesn't care), just not per the stub's
-            # exact signature -- dict() here is a type-only view, not a copy.
             r = self._session.post(
                 f"{self._backend_url}/telemetry/record",
-                json=dict(snapshot),
+                json=asdict(snapshot),
                 timeout=1.0,
             )
             if r.status_code != HTTPStatus.OK:
@@ -308,7 +391,7 @@ class TelemetryBridgeNode(Node):
 
             self._session.post(
                 f"{self._backend_url}/telemetry/topics/update",
-                json=dict(topics_snapshot),
+                json=asdict(topics_snapshot),
                 timeout=1.0,
             )
 
@@ -339,6 +422,38 @@ class TelemetryBridgeNode(Node):
         if hasattr(self, "_system_status_pub"):
             self._system_status_pub.publish(msg)
 
+    def _publish_ui_summary(self) -> None:
+        """Publish the low-rate lidar/yaw/detection summary for the OLED.
+
+        Always publishes, regardless of /robot_state -- simpler than gating
+        like /race_metrics, and the bandwidth cost of a ~150-byte JSON blob
+        at 2Hz is negligible even while idle.
+        """
+        front = left = right = 0.0
+        if self._latest_scan is not None:
+            front, left, right = _lidar_clearances_cm(self._latest_scan.ranges)
+
+        yaw = 0.0
+        if self._latest_imu is not None:
+            q = self._latest_imu.orientation
+            yaw = math.degrees(self._quaternion_to_yaw(q.x, q.y, q.z, q.w))
+
+        detection = _best_detection(self._latest_vision) if self._latest_vision is not None else None
+        class_id, confidence = detection if detection is not None else (None, None)
+
+        msg = String()
+        msg.data = json.dumps(
+            {
+                "lidar_front_cm": front,
+                "lidar_left_cm": left,
+                "lidar_right_cm": right,
+                "gyro_yaw_deg": yaw,
+                "best_detection_class_id": class_id,
+                "best_detection_confidence": confidence,
+            },
+        )
+        self._ui_summary_pub.publish(msg)
+
     def _build_snapshot(self) -> RobotSnapshot:
         """Build RobotSnapshot dict from latest sensor data."""
         timestamp = time.time()
@@ -364,33 +479,33 @@ class TelemetryBridgeNode(Node):
         # IMU data
         imu_data: _IMUPayload | None = None
         if self._latest_imu:
-            imu_data = {
-                "linearAcceleration": [
+            imu_data = _IMUPayload(
+                linearAcceleration=[
                     self._latest_imu.linear_acceleration.x,
                     self._latest_imu.linear_acceleration.y,
                     self._latest_imu.linear_acceleration.z,
                 ],
-                "angularVelocity": [
+                angularVelocity=[
                     self._latest_imu.angular_velocity.x,
                     self._latest_imu.angular_velocity.y,
                     self._latest_imu.angular_velocity.z,
                 ],
-                "orientationQuaternion": [
+                orientationQuaternion=[
                     self._latest_imu.orientation.x,
                     self._latest_imu.orientation.y,
                     self._latest_imu.orientation.z,
                     self._latest_imu.orientation.w,
                 ],
-            }
+            )
 
         # Motor state
         motor_state: _MotorStatePayload | None = None
         if self._latest_joints and self._latest_cmd_vel:
-            motor_state = {
-                "steeringAngle": self._latest_joints.position[0] if len(self._latest_joints.position) > 0 else 0.0,
-                "driveSpeed": self._latest_cmd_vel.linear.x,
-                "encoderPosition": int(self._latest_joints.position[1]) if len(self._latest_joints.position) > 1 else 0,
-            }
+            motor_state = _MotorStatePayload(
+                steeringAngle=self._latest_joints.position[0] if len(self._latest_joints.position) > 0 else 0.0,
+                driveSpeed=self._latest_cmd_vel.linear.x,
+                encoderPosition=int(self._latest_joints.position[1]) if len(self._latest_joints.position) > 1 else 0,
+            )
 
         # Vision detections
         vision_detections: list[_VisionDetectionPayload] | None = None
@@ -406,31 +521,31 @@ class TelemetryBridgeNode(Node):
                     score = det.results[0].score
 
                 vision_detections.append(
-                    {
-                        "className": class_id,
-                        "confidence": score,
-                        "bbox": [
+                    _VisionDetectionPayload(
+                        className=class_id,
+                        confidence=score,
+                        bbox=[
                             det.bbox.center.position.x,
                             det.bbox.center.position.y,
                             det.bbox.size_x,
                             det.bbox.size_y,
                         ],
-                    },
+                    ),
                 )
 
-        return {
-            "timestamp": timestamp,
-            "missionName": "WRO 2026 Robot",
-            "robotPosition": robot_position,
-            "robotOrientation": robot_orientation,
-            "lidarPoints": lidar_points,
-            "pathHistory": list(self._path_history),
-            "logs": list(self._logs),
-            "metrics": metrics,
-            "imuData": imu_data,
-            "visionDetections": vision_detections,
-            "motorState": motor_state,
-        }
+        return RobotSnapshot(
+            timestamp=timestamp,
+            missionName="WRO 2026 Robot",
+            robotPosition=robot_position,
+            robotOrientation=robot_orientation,
+            lidarPoints=lidar_points,
+            pathHistory=list(self._path_history),
+            logs=list(self._logs),
+            metrics=metrics,
+            imuData=imu_data,
+            visionDetections=vision_detections,
+            motorState=motor_state,
+        )
 
     def _build_metrics(self, timestamp: float) -> TelemetryMetrics:
         """Build TelemetryMetrics dict."""
@@ -483,24 +598,24 @@ class TelemetryBridgeNode(Node):
         if self._latest_cmd_vel:
             speed = self._latest_cmd_vel.linear.x
 
-        return {
-            "timestamp": timestamp,
-            "nodeHealth": "nominal",
-            "pointsCaptured": points_captured,
-            "rangeMin": range_min,
-            "rangeMax": range_max,
-            "rangeMean": range_mean,
-            "forward": forward,
-            "left": left,
-            "right": right,
-            "back": back,
-            "speed": speed,
-            "stage": self._latest_state,
-            "lidarAvailable": lidar_available,
-            "imuAvailable": imu_available,
-            "cameraAvailable": camera_available,
-            "odometryAvailable": odometry_available,
-        }
+        return TelemetryMetrics(
+            timestamp=timestamp,
+            nodeHealth="nominal",
+            pointsCaptured=points_captured,
+            rangeMin=range_min,
+            rangeMax=range_max,
+            rangeMean=range_mean,
+            forward=forward,
+            left=left,
+            right=right,
+            back=back,
+            speed=speed,
+            stage=self._latest_state,
+            lidarAvailable=lidar_available,
+            imuAvailable=imu_available,
+            cameraAvailable=camera_available,
+            odometryAvailable=odometry_available,
+        )
 
     def _scan_to_points(self, scan: LaserScan, robot_pos: list[float], robot_yaw: float) -> list[list[float]]:
         """Convert LaserScan to world-frame point cloud."""

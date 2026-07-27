@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import math
 
-from shared.config.constants import CorridorDimensions, TrackDimensions
+from shared.config.constants import CorridorDimensions, DictKeys, TrackDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
@@ -89,8 +89,8 @@ def assumed_start_conditions(
     by_name = {s.value.lower(): w for s, w in believed.items()}
     sx, sy, yaw = start_pose(section, direction, by_name)
     return {
-        "direction": str(direction),
-        "section": section.capitalized,
-        "position": {"x": sx, "y": sy},
-        "yaw": yaw,
+        DictKeys.DIRECTION: str(direction),
+        DictKeys.SECTION: section.capitalized,
+        DictKeys.POSITION: {DictKeys.X: sx, DictKeys.Y: sy},
+        DictKeys.YAW: yaw,
     }

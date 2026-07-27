@@ -24,13 +24,54 @@ import numpy as np
 import torch
 from PIL import Image as _PIL
 
-from src.server.constants import SAM3_MASK_TENSOR_NDIM
+from src.server.constants import ERR_SAM3_NO_HF_REPO, SAM3_MASK_TENSOR_NDIM
 
 if TYPE_CHECKING:
     from src.server.context import ServerContext
 
 from src.server.context import TextSegmentationResult
 from src.server.registry import ModelConfig
+
+
+def _load_transformers_model(
+    hf_repo: str,
+    device: str,
+    model_cls_name: str,
+    processor_cls_name: str,
+) -> tuple[Any, Any]:
+    """Try named ``transformers`` classes, fall back to AutoModel/AutoProcessor."""
+    try:
+        import transformers as _tf
+
+        model_cls = getattr(_tf, model_cls_name)
+        processor_cls = getattr(_tf, processor_cls_name)
+        return model_cls.from_pretrained(hf_repo).to(device), processor_cls.from_pretrained(hf_repo)
+    except (ImportError, AttributeError):
+        from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
+
+        return AutoModel.from_pretrained(hf_repo).to(device), AutoProcessor.from_pretrained(hf_repo)
+
+
+def _post_process_masks(
+    processor: Any,
+    outputs: Any,
+    inputs: dict[str, Any],
+    hw: tuple[int, int],
+) -> torch.Tensor:
+    """Post-process SAM3 pred_masks to pixel space, with a fallback for older transformers."""
+    try:
+        masks_t = processor.post_process_masks(
+            outputs.pred_masks,
+            inputs["original_sizes"],
+            inputs["reshaped_input_sizes"],
+        )[0]
+    except Exception:
+        import torch.nn.functional as _F
+
+        h, w = hw
+        raw = outputs.pred_masks[0, :, 0:1].float()
+        masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
+    return masks_t
 
 
 class SAM3Predictor:
@@ -111,20 +152,7 @@ class SAM3Predictor:
         with torch.inference_mode():
             outputs = self.model(**inputs)
 
-        # Post-process to pixel-space masks; fall back to bilinear interpolation
-        # on older transformers versions that lack the helper method.
-        try:
-            masks_t = self.processor.post_process_masks(
-                outputs.pred_masks,
-                inputs["original_sizes"],
-                inputs["reshaped_input_sizes"],
-            )[0]
-        except Exception:
-            import torch.nn.functional as _F
-
-            h, w = self._orig_hw
-            raw = outputs.pred_masks[0, :, 0:1].float()
-            masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
+        masks_t = _post_process_masks(self.processor, outputs, inputs, self._orig_hw)
 
         if masks_t.ndim == SAM3_MASK_TENSOR_NDIM:
             masks_t = masks_t[:, 0]
@@ -156,16 +184,9 @@ class SAM3TextSegmenter:
     """
 
     def __init__(self, hf_repo: str, device: str) -> None:
-        try:
-            from transformers import Sam3Model, Sam3Processor  # type: ignore[import-untyped]
-
-            self.processor = Sam3Processor.from_pretrained(hf_repo)
-            self.model = Sam3Model.from_pretrained(hf_repo).to(device)
-        except (ImportError, AttributeError):
-            from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
-
-            self.processor = AutoProcessor.from_pretrained(hf_repo)
-            self.model = AutoModel.from_pretrained(hf_repo).to(device)
+        self.model, self.processor = _load_transformers_model(
+            hf_repo, device, "Sam3Model", "Sam3Processor",
+        )
         self.device = device
 
     def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
@@ -203,19 +224,7 @@ class SAM3TextSegmenter:
                 with torch.inference_mode():
                     outputs = self.model(**inputs)
 
-                # Post-process to pixel-space masks; fall back to bilinear interpolation
-                # on older transformers versions that lack the helper method.
-                try:
-                    masks_t = self.processor.post_process_masks(
-                        outputs.pred_masks,
-                        inputs["original_sizes"],
-                        inputs["reshaped_input_sizes"],
-                    )[0]
-                except Exception:
-                    import torch.nn.functional as _F
-
-                    raw = outputs.pred_masks[0, :, 0:1].float()
-                    masks_t = _F.interpolate(raw, (h, w), mode="bilinear")[:, 0] > 0
+                masks_t = _post_process_masks(self.processor, outputs, inputs, (h, w))
 
                 if masks_t.ndim == SAM3_MASK_TENSOR_NDIM:
                     masks_t = masks_t[:, 0]
@@ -275,19 +284,11 @@ def load_sam3(cfg: ModelConfig, ctx: ServerContext) -> None:
     """
     hf_repo = cfg.hf_repo
     if not hf_repo:
-        msg = "SAM3 requires 'hf_repo' in config"
-        raise ValueError(msg)
+        raise ValueError(ERR_SAM3_NO_HF_REPO)
 
-    try:
-        from transformers import Sam3TrackerModel, Sam3TrackerProcessor  # type: ignore[import-untyped]
-
-        tracker = Sam3TrackerModel.from_pretrained(hf_repo).to(ctx.device)
-        tracker_proc = Sam3TrackerProcessor.from_pretrained(hf_repo)
-    except (ImportError, AttributeError):
-        from transformers import AutoModel, AutoProcessor  # type: ignore[import-untyped]
-
-        tracker = AutoModel.from_pretrained(hf_repo).to(ctx.device)
-        tracker_proc = AutoProcessor.from_pretrained(hf_repo)
+    tracker, tracker_proc = _load_transformers_model(
+        hf_repo, ctx.device, "Sam3TrackerModel", "Sam3TrackerProcessor",
+    )
 
     ctx.predictor = SAM3Predictor(tracker, tracker_proc)
     ctx.text_seg = None

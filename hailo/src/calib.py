@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from src.config import ConvertConfig, DownloadConfig  # noqa: TC001
-from src.constants import NORMALIZE_FACTOR
+from src.constants import COCO_DATASET, COCO_SPLIT, NORMALIZE_FACTOR
 from src.errors import CalibrationDataError, require_dep
 from src.image import iter_images
 from src.log import get_logger
@@ -41,8 +41,8 @@ def download(config: DownloadConfig) -> None:
         config.output,
     )
     dataset = load_zoo_dataset(
-        "coco-2017",
-        split="validation",
+        COCO_DATASET,
+        split=COCO_SPLIT,
         max_samples=config.samples,
         shuffle=True,
     )

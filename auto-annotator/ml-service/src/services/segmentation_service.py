@@ -14,7 +14,7 @@ from PIL import Image
 from src.coordinates import NormalizedPoint, YOLOPoint, yolo_bbox_to_corners
 from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
 from src.inference import run_sam_inference
-from src.models import ClassInfo, InferenceRequest, Point, Shape
+from src.models import ClassInfo, ClickPoint, InferenceRequest, Point, Shape
 
 if TYPE_CHECKING:
     from src.models import AppContext, ImageRepositoryProtocol
@@ -40,7 +40,7 @@ class SegmentationService:
     def segment(
         self,
         image_id: int,
-        points: list[dict],
+        points: list[ClickPoint],
         app_context: AppContext,
         classes: list[ClassInfo],
     ) -> Shape | None:
@@ -50,7 +50,7 @@ class SegmentationService:
 
         Args:
             image_id: Database image ID.
-            points: List of {"x": float, "y": float, "pointType": "positive"|"negative"}.
+            points: List of click points with normalised coordinates.
             app_context: Application context with model client and inference state.
             classes: List of classes (assumed to include all classes in points).
 
@@ -68,7 +68,7 @@ class SegmentationService:
         self,
         image_path: str,
         image_id: int,
-        points: list[dict],
+        points: list[ClickPoint],
         app_context: AppContext,
         classes: list[ClassInfo],
     ) -> Shape | None:
@@ -95,18 +95,18 @@ class SegmentationService:
         selected_class = None
 
         for click in points:
-            cls_info = class_map.get(click["class_name"])
+            cls_info = class_map.get(click.class_name)
             # Validation ensures cls_info is not None, so this is safe
-            if cls_info and click["point_type"] == "positive" and selected_class is None:
+            if cls_info and click.point_type == "positive" and selected_class is None:
                 selected_class = cls_info
 
-            pixel = NormalizedPoint(x=click["x"], y=click["y"]).to_pixel(width, height)
-            label = 1 if click["point_type"] == "positive" else 0
+            pixel = NormalizedPoint(x=click.x, y=click.y).to_pixel(width, height)
+            label = 1 if click.point_type == "positive" else 0
             inference_points.append(Point(x=pixel.x, y=pixel.y, label=label, class_id=cls_info.id))
 
         # Validation ensures selected_class is not None
         if selected_class is None:
-            selected_class = class_map[points[0]["class_name"]]
+            selected_class = class_map[points[0].class_name]
 
         result = run_sam_inference(
             InferenceRequest(image=image_np, points=inference_points),

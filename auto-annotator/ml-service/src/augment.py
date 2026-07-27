@@ -7,6 +7,7 @@ DB and directory structure. Supports both bbox (det) and polygon (seg) formats.
 from __future__ import annotations
 
 import collections
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -36,18 +37,26 @@ if TYPE_CHECKING:
     from src.models import ImageRecord, ImageRepositoryProtocol
 
 
-def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> tuple[Path, Path]:
+@dataclass
+class DataPaths:
+    """Directories for image and label data."""
+
+    images_dir: Path
+    labels_dir: Path
+
+
+def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> DataPaths:
     """Return resolved images and labels directories.
 
     Falls back to AppConfig defaults when callers do not supply explicit paths.
     """
     if images_dir is not None and labels_dir is not None:
-        return images_dir, labels_dir
+        return DataPaths(images_dir=images_dir, labels_dir=labels_dir)
     from src.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load()
-    return (
-        images_dir if images_dir is not None else cfg.paths.images_dir,
-        labels_dir if labels_dir is not None else cfg.paths.labels_dir,
+    return DataPaths(
+        images_dir=images_dir if images_dir is not None else cfg.paths.images_dir,
+        labels_dir=labels_dir if labels_dir is not None else cfg.paths.labels_dir,
     )
 
 logger = get_logger(__name__)
@@ -206,7 +215,8 @@ def augment_image(
     Returns:
         List of new image DB ids registered for the augmentations.
     """
-    _images_dir, _labels_dir = _resolve_paths(images_dir, labels_dir)
+    paths = _resolve_paths(images_dir, labels_dir)
+    _images_dir, _labels_dir = paths.images_dir, paths.labels_dir
     img_path = Path(record.path)
     class_dir = img_path.parent.name
     fmt = record.format_used or "det"
@@ -255,7 +265,8 @@ def augment_image_files(
     Yields:
         An :class:`AugmentedImage` for each augmented copy written to disk.
     """
-    _images_dir, _labels_dir = _resolve_paths(images_dir, labels_dir)
+    paths = _resolve_paths(images_dir, labels_dir)
+    _images_dir, _labels_dir = paths.images_dir, paths.labels_dir
     fmt = format_used or "det"
     for aug_img_path, _aug_stem in _augment_and_write(
         image_path, num_augmentations, label_store, _images_dir, _labels_dir,
@@ -285,7 +296,8 @@ def run_augmentation_job(
         images_dir:        Directory where annotated images are stored. Falls back to AppConfig.
         labels_dir:        Directory where label files are stored. Falls back to AppConfig.
     """
-    _images_dir, _labels_dir = _resolve_paths(images_dir, labels_dir)
+    paths = _resolve_paths(images_dir, labels_dir)
+    _images_dir, _labels_dir = paths.images_dir, paths.labels_dir
     total = len(image_ids) * num_augmentations
     done = 0
 

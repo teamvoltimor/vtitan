@@ -19,7 +19,7 @@ import shutil
 from pathlib import Path
 
 from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig  # noqa: TC001
-from src.constants import IMAGE_EXTENSIONS
+from src.constants import FLATTEN_SEPARATOR, IMAGE_EXTENSIONS, LABEL_EXTENSIONS
 from src.docker import (
     DOCKER_SHARED_MOUNT,
     run_or_print,
@@ -61,7 +61,7 @@ def _resolve_zoo_name(model: str, override: str | None) -> str:
 
 
 IMAGE_SUFFIXES = frozenset(IMAGE_EXTENSIONS)
-LABEL_SUFFIXES = frozenset({".txt"})
+LABEL_SUFFIXES = LABEL_EXTENSIONS
 
 
 def _stage_flat(source: Path, dest: Path, suffixes: frozenset[str]) -> int:
@@ -87,7 +87,7 @@ def _stage_flat(source: Path, dest: Path, suffixes: frozenset[str]) -> int:
         if path.suffix.lower() not in suffixes:
             continue
         relative_parent = path.parent.relative_to(source)
-        prefix = "_".join(relative_parent.parts)
+        prefix = FLATTEN_SEPARATOR.join(relative_parent.parts)
         name = f"{prefix}_{path.name}" if prefix else path.name
         shutil.copy2(path, dest / name)
         count += 1

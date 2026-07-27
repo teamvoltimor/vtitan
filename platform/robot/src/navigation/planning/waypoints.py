@@ -13,9 +13,10 @@ import math
 from typing import Any
 
 import numpy as np
-from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import ScenarioMetadata
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
@@ -28,7 +29,7 @@ _OUTER_WALL_BIAS = 0.05
 
 
 def calculate_waypoints(
-    metadata: dict[str, Any],
+    metadata: ScenarioMetadata | dict[str, Any],
     num_laps: int,
     arc_radius: float | None = None,
 ) -> list[tuple[float, float]]:
@@ -39,7 +40,7 @@ def calculate_waypoints(
     each corridor centerline.
 
     Args:
-        metadata: Scenario metadata dict (from ScenarioGenerator._build_metadata).
+        metadata: Scenario metadata (Pydantic model or coercible dict).
         num_laps: Total laps the robot must complete.
         arc_radius: Corner arc radius (m). Must exceed the Ackermann minimum
             turning radius (~0.329 m). Defaults to the tuning profile's value
@@ -54,17 +55,21 @@ def calculate_waypoints(
         ValueError: If a generated or deformed waypoint would fall outside
             the track or inside the restricted inner square.
     """
+    if not isinstance(metadata, ScenarioMetadata):
+        metadata = ScenarioMetadata.model_validate(metadata)
     arc_radius = arc_radius if arc_radius is not None else NavigationTuning().waypoints.ARC_RADIUS
 
-    corridor_widths = metadata[DictKeys.CORRIDOR_WIDTHS]
-    starting = metadata[DictKeys.STARTING_CONDITIONS]
-    # Metadata stores direction as a plain string after JSON serialisation;
-    # convert at the boundary so all helpers receive the typed enum.
-    direction = Direction.from_string(starting[DictKeys.DIRECTION])
+    corridor_widths = metadata.corridor_widths
+    starting = metadata.starting_conditions
+    direction = Direction.from_string(starting.direction)
 
-    # Safety assertion: chassis half-width + arc-radius must fit the narrowest corridor.
-    min_width_mm = min(cw[DictKeys.WIDTH_MM] for cw in corridor_widths.values())
-    min_width_m = min_width_mm / 1000.0
+    cw_entries = {
+        Section.NORTH: corridor_widths.north,
+        Section.SOUTH: corridor_widths.south,
+        Section.EAST: corridor_widths.east,
+        Section.WEST: corridor_widths.west,
+    }
+    min_width_m = min(cw.width_mm for cw in cw_entries.values()) / 1000.0
     required = RobotSpecs.WIDTH / 2 + arc_radius
     if required > min_width_m:
         msg = (
@@ -74,10 +79,7 @@ def calculate_waypoints(
         )
         raise ValueError(msg)
 
-    widths = {
-        Section.from_string(side): corridor_widths[side][DictKeys.WIDTH_MM] / 1000.0
-        for side in ("north", "south", "east", "west")
-    }
+    widths = {section: cw.width_mm / 1000.0 for section, cw in cw_entries.items()}
     north_width = widths[Section.NORTH]
     south_width = widths[Section.SOUTH]
     east_width = widths[Section.EAST]
@@ -100,12 +102,11 @@ def calculate_waypoints(
 
     order = _build_corridor_order(direction)
 
-    start_section = Section.from_string(starting[DictKeys.SECTION])
+    start_section = Section.from_string(starting.section)
     order = _rotate_to_start(order, start_section)
 
     full_loop = _assemble_loop(order, segments)
-    start_pos = starting[DictKeys.POSITION]
-    start_x, start_y = start_pos[DictKeys.X], start_pos[DictKeys.Y]
+    start_x, start_y = starting.position.x, starting.position.y
 
     waypoints = _build_waypoint_sequence(
         full_loop,

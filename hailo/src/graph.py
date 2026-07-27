@@ -4,15 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.deps import _onnx_import_err, onnx
 from src.errors import HailoError, require_dep
 from src.log import get_logger
-
-_onnx_import_err: ImportError | None = None
-try:
-    import onnx
-except ImportError as _exc:
-    onnx = None  # type: ignore[assignment]
-    _onnx_import_err = _exc
 
 log = get_logger(__name__)
 

@@ -26,7 +26,7 @@ from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning, SensorHealthParams
 from shared.domain.enums import RobotState
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import CorridorWidthEntry, CorridorWidths, Detection, IMUReading, Pose, ScenarioMetadata
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -419,9 +419,14 @@ class TrackNavigator(Node):
 
         sign_router: SignRouter | None = None
         if not self._is_open_challenge:
-            signs = signs_from_metadata(self._metadata)
-            if signs:
-                sign_router = SignRouter(signs, direction=start_direction)
+            # A blind run has no metadata file, so ``signs_from_metadata`` comes
+            # back empty and the router used to be left as None — which meant
+            # blind operation shipped with no sign avoidance whatsoever, the one
+            # thing the Obstacles Challenge is scored on. Build it regardless and
+            # let it discover the layout from ``/vision/detections``, the same
+            # way ``CorridorWidthEstimator`` recovers the corridor widths.
+            signs = [] if self._blind else signs_from_metadata(self._metadata)
+            sign_router = SignRouter(signs, direction=start_direction, discover=self._blind)
 
         lap_detector = LapDetector(
             start_pos=(start_x, start_y),
@@ -550,17 +555,19 @@ class TrackNavigator(Node):
         times (see step() waypoint-wrap). Passing the real count would multiply
         laps (e.g. 3 -> 9). Keep this at 1.
         """
-        planning_metadata = dict(self._metadata)
-        planning_metadata[DictKeys.CORRIDOR_WIDTHS] = {
-            section.value: {DictKeys.WIDTH_MM: round(width * 1000)} for section, width in widths.items()
-        }
-        # The travel direction has to be overridden too, not just the widths.
-        # calculate_waypoints reads it from starting_conditions, so a path
-        # replanned after the direction was inferred would otherwise still run
-        # the provisional way round the loop -- and the robot would drive it.
-        start_conditions = dict(planning_metadata[DictKeys.STARTING_CONDITIONS])
-        start_conditions[DictKeys.DIRECTION] = str(self._direction)
-        planning_metadata[DictKeys.STARTING_CONDITIONS] = start_conditions
+        metadata: ScenarioMetadata = self._metadata
+        new_widths = CorridorWidths(
+            **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
+        )
+        new_starting = metadata.starting_conditions.model_copy(
+            update={"direction": str(self._direction)},
+        )
+        planning_metadata = metadata.model_copy(
+            update={
+                "corridor_widths": new_widths,
+                "starting_conditions": new_starting,
+            },
+        )
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
 
     def _update_layout_belief(self) -> bool:

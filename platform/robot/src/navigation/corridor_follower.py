@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.navigation.ports import DriveCommand
+from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap
 
 TURN_CLEARANCE_M = 0.60
 """Forward clearance at which to start turning the corner.
@@ -53,21 +54,9 @@ fixtures their direction and put 9 into a wall.
 Sitting off-centre for one metre costs nothing. Oscillating costs the round.
 """
 
-_FORWARD_ARC_RAD = math.radians(8.0)
-"""Half-angle of the forward cone watched for the end of the corridor.
-
-Deliberately narrow. A wide cone in a corridor this tight sees the *side* wall
-rather than anything ahead: parked 0.28 m off the outer wall, a ray only 25 deg
-off the nose already returns 0.73 m, which reads as an obstacle in front when
-the corridor is actually clear for another 1.8 m.
-"""
-
 _CORNER_SPEED_SCALE = 0.6
 """Fraction of creep speed while turning a corner blind. Slower than straight
 running, because the turn is committed on one comparison rather than a plan."""
-
-_MIN_VALID_RANGE_M = 0.01
-"""Below this a return is the driver's invalid-reading sentinel, not a wall."""
 
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
 """Stop creeping when the wall ahead is this close.
@@ -76,24 +65,6 @@ The direction should have settled long before this -- measured, it resolves
 after about 0.8 m of travel with roughly 0.5 m to spare. Reaching here means it
 did not, so stopping is better than driving into the corner with no plan.
 """
-
-
-def _wrap(angle: float) -> float:
-    return math.atan2(math.sin(angle), math.cos(angle))
-
-
-def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
-    index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
-    return ranges_m[index]
-
-
-def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> float:
-    forward = [
-        r
-        for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= _FORWARD_ARC_RAD and r > _MIN_VALID_RANGE_M
-    ]
-    return min(forward) if forward else math.inf
 
 
 def follow_corridor(

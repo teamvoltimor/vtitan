@@ -18,7 +18,8 @@ import math
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.models import Detection
 
-from src.navigation.planning.sign_router import _CAMERA_FOCAL_PX, SignSpec
+from src.navigation.planning.sign_discovery import _CAMERA_FOCAL_PX, SignSpec
+from src.simulation.geometry import _wrap_angle
 
 _DETECTION_CONFIDENCE: float = 0.9
 """Fixed confidence reported for every emulated detection."""
@@ -81,12 +82,3 @@ def emulate_sign_detections(
             ),
         )
     return detections
-
-
-def _wrap_angle(angle: float) -> float:
-    """Wrap an angle to [-pi, pi]."""
-    while angle > math.pi:
-        angle -= 2 * math.pi
-    while angle < -math.pi:
-        angle += 2 * math.pi
-    return angle

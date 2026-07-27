@@ -8,6 +8,7 @@ processes later if GPU isolation is needed.
 from __future__ import annotations
 
 from concurrent import futures
+from dataclasses import dataclass
 
 import grpc
 from pydantic import Field
@@ -28,6 +29,14 @@ _DEFAULT_PORT = 50051
 _DEFAULT_MAX_WORKERS = 8
 
 
+@dataclass
+class GrpcConfig:
+    """gRPC server configuration."""
+
+    port: int
+    max_workers: int
+
+
 class _GrpcEnvSettings(BaseSettings):
     """Raw env-var read for the gRPC server port override."""
 
@@ -36,8 +45,8 @@ class _GrpcEnvSettings(BaseSettings):
     grpc_port: int | None = Field(default=None, validation_alias="GRPC_PORT")
 
 
-def _load_grpc_config() -> tuple[int, int]:
-    """Return (port, max_workers) from config file, with env var override for port."""
+def _load_grpc_config() -> GrpcConfig:
+    """Return gRPC config from config file, with env var override for port."""
     import tomllib  # noqa: PLC0415 — stdlib, cheap import
 
     paths = AppConfig.load().paths
@@ -49,7 +58,7 @@ def _load_grpc_config() -> tuple[int, int]:
     env_port = _GrpcEnvSettings().grpc_port
     port = env_port if env_port is not None else int(grpc_cfg.get("port", _DEFAULT_PORT))
     max_workers = int(grpc_cfg.get("max_workers", _DEFAULT_MAX_WORKERS))
-    return port, max_workers
+    return GrpcConfig(port=port, max_workers=max_workers)
 
 
 def build_server(port: int, max_workers: int = _DEFAULT_MAX_WORKERS) -> grpc.Server:
@@ -64,11 +73,11 @@ def build_server(port: int, max_workers: int = _DEFAULT_MAX_WORKERS) -> grpc.Ser
 
 def serve(port: int | None = None) -> None:
     """Start the gRPC server and block until terminated."""
-    cfg_port, max_workers = _load_grpc_config()
-    resolved = port or cfg_port
-    server = build_server(resolved, max_workers)
+    cfg = _load_grpc_config()
+    resolved = port or cfg.port
+    server = build_server(resolved, cfg.max_workers)
     server.start()
-    logger.info("grpc_server_started", extra={"port": resolved, "max_workers": max_workers})
+    logger.info("grpc_server_started", extra={"port": resolved, "max_workers": cfg.max_workers})
     server.wait_for_termination()
 
 

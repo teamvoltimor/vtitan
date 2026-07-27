@@ -20,9 +20,10 @@ import pytest
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.config.enums import Direction, Section
 
+from shared.domain.models import BlockPosition, ParkingLot
+
 from src.navigation.maneuvers.parking import (
     ParkController,
-    ParkingLotConfig,
     _build_zone,
     _inside_zone,
     _normalise_angle,
@@ -46,10 +47,26 @@ from tests.test_constants import (
 _CW = Direction.CLOCKWISE
 _CCW = Direction.COUNTERCLOCKWISE
 
-_SOUTH_CFG = ParkingLotConfig(block1_pos=PARKING_SOUTH_BLOCK1, block2_pos=PARKING_SOUTH_BLOCK2)
-_NORTH_CFG = ParkingLotConfig(block1_pos=PARKING_NORTH_BLOCK1, block2_pos=PARKING_NORTH_BLOCK2)
-_EAST_CFG = ParkingLotConfig(block1_pos=PARKING_EAST_BLOCK1, block2_pos=PARKING_EAST_BLOCK2)
-_WEST_CFG = ParkingLotConfig(block1_pos=PARKING_WEST_BLOCK1, block2_pos=PARKING_WEST_BLOCK2)
+def _bp(x: float, y: float) -> BlockPosition:
+    return BlockPosition(x=x, y=y)
+
+
+_SOUTH_CFG = ParkingLot(
+    block1_position=BlockPosition(x=PARKING_SOUTH_BLOCK1[0], y=PARKING_SOUTH_BLOCK1[1]),
+    block2_position=BlockPosition(x=PARKING_SOUTH_BLOCK2[0], y=PARKING_SOUTH_BLOCK2[1]),
+)
+_NORTH_CFG = ParkingLot(
+    block1_position=BlockPosition(x=PARKING_NORTH_BLOCK1[0], y=PARKING_NORTH_BLOCK1[1]),
+    block2_position=BlockPosition(x=PARKING_NORTH_BLOCK2[0], y=PARKING_NORTH_BLOCK2[1]),
+)
+_EAST_CFG = ParkingLot(
+    block1_position=BlockPosition(x=PARKING_EAST_BLOCK1[0], y=PARKING_EAST_BLOCK1[1]),
+    block2_position=BlockPosition(x=PARKING_EAST_BLOCK2[0], y=PARKING_EAST_BLOCK2[1]),
+)
+_WEST_CFG = ParkingLot(
+    block1_position=BlockPosition(x=PARKING_WEST_BLOCK1[0], y=PARKING_WEST_BLOCK1[1]),
+    block2_position=BlockPosition(x=PARKING_WEST_BLOCK2[0], y=PARKING_WEST_BLOCK2[1]),
+)
 
 
 # Zone geometry
@@ -58,40 +75,43 @@ _WEST_CFG = ParkingLotConfig(block1_pos=PARKING_WEST_BLOCK1, block2_pos=PARKING_
 class TestBuildZone:
     """The zone is the parking lot rectangle itself — "between the two markers"."""
 
+    def _zone_south(self):
+        return _build_zone(_bp(*PARKING_SOUTH_BLOCK1), _bp(*PARKING_SOUTH_BLOCK2), Section.SOUTH, _CCW)
+
     def test_south_bay_centre(self):
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        z = self._zone_south()
         assert z.gap_cx == pytest.approx((PARKING_SOUTH_BLOCK1[0] + PARKING_SOUTH_BLOCK2[0]) / 2)
         assert z.gap_cy == pytest.approx(ParkingLotSpecs.LENGTH / 2)
 
     def test_south_x_bounds_are_the_fins_inner_faces(self):
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        z = self._zone_south()
         assert z.x_min == pytest.approx(PARKING_SOUTH_BLOCK1[0] + ParkingLotSpecs.WIDTH / 2)
         assert z.x_max == pytest.approx(PARKING_SOUTH_BLOCK2[0] - ParkingLotSpecs.WIDTH / 2)
 
     def test_bay_depth_is_the_marker_length(self):
         """The markers are fins standing perpendicular to the wall, so they set the depth."""
-        z = _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, _CCW)
+        z = self._zone_south()
         assert z.y_min == pytest.approx(0.0)
         assert z.y_max == pytest.approx(ParkingLotSpecs.LENGTH)
 
     @pytest.mark.parametrize(
-        "section,block1,block2,direction,expected_yaw",
+        "section,b1,b2,direction,expected_yaw",
         [
-            (Section.SOUTH, PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, _CW, math.pi),
-            (Section.SOUTH, PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, _CCW, 0.0),
-            (Section.NORTH, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, _CW, 0.0),
-            (Section.NORTH, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, _CCW, math.pi),
-            (Section.EAST, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, _CW, math.pi / 2),
-            (Section.EAST, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, _CCW, -math.pi / 2),
-            (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, _CW, -math.pi / 2),
-            (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2, _CCW, math.pi / 2),
+            (Section.SOUTH, *PARKING_SOUTH_BLOCK1, *PARKING_SOUTH_BLOCK2, _CW, math.pi),
+            (Section.SOUTH, *PARKING_SOUTH_BLOCK1, *PARKING_SOUTH_BLOCK2, _CCW, 0.0),
+            (Section.NORTH, *PARKING_NORTH_BLOCK1, *PARKING_NORTH_BLOCK2, _CW, 0.0),
+            (Section.NORTH, *PARKING_NORTH_BLOCK1, *PARKING_NORTH_BLOCK2, _CCW, math.pi),
+            (Section.EAST, *PARKING_EAST_BLOCK1, *PARKING_EAST_BLOCK2, _CW, math.pi / 2),
+            (Section.EAST, *PARKING_EAST_BLOCK1, *PARKING_EAST_BLOCK2, _CCW, -math.pi / 2),
+            (Section.WEST, *PARKING_WEST_BLOCK1, *PARKING_WEST_BLOCK2, _CW, -math.pi / 2),
+            (Section.WEST, *PARKING_WEST_BLOCK1, *PARKING_WEST_BLOCK2, _CCW, math.pi / 2),
         ],
     )
     def test_target_yaw_is_parallel_to_the_wall_and_matches_travel(
         self,
         section,
-        block1,
-        block2,
+        b1_x, b1_y,
+        b2_x, b2_y,
         direction,
         expected_yaw,
     ):
@@ -101,7 +121,7 @@ class TestBuildZone:
         ParkingLotSpecs.LENGTH deep and the chassis is RobotSpecs.LENGTH long, so a
         perpendicular pose protrudes by the difference no matter how well it is driven.
         """
-        z = _build_zone(block1, block2, section, direction)
+        z = _build_zone(_bp(b1_x, b1_y), _bp(b2_x, b2_y), section, direction)
         assert _normalise_angle(z.target_yaw - expected_yaw) == pytest.approx(0.0, abs=1e-9)
 
     def test_target_yaw_is_never_perpendicular_to_the_wall(self):
@@ -113,7 +133,7 @@ class TestBuildZone:
             (Section.WEST, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2),
         ):
             for direction in (_CW, _CCW):
-                z = _build_zone(b1, b2, section, direction)
+                z = _build_zone(_bp(*b1), _bp(*b2), section, direction)
                 wall_normal = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
                 err = abs(_normalise_angle(z.target_yaw - wall_normal))
                 assert min(err, abs(math.pi - err)) > math.radians(45)
@@ -124,7 +144,7 @@ class TestBuildZone:
 
 class TestInsideZone:
     def _zone(self, direction=_CCW):
-        return _build_zone(PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, Section.SOUTH, direction)
+        return _build_zone(_bp(*PARKING_SOUTH_BLOCK1), _bp(*PARKING_SOUTH_BLOCK2), Section.SOUTH, direction)
 
     def _bay_centre(self, z):
         return z.gap_cx, z.gap_cy
@@ -177,7 +197,7 @@ class TestInsideZone:
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.WIDE)
 
 
-def _parking_fins(cfg: ParkingLotConfig, section: Section) -> list[ObstacleBox]:
+def _parking_fins(cfg: ParkingLot, section: Section) -> list[ObstacleBox]:
     """The two magenta markers as physical obstacles.
 
     They became collidable in the simulator in commit fd33fd5, but this harness kept
@@ -195,7 +215,7 @@ def _parking_fins(cfg: ParkingLotConfig, section: Section) -> list[ObstacleBox]:
             width=ParkingLotSpecs.WIDTH,
             yaw=yaw,
         )
-        for pos in (cfg.block1_pos, cfg.block2_pos)
+        for pos in ((cfg.block1_position.x, cfg.block1_position.y), (cfg.block2_position.x, cfg.block2_position.y))
     ]
 
 
@@ -228,7 +248,7 @@ class ParkRun:
 
 
 def _simulate_park(
-    cfg: ParkingLotConfig,
+    cfg: ParkingLot,
     section: Section,
     start_pos: tuple[float, float],
     start_yaw: float,
@@ -339,14 +359,14 @@ def test_south_park_from_4_approaches(start_pos, start_yaw):
 # the robot. The old bearing-proportional `_pursuit_steer` orbited into the inner
 # block trying to reach it; the fixed controller must reverse-and-reorient instead.
 
-_DEGENERATE_CFGS: dict[Section, tuple[ParkingLotConfig, tuple[float, float], float]] = {}
+_DEGENERATE_CFGS: dict[Section, tuple[ParkingLot, tuple[float, float], float]] = {}
 for _section, _cfg in (
     (Section.SOUTH, _SOUTH_CFG),
     (Section.NORTH, _NORTH_CFG),
     (Section.EAST, _EAST_CFG),
     (Section.WEST, _WEST_CFG),
 ):
-    _zone = _build_zone(_cfg.block1_pos, _cfg.block2_pos, _section, _CCW)
+    _zone = _build_zone(_cfg.block1_position, _cfg.block2_position, _section, _CCW)
     _staging = _staging_pos(_zone, _section)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0

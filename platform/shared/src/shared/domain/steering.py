@@ -18,7 +18,6 @@ from typing import Final
 
 STEERING_NORM_MIN: Final[float] = -1.0
 STEERING_NORM_MAX: Final[float] = 1.0
-STEERING_NORM_MAX = 1.0
 
 
 def steering_norm_to_angle_rad(steering_norm: float, max_steering_angle: float) -> float:

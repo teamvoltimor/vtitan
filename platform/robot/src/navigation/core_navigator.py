@@ -121,6 +121,11 @@ class CoreNavigator:
         """Current track corridor derived from robot position. None before first step."""
         return self._current_corridor
 
+    @property
+    def sign_router(self) -> SignRouter | None:
+        """The traffic-sign router, or None outside the Obstacles Challenge."""
+        return self._sign_router
+
     def replace_path(self, waypoints: list[tuple[float, float]], robot_xy: tuple[float, float]) -> None:
         """Swap in a new planned path mid-run, resuming at the nearest point.
 

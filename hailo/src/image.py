@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,11 +32,25 @@ from src.enums import Task
 from src.errors import HailoError
 
 
+@dataclass
+class LetterboxTransform:
+    """Result of letterboxing an image to preserve aspect ratio.
+
+    Bundles the transformed image with scaling and padding parameters needed
+    to map coordinates back to original image space.
+    """
+
+    image: np.ndarray
+    ratio: float
+    pad_width: float
+    pad_height: float
+
+
 def letterbox(
     img: np.ndarray,
     new_shape: tuple[int, int] = (DEFAULT_IMG_SIZE, DEFAULT_IMG_SIZE),
     pad_color: tuple[int, int, int] = LETTERBOX_PAD_COLOR,
-) -> tuple[np.ndarray, float, float, float]:
+) -> LetterboxTransform:
     """Resize ``img`` with letterboxing to preserve aspect ratio.
 
     Args:
@@ -44,7 +59,7 @@ def letterbox(
         pad_color: Padding fill value.
 
     Returns:
-        ``(padded_img, scale_ratio, pad_width, pad_height)``
+        LetterboxTransform with padded image, scale ratio, and padding amounts.
     """
     h, w = img.shape[:2]
     ratio = min(new_shape[0] / h, new_shape[1] / w)
@@ -64,7 +79,7 @@ def letterbox(
         cv2.BORDER_CONSTANT,
         value=pad_color,
     )
-    return img, ratio, dw, dh
+    return LetterboxTransform(image=img, ratio=ratio, pad_width=dw, pad_height=dh)
 
 
 def preprocess(
@@ -87,10 +102,10 @@ def preprocess(
     if img0 is None:
         msg = f"Could not read image: {img_path}"
         raise HailoError(msg)
-    img, ratio, dw, dh = letterbox(img0, new_shape=(size, size))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / NORMALIZE_FACTOR
+    transform = letterbox(img0, new_shape=(size, size))
+    img = cv2.cvtColor(transform.image, cv2.COLOR_BGR2RGB).astype(np.float32) / NORMALIZE_FACTOR
     img = np.expand_dims(np.transpose(img, TRANSPOSE_HWC_TO_CHW), 0)
-    return img, ratio, dw, dh, img0
+    return img, transform.ratio, transform.pad_width, transform.pad_height, img0
 
 
 def scale_coords(

@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
+import numpy as np
 from pydantic import BaseModel, Field
-
-if TYPE_CHECKING:
-    import numpy as np
 
 from src.server.registry import ModelConfig
 
@@ -37,9 +35,9 @@ class PointPredictor(Protocol):
     """Structural interface for a loaded point-prompted predictor (SAM 1/2/3).
 
     Every ``ctx.predictor`` backend (``sam1.py``, ``sam2.py``, ``sam3.py``,
-    and the point-prediction-unsupported ``_NoopPredictor`` in ``yolo11.py``/
-    ``yoloe.py``) implements this pair, matching the wire commands dispatched
-    in ``dispatch.py`` (``handle_set_image``/``handle_predict``).
+    and the point-prediction-unsupported ``NoopPredictor`` in ``context.py``)
+    implements this pair, matching the wire commands dispatched in ``dispatch.py``
+    (``handle_set_image``/``handle_predict``).
     """
 
     def set_image(self, image: np.ndarray) -> None:
@@ -55,6 +53,29 @@ class PointPredictor(Protocol):
     ) -> tuple[np.ndarray, np.ndarray, Any]:
         """Run point-prompted mask prediction on the encoded image."""
         ...
+
+
+class NoopPredictor(PointPredictor):
+    """Sentinel that satisfies the dispatch guard without supporting point inference.
+
+    Detection-only models (YOLOv11, YOLOE) use this so that ``ctx.predictor
+    is not None`` passes in the dispatch layer while making unsupported
+    point-prompted calls fail with a clear error message.
+    """
+
+    def set_image(self, image: np.ndarray) -> None:
+        """Accept a set_image call silently (auto-detect models set image internally)."""
+
+    def predict(
+        self,
+        point_coords: np.ndarray,
+        point_labels: np.ndarray,
+        mask_input: np.ndarray | None = None,
+        multimask_output: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray, Any]:
+        """Raise NotImplementedError — this model only supports auto-annotate."""
+        msg = "This model does not support point-prompted inference. Use Auto-annotate instead."
+        raise NotImplementedError(msg)
 
 
 class TextSegmenter(Protocol):
