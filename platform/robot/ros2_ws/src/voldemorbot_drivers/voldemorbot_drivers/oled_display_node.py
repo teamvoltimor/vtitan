@@ -37,7 +37,7 @@ from PIL import Image, ImageDraw
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import (
     Image as ImageMsg,
     Imu,
@@ -91,6 +91,19 @@ class NodeConfig(BaseSettings):
 
 _node_config = NodeConfig()
 UI_REFRESH_RATE_HZ = _node_config.ui_refresh_rate_hz
+
+_QOS_LATCHED = QoSProfile(
+    depth=1,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+)
+"""Matches state_machine_node's latched publishers.
+
+The display is a late subscriber by nature -- it lives on the Pi Zero and is
+restarted independently of the Pi 5 -- so it has to request the latched value
+rather than wait for the next transition, which may be minutes away or may
+already have happened.
+"""
 PAGE_CYCLE_INTERVAL_SEC = _node_config.page_cycle_interval_sec
 
 _DISPLAY_DRIVER_BY_BACKEND = {
@@ -170,12 +183,24 @@ class OLEDDisplayNode(LifecycleNode):
 
         self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, "/ui/oled_mirror", 10)
 
-        self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, 10)
+        # TRANSIENT_LOCAL to match state_machine_node, which publishes both of
+        # these latched precisely so a late subscriber gets the current value.
+        # Subscribing VOLATILE is *compatible*, so DDS reports no error and the
+        # topic looks connected -- but the latched value is never delivered, so
+        # the display only learns the state from the next transition.
+        #
+        # Observed on the robot: restarting the Pi 5 replaced the publisher, the
+        # Zero's subscription did not re-match, and the OLED went on rendering
+        # the RACING pages while /robot_state read "ready". The display was
+        # silently reporting a state the robot had left, which is worse than
+        # showing nothing -- the button and state machine were both working and
+        # the display was the only thing saying otherwise.
+        self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, _QOS_LATCHED)
         self.diagnostics_sub = self.create_subscription(
             DiagnosticArray,
             "/system_status",
             self._diagnostics_callback,
-            10,
+            _QOS_LATCHED,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
         self.imu_sub = self.create_subscription(
