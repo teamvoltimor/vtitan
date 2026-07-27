@@ -19,6 +19,7 @@ from unittest import mock
 import pytest
 import rclpy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from PIL import Image
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32, String
 
@@ -28,10 +29,18 @@ from std_msgs.msg import Float32, String
 # fcntl (POSIX-only, doesn't exist on Windows) even though only one backend is
 # ever actually used at runtime. Mock all four before import, matching the
 # pattern test_imu_bno08x_i2c_node.py already uses for board/busio.
-sys.modules["board"] = mock.MagicMock()
-sys.modules["busio"] = mock.MagicMock()
-sys.modules["adafruit_ssd1306"] = mock.MagicMock()
-sys.modules["fcntl"] = mock.MagicMock()
+# Only substituted where the real module cannot be imported. Replacing them
+# unconditionally clobbers sys.modules for every test that runs afterwards --
+# board and busio import fine on some dev machines, and stubbing them here made
+# the IMU node tests fail when the suite ran as a directory while passing in
+# isolation. conftest.py takes the same conditional approach for the same
+# reason.
+for _optional in ("board", "busio", "adafruit_ssd1306", "fcntl"):
+    if _optional not in sys.modules:
+        try:
+            __import__(_optional)
+        except (ImportError, NotImplementedError):
+            sys.modules[_optional] = mock.MagicMock()
 
 from src.hardware.display.enums import DisplayBackend
 
@@ -52,7 +61,18 @@ def oled_node_class():
     """Import OLEDDisplayNode with the BLINKA driver class table entry mocked out."""
     from voldemorbot_drivers import oled_display_node as oled_module
 
-    mock_driver = mock.MagicMock()
+    # spec'd against the real driver ABC, so touching an attribute it does not
+    # have raises here instead of on the robot. A bare MagicMock answers to
+    # anything: self.display_driver.width returned a Mock, PIL accepted it as a
+    # coordinate, every test passed, and the node crash-looped on the Zero with
+    # AttributeError the moment it rendered. The size accessors are get_width()
+    # and get_height(); base.Driver only *annotates* width/height.
+    from src.hardware.display.base import Driver as DisplayDriver
+
+    mock_driver = mock.MagicMock(spec=DisplayDriver)
+    mock_driver.get_width.return_value = 128
+    mock_driver.get_height.return_value = 64
+    mock_driver.get_blank_image.side_effect = lambda: Image.new("1", (128, 64))
     mock_driver_cls = mock.MagicMock(return_value=mock_driver)
 
     with mock.patch.dict(
@@ -277,3 +297,79 @@ class TestOLEDDisplayNodeUpdate:
 
         mock_driver.show_image.assert_not_called()
         node.destroy_node()
+
+
+class TestEveryStateRenders:
+    """Actually draw each page against a spec'd driver.
+
+    The suite mocked the driver and never rendered, so every page was
+    unexercised: self.display_driver.width type-checked as an attribute
+    annotated on base.Driver, returned a Mock from the bare MagicMock, and PIL
+    accepted it as a coordinate. All 16 tests passed and the node crash-looped
+    on the Zero with AttributeError the first time it drew, taking the display
+    dark until it was reverted.
+
+    These call the real draw path, so a wrong driver API or a bad coordinate
+    fails here.
+    """
+
+    @staticmethod
+    def _active(node_cls, state: str):
+        node = node_cls()
+        node.trigger_configure()
+        node.trigger_activate()
+        node.current_state = state
+        return node
+
+    @pytest.mark.parametrize(
+        "state",
+        ["boot_check", "ready", "racing", "finished", "emergency_stop"],
+    )
+    def test_state_renders_without_error(self, ros_context, oled_node_class, state):
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = self._active(OLEDDisplayNode, state)
+        try:
+            node._update_display()
+            assert mock_driver.show_image.called
+        finally:
+            node.destroy_node()
+
+    def test_every_racing_page_renders(self, ros_context, oled_node_class):
+        """RACING cycles three pages; a fault on one only shows every ~4s."""
+        OLEDDisplayNode, mock_driver = oled_node_class
+        node = self._active(OLEDDisplayNode, "racing")
+        try:
+            for page in range(len(node.racing_pages)):
+                node.current_page = page
+                node._update_display()
+        finally:
+            node.destroy_node()
+
+    def test_ready_omits_the_ip_line_when_offline(self, ros_context, oled_node_class):
+        """At competition there is no network, so the line must not be drawn."""
+        OLEDDisplayNode, _ = oled_node_class
+        node = self._active(OLEDDisplayNode, "ready")
+        try:
+            node.system_status = {"Network": {"values": {"ip_address": "OFFLINE"}}}
+            node._update_display()  # must not raise; the row is simply skipped
+        finally:
+            node.destroy_node()
+
+    def test_ready_renders_with_an_ip(self, ros_context, oled_node_class):
+        OLEDDisplayNode, _ = oled_node_class
+        node = self._active(OLEDDisplayNode, "ready")
+        try:
+            node.system_status = {"Network": {"values": {"ip_address": "192.168.0.50"}}}
+            node._update_display()
+        finally:
+            node.destroy_node()
+
+    def test_finished_uses_the_rounds_own_lap_target(self, ros_context, oled_node_class):
+        """Not CompetitionSpecs.OPEN_CHALLENGE_LAPS -- an Obstacles round has its own."""
+        OLEDDisplayNode, _ = oled_node_class
+        node = self._active(OLEDDisplayNode, "finished")
+        try:
+            node.race_metrics = {"laps_completed": 2, "target_laps": 2}
+            node._update_display()
+        finally:
+            node.destroy_node()

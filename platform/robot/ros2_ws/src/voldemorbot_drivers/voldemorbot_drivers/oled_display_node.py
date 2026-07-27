@@ -224,11 +224,20 @@ class OLEDDisplayNode(LifecycleNode):
         # showing nothing -- the button and state machine were both working and
         # the display was the only thing saying otherwise.
         self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, _QOS_LATCHED)
+        # /system_status stays VOLATILE, unlike /robot_state above. The state
+        # machine publishes it latched, but telemetry_bridge_node publishes to
+        # the same topic with default QoS -- and a TRANSIENT_LOCAL *subscriber*
+        # cannot receive from a VOLATILE publisher at all. Requesting the
+        # latched value here silently cut off the bridge's half:
+        #   "New publisher discovered on topic '/system_status', offering
+        #    incompatible QoS. No messages will be received from it."
+        # Durability is asymmetric -- a publisher may offer more than a
+        # subscriber asks for, never less.
         self.diagnostics_sub = self.create_subscription(
             DiagnosticArray,
             "/system_status",
             self._diagnostics_callback,
-            _QOS_LATCHED,
+            10,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
         self.imu_sub = self.create_subscription(
@@ -417,7 +426,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "BOOT CHECK", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Component statuses
         y = 14
@@ -457,7 +466,7 @@ class OLEDDisplayNode(LifecycleNode):
         draw = ImageDraw.Draw(image)
 
         draw.text((_MARGIN_X, _TITLE_Y), "CHECK JUMPER", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
         draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), "Challenge-mode jumper", fill=_ON)
         draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), "reading is unstable.", fill=_ON)
         draw.text((_MARGIN_X, _BODY_TOP_Y + 3 * _ROW_H), "Reseat the GPIO23/GND", fill=_ON)
@@ -473,7 +482,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "READY TO START", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # IP address, only when there is one. At competition the robot runs off
         # any network, so this resolves to OFFLINE and the line becomes a
@@ -514,7 +523,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "ACKERMANN", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Velocity
         velocity = self.race_metrics.get("current_velocity", 0.0)
@@ -541,7 +550,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "HAILO VISION", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # NPU FPS
         draw.text((_MARGIN_X, _BODY_TOP_Y), f"NPU: {self.hailo_fps:.1f} FPS", fill=_ON)
@@ -561,7 +570,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "LIDAR", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Clearances
         draw.text((_MARGIN_X, _BODY_TOP_Y), f"Front: {self.lidar_front:.0f} cm", fill=_ON)
@@ -587,7 +596,7 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Title
         draw.text((_MARGIN_X, _TITLE_Y), "RACE FINISHED", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.width, _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Laps completed
         laps = self.race_metrics.get("laps_completed", 0)
