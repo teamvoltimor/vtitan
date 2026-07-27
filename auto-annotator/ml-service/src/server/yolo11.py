@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from src.server.constants import DEVICE_CUDA, ERR_YOLO11_NO_CHECKPOINT, resolve_checkpoint_path
+from src.enums import ComputeDevice
+from src.server.constants import ERR_YOLO11_NO_CHECKPOINT, resolve_checkpoint_path
 from src.server.context import NoopPredictor, TextSegmentationResult
 from src.utils import get_logger
 
@@ -40,13 +41,13 @@ class Yolo11Detector:
 
     Args:
         checkpoint: Absolute path to the YOLOv11 ``.pt`` weights file.
-        device:     Torch device string (``"cuda"`` or ``"cpu"``).
+        device:     Compute device (ComputeDevice enum value).
     """
 
     def __init__(self, checkpoint: str, device: str) -> None:
         self.model = YOLO(checkpoint)
         self.device = device
-        if device == DEVICE_CUDA:
+        if device == ComputeDevice.CUDA:
             self.model.to(device)
         self._class_names: list[str] = list(self.model.names.values())
         logger.info("YOLOv11 loaded: %d classes: %s", len(self._class_names), self._class_names)

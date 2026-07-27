@@ -11,15 +11,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from src.enums import ModelType
 from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
-from src.server.constants import (
-    MODEL_TYPE_SAM1,
-    MODEL_TYPE_SAM2,
-    MODEL_TYPE_SAM3,
-    MODEL_TYPE_YOLO11,
-    MODEL_TYPE_YOLOE,
-    PROJECT_ROOT,
-)
+from src.server.constants import PROJECT_ROOT
 from src.server.registry import ModelConfig, ModelRegistry
 from src.server.sam1 import load_sam1
 from src.server.sam2 import load_sam2
@@ -35,12 +29,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_MODEL_LOADERS: dict[str, Callable[[ModelConfig, ServerContext], None]] = {
-    MODEL_TYPE_SAM1: load_sam1,
-    MODEL_TYPE_SAM2: load_sam2,
-    MODEL_TYPE_SAM3: load_sam3,
-    MODEL_TYPE_YOLOE: load_yoloe,
-    MODEL_TYPE_YOLO11: load_yolo11,
+_MODEL_LOADERS: dict[ModelType, Callable[[ModelConfig, ServerContext], None]] = {
+    ModelType.SAM1: load_sam1,
+    ModelType.SAM2: load_sam2,
+    ModelType.SAM3: load_sam3,
+    ModelType.YOLOE: load_yoloe,
+    ModelType.YOLO11: load_yolo11,
 }
 
 

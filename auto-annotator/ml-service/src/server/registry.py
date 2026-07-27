@@ -14,15 +14,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.enums import ModelType
 from src.exceptions import ModelNotAvailable, ModelNotFound
-from src.server.constants import (
-    MODEL_TYPE_SAM1,
-    MODEL_TYPE_SAM2,
-    MODEL_TYPE_SAM3,
-    MODEL_TYPE_YOLO11,
-    MODEL_TYPE_YOLOE,
-    resolve_checkpoint_path,
-)
+from src.server.constants import resolve_checkpoint_path
 from src.utils import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +28,7 @@ class ModelConfig(BaseModel):
     Attributes:
         id:             Unique model identifier string used in API calls and the UI.
         label:          Human-readable model label displayed in the Settings dropdown.
-        model_type:     Model family (``sam1``, ``sam2``, ``sam3``, ``yolo11``, ``yoloe``).
+        model_type:     Model family (ModelType enum value).
         checkpoint:     Relative or absolute path to a local model checkpoint file.
         hf_repo:        HuggingFace repository ID used when no local checkpoint is present.
         variant:        SAM 1 architecture variant (``vit_h``, ``vit_l``, …).
@@ -46,7 +40,7 @@ class ModelConfig(BaseModel):
 
     id: str
     label: str = ""
-    model_type: str = Field(default="", alias="type")
+    model_type: ModelType = Field(default=ModelType.SAM2, alias="type")
     checkpoint: str | None = None
     hf_repo: str | None = None
     variant: str | None = None
@@ -79,12 +73,12 @@ class ModelCapabilities:
         return f"ModelCapabilities({', '.join(parts)})"
 
 
-_CAPABILITIES: dict[str, ModelCapabilities] = {
-    MODEL_TYPE_SAM1: ModelCapabilities(supports_points=True, supports_iterative=True),
-    MODEL_TYPE_SAM2: ModelCapabilities(supports_points=True, supports_text=True, supports_iterative=True),
-    MODEL_TYPE_SAM3: ModelCapabilities(supports_points=True, supports_text=True, supports_iterative=True),
-    MODEL_TYPE_YOLOE: ModelCapabilities(supports_text=True),
-    MODEL_TYPE_YOLO11: ModelCapabilities(supports_text=True),
+_CAPABILITIES: dict[ModelType, ModelCapabilities] = {
+    ModelType.SAM1: ModelCapabilities(supports_points=True, supports_iterative=True),
+    ModelType.SAM2: ModelCapabilities(supports_points=True, supports_text=True, supports_iterative=True),
+    ModelType.SAM3: ModelCapabilities(supports_points=True, supports_text=True, supports_iterative=True),
+    ModelType.YOLOE: ModelCapabilities(supports_text=True),
+    ModelType.YOLO11: ModelCapabilities(supports_text=True),
 }
 
 
@@ -100,15 +94,15 @@ def _is_available(cfg: ModelConfig, base: Path) -> bool:
     ckpt = resolve_checkpoint_path(cfg.checkpoint, base)
     hf = cfg.hf_repo or ""
 
-    if cfg.model_type == MODEL_TYPE_SAM1:
+    if cfg.model_type == ModelType.SAM1:
         return ckpt is not None and ckpt.exists()
-    if cfg.model_type == MODEL_TYPE_SAM2:
+    if cfg.model_type == ModelType.SAM2:
         return bool(hf) or (ckpt is not None and ckpt.exists())
-    if cfg.model_type == MODEL_TYPE_SAM3:
+    if cfg.model_type == ModelType.SAM3:
         return bool(hf)
-    if cfg.model_type == MODEL_TYPE_YOLOE:
+    if cfg.model_type == ModelType.YOLOE:
         return ckpt is not None and ckpt.exists()
-    if cfg.model_type == MODEL_TYPE_YOLO11:
+    if cfg.model_type == ModelType.YOLO11:
         return ckpt is not None and ckpt.exists()
     return False
 

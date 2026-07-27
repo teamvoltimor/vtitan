@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.enums import ComputeDevice, ModelType
 from src.server.constants import (
     RESP_KEY_ERROR,
     RESP_KEY_MODEL_ID,
@@ -25,13 +26,13 @@ class PingResponse(BaseModel):
     """Response to the ``ping`` command.
 
     Attributes:
-        device:       Active compute device string (``"cuda"`` or ``"cpu"``).
+        device:       Active compute device (ComputeDevice enum value).
         model_loaded: Whether a predictor is currently loaded.
         model_id:     Identifier of the active model, or ``None`` if none is loaded.
     """
 
     ok: bool = True
-    device: str = ""
+    device: ComputeDevice = ComputeDevice.CPU
     model_loaded: bool = False
     model_id: str | None = None
 
@@ -42,7 +43,7 @@ class ModelDescriptor(BaseModel):
     Attributes:
         id:            Unique model identifier.
         label:         Human-readable display label.
-        model_type:    Model family string (``sam1``, ``sam2``, ``sam3``).
+        model_type:    Model family (ModelType enum value).
         available:     Whether the checkpoint can be loaded.
         active:        Whether this is the currently loaded model.
         supports_text: Whether the model supports text-prompted segmentation.
@@ -50,7 +51,7 @@ class ModelDescriptor(BaseModel):
 
     id: str
     label: str
-    model_type: str = Field(alias="type")
+    model_type: ModelType = Field(alias="type")
     available: bool = False
     active: bool = False
     supports_text: bool = False

@@ -34,11 +34,11 @@ if TYPE_CHECKING:
 
 import torch
 
+from src.enums import ComputeDevice
 from src.server import wire
 from src.server.context import ServerContext
 from src.server.dispatch import dispatch
 from src.server.loader import initial_load
-from src.server.constants import DEVICE_CPU, DEVICE_CUDA
 from src.server.registry import ModelConfig
 from src.utils import get_logger
 
@@ -106,7 +106,7 @@ def run_server(config: AppConfig | None = None) -> None:
     start = time.monotonic()
 
     os.environ.setdefault("HF_HUB_CACHE", str(models_dir))
-    device = DEVICE_CUDA if torch.cuda.is_available() else DEVICE_CPU
+    device = ComputeDevice.CUDA if torch.cuda.is_available() else ComputeDevice.CPU
 
     lock = threading.Lock()
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

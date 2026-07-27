@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import numpy as np
 from pydantic import BaseModel, Field
 
+from src.enums import ComputeDevice
 from src.server.registry import ModelConfig
 
 
@@ -94,4 +95,4 @@ class ServerContext:
     predictor: PointPredictor | None = None
     text_seg: TextSegmenter | None = None
     model_id: str | None = None
-    device: str = "cpu"
+    device: ComputeDevice = ComputeDevice.CPU

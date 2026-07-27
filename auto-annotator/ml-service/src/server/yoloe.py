@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.server.constants import DEVICE_CUDA, ERR_YOLOE_NO_CHECKPOINT, resolve_checkpoint_path
+from src.enums import ComputeDevice
+from src.server.constants import ERR_YOLOE_NO_CHECKPOINT, resolve_checkpoint_path
 from src.server.context import NoopPredictor, TextSegmentationResult
 from src.utils import get_logger
 
@@ -44,13 +45,13 @@ class YOLOETextSegmenter:
 
     Args:
         checkpoint: Absolute path to the YOLOE ``.pt`` weights file.
-        device:     Torch device string (``"cuda"`` or ``"cpu"``).
+        device:     Compute device (ComputeDevice enum value).
     """
 
     def __init__(self, checkpoint: str, device: str) -> None:
         self.model = YOLOE(checkpoint)
         self.device = device
-        if device == DEVICE_CUDA:
+        if device == ComputeDevice.CUDA:
             self.model.to(device)
 
     def segment_by_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:

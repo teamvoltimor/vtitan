@@ -248,7 +248,7 @@ def load_native_sam2(
         context.torch_module = torch
         context.oom_error = torch.cuda.OutOfMemoryError
 
-        device = DEVICE_CUDA if torch.cuda.is_available() else DEVICE_CPU
+        device = ComputeDevice.CUDA if torch.cuda.is_available() else ComputeDevice.CPU
         local_checkpoint = paths_cfg.models_dir / inference_cfg.sam2_checkpoint_filename
 
         try:
