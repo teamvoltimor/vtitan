@@ -212,10 +212,6 @@ class StateMachineNode(Node):
         self._challenge_mode_error: str | None = None
         self.challenge_mode: ScenarioType | None = None
 
-    def _on_jumper_state(self, msg: Bool) -> None:
-        """Latest challenge-mode jumper reading from the Pi Zero."""
-        self._jumper_inserted = msg.data
-
         # Network status
         self.ip_address: str = "FETCHING..."
         self.ip_fetch_complete: bool = False
@@ -239,6 +235,16 @@ class StateMachineNode(Node):
 
         # Start boot check process
         self.get_logger().info("Starting BOOT_CHECK sequence")
+
+    def _on_jumper_state(self, msg: Bool) -> None:
+        """Latest challenge-mode jumper reading from the Pi Zero.
+
+        Only records the reading. Everything else that used to live here
+        belonged to __init__ and had been swallowed into this callback, so the
+        node's construction depended on a message arriving -- see the commit
+        that moved it back.
+        """
+        self._jumper_inserted = msg.data
 
     def _fetch_ip_address_async(self) -> None:
         """Fetch IP address in background thread without blocking."""

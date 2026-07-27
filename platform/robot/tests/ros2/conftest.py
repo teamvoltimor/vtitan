@@ -20,6 +20,19 @@ _mock_serinterface = mock.MagicMock()
 _mock_serinterface.threading = threading
 sys.modules["buildhat.serinterface"] = _mock_serinterface
 
+# Adafruit Blinka's "board" raises NotImplementedError at import on any host it
+# cannot identify, which is every dev machine that is not the Pi. It is reached
+# transitively -- the UART-RVC node imports the bno08x package, whose __init__
+# pulls in the I2C driver, which imports board -- so the failure surfaces as an
+# unrelated node refusing to construct. Mocked for the same reason buildhat is:
+# these tests exercise node wiring, not the sensor.
+for _blinka in ("board", "busio"):
+    if _blinka not in sys.modules:
+        try:
+            __import__(_blinka)
+        except (ImportError, NotImplementedError):
+            sys.modules[_blinka] = mock.MagicMock()
+
 # The real per-board node implementations (ackermann_motor_node, button_node,
 # state_machine_node, ...) live across several ament_python packages under
 # ros2_ws/src/voldemorbot_* (drivers/navigation/vision/state_machine/bringup),  # noqa: ERA001 -- prose, not commented-out code; ruff misreads this glob-like package path

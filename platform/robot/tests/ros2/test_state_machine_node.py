@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 import rclpy
 from shared.config.constants import CompetitionSpecs
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 from src.hardware.button.event import ButtonEvent
 from src.state_machine import RobotState, ScenarioType
@@ -40,6 +40,19 @@ def state_machine_node_class():
     from voldemorbot_state_machine.state_machine_node import StateMachineNode
 
     return StateMachineNode
+
+
+def _publish_jumper(node, *, inserted: bool) -> None:
+    """Deliver a jumper reading the way the Pi Zero does.
+
+    The jumper is wired to the ZERO's GPIO23, so the node consumes
+    /challenge_mode/jumper_inserted rather than reading GPIO locally. These
+    tests previously stubbed a local challenge_mode_driver, which stopped
+    existing when that moved -- and reading Pi 5's GPIO23 (nothing attached,
+    internal pull-up, always HIGH) had silently latched Open Challenge on every
+    boot, so Obstacles could never be selected.
+    """
+    node._on_jumper_state(Bool(data=inserted))
 
 
 def _mark_all_sensors_ready(node) -> None:
@@ -121,7 +134,7 @@ class TestChallengeModeDetection:
 
     def test_stable_low_reading_selects_obstacles_and_its_lap_count(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
-        node.challenge_mode_driver.is_jumper_inserted = lambda: True  # shorted to GND
+        _publish_jumper(node, inserted=True)  # shorted to GND
 
         for _ in range(3):
             node._sample_challenge_mode()
@@ -132,7 +145,7 @@ class TestChallengeModeDetection:
 
     def test_stable_high_reading_selects_open(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
-        node.challenge_mode_driver.is_jumper_inserted = lambda: False  # pulled up, no jumper
+        _publish_jumper(node, inserted=False)  # pulled up, no jumper
 
         for _ in range(3):
             node._sample_challenge_mode()
@@ -143,10 +156,8 @@ class TestChallengeModeDetection:
 
     def test_bouncing_reading_never_resolves(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
-        readings = iter([True, False, True, False, True, False])
-        node.challenge_mode_driver.is_jumper_inserted = lambda: next(readings)
-
-        for _ in range(6):
+        for inserted in (True, False, True, False, True, False):
+            _publish_jumper(node, inserted=inserted)
             node._sample_challenge_mode()
 
         assert node.challenge_mode is None
@@ -156,7 +167,7 @@ class TestChallengeModeDetection:
         node = state_machine_node_class()
         node.target_laps = 5  # simulates an explicit launch-time override
         node._target_laps_explicit = True
-        node.challenge_mode_driver.is_jumper_inserted = lambda: True
+        _publish_jumper(node, inserted=True)
 
         for _ in range(3):
             node._sample_challenge_mode()

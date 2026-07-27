@@ -67,6 +67,22 @@ def _load_json(path: str | Path) -> dict[str, Any]:
         return cast("dict[str, Any]", json.load(f))
 
 
+def _topic(node: Node, name: str, default: str) -> str:
+    """Resolve a topic parameter, declaring it if the host node has not.
+
+    ROS2HardwareGateway is constructed against a host node that is expected to
+    have declared its topic parameters, which TrackNavigator does. Anything
+    else building a gateway -- the contract tests, in two separate files -- has
+    to replicate that list exactly, and adding a topic here broke both of them
+    with ParameterNotDeclaredException at construction. Declaring on demand
+    makes the gateway responsible for its own inputs, so a new topic cannot
+    silently become a required ritual for every caller.
+    """
+    if not node.has_parameter(name):
+        node.declare_parameter(name, default)
+    return node.get_parameter(name).get_parameter_value().string_value
+
+
 class ROS2HardwareGateway(HardwareGateway):
     """Implementation of HardwareGateway for ROS2 environment.
 
@@ -99,32 +115,32 @@ class ROS2HardwareGateway(HardwareGateway):
         # Publishers
         self._drive_publisher = node.create_publisher(
             AckermannDriveStamped,
-            node.get_parameter("ackermann_cmd_topic").get_parameter_value().string_value,
+            _topic(node, "ackermann_cmd_topic", "/ackermann_cmd"),
             10,
         )
 
         # Subscribers
         node.create_subscription(
             LaserScan,
-            node.get_parameter("lidar_topic").get_parameter_value().string_value,
+            _topic(node, "lidar_topic", "/scan"),
             self._lidar_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             String,
-            node.get_parameter("vision_topic").get_parameter_value().string_value,
+            _topic(node, "vision_topic", "/vision/detections"),
             self._vision_callback,
             10,
         )
         node.create_subscription(
             Imu,
-            node.get_parameter("imu_topic").get_parameter_value().string_value,
+            _topic(node, "imu_topic", "/imu/data"),
             self._imu_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             JointState,
-            node.get_parameter("joint_states_topic").get_parameter_value().string_value,
+            _topic(node, "joint_states_topic", "/joint_states"),
             self._joint_state_callback,
             qos_profile_sensor_data,
         )

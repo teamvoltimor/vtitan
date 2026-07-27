@@ -65,7 +65,13 @@ def _make_motor_node():
     mock_config = mock.MagicMock()
     mock_config.steering.offset = 0.0
     mock_config.steering.max_steering_angle = _MOCK_MAX_STEERING_DEG
+    # Every numeric field the node reads must be stubbed: a MagicMock left in
+    # one propagates through the arithmetic and fails at whichever comparison
+    # it reaches first, in a test that looks unrelated. linkage_ratio at 1:1
+    # keeps servo and wheel angles equal, which is what these assertions assume.
+    mock_config.steering.linkage_ratio = 1.0
     mock_config.drive.reversed = False
+    mock_config.drive.encoder_reversed = False
     mock_config.drive.max_speed = 100
     mock_config.drive.speed_scale = 30.0
 
@@ -133,14 +139,15 @@ class TestNavigatorToMotorNode:
         elif steering_norm < 0:
             assert got_angle_deg < 0
 
-        if speed_mps > 0:
-            mock_drive.run_drive_forward.assert_called_once()
-            mock_drive.run_drive_reverse.assert_not_called()
-        elif speed_mps < 0:
-            mock_drive.run_drive_reverse.assert_called_once()
-            mock_drive.run_drive_forward.assert_not_called()
-        else:
-            mock_drive.stop_drive.assert_called_once()
+        # Speed crosses the boards as a wheel-rpm setpoint, which the motor
+        # node's 50 Hz control loop consumes. Asserting on run_drive_forward
+        # here tested an open-loop API the node abandoned when it moved to
+        # closed-loop speed control, and direction now belongs to the driver
+        # rather than being chosen by picking a forward or reverse call.
+        expected_rpm = speed_mps / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
+        assert motor_node.target_wheel_rpm == pytest.approx(expected_rpm)
+        mock_drive.run_drive_forward.assert_not_called()
+        mock_drive.run_drive_reverse.assert_not_called()
 
         nav_node.destroy_node()
         motor_node.destroy_node()
