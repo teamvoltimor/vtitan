@@ -8,6 +8,9 @@ directly-constructed sensor_msgs, not a live requests.Session.
 from __future__ import annotations
 
 import json
+import threading
+import time
+from unittest import mock
 
 import pytest
 import rclpy
@@ -203,6 +206,77 @@ class TestPublishUiSummary:
         assert data["gyro_yaw_deg"] == pytest.approx(90.0, abs=1.0)
         assert data["best_detection_class_id"] == "red_sign"
         assert data["best_detection_confidence"] == pytest.approx(0.9)
+
+
+class TestPublishTelemetryDoesNotBlock:
+    """A slow/hung backend must never stall this node's own callback processing.
+
+    Two sequential requests.post() calls at timeout=1.0 each, run inline on
+    the executor thread, could block /scan, /imu/data and the ui-summary
+    timer for up to 2s -- traced back as the cause of the OLED's
+    multi-second freezes. The fix moves the POSTs to a background thread;
+    _publish_telemetry itself must return almost immediately regardless of
+    how long the backend takes to respond.
+    """
+
+    def test_publish_telemetry_returns_before_a_slow_post_completes(self, ros_context, bridge_node):
+        release = threading.Event()
+
+        def slow_post(*args, **kwargs):
+            release.wait(timeout=2.0)
+            return mock.Mock(status_code=200)
+
+        bridge_node._session.post = mock.Mock(side_effect=slow_post)
+
+        start = time.perf_counter()
+        bridge_node._publish_telemetry()
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 0.2, "a slow backend must not block _publish_telemetry itself"
+        assert bridge_node._telemetry_post_in_flight is True
+
+        release.set()
+        for _ in range(50):
+            if not bridge_node._telemetry_post_in_flight:
+                break
+            time.sleep(0.05)
+        assert bridge_node._telemetry_post_in_flight is False
+        assert bridge_node._backend_down is False
+
+    def test_a_second_tick_is_skipped_while_one_is_already_in_flight(self, ros_context, bridge_node):
+        # Patches _post_telemetry itself (one call = one _publish_telemetry
+        # that actually ran the POST), not the underlying _session.post --
+        # that gets called twice per real execution (record + topics/update
+        # endpoints), which would make a raw call-count assertion here
+        # meaningless.
+        started = threading.Event()
+        release = threading.Event()
+        call_count = 0
+        lock = threading.Lock()
+        real_post_telemetry = bridge_node._post_telemetry
+
+        def blocking_post_telemetry(*args, **kwargs):
+            nonlocal call_count
+            with lock:
+                call_count += 1
+            started.set()
+            release.wait(timeout=2.0)
+
+        bridge_node._post_telemetry = blocking_post_telemetry
+
+        bridge_node._publish_telemetry()
+        assert started.wait(timeout=1.0), "first POST never started"
+
+        bridge_node._publish_telemetry()  # should be a no-op: one is already in flight
+
+        release.set()
+        for _ in range(50):
+            if not bridge_node._telemetry_post_in_flight:
+                break
+            time.sleep(0.05)
+
+        assert call_count == 1
+        bridge_node._post_telemetry = real_post_telemetry
 
 
 class TestUiSummaryRoundTripsWithOledNode:

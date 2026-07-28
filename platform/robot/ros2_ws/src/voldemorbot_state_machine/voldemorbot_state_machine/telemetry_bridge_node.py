@@ -6,9 +6,10 @@ import json
 import math
 import time
 from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from http import HTTPStatus
-from typing import Any
+from typing import Any, override
 
 import numpy as np
 import rclpy
@@ -322,6 +323,16 @@ class TelemetryBridgeNode(Node):
         self._backend_down = False
         self._next_retry_time: float = 0.0
         self._backoff_delay: float = _BACKOFF_INITIAL
+        # POSTs run here, off the executor thread that also processes
+        # /scan, /imu/data and the ui-summary timer -- two sequential
+        # requests.post() calls at timeout=1.0 each could otherwise block
+        # this node's entire callback processing for up to 2s on any
+        # backend hang/slow-fail (a normal ECONNREFUSED is near-instant,
+        # but not every failure mode is), which stalls
+        # /ui/telemetry_summary right along with it -- the OLED's
+        # multi-second freezes traced back to this.
+        self._http_executor = ThreadPoolExecutor(max_workers=1)
+        self._telemetry_post_in_flight = False
 
         # Timer for publishing
         self.create_timer(1.0 / self._rate, self._publish_telemetry)
@@ -413,35 +424,49 @@ class TelemetryBridgeNode(Node):
         )
 
     def _publish_telemetry(self) -> None:
-        """Aggregate data and POST to backend with exponential backoff."""
+        """Aggregate data and hand the backend POST off to a worker thread.
+
+        Only the (cheap, in-memory) snapshot building happens here; the
+        network call itself runs on _http_executor so a slow/hung backend
+        can never stall this node's own callback processing.
+        """
         now = time.monotonic()
         if self._backend_down and now < self._next_retry_time:
+            return
+        if self._telemetry_post_in_flight:
+            # Previous POST hasn't finished (still inside its own timeout) --
+            # skip this tick rather than queue up a second one behind it.
             return
 
         snapshot = self._build_snapshot()
         topics_snapshot = self._build_topics_snapshot()
 
+        self._telemetry_post_in_flight = True
+        future = self._http_executor.submit(self._post_telemetry, snapshot, topics_snapshot)
+        future.add_done_callback(self._on_telemetry_posted)
+
+    def _post_telemetry(self, snapshot: RobotSnapshot, topics_snapshot: TopicsSnapshot) -> None:
+        """Runs on the HTTP worker thread -- the two blocking POSTs live here."""
+        r = self._session.post(
+            f"{self._backend_url}/telemetry/record",
+            json=asdict(snapshot),
+            timeout=1.0,
+        )
+        if r.status_code != HTTPStatus.OK:
+            self.get_logger().warning(f"Backend returned {r.status_code}")
+
+        self._session.post(
+            f"{self._backend_url}/telemetry/topics/update",
+            json=asdict(topics_snapshot),
+            timeout=1.0,
+        )
+
+    def _on_telemetry_posted(self, future: Future[None]) -> None:
+        """Done-callback for the background POST -- runs on the worker thread."""
+        self._telemetry_post_in_flight = False
+        now = time.monotonic()
         try:
-            r = self._session.post(
-                f"{self._backend_url}/telemetry/record",
-                json=asdict(snapshot),
-                timeout=1.0,
-            )
-            if r.status_code != HTTPStatus.OK:
-                self.get_logger().warning(f"Backend returned {r.status_code}")
-
-            self._session.post(
-                f"{self._backend_url}/telemetry/topics/update",
-                json=asdict(topics_snapshot),
-                timeout=1.0,
-            )
-
-            if self._backend_down:
-                self.get_logger().info("Backend reconnected — telemetry resumed")
-                self._publish_backend_status("connected")
-            self._backend_down = False
-            self._backoff_delay = _BACKOFF_INITIAL
-
+            future.result()
         except requests.exceptions.RequestException as exc:
             if not self._backend_down:
                 self.get_logger().warning(f"Backend unreachable: {exc}")
@@ -449,6 +474,12 @@ class TelemetryBridgeNode(Node):
             self._backend_down = True
             self._next_retry_time = now + self._backoff_delay
             self._backoff_delay = min(self._backoff_delay * 2, _BACKOFF_MAX)
+        else:
+            if self._backend_down:
+                self.get_logger().info("Backend reconnected — telemetry resumed")
+                self._publish_backend_status("connected")
+            self._backend_down = False
+            self._backoff_delay = _BACKOFF_INITIAL
 
     def _publish_backend_status(self, status: str) -> None:
         """Publish backend connectivity state to /system_status."""
@@ -683,6 +714,12 @@ class TelemetryBridgeNode(Node):
 
     def _quaternion_to_yaw(self, x: float, y: float, z: float, w: float) -> float:
         return quaternion_to_yaw(x, y, z, w)
+
+    @override
+    def destroy_node(self) -> None:
+        """Release the HTTP worker thread before tearing down the node."""
+        self._http_executor.shutdown(wait=False)
+        super().destroy_node()
 
 
 def main(args: list[str] | None = None) -> None:
