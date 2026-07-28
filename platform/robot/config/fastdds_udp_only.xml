@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+FastDDS profile forcing UDP-only transport (no shared memory).
+
+The SHM transport leaves lock files/segments under /dev/shm
+(fastdds_port*, fastdds_<guid>, sem.fastdds_*) that don't always get
+cleaned up across the frequent node restarts this robot's dev/test
+workflow involves -- a stale lock file then makes a fresh participant's
+SHM port bind fail (RTPS_TRANSPORT_SHM Error: Failed init_port ...),
+which can silently break a subscription's discovery of a publisher on
+another node entirely (no crash, no message on the failing side --
+just messages that never arrive). UDP loopback is still effectively
+instant for this robot's traffic (small messages at rates measured in
+tens of Hz), and inter-board traffic already crosses the USB-gadget
+link as UDP regardless, so there is no gain from SHM at the cost of
+this reliability problem.
+
+Wired in via FASTRTPS_DEFAULT_PROFILES_FILE in each systemd unit.
+-->
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <profiles>
+        <transport_descriptors>
+            <transport_descriptor>
+                <transport_id>udp_only_transport</transport_id>
+                <type>UDPv4</type>
+            </transport_descriptor>
+        </transport_descriptors>
+        <participant profile_name="udp_only_participant" is_default_profile="true">
+            <rtps>
+                <userTransports>
+                    <transport_id>udp_only_transport</transport_id>
+                </userTransports>
+                <useBuiltinTransports>false</useBuiltinTransports>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>
