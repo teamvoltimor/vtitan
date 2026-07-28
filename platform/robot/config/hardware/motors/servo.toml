@@ -1,0 +1,17 @@
+# Servo steering driver -- src/hardware/motors/servo/config.py
+
+gpio_pin = 12
+# BCM pin driving the servo signal (Pi Zero physical 32 / PWM1). Informational
+# only -- which pin the PWM peripheral actually drives is fixed by the
+# dtoverlay=pwm,pin=... line in /boot/firmware/config.txt.
+
+pwmchip = 0
+pwm_channel = 0
+
+min_pulse_us = 500.0
+max_pulse_us = 2500.0
+range_deg = 180.0
+center_pulse_us = 1500.0
+
+reversed = false
+# Invert steering direction if the servo is mounted so left commands turn right.

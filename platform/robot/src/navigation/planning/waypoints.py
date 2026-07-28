@@ -16,16 +16,50 @@ import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import ScenarioMetadata
+from shared.domain.models import PathPlannability, ScenarioMetadata
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
+# Same concept/value as NavigationTuning.waypoints.DEDUPE_DISTANCE_M. Not
+# threaded through calculate_waypoints (unlike arc_radius above): this is a
+# geometric near-duplicate floor for the internal segment-assembly free
+# functions, not something that benefits from runtime tuning.
 _DEDUPE_DISTANCE_M: float = 0.001  # 1 mm
 
 # Bias corridor centres toward the outer wall. Compensates for the robot's
 # chassis width so the planned path stays clear of the inner-wall face.
+# Same concept/value as NavigationTuning.waypoints.OUTER_WALL_BIAS -- not
+# threaded through for the same reason as _DEDUPE_DISTANCE_M above.
 _OUTER_WALL_BIAS = 0.05
+
+
+def validate_path_feasibility(min_corridor_width_m: float, arc_radius: float) -> PathPlannability:
+    """Check whether a path fits within the available corridor width.
+
+    Args:
+        min_corridor_width_m: Minimum corridor width across all four sides.
+        arc_radius: Corner arc radius (m).
+
+    Returns:
+        PathPlannability with margin and reason.
+    """
+    required = RobotSpecs.WIDTH / 2 + arc_radius
+    margin = min_corridor_width_m - required
+    if margin > 0:
+        return PathPlannability(
+            is_feasible=True,
+            min_required_m=required,
+            min_available_m=min_corridor_width_m,
+            margin_m=margin,
+        )
+    return PathPlannability(
+        is_feasible=False,
+        min_required_m=required,
+        min_available_m=min_corridor_width_m,
+        margin_m=margin,
+        reason=f"Corridor too narrow: required {required:.3f} m, got {min_corridor_width_m:.3f} m",
+    )
 
 
 def calculate_waypoints(
@@ -57,7 +91,7 @@ def calculate_waypoints(
     """
     if not isinstance(metadata, ScenarioMetadata):
         metadata = ScenarioMetadata.model_validate(metadata)
-    arc_radius = arc_radius if arc_radius is not None else NavigationTuning().waypoints.ARC_RADIUS
+    arc_radius = arc_radius if arc_radius is not None else NavigationTuning.load_default().waypoints.ARC_RADIUS
 
     corridor_widths = metadata.corridor_widths
     starting = metadata.starting_conditions
@@ -70,14 +104,9 @@ def calculate_waypoints(
         Section.WEST: corridor_widths.west,
     }
     min_width_m = min(cw.width_mm for cw in cw_entries.values()) / 1000.0
-    required = RobotSpecs.WIDTH / 2 + arc_radius
-    if required > min_width_m:
-        msg = (
-            f"Corridor too narrow: required {required:.3f} m "
-            f"(chassis_half={RobotSpecs.WIDTH / 2:.3f} + arc_radius={arc_radius:.3f}), "
-            f"got {min_width_m:.3f} m"
-        )
-        raise ValueError(msg)
+    feasibility = validate_path_feasibility(min_width_m, arc_radius)
+    if not feasibility.is_feasible:
+        raise ValueError(feasibility.reason)
 
     widths = {section: cw.width_mm / 1000.0 for section, cw in cw_entries.items()}
     north_width = widths[Section.NORTH]
@@ -261,7 +290,7 @@ def _arc_with_endpoints(
     radius: float,
     theta_start: float,
     theta_end: float,
-    num_intermediate: int = 3,
+    num_intermediate: int = 3,  # see NavigationTuning.waypoints.NUM_INTERMEDIATE_ARC_POINTS
 ) -> list[tuple[float, float]]:
     """Generate arc points including entry and exit, with intermediate samples."""
     cx, cy = center
@@ -304,7 +333,7 @@ def _straight_waypoints(
     is_x: bool,
     start: float,
     end: float,
-    count: int = 8,
+    count: int = 8,  # see NavigationTuning.waypoints.STRAIGHT_WAYPOINT_COUNT
 ) -> list[tuple[float, float]]:
     """Generate evenly-spaced waypoints along a corridor centerline.
 

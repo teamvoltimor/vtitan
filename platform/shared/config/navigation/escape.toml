@@ -1,0 +1,18 @@
+# Escape maneuver parameters for collision recovery (K-turn, slalom, side
+# correction).
+#
+# See shared.config.navigation_tuning.EscapeManeuverParams.
+
+REV_SPEED = -0.20             # Reverse speed during escapes
+REV_STEERING_SCALE = 0.8      # Steering aggressiveness while reversing
+K_TURN_MIN_FRAMES = 6         # Minimum K-turn duration (OBSTACLE risk)
+K_TURN_MAX_FRAMES = 12        # Maximum K-turn duration (CRITICAL risk)
+SLALOM_REVERSE_FRAMES = 8     # Frames spent reversing during slalom
+SLALOM_FORWARD_FRAMES = 10    # Frames spent forward-turning during slalom
+STUCK_MOVE_THRESHOLD = 0.03   # Distance threshold (m) to detect stuck
+STUCK_TIMEOUT_FRAMES = 40     # Frames without movement before "stuck" (~2s @ 20Hz)
+SIDE_CORRECTION_STEER = 0.3   # Steering magnitude for a side-threat correction
+SIDE_CORRECTION_SPEED = 0.1   # Forward speed during a side-threat correction
+SIDE_CORRECTION_FRAMES = 4    # Duration of a side-threat correction (frames)
+ESCALATE_AFTER_ATTEMPTS = 3   # Consecutive escapes before escalating (longer duration, opposite side)
+MAX_ESCAPE_FRAMES = 20        # Hard cap on any single escalated escape duration

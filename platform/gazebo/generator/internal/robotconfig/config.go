@@ -1,7 +1,7 @@
 // Package robotconfig loads the robot physical-constants TOML source of truth
 // (platform/shared/config/robot.toml) and renders it into the generated files each
 // consumer (Go simconfig, xacro, Python) actually reads. Regenerate via
-// `simgen generate-robot-constants` (wired to `task shared:gen-robot-constants`).
+// `simgen generate-robot-constants` (wired to `task gen:robot-constants`).
 package robotconfig
 
 import (
@@ -45,9 +45,10 @@ type (
 		Mass   float64 `toml:"mass"`
 	}
 
-	// Lidar holds the Slamtec C1 mount offset.
+	// Lidar holds the Slamtec C1 mount offset and orientation.
 	Lidar struct {
-		MountXOffset float64 `toml:"mount_x_offset"`
+		MountXOffset    float64 `toml:"mount_x_offset"`
+		MountYawOffsetDeg float64 `toml:"mount_yaw_offset_deg"`
 	}
 
 	// Camera holds the RPi Camera Module 3 Wide mount offset and tilt.

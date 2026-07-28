@@ -31,7 +31,8 @@ from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray
 from PIL import Image, ImageDraw
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import Image as ImageMsg
@@ -42,6 +43,7 @@ from src.hardware.display.ssd1306 import (
     Driver as BlinkaDriver,
     RawI2CDriver,
 )
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.state_machine import RobotState, ScenarioType
 
 if TYPE_CHECKING:
@@ -57,8 +59,8 @@ NODE_NAME = "oled_display_node"
 """ROS2 node name for OLED display controller."""
 
 
-class NodeConfig(BaseSettings):
-    """Node-level timing and backend selection, configurable via .env.
+class NodeConfig(HardwareBaseSettings):
+    """Node-level timing and backend selection, configurable via config/hardware/display/oled_node.toml.
 
     Matches every hardware driver's Config pattern. Timing fields were previously hardcoded
     as plain module constants, silently ignoring
@@ -66,7 +68,7 @@ class NodeConfig(BaseSettings):
     changing that value had zero effect.
     """
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "display" / "oled_node.toml")
 
     ui_refresh_rate_hz: float = Field(default=10.0, validation_alias="UI_REFRESH_RATE_HZ")
     """Rate for updating display data (fast updates)."""
@@ -95,6 +97,14 @@ _ROW_H = 10
 
 _FOOTER_Y = 50
 """Bottom row, used for the one instruction or headline value per page."""
+
+_GRID_TOP_Y = _BODY_TOP_Y
+"""Top of the RACING page's grid -- starts right where a single-column body would."""
+
+_GRID_ROW_H = 12
+"""Vertical step between RACING grid rows. 4 rows (V/St, F/L, R/Yaw, Obj) at
+this height span 48px, ending well inside the 64px-tall panel."""
+"""Bottom rule of the grid -- also the vertical divider's lower endpoint."""
 
 _ON = 255
 """Monochrome "lit pixel" for a 1-bit SSD1306."""
@@ -166,6 +176,16 @@ class OLEDDisplayNode(LifecycleNode):
         self.drive_speed_sub: Subscription | None = None
         self.steering_position_sub: Subscription | None = None
         self.ui_timer: Timer | None = None
+        # The display-refresh timer's own group, separate from the default
+        # group every subscription above uses. Each tick blocks on a real
+        # I2C write (raw_i2c backend: 32 sequential blocking os.write()
+        # calls per frame) that can run close to the timer's own period --
+        # sharing one MutuallyExclusiveCallbackGroup meant that write could
+        # starve every subscription callback indefinitely, since the group
+        # won't service a second callback until the first returns. Confirmed
+        # on hardware: /ui/telemetry_summary never got processed at all,
+        # RACING page stuck at 0.0 for its full lifetime, no errors anywhere.
+        self._timer_callback_group = MutuallyExclusiveCallbackGroup()
 
         # State tracking
         self.current_state: str = RobotState.BOOT_CHECK.value
@@ -214,20 +234,17 @@ class OLEDDisplayNode(LifecycleNode):
         # showing nothing -- the button and state machine were both working and
         # the display was the only thing saying otherwise.
         self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, _QOS_LATCHED)
-        # /system_status stays VOLATILE, unlike /robot_state above. The state
-        # machine publishes it latched, but telemetry_bridge_node publishes to
-        # the same topic with default QoS -- and a TRANSIENT_LOCAL *subscriber*
-        # cannot receive from a VOLATILE publisher at all. Requesting the
-        # latched value here silently cut off the bridge's half:
-        #   "New publisher discovered on topic '/system_status', offering
-        #    incompatible QoS. No messages will be received from it."
-        # Durability is asymmetric -- a publisher may offer more than a
-        # subscriber asks for, never less.
+        # Now safe to request latched here too: telemetry_bridge_node's
+        # /system_status publisher was TRANSIENT_LOCAL-only VOLATILE, which is
+        # exactly the same stale-display bug /robot_state hit above -- fixed
+        # by making that publisher TRANSIENT_LOCAL as well (see
+        # telemetry_bridge_node.py's _QOS_SYSTEM_STATUS), so both publishers
+        # on this topic now durability-match a latched subscriber.
         self.diagnostics_sub = self.create_subscription(
             DiagnosticArray,
             "/system_status",
             self._diagnostics_callback,
-            10,
+            _QOS_LATCHED,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
         self.ui_summary_sub = self.create_subscription(
@@ -257,7 +274,11 @@ class OLEDDisplayNode(LifecycleNode):
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Start the display-update timer."""
         self.get_logger().info("Activating OLED Display Node")
-        self.ui_timer = self.create_timer(1.0 / UI_REFRESH_RATE_HZ, self._update_display)
+        self.ui_timer = self.create_timer(
+            1.0 / UI_REFRESH_RATE_HZ,
+            self._update_display,
+            callback_group=self._timer_callback_group,
+        )
         return super().on_activate(state)
 
     @override
@@ -495,40 +516,57 @@ class OLEDDisplayNode(LifecycleNode):
         return image
 
     def _render_racing(self) -> Image.Image:
-        """Render the single consolidated RACING page.
+        """Render the single consolidated RACING page as a grid.
 
-        Everything at once instead of cycling three pages: speed (rev/s),
-        steering, the three lidar clearances, IMU yaw, and -- Obstacles
-        Challenge only -- the current most salient detection. IP/mode are
-        READY-only by design: they're only useful before the round starts.
+        A fixed 4-row x 2-col grid of column-aligned values instead of one
+        "label:value label:value" text line per pair -- stacked text lines
+        left every value competing for the same 128px of horizontal space,
+        so labels and numbers ran together at this font size. Splitting
+        into columns gives each value its own space. No ruled lines: column
+        alignment alone reads as a grid without adding visual clutter on
+        this small a panel.
+
+        Left column: Front, Left, Right clearance, then lap count. Right
+        column: speed, steering, yaw, then the current vision detection
+        (Obstacles Challenge only) -- left is "what's around the robot",
+        right is "what the robot is doing".
+
+        IP/mode are READY-only by design: they're only useful before the
+        round starts.
         """
         assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
+        width = self.display_driver.get_width()
 
         draw.text((_MARGIN_X, _TITLE_Y), "RACING", fill=_ON)
-        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         rev_per_s = self.drive_speed_dps / _DEG_PER_REV
-        draw.text(
-            (_MARGIN_X, _BODY_TOP_Y),
-            f"V:{rev_per_s:.1f}rev/s St:{self.steering_position_deg:+.0f}deg",
-            fill=_ON,
+        laps = self.race_metrics.get("laps_completed", 0)
+        target_laps = self.race_metrics.get("target_laps", _DEFAULT_TARGET_LAPS)
+        cells = (
+            (f"F:{self.lidar_front:.0f}cm", f"V:{rev_per_s:.1f}"),
+            (f"L:{self.lidar_left:.0f}cm", f"St:{self.steering_position_deg:+.0f}"),
+            (f"R:{self.lidar_right:.0f}cm", f"Yaw:{self.gyro_yaw:+.0f}"),
+            (f"Laps:{laps}/{target_laps}", ""),
         )
+        col_x = (_MARGIN_X + 2, width // 2 + 4)
 
-        draw.text(
-            (_MARGIN_X, _BODY_TOP_Y + _ROW_H),
-            f"F:{self.lidar_front:.0f} L:{self.lidar_left:.0f} R:{self.lidar_right:.0f}cm",
-            fill=_ON,
-        )
-
-        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Yaw:{self.gyro_yaw:+.0f}deg", fill=_ON)
+        for row_index, (left, right) in enumerate(cells):
+            row_y = _GRID_TOP_Y + row_index * _GRID_ROW_H
+            draw.text((col_x[0], row_y), left, fill=_ON)
+            if right:
+                draw.text((col_x[1], row_y), right, fill=_ON)
 
         # Detection is Obstacles-only: the Open Challenge never runs vision, so
         # showing a stale/empty detection line there would be noise, not signal.
+        # Shares the Laps row's right column rather than adding a 5th row --
+        # the page's height stays fixed at 4 rows either way.
         if self._is_obstacles_challenge() and self.best_detection is not None:
             class_id, confidence = self.best_detection
-            draw.text((_MARGIN_X, _BODY_TOP_Y + 3 * _ROW_H), f"Obj:{class_id} {confidence:.2f}", fill=_ON)
+            laps_row_y = _GRID_TOP_Y + (len(cells) - 1) * _GRID_ROW_H
+            draw.text((col_x[1], laps_row_y), f"{class_id} {confidence:.2f}", fill=_ON)
 
         return image
 

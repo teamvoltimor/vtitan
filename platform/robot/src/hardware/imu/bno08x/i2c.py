@@ -18,7 +18,7 @@ from adafruit_bno08x import (
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from src.hardware.exceptions import IMUConnectionError
 from src.hardware.imu.base import (
@@ -32,12 +32,13 @@ from src.hardware.imu.readings import (
     MagnetometerReading,
     QuaternionReading,
 )
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for BNO08x IMU over I2C."""
 
     model_config = SettingsConfigDict(
@@ -45,6 +46,7 @@ class Config(BaseSettings):
         # "__" so nested leaves with underscores parse, e.g.
         # BNO08X_I2C_QUATERNION__NEGATE_YAW -> quaternion.negate_yaw.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "imu" / "bno08x_i2c.toml",
     )
 
     # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory

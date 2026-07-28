@@ -11,6 +11,12 @@ if TYPE_CHECKING:
 
 
 _FORWARD_ARC_RAD = math.radians(8.0)
+# Same concept and value as NavigationTuning.lidar_sectors.MIN_VALID_RANGE_M
+# (shared/config/navigation/lidar_sectors.toml). Not threaded through as a
+# tuning-injected parameter here: corridor_follower/direction_estimator (this
+# module's only callers) have no existing tuning-injection path, and this is
+# a fixed physical no-return floor, not something that benefits from runtime
+# tuning at this call site. Keep the two values in sync if either changes.
 _MIN_VALID_RANGE_M = 0.01
 _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
 

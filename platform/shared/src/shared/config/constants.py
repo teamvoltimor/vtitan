@@ -193,10 +193,11 @@ class RobotSpecs:
     # = 0.10 + 0.0207 ~= 0.1207, matching the long-standing z=0.12 lidar_link offset in
     # static_tfs.launch.py / the URDF within rounding).
     LIDAR_MOUNT_X_OFFSET: Final[float] = _gen.LIDAR_MOUNT_X_OFFSET
-    # Rays that clip the chassis body itself (mount occlusion, cable clutter)
-    # return as a self-reflection, not a real obstacle. Never applied to the
-    # pure-forward bearing, where a genuine near-contact must still register.
-    LIDAR_SELF_DETECTION_THRESHOLD: Final[float] = 0.08  # 80mm
+    # The C1 is mounted inverted, so its raw angle-zero points opposite robot-front.
+    LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _gen.LIDAR_MOUNT_YAW_OFFSET_DEG
+    # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
+    # (platform/shared/config/navigation/lidar_sectors.toml) -- it's collision-logic
+    # tuning, not physical geometry, unlike everything else in this class.
 
     # IMU (Adafruit BNO085)
     IMU_UPDATE_RATE: Final[float] = 100.0  # 100 Hz update rate

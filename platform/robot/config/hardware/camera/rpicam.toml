@@ -1,0 +1,17 @@
+# rpicam-vid capture driver -- src/hardware/camera/rpicam/driver.py
+# Keys use the fields' validation_alias (shared CAMERA_* names with the
+# Picamera2 driver), not the snake_case field names.
+
+CAMERA_WIDTH = 1536
+CAMERA_HEIGHT = 864
+CAMERA_FPS = 30
+
+CAMERA_INVERTED = false
+# Set true when the camera is mounted upside-down -- not cosmetic, it also
+# mirrors which side of the frame a sign falls on.
+
+CAMERA_HFLIP = false
+CAMERA_VFLIP = false
+
+CAMERA_READ_TIMEOUT_SEC = 5.0
+# Seconds to wait for a complete frame before reporting the stream dead.

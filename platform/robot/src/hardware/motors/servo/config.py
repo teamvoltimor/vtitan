@@ -6,7 +6,9 @@ field is overridable via a ``SERVO_*`` environment variable (e.g.
 ``SERVO_GPIO_PIN``), matching the ``Config`` pattern in ``motors/config.py``.
 """
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 # Hardware defaults
 DEFAULT_SERVO_GPIO_PIN = 12
@@ -46,10 +48,10 @@ NS_PER_US = 1_000
 """Nanoseconds per microsecond -- the sysfs PWM interface works in ns."""
 
 
-class ServoConfig(BaseSettings):
+class ServoConfig(HardwareBaseSettings):
     """Servo steering configuration (env-overridable, ``SERVO_`` prefix)."""
 
-    model_config = SettingsConfigDict(env_prefix="servo_")
+    model_config = SettingsConfigDict(env_prefix="servo_", toml_file=CONFIG_DIR / "motors" / "servo.toml")
 
     gpio_pin: int = DEFAULT_SERVO_GPIO_PIN
     """BCM pin driving the servo signal.

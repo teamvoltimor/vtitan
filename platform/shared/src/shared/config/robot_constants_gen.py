@@ -20,8 +20,9 @@ WHEEL_RADIUS: Final[float] = 0.035
 WHEEL_WIDTH: Final[float] = 0.025
 WHEEL_MASS: Final[float] = 0.05
 
-# LIDAR mount (meters)
+# LIDAR mount (meters, degrees)
 LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
+LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 180
 
 # Camera mount (meters, radians)
 CAMERA_MOUNT_X_OFFSET: Final[float] = 0.1222

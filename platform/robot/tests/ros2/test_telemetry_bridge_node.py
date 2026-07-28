@@ -53,29 +53,80 @@ def _detection(class_id: str, score: float, size_x: float, size_y: float) -> Det
 class TestLidarClearancesCm:
     """Ported from oled_display_node's now-deleted _lidar_callback tests -- same logic, relocated."""
 
-    def test_computes_front_left_right_from_ranges(self, bridge_module):
+    # With lidar_angles=None, angles are synthesized as linspace(-pi, pi, n,
+    # endpoint=False) -- 0.5deg/index at n=720. Front sits at index n/2
+    # (angle 0), left at 3n/4 (+90deg), right at n/4 (-90deg). The real sector
+    # is +/-30deg, i.e. +/-60 index -- a +/-62-index window fully covers it
+    # (with a hair of margin) so the mean isn't diluted by the background
+    # value at the edges.
+    def test_front_is_mean_over_the_forward_sector(self, bridge_module):
         n = 720
         ranges = [10.0] * n
-        ranges[n // 2] = 0.186  # front
-        ranges[n // 4 + 5] = 1.428  # left
-        ranges[2 * n // 3 + 5] = 0.214  # right
+        for i in range(n // 2 - 62, n // 2 + 62):
+            ranges[i] = 0.5
 
-        front, left, right = bridge_module._lidar_clearances_cm(ranges)
+        c = bridge_module._lidar_clearances(ranges)
 
-        assert front == pytest.approx(18.6, abs=0.1)
-        assert left == pytest.approx(142.8, abs=0.1)
-        assert right == pytest.approx(21.4, abs=0.1)
+        assert c.front_m * 100 == pytest.approx(50.0, abs=0.5)
+
+    def test_left_is_mean_over_the_plus_90_sector(self, bridge_module):
+        n = 720
+        ranges = [10.0] * n
+        for i in range(3 * n // 4 - 62, 3 * n // 4 + 62):
+            ranges[i] = 1.5
+
+        c = bridge_module._lidar_clearances(ranges)
+
+        assert c.left_m * 100 == pytest.approx(150.0, abs=0.5)
+
+    def test_right_is_mean_over_the_minus_90_sector(self, bridge_module):
+        n = 720
+        ranges = [10.0] * n
+        for i in range(n // 4 - 62, n // 4 + 62):
+            ranges[i] = 0.3
+
+        c = bridge_module._lidar_clearances(ranges)
+
+        assert c.right_m * 100 == pytest.approx(30.0, abs=0.5)
+
+    def test_a_single_noisy_point_barely_moves_the_mean(self, bridge_module):
+        """The old min-based approach let one stray point dominate a whole sector -- mean shouldn't."""
+        n = 720
+        ranges = [1.0] * n
+        ranges[n // 2] = 0.02  # one spurious near-range return, dead ahead
+
+        c = bridge_module._lidar_clearances(ranges)
+
+        assert c.front_m * 100 == pytest.approx(100.0, abs=5.0)
+
+    def test_left_and_right_filter_self_detection_but_front_does_not(self, bridge_module):
+        """Front must still register a genuine near-contact; sides discard chassis self-reflection."""
+        n = 720
+        ranges = [10.0] * n
+        for i in range(n // 2 - 62, n // 2 + 62):
+            ranges[i] = 0.02  # inside LIDAR_SELF_DETECTION_THRESHOLD (0.08m)
+        for i in range(3 * n // 4 - 62, 3 * n // 4 + 62):
+            ranges[i] = 0.02
+        for i in range(n // 4 - 62, n // 4 + 62):
+            ranges[i] = 0.02
+
+        c = bridge_module._lidar_clearances(ranges)
+
+        assert c.front_m * 100 == pytest.approx(2.0, abs=0.5)  # not filtered
+        assert c.left_m == 0.0  # filtered out entirely -- no valid points left
+        assert c.right_m == 0.0
 
     def test_empty_ranges_returns_zeros(self, bridge_module):
-        assert bridge_module._lidar_clearances_cm([]) == (0.0, 0.0, 0.0)
+        c = bridge_module._lidar_clearances([])
+        assert (c.front_m, c.left_m, c.right_m) == (0.0, 0.0, 0.0)
 
     def test_no_valid_points_in_a_window_defaults_to_zero(self, bridge_module):
         n = 720
-        ranges = [0.0] * n  # every reading below _MIN_VALID_LIDAR_RANGE_M
+        ranges = [0.0] * n  # every reading below the min-valid floor
 
-        front, left, right = bridge_module._lidar_clearances_cm(ranges)
+        c = bridge_module._lidar_clearances(ranges)
 
-        assert (front, left, right) == (0.0, 0.0, 0.0)
+        assert (c.front_m, c.left_m, c.right_m) == (0.0, 0.0, 0.0)
 
 
 class TestBestDetection:
@@ -120,7 +171,8 @@ class TestPublishUiSummary:
     def test_publishes_cached_scan_and_imu_and_vision(self, ros_context, bridge_node):
         n = 720
         ranges = [10.0] * n
-        ranges[n // 2] = 0.186
+        for i in range(n // 2 - 62, n // 2 + 62):
+            ranges[i] = 0.186
         scan = LaserScan()
         scan.ranges = ranges
         bridge_node._scan_callback(scan)
@@ -171,7 +223,8 @@ class TestUiSummaryRoundTripsWithOledNode:
 
         n = 720
         ranges = [10.0] * n
-        ranges[n // 2] = 0.186
+        for i in range(n // 2 - 62, n // 2 + 62):
+            ranges[i] = 0.186
         scan = LaserScan()
         scan.ranges = ranges
         bridge_node._scan_callback(scan)

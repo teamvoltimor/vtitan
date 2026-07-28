@@ -33,17 +33,19 @@ from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import SignDiscoveryParams, SignRouterParams
+from shared.domain.models import SignColor
 
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
-    _detection_to_world,
     _dist2d,
+    detection_to_observation,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 
 if TYPE_CHECKING:
-    from shared.domain.models import Detection
+    from shared.domain.models import TrafficSignObservation
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,12 @@ __all__ = [
 # fixtures, widening this removed one inner-block and one sign collision (9/16
 # -> 7/16); going further to 0.24 over-constrains the deformation and regresses
 # to 10/16.
+# The 0.04 margin here is the same concept and value as
+# NavigationTuning.sign_router.WALL_CLEARANCE_MARGIN_M (shared/config/
+# navigation/sign_router.toml). Not threaded through as an injected value:
+# it's read inside a module-level clamp used from a free function, not a
+# SignRouter instance method, so there's no natural instance to hold tuning
+# state. Keep the two values in sync if either changes.
 _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
 _WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + 0.04
 
@@ -92,7 +100,9 @@ _BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
 
 # How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
 # axis may drift and still count as a valid straight-corridor deformation
-# candidate — see _is_squarely_in_corridor.
+# candidate — see _is_squarely_in_corridor. Same concept/value as
+# NavigationTuning.sign_router.DEFORM_DEPTH_BUFFER_M -- not threaded through
+# for the same free-function reason as _WALL_CLEARANCE above.
 _DEFORM_DEPTH_BUFFER = 0.3
 
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
@@ -148,6 +158,24 @@ class SignRouterConfig:
     in the robot's actual corridor still deforms normally) for this settle
     window prevents that incidental graze from ever registering."""
 
+    @classmethod
+    def from_tuning(cls, params: SignRouterParams) -> SignRouterConfig:
+        """Build from NavigationTuning's SignRouterParams group.
+
+        ``lateral_offset`` isn't a raw tunable in ``SignRouterParams`` -- only
+        its safety-margin component is (``SIGN_CLEARANCE_MARGIN_M``), so this
+        recomputes the same derivation ``_SIGN_LATERAL_OFFSET`` uses at module
+        scope: chassis half-width + sign half-width + margin.
+        """
+        return cls(
+            lateral_offset=RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
+            activation_dist=params.ACTIVATION_DIST_M,
+            passed_dist=params.PASSED_DIST_M,
+            detection_match_dist=params.DETECTION_MATCH_DIST_M,
+            min_confidence=params.MIN_CONFIDENCE,
+            settle_ticks=params.SETTLE_TICKS,
+        )
+
 
 class SignRouter:
     """Routes the robot past traffic signs using lateral waypoint deformations.
@@ -165,6 +193,8 @@ class SignRouter:
     Args:
         signs: Expected sign list from scenario metadata (position + color).
         config: Tuning parameters.
+        discovery_config: Tuning parameters for blind sign discovery
+            (ObservedSignMap), only used when ``discover=True``.
     """
 
     def __init__(
@@ -173,6 +203,7 @@ class SignRouter:
         config: SignRouterConfig | None = None,
         direction: Direction = Direction.COUNTERCLOCKWISE,
         discover: bool = False,
+        discovery_config: SignDiscoveryParams | None = None,
     ) -> None:
         self._signs = list(signs)
         self._config = config or SignRouterConfig()
@@ -189,20 +220,28 @@ class SignRouter:
         # Discovery mode: the sign layout is randomised every round and no
         # scenario file exists on the mat, so a blind robot has to find the
         # signs with its camera rather than be handed them. See sign_discovery.
-        self._sign_map = ObservedSignMap(self._config.min_confidence) if discover else None
+        if discover:
+            discovery_config = discovery_config or SignDiscoveryParams()
+            self._sign_map = ObservedSignMap(
+                self._config.min_confidence,
+                max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
+                association_dist_m=discovery_config.ASSOCIATION_DIST_M,
+                min_hits=discovery_config.MIN_HITS,
+            )
+        else:
+            self._sign_map = None
 
     @property
     def signs(self) -> list[SignSpec]:
         """Signs currently being routed around — discovered ones included."""
         return list(self._signs)
 
-    def _ingest_detections(
+    def _ingest_observations(
         self,
-        detections: list[Detection] | None,
+        observations: list[TrafficSignObservation] | None,
         robot_pos: tuple[float, float],
-        robot_yaw: float,
     ) -> None:
-        """Fold a frame of detections into the discovered sign list.
+        """Fold a frame of observations into the discovered sign list.
 
         Appending only ever grows ``_signs``, which is what keeps the
         index-keyed ``_passed``/``_engaged`` bookkeeping valid. A published
@@ -211,7 +250,7 @@ class SignRouter:
         if self._sign_map is None:
             return
 
-        self._sign_map.observe(detections, robot_pos, robot_yaw)
+        self._sign_map.observe(observations, robot_pos)
 
         for track in self._sign_map.newly_confirmed():
             track.published_index = len(self._signs)
@@ -259,12 +298,12 @@ class SignRouter:
         robot_pos: tuple[float, float],
         robot_yaw: float,
         corridor: Section,
-        detections: list[Detection] | None = None,
+        observations: list[TrafficSignObservation] | None = None,
     ) -> tuple[float, float]:
         """Return a (possibly laterally deformed) version of the target waypoint.
 
         Checks all uncleared signs. The NEAREST active sign within activation
-        distance drives the deformation. Camera detections are used to confirm
+        distance drives the deformation. Camera observations are used to confirm
         the sign color if available and within match distance.
 
         Args:
@@ -272,7 +311,7 @@ class SignRouter:
             robot_pos: Current robot position (x, y).
             robot_yaw: Robot heading (radians, 0 = east).
             corridor: Current track section.
-            detections: Latest camera detections (may be empty or None).
+            observations: Latest world-coordinate sign observations.
 
         Returns:
             Deformed waypoint (x, y). Unchanged if no active sign nearby.
@@ -280,7 +319,7 @@ class SignRouter:
         # Discovery first: in blind mode this frame may be what reveals the
         # sign about to be routed around, so it has to land before candidate
         # selection rather than after it.
-        self._ingest_detections(detections, robot_pos, robot_yaw)
+        self._ingest_observations(observations, robot_pos)
 
         candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
 
@@ -328,17 +367,15 @@ class SignRouter:
         sign = self._signs[nearest_idx]
         color = sign.color
 
-        # Optionally override color with camera detection.
-        if detections:
+        # Optionally override color with camera observation.
+        if observations:
             camera_color = _match_detection_to_sign(
-                detections,
+                observations,
                 (sign.x, sign.y),
-                robot_pos,
-                robot_yaw,
                 self._config,
             )
             if camera_color is not None:
-                color = camera_color
+                color = camera_color.value
 
         # Taper the offset so it fades in and out over `passed_dist` instead of
         # snapping between full magnitude and zero in a single waypoint step at
@@ -538,45 +575,38 @@ def _clamp_lateral(value: float, corridor: Section) -> float:
 
 
 def _match_detection_to_sign(
-    detections: list[Detection],
+    observations: list[TrafficSignObservation],
     expected_world_pos: tuple[float, float],
-    robot_pos: tuple[float, float],
-    robot_yaw: float,
     config: SignRouterConfig,
-) -> str | None:
-    """Try to confirm sign color using camera detection.
+) -> SignColor | None:
+    """Try to confirm sign color using world-coordinate observations.
 
-    Projects each detection from image space to approximate world coordinates
-    using camera intrinsics and robot pose, then matches against the expected
-    sign world position.
+    Matches each observation against the expected sign world position.
+    TrafficSignObservation already carries world coordinates, so no
+    pixel-to-world projection is needed.
 
     Args:
-        detections: Current frame detections.
+        observations: Current frame observations.
         expected_world_pos: Expected (x, y) world position of the sign.
-        robot_pos: Robot (x, y) position.
-        robot_yaw: Robot heading (radians).
         config: Router config (confidence threshold, match distance).
 
     Returns:
-        Confirmed color string ("red"/"green"), or None if no confident match.
+        Confirmed SignColor, or None if no confident match.
     """
     best_match_dist = float("inf")
-    best_color: str | None = None
+    best_color: SignColor | None = None
 
-    for det in detections:
-        if det.confidence < config.min_confidence:
+    for obs in observations:
+        if obs.confidence < config.min_confidence:
             continue
-        if det.class_name not in (ColorNames.RED, ColorNames.GREEN):
-            continue
-
-        world_pos = _detection_to_world(det, robot_pos, robot_yaw)
-        if world_pos is None:
+        if obs.color not in (SignColor.RED, SignColor.GREEN):
             continue
 
-        d = _dist2d(world_pos, expected_world_pos)
+        world = (obs.world_x_m, obs.world_y_m)
+        d = _dist2d(world, expected_world_pos)
         if d < config.detection_match_dist and d < best_match_dist:
             best_match_dist = d
-            best_color = det.class_name
+            best_color = obs.color
 
     return best_color
 

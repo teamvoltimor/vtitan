@@ -95,7 +95,7 @@ class TestBuildZone:
         assert z.y_max == pytest.approx(ParkingLotSpecs.LENGTH)
 
     @pytest.mark.parametrize(
-        "section,b1,b2,direction,expected_yaw",
+        "section,b1_x,b1_y,b2_x,b2_y,direction,expected_yaw",
         [
             (Section.SOUTH, *PARKING_SOUTH_BLOCK1, *PARKING_SOUTH_BLOCK2, _CW, math.pi),
             (Section.SOUTH, *PARKING_SOUTH_BLOCK1, *PARKING_SOUTH_BLOCK2, _CCW, 0.0),

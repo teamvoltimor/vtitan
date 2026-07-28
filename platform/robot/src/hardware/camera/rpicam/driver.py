@@ -25,9 +25,11 @@ from typing import TYPE_CHECKING, Self
 import cv2
 import numpy as np
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
+from shared.domain.models import CameraSize, ImageRotation
 from src.hardware.camera.base import Frame
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 if TYPE_CHECKING:
@@ -42,10 +44,10 @@ _EOI = b"\xff\xd9"
 _READ_CHUNK = 65536
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Capture settings, sharing the CAMERA_* variables with the Picamera2 driver."""
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "camera" / "rpicam.toml")
 
     width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
     height: int = Field(default=864, validation_alias="CAMERA_HEIGHT")
@@ -173,9 +175,15 @@ class Driver:
         """
         return frame[:, :, ::-1]
 
-    def get_resolution(self) -> tuple[int, int]:
-        """Return the configured capture resolution."""
-        return self.config.width, self.config.height
+    def get_resolution(self) -> CameraSize:
+        """Return the configured capture resolution and orientation metadata."""
+        return CameraSize(
+            width_px=self.config.width,
+            height_px=self.config.height,
+            rotation_deg=ImageRotation.CW_180 if self.config.inverted else ImageRotation.NONE,
+            hflip=self.config.hflip,
+            vflip=self.config.vflip,
+        )
 
     def close(self) -> None:
         """Stop the capture process. Safe to call more than once."""

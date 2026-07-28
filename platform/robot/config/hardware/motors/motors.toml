@@ -1,0 +1,46 @@
+# Motor configuration -- src/hardware/motors/config.py
+# steering.port / drive.port are left out -- device paths stay in .env
+# (runtime/hardware-instance knobs, not fixed hardware facts), required
+# exactly as before this migration.
+
+[steering]
+offset = 0.0
+# Steering center angle offset (deg). Positive = bias right, negative = left.
+
+left_limit_angle = -83.0
+right_limit_angle = 22.0
+center_angle = -30.0
+
+max_steering_angle = 90.0
+# 90.0 is the servo's full travel: with SERVO_RANGE_DEG=180 and a 500-2500us
+# pulse span, 90 deg maps exactly to SERVO_MAX_PULSE_US, so larger values are
+# clamped to the same pulse and do nothing. Verified on hardware 2026-07-25.
+
+centering_speed = 20
+turning_speed = 30
+reversed = false
+
+linkage_ratio = 0.78
+# Road-wheel degrees per servo degree. Measured 0.78 on this chassis (servo
+# at 90 deg puts the wheels at ~70 deg). Everything upstream speaks WHEEL
+# angles; only the servo speaks servo angles.
+
+[drive]
+reversed = true
+# true on the real robot: the drive motor's leads are wired to the L298N
+# such that a positive motor_speed spins it backwards. Verified 2026-07-25.
+
+encoder_reversed = true
+# true on the real robot, independent of `reversed`: the motor leads and the
+# encoder's A/B channels are separate connections.
+
+min_speed = -100
+max_speed = 100
+
+speed_scale = 30.0
+# Velocity -> motor-speed scale: motor_speed = velocity_m_s * scale.
+
+default_speed = 15
+
+test_duration = 1.5
+# Motor test/diagnostic run duration in seconds.

@@ -120,3 +120,56 @@ def _write_yaml(tmp_path, data: dict) -> str:
     path = tmp_path / "input.yaml"
     path.write_text(yaml.dump(data), encoding="utf-8")
     return str(path)
+
+
+def _write_toml_line(value) -> str:
+    return repr(value) if isinstance(value, str) else str(value)
+
+
+def _write_toml_dir(tmp_path, groups: dict[str, dict]) -> str:
+    """One <group>.toml per key, matching load_from_toml_dir's expected layout."""
+    directory = tmp_path / "navigation"
+    directory.mkdir()
+    for group, fields in groups.items():
+        lines = [f"{key} = {_write_toml_line(value)}" for key, value in fields.items()]
+        (directory / f"{group}.toml").write_text("\n".join(lines), encoding="utf-8")
+    return str(directory)
+
+
+def test_load_from_toml_dir_round_trip(tmp_path):
+    directory = _write_toml_dir(tmp_path, _OVERRIDES)
+
+    tuning = NavigationTuning.load_from_toml_dir(directory)
+
+    assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
+    assert pytest.approx(1.2) == tuning.heading.CRAWL
+    assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
+    assert pytest.approx(0.60) == tuning.speed.FAST_SPEED
+    assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
+    assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
+    assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
+
+
+def test_load_from_toml_dir_partial_files_keep_other_defaults(tmp_path):
+    directory = _write_toml_dir(tmp_path, {"clearance": {"CONTACT_DIST": 0.08}})
+
+    tuning = NavigationTuning.load_from_toml_dir(directory)
+
+    assert pytest.approx(0.08) == tuning.clearance.CONTACT_DIST
+    assert pytest.approx(0.25) == tuning.clearance.SLOW_DIST  # untouched field, same group
+    assert tuning.escape == EscapeManeuverParams()  # untouched group -- no escape.toml at all
+
+
+def test_load_from_toml_dir_missing_directory_returns_defaults(tmp_path):
+    tuning = NavigationTuning.load_from_toml_dir(tmp_path / "does_not_exist")
+
+    assert tuning == NavigationTuning()
+
+
+def test_load_default_finds_the_checked_in_config_tree():
+    """The actual platform/shared/config/navigation/ tree this repo ships."""
+    tuning = NavigationTuning.load_default()
+
+    assert pytest.approx(0.10) == tuning.clearance.CONTACT_DIST
+    assert pytest.approx(1.2) == tuning.pursuit.STEER_KP
+    assert pytest.approx(1.00) == tuning.clearance.FAST_DIST

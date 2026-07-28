@@ -17,7 +17,7 @@ import math
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
-from shared.domain.models import Detection
+from shared.domain.models import Detection, SignColor, TrafficSignObservation
 
 from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
@@ -513,11 +513,7 @@ def _detection_at_distance_bearing(
     color: str = "red",
     confidence: float = 0.9,
 ) -> Detection:
-    """Build a Detection whose bbox pinhole-decodes to the given distance/bearing.
-
-    Inverts exactly the formula ``_detection_to_world`` decodes: pixel height
-    from distance, bbox center from horizontal angle.
-    """
+    """Build a Detection whose bbox pinhole-decodes to the given distance/bearing."""
     pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / distance
     cx = (theta_h / RobotSpecs.CAMERA_HFOV + 0.5) * RobotSpecs.CAMERA_WIDTH
     cy = RobotSpecs.CAMERA_HEIGHT / 2
@@ -532,6 +528,28 @@ def _detection_at_distance_bearing(
         width=pixel_height,
         height=pixel_height,
         area=pixel_height * pixel_height,
+    )
+
+
+def _observation_at(
+    distance: float,
+    theta_h: float,
+    *,
+    color: SignColor = SignColor.RED,
+    confidence: float = 0.9,
+    robot_pos: tuple[float, float] = (0.0, 0.0),
+    robot_yaw: float = 0.0,
+) -> TrafficSignObservation:
+    """Build a TrafficSignObservation at a given distance and bearing from robot."""
+    bearing = robot_yaw + theta_h
+    world_x = robot_pos[0] + distance * math.cos(bearing)
+    world_y = robot_pos[1] + distance * math.sin(bearing)
+    return TrafficSignObservation(
+        world_x_m=world_x,
+        world_y_m=world_y,
+        color=color,
+        confidence=confidence,
+        detected_at_timestamp=0.0,
     )
 
 
@@ -579,35 +597,20 @@ class TestDetectionToWorld:
 class TestMatchDetectionToSign:
     """Pins the confidence/match-distance/class gating in ``_match_detection_to_sign``."""
 
-    def test_low_confidence_detection_rejected(self):
-        det = _detection_at_distance_bearing(0.5, 0.0, color="red", confidence=0.1)
+    def test_low_confidence_observation_rejected(self):
+        obs = _observation_at(0.5, 0.0, color=SignColor.RED, confidence=0.1)
         result = _match_detection_to_sign(
-            [det],
+            [obs],
             expected_world_pos=(0.5, 0.0),
-            robot_pos=(0.0, 0.0),
-            robot_yaw=0.0,
             config=CFG,
         )
         assert result is None
 
     def test_far_match_rejected(self):
-        det = _detection_at_distance_bearing(2.0, 0.0, color="red", confidence=0.9)
+        obs = _observation_at(2.0, 0.0, color=SignColor.RED, confidence=0.9)
         result = _match_detection_to_sign(
-            [det],
+            [obs],
             expected_world_pos=(0.0, 0.0),
-            robot_pos=(0.0, 0.0),
-            robot_yaw=0.0,
-            config=CFG,
-        )
-        assert result is None
-
-    def test_non_sign_class_ignored(self):
-        det = _detection_at_distance_bearing(0.5, 0.0, color="blue", confidence=0.9)
-        result = _match_detection_to_sign(
-            [det],
-            expected_world_pos=(0.5, 0.0),
-            robot_pos=(0.0, 0.0),
-            robot_yaw=0.0,
             config=CFG,
         )
         assert result is None
@@ -615,18 +618,16 @@ class TestMatchDetectionToSign:
     @pytest.mark.parametrize("order", [("near", "far"), ("far", "near")])
     def test_nearest_candidate_wins_regardless_of_order(self, order):
         expected = (0.5, 0.0)
-        near = _detection_at_distance_bearing(0.5, 0.0, color="green", confidence=0.9)  # dist 0.0
-        far = _detection_at_distance_bearing(0.65, 0.0, color="red", confidence=0.9)  # dist 0.15
+        near = _observation_at(0.5, 0.0, color=SignColor.GREEN, confidence=0.9)  # dist 0.0
+        far = _observation_at(0.65, 0.0, color=SignColor.RED, confidence=0.9)  # dist 0.15
         candidates = [near, far] if order[0] == "near" else [far, near]
 
         result = _match_detection_to_sign(
             candidates,
             expected_world_pos=expected,
-            robot_pos=(0.0, 0.0),
-            robot_yaw=0.0,
             config=CFG,
         )
-        assert result == "green"
+        assert result is SignColor.GREEN
 
 
 class TestCameraDetectionOverridesGroundTruth:
@@ -644,14 +645,14 @@ class TestCameraDetectionOverridesGroundTruth:
         router = _router([sign])
 
         robot_pos = (sx - 0.3, sy)
-        det = _detection_at_distance_bearing(0.3, 0.0, color="green", confidence=0.9)
+        obs = _observation_at(0.3, 0.0, color=SignColor.GREEN, confidence=0.9, robot_pos=robot_pos, robot_yaw=0.0)
 
         result = router.deform_waypoint(
             waypoint=(sx, sy),
             robot_pos=robot_pos,
             robot_yaw=0.0,
             corridor=Section.SOUTH,
-            detections=[det],
+            observations=[obs],
         )
 
         expected_if_green = _apply_deformation(

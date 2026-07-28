@@ -1,11 +1,14 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Camera streaming configuration."""
 
     model_config = SettingsConfigDict(
         env_prefix="camera_",
+        toml_file=CONFIG_DIR / "camera" / "config.toml",
     )
 
     device: str = "/dev/video0"

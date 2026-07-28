@@ -10,10 +10,10 @@ and the URDF in robot_description/wro_robot.urdf (measured 2026-07-11, see
   lidar_link  : front of chassis, centered   x=+0.1222  y=0   z=+0.12
   imu_link    : near chassis bottom          x=0        y=0   z=+0.01
 
-lidar_link's yaw defaults to 180 deg (LIDAR_YAW_OFFSET_DEG) because the C1 is mounted
-inverted -- its raw angle-zero points opposite robot-front. Confirmed empirically during
-sensor verification: the sector with the largest ranges (open space, robot-front) lands
-at +-180 deg in the raw /scan data, not 0 deg.
+lidar_link's yaw comes from RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG (180 deg) because the C1
+is mounted inverted -- its raw angle-zero points opposite robot-front. Confirmed empirically
+during sensor verification: the sector with the largest ranges (open space, robot-front)
+lands at +-180 deg in the raw /scan data, not 0 deg.
 
 camera_link's x/z position is still an estimate pending a real measurement -- if it looks off
 in RViz, correct RobotSpecs.CAMERA_MOUNT_X_OFFSET/CAMERA_MOUNT_Z_OFFSET. Its pitch SIGN
@@ -26,20 +26,7 @@ import math
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config.constants import RobotSpecs
-
-
-class Config(BaseSettings):
-    """Static TF configuration."""
-
-    model_config = SettingsConfigDict(env_prefix="")
-
-    lidar_yaw_offset_deg: float = Field(default=180.0, validation_alias="LIDAR_YAW_OFFSET_DEG")
-
-
-_config = Config()
 
 
 def _static_tf(
@@ -80,7 +67,7 @@ def _static_tf(
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for static sensor-frame transforms."""
-    lidar_yaw_rad = math.radians(_config.lidar_yaw_offset_deg)
+    lidar_yaw_rad = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
     camera_pitch_rad = math.radians(RobotSpecs.CAMERA_MOUNT_PITCH_DEG)
 
     return LaunchDescription(

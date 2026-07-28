@@ -10,12 +10,14 @@ from queue import Empty, Queue
 import numpy as np
 from picamera2 import Picamera2
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
+from shared.domain.models import CameraSize, ImageRotation
 from src.hardware.camera.base import (
     Driver as CameraDriver,
     Frame,
 )
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -25,7 +27,7 @@ _COLOUR_NDIM = 3
 _RGBA_CHANNELS = 4
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Camera configuration for RPi Camera Module 3.
 
     Structurally mirrors src.hardware.camera.base.Config's shape (device,
@@ -33,7 +35,10 @@ class Config(BaseSettings):
     dataclass, and mixing dataclass/pydantic-settings inheritance is fragile.
     """
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        toml_file=CONFIG_DIR / "camera" / "rpi_camera_module_3.toml",
+    )
 
     device: str = Field(default="/dev/video0", validation_alias="CAMERA_DEVICE")
     width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
@@ -153,9 +158,15 @@ class Driver(CameraDriver):
             frame = frame[:, :, :3]
         return frame[:, :, ::-1]
 
-    def get_resolution(self) -> tuple[int, int]:
-        """Get current resolution."""
-        return self.config.width, self.config.height
+    def get_resolution(self) -> CameraSize:
+        """Get current resolution and orientation metadata."""
+        return CameraSize(
+            width_px=self.config.width,
+            height_px=self.config.height,
+            rotation_deg=ImageRotation.CW_180 if self.config.inverted else ImageRotation.NONE,
+            hflip=self.config.hflip,
+            vflip=self.config.vflip,
+        )
 
     def _capture_loop(self) -> None:
         """Continuous capture loop for streaming."""

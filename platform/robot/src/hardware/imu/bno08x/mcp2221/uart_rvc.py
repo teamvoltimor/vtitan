@@ -7,7 +7,7 @@ import serial
 import serial.tools.list_ports
 from adafruit_bno08x_rvc import BNO08x_RVC
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 os.environ.setdefault("BLINKA_MCP2221", "1")
 
@@ -18,9 +18,10 @@ from src.hardware.imu.bno08x.uart_rvc import (
 )
 from src.hardware.imu.config import QuaternionConfig
 from src.hardware.mcp2221.config import MCP2221Config
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for BNO08x via MCP2221A UART RVC."""
 
     model_config = SettingsConfigDict(
@@ -28,6 +29,7 @@ class Config(BaseSettings):
         # "__" so nested leaves with underscores parse, e.g.
         # BNO08X_UART_RVC_QUATERNION__NEGATE_YAW -> quaternion.negate_yaw.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "imu" / "bno08x_mcp2221_uart_rvc.toml",
     )
 
     # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory

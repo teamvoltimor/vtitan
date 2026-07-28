@@ -35,7 +35,11 @@ logger = logging.getLogger(__name__)
 
 
 _PARALLEL_TOLERANCE_M = 0.02
-"""WRO rule: the two wheels on one side may differ by at most 2 cm in wall distance."""
+"""WRO rule: the two wheels on one side may differ by at most 2 cm in wall distance.
+
+Same concept/value as NavigationTuning.parking.PARALLEL_TOLERANCE_M. Not
+threaded through as an injected value: used by module-level geometry
+functions, not ParkController instance methods."""
 
 _YAW_TOLERANCE = math.atan2(_PARALLEL_TOLERANCE_M, RobotSpecs.WHEELBASE)
 """Heading tolerance implied by the rule above (~6.0 deg at WHEELBASE=0.19).
@@ -52,14 +56,19 @@ first for any chassis whose width approaches the bay depth."""
 # overshoot the staging point in x before y converged, flipping the bearing ~180° in a
 # single tick and forcing `_pursuit_steer` into a non-convergent orbit. See
 # docs/internal/2026-07-11-navigation-logic-review.md §2.3 for the full trace.
-_APPROACH_CLEARANCE = NavigationTuning().waypoints.ARC_RADIUS
-_POS_REACH_DIST = 0.04  # metres: "reached staging" threshold
-_DEFAULT_MAX_FRAMES = 400  # 20s at 20Hz: bound on the parking maneuver's duration
+_APPROACH_CLEARANCE = NavigationTuning.load_default().waypoints.ARC_RADIUS
+_POS_REACH_DIST = 0.04  # metres: "reached staging" threshold -- see NavigationTuning.parking.POS_REACH_DIST_M
+_DEFAULT_MAX_FRAMES = 400  # 20s at 20Hz -- see NavigationTuning.parking.DEFAULT_MAX_FRAMES; wired via park_controller_from_metadata
 
 _SATURATED_STEER_THRESHOLD = 0.999
-"""abs(steering) at/above this counts as "at physical lock" for _SATURATION_STUCK_TICKS."""
+"""abs(steering) at/above this counts as "at physical lock" for _SATURATION_STUCK_TICKS.
 
-_SATURATION_STUCK_TICKS = 20  # 1s at 20Hz
+Same concept/value as NavigationTuning.parking.SATURATED_STEER_THRESHOLD. Not
+threaded through: used by a ParkController instance method, but this specific
+threshold isn't performance/behavior-sensitive enough to be worth constructor
+plumbing on its own -- revisit if it ever needs to be tuned in practice."""
+
+_SATURATION_STUCK_TICKS = 20  # 1s at 20Hz -- see NavigationTuning.parking.SATURATION_STUCK_TICKS
 """Consecutive ticks of saturated steering before assuming the target requires a tighter
 turn than the chassis can make going forward -- a bearing-angle threshold alone isn't a
 reliable signal (a curvature-correct pure-pursuit controller saturates at exactly the same
@@ -74,7 +83,7 @@ module-level comment for the full failure trace this fixes."""
 # of a LIDAR collision risk. A single-tick reaction (re-evaluated every frame) isn't enough:
 # it flickers in and out before actually creating separation -- latched for a fixed duration,
 # like the CoreNavigator escape maneuvers, so it commits to a real repositioning motion.
-_escape_tuning = NavigationTuning().escape
+_escape_tuning = NavigationTuning.load_default().escape
 _REPOSITION_SPEED = _escape_tuning.REV_SPEED
 _REPOSITION_STEER_MAG = _escape_tuning.REV_STEERING_SCALE
 _REPOSITION_FRAMES = _escape_tuning.MAX_ESCAPE_FRAMES
@@ -505,7 +514,7 @@ def _bearing_error(
     return _normalise_angle(desired_yaw - robot_yaw)
 
 
-_MIN_LOOKAHEAD_DIST = 0.02  # metres: floor to avoid a near-zero-distance curvature blow-up
+_MIN_LOOKAHEAD_DIST = 0.02  # metres: floor to avoid a near-zero-distance curvature blow-up -- see NavigationTuning.parking.MIN_LOOKAHEAD_DIST_M
 
 
 def _local_frame(
@@ -563,7 +572,7 @@ def _chassis_corners(
     ]
 
 
-_WALL_STANDOFF = 0.05
+_WALL_STANDOFF = 0.05  # see NavigationTuning.parking.WALL_STANDOFF_M
 """Closest the chassis footprint may come to the field wall backing the parking lot.
 
 The lot's far edge *is* the wall, so "drive to the lot centre" and "don't touch the wall"
@@ -596,7 +605,7 @@ def _footprint_breaches_wall(
     return False
 
 
-_MARKER_STANDOFF = 0.01
+_MARKER_STANDOFF = 0.01  # see NavigationTuning.parking.MARKER_STANDOFF_M
 """Closest the chassis footprint may come to either marker fin's inner face.
 
 Much smaller than ``_WALL_STANDOFF`` because the budget is smaller: the mouth between the
@@ -687,18 +696,24 @@ def park_controller_from_metadata(
     metadata: dict,
     start_section: Section,
     direction: Direction | None = None,
+    tuning: NavigationTuning | None = None,
 ) -> ParkController | None:
     """Construct a ParkController from scenario metadata. None for open challenge.
 
     ``direction`` falls back to the scenario's own ``starting_conditions.direction`` when not
     passed explicitly, so callers that already hold it (the sim) and callers that only hold
     the metadata (the ROS2 node) both get the correct wall-parallel target heading.
+
+    ``tuning`` defaults to ``NavigationTuning.load_default()`` (the checked-in
+    config tree) rather than the class's own bare literal defaults, so a
+    loaded/edited tuning profile actually takes effect here too.
     """
     parking = metadata.get(DictKeys.PARKING_LOT)
     if parking is None:
         return None
     if direction is None:
         direction = Direction.from_string(metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION])
+    tuning = tuning or NavigationTuning.load_default()
     return ParkController(
         parking_config=ParkingLot(
             block1_position=BlockPosition(
@@ -712,4 +727,6 @@ def park_controller_from_metadata(
         ),
         start_section=start_section,
         direction=direction,
+        speed=tuning.parking.SPEED,
+        max_frames=tuning.parking.DEFAULT_MAX_FRAMES,
     )

@@ -26,6 +26,15 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, ClassVar
 
+DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[3] / "config" / "navigation"
+"""platform/shared/config/navigation -- the checked-in per-group TOML tree.
+
+Resolved relative to this module's own location (platform/shared/src/shared/
+config/navigation_tuning.py) rather than the caller's, since this package is
+the one that actually knows where its own config lives -- callers (e.g.
+CoreNavigator) shouldn't have to know or assume the two are siblings under
+the same platform/ root."""
+
 
 @dataclass(frozen=True)
 class ClearanceZones:
@@ -163,9 +172,30 @@ class WaypointParams:
             turning radius (~0.329 m, from the measured WHEELBASE=0.19/
             MAX_STEERING_ANGLE=0.5236) — enforced by a fail-fast width
             assertion in ``calculate_waypoints``.
+        DEDUPE_DISTANCE_M: Distance below which consecutive generated
+            waypoints are treated as duplicates and merged.
+        OUTER_WALL_BIAS: Bias (m) added to corridor centerline waypoints
+            toward the outer wall, to compensate for chassis width.
+        NUM_INTERMEDIATE_ARC_POINTS: Number of intermediate sample points
+            per corner arc.
+        STRAIGHT_WAYPOINT_COUNT: Number of evenly spaced waypoints generated
+            along a straight corridor segment.
+        MAIN_LOOP_REACHED_DISTANCE_M: Distance within which CoreNavigator's
+            own main loop counts a waypoint as reached. Deliberately a
+            different (coarser) value than CONTROLLER_REACHED_DISTANCE_M —
+            the two serve different layers, not a single duplicated concept.
+        CONTROLLER_REACHED_DISTANCE_M: Distance within which
+            WaypointController's own internal pure-pursuit logic counts a
+            waypoint as reached.
     """
 
     ARC_RADIUS: float = 0.45
+    DEDUPE_DISTANCE_M: float = 0.001
+    OUTER_WALL_BIAS: float = 0.05
+    NUM_INTERMEDIATE_ARC_POINTS: int = 3
+    STRAIGHT_WAYPOINT_COUNT: int = 8
+    MAIN_LOOP_REACHED_DISTANCE_M: float = 0.20
+    CONTROLLER_REACHED_DISTANCE_M: float = 0.01
 
 
 @dataclass(frozen=True)
@@ -181,6 +211,138 @@ class SensorHealthParams:
     """
 
     STALE_TIMEOUT_SEC: float = 0.5
+
+
+@dataclass(frozen=True)
+class LidarSectorParams:
+    """LIDAR angular-sector definitions shared by collision avoidance and the OLED.
+
+    Attributes:
+        FRONT_HALF_FOV_DEG: Half-width (deg) of the forward clearance cone,
+            used by CollisionAvoidanceController.compute_forward_clearance.
+        THREAT_HALF_FOV_DEG: Half-width (deg) of the threat-detection sectors
+            (front/left/right/back), used by detect_threat_direction and
+            related methods -- a narrower, min-based cone for "is something
+            about to hit me," distinct from the wider, mean-based forward
+            clearance cone above.
+        SELF_DETECTION_THRESHOLD_M: Rays no farther than this are discarded
+            as chassis/cable self-reflection when a sector filters for it.
+        MIN_VALID_RANGE_M: LIDAR ranges at or below this are treated as
+            invalid (no-return) readings.
+    """
+
+    FRONT_HALF_FOV_DEG: float = 30.0
+    THREAT_HALF_FOV_DEG: float = 45.0
+    SELF_DETECTION_THRESHOLD_M: float = 0.08
+    MIN_VALID_RANGE_M: float = 0.01
+
+
+@dataclass(frozen=True)
+class SignRouterParams:
+    """Traffic-sign avoidance routing parameters.
+
+    Attributes:
+        SIGN_CLEARANCE_MARGIN_M: Extra safety margin (m) added to a sign's
+            lateral avoidance offset, beyond chassis and sign half-widths.
+        DEFORM_DEPTH_BUFFER_M: Depth-axis slack (m) beyond the inner-square
+            span for a waypoint to still count as "in corridor" for a sign
+            deformation.
+        WALL_CLEARANCE_MARGIN_M: Margin (m) beyond the chassis half-diagonal
+            that a deformed waypoint must still stay clear of a wall by.
+        ACTIVATION_DIST_M: Distance (m) at which sign-avoidance deformation
+            activates for a nearby sign.
+        PASSED_DIST_M: Distance (m) beyond which a sign is marked "passed"
+            and its deformation taper reaches zero.
+        DETECTION_MATCH_DIST_M: Max distance (m) to associate a camera
+            detection with an expected sign.
+        MIN_CONFIDENCE: Minimum detection confidence to accept a camera
+            color update for a sign.
+        SETTLE_TICKS: Ticks after lap start before sign engage/pass
+            bookkeeping activates (~7.5s @ 20Hz by default).
+    """
+
+    SIGN_CLEARANCE_MARGIN_M: float = 0.075
+    DEFORM_DEPTH_BUFFER_M: float = 0.3
+    WALL_CLEARANCE_MARGIN_M: float = 0.04
+    ACTIVATION_DIST_M: float = 0.80
+    PASSED_DIST_M: float = 1.20
+    DETECTION_MATCH_DIST_M: float = 0.30
+    MIN_CONFIDENCE: float = 0.25
+    SETTLE_TICKS: int = 150
+
+
+@dataclass(frozen=True)
+class SignDiscoveryParams:
+    """Blind sign-discovery (ObservedSignMap) parameters.
+
+    Attributes:
+        MIN_RELIABLE_BBOX_HEIGHT_PX: Minimum detection bbox height (px) for
+            a reliable pinhole distance estimate.
+        MAX_INGEST_RANGE_M: Max distance (m) to accept a sign observation
+            for discovery at all.
+        ASSOCIATION_DIST_M: Max distance (m) between two observations to be
+            considered the same sign.
+        MIN_HITS: Number of confirming observations before a discovered
+            sign is published.
+    """
+
+    MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
+    MAX_INGEST_RANGE_M: float = 2.0
+    ASSOCIATION_DIST_M: float = 0.25
+    MIN_HITS: int = 3
+
+
+@dataclass(frozen=True)
+class ParkingParams:
+    """Parallel-parking maneuver parameters.
+
+    Attributes:
+        PARALLEL_TOLERANCE_M: WRO rule max allowed wheel-to-wall distance
+            difference (m) for "parallel" parking.
+        POS_REACH_DIST_M: Distance (m) threshold for "reached staging
+            position."
+        DEFAULT_MAX_FRAMES: Max control ticks before the parking maneuver
+            gives up (20s @ 20Hz by default).
+        SATURATED_STEER_THRESHOLD: Normalized steering magnitude counted as
+            "at physical lock."
+        SATURATION_STUCK_TICKS: Consecutive ticks of saturated steering
+            before triggering a reverse-reorient.
+        SPEED: Constant driving speed (m/s) during the parking maneuver.
+        MIN_LOOKAHEAD_DIST_M: Floor distance (m) to avoid near-zero-distance
+            curvature blow-up in pure pursuit.
+        WALL_STANDOFF_M: Closest the chassis footprint may approach the
+            field wall backing the parking lot.
+        MARKER_STANDOFF_M: Closest the chassis footprint may approach a
+            parking-bay marker fin.
+    """
+
+    PARALLEL_TOLERANCE_M: float = 0.02
+    POS_REACH_DIST_M: float = 0.04
+    DEFAULT_MAX_FRAMES: int = 400
+    SATURATED_STEER_THRESHOLD: float = 0.999
+    SATURATION_STUCK_TICKS: int = 20
+    SPEED: float = 0.12
+    MIN_LOOKAHEAD_DIST_M: float = 0.02
+    WALL_STANDOFF_M: float = 0.05
+    MARKER_STANDOFF_M: float = 0.01
+
+
+@dataclass(frozen=True)
+class LocalizationParams:
+    """LIDAR-based pose search (LidarLocalizer) parameters.
+
+    Attributes:
+        SEARCH_RADIUS_M: Half-width (m) of the initial pose search window.
+        PASSES: Number of coarse-to-fine grid-search passes.
+        GRID_POINTS: Candidates per axis per search pass.
+        RESIDUAL_CLIP_M: Per-ray residual clipping distance (m) for the cost
+            function (outlier rejection).
+    """
+
+    SEARCH_RADIUS_M: float = 0.15
+    PASSES: int = 4
+    GRID_POINTS: int = 5
+    RESIDUAL_CLIP_M: float = 0.25
 
 
 @dataclass(frozen=True)
@@ -212,6 +374,11 @@ class NavigationTuning:
     escape: EscapeManeuverParams = EscapeManeuverParams()
     sensor: SensorHealthParams = SensorHealthParams()
     waypoints: WaypointParams = WaypointParams()
+    lidar_sectors: LidarSectorParams = LidarSectorParams()
+    sign_router: SignRouterParams = SignRouterParams()
+    sign_discovery: SignDiscoveryParams = SignDiscoveryParams()
+    parking: ParkingParams = ParkingParams()
+    localization: LocalizationParams = LocalizationParams()
 
     # (group key, dataclass) pairs — the single source of truth for which
     # sections load_from_yaml/load_from_json/to_dict handle, so adding a new
@@ -224,6 +391,11 @@ class NavigationTuning:
         ("escape", EscapeManeuverParams),
         ("sensor", SensorHealthParams),
         ("waypoints", WaypointParams),
+        ("lidar_sectors", LidarSectorParams),
+        ("sign_router", SignRouterParams),
+        ("sign_discovery", SignDiscoveryParams),
+        ("parking", ParkingParams),
+        ("localization", LocalizationParams),
     )
 
     # No ``for_obstacles()`` profile. One existed (lookahead 0.12/0.24 +
@@ -302,6 +474,49 @@ class NavigationTuning:
             raise ValueError("YAML must contain a mapping (dict)")
 
         return cls._from_mapping(data)
+
+    @classmethod
+    def load_from_toml_dir(cls, directory: Path | str) -> NavigationTuning:
+        """Load tuning configuration from a directory of per-group TOML files.
+
+        One ``<group>.toml`` per ``_GROUPS`` entry (e.g. ``clearance.toml``,
+        ``pursuit.toml``) -- that file's own top-level fields ARE the group,
+        no wrapper table needed since the filename already disambiguates
+        which group it is. A missing file falls back to that group's
+        defaults, same as a missing key in ``load_from_yaml``/
+        ``load_from_json``'s single-file mapping. A missing directory
+        returns all-defaults outright, so constructing a navigator in a
+        test/sim context with no config tree on disk still works.
+
+        Args:
+            directory: Directory containing the per-group TOML files.
+
+        Returns:
+            NavigationTuning instance with loaded parameters.
+        """
+        import tomllib
+
+        directory = Path(directory)
+        data: dict[str, Any] = {}
+        if directory.is_dir():
+            for key, _ in cls._GROUPS:
+                toml_path = directory / f"{key}.toml"
+                if toml_path.exists():
+                    with open(toml_path, "rb") as f:
+                        data[key] = tomllib.load(f)
+
+        return cls._from_mapping(data)
+
+    @classmethod
+    def load_default(cls) -> NavigationTuning:
+        """Load from the checked-in DEFAULT_CONFIG_DIR TOML tree.
+
+        The normal way to construct a NavigationTuning in production code --
+        falls back to hardcoded per-group defaults for any file (or the
+        whole directory) that isn't present, so it's also safe to call from
+        a test/sim context that doesn't have the full repo checked out.
+        """
+        return cls.load_from_toml_dir(DEFAULT_CONFIG_DIR)
 
     @classmethod
     def load_from_json(cls, path: Path | str) -> NavigationTuning:

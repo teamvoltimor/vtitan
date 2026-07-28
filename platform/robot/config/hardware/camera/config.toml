@@ -1,0 +1,9 @@
+# Camera streaming configuration -- src/hardware/camera/config.py
+
+device = "/dev/video0"
+width = 640
+height = 640
+fps = 30
+rotation = 0
+hflip = false
+vflip = false

@@ -1,0 +1,20 @@
+# GPIO push-button driver -- src/hardware/button/gpio/driver.py
+# BUTTON_GPIO_PIN key matches the field's validation_alias, not its
+# snake_case name (gpio_pin).
+
+BUTTON_GPIO_PIN = 4
+# GPIO4 (Physical Pin 7) -- confirmed against actual wiring during sensor
+# verification; GPIO17 (physical pin 11) silently connects with no error but
+# never sees edge transitions since nothing is attached to it.
+
+[button]
+pull_up = true
+# Button wired GND-to-pin; press = pulls LOW.
+
+debounce_ms = 50
+# Filters electrical noise (20-100ms typical).
+
+long_press_threshold_sec = 3.0
+# A hold past this is E-STOP while racing, or a reset to BOOT_CHECK once
+# finished; anything shorter starts the race. 3s not 2s: a firm start press
+# measured 2.13s on the bench, 130ms from E-STOPping instead of starting.

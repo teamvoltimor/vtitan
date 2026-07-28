@@ -15,39 +15,37 @@ from __future__ import annotations
 
 import math
 
-from shared.config.constants import RobotSpecs, TrafficSignSpecs
-from shared.domain.models import Detection
+from shared.config.constants import RobotSpecs
+from shared.domain.models import SignColor, TrafficSignObservation
 
-from src.navigation.planning.sign_discovery import _CAMERA_FOCAL_PX, SignSpec
+from src.navigation.planning.sign_discovery import SignSpec
 from src.simulation.geometry import _wrap_angle
 
 _DETECTION_CONFIDENCE: float = 0.9
 """Fixed confidence reported for every emulated detection."""
 
 
-def emulate_sign_detections(
+def emulate_sign_observations(
     signs: list[SignSpec],
     robot_pos: tuple[float, float],
     robot_yaw: float,
     max_range: float = RobotSpecs.CAMERA_FAR_CLIP,
-) -> list[Detection]:
-    """Return synthetic ``Detection``s for every sign in the camera's frame.
+) -> list[TrafficSignObservation]:
+    """Return synthetic ``TrafficSignObservation``s for every in-frame sign.
 
     A sign is "seen" if it's within ``max_range`` and within
-    ``RobotSpecs.CAMERA_HFOV`` of the robot's heading; otherwise it's omitted,
-    the same way a real sign behind or far from the robot wouldn't appear in
-    a frame.
+    ``RobotSpecs.CAMERA_HFOV`` of the robot's heading; otherwise it's omitted.
 
     Args:
         signs: Ground-truth sign specs (position + color) to project.
-        robot_pos: Robot (x, y) position (metres).
+        robot_pos: Robot (x, y) position.
         robot_yaw: Robot heading (radians, 0 = east).
-        max_range: Maximum detection range (metres).
+        max_range: Maximum detection range.
 
     Returns:
-        Emulated detections, one per in-frame sign.
+        Emulated observations, one per in-frame sign.
     """
-    detections: list[Detection] = []
+    observations: list[TrafficSignObservation] = []
     for sign in signs:
         dx = sign.x - robot_pos[0]
         dy = sign.y - robot_pos[1]
@@ -60,25 +58,13 @@ def emulate_sign_detections(
         if abs(theta_h) > RobotSpecs.CAMERA_HFOV / 2:
             continue
 
-        pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT) / distance
-        cx = (theta_h / RobotSpecs.CAMERA_HFOV + 0.5) * RobotSpecs.CAMERA_WIDTH
-
-        half_h = pixel_height / 2
-        half_w = pixel_height / 2  # sign bbox treated as roughly square
-        cy = RobotSpecs.CAMERA_HEIGHT / 2
-        x1, y1 = cx - half_w, cy - half_h
-        x2, y2 = cx + half_w, cy + half_h
-
-        detections.append(
-            Detection(
-                class_name=sign.color,
+        observations.append(
+            TrafficSignObservation(
+                world_x_m=sign.x,
+                world_y_m=sign.y,
+                color=SignColor.RED if sign.color == "red" else SignColor.GREEN,
                 confidence=_DETECTION_CONFIDENCE,
-                bbox=(x1, y1, x2, y2),
-                x=(x1 + x2) / 2,
-                y=(y1 + y2) / 2,
-                width=x2 - x1,
-                height=y2 - y1,
-                area=(x2 - x1) * (y2 - y1),
+                detected_at_timestamp=0.0,
             ),
         )
-    return detections
+    return observations

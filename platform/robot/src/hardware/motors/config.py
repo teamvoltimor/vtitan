@@ -1,5 +1,7 @@
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
 class MotorSteeringConfig(BaseModel):
@@ -88,7 +90,7 @@ class MotorDriveConfig(BaseModel):
     """Default speed for drive motor. This can be used as a fallback speed if no specific speed is provided when running the drive motor."""
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Motor configuration."""
 
     model_config = SettingsConfigDict(
@@ -96,6 +98,7 @@ class Config(BaseSettings):
         # "__" (not "_") so nested leaf names containing underscores parse
         # correctly, e.g. MOTOR_DRIVE__MIN_SPEED -> drive.min_speed.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "motors" / "motors.toml",
     )
 
     # Plain required nested fields (no default_factory): a default_factory

@@ -17,7 +17,7 @@ from adafruit_bno08x import (
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from src.hardware.imu.base import (
     Data,
@@ -31,15 +31,16 @@ from src.hardware.imu.readings import (
     MagnetometerReading,
     QuaternionReading,
 )
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for BNO08x via MCP2221A I2C."""
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "imu" / "bno08x_mcp2221_i2c.toml")
 
     i2c_address: int = Field(default=0x4A, validation_alias="IMU_I2C_ADDRESS")
     """I2C address for the BNO08x IMU. The default address is 0x4A when the ADR pin is high, and 0x4B when

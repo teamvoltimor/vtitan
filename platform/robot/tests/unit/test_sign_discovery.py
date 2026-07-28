@@ -18,6 +18,8 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
+from shared.domain.models import SignColor, TrafficSignObservation
+
 from src.navigation.planning.sign_discovery import (
     _ASSOCIATION_DIST,
     _MAX_INGEST_RANGE,
@@ -25,16 +27,16 @@ from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
 )
-from src.simulation.vision_emulator import emulate_sign_detections
+from src.simulation.vision_emulator import emulate_sign_observations
 
 _CONFIDENCE = 0.25
 """Matches ``SignRouterConfig.min_confidence``, the threshold the map inherits."""
 
 
 def _observe(sign_map: ObservedSignMap, signs: list[SignSpec], robot_pos, robot_yaw, times: int = 1) -> None:
-    """Feed ``times`` identical frames of emulated detections into the map."""
+    """Feed ``times`` identical frames of emulated observations into the map."""
     for _ in range(times):
-        sign_map.observe(emulate_sign_detections(signs, robot_pos, robot_yaw), robot_pos, robot_yaw)
+        sign_map.observe(emulate_sign_observations(signs, robot_pos, robot_yaw), robot_pos)
 
 
 def _publish(sign_map: ObservedSignMap) -> list[SignSpec]:
@@ -144,12 +146,12 @@ class TestColorVote:
         sign = SignSpec(1.0, 0.4, "red")
         pose, yaw = (1.0, 1.0), -math.pi / 2
 
-        truthful = emulate_sign_detections([sign], pose, yaw)
-        flipped = [replace(d, class_name="green") for d in truthful]
+        truthful = emulate_sign_observations([sign], pose, yaw)
+        flipped = [replace(o, color=SignColor.GREEN) for o in truthful]
 
         for _ in range(4):
-            sign_map.observe(truthful, pose, yaw)
-        sign_map.observe(flipped, pose, yaw)
+            sign_map.observe(truthful, pose)
+        sign_map.observe(flipped, pose)
 
         assert _publish(sign_map)[0].color == "red"
 
@@ -159,15 +161,9 @@ class TestColorVote:
 
         assert sign_map.newly_confirmed() == []
 
-    def test_non_sign_classes_are_ignored(self) -> None:
-        sign_map = ObservedSignMap(_CONFIDENCE)
-        pose, yaw = (1.0, 1.0), -math.pi / 2
-        detections = [
-            replace(d, class_name="parking_lot") for d in emulate_sign_detections([SignSpec(1.0, 0.4, "red")], pose, yaw)
-        ]
-
-        for _ in range(_MIN_HITS * 2):
-            sign_map.observe(detections, pose, yaw)
+    def test_below_confidence_observations_are_ignored(self) -> None:
+        sign_map = ObservedSignMap(min_confidence=0.99)
+        _observe(sign_map, [SignSpec(1.0, 0.4, "red")], (1.0, 1.0), -math.pi / 2, times=_MIN_HITS * 2)
 
         assert sign_map.newly_confirmed() == []
 

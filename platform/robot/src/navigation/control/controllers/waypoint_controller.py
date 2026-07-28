@@ -13,9 +13,6 @@ import math
 
 logger = logging.getLogger(__name__)
 
-_WAYPOINT_REACHED_DISTANCE_M: float = 0.01
-"""Distance below which the current target waypoint is considered reached."""
-
 _DEFAULT_CONTROL_DT_S: float = 0.05
 """Control-loop tick interval, matching the 20 Hz loop assumed throughout
 navigation tuning (see e.g. ``EscapeManeuverParams.STUCK_TIMEOUT_FRAMES``)."""
@@ -43,8 +40,9 @@ class WaypointController:
         lookahead_short: float = 0.20,
         lookahead_long: float = 0.40,
         lookahead_transition: float = 0.30,
-        steer_kp: float = 1.5,
+        steer_kp: float = 1.2,
         max_steering_rate: float = 2.0,
+        waypoint_reached_distance_m: float = 0.01,
     ):
         """Initialize pure pursuit controller.
 
@@ -53,8 +51,16 @@ class WaypointController:
             lookahead_short: Lookahead for corners (m)
             lookahead_long: Lookahead for straights (m)
             lookahead_transition: Crosstrack threshold for mode switch (m)
-            steer_kp: P-controller gain
+            steer_kp: P-controller gain. Default matches
+                ``NavigationTuning.pursuit.STEER_KP`` -- ``CoreNavigator``
+                always passes that value explicitly, so this default is only
+                ever exercised by a caller that constructs this class
+                directly; keep the two in sync rather than letting this one
+                drift into unused, misleading dead code again (was 1.5 vs.
+                the real wired 1.2 previously).
             max_steering_rate: Max steering rate (rad/s)
+            waypoint_reached_distance_m: Distance below which the current
+                target waypoint is considered reached (m)
         """
         self.max_steering_angle = max_steering_angle
         self.lookahead_short = lookahead_short
@@ -62,6 +68,7 @@ class WaypointController:
         self.lookahead_transition = lookahead_transition
         self.steer_kp = steer_kp
         self.max_steering_rate = max_steering_rate
+        self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self._prev_steering_rad = 0.0
 
     def select_lookahead(self, forward_clearance: float) -> float:
@@ -162,7 +169,7 @@ class WaypointController:
         dy = target_waypoint[1] - current_pos[1]
         distance = math.sqrt(dx**2 + dy**2)
 
-        if distance < _WAYPOINT_REACHED_DISTANCE_M:
+        if distance < self.waypoint_reached_distance_m:
             return 0.0, lookahead
 
         # Pure pursuit: steering angle to intercept lookahead circle

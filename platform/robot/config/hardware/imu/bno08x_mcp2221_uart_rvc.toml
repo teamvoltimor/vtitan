@@ -1,0 +1,17 @@
+# BNO08x IMU via MCP2221A UART RVC bridge -- the actively deployed IMU
+# backend (src/hardware/imu/bno08x/mcp2221/uart_rvc.py). port has no
+# default -- device path stays in .env (BNO08X_UART_RVC_PORT), required
+# exactly as before this migration.
+
+baudrate = 115200
+poll_rate_hz = 100.0
+
+[quaternion]
+euler_sequence = "xyz"
+negate_yaw = true
+negate_pitch = false
+negate_roll = true
+
+[mcp2221]
+vid = "0x04D8"
+pid = "0x00DD"

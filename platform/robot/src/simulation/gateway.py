@@ -25,7 +25,7 @@ import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose, ScenarioMetadata
+from shared.domain.models import IMUReading, Pose, ScenarioMetadata, TrafficSignObservation
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import (
@@ -37,16 +37,16 @@ from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, SignSpec, signs_from_metadata
+from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
 from src.navigation.race_tracker import LapDetector
-from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
+from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel, obstacles_from_metadata
 from src.simulation.geometry import _wrap_angle
-from src.simulation.vision_emulator import emulate_sign_detections
+from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
@@ -265,6 +265,9 @@ class SimulatedHardwareGateway:
             initial_state.y + self._errors.start_pos_error_m * math.sin(seed_bearing),
             self._imu_yaw(),
         )
+        # Uses LidarLocalizer's own defaults, which match NavigationTuning.localization's
+        # defaults -- not threaded through a tuning param here (this __init__ has no
+        # existing tuning-injection path, unlike the real-hardware ROS2HardwareGateway).
         self._localizer = LidarLocalizer(track.walls) if localize else None
         self._believed_walls: TrackWalls | None = None
 
@@ -397,11 +400,11 @@ class SimulatedHardwareGateway:
             stamp_s=self._elapsed_s,
         )
 
-    def get_vision_detections(self) -> list[Detection]:
-        """Return synthetic detections for ``signs``, or ``[]`` if none were provided."""
+    def get_vision_detections(self) -> list[TrafficSignObservation]:
+        """Return synthetic sign observations, or ``[]`` if none were provided."""
         if not self._signs:
             return []
-        return emulate_sign_detections(self._signs, (self._state.x, self._state.y), self._state.yaw)
+        return emulate_sign_observations(self._signs, (self._state.x, self._state.y), self._state.yaw)
 
     # Simulation stepping
 
@@ -751,7 +754,7 @@ class ScenarioSimulator:
         self._errors = sensor_errors or SensorErrors()
         use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
-        widths = corridor_widths_from_metadata(metadata)
+        true_geometry = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
@@ -760,12 +763,12 @@ class ScenarioSimulator:
         # (shorter lookahead + capped top speed) used to be applied here; it was
         # removed once re-measurement showed it changed nothing — see the note in
         # ``NavigationTuning`` where ``for_obstacles()`` used to be.
-        nav_tuning = tuning if tuning is not None else NavigationTuning()
+        nav_tuning = tuning if tuning is not None else NavigationTuning.load_default()
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
-        self._track = TrackModel(widths, obstacles=obstacles_from_metadata(metadata.model_dump()))
-        self._true_widths = widths
+        self._track = TrackModel(true_geometry, obstacles=obstacles_from_metadata(metadata.model_dump()))
+        self._true_geometry = true_geometry
 
         # What the robot is allowed to believe about the layout. Sighted runs
         # get the truth (as the ROS2 node does, from its metadata file); blind
@@ -792,11 +795,11 @@ class ScenarioSimulator:
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
         self._direction = start.direction
-        believed = self._width_estimator.widths if self._width_estimator else widths
+        believed_dict = self._width_estimator.widths if self._width_estimator else true_geometry.to_widths_dict()
 
         # Mirror node.py: a single canonical lap, repeated num_laps times by the
         # navigator's waypoint-wrap + LapDetector lap counting.
-        self._waypoints = self._plan(believed)
+        self._waypoints = self._plan(believed_dict)
 
         signs: list[SignSpec] = [] if is_open_challenge else signs_from_metadata(metadata.model_dump())
 
@@ -833,7 +836,10 @@ class ScenarioSimulator:
             wall_heading=wall_heading,
         )
         if blind:
-            self._gateway.set_believed_walls(TrackWalls(believed))
+            if self._width_estimator:
+                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed_dict)))
+            else:
+                self._gateway.set_believed_walls(TrackWalls(true_geometry))
 
         lap_detector = LapDetector(
             start_pos=(start.x, start.y),
@@ -845,13 +851,17 @@ class ScenarioSimulator:
         if signs:
             sign_router = SignRouter(
                 [] if discover_signs else signs,
+                config=SignRouterConfig.from_tuning(nav_tuning.sign_router),
                 direction=start.direction,
                 discover=discover_signs,
+                discovery_config=nav_tuning.sign_discovery,
             )
 
         self._park_controller: ParkController | None = None
         if not is_open_challenge:
-            self._park_controller = park_controller_from_metadata(metadata.model_dump(), start.section, start.direction)
+            self._park_controller = park_controller_from_metadata(
+                metadata.model_dump(), start.section, start.direction, tuning=nav_tuning,
+            )
 
         self._navigator = CoreNavigator(
             gateway=self._gateway,
@@ -905,9 +915,9 @@ class ScenarioSimulator:
         # attributed to this one. Measured: that alone mislearned the starting
         # corridor on fixtures whose direction was inferred perfectly.
         if self._width_estimator is not None:
-            measured = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
-            if measured is not None:
-                self._creep_widths.append((pose.yaw, measured))
+            m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
+            if m is not None:
+                self._creep_widths.append((pose.yaw, m.width_m))
 
         if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
             inferred = estimator.direction
@@ -916,7 +926,7 @@ class ScenarioSimulator:
                 # line's normal is inverted, so both are rebuilt.
                 self._direction = inferred
                 self._waypoints = self._plan(
-                    self._width_estimator.widths if self._width_estimator else self._true_widths,
+                    self._width_estimator.widths if self._width_estimator else self._true_geometry.to_widths_dict(),
                 )
                 self._navigator.replace_lap_detector(
                     LapDetector(
@@ -934,7 +944,7 @@ class ScenarioSimulator:
                     )
                 self._creep_widths.clear()
                 self._waypoints = self._plan(self._width_estimator.widths)
-                self._gateway.set_believed_walls(TrackWalls(self._width_estimator.widths))
+                self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
 
             # Resync unconditionally, including when the inference agreed with
             # the provisional direction and the path is unchanged. The
@@ -988,7 +998,7 @@ class ScenarioSimulator:
 
         believed = estimator.widths
         self._waypoints = self._plan(believed)
-        self._gateway.set_believed_walls(TrackWalls(believed))
+        self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
         self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
         return True
 

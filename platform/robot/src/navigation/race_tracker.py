@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from shared.config.enums import Direction, Section
+from shared.domain.models import LoopProgress
 
 logger = logging.getLogger(__name__)
 
@@ -139,9 +140,9 @@ class RaceTracker:
         self.num_laps = num_laps
         self.metrics = RaceMetrics()
         self._start_time = time.time()
-        self._lap_start_pos: tuple[float, float] | None = None
         self._last_pos: tuple[float, float] | None = None
         self._speed_samples: list[float] = []
+        self._lap_start_distance: float = 0.0
 
     def update_position(
         self,
@@ -186,6 +187,7 @@ class RaceTracker:
         """
         self.metrics.completed_laps += 1
         self.metrics.current_lap = self.metrics.completed_laps + 1
+        self._lap_start_distance = self.metrics.total_distance
         split_time = time.time() - self._start_time
         self.metrics.lap_splits.append(round(split_time, 3))
         logger.info(
@@ -233,6 +235,15 @@ class RaceTracker:
             RaceMetrics dataclass with current state.
         """
         return self.metrics
+
+    def progress(self) -> LoopProgress:
+        """Snapshot of lap, waypoint, and distance progress."""
+        return LoopProgress(
+            lap_number=self.metrics.current_lap,
+            waypoint_index=self.metrics.waypoint_index,
+            distance_m=self.metrics.total_distance - (self._lap_start_distance if self._lap_start_pos else self.metrics.total_distance),
+            total_distance_m=self.metrics.total_distance,
+        )
 
     def get_race_summary(self) -> dict[str, Any]:
         """Get summary statistics for the race.

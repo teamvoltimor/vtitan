@@ -7,18 +7,19 @@ from typing import override
 
 from gpiozero import Button
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from src.hardware.button.base import Driver as ABC_Driver
 from src.hardware.button.config import Config as ButtonConfig
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 configure_json_logging()
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for GPIO button driver."""
 
     model_config = SettingsConfigDict(
@@ -26,6 +27,7 @@ class Config(BaseSettings):
         # "__" so nested leaves with underscores parse, e.g.
         # BUTTON__DEBOUNCE_MS -> button.debounce_ms.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "button" / "gpio.toml",
     )
 
     # No prefix on this class, so gpio_pin needs an explicit alias to reach

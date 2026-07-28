@@ -1,7 +1,9 @@
 from typing import Annotated
 
 from pydantic import BeforeValidator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
 def _parse_int(value: object) -> object:
@@ -11,11 +13,12 @@ def _parse_int(value: object) -> object:
     return value
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for SSD1306 OLED display driver."""
 
     model_config = SettingsConfigDict(
         env_prefix="SSD1306_",
+        toml_file=CONFIG_DIR / "display" / "ssd1306.toml",
     )
 
     width: int = 128

@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
+from shared.domain.models import SignColor, TrafficSignObservation
 
 if TYPE_CHECKING:
     from shared.domain.models import Detection
@@ -54,7 +55,10 @@ logger = logging.getLogger(__name__)
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
 # Bounding boxes shorter than this (px) are too degenerate for a reliable
-# pinhole distance estimate.
+# pinhole distance estimate. Same concept/value as
+# NavigationTuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX -- not threaded
+# through since _detection_to_world (this constant's only use) is a free
+# function, not a method on an instance that could hold injected tuning.
 _MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
 
 
@@ -65,6 +69,33 @@ class SignSpec:
     x: float
     y: float
     color: str  # ColorNames.RED or ColorNames.GREEN
+
+
+def detection_to_observation(
+    det: Detection,
+    robot_pos: tuple[float, float],
+    robot_yaw: float,
+) -> TrafficSignObservation | None:
+    """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
+
+    This is the bridge between the ROS wire format (Detection) and the
+    internal world-coordinate observation used by ObservedSignMap.
+    """
+    world = _detection_to_world(det, robot_pos, robot_yaw)
+    if world is None:
+        return None
+    x1, y1, x2, y2 = det.bbox
+    return TrafficSignObservation(
+        world_x_m=world[0],
+        world_y_m=world[1],
+        color=SignColor.RED if det.class_name == ColorNames.RED else SignColor.GREEN,
+        confidence=det.confidence,
+        detected_at_timestamp=0.0,
+        bbox_xmin=int(x1),
+        bbox_ymin=int(y1),
+        bbox_xmax=int(x2),
+        bbox_ymax=int(y2),
+    )
 
 
 def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -167,44 +198,60 @@ class ObservedSignMap:
     valid while still letting a closer look correct an early estimate.
     """
 
-    def __init__(self, min_confidence: float) -> None:
+    def __init__(
+        self,
+        min_confidence: float,
+        max_ingest_range_m: float = _MAX_INGEST_RANGE,
+        association_dist_m: float = _ASSOCIATION_DIST,
+        min_hits: int = _MIN_HITS,
+    ) -> None:
         """Start an empty map.
 
         Args:
             min_confidence: Detections below this confidence are ignored, so the
                 map inherits the router's own detection threshold rather than
                 introducing a second, independently-tuned one.
+            max_ingest_range_m: Ignore observations further than this (m).
+                Defaults mirror NavigationTuning.sign_discovery.
+            association_dist_m: Two observations within this distance (m)
+                are treated as the same sign.
+            min_hits: Observations required before a track is published as
+                a real sign.
         """
         self._min_confidence = min_confidence
+        self._max_ingest_range_m = max_ingest_range_m
+        self._association_dist_m = association_dist_m
+        self._min_hits = min_hits
         self._tracks: list[_SignTrack] = []
 
     def observe(
         self,
-        detections: list[Detection] | None,
+        observations: list[TrafficSignObservation] | None,
         robot_pos: tuple[float, float],
-        robot_yaw: float,
     ) -> None:
-        """Fold one frame of detections into the map."""
-        if not detections:
+        """Fold one frame of world-coordinate observations into the map.
+
+        Args:
+            observations: World-coordinate traffic sign observations.
+            robot_pos: Robot (x, y) position, used for range gating.
+        """
+        if not observations:
             return
 
-        for det in detections:
-            if det.confidence < self._min_confidence:
+        for obs in observations:
+            if obs.confidence < self._min_confidence:
                 continue
-            if det.class_name not in (ColorNames.RED, ColorNames.GREEN):
-                continue
-
-            world = _detection_to_world(det, robot_pos, robot_yaw)
-            if world is None:
+            if obs.color not in (SignColor.RED, SignColor.GREEN):
                 continue
 
+            world = (obs.world_x_m, obs.world_y_m)
             observed_range = _dist2d(world, robot_pos)
-            if observed_range > _MAX_INGEST_RANGE:
+            if observed_range > self._max_ingest_range_m:
                 continue
 
-            self._fold(world, observed_range, det)
+            self._fold(world, observed_range, obs)
 
-    def _fold(self, world: tuple[float, float], observed_range: float, det: Detection) -> None:
+    def _fold(self, world: tuple[float, float], observed_range: float, obs: TrafficSignObservation) -> None:
         """Merge one projected observation into the nearest track, or start one."""
         track = self._nearest_track(world)
         if track is None:
@@ -212,7 +259,7 @@ class ObservedSignMap:
             self._tracks.append(track)
 
         track.hits += 1
-        track.votes[det.class_name] = track.votes.get(det.class_name, 0.0) + det.confidence
+        track.votes[obs.color.value] = track.votes.get(obs.color.value, 0.0) + obs.confidence
 
         # Closest observation wins outright: pinhole range error is monotone in
         # range, so a nearer reading is strictly better evidence than the
@@ -222,9 +269,9 @@ class ObservedSignMap:
             track.x, track.y = world
 
     def _nearest_track(self, world: tuple[float, float]) -> _SignTrack | None:
-        """The closest existing track within :data:`_ASSOCIATION_DIST`, if any."""
+        """The closest existing track within ``self._association_dist_m``, if any."""
         best: _SignTrack | None = None
-        best_dist = _ASSOCIATION_DIST
+        best_dist = self._association_dist_m
         for track in self._tracks:
             d = _dist2d((track.x, track.y), world)
             if d < best_dist:
@@ -233,12 +280,12 @@ class ObservedSignMap:
         return best
 
     def newly_confirmed(self) -> list[_SignTrack]:
-        """Tracks that have crossed :data:`_MIN_HITS` and are not yet published.
+        """Tracks that have crossed ``self._min_hits`` and are not yet published.
 
         The caller is responsible for assigning ``published_index`` once it has
         appended the returned specs to its own sign list.
         """
-        return [t for t in self._tracks if t.published_index is None and t.hits >= _MIN_HITS]
+        return [t for t in self._tracks if t.published_index is None and t.hits >= self._min_hits]
 
     def published(self) -> list[_SignTrack]:
         """Tracks already handed to the router, for in-place position refinement."""

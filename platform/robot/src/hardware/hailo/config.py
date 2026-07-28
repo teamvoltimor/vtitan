@@ -1,18 +1,20 @@
 from typing import Self
 
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 from shared.domain.enums import GMR_CLASS_NAMES
 
 from src.hardware.camera.config import Config as CameraConfig
 from src.hardware.hailo.utils import load_class_map_from_yaml
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Hailo configuration."""
 
     model_config = SettingsConfigDict(
         env_prefix="hailo_",
+        toml_file=CONFIG_DIR / "hailo.toml",
     )
 
     model_path: str = "/usr/local/hailo/models/gmr.hef"
@@ -61,6 +63,7 @@ class StreamingConfig(CameraConfig):
 
     model_config = SettingsConfigDict(
         env_prefix="hailo_stream_",
+        toml_file=CONFIG_DIR / "hailo_streaming.toml",
     )
 
     # Model input configuration

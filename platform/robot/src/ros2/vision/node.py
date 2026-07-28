@@ -9,13 +9,41 @@ from dataclasses import asdict
 
 import numpy as np
 import rclpy
+from pydantic_settings import SettingsConfigDict
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.vision import create_detector
 from src.vision.overlay import annotate
+
+
+class Config(HardwareBaseSettings):
+    """Fallback defaults for VisionNode's ROS2 parameters, sourced from
+    config/hardware/vision/node.toml. ``rpi5_nodes.launch.py`` still overrides
+    these at launch time via ROS2 parameters (e.g. to select the hailo
+    backend and direct camera capture) -- this only changes what a node
+    launched with no parameter overrides falls back to.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
+
+    camera_topic: str = "/camera/image_raw"
+    detections_topic: str = "/vision/detections"
+    model_path: str = "yolov8n.pt"
+    backend: str = "yolo"  # 'yolo' or 'hailo'
+    # 'direct' opens the camera in this process and feeds frames straight to
+    # the model -- no sensor_msgs/Image on the wire, which is what a race
+    # run wants. 'topic' keeps the subscription, for bag replay and sim.
+    camera_source: str = "topic"  # 'topic' or 'direct'
+    capture_fps: float = 15.0
+    # Debug video, off by default: a race publishes detections and nothing
+    # else. Both of these cost real bandwidth at speed.
+    publish_annotated: bool = False
+    annotated_topic: str = "/vision/image_annotated"
+    publish_raw: bool = False
 
 
 class VisionNode(Node):
@@ -24,20 +52,16 @@ class VisionNode(Node):
     def __init__(self) -> None:
         super().__init__("vision_detector")
 
-        self.declare_parameter("camera_topic", "/camera/image_raw")
-        self.declare_parameter("detections_topic", "/vision/detections")
-        self.declare_parameter("model_path", "yolov8n.pt")
-        self.declare_parameter("backend", "yolo")  # 'yolo' or 'hailo'
-        # 'direct' opens the camera in this process and feeds frames straight to
-        # the model -- no sensor_msgs/Image on the wire, which is what a race
-        # run wants. 'topic' keeps the subscription, for bag replay and sim.
-        self.declare_parameter("camera_source", "topic")  # 'topic' or 'direct'
-        self.declare_parameter("capture_fps", 15.0)
-        # Debug video, off by default: a race publishes detections and nothing
-        # else. Both of these cost real bandwidth at speed.
-        self.declare_parameter("publish_annotated", value=False)
-        self.declare_parameter("annotated_topic", "/vision/image_annotated")
-        self.declare_parameter("publish_raw", value=False)
+        defaults = Config()
+        self.declare_parameter("camera_topic", defaults.camera_topic)
+        self.declare_parameter("detections_topic", defaults.detections_topic)
+        self.declare_parameter("model_path", defaults.model_path)
+        self.declare_parameter("backend", defaults.backend)
+        self.declare_parameter("camera_source", defaults.camera_source)
+        self.declare_parameter("capture_fps", defaults.capture_fps)
+        self.declare_parameter("publish_annotated", value=defaults.publish_annotated)
+        self.declare_parameter("annotated_topic", defaults.annotated_topic)
+        self.declare_parameter("publish_raw", value=defaults.publish_raw)
 
         camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
         detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
@@ -107,7 +131,10 @@ class VisionNode(Node):
         from src.vision.detector import DetectorConfig  # noqa: PLC0415
 
         if backend != "hailo":
-            return DetectorConfig.min_confidence
+            # model_path/class_to_color are always caller-supplied (see class
+            # docstring) -- placeholders here since only min_confidence's
+            # resolved TOML/env value is wanted.
+            return DetectorConfig(model_path="", class_to_color={}).min_confidence
         from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
 
         return HailoConfig().min_confidence

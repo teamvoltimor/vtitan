@@ -41,6 +41,7 @@ from shared.config.constants import (
     TrafficSignSpecs,
 )
 
+from shared.domain.models import CorridorGeometry
 from src.navigation.track_geometry import TrackWalls
 
 if TYPE_CHECKING:
@@ -163,15 +164,14 @@ class TrackModel:
 
     def __init__(
         self,
-        corridor_widths_m: dict[Section, float],
+        geometry: CorridorGeometry,
         obstacles: Sequence[ObstacleBox] | None = None,
         lidar_sees_obstacles: bool = True,
     ) -> None:
-        """Build the track from per-side corridor widths.
+        """Build the track from corridor geometry.
 
         Args:
-            corridor_widths_m: Navigable corridor width (metres) for each of the
-                four sections, e.g. ``{Section.SOUTH: 0.6, ...}``.
+            geometry: Complete corridor layout including widths and inner block.
             obstacles: Traffic signs and parking blocks standing on the mat.
                 Empty for the Open Challenge, which has neither.
             lidar_sees_obstacles: Whether obstacles occlude LIDAR rays. Both
@@ -182,8 +182,7 @@ class TrackModel:
                 which case the camera (mounted higher and pitched down) is the
                 only sensor that perceives them.
         """
-        self._widths = corridor_widths_m
-        self._walls = TrackWalls(corridor_widths_m)
+        self._walls = TrackWalls(geometry)
         self._obstacles = list(obstacles or [])
         self._lidar_sees_obstacles = lidar_sees_obstacles
         # Signs and parking blocks are small, rigid and modelled at their true

@@ -1,0 +1,18 @@
+# Joystick teleop bench-testing tool -- src/teleop/config.py
+# Axis/button indices are a best guess at a typical Linux joydev mapping,
+# UNVERIFIED for the 8BitDo Ultimate 2 specifically -- see the class
+# docstring. Confirm (or correct) via `ros2 topic echo /joy` after pairing.
+
+steering_axis_index = 0
+throttle_axis_index = 4
+deadman_button_index = 6
+
+steering_invert = false
+throttle_invert = false
+
+max_steering_deg = 30.0
+max_speed_mps = 0.3
+# Kept low for bench safety.
+
+publish_rate_hz = 20.0
+joy_timeout_s = 0.5

@@ -1,0 +1,8 @@
+# LIDAR-based pose search (LidarLocalizer) parameters.
+#
+# See shared.config.navigation_tuning.LocalizationParams.
+
+SEARCH_RADIUS_M = 0.15   # half-width of the initial pose search window
+PASSES = 4                # coarse-to-fine grid-search passes
+GRID_POINTS = 5           # candidates per axis per search pass
+RESIDUAL_CLIP_M = 0.25    # per-ray residual clipping distance (outlier rejection)

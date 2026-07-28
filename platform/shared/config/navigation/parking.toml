@@ -1,0 +1,13 @@
+# Parallel-parking maneuver parameters.
+#
+# See shared.config.navigation_tuning.ParkingParams.
+
+PARALLEL_TOLERANCE_M = 0.02       # WRO rule: max wheel-to-wall distance difference
+POS_REACH_DIST_M = 0.04           # "reached staging position" threshold
+DEFAULT_MAX_FRAMES = 400          # give up after this many control ticks (20s @ 20Hz)
+SATURATED_STEER_THRESHOLD = 0.999 # normalized steering magnitude counted as "at lock"
+SATURATION_STUCK_TICKS = 20       # saturated ticks before reverse-reorient
+SPEED = 0.12                      # constant driving speed during the maneuver (m/s)
+MIN_LOOKAHEAD_DIST_M = 0.02       # floor distance to avoid curvature blow-up
+WALL_STANDOFF_M = 0.05            # closest approach to the field wall
+MARKER_STANDOFF_M = 0.01          # closest approach to a parking-bay marker fin

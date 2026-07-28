@@ -32,6 +32,7 @@ those, but the "update every file by hand" duplication problem itself is fixed.
 | Wheel diameter | 0.07 m (radius 0.035 m) | |
 | Wheel width | 0.025 m | |
 | LIDAR mount x-offset (front of chassis, centered) | 0.1222 m | derived: `chassis_length/2 − lidar mesh radius (0.0278)` — the C1 mounted flush with the front edge. Mounted upside-down (180° yaw), inverted left/right (see `docs/sensor-verification.md` Phase 2). |
+| LIDAR mount yaw offset | 180° | `robot.toml`'s `lidar.mount_yaw_offset_deg` (moved from `.env`'s `LIDAR_YAW_OFFSET_DEG` — a physical mount fact, not a runtime knob). |
 | Camera mount x-offset | 0.1222 m (same as LIDAR — mounted directly over it) | **estimate**, not measured |
 | Camera mount z-offset | 0.16 m | **estimate**, not measured |
 | Camera mount pitch | ~30° down | Magnitude is still an **estimate** ("like 30 degrees"), not precision-measured. Sign convention (positive = down) is confirmed correct — both by a rotation-matrix derivation (`R = Rz(yaw)·Ry(pitch)·Rx(roll)`, standard REP-103/tf2 convention) and visually, via the yellow direction-arrow marker added to `src/simulation/live_visualizer.py` and checked live in RViz 2026-07-11. |
@@ -69,7 +70,7 @@ camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
   it using the included properties (`chassis_length`, `wheelbase`, `lidar_mount_x`, etc.).
 - `platform/shared/src/shared/config/robot_constants_gen.py` — imported by `RobotSpecs` in
   `platform/shared/src/shared/config/constants.py` (`LENGTH`, `WIDTH`, `HEIGHT`, `WHEELBASE`,
-  `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_MOUNT_X_OFFSET`, `CAMERA_MOUNT_X_OFFSET`,
+  `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_MOUNT_X_OFFSET`, `LIDAR_MOUNT_YAW_OFFSET_DEG`, `CAMERA_MOUNT_X_OFFSET`,
   `CAMERA_MOUNT_Z_OFFSET`, `CAMERA_MOUNT_PITCH_DEG`). Every other Python consumer (navigation,
   simulation, ROS2 nodes — e.g. `static_tfs.launch.py`, `live_visualizer.py`) still imports
   `RobotSpecs`, unchanged.

@@ -1,0 +1,7 @@
+# Vision detector -- src/vision/detector.py
+# model_path and class_to_color are always passed explicitly by callers
+# (backend-specific / derived from the model's class order), so only the
+# fields below are sourced from here.
+
+min_confidence = 0.25
+output_format = "normalized"

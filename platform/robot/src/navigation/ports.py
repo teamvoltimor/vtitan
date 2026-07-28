@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from shared.domain.models import Detection, IMUReading, Pose
+    from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,8 +74,8 @@ class HardwareGateway(Protocol):
     def get_imu_reading(self) -> IMUReading | None:
         """Get the latest IMU orientation."""
 
-    def get_vision_detections(self) -> list[Detection]:
-        """Get the latest object detections from the camera."""
+    def get_vision_detections(self) -> list[TrafficSignObservation]:
+        """Get the latest sign observations from the camera."""
 
     def get_wheel_odometry(self) -> WheelOdometry | None:
         """Get the latest wheel travel and speed, or ``None`` if unavailable.

@@ -1,0 +1,8 @@
+# Blind sign-discovery (ObservedSignMap) parameters.
+#
+# See shared.config.navigation_tuning.SignDiscoveryParams.
+
+MIN_RELIABLE_BBOX_HEIGHT_PX = 5   # minimum bbox height for a reliable distance estimate
+MAX_INGEST_RANGE_M = 2.0          # max distance to accept a sign observation
+ASSOCIATION_DIST_M = 0.25         # max distance between two observations of the same sign
+MIN_HITS = 3                      # confirming observations before a sign is published

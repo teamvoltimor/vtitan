@@ -1,0 +1,13 @@
+# SSD1306 OLED display driver (Pi Zero) -- src/hardware/display/ssd1306/config.py
+
+width = 128
+# Display width in pixels.
+
+height = 64
+# Display height in pixels.
+
+i2c_address = "0x3C"
+# I2C address of the display.
+
+i2c_bus = 1
+# I2C bus number (typically /dev/i2c-1 on Raspberry Pi).

@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
+from shared.domain.models import CorridorWidthMeasurement
 
 from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
@@ -78,7 +79,7 @@ def measure_corridor_width(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
     yaw: float,
-) -> float | None:
+) -> CorridorWidthMeasurement | None:
     """Wall-to-wall width through the robot, or ``None`` if this scan can't say.
 
     Args:
@@ -87,22 +88,29 @@ def measure_corridor_width(
         yaw: Current heading (radians, world frame).
 
     Returns:
-        Corridor width in metres, or ``None`` when the chassis is too far off
-        the corridor axis or the total is not physically plausible.
+        CorridorWidthMeasurement with plausibility and alignment flags, or
+        ``None`` when the chassis is too far off the corridor axis or the
+        total is not physically plausible.
     """
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
-    if abs(axis_error) > _ALIGNMENT_TOLERANCE_RAD:
-        return None
+    is_aligned = abs(axis_error) <= _ALIGNMENT_TOLERANCE_RAD
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
-    # A heading error stretches both rays by 1/cos(error); project back.
-    width = (left + right) * math.cos(axis_error)
+    width = (left + right) * math.cos(axis_error) if is_aligned else 0.0
+    is_plausible = _MIN_PLAUSIBLE_WIDTH < width < _MAX_PLAUSIBLE_WIDTH
 
-    if not (_MIN_PLAUSIBLE_WIDTH < width < _MAX_PLAUSIBLE_WIDTH):
-        return None
-    return width
+    if is_aligned and is_plausible:
+        return CorridorWidthMeasurement(
+            width_m=width,
+            is_plausible=True,
+            is_aligned=True,
+            alignment_error_rad=abs(axis_error),
+            side_range_left_m=left,
+            side_range_right_m=right,
+        )
+    return None
 
 
 def classify_width(width_m: float) -> float:
@@ -179,10 +187,10 @@ class CorridorWidthEstimator:
             ``True`` if this observation changed the estimate, so the caller
             knows to replan against the new layout.
         """
-        measured = measure_corridor_width(ranges_m, angles_rad, yaw)
-        if measured is None:
+        m = measure_corridor_width(ranges_m, angles_rad, yaw)
+        if m is None:
             return False
-        return self.observe_measurement(section, measured)
+        return self.observe_measurement(section, m.width_m)
 
     def observe_measurement(self, section: Section, measured: float) -> bool:
         """Fold in a width already measured by :func:`measure_corridor_width`.

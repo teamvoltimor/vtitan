@@ -14,11 +14,9 @@ from enum import StrEnum
 import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.domain.enums import RiskLevel
+from shared.domain.models import SectorRanges
 
 logger = logging.getLogger(__name__)
-
-_MIN_VALID_LIDAR_RANGE_M: float = 0.01
-"""LIDAR ranges at or below this are treated as invalid (no-return) readings."""
 
 
 class ThreatDirection(StrEnum):
@@ -80,7 +78,7 @@ class CollisionAvoidanceController:
         self,
         contact_dist: float = 0.10,
         slow_dist: float = 0.25,
-        fast_dist: float = 0.50,
+        fast_dist: float = 1.00,
         escape_rev_speed: float = -0.20,
         escape_steer_scale: float = 0.8,
         stuck_threshold: float = 0.03,
@@ -90,13 +88,17 @@ class CollisionAvoidanceController:
         side_correction_steer: float = 0.3,
         side_correction_speed: float = 0.1,
         side_correction_frames: int = 4,
+        front_half_fov_deg: float = 30.0,
+        threat_half_fov_deg: float = 45.0,
+        self_detection_threshold_m: float = 0.08,
+        min_valid_range_m: float = 0.01,
     ):
         """Initialize collision avoidance controller.
 
         Defaults mirror ``NavigationTuning``'s ``ClearanceZones``/
-        ``EscapeManeuverParams`` defaults; callers wired to a tuning profile
-        (e.g. ``CoreNavigator``) should pass those values explicitly so a
-        loaded profile actually takes effect.
+        ``EscapeManeuverParams``/``LidarSectorParams`` defaults; callers
+        wired to a tuning profile (e.g. ``CoreNavigator``) should pass those
+        values explicitly so a loaded profile actually takes effect.
 
         Args:
             contact_dist: Critical distance threshold (m)
@@ -112,6 +114,14 @@ class CollisionAvoidanceController:
             side_correction_steer: Steering magnitude for a side-threat correction
             side_correction_speed: Forward speed during a side-threat correction
             side_correction_frames: Duration of a side-threat correction (frames)
+            front_half_fov_deg: Half-width of the forward clearance cone (deg),
+                used by ``compute_forward_clearance``
+            threat_half_fov_deg: Half-width of the threat-detection sectors (deg),
+                used by ``detect_threat_direction``/``compute_rear_clearance``/etc.
+            self_detection_threshold_m: Rays no farther than this are discarded as
+                chassis/cable self-reflection when a sector filters for it (m)
+            min_valid_range_m: LIDAR ranges at or below this are treated as
+                invalid (no-return) readings (m)
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist
@@ -125,6 +135,10 @@ class CollisionAvoidanceController:
         self.side_correction_steer = side_correction_steer
         self.side_correction_speed = side_correction_speed
         self.side_correction_frames = side_correction_frames
+        self.front_half_fov_rad = math.radians(front_half_fov_deg)
+        self.threat_half_fov_rad = math.radians(threat_half_fov_deg)
+        self.self_detection_threshold_m = self_detection_threshold_m
+        self.min_valid_range_m = min_valid_range_m
 
     def _forward_path_ranges(
         self,
@@ -151,7 +165,7 @@ class CollisionAvoidanceController:
 
         lateral = np.abs(ranges * np.sin(angles))
         ahead = np.cos(angles) > 0.0
-        mask = ahead & (lateral < self.path_half_width) & (ranges > _MIN_VALID_LIDAR_RANGE_M)
+        mask = ahead & (lateral < self.path_half_width) & (ranges > self.min_valid_range_m)
         return np.asarray(ranges[mask])
 
     def assess_risk(
@@ -196,6 +210,8 @@ class CollisionAvoidanceController:
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
+        self_detection_threshold_m: float = 0.08,
+        min_valid_range_m: float = 0.01,
     ) -> np.ndarray:
         """Valid ranges whose bearing falls within ``center ± half_fov``.
 
@@ -204,6 +220,12 @@ class CollisionAvoidanceController:
         scan indexed from ``angle_min = -pi`` is assumed, so every sector helper
         agrees on which way is forward regardless of the scan's index ordering.
 
+        A staticmethod on purpose: called both as an instance method (which
+        passes its own tuning-sourced thresholds explicitly) and directly as
+        ``CollisionAvoidanceController._sector_ranges(...)`` by external,
+        instance-less callers (e.g. telemetry_bridge_node.py's OLED summary),
+        which fall back to these keyword defaults.
+
         Args:
             lidar_ranges: Array of LIDAR range measurements.
             lidar_angles: Per-ray bearings (radians), or None to synthesise a
@@ -211,11 +233,16 @@ class CollisionAvoidanceController:
             center_rad: Centre bearing of the sector (radians).
             half_fov_rad: Half-width of the sector (radians).
             filter_self_detection: Also discard rays no farther than
-                ``RobotSpecs.LIDAR_SELF_DETECTION_THRESHOLD`` — mount occlusion
-                or cable clutter reflecting the chassis itself, not a real
-                obstacle. Only pass this for side/rear sectors: never for the
+                ``self_detection_threshold_m`` — mount occlusion or cable
+                clutter reflecting the chassis itself, not a real obstacle.
+                Only pass this for side/rear sectors: never for the
                 pure-forward bearing, where a genuine near-contact inside that
                 radius must still register as a threat.
+            self_detection_threshold_m: Threshold used when
+                ``filter_self_detection`` is set (m).
+            min_valid_range_m: LIDAR ranges at or below this are treated as
+                invalid (no-return) readings (m), used when
+                ``filter_self_detection`` is not set.
         """
         ranges = np.asarray(lidar_ranges, dtype=float)
         if ranges.size == 0:
@@ -228,9 +255,44 @@ class CollisionAvoidanceController:
 
         # Wrapped angular distance from the sector centre, in [-pi, pi].
         delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
-        min_valid = RobotSpecs.LIDAR_SELF_DETECTION_THRESHOLD if filter_self_detection else 0.01
-        mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid)
+        min_valid = self_detection_threshold_m if filter_self_detection else min_valid_range_m
+        # np.isfinite excludes no-return rays (+inf beyond LIDAR max range):
+        # ranges > min_valid alone lets them through (inf > any finite
+        # threshold), and a single stray inf inside a sector's window turns
+        # its mean/min/max into inf for every caller -- both the OLED's
+        # displayed clearance and detect_threat_direction's real
+        # collision-avoidance sectors.
+        mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid) & np.isfinite(ranges)
         return np.asarray(ranges[mask])
+
+    @staticmethod
+    def _sector_to_model(
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None,
+        center_rad: float,
+        half_fov_rad: float,
+        filter_self_detection: bool = False,
+        self_detection_threshold_m: float = 0.08,
+        min_valid_range_m: float = 0.01,
+    ) -> SectorRanges:
+        """Compute aggregate metrics for an angular sector as a SectorRanges."""
+        ranges = CollisionAvoidanceController._sector_ranges(
+            lidar_ranges,
+            lidar_angles,
+            center_rad,
+            half_fov_rad,
+            filter_self_detection,
+            self_detection_threshold_m,
+            min_valid_range_m,
+        )
+        return SectorRanges(
+            bearing_rad=center_rad,
+            half_fov_rad=half_fov_rad,
+            mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else 10.0,
+            min_range_m=float(np.min(ranges)) if ranges.size > 0 else 10.0,
+            max_range_m=float(np.max(ranges)) if ranges.size > 0 else 10.0,
+            valid_count=int(ranges.size),
+        )
 
     def compute_forward_clearance(
         self,
@@ -247,12 +309,17 @@ class CollisionAvoidanceController:
             Forward clearance distance (m).
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
-            return 10.0  # Default: far away
-
-        forward = self._sector_ranges(lidar_ranges, lidar_angles, 0.0, math.radians(30))
-        if forward.size == 0:
             return 10.0
-        return float(np.mean(forward))
+
+        sr = self._sector_to_model(
+            lidar_ranges,
+            lidar_angles,
+            0.0,
+            self.front_half_fov_rad,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
+        )
+        return sr.mean_range_m if sr.valid_count > 0 else 10.0
 
     def compute_rear_clearance(
         self,
@@ -269,16 +336,16 @@ class CollisionAvoidanceController:
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return 10.0
 
-        rear = self._sector_ranges(
+        sr = self._sector_to_model(
             lidar_ranges,
             lidar_angles,
             math.pi,
-            math.radians(45),
+            self.threat_half_fov_rad,
             filter_self_detection=True,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
         )
-        if rear.size == 0:
-            return 10.0
-        return float(np.min(rear))
+        return sr.min_range_m if sr.valid_count > 0 else 10.0
 
     def compute_min_clearance(
         self,
@@ -298,10 +365,10 @@ class CollisionAvoidanceController:
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return 10.0
 
-        sector = self._sector_ranges(lidar_ranges, lidar_angles, center_rad, half_fov_rad)
-        if sector.size == 0:
-            return 10.0
-        return float(np.min(sector))
+        sr = self._sector_to_model(
+            lidar_ranges, lidar_angles, center_rad, half_fov_rad, min_valid_range_m=self.min_valid_range_m,
+        )
+        return sr.min_range_m if sr.valid_count > 0 else 10.0
 
     def detect_threat_direction(
         self,
@@ -325,14 +392,16 @@ class CollisionAvoidanceController:
             return ThreatDirection.NONE
 
         def sector_min(center_rad: float, filter_self_detection: bool = False) -> float:
-            sect = self._sector_ranges(
+            sr = self._sector_to_model(
                 lidar_ranges,
                 lidar_angles,
                 center_rad,
-                math.radians(45),
+                self.threat_half_fov_rad,
                 filter_self_detection,
+                self_detection_threshold_m=self.self_detection_threshold_m,
+                min_valid_range_m=self.min_valid_range_m,
             )
-            return float(np.min(sect)) if sect.size > 0 else 10.0
+            return sr.min_range_m if sr.valid_count > 0 else 10.0
 
         directions = {
             # Forward is never self-detection filtered: a genuine near-contact
@@ -365,22 +434,26 @@ class CollisionAvoidanceController:
         """
         if lidar_ranges is None:
             return 1.0
-        left = self._sector_ranges(
+        left = self._sector_to_model(
             lidar_ranges,
             lidar_angles,
             math.pi / 2,
-            math.radians(45),
+            self.threat_half_fov_rad,
             filter_self_detection=True,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
         )
-        right = self._sector_ranges(
+        right = self._sector_to_model(
             lidar_ranges,
             lidar_angles,
             -math.pi / 2,
-            math.radians(45),
+            self.threat_half_fov_rad,
             filter_self_detection=True,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
         )
-        left_clear = float(np.min(left)) if left.size > 0 else 10.0
-        right_clear = float(np.min(right)) if right.size > 0 else 10.0
+        left_clear = left.min_range_m if left.valid_count > 0 else 10.0
+        right_clear = right.min_range_m if right.valid_count > 0 else 10.0
         # Swing left (negative steering while reversing) when the left is
         # clearer; swing right (positive) when the right is clearer.
         return -1.0 if left_clear > right_clear else 1.0
@@ -464,11 +537,13 @@ class CollisionAvoidanceController:
         rotate out of it, in the same tick. Reversing instead opens real
         separation before any forward motion resumes.
         """
-        sect = self._sector_ranges(
+        sr = self._sector_to_model(
             lidar_ranges,
             lidar_angles,
             center_rad,
-            math.radians(45),
+            self.threat_half_fov_rad,
             filter_self_detection=True,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
         )
-        return float(np.min(sect)) if sect.size > 0 else 10.0
+        return sr.min_range_m if sr.valid_count > 0 else 10.0

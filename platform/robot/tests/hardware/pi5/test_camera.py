@@ -68,8 +68,8 @@ class TestCameraPerformance:
         """Get resolution."""
         try:
             driver.open()
-            width, height = driver.get_resolution()
-            logger.info("Resolution", extra={"details": {"width": width, "height": height}})
+            size = driver.get_resolution()
+            logger.info("Resolution", extra={"details": {"width": size.width_px, "height": size.height_px}})
         except (RuntimeError, OSError, ValueError) as e:
             pytest.skip(f"Cannot get resolution: {e}")
         finally:

@@ -44,10 +44,11 @@ def _scan(track: TrackModel, x: float, y: float, yaw: float, noise: float = _NOI
 
 def _track_and_pose(width_mm: int = 1000, section: Section = Section.SOUTH):
     metadata = build_open_metadata(uniform_widths(width_mm), section, Direction.CLOCKWISE)
-    widths = corridor_widths_from_metadata(metadata.model_dump())
-    by_name = {s.value.lower(): w for s, w in widths.items()}
-    x, y, yaw = start_pose(section, Direction.CLOCKWISE, by_name)
-    return TrackModel(widths), x, y, yaw
+    geometry = corridor_widths_from_metadata(metadata.model_dump())
+    by_name = geometry.to_widths_dict()
+    by_name_str = {s.value.lower(): w for s, w in by_name.items()}
+    x, y, yaw = start_pose(section, Direction.CLOCKWISE, by_name_str)
+    return TrackModel(geometry), x, y, yaw
 
 
 def _err_deg(estimated: float, true: float) -> float:

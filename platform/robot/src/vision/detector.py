@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import contextlib
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
 from pydantic import BaseModel
+from pydantic_settings import SettingsConfigDict
 from shared.domain.enums import GMR_CLASS_NAMES
 from shared.domain.models import Detection
 
 from src.hardware.hailo.inferences import iter_nms_by_class
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 if TYPE_CHECKING:
     import numpy as np
@@ -82,13 +83,17 @@ class SignDetection(BaseModel):
         )
 
 
-@dataclass(frozen=True)
-class DetectorConfig:
+class DetectorConfig(HardwareBaseSettings):
     """Configuration for detector initialization.
 
-    This dataclass injects model path and class-to-color mapping,
-    decoupling the model from hardcoded color names.
+    Injects model path and class-to-color mapping, decoupling the model from
+    hardcoded color names. ``model_path`` and ``class_to_color`` are always
+    passed explicitly by callers (they're backend-specific / derived from the
+    model's class order), so only ``min_confidence``/``output_format`` are
+    sourced from config/hardware/vision/detector.toml.
     """
+
+    model_config = SettingsConfigDict(env_prefix="detector_", toml_file=CONFIG_DIR / "vision" / "detector.toml")
 
     model_path: str
     class_to_color: dict[int, TrafficSignColor]

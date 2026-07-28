@@ -53,13 +53,13 @@ class CoreNavigator:
         self._gateway = gateway
         self._waypoints = waypoints
         self._num_laps = num_laps
-        self._tuning = tuning or NavigationTuning()
+        self._tuning = tuning or NavigationTuning.load_default()
         self._sign_router = sign_router
         self._lap_detector = lap_detector
 
         self._waypoint_index = 0
         self._laps_completed = 0
-        self._waypoint_threshold = 0.20
+        self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
         self._parking_engaged = False
@@ -94,6 +94,7 @@ class CoreNavigator:
             lookahead_transition=self._tuning.pursuit.LOOKAHEAD_TRANSITION,
             steer_kp=self._tuning.pursuit.STEER_KP,
             max_steering_rate=self._tuning.pursuit.MAX_STEERING_RATE,
+            waypoint_reached_distance_m=self._tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
         )
 
         self._collision_controller = CollisionAvoidanceController(
@@ -109,6 +110,10 @@ class CoreNavigator:
             side_correction_steer=self._tuning.escape.SIDE_CORRECTION_STEER,
             side_correction_speed=self._tuning.escape.SIDE_CORRECTION_SPEED,
             side_correction_frames=self._tuning.escape.SIDE_CORRECTION_FRAMES,
+            front_half_fov_deg=self._tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
+            threat_half_fov_deg=self._tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
+            self_detection_threshold_m=self._tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
+            min_valid_range_m=self._tuning.lidar_sectors.MIN_VALID_RANGE_M,
         )
 
         self._stuck_detector = StuckDetector(
@@ -322,13 +327,13 @@ class CoreNavigator:
         # exactly what gets steered toward, at full tapered strength whenever
         # that point is close to the sign.
         if self._sign_router is not None and self._current_corridor is not None:
-            detections = self._gateway.get_vision_detections()
+            observations = self._gateway.get_vision_detections()
             steer_target = self._sign_router.deform_waypoint(
                 waypoint=steer_target,
                 robot_pos=(robot_x, robot_y),
                 robot_yaw=robot_yaw,
                 corridor=self._current_corridor,
-                detections=detections,
+                observations=observations,
             )
 
         # Get steering from waypoint controller

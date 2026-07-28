@@ -24,9 +24,9 @@ from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import DictKeys, RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.enums import Direction, ScenarioType, Section
-from shared.config.navigation_tuning import NavigationTuning, SensorHealthParams
+from shared.config.navigation_tuning import LocalizationParams, NavigationTuning, SensorHealthParams
 from shared.domain.enums import RobotState
-from shared.domain.models import CorridorWidthEntry, CorridorWidths, Detection, IMUReading, Pose, ScenarioMetadata
+from shared.domain.models import CorridorGeometry, CorridorWidthEntry, CorridorWidths, Detection, IMUReading, Pose, ScenarioMetadata, TrafficSignObservation
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -40,12 +40,12 @@ from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.localization import LidarLocalizer
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
+from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
-from src.navigation.track_geometry import TrackWalls, corridor_widths_from_metadata
+from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.state_machine.estimator import StateEstimator
 
@@ -96,12 +96,22 @@ class ROS2HardwareGateway(HardwareGateway):
         start_x: float,
         start_y: float,
         start_yaw: float,
-        corridor_widths_m: dict[Section, float],
+        geometry: CorridorGeometry | dict[Section, float],
         stale_timeout_sec: float = SensorHealthParams().STALE_TIMEOUT_SEC,
+        localization: LocalizationParams | None = None,
     ) -> None:
         self._node = node
         self._estimator = StateEstimator(start_x, start_y, start_yaw)
-        self._localizer = LidarLocalizer(TrackWalls(corridor_widths_m))
+        self._localization_params = localization or LocalizationParams()
+        # Accept dict for backward compat (test callers).
+        geom = corridor_geometry_from_widths(geometry) if isinstance(geometry, dict) else geometry
+        self._localizer = LidarLocalizer(
+            TrackWalls(geom),
+            search_radius_m=self._localization_params.SEARCH_RADIUS_M,
+            passes=self._localization_params.PASSES,
+            grid_points=self._localization_params.GRID_POINTS,
+            residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
+        )
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
@@ -153,7 +163,13 @@ class ROS2HardwareGateway(HardwareGateway):
         localizer keeps matching against the layout assumed at startup, and a
         corrected belief never reaches the position fix.
         """
-        self._localizer = LidarLocalizer(walls)
+        self._localizer = LidarLocalizer(
+            walls,
+            search_radius_m=self._localization_params.SEARCH_RADIUS_M,
+            passes=self._localization_params.PASSES,
+            grid_points=self._localization_params.GRID_POINTS,
+            residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
+        )
 
     def reset_heading_reference(self) -> None:
         """Re-zero the estimator's heading against the next IMU reading."""
@@ -306,9 +322,19 @@ class ROS2HardwareGateway(HardwareGateway):
         """Get the latest IMU orientation."""
         return self._latest_imu
 
-    def get_vision_detections(self) -> list[Detection]:
-        """Get the latest parsed vision detections."""
-        return self._latest_detections
+    def get_vision_detections(self) -> list[TrafficSignObservation]:
+        """Convert latest pixel detections to world-coordinate observations."""
+        pose = self.get_current_pose()
+        if pose is None or not self._latest_detections:
+            return []
+        from src.navigation.planning.sign_discovery import detection_to_observation
+
+        result: list[TrafficSignObservation] = []
+        for det in self._latest_detections:
+            obs = detection_to_observation(det, (pose.x, pose.y), pose.yaw)
+            if obs is not None:
+                result.append(obs)
+        return result
 
 
 class TrackNavigator(Node):
@@ -379,7 +405,7 @@ class TrackNavigator(Node):
             self._apply_param_overrides(params_path)
 
         # Setup Tuning
-        tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning()
+        tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning.load_default()
 
         start_section = Section.from_string(start_cond[DictKeys.SECTION])
         start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
@@ -404,18 +430,19 @@ class TrackNavigator(Node):
         self._direction_estimator = DirectionEstimator() if self._blind else None
         self._creep_widths: list[tuple[float, float]] = []
         self._creep_speed = tuning.speed.SLOW_SPEED
-        self._told_widths = corridor_widths_from_metadata(self._metadata) if not self._blind else {}
-        corridor_widths_m = self._width_estimator.widths if self._width_estimator else self._told_widths
+        self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
+        geometry = corridor_geometry_from_widths(self._width_estimator.widths) if self._width_estimator else self._told_geometry
 
         self._gateway = ROS2HardwareGateway(
             self,
             start_x,
             start_y,
             start_yaw,
-            corridor_widths_m,
+            geometry,
             stale_timeout_sec=tuning.sensor.STALE_TIMEOUT_SEC,
+            localization=tuning.localization,
         )
-        waypoints = self._plan(corridor_widths_m)
+        waypoints = self._plan(self._to_widths_dict())
 
         sign_router: SignRouter | None = None
         if not self._is_open_challenge:
@@ -426,7 +453,13 @@ class TrackNavigator(Node):
             # let it discover the layout from ``/vision/detections``, the same
             # way ``CorridorWidthEstimator`` recovers the corridor widths.
             signs = [] if self._blind else signs_from_metadata(self._metadata)
-            sign_router = SignRouter(signs, direction=start_direction, discover=self._blind)
+            sign_router = SignRouter(
+                signs,
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+                direction=start_direction,
+                discover=self._blind,
+                discovery_config=tuning.sign_discovery,
+            )
 
         lap_detector = LapDetector(
             start_pos=(start_x, start_y),
@@ -440,6 +473,7 @@ class TrackNavigator(Node):
                 self._metadata,
                 start_section,
                 start_direction,
+                tuning=tuning,
             )
 
         self._core_navigator = CoreNavigator(
@@ -505,9 +539,9 @@ class TrackNavigator(Node):
         # first surviving readings are taken at a corner where the side rays
         # span the *next* corridor and get attributed to this one.
         if self._width_estimator is not None:
-            measured = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
-            if measured is not None:
-                self._creep_widths.append((pose.yaw, measured))
+            m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
+            if m is not None:
+                self._creep_widths.append((pose.yaw, m.width_m))
 
         if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
             inferred = estimator.direction
@@ -517,6 +551,18 @@ class TrackNavigator(Node):
 
         self._gateway.publish_drive(follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed))
         return True
+
+    def _to_widths_dict(self) -> dict[Section, float]:
+        """Current believed widths as a per-section dict (for _plan)."""
+        if self._width_estimator:
+            return self._width_estimator.widths
+        g = self._told_geometry
+        return {
+            Section.NORTH: g.north_width_m,
+            Section.SOUTH: g.south_width_m,
+            Section.EAST: g.east_width_m,
+            Section.WEST: g.west_width_m,
+        }
 
     def _commit_direction(self, inferred: Direction, pose: Pose) -> None:
         """Adopt the inferred direction and rebuild everything derived from it."""
@@ -529,7 +575,7 @@ class TrackNavigator(Node):
                     buffered_width,
                 )
             self._creep_widths.clear()
-            self._gateway.set_believed_walls(TrackWalls(self._width_estimator.widths))
+            self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
         if changed:
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted.
@@ -540,11 +586,10 @@ class TrackNavigator(Node):
                     direction=inferred,
                 ),
             )
-        widths = self._width_estimator.widths if self._width_estimator else self._told_widths
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
-        self._core_navigator.replace_path(self._plan(widths), (pose.x, pose.y))
+        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y))
         self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
@@ -594,7 +639,7 @@ class TrackNavigator(Node):
             return False
 
         believed = estimator.widths
-        self._gateway.set_believed_walls(TrackWalls(believed))
+        self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(believed)))
         self._core_navigator.replace_path(self._plan(believed), (pose.x, pose.y))
         self.get_logger().info(
             "Layout belief updated: "

@@ -49,19 +49,24 @@ class TestMeasureCorridorWidth:
 
     def test_sums_the_two_perpendicular_rays(self) -> None:
         ranges, angles = _scan(0.35, 0.25)
-        assert measure_corridor_width(ranges, angles, yaw=0.0) == pytest.approx(0.60, abs=0.02)
+        result = measure_corridor_width(ranges, angles, yaw=0.0)
+        assert result is not None
+        assert result.width_m == pytest.approx(0.60, abs=0.02)
 
     def test_independent_of_where_in_the_corridor_the_robot_sits(self) -> None:
         centred, angles = _scan(0.30, 0.30)
         offset, _ = _scan(0.45, 0.15)
-        assert measure_corridor_width(centred, angles, yaw=0.0) == pytest.approx(
-            measure_corridor_width(offset, angles, yaw=0.0),
-        )
+        c = measure_corridor_width(centred, angles, yaw=0.0)
+        o = measure_corridor_width(offset, angles, yaw=0.0)
+        assert c is not None and o is not None
+        assert c.width_m == pytest.approx(o.width_m)
 
     def test_works_on_every_track_axis(self) -> None:
         ranges, angles = _scan(0.5, 0.5)
         for yaw in (0.0, math.pi / 2, math.pi, -math.pi / 2):
-            assert measure_corridor_width(ranges, angles, yaw=yaw) == pytest.approx(1.0, abs=0.02)
+            result = measure_corridor_width(ranges, angles, yaw=yaw)
+            assert result is not None
+            assert result.width_m == pytest.approx(1.0, abs=0.02)
 
     def test_rejects_a_badly_misaligned_chassis(self) -> None:
         """Off-axis the side rays cut a diagonal, which is not the width."""

@@ -1,0 +1,8 @@
+# Heading error thresholds for speed modulation (radians).
+#
+# See shared.config.navigation_tuning.HeadingErrorZones.
+
+CRAWL = 1.0    # ~57 deg -- severe misalignment, crawl speed
+SLOW = 0.7     # ~40 deg -- large error, slow speed
+MEDIUM = 0.4   # ~23 deg -- moderate error, medium speed
+NORMAL = 0.2   # ~11 deg -- small error, normal speed

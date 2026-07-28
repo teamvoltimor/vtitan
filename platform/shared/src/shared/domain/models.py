@@ -6,6 +6,7 @@ Replaces dictionaries and raw tuples with type-safe domain objects.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel
 
@@ -68,6 +69,202 @@ class Bounds:
     y_min: float
     x_max: float
     y_max: float
+
+
+@dataclass(slots=True, frozen=True)
+class InnerBlock:
+    """Bounding box of the track's central obstacle block."""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+
+
+@dataclass(slots=True, frozen=True)
+class LidarClearances:
+    """Directional LIDAR clearance distances from obstacles (meters)."""
+
+    front_m: float
+    left_m: float
+    right_m: float
+    back_m: float = 0.0
+
+
+@dataclass(slots=True, frozen=True)
+class CorridorGeometry:
+    """Complete track corridor width layout (meters)."""
+
+    north_width_m: float
+    south_width_m: float
+    east_width_m: float
+    west_width_m: float
+    inner_block: InnerBlock
+
+    @property
+    def min_width_m(self) -> float:
+        return min(self.north_width_m, self.south_width_m, self.east_width_m, self.west_width_m)
+
+    @property
+    def mean_width_m(self) -> float:
+        return (self.north_width_m + self.south_width_m + self.east_width_m + self.west_width_m) / 4
+
+    def to_widths_dict(self) -> dict[Section, float]:
+        return {
+            Section.NORTH: self.north_width_m,
+            Section.SOUTH: self.south_width_m,
+            Section.EAST: self.east_width_m,
+            Section.WEST: self.west_width_m,
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class MotorStateSnapshot:
+    """Motor command and feedback state for one control cycle."""
+
+    steering_angle_deg: float
+    drive_speed: float
+    encoder_position: int
+    timestamp: float
+    is_valid: bool = True
+
+
+# ── Phase 2: Robustness Dataclasses ─────────────────────────────────────────
+
+
+@dataclass(slots=True, frozen=True)
+class SectorRanges:
+    """Aggregated LIDAR measurements over an angular sector."""
+
+    bearing_rad: float
+    half_fov_rad: float
+    mean_range_m: float
+    min_range_m: float
+    max_range_m: float
+    valid_count: int
+
+
+@dataclass(slots=True, frozen=True)
+class PathPlannability:
+    """Result of checking whether a path fits within corridor constraints."""
+
+    is_feasible: bool
+    min_required_m: float
+    min_available_m: float
+    margin_m: float
+    reason: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class CorridorWidthMeasurement:
+    """Result of measuring corridor width from LIDAR data."""
+
+    width_m: float
+    is_plausible: bool
+    is_aligned: bool
+    alignment_error_rad: float
+    side_range_left_m: float
+    side_range_right_m: float
+    sample_count: int = 0
+
+    @property
+    def is_valid(self) -> bool:
+        return self.is_plausible and self.is_aligned
+
+
+class SignColor(StrEnum):
+    """Traffic sign color (per WRO rules)."""
+
+    RED = "red"
+    GREEN = "green"
+
+
+@dataclass(slots=True, frozen=True)
+class TrafficSignObservation:
+    """Single traffic sign detection with world pose and confidence."""
+
+    world_x_m: float
+    world_y_m: float
+    color: SignColor
+    confidence: float
+    detected_at_timestamp: float
+    in_robot_frame: bool = False
+    bbox_ymin: int | None = None
+    bbox_xmin: int | None = None
+    bbox_ymax: int | None = None
+    bbox_xmax: int | None = None
+
+
+class ImageRotation(IntEnum):
+    """Image rotation in degrees."""
+
+    NONE = 0
+    CW_90 = 90
+    CW_180 = 180
+    CW_270 = 270
+
+
+@dataclass(slots=True, frozen=True)
+class CameraSize:
+    """Camera image resolution and orientation metadata."""
+
+    width_px: int
+    height_px: int
+    rotation_deg: ImageRotation = ImageRotation.NONE
+    hflip: bool = False
+    vflip: bool = False
+
+    @property
+    def effective_width(self) -> int:
+        if self.rotation_deg in (ImageRotation.CW_90, ImageRotation.CW_270):
+            return self.height_px
+        return self.width_px
+
+    @property
+    def effective_height(self) -> int:
+        if self.rotation_deg in (ImageRotation.CW_90, ImageRotation.CW_270):
+            return self.width_px
+        return self.height_px
+
+
+# ── Phase 3: Polish Dataclasses ────────────────────────────────────────────
+
+
+@dataclass(slots=True, frozen=True)
+class ParkingLotGeometry:
+    """Computed parking lot bounding box and approach corridor."""
+
+    lot: ParkingLot
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+    approach_bearing_rad: float
+
+
+@dataclass(slots=True, frozen=True)
+class ThrottleCommand:
+    """Normalized drive and steering command for motor hardware."""
+
+    speed_normalized: float
+    steering_normalized: float
+    duration_ms: int | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class LoopProgress:
+    """Race progress: lap number, waypoint index, and distance markers."""
+
+    lap_number: int
+    waypoint_index: int
+    distance_m: float
+    total_distance_m: float
+
+    @property
+    def progress_percent(self) -> float:
+        if self.total_distance_m == 0:
+            return 0.0
+        return (self.distance_m / self.total_distance_m) * 100
 
 
 # ── Scenario Metadata Pydantic Models ────────────────────────────────────────

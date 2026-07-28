@@ -1,7 +1,9 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
+
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Joystick teleop configuration.
 
     Bench-testing tool: maps `sensor_msgs/Joy` (published by the stock
@@ -16,7 +18,7 @@ class Config(BaseSettings):
     the matching JOY_TELEOP_* env vars before relying on them.
     """
 
-    model_config = SettingsConfigDict(env_prefix="joy_teleop_")
+    model_config = SettingsConfigDict(env_prefix="joy_teleop_", toml_file=CONFIG_DIR / "teleop.toml")
 
     steering_axis_index: int = 0
     """Joy `axes` index used for steering (left stick X in a typical mapping)."""

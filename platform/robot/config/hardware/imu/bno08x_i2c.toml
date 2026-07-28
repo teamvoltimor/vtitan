@@ -1,0 +1,8 @@
+# BNO08x IMU over plain I2C -- src/hardware/imu/bno08x/i2c.py
+# `address` and [quaternion] have no known real values documented in
+# .env.example (the actively deployed IMU backend is the MCP2221 UART RVC
+# variant, see imu/bno08x_mcp2221_uart_rvc.toml) -- left out here, required
+# from env exactly as before this migration.
+
+enable_sensors_delay = 0.5
+# Delay in seconds after enabling sensors to allow them to stabilize.

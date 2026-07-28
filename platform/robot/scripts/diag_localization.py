@@ -127,7 +127,7 @@ def _run_blind(args: tuple[int]) -> tuple[str, bool, int, bool, bool, float]:
     """One fixture with the layout withheld — LIDAR + IMU only."""
     (index,) = args
     scenario = all_test_scenarios()[index]
-    true_widths = corridor_widths_from_metadata(scenario.metadata)
+    true_geometry = corridor_widths_from_metadata(scenario.metadata)
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
     peak = [0.0]
 
@@ -136,7 +136,7 @@ def _run_blind(args: tuple[int]) -> tuple[str, bool, int, bool, bool, float]:
 
     result = sim.run(on_step=on_step)
     believed = sim.believed_widths or {}
-    layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_widths.items())
+    layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_geometry.to_widths_dict().items())
     within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
     return scenario.label, within, result.laps_completed, result.collided, layout_ok, peak[0]
 
@@ -181,7 +181,7 @@ def _run_perturbed(args: tuple[int, SensorErrors]) -> _PerturbedRun:
     """One blind fixture, with the robot also unsure where it is and where it points."""
     index, errors = args
     scenario = all_test_scenarios()[index]
-    true_widths = corridor_widths_from_metadata(scenario.metadata)
+    true_geometry = corridor_widths_from_metadata(scenario.metadata)
     sim = ScenarioSimulator(
         scenario.metadata,
         num_laps=scenario.laps,

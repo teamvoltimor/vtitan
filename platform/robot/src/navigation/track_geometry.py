@@ -24,13 +24,37 @@ from typing import Any
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.config.enums import Section
+from shared.domain.models import CorridorGeometry, InnerBlock
 
 _TRACK_MIN = 0.0
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
 
 
-def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> dict[Section, float]:
-    """Extract per-side corridor widths (metres) from scenario metadata.
+def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeometry:
+    """Build CorridorGeometry from a per-section width dict.
+
+    Needed for blind operation where widths come from CorridorWidthEstimator
+    rather than from scenario metadata.
+    """
+    north = widths[Section.NORTH]
+    south = widths[Section.SOUTH]
+    east = widths[Section.EAST]
+    west = widths[Section.WEST]
+    south_y = south
+    north_y = _TRACK_MAX - north
+    west_x = west
+    east_x = _TRACK_MAX - east
+    return CorridorGeometry(
+        north_width_m=north,
+        south_width_m=south,
+        east_width_m=east,
+        west_width_m=west,
+        inner_block=InnerBlock(west_x, south_y, east_x, north_y),
+    )
+
+
+def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> CorridorGeometry:
+    """Extract corridor geometry (widths + inner block) from scenario metadata.
 
     Shared by every consumer that needs to build a :class:`TrackWalls` from a
     scenario's metadata dict (the simulator and the real ROS2 localizer), so
@@ -40,16 +64,28 @@ def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> dict[Sectio
 
     if isinstance(metadata, ScenarioMetadata):
         cw = metadata.corridor_widths
-        return {
-            Section.NORTH: cw.north.width_mm / 1000.0,
-            Section.SOUTH: cw.south.width_mm / 1000.0,
-            Section.EAST: cw.east.width_mm / 1000.0,
-            Section.WEST: cw.west.width_mm / 1000.0,
-        }
-    raw = metadata[DictKeys.CORRIDOR_WIDTHS]
-    return {
-        Section.from_string(side): raw[side][DictKeys.WIDTH_MM] / 1000.0 for side in ("north", "south", "east", "west")
-    }
+        north = cw.north.width_mm / 1000.0
+        south = cw.south.width_mm / 1000.0
+        east = cw.east.width_mm / 1000.0
+        west = cw.west.width_mm / 1000.0
+    else:
+        raw = metadata[DictKeys.CORRIDOR_WIDTHS]
+        north = raw["north"][DictKeys.WIDTH_MM] / 1000.0
+        south = raw["south"][DictKeys.WIDTH_MM] / 1000.0
+        east = raw["east"][DictKeys.WIDTH_MM] / 1000.0
+        west = raw["west"][DictKeys.WIDTH_MM] / 1000.0
+
+    south_y = south
+    north_y = _TRACK_MAX - north
+    west_x = west
+    east_x = _TRACK_MAX - east
+    return CorridorGeometry(
+        north_width_m=north,
+        south_width_m=south,
+        east_width_m=east,
+        west_width_m=west,
+        inner_block=InnerBlock(west_x, south_y, east_x, north_y),
+    )
 
 
 def cross_track_error(waypoints: list[tuple[float, float]], x: float, y: float) -> float:
@@ -84,31 +120,19 @@ class _Segment:
     y2: float
 
 
-@dataclass(frozen=True, slots=True)
-class InnerBlock:
-    """Bounding box of the track's central obstacle block (visual/navigable faces)."""
-
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
-
-
 class TrackWalls:
     """Axis-aligned wall segments for one Open Challenge layout, and raycasting."""
 
-    def __init__(self, corridor_widths_m: dict[Section, float]) -> None:
-        """Build the wall layout from per-side corridor widths.
+    def __init__(self, geometry: CorridorGeometry | dict[Section, float]) -> None:
+        """Build the wall layout from corridor geometry.
 
         Args:
-            corridor_widths_m: Navigable corridor width (metres) for each of the
-                four sections, e.g. ``{Section.SOUTH: 0.6, ...}``.
+            geometry: Complete corridor layout including widths and inner block.
+                Also accepts ``dict[Section, float]`` for backward compatibility.
         """
-        south_y = corridor_widths_m[Section.SOUTH]
-        north_y = _TRACK_MAX - corridor_widths_m[Section.NORTH]
-        west_x = corridor_widths_m[Section.WEST]
-        east_x = _TRACK_MAX - corridor_widths_m[Section.EAST]
-        self.inner_block = InnerBlock(west_x, south_y, east_x, north_y)
+        if isinstance(geometry, dict):
+            geometry = corridor_geometry_from_widths(geometry)
+        self.inner_block = geometry.inner_block
 
         self._segments = self._build_segments(self.inner_block)
         # Pre-stack segment endpoints for vectorised raycasting.

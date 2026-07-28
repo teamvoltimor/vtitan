@@ -1,0 +1,12 @@
+# BNO08x IMU over plain UART RVC -- src/hardware/imu/bno08x/uart_rvc.py
+# port has no default -- device path stays in .env (BNO08X_UART_RVC_PORT),
+# required exactly as before this migration.
+
+baudrate = 115200
+poll_rate_hz = 100.0
+
+[quaternion]
+euler_sequence = "xyz"
+negate_yaw = true
+negate_pitch = false
+negate_roll = true

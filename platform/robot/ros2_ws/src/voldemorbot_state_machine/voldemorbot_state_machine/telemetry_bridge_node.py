@@ -10,23 +10,40 @@ from dataclasses import asdict, dataclass
 from http import HTTPStatus
 from typing import Any
 
+import numpy as np
 import rclpy
 import requests
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.coordinate_transform import quaternion_to_yaw
+from shared.domain.models import LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
 from vision_msgs.msg import Detection2DArray
+
+from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
 
 _BACKOFF_INITIAL = 1.0
 _BACKOFF_MAX = 60.0
 
 _MIN_TIMESTAMPS_FOR_RATE = 2
 """Minimum tracked timestamps needed to compute a topic update rate."""
+
+# Matches state_machine_node's _QOS_TRANSIENT: both nodes publish to
+# /system_status, so a subscriber (the OLED) needs both durability-compatible
+# to receive from either -- a VOLATILE publisher on this side previously
+# forced the subscriber to also stay VOLATILE, which meant it could never get
+# the latched current value from a fresh state_machine_node instance after a
+# Pi 5 restart until the next periodic publish (if the restarted node's
+# instance even re-matched the long-running subscriber at all).
+_QOS_SYSTEM_STATUS = QoSProfile(
+    depth=1,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+)
 
 _MIN_POINTS_FOR_FORWARD_WINDOW = 20
 """Minimum LIDAR points needed to safely slice the +/-10-index forward window."""
@@ -37,16 +54,13 @@ _MIN_POINTS_FOR_SIDE_WINDOW = 4
 _MIN_POINTS_FOR_BACK_WINDOW = 16
 """Minimum LIDAR points needed to safely slice the n/8 back window."""
 
-_MIN_VALID_LIDAR_RANGE_M = 0.01
-"""LIDAR ranges at or below this are treated as invalid (no-return) readings.
+_OLED_SECTOR_HALF_FOV_RAD = math.radians(30)
+"""Half-width of each front/left/right sector fed to the OLED summary.
 
-Relocated verbatim from oled_display_node.py, which used to compute this
-itself from the raw /scan topic. That direct subscription (along with
-/imu/data and /hailo/detections) got replaced by this node publishing a
-single low-rate /ui/telemetry_summary instead -- the Pi Zero's USB-gadget
-link and single weak core were paying for the full sensor-rate traffic to
-feed a 128x64 display that only ever samples it a couple times a second.
-"""
+Matches compute_forward_clearance's own forward cone width, for consistency
+across the two sectors that both use a mean (this is a display readout, not
+a threat gate like detect_threat_direction's narrower, min-based +/-45 deg
+sectors)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +74,7 @@ class _IMUPayload:
 
 @dataclass(frozen=True, slots=True)
 class _MotorStatePayload:
-    """Motor-state section of a RobotSnapshot."""
+    """Serialization DTO matching the backend camelCase contract."""
 
     steeringAngle: float
     driveSpeed: float
@@ -163,31 +177,37 @@ class RosMsgType:
     DETECTION_2D_ARRAY = "vision_msgs/Detection2DArray"
 
 
-def _lidar_clearances_cm(ranges: list[float]) -> tuple[float, float, float]:
-    """Front/left/right clearances in cm for the OLED's RACING page.
+def _lidar_clearances(ranges: list[float]) -> LidarClearances:
+    """Directional LIDAR clearances in meters for the OLED's RACING page.
 
-    Relocated verbatim from oled_display_node.py's old _lidar_callback --
-    deliberately a different windowing scheme than _build_metrics' own
-    forward/left/right/back calc below (different indices, meters not cm,
-    different consumer). Don't merge the two.
+    Reuses CollisionAvoidanceController's real angle-based sector logic
+    (the same one detect_threat_direction/compute_forward_clearance use for
+    actual collision avoidance) instead of the old min-of-raw-index-window
+    approach -- that one had no self-detection filtering and took the single
+    minimum reading in each window, so one stray noisy return (dust, an edge
+    reflection) could dominate the whole sector and made the display jump to
+    a nonsense 2-3cm reading. Mean-over-sector, like
+    compute_forward_clearance, is far less sensitive to a single outlier.
+    lidar_angles=None synthesizes a full [-pi, pi) sweep the same way the
+    old windowing implicitly assumed -- this doesn't touch the LIDAR's known
+    180-degree mount offset, only how each sector's readings get aggregated.
     """
-    num_points = len(ranges)
-    if num_points == 0:
-        return 0.0, 0.0, 0.0
+    if len(ranges) == 0:
+        return LidarClearances(front_m=0.0, left_m=0.0, right_m=0.0)
 
-    front_indices = range(num_points // 2 - 20, num_points // 2 + 20)
-    front_ranges = [ranges[i] for i in front_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
-    front = min(front_ranges) * 100 if front_ranges else 0.0
+    front = CollisionAvoidanceController._sector_ranges(ranges, None, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
+    left = CollisionAvoidanceController._sector_ranges(
+        ranges, None, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+    )
+    right = CollisionAvoidanceController._sector_ranges(
+        ranges, None, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+    )
 
-    left_indices = range(num_points // 4, num_points // 3)
-    left_ranges = [ranges[i] for i in left_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
-    left = min(left_ranges) * 100 if left_ranges else 0.0
-
-    right_indices = range(2 * num_points // 3, 3 * num_points // 4)
-    right_ranges = [ranges[i] for i in right_indices if 0 <= i < num_points and ranges[i] > _MIN_VALID_LIDAR_RANGE_M]
-    right = min(right_ranges) * 100 if right_ranges else 0.0
-
-    return front, left, right
+    return LidarClearances(
+        front_m=float(np.mean(front)) if front.size else 0.0,
+        left_m=float(np.mean(left)) if left.size else 0.0,
+        right_m=float(np.mean(right)) if right.size else 0.0,
+    )
 
 
 def _best_detection(msg: Detection2DArray) -> tuple[str, float] | None:
@@ -228,10 +248,12 @@ class TelemetryBridgeNode(Node):
         self.declare_parameter("max_path_history", 120)
         # Independent from publish_rate_hz above: that one drives the HTTP
         # POST to the backend over WiFi/LAN. This one drives a small JSON
-        # blob to the Pi Zero over the USB-gadget link -- a 128x64 display
-        # doesn't need fresher-than-2Hz numbers, and keeping it decoupled
-        # means tuning one doesn't silently affect the other.
-        self.declare_parameter("ui_summary_rate_hz", 2.0)
+        # blob to the Pi Zero over the USB-gadget link, kept decoupled so
+        # tuning one doesn't silently affect the other. Matched to the OLED's
+        # own 10Hz redraw rate -- the USB-gadget link and message size (a few
+        # hundred bytes) have plenty of headroom at 10Hz; a lower rate here
+        # was just making every other redraw show stale numbers.
+        self.declare_parameter("ui_summary_rate_hz", 10.0)
 
         self._backend_url = self.get_parameter("backend_url").value
         self._rate = self.get_parameter("publish_rate_hz").value
@@ -269,7 +291,7 @@ class TelemetryBridgeNode(Node):
         self._logs: deque = deque(maxlen=10)
 
         # Backend-status publisher (reuses system_status topic).
-        self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", 10)
+        self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", _QOS_SYSTEM_STATUS)
 
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
         # the only sensor telemetry it needs, so it doesn't have to
@@ -431,7 +453,10 @@ class TelemetryBridgeNode(Node):
         """
         front = left = right = 0.0
         if self._latest_scan is not None:
-            front, left, right = _lidar_clearances_cm(self._latest_scan.ranges)
+            c = _lidar_clearances(self._latest_scan.ranges)
+            front = c.front_m * 100
+            left = c.left_m * 100
+            right = c.right_m * 100
 
         yaw = 0.0
         if self._latest_imu is not None:
@@ -501,10 +526,16 @@ class TelemetryBridgeNode(Node):
         # Motor state
         motor_state: _MotorStatePayload | None = None
         if self._latest_joints and self._latest_cmd_vel:
+            motor_snapshot = MotorStateSnapshot(
+                steering_angle_deg=float(self._latest_joints.position[0]) if len(self._latest_joints.position) > 0 else 0.0,
+                drive_speed=self._latest_cmd_vel.linear.x,
+                encoder_position=int(self._latest_joints.position[1]) if len(self._latest_joints.position) > 1 else 0,
+                timestamp=timestamp,
+            )
             motor_state = _MotorStatePayload(
-                steeringAngle=self._latest_joints.position[0] if len(self._latest_joints.position) > 0 else 0.0,
-                driveSpeed=self._latest_cmd_vel.linear.x,
-                encoderPosition=int(self._latest_joints.position[1]) if len(self._latest_joints.position) > 1 else 0,
+                steeringAngle=motor_snapshot.steering_angle_deg,
+                driveSpeed=motor_snapshot.drive_speed,
+                encoderPosition=motor_snapshot.encoder_position,
             )
 
         # Vision detections

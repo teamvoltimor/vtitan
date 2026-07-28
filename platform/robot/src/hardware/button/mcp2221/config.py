@@ -1,11 +1,12 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from src.hardware.button.config import Config as ButtonBaseConfig
 from src.hardware.mcp2221.config import MCP2221Config
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for MCP2221A button driver."""
 
     model_config = SettingsConfigDict(
@@ -13,6 +14,7 @@ class Config(BaseSettings):
         # "__" so nested leaves with underscores parse, e.g.
         # BUTTON__PULL_UP -> button.pull_up, MCP2221__VID -> mcp2221.vid.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "button" / "mcp2221.toml",
     )
 
     mcp2221: MCP2221Config = Field(default_factory=MCP2221Config)

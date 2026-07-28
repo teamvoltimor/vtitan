@@ -1,0 +1,14 @@
+# VisionNode ROS2 parameter fallback defaults -- src/ros2/vision/node.py
+# rpi5_nodes.launch.py overrides backend/model_path/camera_source/
+# publish_annotated/publish_raw at launch time via ROS2 parameters; these are
+# only the defaults used when a node is launched with no overrides.
+
+camera_topic = "/camera/image_raw"
+detections_topic = "/vision/detections"
+model_path = "yolov8n.pt"
+backend = "yolo"
+camera_source = "topic"
+capture_fps = 15.0
+publish_annotated = false
+annotated_topic = "/vision/image_annotated"
+publish_raw = false
