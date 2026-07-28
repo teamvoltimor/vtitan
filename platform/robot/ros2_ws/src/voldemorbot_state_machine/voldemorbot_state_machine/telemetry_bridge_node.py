@@ -41,10 +41,19 @@ _MIN_TIMESTAMPS_FOR_RATE = 2
 # the latched current value from a fresh state_machine_node instance after a
 # Pi 5 restart until the next periodic publish (if the restarted node's
 # instance even re-matched the long-running subscriber at all).
+#
+# BEST_EFFORT (not RELIABLE), same reasoning as state_machine_node's
+# _QOS_TRANSIENT: a RELIABLE publish() blocks on a slow/overloaded reader,
+# which the Pi Zero's oled_display_node was measured doing for 30+ seconds
+# at a time. This publisher's own update (backend connect/disconnect) isn't
+# periodic like state_machine_node's diagnostics, so a dropped sample here
+# persists until the next connect/disconnect event -- acceptable for a
+# secondary status field, and the subscriber has to match this publisher's
+# reliability regardless since both write to the same topic.
 _QOS_SYSTEM_STATUS = QoSProfile(
     depth=1,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.RELIABLE,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
 )
 
 # BEST_EFFORT so a slow/overloaded subscriber (the Pi Zero) can never make

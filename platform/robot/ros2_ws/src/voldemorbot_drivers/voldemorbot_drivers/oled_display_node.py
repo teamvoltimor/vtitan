@@ -122,7 +122,7 @@ these are the normal case, not a fault worth a line on a 128x64 display.
 
 _QOS_LATCHED = QoSProfile(
     depth=1,
-    reliability=QoSReliabilityPolicy.RELIABLE,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
 """Matches state_machine_node's latched publishers.
@@ -130,7 +130,17 @@ _QOS_LATCHED = QoSProfile(
 The display is a late subscriber by nature -- it lives on the Pi Zero and is
 restarted independently of the Pi 5 -- so it has to request the latched value
 rather than wait for the next transition, which may be minutes away or may
-already have happened.
+already have happened. TRANSIENT_LOCAL durability covers that.
+
+Reliability is BEST_EFFORT, not RELIABLE, on purpose (as of 2026-07-28): a
+RELIABLE publisher blocks its own publish() call until this reader acks, and
+this board was measured stalling for 30+ seconds under its own CPU/memory
+contention -- which was blocking state_machine_node's /robot_state publish()
+on the Pi 5 right along with it, the direct cause of the OLED being seen
+stuck on a stale BOOT_CHECK page well after the robot had actually reached
+READY. A RELIABLE publisher is required to match a RELIABLE subscriber
+exactly (durability may only be offered >=, reliability must match), so this
+side has to drop to BEST_EFFORT too, not just tolerate it.
 """
 
 _QOS_UI_SUMMARY = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)

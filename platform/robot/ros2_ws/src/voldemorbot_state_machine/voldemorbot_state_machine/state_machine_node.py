@@ -55,11 +55,24 @@ from src.state_machine import (
     SystemStatus,
 )
 
-# Latched QoS for state/diagnostics — late-joining nodes see the last value immediately.
+# Latched QoS for state/diagnostics — late-joining nodes see the last value
+# immediately (TRANSIENT_LOCAL durability). Reliability is BEST_EFFORT, not
+# RELIABLE, on purpose: RELIABLE's flow control holds a writer's publish()
+# call until the matched reader acks, and the Pi Zero's oled_display_node --
+# the only subscriber to either of these topics -- was measured stalling for
+# 30+ seconds under its own CPU/memory contention (see
+# telemetry_bridge_node.py's _QOS_UI_SUMMARY for the full story). A RELIABLE
+# /robot_state publisher would block this node's publish() for the same
+# duration, which is exactly why the OLED was seen stuck on a stale
+# BOOT_CHECK page well after the real state had moved on to READY. This is
+# safe to drop reliability on: _publish_state runs every tick of
+# _state_machine_loop (publisher_rate_hz, not just on transitions), so a
+# single dropped sample is corrected within one tick, not lost until the
+# next real transition.
 _QOS_TRANSIENT = QoSProfile(
     depth=1,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.RELIABLE,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
 )
 
 # Reliable + 200 ms deadline for motor commands — missed deadlines surface as warnings.
