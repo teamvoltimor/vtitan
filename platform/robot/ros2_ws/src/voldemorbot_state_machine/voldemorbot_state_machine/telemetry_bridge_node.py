@@ -47,6 +47,18 @@ _QOS_SYSTEM_STATUS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
 )
 
+# BEST_EFFORT so a slow/overloaded subscriber (the Pi Zero) can never make
+# this publisher's own .publish() call block. RELIABLE's flow control will
+# hold a writer's publish() until the reader acks or drops out -- confirmed
+# on hardware: with the Pi Zero's oled_display_node occasionally taking
+# 30+ seconds to keep up (I2C write stalls under CPU/memory contention on
+# that board), this node's own publish() blocked for the same duration,
+# stalling its entire single-threaded executor (every sensor callback and
+# the backend-telemetry timer) right along with it. A dropped summary
+# frame just means the OLED holds its last value one tick longer -- far
+# better than dragging this node's whole pipeline down with it.
+_QOS_UI_SUMMARY = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
+
 _MIN_POINTS_FOR_FORWARD_WINDOW = 20
 """Minimum LIDAR points needed to safely slice the +/-10-index forward window."""
 
@@ -316,7 +328,7 @@ class TelemetryBridgeNode(Node):
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
         # the only sensor telemetry it needs, so it doesn't have to
         # subscribe to /scan, /imu/data and /hailo/detections directly.
-        self._ui_summary_pub = self.create_publisher(String, "/ui/telemetry_summary", 10)
+        self._ui_summary_pub = self.create_publisher(String, "/ui/telemetry_summary", _QOS_UI_SUMMARY)
 
         # HTTP: single session for connection pooling; backoff state.
         self._session = requests.Session()
@@ -333,6 +345,9 @@ class TelemetryBridgeNode(Node):
         # multi-second freezes traced back to this.
         self._http_executor = ThreadPoolExecutor(max_workers=1)
         self._telemetry_post_in_flight = False
+
+        # TEMP DIAGNOSTIC (2026-07-28): see _publish_ui_summary.
+        self._last_ui_summary_publish_time: float | None = None
 
         # Timer for publishing
         self.create_timer(1.0 / self._rate, self._publish_telemetry)
@@ -444,6 +459,13 @@ class TelemetryBridgeNode(Node):
         network call itself runs on _http_executor so a slow/hung backend
         can never stall this node's own callback processing.
         """
+        # TEMP DIAGNOSTIC (2026-07-28): time each step of this callback's
+        # synchronous portion -- this node runs on a plain rclpy.spin()
+        # (single-threaded executor), so if ANY of these takes seconds, it
+        # blocks _publish_ui_summary's timer right along with it (both share
+        # the one thread/default callback group). Remove once root-caused.
+        t0 = time.monotonic()
+
         now = time.monotonic()
         if self._backend_down and now < self._next_retry_time:
             return
@@ -452,12 +474,24 @@ class TelemetryBridgeNode(Node):
             # skip this tick rather than queue up a second one behind it.
             return
 
+        t1 = time.monotonic()
         snapshot = self._build_snapshot()
+        t2 = time.monotonic()
         topics_snapshot = self._build_topics_snapshot()
+        t3 = time.monotonic()
 
         self._telemetry_post_in_flight = True
         future = self._http_executor.submit(self._post_telemetry, snapshot, topics_snapshot)
         future.add_done_callback(self._on_telemetry_posted)
+        t4 = time.monotonic()
+
+        total = t4 - t0
+        if total > 0.3:
+            self.get_logger().warning(
+                f"[DIAG] _publish_telemetry took {total:.2f}s "
+                f"(pre-check={t1 - t0:.2f}s build_snapshot={t2 - t1:.2f}s "
+                f"build_topics={t3 - t2:.2f}s submit={t4 - t3:.2f}s)",
+            )
 
     def _post_telemetry(self, snapshot: RobotSnapshot, topics_snapshot: TopicsSnapshot) -> None:
         """Runs on the HTTP worker thread -- the two blocking POSTs live here."""
@@ -515,20 +549,36 @@ class TelemetryBridgeNode(Node):
         like /race_metrics, and the bandwidth cost of a ~150-byte JSON blob
         at 2Hz is negligible even while idle.
         """
+        # TEMP DIAGNOSTIC (2026-07-28): pin down whether reported 1-2s OLED
+        # freezes originate in this node's own publish cadence (this would
+        # show it), in transit, or in the Pi Zero's render path (see
+        # oled_display_node.py's matching instrumentation). Remove once
+        # root-caused.
+        now_monotonic = time.monotonic()
+        if self._last_ui_summary_publish_time is not None:
+            gap = now_monotonic - self._last_ui_summary_publish_time
+            if gap > 0.5:
+                self.get_logger().warning(f"[DIAG] ui_summary publish gap: {gap:.2f}s (expected ~0.1s)")
+        self._last_ui_summary_publish_time = now_monotonic
+
+        d0 = time.monotonic()
         front = left = right = 0.0
         if self._latest_scan is not None:
             c = _lidar_clearances(self._latest_scan.ranges)
             front = c.front_m * 100
             left = c.left_m * 100
             right = c.right_m * 100
+        d1 = time.monotonic()
 
         yaw = 0.0
         if self._latest_imu is not None:
             q = self._latest_imu.orientation
             yaw = math.degrees(self._quaternion_to_yaw(q.x, q.y, q.z, q.w))
+        d2 = time.monotonic()
 
         detection = _best_detection(self._latest_vision) if self._latest_vision is not None else None
         class_id, confidence = detection if detection is not None else (None, None)
+        d3 = time.monotonic()
 
         msg = String()
         msg.data = json.dumps(
@@ -542,6 +592,20 @@ class TelemetryBridgeNode(Node):
             },
         )
         self._ui_summary_pub.publish(msg)
+        d4 = time.monotonic()
+
+        # TEMP DIAGNOSTIC (2026-07-28): times this function's OWN body, not
+        # just the gap before it -- the gap-only measurement above can't
+        # tell "the timer fired late" apart from "the previous invocation
+        # itself took several seconds to return" (the next tick's measured
+        # gap includes that time either way). Remove once root-caused.
+        own_total = d4 - d0
+        if own_total > 0.3:
+            self.get_logger().warning(
+                f"[DIAG] _publish_ui_summary body took {own_total:.2f}s "
+                f"(lidar_clearances={d1 - d0:.2f}s imu_yaw={d2 - d1:.2f}s "
+                f"best_detection={d3 - d2:.2f}s json+publish={d4 - d3:.2f}s)",
+            )
 
     def _build_snapshot(self) -> RobotSnapshot:
         """Build RobotSnapshot dict from latest sensor data."""

@@ -22,6 +22,7 @@ Topics:
 from __future__ import annotations
 
 import json
+import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, override
 
@@ -132,6 +133,15 @@ rather than wait for the next transition, which may be minutes away or may
 already have happened.
 """
 
+_QOS_UI_SUMMARY = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
+"""Matches telemetry_bridge_node's publisher: BEST_EFFORT so a slow frame on
+this board (I2C write stalls under CPU/memory contention -- see
+telemetry_bridge_node.py's _QOS_UI_SUMMARY for the full story) can never
+make that publisher's own .publish() call block and stall its whole
+pipeline. A RELIABLE subscriber cannot receive from a BEST_EFFORT
+publisher at all, so this side has to match, not just be compatible.
+"""
+
 _DEG_PER_REV = 360.0
 """/motor/drive_speed reports the wheel's angular speed in degrees/s (from real
 encoder feedback, see dc_encoder/driver.py's get_drive_speed()) -- rev/s is
@@ -203,6 +213,9 @@ class OLEDDisplayNode(LifecycleNode):
         """(class_id, confidence) of the detection scoring highest on
         confidence x bbox area, or None with no current detections."""
 
+        # TEMP DIAGNOSTIC (2026-07-28): see _ui_summary_callback.
+        self._last_ui_summary_receive_time: float | None = None
+
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Connect the display driver and create the publisher/subscribers."""
@@ -251,7 +264,7 @@ class OLEDDisplayNode(LifecycleNode):
             String,
             "/ui/telemetry_summary",
             self._ui_summary_callback,
-            10,
+            _QOS_UI_SUMMARY,
         )
         # ackermann_motor_node runs on this same board -- default (reliable,
         # volatile) QoS matches its create_lifecycle_publisher(..., 10) calls.
@@ -376,6 +389,18 @@ class OLEDDisplayNode(LifecycleNode):
         times a second, and were suspected (confirmed live on hardware) of
         starving on the Zero's single weak core.
         """
+        # TEMP DIAGNOSTIC (2026-07-28): pin down whether reported 1-2s OLED
+        # freezes originate in telemetry_bridge_node's publish cadence (its
+        # own matching instrumentation would show that), in transit over the
+        # USB-gadget link, or in this node's own render path (see
+        # _update_display's timing below). Remove once root-caused.
+        now_monotonic = time.monotonic()
+        if self._last_ui_summary_receive_time is not None:
+            gap = now_monotonic - self._last_ui_summary_receive_time
+            if gap > 0.5:
+                self.get_logger().warning(f"[DIAG] ui_summary receive gap: {gap:.2f}s (expected ~0.1s)")
+        self._last_ui_summary_receive_time = now_monotonic
+
         with suppress(json.JSONDecodeError):
             data = json.loads(msg.data)
             self.lidar_front = data.get("lidar_front_cm", self.lidar_front)
@@ -413,7 +438,15 @@ class OLEDDisplayNode(LifecycleNode):
             image = self.display_driver.get_blank_image()
 
         # Display on OLED
+        # TEMP DIAGNOSTIC (2026-07-28): see _ui_summary_callback -- times the
+        # actual I2C write (raw_i2c backend: 32 sequential blocking
+        # os.write() calls per frame, previously measured close to this
+        # timer's own ~100ms period). Remove once root-caused.
+        write_start = time.monotonic()
         self.display_driver.show_image(image)
+        write_duration = time.monotonic() - write_start
+        if write_duration > 0.3:
+            self.get_logger().warning(f"[DIAG] show_image took {write_duration:.2f}s (expected ~0.1s)")
 
         # Publish mirror for remote viewing
         self._publish_mirror_image(image)
