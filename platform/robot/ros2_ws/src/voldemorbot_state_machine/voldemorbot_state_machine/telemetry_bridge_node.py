@@ -372,6 +372,20 @@ class TelemetryBridgeNode(Node):
         self._update_raw_topic(RosTopic.HAILO_DETECTIONS, RosMsgType.DETECTION_2D_ARRAY, msg)
 
     def _update_raw_topic(self, topic_name: str, msg_type: str, msg: object) -> None:
+        """Track a topic's freshness/rate and snapshot it for the backend POST.
+
+        Exists solely to feed _build_topics_snapshot -> the backend's
+        /telemetry/topics/update -- nothing else reads _topic_updates. With
+        no backend to send it to, _msg_to_dict's recursive __slots__ walk
+        (list-copying a LaserScan's 720+ ranges, at 10Hz, on every sensor
+        callback) was pure wasted CPU sitting directly in this node's
+        single-threaded executor's hot path -- exactly where a momentary
+        backlog can make BEST_EFFORT/shallow-KEEP_LAST silently drop the
+        next inbound /scan sample instead of the OLED ever seeing it.
+        """
+        if self._backend_down:
+            return
+
         current_time = time.time()
 
         if topic_name not in self._topic_timestamps:
