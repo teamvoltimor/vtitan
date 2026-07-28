@@ -154,13 +154,31 @@ class TestChallengeModeDetection:
         assert node.target_laps == CompetitionSpecs.OPEN_CHALLENGE_LAPS
         node.destroy_node()
 
-    def test_bouncing_reading_never_resolves(self, ros_context, state_machine_node_class):
+    def test_bouncing_reading_does_not_resolve_before_timeout(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
         for inserted in (True, False, True, False, True, False):
             _publish_jumper(node, inserted=inserted)
             node._sample_challenge_mode()
 
         assert node.challenge_mode is None
+        node.destroy_node()
+
+    def test_bouncing_reading_times_out_to_open_challenge(self, ros_context, state_machine_node_class, monkeypatch):
+        """A jumper that never settles must eventually fall back rather than block BOOT_CHECK forever.
+
+        A floating (open) pin is weakly pulled up and far more noise-susceptible
+        than a solid short to GND, so persistent bounce shows up specifically
+        when the jumper is absent -- exactly the case this fallback covers.
+        """
+        node = state_machine_node_class()
+        monkeypatch.setattr(node, "_challenge_mode_timed_out", lambda: True)
+
+        for inserted in (True, False, True):
+            _publish_jumper(node, inserted=inserted)
+            node._sample_challenge_mode()
+
+        assert node.challenge_mode == ScenarioType.OPEN
+        assert node._challenge_mode_error is not None
         node.destroy_node()
 
     def test_explicit_target_laps_param_is_not_overridden_by_detection(self, ros_context, state_machine_node_class):

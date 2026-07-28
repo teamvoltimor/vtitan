@@ -8,9 +8,9 @@ from typing import override
 
 import serial
 import serial.tools.list_ports
-from adafruit_bno08x_rvc import BNO08x_RVC
+from adafruit_bno08x_rvc import BNO08x_RVC, RVCReadTimeoutError
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from src.hardware.imu.base import (
     RVCDriver as ABC_RVCDriver,
@@ -18,6 +18,7 @@ from src.hardware.imu.base import (
 from src.hardware.imu.bno08x.utils import calculate_quaternion_from_euler
 from src.hardware.imu.config import QuaternionConfig
 from src.hardware.imu.readings import RVCReading
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
 configure_json_logging()
@@ -29,7 +30,7 @@ DATA_LOCK_TIMEOUT = 2.0
 """Timeout in seconds for waiting on new data to be available"""
 
 
-class Config(BaseSettings):
+class Config(HardwareBaseSettings):
     """Configuration for BNO08x via UART RVC."""
 
     model_config = SettingsConfigDict(
@@ -37,6 +38,7 @@ class Config(BaseSettings):
         # "__" so nested leaves with underscores parse, e.g.
         # BNO08X_UART_RVC_QUATERNION__NEGATE_YAW -> quaternion.negate_yaw.
         env_nested_delimiter="__",
+        toml_file=CONFIG_DIR / "imu" / "bno08x_uart_rvc.toml",
     )
 
     # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory
@@ -124,7 +126,7 @@ class Driver(ABC_RVCDriver):
         """Background polling loop."""
         interval = 1.0 / self.config.poll_rate_hz
 
-        while self._running:
+        while self._running.locked():
             try:
                 # The adafruit_bno08x_rvc library does not have a built-in method to check if new data is available,
                 # so we will just read the latest heading data on each loop iteration. This may not be the most efficient approach,
@@ -151,7 +153,12 @@ class Driver(ABC_RVCDriver):
                     ),
                 )
                 self._data_lock.set()  # Signal that new data is available
-            except (OSError, ValueError, AttributeError) as e:
+            except (OSError, ValueError, AttributeError, RVCReadTimeoutError) as e:
+                # A read timeout is a transient serial hiccup, not a dead
+                # connection -- previously uncaught, it silently killed this
+                # daemon thread on the first bad read and _latest_data froze
+                # forever with nothing left to log the failure past a stray
+                # traceback from Python's default thread excepthook.
                 self.logger.warning("Polling error", extra={"error": str(e)})
             time.sleep(interval)
 

@@ -169,6 +169,27 @@ class TestSelfDetectionFilter:
         assert controller.detect_threat_direction(ranges, ANGLES) == "front"
 
 
+class TestNoReturnRaysExcluded:
+    """A single no-return (+inf, beyond LIDAR max range) ray inside a sector
+    must not poison that sector's mean/min/max to infinity -- a real 360 deg
+    scan routinely has scattered no-return rays, and every sector consumer
+    (the OLED's displayed clearance, detect_threat_direction, K-turn side
+    selection) reads mean_range_m/min_range_m as a real distance.
+    """
+
+    def test_forward_clearance_ignores_a_stray_no_return_ray(self, controller):
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i] = np.inf  # one no-return ray inside the forward sector
+        clearance = controller.compute_forward_clearance(ranges, ANGLES)
+        assert math.isfinite(clearance)
+        assert clearance == pytest.approx(LIDAR_DEFAULT_FAR)
+
+    def test_forward_clearance_all_no_return_falls_back_to_default(self, controller):
+        ranges = np.full(NUM_RAYS, np.inf)
+        assert controller.compute_forward_clearance(ranges, ANGLES) == 10.0
+
+
 class TestForwardPathRisk:
     """Risk is judged over the forward driving lane, not the full 360 sweep.
 

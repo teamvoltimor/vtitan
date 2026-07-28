@@ -365,8 +365,14 @@ class StateMachineNode(Node):
         be selected.
 
         Disagreeing samples (bounce/intermittent contact) clear progress and
-        keep BOOT_CHECK waiting rather than guessing a mode. If the Zero never
-        publishes at all, ``_challenge_mode_timed_out`` falls back to Open.
+        keep BOOT_CHECK waiting rather than guessing a mode -- unless that
+        bounce never settles, in which case ``_challenge_mode_timed_out``
+        falls back to Open the same way it does when the Zero never
+        publishes at all. A floating (open) pin is weakly pulled up and far
+        more noise-susceptible than a solid short to GND, so persistent
+        bounce shows up specifically when the jumper is absent -- without
+        this fallback BOOT_CHECK could wait on 3 consecutive agreeing
+        samples forever and the robot would never reach READY.
         """
         if self.is_simulation or self.challenge_mode is not None:
             return
@@ -386,6 +392,8 @@ class StateMachineNode(Node):
             len(self._challenge_mode_samples) < _CHALLENGE_MODE_SAMPLES_REQUIRED
             or len(set(self._challenge_mode_samples)) != 1
         ):
+            if self._challenge_mode_timed_out():
+                self._latch_challenge_mode(inserted=False, reason="jumper reading never stabilized (bounce/noise)")
             return
 
         self._latch_challenge_mode(inserted=inserted)
