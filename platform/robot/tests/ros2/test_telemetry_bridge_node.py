@@ -50,19 +50,25 @@ def _detection(class_id: str, score: float, size_x: float, size_y: float) -> Det
     return det
 
 
+def _window(center_idx: int, half_width: int, n: int) -> range:
+    """Indices in ``[center_idx - half_width, center_idx + half_width)``, wrapped mod n."""
+    return (i % n for i in range(center_idx - half_width, center_idx + half_width))
+
+
 class TestLidarClearancesCm:
     """Ported from oled_display_node's now-deleted _lidar_callback tests -- same logic, relocated."""
 
-    # With lidar_angles=None, angles are synthesized as linspace(-pi, pi, n,
-    # endpoint=False) -- 0.5deg/index at n=720. Front sits at index n/2
-    # (angle 0), left at 3n/4 (+90deg), right at n/4 (-90deg). The real sector
-    # is +/-30deg, i.e. +/-60 index -- a +/-62-index window fully covers it
-    # (with a hair of margin) so the mean isn't diluted by the background
-    # value at the edges.
+    # angles = linspace(-pi, pi, n, endpoint=False) + _LIDAR_YAW_OFFSET_RAD
+    # (180deg, the C1's mount offset) -- 0.5deg/index at n=720. Since the
+    # offset is exactly pi, corrected_angle(i) = i * (2*pi/n) exactly: front
+    # sits at index 0 (angle 0, wrapping through n-1), left at n/4 (+90deg),
+    # right at 3n/4 (-90deg). The real sector is +/-30deg, i.e. +/-60 index --
+    # a +/-62-index window fully covers it (with a hair of margin) so the
+    # mean isn't diluted by the background value at the edges.
     def test_front_is_mean_over_the_forward_sector(self, bridge_module):
         n = 720
         ranges = [10.0] * n
-        for i in range(n // 2 - 62, n // 2 + 62):
+        for i in _window(0, 62, n):
             ranges[i] = 0.5
 
         c = bridge_module._lidar_clearances(ranges)
@@ -72,7 +78,7 @@ class TestLidarClearancesCm:
     def test_left_is_mean_over_the_plus_90_sector(self, bridge_module):
         n = 720
         ranges = [10.0] * n
-        for i in range(3 * n // 4 - 62, 3 * n // 4 + 62):
+        for i in _window(n // 4, 62, n):
             ranges[i] = 1.5
 
         c = bridge_module._lidar_clearances(ranges)
@@ -82,7 +88,7 @@ class TestLidarClearancesCm:
     def test_right_is_mean_over_the_minus_90_sector(self, bridge_module):
         n = 720
         ranges = [10.0] * n
-        for i in range(n // 4 - 62, n // 4 + 62):
+        for i in _window(3 * n // 4, 62, n):
             ranges[i] = 0.3
 
         c = bridge_module._lidar_clearances(ranges)
@@ -93,7 +99,7 @@ class TestLidarClearancesCm:
         """The old min-based approach let one stray point dominate a whole sector -- mean shouldn't."""
         n = 720
         ranges = [1.0] * n
-        ranges[n // 2] = 0.02  # one spurious near-range return, dead ahead
+        ranges[0] = 0.02  # one spurious near-range return, dead ahead
 
         c = bridge_module._lidar_clearances(ranges)
 
@@ -103,11 +109,11 @@ class TestLidarClearancesCm:
         """Front must still register a genuine near-contact; sides discard chassis self-reflection."""
         n = 720
         ranges = [10.0] * n
-        for i in range(n // 2 - 62, n // 2 + 62):
+        for i in _window(0, 62, n):
             ranges[i] = 0.02  # inside LIDAR_SELF_DETECTION_THRESHOLD (0.08m)
-        for i in range(3 * n // 4 - 62, 3 * n // 4 + 62):
+        for i in _window(n // 4, 62, n):
             ranges[i] = 0.02
-        for i in range(n // 4 - 62, n // 4 + 62):
+        for i in _window(3 * n // 4, 62, n):
             ranges[i] = 0.02
 
         c = bridge_module._lidar_clearances(ranges)
@@ -171,7 +177,7 @@ class TestPublishUiSummary:
     def test_publishes_cached_scan_and_imu_and_vision(self, ros_context, bridge_node):
         n = 720
         ranges = [10.0] * n
-        for i in range(n // 2 - 62, n // 2 + 62):
+        for i in _window(0, 62, n):
             ranges[i] = 0.186
         scan = LaserScan()
         scan.ranges = ranges
@@ -223,7 +229,7 @@ class TestUiSummaryRoundTripsWithOledNode:
 
         n = 720
         ranges = [10.0] * n
-        for i in range(n // 2 - 62, n // 2 + 62):
+        for i in _window(0, 62, n):
             ranges[i] = 0.186
         scan = LaserScan()
         scan.ranges = ranges

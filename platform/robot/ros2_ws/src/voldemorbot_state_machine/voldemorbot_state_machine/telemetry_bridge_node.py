@@ -19,6 +19,7 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
+from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.domain.models import LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
@@ -177,6 +178,18 @@ class RosMsgType:
     DETECTION_2D_ARRAY = "vision_msgs/Detection2DArray"
 
 
+_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+"""Rotates raw /scan bearings into the robot frame (0 rad = forward).
+
+The C1 is mounted inverted, so its raw angle-zero points opposite
+robot-front (confirmed empirically: the open-space/robot-front sector
+lands at +-180 deg in raw /scan data, not 0 deg). Matches the
+correction ros2/navigation/node.py applies when building LidarScan for
+the real collision-avoidance path -- see that module's docstring for
+the same constant.
+"""
+
+
 def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     """Directional LIDAR clearances in meters for the OLED's RACING page.
 
@@ -188,19 +201,25 @@ def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     reflection) could dominate the whole sector and made the display jump to
     a nonsense 2-3cm reading. Mean-over-sector, like
     compute_forward_clearance, is far less sensitive to a single outlier.
-    lidar_angles=None synthesizes a full [-pi, pi) sweep the same way the
-    old windowing implicitly assumed -- this doesn't touch the LIDAR's known
-    180-degree mount offset, only how each sector's readings get aggregated.
+
+    Passes explicit robot-frame angles (raw sweep + _LIDAR_YAW_OFFSET_RAD)
+    rather than lidar_angles=None: the naive synthesized sweep assumed
+    raw index 0 was already robot-front, but the C1's mount offset means
+    it isn't -- previously left the display's front/left/right all
+    rotated 180 deg out from reality (front showing rear's clearance,
+    left and right swapped).
     """
     if len(ranges) == 0:
         return LidarClearances(front_m=0.0, left_m=0.0, right_m=0.0)
 
-    front = CollisionAvoidanceController._sector_ranges(ranges, None, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
+    angles = np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD
+
+    front = CollisionAvoidanceController._sector_ranges(ranges, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
     left = CollisionAvoidanceController._sector_ranges(
-        ranges, None, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges, angles, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
     right = CollisionAvoidanceController._sector_ranges(
-        ranges, None, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges, angles, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
 
     return LidarClearances(

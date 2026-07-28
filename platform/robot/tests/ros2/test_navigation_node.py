@@ -130,9 +130,16 @@ class TestGatewayLidarLocalization:
         angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
         ranges = walls.raycast(true_x, true_y, true_yaw, angles)
 
+        # raycast()'s angles are already robot-frame (0 = forward), but
+        # _lidar_callback now rotates whatever angle_min/max it's given by
+        # the C1's real mount offset -- so a synthetic "as if from real
+        # hardware" LaserScan has to be built pre-rotated by the inverse,
+        # or this fake scan would come out offset from the true geometry
+        # it's meant to represent.
+        yaw_offset_rad = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
         msg = LaserScan()
-        msg.angle_min = float(angles[0])
-        msg.angle_max = float(angles[-1])
+        msg.angle_min = float(angles[0]) - yaw_offset_rad
+        msg.angle_max = float(angles[-1]) - yaw_offset_rad
         msg.ranges = ranges.tolist()
 
         # IMU must report the true yaw before the scan arrives, since the

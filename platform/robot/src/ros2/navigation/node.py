@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -50,6 +51,24 @@ from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
+
+_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+"""Rotates raw /scan bearings into the robot frame (0 rad = forward).
+
+The C1 is mounted inverted, so its raw angle-zero points opposite
+robot-front (confirmed empirically: the open-space/robot-front sector
+lands at +-180 deg in raw /scan data, not 0 deg). This constant already
+drives static_tfs.launch.py's lidar_link TF rotation, but nothing
+reads that TF back -- every consumer of LidarScan.angles_rad
+(CollisionAvoidanceController via core_navigator.py, and
+estimate_yaw_from_walls) documents and requires 0 rad = forward, so
+the correction has to happen here, where angles_rad is actually built.
+Previously uncorrected, real-hardware navigation saw front and rear
+(and, since it's a single 180 deg rotation, left and right too)
+swapped -- invisible in simulation, which synthesizes scan angles
+already in the correct robot frame and never models the raw LIDAR
+mounting frame at all.
+"""
 
 _DRIVE_JOINT = "drive_wheel"
 """Drive-wheel joint name on /joint_states.
@@ -222,7 +241,7 @@ class ROS2HardwareGateway(HardwareGateway):
         # the collision controller's ``> 0.01`` guard.
         raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
         raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
-        angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)).tolist()
+        angles = (np.linspace(msg.angle_min, msg.angle_max, len(raw)) + _LIDAR_YAW_OFFSET_RAD).tolist()
         self._latest_lidar = LidarScan(ranges_m=tuple(raw.tolist()), angles_rad=tuple(angles))
         self._lidar_stamp = self._now()
 
