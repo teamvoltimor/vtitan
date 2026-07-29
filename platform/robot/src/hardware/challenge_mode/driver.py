@@ -41,7 +41,7 @@ class Driver:
         if self._input is None:
             self.connect()
         assert self._input is not None
-        return self._input.is_active
+        return bool(self._input.is_active)
 
     def close(self) -> None:
         """Clean up GPIO resources."""

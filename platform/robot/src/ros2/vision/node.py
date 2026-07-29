@@ -15,6 +15,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
+from src.hardware.camera.base import Driver as CameraDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.vision import create_detector
 from src.vision.overlay import annotate
@@ -99,7 +100,7 @@ class VisionNode(Node):
         )
         self._raw_publisher = self.create_publisher(Image, camera_topic, 1) if self._publish_raw else None
 
-        self._camera = None
+        self._camera: CameraDriver | None = None
         self._subscription = None
         if camera_source == "direct":
             self._start_direct_capture(capture_fps)
@@ -146,32 +147,42 @@ class VisionNode(Node):
         is absent from every environment on the robot and cannot be installed
         into the pixi env its bindings would have to match.
         """
+        # Distinct names per branch (not a shared alias reassigned in each) --
+        # mypy treats a conditional import bound to the same name in both
+        # branches as one incompatible reassignment, even though only one
+        # branch's class is ever actually constructed. self._camera is typed
+        # against the two backends' shared camera.base.Driver ABC instead, so
+        # either concrete instance is a valid assignment.
         try:
             from src.hardware.camera.rpi.camera_module_3.driver import (  # noqa: PLC0415
-                Config as CameraConfig,
-                Driver as CameraDriver,
+                Config as PicamConfig,
+                Driver as PicamDriver,
             )
 
+            self._camera = PicamDriver(PicamConfig())
             backend = "picamera2"
         except ImportError:
             from src.hardware.camera.rpicam.driver import (  # noqa: PLC0415
-                Config as CameraConfig,
-                Driver as CameraDriver,
+                Config as RpicamConfig,
+                Driver as RpicamDriver,
             )
 
+            self._camera = RpicamDriver(RpicamConfig())
             backend = "rpicam-cli"
 
-        camera_config = CameraConfig()
-        self._camera = CameraDriver(camera_config)
         self._camera.connect()
+        size = self._camera.get_resolution()
         self.get_logger().info(
-            f"Camera opened via {backend} at {camera_config.width}x{camera_config.height}, "
-            f"inverted={camera_config.inverted}",
+            f"Camera opened via {backend} at {size.width_px}x{size.height_px}, "
+            f"rotation={size.rotation_deg}",
         )
         self._timer = self.create_timer(1.0 / max(capture_fps, 1.0), self._capture_once)
 
     def _capture_once(self) -> None:
         """Grab one frame and run the detection/publish path over it."""
+        # Only ever scheduled by _start_direct_capture, right after self._camera
+        # is set -- guaranteed non-None whenever this timer callback fires.
+        assert self._camera is not None
         try:
             frame = self._camera.capture_frame().frame
         except Exception as err:  # noqa: BLE001

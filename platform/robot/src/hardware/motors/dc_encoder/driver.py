@@ -432,7 +432,7 @@ class Driver(EncodedDriveDriver):
     def _elapsed(self, attr: str) -> float:
         """Seconds since this named checkpoint, seeding it on first use."""
         now = time.monotonic()
-        previous = getattr(self, attr, None)
+        previous: float | None = getattr(self, attr, None)
         setattr(self, attr, now)
         if previous is None:
             return _NOMINAL_DT_S

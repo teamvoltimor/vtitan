@@ -373,7 +373,7 @@ def main() -> None:
     direction = Direction.CLOCKWISE if args.direction == "cw" else Direction.COUNTERCLOCKWISE
     metadata = build_open_metadata(widths, section, direction)
     _run_and_visualize(
-        NamedScenario(label="ad-hoc", metadata=metadata, laps=args.laps, seed=0),
+        NamedScenario(label="ad-hoc", metadata=metadata.model_dump(), laps=args.laps, seed=0),
         opts,
     )
 

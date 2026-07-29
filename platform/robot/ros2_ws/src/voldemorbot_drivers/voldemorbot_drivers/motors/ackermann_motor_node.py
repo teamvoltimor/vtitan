@@ -69,6 +69,7 @@ from sensor_msgs.msg import JointState
 from shared.config.constants import RobotSpecs
 from std_msgs.msg import Float32
 
+from src.hardware.motors.base import EncodedDriveDriver
 from src.hardware.motors.config import Config
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from src.logger import configure_json_logging
@@ -317,6 +318,14 @@ class AckermannMotorNode(LifecycleNode):
 
             self.steering = steering
             self.drive = drive
+            if not isinstance(drive, EncodedDriveDriver):
+                # Build HAT has no encoder counts, so _drive_control_step's
+                # closed-loop RPM control can't run against it -- warn once at
+                # startup instead of only discovering it as silent no-ops.
+                self.get_logger().warning(
+                    f"drive_backend={self.drive_backend.value} has no encoder feedback; "
+                    "closed-loop RPM control is disabled for this run",
+                )
 
         except (RuntimeError, OSError, ValueError, ImportError) as e:
             self.get_logger().error(f"Failed to connect motor drivers: {e}")
@@ -625,8 +634,11 @@ class AckermannMotorNode(LifecycleNode):
             # Raw quadrature counts. drive_speed above is smoothed and rate-derived,
             # so integrating it to recover distance folds in the estimator's
             # smoothing and sampling interval; the counter is exact and is what
-            # encoder calibration must be measured against.
-            status_msg.values.append(KeyValue(key="encoder_counts", value=str(self.drive.get_drive_counts())))
+            # encoder calibration must be measured against. Only dc_encoder
+            # exposes this -- Build HAT is a plain DriveDriver with no encoder
+            # counts, so this field is omitted rather than crashing on it.
+            if isinstance(self.drive, EncodedDriveDriver):
+                status_msg.values.append(KeyValue(key="encoder_counts", value=str(self.drive.get_drive_counts())))
             status_msg.values.append(KeyValue(key="commanded_speed", value=f"{self.current_speed}"))
             status_msg.values.append(KeyValue(key="commanded_steering", value=f"{self.current_steering_angle:.2f}"))
             status_msg.values.append(KeyValue(key="steering_offset", value=f"{self.config.steering.offset:.2f}"))
@@ -647,6 +659,12 @@ class AckermannMotorNode(LifecycleNode):
         """
         if self.drive is None:
             return
+        if not isinstance(self.drive, EncodedDriveDriver):
+            # Closed-loop RPM control needs encoder feedback -- Build HAT is a
+            # plain DriveDriver with no encoder counts, so this backend simply
+            # cannot run this loop. Warned about in on_configure(); nothing
+            # more useful to do here each tick than stay silent and no-op.
+            return
         try:
             if self.target_wheel_rpm == 0.0:
                 # Still sample, so the speed estimate this loop owns stays
@@ -656,8 +674,11 @@ class AckermannMotorNode(LifecycleNode):
                 self.drive.get_drive_rpm()
                 return
             self.drive.run_drive_at_rpm(self.target_wheel_rpm)
-        except Exception:
-            self.get_logger().exception("Closed-loop drive step failed; stopping motors")
+        except Exception as e:
+            # RcutilsLogger has no exception() (only debug/info/warning/error/
+            # fatal) -- calling it here would raise AttributeError instead of
+            # stopping the motors, the one thing this handler exists to do.
+            self.get_logger().error(f"Closed-loop drive step failed; stopping motors: {type(e).__name__}: {e}")
             self.drive.stop_drive()
             self.target_wheel_rpm = 0.0
 

@@ -234,14 +234,15 @@ def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     if len(ranges) == 0:
         return LidarClearances(front_m=0.0, left_m=0.0, right_m=0.0)
 
+    ranges_t = tuple(ranges)
     angles = np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD
 
-    front = CollisionAvoidanceController._sector_ranges(ranges, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
+    front = CollisionAvoidanceController._sector_ranges(ranges_t, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
     left = CollisionAvoidanceController._sector_ranges(
-        ranges, angles, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges_t, angles, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
     right = CollisionAvoidanceController._sector_ranges(
-        ranges, angles, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges_t, angles, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
 
     return LidarClearances(

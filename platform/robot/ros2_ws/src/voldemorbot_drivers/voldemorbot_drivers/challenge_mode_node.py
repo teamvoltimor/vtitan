@@ -74,13 +74,19 @@ class ChallengeModeNode(Node):
     def _publish(self) -> None:
         try:
             inserted = self._driver.is_jumper_inserted()
-        except Exception:
+        except Exception as e:
             # Publish nothing on fault: the state machine falls back to Open
             # Challenge when it hears nothing. Logged once (not every 500 ms)
             # but at error level, because a wiring fault would otherwise be
-            # indistinguishable from "Open Challenge was selected".
+            # indistinguishable from "Open Challenge was selected". RcutilsLogger
+            # has no exception() (only debug/info/warning/error/fatal), unlike
+            # Python's stdlib logger -- error() takes a plain string, not
+            # exc_info, so the exception is folded into the message instead.
             if not self._logged_fault:
-                self.get_logger().exception("Failed to read challenge-mode jumper; falling back to Open Challenge")
+                self.get_logger().error(
+                    f"Failed to read challenge-mode jumper; falling back to Open Challenge: "
+                    f"{type(e).__name__}: {e}",
+                )
                 self._logged_fault = True
             return
         if self._logged_fault:

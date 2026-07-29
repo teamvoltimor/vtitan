@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+from numpy.random import SeedSequence
 from shared.config.constants import RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
@@ -116,7 +117,7 @@ def _sanitize_ranges(ranges: np.ndarray) -> list[float]:
     have to agree on what sanitised means.
     """
     cleaned = np.where(np.isfinite(ranges), ranges, RobotSpecs.LIDAR_MAX_RANGE)
-    return np.clip(cleaned, 0.0, RobotSpecs.LIDAR_MAX_RANGE).tolist()
+    return [float(v) for v in np.clip(cleaned, 0.0, RobotSpecs.LIDAR_MAX_RANGE)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,7 +240,13 @@ class SimulatedHardwareGateway:
         # A stream of its own, spawned from the run seed. Drawing these from
         # ``_rng`` would shift the LIDAR noise sequence and silently change every
         # existing result, including the unperturbed control runs.
-        self._error_rng = np.random.default_rng(self._rng.bit_generator.seed_seq.spawn(1)[0])
+        # numpy types Generator.bit_generator.seed_seq as the narrow
+        # ISeedSequence interface (no .spawn()), but np.random.default_rng
+        # always builds a PCG64 bit generator backed by a concrete
+        # SeedSequence, which does have it -- a stub gap, not a real
+        # possibility of some other ISeedSequence implementation showing up.
+        seed_seq = cast("SeedSequence", self._rng.bit_generator.seed_seq)
+        self._error_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         # Both signs are fixed per run, not re-rolled per tick: a gyro bias is a
         # constant, and a sign that wandered would average itself out and
         # understate the damage.

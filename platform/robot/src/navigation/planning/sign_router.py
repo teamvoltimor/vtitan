@@ -220,6 +220,7 @@ class SignRouter:
         # Discovery mode: the sign layout is randomised every round and no
         # scenario file exists on the mat, so a blind robot has to find the
         # signs with its camera rather than be handed them. See sign_discovery.
+        self._sign_map: ObservedSignMap | None
         if discover:
             discovery_config = discovery_config or SignDiscoveryParams()
             self._sign_map = ObservedSignMap(

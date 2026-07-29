@@ -28,7 +28,7 @@ from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 from shared.domain.models import CameraSize, ImageRotation
-from src.hardware.camera.base import Frame
+from src.hardware.camera.base import Driver as CameraDriver, Frame
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 
@@ -67,7 +67,7 @@ class Config(HardwareBaseSettings):
     """
 
 
-class Driver:
+class Driver(CameraDriver):
     """Streams frames from ``rpicam-vid``.
 
     Mirrors the shape of the Picamera2 driver (``connect`` / ``capture_frame``
@@ -164,16 +164,6 @@ class Driver:
         jpeg = self._buffer[start : end + 2]
         self._buffer = self._buffer[end + 2 :]
         return cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
-
-    @staticmethod
-    def to_rgb(frame: np.ndarray) -> np.ndarray:
-        """Convert a captured frame to RGB order for the detector.
-
-        ``cv2.imdecode`` returns BGR. Feeding that to the model unconverted
-        swaps red and blue, which reads red prisms as green -- the failure that
-        inverts the WRO pass-side rule, and which raises nothing.
-        """
-        return frame[:, :, ::-1]
 
     def get_resolution(self) -> CameraSize:
         """Return the configured capture resolution and orientation metadata."""

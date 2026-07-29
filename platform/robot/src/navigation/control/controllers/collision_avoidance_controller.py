@@ -537,6 +537,11 @@ class CollisionAvoidanceController:
         rotate out of it, in the same tick. Reversing instead opens real
         separation before any forward motion resumes.
         """
+        if lidar_ranges is None:
+            # Matches _k_turn_steer_sign's fallback: no lidar data means no
+            # basis to claim the chassis is already touching a wall, so treat
+            # it as clear rather than crashing _sector_to_model on None.
+            return 10.0
         sr = self._sector_to_model(
             lidar_ranges,
             lidar_angles,

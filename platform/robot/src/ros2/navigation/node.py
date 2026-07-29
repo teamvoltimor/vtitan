@@ -100,7 +100,7 @@ def _topic(node: Node, name: str, default: str) -> str:
     """
     if not node.has_parameter(name):
         node.declare_parameter(name, default)
-    return node.get_parameter(name).get_parameter_value().string_value
+    return str(node.get_parameter(name).get_parameter_value().string_value)
 
 
 class ROS2HardwareGateway(HardwareGateway):
@@ -452,7 +452,15 @@ class TrackNavigator(Node, ResettableNode):
         self._creep_widths: list[tuple[float, float]] = []
         self._creep_speed = tuning.speed.SLOW_SPEED
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
-        geometry = corridor_geometry_from_widths(self._width_estimator.widths) if self._width_estimator else self._told_geometry
+        # _told_geometry is None exactly when blind (and then _width_estimator
+        # is set instead), so geometry is never actually None here -- just not
+        # provable to mypy across the two separately-computed conditions.
+        geometry = (
+            corridor_geometry_from_widths(self._width_estimator.widths)
+            if self._width_estimator
+            else self._told_geometry
+        )
+        assert geometry is not None
 
         self._gateway = ROS2HardwareGateway(
             self,
@@ -578,6 +586,9 @@ class TrackNavigator(Node, ResettableNode):
         if self._width_estimator:
             return self._width_estimator.widths
         g = self._told_geometry
+        # Set exactly when not blind (see __init__), which is the only way to
+        # reach this branch -- blind means _width_estimator is set instead.
+        assert g is not None
         return {
             Section.NORTH: g.north_width_m,
             Section.SOUTH: g.south_width_m,
@@ -621,7 +632,12 @@ class TrackNavigator(Node, ResettableNode):
         times (see step() waypoint-wrap). Passing the real count would multiply
         laps (e.g. 3 -> 9). Keep this at 1.
         """
-        metadata: ScenarioMetadata = self._metadata
+        # self._metadata is a plain dict (from _load_json, or the assumed-start
+        # fallback literal) everywhere else in this class -- never actually a
+        # ScenarioMetadata. Validating it here (rather than just annotating it
+        # as one) is what the .model_copy() calls below need to not crash with
+        # AttributeError: 'dict' object has no attribute 'starting_conditions'.
+        metadata = ScenarioMetadata.model_validate(self._metadata)
         new_widths = CorridorWidths(
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
