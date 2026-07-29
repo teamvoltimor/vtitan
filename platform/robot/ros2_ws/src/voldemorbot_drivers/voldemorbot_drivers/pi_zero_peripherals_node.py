@@ -15,7 +15,7 @@ Or via launch file:
 """
 
 import rclpy
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor
 
 from voldemorbot_drivers.button_node import ButtonNode
 from voldemorbot_drivers.challenge_mode_node import ChallengeModeNode
@@ -40,16 +40,20 @@ def main(args: list[str] | None = None) -> None:
     oled.trigger_configure()
     oled.trigger_activate()
 
-    # num_threads=2, not the default (os.cpu_count(), 4 on this board): only
-    # one real concurrency need exists here -- oled_display_node's I2C-write
-    # timer callback must not block its own subscription callbacks (see that
-    # module's _timer_callback_group comment for the confirmed-on-hardware
-    # bug this fixes: /ui/telemetry_summary silently never processed while a
-    # slow write held the only thread). button_node and challenge_mode_node
-    # are lightweight, non-blocking timers with no similar need. Defaulting
-    # to 4 threads spins up idle workers with nothing concurrent to do on an
-    # already CPU-starved board; 2 is the minimum that preserves the fix.
-    executor = MultiThreadedExecutor(num_threads=2)
+    # SingleThreadedExecutor, not MultiThreadedExecutor (2026-07-28): strace
+    # on hardware showed 61.6% of this process's CPU time in futex calls --
+    # GIL/lock contention between the executor's worker threads, not the I2C
+    # write or GPIO polling anyone suspected. MultiThreadedExecutor was
+    # originally required because oled_display_node's I2C-write timer
+    # callback used to block for 0.3-3.25s (32 sequential blocking
+    # os.write() calls per frame), which would have starved every
+    # subscription callback for that long on a single thread -- confirmed on
+    # hardware as /ui/telemetry_summary silently never processing. That write
+    # is now a single syscall and measured well under 0.3s, so the
+    # single-thread blocking window is short enough to tolerate; watch
+    # oled_display_node's "[DIAG] ui_summary receive gap" warning if that
+    # assumption turns out wrong.
+    executor = SingleThreadedExecutor()
     executor.add_node(button)
     executor.add_node(oled)
     executor.add_node(challenge_mode)
