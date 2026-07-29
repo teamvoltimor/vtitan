@@ -14,7 +14,7 @@ import json
 import logging
 import math
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, override
 
 import numpy as np
 import rclpy
@@ -48,6 +48,7 @@ from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.wall_heading import estimate_yaw_from_walls
+from src.ros2.resettable_node import ResettableNode
 from src.state_machine.estimator import StateEstimator
 
 logger = logging.getLogger(__name__)
@@ -356,7 +357,7 @@ class ROS2HardwareGateway(HardwareGateway):
         return result
 
 
-class TrackNavigator(Node):
+class TrackNavigator(Node, ResettableNode):
     """ROS2 node wrapping the pure Python CoreNavigator."""
 
     def __init__(
@@ -438,6 +439,7 @@ class TrackNavigator(Node):
         # The converse puts the path 0.15 m from the inner block face, inside
         # the chassis half-diagonal, and clips it mid-turn.
         self._arc_radius = tuning.waypoints.ARC_RADIUS
+        self._tuning = tuning
         self._direction = start_direction
         self._start_xy = (start_x, start_y)
         self._start_section = start_section
@@ -676,13 +678,37 @@ class TrackNavigator(Node):
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self.get_logger().info(f"Race state '{msg.data}' - navigator holding, motors stopped")
         elif not was_racing and self._racing:
-            # Re-zero heading here, not at startup. RVC yaw is relative to
-            # power-on, and the robot is carried to the track after that, so the
-            # offset latched by the first IMU reading refers to whatever
-            # orientation it happened to be held in. This is the one instant the
-            # robot is known to be in its starting pose.
-            self._gateway.reset_heading_reference()
+            # This is the one instant the robot is known to be in its
+            # starting pose -- whether that's the very first race, or a
+            # re-run cycled purely from the button (FINISHED -> BOOT_CHECK ->
+            # READY -> RACING, no process restart), so reset() has to run
+            # here every time, not just once at node startup.
+            self.reset()
             self.get_logger().info("Race started - heading reference zeroed, navigator driving")
+
+    @override
+    def reset(self) -> None:
+        """Clear this node's race-scoped state ahead of a new race.
+
+        Re-zeros the heading reference (RVC yaw is relative to power-on, and
+        the robot is carried to the track after that, so the offset latched
+        by the first IMU reading refers to whatever orientation it happened
+        to be held in) and clears CoreNavigator's own per-race state. The
+        ParkController can't be rewound once its phase reaches DONE, so a
+        fresh one is built the same way the first one was, from the same
+        section/direction/metadata.
+        """
+        self._gateway.reset_heading_reference()
+        park_controller: ParkController | None = None
+        if not self._is_open_challenge:
+            park_controller = park_controller_from_metadata(
+                self._metadata,
+                self._start_section,
+                self._direction,
+                tuning=self._tuning,
+            )
+        self._core_navigator.replace_park_controller(park_controller)
+        self._core_navigator.reset()
 
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""

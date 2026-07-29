@@ -157,6 +157,39 @@ class CoreNavigator:
             key=lambda i: math.hypot(waypoints[i][0] - robot_x, waypoints[i][1] - robot_y),
         )
 
+    def replace_park_controller(self, park_controller: ParkController | None) -> None:
+        """Swap in a fresh ParkController ahead of a new race.
+
+        ParkController's phase only moves forward (STAGE -> ENTER -> DONE),
+        so a finished or timed-out one from the previous race can't be
+        rewound in place -- the caller builds a new one from the same
+        section/direction/metadata it used the first time and hands it here.
+        """
+        self._park_controller = park_controller
+        self._parking_engaged = False
+
+    def reset(self) -> None:
+        """Clear per-race state so a new race starts as if this were the first.
+
+        Needed because the state machine can cycle FINISHED -> BOOT_CHECK ->
+        READY -> RACING purely from the physical button (two long presses and
+        a short one), with no process restart -- so nothing else re-creates
+        this object between races. Without this, ``_laps_completed`` alone
+        would stay at its previous value and the very first tick of the new
+        race would immediately read as already finished.
+        """
+        self._waypoint_index = 0
+        self._laps_completed = 0
+        self._parking_engaged = False
+        self._active_maneuver = None
+        self._maneuver_frames_left = 0
+        self._escape_count = 0
+        self._escape_steer_sign = 1.0
+        self._stuck_detector.reset()
+        self._waypoint_controller.reset()
+        if self._sign_router is not None:
+            self._sign_router.reset_for_new_lap()
+
     def replace_lap_detector(self, lap_detector: LapDetector) -> None:
         """Swap in a lap detector built for a different travel direction.
 

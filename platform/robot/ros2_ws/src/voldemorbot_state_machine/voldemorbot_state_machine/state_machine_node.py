@@ -44,6 +44,7 @@ from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Bool, Float32, String
 
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
+from src.ros2.resettable_node import ResettableNode
 from src.state_machine import (
     RaceStatus,
     RobotState,
@@ -119,7 +120,7 @@ _JUMPER_TOPIC = "/challenge_mode/jumper_inserted"
 """Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to)."""
 
 
-class StateMachineNode(Node):
+class StateMachineNode(Node, ResettableNode):
     """ROS2 node that manages the 4-stage state machine for WRO competition.
 
     Responsibilities:
@@ -331,7 +332,7 @@ class StateMachineNode(Node):
             # round should not restart the boot sequence.
             self.get_logger().info("Reset requested - returning to BOOT_CHECK")
             self.state_machine.transition_to(RobotState.BOOT_CHECK, StateTransitionReason.SYSTEM_RESET)
-            self._reset_race_metrics()
+            self.reset()
 
     def _state_machine_loop(self) -> None:
         """Main state machine loop - runs at 10Hz."""
@@ -350,7 +351,8 @@ class StateMachineNode(Node):
         self._publish_state()
         self._publish_diagnostics()
 
-    def _reset_race_metrics(self) -> None:
+    @override
+    def reset(self) -> None:
         """Clear per-round state so BOOT_CHECK starts genuinely fresh.
 
         The challenge mode is cleared too, not just the lap counters: between
