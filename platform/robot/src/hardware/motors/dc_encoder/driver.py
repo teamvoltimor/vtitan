@@ -335,7 +335,13 @@ class Driver(EncodedDriveDriver):
         logger.info("DC encoder driver connected on pins %s (PWM %s)", self._pins, channel_dir)
 
     def disconnect(self) -> None:
-        """Stop the drive and release the PWM channel."""
+        """Stop the drive, release the PWM channel, and close the GPIO lines.
+
+        Without closing ``_encoder``/``_ain1``/``_ain2``/``_standby``, gpiozero
+        keeps them reserved against its pin factory -- a later ``connect()``
+        call (same process, e.g. a SYSTEM_RESET re-arm) would then fail to
+        claim the same pins instead of getting a clean handle.
+        """
         self.stop_drive()
         if self._channel_dir is not None:
             try:
@@ -343,6 +349,13 @@ class Driver(EncodedDriveDriver):
             except OSError:
                 logger.warning("Failed to disable drive PWM on disconnect", exc_info=True)
             self._channel_dir = None
+        for device in (self._encoder, self._ain1, self._ain2, self._standby):
+            if device is not None:
+                device.close()
+        self._encoder = None
+        self._ain1 = None
+        self._ain2 = None
+        self._standby = None
 
     def _set_output(self, duty: float) -> None:
         """Drive the H-bridge from a signed duty in [-1, 1]."""

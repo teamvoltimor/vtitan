@@ -88,6 +88,17 @@ class ChallengeModeNode(Node):
             self._logged_fault = False
         self._publisher.publish(Bool(data=inserted))
 
+    def destroy_node(self) -> None:
+        """Release the GPIO line.
+
+        ``pi_zero_peripherals_node`` calls this expecting the same cleanup
+        ``ButtonNode``/``OLEDDisplayNode`` do on their own teardown -- without
+        an override here that call was a no-op, leaving the jumper's
+        ``InputDevice`` reserved against gpiozero's pin factory.
+        """
+        self._driver.close()
+        super().destroy_node()
+
 
 def main(args: list[str] | None = None) -> None:
     """Run the challenge-mode node standalone (normally hosted by pi_zero_peripherals_node)."""

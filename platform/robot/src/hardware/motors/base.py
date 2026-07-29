@@ -113,6 +113,9 @@ class DriveDriver(ABC):
     def connect(self) -> None:
         """Connect to the motor hardware."""
 
+    def disconnect(self) -> None:  # noqa: B027 -- intentional concrete no-op default, not a forgotten abstractmethod
+        """Release the drive hardware. No-op unless a backend needs it."""
+
     @abstractmethod
     def get_drive_position(self) -> float:
         """Get current drive position in degrees."""

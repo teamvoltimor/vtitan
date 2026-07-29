@@ -363,13 +363,12 @@ class AckermannMotorNode(LifecycleNode):
 
     @override
     def on_cleanup(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Stop the motors (defensive) and tear down publishers."""
+        """Stop the motors, release the drivers, and tear down publishers."""
         self.get_logger().info("Cleaning up Ackermann Motor Node")
         self._stop_motors_safely()
+        self._disconnect_drivers()
         self._destroy_sub_and_timers()
         self._destroy_publishers()
-        self.steering = None
-        self.drive = None
         return TransitionCallbackReturn.SUCCESS
 
     @override
@@ -377,11 +376,31 @@ class AckermannMotorNode(LifecycleNode):
         """Tear down whatever exists, regardless of which state shutdown was triggered from."""
         self.get_logger().info("Shutting down Ackermann Motor Node")
         self._stop_motors_safely()
+        self._disconnect_drivers()
         self._destroy_sub_and_timers()
         self._destroy_publishers()
+        return TransitionCallbackReturn.SUCCESS
+
+    def _disconnect_drivers(self) -> None:
+        """Release the motor drivers' hardware. Never raises.
+
+        Without this, ``on_cleanup``/``on_shutdown`` only zeroed the drive PWM
+        duty cycle (via ``_stop_motors_safely``) and dropped this node's
+        references -- the sysfs PWM channel stayed exported with ``enable=1``
+        and the GPIO direction/encoder lines stayed reserved indefinitely.
+        Guards against ``drive is steering`` the same way ``on_configure``
+        connects once for a combined driver (e.g. the Build HAT).
+        """
+        try:
+            if self.steering is not None:
+                self.steering.disconnect()
+            if self.drive is not None and self.drive is not self.steering:
+                self.drive.disconnect()
+            self.get_logger().info("Motor drivers disconnected")
+        except (RuntimeError, OSError, ValueError) as e:
+            self.get_logger().error(f"Error disconnecting motor drivers: {e}")
         self.steering = None
         self.drive = None
-        return TransitionCallbackReturn.SUCCESS
 
     def _stop_motors_safely(self) -> None:
         """Command the motors to a safe stopped state. Never raises."""
@@ -423,6 +442,7 @@ class AckermannMotorNode(LifecycleNode):
         this is the final safety net, so it must never skip the motor stop.
         """
         self._stop_motors_safely()
+        self._disconnect_drivers()
         self._destroy_sub_and_timers()
         self._destroy_publishers()
         return super().destroy_node()

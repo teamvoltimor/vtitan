@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import signal
 from typing import TYPE_CHECKING, Self, override
@@ -128,6 +129,26 @@ class Driver(MotorDriver):
             "Connected",
             extra={"details": {"steering": self.config.steering.port, "drive": self.config.drive.port}},
         )
+
+    @override
+    def disconnect(self) -> None:
+        """Stop the motors and release the Build HAT ports.
+
+        ``buildhat.Device`` has no public close()/release() -- a port's
+        ``_used`` slot (a class-level dict shared by every Device/Motor in
+        the process) is only cleared by ``Device.__del__`` (deselect + off).
+        Dropping the last reference here is what actually frees the port for
+        a later ``connect()`` in the same process; without it a reconnect
+        finds the port still marked used and ``Device.__init__`` raises
+        "Port already used".
+        """
+        for motor in (self._steering, self._drive):
+            if motor is not None:
+                with contextlib.suppress(Exception):
+                    motor.stop()
+        self._steering = None
+        self._drive = None
+        self.logger.info("Build HAT motors disconnected")
 
     @property
     def steering(self) -> Motor:
