@@ -643,8 +643,9 @@ Fixed by rewriting the driver onto `/sys/class/pwm` and pointing the overlay at 
 The overlay was `pwm-2chan` with no parameters, which defaults to GPIO 18/19 -- pins nothing on this
 robot uses -- while the servo sits on GPIO 12, so both hardware channels were idle. Now
 `dtoverlay=pwm,pin=12,func=4` (`func=4` is ALT0, GPIO 12's PWM function), applied by
-`bootstrap-fresh-zero.sh`. Single-channel deliberately: the two-channel variant's second pin would
-claim GPIO 13, which the drive motor uses via gpiozero, and a DC motor is indifferent to PWM jitter.
+`bootstrap-fresh-zero.sh`. At the time this was deliberately single-channel: the two-channel
+variant's second pin would claim GPIO 13, which the drive motor used via gpiozero, and a DC motor
+is indifferent to PWM *jitter* specifically.
 
 **Confirmed fixed on hardware** -- the servo now holds a commanded angle steady. Steering travel was
 also verified across the full range in both directions, and the direction convention is correct
@@ -654,6 +655,23 @@ Access is group-based, not root: Raspberry Pi OS's `99-com.rules` chgrps `/sys/c
 and the service user is in that group. The driver fails loudly if the overlay is missing rather than
 falling back to software PWM, so a re-flash that loses the config surfaces as an error instead of
 silently reintroducing the twitch.
+
+### Drive motor moved to hardware PWM too (2026-07-28)
+
+The single-channel decision above only accounted for PWM *jitter*, which a DC motor tolerates fine.
+It didn't account for gpiozero's software PWM being a continuous background thread regardless of
+jitter tolerance -- on the Pi Zero (`LGPIOFactory`), that thread was a real, constant CPU cost, found
+while investigating `ackermann_motor_node` pegging ~80% CPU on an already-overloaded board (only
+153MB free of 415MB, already swapping). The drive motor's PWM pin (GPIO 13, `_DcEncoderPins.pwm_pin`
+in `ackermann_motor_node.py`) is the SoC's other hardware PWM channel (PWM1) alongside the servo's
+GPIO 12 (PWM0), so both now share one `pwm-2chan` overlay:
+`dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4`. `dc_encoder/driver.py`'s H-bridge enable line
+now writes `/sys/class/pwm` the same way the servo driver does (`dc_encoder/config.py` holds
+`pwmchip`/`pwm_channel=1`/`frequency_hz=1000`); direction pins and the quadrature encoder stay on
+gpiozero since those are plain digital I/O with no PWM involved.
+
+**Not yet confirmed on hardware** -- this needs a fresh `bootstrap-fresh-zero.sh` run (or a manual
+config.txt edit + reboot) and a re-check of CPU usage and PID behavior on the Zero.
 
 ### USB-gadget link is intermittent across Zero reboots (2026-07-25)
 

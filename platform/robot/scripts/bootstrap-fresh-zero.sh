@@ -16,9 +16,10 @@
 #      running on the Zero at all; see that script's header)
 #   6. Enable I2C (dtparam=i2c_arm=on + i2c-dev kernel module) -- off by
 #      default on a fresh Raspberry Pi OS image, required for the OLED display
-#   6b. Map the hardware PWM overlay onto the servo pin, so the steering servo
-#      is driven by the SoC peripheral instead of gpiozero's jittery software
-#      PWM (see the step's inline comment and docs/sensor-verification.md)
+#   6b. Map the two-channel hardware PWM overlay onto the servo and drive
+#      motor pins, so both are driven by the SoC peripheral instead of
+#      gpiozero's software PWM (see the step's inline comment and
+#      docs/sensor-verification.md)
 #   6c. Configure the USB-gadget link to Pi 5 (dwc2 + g_ether + fixed MACs +
 #      a static usb0 profile) -- the competition-critical path, since WiFi may
 #      not be available at the venue. A fresh flash sets up none of it.
@@ -47,9 +48,11 @@ cd "$ROBOT_DIR"
 ZERO_HOST="${ZERO_HOST:-ralvarezdev@192.168.250.1}"
 ZERO_USER="${ZERO_HOST%@*}"
 SSH_OPTS=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
-# Must match SERVO_GPIO_PIN in .env -- the overlay decides which pin the PWM
-# peripheral drives, and the driver just opens the resulting pwmchip channel.
+# Must match SERVO_GPIO_PIN / motor_pwm_pin in .env -- the overlay decides
+# which pins the PWM peripheral drives, and the drivers just open the
+# resulting pwmchip channels (0 = SERVO_PWM_PIN, 1 = MOTOR_PWM_PIN).
 SERVO_PWM_PIN="${SERVO_PWM_PIN:-12}"
+MOTOR_PWM_PIN="${MOTOR_PWM_PIN:-13}"
 # USB-gadget link addressing. Fixed MACs so NetworkManager sees the same device
 # across reboots; the .1/.2 split matches ZERO_HOST's default above.
 ZERO_USB_IP="${ZERO_USB_IP:-192.168.250.1}"
@@ -94,20 +97,24 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo usermod -a -G i2c,gpio,spi,dialout,video '$ZERO_USER'
 "
 
-log "6b/7 Enabling hardware PWM on the servo pin (GPIO $SERVO_PWM_PIN)"
-# The steering servo must be driven by the SoC's PWM peripheral, not gpiozero's
-# software PWM: under LGPIOFactory (what the Zero uses) the pulse train is
-# generated in software, so scheduling jitter lands on the pulse width and the
-# servo visibly twitches even while holding a fixed angle. Confirmed on
-# hardware -- the twitching survived removing all PWM rewrites and swapping in
-# a fresh battery. func=4 selects ALT0, GPIO 12's PWM function.
+log "6b/7 Enabling hardware PWM on the servo (GPIO $SERVO_PWM_PIN) and drive motor (GPIO $MOTOR_PWM_PIN) pins"
+# Both PWM lines must be driven by the SoC's PWM peripheral, not gpiozero's
+# software PWM: under LGPIOFactory (what the Zero uses) gpiozero generates the
+# pulse train in software, so scheduling jitter lands on the duty cycle and
+# the software-PWM thread runs continuously regardless of tick rate. On the
+# servo this showed up as visible twitching even while holding a fixed angle
+# (confirmed on hardware -- the twitching survived removing all PWM rewrites
+# and swapping in a fresh battery); on the drive motor it showed up as
+# continuous CPU cost from the background bit-bang thread on an
+# already-overloaded Pi Zero, plus PID-visible speed noise. func=4 selects
+# ALT0 on both pins (GPIO 12 = PWM0, GPIO 13 = PWM1).
 #
-# Deliberately a single-channel overlay: the two-channel variant's second pin
-# would claim GPIO 13, which the drive motor uses via gpiozero. A DC motor
-# doesn't care about PWM jitter, so it keeps the software path.
+# Two-channel overlay: pin/func is channel 0 (servo), pin2/func2 is channel 1
+# (drive motor). See src/hardware/motors/servo/config.py and
+# src/hardware/motors/dc_encoder/config.py for the pwmchip/channel mapping.
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sudo sed -i '/^dtoverlay=pwm\(-2chan\)\?\(,\|\$\)/d' /boot/firmware/config.txt
-  echo 'dtoverlay=pwm,pin=$SERVO_PWM_PIN,func=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
+  echo 'dtoverlay=pwm-2chan,pin=$SERVO_PWM_PIN,func=4,pin2=$MOTOR_PWM_PIN,func2=4' | sudo tee -a /boot/firmware/config.txt >/dev/null
 "
 
 log "6c/7 Configuring the USB-gadget (Ethernet-over-USB) link to Pi 5"

@@ -1,0 +1,8 @@
+# DC-encoder drive H-bridge PWM -- src/hardware/motors/dc_encoder/config.py
+
+pwmchip = 0
+pwm_channel = 1
+# GPIO 13 (the drive motor's PWM pin) is channel 1 under the pwm-2chan
+# overlay; GPIO 12 (the servo) is channel 0. See dc_encoder/config.py.
+
+frequency_hz = 1000

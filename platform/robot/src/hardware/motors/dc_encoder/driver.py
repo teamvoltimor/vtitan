@@ -10,18 +10,31 @@ a Raspberry Pi. GPIO libraries are imported lazily inside ``connect`` so this
 module imports cleanly on dev machines without ``lgpio``/``gpiozero``.
 Hardware bring-up (gear-ratio confirmation, PID tuning, odometry validation)
 is still pending — see docs/internal/2026-06-11-jgb37-dc-encoder-motor.md.
+
+The H-bridge's PWM enable line is driven via the kernel's **hardware** PWM
+peripheral (``/sys/class/pwm``), not ``gpiozero.PWMOutputDevice``: under
+``LGPIOFactory`` (what the Pi Zero uses) gpiozero's software PWM runs a
+continuous background thread that both burns CPU on an already-overloaded
+board and lands scheduling jitter on the duty cycle -- the same defect that
+made the servo visibly twitch (see ``servo/driver.py``), just showing up here
+as measured-speed noise the PID has to fight rather than a visible twitch.
+Direction pins and the quadrature encoder stay on gpiozero: those are plain
+digital I/O with no PWM jitter to inherit.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors.base import DriveOdometry, EncodedDriveDriver
+from src.hardware.motors.dc_encoder.config import NS_PER_S, DcMotorPwmConfig
 from src.hardware.motors.dc_encoder.control import (
     PIDController,
     SpeedEstimator,
@@ -33,6 +46,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
+_SYSFS_PWM_ROOT = Path("/sys/class/pwm")
+
+_EXPORT_TIMEOUT_S = 2.0
+"""How long to wait for the kernel + udev to create and chgrp the channel dir.
+
+Exporting a channel is asynchronous: the ``pwmN`` directory appears slightly
+after the write returns, and the udev rule that makes it group-writable runs
+later still. Writing immediately races both and fails with ENOENT or EACCES.
+"""
 
 # JGB37-520 1590 RPM variant defaults — confirm the printed gear ratio per unit.
 # MEASURED on hardware 2026-07-25, not derived from the datasheet: the previous
@@ -177,7 +200,7 @@ class Driver(EncodedDriveDriver):
 
     ``standby_pin`` wires the chip-enable line a TB6612FNG exposes (STBY); pass
     ``None`` for an L298N, which has no standby line — its per-channel enable
-    (ENA/ENB) is the PWM pin, so disabling output is simply ``pwm.value = 0``.
+    (ENA/ENB) is the PWM pin, so disabling output is simply a duty write of 0.
     """
 
     def __init__(
@@ -194,9 +217,13 @@ class Driver(EncodedDriveDriver):
         pid: PIDController | None = None,
         invert: bool = False,
         invert_encoder: bool = False,
+        pwm_config: DcMotorPwmConfig | None = None,
     ) -> None:
         self._pins = (pwm_pin, dir_a_pin, dir_b_pin, encoder_a_pin, encoder_b_pin)
         self._standby_pin = standby_pin
+        self._pwm_config = pwm_config or DcMotorPwmConfig()
+        self._period_ns = int(NS_PER_S / self._pwm_config.frequency_hz)
+        self._channel_dir: Path | None = None
         self._counts_per_rev = counts_per_rev
         self._wheel_diameter_m = wheel_diameter_m
         self._max_rpm = max_rpm
@@ -220,17 +247,56 @@ class Driver(EncodedDriveDriver):
         self._pid = pid or PIDController(kp=0.010, ki=0.020, kd=0.0, feedforward=1.0 / max_rpm)
         self._estimator = SpeedEstimator(counts_per_rev)
         self._encoder = None
-        self._pwm = None
         self._ain1 = None
         self._ain2 = None
         self._standby = None
 
+    def _fail(self, reason: str) -> MotorConnectionError:
+        return MotorConnectionError([str(p) for p in self._pins], reason)
+
+    @property
+    def _chip_dir(self) -> Path:
+        return _SYSFS_PWM_ROOT / f"pwmchip{self._pwm_config.pwmchip}"
+
+    def _export_channel(self) -> Path:
+        """Export the PWM channel and wait for it to become writable."""
+        chip = self._chip_dir
+        if not chip.is_dir():
+            raise self._fail(
+                f"{chip} not present -- hardware PWM overlay missing. Add "
+                "'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4' to "
+                "/boot/firmware/config.txt and reboot",
+            )
+
+        channel_dir = chip / f"pwm{self._pwm_config.pwm_channel}"
+        if not channel_dir.is_dir():
+            try:
+                (chip / "export").write_text(str(self._pwm_config.pwm_channel))
+            except OSError as err:
+                # EBUSY means someone already exported it, which is fine.
+                if not channel_dir.is_dir():
+                    raise self._fail(f"cannot export PWM channel: {err}") from err
+
+        # Wait out the export/udev race: the pwmN dir and its group-writable
+        # permissions (via udev) both land slightly after the export write
+        # returns, so writing immediately can race either.
+        deadline = time.monotonic() + _EXPORT_TIMEOUT_S
+        while time.monotonic() < deadline:
+            duty = channel_dir / "duty_cycle"
+            if duty.exists() and os.access(duty, os.W_OK):
+                return channel_dir
+            time.sleep(0.05)
+
+        raise self._fail(
+            f"{channel_dir} did not become writable within {_EXPORT_TIMEOUT_S}s "
+            "(is the service user in the 'gpio' group?)",
+        )
+
     def connect(self) -> None:
-        """Open the H-bridge and encoder via gpiozero (lazy import; Pi 5 only)."""
+        """Open the H-bridge (hardware PWM + gpiozero direction pins) and encoder."""
         try:
             from gpiozero import (  # noqa: PLC0415 - lazy: keep module importable without GPIO libs
                 DigitalOutputDevice,
-                PWMOutputDevice,
                 RotaryEncoder,
             )
         except ImportError as err:
@@ -239,10 +305,9 @@ class Driver(EncodedDriveDriver):
                 "gpiozero/lgpio not available (Pi 5 hardware only)",
             ) from err
 
-        pwm, ain1, ain2, enc_a, enc_b = self._pins
+        _, ain1, ain2, enc_a, enc_b = self._pins
         try:
             self._encoder = RotaryEncoder(enc_a, enc_b, max_steps=0)
-            self._pwm = PWMOutputDevice(pwm)
             self._ain1 = DigitalOutputDevice(ain1)
             self._ain2 = DigitalOutputDevice(ain2)
             if self._standby_pin is not None:  # TB6612 STBY; L298N has none
@@ -254,12 +319,35 @@ class Driver(EncodedDriveDriver):
                 [str(p) for p in self._pins],
                 f"GPIO init failed: {type(err).__name__}",
             ) from err
-        logger.info("DC encoder driver connected on pins %s", self._pins)
+
+        channel_dir = self._export_channel()
+        try:
+            # Order matters: duty_cycle may never exceed period, so a stale
+            # larger duty from a previous run would make the period write
+            # fail. Zero the duty first, then set the frame, then enable.
+            (channel_dir / "duty_cycle").write_text("0")
+            (channel_dir / "period").write_text(str(self._period_ns))
+            (channel_dir / "enable").write_text("1")
+        except OSError as err:
+            raise self._fail(f"PWM init failed: {err}") from err
+        self._channel_dir = channel_dir
+
+        logger.info("DC encoder driver connected on pins %s (PWM %s)", self._pins, channel_dir)
+
+    def disconnect(self) -> None:
+        """Stop the drive and release the PWM channel."""
+        self.stop_drive()
+        if self._channel_dir is not None:
+            try:
+                (self._channel_dir / "enable").write_text("0")
+            except OSError:
+                logger.warning("Failed to disable drive PWM on disconnect", exc_info=True)
+            self._channel_dir = None
 
     def _set_output(self, duty: float) -> None:
         """Drive the H-bridge from a signed duty in [-1, 1]."""
         signed = self._sign * max(-1.0, min(1.0, duty))
-        if self._ain1 is None or self._ain2 is None or self._pwm is None:
+        if self._ain1 is None or self._ain2 is None or self._channel_dir is None:
             raise MotorConnectionError([str(p) for p in self._pins], "driver not connected")
         if signed >= 0:
             self._ain1.on()
@@ -267,7 +355,10 @@ class Driver(EncodedDriveDriver):
         else:
             self._ain1.off()
             self._ain2.on()
-        self._pwm.value = abs(signed)
+        try:
+            (self._channel_dir / "duty_cycle").write_text(str(int(abs(signed) * self._period_ns)))
+        except OSError as err:
+            raise self._fail(f"PWM duty_cycle write failed: {err}") from err
 
     def run_drive_forward(self, speed: int | None = None) -> None:
         """Open-loop forward at ``speed`` percent duty (default 50%)."""
@@ -290,8 +381,11 @@ class Driver(EncodedDriveDriver):
     def stop_drive(self) -> None:
         """Stop the drive and clear the PID state."""
         self._pid.reset()
-        if self._pwm is not None:
-            self._pwm.value = 0.0
+        if self._channel_dir is not None:
+            try:
+                (self._channel_dir / "duty_cycle").write_text("0")
+            except OSError:
+                logger.warning("Failed to zero drive PWM duty on stop", exc_info=True)
 
     def reset_drive_encoder(self) -> None:
         """Zero the hardware encoder counter and speed estimator."""
