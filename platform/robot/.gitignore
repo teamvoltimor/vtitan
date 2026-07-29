@@ -35,4 +35,4 @@ AMENT_IGNORE
 .claude/
 
 # Internal docs
-internal_docs/
+docs/internal/
