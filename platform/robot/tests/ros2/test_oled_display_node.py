@@ -343,6 +343,26 @@ class TestOLEDDisplayNodeUpdate:
         mock_driver.show_image.assert_not_called()
         node.destroy_node()
 
+    def test_update_display_skips_write_when_frame_unchanged(self, ros_context, oled_node_class):
+        """A static page (or telemetry that hasn't moved) must not re-write
+        the same frame every tick -- that's the I2C write cost this skip
+        exists to avoid."""
+        from PIL import Image as PILImage
+
+        OLEDDisplayNode, mock_driver = oled_node_class
+        mock_driver.get_blank_image.return_value = PILImage.new("1", (128, 64))
+
+        node = OLEDDisplayNode()
+        node.trigger_configure()
+        node.trigger_activate()
+        node.oled_mirror_pub.publish = lambda _msg: None
+
+        node._update_display()
+        node._update_display()
+
+        mock_driver.show_image.assert_called_once()
+        node.destroy_node()
+
 
 class TestEveryStateRenders:
     """Actually draw each page against a spec'd driver.

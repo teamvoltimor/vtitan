@@ -40,7 +40,16 @@ def main(args: list[str] | None = None) -> None:
     oled.trigger_configure()
     oled.trigger_activate()
 
-    executor = MultiThreadedExecutor()
+    # num_threads=2, not the default (os.cpu_count(), 4 on this board): only
+    # one real concurrency need exists here -- oled_display_node's I2C-write
+    # timer callback must not block its own subscription callbacks (see that
+    # module's _timer_callback_group comment for the confirmed-on-hardware
+    # bug this fixes: /ui/telemetry_summary silently never processed while a
+    # slow write held the only thread). button_node and challenge_mode_node
+    # are lightweight, non-blocking timers with no similar need. Defaulting
+    # to 4 threads spins up idle workers with nothing concurrent to do on an
+    # already CPU-starved board; 2 is the minimum that preserves the fix.
+    executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(button)
     executor.add_node(oled)
     executor.add_node(challenge_mode)

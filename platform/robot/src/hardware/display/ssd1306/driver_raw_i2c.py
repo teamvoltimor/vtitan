@@ -33,8 +33,6 @@ _I2C_SLAVE = 0x0703
 
 _CONTROL_COMMAND = 0x00
 _CONTROL_DATA = 0x40
-_BLOCK_SIZE = 32
-"""Max data bytes per write() call (matches smbus2's block-write chunking)."""
 
 _DISPLAY_HEIGHT_128X64 = 64
 """Pixel height of the 128x64 SSD1306 variant (vs. 128x32), selecting COM pin config."""
@@ -76,11 +74,23 @@ class RawI2CDriver(ABC_Driver):
             os.write(self._fd, bytes([_CONTROL_COMMAND, cmd]))
 
     def _write_data(self, data: bytes) -> None:
+        """Write the full data buffer in one I2C transaction.
+
+        Was 32-byte chunks (one os.write() per chunk, 32 syscalls + I2C
+        START/STOP pairs for a 1024-byte frame) -- that limit comes from the
+        SMBus block-write protocol's 32-byte max, which does not apply here:
+        this path is a plain i2c-dev write() with the control byte sent once
+        up front, not repeated SMBus block transfers. The SSD1306 protocol
+        only needs the control byte once per transaction (Co bit low means
+        "everything after this is data"), and the kernel's i2c-dev write()
+        accepts a buffer far larger than 1025 bytes. Measured on hardware:
+        this was ~100ms of blocking os.write() calls per frame at 10Hz --
+        i.e. the entire timer period -- and a real, confirmed contributor to
+        pi_zero_peripherals_node's CPU cost.
+        """
         if self._fd is None:
             return
-        for offset in range(0, len(data), _BLOCK_SIZE):
-            chunk = data[offset : offset + _BLOCK_SIZE]
-            os.write(self._fd, bytes([_CONTROL_DATA]) + chunk)
+        os.write(self._fd, bytes([_CONTROL_DATA]) + data)
 
     def _set_addressing_window(self) -> None:
         self._write_command(

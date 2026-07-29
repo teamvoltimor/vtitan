@@ -226,6 +226,12 @@ class OLEDDisplayNode(LifecycleNode):
         # TEMP DIAGNOSTIC (2026-07-28): see _ui_summary_callback.
         self._last_ui_summary_receive_time: float | None = None
 
+        self._last_frame_bytes: bytes | None = None
+        """Last frame actually written to the panel, so an unchanged render
+        (a static page, or telemetry that hasn't moved between ticks) skips
+        the I2C write and mirror publish instead of paying their cost every
+        tick regardless of whether anything visible changed."""
+
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Connect the display driver and create the publisher/subscribers."""
@@ -446,6 +452,11 @@ class OLEDDisplayNode(LifecycleNode):
             image = self._render_finished()
         else:
             image = self.display_driver.get_blank_image()
+
+        frame_bytes = image.tobytes()
+        if frame_bytes == self._last_frame_bytes:
+            return
+        self._last_frame_bytes = frame_bytes
 
         # Display on OLED
         # TEMP DIAGNOSTIC (2026-07-28): see _ui_summary_callback -- times the
