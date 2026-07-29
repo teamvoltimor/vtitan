@@ -98,8 +98,25 @@ if TYPE_CHECKING:
 NODE_NAME = "ackermann_motor_node"
 """ROS2 node name for Ackermann motor controller."""
 
-PUBLISHER_RATE_HZ = 100.0
-"""Rate for publishing motor state and diagnostics."""
+PUBLISHER_RATE_HZ = 20.0
+"""Rate for publishing motor state (steering position, drive speed, joint states).
+
+Was 100Hz -- telemetry consumed by a UI dial or an occasional motion prior
+doesn't need 10ms latency, and rebuilding + publishing 3 messages that often
+was a measurable, unnecessary CPU cost on the Pi Zero this node runs on
+(alongside the same-shaped fix already applied to /ui/telemetry_summary,
+/robot_state and /system_status). 20Hz (50ms) is still well under human
+perception for a dial and far above what a motion prior integrates against.
+"""
+
+DIAGNOSTICS_RATE_HZ = 2.0
+"""Rate for publishing /motor/status diagnostics.
+
+Deliberately much slower than PUBLISHER_RATE_HZ: DiagnosticStatus is for a
+human or a monitoring dashboard, not a control loop, and building it involves
+7 KeyValue allocations + f-string formats per call -- paying that cost 100x/s
+for a value that changes on human timescales was pure waste.
+"""
 
 STEERING_COMMAND_SPEED = 30
 """Steering move speed (deg/s) commanded per update. Used by geared backends; the servo self-paces."""
@@ -233,6 +250,7 @@ class AckermannMotorNode(LifecycleNode):
         # path where the motors are least likely to already be stopped.
         self.control_timer: Timer | None = None
         self.watchdog_timer: Timer | None = None
+        self.diagnostics_timer: Timer | None = None
 
         # Current command tracking
         self.current_speed: float = 0.0
@@ -326,6 +344,7 @@ class AckermannMotorNode(LifecycleNode):
         self.feedback_timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._publish_feedback)
         self.control_timer = self.create_timer(1.0 / DRIVE_CONTROL_RATE_HZ, self._drive_control_step)
         self.watchdog_timer = self.create_timer(0.5, self._watchdog_check)  # 500ms watchdog
+        self.diagnostics_timer = self.create_timer(1.0 / DIAGNOSTICS_RATE_HZ, self._publish_diagnostics)
 
         return super().on_activate(state)
 
@@ -381,7 +400,7 @@ class AckermannMotorNode(LifecycleNode):
         if self.ackermann_sub is not None:
             self.destroy_subscription(self.ackermann_sub)
             self.ackermann_sub = None
-        for timer_attr in ("feedback_timer", "control_timer", "watchdog_timer"):
+        for timer_attr in ("feedback_timer", "control_timer", "watchdog_timer", "diagnostics_timer"):
             timer = getattr(self, timer_attr)
             if timer is not None:
                 timer.cancel()
@@ -549,7 +568,32 @@ class AckermannMotorNode(LifecycleNode):
                 joint_msg.velocity = [math.radians(drive_speed), 0.0]
                 self.joint_state_pub.publish(joint_msg)
 
-            # Publish status diagnostics
+        except (RuntimeError, OSError, ValueError) as e:
+            self.get_logger().warning(f"Failed to read motor feedback: {e}")
+
+    def _publish_diagnostics(self) -> None:
+        """Publish /motor/status diagnostics.
+
+        Runs on its own slower timer (see DIAGNOSTICS_RATE_HZ) -- separate from
+        _publish_feedback's steering/speed/joint-state topics, which telemetry
+        and any closed loop actually consume at a real-time rate.
+        """
+        if (
+            self.steering is None
+            or self.drive is None
+            or self.config is None
+            or self.status_pub is None
+            or self.steering_backend is None
+            or self.drive_backend is None
+        ):
+            return
+
+        try:
+            # Same wheel-frame conversion as _publish_feedback -- see its
+            # comment for why the driver's servo-degree reading is converted.
+            steering_pos = self.steering.get_steering_position() * self.config.steering.linkage_ratio
+            drive_speed = self.drive.get_drive_speed()
+
             status_msg = DiagnosticStatus()
             status_msg.name = "Ackermann Motors"
             status_msg.level = DiagnosticStatus.OK
@@ -571,7 +615,7 @@ class AckermannMotorNode(LifecycleNode):
             self.status_pub.publish(status_msg)
 
         except (RuntimeError, OSError, ValueError) as e:
-            self.get_logger().warning(f"Failed to read motor feedback: {e}")
+            self.get_logger().warning(f"Failed to read motor diagnostics: {e}")
 
     def _drive_control_step(self) -> None:
         """One closed-loop drive step: PID the duty toward the target wheel rpm.

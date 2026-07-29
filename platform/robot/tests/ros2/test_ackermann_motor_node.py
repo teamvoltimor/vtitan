@@ -325,11 +325,13 @@ class TestAckermannMotorNodeSafetyLifecycle:
         node.trigger_configure()
         assert node.feedback_timer is None
         assert node.watchdog_timer is None
+        assert node.diagnostics_timer is None
 
         node.trigger_activate()
 
         assert node.feedback_timer is not None
         assert node.watchdog_timer is not None
+        assert node.diagnostics_timer is not None
         node.destroy_node()
 
     def test_deactivate_stops_motors_and_removes_subscription(self, ros_context, ackermann_node_class):
@@ -347,6 +349,7 @@ class TestAckermannMotorNodeSafetyLifecycle:
         assert node.ackermann_sub is None
         assert node.feedback_timer is None
         assert node.watchdog_timer is None
+        assert node.diagnostics_timer is None
         node.destroy_node()
 
     def test_deactivated_node_ignores_further_commands(self, ros_context, ackermann_node_class):
@@ -532,4 +535,56 @@ class TestJointStateFeedback:
 
         assert len(steering_pub) == 1
         assert len(speed_pub) == 1
+        node.destroy_node()
+
+    def test_publish_feedback_does_not_touch_status_pub(self, ros_context, ackermann_node_class):
+        """Diagnostics moved to their own slower timer -- feedback must not also publish them."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        status_pub = []
+        node.status_pub.publish = status_pub.append
+
+        node._publish_feedback()
+
+        assert status_pub == []
+        node.destroy_node()
+
+
+class TestDiagnosticsPublishing:
+    """/motor/status runs on its own slower timer (DIAGNOSTICS_RATE_HZ), separate
+    from the steering/speed/joint-state feedback a closed loop or UI dial
+    actually consumes at a real-time rate."""
+
+    @staticmethod
+    def _activated(node_cls, mock_drive, mock_steering, *, speed_deg_s=90.0, steer_deg=10.0):
+        mock_drive.get_drive_speed.return_value = speed_deg_s
+        mock_steering.get_steering_position.return_value = steer_deg
+        node = node_cls()
+        node.trigger_configure()
+        node.trigger_activate()
+        return node
+
+    def test_publishes_status(self, ros_context, ackermann_node_class):
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        published = []
+        node.status_pub.publish = published.append
+
+        node._publish_diagnostics()
+
+        assert len(published) == 1
+        node.destroy_node()
+
+    def test_does_not_consume_the_rpm_window(self, ros_context, ackermann_node_class):
+        """Same hazard as _publish_feedback: get_drive_rpm() consumes the counts
+        since its last call, so diagnostics must read the cached get_drive_speed()
+        rather than adding a third consumer alongside the control loop."""
+        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
+        node = self._activated(AckermannMotorNode, mock_drive, mock_steering)
+        mock_drive.reset_mock()
+
+        node._publish_diagnostics()
+
+        mock_drive.get_drive_rpm.assert_not_called()
+        mock_drive.get_drive_odometry.assert_not_called()
         node.destroy_node()
