@@ -3,9 +3,9 @@
 # Motor command range, normalized to [-1.0, 1.0].
 # See shared.config.navigation_tuning.SpeedControlParams.
 
-MIN_SPEED = 0.05      # Minimum forward speed to overcome friction
-MAX_SPEED = 0.50      # Maximum safe forward speed
-CREEP_SPEED = 0.05    # Speed in the contact zone
-SLOW_SPEED = 0.15     # Speed near obstacles
-MEDIUM_SPEED = 0.30   # Speed at moderate clearance
-FAST_SPEED = 0.50     # Speed on open track
+min_speed = 0.05      # Minimum forward speed to overcome friction
+max_speed = 0.50      # Maximum safe forward speed
+creep_speed = 0.05    # Speed in the contact zone
+slow_speed = 0.15     # Speed near obstacles
+medium_speed = 0.30   # Speed at moderate clearance
+fast_speed = 0.50     # Speed on open track

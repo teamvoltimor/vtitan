@@ -2,7 +2,7 @@
 #
 # See shared.config.navigation_tuning.LidarSectorParams.
 
-FRONT_HALF_FOV_DEG = 30.0          # compute_forward_clearance's cone
-THREAT_HALF_FOV_DEG = 45.0         # detect_threat_direction's sectors
-SELF_DETECTION_THRESHOLD_M = 0.08  # chassis/cable self-reflection floor
-MIN_VALID_RANGE_M = 0.01           # no-return / invalid reading floor
+front_half_fov_deg = 30.0          # compute_forward_clearance's cone
+threat_half_fov_deg = 45.0         # detect_threat_direction's sectors
+self_detection_threshold_m = 0.08  # chassis/cable self-reflection floor
+min_valid_range_m = 0.01           # no-return / invalid reading floor

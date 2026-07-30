@@ -3,16 +3,16 @@
 #
 # See shared.config.navigation_tuning.EscapeManeuverParams.
 
-REV_SPEED = -0.20             # Reverse speed during escapes
-REV_STEERING_SCALE = 0.8      # Steering aggressiveness while reversing
-K_TURN_MIN_FRAMES = 6         # Minimum K-turn duration (OBSTACLE risk)
-K_TURN_MAX_FRAMES = 12        # Maximum K-turn duration (CRITICAL risk)
-SLALOM_REVERSE_FRAMES = 8     # Frames spent reversing during slalom
-SLALOM_FORWARD_FRAMES = 10    # Frames spent forward-turning during slalom
-STUCK_MOVE_THRESHOLD = 0.03   # Distance threshold (m) to detect stuck
-STUCK_TIMEOUT_FRAMES = 40     # Frames without movement before "stuck" (~2s @ 20Hz)
-SIDE_CORRECTION_STEER = 0.3   # Steering magnitude for a side-threat correction
-SIDE_CORRECTION_SPEED = 0.1   # Forward speed during a side-threat correction
-SIDE_CORRECTION_FRAMES = 4    # Duration of a side-threat correction (frames)
-ESCALATE_AFTER_ATTEMPTS = 3   # Consecutive escapes before escalating (longer duration, opposite side)
-MAX_ESCAPE_FRAMES = 20        # Hard cap on any single escalated escape duration
+rev_speed = -0.20             # Reverse speed during escapes
+rev_steering_scale = 0.8      # Steering aggressiveness while reversing
+k_turn_min_frames = 6         # Minimum K-turn duration (OBSTACLE risk)
+k_turn_max_frames = 12        # Maximum K-turn duration (CRITICAL risk)
+slalom_reverse_frames = 8     # Frames spent reversing during slalom
+slalom_forward_frames = 10    # Frames spent forward-turning during slalom
+stuck_move_threshold = 0.03   # Distance threshold (m) to detect stuck
+stuck_timeout_frames = 40     # Frames without movement before "stuck" (~2s @ 20Hz)
+side_correction_steer = 0.3   # Steering magnitude for a side-threat correction
+side_correction_speed = 0.1   # Forward speed during a side-threat correction
+side_correction_frames = 4    # Duration of a side-threat correction (frames)
+escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
+max_escape_frames = 20        # Hard cap on any single escalated escape duration

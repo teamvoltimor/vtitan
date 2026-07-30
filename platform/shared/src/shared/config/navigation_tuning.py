@@ -26,6 +26,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, ClassVar
 
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
 DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[3] / "config" / "navigation"
 """platform/shared/config/navigation -- the checked-in per-group TOML tree.
 
@@ -36,8 +38,16 @@ CoreNavigator) shouldn't have to know or assume the two are siblings under
 the same platform/ root."""
 
 
-@dataclass(frozen=True)
-class ClearanceZones:
+def _alias(name: str) -> AliasChoices:
+    """Accept both the SHOUT_CASE field name (YAML/JSON profiles, direct
+    kwargs) and its lowercase TOML-file spelling, so nested tuning groups
+    keep their existing SHOUT_CASE attribute names everywhere they're read
+    (``tuning.pursuit.LOOKAHEAD_SHORT``) while the checked-in per-group TOML
+    files under DEFAULT_CONFIG_DIR use lowercase keys."""
+    return AliasChoices(name, name.lower())
+
+
+class ClearanceZones(BaseModel):
     """LIDAR clearance thresholds for speed control.
 
     These distances define zones around the robot where speed is controlled
@@ -52,15 +62,16 @@ class ClearanceZones:
             counted as "in the robot's forward path" for risk assessment (m)
     """
 
-    CONTACT_DIST: float = 0.10  # Creep forward zone
-    SLOW_DIST: float = 0.25  # Reduced speed
-    MEDIUM_DIST: float = 0.50  # Normal speed
-    FAST_DIST: float = 1.00  # Full speed capability
-    PATH_MARGIN: float = 0.10  # Forward-path half-width margin beyond chassis
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CONTACT_DIST: float = Field(default=0.10, validation_alias=_alias("CONTACT_DIST"))  # Creep forward zone
+    SLOW_DIST: float = Field(default=0.25, validation_alias=_alias("SLOW_DIST"))  # Reduced speed
+    MEDIUM_DIST: float = Field(default=0.50, validation_alias=_alias("MEDIUM_DIST"))  # Normal speed
+    FAST_DIST: float = Field(default=1.00, validation_alias=_alias("FAST_DIST"))  # Full speed capability
+    PATH_MARGIN: float = Field(default=0.10, validation_alias=_alias("PATH_MARGIN"))  # Forward-path margin
 
 
-@dataclass(frozen=True)
-class HeadingErrorZones:
+class HeadingErrorZones(BaseModel):
     """Heading error thresholds for speed modulation.
 
     These thresholds define how much heading error reduces speed. Radians.
@@ -72,14 +83,15 @@ class HeadingErrorZones:
         NORMAL: Small error (< 0.4 rad) - normal speed
     """
 
-    CRAWL: float = 1.0  # ~57° - worst case
-    SLOW: float = 0.7  # ~40°
-    MEDIUM: float = 0.4  # ~23°
-    NORMAL: float = 0.2  # ~11°
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CRAWL: float = Field(default=1.0, validation_alias=_alias("CRAWL"))  # ~57° - worst case
+    SLOW: float = Field(default=0.7, validation_alias=_alias("SLOW"))  # ~40°
+    MEDIUM: float = Field(default=0.4, validation_alias=_alias("MEDIUM"))  # ~23°
+    NORMAL: float = Field(default=0.2, validation_alias=_alias("NORMAL"))  # ~11°
 
 
-@dataclass(frozen=True)
-class PurePursuitParams:
+class PurePursuitParams(BaseModel):
     """Pure pursuit controller parameters for waypoint following.
 
     Implements lookahead-based steering to follow waypoints with
@@ -93,15 +105,18 @@ class PurePursuitParams:
         MAX_STEERING_RATE: Maximum steering command rate (rad/s)
     """
 
-    LOOKAHEAD_SHORT: float = 0.20  # Close to corner
-    LOOKAHEAD_LONG: float = 0.40  # Normal straight
-    LOOKAHEAD_TRANSITION: float = 0.30  # Crosstrack threshold
-    STEER_KP: float = 1.2  # Steering P-gain
-    MAX_STEERING_RATE: float = 2.0  # rad/s
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    LOOKAHEAD_SHORT: float = Field(default=0.20, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
+    LOOKAHEAD_LONG: float = Field(default=0.40, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
+    LOOKAHEAD_TRANSITION: float = Field(
+        default=0.30, validation_alias=_alias("LOOKAHEAD_TRANSITION")
+    )  # Crosstrack threshold
+    STEER_KP: float = Field(default=1.2, validation_alias=_alias("STEER_KP"))  # Steering P-gain
+    MAX_STEERING_RATE: float = Field(default=2.0, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
 
 
-@dataclass(frozen=True)
-class SpeedControlParams:
+class SpeedControlParams(BaseModel):
     """Speed control parameters for different zones.
 
     Maps clearance zones and heading errors to commanded motor speeds.
@@ -116,16 +131,17 @@ class SpeedControlParams:
         FAST_SPEED: Speed in fast/open zone
     """
 
-    MIN_SPEED: float = 0.05  # Minimum to move
-    MAX_SPEED: float = 0.50  # Maximum safe speed
-    CREEP_SPEED: float = 0.05  # Contact zone
-    SLOW_SPEED: float = 0.15  # Near obstacles
-    MEDIUM_SPEED: float = 0.30  # Moderate clearance
-    FAST_SPEED: float = 0.50  # Open track
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    MIN_SPEED: float = Field(default=0.05, validation_alias=_alias("MIN_SPEED"))  # Minimum to move
+    MAX_SPEED: float = Field(default=0.50, validation_alias=_alias("MAX_SPEED"))  # Maximum safe speed
+    CREEP_SPEED: float = Field(default=0.05, validation_alias=_alias("CREEP_SPEED"))  # Contact zone
+    SLOW_SPEED: float = Field(default=0.15, validation_alias=_alias("SLOW_SPEED"))  # Near obstacles
+    MEDIUM_SPEED: float = Field(default=0.30, validation_alias=_alias("MEDIUM_SPEED"))  # Moderate clearance
+    FAST_SPEED: float = Field(default=0.50, validation_alias=_alias("FAST_SPEED"))  # Open track
 
 
-@dataclass(frozen=True)
-class EscapeManeuverParams:
+class EscapeManeuverParams(BaseModel):
     """Escape maneuver parameters for collision recovery.
 
     When collision risk is detected, the robot executes escape maneuvers
@@ -148,23 +164,34 @@ class EscapeManeuverParams:
         MAX_ESCAPE_FRAMES: Hard cap on any single escalated escape duration
     """
 
-    REV_SPEED: float = -0.20  # Reverse speed
-    REV_STEERING_SCALE: float = 0.8  # Steering while reversing
-    K_TURN_MIN_FRAMES: int = 6  # Minimum K-turn duration
-    K_TURN_MAX_FRAMES: int = 12  # Maximum K-turn duration
-    SLALOM_REVERSE_FRAMES: int = 8  # Reverse duration in slalom
-    SLALOM_FORWARD_FRAMES: int = 10  # Forward turn duration
-    STUCK_MOVE_THRESHOLD: float = 0.03  # 3cm movement threshold
-    STUCK_TIMEOUT_FRAMES: int = 40  # ~2 seconds at 20Hz
-    SIDE_CORRECTION_STEER: float = 0.3
-    SIDE_CORRECTION_SPEED: float = 0.1
-    SIDE_CORRECTION_FRAMES: int = 4
-    ESCALATE_AFTER_ATTEMPTS: int = 3
-    MAX_ESCAPE_FRAMES: int = 20
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    REV_SPEED: float = Field(default=-0.20, validation_alias=_alias("REV_SPEED"))  # Reverse speed
+    REV_STEERING_SCALE: float = Field(
+        default=0.8, validation_alias=_alias("REV_STEERING_SCALE")
+    )  # Steering while reversing
+    K_TURN_MIN_FRAMES: int = Field(default=6, validation_alias=_alias("K_TURN_MIN_FRAMES"))  # Minimum K-turn
+    K_TURN_MAX_FRAMES: int = Field(default=12, validation_alias=_alias("K_TURN_MAX_FRAMES"))  # Maximum K-turn
+    SLALOM_REVERSE_FRAMES: int = Field(
+        default=8, validation_alias=_alias("SLALOM_REVERSE_FRAMES")
+    )  # Reverse duration in slalom
+    SLALOM_FORWARD_FRAMES: int = Field(
+        default=10, validation_alias=_alias("SLALOM_FORWARD_FRAMES")
+    )  # Forward turn duration
+    STUCK_MOVE_THRESHOLD: float = Field(
+        default=0.03, validation_alias=_alias("STUCK_MOVE_THRESHOLD")
+    )  # 3cm movement threshold
+    STUCK_TIMEOUT_FRAMES: int = Field(
+        default=40, validation_alias=_alias("STUCK_TIMEOUT_FRAMES")
+    )  # ~2 seconds at 20Hz
+    SIDE_CORRECTION_STEER: float = Field(default=0.3, validation_alias=_alias("SIDE_CORRECTION_STEER"))
+    SIDE_CORRECTION_SPEED: float = Field(default=0.1, validation_alias=_alias("SIDE_CORRECTION_SPEED"))
+    SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
+    ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
+    MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
 
 
-@dataclass(frozen=True)
-class WaypointParams:
+class WaypointParams(BaseModel):
     """Waypoint generation geometry parameters.
 
     Attributes:
@@ -189,17 +216,22 @@ class WaypointParams:
             waypoint as reached.
     """
 
-    ARC_RADIUS: float = 0.45
-    DEDUPE_DISTANCE_M: float = 0.001
-    OUTER_WALL_BIAS: float = 0.05
-    NUM_INTERMEDIATE_ARC_POINTS: int = 3
-    STRAIGHT_WAYPOINT_COUNT: int = 8
-    MAIN_LOOP_REACHED_DISTANCE_M: float = 0.20
-    CONTROLLER_REACHED_DISTANCE_M: float = 0.01
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ARC_RADIUS: float = Field(default=0.45, validation_alias=_alias("ARC_RADIUS"))
+    DEDUPE_DISTANCE_M: float = Field(default=0.001, validation_alias=_alias("DEDUPE_DISTANCE_M"))
+    OUTER_WALL_BIAS: float = Field(default=0.05, validation_alias=_alias("OUTER_WALL_BIAS"))
+    NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))
+    STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
+    MAIN_LOOP_REACHED_DISTANCE_M: float = Field(
+        default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M")
+    )
+    CONTROLLER_REACHED_DISTANCE_M: float = Field(
+        default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M")
+    )
 
 
-@dataclass(frozen=True)
-class SensorHealthParams:
+class SensorHealthParams(BaseModel):
     """Sensor dropout / staleness detection for the hardware gateway.
 
     Attributes:
@@ -210,11 +242,12 @@ class SensorHealthParams:
             feed the control loop depends on.
     """
 
-    STALE_TIMEOUT_SEC: float = 0.5
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    STALE_TIMEOUT_SEC: float = Field(default=0.5, validation_alias=_alias("STALE_TIMEOUT_SEC"))
 
 
-@dataclass(frozen=True)
-class LidarSectorParams:
+class LidarSectorParams(BaseModel):
     """LIDAR angular-sector definitions shared by collision avoidance and the OLED.
 
     Attributes:
@@ -231,14 +264,17 @@ class LidarSectorParams:
             invalid (no-return) readings.
     """
 
-    FRONT_HALF_FOV_DEG: float = 30.0
-    THREAT_HALF_FOV_DEG: float = 45.0
-    SELF_DETECTION_THRESHOLD_M: float = 0.08
-    MIN_VALID_RANGE_M: float = 0.01
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    FRONT_HALF_FOV_DEG: float = Field(default=30.0, validation_alias=_alias("FRONT_HALF_FOV_DEG"))
+    THREAT_HALF_FOV_DEG: float = Field(default=45.0, validation_alias=_alias("THREAT_HALF_FOV_DEG"))
+    SELF_DETECTION_THRESHOLD_M: float = Field(
+        default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M")
+    )
+    MIN_VALID_RANGE_M: float = Field(default=0.01, validation_alias=_alias("MIN_VALID_RANGE_M"))
 
 
-@dataclass(frozen=True)
-class SignRouterParams:
+class SignRouterParams(BaseModel):
     """Traffic-sign avoidance routing parameters.
 
     Attributes:
@@ -261,18 +297,19 @@ class SignRouterParams:
             bookkeeping activates (~7.5s @ 20Hz by default).
     """
 
-    SIGN_CLEARANCE_MARGIN_M: float = 0.075
-    DEFORM_DEPTH_BUFFER_M: float = 0.3
-    WALL_CLEARANCE_MARGIN_M: float = 0.04
-    ACTIVATION_DIST_M: float = 0.80
-    PASSED_DIST_M: float = 1.20
-    DETECTION_MATCH_DIST_M: float = 0.30
-    MIN_CONFIDENCE: float = 0.25
-    SETTLE_TICKS: int = 150
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    SIGN_CLEARANCE_MARGIN_M: float = Field(default=0.075, validation_alias=_alias("SIGN_CLEARANCE_MARGIN_M"))
+    DEFORM_DEPTH_BUFFER_M: float = Field(default=0.3, validation_alias=_alias("DEFORM_DEPTH_BUFFER_M"))
+    WALL_CLEARANCE_MARGIN_M: float = Field(default=0.04, validation_alias=_alias("WALL_CLEARANCE_MARGIN_M"))
+    ACTIVATION_DIST_M: float = Field(default=0.80, validation_alias=_alias("ACTIVATION_DIST_M"))
+    PASSED_DIST_M: float = Field(default=1.20, validation_alias=_alias("PASSED_DIST_M"))
+    DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
+    MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
+    SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
 
 
-@dataclass(frozen=True)
-class SignDiscoveryParams:
+class SignDiscoveryParams(BaseModel):
     """Blind sign-discovery (ObservedSignMap) parameters.
 
     Attributes:
@@ -286,14 +323,15 @@ class SignDiscoveryParams:
             sign is published.
     """
 
-    MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
-    MAX_INGEST_RANGE_M: float = 2.0
-    ASSOCIATION_DIST_M: float = 0.25
-    MIN_HITS: int = 3
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    MIN_RELIABLE_BBOX_HEIGHT_PX: int = Field(default=5, validation_alias=_alias("MIN_RELIABLE_BBOX_HEIGHT_PX"))
+    MAX_INGEST_RANGE_M: float = Field(default=2.0, validation_alias=_alias("MAX_INGEST_RANGE_M"))
+    ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
+    MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
 
 
-@dataclass(frozen=True)
-class ParkingParams:
+class ParkingParams(BaseModel):
     """Parallel-parking maneuver parameters.
 
     Attributes:
@@ -316,19 +354,22 @@ class ParkingParams:
             parking-bay marker fin.
     """
 
-    PARALLEL_TOLERANCE_M: float = 0.02
-    POS_REACH_DIST_M: float = 0.04
-    DEFAULT_MAX_FRAMES: int = 400
-    SATURATED_STEER_THRESHOLD: float = 0.999
-    SATURATION_STUCK_TICKS: int = 20
-    SPEED: float = 0.12
-    MIN_LOOKAHEAD_DIST_M: float = 0.02
-    WALL_STANDOFF_M: float = 0.05
-    MARKER_STANDOFF_M: float = 0.01
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    PARALLEL_TOLERANCE_M: float = Field(default=0.02, validation_alias=_alias("PARALLEL_TOLERANCE_M"))
+    POS_REACH_DIST_M: float = Field(default=0.04, validation_alias=_alias("POS_REACH_DIST_M"))
+    DEFAULT_MAX_FRAMES: int = Field(default=400, validation_alias=_alias("DEFAULT_MAX_FRAMES"))
+    SATURATED_STEER_THRESHOLD: float = Field(
+        default=0.999, validation_alias=_alias("SATURATED_STEER_THRESHOLD")
+    )
+    SATURATION_STUCK_TICKS: int = Field(default=20, validation_alias=_alias("SATURATION_STUCK_TICKS"))
+    SPEED: float = Field(default=0.12, validation_alias=_alias("SPEED"))
+    MIN_LOOKAHEAD_DIST_M: float = Field(default=0.02, validation_alias=_alias("MIN_LOOKAHEAD_DIST_M"))
+    WALL_STANDOFF_M: float = Field(default=0.05, validation_alias=_alias("WALL_STANDOFF_M"))
+    MARKER_STANDOFF_M: float = Field(default=0.01, validation_alias=_alias("MARKER_STANDOFF_M"))
 
 
-@dataclass(frozen=True)
-class LocalizationParams:
+class LocalizationParams(BaseModel):
     """LIDAR-based pose search (LidarLocalizer) parameters.
 
     Attributes:
@@ -339,10 +380,12 @@ class LocalizationParams:
             function (outlier rejection).
     """
 
-    SEARCH_RADIUS_M: float = 0.15
-    PASSES: int = 4
-    GRID_POINTS: int = 5
-    RESIDUAL_CLIP_M: float = 0.25
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    SEARCH_RADIUS_M: float = Field(default=0.15, validation_alias=_alias("SEARCH_RADIUS_M"))
+    PASSES: int = Field(default=4, validation_alias=_alias("PASSES"))
+    GRID_POINTS: int = Field(default=5, validation_alias=_alias("GRID_POINTS"))
+    RESIDUAL_CLIP_M: float = Field(default=0.25, validation_alias=_alias("RESIDUAL_CLIP_M"))
 
 
 @dataclass(frozen=True)
@@ -556,9 +599,7 @@ class NavigationTuning:
         Returns:
             Dictionary representation of all parameters
         """
-        import dataclasses
-
-        return {key: dataclasses.asdict(getattr(self, key)) for key, _ in self._GROUPS}
+        return {key: getattr(self, key).model_dump() for key, _ in self._GROUPS}
 
     def to_json(self) -> str:
         """Export configuration as JSON string.

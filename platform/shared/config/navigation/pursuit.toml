@@ -2,8 +2,8 @@
 #
 # See shared.config.navigation_tuning.PurePursuitParams.
 
-LOOKAHEAD_SHORT = 0.20        # Lookahead distance for sharp corners (m)
-LOOKAHEAD_LONG = 0.40         # Lookahead distance for straights (m)
-LOOKAHEAD_TRANSITION = 0.30   # Crosstrack error threshold to switch modes (m)
-STEER_KP = 1.2                # Proportional gain for the steering P-controller
-MAX_STEERING_RATE = 2.0       # Maximum steering command rate (rad/s)
+lookahead_short = 0.20        # Lookahead distance for sharp corners (m)
+lookahead_long = 0.40         # Lookahead distance for straights (m)
+lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m)
+steer_kp = 1.2                # Proportional gain for the steering P-controller
+max_steering_rate = 2.0       # Maximum steering command rate (rad/s)

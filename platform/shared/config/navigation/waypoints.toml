@@ -5,26 +5,26 @@
 # Corner arc radius (m). Must exceed the Ackermann minimum turning radius
 # (~0.329m, from the measured WHEELBASE=0.19/MAX_STEERING_ANGLE=0.5236) --
 # enforced by a fail-fast width assertion in calculate_waypoints.
-ARC_RADIUS = 0.45
+arc_radius = 0.45
 
 # Distance below which consecutive generated waypoints are treated as duplicates.
-DEDUPE_DISTANCE_M = 0.001
+dedupe_distance_m = 0.001
 
 # Bias (m) added to corridor centerline waypoints toward the outer wall, to
 # compensate for chassis width.
-OUTER_WALL_BIAS = 0.05
+outer_wall_bias = 0.05
 
 # Number of intermediate sample points per corner arc.
-NUM_INTERMEDIATE_ARC_POINTS = 3
+num_intermediate_arc_points = 3
 
 # Number of evenly spaced waypoints generated along a straight corridor segment.
-STRAIGHT_WAYPOINT_COUNT = 8
+straight_waypoint_count = 8
 
 # Distance within which CoreNavigator's own main loop counts a waypoint as
 # reached. Deliberately different from CONTROLLER_REACHED_DISTANCE_M below --
 # the two serve different layers, not a single duplicated concept.
-MAIN_LOOP_REACHED_DISTANCE_M = 0.20
+main_loop_reached_distance_m = 0.20
 
 # Distance within which WaypointController's own internal pure-pursuit logic
 # counts a waypoint as reached.
-CONTROLLER_REACHED_DISTANCE_M = 0.01
+controller_reached_distance_m = 0.01

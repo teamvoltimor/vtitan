@@ -2,11 +2,11 @@
 #
 # See shared.config.navigation_tuning.SignRouterParams.
 
-SIGN_CLEARANCE_MARGIN_M = 0.075   # extra margin beyond chassis+sign half-widths
-DEFORM_DEPTH_BUFFER_M = 0.3       # depth-axis slack for "in corridor" check
-WALL_CLEARANCE_MARGIN_M = 0.04    # margin beyond chassis half-diagonal from a wall
-ACTIVATION_DIST_M = 0.80          # distance at which deformation activates
-PASSED_DIST_M = 1.20              # distance beyond which a sign is "passed"
-DETECTION_MATCH_DIST_M = 0.30     # max distance to associate a detection with a sign
-MIN_CONFIDENCE = 0.25             # minimum confidence to accept a camera color update
-SETTLE_TICKS = 150                # ticks after lap start before bookkeeping activates
+sign_clearance_margin_m = 0.075   # extra margin beyond chassis+sign half-widths
+deform_depth_buffer_m = 0.3       # depth-axis slack for "in corridor" check
+wall_clearance_margin_m = 0.04    # margin beyond chassis half-diagonal from a wall
+activation_dist_m = 0.80          # distance at which deformation activates
+passed_dist_m = 1.20              # distance beyond which a sign is "passed"
+detection_match_dist_m = 0.30     # max distance to associate a detection with a sign
+min_confidence = 0.25             # minimum confidence to accept a camera color update
+settle_ticks = 150                # ticks after lap start before bookkeeping activates

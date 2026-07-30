@@ -7,8 +7,8 @@
 # this file IS the source of truth; edit it directly and restart the
 # navigator (or re-run tests) to pick up changes.
 
-CONTACT_DIST = 0.10    # Robot creeps forward (< this) -- immediate danger
-SLOW_DIST = 0.25       # Reduced speed zone
-MEDIUM_DIST = 0.50     # Normal speed zone
-FAST_DIST = 1.00       # Full speed capability (> this)
-PATH_MARGIN = 0.10     # Extra clearance beyond chassis half-width still counted as "in the forward path"
+contact_dist = 0.10    # Robot creeps forward (< this) -- immediate danger
+slow_dist = 0.25       # Reduced speed zone
+medium_dist = 0.50     # Normal speed zone
+fast_dist = 1.00       # Full speed capability (> this)
+path_margin = 0.10     # Extra clearance beyond chassis half-width still counted as "in the forward path"

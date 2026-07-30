@@ -7,4 +7,4 @@
 # instead of acting on frozen data. Derived as 5x the LIDAR scan period
 # (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor feed the control loop
 # depends on.
-STALE_TIMEOUT_SEC = 0.5
+stale_timeout_sec = 0.5
