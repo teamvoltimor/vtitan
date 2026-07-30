@@ -26,6 +26,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+# Seconds to wait before restarting a crashed node.
+_RESPAWN_DELAY_SEC = 2.0
+
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for WRO state machine system."""
@@ -57,7 +60,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=2.0,
+        respawn_delay=_RESPAWN_DELAY_SEC,
     )
 
     # OLED display node with live mirroring
@@ -68,7 +71,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=2.0,
+        respawn_delay=_RESPAWN_DELAY_SEC,
     )
 
     # IMU node (BNO08x via UART RVC mode)
@@ -79,7 +82,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=2.0,
+        respawn_delay=_RESPAWN_DELAY_SEC,
     )
 
     # Ackermann motor controller node. This node subscribes to /ackermann_cmd
@@ -91,7 +94,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=2.0,
+        respawn_delay=_RESPAWN_DELAY_SEC,
     )
 
     return LaunchDescription(

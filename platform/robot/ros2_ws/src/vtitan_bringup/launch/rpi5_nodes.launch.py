@@ -16,6 +16,11 @@ HAILO_MODEL_PATH = os.environ.get("HAILO_MODEL_PATH", "/usr/local/hailo/models/g
 # annotated stream for testing -- roughly 1.2 MB per frame, so not for a run.
 DEBUG_VIDEO = os.environ.get("VISION_DEBUG_VIDEO", "").lower() in {"1", "true", "yes"}
 
+# Seconds to wait before restarting a crashed node.
+_RESPAWN_DELAY_SEC = 3.0
+# telemetry_bridge_node gets a longer respawn delay than the other Pi 5 nodes.
+_TELEMETRY_RESPAWN_DELAY_SEC = 5.0
+
 
 def generate_launch_description() -> LaunchDescription:
     return LaunchDescription(
@@ -26,7 +31,7 @@ def generate_launch_description() -> LaunchDescription:
                 name="state_machine",
                 output="screen",
                 respawn=True,
-                respawn_delay=3.0,
+                respawn_delay=_RESPAWN_DELAY_SEC,
             ),
             Node(
                 package="vtitan_drivers",
@@ -34,7 +39,7 @@ def generate_launch_description() -> LaunchDescription:
                 name="imu",
                 output="screen",
                 respawn=True,
-                respawn_delay=3.0,
+                respawn_delay=_RESPAWN_DELAY_SEC,
             ),
             Node(
                 package="vtitan_vision",
@@ -51,7 +56,7 @@ def generate_launch_description() -> LaunchDescription:
                     },
                 ],
                 respawn=True,
-                respawn_delay=3.0,
+                respawn_delay=_RESPAWN_DELAY_SEC,
             ),
             Node(
                 package="vtitan_state_machine",
@@ -59,7 +64,7 @@ def generate_launch_description() -> LaunchDescription:
                 name="telemetry_bridge",
                 output="screen",
                 respawn=True,
-                respawn_delay=5.0,
+                respawn_delay=_TELEMETRY_RESPAWN_DELAY_SEC,
             ),
         ],
     )
