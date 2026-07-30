@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 
 from shared.domain.models import CameraSize, ImageRotation
@@ -49,19 +49,21 @@ class Config(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "camera" / "rpicam.toml")
 
-    width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
-    height: int = Field(default=864, validation_alias="CAMERA_HEIGHT")
-    fps: int = Field(default=30, validation_alias="CAMERA_FPS")
+    width: int = Field(default=1536, validation_alias=AliasChoices("CAMERA_WIDTH", "camera_width"))
+    height: int = Field(default=864, validation_alias=AliasChoices("CAMERA_HEIGHT", "camera_height"))
+    fps: int = Field(default=30, validation_alias=AliasChoices("CAMERA_FPS", "camera_fps"))
 
-    inverted: bool = Field(default=False, validation_alias="CAMERA_INVERTED")
+    inverted: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_INVERTED", "camera_inverted"))
     """
     True when the camera is mounted upside-down. Applies a 180 degree rotation, which matters beyond looking right: an unrotated frame mirrors which side of the image a sign falls on, so a sign to be passed on the left is reported to the right of centre.
     """
 
-    hflip: bool = Field(default=False, validation_alias="CAMERA_HFLIP")
-    vflip: bool = Field(default=False, validation_alias="CAMERA_VFLIP")
+    hflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_HFLIP", "camera_hflip"))
+    vflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_VFLIP", "camera_vflip"))
 
-    timeout_sec: float = Field(default=5.0, validation_alias="CAMERA_READ_TIMEOUT_SEC")
+    timeout_sec: float = Field(
+        default=5.0, validation_alias=AliasChoices("CAMERA_READ_TIMEOUT_SEC", "camera_read_timeout_sec")
+    )
     """
     How long to wait for a complete frame before reporting the stream dead.
     """

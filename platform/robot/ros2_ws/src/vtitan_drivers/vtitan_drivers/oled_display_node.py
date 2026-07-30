@@ -31,7 +31,7 @@ import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray
 from PIL import Image, ImageDraw
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
@@ -71,10 +71,14 @@ class NodeConfig(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "display" / "oled_node.toml")
 
-    ui_refresh_rate_hz: float = Field(default=10.0, validation_alias="UI_REFRESH_RATE_HZ")
+    ui_refresh_rate_hz: float = Field(
+        default=10.0, validation_alias=AliasChoices("UI_REFRESH_RATE_HZ", "ui_refresh_rate_hz")
+    )
     """Rate for updating display data (fast updates)."""
 
-    display_backend: DisplayBackend = Field(default=DisplayBackend.BLINKA, validation_alias="DISPLAY_BACKEND")
+    display_backend: DisplayBackend = Field(
+        default=DisplayBackend.BLINKA, validation_alias=AliasChoices("DISPLAY_BACKEND", "display_backend")
+    )
     """SSD1306 I2C backend -- blinka (Adafruit CircuitPython) or raw_i2c (direct /dev/i2c-N
     ioctl, no Blinka/smbus2 dependency). See src/hardware/display/ssd1306/driver_raw_i2c.py
     for why raw_i2c exists."""

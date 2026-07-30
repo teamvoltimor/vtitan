@@ -9,7 +9,7 @@ from queue import Empty, Queue
 
 import numpy as np
 from picamera2 import Picamera2
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 
 from shared.domain.models import CameraSize, ImageRotation
@@ -40,27 +40,27 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "camera" / "rpi_camera_module_3.toml",
     )
 
-    device: str = Field(default="/dev/video0", validation_alias="CAMERA_DEVICE")
-    width: int = Field(default=1536, validation_alias="CAMERA_WIDTH")
-    height: int = Field(default=864, validation_alias="CAMERA_HEIGHT")
-    fps: int = Field(default=30, validation_alias="CAMERA_FPS")
+    device: str = Field(default="/dev/video0", validation_alias=AliasChoices("CAMERA_DEVICE", "camera_device"))
+    width: int = Field(default=1536, validation_alias=AliasChoices("CAMERA_WIDTH", "camera_width"))
+    height: int = Field(default=864, validation_alias=AliasChoices("CAMERA_HEIGHT", "camera_height"))
+    fps: int = Field(default=30, validation_alias=AliasChoices("CAMERA_FPS", "camera_fps"))
 
-    inverted: bool = Field(default=False, validation_alias="CAMERA_INVERTED")
+    inverted: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_INVERTED", "camera_inverted"))
     """
     True when the camera is mounted upside-down, as the LIDAR already is. Applies a 180 degree rotation so frames come out the right way up. Without it the image is not merely upside-down for a human: it flips which side of the frame a sign appears on, so a sign the robot should pass on its left is reported to the right of centre.
     """
 
-    rotation: int = Field(default=0, validation_alias="CAMERA_ROTATION")
+    rotation: int = Field(default=0, validation_alias=AliasChoices("CAMERA_ROTATION", "camera_rotation"))
     """
     Extra rotation in degrees, applied on top of `inverted` for mounts that are neither upright nor a clean 180.
     """
 
-    hflip: bool = Field(default=False, validation_alias="CAMERA_HFLIP")
+    hflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_HFLIP", "camera_hflip"))
     """
     Mirror horizontally. Note a horizontal flip alone also swaps left and right in the detections.
     """
 
-    vflip: bool = Field(default=False, validation_alias="CAMERA_VFLIP")
+    vflip: bool = Field(default=False, validation_alias=AliasChoices("CAMERA_VFLIP", "camera_vflip"))
     """
     Mirror vertically. Prefer `inverted` for an upside-down mount: a 180 degree rotation is hflip and vflip together, and setting only one of them mirrors the scene rather than righting it.
     """

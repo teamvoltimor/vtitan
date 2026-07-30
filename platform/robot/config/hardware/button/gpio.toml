@@ -1,8 +1,9 @@
 # GPIO push-button driver -- src/hardware/button/gpio/driver.py
-# BUTTON_GPIO_PIN key matches the field's validation_alias, not its
-# snake_case name (gpio_pin).
+# button_gpio_pin matches the field's validation_alias (which also accepts
+# the SHOUT_CASE BUTTON_GPIO_PIN env-var override), not its snake_case
+# name (gpio_pin).
 
-BUTTON_GPIO_PIN = 4
+button_gpio_pin = 4
 # GPIO4 (Physical Pin 7) -- confirmed against actual wiring during sensor
 # verification; GPIO17 (physical pin 11) silently connects with no error but
 # never sees edge transitions since nothing is attached to it.

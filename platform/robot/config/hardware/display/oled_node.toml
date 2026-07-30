@@ -2,13 +2,14 @@
 # Picks WHICH driver class gets used (blinka vs raw_i2c); ssd1306.toml
 # configures whichever one gets picked.
 
-# Keys use the fields' validation_alias (matching UI_REFRESH_RATE_HZ /
-# DISPLAY_BACKEND env var names), not the snake_case field names -- pydantic
-# only matches a TOML key against the alias when one is declared.
-UI_REFRESH_RATE_HZ = 10.0
+# Keys use the fields' validation_alias, which accepts both the lowercase
+# spelling below and the SHOUT_CASE UI_REFRESH_RATE_HZ / DISPLAY_BACKEND
+# env-var names -- pydantic only matches a TOML key against the alias when
+# one is declared.
+ui_refresh_rate_hz = 10.0
 # Rate for updating display data (fast updates).
 
-DISPLAY_BACKEND = "blinka"
+display_backend = "blinka"
 # SSD1306 I2C backend -- "blinka" (Adafruit CircuitPython) or "raw_i2c"
 # (direct /dev/i2c-N ioctl, no Blinka/smbus2 dependency). Flipped to
 # "raw_i2c" on hardware once this session to fix an SSD1306 I2C hang --

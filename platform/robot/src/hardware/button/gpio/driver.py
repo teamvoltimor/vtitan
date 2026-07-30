@@ -6,7 +6,7 @@ import time
 from typing import override
 
 from gpiozero import Button
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 
 from src.hardware.button.base import Driver as ABC_Driver
@@ -32,7 +32,9 @@ class Config(HardwareBaseSettings):
 
     # No prefix on this class, so gpio_pin needs an explicit alias to reach
     # BUTTON_GPIO_PIN -- it would otherwise only match a bare GPIO_PIN var.
-    gpio_pin: int = Field(validation_alias="BUTTON_GPIO_PIN")
+    # Accepts both the SHOUT_CASE env-var spelling and the lowercase TOML
+    # key (button_gpio_pin).
+    gpio_pin: int = Field(validation_alias=AliasChoices("BUTTON_GPIO_PIN", "button_gpio_pin"))
     """GPIO pin number for the button."""
 
     # ButtonConfig has no defaults for pull_up/debounce_ms/long_press_threshold_sec

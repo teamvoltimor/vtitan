@@ -1,13 +1,14 @@
 # Picamera2 driver for RPi Camera Module 3 Wide -- src/hardware/camera/rpi/camera_module_3/driver.py
-# Keys use the fields' validation_alias (shared CAMERA_* names with the
-# rpicam driver), not the snake_case field names.
+# Keys use the fields' validation_alias (shared camera_* names with the
+# rpicam driver; the SHOUT_CASE CAMERA_* spelling also still works as an
+# env-var override), not the snake_case field names.
 
-CAMERA_DEVICE = "/dev/video0"
-CAMERA_WIDTH = 1536
-CAMERA_HEIGHT = 864
-CAMERA_FPS = 30
+camera_device = "/dev/video0"
+camera_width = 1536
+camera_height = 864
+camera_fps = 30
 
-CAMERA_INVERTED = false
-CAMERA_ROTATION = 0
-CAMERA_HFLIP = false
-CAMERA_VFLIP = false
+camera_inverted = false
+camera_rotation = 0
+camera_hflip = false
+camera_vflip = false

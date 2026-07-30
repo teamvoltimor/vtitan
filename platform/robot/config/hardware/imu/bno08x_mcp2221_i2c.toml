@@ -2,4 +2,4 @@
 # Not the actively deployed IMU backend (see bno08x_mcp2221_uart_rvc.toml),
 # but this was the code's own default -- kept unchanged, just now visible.
 
-IMU_I2C_ADDRESS = "0x4A"
+imu_i2c_address = "0x4A"

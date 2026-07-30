@@ -1,7 +1,7 @@
 # Challenge-mode jumper GPIO driver -- src/hardware/challenge_mode/config.py
 # Wired to the PI ZERO; this file matters on the Zero's checkout, not Pi 5's.
 
-CHALLENGE_MODE_GPIO_PIN = 23
+challenge_mode_gpio_pin = 23
 # GPIO23 / physical pin 16. Internal pull-up, no external resistor: jumper
 # shorted to GND -> Obstacle Challenge; jumper absent (pulled up) -> Open
 # Challenge. See docs/challenge-mode-jumper-spec.md.
