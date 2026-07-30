@@ -38,9 +38,15 @@ func GenerateGo(cfg *Config) (string, error) {
 	sb.WriteString("\t// matching wro_robot.urdf.xacro's lidar_link visual/collision cylinder) — the C1\n")
 	sb.WriteString("\t// mounted flush with the front edge, centered left/right, upside-down.\n")
 	fmt.Fprintf(&sb, "\tRobotLidarMountXOffset = %s\n", f(cfg.Lidar.MountXOffset))
+	sb.WriteString("\t// RobotLidarMountZOffset: LIDAR sits above the chassis top by this much;\n")
+	sb.WriteString("\t// add RobotHeight for the LIDAR's absolute mount z.\n")
+	fmt.Fprintf(&sb, "\tRobotLidarMountZOffset = %s\n", f(cfg.Lidar.MountZOffset))
 	sb.WriteString("\t// RobotLidarMountYawOffsetDeg: the C1 is mounted upside-down, so its raw\n")
 	sb.WriteString("\t// angle-zero points opposite robot-front.\n")
 	fmt.Fprintf(&sb, "\tRobotLidarMountYawOffsetDeg = %s\n", f(cfg.Lidar.MountYawOffsetDeg))
+	sb.WriteString("\n")
+	sb.WriteString("\t// IMU mounted near the chassis floor.\n")
+	fmt.Fprintf(&sb, "\tRobotImuMountZOffset = %s\n", f(cfg.Imu.MountZOffset))
 	sb.WriteString("\n")
 	sb.WriteString("\t// Camera mounted directly over the LIDAR, tilted down.\n")
 	fmt.Fprintf(&sb, "\tRobotCameraMountXOffset = %s\n", f(cfg.Camera.MountXOffset))
@@ -87,7 +93,9 @@ func GenerateXacro(cfg *Config) string {
 
 	sb.WriteString("  <!-- Sensor mount offsets -->\n")
 	fmt.Fprintf(&sb, "  <xacro:property name=\"lidar_mount_x\" value=\"%s\"/>\n", f(cfg.Lidar.MountXOffset))
+	fmt.Fprintf(&sb, "  <xacro:property name=\"lidar_mount_z\" value=\"%s\"/>\n", f(cfg.Lidar.MountZOffset))
 	fmt.Fprintf(&sb, "  <xacro:property name=\"lidar_mount_yaw_offset_deg\" value=\"%s\"/>\n", f(cfg.Lidar.MountYawOffsetDeg))
+	fmt.Fprintf(&sb, "  <xacro:property name=\"imu_mount_z\" value=\"%s\"/>\n", f(cfg.Imu.MountZOffset))
 	fmt.Fprintf(&sb, "  <xacro:property name=\"camera_mount_x\" value=\"%s\"/>\n", f(cfg.Camera.MountXOffset))
 	fmt.Fprintf(&sb, "  <xacro:property name=\"camera_mount_z\" value=\"%s\"/>\n", f(cfg.Camera.MountZOffset))
 	fmt.Fprintf(&sb, "  <xacro:property name=\"camera_mount_pitch\" value=\"%s\"/>\n", f(cfg.Camera.MountPitch))
@@ -124,7 +132,11 @@ func GeneratePython(cfg *Config) string {
 
 	sb.WriteString("# LIDAR mount (meters, degrees)\n")
 	fmt.Fprintf(&sb, "LIDAR_MOUNT_X_OFFSET: Final[float] = %s\n", f(cfg.Lidar.MountXOffset))
+	fmt.Fprintf(&sb, "LIDAR_MOUNT_Z_OFFSET: Final[float] = %s\n", f(cfg.Lidar.MountZOffset))
 	fmt.Fprintf(&sb, "LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = %s\n\n", f(cfg.Lidar.MountYawOffsetDeg))
+
+	sb.WriteString("# IMU mount (meters)\n")
+	fmt.Fprintf(&sb, "IMU_MOUNT_Z_OFFSET: Final[float] = %s\n\n", f(cfg.Imu.MountZOffset))
 
 	sb.WriteString("# Camera mount (meters, radians)\n")
 	fmt.Fprintf(&sb, "CAMERA_MOUNT_X_OFFSET: Final[float] = %s\n", f(cfg.Camera.MountXOffset))

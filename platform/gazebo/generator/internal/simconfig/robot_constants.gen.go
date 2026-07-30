@@ -19,9 +19,15 @@ const (
 	// matching wro_robot.urdf.xacro's lidar_link visual/collision cylinder) — the C1
 	// mounted flush with the front edge, centered left/right, upside-down.
 	RobotLidarMountXOffset = 0.1222
+	// RobotLidarMountZOffset: LIDAR sits above the chassis top by this much;
+	// add RobotHeight for the LIDAR's absolute mount z.
+	RobotLidarMountZOffset = 0.02
 	// RobotLidarMountYawOffsetDeg: the C1 is mounted upside-down, so its raw
 	// angle-zero points opposite robot-front.
 	RobotLidarMountYawOffsetDeg = 180
+
+	// IMU mounted near the chassis floor.
+	RobotImuMountZOffset = 0.01
 
 	// Camera mounted directly over the LIDAR, tilted down.
 	RobotCameraMountXOffset = 0.1222

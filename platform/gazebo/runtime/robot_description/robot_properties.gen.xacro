@@ -20,7 +20,9 @@
 
   <!-- Sensor mount offsets -->
   <xacro:property name="lidar_mount_x" value="0.1222"/>
+  <xacro:property name="lidar_mount_z" value="0.02"/>
   <xacro:property name="lidar_mount_yaw_offset_deg" value="180"/>
+  <xacro:property name="imu_mount_z" value="0.01"/>
   <xacro:property name="camera_mount_x" value="0.1222"/>
   <xacro:property name="camera_mount_z" value="0.16"/>
   <xacro:property name="camera_mount_pitch" value="0.5236"/>

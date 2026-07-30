@@ -22,7 +22,11 @@ WHEEL_MASS: Final[float] = 0.05
 
 # LIDAR mount (meters, degrees)
 LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
+LIDAR_MOUNT_Z_OFFSET: Final[float] = 0.02
 LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 180
+
+# IMU mount (meters)
+IMU_MOUNT_Z_OFFSET: Final[float] = 0.01
 
 # Camera mount (meters, radians)
 CAMERA_MOUNT_X_OFFSET: Final[float] = 0.1222

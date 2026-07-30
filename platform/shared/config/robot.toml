@@ -41,12 +41,24 @@ mass = 0.05
 # Slamtec C1, mounted upside-down and flush with the front edge, centered left/right.
 # Derived as chassis.length/2 - lidar mesh radius (0.0278, matching the xacro cylinder mesh).
 mount_x_offset = 0.1222
+# LIDAR sits 20mm above the chassis top -- add to chassis.height for the LIDAR's absolute
+# mount z. Was hand-duplicated as simconfig.RobotLidarZOffset (Go) and a hardcoded 0.12
+# (= chassis.height + this) in static_tfs.launch.py and the URDF xacro; consolidated here
+# 2026-07-30 so all three consumers derive from one value instead of three that could drift.
+mount_z_offset = 0.02
 # Moved from platform/robot/.env.example's LIDAR_YAW_OFFSET_DEG -- a physical mount fact
 # ("the C1 is mounted inverted, so its raw angle-zero points opposite robot-front"), not a
 # runtime knob, and the TF tree (sim + real) and perception both need it. Confirmed
 # empirically: the sector with the largest ranges (open space, robot-front) lands at +-180
 # deg in raw /scan data.
 mount_yaw_offset_deg = 180.0
+
+[imu]
+# IMU sits 10mm above the chassis floor. Was hand-duplicated as simconfig.RobotImuZOffset
+# (Go, correct), a hardcoded 0.01 in static_tfs.launch.py (correct), and the URDF xacro's
+# imu_link joint origin (WRONG -- hardcoded to 0, i.e. the IMU wasn't actually placed here);
+# consolidated here 2026-07-30, which also fixes that xacro drift.
+mount_z_offset = 0.01
 
 [camera]
 # Raspberry Pi Camera Module 3 Wide, mounted directly above the LIDAR.

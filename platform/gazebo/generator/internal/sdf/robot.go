@@ -304,7 +304,7 @@ func buildCameraLink(robot *Node) {
 }
 
 func buildLidarLink(robot *Node) {
-	lidarZ := simconfig.RobotHeight + simconfig.RobotLidarZOffset
+	lidarZ := simconfig.RobotHeight + simconfig.RobotLidarMountZOffset
 
 	lidarLink := robot.Sub("link", "name", simconfig.RobotLinkLidar)
 	lidarLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(
@@ -339,7 +339,7 @@ func buildLidarLink(robot *Node) {
 func buildImuLink(robot *Node) {
 	imuLink := robot.Sub("link", "name", simconfig.RobotLinkImu)
 	imuLink.Sub("pose", "relative_to", simconfig.RobotBaseFrameID).T(
-		fmt.Sprintf("0 0 %s 0 0 0", ff(simconfig.RobotImuZOffset)))
+		fmt.Sprintf("0 0 %s 0 0 0", ff(simconfig.RobotImuMountZOffset)))
 
 	ii := imuLink.Sub("inertial")
 	ii.SubT("mass", ff(simconfig.ImuMass))

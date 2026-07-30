@@ -19,6 +19,7 @@ type (
 		Ackermann Ackermann `toml:"ackermann"`
 		Wheel     Wheel     `toml:"wheel"`
 		Lidar     Lidar     `toml:"lidar"`
+		Imu       Imu       `toml:"imu"`
 		Camera    Camera    `toml:"camera"`
 	}
 
@@ -47,8 +48,14 @@ type (
 
 	// Lidar holds the Slamtec C1 mount offset and orientation.
 	Lidar struct {
-		MountXOffset    float64 `toml:"mount_x_offset"`
+		MountXOffset      float64 `toml:"mount_x_offset"`
+		MountZOffset      float64 `toml:"mount_z_offset"`
 		MountYawOffsetDeg float64 `toml:"mount_yaw_offset_deg"`
+	}
+
+	// Imu holds the BNO085 mount offset.
+	Imu struct {
+		MountZOffset float64 `toml:"mount_z_offset"`
 	}
 
 	// Camera holds the RPi Camera Module 3 Wide mount offset and tilt.

@@ -193,6 +193,9 @@ class RobotSpecs:
     # = 0.10 + 0.0207 ~= 0.1207, matching the long-standing z=0.12 lidar_link offset in
     # static_tfs.launch.py / the URDF within rounding).
     LIDAR_MOUNT_X_OFFSET: Final[float] = _gen.LIDAR_MOUNT_X_OFFSET
+    # LIDAR sits above the chassis top by this much; add HEIGHT for the LIDAR's absolute
+    # mount z (matches the long-standing z=0.12 in static_tfs.launch.py / the URDF).
+    LIDAR_MOUNT_Z_OFFSET: Final[float] = _gen.LIDAR_MOUNT_Z_OFFSET
     # The C1 is mounted inverted, so its raw angle-zero points opposite robot-front.
     LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _gen.LIDAR_MOUNT_YAW_OFFSET_DEG
     # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
@@ -205,6 +208,9 @@ class RobotSpecs:
     IMU_ACCEL_NOISE: Final[float] = 0.3  # m/s² accelerometer noise stddev
     IMU_MASS: Final[float] = 0.0025  # 2.5g board mass
     IMU_SIZE: Final[tuple[float, float, float]] = (0.0256, 0.0227, 0.0046)  # 25.6mm × 22.7mm × 4.6mm
+    # IMU sits above the chassis floor by this much (matches the long-standing z=0.01 in
+    # static_tfs.launch.py / the URDF).
+    IMU_MOUNT_Z_OFFSET: Final[float] = _gen.IMU_MOUNT_Z_OFFSET
 
     # Camera (RPi Camera 3 Wide) — mounted above the LIDAR, angled down (measured 2026-07-11,
     # approximate; see docs/robot-physical-constants.md).

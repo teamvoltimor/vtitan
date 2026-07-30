@@ -313,10 +313,11 @@ const (
 	RobotLidarLinkMass       = 0.05
 )
 
-// Robot sensor placement offsets (meters).
+// Robot sensor placement offsets (meters). LIDAR/IMU mount z-offsets moved to
+// robot_constants.gen.go (RobotLidarMountZOffset/RobotImuMountZOffset), generated from
+// platform/shared/config/robot.toml, so Go/xacro/Python share one source instead of three
+// hand-maintained copies that could drift.
 const (
-	RobotLidarZOffset          = 0.02  // LIDAR sits 20 mm above chassis top
-	RobotImuZOffset            = 0.01  // IMU sits 10 mm above chassis floor
 	RobotFrontIndicatorOffsetX = 0.02  // indicator recessed 20 mm from front face
 	RobotFrontIndicatorOffsetZ = 0.003 // indicator floats 3 mm above chassis top
 )
