@@ -40,13 +40,12 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/sim"
 )
 
-// defaultRobotName seeds the singleton robot this single-robot project's
-// legacy telemetry speed-config endpoint delegates to.
-const defaultRobotName = "vtitan"
-
 const (
-	shutdownTimeout       = 10 * time.Second
-	httpReadHeaderTimeout = 10 * time.Second
+	// defaultRobotName seeds the singleton robot this single-robot project's
+	// legacy telemetry speed-config endpoint delegates to.
+	defaultRobotName       = "vtitan"
+	shutdownTimeout        = 10 * time.Second
+	httpReadHeaderTimeout  = 10 * time.Second
 )
 
 func main() {
@@ -183,7 +182,7 @@ func streamRecoveryInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
 
 // streamValidationInterceptor validates the first message of a client-stream via protovalidate.
 // Per-message validation is done inside each streaming handler (interceptors run once per RPC).
-func streamValidationInterceptor(v *protovalidate.Validator) grpc.StreamServerInterceptor {
+func streamValidationInterceptor(v protovalidate.Validator) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		return handler(srv, &validatingStream{ServerStream: ss, v: v})
 	}
@@ -191,7 +190,7 @@ func streamValidationInterceptor(v *protovalidate.Validator) grpc.StreamServerIn
 
 type validatingStream struct {
 	grpc.ServerStream
-	v *protovalidate.Validator
+	v protovalidate.Validator
 }
 
 func (s *validatingStream) RecvMsg(m any) error {
@@ -220,7 +219,7 @@ func unaryRecoveryInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
 }
 
 // unaryValidationInterceptor validates the request message via protovalidate.
-func unaryValidationInterceptor(v *protovalidate.Validator) grpc.UnaryServerInterceptor {
+func unaryValidationInterceptor(v protovalidate.Validator) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if msg, ok := req.(proto.Message); ok {
 			if err := v.Validate(msg); err != nil {

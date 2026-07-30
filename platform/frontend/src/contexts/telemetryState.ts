@@ -8,6 +8,7 @@
 
 import { createContext, useContext } from 'react';
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import type { SetVisionDebugParams } from '../api/generated/robot';
 
 export interface TelemetryContextType {
   // State
@@ -39,6 +40,7 @@ export interface TelemetryContextType {
   setDemoMode: (enabled: boolean) => void;
   toggleDemoMode: () => void;
   updateSpeed: (speed: number) => Promise<void>;
+  setVisionDebug: (parameters: SetVisionDebugParams) => Promise<void>;
 }
 
 export const TelemetryContext = createContext<TelemetryContextType | null>(null);

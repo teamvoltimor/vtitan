@@ -6,12 +6,11 @@
  * This eliminates hardcoded values scattered throughout the codebase.
  */
 
-// ============================================================================
 // COLOR PALETTE (single source of truth)
 //
 // Every colour used in JS/TSX derives from here. The CSS custom properties in
 // index.css mirror these values for styling that lives in stylesheets.
-// ============================================================================
+
 
 export const COLORS = {
   BACKGROUND: '#050b12',
@@ -29,9 +28,8 @@ export const COLORS = {
   FORWARD_INDICATOR: 'rgba(255, 255, 255, 0.3)',
 } as const;
 
-// ============================================================================
 // SIMULATION & 3D RENDERING
-// ============================================================================
+
 
 export const SIMULATION_CONFIG = {
   // Track geometry
@@ -58,9 +56,8 @@ export const SIMULATION_CONFIG = {
   },
 } as const;
 
-// ============================================================================
 // 3D SCENE (lighting, materials, track geometry)
-// ============================================================================
+
 
 export const SCENE_CONFIG = {
   AMBIENT_INTENSITY: 0.6,
@@ -106,9 +103,8 @@ export const SCENE_CONFIG = {
   },
 } as const;
 
-// ============================================================================
 // LIDAR VISUALIZATION
-// ============================================================================
+
 
 export const LIDAR_CONFIG = {
   MAX_RANGE_METERS: 2.0,
@@ -145,17 +141,15 @@ export const LIDAR_CONFIG = {
   },
 } as const;
 
-// ============================================================================
 // ROBOT PATH VISUALIZATION
-// ============================================================================
+
 
 export const ROBOT_PATH_CONFIG = {
   Y_OFFSET: 0.03, // Vertical offset from ground
 } as const;
 
-// ============================================================================
 // SPEED GAUGE VISUALIZATION
-// ============================================================================
+
 
 export const SPEED_GAUGE_CONFIG = {
   CANVAS_WIDTH: 200,
@@ -179,9 +173,8 @@ export const SPEED_GAUGE_CONFIG = {
   STEERING_SENSITIVITY: 2.0, // Divider for angular speed (higher = less sensitive)
 } as const;
 
-// ============================================================================
 // ROBOT SPEED CONTROL
-// ============================================================================
+
 
 export const SPEED_CONTROL_CONFIG = {
   MIN: 0,
@@ -190,9 +183,8 @@ export const SPEED_CONTROL_CONFIG = {
   DEFAULT: 1.0,
 } as const;
 
-// ============================================================================
 // API CONFIGURATION
-// ============================================================================
+
 
 export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
@@ -206,6 +198,10 @@ export const API_CONFIG = {
     SESSION: (id: string) => `/v1/telemetry/sessions/${id}`,
     ROBOT_SPEED: '/v1/telemetry/robot/config/speed',
     STREAM: '/v1/telemetry/ws',
+    ROBOTS: '/v1/robots',
+    ROBOT_COMMAND: (id: string) => `/v1/robots/${id}/command`,
+    ROBOT_STATUS: (id: string) => `/v1/robots/${id}/status`,
+    ROBOT_CONFIG: (id: string) => `/v1/robots/${id}/config`,
   },
 
   FETCH_CACHE: 'no-store' as const,
@@ -223,18 +219,16 @@ export const API_CONFIG = {
   },
 } as const;
 
-// ============================================================================
 // PROTOCOL CONVERSION
-// ============================================================================
+
 
 export const URL_PROTOCOL_MAP = {
   'http://': 'ws://',
   'https://': 'wss://',
 } as const;
 
-// ============================================================================
 // UI STRINGS
-// ============================================================================
+
 
 export const UI_STRINGS = {
   SENSOR_STATUS: 'SENSOR STATUS',
@@ -246,11 +240,11 @@ export const UI_STRINGS = {
   GO_LIVE: 'Go live',
   LIVE: 'Live',
   FILTER_TOPICS: 'Filter topics...',
+  VISION_DEBUG: 'VISION DEBUG STREAM',
 } as const;
 
-// ============================================================================
 // TELEMETRY SETTINGS
-// ============================================================================
+
 
 export const TELEMETRY_CONFIG = {
   HISTORY_MAX_SIZE: 60, // Max snapshots kept in memory
@@ -259,9 +253,8 @@ export const TELEMETRY_CONFIG = {
   POLL_INTERVAL_MS: parseInt(import.meta.env.VITE_POLL_INTERVAL_MS ?? '2500', 10),
 } as const;
 
-// ============================================================================
 // THEME COLORS
-// ============================================================================
+
 
 export const THEME = {
   COLORS: {
@@ -275,9 +268,8 @@ export const THEME = {
   },
 } as const;
 
-// ============================================================================
 // SENSOR CONFIGURATION
-// ============================================================================
+
 
 export const SENSOR_CONFIG = [
   { id: 'lidar', name: 'LiDAR', key: 'lidar_available' as const },
@@ -286,9 +278,8 @@ export const SENSOR_CONFIG = [
   { id: 'odometry', name: 'Odometry', key: 'odometry_available' as const },
 ] as const;
 
-// ============================================================================
 // IMU VISUALIZATION
-// ============================================================================
+
 
 export const IMU_METRICS_CONFIG = [
   { label: 'Accel X', range: [-10, 10], unit: 'm/s²', key: 'linear_acceleration.x' },
@@ -299,9 +290,8 @@ export const IMU_METRICS_CONFIG = [
   { label: 'Gyro Z', range: [-5, 5], unit: 'rad/s', key: 'angular_velocity.z' },
 ] as const;
 
-// ============================================================================
 // MOTOR DIALS VISUALIZATION
-// ============================================================================
+
 
 export const MOTOR_DIALS_CONFIG = {
   CANVAS_WIDTH: 120,
@@ -316,9 +306,8 @@ export const MOTOR_DIALS_CONFIG = {
   LABEL_Y: 75,
 } as const;
 
-// ============================================================================
 // VISION VISUALIZATION
-// ============================================================================
+
 
 // Raspberry Pi Camera Module 3 Wide native resolution (16:9). The
 // vision_msgs/Detection2DArray topic carries pixel-space bboxes with no
@@ -341,9 +330,8 @@ export const VISION_CONFIG = {
   },
 } as const;
 
-// ============================================================================
 // JSON VIEW CONFIGURATION
-// ============================================================================
+
 
 export const JSON_VIEW_CONFIG = {
   ARRAY_PREVIEW_LIMIT: 10,
@@ -352,8 +340,7 @@ export const JSON_VIEW_CONFIG = {
   INDENT_PER_LEVEL: 16,
 } as const;
 
-// ============================================================================
 // SPEED CONTROL VALIDATION
-// ============================================================================
+
 
 export const SPEED_CONTROL_DEBOUNCE_MS = 250;

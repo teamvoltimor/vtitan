@@ -6,6 +6,7 @@ import { Label, MetricRow, StatTile } from './ui';
 import {
   SensorHealthPanel,
   SpeedControl,
+  VisionDebugControl,
   TimelineSlider,
   SessionList,
   LogPanel,
@@ -52,6 +53,7 @@ export function Sidebar() {
       </div>
 
       <SpeedControl />
+      <VisionDebugControl />
 
       <div className="telemetry-list">
         {telemetryEntries.map(([label, value]) => (

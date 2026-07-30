@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import type { SetVisionDebugParams } from '../api/generated/robot';
 import { isRobotSnapshot, isTopicsSnapshot } from '../api/guards';
 import { createTelemetrySource } from '../api/source';
 import { getErrorMessage } from '../utils/formatting';
@@ -200,6 +201,15 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     [source]
   );
 
+  const setVisionDebug = useCallback(
+    (parameters: SetVisionDebugParams): Promise<void> =>
+      source.setVisionDebug(parameters).catch((err) => {
+        console.error('Failed to update vision debug stream:', err);
+        throw err;
+      }),
+    [source]
+  );
+
   // Live stream subscription (WebSocket for live, timer for demo).
   useEffect(() => {
     if (!liveMode || !mounted.current) return;
@@ -294,6 +304,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       setDemoMode,
       toggleDemoMode,
       updateSpeed,
+      setVisionDebug,
     }),
     [
       snapshot,
@@ -315,6 +326,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       setDemoMode,
       toggleDemoMode,
       updateSpeed,
+      setVisionDebug,
     ]
   );
 

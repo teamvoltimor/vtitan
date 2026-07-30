@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/simulation"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
@@ -25,22 +27,22 @@ func NewHandler(svc domain.Service) *Handler {
 
 // RegisterRoutes wires the Simulation context's routes onto rg (the /v1 group).
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	sim := rg.Group("/simulation")
-	sim.GET("/scenarios", h.listScenarios)
-	sim.POST("/scenarios", h.generateScenario)
-	sim.GET("/scenarios/:scenarioId", h.getScenario)
-	sim.DELETE("/scenarios/:scenarioId", h.deleteScenario)
-	sim.GET("/runs", h.listRuns)
-	sim.POST("/runs", h.startRun)
-	sim.GET("/runs/:runId", h.getRun)
-	sim.POST("/runs/:runId", h.controlRun)
-	sim.GET("/environments", h.listEnvironments)
+	sim := rg.Group(api.RouteSimulation)
+	sim.GET(api.RouteScenarios, h.listScenarios)
+	sim.POST(api.RouteScenarios, h.generateScenario)
+	sim.GET(api.RouteScenario, h.getScenario)
+	sim.DELETE(api.RouteScenario, h.deleteScenario)
+	sim.GET(api.RouteRuns, h.listRuns)
+	sim.POST(api.RouteRuns, h.startRun)
+	sim.GET(api.RouteRun, h.getRun)
+	sim.POST(api.RouteRun, h.controlRun)
+	sim.GET(api.RouteEnvironment, h.listEnvironments)
 }
 
 func (h *Handler) listScenarios(c *gin.Context) {
-	challenge := domain.Challenge(c.Query("challenge"))
+	challenge := domain.Challenge(c.Query(httpconstants.QueryChallenge))
 	limit := 0
-	if raw := c.Query("limit"); raw != "" {
+	if raw := c.Query(httpconstants.QueryLimit); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil {
 			limit = n
 		}
@@ -68,7 +70,7 @@ func (h *Handler) generateScenario(c *gin.Context) {
 }
 
 func (h *Handler) getScenario(c *gin.Context) {
-	sc, err := h.svc.GetScenario(c.Request.Context(), c.Param("scenarioId"))
+	sc, err := h.svc.GetScenario(c.Request.Context(), c.Param(httpconstants.ParamScenarioID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -76,7 +78,7 @@ func (h *Handler) getScenario(c *gin.Context) {
 }
 
 func (h *Handler) deleteScenario(c *gin.Context) {
-	err := h.svc.DeleteScenario(c.Request.Context(), c.Param("scenarioId"))
+	err := h.svc.DeleteScenario(c.Request.Context(), c.Param(httpconstants.ParamScenarioID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -106,7 +108,7 @@ func (h *Handler) startRun(c *gin.Context) {
 }
 
 func (h *Handler) getRun(c *gin.Context) {
-	run, err := h.svc.GetRun(c.Request.Context(), c.Param("runId"))
+	run, err := h.svc.GetRun(c.Request.Context(), c.Param(httpconstants.ParamRunID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -119,7 +121,7 @@ func (h *Handler) controlRun(c *gin.Context) {
 		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
 		return
 	}
-	run, err := h.svc.ControlRun(c.Request.Context(), c.Param("runId"), domain.RunAction(req.Action))
+	run, err := h.svc.ControlRun(c.Request.Context(), c.Param(httpconstants.ParamRunID), domain.RunAction(req.Action))
 	if writeIfNotFound(c, err) {
 		return
 	}

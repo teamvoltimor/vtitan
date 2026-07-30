@@ -5,7 +5,7 @@ package vtitan.telemetry.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/teamvoltimor/voltimorbot/platform/backend/gen/telemetry/v1;telemetryv1";
+option go_package = "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1";
 
 // RobotCommandService pushes backend-queued commands down to a robot.
 //

@@ -4,8 +4,11 @@
 package robot
 
 import (
+	"encoding/json"
+	"errors"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -13,36 +16,75 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
-// Defines values for RobotCommandCommandType.
+// Defines values for EmergencyStopCommandCommandType.
 const (
-	EMERGENCYSTOP RobotCommandCommandType = "EMERGENCY_STOP"
-	PAUSE         RobotCommandCommandType = "PAUSE"
-	REBOOT        RobotCommandCommandType = "REBOOT"
-	RESUME        RobotCommandCommandType = "RESUME"
-	RETURNTOSTART RobotCommandCommandType = "RETURN_TO_START"
-	SHUTDOWN      RobotCommandCommandType = "SHUTDOWN"
-	STARTRACE     RobotCommandCommandType = "START_RACE"
-	STOPRACE      RobotCommandCommandType = "STOP_RACE"
+	EMERGENCYSTOP EmergencyStopCommandCommandType = "EMERGENCY_STOP"
 )
 
-// Valid indicates whether the value is a known member of the RobotCommandCommandType enum.
-func (e RobotCommandCommandType) Valid() bool {
+// Valid indicates whether the value is a known member of the EmergencyStopCommandCommandType enum.
+func (e EmergencyStopCommandCommandType) Valid() bool {
 	switch e {
 	case EMERGENCYSTOP:
 		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PauseCommandCommandType.
+const (
+	PAUSE PauseCommandCommandType = "PAUSE"
+)
+
+// Valid indicates whether the value is a known member of the PauseCommandCommandType enum.
+func (e PauseCommandCommandType) Valid() bool {
+	switch e {
 	case PAUSE:
 		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RebootCommandCommandType.
+const (
+	REBOOT RebootCommandCommandType = "REBOOT"
+)
+
+// Valid indicates whether the value is a known member of the RebootCommandCommandType enum.
+func (e RebootCommandCommandType) Valid() bool {
+	switch e {
 	case REBOOT:
 		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ResumeCommandCommandType.
+const (
+	RESUME ResumeCommandCommandType = "RESUME"
+)
+
+// Valid indicates whether the value is a known member of the ResumeCommandCommandType enum.
+func (e ResumeCommandCommandType) Valid() bool {
+	switch e {
 	case RESUME:
 		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReturnToStartCommandCommandType.
+const (
+	RETURNTOSTART ReturnToStartCommandCommandType = "RETURN_TO_START"
+)
+
+// Valid indicates whether the value is a known member of the ReturnToStartCommandCommandType enum.
+func (e ReturnToStartCommandCommandType) Valid() bool {
+	switch e {
 	case RETURNTOSTART:
-		return true
-	case SHUTDOWN:
-		return true
-	case STARTRACE:
-		return true
-	case STOPRACE:
 		return true
 	default:
 		return false
@@ -100,6 +142,66 @@ func (e RobotState) Valid() bool {
 	}
 }
 
+// Defines values for SetVisionDebugCommandCommandType.
+const (
+	SETVISIONDEBUG SetVisionDebugCommandCommandType = "SET_VISION_DEBUG"
+)
+
+// Valid indicates whether the value is a known member of the SetVisionDebugCommandCommandType enum.
+func (e SetVisionDebugCommandCommandType) Valid() bool {
+	switch e {
+	case SETVISIONDEBUG:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShutdownCommandCommandType.
+const (
+	SHUTDOWN ShutdownCommandCommandType = "SHUTDOWN"
+)
+
+// Valid indicates whether the value is a known member of the ShutdownCommandCommandType enum.
+func (e ShutdownCommandCommandType) Valid() bool {
+	switch e {
+	case SHUTDOWN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StartRaceCommandCommandType.
+const (
+	STARTRACE StartRaceCommandCommandType = "START_RACE"
+)
+
+// Valid indicates whether the value is a known member of the StartRaceCommandCommandType enum.
+func (e StartRaceCommandCommandType) Valid() bool {
+	switch e {
+	case STARTRACE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StopRaceCommandCommandType.
+const (
+	STOPRACE StopRaceCommandCommandType = "STOP_RACE"
+)
+
+// Valid indicates whether the value is a known member of the StopRaceCommandCommandType enum.
+func (e StopRaceCommandCommandType) Valid() bool {
+	switch e {
+	case STOPRACE:
+		return true
+	default:
+		return false
+	}
+}
+
 // BatteryStatus defines model for BatteryStatus.
 type BatteryStatus struct {
 	// Current Current draw in amps
@@ -118,10 +220,26 @@ type CreateRobotRequest struct {
 	Name    string             `binding:"required,max=255" json:"name"`
 }
 
+// EmergencyStopCommand defines model for EmergencyStopCommand.
+type EmergencyStopCommand struct {
+	CommandType EmergencyStopCommandCommandType `json:"command_type"`
+}
+
+// EmergencyStopCommandCommandType defines model for EmergencyStopCommand.CommandType.
+type EmergencyStopCommandCommandType string
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
+
+// PauseCommand defines model for PauseCommand.
+type PauseCommand struct {
+	CommandType PauseCommandCommandType `json:"command_type"`
+}
+
+// PauseCommandCommandType defines model for PauseCommand.CommandType.
+type PauseCommandCommandType string
 
 // Pose defines model for Pose.
 type Pose struct {
@@ -144,6 +262,30 @@ type ProblemDetails struct {
 	Type     *string `json:"type,omitempty"`
 }
 
+// RebootCommand defines model for RebootCommand.
+type RebootCommand struct {
+	CommandType RebootCommandCommandType `json:"command_type"`
+}
+
+// RebootCommandCommandType defines model for RebootCommand.CommandType.
+type RebootCommandCommandType string
+
+// ResumeCommand defines model for ResumeCommand.
+type ResumeCommand struct {
+	CommandType ResumeCommandCommandType `json:"command_type"`
+}
+
+// ResumeCommandCommandType defines model for ResumeCommand.CommandType.
+type ResumeCommandCommandType string
+
+// ReturnToStartCommand defines model for ReturnToStartCommand.
+type ReturnToStartCommand struct {
+	CommandType ReturnToStartCommandCommandType `json:"command_type"`
+}
+
+// ReturnToStartCommandCommandType defines model for ReturnToStartCommand.CommandType.
+type ReturnToStartCommandCommandType string
+
 // Robot defines model for Robot.
 type Robot struct {
 	CreatedAt time.Time          `json:"created_at"`
@@ -156,12 +298,8 @@ type Robot struct {
 
 // RobotCommand defines model for RobotCommand.
 type RobotCommand struct {
-	CommandType RobotCommandCommandType `json:"command_type"`
-	Parameters  *map[string]interface{} `json:"parameters,omitempty"`
+	union json.RawMessage
 }
-
-// RobotCommandCommandType defines model for RobotCommand.CommandType.
-type RobotCommandCommandType string
 
 // RobotCommandResponse defines model for RobotCommandResponse.
 type RobotCommandResponse struct {
@@ -204,6 +342,54 @@ type RobotStatus struct {
 	Timestamp    time.Time          `json:"timestamp"`
 	Velocity     Velocity           `json:"velocity"`
 }
+
+// SetVisionDebugCommand defines model for SetVisionDebugCommand.
+type SetVisionDebugCommand struct {
+	CommandType SetVisionDebugCommandCommandType `json:"command_type"`
+	Parameters  SetVisionDebugParams             `json:"parameters"`
+}
+
+// SetVisionDebugCommandCommandType defines model for SetVisionDebugCommand.CommandType.
+type SetVisionDebugCommandCommandType string
+
+// SetVisionDebugParams defines model for SetVisionDebugParams.
+type SetVisionDebugParams struct {
+	// Enabled Enable or disable the vision debug annotated-image stream
+	Enabled bool `json:"enabled"`
+
+	// StreamFps Optional cap on the debug stream frame rate
+	StreamFps *int32 `json:"stream_fps,omitempty"`
+}
+
+// ShutdownCommand defines model for ShutdownCommand.
+type ShutdownCommand struct {
+	CommandType ShutdownCommandCommandType `json:"command_type"`
+}
+
+// ShutdownCommandCommandType defines model for ShutdownCommand.CommandType.
+type ShutdownCommandCommandType string
+
+// StartRaceCommand defines model for StartRaceCommand.
+type StartRaceCommand struct {
+	CommandType StartRaceCommandCommandType `json:"command_type"`
+	Parameters  *StartRaceParams            `json:"parameters,omitempty"`
+}
+
+// StartRaceCommandCommandType defines model for StartRaceCommand.CommandType.
+type StartRaceCommandCommandType string
+
+// StartRaceParams defines model for StartRaceParams.
+type StartRaceParams struct {
+	MissionName *string `json:"mission_name,omitempty"`
+}
+
+// StopRaceCommand defines model for StopRaceCommand.
+type StopRaceCommand struct {
+	CommandType StopRaceCommandCommandType `json:"command_type"`
+}
+
+// StopRaceCommandCommandType defines model for StopRaceCommand.CommandType.
+type StopRaceCommandCommandType string
 
 // SystemStatus defines model for SystemStatus.
 type SystemStatus struct {
@@ -272,3 +458,302 @@ type SendRobotCommandJSONRequestBody = RobotCommand
 
 // UpdateRobotConfigJSONRequestBody defines body for UpdateRobotConfig for application/json ContentType.
 type UpdateRobotConfigJSONRequestBody = UpdateRobotConfigRequest
+
+// AsStartRaceCommand returns the union data inside the RobotCommand as a StartRaceCommand
+func (t RobotCommand) AsStartRaceCommand() (StartRaceCommand, error) {
+	var body StartRaceCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStartRaceCommand overwrites any union data inside the RobotCommand as the provided StartRaceCommand
+func (t *RobotCommand) FromStartRaceCommand(v StartRaceCommand) error {
+	v.CommandType = "START_RACE"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeStartRaceCommand performs a merge with any union data inside the RobotCommand, using the provided StartRaceCommand
+func (t *RobotCommand) MergeStartRaceCommand(v StartRaceCommand) error {
+	v.CommandType = "START_RACE"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStopRaceCommand returns the union data inside the RobotCommand as a StopRaceCommand
+func (t RobotCommand) AsStopRaceCommand() (StopRaceCommand, error) {
+	var body StopRaceCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStopRaceCommand overwrites any union data inside the RobotCommand as the provided StopRaceCommand
+func (t *RobotCommand) FromStopRaceCommand(v StopRaceCommand) error {
+	v.CommandType = "STOP_RACE"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeStopRaceCommand performs a merge with any union data inside the RobotCommand, using the provided StopRaceCommand
+func (t *RobotCommand) MergeStopRaceCommand(v StopRaceCommand) error {
+	v.CommandType = "STOP_RACE"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPauseCommand returns the union data inside the RobotCommand as a PauseCommand
+func (t RobotCommand) AsPauseCommand() (PauseCommand, error) {
+	var body PauseCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPauseCommand overwrites any union data inside the RobotCommand as the provided PauseCommand
+func (t *RobotCommand) FromPauseCommand(v PauseCommand) error {
+	v.CommandType = "PAUSE"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePauseCommand performs a merge with any union data inside the RobotCommand, using the provided PauseCommand
+func (t *RobotCommand) MergePauseCommand(v PauseCommand) error {
+	v.CommandType = "PAUSE"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResumeCommand returns the union data inside the RobotCommand as a ResumeCommand
+func (t RobotCommand) AsResumeCommand() (ResumeCommand, error) {
+	var body ResumeCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResumeCommand overwrites any union data inside the RobotCommand as the provided ResumeCommand
+func (t *RobotCommand) FromResumeCommand(v ResumeCommand) error {
+	v.CommandType = "RESUME"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResumeCommand performs a merge with any union data inside the RobotCommand, using the provided ResumeCommand
+func (t *RobotCommand) MergeResumeCommand(v ResumeCommand) error {
+	v.CommandType = "RESUME"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEmergencyStopCommand returns the union data inside the RobotCommand as a EmergencyStopCommand
+func (t RobotCommand) AsEmergencyStopCommand() (EmergencyStopCommand, error) {
+	var body EmergencyStopCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmergencyStopCommand overwrites any union data inside the RobotCommand as the provided EmergencyStopCommand
+func (t *RobotCommand) FromEmergencyStopCommand(v EmergencyStopCommand) error {
+	v.CommandType = "EMERGENCY_STOP"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmergencyStopCommand performs a merge with any union data inside the RobotCommand, using the provided EmergencyStopCommand
+func (t *RobotCommand) MergeEmergencyStopCommand(v EmergencyStopCommand) error {
+	v.CommandType = "EMERGENCY_STOP"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReturnToStartCommand returns the union data inside the RobotCommand as a ReturnToStartCommand
+func (t RobotCommand) AsReturnToStartCommand() (ReturnToStartCommand, error) {
+	var body ReturnToStartCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReturnToStartCommand overwrites any union data inside the RobotCommand as the provided ReturnToStartCommand
+func (t *RobotCommand) FromReturnToStartCommand(v ReturnToStartCommand) error {
+	v.CommandType = "RETURN_TO_START"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReturnToStartCommand performs a merge with any union data inside the RobotCommand, using the provided ReturnToStartCommand
+func (t *RobotCommand) MergeReturnToStartCommand(v ReturnToStartCommand) error {
+	v.CommandType = "RETURN_TO_START"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRebootCommand returns the union data inside the RobotCommand as a RebootCommand
+func (t RobotCommand) AsRebootCommand() (RebootCommand, error) {
+	var body RebootCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRebootCommand overwrites any union data inside the RobotCommand as the provided RebootCommand
+func (t *RobotCommand) FromRebootCommand(v RebootCommand) error {
+	v.CommandType = "REBOOT"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeRebootCommand performs a merge with any union data inside the RobotCommand, using the provided RebootCommand
+func (t *RobotCommand) MergeRebootCommand(v RebootCommand) error {
+	v.CommandType = "REBOOT"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsShutdownCommand returns the union data inside the RobotCommand as a ShutdownCommand
+func (t RobotCommand) AsShutdownCommand() (ShutdownCommand, error) {
+	var body ShutdownCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromShutdownCommand overwrites any union data inside the RobotCommand as the provided ShutdownCommand
+func (t *RobotCommand) FromShutdownCommand(v ShutdownCommand) error {
+	v.CommandType = "SHUTDOWN"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeShutdownCommand performs a merge with any union data inside the RobotCommand, using the provided ShutdownCommand
+func (t *RobotCommand) MergeShutdownCommand(v ShutdownCommand) error {
+	v.CommandType = "SHUTDOWN"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSetVisionDebugCommand returns the union data inside the RobotCommand as a SetVisionDebugCommand
+func (t RobotCommand) AsSetVisionDebugCommand() (SetVisionDebugCommand, error) {
+	var body SetVisionDebugCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetVisionDebugCommand overwrites any union data inside the RobotCommand as the provided SetVisionDebugCommand
+func (t *RobotCommand) FromSetVisionDebugCommand(v SetVisionDebugCommand) error {
+	v.CommandType = "SET_VISION_DEBUG"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetVisionDebugCommand performs a merge with any union data inside the RobotCommand, using the provided SetVisionDebugCommand
+func (t *RobotCommand) MergeSetVisionDebugCommand(v SetVisionDebugCommand) error {
+	v.CommandType = "SET_VISION_DEBUG"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t RobotCommand) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"command_type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t RobotCommand) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "EMERGENCY_STOP":
+		return t.AsEmergencyStopCommand()
+	case "PAUSE":
+		return t.AsPauseCommand()
+	case "REBOOT":
+		return t.AsRebootCommand()
+	case "RESUME":
+		return t.AsResumeCommand()
+	case "RETURN_TO_START":
+		return t.AsReturnToStartCommand()
+	case "SET_VISION_DEBUG":
+		return t.AsSetVisionDebugCommand()
+	case "SHUTDOWN":
+		return t.AsShutdownCommand()
+	case "START_RACE":
+		return t.AsStartRaceCommand()
+	case "STOP_RACE":
+		return t.AsStopRaceCommand()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t RobotCommand) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *RobotCommand) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}

@@ -9,6 +9,7 @@
 
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
 import type { HealthResponse } from './generated';
+import type { SetVisionDebugParams } from './generated/robot';
 import type { TelemetryMessage } from './guards';
 import {
   fetchHealth,
@@ -20,6 +21,7 @@ import {
   connectTelemetryWS,
   updateRobotSpeed,
 } from './telemetry';
+import { fetchDefaultRobotId, setVisionDebug } from './robot';
 import {
   generateMockSnapshot,
   generateMockTopics,
@@ -50,6 +52,7 @@ export interface TelemetrySource {
     onConnected?: () => void
   ): () => void;
   updateSpeed(speed: number): Promise<void>;
+  setVisionDebug(parameters: SetVisionDebugParams): Promise<void>;
 }
 
 /** Real backend: HTTP fetches + WebSocket stream. */
@@ -61,6 +64,11 @@ export class LiveSource implements TelemetrySource {
   fetchSessions = fetchSessions;
   fetchSession = fetchSession;
   updateSpeed = updateRobotSpeed;
+
+  async setVisionDebug(parameters: SetVisionDebugParams): Promise<void> {
+    const robotId = await fetchDefaultRobotId();
+    await setVisionDebug(robotId, parameters);
+  }
 
   connect(
     onMessage: (msg: TelemetryMessage) => void,
@@ -94,6 +102,9 @@ export class MockSource implements TelemetrySource {
     return generateMockSession(id);
   }
   async updateSpeed() {
+    /* no backend in demo mode */
+  }
+  async setVisionDebug() {
     /* no backend in demo mode */
   }
 

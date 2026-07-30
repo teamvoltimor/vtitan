@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
@@ -24,16 +26,16 @@ func NewHandler(svc domain.Service) *Handler {
 
 // RegisterRoutes wires the Navigation context's routes onto rg (the /v1 group).
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	nav := rg.Group("/navigation")
-	nav.GET("/waypoints", h.listWaypoints)
-	nav.POST("/waypoints", h.createWaypoint)
-	nav.DELETE("/waypoints/:waypointId", h.deleteWaypoint)
-	nav.GET("/route", h.getRoute)
-	nav.POST("/route", h.planRoute)
-	nav.GET("/status", h.getStatus)
-	nav.GET("/clearance", h.getClearance)
-	nav.GET("/tuning", h.getTuning)
-	nav.PUT("/tuning", h.updateTuning)
+	nav := rg.Group(api.RouteNavigation)
+	nav.GET(api.RouteWaypoints, h.listWaypoints)
+	nav.POST(api.RouteWaypoints, h.createWaypoint)
+	nav.DELETE(api.RouteWaypoint, h.deleteWaypoint)
+	nav.GET(api.RouteRoute, h.getRoute)
+	nav.POST(api.RouteRoute, h.planRoute)
+	nav.GET(api.RouteNavStatus, h.getStatus)
+	nav.GET(api.RouteClearance, h.getClearance)
+	nav.GET(api.RouteTuning, h.getTuning)
+	nav.PUT(api.RouteTuning, h.updateTuning)
 }
 
 func (h *Handler) listWaypoints(c *gin.Context) {
@@ -60,7 +62,7 @@ func (h *Handler) createWaypoint(c *gin.Context) {
 }
 
 func (h *Handler) deleteWaypoint(c *gin.Context) {
-	err := h.svc.DeleteWaypoint(c.Request.Context(), c.Param("waypointId"))
+	err := h.svc.DeleteWaypoint(c.Request.Context(), c.Param(httpconstants.ParamWaypointID))
 	if writeIfNotFound(c, err) {
 		return
 	}

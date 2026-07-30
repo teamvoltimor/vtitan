@@ -10,10 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/vision"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
-
-const defaultDetectionLimit = 50
 
 // Handler holds the Vision context's Gin HTTP handlers.
 type Handler struct {
@@ -27,27 +27,27 @@ func NewHandler(svc domain.Service) *Handler {
 
 // RegisterRoutes wires the Vision context's routes onto rg (the /v1 group).
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	vis := rg.Group("/vision")
-	vis.GET("/detections", h.listDetections)
-	vis.GET("/detections/current", h.getCurrentDetections)
-	vis.GET("/annotations", h.listAnnotations)
-	vis.POST("/annotations", h.createAnnotation)
-	vis.PUT("/annotations/:annotationId", h.updateAnnotation)
-	vis.DELETE("/annotations/:annotationId", h.deleteAnnotation)
-	vis.GET("/model", h.getActiveModel)
-	vis.PUT("/model", h.setActiveModel)
-	vis.GET("/pipeline/status", h.getPipelineStatus)
+	vis := rg.Group(api.RouteVision)
+	vis.GET(api.RouteDetections, h.listDetections)
+	vis.GET(api.RouteDetectionsCurrent, h.getCurrentDetections)
+	vis.GET(api.RouteAnnotations, h.listAnnotations)
+	vis.POST(api.RouteAnnotations, h.createAnnotation)
+	vis.PUT(api.RouteAnnotation, h.updateAnnotation)
+	vis.DELETE(api.RouteAnnotation, h.deleteAnnotation)
+	vis.GET(api.RouteModel, h.getActiveModel)
+	vis.PUT(api.RouteModel, h.setActiveModel)
+	vis.GET(api.RoutePipelineStatus, h.getPipelineStatus)
 }
 
 func (h *Handler) listDetections(c *gin.Context) {
-	limit := defaultDetectionLimit
-	if raw := c.Query("limit"); raw != "" {
+	limit := api.DefaultDetectionLimit
+	if raw := c.Query(httpconstants.QueryLimit); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil {
 			limit = n
 		}
 	}
 	var confidenceMin *float32
-	if raw := c.Query("confidence_min"); raw != "" {
+	if raw := c.Query(httpconstants.QueryConfidenceMin); raw != "" {
 		if f, err := strconv.ParseFloat(raw, 32); err == nil {
 			v := float32(f)
 			confidenceMin = &v
@@ -103,7 +103,7 @@ func (h *Handler) updateAnnotation(c *gin.Context) {
 		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
 		return
 	}
-	a, err := h.svc.UpdateAnnotation(c.Request.Context(), c.Param("annotationId"), fromUpdateAnnotationRequest(req))
+	a, err := h.svc.UpdateAnnotation(c.Request.Context(), c.Param(httpconstants.ParamAnnotationID), fromUpdateAnnotationRequest(req))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -111,7 +111,7 @@ func (h *Handler) updateAnnotation(c *gin.Context) {
 }
 
 func (h *Handler) deleteAnnotation(c *gin.Context) {
-	err := h.svc.DeleteAnnotation(c.Request.Context(), c.Param("annotationId"))
+	err := h.svc.DeleteAnnotation(c.Request.Context(), c.Param(httpconstants.ParamAnnotationID))
 	if writeIfNotFound(c, err) {
 		return
 	}

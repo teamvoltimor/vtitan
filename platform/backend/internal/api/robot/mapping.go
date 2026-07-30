@@ -109,10 +109,31 @@ func fromUpdateConfigRequest(req UpdateRobotConfigRequest) domain.UpdateConfigRe
 	}
 }
 
-func fromCommand(req RobotCommand) domain.Command {
-	cmd := domain.Command{Type: domain.CommandType(req.CommandType)}
-	if req.Parameters != nil {
-		cmd.Parameters = *req.Parameters
+func fromCommand(req RobotCommand) (domain.Command, error) {
+	discriminator, err := req.Discriminator()
+	if err != nil {
+		return domain.Command{}, err
 	}
-	return cmd
+
+	cmd := domain.Command{Type: domain.CommandType(discriminator)}
+	switch discriminator {
+	case string(STARTRACE):
+		start, err := req.AsStartRaceCommand()
+		if err != nil {
+			return domain.Command{}, err
+		}
+		if start.Parameters != nil && start.Parameters.MissionName != nil {
+			cmd.Parameters = map[string]any{"mission_name": *start.Parameters.MissionName}
+		}
+	case string(SETVISIONDEBUG):
+		vision, err := req.AsSetVisionDebugCommand()
+		if err != nil {
+			return domain.Command{}, err
+		}
+		cmd.Parameters = map[string]any{"enabled": vision.Parameters.Enabled}
+		if vision.Parameters.StreamFps != nil {
+			cmd.Parameters["stream_fps"] = uint32(*vision.Parameters.StreamFps)
+		}
+	}
+	return cmd, nil
 }

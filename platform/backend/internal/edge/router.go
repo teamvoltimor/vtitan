@@ -62,22 +62,22 @@ func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	}
 	ws := newWSManager(svcs.Telemetry, log)
 
-	r.GET("/openapi.yaml", func(c *gin.Context) {
+	r.GET(RouteOpenAPISpec, func(c *gin.Context) {
 		c.File(cfg.OpenAPISpecPath)
 	})
 
-	v1 := r.Group("/v1/telemetry")
-	v1.GET("/health", h.health)
-	v1.GET("/latest", h.latest)
-	v1.GET("/history", h.history)
-	v1.GET("/topics", h.topics)
-	v1.POST("/robot/config/speed", h.updateSpeed)
-	v1.GET("/config", h.getConfig)
-	v1.GET("/sessions", h.listSessions)
-	v1.GET("/sessions/:id", h.loadSession)
-	v1.GET("/ws", ws.handle)
+	v1 := r.Group(RouteV1Telemetry)
+	v1.GET(RouteHealth, h.health)
+	v1.GET(RouteLatest, h.latest)
+	v1.GET(RouteHistory, h.history)
+	v1.GET(RouteTopics, h.topics)
+	v1.POST(RouteSpeed, h.updateSpeed)
+	v1.GET(RouteConfig, h.getConfig)
+	v1.GET(RouteSessions, h.listSessions)
+	v1.GET(RouteSession, h.loadSession)
+	v1.GET(RouteWS, ws.handle)
 
-	apiV1 := r.Group("/v1")
+	apiV1 := r.Group(RouteV1)
 	robot.NewHandler(svcs.Robot).RegisterRoutes(apiV1)
 	navigation.NewHandler(svcs.Navigation).RegisterRoutes(apiV1)
 	simulation.NewHandler(svcs.Simulation).RegisterRoutes(apiV1)
@@ -104,9 +104,9 @@ func recoverMiddleware(log *zap.Logger) gin.HandlerFunc {
 
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", corsAllowOrigin)
-		c.Header("Access-Control-Allow-Methods", corsAllowMethods)
-		c.Header("Access-Control-Allow-Headers", corsAllowHeaders)
+		c.Header(headerAccessControlAllowOrigin, corsAllowOrigin)
+		c.Header(headerAccessControlAllowMethods, corsAllowMethods)
+		c.Header(headerAccessControlAllowHeaders, corsAllowHeaders)
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return

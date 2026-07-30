@@ -440,23 +440,123 @@ components:
           type: string
 
     RobotCommand:
+      oneOf:
+        - $ref: '#/components/schemas/StartRaceCommand'
+        - $ref: '#/components/schemas/StopRaceCommand'
+        - $ref: '#/components/schemas/PauseCommand'
+        - $ref: '#/components/schemas/ResumeCommand'
+        - $ref: '#/components/schemas/EmergencyStopCommand'
+        - $ref: '#/components/schemas/ReturnToStartCommand'
+        - $ref: '#/components/schemas/RebootCommand'
+        - $ref: '#/components/schemas/ShutdownCommand'
+        - $ref: '#/components/schemas/SetVisionDebugCommand'
+      discriminator:
+        propertyName: command_type
+        mapping:
+          START_RACE: '#/components/schemas/StartRaceCommand'
+          STOP_RACE: '#/components/schemas/StopRaceCommand'
+          PAUSE: '#/components/schemas/PauseCommand'
+          RESUME: '#/components/schemas/ResumeCommand'
+          EMERGENCY_STOP: '#/components/schemas/EmergencyStopCommand'
+          RETURN_TO_START: '#/components/schemas/ReturnToStartCommand'
+          REBOOT: '#/components/schemas/RebootCommand'
+          SHUTDOWN: '#/components/schemas/ShutdownCommand'
+          SET_VISION_DEBUG: '#/components/schemas/SetVisionDebugCommand'
+
+    StartRaceCommand:
       type: object
       required: [command_type]
       properties:
         command_type:
           type: string
-          enum:
-            - START_RACE
-            - STOP_RACE
-            - PAUSE
-            - RESUME
-            - EMERGENCY_STOP
-            - RETURN_TO_START
-            - REBOOT
-            - SHUTDOWN
+          enum: [START_RACE]
         parameters:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/StartRaceParams'
+
+    StopRaceCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [STOP_RACE]
+
+    PauseCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [PAUSE]
+
+    ResumeCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [RESUME]
+
+    EmergencyStopCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [EMERGENCY_STOP]
+
+    ReturnToStartCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [RETURN_TO_START]
+
+    RebootCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [REBOOT]
+
+    ShutdownCommand:
+      type: object
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [SHUTDOWN]
+
+    SetVisionDebugCommand:
+      type: object
+      required: [command_type, parameters]
+      properties:
+        command_type:
+          type: string
+          enum: [SET_VISION_DEBUG]
+        parameters:
+          $ref: '#/components/schemas/SetVisionDebugParams'
+
+    StartRaceParams:
+      type: object
+      properties:
+        mission_name:
+          type: string
+
+    SetVisionDebugParams:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: Enable or disable the vision debug annotated-image stream
+        stream_fps:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Optional cap on the debug stream frame rate
 
     RobotCommandResponse:
       type: object

@@ -50,7 +50,7 @@ func (h *handlers) latest(c *gin.Context) {
 
 func (h *handlers) history(c *gin.Context) {
 	limit := historyDefaultLimit
-	if raw := c.Query("limit"); raw != "" {
+	if raw := c.Query(QueryLimit); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n >= historyMinLimit && n <= historyMaxLimit {
 			limit = n
 		}

@@ -9,7 +9,9 @@
     "lint": "biome lint",
     "format": "biome format",
     "preview": "vite preview",
-    "api:generate": "openapi-ts -i ../openapi/contexts/telemetry.yaml -o ./src/api/generated -p @hey-api/typescript",
+    "api:generate": "npm run api:generate:telemetry && npm run api:generate:robot",
+    "api:generate:telemetry": "openapi-ts -i ../openapi/contexts/telemetry.yaml -o ./src/api/generated -p @hey-api/typescript",
+    "api:generate:robot": "openapi-ts -i ../openapi/contexts/robot.yaml -o ./src/api/generated/robot -p @hey-api/typescript",
     "test": "vitest run",
     "test:watch": "vitest"
   },

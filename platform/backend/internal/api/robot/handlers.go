@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
+	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
@@ -25,19 +27,19 @@ func NewHandler(svc domain.Service) *Handler {
 // RegisterRoutes wires the Robot context's routes onto rg (expected to be the
 // /v1 group, since the OpenAPI paths are /robots, not /robot/robots).
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/robots", h.listRobots)
-	rg.POST("/robots", h.createRobot)
-	rg.GET("/robots/:robotId", h.getRobot)
-	rg.PATCH("/robots/:robotId", h.updateRobot)
-	rg.DELETE("/robots/:robotId", h.deleteRobot)
-	rg.GET("/robots/:robotId/status", h.getRobotStatus)
-	rg.PUT("/robots/:robotId/config", h.updateRobotConfig)
-	rg.POST("/robots/:robotId/command", h.sendRobotCommand)
+	rg.GET(api.RouteRobots, h.listRobots)
+	rg.POST(api.RouteRobots, h.createRobot)
+	rg.GET(api.RouteRobot, h.getRobot)
+	rg.PATCH(api.RouteRobot, h.updateRobot)
+	rg.DELETE(api.RouteRobot, h.deleteRobot)
+	rg.GET(api.RouteRobotStatus, h.getRobotStatus)
+	rg.PUT(api.RouteRobotConfig, h.updateRobotConfig)
+	rg.POST(api.RouteRobotCommand, h.sendRobotCommand)
 }
 
 func (h *Handler) listRobots(c *gin.Context) {
-	fleetID := c.Query("fleet_id")
-	state := domain.State(c.Query("state"))
+	fleetID := c.Query(httpconstants.QueryFleetID)
+	state := domain.State(c.Query(httpconstants.QueryState))
 
 	robots, err := h.svc.List(c.Request.Context(), fleetID, state)
 	if err != nil {
@@ -62,7 +64,7 @@ func (h *Handler) createRobot(c *gin.Context) {
 }
 
 func (h *Handler) getRobot(c *gin.Context) {
-	r, err := h.svc.Get(c.Request.Context(), c.Param("robotId"))
+	r, err := h.svc.Get(c.Request.Context(), c.Param(httpconstants.ParamRobotID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -75,7 +77,7 @@ func (h *Handler) updateRobot(c *gin.Context) {
 		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
 		return
 	}
-	r, err := h.svc.Update(c.Request.Context(), c.Param("robotId"), fromUpdateRequest(req))
+	r, err := h.svc.Update(c.Request.Context(), c.Param(httpconstants.ParamRobotID), fromUpdateRequest(req))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -83,7 +85,7 @@ func (h *Handler) updateRobot(c *gin.Context) {
 }
 
 func (h *Handler) deleteRobot(c *gin.Context) {
-	err := h.svc.Delete(c.Request.Context(), c.Param("robotId"))
+	err := h.svc.Delete(c.Request.Context(), c.Param(httpconstants.ParamRobotID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -91,7 +93,7 @@ func (h *Handler) deleteRobot(c *gin.Context) {
 }
 
 func (h *Handler) getRobotStatus(c *gin.Context) {
-	st, err := h.svc.Status(c.Request.Context(), c.Param("robotId"))
+	st, err := h.svc.Status(c.Request.Context(), c.Param(httpconstants.ParamRobotID))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -104,7 +106,7 @@ func (h *Handler) updateRobotConfig(c *gin.Context) {
 		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
 		return
 	}
-	cfg, err := h.svc.UpdateConfig(c.Request.Context(), c.Param("robotId"), fromUpdateConfigRequest(req))
+	cfg, err := h.svc.UpdateConfig(c.Request.Context(), c.Param(httpconstants.ParamRobotID), fromUpdateConfigRequest(req))
 	if writeIfNotFound(c, err) {
 		return
 	}
@@ -117,7 +119,12 @@ func (h *Handler) sendRobotCommand(c *gin.Context) {
 		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
 		return
 	}
-	res, err := h.svc.Command(c.Request.Context(), c.Param("robotId"), fromCommand(req))
+	cmd, err := fromCommand(req)
+	if err != nil {
+		problem.Write(c, http.StatusUnprocessableEntity, "Validation Failed", err.Error())
+		return
+	}
+	res, err := h.svc.Command(c.Request.Context(), c.Param(httpconstants.ParamRobotID), cmd)
 	if writeIfNotFound(c, err) {
 		return
 	}
