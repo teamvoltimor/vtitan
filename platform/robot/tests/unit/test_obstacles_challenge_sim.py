@@ -51,6 +51,7 @@ from typing import TYPE_CHECKING
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.gateway as gateway_module
+from shared.domain.models import SignColor
 from src.navigation.planning.sign_router import signs_from_metadata
 from src.simulation.gateway import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -100,8 +101,8 @@ class TestObstaclesDemoScenariosRun:
         current_label = [""]
         orig = sign_router_module.SignRouter.deform_waypoint
 
-        def counting_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, detections=None):
-            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, detections)
+        def counting_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
+            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
             if result != waypoint:
                 deform_counts[current_label[0]] = deform_counts.get(current_label[0], 0) + 1
             return result
@@ -138,10 +139,10 @@ class TestObstaclesDemoScenariosRun:
         laps_seen_per_sign: dict[int, set[int]] = {}
         navigator_ref: list = [None]
 
-        def recording_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, detections=None):
+        def recording_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
             candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
             nearest_idx = candidates[0][0] if candidates else -1
-            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, detections)
+            result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
             if result != waypoint and nearest_idx >= 0:
                 laps_seen_per_sign.setdefault(nearest_idx, set()).add(
                     navigator_ref[0].laps_completed,
@@ -217,13 +218,13 @@ class TestVisionConfirmedSignRouting:
         """
         scenario = all_obstacles_demo_scenarios()[0]
 
-        original_emulate = gateway_module.emulate_sign_detections
+        original_emulate = gateway_module.emulate_sign_observations
 
         def flipped_color_emulate(signs, robot_pos, robot_yaw):
             detections = original_emulate(signs, robot_pos, robot_yaw)
-            return [replace(d, class_name="green" if d.class_name == "red" else "red") for d in detections]
+            return [replace(d, color=SignColor.GREEN if d.color == SignColor.RED else SignColor.RED) for d in detections]
 
-        monkeypatch.setattr(gateway_module, "emulate_sign_detections", flipped_color_emulate)
+        monkeypatch.setattr(gateway_module, "emulate_sign_observations", flipped_color_emulate)
 
         # ``sign.color`` is always the untouched ground-truth metadata color
         # (SignRouter._signs is never mutated); ``color`` is whatever

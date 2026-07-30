@@ -1,6 +1,6 @@
 package telemetry
 
-import telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+import telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 
 // SnapshotStore is the storage port for robot telemetry frames.
 type SnapshotStore interface {

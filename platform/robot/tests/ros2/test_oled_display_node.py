@@ -58,7 +58,7 @@ def ros_context():
 @pytest.fixture()
 def oled_node_class():
     """Import OLEDDisplayNode with the BLINKA driver class table entry mocked out."""
-    from voldemorbot_drivers import oled_display_node as oled_module
+    from vtitan_drivers import oled_display_node as oled_module
 
     # spec'd against the real driver ABC, so touching an attribute it does not
     # have raises here instead of on the robot. A bare MagicMock answers to

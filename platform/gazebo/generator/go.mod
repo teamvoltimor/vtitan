@@ -1,4 +1,4 @@
-module voldemorbot/gazebo/generator
+module vtitan/gazebo/generator
 
 go 1.26
 

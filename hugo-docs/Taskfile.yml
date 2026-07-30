@@ -107,7 +107,7 @@ tasks:
           git add . && \
           git commit -m "Deploy to GitHub Pages" && \
           git branch -M gh-pages && \
-          git remote add origin https://x-access-token:$GITHUB_TOKEN@github.com/teamvoldemor/voldemorbot.git && \
+          git remote add origin https://x-access-token:$GITHUB_TOKEN@github.com/teamvoltimor/vtitan.git && \
           git push --force origin gh-pages
 
   deploy:cloudflare:

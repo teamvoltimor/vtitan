@@ -1,4 +1,4 @@
-module github.com/teamvoldemor/voldemorbot/platform/backend
+module github.com/teamvoltimor/vtitan/platform/backend
 
 go 1.26
 

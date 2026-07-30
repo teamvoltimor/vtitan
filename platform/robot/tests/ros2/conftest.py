@@ -35,12 +35,12 @@ for _blinka in ("board", "busio"):
 
 # The real per-board node implementations (ackermann_motor_node, button_node,
 # state_machine_node, ...) live across several ament_python packages under
-# ros2_ws/src/voldemorbot_* (drivers/navigation/vision/state_machine/bringup),  # noqa: ERA001 -- prose, not commented-out code; ruff misreads this glob-like package path
+# ros2_ws/src/vtitan_* (drivers/navigation/vision/state_machine/bringup),  # noqa: ERA001 -- prose, not commented-out code; ruff misreads this glob-like package path
 # none of which are on PYTHONPATH — they're normally only importable after a
 # colcon build. They're pure Python (ament_python, no compiled extensions), so
 # adding each source dir directly lets tests import the exact deployed node
 # code without needing a full ROS2 workspace build.
 _ROS2_WS_SRC = Path(__file__).resolve().parents[2] / "ros2_ws" / "src"
-for _pkg_dir in sorted(_ROS2_WS_SRC.glob("voldemorbot_*")):
+for _pkg_dir in sorted(_ROS2_WS_SRC.glob("vtitan_*")):
     if str(_pkg_dir) not in sys.path:
         sys.path.insert(0, str(_pkg_dir))

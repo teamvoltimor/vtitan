@@ -49,8 +49,8 @@ def button_node_class():
     """Import ButtonNode with a mocked GPIO driver."""
     mock_driver = _mock_driver()
 
-    with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
-        from voldemorbot_drivers.button_node import ButtonNode
+    with mock.patch("vtitan_drivers.button_node.ButtonDriver", return_value=mock_driver):
+        from vtitan_drivers.button_node import ButtonNode
 
         yield ButtonNode, mock_driver
 
@@ -85,8 +85,8 @@ class TestButtonNodeInit:
         mock_driver = _mock_driver()
         mock_driver.connect.side_effect = RuntimeError("gpio busy")
 
-        with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
-            from voldemorbot_drivers.button_node import ButtonNode
+        with mock.patch("vtitan_drivers.button_node.ButtonDriver", return_value=mock_driver):
+            from vtitan_drivers.button_node import ButtonNode
 
             node = ButtonNode()
             node.trigger_configure()
@@ -105,8 +105,8 @@ class TestButtonNodeInit:
         mock_driver = _mock_driver()
         mock_driver.connect.side_effect = RuntimeError("gpio busy")
 
-        with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_driver):
-            from voldemorbot_drivers.button_node import ButtonNode
+        with mock.patch("vtitan_drivers.button_node.ButtonDriver", return_value=mock_driver):
+            from vtitan_drivers.button_node import ButtonNode
 
             node = ButtonNode()
             node.trigger_configure()

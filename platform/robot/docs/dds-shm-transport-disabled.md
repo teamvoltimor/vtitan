@@ -128,15 +128,15 @@ Wired in via the `FASTRTPS_DEFAULT_PROFILES_FILE` environment variable,
 added to all three systemd unit files that launch ROS2 nodes on this
 robot:
 
-- `voldemorbot-pi5.service` (state machine, vision, IMU, telemetry
+- `vtitan-pi5.service` (state machine, vision, IMU, telemetry
   bridge)
-- `voldemorbot-lidar.service` (LIDAR driver)
-- `voldemorbot-pi-zero.service` (button, OLED, ackermann motor)
+- `vtitan-lidar.service` (LIDAR driver)
+- `vtitan-pi-zero.service` (button, OLED, ackermann motor)
 
 Each got one line added right after its existing `ROS_DOMAIN_ID=0`:
 
 ```
-Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/home/ralvarezdev/voldemorbot/platform/robot/config/fastdds_udp_only.xml
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=/home/ralvarezdev/vtitan/platform/robot/config/fastdds_udp_only.xml
 ```
 
 No code changes were needed -- this is entirely a transport-layer

@@ -10,7 +10,7 @@ syntax = "proto3";
 // backend/src/grpc_server/pb.
 package autoannotator.v1;
 
-option go_package = "github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1";
+option go_package = "github.com/teamvoltimor/vtitan/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1";
 
 // A normalized 2-D point in the range [0, 1].
 message Point {

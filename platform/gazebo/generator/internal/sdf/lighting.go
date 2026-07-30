@@ -3,7 +3,7 @@ package sdf
 import (
 	"fmt"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // ApplyLighting updates the sun and ambient light elements in the world node

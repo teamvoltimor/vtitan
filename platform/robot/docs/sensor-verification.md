@@ -41,7 +41,7 @@ have to install them (see `pixi.toml`'s `[feature.vision...]` sections).
   the driver's `Config` needed first. Nothing auto-loads `.env` unless the entry point imports
   something that pulls in `src/logger/config.py` or `src/env.py` — `EnvironmentFile=-.../.env` in
   the systemd units is belt-and-suspenders for the same reason.
-- Check `systemctl is-active voldemorbot-pi5.service` / `-pi-zero.service` before assuming a node
+- Check `systemctl is-active vtitan-pi5.service` / `-pi-zero.service` before assuming a node
   is running — a Pi can have the repo cloned and built but the service never installed/enabled.
 - **Passwordless `sudo` must be set up per Pi** before the service unit files can be installed or
   managed remotely (`systemctl enable`/`start`/`restart` need root, and there's no way to supply a
@@ -148,20 +148,20 @@ during the motion before assuming it's a code bug — verify with the raw-angle 
 1. **`sllidar_ros2` never fetched on Pi 5** — the third-party driver package isn't part of this
    repo; it's fetched into `ros2_ws/src` via the `fetch-lidar-driver` pixi task (idempotent),
    which must run once **before** `build-ws`. Symptom if skipped: `ros2_ws/src/` only has the
-   `voldemorbot_*` packages (at the time, a single `voldemorbot_robot` — since split into
-   `voldemorbot_drivers`/`voldemorbot_navigation`/`voldemorbot_vision`/`voldemorbot_state_machine`/
-   `voldemorbot_bringup`), and the LIDAR launch fails looking for the `sllidar_ros2` package /
+   `vtitan_*` packages (at the time, a single `vtitan_robot` — since split into
+   `vtitan_drivers`/`vtitan_navigation`/`vtitan_vision`/`vtitan_state_machine`/
+   `vtitan_bringup`), and the LIDAR launch fails looking for the `sllidar_ros2` package /
    `sllidar_node` executable.
 2. **Three different launch paths used three different `frame_id` values** for the same physical
-   sensor: the standalone path (`run-lidar` pixi task / `voldemorbot-lidar.service`, which launches
+   sensor: the standalone path (`run-lidar` pixi task / `vtitan-lidar.service`, which launches
    the third-party `sllidar_ros2/launch/sllidar_c1_launch.py` directly) defaulted to `laser`; the
-   integration path (now `voldemorbot_bringup/launch/lidar_launch.py`, included by
+   integration path (now `vtitan_bringup/launch/lidar_launch.py`, included by
    `wro_state_machine_launch.py`) hardcoded `laser_frame`; the static TF (below) published a
    transform into `lidar_link`. None of these matched, so TF lookups for the actual published scan
    frame would have failed regardless of which path was running. Standardized all three on
    `lidar_link` (matching the URDF/SDF naming convention already used for `camera_link`/`imu_link`).
 3. **`static_tfs.launch.py` existed in source but was never installed** — missing from
-   `setup.py`'s `data_files`, so `ros2 launch voldemorbot_bringup static_tfs.launch.py` failed with
+   `setup.py`'s `data_files`, so `ros2 launch vtitan_bringup static_tfs.launch.py` failed with
    *"file 'static_tfs.launch.py' was not found in the share directory"* — and critically,
    `wro_state_machine_launch.py` also includes it via `get_package_share_directory(...)`, so the
    **full integration bringup was silently missing all sensor-frame transforms**, not just the
@@ -301,12 +301,12 @@ filesystem, not just an inconvenience).
 
 **Two compounding traps found doing this:**
 1. **`pixi run` silently self-repairs a stale/broken env before running
-   anything.** If `voldemorbot-pi-zero.service` is `enabled` and the Zero
+   anything.** If `vtitan-pi-zero.service` is `enabled` and the Zero
    reboots (e.g. mid-recovery) with an incomplete `dev` env, the service
    auto-starts on boot and its `pixi run -e dev launch-rpi-zero` immediately
    re-triggers a full install in the background — silently fighting any
    manual recovery attempt for the same disk I/O. **Always
-   `sudo systemctl disable voldemorbot-pi-zero.service` before doing any
+   `sudo systemctl disable vtitan-pi-zero.service` before doing any
    maintenance on the Zero's pixi env**, and only re-enable once it's
    confirmed working standalone.
 2. Aggressively retrying SSH connections against an already I/O-starved board
@@ -331,7 +331,7 @@ that's already set up. Covers, in order:
    auth on the Zero at all (the repo is private; Pi 5 authenticates via `gh`,
    which isn't worth replicating on a throwaway/resource-constrained board).
    **`platform/shared` is easy to forget**: `pixi.toml` installs it as an
-   editable dependency (`voldemorbot-shared = { path = "../shared" }`), so
+   editable dependency (`vtitan-shared = { path = "../shared" }`), so
    anything importing `shared.*` (e.g. `oled_display_node`'s
    `shared.config.constants`) fails with `ModuleNotFoundError: No module
    named 'shared'` if only `platform/robot` was copied — confirmed the hard
@@ -350,11 +350,11 @@ that's already set up. Covers, in order:
    reboots, not just a one-off `modprobe`). Confirmed via
    `i2cdetect -y 1` showing the display responding at `0x3c`, matching
    `.env`'s `SSD1306_I2C_ADDRESS`.
-7. Templating `systemd/voldemorbot-pi-zero.service`'s `__TARGET_USER__` /
+7. Templating `systemd/vtitan-pi-zero.service`'s `__TARGET_USER__` /
    `__TARGET_HOME__` placeholders and installing it to
    `/etc/systemd/system/` — left **disabled**. Don't `systemctl enable` it
    until you've confirmed `sudo systemctl start
-   voldemorbot-pi-zero.service` works standalone (same reasoning as the
+   vtitan-pi-zero.service` works standalone (same reasoning as the
    "two compounding traps" above — an enabled service auto-starting mid
    troubleshooting fights you for the same constrained resources).
 
@@ -364,7 +364,7 @@ A reboot is needed after step 6 for the I2C change to take effect — use
 **The fix: build on Pi 5, ship the result to the Zero as tarballs.** Pi 5 has
 15GB+ RAM and does the same `pixi install -e dev` + `colcon build` in under a
 minute. Both boards are `linux-aarch64` with the same username and identical
-absolute repo path (`~/voldemorbot/platform/robot/...`), so a straight copy
+absolute repo path (`~/vtitan/platform/robot/...`), so a straight copy
 of `.pixi/envs/dev` and a `ros2_ws` build produced with `-e dev` works without
 any conda/mamba resolution happening on the Zero at all.
 
@@ -395,7 +395,7 @@ up on its own because boot was hung waiting on an interactive fsck prompt with n
 attached. Repeat occurrences risk worse (real ext4 data-structure corruption, not just accounting).
 
 Run `bash scripts/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero — it
-stops `voldemorbot-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
+stops `vtitan-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
 Zero is actually offline before telling you it's safe to unplug it.
 
 To power both boards down in one command (e.g. before switching the robot from wall/USB power to
@@ -411,10 +411,10 @@ it into another Pi (or a USB reader) that can mount ext4 natively, and run
 ### Merged `pi_zero_node` — verification and resource baseline
 
 Verified end-to-end on a freshly-flashed Zero (bootstrap → deploy →
-`systemctl restart voldemorbot-pi-zero.service`): the motor, button, and OLED
+`systemctl restart vtitan-pi-zero.service`): the motor, button, and OLED
 nodes that used to run as 3 separate `ros2 run` processes now construct and
 activate inside a single `pi_zero_node` process
-(`ros2_ws/install/lib/voldemorbot_drivers/pi_zero_node`). `ps`/`systemctl
+(`ros2_ws/install/lib/vtitan_drivers/pi_zero_node`). `ps`/`systemctl
 status` cgroup output confirms one Python PID owns all three lifecycle
 nodes; the `ros2 launch` parent process is normal launch-file overhead, not
 a second node.
@@ -482,7 +482,7 @@ is working over USB when WiFi is silently carrying the traffic instead. Two thin
 
 ### `AckermannMotorNode` owns both steering and drive
 
-`ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers/motors/ackermann_motor_node.py`'s
+`ros2_ws/src/vtitan_drivers/vtitan_drivers/motors/ackermann_motor_node.py`'s
 `AckermannMotorNode` is a single node/process responsible for **both** the steering servo
 (`self.steering`) and the drive motor (`self.drive`), each independently backend-configurable
 (`steering_backend`, `drive_backend` params). One shared `_publish_feedback` timer, running at

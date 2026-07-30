@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // SaveAnnotations writes the label file + image copy, marks the image done,

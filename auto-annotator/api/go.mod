@@ -1,4 +1,4 @@
-module github.com/teamvoldemor/voldemorbot/auto-annotator/api
+module github.com/teamvoltimor/vtitan/auto-annotator/api
 
 go 1.26
 

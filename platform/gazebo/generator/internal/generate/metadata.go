@@ -1,7 +1,7 @@
 package generate
 
 import (
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 type (

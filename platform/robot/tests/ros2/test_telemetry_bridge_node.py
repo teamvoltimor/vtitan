@@ -31,7 +31,7 @@ def ros_context():
 
 @pytest.fixture()
 def bridge_module():
-    from voldemorbot_state_machine import telemetry_bridge_node as module
+    from vtitan_state_machine import telemetry_bridge_node as module
 
     return module
 
@@ -299,7 +299,7 @@ class TestUiSummaryRoundTripsWithOledNode:
                 except (ImportError, NotImplementedError):
                     sys.modules[optional] = mock.MagicMock()
 
-        from voldemorbot_drivers.oled_display_node import OLEDDisplayNode
+        from vtitan_drivers.oled_display_node import OLEDDisplayNode
 
         n = 720
         ranges = [10.0] * n

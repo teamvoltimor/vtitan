@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Telemetry API
+  title: vTitan Telemetry API
   version: 1.0.0
   description: |
     Telemetry context — responsible for robot telemetry ingestion, storage,

@@ -1,7 +1,7 @@
 [project]
-name = "voldemorbot-shared"
+name = "vtitan-shared"
 version = "0.1.0"
-description = "Shared constants and enums for Voldemorbot platform"
+description = "Shared constants and enums for vTitan platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0.0",

@@ -8,7 +8,7 @@
 #   1. Trust Pi 5's SSH key into the Zero's authorized_keys
 #   2. Verify passwordless sudo on both boards
 #   3. Copy platform/robot AND platform/shared (a sibling dependency pulled in
-#      via pixi.toml's `voldemorbot-shared = { path = "../shared" }`) onto the
+#      via pixi.toml's `vtitan-shared = { path = "../shared" }`) onto the
 #      Zero -- git archive over SSH, no GitHub auth needed on the Zero itself
 #   4. Create .env from .env.example if missing (never overwrites an existing one)
 #   5. Install the pixi CLI on the Zero (just the binary -- NOT `pixi install`,
@@ -23,12 +23,12 @@
 #   6c. Configure the USB-gadget link to Pi 5 (dwc2 + g_ether + fixed MACs +
 #      a static usb0 profile) -- the competition-critical path, since WiFi may
 #      not be available at the venue. A fresh flash sets up none of it.
-#   7. Template and install the voldemorbot-pi-zero.service systemd unit
+#   7. Template and install the vtitan-pi-zero.service systemd unit
 #      (left DISABLED -- confirm it works standalone first, see
 #      docs/sensor-verification.md's Pi Zero deployment section)
 #
 # After this script: run deploy-dev-env-to-zero.sh to build+ship the dev pixi
-# env and ros2_ws, then `sudo systemctl start voldemorbot-pi-zero.service` to
+# env and ros2_ws, then `sudo systemctl start vtitan-pi-zero.service` to
 # test it manually before enabling it to auto-start on boot.
 #
 # Run this ON Pi 5. Requires Pi 5 already has SOME trusted way into the Zero
@@ -80,11 +80,11 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo -n true" 2>/dev/null || { echo "ERROR: Z
 
 log "3/7 Copying platform/robot + platform/shared onto the Zero (git archive over SSH, no auth needed on the Zero)"
 cd "$ROBOT_DIR/../.."  # repo root
-git archive HEAD -- platform/robot platform/shared | ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "mkdir -p ~/voldemorbot && tar -x -C ~/voldemorbot"
+git archive HEAD -- platform/robot platform/shared | ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "mkdir -p ~/vtitan && tar -x -C ~/vtitan"
 cd "$ROBOT_DIR"
 
 log "4/7 Creating .env from .env.example on the Zero (only if missing -- never overwrites)"
-ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "cd ~/voldemorbot/platform/robot && [ -f .env ] || cp .env.example .env"
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "cd ~/vtitan/platform/robot && [ -f .env ] || cp .env.example .env"
 
 log "5/7 Installing pixi CLI on the Zero (just the binary, not the dev env)"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" '[ -x ~/.pixi/bin/pixi ] || curl -fsSL https://pixi.sh/install.sh | sh'
@@ -153,11 +153,11 @@ log "7/7 Templating and installing the systemd service unit (left DISABLED)"
 ZERO_HOME="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" 'echo $HOME')"
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
   sed -e 's|__TARGET_USER__|$ZERO_USER|g' -e 's|__TARGET_HOME__|$ZERO_HOME|g' \
-    ~/voldemorbot/platform/robot/systemd/voldemorbot-pi-zero.service \
-    | sudo tee /etc/systemd/system/voldemorbot-pi-zero.service >/dev/null
+    ~/vtitan/platform/robot/systemd/vtitan-pi-zero.service \
+    | sudo tee /etc/systemd/system/vtitan-pi-zero.service >/dev/null
   sudo systemctl daemon-reload
 "
 
 log "Done. A reboot is needed for the I2C and PWM overlay changes to take effect (use safe-shutdown-zero.sh, don't pull power)."
 log "Next: bash scripts/deploy-dev-env-to-zero.sh, then after reboot:"
-log "  ssh $ZERO_HOST 'sudo systemctl start voldemorbot-pi-zero.service'"
+log "  ssh $ZERO_HOST 'sudo systemctl start vtitan-pi-zero.service'"

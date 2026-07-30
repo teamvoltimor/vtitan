@@ -1,6 +1,6 @@
 package sdf
 
-import "voldemorbot/gazebo/generator/internal/simconfig"
+import "vtitan/gazebo/generator/internal/simconfig"
 
 // AddSystemPlugins injects the Sensors and Physics system plugins into a world
 // element, skipping any that are already present.

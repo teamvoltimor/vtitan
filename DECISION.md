@@ -1,6 +1,6 @@
 # Decision Summary
 
-**Based on actual VoldemorBot hardware analysis**
+**Based on actual vTitan hardware analysis**
 
 ---
 
@@ -431,15 +431,15 @@ With Proposal 3:
    - [ ] Verify AI HAT+ working
    - [ ] Test YOLO inference (adapt from CLIP)
 
-4. **Review VoldemorBot code:**
+4. **Review vTitan code:**
    - [ ] USB-CDC protocol
    - [ ] Challenge handlers
    - [ ] Hailo CLIP integration
 
 5. **Create project structure:**
    ```bash
-   mkdir -p ~/teamvoldemor_ros2_ws/src
-   cd ~/teamvoldemor_ros2_ws
+   mkdir -p ~/teamvoltimor_ros2_ws/src
+   cd ~/teamvoltimor_ros2_ws
    ```
 
 6. **Motor options (all work with ROS2):**

@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/middleware"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/middleware"
 )
 
 // Router builds the Gin engine with middleware and all routes wired to their

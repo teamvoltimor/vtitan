@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./setup_common.sh
 source "$SCRIPT_DIR/setup_common.sh"
 
-REPO_DIR="$TARGET_HOME/voldemorbot"
+REPO_DIR="$TARGET_HOME/vtitan"
 ROBOT_DIR="$REPO_DIR/platform/robot"
 USB_GADGET_IP=192.168.250.1/24   # Pi Zero is the USB gadget; Pi 5 host is .2
 
@@ -113,10 +113,10 @@ ls /sys/class/pwm/pwmchip0/ >/dev/null 2>&1 \
     || log "WARNING: PWM chip not present yet — it appears after the reboot below."
 
 log "Installing systemd service + udev rules..."
-install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-pi-zero.service"
-cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
+install_systemd_unit "$ROBOT_DIR/systemd/vtitan-pi-zero.service"
+cp "$ROBOT_DIR/udev/99-vtitan-gpio.rules" /etc/udev/rules.d/
 systemctl daemon-reload
-systemctl enable voldemorbot-pi-zero.service
+systemctl enable vtitan-pi-zero.service
 udevadm control --reload-rules
 udevadm trigger
 

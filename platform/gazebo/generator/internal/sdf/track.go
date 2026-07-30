@@ -3,7 +3,7 @@ package sdf
 import (
 	"fmt"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // AddInteriorWalls computes the four interior wall positions from corridor widths

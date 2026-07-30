@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	annotationdomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	annotationdomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // ListClasses returns all annotation classes ordered by id. GET /classes

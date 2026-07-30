@@ -1,0 +1,27 @@
+[Unit]
+Description=vTitan Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
+Wants=network-online.target hailort.service vtitan-lidar.service
+After=network-online.target hailort.service vtitan-lidar.service
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+[Service]
+Type=exec
+User=__TARGET_USER__
+Group=__TARGET_USER__
+WorkingDirectory=__TARGET_HOME__/vtitan/platform/robot
+Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-__TARGET_HOME__/vtitan/platform/robot/.env
+Environment=ROS_DOMAIN_ID=0
+# launch-rpi5 (not a raw "ros2 launch") -- the pixi task sources
+# ros2_ws/install/setup.bash first, which is required to resolve the
+# locally-built vtitan_state_machine/vtitan_vision/vtitan_drivers
+# and vtitan_bringup packages.
+ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e vision launch-rpi5
+Restart=on-failure
+RestartSec=5
+ExecStop=/usr/bin/kill -SIGINT $MAINPID
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

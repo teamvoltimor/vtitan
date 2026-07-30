@@ -47375,7 +47375,7 @@ packages:
   size: 2372
   timestamp: 1779604712848
 - pypi: ../shared
-  name: voldemorbot-shared
+  name: vtitan-shared
   requires_dist:
   - pydantic>=2.0.0
   - pyyaml>=6.0 ; extra == 'yaml'

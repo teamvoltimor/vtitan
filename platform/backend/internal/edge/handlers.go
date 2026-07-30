@@ -12,12 +12,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	robotdomain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/session"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/config"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
+	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/session"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/config"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
 var sessionIDPattern = regexp.MustCompile(`^session_\d+$`)

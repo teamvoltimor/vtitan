@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Auto-Annotator API
+  title: vTitan Auto-Annotator API
   version: 1.0.0
   description: Image annotation and ML inference API
 

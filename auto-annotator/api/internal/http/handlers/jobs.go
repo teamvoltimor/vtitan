@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	computedomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	computedomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/job"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // RegisterRoutes wires the model listing, segmentation, and augment/train job

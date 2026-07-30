@@ -12,7 +12,7 @@ vars:
   ZERO_WIFI_IP: 192.168.0.51
   # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see scripts/setup_pi_zero.sh
   RPI_ZERO_GADGET_IP: 192.168.250.1
-  PLATFORM_SCRIPTS: "{{.HOME}}/voldemorbot-platform/scripts"
+  PLATFORM_SCRIPTS: "{{.HOME}}/vtitan-platform/scripts"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
   FLEET_USER: ralvarezdev   # account created on every Pi via Raspberry Pi Imager (not "pi")
@@ -133,7 +133,7 @@ tasks:
       - sudo nmcli connection up {{.WIFI_CONN}}
       - echo "WiFi restored to auto band selection."
 
-  # Provisioning (run from dev Pi 5 — scripts live in ~/voldemorbot-platform/)
+  # Provisioning (run from dev Pi 5 — scripts live in ~/vtitan-platform/)
 
   rpi:provision:zero:
     desc: "Provision Pi Zero 2W — scp scripts + run setup_pi_zero.sh (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x]). Needs an interactive sudo password on the Zero — if invoking over a WiFi SSH session, run under nohup since the WiFi lock step below will disconnect it."
@@ -509,15 +509,15 @@ tasks:
   # Repos
 
   rpi:repos:
-    desc: "Ops across all voldemorbot repos (usage: task rpi:repos ACTION=pull|status)"
+    desc: "Ops across all vtitan repos (usage: task rpi:repos ACTION=pull|status)"
     requires:
       vars:
         - ACTION
     cmds:
       - cmd: |
           case "{{.ACTION}}" in
-            pull) for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do echo "=== $d ===" && git -C $d pull; done ;;
-            status) for d in ~/voldemorbot ~/voldemorbot-auto-annotator ~/voldemorbot-platform ~/voldemorbot-docs ~/voldemorbot-hugo-docs; do echo "=== $d ===" && git -C $d status -sb; done ;;
+            pull) for d in ~/vtitan ~/vtitan-auto-annotator ~/vtitan-platform ~/vtitan-docs ~/vtitan-hugo-docs; do echo "=== $d ===" && git -C $d pull; done ;;
+            status) for d in ~/vtitan ~/vtitan-auto-annotator ~/vtitan-platform ~/vtitan-docs ~/vtitan-hugo-docs; do echo "=== $d ===" && git -C $d status -sb; done ;;
             *) echo "Unknown ACTION: {{.ACTION}}. Use pull|status" && exit 1 ;;
           esac
 

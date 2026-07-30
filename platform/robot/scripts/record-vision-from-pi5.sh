@@ -19,8 +19,8 @@ set -euo pipefail
 ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-PI5_REPO="${PI5_REPO:-~/voldemorbot}"
-SERVICE="${SERVICE:-voldemorbot-pi5.service}"
+PI5_REPO="${PI5_REPO:-~/vtitan}"
+SERVICE="${SERVICE:-vtitan-pi5.service}"
 SECONDS_TO_RECORD="${SECONDS_TO_RECORD:-20}"
 REMOTE_OUT="/tmp/vision-record.mp4"
 OUT="${OUT:-$ROBOT_DIR/vision-$(date +%Y%m%d-%H%M%S).mp4}"

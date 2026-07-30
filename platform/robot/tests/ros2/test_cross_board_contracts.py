@@ -79,13 +79,13 @@ def _make_motor_node():
     mock_drive = mock.MagicMock()
 
     with (
-        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
-        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+        mock.patch("vtitan_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+        mock.patch("vtitan_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
 
-        from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
+        from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
         node = AckermannMotorNode()
         node.trigger_configure()
@@ -160,7 +160,7 @@ class TestStateMachineStopToMotorNode:
         monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)
         monkeypatch.setenv("DRIVE_BACKEND", DriveBackend.DC_ENCODER.value)
 
-        from voldemorbot_state_machine.state_machine_node import StateMachineNode
+        from vtitan_state_machine.state_machine_node import StateMachineNode
 
         sm_node = StateMachineNode()
         published: list[AckermannDriveStamped] = []
@@ -192,11 +192,11 @@ class TestButtonNodeToStateMachine:
     """RPi Zero (button_node) -> RPi 5 (state_machine_node)."""
 
     def test_short_press_event_starts_the_race(self, ros_context):
-        from voldemorbot_state_machine.state_machine_node import StateMachineNode
+        from vtitan_state_machine.state_machine_node import StateMachineNode
 
         mock_button_driver = mock.MagicMock()
-        with mock.patch("voldemorbot_drivers.button_node.ButtonDriver", return_value=mock_button_driver):
-            from voldemorbot_drivers.button_node import ButtonNode
+        with mock.patch("vtitan_drivers.button_node.ButtonDriver", return_value=mock_button_driver):
+            from vtitan_drivers.button_node import ButtonNode
 
             button_node = ButtonNode()
             button_node.trigger_configure()

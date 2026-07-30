@@ -28,8 +28,8 @@ log "Target: $ZERO_HOST"
 . "$SCRIPT_DIR/_ssh_preflight.sh"
 SSH_PREFLIGHT_INTERACTIVE=0   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
-log "Stopping voldemorbot-pi-zero.service and syncing disks before shutdown"
-ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl stop voldemorbot-pi-zero.service; sync; sudo shutdown -h now" || true
+log "Stopping vtitan-pi-zero.service and syncing disks before shutdown"
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl stop vtitan-pi-zero.service; sync; sudo shutdown -h now" || true
 
 log "Waiting for the Zero to go offline (safe to cut power once this reports it's down)"
 for _ in $(seq 1 30); do

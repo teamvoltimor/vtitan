@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/dataset"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/dataset"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/config"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 type annotationService struct {

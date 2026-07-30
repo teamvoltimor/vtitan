@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 )
 
 // TelemetryReader is the minimal read port into the Telemetry context that

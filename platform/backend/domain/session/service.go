@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 )
 
 // SessionService is the session management port.

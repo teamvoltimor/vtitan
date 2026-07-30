@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"voldemorbot/gazebo/generator/internal/generate"
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/generate"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 const (

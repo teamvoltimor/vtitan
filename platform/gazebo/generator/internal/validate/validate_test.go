@@ -3,8 +3,8 @@ package validate_test
 import (
 	"testing"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
-	"voldemorbot/gazebo/generator/internal/validate"
+	"vtitan/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/validate"
 )
 
 func defaultContext() validate.WorldContext {

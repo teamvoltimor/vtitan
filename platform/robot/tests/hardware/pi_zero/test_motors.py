@@ -175,7 +175,7 @@ def find_limits_interactive():
     driver = BuildHatDriver(config=config)
     driver.connect()
 
-    log.info("Voldemorbot v2 Steering Limit Finder")
+    log.info("vTitan v2 Steering Limit Finder")
 
     log.info("Step 1: Center wheels manually, press Enter")
     input()

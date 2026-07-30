@@ -1,4 +1,4 @@
-"""Voldemorbot robot — WRO 2026 navigator and driver entrypoints."""
+"""vTitan robot — WRO 2026 navigator and driver entrypoints."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def _run_drive(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """CLI entrypoint for the robot — navigate or drive."""
-    parser = argparse.ArgumentParser(description="Voldemorbot robot — WRO 2026.")
+    parser = argparse.ArgumentParser(description="vTitan robot — WRO 2026.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # navigate subcommand

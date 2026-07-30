@@ -1,5 +1,5 @@
 [project]
-name = "voldemorbot-platform"
+name = "vtitan-platform"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — robot platform & training pipeline"
 requires-python = ">=3.11"
@@ -8,11 +8,11 @@ dependencies = [
     "numpy>=1.26",
     "opencv-python>=4.9",
     "defusedxml>=0.7",
-    "voldemorbot-shared",
+    "vtitan-shared",
 ]
 
 [tool.uv.sources]
-voldemorbot-shared = { path = "../../shared" }
+vtitan-shared = { path = "../../shared" }
 
 [project.optional-dependencies]
 dev = [

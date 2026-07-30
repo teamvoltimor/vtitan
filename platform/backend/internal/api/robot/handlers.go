@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	domain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
 // Handler holds the Robot context's Gin HTTP handlers.

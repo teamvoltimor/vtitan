@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"voldemorbot/gazebo/generator/internal/sdf"
-	"voldemorbot/gazebo/generator/internal/simconfig"
-	"voldemorbot/gazebo/generator/internal/validate"
+	"vtitan/gazebo/generator/internal/sdf"
+	"vtitan/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/validate"
 )
 
 // ScenarioGenerator orchestrates world randomization, SDF construction, and

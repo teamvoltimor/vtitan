@@ -3,10 +3,10 @@ package handlers
 import (
 	"path/filepath"
 
-	annotationdomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
-	computedomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
-	gallerydomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	annotationdomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
+	computedomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
+	gallerydomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/gallery"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 // --- gallery mappings ---

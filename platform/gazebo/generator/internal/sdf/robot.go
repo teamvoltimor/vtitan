@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 var (

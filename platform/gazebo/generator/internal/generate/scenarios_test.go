@@ -3,8 +3,8 @@ package generate_test
 import (
 	"testing"
 
-	"voldemorbot/gazebo/generator/internal/generate"
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/generate"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 func TestApplyScenarioToSection_InvalidID(t *testing.T) {

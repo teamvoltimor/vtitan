@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./setup_common.sh
 source "$SCRIPT_DIR/setup_common.sh"
 
-REPO_DIR="$TARGET_HOME/voldemorbot"
+REPO_DIR="$TARGET_HOME/vtitan"
 ROBOT_DIR="$REPO_DIR/platform/robot"
 
 hailo_deb=""
@@ -79,11 +79,11 @@ if [[ -n "$hailo_deb" ]]; then
 fi
 
 log "Installing systemd services + udev rules..."
-install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-pi5.service"
-install_systemd_unit "$ROBOT_DIR/systemd/voldemorbot-lidar.service"
-cp "$ROBOT_DIR/udev/99-voldemorbot-gpio.rules" /etc/udev/rules.d/
+install_systemd_unit "$ROBOT_DIR/systemd/vtitan-pi5.service"
+install_systemd_unit "$ROBOT_DIR/systemd/vtitan-lidar.service"
+cp "$ROBOT_DIR/udev/99-vtitan-gpio.rules" /etc/udev/rules.d/
 systemctl daemon-reload
-systemctl enable voldemorbot-lidar.service voldemorbot-pi5.service
+systemctl enable vtitan-lidar.service vtitan-pi5.service
 udevadm control --reload-rules
 udevadm trigger
 

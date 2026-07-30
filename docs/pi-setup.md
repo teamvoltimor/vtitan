@@ -48,7 +48,7 @@ groups `gpio i2c spi dialout render video`.
 `hailort.service` enabled.
 
 **Robot stack:** repo checked out as per-branch git **worktrees** under
-`~/voldemorbot*` (master, platform, docs, hailo, hugo-docs, auto-annotator);
+`~/vtitan*` (master, platform, docs, hailo, hugo-docs, auto-annotator);
 robot pixi env and `ros2_ws` built.
 
 > Interfaces (i2c/spi/serial) are **disabled** on this box — it builds and
@@ -77,7 +77,7 @@ NM-only `usb0` static profile **192.168.250.1/24**, swap bump for the build.
 
 **`setup_pi_5.sh` additionally:** raspi-config interfaces (i2c/spi/serial/camera),
 Hailo runtime, NM `usb0` host IP **192.168.250.2/24**, LiDAR driver fetch +
-`voldemorbot-lidar.service`.
+`vtitan-lidar.service`.
 
 ### Networking
 

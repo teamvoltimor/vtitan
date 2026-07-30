@@ -4,7 +4,7 @@ package compute
 import (
 	"context"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/job"
 )
 
 type (

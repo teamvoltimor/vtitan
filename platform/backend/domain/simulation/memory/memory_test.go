@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/simulation"
 )
 
 func TestGenerateScenarioSetsDetectionCountOnlyForObstacles(t *testing.T) {

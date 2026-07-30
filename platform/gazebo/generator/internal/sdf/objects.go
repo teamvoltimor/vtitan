@@ -3,7 +3,7 @@ package sdf
 import (
 	"fmt"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // AddTrafficSigns appends one box model per sign to the world element.

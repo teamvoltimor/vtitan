@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Simulation API
+  title: vTitan Simulation API
   version: 1.0.0
   description: |
     Simulation context — responsible for WRO scenario generation, environment

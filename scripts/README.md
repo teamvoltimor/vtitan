@@ -1,7 +1,7 @@
 # Raspberry Pi setup
 
 Two phases. **Raspberry Pi Imager** writes a bootable, reachable OS; the
-`setup_pi_*.sh` scripts run **on the Pi over SSH** and add the voldemorbot layer
+`setup_pi_*.sh` scripts run **on the Pi over SSH** and add the vtitan layer
 (interfaces, USB-gadget link, ROS2 workspace, systemd services). The scripts
 never flash or partition anything.
 
@@ -15,7 +15,7 @@ In Imager's OS customization (the gear / "Edit settings"):
 
 - **Hostname** — e.g. `ralvarezdev-raspberrypi-zero` / `...-pi5`
 - **Enable SSH** → "Allow public-key authentication" → paste your public key
-  (e.g. `~/.ssh/id_voldemorbot_pi_zero.pub`)
+  (e.g. `~/.ssh/id_vtitan_pi_zero.pub`)
 - **Username** — any name (the scripts derive it from `$SUDO_USER` and the
   systemd units get it substituted in at install time — it doesn't have to be
   `pi`)
@@ -28,7 +28,7 @@ Write the card, boot the Pi, and let it join WiFi.
 ## Phase 2 — provision over SSH
 
 Find the Pi on WiFi (`ssh <user>@<hostname>.local` or its `192.168.x.y` lease)
-and copy the scripts over. The voldemorbot repo is **private**, so the script
+and copy the scripts over. The vtitan repo is **private**, so the script
 clones it via `gh` and needs GitHub auth for that user. Two ways:
 
 **A. Token (one pass, non-interactive):**

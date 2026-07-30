@@ -41,9 +41,9 @@ log "Target: $ZERO_HOST"
 SSH_PREFLIGHT_INTERACTIVE=0 SSH_PREFLIGHT_HINT="One-time setup: copy this Pi's ~/.ssh/id_ed25519.pub into the Zero's ~/.ssh/authorized_keys
 (see docs/sensor-verification.md's Pi Zero deployment section)."   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
-log "Warning: if voldemorbot-pi-zero.service is currently enabled/running on the Zero, stop it first --"
+log "Warning: if vtitan-pi-zero.service is currently enabled/running on the Zero, stop it first --"
 log "it will fight this transfer for CPU/disk I/O on the same constrained hardware."
-ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "systemctl is-active voldemorbot-pi-zero.service 2>&1" || true
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "systemctl is-active vtitan-pi-zero.service 2>&1" || true
 
 log "1/6 pixi install -e dev (this machine)"
 ~/.pixi/bin/pixi install -e dev
@@ -78,7 +78,7 @@ log "5/6 extract + atomically swap in on the Zero"
 # shellcheck disable=SC2087
 ssh "${SSH_OPTS[@]}" "$ZERO_HOST" bash -s <<'REMOTE'
 set -euo pipefail
-cd ~/voldemorbot/platform/robot
+cd ~/vtitan/platform/robot
 rm -rf .pixi/envs/dev_new ros2_ws/build_new ros2_ws/install_new
 mkdir -p .pixi/envs/dev_new
 tar xzf ~/dev_env.tar.gz -C .pixi/envs/dev_new --strip-components=1
@@ -103,8 +103,8 @@ echo "Swap complete. Old dirs kept as *_old_$ts -- remove manually once verified
 REMOTE
 
 log "6/6 verifying package discovery on the Zero"
-ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "cd ~/voldemorbot/platform/robot && bash -c '. ros2_ws/install/setup.bash && ros2 pkg list | grep voldemorbot'"
+ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "cd ~/vtitan/platform/robot && bash -c '. ros2_ws/install/setup.bash && ros2 pkg list | grep vtitan'"
 
 rm -f ~/dev_env.tar.gz ~/ros2_ws_zero.tar.gz
-log "Done. Re-enable/start voldemorbot-pi-zero.service on the Zero when ready:"
-log "  ssh $ZERO_HOST 'sudo systemctl enable --now voldemorbot-pi-zero.service'"
+log "Done. Re-enable/start vtitan-pi-zero.service on the Zero when ready:"
+log "  ssh $ZERO_HOST 'sudo systemctl enable --now vtitan-pi-zero.service'"

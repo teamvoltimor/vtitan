@@ -342,14 +342,14 @@ wheels = [
 ]
 
 [[package]]
-name = "voldemorbot-platform"
+name = "vtitan-platform"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "defusedxml" },
     { name = "numpy" },
     { name = "opencv-python" },
-    { name = "voldemorbot-shared" },
+    { name = "vtitan-shared" },
 ]
 
 [package.optional-dependencies]
@@ -365,12 +365,12 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "voldemorbot-shared", directory = "../../shared" },
+    { name = "vtitan-shared", directory = "../../shared" },
 ]
 provides-extras = ["dev"]
 
 [[package]]
-name = "voldemorbot-shared"
+name = "vtitan-shared"
 version = "0.1.0"
 source = { directory = "../../shared" }
 dependencies = [

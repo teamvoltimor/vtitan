@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/navigation"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
 )
 
 const epsilon = 1e-9

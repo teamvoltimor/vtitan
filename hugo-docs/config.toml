@@ -1,6 +1,6 @@
-baseURL = "https://voldemorbot.teamvoldemor.com/"
+baseURL = "https://vtitan.teamvoltimor.com/"
 languageCode = "en-us"
-title = "Voldemorbot Docs"
+title = "vTitan Docs"
 theme = "hugo-book"
 defaultContentLanguage = "en"
 enableGitInfo = true
@@ -11,7 +11,7 @@ contentDir = "content/v1"
 BookTheme = "auto"
 BookToC = true
 BookSearch = true
-BookRepo = "https://github.com/teamvoldemor/voldemorbot"
+BookRepo = "https://github.com/teamvoltimor/vtitan"
 BookSection = "*"
 BookDebug = false
 

@@ -1,5 +1,5 @@
 [workspace]
-name = "voldemorbot-robot"
+name = "vtitan-robot"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — ROS2 navigation runtime (hardware + simulation)"
 channels = ["robostack-kilted", "conda-forge"]
@@ -72,7 +72,7 @@ ros-kilted-rqt-graph = ">=1.7.1,<2"
 ros-kilted-ros-gz = ">=2.1.12,<3"
 
 [pypi-dependencies]
-voldemorbot-shared = { path = "../shared", editable = true }
+vtitan-shared = { path = "../shared", editable = true }
 adafruit-circuitpython-bno08x-rvc = ">=1.0.23, <2"
 buildhat = ">=0.9.0, <0.10"
 adafruit-blinka = ">=9.0.4, <10"
@@ -151,24 +151,24 @@ sim-bridge = "gz sim -r empty.sdf"
 # Wrapped in `bash -c` because pixi's built-in cross-platform task shell has
 # no sourcing support at all (neither bash's "source" nor POSIX "."), so it
 # can't apply ros2_ws/install/setup.bash's env side effects on its own.
-run-imu-i2c        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers bno08x_i2c_node'", env = { PYTHONPATH = "." } }
-run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers bno08x_uart_rvc_node'", env = { PYTHONPATH = "." } }
-run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_state_machine state_machine_node'", env = { PYTHONPATH = "." } }
-run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers oled_display_node'", env = { PYTHONPATH = "." } }
-run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers ackermann_motor_node'", env = { PYTHONPATH = "." } }
-run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_drivers joy_teleop_node'", env = { PYTHONPATH = "." } }
-run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_state_machine telemetry_bridge_node'", env = { PYTHONPATH = "." } }
-run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_vision vision_node'", env = { PYTHONPATH = "." } }
-run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run voldemorbot_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json'", env = { PYTHONPATH = "." } }
+run-imu-i2c        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_i2c_node'", env = { PYTHONPATH = "." } }
+run-imu-rvc        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers bno08x_uart_rvc_node'", env = { PYTHONPATH = "." } }
+run-state-machine  = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine state_machine_node'", env = { PYTHONPATH = "." } }
+run-oled           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers oled_display_node'", env = { PYTHONPATH = "." } }
+run-motor          = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers ackermann_motor_node'", env = { PYTHONPATH = "." } }
+run-joy-teleop     = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_drivers joy_teleop_node'", env = { PYTHONPATH = "." } }
+run-telemetry      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_state_machine telemetry_bridge_node'", env = { PYTHONPATH = "." } }
+run-vision         = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_vision vision_node'", env = { PYTHONPATH = "." } }
+run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run vtitan_navigation track_navigator_node --metadata ../training_data/open/scenarios/scenario_0000_metadata.json'", env = { PYTHONPATH = "." } }
 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)
-launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
-launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
-launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup wro_state_machine_launch.py'", env = { PYTHONPATH = "." } }
-launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
-launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup simulator.launch.py'", env = { PYTHONPATH = "." } }
-launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup lidar_launch.py'", env = { PYTHONPATH = "." } }
-launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
+launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
+launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup wro_state_machine_launch.py'", env = { PYTHONPATH = "." } }
+launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
+launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup simulator.launch.py'", env = { PYTHONPATH = "." } }
+launch-lidar           = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup lidar_launch.py'", env = { PYTHONPATH = "." } }
+launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
 
 # Control mode switching -- exactly one of these should be running on the Pi
 # 5 at a time (both publish to /ackermann_cmd; nothing arbitrates between
@@ -179,9 +179,9 @@ launch-joy-teleop      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 
 # mode; `drive-navigation`/`drive-controller` are the explicit equivalents.
 # (Not named `drive` -- that task already runs the simulation's main.py.)
 # SCENARIO_METADATA overrides the default scenario for drive-navigation/drive-mode.
-drive-navigation       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json}'", env = { PYTHONPATH = "." } }
-drive-controller       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch voldemorbot_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
-drive-mode             = { cmd = "bash -c '. ros2_ws/install/setup.bash && case \"${ROBOT_CONTROL_MODE:-navigation}\" in joystick) ros2 launch voldemorbot_bringup joy_teleop_launch.py ;; navigation) ros2 launch voldemorbot_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json} ;; *) echo \"Unknown ROBOT_CONTROL_MODE: ${ROBOT_CONTROL_MODE} (expected joystick or navigation)\" 1>&2; exit 1 ;; esac'", env = { PYTHONPATH = "." } }
+drive-navigation       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json}'", env = { PYTHONPATH = "." } }
+drive-controller       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup joy_teleop_launch.py'", env = { PYTHONPATH = "." } }
+drive-mode             = { cmd = "bash -c '. ros2_ws/install/setup.bash && case \"${ROBOT_CONTROL_MODE:-navigation}\" in joystick) ros2 launch vtitan_bringup joy_teleop_launch.py ;; navigation) ros2 launch vtitan_bringup race.launch.py metadata:=${SCENARIO_METADATA:-../training_data/open/scenarios/scenario_0000_metadata.json} ;; *) echo \"Unknown ROBOT_CONTROL_MODE: ${ROBOT_CONTROL_MODE} (expected joystick or navigation)\" 1>&2; exit 1 ;; esac'", env = { PYTHONPATH = "." } }
 # Zeros the drive command and recenters steering immediately -- run after
 # switching modes (or after Ctrl+C'ing either drive-* task) instead of
 # waiting on ackermann_motor_node's 1s watchdog, which stops the drive motor
@@ -203,7 +203,7 @@ viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
 # and falls through to whatever's on the system PATH instead of the pinned
 # pixi-managed tool. That's a silent false-pass, not a "command not found"
 # error: system mypy in particular can't see this env's editable-installed
-# packages (e.g. voldemorbot-shared), so every third-party/first-party type
+# packages (e.g. vtitan-shared), so every third-party/first-party type
 # check silently degrades to Any instead of raising the configured errors.
 [feature.dev.tasks]
 # check-only by default (CI-safe -- fails on violations instead of silently
@@ -211,7 +211,7 @@ viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
 lint       = "ruff check ."
 lint-fix   = "ruff check --fix ."
 format-check = "ruff format --check ."
-typecheck  = { cmd = "mypy src/ ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers ros2_ws/src/voldemorbot_navigation/voldemorbot_navigation ros2_ws/src/voldemorbot_vision/voldemorbot_vision ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine", env = { PYTHONPATH = "." } }
+typecheck  = { cmd = "mypy src/ ros2_ws/src/vtitan_drivers/vtitan_drivers ros2_ws/src/vtitan_navigation/vtitan_navigation ros2_ws/src/vtitan_vision/vtitan_vision ros2_ws/src/vtitan_state_machine/vtitan_state_machine", env = { PYTHONPATH = "." } }
 test     = { cmd = "pytest tests/ -m 'not hardware'", env = { PYTHONPATH = "." } }
 test-hardware = { cmd = "pytest tests/hardware -m hardware", env = { PYTHONPATH = "." } }
 

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	domain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/vision"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/vision"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
 const defaultDetectionLimit = 50

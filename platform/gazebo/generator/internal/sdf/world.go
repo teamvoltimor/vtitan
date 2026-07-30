@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // GenerateBaseWorld returns the SDF root and world nodes for the WRO 2026 track.

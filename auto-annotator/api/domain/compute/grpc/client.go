@@ -10,8 +10,8 @@ import (
 	xgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
-	computev1 "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
+	computev1 "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1"
 )
 
 type grpcClients struct {

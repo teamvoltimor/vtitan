@@ -18,12 +18,12 @@ class TelemetryIngestServiceStub(object):
             channel: A grpc.Channel.
         """
         self.StreamSnapshots = channel.stream_unary(
-                '/klevor.telemetry.v1.TelemetryIngestService/StreamSnapshots',
+                '/vtitan.telemetry.v1.TelemetryIngestService/StreamSnapshots',
                 request_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotRequest.SerializeToString,
                 response_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotResponse.FromString,
                 _registered_method=True)
         self.StreamTopics = channel.stream_unary(
-                '/klevor.telemetry.v1.TelemetryIngestService/StreamTopics',
+                '/vtitan.telemetry.v1.TelemetryIngestService/StreamTopics',
                 request_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsRequest.SerializeToString,
                 response_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsResponse.FromString,
                 _registered_method=True)
@@ -66,9 +66,9 @@ def add_TelemetryIngestServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'klevor.telemetry.v1.TelemetryIngestService', rpc_method_handlers)
+            'vtitan.telemetry.v1.TelemetryIngestService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('klevor.telemetry.v1.TelemetryIngestService', rpc_method_handlers)
+    server.add_registered_method_handlers('vtitan.telemetry.v1.TelemetryIngestService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -92,7 +92,7 @@ class TelemetryIngestService(object):
         return grpc.experimental.stream_unary(
             request_iterator,
             target,
-            '/klevor.telemetry.v1.TelemetryIngestService/StreamSnapshots',
+            '/vtitan.telemetry.v1.TelemetryIngestService/StreamSnapshots',
             telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotRequest.SerializeToString,
             telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotResponse.FromString,
             options,
@@ -119,7 +119,7 @@ class TelemetryIngestService(object):
         return grpc.experimental.stream_unary(
             request_iterator,
             target,
-            '/klevor.telemetry.v1.TelemetryIngestService/StreamTopics',
+            '/vtitan.telemetry.v1.TelemetryIngestService/StreamTopics',
             telemetry_dot_v1_dot_ingest__pb2.IngestTopicsRequest.SerializeToString,
             telemetry_dot_v1_dot_ingest__pb2.IngestTopicsResponse.FromString,
             options,

@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // Randomizer generates all stochastic parameters for a WRO 2026 scenario.

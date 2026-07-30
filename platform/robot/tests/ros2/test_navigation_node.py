@@ -255,7 +255,7 @@ class TestWheelOdometryWiring:
         A rename on either side raises nothing -- the navigator would just stop
         receiving odometry, which is exactly the drift this file exists to stop.
         """
-        from voldemorbot_drivers.motors import ackermann_motor_node as motor_node
+        from vtitan_drivers.motors import ackermann_motor_node as motor_node
 
         from src.ros2.navigation import node as nav_node
 

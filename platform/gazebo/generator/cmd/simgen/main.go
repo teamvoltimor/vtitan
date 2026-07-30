@@ -16,11 +16,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"voldemorbot/gazebo/generator/internal/generate"
-	"voldemorbot/gazebo/generator/internal/preview"
-	"voldemorbot/gazebo/generator/internal/robotconfig"
-	"voldemorbot/gazebo/generator/internal/sdf"
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/generate"
+	"vtitan/gazebo/generator/internal/preview"
+	"vtitan/gazebo/generator/internal/robotconfig"
+	"vtitan/gazebo/generator/internal/sdf"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // generatedFile pairs a destination path with the source text to write there.

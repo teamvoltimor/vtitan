@@ -76,13 +76,13 @@ CHALLENGE_MODE_GPIO_PIN=23
 
 ## Touch points (for implementation)
 
-- `ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine/state_machine_node.py` —
+- `ros2_ws/src/vtitan_state_machine/vtitan_state_machine/state_machine_node.py` —
   boot-time detection, `SystemStatus` gating.
-- `ros2_ws/src/voldemorbot_state_machine/voldemorbot_state_machine/state_machine.py` —
+- `ros2_ws/src/vtitan_state_machine/vtitan_state_machine/state_machine.py` —
   `ChallengeMode` enum, `ChallengeModeStatus`/`SystemStatus` fields.
 - New pin-read helper mirroring `src/hardware/button/gpio/driver.py`, minus debounce/long-press
   (the jumper is static, not a momentary control).
-- `ros2_ws/src/voldemorbot_drivers/voldemorbot_drivers/oled_display_node.py` — mode/fault
+- `ros2_ws/src/vtitan_drivers/vtitan_drivers/oled_display_node.py` — mode/fault
   display.
 - `.env.example` — document `CHALLENGE_MODE_GPIO_PIN`.
 - `src/navigation/core_navigator.py`, `src/navigation/planning/sign_router.py`,

@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package klevor.telemetry.v1;
+package vtitan.telemetry.v1;
 
 import "buf/validate/validate.proto";
 import "telemetry/v1/types.proto";
 
-option go_package = "github.com/klevor/telemetry-backend/gen/telemetry/v1;telemetryv1";
+option go_package = "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1";
 
 // TelemetryIngestService is the gRPC ingest boundary for all robot and service producers.
 // Producers open a persistent client-stream instead of repeating HTTP POSTs —

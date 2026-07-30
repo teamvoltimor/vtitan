@@ -8,9 +8,9 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/job"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/config"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 const (

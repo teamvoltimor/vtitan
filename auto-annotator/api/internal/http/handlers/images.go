@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/problem"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // ServeImage streams the raw image file for an id. GET /images/:id

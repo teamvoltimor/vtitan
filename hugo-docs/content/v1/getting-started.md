@@ -1,11 +1,11 @@
 ---
 title: "Getting Started"
-description: "Set up your environment and start using Voldemorbot v2 — prerequisites, installation, and first steps."
+description: "Set up your environment and start using vTitan v2 — prerequisites, installation, and first steps."
 ---
 
 # Getting Started
 
-Welcome to the documentation for **voldemorbot**!
+Welcome to the documentation for **vtitan**!
 
 This guide will help you get up and running quickly. Follow the steps below to set up your environment and start using the project.
 
@@ -33,8 +33,8 @@ Below is an example image included from the `static/` directory:
 Clone the repository:
 
 ```sh
-git clone https://github.com/teamvoldemor/voldemorbot.git
-cd voldemorbot
+git clone https://github.com/teamvoltimor/vtitan.git
+cd vtitan
 ```
 
 Install dependencies:

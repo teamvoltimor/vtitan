@@ -1,9 +1,9 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Platform API
+  title: vTitan Platform API
   version: 1.0.0
   description: |
-    Aggregated OpenAPI specification for the VoldemorBot Platform.
+    Aggregated OpenAPI specification for the vTitan Platform.
     Each bounded context is defined in openapi/contexts/{context}.yaml.
 
     Contexts:

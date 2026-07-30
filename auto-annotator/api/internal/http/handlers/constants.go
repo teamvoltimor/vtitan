@@ -3,7 +3,7 @@ package handlers
 import (
 	"time"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 const (

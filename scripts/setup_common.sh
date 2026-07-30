@@ -3,7 +3,7 @@
 #
 # Model: the OS image, hostname, SSH key, user account and WiFi are written by
 # Raspberry Pi Imager (Windows). These scripts run ON the target Pi over SSH and
-# only configure the voldemorbot-specific layer (interfaces, USB gadget, repo,
+# only configure the vtitan-specific layer (interfaces, USB gadget, repo,
 # ROS2 workspace, services). They never flash or partition anything.
 set -euo pipefail
 
@@ -60,7 +60,7 @@ install_gh() {
     apt-get install -y -qq gh
 }
 
-# Ensure gh is installed and authenticated for $TARGET_USER (the voldemorbot
+# Ensure gh is installed and authenticated for $TARGET_USER (the vtitan
 # repo is private). Auth comes from an existing `gh auth login` or a GH_TOKEN
 # env var. Called early so we fail fast instead of after the long apt/pixi build.
 require_github_auth() {
@@ -80,13 +80,13 @@ require_github_auth() {
 }
 
 clone_repo() {
-    local dest="${1:-$TARGET_HOME/voldemorbot}"
+    local dest="${1:-$TARGET_HOME/vtitan}"
     if [[ -d "$dest/.git" ]]; then
         log "Repo already cloned at $dest"
         return
     fi
-    log "Cloning voldemorbot repo to $dest via gh..."
-    run_as_pi gh repo clone teamvoldemor/voldemorbot "$dest"
+    log "Cloning vtitan repo to $dest via gh..."
+    run_as_pi gh repo clone teamvoltimor/vtitan "$dest"
 }
 
 install_ros_workspace() {

@@ -3,7 +3,7 @@ package gallery
 import (
 	"testing"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/config"
 )
 
 func TestImageURL(t *testing.T) {

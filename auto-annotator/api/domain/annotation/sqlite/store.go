@@ -6,9 +6,9 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/db"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/db"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 const timeFormat = "2006-01-02T15:04:05.000000-07:00"

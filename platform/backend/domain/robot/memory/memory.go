@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
 )
 
 // Memory is a thread-safe in-memory Store for the Robot bounded context.

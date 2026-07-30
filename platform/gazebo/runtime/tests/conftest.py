@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the voldemorbot-platform runtime tests.
+"""Shared pytest fixtures for the vtitan-platform runtime tests.
 
 Session-scoped fixtures build the simgen Go binary once and generate scenario
 batches once per test session.  Individual tests receive the parsed metadata

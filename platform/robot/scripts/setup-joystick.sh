@@ -86,4 +86,4 @@ done
 log "Done. Found: $(compgen -G '/dev/input/js*')"
 log "Next: pixi run -e dev build-ws (if not already built since joy_teleop_node was added),"
 log "then pixi run drive-controller. Verify axis/button indices with:"
-log "  ros2 launch voldemorbot_bringup joy_teleop_launch.py &  ros2 topic echo /joy"
+log "  ros2 launch vtitan_bringup joy_teleop_launch.py &  ros2 topic echo /joy"

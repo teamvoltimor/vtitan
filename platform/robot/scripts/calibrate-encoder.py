@@ -25,7 +25,7 @@ higher, that gap IS the slip.
 
 Run ON Pi 5 (it publishes to /ackermann_cmd like any other controller):
 
-    cd ~/voldemorbot/platform/robot
+    cd ~/vtitan/platform/robot
     . ros2_ws/install/setup.bash
     python3 scripts/calibrate-encoder.py --speed 3.0 --duration-s 5.0
 

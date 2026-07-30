@@ -1,5 +1,5 @@
 [workspace]
-name = "voldemorbot-platform"
+name = "vtitan-platform"
 version = "0.1.0"
 description = "WRO 2026 Future Engineers — hardware-agnostic ROS2 Kilted runtime"
 channels = ["robostack-kilted", "conda-forge"]

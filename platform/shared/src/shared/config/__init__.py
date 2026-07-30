@@ -1,4 +1,4 @@
-"""Shared configuration, constants, and enums for voldemorbot-platform.
+"""Shared configuration, constants, and enums for vtitan-platform.
 
 This module provides a single source of truth for domain constants and
 enumerations. Currently consumed only by ``platform/robot`` (Python); the Go

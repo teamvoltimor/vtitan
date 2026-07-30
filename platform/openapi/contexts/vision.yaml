@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Vision API
+  title: vTitan Vision API
   version: 1.0.0
   description: |
     Vision context — responsible for image capture, YOLO inference,

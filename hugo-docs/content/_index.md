@@ -1,6 +1,6 @@
 ---
-title: "Voldemorbot Documentation"
-description: "Official documentation portal for Voldemorbot v2 — browse versioned guides, proposals, and technical references."
+title: "vTitan Documentation"
+description: "Official documentation portal for vTitan v2 — browse versioned guides, proposals, and technical references."
 ---
 
 # Welcome to the Documentation
@@ -53,7 +53,7 @@ Welcome to the official documentation portal for this project. This site is desi
 
 ## 🛠️ Contributing
 
-If you find any issues or have suggestions for improvement, please contribute or open an issue in the [repository](https://github.com/teamvoldemor/voldemorbot).
+If you find any issues or have suggestions for improvement, please contribute or open an issue in the [repository](https://github.com/teamvoltimor/vtitan).
 
 ---
 

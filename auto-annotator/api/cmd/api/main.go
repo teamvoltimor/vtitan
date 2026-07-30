@@ -17,17 +17,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	annotationdomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
-	annotsqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation/sqlite"
-	computedomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute"
-	computegrpc "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute/grpc"
-	computesqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/compute/sqlite"
-	gallerydomain "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery"
-	gallerysqlite "github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/gallery/sqlite"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/job"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/store"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/config"
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/http/handlers"
+	annotationdomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
+	annotsqlite "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation/sqlite"
+	computedomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
+	computegrpc "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc"
+	computesqlite "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/sqlite"
+	gallerydomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/gallery"
+	gallerysqlite "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/gallery/sqlite"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/job"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/store"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/config"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers"
 )
 
 const readHeaderTimeout = 5 * time.Second

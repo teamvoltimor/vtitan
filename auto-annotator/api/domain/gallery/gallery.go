@@ -5,7 +5,7 @@ import (
 	"context"
 	"mime/multipart"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/domain/annotation"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
 )
 
 type (

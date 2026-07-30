@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TelemetryIngestService_StreamSnapshots_FullMethodName = "/klevor.telemetry.v1.TelemetryIngestService/StreamSnapshots"
-	TelemetryIngestService_StreamTopics_FullMethodName    = "/klevor.telemetry.v1.TelemetryIngestService/StreamTopics"
+	TelemetryIngestService_StreamSnapshots_FullMethodName = "/vtitan.telemetry.v1.TelemetryIngestService/StreamSnapshots"
+	TelemetryIngestService_StreamTopics_FullMethodName    = "/vtitan.telemetry.v1.TelemetryIngestService/StreamTopics"
 )
 
 // TelemetryIngestServiceClient is the client API for TelemetryIngestService service.
@@ -140,7 +140,7 @@ type TelemetryIngestService_StreamTopicsServer = grpc.ClientStreamingServer[Inge
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TelemetryIngestService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "klevor.telemetry.v1.TelemetryIngestService",
+	ServiceName: "vtitan.telemetry.v1.TelemetryIngestService",
 	HandlerType: (*TelemetryIngestServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{

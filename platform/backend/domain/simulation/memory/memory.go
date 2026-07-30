@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/simulation"
 )
 
 const (

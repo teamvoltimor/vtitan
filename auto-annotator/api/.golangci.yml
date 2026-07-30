@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
-# golangci-lint configuration for github.com/teamvoldemor/voldemorbot/auto-annotator/api
+# golangci-lint configuration for github.com/teamvoltimor/vtitan/auto-annotator/api
 # Based on v2.5.0 best practices
 # Last updated: 2025-06-07
 
@@ -33,7 +33,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/teamvoldemor/voldemorbot/auto-annotator/api
+        - github.com/teamvoltimor/vtitan/auto-annotator/api
       
     golines:
       max-len: 120

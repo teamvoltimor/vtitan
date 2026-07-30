@@ -3,7 +3,7 @@ package vision
 import (
 	"github.com/google/uuid"
 
-	domain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/vision"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/vision"
 )
 
 func parseUUID(s string) uuid.UUID {

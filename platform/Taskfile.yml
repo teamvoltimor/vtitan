@@ -410,12 +410,12 @@ tasks:
     desc: Build frontend Docker image (multi-stage — Node builder → nginx static)
     dir: frontend
     cmds:
-      - docker build -t voldemorbot-frontend .
+      - docker build -t vtitan-frontend .
 
   frontend:docker:run:
     desc: Run frontend container serving on http://localhost:8080
     cmds:
-      - docker run --rm -p 8080:8080 voldemorbot-frontend
+      - docker run --rm -p 8080:8080 vtitan-frontend
 
   # GEN (track + scenario generation)
 
@@ -716,7 +716,7 @@ tasks:
     cmds:
       - cmd: |
           ssh -o ConnectTimeout=15 "$PI5_HOST" \
-            'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/voldemorbot/platform/robot \
+            'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/vtitan/platform/robot \
              && bash -c ". ros2_ws/install/setup.bash && PYTHONPATH=. python \
                 scripts/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
 

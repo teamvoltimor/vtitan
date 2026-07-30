@@ -5,14 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/robot"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
 )
 
 func TestCreateAndGet(t *testing.T) {
 	m := NewMemory()
 	ctx := context.Background()
 
-	r, err := m.Create(ctx, robot.CreateRequest{Name: "voldemorbot", FleetID: "fleet-1"})
+	r, err := m.Create(ctx, robot.CreateRequest{Name: "vtitan", FleetID: "fleet-1"})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

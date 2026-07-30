@@ -3,7 +3,7 @@ package simulation
 import (
 	"github.com/google/uuid"
 
-	domain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/simulation"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/simulation"
 )
 
 func parseUUID(s string) uuid.UUID {

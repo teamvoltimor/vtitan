@@ -79,13 +79,13 @@ def ackermann_node_class(monkeypatch):
     mock_drive = mock.MagicMock()
 
     with (
-        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
-        mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+        mock.patch("vtitan_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+        mock.patch("vtitan_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
     ):
         mock_factory_cls.return_value.steering.return_value = mock_steering
         mock_factory_cls.return_value.drive.return_value = mock_drive
 
-        from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
+        from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
         yield AckermannMotorNode, mock_steering, mock_drive, mock_config
 
@@ -130,13 +130,13 @@ class TestAckermannMotorNodeInit:
         mock_steering.connect.side_effect = RuntimeError("no such device")
 
         with (
-            mock.patch("voldemorbot_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
-            mock.patch("voldemorbot_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
+            mock.patch("vtitan_drivers.motors.ackermann_motor_node.Config", return_value=mock_config),
+            mock.patch("vtitan_drivers.motors.ackermann_motor_node._DriverFactory") as mock_factory_cls,
         ):
             mock_factory_cls.return_value.steering.return_value = mock_steering
             mock_factory_cls.return_value.drive.return_value = mock.MagicMock()
 
-            from voldemorbot_drivers.motors.ackermann_motor_node import AckermannMotorNode
+            from vtitan_drivers.motors.ackermann_motor_node import AckermannMotorNode
 
             node = AckermannMotorNode()
             node.trigger_configure()
@@ -167,7 +167,7 @@ class TestAckermannMotorNodeDecode:
 
         node._ackermann_callback(msg)
 
-        from voldemorbot_drivers.motors.ackermann_motor_node import STEERING_COMMAND_SPEED
+        from vtitan_drivers.motors.ackermann_motor_node import STEERING_COMMAND_SPEED
 
         mock_steering.move_steering_to.assert_called_once()
         angle_deg, kwargs = mock_steering.move_steering_to.call_args[0][0], mock_steering.move_steering_to.call_args[1]

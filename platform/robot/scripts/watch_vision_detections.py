@@ -98,7 +98,7 @@ def main() -> int:
     while time.monotonic() < deadline and node.count_publishers(args.topic) == 0:
         rclpy.spin_once(node, timeout_sec=0.1)
     if node.count_publishers(args.topic) == 0:
-        print(f"No publisher on {args.topic}. Is voldemorbot-pi5.service running?")
+        print(f"No publisher on {args.topic}. Is vtitan-pi5.service running?")
         node.destroy_node()
         rclpy.shutdown()
         return 1

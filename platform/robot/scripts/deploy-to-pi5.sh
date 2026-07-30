@@ -37,11 +37,11 @@ REPO_DIR="$(cd "$ROBOT_DIR/../.." && pwd)"
 cd "$REPO_DIR"
 
 PI5_HOST="${PI5_HOST:-rpi-5-local}"
-PI5_REPO="${PI5_REPO:-~/voldemorbot}"
+PI5_REPO="${PI5_REPO:-~/vtitan}"
 BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 HEF="${HEF-auto-annotator/ml-service/models/gmr/gmr.hef}"
 HEF_DEST="${HEF_DEST:-/usr/local/hailo/models/gmr.hef}"
-SERVICE="${SERVICE:-voldemorbot-pi5.service}"
+SERVICE="${SERVICE:-vtitan-pi5.service}"
 SSH_OPTS=(-o ConnectTimeout=15)
 
 log() { echo "[deploy-pi5] $*"; }
@@ -113,7 +113,7 @@ ssh "${SSH_OPTS[@]}" "$PI5_HOST" "export PATH=\"\$HOME/.pixi/bin:\$PATH\" \
   die "colcon build failed; re-run by hand for the log"
 
 SHEBANG="$(ssh "${SSH_OPTS[@]}" "$PI5_HOST" \
-  "head -1 $PI5_REPO/platform/robot/ros2_ws/install/lib/voldemorbot_vision/vision_node")"
+  "head -1 $PI5_REPO/platform/robot/ros2_ws/install/lib/vtitan_vision/vision_node")"
 case "$SHEBANG" in
   *envs/vision/*) log "  entry point interpreter: vision env, ok" ;;
   *) die "vision_node shebang is '$SHEBANG' -- expected the vision env" ;;

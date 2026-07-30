@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 
-	"github.com/teamvoldemor/voldemorbot/auto-annotator/api/internal/domain"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 // ContentType is the media type for Problem Details responses.

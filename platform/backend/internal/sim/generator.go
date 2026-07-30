@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	telemetryv1 "github.com/teamvoldemor/voldemorbot/platform/backend/gen/telemetry/v1"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
 )
 
 const (

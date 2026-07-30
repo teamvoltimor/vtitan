@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Navigation API
+  title: vTitan Navigation API
   version: 1.0.0
   description: |
     Navigation context — responsible for path planning, waypoint management,

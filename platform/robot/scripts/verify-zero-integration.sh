@@ -86,12 +86,12 @@ else
 fi
 
 # 3. systemd service state on the Zero
-step "3/5 voldemorbot-pi-zero.service state"
-svc_active="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl is-active voldemorbot-pi-zero.service" 2>/dev/null || true)"
-svc_enabled="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl is-enabled voldemorbot-pi-zero.service" 2>/dev/null || true)"
+step "3/5 vtitan-pi-zero.service state"
+svc_active="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl is-active vtitan-pi-zero.service" 2>/dev/null || true)"
+svc_enabled="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "sudo systemctl is-enabled vtitan-pi-zero.service" 2>/dev/null || true)"
 [ "$svc_active" = "active" ] && ok "Service is active" || bad "Service is NOT active (state: $svc_active)"
 [ "$svc_enabled" = "enabled" ] && ok "Service is enabled (auto-starts on boot)" || bad "Service is NOT enabled (state: $svc_enabled)"
-exec_line="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "grep ExecStart /etc/systemd/system/voldemorbot-pi-zero.service" 2>/dev/null || true)"
+exec_line="$(ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "grep ExecStart /etc/systemd/system/vtitan-pi-zero.service" 2>/dev/null || true)"
 if echo "$exec_line" | grep -q -- "--as-is"; then
   ok "ExecStart uses --as-is (no fetch/verify overhead on boot)"
 else

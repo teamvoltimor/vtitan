@@ -1,4 +1,4 @@
-# Voldemorbot Pi Setup & Startup Services — Specification
+# vTitan Pi Setup & Startup Services — Specification
 
 > **⚠️ Historical design spec — partially superseded.** This predates the
 > actual implementation and has drifted from it in several places: systemd
@@ -65,20 +65,20 @@ scripts/
 
 platform/robot/
 ├── systemd/
-│   ├── voldemorbot-pi5.service
-│   ├── voldemorbot-pi-zero.service
-│   ├── voldemorbot-lidar.service
-│   └── voldemorbot-backend.service
+│   ├── vtitan-pi5.service
+│   ├── vtitan-pi-zero.service
+│   ├── vtitan-lidar.service
+│   └── vtitan-backend.service
 │
 ├── udev/
-│   └── 99-voldemorbot-gpio.rules
+│   └── 99-vtitan-gpio.rules
 │
-├── ros2_ws/src/voldemorbot_robot/
+├── ros2_ws/src/vtitan_robot/
 │   ├── setup.py                               # add button_node entry point
 │   ├── launch/
 │   │   ├── rpi_zero_nodes.launch.py           # add button_node + oled_display_node
 │   │   └── rpi5_nodes.launch.py               # add IMU + vision nodes
-│   └── voldemorbot_robot/
+│   └── vtitan_robot/
 │       ├── button_node.py                     # NEW
 │       └── motors/
 │           └── ackermann_motor_node.py         # rewrite: servo + dc_encoder
@@ -160,7 +160,7 @@ def main(args=None):
 entry_points={
     "console_scripts": [
         # ... existing entries ...
-        "button_node = voldemorbot_robot.button_node:main",
+        "button_node = vtitan_robot.button_node:main",
     ],
 },
 ```
@@ -226,14 +226,14 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="false"),
-        Node(package="voldemorbot_robot", executable="ackermann_motor_node",
+        Node(package="vtitan_robot", executable="ackermann_motor_node",
              name="ackermann_motors", output="screen",
              parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
              respawn=True, respawn_delay=2.0),
-        Node(package="voldemorbot_robot", executable="button_node",
+        Node(package="vtitan_robot", executable="button_node",
              name="button", output="screen",
              respawn=True, respawn_delay=2.0),
-        Node(package="voldemorbot_robot", executable="oled_display_node",
+        Node(package="vtitan_robot", executable="oled_display_node",
              name="oled_display", output="screen",
              respawn=True, respawn_delay=2.0),
     ])
@@ -247,24 +247,24 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        Node(package="voldemorbot_robot", executable="state_machine_node",
+        Node(package="vtitan_robot", executable="state_machine_node",
              name="state_machine", output="screen"),
-        Node(package="voldemorbot_robot", executable="telemetry_bridge_node",
+        Node(package="vtitan_robot", executable="telemetry_bridge_node",
              name="telemetry_bridge", output="screen"),
-        Node(package="voldemorbot_robot", executable="bno08x_uart_rvc_node",
+        Node(package="vtitan_robot", executable="bno08x_uart_rvc_node",
              name="imu", output="screen"),
-        Node(package="voldemorbot_robot", executable="vision_node",
+        Node(package="vtitan_robot", executable="vision_node",
              name="vision", output="screen"),
     ])
 ```
 
 ## 7. Systemd Service Files
 
-### 7a. `voldemorbot-pi-zero.service`
+### 7a. `vtitan-pi-zero.service`
 
 ```ini
 [Unit]
-Description=Voldemorbot Pi Zero — Motors, Button, OLED
+Description=vTitan Pi Zero — Motors, Button, OLED
 Wants=network-online.target dev-gpiochip0.device
 After=network-online.target dev-gpiochip0.device
 
@@ -272,11 +272,11 @@ After=network-online.target dev-gpiochip0.device
 Type=exec
 User=pi
 Group=pi
-WorkingDirectory=/home/pi/voldemorbot/platform/robot
+WorkingDirectory=/home/pi/vtitan/platform/robot
 Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
-EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
+EnvironmentFile=-/home/pi/vtitan/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch voldemorbot_robot rpi_zero_nodes.launch.py
+ExecStart=/home/pi/.pixi/bin/pixi run -e dev ros2 launch vtitan_robot rpi_zero_nodes.launch.py
 Restart=on-failure
 RestartSec=3
 StartLimitBurst=5
@@ -288,23 +288,23 @@ TimeoutStopSec=5
 WantedBy=multi-user.target
 ```
 
-### 7b. `voldemorbot-pi5.service`
+### 7b. `vtitan-pi5.service`
 
 ```ini
 [Unit]
-Description=Voldemorbot Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
-Wants=network-online.target hailort.service voldemorbot-lidar.service
-After=network-online.target hailort.service voldemorbot-lidar.service
+Description=vTitan Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
+Wants=network-online.target hailort.service vtitan-lidar.service
+After=network-online.target hailort.service vtitan-lidar.service
 
 [Service]
 Type=exec
 User=pi
 Group=pi
-WorkingDirectory=/home/pi/voldemorbot/platform/robot
+WorkingDirectory=/home/pi/vtitan/platform/robot
 Environment=PATH=/home/pi/.pixi/bin:/usr/local/bin:/usr/bin:/bin
-EnvironmentFile=-/home/pi/voldemorbot/platform/robot/.env
+EnvironmentFile=-/home/pi/vtitan/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
-ExecStart=/home/pi/.pixi/bin/pixi run -e vision ros2 launch voldemorbot_robot rpi5_nodes.launch.py
+ExecStart=/home/pi/.pixi/bin/pixi run -e vision ros2 launch vtitan_robot rpi5_nodes.launch.py
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=3
@@ -316,11 +316,11 @@ TimeoutStopSec=10
 WantedBy=multi-user.target
 ```
 
-### 7c. `voldemorbot-lidar.service`
+### 7c. `vtitan-lidar.service`
 
 ```ini
 [Unit]
-Description=Voldemorbot — RPLiDAR C1
+Description=vTitan — RPLiDAR C1
 Wants=dev-ttyUSB0.device
 After=dev-ttyUSB0.device
 
@@ -335,14 +335,14 @@ Restart=on-failure
 RestartSec=3
 
 [Install]
-WantedBy=voldemorbot-pi5.service
+WantedBy=vtitan-pi5.service
 ```
 
-### 7d. `voldemorbot-backend.service` (optional, runs on dev machine or Pi 5)
+### 7d. `vtitan-backend.service` (optional, runs on dev machine or Pi 5)
 
 ```ini
 [Unit]
-Description=Voldemorbot — Go Telemetry Backend
+Description=vTitan — Go Telemetry Backend
 Wants=network-online.target
 After=network-online.target
 
@@ -350,8 +350,8 @@ After=network-online.target
 Type=exec
 User=pi
 Group=pi
-WorkingDirectory=/home/pi/voldemorbot/platform/backend
-ExecStart=/home/pi/voldemorbot/platform/backend/bin/server
+WorkingDirectory=/home/pi/vtitan/platform/backend
+ExecStart=/home/pi/vtitan/platform/backend/bin/server
 Restart=on-failure
 RestartSec=5
 
@@ -359,7 +359,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-## 8. Udev Rules (`99-voldemorbot-gpio.rules`)
+## 8. Udev Rules (`99-vtitan-gpio.rules`)
 
 ```udev
 # GPIO — group gpio
@@ -444,12 +444,12 @@ provision (firstboot.sh, runs once via SSH):
   3. usermod -aG gpio,i2c,spi,dialout pi
   4. Install: pixi (pixi.sh), git, build-essential, pigpio, i2c-tools, python3-pip
   5. Verify PWM: ls /sys/class/pwm/pwmchip0/
-  6. git clone ~/voldemorbot
-  7. cd ~/voldemorbot/platform/robot && pixi install && pixi run -e dev build-ws
+  6. git clone ~/vtitan
+  7. cd ~/vtitan/platform/robot && pixi install && pixi run -e dev build-ws
   8. cp .env.example .env
-  9. cp systemd/voldemorbot-pi-zero.service /etc/systemd/system/
-  10. cp udev/99-voldemorbot-gpio.rules /etc/udev/rules.d/
-  11. systemctl enable voldemorbot-pi-zero.service
+  9. cp systemd/vtitan-pi-zero.service /etc/systemd/system/
+  10. cp udev/99-vtitan-gpio.rules /etc/udev/rules.d/
+  11. systemctl enable vtitan-pi-zero.service
   12. udevadm control --reload-rules && udevadm trigger
   13. rm /boot/firstboot.sh && reboot
 ```
@@ -466,12 +466,12 @@ provision [--hailo-deb /path/to/hailort.deb]:
      systemctl enable hailort
   6. nmcli con add type ethernet ifname usb0 ipv4.method manual \
        ipv4.addresses 192.168.250.2/24 connection.id usb-gadget
-  7. git clone ~/voldemorbot
-  8. cd ~/voldemorbot/platform/robot && pixi install && pixi run -e dev build-ws
+  7. git clone ~/vtitan
+  8. cd ~/vtitan/platform/robot && pixi install && pixi run -e dev build-ws
   9. cp .env.example .env
-  10. cp systemd/voldemorbot-pi5.service /etc/systemd/system/
-      cp systemd/voldemorbot-lidar.service /etc/systemd/system/
-  11. systemctl enable voldemorbot-lidar.service voldemorbot-pi5.service
+  10. cp systemd/vtitan-pi5.service /etc/systemd/system/
+      cp systemd/vtitan-lidar.service /etc/systemd/system/
+  11. systemctl enable vtitan-lidar.service vtitan-pi5.service
   12. reboot
 ```
 
@@ -483,7 +483,7 @@ Power On
   ├── Pi Zero (~5s to ready)
   │    1. Kernel: GPIO, I2C, PWM
   │    2. g_ether: usb0 @ 192.168.250.1
-  │    3. voldemorbot-pi-zero.service
+  │    3. vtitan-pi-zero.service
   │       ├── button_node         → /button/event
   │       ├── ackermann_motor     → /motor/*  (sub: /ackermann_cmd)
   │       └── oled_display        → /ui/oled_mirror (sub: /robot_state, etc.)
@@ -492,8 +492,8 @@ Power On
        1. Kernel + USB: ttyUSB0, ttyACM0
        2. g_ether: usb0 @ 192.168.250.2
        3. hailort.service (firmware load)
-       4. voldemorbot-lidar.service → /scan
-       5. voldemorbot-pi5.service
+       4. vtitan-lidar.service → /scan
+       5. vtitan-pi5.service
           ├── bno08x_uart_rvc    → /imu/data
           ├── vision_node        → /hailo/detections, /hailo/fps
           ├── state_machine      → /robot_state, /ackermann_cmd, /system_status
@@ -538,7 +538,7 @@ rpi:services:install:
   desc: "Copy systemd + udev files to target Pi (SSH_HOST= alias)"
   cmds:
     - scp platform/robot/systemd/*.service {{.SSH_HOST}}:/tmp/
-    - scp platform/robot/udev/99-voldemorbot-gpio.rules {{.SSH_HOST}}:/tmp/
+    - scp platform/robot/udev/99-vtitan-gpio.rules {{.SSH_HOST}}:/tmp/
     - ssh {{.SSH_HOST}} "sudo mv /tmp/*.service /etc/systemd/system/
           && sudo mv /tmp/*.rules /etc/udev/rules.d/
           && sudo systemctl daemon-reload
@@ -546,19 +546,19 @@ rpi:services:install:
 
 rpi:services:enable:
   cmds:
-    - ssh {{.SSH_HOST}} "sudo systemctl enable voldemorbot-pi5.service voldemorbot-lidar.service"
+    - ssh {{.SSH_HOST}} "sudo systemctl enable vtitan-pi5.service vtitan-lidar.service"
 
 rpi-zero:services:enable:
   cmds:
-    - ssh {{.RPI_ZERO_SSH}} "sudo systemctl enable voldemorbot-pi-zero.service"
+    - ssh {{.RPI_ZERO_SSH}} "sudo systemctl enable vtitan-pi-zero.service"
 
 rpi:services:status:
   cmds:
-    - ssh {{.SSH_HOST}} "for s in voldemorbot-pi5 voldemorbot-lidar hailort; do echo === \$s ===; systemctl status \$s --no-pager -l | head -8; echo; done"
+    - ssh {{.SSH_HOST}} "for s in vtitan-pi5 vtitan-lidar hailort; do echo === \$s ===; systemctl status \$s --no-pager -l | head -8; echo; done"
 
 rpi-zero:services:status:
   cmds:
-    - ssh {{.RPI_ZERO_SSH}} "systemctl status voldemorbot-pi-zero --no-pager -l | head -15"
+    - ssh {{.RPI_ZERO_SSH}} "systemctl status vtitan-pi-zero --no-pager -l | head -15"
 
 rpi:services:logs:
   desc: "Tail logs for a service (SERVICE=name)"
@@ -582,15 +582,15 @@ rpi:startup:
 | **New** | `scripts/setup_common.sh` | Create — shared helpers |
 | **New** | `scripts/setup_pi_zero.sh` | Create — SD creation + provisioning |
 | **New** | `scripts/setup_pi_5.sh` | Create — Pi 5 provisioning |
-| **New** | `platform/robot/systemd/voldemorbot-pi5.service` | Create |
-| **New** | `platform/robot/systemd/voldemorbot-pi-zero.service` | Create |
-| **New** | `platform/robot/systemd/voldemorbot-lidar.service` | Create |
-| **New** | `platform/robot/systemd/voldemorbot-backend.service` | Create (optional) |
-| **New** | `platform/robot/udev/99-voldemorbot-gpio.rules` | Create |
+| **New** | `platform/robot/systemd/vtitan-pi5.service` | Create |
+| **New** | `platform/robot/systemd/vtitan-pi-zero.service` | Create |
+| **New** | `platform/robot/systemd/vtitan-lidar.service` | Create |
+| **New** | `platform/robot/systemd/vtitan-backend.service` | Create (optional) |
+| **New** | `platform/robot/udev/99-vtitan-gpio.rules` | Create |
 | **New** | `platform/robot/src/hardware/motors/servo/__init__.py` | Create |
 | **New** | `platform/robot/src/hardware/motors/servo/driver.py` | Create |
 | **New** | `platform/robot/src/hardware/motors/servo/config.py` | Create |
-| **New** | `ros2_ws/.../voldemorbot_robot/button_node.py` | Create |
+| **New** | `ros2_ws/.../vtitan_robot/button_node.py` | Create |
 | **Modify** | `ros2_ws/.../setup.py` | Add `button_node` entry point |
 | **Modify** | `ros2_ws/.../launch/rpi_zero_nodes.launch.py` | Add button_node + oled_display_node |
 | **Modify** | `ros2_ws/.../launch/rpi5_nodes.launch.py` | Add IMU + vision, remove button |

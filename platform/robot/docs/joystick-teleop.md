@@ -14,11 +14,11 @@ hand, not competition use.
   zero unless a dead-man button is held *and* the joystick link is fresh (see
   `joy_timeout_s`). Axis/button indices, speed/steering limits, and invert flags are all
   `JOY_TELEOP_*` env vars (see the file for the full list and defaults).
-- **`joy_teleop_node`** (`voldemorbot_drivers`) — subscribes to `/joy`, republishes
+- **`joy_teleop_node`** (`vtitan_drivers`) — subscribes to `/joy`, republishes
   `ackermann_msgs/AckermannDriveStamped` on `/ackermann_cmd` at 20 Hz, the same topic
   `ackermann_motor_node` and `scripts/test-motors.py` already use. No changes to
   `ackermann_motor_node.py` or any hardware driver were needed.
-- **`joy_teleop_launch.py`** (`voldemorbot_bringup`) — launches `joy_node` + `joy_teleop_node`
+- **`joy_teleop_launch.py`** (`vtitan_bringup`) — launches `joy_node` + `joy_teleop_node`
   together.
 - **`race.launch.py`** — unchanged, but is now one of two things you choose between (see
   Control modes below) rather than the only "brain" driving `/ackermann_cmd`.

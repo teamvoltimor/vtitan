@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"voldemorbot/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/simconfig"
 )
 
 // Axis direction constants for joint and geometry normal definitions.

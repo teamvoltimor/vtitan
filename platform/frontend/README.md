@@ -1,4 +1,4 @@
-# VoldemorBot Telemetry Dashboard
+# vTitan Telemetry Dashboard
 
 React + TypeScript + Vite dashboard for visualising robot telemetry (3D scene,
 sensor panels, ROS topic inspector) streamed from the Go telemetry backend.

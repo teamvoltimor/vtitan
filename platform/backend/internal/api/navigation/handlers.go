@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	domain "github.com/teamvoldemor/voldemorbot/platform/backend/domain/navigation"
-	"github.com/teamvoldemor/voldemorbot/platform/backend/internal/problem"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
 )
 
 // Handler holds the Navigation context's Gin HTTP handlers.

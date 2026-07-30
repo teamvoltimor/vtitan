@@ -1,6 +1,6 @@
 ---
 title: "Proposals"
-description: "Technical proposals for Voldemorbot v2 covering hardware, software, system designs, and technology comparisons."
+description: "Technical proposals for vTitan v2 covering hardware, software, system designs, and technology comparisons."
 ---
 
 # Proposals

@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: VoldemorBot Robot API
+  title: vTitan Robot API
   version: 1.0.0
   description: |
     Robot context — responsible for robot lifecycle management, fleet
