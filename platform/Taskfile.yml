@@ -61,6 +61,8 @@ tasks:
           task backend:lint:fix     Auto-fix Go lint issues
           task backend:fmt          Format (goimports + gofmt)
           task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
+          task backend:typecheck    Run go vet
+          task backend:deps         Download Go module dependencies without building
 
         OPENAPI (spec-first API contract)
           task openapi:generate     Regenerate Go types from all OpenAPI specs
@@ -68,7 +70,7 @@ tasks:
           task frontend:api:generate  Generate TypeScript client from OpenAPI specs
 
         PROTO (buf toolchain — requires buf CLI)
-          task proto ACTION=update|generate|lint|breaking
+          task proto ACTION=update|generate|lint|breaking|format
 
         SIMGEN (Go scenario generator)
           task simgen:install       Build simgen binary (Go compilation)
@@ -221,6 +223,18 @@ tasks:
     cmds:
       - go mod tidy
 
+  backend:deps:
+    desc: Download Go backend module dependencies without building
+    dir: backend
+    cmds:
+      - go mod download
+
+  backend:typecheck:
+    desc: Run go vet on the Go backend
+    dir: backend
+    cmds:
+      - go vet ./...
+
   backend:build:
     desc: Compile Go telemetry backend binary to backend/bin/server
     dir: backend
@@ -287,7 +301,6 @@ tasks:
       - scripts/gen-openapi.ps1
       - scripts/gen-openapi.sh
     generates:
-      - internal/edge/openapi.*.gen.go
       - internal/api/*/openapi.gen.go
 
   openapi:validate:
@@ -302,7 +315,7 @@ tasks:
   # PROTO (buf toolchain)
 
   proto:
-    desc: "Buf toolchain ops (usage: task proto ACTION=update|generate|lint|breaking)"
+    desc: "Buf toolchain ops (usage: task proto ACTION=update|generate|lint|breaking|format)"
     dir: proto
     requires:
       vars:
@@ -314,7 +327,8 @@ tasks:
             generate) buf generate ;;
             lint) buf lint ;;
             breaking) buf breaking --against '.git#branch=master,subdir=platform/proto' ;;
-            *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking" && exit 1 ;;
+            format) buf format -w ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use update|generate|lint|breaking|format" && exit 1 ;;
           esac
 
   # SIMGEN (Go scenario generator)
