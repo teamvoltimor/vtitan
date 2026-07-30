@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/config"
 )
@@ -34,10 +33,4 @@ func (s *systemService) OpenAPISpec() ([]byte, error) {
 		return nil, fmt.Errorf("resolve spec path: %w", err)
 	}
 	return os.ReadFile(abs)
-}
-
-// nowISO8601 returns the current UTC time in the ISO 8601 format used
-// throughout the API, matching Python's datetime.isoformat() output.
-func nowISO8601() string {
-	return time.Now().UTC().Format(TimeFormatISO8601)
 }

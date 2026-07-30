@@ -9,8 +9,6 @@ import (
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
-// --- gallery mappings ---
-
 func toGalleryResponse(g gallerydomain.Gallery) GalleryResponse {
 	items := make([]GalleryItem, len(g.Items))
 	for i, item := range g.Items {
@@ -53,8 +51,6 @@ func toParentImageItems(rows []gallerydomain.GroupedImage) []ParentImageItem {
 	}
 	return items
 }
-
-// --- annotation mappings ---
 
 func annotationShapesToOAPI(shapes []annotationdomain.Shape) []Shape {
 	out := make([]Shape, len(shapes))
@@ -101,8 +97,6 @@ func oapiPointsToAnnotation(pts []Point) []annotationdomain.Point {
 	}
 	return out
 }
-
-// --- compute mappings ---
 
 func toSegmentReq(req SegmentationRequest) computedomain.SegmentReq {
 	pts := make([]computedomain.ClickPoint, len(req.Points))

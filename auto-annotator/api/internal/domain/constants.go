@@ -67,6 +67,10 @@ const (
 	DefaultTrainImgsz       = 640
 )
 
+// Timestamp format used across all SQLite stores — ISO 8601 with microseconds
+// and timezone offset, matching Python datetime.isoformat().
+const TimeFormat = "2006-01-02T15:04:05.000000-07:00"
+
 // Shared error and status messages.
 const (
 	ErrAtLeastOneShape        = "At least one shape required"
@@ -76,8 +80,6 @@ const (
 	ErrTrainingRunning        = "Training already running"
 	ErrFmtUnknownClass        = "Unknown class '%s'"
 	ErrFmtUnknownPrimaryClass = "Unknown primary class '%s'"
-	ErrFmtInvalidXCoord       = "invalid x coordinate: %s"
-	ErrFmtInvalidYCoord       = "invalid y coordinate: %s"
 	MsgAugmentationCompleted  = "Augmentation completed"
 	MsgTrainingCompleted      = "Training completed"
 )

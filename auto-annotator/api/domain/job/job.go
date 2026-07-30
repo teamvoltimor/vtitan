@@ -5,10 +5,10 @@ package job
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"sync"
+
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 // ErrBusy is returned by Start when a job is already running.
@@ -141,9 +141,5 @@ func (j *job) close() {
 }
 
 func newID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "job"
-	}
-	return hex.EncodeToString(b[:])
+	return domain.RandomHexString("job")
 }

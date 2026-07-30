@@ -99,9 +99,6 @@ const (
 	// ThumbCacheControl lets browsers cache thumbnails aggressively.
 	ThumbCacheControl = "public, max-age=86400"
 
-	// StatusOK is the response status indicator for success.
-	StatusOK = "ok"
-
 	// ImageURLTemplate is the absolute URL template for image routes, used when
 	// API_PUBLIC_URL is explicitly configured.
 	ImageURLTemplate = domain.ImageURLTemplate
@@ -113,10 +110,6 @@ const (
 	// ImageCacheControl lets the browser cache served image files so repeated
 	// gallery/preview renders don't refetch them.
 	ImageCacheControl = "public, max-age=3600"
-
-	// TimeFormatISO8601 is the time format for RFC3339 with microsecond precision
-	// matching Python datetime.isoformat().
-	TimeFormatISO8601 = "2006-01-02T15:04:05.000000-07:00"
 
 	// DefaultNumAugmentations is the default number of augmentations.
 	DefaultNumAugmentations = domain.DefaultNumAugmentations
@@ -137,11 +130,9 @@ const (
 	// PercentageDivisor is the divisor to convert from PercentageScale back to percentage.
 	PercentageDivisor = domain.PercentageDivisor
 
-	// --- Error titles ---
 	ErrTitleValidation = "Validation Error"
 
-	// --- Error messages ---
-	ErrImageNotFound       = "Image not found"
+	// Error messages
 	ErrInvalidImageID      = "invalid image id"
 	ErrNoFilesProvided     = "No files provided"
 	ErrNoImagesToDelete    = "No images to delete"
@@ -151,15 +142,12 @@ const (
 	ErrAtLeastOneShape     = domain.ErrAtLeastOneShape
 	ErrAtLeastOnePoint     = domain.ErrAtLeastOnePoint
 
-	// --- Error format strings ---
-	ErrFmtImageNotFound       = "Image %d not found"
+	// Error format strings
 	ErrFmtUnknownClass        = domain.ErrFmtUnknownClass
 	ErrFmtUnknownPrimaryClass = domain.ErrFmtUnknownPrimaryClass
 	ErrFmtNoJobRunning        = "No %s job running"
-	ErrFmtInvalidXCoord       = domain.ErrFmtInvalidXCoord
-	ErrFmtInvalidYCoord       = domain.ErrFmtInvalidYCoord
 
-	// --- Status / success messages ---
+	// Status / success messages
 	MsgSystemReady           = "System ready"
 	MsgDatabaseError         = "Database error"
 	MsgAugmentationStarted   = "Augmentation started"
@@ -167,24 +155,24 @@ const (
 	MsgAugmentationCompleted = domain.MsgAugmentationCompleted
 	MsgTrainingCompleted     = domain.MsgTrainingCompleted
 
-	// --- Magic numbers ---
+	// Magic numbers
 	NumBBoxCoords    = domain.NumBBoxCoords
 	MinPolygonCoords = domain.MinPolygonCoords
 	CoordPairSize    = domain.CoordPairSize
 	RandomHexBytes   = domain.RandomHexBytes
 
-	// --- Directory / file permissions ---
+	// Directory / file permissions
 	DirPerm = domain.DirPerm
 
-	// --- File extensions ---
+	// File extensions
 	ThumbFileExt     = domain.ThumbFileExt
 	ThumbTempPattern = domain.ThumbTempPattern
 	LabelFileExt     = domain.LabelFileExt
 
-	// --- Content types ---
+	// Content types
 	ContentTypeYAML = "application/yaml"
 
-	// --- HTTP headers ---
+	// HTTP headers
 	HeaderContentType       = "Content-Type"
 	HeaderCacheControl      = "Cache-Control"
 	HeaderXAccelBuffering   = "X-Accel-Buffering"
@@ -192,24 +180,24 @@ const (
 	HeaderValueNoCache      = "no-cache"
 	HeaderValueBufferingOff = "no"
 
-	// --- SSE format strings ---
+	// SSE format strings
 	SSEDataFormat      = "data: %s\n\n"
 	SSEHeartbeatFormat = "data: {\"heartbeat\": true}\n\n"
 
-	// --- SSE payload map keys ---
+	// SSE payload map keys
 	MapKeyError    = domain.MapKeyError
 	MapKeyFinished = domain.MapKeyFinished
 	MapKeyStage    = domain.MapKeyStage
 	MapKeyProgress = domain.MapKeyProgress
 	MapKeyDetails  = domain.MapKeyDetails
 
-	// --- Image/annotation metadata ---
+	// Image/annotation metadata
 	ClassFallbackNameFmt = domain.ClassFallbackNameFmt
 	ShapeIDLoadedFmt     = domain.ShapeIDLoadedFmt
 	UnderscoreSep        = domain.UnderscoreSep
 	FallbackHexString    = domain.FallbackHexString
 
-	// --- Error context prefixes (fmt.Errorf wraparound) ---
+	// Error context prefixes (fmt.Errorf wraparound)
 	ErrCtxListImages   = domain.ErrCtxListImages
 	ErrCtxStatusCounts = domain.ErrCtxStatusCounts
 	ErrCtxListClasses  = domain.ErrCtxListClasses

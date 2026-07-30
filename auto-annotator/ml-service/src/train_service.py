@@ -9,6 +9,20 @@ from src.utils import get_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from typing import Any, Protocol
+
+    class ProgressReporter(Protocol):
+        """Protocol for reporting training progress."""
+
+        def update(
+            self,
+            status: str,
+            progress: float,
+            message: str,
+            details: dict[str, Any] | None = None,
+        ) -> None:
+            """Report progress update."""
+            ...
 
 logger = get_logger(__name__)
 
@@ -34,7 +48,7 @@ def run_training_job(
     batch: int,
     imgsz: int,
     data_yaml: Path | None = None,
-    reporter: object | None = None,
+    reporter: ProgressReporter | None = None,
     **_kwargs: object,
 ) -> None:
     """Train YOLO model, emitting epoch progress through *reporter*.

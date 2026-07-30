@@ -8,9 +8,10 @@ import (
 
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/db"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/gallery"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
-const timeFormat = "2006-01-02T15:04:05.000000-07:00"
+const timeFormat = domain.TimeFormat
 
 type galleryStore struct{ q *db.Queries }
 

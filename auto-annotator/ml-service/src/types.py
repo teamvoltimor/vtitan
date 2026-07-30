@@ -15,6 +15,3 @@ ImageId = NewType("ImageId", int)
 
 ModelId = NewType("ModelId", str)
 """Identifier string for selectable SAM models."""
-
-YoloClassId = NewType("YoloClassId", int)
-"""Zero-based class index used in YOLO formatted outputs."""

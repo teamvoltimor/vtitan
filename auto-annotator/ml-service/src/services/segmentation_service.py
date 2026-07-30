@@ -6,7 +6,7 @@ Complete abstraction that encapsulates all inference logic.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from PIL import Image
@@ -101,7 +101,7 @@ class SegmentationService:
                 selected_class = cls_info
 
             pixel = NormalizedPoint(x=click.x, y=click.y).to_pixel(width, height)
-            label = 1 if click.point_type == "positive" else 0
+            label = cast(Literal[0, 1], 1 if click.point_type == "positive" else 0)
             inference_points.append(Point(x=pixel.x, y=pixel.y, label=label, class_id=cls_info.id))
 
         # Validation ensures selected_class is not None

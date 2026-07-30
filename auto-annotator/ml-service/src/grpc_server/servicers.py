@@ -11,7 +11,7 @@ import json
 import queue
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import grpc
 
@@ -146,10 +146,10 @@ class TrainingServicer(pb_grpc.TrainingServiceServicer):
         """Train a YOLO model on a worker thread, streaming epoch progress."""
         from src.train_service import run_training_job
 
-        events: queue.Queue = queue.Queue()
+        events: queue.Queue[tuple[str, str, float, str, dict[str, Any]]] = queue.Queue()
 
         class _QueueReporter:
-            def update(self, stage: str, progress: float, message: str = "", details: dict | None = None) -> None:
+            def update(self, stage: str, progress: float, message: str = "", details: dict[str, Any] | None = None) -> None:
                 events.put(("update", stage, progress, message, details or {}))
 
         def worker() -> None:

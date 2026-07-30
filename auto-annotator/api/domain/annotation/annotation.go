@@ -52,12 +52,6 @@ type (
 		Name  string
 		Color string
 	}
-
-	// StatusCount holds the per-status image count returned by the store.
-	StatusCount struct {
-		Status int64
-		Count  int64
-	}
 )
 
 // Store is the data boundary for the annotation domain.

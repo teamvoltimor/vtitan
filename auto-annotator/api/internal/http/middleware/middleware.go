@@ -3,14 +3,13 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
@@ -88,9 +87,5 @@ func CORS(allowed []string) gin.HandlerFunc {
 }
 
 func newID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return UnknownRequestIDFallback
-	}
-	return hex.EncodeToString(b[:])
+	return domain.RandomHexString(UnknownRequestIDFallback)
 }

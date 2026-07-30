@@ -30,12 +30,15 @@ import (
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers"
 )
 
-const readHeaderTimeout = 5 * time.Second
-
-// shutdownGracePeriod bounds how long we wait for in-flight requests (e.g. a
-// SaveAnnotations or ImportGallery mid-write) to finish once a shutdown
-// signal arrives, before forcing the listener closed.
-const shutdownGracePeriod = 10 * time.Second
+const (
+	// readHeaderTimeout bounds the time to read the full request headers
+	// as a defence against slow‑loris attacks.
+	readHeaderTimeout = 5 * time.Second
+	// shutdownGracePeriod bounds how long we wait for in‑flight requests
+	// (e.g. a SaveAnnotations or ImportGallery mid‑write) to finish once a
+	// shutdown signal arrives, before forcing the listener closed.
+	shutdownGracePeriod = 10 * time.Second
+)
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))

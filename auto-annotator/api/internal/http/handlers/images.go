@@ -21,7 +21,7 @@ func (h *GalleryHandler) ServeImage(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.Header("Cache-Control", ImageCacheControl)
+	c.Header(HeaderCacheControl, ImageCacheControl)
 	c.File(path)
 }
 
@@ -38,7 +38,7 @@ func (h *GalleryHandler) ServeThumbnail(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.Header("Cache-Control", ThumbCacheControl)
+	c.Header(HeaderCacheControl, ThumbCacheControl)
 	c.File(thumbPath)
 }
 

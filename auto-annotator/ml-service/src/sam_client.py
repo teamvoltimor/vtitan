@@ -17,18 +17,13 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.config import SERVER_DEFAULT_HOST, SERVER_DEFAULT_PORT, SERVER_DEFAULT_RECV_CHUNK_SIZE
+from src.enums import ServerCommand
 
 if TYPE_CHECKING:
     import numpy as np
 
 from src.server import wire
 from src.server.constants import (
-    CMD_LIST_MODELS,
-    CMD_PING,
-    CMD_PREDICT,
-    CMD_PREDICT_TEXT,
-    CMD_SET_IMAGE,
-    CMD_SET_MODEL,
     MSG_KEY_CLASS_NAMES,
     MSG_KEY_CMD,
     MSG_KEY_COORDS,
@@ -53,7 +48,7 @@ class PingRequest(BaseModel):
     """Liveness probe request; no payload required."""
 
     model_config = ConfigDict(frozen=True)
-    cmd: str = CMD_PING
+    cmd: str = ServerCommand.PING
 
 
 class SetImageRequest(BaseModel):
@@ -64,7 +59,7 @@ class SetImageRequest(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    cmd: str = CMD_SET_IMAGE
+    cmd: str = ServerCommand.SET_IMAGE
     image: Any = None
 
 
@@ -78,7 +73,7 @@ class PredictRequest(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    cmd: str = CMD_PREDICT
+    cmd: str = ServerCommand.PREDICT
     coords: Any = None
     labels: Any = None
     mask_input: Any = None
@@ -88,7 +83,7 @@ class ListModelsRequest(BaseModel):
     """Request to retrieve descriptors for all configured models."""
 
     model_config = ConfigDict(frozen=True)
-    cmd: str = CMD_LIST_MODELS
+    cmd: str = ServerCommand.LIST_MODELS
 
 
 class SetModelRequest(BaseModel):
@@ -99,7 +94,7 @@ class SetModelRequest(BaseModel):
     """
 
     model_config = ConfigDict(frozen=True)
-    cmd: str = CMD_SET_MODEL
+    cmd: str = ServerCommand.SET_MODEL
     model_id: str = ""
 
 
@@ -112,7 +107,7 @@ class PredictTextRequest(BaseModel):
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    cmd: str = CMD_PREDICT_TEXT
+    cmd: str = ServerCommand.PREDICT_TEXT
     image: Any = None
     class_names: list[str] = Field(default_factory=list)
 

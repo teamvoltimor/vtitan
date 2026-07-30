@@ -29,12 +29,26 @@ from src.utils import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+    from typing import Any, Protocol
 
     import numpy as np
 
     from src.gallery_cache import AnnotationCache
     from src.label_store import LabelStore
     from src.models import ImageRecord, ImageRepositoryProtocol
+
+    class ProgressReporter(Protocol):
+        """Protocol for reporting augmentation progress."""
+
+        def update(
+            self,
+            status: str,
+            progress: float,
+            message: str,
+            details: dict[str, Any] | None = None,
+        ) -> None:
+            """Report progress update."""
+            ...
 
 
 @dataclass
@@ -291,7 +305,7 @@ def run_augmentation_job(
     num_augmentations: int,
     repository: ImageRepositoryProtocol,
     label_store: LabelStore,
-    reporter: object | None = None,
+    reporter: ProgressReporter | None = None,
     cache: AnnotationCache | None = None,
     images_dir: Path | None = None,
     labels_dir: Path | None = None,

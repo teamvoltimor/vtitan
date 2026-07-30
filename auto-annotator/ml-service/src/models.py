@@ -59,7 +59,7 @@ class SAMClientProtocol(Protocol):
         """
         ...
 
-    def list_models(self) -> list[dict]:
+    def list_models(self) -> list[dict[str, Any]]:
         """Return descriptors for all configured models.
 
         Returns:
@@ -67,7 +67,7 @@ class SAMClientProtocol(Protocol):
         """
         ...
 
-    def set_model(self, model_id: ModelId) -> dict:
+    def set_model(self, model_id: ModelId) -> dict[str, Any]:
         """Load a different model by *model_id*.
 
         Args:
@@ -78,7 +78,7 @@ class SAMClientProtocol(Protocol):
         """
         ...
 
-    def predict_text(self, image: np.ndarray, class_names: list[str]) -> list[dict]:
+    def predict_text(self, image: np.ndarray, class_names: list[str]) -> list[dict[str, Any]]:
         """Run text-prompted segmentation (SAM 3 only).
 
         Args:
@@ -208,69 +208,6 @@ class InferenceResult:
     def ok(self) -> bool:
         """Return ``True`` when inference succeeded (no error)."""
         return not self.error
-
-
-@dataclass(frozen=True, slots=True)
-class StatsResult:
-    """Aggregate image status counts returned by :func:`src.db.get_stats`.
-
-    Attributes:
-        pending: Number of images awaiting annotation.
-        done:    Number of successfully annotated images.
-        skipped: Number of skipped images.
-        total:   Total image count (pending + done + skipped).
-        pct:     Percentage of images done (0.0 – 100.0, one decimal place).
-    """
-
-    pending: int
-    done: int
-    skipped: int
-    total: int
-    pct: float
-
-
-@dataclass(frozen=True, slots=True)
-class GroupedRow:
-    """A parent image row with augmentation count for grouped views.
-
-    Attributes:
-        id:         Database primary key.
-        filename:   Image file name (basename only).
-        status:     Human-readable status string.
-        format:     Export format string.
-        updated_at: ISO-8601 timestamp of the last status change.
-        path:       Absolute path to the source image file.
-        aug_count:  Number of augmented copies of this image.
-    """
-
-    id: ImageId
-    filename: str
-    status: str
-    format: str
-    updated_at: str
-    path: str
-    aug_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class BrowseRow:
-    """A single row in the browse-view dataframe, as returned by :func:`src.db.get_all_images`.
-
-    Attributes:
-        id:         Database primary key.
-        filename:   Image file name (basename only, not full path).
-        status:     Human-readable status string: ``"pending"``, ``"done"``, or ``"skipped"``.
-        format:     Export format string (``"seg"``, ``"det"``, or ``""`` if not yet saved).
-        updated_at: ISO-8601 timestamp of the last status change, or ``""`` if never updated.
-        path:       Absolute path to the source image file.
-    """
-
-    id: ImageId
-    filename: str
-    status: str
-    format: str
-    updated_at: str
-    path: str
 
 
 @dataclass(frozen=True, slots=True)

@@ -33,8 +33,6 @@ message Shape {
   repeated Point points = 3;
 }
 
-// ---- Segmentation ----
-
 message SegmentRequest {
   int64 image_id = 1;
   string image_path = 2; // absolute path on the shared filesystem
@@ -52,8 +50,6 @@ message SegmentResponse {
 service SegmentationService {
   rpc Segment(SegmentRequest) returns (SegmentResponse);
 }
-
-// ---- Shared job progress (augmentation + training stream this) ----
 
 // An augmented image produced by the worker. The worker writes the files; the
 // Go API inserts the corresponding DB row (single DB writer).
@@ -76,8 +72,6 @@ message JobProgress {
   AugmentedImage augmented = 8;
 }
 
-// ---- Augmentation ----
-
 // A source image to augment. The Go API resolves these from the DB (the single
 // DB owner) so the worker only touches the filesystem.
 message AugmentSource {
@@ -94,8 +88,6 @@ message AugmentRequest {
 service AugmentationService {
   rpc RunAugmentation(AugmentRequest) returns (stream JobProgress);
 }
-
-// ---- Training ----
 
 message TrainRequest {
   string model_name = 1;

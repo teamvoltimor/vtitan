@@ -63,7 +63,7 @@ def load_model(model_id: str, ctx: ServerContext, registry: ModelRegistry) -> No
 
     loader = _MODEL_LOADERS.get(cfg.model_type)
     if loader is None:
-        err_msg = f"Unknown model type: {mtype!r}"
+        err_msg = f"Unknown model type: {cfg.model_type!r}"
         raise ModelLoadError(err_msg)
 
     try:

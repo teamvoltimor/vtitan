@@ -7,6 +7,4 @@ const (
 	SQLiteForeignKeys = "foreign_keys(ON)"
 	// SQLiteBusyTimeout is the SQLite PRAGMA for busy timeout in milliseconds.
 	SQLiteBusyTimeout = "busy_timeout(5000)"
-	// DBBusyTimeoutMs is the database busy timeout in milliseconds.
-	DBBusyTimeoutMs = 5000
 )

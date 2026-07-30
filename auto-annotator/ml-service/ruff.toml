@@ -4,9 +4,7 @@
 # Last updated: 2025-01-29
 # Documentation: https://docs.astral.sh/ruff/
 
-# ============================================================================
 # Basic Configuration
-# ============================================================================
 target-version = "py312"
 line-length = 120
 indent-width = 4
@@ -18,9 +16,7 @@ show-fixes = true
 # Cache
 cache-dir = ".ruff_cache"
 
-# ============================================================================
 # File Selection
-# ============================================================================
 # Files to include
 include = ["*.py", "*.pyi", "**/pyproject.toml"]
 
@@ -80,9 +76,7 @@ exclude = [
     "*.pyi",
 ]
 
-# ============================================================================
 # Linting Rules
-# ============================================================================
 [lint]
 # Rule categories to enable
 select = [
@@ -294,9 +288,7 @@ unfixable = [
 # Allow unused variables when underscore-prefixed
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-# ============================================================================
 # Per-file Rule Ignores
-# ============================================================================
 [lint.per-file-ignores]
 # Tests
 "test_*.py" = [
@@ -391,9 +383,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 "src/*.py" = []
 
-# ============================================================================
 # Rule-specific Configuration
-# ============================================================================
 
 # isort configuration
 [lint.isort]
@@ -477,9 +467,7 @@ ban-relative-imports = "all"
 strict = false
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
-# ============================================================================
 # Formatting Configuration
-# ============================================================================
 [format]
 # Formatting style
 quote-style = "double"
@@ -494,9 +482,7 @@ docstring-code-line-length = "dynamic"
 # Preview features (opt-in to new formatting)
 preview = false
 
-# ============================================================================
 # Usage Examples
-# ============================================================================
 # Lint entire project:
 #   ruff check .
 #

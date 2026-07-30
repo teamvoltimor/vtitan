@@ -2,9 +2,7 @@ package gallery
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
@@ -253,11 +251,7 @@ func thumbIsFresh(thumbPath, srcPath string) bool {
 }
 
 func randomHex() string {
-	var b [domain.RandomHexBytes]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return domain.FallbackHexString
-	}
-	return hex.EncodeToString(b[:])
+	return domain.RandomHexString(domain.FallbackHexString)
 }
 
 func saveReader(src io.Reader, dest string) error {

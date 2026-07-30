@@ -11,7 +11,7 @@ import (
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
-const timeFormat = "2006-01-02T15:04:05.000000-07:00"
+const timeFormat = domain.TimeFormat
 
 type computeStore struct{ q *db.Queries }
 
