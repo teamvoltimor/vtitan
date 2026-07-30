@@ -1,7 +1,10 @@
-package edge
+// Package telemetry provides the Telemetry context's Gin HTTP handlers,
+// wired to domain/telemetry (live snapshots) and domain/session (recorded
+// session playback) via the generated request/response types in
+// openapi.gen.go.
+package telemetry
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -9,37 +12,84 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/session"
-	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
+	domain "github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
 	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/api"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/config"
+	httpconstants "github.com/teamvoltimor/vtitan/platform/backend/internal/http"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
+)
+
+// API version and status constants.
+const (
+	apiVersion    = "0.1.0"
+	statusOK      = "ok"
+	statusSuccess = "success"
+)
+
+// History API boundary constants.
+const (
+	historyDefaultLimit = 60
+	historyMinLimit     = 10
+	historyMaxLimit     = 360
 )
 
 var sessionIDPattern = regexp.MustCompile(`^session_\d+$`)
 
-type handlers struct {
-	telSvc  telemetry.TelemetryService
+// Handler holds the Telemetry context's Gin HTTP handlers.
+type Handler struct {
+	telSvc  domain.TelemetryService
 	sessSvc session.SessionService
 	cfg     *config.Config
 	log     *zap.Logger
 
 	// robotSvc/defaultRobotID back the legacy /v1/telemetry/robot/config/speed
-	// endpoint, which now delegates to the real Robot context config store
-	// (this project has exactly one physical robot) instead of no-op'ing.
+	// endpoint, which delegates to the real Robot context config store (this
+	// project has exactly one physical robot) instead of no-op'ing.
 	robotSvc       robotdomain.Service
 	defaultRobotID string
 }
 
-func (h *handlers) health(c *gin.Context) {
+// NewHandler returns a Handler backed by the given domain services.
+func NewHandler(
+	telSvc domain.TelemetryService,
+	sessSvc session.SessionService,
+	robotSvc robotdomain.Service,
+	defaultRobotID string,
+	cfg *config.Config,
+	log *zap.Logger,
+) *Handler {
+	return &Handler{
+		telSvc: telSvc, sessSvc: sessSvc,
+		robotSvc: robotSvc, defaultRobotID: defaultRobotID,
+		cfg: cfg, log: log,
+	}
+}
+
+// RegisterRoutes wires the Telemetry context's REST routes onto rg (expected
+// to be the /v1/telemetry group). The WebSocket route is registered
+// separately by the root router, since it isn't part of the OpenAPI REST
+// surface this Handler owns.
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET(api.RouteHealth, h.health)
+	rg.GET(api.RouteLatest, h.latest)
+	rg.GET(api.RouteHistory, h.history)
+	rg.GET(api.RouteTopics, h.topics)
+	rg.POST(api.RouteSpeed, h.updateSpeed)
+	rg.GET(api.RouteConfig, h.getConfig)
+	rg.GET(api.RouteSessions, h.listSessions)
+	rg.GET(api.RouteSession, h.loadSession)
+}
+
+func (h *Handler) health(c *gin.Context) {
 	c.JSON(http.StatusOK, HealthResponse{Status: statusOK, Version: apiVersion})
 }
 
-func (h *handlers) latest(c *gin.Context) {
+func (h *Handler) latest(c *gin.Context) {
 	snap := h.telSvc.Latest()
 	if snap == nil {
 		problem.Write(c, http.StatusServiceUnavailable, "Service Unavailable", "no snapshot received yet")
@@ -48,9 +98,9 @@ func (h *handlers) latest(c *gin.Context) {
 	writeProto(c, http.StatusOK, snap, h.log)
 }
 
-func (h *handlers) history(c *gin.Context) {
+func (h *Handler) history(c *gin.Context) {
 	limit := historyDefaultLimit
-	if raw := c.Query(QueryLimit); raw != "" {
+	if raw := c.Query(httpconstants.QueryLimit); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n >= historyMinLimit && n <= historyMaxLimit {
 			limit = n
 		}
@@ -59,7 +109,7 @@ func (h *handlers) history(c *gin.Context) {
 	writeProtoSlice(c, snaps, h.log)
 }
 
-func (h *handlers) topics(c *gin.Context) {
+func (h *Handler) topics(c *gin.Context) {
 	topics := h.telSvc.LatestTopics()
 	if topics == nil {
 		topics = &telemetryv1.TopicsSnapshot{
@@ -70,7 +120,7 @@ func (h *handlers) topics(c *gin.Context) {
 	writeProto(c, http.StatusOK, topics, h.log)
 }
 
-func (h *handlers) updateSpeed(c *gin.Context) {
+func (h *Handler) updateSpeed(c *gin.Context) {
 	var body SpeedRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		problem.Write(c, http.StatusBadRequest, "Bad Request", err.Error())
@@ -91,39 +141,7 @@ func (h *handlers) updateSpeed(c *gin.Context) {
 	c.JSON(http.StatusOK, SpeedUpdateResponse{Status: statusSuccess, MaxLinearSpeed: body.MaxLinearSpeed})
 }
 
-// writeProto marshals a single proto message to JSON and writes it to the response.
-func writeProto(c *gin.Context, code int, msg proto.Message, log *zap.Logger) {
-	b, err := marshaler.Marshal(msg)
-	if err != nil {
-		log.Error("proto marshal", zap.Error(err))
-		problem.InternalError(c)
-		return
-	}
-	c.Data(code, contentTypeJSON, b)
-}
-
-// writeProtoSlice marshals a slice of proto messages to a JSON array.
-func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger) {
-	parts := make([]json.RawMessage, len(msgs))
-	for i, msg := range msgs {
-		b, err := marshaler.Marshal(msg)
-		if err != nil {
-			log.Error("proto marshal slice item", zap.Error(err), zap.Int("index", i))
-			problem.InternalError(c)
-			return
-		}
-		parts[i] = b
-	}
-	out, err := json.Marshal(parts)
-	if err != nil {
-		log.Error("json marshal slice", zap.Error(err))
-		problem.InternalError(c)
-		return
-	}
-	c.Data(http.StatusOK, contentTypeJSON, out)
-}
-
-func (h *handlers) getConfig(c *gin.Context) {
+func (h *Handler) getConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, ConfigResponse{
 		HttpAddr:    h.cfg.HTTPAddr,
 		GrpcAddr:    h.cfg.GRPCAddr,
@@ -134,7 +152,7 @@ func (h *handlers) getConfig(c *gin.Context) {
 	})
 }
 
-func (h *handlers) listSessions(c *gin.Context) {
+func (h *Handler) listSessions(c *gin.Context) {
 	infos, err := h.sessSvc.ListSessions(c.Request.Context())
 	if err != nil {
 		h.log.Error("list sessions", zap.Error(err))
@@ -152,7 +170,7 @@ func (h *handlers) listSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-func (h *handlers) loadSession(c *gin.Context) {
+func (h *Handler) loadSession(c *gin.Context) {
 	id := c.Param("id")
 	if !sessionIDPattern.MatchString(id) {
 		problem.Write(c, http.StatusBadRequest, "Bad Request", "invalid session id format")
@@ -169,9 +187,4 @@ func (h *handlers) loadSession(c *gin.Context) {
 		return
 	}
 	writeProtoSlice(c, snaps, h.log)
-}
-
-// newRequestID generates a short random request ID using the current nanosecond timestamp.
-func newRequestID() string {
-	return strconv.FormatInt(now().UnixNano(), 36)
 }

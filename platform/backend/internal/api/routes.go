@@ -1,5 +1,17 @@
 package api
 
+// Telemetry context route paths (registered under edge.RouteV1Telemetry).
+const (
+	RouteHealth   = "/health"
+	RouteLatest   = "/latest"
+	RouteHistory  = "/history"
+	RouteTopics   = "/topics"
+	RouteSpeed    = "/robot/config/speed"
+	RouteConfig   = "/config"
+	RouteSessions = "/sessions"
+	RouteSession  = "/sessions/:id"
+)
+
 // Robot context route paths.
 const (
 	RouteRobots       = "/robots"
@@ -32,12 +44,12 @@ const (
 
 // Vision context route paths.
 const (
-	RouteVision              = "/vision"
-	RouteDetections          = "/detections"
-	RouteDetectionsCurrent   = "/detections/current"
-	RouteAnnotations         = "/annotations"
-	RouteAnnotation          = "/annotations/:annotationId"
-	RouteModel               = "/model"
-	RoutePipelineStatus      = "/pipeline/status"
-	DefaultDetectionLimit    = 50
+	RouteVision            = "/vision"
+	RouteDetections        = "/detections"
+	RouteDetectionsCurrent = "/detections/current"
+	RouteAnnotations       = "/annotations"
+	RouteAnnotation        = "/annotations/:annotationId"
+	RouteModel             = "/model"
+	RoutePipelineStatus    = "/pipeline/status"
+	DefaultDetectionLimit  = 50
 )

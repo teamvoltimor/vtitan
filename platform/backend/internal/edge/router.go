@@ -2,6 +2,7 @@ package edge
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/api/navigation"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/api/robot"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/api/simulation"
+	apitelemetry "github.com/teamvoltimor/vtitan/platform/backend/internal/api/telemetry"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/api/vision"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/config"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/problem"
@@ -55,11 +57,6 @@ func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	r.Use(recoverMiddleware(log))
 	r.Use(corsMiddleware())
 
-	h := &handlers{
-		telSvc: svcs.Telemetry, sessSvc: svcs.Session,
-		robotSvc: svcs.Robot, defaultRobotID: svcs.DefaultRobotID,
-		cfg: cfg, log: log,
-	}
 	ws := newWSManager(svcs.Telemetry, log)
 
 	r.GET(RouteOpenAPISpec, func(c *gin.Context) {
@@ -67,14 +64,7 @@ func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	})
 
 	v1 := r.Group(RouteV1Telemetry)
-	v1.GET(RouteHealth, h.health)
-	v1.GET(RouteLatest, h.latest)
-	v1.GET(RouteHistory, h.history)
-	v1.GET(RouteTopics, h.topics)
-	v1.POST(RouteSpeed, h.updateSpeed)
-	v1.GET(RouteConfig, h.getConfig)
-	v1.GET(RouteSessions, h.listSessions)
-	v1.GET(RouteSession, h.loadSession)
+	apitelemetry.NewHandler(svcs.Telemetry, svcs.Session, svcs.Robot, svcs.DefaultRobotID, cfg, log).RegisterRoutes(v1)
 	v1.GET(RouteWS, ws.handle)
 
 	apiV1 := r.Group(RouteV1)
@@ -133,4 +123,9 @@ func requestIDMiddleware(log *zap.Logger) gin.HandlerFunc {
 			zap.String("request_id", rid),
 		)
 	}
+}
+
+// newRequestID generates a short random request ID using the current nanosecond timestamp.
+func newRequestID() string {
+	return strconv.FormatInt(now().UnixNano(), 36)
 }

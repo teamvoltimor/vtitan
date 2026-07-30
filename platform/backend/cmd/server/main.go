@@ -43,9 +43,9 @@ import (
 const (
 	// defaultRobotName seeds the singleton robot this single-robot project's
 	// legacy telemetry speed-config endpoint delegates to.
-	defaultRobotName       = "vtitan"
-	shutdownTimeout        = 10 * time.Second
-	httpReadHeaderTimeout  = 10 * time.Second
+	defaultRobotName      = "vtitan"
+	shutdownTimeout       = 10 * time.Second
+	httpReadHeaderTimeout = 10 * time.Second
 )
 
 func main() {
