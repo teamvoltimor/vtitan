@@ -3,16 +3,17 @@
 Canonical record of how the three Raspberry Pis are configured: the developer /
 build machine (set up by hand) and the two robot nodes (provisioned by
 Ansible, `ansible/` — via `task rpi:provision:pi5` / `task rpi:provision:zero`
-— ported from and matching the still-present `scripts/setup_pi_*.sh`). Also
-lists what provisioning **doesn't** cover, so nothing is silently missing.
+— which replaced the old `scripts/setup_pi_*.sh` scp+ssh scripts, removed
+2026-07-30). Also lists what provisioning **doesn't** cover, so nothing is
+silently missing.
 
 ## Machines & roles
 
 | Machine | Role | Provisioned by |
 |---|---|---|
 | **Dev / build Pi 5** (`ralvarezdev-raspberrypi`, user `ralvarezdev`) | Developer workstation: edits, builds, flashes, remote access | by hand (documented below) |
-| **Robot Pi 5** (user `ralvarezdev`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `scripts/setup_pi_5.sh` |
-| **Robot Pi Zero 2W** (user `ralvarezdev`) | Motors (servo + DC encoder), button, OLED | `scripts/setup_pi_zero.sh` |
+| **Robot Pi 5** (user `ralvarezdev`) | State machine, vision (Hailo), IMU, LiDAR, telemetry bridge | `ansible/roles/pi5` (`task rpi:provision:pi5`) |
+| **Robot Pi Zero 2W** (user `ralvarezdev`) | Motors (servo + DC encoder), button, OLED | `ansible/roles/pi_zero` (`task rpi:provision:zero`) |
 
 All three run **Raspberry Pi OS Lite (64-bit)** / Debian 13 (trixie), arm64.
 64-bit is mandatory — pixi/conda-forge has no 32-bit ARM packages.

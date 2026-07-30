@@ -1,9 +1,8 @@
 # Ansible provisioning
 
-Ports `../scripts/setup_pi_5.sh` and `../scripts/setup_pi_zero.sh` into
-idempotent, re-runnable Ansible roles. Runs from the **dev Pi 5** (same place
-the bash scripts run today), not from Windows — Ansible's control node needs
-a POSIX shell.
+Idempotent, re-runnable Ansible roles, ported from the old `setup_pi_5.sh`/
+`setup_pi_zero.sh` scp+ssh scripts (removed 2026-07-30). Runs from the
+**dev Pi 5**, not from Windows — Ansible's control node needs a POSIX shell.
 
 ## Layout
 

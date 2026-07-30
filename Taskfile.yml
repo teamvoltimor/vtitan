@@ -2,7 +2,7 @@ version: "3"
 
 vars:
   # Distinct from the Pi5<->PiZero USB gadget subnet (also 192.168.250.0/24, see
-  # scripts/setup_pi_5.sh / setup_pi_zero.sh) to avoid both landing on Pi 5's
+  # ansible/roles/pi5 and ansible/roles/pi_zero) to avoid both landing on Pi 5's
   # usb0 and 'Wired connection 1' with the same address.
   WINDOWS_ETHERNET_IP: 192.168.251.1
   RPI_DIRECT_IP: 192.168.251.2
@@ -10,7 +10,7 @@ vars:
   RPI_PING_RETRIES: 30
   RPI_PING_INTERVAL: 2
   ZERO_WIFI_IP: 192.168.0.51
-  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see scripts/setup_pi_zero.sh
+  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see ansible/roles/pi_zero
   RPI_ZERO_GADGET_IP: 192.168.250.1
   # scripts/ and ansible/ live on master alongside the robot runtime code, so
   # both are served from the single ~/vtitan checkout — no separate
@@ -545,27 +545,7 @@ tasks:
     cmds:
       - cmd: |
           case "{{.ACTION}}" in
-            pull) for d in ~/vtitan ~/vtitan-auto-annotator ~/vtitan-platform ~/vtitan-docs ~/vtitan-hugo-docs; do echo "=== $d ===" && git -C $d pull; done ;;
-            status) for d in ~/vtitan ~/vtitan-auto-annotator ~/vtitan-platform ~/vtitan-docs ~/vtitan-hugo-docs; do echo "=== $d ===" && git -C $d status -sb; done ;;
+            pull) echo "=== ~/vtitan ===" && git -C ~/vtitan pull ;;
+            status) echo "=== ~/vtitan ===" && git -C ~/vtitan status -sb ;;
             *) echo "Unknown ACTION: {{.ACTION}}. Use pull|status" && exit 1 ;;
           esac
-
-  # System logging
-
-  rpi:setup-journal-persist:
-    desc: Enable persistent systemd journal with 50M cap (preserves logs across reboots)
-    cmds:
-      - echo "Setting up persistent journal logging..."
-      - sudo mkdir -p /etc/systemd/journald.conf.d
-      - |
-        sudo tee /etc/systemd/journald.conf.d/persistent.conf > /dev/null << 'EOF'
-        [Journal]
-        Storage=persistent
-        SystemMaxUse=50M
-        EOF
-      - sudo systemctl restart systemd-journald
-      - sudo journalctl --flush
-      - echo "Verifying..."
-      - ls -lh /var/log/journal/$(cat /etc/machine-id)/
-      - journalctl --list-boots
-      - echo "Done. Persistent journal logging enabled."
