@@ -124,3 +124,18 @@
     enabled: true
     daemon_reload: true
   loop: "{{ pi5_systemd_units }}"
+
+# Sibling git-worktree checkouts (auto-annotator/docs/hailo/hugo-docs/platform
+# branches) plus a stale manual session-backup dir — verified 2026-07-30 via
+# `git log --branches --not --remotes` (empty in every one) that none carry
+# commits missing from GitHub, and their content is largely redundant with
+# what's already on GitHub, so dropped in favor of a single ~/vtitan
+# checkout. Gated on the common role's migration (old_repo_dir_stat /
+# final_env_stat) having actually run, so a fresh Pi 5 with none of these
+# directories present doesn't need special-casing.
+- name: Remove old sibling worktree / backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ old_worktree_dirs }}"
+  when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists

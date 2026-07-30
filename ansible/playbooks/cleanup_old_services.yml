@@ -1,0 +1,14 @@
+---
+# Removes the pre-rename voldemorbot-*.service units. Run manually, once the
+# renamed vtitan-*.service units are confirmed working on both boards — see
+# ansible/roles/cleanup_old/tasks/main.yml for why this is separate from
+# provisioning.
+- name: Remove old voldemorbot-named systemd services (Pi 5)
+  hosts: robot_pi5
+  roles:
+    - cleanup_old
+
+- name: Remove old voldemorbot-named systemd services (Pi Zero)
+  hosts: robot_pi_zero
+  roles:
+    - cleanup_old

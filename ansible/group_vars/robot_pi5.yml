@@ -1,0 +1,18 @@
+---
+# Confirmed present on the real Pi 5 as of 2026-07-29 (pre-rename systemd
+# units, still enabled). See roles/cleanup_old.
+old_systemd_units:
+  - voldemorbot-pi5.service
+  - voldemorbot-lidar.service
+
+# Sibling git-worktree checkouts of ~/voldemorbot (auto-annotator/docs/hailo/
+# hugo-docs/platform branches) plus a stale manual backup dir, all confirmed
+# clean on 2026-07-30 (no commits missing from GitHub) — removed by the pi5
+# role once the fresh ~/vtitan clone is confirmed to have its .env.
+old_worktree_dirs:
+  - "/home/{{ ansible_user }}/voldemorbot-auto-annotator"
+  - "/home/{{ ansible_user }}/voldemorbot-docs"
+  - "/home/{{ ansible_user }}/voldemorbot-hailo"
+  - "/home/{{ ansible_user }}/voldemorbot-hugo-docs"
+  - "/home/{{ ansible_user }}/voldemorbot-platform"
+  - "/home/{{ ansible_user }}/voldemorbot-session-backup"

@@ -52,3 +52,42 @@ tasks: WiFi band lock, SSH-trust bootstrap).
   version, which leaves it locked on a mid-script failure).
 - `--check --diff` (`task rpi:ansible:check`) is a real dry run against an
   already-provisioned Pi — expect no changes if nothing has drifted.
+
+## Pre-rename checkout migration
+
+Real hardware as of 2026-07-29 still has the pre-rename checkout(s)
+(`~/voldemorbot`, remote `teamvoldemor/voldemorbot`, systemd units named
+`voldemorbot-pi5.service`/`voldemorbot-lidar.service`/`voldemorbot-pi-zero.service`)
+— the org/repo rename to `teamvoltimor/vtitan` never landed on the robots.
+
+The `common` role always does a **fresh `gh repo clone`** into `~/vtitan`
+(`old_repo_dir` in `group_vars/all.yml` names the old location), regardless
+of whether that old location is a git checkout (Pi 5) or a tarball-deployed
+directory with no git history at all (Pi Zero, via
+`scripts/deploy-dev-env-to-zero.sh`). The only thing carried over from the
+old deployment is the real gitignored `.env` (steering offsets, LiDAR yaw,
+Hailo model path) — a fresh clone can't reproduce that, so it's copied
+across explicitly before the `.env.example` fallback could otherwise stomp
+it. Once that copy is confirmed, the old deployment directory is removed.
+
+This used to be an in-place `mv` + `git remote set-url` + `git pull
+--rebase` for git checkouts, to preserve reflog/stash history — changed to a
+fresh clone on 2026-07-30 after confirming (`git log --branches --not
+--remotes`, empty on every branch) that nothing on the Pi 5's checkouts was
+unpushed, so there was no history worth the extra complexity of preserving.
+
+The Pi 5 also had 5 sibling `git worktree` checkouts of other branches
+(`voldemorbot-auto-annotator`, `-docs`, `-hailo`, `-hugo-docs`, `-platform`)
+plus a stale manual `voldemorbot-session-backup` dir from an older rename.
+All confirmed clean the same way — the `pi5` role removes them
+(`old_worktree_dirs` in `group_vars/robot_pi5.yml`) once the main migration
+succeeds, leaving a single `~/vtitan` checkout. `ansible/` and `scripts/`
+both live on `master` now, so nothing else needs that separate worktree —
+`ANSIBLE_DIR`/`PLATFORM_SCRIPTS` in the root `Taskfile.yml` point straight
+at `~/vtitan`.
+
+The old `voldemorbot-*.service` units are **not** touched by provisioning —
+they keep running side by side with the new `vtitan-*.service` ones until
+you explicitly run `task rpi:cleanup:old-services` after confirming the new
+services work. Don't skip this step: two services fighting over the same
+GPIO/PWM/serial hardware is a real failure mode, not a theoretical one.

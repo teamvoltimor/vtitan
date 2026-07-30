@@ -86,15 +86,44 @@
     executable: /bin/bash
   when: not pixi_stat.stat.exists
 
+# Pre-rename deployment migration (teamvoldemor/voldemorbot ->
+# teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
+# ~/voldemorbot and its sibling git-worktree checkouts) or tarball-deployed
+# (Pi Zero, via scripts/deploy-dev-env-to-zero.sh) alike -- verified
+# 2026-07-30 that no worktree/branch on the Pi 5 had commits missing from
+# GitHub (`git log --branches --not --remotes` empty everywhere), so nothing
+# is lost by discarding the old checkout(s) outright. Only the real
+# gitignored .env (steering offsets, LiDAR yaw, Hailo model path) is carried
+# over, since a fresh clone can't reproduce it.
+- name: Check for pre-rename deployment ({{ old_repo_dir }})
+  ansible.builtin.stat:
+    path: "{{ old_repo_dir }}"
+  register: old_repo_dir_stat
+
 - name: Clone vtitan repo
   ansible.builtin.command: "gh repo clone {{ github_repo }} {{ repo_dir }}"
   args:
     creates: "{{ repo_dir }}/.git"
 
-- name: Check for existing .env
+- name: Check for real .env in the pre-rename deployment
+  ansible.builtin.stat:
+    path: "{{ old_repo_dir }}/platform/robot/.env"
+  register: old_env_stat
+  when: old_repo_dir_stat.stat.exists
+
+- name: Check for existing .env in the fresh clone
   ansible.builtin.stat:
     path: "{{ robot_dir }}/.env"
   register: env_stat
+
+- name: Copy real .env from the pre-rename deployment into the fresh clone
+  ansible.builtin.copy:
+    src: "{{ old_repo_dir }}/platform/robot/.env"
+    dest: "{{ robot_dir }}/.env"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: old_repo_dir_stat.stat.exists and old_env_stat.stat.exists and not env_stat.stat.exists
 
 - name: Copy .env.example to .env
   ansible.builtin.copy:
@@ -103,7 +132,19 @@
     remote_src: true
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-  when: not env_stat.stat.exists
+  when: not env_stat.stat.exists and not (old_repo_dir_stat.stat.exists and old_env_stat.stat.exists)
+
+- name: Confirm .env landed before removing the pre-rename deployment
+  ansible.builtin.stat:
+    path: "{{ robot_dir }}/.env"
+  register: final_env_stat
+  when: old_repo_dir_stat.stat.exists
+
+- name: Remove pre-rename deployment ({{ old_repo_dir }})
+  ansible.builtin.file:
+    path: "{{ old_repo_dir }}"
+    state: absent
+  when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists
 
 - name: Install udev rules
   become: true

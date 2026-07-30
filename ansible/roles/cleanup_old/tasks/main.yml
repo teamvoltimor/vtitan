@@ -1,0 +1,45 @@
+---
+# Opt-in, run manually via `task rpi:cleanup:old-services` once the renamed
+# vtitan-*.service units are confirmed working — NOT included in
+# provision_pi5.yml/provision_pi_zero.yml, so a provisioning run never
+# removes a known-working old service before the new one is proven.
+
+- name: Check for old unit files
+  become: true
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ item }}"
+  register: old_unit_stat
+  loop: "{{ old_systemd_units }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Stop old services
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item.item }}"
+    state: stopped
+  loop: "{{ old_unit_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Disable old services
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item.item }}"
+    enabled: false
+  loop: "{{ old_unit_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Remove old unit files
+  become: true
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item.item }}"
+    state: absent
+  loop: "{{ old_unit_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+  notify: Reload systemd after cleanup

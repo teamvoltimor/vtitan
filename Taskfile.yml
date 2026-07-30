@@ -12,8 +12,12 @@ vars:
   ZERO_WIFI_IP: 192.168.0.51
   # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see scripts/setup_pi_zero.sh
   RPI_ZERO_GADGET_IP: 192.168.250.1
-  PLATFORM_SCRIPTS: "{{.HOME}}/vtitan-platform/scripts"
-  ANSIBLE_DIR: "{{.HOME}}/vtitan-platform/ansible"
+  # scripts/ and ansible/ live on master alongside the robot runtime code, so
+  # both are served from the single ~/vtitan checkout — no separate
+  # dev-tooling worktree needed (the old ~/voldemorbot-platform "platform"
+  # branch worktree this used to point at is being retired, see roles/pi5).
+  PLATFORM_SCRIPTS: "{{.HOME}}/vtitan/scripts"
+  ANSIBLE_DIR: "{{.HOME}}/vtitan/ansible"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
   FLEET_USER: ralvarezdev   # account created on every Pi via Raspberry Pi Imager (not "pi")
@@ -186,6 +190,16 @@ tasks:
           [ "{{.TARGET}}" = "zero" ] && extra="-e zero_ip={{.IP}}" || extra="-e pi5_ip={{.IP}}"
         fi
         GH_TOKEN=$(gh auth token) ansible-playbook "playbooks/$playbook" $extra --check --diff --ask-become-pass
+
+  rpi:cleanup:old-services:
+    desc: "Remove the pre-rename voldemorbot-*.service units on both boards — run manually, only after confirming the renamed vtitan-*.service units work (usage: task rpi:cleanup:old-services [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x])"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmds:
+      - echo "Removing old voldemorbot-*.service units from Pi 5 ({{.PI5_IP}}) and Pi Zero ({{.ZERO_IP}})..."
+      - ansible-playbook playbooks/cleanup_old_services.yml -e pi5_ip={{.PI5_IP}} -e zero_ip={{.ZERO_IP}} --ask-become-pass
+    vars:
+      PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
+      ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
 
   windows:ssh:print-config:
     desc: "Print recommended ~/.ssh/config entries (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"

@@ -8,6 +8,14 @@ repo_dir: "/home/{{ ansible_user }}/vtitan"
 robot_dir: "{{ repo_dir }}/platform/robot"
 pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
 
+# Pre-rename checkout name, still live on real hardware as of 2026-07-29
+# (org teamvoldemor/repo voldemorbot -> teamvoltimor/vtitan). common role
+# always clones fresh into repo_dir, then copies just the calibrated .env
+# (gitignored, untouched by git) across from here before removing this
+# directory. Safe to leave set after the migration is done fleet-wide — the
+# check is a no-op once this directory no longer exists.
+old_repo_dir: "/home/{{ ansible_user }}/voldemorbot"
+
 usb_gadget_subnet_prefix: 24
 usb_gadget_zero_ip: 192.168.250.1
 usb_gadget_pi5_ip: 192.168.250.2
