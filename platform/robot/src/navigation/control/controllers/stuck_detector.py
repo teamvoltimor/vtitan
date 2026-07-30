@@ -13,9 +13,6 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_STUCK_CONFIRMATION_CHECKS: int = 3
-"""Consecutive below-threshold checks required before declaring the robot stuck."""
-
 _MIN_HISTORY_FOR_DISTANCE: int = 2
 """Minimum number of tracked positions needed to compute a movement distance."""
 
@@ -30,6 +27,8 @@ class StuckDetector:
         move_threshold: Minimum movement distance to consider not stuck (m)
         timeout_frames: Frames without movement before declaring stuck
         history_size: Number of positions to maintain in history
+        confirmation_checks: Consecutive below-threshold checks required
+            before declaring the robot stuck
     """
 
     def __init__(
@@ -37,6 +36,7 @@ class StuckDetector:
         move_threshold: float = 0.03,
         timeout_frames: int = 40,
         history_size: int = 60,
+        confirmation_checks: int = 3,
     ):
         """Initialize stuck detector.
 
@@ -44,6 +44,8 @@ class StuckDetector:
             move_threshold: Min distance to move to avoid stuck (m)
             timeout_frames: Frames before timeout (at 20Hz, 40≈2s)
             history_size: Max position history to maintain
+            confirmation_checks: Consecutive below-threshold checks required
+                before declaring the robot stuck
         """
         if history_size < timeout_frames:
             msg = (
@@ -56,6 +58,7 @@ class StuckDetector:
         self.move_threshold = move_threshold
         self.timeout_frames = timeout_frames
         self.history_size = history_size
+        self.confirmation_checks = confirmation_checks
 
         # Position history
         self.position_history: deque[tuple[float, float]] = deque(maxlen=history_size)
@@ -88,7 +91,7 @@ class StuckDetector:
 
         if distance_moved < self.move_threshold:
             self.stuck_count += 1
-            if self.stuck_count > _STUCK_CONFIRMATION_CHECKS:
+            if self.stuck_count > self.confirmation_checks:
                 self.is_stuck = True
                 logger.warning("Robot stuck: moved only %.4f m in %d frames", distance_moved, self.timeout_frames)
                 return True

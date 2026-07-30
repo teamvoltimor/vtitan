@@ -6,3 +6,4 @@ front_half_fov_deg = 30.0          # compute_forward_clearance's cone
 threat_half_fov_deg = 45.0         # detect_threat_direction's sectors
 self_detection_threshold_m = 0.08  # chassis/cable self-reflection floor
 min_valid_range_m = 0.01           # no-return / invalid reading floor
+threat_no_detection_range_m = 1.0  # beyond this, a sector's nearest reading isn't a threat

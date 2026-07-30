@@ -92,6 +92,7 @@ class CollisionAvoidanceController:
         threat_half_fov_deg: float = 45.0,
         self_detection_threshold_m: float = 0.08,
         min_valid_range_m: float = 0.01,
+        threat_no_detection_range_m: float = 1.0,
     ):
         """Initialize collision avoidance controller.
 
@@ -122,6 +123,8 @@ class CollisionAvoidanceController:
                 chassis/cable self-reflection when a sector filters for it (m)
             min_valid_range_m: LIDAR ranges at or below this are treated as
                 invalid (no-return) readings (m)
+            threat_no_detection_range_m: A sector's nearest reading beyond
+                this distance doesn't count as a threat at all (m)
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist
@@ -139,6 +142,7 @@ class CollisionAvoidanceController:
         self.threat_half_fov_rad = math.radians(threat_half_fov_deg)
         self.self_detection_threshold_m = self_detection_threshold_m
         self.min_valid_range_m = min_valid_range_m
+        self.threat_no_detection_range_m = threat_no_detection_range_m
 
     def _forward_path_ranges(
         self,
@@ -413,7 +417,7 @@ class CollisionAvoidanceController:
         }
 
         closest = min(directions, key=lambda direction: directions[direction])
-        if directions[closest] > 1.0:
+        if directions[closest] > self.threat_no_detection_range_m:
             return ThreatDirection.NONE
         return closest
 

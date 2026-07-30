@@ -114,11 +114,13 @@ class CoreNavigator:
             threat_half_fov_deg=self._tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
             self_detection_threshold_m=self._tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
             min_valid_range_m=self._tuning.lidar_sectors.MIN_VALID_RANGE_M,
+            threat_no_detection_range_m=self._tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
         )
 
         self._stuck_detector = StuckDetector(
             move_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
             timeout_frames=self._tuning.escape.STUCK_TIMEOUT_FRAMES,
+            confirmation_checks=self._tuning.escape.STUCK_CONFIRMATION_CHECKS,
         )
 
     @property
@@ -572,7 +574,8 @@ class CoreNavigator:
 
         self._escape_count += 1
         frames = min(
-            self._tuning.escape.K_TURN_MIN_FRAMES + 2 * (self._escape_count - 1),
+            self._tuning.escape.K_TURN_MIN_FRAMES
+            + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
             self._tuning.escape.MAX_ESCAPE_FRAMES,
         )
         steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign

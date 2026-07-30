@@ -162,6 +162,10 @@ class EscapeManeuverParams(BaseModel):
         ESCALATE_AFTER_ATTEMPTS: Consecutive escapes before escalating (longer
             duration, opposite side) instead of repeating an identical pulse
         MAX_ESCAPE_FRAMES: Hard cap on any single escalated escape duration
+        STUCK_CONFIRMATION_CHECKS: Consecutive below-threshold stuck checks
+            required before StuckDetector declares the robot stuck
+        STUCK_ESCALATION_FRAMES_PER_ATTEMPT: Frames added to a stuck-reverse
+            maneuver's duration per repeated stuck-escape attempt
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -189,6 +193,10 @@ class EscapeManeuverParams(BaseModel):
     SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
     MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
+    STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
+    STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(
+        default=2, validation_alias=_alias("STUCK_ESCALATION_FRAMES_PER_ATTEMPT")
+    )
 
 
 class WaypointParams(BaseModel):
@@ -262,6 +270,10 @@ class LidarSectorParams(BaseModel):
             as chassis/cable self-reflection when a sector filters for it.
         MIN_VALID_RANGE_M: LIDAR ranges at or below this are treated as
             invalid (no-return) readings.
+        THREAT_NO_DETECTION_RANGE_M: A sector's nearest reading beyond this
+            distance doesn't count as a threat at all -- used by
+            detect_threat_direction to return ThreatDirection.NONE instead
+            of the nearest-but-still-far sector.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -272,6 +284,9 @@ class LidarSectorParams(BaseModel):
         default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M")
     )
     MIN_VALID_RANGE_M: float = Field(default=0.01, validation_alias=_alias("MIN_VALID_RANGE_M"))
+    THREAT_NO_DETECTION_RANGE_M: float = Field(
+        default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")
+    )
 
 
 class SignRouterParams(BaseModel):
