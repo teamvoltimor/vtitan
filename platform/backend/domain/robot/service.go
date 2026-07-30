@@ -20,12 +20,14 @@ type Service interface {
 
 // service is the concrete implementation of Service.
 type service struct {
-	store Store
+	store      Store
+	dispatcher Dispatcher
 }
 
-// NewService constructs a Service backed by the given Store.
-func NewService(store Store) Service {
-	return &service{store: store}
+// NewService constructs a Service backed by the given Store. dispatcher may
+// be nil, in which case Command falls back to Store.Command.
+func NewService(store Store, dispatcher Dispatcher) Service {
+	return &service{store: store, dispatcher: dispatcher}
 }
 
 func (s *service) List(ctx context.Context, fleetID string, state State) ([]Robot, error) {
@@ -61,5 +63,11 @@ func (s *service) UpdateConfig(ctx context.Context, id string, req UpdateConfigR
 }
 
 func (s *service) Command(ctx context.Context, id string, cmd Command) (CommandResult, error) {
-	return s.store.Command(ctx, id, cmd)
+	if s.dispatcher == nil {
+		return s.store.Command(ctx, id, cmd)
+	}
+	if _, err := s.store.Get(ctx, id); err != nil {
+		return CommandResult{}, err
+	}
+	return s.dispatcher.Dispatch(ctx, id, cmd)
 }

@@ -1,0 +1,15 @@
+---
+gadget_dev_mac: "02:00:00:00:ce:01"
+gadget_host_mac: "02:00:00:00:ce:02"
+swap_size_mb: 2048
+
+# Must match SERVO_GPIO_PIN / MOTOR_PWM_PIN in .env — the overlay decides
+# which pins the PWM peripheral drives, and the drivers just open the
+# resulting pwmchip channels (0 = servo_pwm_pin, 1 = motor_pwm_pin). func=4
+# selects ALT0 (hardware PWM) on both pins. This explicit pin mapping is
+# required, not cosmetic: under LGPIOFactory a plain `dtoverlay=pwm-2chan`
+# (no pin=/func=) leaves gpiozero driving PWM in software, which showed up on
+# hardware as visible servo twitching and a continuous background CPU cost on
+# the drive motor (see platform/robot/scripts/bootstrap-fresh-zero.sh, step 6b).
+servo_pwm_pin: 12
+motor_pwm_pin: 13

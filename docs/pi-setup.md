@@ -1,9 +1,10 @@
 # Raspberry Pi setup & provisioning
 
 Canonical record of how the three Raspberry Pis are configured: the developer /
-build machine (set up by hand) and the two robot nodes (set up by the
-`scripts/setup_pi_*.sh` provisioners). Also lists what the scripts **don't**
-cover, so nothing is silently missing.
+build machine (set up by hand) and the two robot nodes (provisioned by
+Ansible, `ansible/` — via `task rpi:provision:pi5` / `task rpi:provision:zero`
+— ported from and matching the still-present `scripts/setup_pi_*.sh`). Also
+lists what provisioning **doesn't** cover, so nothing is silently missing.
 
 ## Machines & roles
 
@@ -40,6 +41,8 @@ groups `gpio i2c spi dialout render video`.
 **Build / language toolchains:**
 - `pixi` (per-user) — drives the ROS2 robot environment
 - `task` (go-task) — runs the repo Taskfiles
+- `ansible` + `community.general` collection — provisions the two robot Pis
+  (`task rpi:ansible:setup` installs both; see `ansible/README.md`)
 - Go (`/usr/local/go`), Node (bundled by the Zed editor)
 
 **AI accelerator (Hailo AI HAT+):** full stack via apt — `hailo-all 5.1.1`
@@ -65,19 +68,27 @@ SSH + public key, username (any name — the scripts derive it from
 `$SUDO_USER`), password, WiFi (SSID/password/country), locale. See
 `scripts/README.md`.
 
-### Phase 2 — `scripts/setup_pi_*.sh` (run on the Pi over SSH)
+### Phase 2 — Ansible (run from the dev Pi 5, over SSH)
 
-Both scripts: verify GitHub auth up front (`gh`, private repo) → apt full-upgrade
-→ hardware groups → deps → clone repo via `gh` → pixi env + `build-ws` →
-install/enable systemd service(s) + udev rules → reboot.
+`task rpi:provision:pi5 PI5_IP=x.x.x.x` / `task rpi:provision:zero` — see
+`ansible/README.md` for the role layout. Idempotent (`task rpi:ansible:check`
+dry-runs with `--check --diff`), ported from and matching `scripts/setup_pi_*.sh`
+(kept as a manual fallback, see `scripts/README.md`):
 
-**`setup_pi_zero.sh` additionally:** config.txt overlays (`dwc2`, `pwm-2chan`,
+Both roles (`common` + board role): verify GitHub auth up front (`gh`, private
+repo) → apt full-upgrade → hardware groups → deps → clone repo via `gh` →
+pixi env + `build-ws` → install/enable systemd service(s) + udev rules →
+reboot only if boot config actually changed.
+
+**`pi_zero` role additionally:** config.txt overlays (`dwc2`, `pwm-2chan`,
 `i2c`, `uart`), `cmdline.txt` `modules-load=dwc2,g_ether` + fixed gadget MACs,
-NM-only `usb0` static profile **192.168.250.1/24**, swap bump for the build.
+NM-only `usb0` static profile **192.168.250.1/24**, swap bump for the build,
+Pi 5 WiFi 2.4GHz band lock for first-contact reachability (released even on
+failure).
 
-**`setup_pi_5.sh` additionally:** raspi-config interfaces (i2c/spi/serial/camera),
-Hailo runtime, NM `usb0` host IP **192.168.250.2/24**, LiDAR driver fetch +
-`vtitan-lidar.service`.
+**`pi5` role additionally:** raspi-config interfaces (i2c/spi/serial/camera),
+Hailo runtime (`apt install hailo-all`), NM `usb0` host IP
+**192.168.250.2/24**, LiDAR driver fetch + `vtitan-lidar.service`.
 
 ### Networking
 
@@ -89,19 +100,16 @@ traffic and silently blackholing the direct link.)
 
 ---
 
-## Coverage matrix — what the scripts do / don't
+## Coverage matrix — what provisioning does / doesn't cover
 
 **✅ Covered (robot-runtime layer):** OS upgrade · hardware groups · interfaces ·
 deps · private-repo clone via `gh` · pixi env + ROS2 build (+ LiDAR driver) ·
-Hailo runtime · USB-gadget networking · systemd services + udev.
+Hailo runtime (`hailo-all` via apt) · USB-gadget networking · systemd services
++ udev.
 
 **➖ Intentionally omitted (dev/ops only — on the build box, not robot nodes):**
 GPG commit signing · personal git identity · `task` (go-task) · cloudflared
 tunnel · Tailscale/WireGuard.
-
-**⚠️ Known script gaps (TODO):**
-- **Hailo:** script installs from a manual `--hailo-deb`; the real/official path
-  is `apt install hailo-all` (as on the dev box). Should switch.
 
 **🔧 Not covered by anyone — Imager or manual:** hostname / username / WiFi /
 SSH keys (Imager) · robot `.env` tuning (GPIO pins, `STEERING_BACKEND`,

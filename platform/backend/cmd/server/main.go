@@ -36,6 +36,7 @@ import (
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/config"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/edge"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/ingest"
+	"github.com/teamvoltimor/vtitan/platform/backend/internal/robotcmd"
 	"github.com/teamvoltimor/vtitan/platform/backend/internal/sim"
 )
 
@@ -81,7 +82,8 @@ func run(log *zap.Logger, simMode bool) error {
 	defer rec.Close()
 	sessSvc := session.NewService(rec)
 
-	robotSvc := robotdomain.NewService(robotmemory.NewMemory())
+	robotCmdSrv := robotcmd.New(log)
+	robotSvc := robotdomain.NewService(robotmemory.NewMemory(), robotCmdSrv)
 	defaultRobot, err := robotSvc.Create(ctx, robotdomain.CreateRequest{Name: defaultRobotName})
 	if err != nil {
 		return fmt.Errorf("seed default robot: %w", err)
@@ -101,8 +103,14 @@ func run(log *zap.Logger, simMode bool) error {
 			streamValidationInterceptor(validator),
 			streamLoggingInterceptor(log),
 		),
+		grpc.ChainUnaryInterceptor(
+			unaryRecoveryInterceptor(log),
+			unaryValidationInterceptor(validator),
+			unaryLoggingInterceptor(log),
+		),
 	)
 	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc, log))
+	telemetryv1.RegisterRobotCommandServiceServer(grpcSrv, robotCmdSrv)
 	if cfg.Dev {
 		reflection.Register(grpcSrv)
 	}
@@ -196,6 +204,44 @@ func (s *validatingStream) RecvMsg(m any) error {
 		}
 	}
 	return nil
+}
+
+// unaryRecoveryInterceptor catches panics in unary handlers and returns INTERNAL.
+func unaryRecoveryInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("gRPC unary panic", zap.Any("panic", r), zap.String("method", info.FullMethod))
+				err = status.Errorf(codes.Internal, "internal server error")
+			}
+		}()
+		return handler(ctx, req)
+	}
+}
+
+// unaryValidationInterceptor validates the request message via protovalidate.
+func unaryValidationInterceptor(v *protovalidate.Validator) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if msg, ok := req.(proto.Message); ok {
+			if err := v.Validate(msg); err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
+			}
+		}
+		return handler(ctx, req)
+	}
+}
+
+// unaryLoggingInterceptor logs each unary RPC with method and outcome.
+func unaryLoggingInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		resp, err := handler(ctx, req)
+		if err != nil {
+			log.Warn("gRPC unary error", zap.String("method", info.FullMethod), zap.Error(err))
+		} else {
+			log.Info("gRPC unary completed", zap.String("method", info.FullMethod))
+		}
+		return resp, err
+	}
 }
 
 // streamLoggingInterceptor logs each streaming RPC with method and outcome.

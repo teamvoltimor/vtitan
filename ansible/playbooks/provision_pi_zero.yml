@@ -1,0 +1,52 @@
+---
+- name: Provision Robot Pi Zero
+  hosts: robot_pi_zero
+  gather_facts: true
+  tasks:
+    - name: Provision with WiFi 2.4GHz lock safety net
+      block:
+        # Pi Zero is 2.4GHz-only WiFi; lock the Pi 5 to the same band so it
+        # (and this control run, which proxies through it) can reach the
+        # Zero before the usb0 gadget link exists. Wrapping the whole
+        # provisioning in block/always — unlike the bash script this
+        # replaces — guarantees the lock is released even if provisioning
+        # fails partway.
+        - name: Lock Pi 5 WiFi to 2.4GHz BSSID
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: >
+            nmcli connection modify {{ wifi_conn_name }}
+            802-11-wireless.bssid {{ wifi_2g_bssid }}
+          changed_when: true
+
+        - name: Bring Pi 5 WiFi connection up on the locked band
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: "nmcli connection up {{ wifi_conn_name }}"
+          changed_when: true
+
+        - name: Give the Pi 5 WiFi radio a moment to settle on 2.4GHz
+          ansible.builtin.pause:
+            seconds: 3
+
+        - name: Run common provisioning
+          ansible.builtin.include_role:
+            name: common
+
+        - name: Run Pi Zero provisioning
+          ansible.builtin.include_role:
+            name: pi_zero
+      always:
+        - name: Restore Pi 5 WiFi to automatic band selection
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: >
+            nmcli connection modify {{ wifi_conn_name }}
+            802-11-wireless.bssid ""
+          changed_when: true
+
+        - name: Bring Pi 5 WiFi connection back up
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: "nmcli connection up {{ wifi_conn_name }}"
+          changed_when: true

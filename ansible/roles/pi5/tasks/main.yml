@@ -1,0 +1,126 @@
+---
+# Mirrors the Pi-5-specific tail of scripts/setup_pi_5.sh. common role has
+# already run gh auth, apt upgrade, hardware groups, deps, pixi, repo clone,
+# .env, and udev rules by this point.
+
+# raspi-config nonint isn't natively idempotent-tracked by Ansible, but the
+# underlying config.txt edits are (raspi-config won't duplicate a line it's
+# already written) — always reporting "changed" here is a known simplification.
+- name: Enable camera/i2c/spi/serial interfaces via raspi-config
+  become: true
+  ansible.builtin.command: "raspi-config nonint {{ item }}"
+  loop:
+    - do_camera 0
+    - do_i2c 0
+    - do_spi 0
+    - do_serial 2  # serial hardware on, login shell off (IMU UART-RVC)
+  changed_when: true
+  notify: Reboot pi5
+
+- name: Install Hailo AI HAT+ runtime (hailo-all)
+  become: true
+  ansible.builtin.apt:
+    name: hailo-all
+    state: present
+    update_cache: true
+
+# Model files themselves are a day-2 concern (scripts/deploy-to-pi5.sh pushes
+# the .hef built by `task gmr:workflow`) — just make sure the target
+# directory HAILO_MODEL_PATH expects exists so that first deploy doesn't fail.
+- name: Ensure Hailo models directory exists
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/hailo/models
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Enable hailort service
+  become: true
+  ansible.builtin.systemd_service:
+    name: hailort
+    enabled: true
+    daemon_reload: true
+
+- name: Configure usb0 host static IP ({{ usb_gadget_pi5_ip }})
+  become: true
+  community.general.nmcli:
+    type: ethernet
+    conn_name: usb0
+    ifname: usb0
+    method4: manual
+    ip4: "{{ usb_gadget_pi5_ip }}/{{ usb_gadget_subnet_prefix }}"
+    method6: disabled
+    autoconnect: true
+    state: present
+
+- name: Fetch LiDAR driver (sllidar_ros2) before build
+  ansible.builtin.command: "{{ pixi_bin }} run fetch-lidar-driver"
+  args:
+    chdir: "{{ robot_dir }}"
+  changed_when: true
+
+- name: Install pixi env and build ROS2 workspace
+  ansible.builtin.shell: "{{ pixi_bin }} install && {{ pixi_bin }} run -e dev build-ws"
+  args:
+    executable: /bin/bash
+    chdir: "{{ robot_dir }}"
+  changed_when: true
+
+- name: Install pixi vision env (ultralytics + hailort)
+  ansible.builtin.command: "{{ pixi_bin }} install -e vision"
+  args:
+    chdir: "{{ robot_dir }}"
+  changed_when: true
+
+# Hailo python bindings go INTO the pixi env (where vision_node actually
+# runs), not system python — sidesteps Trixie's externally-managed pip.
+- name: Find HailoRT wheel
+  ansible.builtin.find:
+    paths: "{{ robot_dir }}/libs/linux_aarch64"
+    patterns: "hailort-*.whl"
+  register: hailort_wheel
+
+- name: Install HailoRT python wheel into the pixi vision env
+  ansible.builtin.command: "{{ pixi_bin }} run -e vision python -m pip install {{ hailort_wheel.files[0].path }}"
+  args:
+    chdir: "{{ robot_dir }}"
+  when: hailort_wheel.matched > 0
+  changed_when: true
+
+- name: Install vtitan-pi5 + vtitan-lidar systemd units
+  become: true
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/systemd/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ pi5_systemd_units }}"
+  notify: Reload systemd
+
+- name: Substitute __TARGET_USER__ placeholder in unit files
+  become: true
+  ansible.builtin.replace:
+    path: "/etc/systemd/system/{{ item }}"
+    regexp: '__TARGET_USER__'
+    replace: "{{ ansible_user }}"
+  loop: "{{ pi5_systemd_units }}"
+  notify: Reload systemd
+
+- name: Substitute __TARGET_HOME__ placeholder in unit files
+  become: true
+  ansible.builtin.replace:
+    path: "/etc/systemd/system/{{ item }}"
+    regexp: '__TARGET_HOME__'
+    replace: "/home/{{ ansible_user }}"
+  loop: "{{ pi5_systemd_units }}"
+  notify: Reload systemd
+
+- name: Enable vtitan-pi5 + vtitan-lidar services
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    daemon_reload: true
+  loop: "{{ pi5_systemd_units }}"

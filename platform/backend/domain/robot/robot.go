@@ -104,17 +104,22 @@ type UpdateConfigRequest struct {
 type CommandType string
 
 const (
-	CommandStartRace     CommandType = "START_RACE"
-	CommandStopRace      CommandType = "STOP_RACE"
-	CommandPause         CommandType = "PAUSE"
-	CommandResume        CommandType = "RESUME"
-	CommandEmergencyStop CommandType = "EMERGENCY_STOP"
-	CommandReturnToStart CommandType = "RETURN_TO_START"
-	CommandReboot        CommandType = "REBOOT"
-	CommandShutdown      CommandType = "SHUTDOWN"
+	CommandStartRace      CommandType = "START_RACE"
+	CommandStopRace       CommandType = "STOP_RACE"
+	CommandPause          CommandType = "PAUSE"
+	CommandResume         CommandType = "RESUME"
+	CommandEmergencyStop  CommandType = "EMERGENCY_STOP"
+	CommandReturnToStart  CommandType = "RETURN_TO_START"
+	CommandReboot         CommandType = "REBOOT"
+	CommandShutdown       CommandType = "SHUTDOWN"
+	CommandSetVisionDebug CommandType = "SET_VISION_DEBUG"
 )
 
-// Command is a control command sent to a robot.
+// Command is a control command sent to a robot. Parameters is loosely typed
+// at this port boundary; each CommandType defines which keys it reads:
+//   - CommandStartRace: "mission_name" (string, optional)
+//   - CommandSetVisionDebug: "enabled" (bool, required), "stream_fps" (uint32, optional)
+//   - all other command types currently take no parameters
 type Command struct {
 	Type       CommandType
 	Parameters map[string]any

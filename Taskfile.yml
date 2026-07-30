@@ -13,6 +13,7 @@ vars:
   # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see scripts/setup_pi_zero.sh
   RPI_ZERO_GADGET_IP: 192.168.250.1
   PLATFORM_SCRIPTS: "{{.HOME}}/vtitan-platform/scripts"
+  ANSIBLE_DIR: "{{.HOME}}/vtitan-platform/ansible"
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
   FLEET_USER: ralvarezdev   # account created on every Pi via Raspberry Pi Imager (not "pi")
@@ -133,44 +134,58 @@ tasks:
       - sudo nmcli connection up {{.WIFI_CONN}}
       - echo "WiFi restored to auto band selection."
 
-  # Provisioning (run from dev Pi 5 — scripts live in ~/vtitan-platform/)
+  # Provisioning (Ansible, run from dev Pi 5 — playbooks live in ~/vtitan-platform/ansible/).
+  # Ansible replaces the old scp+ssh setup_pi_*.sh flow: same coverage, but
+  # idempotent (safe to re-run, --check/--diff dry-runs) and the Pi Zero's
+  # WiFi 2.4GHz lock is now released even if provisioning fails partway (see
+  # ansible/playbooks/provision_pi_zero.yml's block/always). requires ansible
+  # + community.general on the dev Pi 5 (task rpi:ansible:setup once).
 
   rpi:provision:zero:
-    desc: "Provision Pi Zero 2W — scp scripts + run setup_pi_zero.sh (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x]). Needs an interactive sudo password on the Zero — if invoking over a WiFi SSH session, run under nohup since the WiFi lock step below will disconnect it."
+    desc: "Provision Pi Zero 2W via Ansible (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x]). Prompts for the Zero's (and Pi 5's) sudo password."
+    dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - task: rpi:wifi:lock-2g
-      - echo "[1/3] Copying provisioner scripts to {{.FLEET_USER}}@{{.ZERO_IP}}..."
-      - scp -r {{.PLATFORM_SCRIPTS}} {{.FLEET_USER}}@{{.ZERO_IP}}:/tmp/
-      - echo "[2/3] Running provisioner on {{.ZERO_IP}} (takes ~20-40 min, will prompt for the Zero's sudo password)..."
-      - ssh -t {{.FLEET_USER}}@{{.ZERO_IP}} "GH_TOKEN=$(gh auth token) sudo -E bash /tmp/scripts/setup_pi_zero.sh"
-      - echo "[3/3] Waiting for Pi Zero to reboot and come back online..."
-      - |
-        count=0
-        until ping -c1 {{.ZERO_IP}} >/dev/null 2>&1; do
-          sleep {{.RPI_PING_INTERVAL}}
-          count=$((count+1))
-          [ $count -ge 120 ] && echo "Timed out waiting for {{.ZERO_IP}}" && exit 1
-        done
-        echo "Pi Zero ({{.ZERO_IP}}) is back online."
-      - task: rpi:wifi:unlock
+      - echo "Running Ansible provisioner against {{.ZERO_IP}} (Pi 5 at {{.PI5_IP}}, takes ~20-40 min)..."
+      - GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass
     vars:
       ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
+      PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
 
   rpi:provision:pi5:
-    desc: "Provision Robot Pi 5 — scp scripts + run setup_pi_5.sh (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x [HAILO_DEB=path])"
+    desc: "Provision Robot Pi 5 via Ansible (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x). Prompts for the Pi 5's sudo password."
+    dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - echo "[1/2] Copying provisioner scripts to {{.FLEET_USER}}@{{.PI5_IP}}..."
-      - scp -r {{.PLATFORM_SCRIPTS}} {{.FLEET_USER}}@{{.PI5_IP}}:/tmp/
-      - echo "[2/2] Running provisioner on {{.PI5_IP}}..."
-      - |
-        hailo_arg=""
-        [[ -n "{{.HAILO_DEB}}" ]] && hailo_arg="--hailo-deb {{.HAILO_DEB}}"
-        ssh -t {{.FLEET_USER}}@{{.PI5_IP}} "GH_TOKEN=$(gh auth token) sudo -E bash /tmp/scripts/setup_pi_5.sh $hailo_arg"
+      - echo "Running Ansible provisioner against {{.PI5_IP}}..."
+      - GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass
     requires:
       vars:
         - PI5_IP
-    vars:
-      HAILO_DEB: '{{.HAILO_DEB | default ""}}'
+
+  rpi:ansible:setup:
+    desc: "Install Ansible + required collections on the dev Pi 5 (one-time)"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmds:
+      - pixi global install ansible || pipx install --include-deps ansible
+      - ansible-galaxy collection install -r requirements.yml
+
+  rpi:ansible:check:
+    desc: "Dry-run the Ansible provisioner against an already-provisioned Pi and diff (usage: task rpi:ansible:check TARGET=pi5|zero [IP=x.x.x.x])"
+    dir: "{{.ANSIBLE_DIR}}"
+    requires:
+      vars:
+        - TARGET
+    cmds:
+      - |
+        playbook="provision_{{.TARGET}}.yml"
+        [ "{{.TARGET}}" = "zero" ] && playbook="provision_pi_zero.yml"
+        extra=""
+        # Scoped per-host (pi5_ip/zero_ip), not a global ansible_host override —
+        # see inventory/hosts.yml's comment on why that matters for the Zero
+        # playbook's delegate_to: pi5 tasks.
+        if [ -n "{{.IP}}" ]; then
+          [ "{{.TARGET}}" = "zero" ] && extra="-e zero_ip={{.IP}}" || extra="-e pi5_ip={{.IP}}"
+        fi
+        GH_TOKEN=$(gh auth token) ansible-playbook "playbooks/$playbook" $extra --check --diff --ask-become-pass
 
   windows:ssh:print-config:
     desc: "Print recommended ~/.ssh/config entries (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP)"

@@ -1,0 +1,135 @@
+---
+# Mirrors scripts/setup_common.sh + the shared prefix of setup_pi_5.sh /
+# setup_pi_zero.sh. Board-specific steps (interfaces, overlays, pixi env,
+# systemd units) live in the pi5 / pi_zero roles.
+
+# Verify GitHub access up front (private repo) before any heavy work — same
+# fail-fast rationale as require_github_auth() in setup_common.sh.
+- name: Install GitHub CLI apt key + repo
+  become: true
+  ansible.builtin.shell: |
+    set -euo pipefail
+    install -d -m 0755 /etc/apt/keyrings
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    chmod 0644 /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+  args:
+    executable: /bin/bash
+    creates: /etc/apt/sources.list.d/github-cli.list
+
+- name: Install gh package
+  become: true
+  ansible.builtin.apt:
+    name: gh
+    update_cache: true
+
+- name: Authenticate gh via GH_TOKEN
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s' "$GH_TOKEN" | gh auth login --with-token
+  args:
+    executable: /bin/bash
+  environment:
+    GH_TOKEN: "{{ lookup('env', 'GH_TOKEN') }}"
+  when: lookup('env', 'GH_TOKEN') | length > 0
+  changed_when: true
+
+- name: Check gh auth status
+  ansible.builtin.command: gh auth status
+  register: gh_auth_status
+  changed_when: false
+  failed_when: false
+
+- name: Fail fast if gh is not authenticated
+  ansible.builtin.fail:
+    msg: >-
+      gh is not authenticated for {{ ansible_user }} (private repo teamvoltimor/vtitan).
+      Run `gh auth login` on the control host or pass GH_TOKEN=... to ansible-playbook.
+  when: gh_auth_status.rc != 0
+
+- name: Configure gh as git credential helper
+  ansible.builtin.command: gh auth setup-git
+  changed_when: false
+
+- name: Update apt cache and full-upgrade
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: full
+
+- name: Add {{ ansible_user }} to hardware groups
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: "{{ hardware_groups }}"
+    append: true
+
+- name: Install common dependencies
+  become: true
+  ansible.builtin.apt:
+    name:
+      - git
+      - build-essential
+      - python3-pip
+      - i2c-tools
+      - network-manager
+    state: present
+
+- name: Check if pixi is already installed
+  ansible.builtin.stat:
+    path: "{{ pixi_bin }}"
+  register: pixi_stat
+
+- name: Install pixi
+  ansible.builtin.shell: curl -fsSL https://pixi.sh/install.sh | bash
+  args:
+    executable: /bin/bash
+  when: not pixi_stat.stat.exists
+
+- name: Clone vtitan repo
+  ansible.builtin.command: "gh repo clone {{ github_repo }} {{ repo_dir }}"
+  args:
+    creates: "{{ repo_dir }}/.git"
+
+- name: Check for existing .env
+  ansible.builtin.stat:
+    path: "{{ robot_dir }}/.env"
+  register: env_stat
+
+- name: Copy .env.example to .env
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/.env.example"
+    dest: "{{ robot_dir }}/.env"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: not env_stat.stat.exists
+
+- name: Install udev rules
+  become: true
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/udev/99-vtitan-gpio.rules"
+    dest: /etc/udev/rules.d/99-vtitan-gpio.rules
+    remote_src: true
+    mode: "0644"
+  notify: Reload udev rules
+
+# Was a manual `task rpi:setup-journal-persist` step — folds in here so logs
+# survive reboots on both boards without a separate manual pass.
+- name: Ensure journald.conf.d exists
+  become: true
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Enable persistent systemd journal (50M cap)
+  become: true
+  ansible.builtin.copy:
+    content: |
+      [Journal]
+      Storage=persistent
+      SystemMaxUse=50M
+    dest: /etc/systemd/journald.conf.d/persistent.conf
+    mode: "0644"
+  notify: Restart journald

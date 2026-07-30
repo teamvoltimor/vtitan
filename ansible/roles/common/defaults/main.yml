@@ -1,0 +1,7 @@
+---
+hardware_groups:
+  - gpio
+  - i2c
+  - spi
+  - dialout
+  - video  # camera access on the Pi 5; harmless no-op on the Zero

@@ -1,0 +1,4 @@
+---
+pi5_systemd_units:
+  - vtitan-pi5.service
+  - vtitan-lidar.service

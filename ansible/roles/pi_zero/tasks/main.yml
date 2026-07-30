@@ -1,0 +1,252 @@
+---
+# Mirrors the Pi-Zero-specific tail of scripts/setup_pi_zero.sh. common role
+# has already run gh auth, apt upgrade, hardware groups, deps, pixi, repo
+# clone, .env, and udev rules by this point.
+
+- name: Install Pi-Zero-specific dependencies
+  become: true
+  ansible.builtin.apt:
+    name:
+      - python3-lgpio
+    state: present
+
+# RPi OS Bookworm/Trixie keep boot config under /boot/firmware.
+- name: Detect boot config directory
+  ansible.builtin.stat:
+    path: /boot/firmware
+  register: boot_firmware_stat
+
+- name: Set boot_dir fact
+  ansible.builtin.set_fact:
+    boot_dir: "{{ '/boot/firmware' if boot_firmware_stat.stat.exists else '/boot' }}"
+
+# Strip any prior dwc2 overlay first (e.g. a stock dr_mode=host image
+# default) — otherwise it survives alongside the one ensured below.
+- name: Remove any existing dtoverlay=dwc2 lines from config.txt
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    regexp: '^dtoverlay=dwc2'
+    state: absent
+  notify: Reboot pi zero
+
+- name: Ensure required config.txt overlays are present
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    line: "{{ item }}"
+    state: present
+  loop:
+    - dtparam=i2c_arm=on
+    - dtoverlay=dwc2
+    - enable_uart=1
+  notify: Reboot pi zero
+
+# Explicit pin=/func= mapping, not a bare "dtoverlay=pwm-2chan" — see
+# servo_pwm_pin/motor_pwm_pin in defaults/main.yml for why this matters.
+- name: Remove any existing dtoverlay=pwm-2chan lines from config.txt
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    regexp: '^dtoverlay=pwm(-2chan)?(,|$)'
+    state: absent
+  notify: Reboot pi zero
+
+- name: Map hardware PWM overlay onto servo + drive motor pins
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    line: "dtoverlay=pwm-2chan,pin={{ servo_pwm_pin }},func=4,pin2={{ motor_pwm_pin }},func2=4"
+    state: present
+  notify: Reboot pi zero
+
+# dtparam=i2c_arm=on only loads the i2c_bcm2835 bus driver — it does NOT
+# create /dev/i2c-1 on its own. raspi-config's "Enable I2C" also loads
+# i2c-dev for the userspace device node; do that explicitly since we're
+# bypassing raspi-config.
+- name: Ensure i2c-dev module loads at boot
+  become: true
+  ansible.builtin.copy:
+    content: "i2c-dev\n"
+    dest: /etc/modules-load.d/i2c-dev.conf
+    mode: "0644"
+
+- name: Load i2c-dev module now
+  become: true
+  community.general.modprobe:
+    name: i2c-dev
+    state: present
+
+- name: Check if g_ether modules-load already present in cmdline.txt
+  become: true
+  ansible.builtin.command: "grep -q modules-load=dwc2,g_ether {{ boot_dir }}/cmdline.txt"
+  register: cmdline_check
+  changed_when: false
+  failed_when: false
+
+- name: Append g_ether modules-load to cmdline.txt
+  become: true
+  ansible.builtin.shell: "sed -i 's/[[:space:]]*$/ modules-load=dwc2,g_ether/' {{ boot_dir }}/cmdline.txt"
+  args:
+    executable: /bin/bash
+  when: cmdline_check.rc != 0
+  notify: Reboot pi zero
+
+# Stable, locally-administered MACs so the host side sees a consistent link.
+- name: Configure g_ether stable MACs
+  become: true
+  ansible.builtin.copy:
+    content: "options g_ether dev_addr={{ gadget_dev_mac }} host_addr={{ gadget_host_mac }}\n"
+    dest: /etc/modprobe.d/g_ether.conf
+    mode: "0644"
+  notify: Reboot pi zero
+
+# usb0 owned solely by NetworkManager (one manager per interface).
+- name: Configure usb0 gadget static IP ({{ usb_gadget_zero_ip }})
+  become: true
+  community.general.nmcli:
+    type: ethernet
+    conn_name: usb0
+    ifname: usb0
+    method4: manual
+    ip4: "{{ usb_gadget_zero_ip }}/{{ usb_gadget_subnet_prefix }}"
+    method6: disabled
+    autoconnect: true
+    state: present
+
+# More swap so pixi/the ROS2 colcon build survives on 512MB RAM.
+- name: Check for dphys-swapfile config
+  ansible.builtin.stat:
+    path: /etc/dphys-swapfile
+  register: dphys_stat
+
+- name: Increase swap via dphys-swapfile
+  become: true
+  when: dphys_stat.stat.exists
+  block:
+    - name: Set CONF_SWAPSIZE
+      ansible.builtin.lineinfile:
+        path: /etc/dphys-swapfile
+        regexp: '^CONF_SWAPSIZE='
+        line: "CONF_SWAPSIZE={{ swap_size_mb }}"
+    - name: Set CONF_MAXSWAP
+      ansible.builtin.lineinfile:
+        path: /etc/dphys-swapfile
+        regexp: '^CONF_MAXSWAP='
+        line: "CONF_MAXSWAP={{ swap_size_mb }}"
+    - name: Apply dphys-swapfile setup
+      ansible.builtin.command: dphys-swapfile setup
+      changed_when: true
+    - name: Enable dphys-swapfile
+      ansible.builtin.command: dphys-swapfile swapon
+      changed_when: true
+      failed_when: false  # already-on is a non-zero exit, not a real failure
+
+- name: Check for plain swapfile
+  ansible.builtin.stat:
+    path: /swapfile
+  register: swapfile_stat
+  when: not dphys_stat.stat.exists
+
+# Newer Pi OS (Bookworm/Trixie) uses rpi-swap's zram+file hybrid instead of
+# dphys-swapfile, but its file-backing only writes back after a long delay
+# (hours), so it doesn't help a short memory-intensive burst like `pixi
+# install`/colcon — a plain always-active swapfile is simpler and reliable.
+- name: Create plain 2GB swapfile
+  become: true
+  when: not dphys_stat.stat.exists and not swapfile_stat.stat.exists
+  block:
+    - name: Allocate swapfile
+      ansible.builtin.command: "fallocate -l {{ (swap_size_mb / 1024) | int }}G /swapfile"
+      changed_when: true
+    - name: Restrict swapfile permissions
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+    - name: Format swapfile
+      ansible.builtin.command: mkswap /swapfile
+      changed_when: true
+    - name: Enable swapfile
+      ansible.builtin.command: swapon /swapfile
+      changed_when: true
+    - name: Persist swapfile in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+
+- name: Install pixi env and build ROS2 workspace
+  ansible.builtin.shell: "{{ pixi_bin }} install && {{ pixi_bin }} run -e dev build-ws"
+  args:
+    executable: /bin/bash
+    chdir: "{{ robot_dir }}"
+  changed_when: true
+
+- name: Verify PWM availability
+  ansible.builtin.command: ls /sys/class/pwm/pwmchip0/
+  register: pwm_check
+  changed_when: false
+  failed_when: false
+
+- name: Warn if PWM chip not yet present
+  ansible.builtin.debug:
+    msg: "PWM chip not present yet — it appears after the reboot below."
+  when: pwm_check.rc != 0
+
+# Trusts the Pi 5's key into the Zero's authorized_keys so the day-2 ops
+# scripts that SSH from Pi 5 -> Zero (deploy-dev-env-to-zero.sh,
+# verify-zero-integration.sh, safe-shutdown-zero.sh) work without a separate
+# manual bootstrap-fresh-zero.sh run — mirrors that script's step 1.
+- name: Check for existing Pi 5 SSH key
+  delegate_to: pi5
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
+  register: pi5_ssh_key_stat
+
+- name: Generate Pi 5 SSH key
+  delegate_to: pi5
+  ansible.builtin.command: "ssh-keygen -t ed25519 -N '' -f /home/{{ ansible_user }}/.ssh/id_ed25519"
+  when: not pi5_ssh_key_stat.stat.exists
+
+- name: Read Pi 5's public key
+  delegate_to: pi5
+  ansible.builtin.slurp:
+    src: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
+  register: pi5_pubkey_slurp
+
+- name: Trust Pi 5's SSH key into the Zero's authorized_keys
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ pi5_pubkey_slurp.content | b64decode }}"
+    state: present
+
+- name: Install vtitan-pi-zero systemd unit
+  become: true
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/systemd/vtitan-pi-zero.service"
+    dest: /etc/systemd/system/vtitan-pi-zero.service
+    remote_src: true
+    mode: "0644"
+  notify: Reload systemd zero
+
+- name: Substitute __TARGET_USER__ placeholder in unit file
+  become: true
+  ansible.builtin.replace:
+    path: /etc/systemd/system/vtitan-pi-zero.service
+    regexp: '__TARGET_USER__'
+    replace: "{{ ansible_user }}"
+  notify: Reload systemd zero
+
+- name: Substitute __TARGET_HOME__ placeholder in unit file
+  become: true
+  ansible.builtin.replace:
+    path: /etc/systemd/system/vtitan-pi-zero.service
+    regexp: '__TARGET_HOME__'
+    replace: "/home/{{ ansible_user }}"
+  notify: Reload systemd zero
+
+- name: Enable vtitan-pi-zero service
+  become: true
+  ansible.builtin.systemd_service:
+    name: vtitan-pi-zero.service
+    enabled: true
+    daemon_reload: true

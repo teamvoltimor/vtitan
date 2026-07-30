@@ -10,7 +10,9 @@ from dataclasses import asdict
 import numpy as np
 import rclpy
 from pydantic_settings import SettingsConfigDict
+from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -45,6 +47,9 @@ class Config(HardwareBaseSettings):
     publish_annotated: bool = False
     annotated_topic: str = "/vision/image_annotated"
     publish_raw: bool = False
+    # Caps the annotated stream's publish rate independent of capture_fps, so a
+    # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
+    debug_stream_fps: float = 0.0
 
 
 class VisionNode(Node):
@@ -63,6 +68,7 @@ class VisionNode(Node):
         self.declare_parameter("publish_annotated", value=defaults.publish_annotated)
         self.declare_parameter("annotated_topic", defaults.annotated_topic)
         self.declare_parameter("publish_raw", value=defaults.publish_raw)
+        self.declare_parameter("debug_stream_fps", defaults.debug_stream_fps)
 
         camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
         detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
@@ -71,8 +77,11 @@ class VisionNode(Node):
         camera_source = self.get_parameter("camera_source").get_parameter_value().string_value
         capture_fps = self.get_parameter("capture_fps").get_parameter_value().double_value
         self._publish_annotated = self.get_parameter("publish_annotated").get_parameter_value().bool_value
-        annotated_topic = self.get_parameter("annotated_topic").get_parameter_value().string_value
+        self._annotated_topic = self.get_parameter("annotated_topic").get_parameter_value().string_value
         self._publish_raw = self.get_parameter("publish_raw").get_parameter_value().bool_value
+        debug_stream_fps = self.get_parameter("debug_stream_fps").get_parameter_value().double_value
+        self._annotated_min_interval = 1.0 / debug_stream_fps if debug_stream_fps > 0 else 0.0
+        self._last_annotated_pub_time = 0.0
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
@@ -96,9 +105,10 @@ class VisionNode(Node):
 
         self._publisher = self.create_publisher(String, detections_topic, 10)
         self._annotated_publisher = (
-            self.create_publisher(Image, annotated_topic, 1) if self._publish_annotated else None
+            self.create_publisher(Image, self._annotated_topic, 1) if self._publish_annotated else None
         )
         self._raw_publisher = self.create_publisher(Image, camera_topic, 1) if self._publish_raw else None
+        self.add_on_set_parameters_callback(self._on_set_parameters)
 
         self._camera: CameraDriver | None = None
         self._subscription = None
@@ -106,7 +116,7 @@ class VisionNode(Node):
             self._start_direct_capture(capture_fps)
             self.get_logger().info(
                 f"Vision Node ready. Capturing directly at {capture_fps:g} fps, publishing to {detections_topic}"
-                + (f" (+ annotated on {annotated_topic})" if self._publish_annotated else ""),
+                + (f" (+ annotated on {self._annotated_topic})" if self._publish_annotated else ""),
             )
         else:
             self._subscription = self.create_subscription(
@@ -236,12 +246,37 @@ class VisionNode(Node):
             if self._raw_publisher is not None:
                 self._raw_publisher.publish(self._to_image_msg(rgb))
             if self._annotated_publisher is not None:
-                self._annotated_publisher.publish(self._to_image_msg(annotate(rgb, detections)))
+                now = self.get_clock().now().nanoseconds / 1e9
+                due = now - self._last_annotated_pub_time >= self._annotated_min_interval
+                if self._annotated_min_interval <= 0 or due:
+                    self._annotated_publisher.publish(self._to_image_msg(annotate(rgb, detections)))
+                    self._last_annotated_pub_time = now
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             self.get_logger().error(f"Unexpected error processing image: {e}")
+
+    def _on_set_parameters(self, params: list[Parameter]) -> SetParametersResult:
+        """Apply publish_annotated/debug_stream_fps changes without a restart.
+
+        Backs the remote vision-debug toggle: telemetry_bridge_node forwards a
+        SetVisionDebugParams command here via this node's standard
+        set_parameters service, instead of requiring publish_annotated to be
+        fixed at launch time.
+        """
+        for param in params:
+            if param.name == "publish_annotated":
+                self._publish_annotated = bool(param.value)
+                if self._publish_annotated and self._annotated_publisher is None:
+                    self._annotated_publisher = self.create_publisher(Image, self._annotated_topic, 1)
+                elif not self._publish_annotated and self._annotated_publisher is not None:
+                    self.destroy_publisher(self._annotated_publisher)
+                    self._annotated_publisher = None
+            elif param.name == "debug_stream_fps":
+                fps = float(param.value)
+                self._annotated_min_interval = 1.0 / fps if fps > 0 else 0.0
+        return SetParametersResult(successful=True)
 
     def _to_image_msg(self, rgb: np.ndarray) -> Image:
         """Wrap an RGB array as a sensor_msgs/Image."""

@@ -50,6 +50,20 @@ pillow = ">=8"
 # HTTP) -- only types-requests (the mypy stub) was declared before, so the
 # node imported cleanly under type-checking but crashed at runtime.
 requests = ">=2.32,<3"
+# Backend<->robot gRPC command channel (RobotCommandService, gen/telemetry/v1).
+# protobuf floor matches the runtime version stamped into the generated
+# *_pb2.py files (see ValidateProtobufRuntimeVersion in commands_pb2.py) --
+# a runtime older than that raises at import time, not just at call time. No
+# upper bound: conda-forge's protobuf is tied to libprotobuf, which several
+# ROS2/Gazebo conda packages also constrain, so pinning <6 here made the
+# solver unsatisfiable against ros-kilted-cv-bridge/ros-kilted-ros-gz.
+# (buf.validate's own generated buf/validate/validate_pb2.py -- every message
+# here carries buf.validate field options, referenced unconditionally at
+# module load -- is vendored straight into gen/ via buf.gen.yaml's
+# include_imports, not a separate PyPI dependency: no current protovalidate
+# release actually bundles it, unlike protovalidate-go on the backend side.)
+grpcio = ">=1.66"
+protobuf = ">=5.28"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"

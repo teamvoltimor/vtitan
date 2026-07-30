@@ -12,8 +12,17 @@ plugins:
       - require_unimplemented_servers=false
 
   # Python — messages + gRPC stubs (consumed by the ROS2 robot)
+  # include_imports generates buf/validate/validate_pb2.py too: every message
+  # here carries buf.validate field options, so the generated code imports
+  # that module unconditionally at load time, and (unlike Go, where
+  # protovalidate-go ships its own compiled validate.pb.go) no PyPI
+  # `protovalidate` release actually bundles it. include_wkt stays default
+  # (false) so google/protobuf/*_pb2.py isn't regenerated here too -- those
+  # already come from the protobuf runtime package and would just duplicate/
+  # shadow it.
   - remote: buf.build/protocolbuffers/python:v28.3
     out: ../robot/src/gen
+    include_imports: true
   - remote: buf.build/grpc/python:v1.68.1
     out: ../robot/src/gen
 

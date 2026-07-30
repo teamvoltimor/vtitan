@@ -1,9 +1,15 @@
 # Raspberry Pi setup
 
-Two phases. **Raspberry Pi Imager** writes a bootable, reachable OS; the
-`setup_pi_*.sh` scripts run **on the Pi over SSH** and add the vtitan layer
-(interfaces, USB-gadget link, ROS2 workspace, systemd services). The scripts
-never flash or partition anything.
+Two phases. **Raspberry Pi Imager** writes a bootable, reachable OS; Phase 2
+adds the vtitan layer (interfaces, USB-gadget link, ROS2 workspace, systemd
+services) on top. Neither phase 2 mechanism flashes or partitions anything.
+
+**Phase 2 is now driven by Ansible** (`../ansible/`, via `task rpi:provision:pi5`
+/ `task rpi:provision:zero`) — idempotent, re-runnable, dry-runnable
+(`task rpi:ansible:check`). The `setup_pi_*.sh` scripts below are what the
+Ansible roles were ported from; they still work standalone and are documented
+here as the manual fallback (e.g. no Ansible on the dev Pi 5 yet — see
+`task rpi:ansible:setup`).
 
 ## Phase 1 — Raspberry Pi Imager (Windows)
 
@@ -26,6 +32,22 @@ In Imager's OS customization (the gear / "Edit settings"):
 Write the card, boot the Pi, and let it join WiFi.
 
 ## Phase 2 — provision over SSH
+
+### Ansible (recommended)
+
+From the dev Pi 5 (one-time: `task rpi:ansible:setup`):
+
+```bash
+task rpi:provision:pi5 PI5_IP=x.x.x.x
+task rpi:provision:zero               # defaults to ZERO_WIFI_IP
+task rpi:ansible:check TARGET=pi5     # dry-run + diff against an already-provisioned Pi
+```
+
+GitHub auth (private repo) and the Pi Zero's WiFi 2.4GHz band lock are handled
+the same way as the manual scripts below, just automatically. See
+`../ansible/README.md` for the role/playbook layout.
+
+### Manual fallback (`setup_pi_*.sh`)
 
 Find the Pi on WiFi (`ssh <user>@<hostname>.local` or its `192.168.x.y` lease)
 and copy the scripts over. The vtitan repo is **private**, so the script

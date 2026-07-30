@@ -1,0 +1,9 @@
+---
+# Provisions both robot Pis, Pi 5 first — the Pi Zero play proxies its WiFi
+# band lock through the Pi 5, so having it already reachable/configured
+# first avoids provisioning a Pi 5 mid-lock.
+- name: Provision robot fleet
+  ansible.builtin.import_playbook: provision_pi5.yml
+
+- name: Provision robot fleet
+  ansible.builtin.import_playbook: provision_pi_zero.yml

@@ -1,0 +1,19 @@
+---
+# Mirrors the equivalent vars in Taskfile.yml / scripts/setup_common.sh —
+# kept in sync by hand for now.
+ansible_user: ralvarezdev  # account created on every Pi via Raspberry Pi Imager (not "pi")
+
+github_repo: teamvoltimor/vtitan
+repo_dir: "/home/{{ ansible_user }}/vtitan"
+robot_dir: "{{ repo_dir }}/platform/robot"
+pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
+
+usb_gadget_subnet_prefix: 24
+usb_gadget_zero_ip: 192.168.250.1
+usb_gadget_pi5_ip: 192.168.250.2
+
+# Pi Zero is 2.4GHz-only WiFi; the Pi 5 must be locked to the same band to
+# reach it during first-contact provisioning (before the usb0 gadget link
+# exists). See provision_pi_zero.yml.
+wifi_conn_name: for
+wifi_2g_bssid: "AA:D3:62:23:33:28"

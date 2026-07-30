@@ -1,0 +1,7 @@
+---
+- name: Provision Robot Pi 5
+  hosts: robot_pi5
+  gather_facts: true
+  roles:
+    - common
+    - pi5
