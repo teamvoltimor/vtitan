@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from src.constants import DEFAULT_CALIB_NAME
+from src.constants import DEFAULT_CALIB_NAME, DEFAULT_LABELS_NAME
 from src.registry import SHARED_WITH_DOCKER, ModelName
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class StageConfig:
     shared_dir: str = SHARED_WITH_DOCKER
     calib_name: str = DEFAULT_CALIB_NAME
     labels: str | None = None
-    labels_name: str = "calib_labels"
+    labels_name: str = DEFAULT_LABELS_NAME
 
 
 @dataclass(slots=True, frozen=True)

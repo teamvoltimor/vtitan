@@ -15,10 +15,6 @@ class CalibrationDataError(HailoError):
     """Raised when calibration data is missing or malformed."""
 
 
-class CompileError(HailoError):
-    """Raised when the Hailo DFC fails to compile a model."""
-
-
 def require_dep(module: object | None, package_name: str, *, cause: BaseException | None = None) -> None:
     """Raise HailoError if an optional dependency is not installed.
 

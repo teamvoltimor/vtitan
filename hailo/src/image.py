@@ -194,7 +194,6 @@ def draw_boxes(
 def unletterbox_mask(
     mask: np.ndarray,
     orig_shape: tuple[int, ...],
-    _ratio: float,
     dw: float,
     dh: float,
 ) -> np.ndarray:
@@ -203,7 +202,6 @@ def unletterbox_mask(
     Args:
         mask: ``(H, W)`` binary or greyscale mask in letterboxed space.
         orig_shape: ``(H, W, ...)`` of the original image.
-        _ratio: Unused; kept for call-site symmetry with :func:`preprocess`.
         dw: Horizontal padding from :func:`letterbox`.
         dh: Vertical padding from :func:`letterbox`.
 

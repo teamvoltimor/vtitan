@@ -42,9 +42,9 @@ def run_or_print(cmd: list[str], docker: str | None, workdir: str | None = None)
 class DockerRunConfig:
     """Parameters for starting the Hailo AI Software Suite container.
 
-    Field defaults mirror :class:`~src.settings.HailoSettings`'s defaults;
-    ``main.py`` populates them from settings/env vars at CLI-parser
-    construction time, so these are only a fallback for direct/programmatic use.
+    All fields except ``shared_dir`` and the optional ``dry_run``/``compile_only``/``gpu``/``cuda_device``
+    are sourced from :class:`~src.settings.HailoSettings` at CLI-parser construction time via ``main.py``.
+    No duplicate defaults are maintained here.
 
     Args:
         shared_dir: Host path mounted as ``/local/shared_with_docker`` inside
@@ -72,11 +72,11 @@ class DockerRunConfig:
     """
 
     shared_dir: str
-    container: str = "hailo8_ai_sw_suite_2025-10_container"
-    image: str = "hailo8_ai_sw_suite_2025-10:1"
-    host_uid: int = 1000
-    video_gid: int = 44
-    display: str = ":0"
+    container: str
+    image: str
+    host_uid: int
+    video_gid: int
+    display: str
     dry_run: bool = False
     compile_only: bool = False
     gpu: bool = True

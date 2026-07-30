@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import cv2
 import numpy as np
 
-from src.config import TestConfig  # noqa: TC001
+if TYPE_CHECKING:
+    from src.config import TestConfig
 from src.constants import MASK_THRESHOLD, OVERLAY_ALPHA, OVERLAY_BETA
+from src.deps import YOLO, _ort_import_err, _yolo_import_err, ort
 from src.enums import Backend, Task
 from src.errors import HailoError, require_dep
 from src.image import (
@@ -20,7 +22,6 @@ from src.image import (
     preprocess,
     unletterbox_mask,
 )
-from src.deps import YOLO, _ort_import_err, _yolo_import_err, ort
 from src.log import get_logger
 
 log = get_logger(__name__)
@@ -140,19 +141,19 @@ class _ONNXSegmentHandler(_ONNXBackend):
             )
             for i in range(mask_raw.shape[0]):
                 ch = (mask_raw[i] > MASK_THRESHOLD).astype(np.uint8) * 255
-                ch = unletterbox_mask(ch, orig.shape, ratio, dw, dh)
+                ch = unletterbox_mask(ch, orig.shape, dw, dh)
                 cv2.imwrite(
                     str(Path(self.config.output) / f"mask_ch{i}_{Path(img_path).name}"),
                     ch,
                 )
             argmax = np.argmax(mask_raw, axis=0).astype(np.uint8) * 255
-            argmax = unletterbox_mask(argmax, orig.shape, ratio, dw, dh)
+            argmax = unletterbox_mask(argmax, orig.shape, dw, dh)
             cv2.imwrite(
                 str(Path(self.config.output) / f"mask_argmax_{Path(img_path).name}"),
                 argmax,
             )
             mask_img = (mask_raw[0] > MASK_THRESHOLD).astype(np.uint8) * 255
-            mask_img = unletterbox_mask(mask_img, orig.shape, ratio, dw, dh)
+            mask_img = unletterbox_mask(mask_img, orig.shape, dw, dh)
             color_mask = np.zeros_like(orig)
             color_mask[:, :, 1] = mask_img
             overlay = cv2.addWeighted(orig, OVERLAY_ALPHA, color_mask, OVERLAY_BETA, 0)

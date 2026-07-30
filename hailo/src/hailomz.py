@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig  # noqa: TC001
+if TYPE_CHECKING:
+    from src.config import CompileConfig, EvalConfig, ProfileConfig, StageConfig
 from src.constants import FLATTEN_SEPARATOR, IMAGE_EXTENSIONS, LABEL_EXTENSIONS
 from src.docker import (
     DOCKER_SHARED_MOUNT,

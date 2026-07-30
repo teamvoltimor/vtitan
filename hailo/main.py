@@ -23,12 +23,23 @@ import argparse
 import sys
 
 from src import calib, export, graph, hailomz, test
+from src.config import (
+    CompileConfig,
+    ConvertConfig,
+    DownloadConfig,
+    EvalConfig,
+    ExportConfig,
+    ProfileConfig,
+    StageConfig,
+    TestConfig,
+)
 from src.constants import (
     DEFAULT_CALIB_INPUT,
     DEFAULT_CALIB_OUTPUT,
     DEFAULT_COCO_SAMPLES,
     DEFAULT_CONFIDENCE,
     DEFAULT_IMG_SIZE,
+    DEFAULT_TEST_OUTPUT,
 )
 from src.docker import (
     DOCKER_SHARED_MOUNT,
@@ -49,7 +60,7 @@ log = get_logger(__name__)
 
 def _cmd_export(args: argparse.Namespace) -> None:
     export.run(
-        export.ExportConfig(
+        ExportConfig(
             model=ModelName(args.model),
             imgsz=args.imgsz,
             opset=args.opset,
@@ -61,11 +72,11 @@ def _cmd_export(args: argparse.Namespace) -> None:
 def _cmd_calib(args: argparse.Namespace) -> None:
     if args.calib_cmd == "download":
         calib.download(
-            calib.DownloadConfig(samples=args.samples, output=args.output),
+            DownloadConfig(samples=args.samples, output=args.output),
         )
     else:
         calib.convert(
-            calib.ConvertConfig(input=args.input, output=args.output, size=args.size),
+            ConvertConfig(input=args.input, output=args.output, size=args.size),
         )
 
 
@@ -75,7 +86,7 @@ def _cmd_inspect(args: argparse.Namespace) -> None:
 
 def _cmd_test(args: argparse.Namespace) -> None:
     test.run(
-        test.TestConfig(
+        TestConfig(
             model=args.model,
             backend=Backend(args.backend),
             task=Task(args.task) if args.task else None,
@@ -88,7 +99,7 @@ def _cmd_test(args: argparse.Namespace) -> None:
 
 def _cmd_stage(args: argparse.Namespace) -> None:
     hailomz.stage(
-        hailomz.StageConfig(
+        StageConfig(
             model=args.model,
             calib=args.calib,
             shared_dir=args.shared_dir,
@@ -101,7 +112,7 @@ def _cmd_stage(args: argparse.Namespace) -> None:
 
 def _cmd_compile(args: argparse.Namespace) -> None:
     hailomz.compile_model(
-        hailomz.CompileConfig(
+        CompileConfig(
             model=args.model,
             zoo_name=args.zoo_name,
             hw=HWArch(args.hw),
@@ -116,7 +127,7 @@ def _cmd_compile(args: argparse.Namespace) -> None:
 
 def _cmd_eval(args: argparse.Namespace) -> None:
     hailomz.eval_model(
-        hailomz.EvalConfig(
+        EvalConfig(
             model=args.model,
             zoo_name=args.zoo_name,
             har=args.har,
@@ -130,7 +141,7 @@ def _cmd_eval(args: argparse.Namespace) -> None:
 
 def _cmd_profile(args: argparse.Namespace) -> None:
     hailomz.profile_model(
-        hailomz.ProfileConfig(
+        ProfileConfig(
             model=args.model,
             zoo_name=args.zoo_name,
             hef=args.hef,
@@ -234,7 +245,7 @@ def _add_test_parser(sub: argparse._SubParsersAction) -> None:
         help='Override task (inferred from filename by default — "seg" → segment)',
     )
     parser.add_argument("--input", default=DEFAULT_CALIB_INPUT)
-    parser.add_argument("--output", default="./test_output")
+    parser.add_argument("--output", default=DEFAULT_TEST_OUTPUT)
     parser.add_argument("--conf", type=float, default=DEFAULT_CONFIDENCE)
     parser.set_defaults(func=_cmd_test)
 

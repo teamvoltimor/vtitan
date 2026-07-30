@@ -308,6 +308,11 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "T201", # print() -- the report is the program's output
     "N815", # mAP50/mAP75 etc. are domain-standard metric names
 ]
+# Same rules for the container-bound copy of eval/metrics.py
+"shared_with_docker/eval/*.py" = [
+    "T201",
+    "N815",
+]
 # Tests
 "test_*.py" = [
     "S101",    # Use of assert

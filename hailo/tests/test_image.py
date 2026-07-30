@@ -75,7 +75,7 @@ def test_unletterbox_mask_crops_and_resizes_to_original_shape() -> None:
     mask = np.zeros((640, 640), dtype=np.uint8)
     mask[240:400, :] = 255  # the "real" content band
 
-    out = unletterbox_mask(mask, orig_shape=(100, 200, 3), _ratio=3.2, dw=0.0, dh=240.0)
+    out = unletterbox_mask(mask, orig_shape=(100, 200, 3), dw=0.0, dh=240.0)
 
     assert out.shape == (100, 200)
 
@@ -84,7 +84,7 @@ def test_unletterbox_mask_falls_back_when_crop_is_empty() -> None:
     # Padding that would crop the mask down to zero size must not raise --
     # it should fall back to resizing the uncropped mask instead.
     mask = np.full((10, 10), 255, dtype=np.uint8)
-    out = unletterbox_mask(mask, orig_shape=(50, 50, 3), _ratio=1.0, dw=20.0, dh=20.0)
+    out = unletterbox_mask(mask, orig_shape=(50, 50, 3), dw=20.0, dh=20.0)
     assert out.shape == (50, 50)
 
 

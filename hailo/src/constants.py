@@ -30,6 +30,8 @@ DEFAULT_CONFIDENCE = 0.3
 DEFAULT_CALIB_INPUT = "./calib_data"
 DEFAULT_CALIB_OUTPUT = "./calib_data_npy"
 DEFAULT_CALIB_NAME = "calib_data"
+DEFAULT_LABELS_NAME = "calib_labels"
+DEFAULT_TEST_OUTPUT = "./test_output"
 
 # Export format identifiers
 EXPORT_FORMAT_ONNX = "onnx"

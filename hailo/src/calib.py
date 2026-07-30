@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
-from src.config import ConvertConfig, DownloadConfig  # noqa: TC001
+if TYPE_CHECKING:
+    from src.config import ConvertConfig, DownloadConfig
 from src.constants import COCO_DATASET, COCO_SPLIT, NORMALIZE_FACTOR
 from src.errors import CalibrationDataError, require_dep
 from src.image import iter_images

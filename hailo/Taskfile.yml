@@ -23,6 +23,10 @@ vars:
   GMR_LABEL_NAME: calib_labels_gmr
   GMR_CHECKPOINT: ../auto-annotator/ml-service/models/gmr/best.pt
   EVAL_LIMIT: 300
+  EVAL_CONF: 0.01
+  EVAL_BATCH_SIZE: 8
+  FLOAT_BATCH_SIZE: 16
+  GMR_HARS: "gmr_cpu_opt0.har,gmr_gpu_qat.har"
   DOCKER_MOUNT: /local/shared_with_docker
   # Pins CUDA_VISIBLE_DEVICES so the optimizer's GPU selector is bypassed --
   # see docs/hef-compile-runbook.md, "Optimization silently drops to level 0".
@@ -267,18 +271,23 @@ tasks:
   accuracy:sync:
     desc: 'Copy the evaluators into the shared mount so the container can see them'
     cmds:
-      - uv run python -c "import pathlib,shutil; d=pathlib.Path('{{.SHARED_DIR}}/eval'); d.mkdir(parents=True,exist_ok=True); [shutil.copy2(p,d/p.name) for p in pathlib.Path('eval').glob('*.py')]"
+      - uv run python scripts/sync_eval.py
+
+  accuracy:sync-validate:
+    desc: 'Check for drift between eval/ and shared_with_docker/eval/'
+    cmds:
+      - uv run python scripts/validate_eval_sync.py
 
   accuracy:compare:
     desc: 'Score the compiled HARs against each other (requires running container)'
     deps: [accuracy:sync]
     cmds:
-      - docker exec -w {{.DOCKER_MOUNT}} {{.DOCKER_CONTAINER}} python eval/compare_hars.py --limit {{.EVAL_LIMIT}}
+      - docker exec -w {{.DOCKER_MOUNT}} {{.DOCKER_CONTAINER}} python eval/compare_hars.py --limit {{.EVAL_LIMIT}} --conf {{.EVAL_CONF}} --images {{.GMR_CALIB_NAME}} --labels {{.GMR_LABEL_NAME}} --har {{.GMR_HARS}} --batch-size {{.EVAL_BATCH_SIZE}}
 
   accuracy:float:
     desc: 'Score the float checkpoint as the accuracy ceiling (host, no container)'
     cmds:
-      - uv run python eval/float_anchor.py --limit {{.EVAL_LIMIT}} --checkpoint {{.GMR_CHECKPOINT}} --images {{.SHARED_DIR}}/{{.GMR_CALIB_NAME}} --labels {{.SHARED_DIR}}/{{.GMR_LABEL_NAME}}
+      - uv run python eval/float_anchor.py --limit {{.EVAL_LIMIT}} --conf {{.EVAL_CONF}} --checkpoint {{.GMR_CHECKPOINT}} --images {{.SHARED_DIR}}/{{.GMR_CALIB_NAME}} --labels {{.SHARED_DIR}}/{{.GMR_LABEL_NAME}} --batch-size {{.FLOAT_BATCH_SIZE}}
 
   accuracy:all:
     desc: 'Full accuracy comparison: float ceiling, then every compiled HAR'

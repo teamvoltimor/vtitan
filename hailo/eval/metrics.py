@@ -38,6 +38,10 @@ AP_THRESHOLD_START = 0.5
 AP_THRESHOLD_END = 1.0
 AP_THRESHOLD_STEP = 0.05
 
+# Confusion matrix thresholds (detection filtering)
+CONFUSION_MIN_SCORE = 0.25
+CONFUSION_MIN_OVERLAP = 0.5
+
 
 @dataclass(frozen=True, slots=True)
 class MetricsResult:
@@ -259,8 +263,8 @@ def mean_average_precision(
 def confusion(
     predictions: list[list[Prediction]],
     truth: list[GroundTruth],
-    min_score: float = 0.25,
-    min_overlap: float = 0.5,
+    min_score: float = CONFUSION_MIN_SCORE,
+    min_overlap: float = CONFUSION_MIN_OVERLAP,
 ) -> dict[tuple[int, int], int]:
     """Count confident detections by ``(true_class, predicted_class)``.
 
@@ -306,7 +310,10 @@ def summarise(predictions: list[list[Prediction]], truth: list[GroundTruth]) -> 
     Per-class AP at 0.5 saturates on this dataset, so the per-class view is
     also reported averaged across the 0.5:0.95 sweep where it discriminates.
     """
-    sweep = [mean_average_precision(predictions, truth, t) for t in np.arange(AP_THRESHOLD_START, AP_THRESHOLD_END, AP_THRESHOLD_STEP)]
+    sweep = [
+        mean_average_precision(predictions, truth, t)
+        for t in np.arange(AP_THRESHOLD_START, AP_THRESHOLD_END, AP_THRESHOLD_STEP)
+    ]
     map50, per_class = mean_average_precision(predictions, truth, 0.5)
     map75, _ = mean_average_precision(predictions, truth, 0.75)
     per_class_swept = {
@@ -333,7 +340,9 @@ def print_report(results: dict[str, MetricsResult]) -> None:
     print("\n=== PER-CLASS mAP@0.5:0.95 (discriminating; @0.5 saturates) ===")
     print(f"{'model':14s} " + " ".join(f"{MODEL_NAMES[c]:>9s}" for c in sorted(MODEL_NAMES)))
     for name, result in results.items():
-        print(f"{name:14s} " + " ".join(f"{result.per_class_5095.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)))
+        print(
+            f"{name:14s} " + " ".join(f"{result.per_class_5095.get(c, float('nan')):9.4f}" for c in sorted(MODEL_NAMES)),
+        )
 
     print("\n=== CLASS CONFUSION (conf >= 0.25, IoU >= 0.5) ===")
     for name, result in results.items():

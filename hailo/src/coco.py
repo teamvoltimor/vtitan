@@ -87,5 +87,10 @@ COCO_CLASSES: list[str] = [
     "toothbrush",
 ]
 
-_rng = np.random.default_rng(42)
-COLORS: list[tuple[int, ...]] = [tuple(int(x) for x in _rng.integers(0, 255, 3)) for _ in range(len(COCO_CLASSES))]
+COLOR_RNG_SEED = 42
+COLOR_MIN = 0
+COLOR_MAX = 255
+COLOR_CHANNELS = 3
+
+_rng = np.random.default_rng(COLOR_RNG_SEED)
+COLORS: list[tuple[int, ...]] = [tuple(int(x) for x in _rng.integers(COLOR_MIN, COLOR_MAX, COLOR_CHANNELS)) for _ in range(len(COCO_CLASSES))]

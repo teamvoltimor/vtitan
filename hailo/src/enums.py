@@ -46,36 +46,3 @@ class ExportExtra(StrEnum):
     SIMPLIFY = "simplify"
     NMS = "nms"
     OPTIMIZE = "optimize"
-
-
-class MetricType(StrEnum):
-    """Average precision metrics for model evaluation."""
-
-    MAP50 = "mAP@0.5"
-    """Mean average precision at IoU=0.5."""
-
-    MAP75 = "mAP@0.75"
-    """Mean average precision at IoU=0.75."""
-
-    MAP50_95 = "mAP@0.5:0.95"
-    """Mean average precision averaged over IoU=0.5:0.95."""
-
-
-class COCOSplit(StrEnum):
-    """COCO dataset split for evaluation."""
-
-    TRAIN = "train"
-    """Training split."""
-
-    VALIDATION = "validation"
-    """Validation split."""
-
-
-class BboxCoordinateFormat(StrEnum):
-    """Bounding box coordinate format for albumentations."""
-
-    YOLO = "yolo"
-    """Normalized YOLO format: center_x, center_y, width, height in [0, 1]."""
-
-    XYXY = "xy"
-    """Absolute pixel coordinates: x1, y1, x2, y2."""

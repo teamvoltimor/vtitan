@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from src.config import ExportConfig  # noqa: TC001
+if TYPE_CHECKING:
+    from src.config import ExportConfig
 from src.constants import EXPORT_FORMAT_ONNX
-from src.enums import ExportExtra
 from src.deps import YOLO, _yolo_import_err
+from src.enums import ExportExtra
 from src.errors import ModelNotFoundError, require_dep
 from src.log import get_logger
 from src.registry import get_entry
