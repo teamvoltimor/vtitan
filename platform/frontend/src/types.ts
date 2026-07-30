@@ -38,9 +38,7 @@ export interface RobotSnapshot
 // NodeHealthValue is the discriminated union from the generated TelemetryMetrics.
 export type NodeHealthValue = TelemetryMetrics['node_health'];
 
-// ============================================================================
-// FRONTEND-SPECIFIC CONSTANTS (not derived from the OpenAPI spec)
-// ============================================================================
+// Frontend-specific constants (not derived from the OpenAPI spec)
 
 export const RobotState = {
   BOOT_CHECK: 'BOOT_CHECK',
@@ -78,13 +76,11 @@ export type DetectionClassValue = (typeof DetectionClass)[keyof typeof Detection
 // A point/vector in Three.js space (X right, Y up, Z toward camera).
 export type Vec3 = [number, number, number];
 
-// ============================================================================
-// ROS MESSAGE PAYLOADS (raw TopicUpdate.data shapes)
+// ROS message payloads (raw TopicUpdate.data shapes)
 //
 // These model the untyped `data` carried by each TopicUpdate so the topic
 // visualizers — and the demo data generators — share one definition instead of
 // reaching into `Record<string, any>`.
-// ============================================================================
 
 export interface Quaternion {
   x: number;

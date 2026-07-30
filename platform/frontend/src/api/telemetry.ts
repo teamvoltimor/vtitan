@@ -102,9 +102,7 @@ async function fetchJson<T>(
   }
 }
 
-// ============================================================================
-// API ENDPOINTS
-// ============================================================================
+// API endpoints
 
 /**
  * Health check — an independent backstop for connection status. A wedged
@@ -194,9 +192,7 @@ export const updateRobotSpeed = async (speed: number): Promise<void> => {
   }
 };
 
-// ============================================================================
-// WEBSOCKET
-// ============================================================================
+// WebSocket
 
 /**
  * WebSocket message callback type.
