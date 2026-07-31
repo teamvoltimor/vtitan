@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import grpc
+import protovalidate
 
 from src.core.constants import (
     DEFAULT_TRAIN_BATCH,
@@ -27,6 +28,27 @@ from src.grpc_server.pb import (
 )
 from src.utils import get_logger
 
+_PB_TO_DOMAIN_FORMAT = {
+    pb.EXPORT_FORMAT_SEGMENTATION: "seg",
+    pb.EXPORT_FORMAT_DETECTION: "det",
+}
+_DOMAIN_TO_PB_FORMAT = {v: k for k, v in _PB_TO_DOMAIN_FORMAT.items()}
+
+
+def _format_from_pb(value: pb.ExportFormat) -> str:
+    """Convert the wire ExportFormat enum to the domain's "seg"/"det" abbreviation.
+
+    Unrecognized/UNSPECIFIED values fall back to "det", matching augment.py's
+    own `format_used or "det"` fallback for a missing format.
+    """
+    return _PB_TO_DOMAIN_FORMAT.get(value, "det")
+
+
+def _format_to_pb(value: str) -> pb.ExportFormat:
+    """Convert the domain's "seg"/"det" abbreviation to the wire ExportFormat enum."""
+    return _DOMAIN_TO_PB_FORMAT.get(value, pb.EXPORT_FORMAT_UNSPECIFIED)
+
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -34,6 +56,20 @@ if TYPE_CHECKING:
     from src.models.models import AppContext, Shape
 
 logger = get_logger(__name__)
+
+
+def _validate_or_abort(request: object, context: grpc.ServicerContext) -> None:
+    """Reject a request that violates compute.proto's (buf.validate.field) constraints.
+
+    Defense in depth: the Go client already validates the same constraints
+    before sending (see api/domain/compute/grpc/client.go's g.validate), but
+    this is the actual security/correctness boundary -- it protects against
+    any future caller, not just the one Go client this service currently has.
+    """
+    try:
+        protovalidate.validate(request)
+    except protovalidate.ValidationError as exc:
+        context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
 
 
 def _to_pb_shape(shape: Shape) -> pb.Shape:
@@ -75,6 +111,8 @@ class SegmentationServicer(pb_grpc.SegmentationServiceServicer):
 
     def Segment(self, request: pb.SegmentRequest, context: grpc.ServicerContext) -> pb.SegmentResponse:
         """Run SAM inference for the request's click points (unary RPC)."""
+        _validate_or_abort(request, context)
+
         from src.models.models import ClassInfo
         from src.models.types import ClassId
         from src.services.segmentation_service import SegmentationService
@@ -112,6 +150,8 @@ class AugmentationServicer(pb_grpc.AugmentationServiceServicer):
         self, request: pb.AugmentRequest, context: grpc.ServicerContext,
     ) -> Iterator[pb.JobProgress]:
         """Augment each source image, streaming one event per created copy."""
+        _validate_or_abort(request, context)
+
         from src.augment import augment_image_files
         from src.gallery_cache import AnnotationCache
         from src.label_store import LabelStore
@@ -122,7 +162,11 @@ class AugmentationServicer(pb_grpc.AugmentationServiceServicer):
 
         for source in request.sources:
             for img in augment_image_files(
-                source.path, source.format_used, source.image_id, request.num_augmentations, label_store,
+                source.path,
+                _format_from_pb(source.format_used),
+                source.image_id,
+                request.num_augmentations,
+                label_store,
             ):
                 done += 1
                 yield pb.JobProgress(
@@ -132,7 +176,7 @@ class AugmentationServicer(pb_grpc.AugmentationServiceServicer):
                     message=f"Augmented {Path(img.path).name}",
                     details=json.dumps({"done": done, "total": total}),
                     augmented=pb.AugmentedImage(
-                        path=img.path, format_used=img.format_used, parent_id=img.parent_id,
+                        path=img.path, format_used=_format_to_pb(img.format_used), parent_id=img.parent_id,
                     ),
                 )
 
@@ -153,6 +197,8 @@ class TrainingServicer(pb_grpc.TrainingServiceServicer):
         self, request: pb.TrainRequest, context: grpc.ServicerContext,
     ) -> Iterator[pb.JobProgress]:
         """Train a YOLO model on a worker thread, streaming epoch progress."""
+        _validate_or_abort(request, context)
+
         from src.train_service import run_training_job
 
         events: queue.Queue[tuple[str, str, float, str, dict[str, Any]]] = queue.Queue()

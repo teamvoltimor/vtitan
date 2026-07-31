@@ -17,13 +17,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -o /app/api ./cmd/api
 
-# healthcheck is a tiny HTTP readiness probe, used in place of curl/wget so
-# the runtime image doesn't need either installed.
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -o /app/healthcheck ./cmd/healthcheck
-
-
 # Runtime stage – minimal Alpine image with no build tools.
 #
 # NOT distroless: modernc.org/sqlite (the pure-Go SQLite driver used here)
@@ -45,7 +38,6 @@ WORKDIR /app
 # DefaultOpenAPIPath = "api/openapi.yaml") doesn't collide with a file
 # also named /app/api.
 COPY --from=builder /app/api ./bin/api
-COPY --from=builder /app/healthcheck ./bin/healthcheck
 COPY --from=builder /build/openapi.yaml ./api/openapi.yaml
 
 RUN chown -R apiuser:apiuser /app
@@ -56,7 +48,8 @@ ENV API_PORT=${API_PORT}
 
 EXPOSE ${API_PORT}
 
+# wget ships with Alpine's busybox, so no separate probe binary is needed.
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
-    CMD ["/app/bin/healthcheck"]
+    CMD wget --quiet --tries=1 --spider "http://localhost:${API_PORT}/readyz" || exit 1
 
 CMD ["/app/bin/api"]

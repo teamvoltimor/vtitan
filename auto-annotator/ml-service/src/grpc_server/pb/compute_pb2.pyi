@@ -1,10 +1,21 @@
+from buf.validate import validate_pb2 as _validate_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class ExportFormat(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    EXPORT_FORMAT_UNSPECIFIED: _ClassVar[ExportFormat]
+    EXPORT_FORMAT_SEGMENTATION: _ClassVar[ExportFormat]
+    EXPORT_FORMAT_DETECTION: _ClassVar[ExportFormat]
+EXPORT_FORMAT_UNSPECIFIED: ExportFormat
+EXPORT_FORMAT_SEGMENTATION: ExportFormat
+EXPORT_FORMAT_DETECTION: ExportFormat
 
 class Point(_message.Message):
     __slots__ = ("x", "y")
@@ -64,9 +75,9 @@ class AugmentedImage(_message.Message):
     FORMAT_USED_FIELD_NUMBER: _ClassVar[int]
     PARENT_ID_FIELD_NUMBER: _ClassVar[int]
     path: str
-    format_used: str
+    format_used: ExportFormat
     parent_id: int
-    def __init__(self, path: _Optional[str] = ..., format_used: _Optional[str] = ..., parent_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, path: _Optional[str] = ..., format_used: _Optional[_Union[ExportFormat, str]] = ..., parent_id: _Optional[int] = ...) -> None: ...
 
 class JobProgress(_message.Message):
     __slots__ = ("status", "message", "stage", "progress", "details", "finished", "error", "augmented")
@@ -95,8 +106,8 @@ class AugmentSource(_message.Message):
     FORMAT_USED_FIELD_NUMBER: _ClassVar[int]
     image_id: int
     path: str
-    format_used: str
-    def __init__(self, image_id: _Optional[int] = ..., path: _Optional[str] = ..., format_used: _Optional[str] = ...) -> None: ...
+    format_used: ExportFormat
+    def __init__(self, image_id: _Optional[int] = ..., path: _Optional[str] = ..., format_used: _Optional[_Union[ExportFormat, str]] = ...) -> None: ...
 
 class AugmentRequest(_message.Message):
     __slots__ = ("sources", "num_augmentations")

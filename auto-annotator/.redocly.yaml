@@ -1,0 +1,10 @@
+extends:
+  - recommended
+
+rules:
+  # This API has no authentication layer by design — it's an internal tool
+  # reached only within the docker-compose network / local dev, not a
+  # public-facing service. Documenting `security: []` on every one of the
+  # ~15 operations to satisfy this rule would be pure busywork with nothing
+  # real to describe. Revisit if/when auth is actually added.
+  security-defined: off

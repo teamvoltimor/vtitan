@@ -93,7 +93,14 @@ func ValidationError(c *gin.Context, err error) {
 				Message: validationMessage(fe),
 			})
 		}
-		write(c, http.StatusUnprocessableEntity, TypeValidation, "Validation Error", "request validation failed", fields)
+		write(
+			c,
+			http.StatusUnprocessableEntity,
+			TypeValidation,
+			"Validation Error",
+			"request validation failed",
+			fields,
+		)
 		return
 	}
 	write(c, http.StatusBadRequest, TypeBadRequest, "Bad Request", err.Error(), nil)

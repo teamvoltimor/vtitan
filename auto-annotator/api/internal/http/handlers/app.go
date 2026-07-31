@@ -44,7 +44,13 @@ type App struct {
 }
 
 // New builds the App from domain services and the raw SQL connection (for health pings).
-func New(cfg config.Config, annSvc annotationdomain.Service, galSvc gallerydomain.Service, compSvc computedomain.Service, sqlDB *sql.DB) *App {
+func New(
+	cfg config.Config,
+	annSvc annotationdomain.Service,
+	galSvc gallerydomain.Service,
+	compSvc computedomain.Service,
+	sqlDB *sql.DB,
+) *App {
 	return &App{
 		gallery:    &GalleryHandler{svc: galSvc},
 		annotation: &AnnotationHandler{gallery: galSvc, annotation: annSvc},

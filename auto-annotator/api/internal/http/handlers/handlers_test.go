@@ -85,8 +85,10 @@ func doJSON(t *testing.T, router http.Handler, method, path, body string) *httpt
 
 func TestSegment(t *testing.T) {
 	fc := &fakeClients{segResult: computedomain.SegmentResult{
-		State:  string(computedomain.StateReady),
-		Shapes: []computedomain.Shape{{ID: "mask-1-0", ClassName: "red_prism", Points: []computedomain.Point{{X: 0.1, Y: 0.2}}}},
+		State: string(computedomain.StateReady),
+		Shapes: []computedomain.Shape{
+			{ID: "mask-1-0", ClassName: "red_prism", Points: []computedomain.Point{{X: 0.1, Y: 0.2}}},
+		},
 	}}
 	app, q := newTestApp(t, fc)
 	if err := q.InsertImageOrIgnore(context.Background(), "/tmp/x.png"); err != nil {

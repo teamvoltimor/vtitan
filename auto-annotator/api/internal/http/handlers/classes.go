@@ -29,7 +29,10 @@ func (h *AnnotationHandler) UpsertClass(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	if err := h.annotation.UpsertClass(ctx, annotationdomain.UpsertClassReq{Name: req.Name, Color: req.Color}); err != nil {
+	if err := h.annotation.UpsertClass(
+		ctx,
+		annotationdomain.UpsertClassReq{Name: req.Name, Color: req.Color},
+	); err != nil {
 		problem.FromDomain(c, err)
 		return
 	}

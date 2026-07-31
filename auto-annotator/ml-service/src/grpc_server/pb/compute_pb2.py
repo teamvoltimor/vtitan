@@ -22,40 +22,71 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from buf.validate import validate_pb2 as buf_dot_validate_dot_validate__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rcompute.proto\x12\x10\x61utoannotator.v1\"\x1d\n\x05Point\x12\t\n\x01x\x18\x01 \x01(\x01\x12\t\n\x01y\x18\x02 \x01(\x01\"J\n\nClickPoint\x12\t\n\x01x\x18\x01 \x01(\x01\x12\t\n\x01y\x18\x02 \x01(\x01\x12\x12\n\npoint_type\x18\x03 \x01(\t\x12\x12\n\nclass_name\x18\x04 \x01(\t\"P\n\x05Shape\x12\n\n\x02id\x18\x01 \x01(\t\x12\x12\n\nclass_name\x18\x02 \x01(\t\x12\'\n\x06points\x18\x03 \x03(\x0b\x32\x17.autoannotator.v1.Point\"y\n\x0eSegmentRequest\x12\x10\n\x08image_id\x18\x01 \x01(\x03\x12\x12\n\nimage_path\x18\x02 \x01(\t\x12,\n\x06points\x18\x03 \x03(\x0b\x32\x1c.autoannotator.v1.ClickPoint\x12\x13\n\x0b\x63lass_names\x18\x04 \x03(\t\"Z\n\x0fSegmentResponse\x12\r\n\x05state\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\'\n\x06shapes\x18\x03 \x03(\x0b\x32\x17.autoannotator.v1.Shape\"F\n\x0e\x41ugmentedImage\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x13\n\x0b\x66ormat_used\x18\x02 \x01(\t\x12\x11\n\tparent_id\x18\x03 \x01(\x03\"\xb6\x01\n\x0bJobProgress\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\r\n\x05stage\x18\x03 \x01(\t\x12\x10\n\x08progress\x18\x04 \x01(\x01\x12\x0f\n\x07\x64\x65tails\x18\x05 \x01(\t\x12\x10\n\x08\x66inished\x18\x06 \x01(\x08\x12\r\n\x05\x65rror\x18\x07 \x01(\t\x12\x33\n\taugmented\x18\x08 \x01(\x0b\x32 .autoannotator.v1.AugmentedImage\"D\n\rAugmentSource\x12\x10\n\x08image_id\x18\x01 \x01(\x03\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x13\n\x0b\x66ormat_used\x18\x03 \x01(\t\"]\n\x0e\x41ugmentRequest\x12\x30\n\x07sources\x18\x01 \x03(\x0b\x32\x1f.autoannotator.v1.AugmentSource\x12\x19\n\x11num_augmentations\x18\x02 \x01(\x05\"h\n\x0cTrainRequest\x12\x12\n\nmodel_name\x18\x01 \x01(\t\x12\x0e\n\x06\x65pochs\x18\x02 \x01(\x05\x12\r\n\x05\x62\x61tch\x18\x03 \x01(\x05\x12\r\n\x05imgsz\x18\x04 \x01(\x05\x12\x16\n\x0e\x64\x61ta_yaml_path\x18\x05 \x01(\t2e\n\x13SegmentationService\x12N\n\x07Segment\x12 .autoannotator.v1.SegmentRequest\x1a!.autoannotator.v1.SegmentResponse2k\n\x13\x41ugmentationService\x12T\n\x0fRunAugmentation\x12 .autoannotator.v1.AugmentRequest\x1a\x1d.autoannotator.v1.JobProgress0\x01\x32\x61\n\x0fTrainingService\x12N\n\x0bRunTraining\x12\x1e.autoannotator.v1.TrainRequest\x1a\x1d.autoannotator.v1.JobProgress0\x01\x42\x62Z`github.com/teamvoltimor/vtitan/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rcompute.proto\x12\x10\x61utoannotator.v1\x1a\x1b\x62uf/validate/validate.proto\"\x1d\n\x05Point\x12\t\n\x01x\x18\x01 \x01(\x01\x12\t\n\x01y\x18\x02 \x01(\x01\"\xa0\x01\n\nClickPoint\x12\"\n\x01x\x18\x01 \x01(\x01\x42\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x00\xf0?)\x00\x00\x00\x00\x00\x00\x00\x00\x12\"\n\x01y\x18\x02 \x01(\x01\x42\x17\xbaH\x14\x12\x12\x19\x00\x00\x00\x00\x00\x00\xf0?)\x00\x00\x00\x00\x00\x00\x00\x00\x12-\n\npoint_type\x18\x03 \x01(\tB\x19\xbaH\x16r\x14R\x08positiveR\x08negative\x12\x1b\n\nclass_name\x18\x04 \x01(\tB\x07\xbaH\x04r\x02\x10\x01\"P\n\x05Shape\x12\n\n\x02id\x18\x01 \x01(\t\x12\x12\n\nclass_name\x18\x02 \x01(\t\x12\'\n\x06points\x18\x03 \x03(\x0b\x32\x17.autoannotator.v1.Point\"\x95\x01\n\x0eSegmentRequest\x12\x19\n\x08image_id\x18\x01 \x01(\x03\x42\x07\xbaH\x04\"\x02 \x00\x12\x1b\n\nimage_path\x18\x02 \x01(\tB\x07\xbaH\x04r\x02\x10\x01\x12\x36\n\x06points\x18\x03 \x03(\x0b\x32\x1c.autoannotator.v1.ClickPointB\x08\xbaH\x05\x92\x01\x02\x08\x01\x12\x13\n\x0b\x63lass_names\x18\x04 \x03(\t\"Z\n\x0fSegmentResponse\x12\r\n\x05state\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\'\n\x06shapes\x18\x03 \x03(\x0b\x32\x17.autoannotator.v1.Shape\"f\n\x0e\x41ugmentedImage\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x33\n\x0b\x66ormat_used\x18\x02 \x01(\x0e\x32\x1e.autoannotator.v1.ExportFormat\x12\x11\n\tparent_id\x18\x03 \x01(\x03\"\xb6\x01\n\x0bJobProgress\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\r\n\x05stage\x18\x03 \x01(\t\x12\x10\n\x08progress\x18\x04 \x01(\x01\x12\x0f\n\x07\x64\x65tails\x18\x05 \x01(\t\x12\x10\n\x08\x66inished\x18\x06 \x01(\x08\x12\r\n\x05\x65rror\x18\x07 \x01(\t\x12\x33\n\taugmented\x18\x08 \x01(\x0b\x32 .autoannotator.v1.AugmentedImage\"v\n\rAugmentSource\x12\x19\n\x08image_id\x18\x01 \x01(\x03\x42\x07\xbaH\x04\"\x02 \x00\x12\x15\n\x04path\x18\x02 \x01(\tB\x07\xbaH\x04r\x02\x10\x01\x12\x33\n\x0b\x66ormat_used\x18\x03 \x01(\x0e\x32\x1e.autoannotator.v1.ExportFormat\"g\n\x0e\x41ugmentRequest\x12:\n\x07sources\x18\x01 \x03(\x0b\x32\x1f.autoannotator.v1.AugmentSourceB\x08\xbaH\x05\x92\x01\x02\x08\x01\x12\x19\n\x11num_augmentations\x18\x02 \x01(\x05\"\x8c\x01\n\x0cTrainRequest\x12\x1b\n\nmodel_name\x18\x01 \x01(\tB\x07\xbaH\x04r\x02\x10\x01\x12\x17\n\x06\x65pochs\x18\x02 \x01(\x05\x42\x07\xbaH\x04\x1a\x02 \x00\x12\x16\n\x05\x62\x61tch\x18\x03 \x01(\x05\x42\x07\xbaH\x04\x1a\x02 \x00\x12\x16\n\x05imgsz\x18\x04 \x01(\x05\x42\x07\xbaH\x04\x1a\x02 \x00\x12\x16\n\x0e\x64\x61ta_yaml_path\x18\x05 \x01(\t*j\n\x0c\x45xportFormat\x12\x1d\n\x19\x45XPORT_FORMAT_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x45XPORT_FORMAT_SEGMENTATION\x10\x01\x12\x1b\n\x17\x45XPORT_FORMAT_DETECTION\x10\x02\x32\x65\n\x13SegmentationService\x12N\n\x07Segment\x12 .autoannotator.v1.SegmentRequest\x1a!.autoannotator.v1.SegmentResponse2k\n\x13\x41ugmentationService\x12T\n\x0fRunAugmentation\x12 .autoannotator.v1.AugmentRequest\x1a\x1d.autoannotator.v1.JobProgress0\x01\x32\x61\n\x0fTrainingService\x12N\n\x0bRunTraining\x12\x1e.autoannotator.v1.TrainRequest\x1a\x1d.autoannotator.v1.JobProgress0\x01\x42\x65Zcgithub.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1;computev1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'compute_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'Z`github.com/teamvoltimor/vtitan/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1'
-  _globals['_POINT']._serialized_start=35
-  _globals['_POINT']._serialized_end=64
-  _globals['_CLICKPOINT']._serialized_start=66
-  _globals['_CLICKPOINT']._serialized_end=140
-  _globals['_SHAPE']._serialized_start=142
-  _globals['_SHAPE']._serialized_end=222
-  _globals['_SEGMENTREQUEST']._serialized_start=224
-  _globals['_SEGMENTREQUEST']._serialized_end=345
-  _globals['_SEGMENTRESPONSE']._serialized_start=347
-  _globals['_SEGMENTRESPONSE']._serialized_end=437
-  _globals['_AUGMENTEDIMAGE']._serialized_start=439
-  _globals['_AUGMENTEDIMAGE']._serialized_end=509
-  _globals['_JOBPROGRESS']._serialized_start=512
-  _globals['_JOBPROGRESS']._serialized_end=694
-  _globals['_AUGMENTSOURCE']._serialized_start=696
-  _globals['_AUGMENTSOURCE']._serialized_end=764
-  _globals['_AUGMENTREQUEST']._serialized_start=766
-  _globals['_AUGMENTREQUEST']._serialized_end=859
-  _globals['_TRAINREQUEST']._serialized_start=861
-  _globals['_TRAINREQUEST']._serialized_end=965
-  _globals['_SEGMENTATIONSERVICE']._serialized_start=967
-  _globals['_SEGMENTATIONSERVICE']._serialized_end=1068
-  _globals['_AUGMENTATIONSERVICE']._serialized_start=1070
-  _globals['_AUGMENTATIONSERVICE']._serialized_end=1177
-  _globals['_TRAININGSERVICE']._serialized_start=1179
-  _globals['_TRAININGSERVICE']._serialized_end=1276
+  _globals['DESCRIPTOR']._serialized_options = b'Zcgithub.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1;computev1'
+  _globals['_CLICKPOINT'].fields_by_name['x']._loaded_options = None
+  _globals['_CLICKPOINT'].fields_by_name['x']._serialized_options = b'\272H\024\022\022\031\000\000\000\000\000\000\360?)\000\000\000\000\000\000\000\000'
+  _globals['_CLICKPOINT'].fields_by_name['y']._loaded_options = None
+  _globals['_CLICKPOINT'].fields_by_name['y']._serialized_options = b'\272H\024\022\022\031\000\000\000\000\000\000\360?)\000\000\000\000\000\000\000\000'
+  _globals['_CLICKPOINT'].fields_by_name['point_type']._loaded_options = None
+  _globals['_CLICKPOINT'].fields_by_name['point_type']._serialized_options = b'\272H\026r\024R\010positiveR\010negative'
+  _globals['_CLICKPOINT'].fields_by_name['class_name']._loaded_options = None
+  _globals['_CLICKPOINT'].fields_by_name['class_name']._serialized_options = b'\272H\004r\002\020\001'
+  _globals['_SEGMENTREQUEST'].fields_by_name['image_id']._loaded_options = None
+  _globals['_SEGMENTREQUEST'].fields_by_name['image_id']._serialized_options = b'\272H\004\"\002 \000'
+  _globals['_SEGMENTREQUEST'].fields_by_name['image_path']._loaded_options = None
+  _globals['_SEGMENTREQUEST'].fields_by_name['image_path']._serialized_options = b'\272H\004r\002\020\001'
+  _globals['_SEGMENTREQUEST'].fields_by_name['points']._loaded_options = None
+  _globals['_SEGMENTREQUEST'].fields_by_name['points']._serialized_options = b'\272H\005\222\001\002\010\001'
+  _globals['_AUGMENTSOURCE'].fields_by_name['image_id']._loaded_options = None
+  _globals['_AUGMENTSOURCE'].fields_by_name['image_id']._serialized_options = b'\272H\004\"\002 \000'
+  _globals['_AUGMENTSOURCE'].fields_by_name['path']._loaded_options = None
+  _globals['_AUGMENTSOURCE'].fields_by_name['path']._serialized_options = b'\272H\004r\002\020\001'
+  _globals['_AUGMENTREQUEST'].fields_by_name['sources']._loaded_options = None
+  _globals['_AUGMENTREQUEST'].fields_by_name['sources']._serialized_options = b'\272H\005\222\001\002\010\001'
+  _globals['_TRAINREQUEST'].fields_by_name['model_name']._loaded_options = None
+  _globals['_TRAINREQUEST'].fields_by_name['model_name']._serialized_options = b'\272H\004r\002\020\001'
+  _globals['_TRAINREQUEST'].fields_by_name['epochs']._loaded_options = None
+  _globals['_TRAINREQUEST'].fields_by_name['epochs']._serialized_options = b'\272H\004\032\002 \000'
+  _globals['_TRAINREQUEST'].fields_by_name['batch']._loaded_options = None
+  _globals['_TRAINREQUEST'].fields_by_name['batch']._serialized_options = b'\272H\004\032\002 \000'
+  _globals['_TRAINREQUEST'].fields_by_name['imgsz']._loaded_options = None
+  _globals['_TRAINREQUEST'].fields_by_name['imgsz']._serialized_options = b'\272H\004\032\002 \000'
+  _globals['_EXPORTFORMAT']._serialized_start=1241
+  _globals['_EXPORTFORMAT']._serialized_end=1347
+  _globals['_POINT']._serialized_start=64
+  _globals['_POINT']._serialized_end=93
+  _globals['_CLICKPOINT']._serialized_start=96
+  _globals['_CLICKPOINT']._serialized_end=256
+  _globals['_SHAPE']._serialized_start=258
+  _globals['_SHAPE']._serialized_end=338
+  _globals['_SEGMENTREQUEST']._serialized_start=341
+  _globals['_SEGMENTREQUEST']._serialized_end=490
+  _globals['_SEGMENTRESPONSE']._serialized_start=492
+  _globals['_SEGMENTRESPONSE']._serialized_end=582
+  _globals['_AUGMENTEDIMAGE']._serialized_start=584
+  _globals['_AUGMENTEDIMAGE']._serialized_end=686
+  _globals['_JOBPROGRESS']._serialized_start=689
+  _globals['_JOBPROGRESS']._serialized_end=871
+  _globals['_AUGMENTSOURCE']._serialized_start=873
+  _globals['_AUGMENTSOURCE']._serialized_end=991
+  _globals['_AUGMENTREQUEST']._serialized_start=993
+  _globals['_AUGMENTREQUEST']._serialized_end=1096
+  _globals['_TRAINREQUEST']._serialized_start=1099
+  _globals['_TRAINREQUEST']._serialized_end=1239
+  _globals['_SEGMENTATIONSERVICE']._serialized_start=1349
+  _globals['_SEGMENTATIONSERVICE']._serialized_end=1450
+  _globals['_AUGMENTATIONSERVICE']._serialized_start=1452
+  _globals['_AUGMENTATIONSERVICE']._serialized_end=1559
+  _globals['_TRAININGSERVICE']._serialized_start=1561
+  _globals['_TRAININGSERVICE']._serialized_end=1658
 # @@protoc_insertion_point(module_scope)

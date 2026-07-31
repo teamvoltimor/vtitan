@@ -104,6 +104,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GalleryResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Images
   /images/{id}:
@@ -126,6 +128,10 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /images/{id}/thumb:
     get:
@@ -147,6 +153,10 @@ paths:
               schema:
                 type: string
                 format: binary
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /images/delete:
     post:
@@ -166,6 +176,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GalleryResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Annotations
   /annotations/{id}:
@@ -189,6 +205,10 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Shape'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /annotations/save:
     post:
@@ -208,6 +228,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GalleryResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /annotations/skip:
     post:
@@ -227,6 +253,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GalleryResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Classes
   /classes:
@@ -262,6 +294,10 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ClassItem'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Models
   /models:
@@ -298,6 +334,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SegmentationResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Augmentation
   /augment/start:
@@ -318,6 +360,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobStatusResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /augment/status:
     get:
@@ -346,6 +394,8 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/JobEvent'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
 
   # Training
   /train/start:
@@ -366,6 +416,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobStatusResponse'
+        '400':
+          $ref: '#/components/responses/ProblemResponse'
+        '409':
+          $ref: '#/components/responses/ProblemResponse'
+        '422':
+          $ref: '#/components/responses/ProblemResponse'
 
   /train/status:
     get:
@@ -394,9 +450,56 @@ paths:
             text/event-stream:
               schema:
                 $ref: '#/components/schemas/JobEvent'
+        '404':
+          $ref: '#/components/responses/ProblemResponse'
 
 components:
+  responses:
+    ProblemResponse:
+      description: >-
+        RFC 7807 Problem Details error response, as emitted by
+        internal/http/problem for every non-2xx status.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
   schemas:
+    # --- Errors ---
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details error body.
+      required: [type, title, status, detail, instance, correlation_id]
+      properties:
+        type:
+          type: string
+          description: A URI identifying the error category.
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          description: Human-readable detail; usually a string, but any JSON value.
+        instance:
+          type: string
+          description: The request path that produced the error.
+        correlation_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+          description: Per-field validation failures (400/422 responses only).
+
     # --- System ---
     LivenessResponse:
       type: object

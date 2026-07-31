@@ -29,3 +29,20 @@ sam2_hf_repo = "facebook/sam2.1-hiera-large"
 sam2_config_path = "configs/sam2.1/sam2.1_hiera_l.yaml"
 default_mask_score = 1.0
 mask_labels = ["Precise (0)", "Object (1)", "Broad (2)"]
+
+# Albumentations augmentation pipeline tuning
+# Used by src/augment.py to build the transform chain applied to each source
+# image. Probabilities are per-transform odds of being applied; limits are the
+# max perturbation for that transform.
+[augmentation]
+shift_limit = 0.2
+scale_limit = 0.2
+rotate_limit = 25
+crop_scale = 0.9
+prob_brightness = 0.5
+prob_flip = 0.5
+prob_shift = 0.5
+prob_crop = 0.3
+# Minimum fraction of a bbox's original area that must remain visible after a
+# transform for albumentations to keep it (else the annotation is dropped).
+min_bbox_visibility = 0.3

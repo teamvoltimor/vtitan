@@ -1,20 +1,16 @@
-// Package store owns the SQLite connection, applies the schema, and exposes the
-// sqlc-generated query set and configuration pragmas.
+// Package store owns the SQLite connection, applies pending migrations, and
+// exposes the sqlc-generated query set and configuration pragmas.
 package store
 
 import (
 	"context"
 	"database/sql"
-	_ "embed"
 	"fmt"
 
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/db"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, registered as "sqlite"
 )
-
-//go:embed schema.sql
-var schemaSQL string
 
 // defaultClasses are seeded on first run when the classes table is empty,
 // matching the Python DEFAULT_CLASSES (WRO 2026 traffic-sign palette).
@@ -31,7 +27,7 @@ type Store struct {
 }
 
 // Open connects to the SQLite database at dbPath (WAL mode, foreign keys on,
-// busy timeout), applies the schema idempotently, and seeds default classes.
+// busy timeout), applies any pending migrations, and seeds default classes.
 func Open(dbPath string) (*Store, error) {
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=%s&_pragma=%s&_pragma=%s",
@@ -44,8 +40,8 @@ func Open(dbPath string) (*Store, error) {
 	if err := sqlDB.PingContext(context.Background()); err != nil {
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
-	if _, err := sqlDB.ExecContext(context.Background(), schemaSQL); err != nil {
-		return nil, fmt.Errorf("apply schema: %w", err)
+	if err := db.Migrate(sqlDB); err != nil {
+		return nil, err
 	}
 
 	s := &Store{DB: sqlDB, Q: db.New(sqlDB)}

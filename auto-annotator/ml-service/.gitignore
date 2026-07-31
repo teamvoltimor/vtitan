@@ -228,3 +228,6 @@ models/
 # Local config (copy from *.example.toml to customise)
 config/models.toml
 config/server.toml
+
+# Scratch dir for proto:gen:py's buf-exported dependency protos
+.proto-deps/

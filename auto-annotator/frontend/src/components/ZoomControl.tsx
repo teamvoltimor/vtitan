@@ -12,14 +12,14 @@ import {
   Typography,
 } from '@mui/material';
 import { useMemo } from 'react';
-import type { PointType } from '../state/appState';
+import type { ExportFormat, PointType } from '../state/appState';
 
 const pointOptions: { label: string; value: PointType }[] = [
   { label: 'Positive', value: 'positive' },
   { label: 'Negative', value: 'negative' },
 ];
 
-const exportOptions: { label: string; value: 'segmentation' | 'detection' }[] = [
+const exportOptions: { label: string; value: ExportFormat }[] = [
   { label: 'Segmentation', value: 'segmentation' },
   { label: 'Detection', value: 'detection' },
 ];
@@ -87,12 +87,12 @@ export function AnnotationToolbar({
   classColors,
   recordAction,
 }: {
-  pointType: string;
-  setPointType: (value: string) => void;
+  pointType: PointType;
+  setPointType: (value: PointType) => void;
   maskLevel: string;
   setMaskLevel: (value: string) => void;
-  exportFormat: string;
-  setExportFormat: (value: string) => void;
+  exportFormat: ExportFormat;
+  setExportFormat: (value: ExportFormat) => void;
   activeClass: string | null;
   setActiveClass: (value: string | null) => void;
   classes: string[];
@@ -108,9 +108,7 @@ export function AnnotationToolbar({
         <Select
           value={pointType}
           label="Point type"
-          onChange={(event: SelectChangeEvent<string>) =>
-            setPointType(event.target.value as PointType)
-          }
+          onChange={(event: SelectChangeEvent<PointType>) => setPointType(event.target.value)}
         >
           {pointOptions.map((option) => (
             <MenuItem key={option.value} value={option.value}>
@@ -136,9 +134,7 @@ export function AnnotationToolbar({
         <Select
           value={exportFormat}
           label="Export format"
-          onChange={(event: SelectChangeEvent<string>) =>
-            setExportFormat(event.target.value as 'segmentation' | 'detection')
-          }
+          onChange={(event: SelectChangeEvent<ExportFormat>) => setExportFormat(event.target.value)}
         >
           {exportOptions.map((option) => (
             <MenuItem key={option.value} value={option.value}>
@@ -183,12 +179,12 @@ export function ZoomToolbarSection(props: {
   zoom: number;
   setZoom: (value: number) => void;
   recordAction: (label: string) => void;
-  pointType: string;
-  setPointType: (value: string) => void;
+  pointType: PointType;
+  setPointType: (value: PointType) => void;
   maskLevel: string;
   setMaskLevel: (value: string) => void;
-  exportFormat: string;
-  setExportFormat: (value: string) => void;
+  exportFormat: ExportFormat;
+  setExportFormat: (value: ExportFormat) => void;
   activeClass: string | null;
   setActiveClass: (value: string | null) => void;
   classes: string[];

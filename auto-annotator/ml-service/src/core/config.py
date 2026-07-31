@@ -230,6 +230,74 @@ class InferenceConfig(BaseModel):
         )
 
 
+class _AugmentationTomlSection(BaseModel):
+    """Validated ``[augmentation]`` table from ``server.toml`` — albumentations tuning.
+
+    Every field has a hardcoded default matching the pre-config-file behavior,
+    so an absent file, section, or key is not an error.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    shift_limit: float = 0.2
+    scale_limit: float = 0.2
+    rotate_limit: int = 25
+    crop_scale: float = 0.9
+    prob_brightness: float = 0.5
+    prob_flip: float = 0.5
+    prob_shift: float = 0.5
+    prob_crop: float = 0.3
+    min_bbox_visibility: float = 0.3
+
+
+class AugmentationConfig(BaseModel):
+    """Albumentations augmentation pipeline tuning (``src/augment.py``).
+
+    Attributes:
+        shift_limit: Max fraction of image size to shift during ShiftScaleRotate.
+        scale_limit: Max fraction to scale during ShiftScaleRotate.
+        rotate_limit: Max rotation in degrees during ShiftScaleRotate.
+        crop_scale: Fraction of image width/height kept by RandomCrop.
+        prob_brightness: Probability RandomBrightnessContrast is applied.
+        prob_flip: Probability HorizontalFlip is applied.
+        prob_shift: Probability ShiftScaleRotate is applied.
+        prob_crop: Probability RandomCrop is applied.
+        min_bbox_visibility: Minimum surviving-area fraction for a bbox to be
+            kept after a transform; smaller remnants are dropped.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    shift_limit: float
+    scale_limit: float
+    rotate_limit: int
+    crop_scale: float
+    prob_brightness: float
+    prob_flip: float
+    prob_shift: float
+    prob_crop: float
+    min_bbox_visibility: float
+
+    @classmethod
+    def load(cls, paths: PathConfig | None = None) -> AugmentationConfig:
+        """Load augmentation tuning from the ``[augmentation]`` table in ``server.toml``, or defaults."""
+        paths = paths or PathConfig.load()
+        toml_section = _AugmentationTomlSection.model_validate(
+            _load_toml_section(paths.server_config_file, "augmentation"),
+        )
+        return AugmentationConfig(
+            shift_limit=toml_section.shift_limit,
+            scale_limit=toml_section.scale_limit,
+            rotate_limit=toml_section.rotate_limit,
+            crop_scale=toml_section.crop_scale,
+            prob_brightness=toml_section.prob_brightness,
+            prob_flip=toml_section.prob_flip,
+            prob_shift=toml_section.prob_shift,
+            prob_crop=toml_section.prob_crop,
+            min_bbox_visibility=toml_section.min_bbox_visibility,
+        )
+
+
 class AppConfig(BaseModel):
     """Complete application configuration (singleton loaded at startup).
 
@@ -237,6 +305,7 @@ class AppConfig(BaseModel):
         paths: Filesystem path configuration.
         api: HTTP API configuration.
         inference: Model inference configuration.
+        augmentation: Augmentation pipeline tuning.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -244,6 +313,7 @@ class AppConfig(BaseModel):
     paths: PathConfig
     api: APIConfig
     inference: InferenceConfig
+    augmentation: AugmentationConfig
 
     @classmethod
     def load(cls) -> AppConfig:
@@ -253,4 +323,5 @@ class AppConfig(BaseModel):
             paths=paths,
             api=APIConfig.load(),
             inference=InferenceConfig.load(paths),
+            augmentation=AugmentationConfig.load(paths),
         )

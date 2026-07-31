@@ -6,11 +6,13 @@ syntax = "proto3";
 // Ultralytics YOLO training); the Go API owns the SQLite manifest DB.
 //
 // This is the single source of truth shared by both services. Each side vendors
-// its own generated stubs: Go in api/internal/compute/pb, Python in
-// backend/src/grpc_server/pb.
+// its own generated stubs: Go in api/domain/compute/grpc/pb, Python in
+// ml-service/src/grpc_server/pb.
 package autoannotator.v1;
 
-option go_package = "github.com/teamvoltimor/vtitan/auto-annotator/api/internal/compute/pb/autoannotator/v1;computev1";
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1;computev1";
 
 // A normalized 2-D point in the range [0, 1].
 message Point {
@@ -20,10 +22,10 @@ message Point {
 
 // A click point sent for SAM inference.
 message ClickPoint {
-  double x = 1;
-  double y = 2;
-  string point_type = 3; // "positive" | "negative"
-  string class_name = 4;
+  double x = 1 [(buf.validate.field).double = {gte: 0, lte: 1}];
+  double y = 2 [(buf.validate.field).double = {gte: 0, lte: 1}];
+  string point_type = 3 [(buf.validate.field).string = {in: ["positive", "negative"]}];
+  string class_name = 4 [(buf.validate.field).string.min_len = 1];
 }
 
 // A mask/bounding-box annotation returned by inference.
@@ -34,9 +36,9 @@ message Shape {
 }
 
 message SegmentRequest {
-  int64 image_id = 1;
-  string image_path = 2; // absolute path on the shared filesystem
-  repeated ClickPoint points = 3;
+  int64 image_id = 1 [(buf.validate.field).int64.gt = 0];
+  string image_path = 2 [(buf.validate.field).string.min_len = 1]; // absolute path on the shared filesystem
+  repeated ClickPoint points = 3 [(buf.validate.field).repeated.min_items = 1];
   repeated string class_names = 4; // valid class names (index = YOLO class id)
 }
 
@@ -51,11 +53,21 @@ service SegmentationService {
   rpc Segment(SegmentRequest) returns (SegmentResponse);
 }
 
+// The two annotation export formats this project supports. Was a bare
+// `string` field on AugmentedImage/AugmentSource (just a comment claiming
+// "seg" | "det") -- promoted to a real enum so the wire contract is checked
+// by the compiler on both ends instead of by convention.
+enum ExportFormat {
+  EXPORT_FORMAT_UNSPECIFIED = 0;
+  EXPORT_FORMAT_SEGMENTATION = 1;
+  EXPORT_FORMAT_DETECTION = 2;
+}
+
 // An augmented image produced by the worker. The worker writes the files; the
 // Go API inserts the corresponding DB row (single DB writer).
 message AugmentedImage {
   string path = 1;
-  string format_used = 2; // "seg" | "det"
+  ExportFormat format_used = 2;
   int64 parent_id = 3;
 }
 
@@ -75,13 +87,13 @@ message JobProgress {
 // A source image to augment. The Go API resolves these from the DB (the single
 // DB owner) so the worker only touches the filesystem.
 message AugmentSource {
-  int64 image_id = 1;
-  string path = 2;
-  string format_used = 3; // "seg" | "det"
+  int64 image_id = 1 [(buf.validate.field).int64.gt = 0];
+  string path = 2 [(buf.validate.field).string.min_len = 1];
+  ExportFormat format_used = 3;
 }
 
 message AugmentRequest {
-  repeated AugmentSource sources = 1;
+  repeated AugmentSource sources = 1 [(buf.validate.field).repeated.min_items = 1];
   int32 num_augmentations = 2;
 }
 
@@ -89,11 +101,16 @@ service AugmentationService {
   rpc RunAugmentation(AugmentRequest) returns (stream JobProgress);
 }
 
+// Numeric fields are constrained to > 0, not >= 0: the Go client always
+// resolves zero/unset request values to a configured default (see
+// domain/compute/service.go's orInt/orStr) before constructing this message,
+// so a non-positive value reaching the wire is always a bug, never a
+// legitimate "use the default" signal.
 message TrainRequest {
-  string model_name = 1;
-  int32 epochs = 2;
-  int32 batch = 3;
-  int32 imgsz = 4;
+  string model_name = 1 [(buf.validate.field).string.min_len = 1];
+  int32 epochs = 2 [(buf.validate.field).int32.gt = 0];
+  int32 batch = 3 [(buf.validate.field).int32.gt = 0];
+  int32 imgsz = 4 [(buf.validate.field).int32.gt = 0];
   string data_yaml_path = 5; // absolute path to the Go-generated data.yaml
 }
 

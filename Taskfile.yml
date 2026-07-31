@@ -535,6 +535,19 @@ tasks:
             *) echo "Unknown ACTION: {{.ACTION}}. Use info|test|capture" && exit 1 ;;
           esac
 
+  # Shared brand assets
+
+  assets:sync-logos:
+    desc: >-
+      Copy the canonical Voltimor logo files (assets/) into every frontend's
+      public/ dir. assets/ is the single source of truth -- Vite can't
+      reference files outside a project's own root, so each frontend needs
+      its own copy; re-run this after replacing either source PNG.
+    cmds:
+      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png auto-annotator/frontend/public/
+      - cp assets/voltimor-logo-square.png assets/voltimor-logo-banner.png platform/frontend/public/
+      - echo "[OK] Synced logo assets to auto-annotator/frontend/public and platform/frontend/public"
+
   # Repos
 
   rpi:repos:

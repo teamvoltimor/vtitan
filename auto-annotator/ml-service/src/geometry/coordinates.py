@@ -13,6 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+def _max_pixel_index(dimension: int) -> int:
+    """Highest valid 0-based pixel index along an axis of the given size."""
+    return dimension - 1
+
+
 @dataclass(frozen=True)
 class NormalizedPoint:
     """Point in normalized space [0.0, 1.0], used by frontend.
@@ -27,7 +32,7 @@ class NormalizedPoint:
         """Convert to pixel coordinates given image dimensions, clamping to valid range."""
         x = max(0.0, min(1.0, self.x))
         y = max(0.0, min(1.0, self.y))
-        return PixelPoint(x=int(x * (width - 1)), y=int(y * (height - 1)))
+        return PixelPoint(x=int(x * _max_pixel_index(width)), y=int(y * _max_pixel_index(height)))
 
     def to_yolo(self) -> tuple[float, float]:
         """Convert to YOLO format (already normalized)."""
@@ -46,8 +51,8 @@ class PixelPoint:
 
     def to_normalized(self, width: int, height: int) -> NormalizedPoint:
         """Convert to normalized coordinates given image dimensions."""
-        nx = self.x / (width - 1)
-        ny = self.y / (height - 1)
+        nx = self.x / _max_pixel_index(width)
+        ny = self.y / _max_pixel_index(height)
         return NormalizedPoint(x=nx, y=ny)
 
 

@@ -25,11 +25,14 @@ export function AppHeader({ onToggleTheme }: { onToggleTheme: () => void }) {
     >
       <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
         <Box
+          component="img"
+          src="/voltimor-logo-square.png"
+          alt="Voltimor"
           sx={{
-            width: 18,
-            height: 18,
+            height: 28,
+            width: 28,
             borderRadius: '4px',
-            background: `linear-gradient(145deg, ${theme.palette.primary.main}, ${mode === 'dark' ? '#3d4ab0' : '#2a35a0'})`,
+            objectFit: 'cover',
             flexShrink: 0,
           }}
         />

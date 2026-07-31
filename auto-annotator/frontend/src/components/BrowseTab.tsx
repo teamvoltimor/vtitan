@@ -11,6 +11,7 @@ const BrowseTab = () => {
   const {
     gallery,
     refreshGallery,
+    importImages,
     viewMode,
     setViewMode,
     selectedGalleryItem,

@@ -173,6 +173,12 @@ type DeleteImagesRequest struct {
 	ImageIds []int64 `binding:"required" json:"imageIds"`
 }
 
+// FieldError defines model for FieldError.
+type FieldError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
 // GalleryItem defines model for GalleryItem.
 type GalleryItem struct {
 	Annotations *[]Shape          `json:"annotations,omitempty"`
@@ -286,6 +292,25 @@ type Point struct {
 	Y string `binding:"required" json:"y"`
 }
 
+// Problem RFC 7807 Problem Details error body.
+type Problem struct {
+	CorrelationId string `json:"correlation_id"`
+
+	// Detail Human-readable detail; usually a string, but any JSON value.
+	Detail interface{} `json:"detail"`
+
+	// Errors Per-field validation failures (400/422 responses only).
+	Errors *[]FieldError `json:"errors,omitempty"`
+
+	// Instance The request path that produced the error.
+	Instance string `json:"instance"`
+	Status   int    `json:"status"`
+	Title    string `json:"title"`
+
+	// Type A URI identifying the error category.
+	Type string `json:"type"`
+}
+
 // SaveAnnotationsRequest defines model for SaveAnnotationsRequest.
 type SaveAnnotationsRequest struct {
 	ExportFormat SaveAnnotationsRequestExportFormat `binding:"required" json:"exportFormat"`
@@ -353,6 +378,9 @@ type UpsertClassRequest struct {
 	Color string `binding:"required" json:"color"`
 	Name  string `binding:"required" json:"name"`
 }
+
+// ProblemResponse RFC 7807 Problem Details error body.
+type ProblemResponse = Problem
 
 // ImportGalleryMultipartBody defines parameters for ImportGallery.
 type ImportGalleryMultipartBody struct {
@@ -836,6 +864,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/train/stream", wrapper.StreamTrain)
 }
 
+type ProblemResponseApplicationProblemPlusJSONResponse Problem
+
 type SaveAnnotationsRequestObject struct {
 	Body *SaveAnnotationsJSONRequestBody
 }
@@ -854,6 +884,50 @@ func (response SaveAnnotations201JSONResponse) VisitSaveAnnotationsResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveAnnotations400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response SaveAnnotations400ApplicationProblemPlusJSONResponse) VisitSaveAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveAnnotations404ApplicationProblemPlusJSONResponse Problem
+
+func (response SaveAnnotations404ApplicationProblemPlusJSONResponse) VisitSaveAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SaveAnnotations422ApplicationProblemPlusJSONResponse Problem
+
+func (response SaveAnnotations422ApplicationProblemPlusJSONResponse) VisitSaveAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -880,6 +954,50 @@ func (response SkipImage200JSONResponse) VisitSkipImageResponse(w http.ResponseW
 	return err
 }
 
+type SkipImage400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response SkipImage400ApplicationProblemPlusJSONResponse) VisitSkipImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SkipImage404ApplicationProblemPlusJSONResponse Problem
+
+func (response SkipImage404ApplicationProblemPlusJSONResponse) VisitSkipImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SkipImage422ApplicationProblemPlusJSONResponse Problem
+
+func (response SkipImage422ApplicationProblemPlusJSONResponse) VisitSkipImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAnnotationsRequestObject struct {
 	Id int64 `json:"id"`
 }
@@ -902,6 +1020,36 @@ func (response GetAnnotations200JSONResponse) VisitGetAnnotationsResponse(w http
 	return err
 }
 
+type GetAnnotations404ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response GetAnnotations404ApplicationProblemPlusJSONResponse) VisitGetAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAnnotations422ApplicationProblemPlusJSONResponse Problem
+
+func (response GetAnnotations422ApplicationProblemPlusJSONResponse) VisitGetAnnotationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type StartAugmentRequestObject struct {
 	Body *StartAugmentJSONRequestBody
 }
@@ -920,6 +1068,50 @@ func (response StartAugment202JSONResponse) VisitStartAugmentResponse(w http.Res
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartAugment400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response StartAugment400ApplicationProblemPlusJSONResponse) VisitStartAugmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartAugment409ApplicationProblemPlusJSONResponse Problem
+
+func (response StartAugment409ApplicationProblemPlusJSONResponse) VisitStartAugmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartAugment422ApplicationProblemPlusJSONResponse Problem
+
+func (response StartAugment422ApplicationProblemPlusJSONResponse) VisitStartAugmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -995,6 +1187,22 @@ func (response StreamAugment200TexteventStreamResponse) VisitStreamAugmentRespon
 	}
 }
 
+type StreamAugment404ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response StreamAugment404ApplicationProblemPlusJSONResponse) VisitStreamAugmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListClassesRequestObject struct {
 }
 
@@ -1034,6 +1242,36 @@ func (response UpsertClass200JSONResponse) VisitUpsertClassResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertClass400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response UpsertClass400ApplicationProblemPlusJSONResponse) VisitUpsertClassResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpsertClass422ApplicationProblemPlusJSONResponse Problem
+
+func (response UpsertClass422ApplicationProblemPlusJSONResponse) VisitUpsertClassResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1102,6 +1340,22 @@ func (response ImportGallery200JSONResponse) VisitImportGalleryResponse(w http.R
 	return err
 }
 
+type ImportGallery400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response ImportGallery400ApplicationProblemPlusJSONResponse) VisitImportGalleryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type HealthRequestObject struct {
 }
 
@@ -1166,6 +1420,50 @@ func (response DeleteImages200JSONResponse) VisitDeleteImagesResponse(w http.Res
 	return err
 }
 
+type DeleteImages400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteImages400ApplicationProblemPlusJSONResponse) VisitDeleteImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteImages404ApplicationProblemPlusJSONResponse Problem
+
+func (response DeleteImages404ApplicationProblemPlusJSONResponse) VisitDeleteImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteImages422ApplicationProblemPlusJSONResponse Problem
+
+func (response DeleteImages422ApplicationProblemPlusJSONResponse) VisitDeleteImagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ServeImageRequestObject struct {
 	Id int64 `json:"id"`
 }
@@ -1195,6 +1493,36 @@ func (response ServeImage200ImageResponse) VisitServeImageResponse(w http.Respon
 	return err
 }
 
+type ServeImage404ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response ServeImage404ApplicationProblemPlusJSONResponse) VisitServeImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServeImage422ApplicationProblemPlusJSONResponse Problem
+
+func (response ServeImage422ApplicationProblemPlusJSONResponse) VisitServeImageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ServeThumbnailRequestObject struct {
 	Id int64 `json:"id"`
 }
@@ -1220,6 +1548,36 @@ func (response ServeThumbnail200ImagejpegResponse) VisitServeThumbnailResponse(w
 		defer closer.Close()
 	}
 	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ServeThumbnail404ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response ServeThumbnail404ApplicationProblemPlusJSONResponse) VisitServeThumbnailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServeThumbnail422ApplicationProblemPlusJSONResponse Problem
+
+func (response ServeThumbnail422ApplicationProblemPlusJSONResponse) VisitServeThumbnailResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
 	return err
 }
 
@@ -1287,6 +1645,50 @@ func (response Segment200JSONResponse) VisitSegmentResponse(w http.ResponseWrite
 	return err
 }
 
+type Segment400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response Segment400ApplicationProblemPlusJSONResponse) VisitSegmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Segment404ApplicationProblemPlusJSONResponse Problem
+
+func (response Segment404ApplicationProblemPlusJSONResponse) VisitSegmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Segment422ApplicationProblemPlusJSONResponse Problem
+
+func (response Segment422ApplicationProblemPlusJSONResponse) VisitSegmentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type StartTrainRequestObject struct {
 	Body *StartTrainJSONRequestBody
 }
@@ -1305,6 +1707,50 @@ func (response StartTrain202JSONResponse) VisitStartTrainResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTrain400ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response StartTrain400ApplicationProblemPlusJSONResponse) VisitStartTrainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTrain409ApplicationProblemPlusJSONResponse Problem
+
+func (response StartTrain409ApplicationProblemPlusJSONResponse) VisitStartTrainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartTrain422ApplicationProblemPlusJSONResponse Problem
+
+func (response StartTrain422ApplicationProblemPlusJSONResponse) VisitStartTrainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1378,6 +1824,22 @@ func (response StreamTrain200TexteventStreamResponse) VisitStreamTrainResponse(w
 			return err
 		}
 	}
+}
+
+type StreamTrain404ApplicationProblemPlusJSONResponse struct {
+	ProblemResponseApplicationProblemPlusJSONResponse
+}
+
+func (response StreamTrain404ApplicationProblemPlusJSONResponse) VisitStreamTrainResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 // StrictServerInterface represents all server handlers.

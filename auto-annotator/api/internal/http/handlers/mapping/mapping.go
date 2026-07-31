@@ -32,7 +32,7 @@ type GalleryResponse struct {
 type GalleryItem struct {
 	Annotations *[]Shape `json:"annotations,omitempty"`
 	Format      string   `json:"format"`
-	Id          int64    `json:"id"`
+	ID          int64    `json:"id"`
 	Label       string   `json:"label"`
 	Src         string   `json:"src"`
 	Status      string   `json:"status"`
@@ -53,7 +53,7 @@ type GalleryStats struct {
 type ParentImageItem struct {
 	AugCount  int64  `json:"aug_count"`
 	Format    string `json:"format"`
-	Id        int64  `json:"id"`
+	ID        int64  `json:"id"`
 	Label     string `json:"label"`
 	Src       string `json:"src"`
 	Status    string `json:"status"`
@@ -63,7 +63,7 @@ type ParentImageItem struct {
 // Shape mirrors handlers.Shape.
 type Shape struct {
 	ClassName string  `json:"className"`
-	Id        string  `json:"id"`
+	ID        string  `json:"id"`
 	Points    []Point `json:"points"`
 }
 
@@ -76,7 +76,7 @@ type Point struct {
 // ClassItem mirrors handlers.ClassItem.
 type ClassItem struct {
 	Color string `json:"color"`
-	Id    int64  `json:"id"`
+	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 }
 
@@ -91,7 +91,7 @@ type SegmentationResponse struct {
 type ModelItem struct {
 	Active       bool   `json:"active"`
 	Available    bool   `json:"available"`
-	Id           string `json:"id"`
+	ID           string `json:"id"`
 	Label        string `json:"label"`
 	ModelType    string `json:"modelType"`
 	SupportsText bool   `json:"supportsText"`
@@ -109,7 +109,7 @@ func ToGalleryResponse(g gallerydomain.Gallery) GalleryResponse {
 	for i, item := range g.Items {
 		anns := AnnotationShapesToOAPI(item.Annotations)
 		items[i] = GalleryItem{
-			Id:          item.ID,
+			ID:          item.ID,
 			Label:       filepath.Base(item.Path),
 			Src:         item.ImageURL,
 			ThumbSrc:    item.ThumbURL,
@@ -136,7 +136,7 @@ func ToParentImageItems(rows []gallerydomain.GroupedImage) []ParentImageItem {
 	items := make([]ParentImageItem, len(rows))
 	for i, r := range rows {
 		items[i] = ParentImageItem{
-			Id:        r.ID,
+			ID:        r.ID,
 			Label:     r.Label,
 			Src:       r.ImageURL,
 			Format:    r.FormatUsed,
@@ -156,7 +156,7 @@ func AnnotationShapesToOAPI(shapes []annotationdomain.Shape) []Shape {
 		for j, p := range s.Points {
 			pts[j] = Point{X: coordToStr(p.X), Y: coordToStr(p.Y)}
 		}
-		out[i] = Shape{Id: s.ID, ClassName: s.ClassName, Points: pts}
+		out[i] = Shape{ID: s.ID, ClassName: s.ClassName, Points: pts}
 	}
 	return out
 }
@@ -165,7 +165,7 @@ func AnnotationShapesToOAPI(shapes []annotationdomain.Shape) []Shape {
 func ClassesToOAPI(classes []annotationdomain.Class) []ClassItem {
 	items := make([]ClassItem, len(classes))
 	for i, c := range classes {
-		items[i] = ClassItem{Id: c.ID, Name: c.Name, Color: c.Color}
+		items[i] = ClassItem{ID: c.ID, Name: c.Name, Color: c.Color}
 	}
 	return items
 }
@@ -178,7 +178,7 @@ func ToSegmentationResponse(r computedomain.SegmentResult) SegmentationResponse 
 		for j, p := range s.Points {
 			pts[j] = Point{X: coordToStr(p.X), Y: coordToStr(p.Y)}
 		}
-		shapes[i] = Shape{Id: s.ID, ClassName: s.ClassName, Points: pts}
+		shapes[i] = Shape{ID: s.ID, ClassName: s.ClassName, Points: pts}
 	}
 	return SegmentationResponse{
 		State:   r.State,
@@ -192,7 +192,7 @@ func ToModelsOAPI(models []computedomain.Model) []ModelItem {
 	items := make([]ModelItem, len(models))
 	for i, m := range models {
 		items[i] = ModelItem{
-			Id:           m.ID,
+			ID:           m.ID,
 			Label:        m.Label,
 			ModelType:    m.ModelType,
 			Available:    m.Available,

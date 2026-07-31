@@ -22,6 +22,7 @@ from albumentations import (
     ShiftScaleRotate,
 )
 
+from src.core.config import AugmentationConfig
 from src.core.constants import GEOMETRY_MINIMUM_POLYGON_POINTS, YOLO_BBOX_COORD_COUNT
 from src.label_store import LabelRecord
 from src.models.models import AugmentedImage
@@ -75,23 +76,23 @@ def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> DataPath
 
 logger = get_logger(__name__)
 
-# Augmentation transform parameters
-SHIFT_LIMIT = 0.2
-SCALE_LIMIT = 0.2
-ROTATE_LIMIT = 25
-AUGMENT_PROB_BRIGHTNESS = 0.5
-AUGMENT_PROB_FLIP = 0.5
-AUGMENT_PROB_SHIFT = 0.5
-AUGMENT_PROB_CROP = 0.3
-CROP_SCALE = 0.9
+
+def _resolve_augmentation_config(cfg: AugmentationConfig | None) -> AugmentationConfig:
+    """Return *cfg*, or load it from ``server.toml``/defaults when not supplied."""
+    return cfg if cfg is not None else AugmentationConfig.load()
 
 
-def _build_transforms(image_height: int, image_width: int) -> list[object]:
+def _build_transforms(image_height: int, image_width: int, cfg: AugmentationConfig | None = None) -> list[object]:
+    cfg = _resolve_augmentation_config(cfg)
     return [
-        RandomBrightnessContrast(p=AUGMENT_PROB_BRIGHTNESS),
-        HorizontalFlip(p=AUGMENT_PROB_FLIP),
-        ShiftScaleRotate(shift_limit=SHIFT_LIMIT, scale_limit=SCALE_LIMIT, rotate_limit=ROTATE_LIMIT, p=AUGMENT_PROB_SHIFT),
-        RandomCrop(width=int(image_width * CROP_SCALE), height=int(image_height * CROP_SCALE), p=AUGMENT_PROB_CROP),
+        RandomBrightnessContrast(p=cfg.prob_brightness),
+        HorizontalFlip(p=cfg.prob_flip),
+        ShiftScaleRotate(
+            shift_limit=cfg.shift_limit, scale_limit=cfg.scale_limit, rotate_limit=cfg.rotate_limit, p=cfg.prob_shift,
+        ),
+        RandomCrop(
+            width=int(image_width * cfg.crop_scale), height=int(image_height * cfg.crop_scale), p=cfg.prob_crop,
+        ),
     ]
 
 
@@ -100,13 +101,15 @@ def _is_bbox(coords: list[float]) -> bool:
 
 
 def _augment_det(
-    image_np: np.ndarray, class_ids: list[int], bboxes: list[list[float]], n: int,
+    image_np: np.ndarray, class_ids: list[int], bboxes: list[list[float]], n: int, cfg: AugmentationConfig | None = None,
 ) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
     """Augment image with detection (bbox) annotations."""
+    cfg = _resolve_augmentation_config(cfg)
     h, w = image_np.shape[:2]
-    transforms = _build_transforms(h, w)
+    transforms = _build_transforms(h, w, cfg)
     compose = Compose(
-        transforms, bbox_params=BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=0.3),
+        transforms,
+        bbox_params=BboxParams(format="yolo", label_fields=["class_labels"], min_visibility=cfg.min_bbox_visibility),
     )
 
     results = []
@@ -117,14 +120,14 @@ def _augment_det(
 
 
 def _augment_seg(
-    image_np: np.ndarray, class_ids: list[int], polygons: list[list[float]], n: int,
+    image_np: np.ndarray, class_ids: list[int], polygons: list[list[float]], n: int, cfg: AugmentationConfig | None = None,
 ) -> list[tuple[np.ndarray, list[int], list[list[float]]]]:
     """Augment image with segmentation (polygon) annotations.
 
     Polygon format: flat list [x1, y1, x2, y2, ...] in normalized coords.
     """
     h, w = image_np.shape[:2]
-    transforms = _build_transforms(h, w)
+    transforms = _build_transforms(h, w, cfg)
 
     all_kpts: list[tuple[float, float]] = []
     poly_idx: list[int] = []
@@ -192,11 +195,12 @@ def _augment_and_write(
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     class_ids = [r.class_id for r in records]
     coords = [r.coords for r in records]
+    cfg = AugmentationConfig.load()
 
     if _is_bbox(coords[0]):
-        aug_results = _augment_det(image_rgb, class_ids, coords, num_augmentations)
+        aug_results = _augment_det(image_rgb, class_ids, coords, num_augmentations, cfg)
     else:
-        aug_results = _augment_seg(image_rgb, class_ids, coords, num_augmentations)
+        aug_results = _augment_seg(image_rgb, class_ids, coords, num_augmentations, cfg)
 
     for i, (aug_img, new_classes, new_coords) in enumerate(aug_results):
         if not new_classes:

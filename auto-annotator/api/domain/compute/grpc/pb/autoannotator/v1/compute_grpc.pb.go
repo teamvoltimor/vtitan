@@ -10,14 +10,13 @@
 // Ultralytics YOLO training); the Go API owns the SQLite manifest DB.
 //
 // This is the single source of truth shared by both services. Each side vendors
-// its own generated stubs: Go in api/internal/compute/pb, Python in
-// backend/src/grpc_server/pb.
+// its own generated stubs: Go in api/domain/compute/grpc/pb, Python in
+// ml-service/src/grpc_server/pb.
 
 package computev1
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"

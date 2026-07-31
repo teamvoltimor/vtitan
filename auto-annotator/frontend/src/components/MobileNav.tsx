@@ -1,4 +1,4 @@
-import { Stack } from '@mui/material';
+import { Button, Stack, useTheme } from '@mui/material';
 import type { TabConfig } from './SidebarNav';
 
 export function MobileNav({

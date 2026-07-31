@@ -7,23 +7,32 @@ import (
 	"fmt"
 	"io"
 
+	"buf.build/go/protovalidate"
+	"google.golang.org/protobuf/proto"
+
 	xgrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
 	computev1 "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/domain"
 )
 
 type grpcClients struct {
-	seg   computev1.SegmentationServiceClient
-	aug   computev1.AugmentationServiceClient
-	train computev1.TrainingServiceClient
-	conns []*xgrpc.ClientConn
+	seg       computev1.SegmentationServiceClient
+	aug       computev1.AugmentationServiceClient
+	train     computev1.TrainingServiceClient
+	validator protovalidate.Validator
+	conns     []*xgrpc.ClientConn
 }
 
 // NewGRPC dials the configured worker addresses. Empty addresses leave that worker disabled.
 func NewGRPC(segAddr, augAddr, trainAddr string) (compute.Clients, error) {
-	g := &grpcClients{}
+	validator, err := protovalidate.New()
+	if err != nil {
+		return nil, fmt.Errorf("build protovalidate validator: %w", err)
+	}
+	g := &grpcClients{validator: validator}
 	if segAddr != "" {
 		conn, err := dial(segAddr)
 		if err != nil {
@@ -73,12 +82,16 @@ func (g *grpcClients) Segment(ctx context.Context, in compute.SegmentInput) (com
 	for i, p := range in.Points {
 		points[i] = &computev1.ClickPoint{X: p.X, Y: p.Y, PointType: p.PointType, ClassName: p.ClassName}
 	}
-	resp, err := g.seg.Segment(ctx, &computev1.SegmentRequest{
+	req := &computev1.SegmentRequest{
 		ImageId:    in.ImageID,
 		ImagePath:  in.ImagePath,
 		Points:     points,
 		ClassNames: in.ClassNames,
-	})
+	}
+	if err := g.validate(req); err != nil {
+		return compute.SegmentResult{}, err
+	}
+	resp, err := g.seg.Segment(ctx, req)
 	if err != nil {
 		return compute.SegmentResult{}, err
 	}
@@ -89,18 +102,30 @@ func (g *grpcClients) Segment(ctx context.Context, in compute.SegmentInput) (com
 	}, nil
 }
 
-func (g *grpcClients) RunAugmentation(ctx context.Context, in compute.AugmentInput, onProgress func(compute.Progress)) error {
+func (g *grpcClients) RunAugmentation(
+	ctx context.Context,
+	in compute.AugmentInput,
+	onProgress func(compute.Progress),
+) error {
 	if g.aug == nil {
 		return errors.New("augmentation worker not configured")
 	}
 	sources := make([]*computev1.AugmentSource, len(in.Sources))
 	for i, s := range in.Sources {
-		sources[i] = &computev1.AugmentSource{ImageId: s.ImageID, Path: s.Path, FormatUsed: s.FormatUsed}
+		sources[i] = &computev1.AugmentSource{
+			ImageId:    s.ImageID,
+			Path:       s.Path,
+			FormatUsed: toPbExportFormat(s.FormatUsed),
+		}
 	}
-	stream, err := g.aug.RunAugmentation(ctx, &computev1.AugmentRequest{
+	req := &computev1.AugmentRequest{
 		Sources:          sources,
 		NumAugmentations: in.NumAugmentations,
-	})
+	}
+	if err := g.validate(req); err != nil {
+		return err
+	}
+	stream, err := g.aug.RunAugmentation(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -111,17 +136,31 @@ func (g *grpcClients) RunTraining(ctx context.Context, in compute.TrainInput, on
 	if g.train == nil {
 		return errors.New("training worker not configured")
 	}
-	stream, err := g.train.RunTraining(ctx, &computev1.TrainRequest{
+	req := &computev1.TrainRequest{
 		ModelName:    in.ModelName,
 		Epochs:       in.Epochs,
 		Batch:        in.Batch,
 		Imgsz:        in.Imgsz,
 		DataYamlPath: in.DataYamlPath,
-	})
+	}
+	if err := g.validate(req); err != nil {
+		return err
+	}
+	stream, err := g.train.RunTraining(ctx, req)
 	if err != nil {
 		return err
 	}
 	return relayProgress(stream, onProgress)
+}
+
+// validate runs protovalidate's compiled constraints (from compute.proto's
+// (buf.validate.field) options) against an outgoing request, failing fast on
+// the client before a malformed message is sent over the wire.
+func (g *grpcClients) validate(msg proto.Message) error {
+	if err := g.validator.Validate(msg); err != nil {
+		return fmt.Errorf("invalid %T: %w", msg, err)
+	}
+	return nil
 }
 
 func relayProgress(stream xgrpc.ServerStreamingClient[computev1.JobProgress], onProgress func(compute.Progress)) error {
@@ -148,9 +187,39 @@ func fromPbProgress(p *computev1.JobProgress) compute.Progress {
 		Error:    p.GetError(),
 	}
 	if a := p.GetAugmented(); a != nil {
-		out.Augmented = &compute.AugmentedImage{Path: a.GetPath(), FormatUsed: a.GetFormatUsed(), ParentID: a.GetParentId()}
+		out.Augmented = &compute.AugmentedImage{
+			Path:       a.GetPath(),
+			FormatUsed: fromPbExportFormat(a.GetFormatUsed()),
+			ParentID:   a.GetParentId(),
+		}
 	}
 	return out
+}
+
+// toPbExportFormat converts the domain's filesystem/DB format abbreviation
+// ("seg"/"det") to the wire enum. Unrecognized values map to UNSPECIFIED
+// rather than erroring, matching the domain layer's own permissive handling
+// of an empty/unknown FormatUsed.
+func toPbExportFormat(s string) computev1.ExportFormat {
+	switch s {
+	case domain.FormatSegmentationAbbr:
+		return computev1.ExportFormat_EXPORT_FORMAT_SEGMENTATION
+	case domain.FormatDetectionAbbr:
+		return computev1.ExportFormat_EXPORT_FORMAT_DETECTION
+	default:
+		return computev1.ExportFormat_EXPORT_FORMAT_UNSPECIFIED
+	}
+}
+
+// fromPbExportFormat converts the wire enum back to the domain's filesystem/DB
+// format abbreviation. UNSPECIFIED (and any future unrecognized value) maps to
+// the detection abbreviation, matching augment.py's "det" fallback for a
+// missing/unrecognized format.
+func fromPbExportFormat(f computev1.ExportFormat) string {
+	if f == computev1.ExportFormat_EXPORT_FORMAT_SEGMENTATION {
+		return domain.FormatSegmentationAbbr
+	}
+	return domain.FormatDetectionAbbr
 }
 
 func fromPbShapes(in []*computev1.Shape) []compute.Shape {

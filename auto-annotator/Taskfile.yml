@@ -78,26 +78,41 @@ tasks:
     cmds:
       - go vet ./...
 
-  healthcheck:build:
-    desc: Build the standalone healthcheck probe binary (used by distroless Docker images)
-    dir: api
-    cmds:
-      - go build -o bin/healthcheck ./cmd/healthcheck
-
-  # Database (sqlc)
+  # Database (sqlc + goose migrations)
 
   sqlc:gen:
-    desc: Regenerate Go DB access code from db/migrations/001_init.sql via sqlc
+    desc: Regenerate Go DB access code from db/migrations via sqlc
     dir: api
     cmds:
       - sqlc generate
 
+  db:migrate:new:
+    desc: 'Create a new goose migration under db/migrations. Usage: task db:migrate:new NAME=add_foo_column'
+    dir: api
+    requires:
+      vars: [NAME]
+    cmds:
+      - goose -dir db/migrations create {{.NAME}} sql
+
+  db:migrate:status:
+    desc: >-
+      Show which migrations in db/migrations are applied/pending against a
+      SQLite file. Usage: task db:migrate:status [DB_PATH=data/manifest.db]
+    dir: api
+    vars:
+      DB_PATH: '{{.DB_PATH | default "data/manifest.db"}}'
+    cmds:
+      - goose -dir db/migrations sqlite3 {{.DB_PATH}} status
+
   # OpenAPI contract
 
   openapi:validate:
-    desc: Validate OpenAPI spec YAML syntax
+    desc: >-
+      Lint the OpenAPI spec with Redocly (structural + semantic checks, not
+      just YAML syntax -- see .redocly.yaml for the one disabled rule)
+    dir: frontend
     cmds:
-      - python3 -c "import yaml; yaml.safe_load(open('api/openapi.yaml')); print('[OK] Valid OpenAPI spec')"
+      - pnpm exec redocly lint ../api/openapi.yaml --config ../.redocly.yaml
 
   openapi:generate:backend:
     desc: Generate Go types from OpenAPI spec
@@ -141,13 +156,39 @@ tasks:
     cmds:
       - buf lint
 
+  proto:breaking:
+    desc: >-
+      Check the shared proto contract for breaking changes against the base
+      branch (default master). Usage: task proto:breaking [BASE=master]
+    dir: proto
+    vars:
+      BASE: '{{.BASE | default "master"}}'
+    cmds:
+      - buf breaking --against "../../.git#branch={{.BASE}},subdir=auto-annotator/proto"
+
   proto:gen:py:
-    desc: Regenerate Python gRPC stubs (+ .pyi type stubs for mypy) into ml-service/src/grpc_server/pb
+    desc: >-
+      Regenerate Python gRPC stubs (+ .pyi type stubs for mypy) into
+      ml-service/src/grpc_server/pb, and the buf.validate runtime stub the
+      protovalidate package needs into ml-service/buf/
     dir: ml-service
     cmds:
-      - uv run python -m grpc_tools.protoc -I ../proto/autoannotator/v1
+      # protovalidate's validate.proto isn't a local file -- buf resolves it from
+      # the BSR dependency pinned in proto/buf.lock. grpc_tools.protoc has no BSR
+      # awareness, so export a fresh copy into a gitignored scratch dir on every
+      # run rather than vendoring a static copy that could drift from buf.lock.
+      - rm -rf .proto-deps && mkdir -p .proto-deps
+      - cd ../proto && buf export buf.build/bufbuild/protovalidate -o ../ml-service/.proto-deps
+      - uv run python -m grpc_tools.protoc -I ../proto/autoannotator/v1 -I .proto-deps
         --python_out=src/grpc_server/pb --grpc_python_out=src/grpc_server/pb --pyi_out=src/grpc_server/pb
         ../proto/autoannotator/v1/compute.proto
+      # The `protovalidate` PyPI package imports `from buf.validate import
+      # validate_pb2` as an absolute top-level import -- it doesn't bundle this
+      # stub itself, so it must be generated and land at ml-service/buf/ (on
+      # sys.path alongside src/) rather than nested under src/grpc_server/pb.
+      - rm -rf buf && uv run python -m grpc_tools.protoc -I .proto-deps --python_out=. --pyi_out=.
+        .proto-deps/buf/validate/validate.proto
+      - rm -rf .proto-deps
 
   # Frontend (Vite)
 
