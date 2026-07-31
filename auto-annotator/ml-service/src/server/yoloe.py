@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.enums import ComputeDevice
+from src.core.enums import ComputeDevice
 from src.server.constants import ERR_YOLOE_NO_CHECKPOINT, resolve_checkpoint_path
 from src.server.context import NoopPredictor, TextSegmentationResult
 from src.utils import get_logger

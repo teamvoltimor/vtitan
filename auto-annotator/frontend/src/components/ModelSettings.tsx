@@ -1,4 +1,13 @@
-import { Card, FormControl, InputLabel, MenuItem, Select, Stack, Switch, Typography } from '@mui/material';
+import {
+  Card,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Switch,
+  Typography,
+} from '@mui/material';
 
 export function ModelSettings({
   models,

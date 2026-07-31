@@ -1,19 +1,14 @@
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
-import {
-  Box,
-  Card,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Box, Card, Stack, Typography } from '@mui/material';
 import type { MouseEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useCanvasRender } from '../hooks/useCanvasRender';
 import { type AnnotationPoint, useAppState } from '../state/appState';
 import AnnotateInsights from './AnnotateInsights';
-import TimelinePanel from './TimelinePanel';
-import { ZoomToolbarSection } from './ZoomControl';
 import { AnnotationActions } from './AnnotationActions';
 import { StatusBar } from './StatusBar';
+import TimelinePanel from './TimelinePanel';
+import { ZoomToolbarSection } from './ZoomControl';
 
 const AnnotateTab = () => {
   const {

@@ -8,6 +8,7 @@ dependencies = [
     "torch>=2.3.0",
     "torchvision",
     "sam2",
+    "huggingface-hub",
     "opencv-python-headless",
     "numpy",
     "pillow",

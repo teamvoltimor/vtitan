@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import numpy as np
 from pydantic import BaseModel, Field
 
-from src.enums import ComputeDevice
+from src.core.enums import ComputeDevice
 from src.server.registry import ModelConfig
 
 
@@ -37,8 +37,8 @@ class PointPredictor(Protocol):
 
     Every ``ctx.predictor`` backend (``sam1.py``, ``sam2.py``, ``sam3.py``,
     and the point-prediction-unsupported ``NoopPredictor`` in ``context.py``)
-    implements this pair, matching the wire commands dispatched in ``dispatch.py``
-    (``handle_set_image``/``handle_predict``).
+    implements this pair, matching the ``src.server.dispatch.set_image``/``predict``
+    functions that call into it.
     """
 
     def set_image(self, image: np.ndarray) -> None:

@@ -1,24 +1,16 @@
 """src.server.responses – Typed response Pydantic models for the dispatch layer.
 
-Each handler in :mod:`src.server.dispatch` returns one of these models.
-The :func:`src.server.dispatch.dispatch` function calls ``.model_dump()`` on the
-result before pickling it and sending it back over the TCP socket.  This keeps
-handler logic typed and testable while preserving the wire-protocol contract.
+Each function in :mod:`src.server.dispatch` returns one of these models
+directly to its in-process caller (see :class:`src.model_server.LocalModelClient`).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from src.enums import ComputeDevice, ModelType
-from src.server.constants import (
-    RESP_KEY_ERROR,
-    RESP_KEY_MODEL_ID,
-    RESP_KEY_OK,
-    RESP_KEY_RESULTS,
-)
+from src.core.enums import ComputeDevice, ModelType
 from src.server.context import TextSegmentationResult
 
 
@@ -48,6 +40,8 @@ class ModelDescriptor(BaseModel):
         active:        Whether this is the currently loaded model.
         supports_text: Whether the model supports text-prompted segmentation.
     """
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     label: str
@@ -82,12 +76,6 @@ class SetModelResponse(BaseModel):
     def ok(self) -> bool:
         """Return ``True`` when the model was loaded successfully."""
         return not self.error
-
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        if self.error:
-            return {RESP_KEY_ERROR: self.error}
-        return {RESP_KEY_OK: True, RESP_KEY_MODEL_ID: self.model_id}
 
 
 class SetImageResponse(BaseModel):
@@ -127,19 +115,3 @@ class PredictTextResponse(BaseModel):
     def ok(self) -> bool:
         """Return ``True`` when text-segmentation succeeded."""
         return not self.error
-
-    def to_dict(self) -> dict:
-        """Serialise to a wire-protocol response dict."""
-        if self.error:
-            return {RESP_KEY_ERROR: self.error}
-        return {RESP_KEY_RESULTS: [r.model_dump() for r in self.results]}
-
-
-class ErrorResponse(BaseModel):
-    """Generic error response returned for unknown commands or missing models.
-
-    Attributes:
-        error: Human-readable description of the failure.
-    """
-
-    error: str

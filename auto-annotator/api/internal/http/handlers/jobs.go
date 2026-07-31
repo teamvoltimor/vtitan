@@ -11,22 +11,23 @@ import (
 
 	computedomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/job"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/routes"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // RegisterRoutes wires the model listing, segmentation, and augment/train job
 // routes onto rg.
 func (h *ComputeHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET(RouteListModels, h.ListModels)
-	rg.POST(RouteSegment, h.Segment)
+	rg.GET(routes.ListModels, h.ListModels)
+	rg.POST(routes.Segment, h.Segment)
 
-	rg.POST(RouteStartAugment, h.StartAugment)
-	rg.GET(RouteStatusAugment, h.JobStatus)
-	rg.GET(RouteStreamAugment, h.StreamAugment)
+	rg.POST(routes.StartAugment, h.StartAugment)
+	rg.GET(routes.StatusAugment, h.JobStatus)
+	rg.GET(routes.StreamAugment, h.StreamAugment)
 
-	rg.POST(RouteStartTrain, h.StartTrain)
-	rg.GET(RouteStatusTrain, h.JobStatus)
-	rg.GET(RouteStreamTrain, h.StreamTrain)
+	rg.POST(routes.StartTrain, h.StartTrain)
+	rg.GET(routes.StatusTrain, h.JobStatus)
+	rg.GET(routes.StreamTrain, h.StreamTrain)
 }
 
 // JobStatus reports whether any job is running. GET /augment/status, /train/status
@@ -72,12 +73,12 @@ func (h *ComputeHandler) StartTrain(c *gin.Context) {
 
 // StreamAugment exposes the active augmentation job's progress as SSE. GET /augment/stream
 func (h *ComputeHandler) StreamAugment(c *gin.Context) {
-	h.streamJob(c, "augmentation")
+	h.streamJob(c, JobTypeAugmentation)
 }
 
 // StreamTrain exposes the active training job's progress as SSE. GET /train/stream
 func (h *ComputeHandler) StreamTrain(c *gin.Context) {
-	h.streamJob(c, "training")
+	h.streamJob(c, JobTypeTraining)
 }
 
 func (h *ComputeHandler) streamJob(c *gin.Context, name string) {

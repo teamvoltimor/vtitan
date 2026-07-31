@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.coordinates import (
+from src.geometry.coordinates import (
     NormalizedPoint,
     PixelPoint,
     YOLOPoint,

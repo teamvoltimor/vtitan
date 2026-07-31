@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
 import { Card, Stack, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
 
 export function SectionCard({
   title,

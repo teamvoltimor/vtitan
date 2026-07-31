@@ -15,22 +15,23 @@ from typing import TYPE_CHECKING, Any
 
 import grpc
 
-from src.grpc_server.pb import (
-    compute_pb2 as pb,
-    compute_pb2_grpc as pb_grpc,
-)
-from src.constants import (
+from src.core.constants import (
     DEFAULT_TRAIN_BATCH,
     DEFAULT_TRAIN_EPOCHS,
     DEFAULT_TRAIN_IMGSZ,
     DEFAULT_TRAIN_MODEL,
+)
+from src.grpc_server.pb import (
+    compute_pb2 as pb,
+    compute_pb2_grpc as pb_grpc,
 )
 from src.utils import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from src.models import AppContext, Shape
+    from src.core.config import AppConfig
+    from src.models.models import AppContext, Shape
 
 logger = get_logger(__name__)
 
@@ -46,32 +47,40 @@ def _to_pb_shape(shape: Shape) -> pb.Shape:
 class SegmentationServicer(pb_grpc.SegmentationServiceServicer):
     """SAM point-prompted segmentation."""
 
-    def __init__(self) -> None:
+    def __init__(self, config: AppConfig | None = None) -> None:
+        self._config = config
         self._ctx: AppContext | None = None
         self._lock = threading.Lock()
+        # Start loading the model immediately so the first Segment() RPC
+        # doesn't pay the full load latency; concurrent/early RPCs block on
+        # self._lock in _app_context() until this thread finishes.
+        threading.Thread(target=self._app_context, daemon=True, name="model-loader").start()
 
     def _app_context(self) -> AppContext:
-        """Build (once) the AppContext holding the SAM client + inference state."""
+        """Build (once) the AppContext holding the model client + inference state."""
         if self._ctx is None:
             with self._lock:
                 if self._ctx is None:
-                    from src.inference import initialize_inference
-                    from src.model_server import connect_to_model_server
-                    from src.models import AppContext
+                    from src.core.config import AppConfig
+                    from src.inference.inference import initialize_inference
+                    from src.model_server import build_model_client
+                    from src.models.models import AppContext
 
-                    ctx = AppContext(client=connect_to_model_server())
+                    config = self._config or AppConfig.load()
+                    client = build_model_client(config, self._lock)
+                    ctx = AppContext(client=client)
                     initialize_inference(ctx.client, ctx.inference)
                     self._ctx = ctx
         return self._ctx
 
     def Segment(self, request: pb.SegmentRequest, context: grpc.ServicerContext) -> pb.SegmentResponse:
         """Run SAM inference for the request's click points (unary RPC)."""
-        from src.models import ClassInfo
+        from src.models.models import ClassInfo
+        from src.models.types import ClassId
         from src.services.segmentation_service import SegmentationService
-        from src.types import ClassId
 
         classes = [ClassInfo(id=ClassId(i), name=name, color="") for i, name in enumerate(request.class_names)]
-        from src.models import ClickPoint
+        from src.models.models import ClickPoint
 
         points = [
             ClickPoint(x=p.x, y=p.y, point_type=p.point_type, class_name=p.class_name)

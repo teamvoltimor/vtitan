@@ -14,8 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.enums import ModelType
-from src.exceptions import ModelNotAvailable, ModelNotFound
+from src.core.enums import ModelType
+from src.core.exceptions import ModelNotAvailable, ModelNotFound
 from src.server.constants import resolve_checkpoint_path
 from src.utils import get_logger
 

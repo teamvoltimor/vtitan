@@ -84,15 +84,6 @@ const (
 	MsgTrainingCompleted      = "Training completed"
 )
 
-// SSE job event payload map keys.
-const (
-	MapKeyError    = "error"
-	MapKeyFinished = "finished"
-	MapKeyStage    = "stage"
-	MapKeyProgress = "progress"
-	MapKeyDetails  = "details"
-)
-
 // Annotation metadata formatting.
 const (
 	ClassFallbackNameFmt = "class_%d"

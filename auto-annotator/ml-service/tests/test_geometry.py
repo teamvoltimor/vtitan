@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon, polygon_to_yolo_bbox
+from src.geometry.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon, polygon_to_yolo_bbox
 
 
 def _square_mask(size: int = 20, x0: int = 5, y0: int = 5, side: int = 10) -> np.ndarray:

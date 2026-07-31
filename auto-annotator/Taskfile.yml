@@ -2,7 +2,6 @@ version: '3'
 
 vars:
   API_PORT: '8000'
-  SERVER_PORT: '8765'
   GRPC_PORT: '50051'
   FRONTEND_PORT: '80'
 
@@ -20,7 +19,6 @@ tasks:
     vars:
       MODEL_ID: '{{.MODEL_ID | default ""}}'
     env:
-      SERVER_PORT: '{{.SERVER_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
     cmds:
       - cmd: |
@@ -29,12 +27,6 @@ tasks:
           else
             uv run python grpc_main.py
           fi
-
-  ml-service:legacy:
-    desc: Start legacy SAM model server + FastAPI API (pre-cutover compatibility)
-    dir: ml-service
-    cmds:
-      - uv run python main.py
 
   ml-service:sync:
     desc: Install ML service dependencies with uv
@@ -68,11 +60,37 @@ tasks:
     cmds:
       - go build -o bin/api ./cmd/api
 
+  api:deps:
+    desc: Download Go API module dependencies
+    dir: api
+    cmds:
+      - go mod download
+
   api:test:
     desc: Run Go API tests
     dir: api
     cmds:
       - go test ./...
+
+  api:typecheck:
+    desc: Run go vet on the Go API
+    dir: api
+    cmds:
+      - go vet ./...
+
+  healthcheck:build:
+    desc: Build the standalone healthcheck probe binary (used by distroless Docker images)
+    dir: api
+    cmds:
+      - go build -o bin/healthcheck ./cmd/healthcheck
+
+  # Database (sqlc)
+
+  sqlc:gen:
+    desc: Regenerate Go DB access code from db/migrations/001_init.sql via sqlc
+    dir: api
+    cmds:
+      - sqlc generate
 
   # OpenAPI contract
 
@@ -117,12 +135,18 @@ tasks:
       - buf lint
       - buf generate
 
+  proto:lint:
+    desc: Lint the shared proto contract (buf lint) without regenerating stubs
+    dir: proto
+    cmds:
+      - buf lint
+
   proto:gen:py:
-    desc: Regenerate Python gRPC stubs into ml-service/src/grpc_server/pb
+    desc: Regenerate Python gRPC stubs (+ .pyi type stubs for mypy) into ml-service/src/grpc_server/pb
     dir: ml-service
     cmds:
       - uv run python -m grpc_tools.protoc -I ../proto/autoannotator/v1
-        --python_out=src/grpc_server/pb --grpc_python_out=src/grpc_server/pb
+        --python_out=src/grpc_server/pb --grpc_python_out=src/grpc_server/pb --pyi_out=src/grpc_server/pb
         ../proto/autoannotator/v1/compute.proto
 
   # Frontend (Vite)
@@ -204,13 +228,20 @@ tasks:
     cmds:
       - golangci-lint fmt ./...
 
+  format:proto:
+    desc: Format the shared proto contract with buf format
+    dir: proto
+    cmds:
+      - buf format -w
+
   format:all:
-    desc: Fix and format ml-service, frontend, and Go API code
+    desc: Fix and format ml-service, frontend, Go API, and proto code
     aliases: [fmt]
     cmds:
       - task: format:ml-service
       - task: format:frontend
       - task: format:api
+      - task: format:proto
 
   # Docker
 
@@ -251,7 +282,6 @@ tasks:
     env:
       API_PORT: '{{.API_PORT}}'
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
-      SERVER_PORT: '{{.SERVER_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
 
   docker:down:

@@ -6,20 +6,6 @@
 # Environment variables override every key below.
 # Priority order: env var > server.toml > built-in default.
 
-# TCP model server
-# The SAM model server runs as a daemon thread inside the ml-service process.
-# It keeps the model loaded in GPU memory and serves inference requests over a
-# local TCP socket so the gRPC servicers can reuse weights across requests.
-[server]
-# Port the TCP model server listens on.
-# Override: SERVER_PORT env var (legacy: MODEL_SERVER_PORT).
-port = 8765
-
-# Maximum bytes read per socket recv() call.
-# Increase for very large mask payloads (e.g. 4K images).
-# Override: not available via env — set here.
-recv_chunk_size = 65536
-
 # gRPC compute server
 # The gRPC server is the boundary between the Go API and Python compute.
 # All three services (Segmentation, Augmentation, Training) share one port.
@@ -33,3 +19,13 @@ port = 50051
 # overlap without starving segmentation requests.
 # Override: not available via env — set here.
 max_workers = 8
+
+# Local SAM2 inference fallback
+# Used only by src/inference_backends.py's standalone SAM2/ultralytics loaders
+# (the fallback path when no in-process model client is active).
+[inference]
+sam2_checkpoint_filename = "sam2.1_l.pt"
+sam2_hf_repo = "facebook/sam2.1-hiera-large"
+sam2_config_path = "configs/sam2.1/sam2.1_hiera_l.yaml"
+default_mask_score = 1.0
+mask_labels = ["Precise (0)", "Object (1)", "Broad (2)"]

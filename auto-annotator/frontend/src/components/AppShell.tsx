@@ -7,15 +7,15 @@ import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { useAppState } from '../state/appState';
 import AnnotateTab from './AnnotateTab';
+import { AppHeader } from './AppHeader';
 import AugmentTab from './AugmentTab';
 import BrowseTab from './BrowseTab';
 import HeroHeader from './HeroHeader';
-import SettingsTab from './SettingsTab';
-import TrainTab from './TrainTab';
-import { AppHeader } from './AppHeader';
 import { MobileNav } from './MobileNav';
-import { SidebarNav } from './SidebarNav';
+import SettingsTab from './SettingsTab';
 import type { TabConfig } from './SidebarNav';
+import { SidebarNav } from './SidebarNav';
+import TrainTab from './TrainTab';
 
 const tabRows: TabConfig[] = [
   {

@@ -38,6 +38,27 @@ func (e GalleryItemStatus) Valid() bool {
 	}
 }
 
+// Defines values for JobEventStatus.
+const (
+	Completed JobEventStatus = "completed"
+	Failed    JobEventStatus = "failed"
+	Running   JobEventStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the JobEventStatus enum.
+func (e JobEventStatus) Valid() bool {
+	switch e {
+	case Completed:
+		return true
+	case Failed:
+		return true
+	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LivenessResponseStatus.
 const (
 	Ok LivenessResponseStatus = "ok"
@@ -192,6 +213,28 @@ type HealthStatus struct {
 	InferenceAvailable bool   `json:"inferenceAvailable"`
 	Message            string `json:"message"`
 	Ready              bool   `json:"ready"`
+}
+
+// JobEvent defines model for JobEvent.
+type JobEvent struct {
+	// Data Progress payload nested under a JobEvent. Populated fields vary by event: a running-progress event carries stage/progress/details, while the terminal event carries either error or finished.
+	Data    JobEventData   `json:"data"`
+	JobId   string         `json:"job_id"`
+	Message string         `json:"message"`
+	Status  JobEventStatus `json:"status"`
+}
+
+// JobEventStatus defines model for JobEvent.Status.
+type JobEventStatus string
+
+// JobEventData Progress payload nested under a JobEvent. Populated fields vary by event: a running-progress event carries stage/progress/details, while the terminal event carries either error or finished.
+type JobEventData struct {
+	// Details Free-form, job-type-specific metrics (e.g. {done, total} for augmentation, {epoch, total, box_loss, cls_loss, map50} for training).
+	Details  *map[string]interface{} `json:"details,omitempty"`
+	Error    *string                 `json:"error,omitempty"`
+	Finished *bool                   `json:"finished,omitempty"`
+	Progress *float64                `json:"progress,omitempty"`
+	Stage    *string                 `json:"stage,omitempty"`
 }
 
 // JobStatusResponse defines model for JobStatusResponse.

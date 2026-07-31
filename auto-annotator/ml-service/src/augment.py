@@ -22,9 +22,9 @@ from albumentations import (
     ShiftScaleRotate,
 )
 
-from src.constants import GEOMETRY_MINIMUM_POLYGON_POINTS, YOLO_BBOX_COORD_COUNT
+from src.core.constants import GEOMETRY_MINIMUM_POLYGON_POINTS, YOLO_BBOX_COORD_COUNT
 from src.label_store import LabelRecord
-from src.models import AugmentedImage
+from src.models.models import AugmentedImage
 from src.utils import get_logger
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
     from src.gallery_cache import AnnotationCache
     from src.label_store import LabelStore
-    from src.models import ImageRecord, ImageRepositoryProtocol
+    from src.models.models import ImageRecord, ImageRepositoryProtocol
 
     class ProgressReporter(Protocol):
         """Protocol for reporting augmentation progress."""
@@ -66,7 +66,7 @@ def _resolve_paths(images_dir: Path | None, labels_dir: Path | None) -> DataPath
     """
     if images_dir is not None and labels_dir is not None:
         return DataPaths(images_dir=images_dir, labels_dir=labels_dir)
-    from src.config import AppConfig  # noqa: PLC0415
+    from src.core.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load()
     return DataPaths(
         images_dir=images_dir if images_dir is not None else cfg.paths.images_dir,

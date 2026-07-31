@@ -5,6 +5,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -18,16 +19,28 @@ type (
 	// Status is the lifecycle state of a job.
 	Status string
 
+	// EventData is the payload nested under an Event's "data" key. It mirrors
+	// the OpenAPI JobEventData schema: a running-progress event carries
+	// Stage/Progress/Details, while the terminal event carries Error or
+	// Finished.
+	EventData struct {
+		Details  json.RawMessage `json:"details,omitempty"`
+		Stage    string          `json:"stage,omitempty"`
+		Error    string          `json:"error,omitempty"`
+		Progress float64         `json:"progress,omitempty"`
+		Finished bool            `json:"finished,omitempty"`
+	}
+
 	// Event is one progress message broadcast to subscribers.
 	Event struct {
-		Data    map[string]any `json:"data"`
-		JobID   string         `json:"job_id"`
-		Status  string         `json:"status"`
-		Message string         `json:"message"`
+		Data    EventData `json:"data"`
+		JobID   string    `json:"job_id"`
+		Status  string    `json:"status"`
+		Message string    `json:"message"`
 	}
 
 	// EmitFunc is passed to a job runner to broadcast progress.
-	EmitFunc func(status Status, message string, data map[string]any)
+	EmitFunc func(status Status, message string, data EventData)
 
 	// Manager owns the single active job slot.
 	Manager struct {
@@ -67,7 +80,7 @@ func (m *Manager) Start(run func(ctx context.Context, emit EmitFunc)) (string, e
 	m.current = j
 	m.mu.Unlock()
 
-	emit := func(status Status, message string, data map[string]any) {
+	emit := func(status Status, message string, data EventData) {
 		j.broadcast(Event{JobID: j.id, Status: string(status), Message: message, Data: data})
 	}
 

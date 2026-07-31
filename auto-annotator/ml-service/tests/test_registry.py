@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.enums import ModelType
-from src.exceptions import ModelNotAvailable, ModelNotFound
+from src.core.enums import ModelType
+from src.core.exceptions import ModelNotAvailable, ModelNotFound
 from src.server.registry import ModelCapabilities, ModelConfig, ModelRegistry, _is_available
 
 

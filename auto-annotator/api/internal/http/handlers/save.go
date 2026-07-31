@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/mapping"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
@@ -26,7 +27,7 @@ func (h *AnnotationHandler) SaveAnnotations(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toGalleryResponse(g))
+	c.JSON(http.StatusCreated, mapping.ToGalleryResponse(g))
 }
 
 // SkipImage marks an image as skipped and returns the updated gallery.
@@ -47,5 +48,5 @@ func (h *AnnotationHandler) SkipImage(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toGalleryResponse(g))
+	c.JSON(http.StatusOK, mapping.ToGalleryResponse(g))
 }

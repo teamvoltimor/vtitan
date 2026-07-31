@@ -13,18 +13,20 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 if TYPE_CHECKING:
     import numpy as np
 
-    from src.coordinates import NormalizedPoint
-    from src.enums import Status
-    from src.types import ClassId, ImageId, ModelId
+    from src.core.enums import Status
+    from src.geometry.coordinates import NormalizedPoint
+    from src.models.types import ClassId, ImageId, ModelId
+    from src.server.context import TextSegmentationResult
+    from src.server.responses import ModelDescriptor, SetModelResponse
 
 
 @runtime_checkable
 class SAMClientProtocol(Protocol):
-    """Structural interface for model-server clients (TCP or local).
+    """Structural interface for model-serving clients.
 
-    Both :class:`src.sam_client.ModelServerClient` and any local inference
-    adapter must satisfy this Protocol so :class:`AppContext` can hold either
-    without coupling to a concrete type.
+    :class:`src.model_server.LocalModelClient` satisfies this Protocol so
+    :class:`AppContext` can hold it (or any future adapter) without coupling
+    to a concrete type.
     """
 
     def ping(self) -> bool:
@@ -59,26 +61,26 @@ class SAMClientProtocol(Protocol):
         """
         ...
 
-    def list_models(self) -> list[dict[str, Any]]:
+    def list_models(self) -> list[ModelDescriptor]:
         """Return descriptors for all configured models.
 
         Returns:
-            List of model descriptor dicts.
+            List of model descriptors.
         """
         ...
 
-    def set_model(self, model_id: ModelId) -> dict[str, Any]:
+    def set_model(self, model_id: ModelId) -> SetModelResponse:
         """Load a different model by *model_id*.
 
         Args:
             model_id: Unique model identifier string matching a config entry.
 
         Returns:
-            Response dict (contains ``"ok"`` or ``"error"``).
+            Response with ``ok``/``error`` (see :attr:`SetModelResponse.ok`).
         """
         ...
 
-    def predict_text(self, image: np.ndarray, class_names: list[str]) -> list[dict[str, Any]]:
+    def predict_text(self, image: np.ndarray, class_names: list[str]) -> list[TextSegmentationResult]:
         """Run text-prompted segmentation (SAM 3 only).
 
         Args:
@@ -86,7 +88,7 @@ class SAMClientProtocol(Protocol):
             class_names: Class-name strings used as text prompts.
 
         Returns:
-            List of per-class result dicts.
+            List of per-class results.
         """
         ...
 
@@ -256,8 +258,8 @@ class AppContext:
     Passed into FastAPI endpoint handlers instead of module-level global variables.
 
     Attributes:
-        client:    Active :class:`~src.sam_client.ModelServerClient`, or ``None`` when
-                   running without a model server.
+        client:    Active :class:`~src.model_server.LocalModelClient`, or ``None`` when
+                   running without one.
         inference: Local inference context (predictor, torch, OOM class, etc.).
     """
 

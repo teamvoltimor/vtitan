@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.config import APIConfig, InferenceConfig, PathConfig, ServerConfig
+from src.core.config import APIConfig, InferenceConfig, PathConfig
 
 
 @pytest.fixture(autouse=True)
@@ -13,8 +13,6 @@ def _clear_env(monkeypatch):
         "DB_PATH",
         "MODELS_CONFIG",
         "SERVER_CONFIG",
-        "SERVER_PORT",
-        "MODEL_SERVER_PORT",
         "HF_HUB_CACHE",
         "HF_TOKEN",
         "API_PORT",
@@ -38,49 +36,6 @@ class TestPathConfig:
 
         assert cfg.models_dir == tmp_path / "custom-models"
         assert cfg.db_path == tmp_path / "custom.db"
-
-
-class TestServerConfigPortPrecedence:
-    """Locks in the SERVER_PORT > MODEL_SERVER_PORT (legacy) > TOML > default order."""
-
-    def test_falls_back_to_hardcoded_default(self):
-        paths = PathConfig.load()
-        cfg = ServerConfig.load(paths)
-        assert cfg.port == 8765
-        assert cfg.port_source == "default"
-
-    def test_toml_file_beats_default(self, monkeypatch, tmp_path):
-        server_toml = tmp_path / "server.toml"
-        server_toml.write_text("[server]\nport = 9001\n")
-        monkeypatch.setenv("SERVER_CONFIG", str(server_toml))
-
-        paths = PathConfig.load()
-        cfg = ServerConfig.load(paths)
-
-        assert cfg.port == 9001
-        assert cfg.port_source == f"config:{server_toml.name}"
-
-    def test_legacy_env_var_beats_toml_file(self, monkeypatch, tmp_path):
-        server_toml = tmp_path / "server.toml"
-        server_toml.write_text("[server]\nport = 9001\n")
-        monkeypatch.setenv("SERVER_CONFIG", str(server_toml))
-        monkeypatch.setenv("MODEL_SERVER_PORT", "9002")
-
-        paths = PathConfig.load()
-        cfg = ServerConfig.load(paths)
-
-        assert cfg.port == 9002
-        assert cfg.port_source == "env:MODEL_SERVER_PORT"
-
-    def test_server_port_beats_legacy_env_var(self, monkeypatch):
-        monkeypatch.setenv("MODEL_SERVER_PORT", "9002")
-        monkeypatch.setenv("SERVER_PORT", "9003")
-
-        paths = PathConfig.load()
-        cfg = ServerConfig.load(paths)
-
-        assert cfg.port == 9003
-        assert cfg.port_source == "env:SERVER_PORT"
 
 
 class TestAPIConfig:

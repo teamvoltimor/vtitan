@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
-from src.enums import ComputeDevice
-from src.exceptions import InferenceBackendError, InferenceGPUMemory
+from src.core.enums import ComputeDevice
+from src.core.exceptions import InferenceBackendError, InferenceGPUMemory
 from src.utils import get_logger
 
 if TYPE_CHECKING:
-    from src.config import InferenceConfig, PathConfig
-    from src.models import InferenceContext
+    from src.core.config import InferenceConfig, PathConfig
+    from src.models.models import InferenceContext
 
 logger = get_logger(__name__)
 
@@ -214,7 +214,7 @@ class UltralyticsBackend:
 
 def _get_inference_config() -> InferenceConfigPaths:
     """Return inference config and paths from AppConfig (lazy load)."""
-    from src.config import AppConfig  # noqa: PLC0415
+    from src.core.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load()
     return InferenceConfigPaths(inference=cfg.inference, paths=cfg.paths)
 

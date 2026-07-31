@@ -33,6 +33,7 @@ export type ClassItem = Schemas['ClassItem'];
 export type ModelItem = Schemas['ModelItem'];
 export type GroupedGalleryItem = Schemas['ParentImageItem'];
 export type JobStatusResponse = Schemas['JobStatusResponse'];
+export type JobEvent = Schemas['JobEvent'];
 
 export const getGallery = async (): Promise<GalleryResponse> => {
   const response = await fetch(`${API}/gallery`);

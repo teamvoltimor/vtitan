@@ -37,7 +37,7 @@ class TrainPaths:
 
 def _get_paths() -> TrainPaths:
     """Return training paths from AppConfig."""
-    from src.config import AppConfig  # noqa: PLC0415
+    from src.core.config import AppConfig  # noqa: PLC0415
     cfg = AppConfig.load().paths
     return TrainPaths(base_dir=cfg.base_dir, data_yaml_path=cfg.data_yaml_path)
 

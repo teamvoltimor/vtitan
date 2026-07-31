@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/routes"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/middleware"
 )
 
@@ -17,11 +18,11 @@ func (a *App) Router() *gin.Engine {
 		middleware.CORS(a.cors),
 	)
 
-	r.GET(RouteLiveness, a.system.Liveness)
-	r.GET(RouteReadiness, a.system.Readiness)
-	r.GET(RouteHealth, a.system.Readiness)
+	r.GET(routes.Liveness, a.system.Liveness)
+	r.GET(routes.Readiness, a.system.Readiness)
+	r.GET(routes.Health, a.system.Readiness)
 
-	v1 := r.Group(RouteAPIv1)
+	v1 := r.Group(routes.APIv1)
 	a.gallery.RegisterRoutes(v1)
 	a.annotation.RegisterRoutes(v1)
 	a.compute.RegisterRoutes(v1)

@@ -339,11 +339,13 @@ paths:
       tags: [Augmentation]
       responses:
         '200':
-          description: SSE event stream
+          description: >-
+            SSE event stream. Each `data:` frame is a JSON-encoded JobEvent,
+            except for periodic `{"heartbeat": true}` keep-alive frames.
           content:
             text/event-stream:
               schema:
-                type: string
+                $ref: '#/components/schemas/JobEvent'
 
   # Training
   /train/start:
@@ -385,11 +387,13 @@ paths:
       tags: [Training]
       responses:
         '200':
-          description: SSE event stream
+          description: >-
+            SSE event stream. Each `data:` frame is a JSON-encoded JobEvent,
+            except for periodic `{"heartbeat": true}` keep-alive frames.
           content:
             text/event-stream:
               schema:
-                type: string
+                $ref: '#/components/schemas/JobEvent'
 
 components:
   schemas:
@@ -692,6 +696,45 @@ components:
           type: boolean
         message:
           type: string
+
+    JobEventData:
+      type: object
+      description: >-
+        Progress payload nested under a JobEvent. Populated fields vary by
+        event: a running-progress event carries stage/progress/details, while
+        the terminal event carries either error or finished.
+      properties:
+        stage:
+          type: string
+        progress:
+          type: number
+          format: double
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Free-form, job-type-specific metrics (e.g. {done, total} for
+            augmentation, {epoch, total, box_loss, cls_loss, map50} for
+            training).
+        error:
+          type: string
+        finished:
+          type: boolean
+
+    JobEvent:
+      type: object
+      required: [job_id, status, message, data]
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/JobEventData'
 
     AugmentRequest:
       type: object

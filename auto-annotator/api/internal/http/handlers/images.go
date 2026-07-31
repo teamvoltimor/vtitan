@@ -6,12 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/mapping"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/routes"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // ServeImage streams the raw image file for an id. GET /images/:id
 func (h *GalleryHandler) ServeImage(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ImageIDParamName), 10, 64)
+	id, err := strconv.ParseInt(c.Param(routes.ImageIDParamName), 10, 64)
 	if err != nil {
 		problem.Write(c, http.StatusUnprocessableEntity, ErrInvalidImageID, ErrTitleValidation)
 		return
@@ -28,7 +30,7 @@ func (h *GalleryHandler) ServeImage(c *gin.Context) {
 // ServeThumbnail streams a downscaled thumbnail, generating and caching it on
 // first request. Falls back to the original if decoding fails. GET /images/:id/thumb
 func (h *GalleryHandler) ServeThumbnail(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param(ImageIDParamName), 10, 64)
+	id, err := strconv.ParseInt(c.Param(routes.ImageIDParamName), 10, 64)
 	if err != nil {
 		problem.Write(c, http.StatusUnprocessableEntity, ErrInvalidImageID, ErrTitleValidation)
 		return
@@ -59,5 +61,5 @@ func (h *GalleryHandler) DeleteImages(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toGalleryResponse(g))
+	c.JSON(http.StatusOK, mapping.ToGalleryResponse(g))
 }

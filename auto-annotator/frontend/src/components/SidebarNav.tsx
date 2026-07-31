@@ -153,12 +153,7 @@ export function SidebarNav({
       </Stack>
 
       <Box sx={{ mt: 'auto', px: 1.5, pt: 2 }}>
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ px: 1 }}
-        >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1 }}>
           <Typography
             variant="caption"
             sx={{
@@ -169,12 +164,7 @@ export function SidebarNav({
           >
             auto-annotator
           </Typography>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{ fontSize: '0.65rem' }}
-            noWrap
-          >
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }} noWrap>
             {modelStatus}
           </Typography>
         </Stack>

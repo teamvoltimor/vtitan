@@ -13,7 +13,12 @@ const statsRows: { key: 'processed' | 'skipped' | 'labels'; label: string }[] = 
   { key: 'labels', label: 'Total' },
 ];
 
-export function StatusBar({ filename, stats, segmentationStatus, segmentationMessage }: StatusBarProps) {
+export function StatusBar({
+  filename,
+  stats,
+  segmentationStatus,
+  segmentationMessage,
+}: StatusBarProps) {
   const segmentationStatusColor =
     segmentationStatus === 'ready'
       ? 'success'
@@ -69,7 +74,16 @@ export function StatusBar({ filename, stats, segmentationStatus, segmentationMes
         <Chip
           label={`SAM · ${segmentationStatus}`}
           size="small"
-          color={segmentationStatusColor as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+          color={
+            segmentationStatusColor as
+              | 'default'
+              | 'primary'
+              | 'secondary'
+              | 'error'
+              | 'info'
+              | 'success'
+              | 'warning'
+          }
         />
         {segmentationMessage && (
           <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>

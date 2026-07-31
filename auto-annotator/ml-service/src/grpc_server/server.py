@@ -14,7 +14,7 @@ import grpc
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.config import AppConfig
+from src.core.config import AppConfig
 from src.grpc_server.pb import compute_pb2_grpc as pb_grpc
 from src.grpc_server.servicers import (
     AugmentationServicer,
@@ -62,23 +62,24 @@ def _load_grpc_config() -> GrpcConfig:
     return GrpcConfig(port=port, max_workers=max_workers)
 
 
-def build_server(port: int, max_workers: int = _DEFAULT_MAX_WORKERS) -> grpc.Server:
+def build_server(config: AppConfig, port: int, max_workers: int = _DEFAULT_MAX_WORKERS) -> grpc.Server:
     """Construct (but do not start) the gRPC server with all services registered."""
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max_workers))
-    pb_grpc.add_SegmentationServiceServicer_to_server(SegmentationServicer(), server)
+    pb_grpc.add_SegmentationServiceServicer_to_server(SegmentationServicer(config), server)
     pb_grpc.add_AugmentationServiceServicer_to_server(AugmentationServicer(), server)
     pb_grpc.add_TrainingServiceServicer_to_server(TrainingServicer(), server)
     server.add_insecure_port(f"[::]:{port}")
     return server
 
 
-def serve(port: int | None = None) -> None:
+def serve(config: AppConfig | None = None, port: int | None = None) -> None:
     """Start the gRPC server and block until terminated."""
     cfg = _load_grpc_config()
-    resolved = port if port is not None else cfg.port
-    server = build_server(resolved, cfg.max_workers)
+    resolved_config = config or AppConfig.load()
+    resolved_port = port if port is not None else cfg.port
+    server = build_server(resolved_config, resolved_port, cfg.max_workers)
     server.start()
-    logger.info("grpc_server_started", extra={"port": resolved, "max_workers": cfg.max_workers})
+    logger.info("grpc_server_started", extra={"port": resolved_port, "max_workers": cfg.max_workers})
     server.wait_for_termination()
 
 

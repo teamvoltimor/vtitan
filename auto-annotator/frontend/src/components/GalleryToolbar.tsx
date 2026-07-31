@@ -31,14 +31,15 @@ export function GalleryToolbar({
           <Button variant="outlined" size="small" onClick={onRefresh} startIcon={<ImageIcon />}>
             Refresh
           </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            component="label"
-            startIcon={<ImageIcon />}
-          >
+          <Button variant="outlined" size="small" component="label" startIcon={<ImageIcon />}>
             Upload
-            <input type="file" hidden multiple accept="image/*" onChange={(e) => onUpload(e.target.files)} />
+            <input
+              type="file"
+              hidden
+              multiple
+              accept="image/*"
+              onChange={(e) => onUpload(e.target.files)}
+            />
           </Button>
           {selectedCount > 0 && (
             <Button

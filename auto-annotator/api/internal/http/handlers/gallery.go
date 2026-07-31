@@ -5,18 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/mapping"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/routes"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
 // RegisterRoutes wires the gallery and image routes onto rg.
 func (h *GalleryHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET(RouteGallery, h.GetGallery)
-	rg.GET(RouteGalleryGrouped, h.GetGroupedGallery)
-	rg.POST(RouteGalleryImport, h.ImportGallery)
+	rg.GET(routes.Gallery, h.GetGallery)
+	rg.GET(routes.GalleryGrouped, h.GetGroupedGallery)
+	rg.POST(routes.GalleryImport, h.ImportGallery)
 
-	rg.GET(RouteImages, h.ServeImage)
-	rg.GET(RouteImageThumb, h.ServeThumbnail)
-	rg.POST(RouteImagesDelete, h.DeleteImages)
+	rg.GET(routes.Images, h.ServeImage)
+	rg.GET(routes.ImageThumb, h.ServeThumbnail)
+	rg.POST(routes.ImagesDelete, h.DeleteImages)
 }
 
 // GetGallery returns all images with status counts. GET /gallery
@@ -26,7 +28,7 @@ func (h *GalleryHandler) GetGallery(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toGalleryResponse(g))
+	c.JSON(http.StatusOK, mapping.ToGalleryResponse(g))
 }
 
 // GetGroupedGallery returns parent images with augmentation counts. GET /gallery/grouped
@@ -36,7 +38,7 @@ func (h *GalleryHandler) GetGroupedGallery(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toParentImageItems(rows))
+	c.JSON(http.StatusOK, mapping.ToParentImageItems(rows))
 }
 
 // ImportGallery accepts uploaded image files and returns the updated gallery.
@@ -57,5 +59,5 @@ func (h *GalleryHandler) ImportGallery(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toGalleryResponse(g))
+	c.JSON(http.StatusOK, mapping.ToGalleryResponse(g))
 }

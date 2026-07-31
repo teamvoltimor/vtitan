@@ -1,10 +1,11 @@
 import { Alert, Card, Stack } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  type GroupedGalleryItem,
   getGroupedGallery,
+  type JobEvent,
   startTrain,
   trainStreamUrl,
-  type GroupedGalleryItem,
 } from '../api/client';
 import { DatasetSelector } from './DatasetSelector';
 import { TrainingConfig } from './TrainingConfig';
@@ -74,27 +75,32 @@ const TrainTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
 
     es.onmessage = (e) => {
       try {
-        const evt = JSON.parse(e.data);
-        if (evt.heartbeat) return;
-        if (evt.error) {
-          setError(evt.error);
+        const parsed = JSON.parse(e.data);
+        if (parsed.heartbeat) return;
+        const evt = parsed as JobEvent;
+        if (evt.data.error) {
+          setError(evt.data.error);
           setRunning(false);
           es.close();
           return;
         }
-        if (evt.finished) {
+        if (evt.data.finished) {
           setFinished(true);
           setRunning(false);
           es.close();
           return;
         }
-        if (evt.epoch !== undefined) {
+        const details = evt.data.details as
+          | { epoch?: number; total?: number; box_loss?: number; cls_loss?: number; map50?: number }
+          | null
+          | undefined;
+        if (details?.epoch !== undefined) {
           const p: TrainProgress = {
-            epoch: evt.epoch,
-            total: evt.total,
-            box_loss: evt.box_loss ?? 0,
-            cls_loss: evt.cls_loss ?? 0,
-            map50: evt.map50 ?? 0,
+            epoch: details.epoch,
+            total: details.total ?? 0,
+            box_loss: details.box_loss ?? 0,
+            cls_loss: details.cls_loss ?? 0,
+            map50: details.map50 ?? 0,
           };
           setProgress(p);
           setLog((prev) =>

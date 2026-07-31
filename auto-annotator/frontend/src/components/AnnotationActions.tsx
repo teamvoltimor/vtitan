@@ -1,4 +1,12 @@
-import { Box, Button, ButtonGroup, CircularProgress, Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import {
+  Box,
+  Button,
+  ButtonGroup,
+  CircularProgress,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material';
 
 interface AnnotationActionsProps {
   annotationMode: 'auto' | 'manual';
@@ -56,10 +64,7 @@ export function AnnotationActions({
         <ToggleButton value="auto" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
           Auto
         </ToggleButton>
-        <ToggleButton
-          value="manual"
-          sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}
-        >
+        <ToggleButton value="manual" sx={{ px: 1.5, fontSize: '0.8125rem', textTransform: 'none' }}>
           Manual
         </ToggleButton>
       </ToggleButtonGroup>

@@ -9,7 +9,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from src.constants import (
+from src.core.constants import (
     GEOMETRY_DEFAULT_EPSILON_FACTOR,
     GEOMETRY_MINIMUM_CONTOUR_AREA,
     GEOMETRY_MINIMUM_POLYGON_POINTS,

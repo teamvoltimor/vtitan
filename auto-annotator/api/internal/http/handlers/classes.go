@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	annotationdomain "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/annotation"
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/mapping"
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/problem"
 )
 
@@ -16,7 +17,7 @@ func (h *AnnotationHandler) ListClasses(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, classesToOAPI(classes))
+	c.JSON(http.StatusOK, mapping.ClassesToOAPI(classes))
 }
 
 // UpsertClass inserts or updates a class by name and returns the full list.
@@ -37,5 +38,5 @@ func (h *AnnotationHandler) UpsertClass(c *gin.Context) {
 		problem.FromDomain(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, classesToOAPI(classes))
+	c.JSON(http.StatusOK, mapping.ClassesToOAPI(classes))
 }

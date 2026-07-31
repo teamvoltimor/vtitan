@@ -34,7 +34,7 @@ class AnnotationCache:
             labels_dir: Root labels directory. Falls back to AppConfig when omitted.
         """
         if labels_dir is None:
-            from src.config import AppConfig  # noqa: PLC0415
+            from src.core.config import AppConfig  # noqa: PLC0415
             labels_dir = AppConfig.load().paths.labels_dir
         self._labels_dir: Path = labels_dir
         self._cache: dict[tuple[str, str], list[str]] = {}

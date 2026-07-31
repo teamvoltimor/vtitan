@@ -14,32 +14,32 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.constants import MASK_LABELS
-from src.exceptions import (
+from src.core.constants import MASK_LABELS
+from src.core.exceptions import (
     InferenceBackendError,
     InferenceGPUMemory,
 )
-from src.inference_backends import get_backend, load_native_sam2, load_ultralytics_fallback
-from src.models import InferenceContext, InferenceRequest, InferenceResult, Point
+from src.inference.inference_backends import get_backend, load_native_sam2, load_ultralytics_fallback
+from src.models.models import InferenceContext, InferenceRequest, InferenceResult, Point
 
 if TYPE_CHECKING:
-    from src.sam_client import ModelServerClient
+    from src.models.models import SAMClientProtocol
 
 from src.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-def initialize_inference(client: ModelServerClient | None, context: InferenceContext) -> None:
-    """Load SAM locally into *context* when no model server is reachable.
+def initialize_inference(client: SAMClientProtocol | None, context: InferenceContext) -> None:
+    """Load SAM locally into *context* when no model client is active.
 
     Tries the native ``sam2`` package first (preferred), then falls back to the
     ``ultralytics`` SAM wrapper. Does nothing when *client* is not ``None``
-    (server mode is active) or when *context* already has a predictor loaded.
+    (a model client is active) or when *context* already has a predictor loaded.
 
     Args:
-        client:  Active :class:`~src.sam_client.ModelServerClient`, or ``None``
-                 when running without a model server.
+        client:  Active :class:`~src.models.SAMClientProtocol` implementation,
+                 or ``None`` when running without one.
         context: :class:`~src.models.InferenceContext` to populate in-place.
     """
     if client is not None:
@@ -100,7 +100,7 @@ def _empty_cache() -> None:
 
 def run_sam_inference(
     request: InferenceRequest,
-    client: ModelServerClient | None,
+    client: SAMClientProtocol | None,
     context: InferenceContext,
 ) -> InferenceResult:
     """Run SAM on *request* and return a structured result. Mutates nothing.
@@ -128,8 +128,7 @@ def run_sam_inference(
     try:
         if client is not None:
             client.set_image(request.image)
-            prediction = client.predict(coords, labels)
-            all_masks, scores_flat = prediction.masks, prediction.scores
+            all_masks, scores_flat, _logits = client.predict(coords, labels)
         else:
             backend = get_backend(context)
             backend.set_image(request.image)

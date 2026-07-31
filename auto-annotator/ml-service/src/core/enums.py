@@ -26,7 +26,14 @@ class ComputeDevice(StrEnum):
 
 
 class ModelType(StrEnum):
-    """Supported SAM and YOLO model architectures."""
+    """Supported SAM and YOLO model architectures.
+
+    ``GROUNDING_DINO`` has a ``config/models.toml`` entry but no loader in
+    ``src/server/loader.py`` yet; it's listed so config parsing doesn't reject
+    the whole file, but ``ModelRegistry`` reports it unavailable
+    (``_is_available`` has no case for it) and ``load_model`` raises
+    ``ModelLoadError`` if ever selected (``_MODEL_LOADERS`` has no entry for it).
+    """
 
     SAM1 = "sam1"
     """Segment Anything Model v1 (original SAM)."""
@@ -43,25 +50,6 @@ class ModelType(StrEnum):
     YOLOE = "yoloe"
     """YOLOv8 efficient detection model."""
 
-
-class ServerCommand(StrEnum):
-    """gRPC server command types."""
-
-    PING = "ping"
-    """Health check / device status query."""
-
-    LIST_MODELS = "list_models"
-    """Get list of available models and their status."""
-
-    SET_MODEL = "set_model"
-    """Load a model into memory."""
-
-    SET_IMAGE = "set_image"
-    """Set the image for inference."""
-
-    PREDICT = "predict"
-    """Run point-prompted segmentation."""
-
-    PREDICT_TEXT = "predict_text"
-    """Run text-prompted segmentation."""
+    GROUNDING_DINO = "grounding_dino"
+    """Grounding DINO + SAM (config entry exists; not yet implemented)."""
 

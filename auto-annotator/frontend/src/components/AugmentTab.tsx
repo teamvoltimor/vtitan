@@ -2,9 +2,10 @@ import { Alert, Card, Stack } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   augmentStreamUrl,
-  getGroupedGallery,
-  startAugment,
   type GroupedGalleryItem,
+  getGroupedGallery,
+  type JobEvent,
+  startAugment,
 } from '../api/client';
 import { AugmentConfig } from './AugmentConfig';
 import { AugmentProgress } from './AugmentProgress';
@@ -59,22 +60,28 @@ const AugmentTab = (_props: { onNavigate?: (tabIndex: number) => void }) => {
 
     es.onmessage = (e) => {
       try {
-        const evt = JSON.parse(e.data);
-        if (evt.heartbeat) return;
-        if (evt.error) {
-          setError(evt.error);
+        const parsed = JSON.parse(e.data);
+        if (parsed.heartbeat) return;
+        const evt = parsed as JobEvent;
+        if (evt.data.error) {
+          setError(evt.data.error);
           setRunning(false);
           es.close();
           return;
         }
-        if (evt.finished) {
+        if (evt.data.finished) {
           setFinished(true);
           setRunning(false);
           es.close();
           void loadGroups();
           return;
         }
-        setProgress({ done: evt.done ?? 0, total: evt.total ?? 1, step: evt.step ?? '' });
+        const details = evt.data.details as { done?: number; total?: number } | null | undefined;
+        setProgress({
+          done: details?.done ?? 0,
+          total: details?.total ?? 1,
+          step: evt.message ?? '',
+        });
       } catch (parseErr) {
         console.error('SSE parse error', parseErr);
       }

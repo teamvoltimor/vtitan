@@ -4,16 +4,15 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/teamvoltimor/vtitan/auto-annotator/api/internal/http/handlers/routes"
 )
 
-const (
-	RouteOpenAPISpec   = "/openapi.yaml"
-	DefaultOpenAPIPath = "api/openapi.yaml"
-)
+const DefaultOpenAPIPath = "api/openapi.yaml"
 
 // RegisterRoutes wires the OpenAPI spec route onto rg.
 func (h *SystemHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET(RouteOpenAPISpec, h.ServeOpenAPISpec)
+	rg.GET(routes.OpenAPISpec, h.ServeOpenAPISpec)
 }
 
 // ServeOpenAPISpec serves the OpenAPI YAML spec. GET /api/v1/openapi.yaml

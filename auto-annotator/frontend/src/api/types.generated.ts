@@ -494,6 +494,25 @@ export interface components {
       running: boolean;
       message: string;
     };
+    /** @description Progress payload nested under a JobEvent. Populated fields vary by event: a running-progress event carries stage/progress/details, while the terminal event carries either error or finished. */
+    JobEventData: {
+      stage?: string;
+      /** Format: double */
+      progress?: number;
+      /** @description Free-form, job-type-specific metrics (e.g. {done, total} for augmentation, {epoch, total, box_loss, cls_loss, map50} for training). */
+      details?: {
+        [key: string]: unknown;
+      } | null;
+      error?: string;
+      finished?: boolean;
+    };
+    JobEvent: {
+      job_id: string;
+      /** @enum {string} */
+      status: 'running' | 'completed' | 'failed';
+      message: string;
+      data: components['schemas']['JobEventData'];
+    };
     AugmentRequest: {
       imageIds: number[];
       /**
@@ -935,13 +954,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description SSE event stream */
+      /** @description SSE event stream. Each `data:` frame is a JSON-encoded JobEvent, except for periodic `{"heartbeat": true}` keep-alive frames. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'text/event-stream': string;
+          'text/event-stream': components['schemas']['JobEvent'];
         };
       };
     };
@@ -999,13 +1018,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description SSE event stream */
+      /** @description SSE event stream. Each `data:` frame is a JSON-encoded JobEvent, except for periodic `{"heartbeat": true}` keep-alive frames. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'text/event-stream': string;
+          'text/event-stream': components['schemas']['JobEvent'];
         };
       };
     };

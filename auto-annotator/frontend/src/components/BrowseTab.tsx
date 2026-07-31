@@ -1,16 +1,11 @@
-import {
-  Card,
-  LinearProgress,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Card, LinearProgress, Stack, Typography } from '@mui/material';
 import { useCanvasRender } from '../hooks/useCanvasRender';
 import { useAppState } from '../state/appState';
-import { GalleryToolbar } from './GalleryToolbar';
 import { GalleryEmptyState } from './GalleryEmptyState';
 import { GalleryGrid } from './GalleryGrid';
 import { GalleryList } from './GalleryList';
 import { GalleryPreview } from './GalleryPreview';
+import { GalleryToolbar } from './GalleryToolbar';
 
 const BrowseTab = () => {
   const {

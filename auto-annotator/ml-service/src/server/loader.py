@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from src.enums import ModelType
-from src.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
+from src.core.enums import ModelType
+from src.core.exceptions import ModelLoadError, ModelNotAvailable, ModelNotFound
 from src.server.constants import PROJECT_ROOT
 from src.server.registry import ModelConfig, ModelRegistry
 from src.server.sam1 import load_sam1

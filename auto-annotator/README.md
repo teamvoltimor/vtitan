@@ -111,7 +111,6 @@ All commands are available via `task <name>` (see `Taskfile.yml`):
 | Variable | Default | Description |
 |---|---|---|
 | `API_PORT` | `8000` | Go API HTTP port |
-| `SERVER_PORT` | `8765` | ML service model-server port |
 | `GRPC_PORT` | `50051` | gRPC compute port |
 | `FRONTEND_PORT` | `80` | Frontend (Docker) port |
 

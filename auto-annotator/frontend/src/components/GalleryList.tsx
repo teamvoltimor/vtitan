@@ -62,9 +62,7 @@ export function GalleryList({
                 transition: 'background-color 80ms ease, border-color 80ms ease',
                 '&:hover': {
                   bgcolor:
-                    theme.palette.mode === 'dark'
-                      ? 'rgba(255,255,255,0.04)'
-                      : 'rgba(0,0,0,0.03)',
+                    theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                 },
               }}
             >

@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING, Literal, cast
 import numpy as np
 from PIL import Image
 
-from src.coordinates import NormalizedPoint, YOLOPoint, yolo_bbox_to_corners
-from src.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
-from src.inference import run_sam_inference
-from src.models import ClassInfo, ClickPoint, InferenceRequest, Point, Shape
+from src.geometry.coordinates import NormalizedPoint, YOLOPoint, yolo_bbox_to_corners
+from src.geometry.geometry import mask_to_yolo_bbox, mask_to_yolo_polygon
+from src.inference.inference import run_sam_inference
+from src.models.models import ClassInfo, ClickPoint, InferenceRequest, Point, Shape
 
 if TYPE_CHECKING:
-    from src.models import AppContext, ImageRepositoryProtocol
+    from src.models.models import AppContext, ImageRepositoryProtocol
 
 
 class SegmentationService:

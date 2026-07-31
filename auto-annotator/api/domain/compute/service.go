@@ -2,6 +2,7 @@ package compute
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -190,17 +191,21 @@ func (s *computeService) runTrain(ctx context.Context, emit job.EmitFunc, in Tra
 
 func emitTerminal(emit job.EmitFunc, doneMsg string, err error) {
 	if err != nil {
-		emit(job.StatusFailed, err.Error(), map[string]any{domain.MapKeyError: err.Error()})
+		emit(job.StatusFailed, err.Error(), job.EventData{Error: err.Error()})
 		return
 	}
-	emit(job.StatusCompleted, doneMsg, map[string]any{domain.MapKeyFinished: true})
+	emit(job.StatusCompleted, doneMsg, job.EventData{Finished: true})
 }
 
-func progressData(p Progress) map[string]any {
-	return map[string]any{
-		domain.MapKeyStage:    p.Stage,
-		domain.MapKeyProgress: p.Progress,
-		domain.MapKeyDetails:  p.Details,
+func progressData(p Progress) job.EventData {
+	var details json.RawMessage
+	if p.Details != "" {
+		details = json.RawMessage(p.Details)
+	}
+	return job.EventData{
+		Stage:    p.Stage,
+		Progress: p.Progress,
+		Details:  details,
 	}
 }
 

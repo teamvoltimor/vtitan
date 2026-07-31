@@ -30,11 +30,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Runtime stage – much smaller: no build tools, no CUDA headers.
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
 
-ARG SERVER_PORT=8765
 ARG GRPC_PORT=50051
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    SERVER_PORT=${SERVER_PORT} \
     GRPC_PORT=${GRPC_PORT} \
     HF_HUB_CACHE=/app/models \
     PYTHONUNBUFFERED=1 \
@@ -66,7 +64,7 @@ RUN groupadd -g 10001 mlservice && useradd -u 10001 -g mlservice -M mlservice \
     && mkdir -p /app/data /app/models && chown -R mlservice:mlservice /app
 USER mlservice
 
-EXPOSE ${SERVER_PORT} ${GRPC_PORT}
+EXPOSE ${GRPC_PORT}
 
 # grpc_main.py opens the gRPC port early (before any lazy model load), so a
 # bare TCP connect is a sufficient readiness signal without depending on the

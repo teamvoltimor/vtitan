@@ -37,8 +37,7 @@ export function AugmentConfig({
             size="small"
           />
           <Typography variant="caption" color="text.disabled">
-            Transforms: random brightness/contrast, horizontal flip, shift/scale/rotate, random
-            crop
+            Transforms: random brightness/contrast, horizontal flip, shift/scale/rotate, random crop
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1} alignItems="center">

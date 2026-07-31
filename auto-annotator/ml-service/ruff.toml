@@ -5,6 +5,9 @@
 # Documentation: https://docs.astral.sh/ruff/
 
 # Basic Configuration
+# Pinned to 3.12 (not the newer skill-recommended baseline) because torch/CUDA
+# wheel availability lags Python releases; bump alongside .python-version and
+# pyproject.toml's requires-python together, not independently.
 target-version = "py312"
 line-length = 120
 indent-width = 4
@@ -338,18 +341,10 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 ]
 
 # Inference pipeline: heavy imports are deferred; function complexity is domain-driven
-"src/inference.py" = ["PLC0415", "BLE001", "C901", "PLR0911", "PLR0912", "PLR0915"]
+"src/inference/inference.py" = ["PLC0415", "BLE001", "C901", "PLR0911", "PLR0912", "PLR0915"]
 
 # ENV_HF_TOKEN is a key name string, not a hardcoded secret value
-"src/constants.py" = ["S105"]
-
-# pickle is the intentional wire protocol for the TCP model server
-"src/sam_client.py" = ["S301"]
-
-# TCP server: pickle protocol; broad catch is intentional server robustness;
-# AppConfig is imported lazily inside run_server() so config loading happens
-# after the socket is bound, not at module import time.
-"src/server/main.py" = ["S301", "BLE001", "PLC0415"]
+"src/core/constants.py" = ["S105"]
 
 # Broad catch in load_model is intentional — ML loading can fail in arbitrary ways
 "src/server/loader.py" = ["BLE001"]
@@ -374,12 +369,12 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # UltralyticsSAM disambiguates ultralytics' SAM class from this project's own
 # SAM1/SAM2/SAM3 predictor wrappers; N811 misreads the all-caps acronym "SAM" as
 # a constant rather than a class name.
-"src/inference_backends.py" = ["N811"]
+"src/inference/inference_backends.py" = ["N811"]
 
 # Renaming the exception hierarchy to add an "Error" suffix (N818) would ripple
 # across every call site in src/ and tests/; deferred as a deliberate follow-up
 # rather than done incidentally while enabling the N rule category.
-"src/exceptions.py" = ["N818"]
+"src/core/exceptions.py" = ["N818"]
 
 "src/*.py" = []
 

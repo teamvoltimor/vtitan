@@ -54,9 +54,7 @@ export function ClassSettings({
             component="input"
             type="color"
             value={newClassColor}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setNewClassColor(e.target.value)
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewClassColor(e.target.value)}
             sx={{
               width: 28,
               height: 28,

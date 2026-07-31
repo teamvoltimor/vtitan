@@ -64,7 +64,7 @@ message JobProgress {
   string message = 2;
   string stage = 3;
   double progress = 4; // 0.0 - 1.0
-  string details = 5;  // free-form JSON (epoch/loss/map for training, counts for augment)
+  string details = 5; // free-form JSON (epoch/loss/map for training, counts for augment)
   bool finished = 6;
   string error = 7;
   // Set on augmentation progress events as copies are created, so the Go API can
