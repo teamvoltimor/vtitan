@@ -6,7 +6,14 @@ from src.docker import DOCKER_SHARED_MOUNT, DockerRunConfig, _compile_only_args,
 
 
 def _config(**overrides: object) -> DockerRunConfig:
-    base: dict[str, object] = {"shared_dir": "./shared_with_docker"}
+    base: dict[str, object] = {
+        "shared_dir": "./shared_with_docker",
+        "container": "hailo8_ai_sw_suite_2025-10_container",
+        "image": "hailo8_ai_sw_suite_2025-10:1",
+        "host_uid": 1000,
+        "video_gid": 44,
+        "display": ":0",
+    }
     base.update(overrides)
     return DockerRunConfig(**base)  # type: ignore[arg-type]
 

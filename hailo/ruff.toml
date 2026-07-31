@@ -313,6 +313,15 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "T201",
     "N815",
 ]
+# Standalone maintenance scripts (sync/validate eval/ <-> shared_with_docker/eval/).
+# Their progress/result output is the point, run before src.log is on sys.path.
+"scripts/*.py" = [
+    "T201", # print() -- progress and result output
+]
+# Mirrors eval.metrics.MetricsResult's field names for a 1:1 JSON transport shape.
+"src/metrics_report.py" = [
+    "N815", # mAP50/mAP75 etc. are domain-standard metric names
+]
 # Tests
 "test_*.py" = [
     "S101",    # Use of assert

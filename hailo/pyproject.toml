@@ -9,6 +9,7 @@ dependencies = [
     "onnx>=1.20.1",
     "onnxruntime>=1.24.1",
     "opencv-python>=4.13.0.92",
+    "pydantic>=2.7.0",
     "pydantic-settings>=2.7.0",
     "ultralytics>=8.4.14",
 ]

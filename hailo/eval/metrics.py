@@ -30,8 +30,8 @@ IMAGE_SIZE = 640
 LABEL_TO_MODEL = {0: 2, 1: 0, 2: 1}
 MODEL_NAMES = {0: "green", 1: "magenta", 2: "red"}
 
-# Letterbox canvas configuration
-LETTERBOX_CANVAS_COLOR = (114, 114, 114)
+# Letterbox padding configuration
+LETTERBOX_PAD_COLOR = (114, 114, 114)
 
 # Average precision evaluation thresholds (IoU ranges)
 AP_THRESHOLD_START = 0.5
@@ -45,7 +45,13 @@ CONFUSION_MIN_OVERLAP = 0.5
 
 @dataclass(frozen=True, slots=True)
 class MetricsResult:
-    """Typed result bundle returned by :func:`summarise`."""
+    """Typed result bundle returned by :func:`summarise`.
+
+    Compute-only: this module must stay free of third-party deps beyond
+    numpy/PIL so it runs unmodified inside the Hailo AI Software Suite
+    container. JSON/Docker-transport serialization of this type lives in
+    ``src.metrics_report.MetricsReport`` instead, which is host-only.
+    """
 
     mAP50: float
     mAP75: float
@@ -53,29 +59,6 @@ class MetricsResult:
     per_class: dict[int, float]
     per_class_5095: dict[int, float]
     confusion: dict[tuple[int, int], int]
-
-    def to_dict(self) -> dict[str, object]:
-        """Serialize to a plain dict for JSON/Docker-bound transport."""
-        return {
-            "mAP50": self.mAP50,
-            "mAP75": self.mAP75,
-            "mAP50_95": self.mAP50_95,
-            "per_class": self.per_class,
-            "per_class_5095": self.per_class_5095,
-            "confusion": self.confusion,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, object]) -> MetricsResult:
-        """Deserialize from a dict produced by :meth:`to_dict`."""
-        return cls(
-            mAP50=float(data["mAP50"]),
-            mAP75=float(data["mAP75"]),
-            mAP50_95=float(data["mAP50_95"]),
-            per_class=dict(data["per_class"]),  # type: ignore[arg-type]
-            per_class_5095=dict(data["per_class_5095"]),  # type: ignore[arg-type]
-            confusion=dict(data["confusion"]),  # type: ignore[arg-type]
-        )
 
 
 # Pillow moved the resampling enum in 9.1; the suite image predates the move.
@@ -113,7 +96,7 @@ def letterbox(img: Image.Image) -> LetterboxResult:
     width, height = img.size
     scale = min(IMAGE_SIZE / width, IMAGE_SIZE / height)
     new_w, new_h = round(width * scale), round(height * scale)
-    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), LETTERBOX_CANVAS_COLOR)
+    canvas = Image.new("RGB", (IMAGE_SIZE, IMAGE_SIZE), LETTERBOX_PAD_COLOR)
     pad_x, pad_y = (IMAGE_SIZE - new_w) // 2, (IMAGE_SIZE - new_h) // 2
     canvas.paste(img.resize((new_w, new_h), _BILINEAR), (pad_x, pad_y))
     return LetterboxResult(
