@@ -27,6 +27,7 @@ func NewMemory() *Memory {
 	return &Memory{annotations: make(map[string]vision.Annotation)}
 }
 
+// ListAnnotations returns all stored annotations.
 func (m *Memory) ListAnnotations(_ context.Context) ([]vision.Annotation, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -37,6 +38,7 @@ func (m *Memory) ListAnnotations(_ context.Context) ([]vision.Annotation, error)
 	return out, nil
 }
 
+// CreateAnnotation stores a new annotation.
 func (m *Memory) CreateAnnotation(_ context.Context, req vision.CreateAnnotationRequest) (vision.Annotation, error) {
 	a := vision.Annotation{
 		ID:        uuid.NewString(),
@@ -52,6 +54,7 @@ func (m *Memory) CreateAnnotation(_ context.Context, req vision.CreateAnnotation
 	return a, nil
 }
 
+// UpdateAnnotation applies non-nil fields from req to the stored annotation.
 func (m *Memory) UpdateAnnotation(_ context.Context, id string, req vision.UpdateAnnotationRequest) (vision.Annotation, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -71,6 +74,7 @@ func (m *Memory) UpdateAnnotation(_ context.Context, id string, req vision.Updat
 	return a, nil
 }
 
+// DeleteAnnotation removes the annotation with the given id.
 func (m *Memory) DeleteAnnotation(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -81,6 +85,7 @@ func (m *Memory) DeleteAnnotation(_ context.Context, id string) error {
 	return nil
 }
 
+// ActiveModel returns the currently selected vision model, or a zero value if none is set.
 func (m *Memory) ActiveModel(_ context.Context) (vision.ModelInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -90,6 +95,7 @@ func (m *Memory) ActiveModel(_ context.Context) (vision.ModelInfo, error) {
 	return *m.model, nil
 }
 
+// SetActiveModel replaces the currently selected vision model.
 func (m *Memory) SetActiveModel(_ context.Context, req vision.SetModelRequest) (vision.ModelInfo, error) {
 	version := ""
 	if req.Version != nil {

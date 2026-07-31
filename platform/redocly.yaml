@@ -1,0 +1,24 @@
+# Redocly CLI config for the aggregated OpenAPI spec (openapi/openapi.yaml + contexts/*.yaml).
+#
+# Uses the `minimal` ruleset rather than `recommended`: the recommended ruleset reports ~69
+# pre-existing errors against this spec (many from openapi.yaml's per-context schema nesting,
+# e.g. `components.schemas.Telemetry.HealthResponse`, which organizes re-exported schemas by
+# bounded context but isn't valid flat OpenAPI structure) -- fixing those is a spec-restructuring
+# project of its own, not something this config should silently paper over or block on. Minimal
+# still catches genuine breakage (invalid refs, malformed schemas) without that pre-existing noise.
+extends:
+  - minimal
+
+rules:
+  # openapi.yaml's components.schemas nests re-exported schemas under a context-name key
+  # (e.g. components.schemas.Telemetry.HealthResponse) for readability -- not valid OpenAPI
+  # (components.schemas must be flat), but fixing it means flattening/renaming every schema
+  # reference across 5 context files, which is a spec-restructuring task of its own, not
+  # something to bundle into adding lint tooling. Downgraded to warn so `redocly lint` is
+  # actually useful (catches new breakage) instead of permanently red from this one
+  # pre-existing, known issue.
+  struct: warn
+
+apis:
+  main:
+    root: openapi/openapi.yaml

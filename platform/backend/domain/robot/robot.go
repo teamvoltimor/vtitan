@@ -7,6 +7,7 @@ import "time"
 // State is the robot's lifecycle state.
 type State string
 
+// State values.
 const (
 	StateBootCheck State = "BOOT_CHECK"
 	StateReady     State = "READY"
@@ -103,6 +104,7 @@ type UpdateConfigRequest struct {
 // CommandType is a robot control command.
 type CommandType string
 
+// CommandType values.
 const (
 	CommandStartRace      CommandType = "START_RACE"
 	CommandStopRace       CommandType = "STOP_RACE"
@@ -128,6 +130,7 @@ type Command struct {
 // CommandStatus is the outcome of dispatching a Command.
 type CommandStatus string
 
+// CommandStatus values.
 const (
 	CommandAccepted CommandStatus = "accepted"
 	CommandRejected CommandStatus = "rejected"

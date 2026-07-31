@@ -229,3 +229,6 @@ fixtures/
 
 # Backups
 *.bak*
+
+# Redocly bundle output (task openapi:bundle)
+openapi/openapi.bundled.yaml

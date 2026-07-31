@@ -39,6 +39,7 @@ func NewMemory() *Memory {
 	}
 }
 
+// ListScenarios returns up to limit stored scenarios, optionally filtered by challenge.
 func (m *Memory) ListScenarios(_ context.Context, challenge simulation.Challenge, limit int) ([]simulation.Scenario, error) {
 	if limit <= 0 {
 		limit = defaultListLimit
@@ -94,6 +95,7 @@ func (m *Memory) GenerateScenario(_ context.Context, req simulation.GenerateScen
 	return sc, nil
 }
 
+// GetScenario returns the scenario with the given id.
 func (m *Memory) GetScenario(_ context.Context, id string) (simulation.Scenario, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -104,6 +106,7 @@ func (m *Memory) GetScenario(_ context.Context, id string) (simulation.Scenario,
 	return sc, nil
 }
 
+// DeleteScenario removes the scenario with the given id.
 func (m *Memory) DeleteScenario(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -114,6 +117,7 @@ func (m *Memory) DeleteScenario(_ context.Context, id string) error {
 	return nil
 }
 
+// ListRuns returns all stored simulation runs.
 func (m *Memory) ListRuns(_ context.Context) ([]simulation.Run, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -124,6 +128,7 @@ func (m *Memory) ListRuns(_ context.Context) ([]simulation.Run, error) {
 	return out, nil
 }
 
+// StartRun creates a new pending run for the given scenario.
 func (m *Memory) StartRun(_ context.Context, req simulation.StartRunRequest) (simulation.Run, error) {
 	m.mu.RLock()
 	_, scenarioExists := m.scenarios[req.ScenarioID]
@@ -149,6 +154,7 @@ func (m *Memory) StartRun(_ context.Context, req simulation.StartRunRequest) (si
 	return run, nil
 }
 
+// GetRun returns the run with the given id.
 func (m *Memory) GetRun(_ context.Context, id string) (simulation.Run, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

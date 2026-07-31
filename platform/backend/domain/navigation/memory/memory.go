@@ -33,6 +33,7 @@ func NewMemory() *Memory {
 	return &Memory{}
 }
 
+// ListWaypoints returns all stored waypoints in index order.
 func (m *Memory) ListWaypoints(_ context.Context) ([]navigation.Waypoint, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -41,6 +42,7 @@ func (m *Memory) ListWaypoints(_ context.Context) ([]navigation.Waypoint, error)
 	return out, nil
 }
 
+// CreateWaypoint appends a new waypoint, assigning it the next index.
 func (m *Memory) CreateWaypoint(_ context.Context, req navigation.CreateWaypointRequest) (navigation.Waypoint, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -56,6 +58,7 @@ func (m *Memory) CreateWaypoint(_ context.Context, req navigation.CreateWaypoint
 	return wp, nil
 }
 
+// DeleteWaypoint removes the waypoint with the given id and reindexes the rest.
 func (m *Memory) DeleteWaypoint(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -69,6 +72,7 @@ func (m *Memory) DeleteWaypoint(_ context.Context, id string) error {
 	return navigation.ErrNotFound
 }
 
+// Route returns the current planned route.
 func (m *Memory) Route(_ context.Context) (navigation.Route, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -100,6 +104,7 @@ func (m *Memory) PlanRoute(_ context.Context, req navigation.PlanRouteRequest) (
 	return m.route, nil
 }
 
+// Status returns the navigation subsystem's current status.
 func (m *Memory) Status(_ context.Context) (navigation.Status, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -108,16 +113,19 @@ func (m *Memory) Status(_ context.Context) (navigation.Status, error) {
 	}, nil
 }
 
+// Clearance returns the most recent LIDAR clearance reading.
 func (m *Memory) Clearance(_ context.Context) (navigation.Clearance, error) {
 	return navigation.Clearance{Timestamp: time.Now().UTC()}, nil
 }
 
+// Tuning returns the navigation subsystem's current tunable parameters.
 func (m *Memory) Tuning(_ context.Context) (navigation.Tuning, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.tuning, nil
 }
 
+// UpdateTuning replaces the stored tuning parameters and returns the new value.
 func (m *Memory) UpdateTuning(_ context.Context, t navigation.Tuning) (navigation.Tuning, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

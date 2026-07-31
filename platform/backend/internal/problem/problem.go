@@ -14,6 +14,7 @@ const contentType = "application/problem+json"
 // Details response can be matched to the corresponding server log line.
 const CtxKeyRequestID = "request_id"
 
+// Detail is an RFC 7807 Problem Details response body.
 type Detail struct {
 	Type          string `json:"type"`
 	Title         string `json:"title"`

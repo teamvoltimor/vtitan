@@ -67,6 +67,9 @@ tasks:
         OPENAPI (spec-first API contract)
           task openapi:generate     Regenerate Go types from all OpenAPI specs
           task openapi:validate     Validate all OpenAPI specs
+          task openapi:lint         Lint the aggregated spec with Redocly
+          task openapi:bundle       Bundle the aggregated spec into a single file
+          task openapi:preview-docs Launch an interactive local API docs preview
           task frontend:api:generate  Generate TypeScript client from OpenAPI specs
 
         PROTO (buf toolchain — requires buf CLI)
@@ -311,6 +314,21 @@ tasks:
         platforms: [windows]
       - cmd: bash scripts/validate-openapi.sh
         platforms: [linux, darwin]
+
+  openapi:lint:
+    desc: Lint the aggregated OpenAPI spec with Redocly (requires the redocly CLI)
+    cmds:
+      - redocly lint
+
+  openapi:bundle:
+    desc: Bundle the aggregated OpenAPI spec into a single file (requires the redocly CLI)
+    cmds:
+      - redocly bundle main -o openapi/openapi.bundled.yaml
+
+  openapi:preview-docs:
+    desc: Launch an interactive local preview of the API docs (requires the redocly CLI)
+    cmds:
+      - redocly preview
 
   # PROTO (buf toolchain)
 

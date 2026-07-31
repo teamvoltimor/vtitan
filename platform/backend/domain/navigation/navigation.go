@@ -49,6 +49,7 @@ type PlanRouteRequest struct {
 // RiskLevel is the current navigation risk assessment.
 type RiskLevel string
 
+// RiskLevel values.
 const (
 	RiskSafe     RiskLevel = "SAFE"
 	RiskCritical RiskLevel = "CRITICAL"
@@ -58,6 +59,7 @@ const (
 // Phase is the current navigation execution phase.
 type Phase string
 
+// Phase values.
 const (
 	PhaseTracking Phase = "TRACKING"
 	PhaseAvoiding Phase = "AVOIDING"

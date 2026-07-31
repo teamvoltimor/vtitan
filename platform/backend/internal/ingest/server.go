@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/session"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 )
 
 // Server is the gRPC ingest adapter. It translates incoming streams into
@@ -74,4 +74,3 @@ func (s *Server) StreamTopics(stream telemetryv1.TelemetryIngestService_StreamTo
 		count++
 	}
 }
-

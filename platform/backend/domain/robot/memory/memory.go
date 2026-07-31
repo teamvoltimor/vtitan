@@ -30,6 +30,7 @@ func NewMemory() *Memory {
 	}
 }
 
+// List returns all robots, optionally filtered by fleet ID and/or state.
 func (m *Memory) List(_ context.Context, fleetID string, state robot.State) ([]robot.Robot, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -47,6 +48,7 @@ func (m *Memory) List(_ context.Context, fleetID string, state robot.State) ([]r
 	return out, nil
 }
 
+// Create registers a new robot in state BOOT_CHECK, with an empty config.
 func (m *Memory) Create(_ context.Context, req robot.CreateRequest) (robot.Robot, error) {
 	now := time.Now().UTC()
 	r := robot.Robot{
@@ -66,6 +68,7 @@ func (m *Memory) Create(_ context.Context, req robot.CreateRequest) (robot.Robot
 	return r, nil
 }
 
+// Get returns the robot with the given id.
 func (m *Memory) Get(_ context.Context, id string) (robot.Robot, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -76,6 +79,7 @@ func (m *Memory) Get(_ context.Context, id string) (robot.Robot, error) {
 	return r, nil
 }
 
+// Update applies non-nil fields from req to the robot with the given id.
 func (m *Memory) Update(_ context.Context, id string, req robot.UpdateRequest) (robot.Robot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -91,6 +95,7 @@ func (m *Memory) Update(_ context.Context, id string, req robot.UpdateRequest) (
 	return r, nil
 }
 
+// Delete removes the robot and its config.
 func (m *Memory) Delete(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -119,6 +124,7 @@ func (m *Memory) Status(_ context.Context, id string) (robot.Status, error) {
 	}, nil
 }
 
+// Config returns the stored tunable config for the robot with the given id.
 func (m *Memory) Config(_ context.Context, id string) (robot.Config, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -128,6 +134,7 @@ func (m *Memory) Config(_ context.Context, id string) (robot.Config, error) {
 	return m.configs[id], nil
 }
 
+// UpdateConfig applies non-nil fields from req to the robot's stored config.
 func (m *Memory) UpdateConfig(_ context.Context, id string, req robot.UpdateConfigRequest) (robot.Config, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

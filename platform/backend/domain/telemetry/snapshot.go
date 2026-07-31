@@ -5,4 +5,5 @@ package telemetry
 
 import "errors"
 
+// ErrNoSnapshot is returned when no snapshot has been received yet.
 var ErrNoSnapshot = errors.New("telemetry: no snapshot received yet")

@@ -14,6 +14,7 @@ var ErrNotFound = errors.New("simulation resource not found")
 // Challenge is the WRO challenge type a scenario targets.
 type Challenge string
 
+// Challenge values.
 const (
 	ChallengeOpen      Challenge = "open"
 	ChallengeObstacles Challenge = "obstacles"
@@ -22,6 +23,7 @@ const (
 // Corridors is the corridor-width profile requested for scenario generation.
 type Corridors string
 
+// Corridors values.
 const (
 	CorridorsNarrow Corridors = "narrow"
 	CorridorsWide   Corridors = "wide"
@@ -31,6 +33,7 @@ const (
 // Lighting is a scenario's lighting condition preset.
 type Lighting string
 
+// Lighting values.
 const (
 	LightingDirectSunlight Lighting = "DIRECT_SUNLIGHT"
 	LightingCloudy         Lighting = "CLOUDY"
@@ -43,6 +46,7 @@ const (
 // Direction is the starting-zone traversal direction.
 type Direction string
 
+// Direction values.
 const (
 	DirectionClockwise        Direction = "CLOCKWISE"
 	DirectionCounterclockwise Direction = "COUNTERCLOCKWISE"
@@ -110,6 +114,7 @@ type GenerateScenarioRequest struct {
 // RunStatus is a simulation run's lifecycle state.
 type RunStatus string
 
+// RunStatus values.
 const (
 	RunPending   RunStatus = "pending"
 	RunRunning   RunStatus = "running"
@@ -153,6 +158,7 @@ type StartRunRequest struct {
 // RunAction is a control action applied to a running simulation.
 type RunAction string
 
+// RunAction values.
 const (
 	RunActionPause   RunAction = "pause"
 	RunActionResume  RunAction = "resume"
