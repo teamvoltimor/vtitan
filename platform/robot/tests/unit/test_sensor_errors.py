@@ -14,7 +14,8 @@ import math
 import pytest
 from shared.config.enums import Direction, Section
 
-from src.simulation.gateway import ScenarioSimulator, SensorErrors
+from src.simulation.scenario_simulator import ScenarioSimulator
+from src.simulation.simulated_hardware_gateway import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 
 _WIDE_MM = 1000

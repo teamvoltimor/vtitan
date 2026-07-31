@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/bufbuild/protovalidate-go"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -52,20 +52,15 @@ func main() {
 	simMode := flag.Bool("sim", false, "run with synthetic telemetry generator (dev only)")
 	flag.Parse()
 
-	log, err := zap.NewProduction()
-	if err != nil {
-		panic(err)
-	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	if err := run(log, *simMode); err != nil {
-		log.Error("server error", zap.Error(err))
-		_ = log.Sync()
+	if err := run(*simMode); err != nil {
+		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
-	_ = log.Sync()
 }
 
-func run(log *zap.Logger, simMode bool) error {
+func run(simMode bool) error {
 	cfg := config.Load()
 
 	mem := memory.NewMemory(cfg.HistorySize)
@@ -74,14 +69,14 @@ func run(log *zap.Logger, simMode bool) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rec, err := sqlite.New(ctx, cfg.DBPath, cfg.SessionsDir, cfg.MaxSessions, log)
+	rec, err := sqlite.New(ctx, cfg.DBPath, cfg.SessionsDir, cfg.MaxSessions)
 	if err != nil {
 		return fmt.Errorf("init recorder: %w", err)
 	}
 	defer rec.Close()
 	sessSvc := session.NewService(rec)
 
-	robotCmdSrv := robotcmd.New(log)
+	robotCmdSrv := robotcmd.New()
 	robotSvc := robotdomain.NewService(robotmemory.NewMemory(), robotCmdSrv)
 	defaultRobot, err := robotSvc.Create(ctx, robotdomain.CreateRequest{Name: defaultRobotName})
 	if err != nil {
@@ -98,17 +93,17 @@ func run(log *zap.Logger, simMode bool) error {
 
 	grpcSrv := grpc.NewServer(
 		grpc.ChainStreamInterceptor(
-			streamRecoveryInterceptor(log),
+			streamRecoveryInterceptor(),
 			streamValidationInterceptor(validator),
-			streamLoggingInterceptor(log),
+			streamLoggingInterceptor(),
 		),
 		grpc.ChainUnaryInterceptor(
-			unaryRecoveryInterceptor(log),
+			unaryRecoveryInterceptor(),
 			unaryValidationInterceptor(validator),
-			unaryLoggingInterceptor(log),
+			unaryLoggingInterceptor(),
 		),
 	)
-	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc, log))
+	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc))
 	telemetryv1.RegisterRobotCommandServiceServer(grpcSrv, robotCmdSrv)
 	if cfg.Dev {
 		reflection.Register(grpcSrv)
@@ -128,7 +123,7 @@ func run(log *zap.Logger, simMode bool) error {
 		Navigation:     navSvc,
 		Simulation:     simSvc,
 		Vision:         visSvc,
-	}, cfg, log)
+	}, cfg)
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           router,
@@ -136,21 +131,21 @@ func run(log *zap.Logger, simMode bool) error {
 	}
 
 	if simMode {
-		g := sim.New(telSvc, log)
+		g := sim.New(telSvc)
 		go g.Run(ctx, cfg.SimInterval)
 	}
 
 	go func() {
-		log.Info("gRPC ingest listening", zap.String("addr", cfg.GRPCAddr))
+		slog.Info("gRPC ingest listening", "addr", cfg.GRPCAddr)
 		if err := grpcSrv.Serve(lis); err != nil {
-			log.Error("gRPC serve", zap.Error(err))
+			slog.Error("gRPC serve", "error", err)
 		}
 	}()
 
 	go func() {
-		log.Info("HTTP edge listening", zap.String("addr", cfg.HTTPAddr))
+		slog.Info("HTTP edge listening", "addr", cfg.HTTPAddr)
 		if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-			log.Error("HTTP serve", zap.Error(err))
+			slog.Error("HTTP serve", "error", err)
 		}
 	}()
 
@@ -158,7 +153,7 @@ func run(log *zap.Logger, simMode bool) error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info("shutting down")
+	slog.Info("shutting down")
 	cancel()
 	grpcSrv.GracefulStop()
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -168,11 +163,11 @@ func run(log *zap.Logger, simMode bool) error {
 }
 
 // streamRecoveryInterceptor catches panics in streaming handlers and returns INTERNAL.
-func streamRecoveryInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
+func streamRecoveryInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("gRPC stream panic", zap.Any("panic", r), zap.String("method", info.FullMethod))
+				slog.Error("gRPC stream panic", "panic", r, "method", info.FullMethod)
 				err = status.Errorf(codes.Internal, "internal server error")
 			}
 		}()
@@ -206,11 +201,11 @@ func (s *validatingStream) RecvMsg(m any) error {
 }
 
 // unaryRecoveryInterceptor catches panics in unary handlers and returns INTERNAL.
-func unaryRecoveryInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
+func unaryRecoveryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("gRPC unary panic", zap.Any("panic", r), zap.String("method", info.FullMethod))
+				slog.Error("gRPC unary panic", "panic", r, "method", info.FullMethod)
 				err = status.Errorf(codes.Internal, "internal server error")
 			}
 		}()
@@ -231,27 +226,27 @@ func unaryValidationInterceptor(v protovalidate.Validator) grpc.UnaryServerInter
 }
 
 // unaryLoggingInterceptor logs each unary RPC with method and outcome.
-func unaryLoggingInterceptor(log *zap.Logger) grpc.UnaryServerInterceptor {
+func unaryLoggingInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
-			log.Warn("gRPC unary error", zap.String("method", info.FullMethod), zap.Error(err))
+			slog.Warn("gRPC unary error", "method", info.FullMethod, "error", err)
 		} else {
-			log.Info("gRPC unary completed", zap.String("method", info.FullMethod))
+			slog.Info("gRPC unary completed", "method", info.FullMethod)
 		}
 		return resp, err
 	}
 }
 
 // streamLoggingInterceptor logs each streaming RPC with method and outcome.
-func streamLoggingInterceptor(log *zap.Logger) grpc.StreamServerInterceptor {
+func streamLoggingInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		log.Info("gRPC stream started", zap.String("method", info.FullMethod))
+		slog.Info("gRPC stream started", "method", info.FullMethod)
 		err := handler(srv, ss)
 		if err != nil {
-			log.Warn("gRPC stream error", zap.String("method", info.FullMethod), zap.Error(err))
+			slog.Warn("gRPC stream error", "method", info.FullMethod, "error", err)
 		} else {
-			log.Info("gRPC stream completed", zap.String("method", info.FullMethod))
+			slog.Info("gRPC stream completed", "method", info.FullMethod)
 		}
 		return err
 	}

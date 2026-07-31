@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
@@ -33,7 +32,7 @@ func newFakeStream(ctx context.Context) *fakeStream {
 }
 
 func TestDispatch_NoConnectedRobot_QueuesAndReplaysOnConnect(t *testing.T) {
-	s := New(zap.NewNop())
+	s := New()
 	ctx := context.Background()
 
 	res, err := s.Dispatch(ctx, "robot-1", robotdomain.Command{Type: robotdomain.CommandStartRace})
@@ -65,7 +64,7 @@ func TestDispatch_NoConnectedRobot_QueuesAndReplaysOnConnect(t *testing.T) {
 }
 
 func TestDispatch_ConnectedRobot_DeliversLive(t *testing.T) {
-	s := New(zap.NewNop())
+	s := New()
 	ctx := context.Background()
 
 	streamCtx, cancel := context.WithCancel(ctx)
@@ -97,7 +96,7 @@ func TestDispatch_ConnectedRobot_DeliversLive(t *testing.T) {
 }
 
 func TestAckCommand_TrimsBacklog(t *testing.T) {
-	s := New(zap.NewNop())
+	s := New()
 	ctx := context.Background()
 
 	first, err := s.Dispatch(ctx, "robot-1", robotdomain.Command{Type: robotdomain.CommandStartRace})
@@ -127,7 +126,7 @@ func TestAckCommand_TrimsBacklog(t *testing.T) {
 }
 
 func TestDispatch_UnsupportedCommandType_Errors(t *testing.T) {
-	s := New(zap.NewNop())
+	s := New()
 	if _, err := s.Dispatch(context.Background(), "robot-1", robotdomain.Command{Type: "NOT_A_REAL_COMMAND"}); err == nil {
 		t.Fatal("expected error for unsupported command type")
 	}

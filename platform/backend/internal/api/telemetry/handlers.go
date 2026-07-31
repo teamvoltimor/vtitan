@@ -6,12 +6,12 @@ package telemetry
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	robotdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/robot"
@@ -45,7 +45,6 @@ type Handler struct {
 	telSvc  domain.TelemetryService
 	sessSvc session.SessionService
 	cfg     *config.Config
-	log     *zap.Logger
 
 	// robotSvc/defaultRobotID back the legacy /v1/telemetry/robot/config/speed
 	// endpoint, which delegates to the real Robot context config store (this
@@ -61,12 +60,11 @@ func NewHandler(
 	robotSvc robotdomain.Service,
 	defaultRobotID string,
 	cfg *config.Config,
-	log *zap.Logger,
 ) *Handler {
 	return &Handler{
 		telSvc: telSvc, sessSvc: sessSvc,
 		robotSvc: robotSvc, defaultRobotID: defaultRobotID,
-		cfg: cfg, log: log,
+		cfg: cfg,
 	}
 }
 
@@ -95,7 +93,7 @@ func (h *Handler) latest(c *gin.Context) {
 		problem.Write(c, http.StatusServiceUnavailable, "Service Unavailable", "no snapshot received yet")
 		return
 	}
-	writeProto(c, http.StatusOK, snap, h.log)
+	writeProto(c, http.StatusOK, snap)
 }
 
 func (h *Handler) history(c *gin.Context) {
@@ -106,7 +104,7 @@ func (h *Handler) history(c *gin.Context) {
 		}
 	}
 	snaps := h.telSvc.History(limit)
-	writeProtoSlice(c, snaps, h.log)
+	writeProtoSlice(c, snaps)
 }
 
 func (h *Handler) topics(c *gin.Context) {
@@ -117,7 +115,7 @@ func (h *Handler) topics(c *gin.Context) {
 			Topics:    []*telemetryv1.TopicUpdate{},
 		}
 	}
-	writeProto(c, http.StatusOK, topics, h.log)
+	writeProto(c, http.StatusOK, topics)
 }
 
 func (h *Handler) updateSpeed(c *gin.Context) {
@@ -133,11 +131,11 @@ func (h *Handler) updateSpeed(c *gin.Context) {
 	if _, err := h.robotSvc.UpdateConfig(c.Request.Context(), h.defaultRobotID,
 		robotdomain.UpdateConfigRequest{MaxLinearSpeed: &speed},
 	); err != nil {
-		h.log.Error("persist speed config", zap.Error(err))
+		slog.Error("persist speed config", "error", err)
 		problem.InternalError(c)
 		return
 	}
-	h.log.Info("speed config update", zap.Float64("max_linear_speed", body.MaxLinearSpeed))
+	slog.Info("speed config update", "max_linear_speed", body.MaxLinearSpeed)
 	c.JSON(http.StatusOK, SpeedUpdateResponse{Status: statusSuccess, MaxLinearSpeed: body.MaxLinearSpeed})
 }
 
@@ -155,7 +153,7 @@ func (h *Handler) getConfig(c *gin.Context) {
 func (h *Handler) listSessions(c *gin.Context) {
 	infos, err := h.sessSvc.ListSessions(c.Request.Context())
 	if err != nil {
-		h.log.Error("list sessions", zap.Error(err))
+		slog.Error("list sessions", "error", err)
 		problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "failed to list sessions")
 		return
 	}
@@ -182,9 +180,9 @@ func (h *Handler) loadSession(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		h.log.Error("load session", zap.String("session_id", id), zap.Error(err))
+		slog.Error("load session", "session_id", id, "error", err)
 		problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "failed to load session")
 		return
 	}
-	writeProtoSlice(c, snaps, h.log)
+	writeProtoSlice(c, snaps)
 }

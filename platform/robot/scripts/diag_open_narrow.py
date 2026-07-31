@@ -35,7 +35,7 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.kinematics import AckermannKinematics
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 

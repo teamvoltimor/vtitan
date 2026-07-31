@@ -38,7 +38,7 @@ from shared.config.enums import Section
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.navigation.planning.sign_router import SignRouter, corridor_for_position, signs_from_metadata
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
 if TYPE_CHECKING:

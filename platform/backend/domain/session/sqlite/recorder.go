@@ -6,17 +6,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/session"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/session/sqlite/db"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 	_ "modernc.org/sqlite" // SQLite driver (pure Go, no cgo)
 )
 
@@ -39,7 +39,6 @@ type Recorder struct {
 	sqlDB       *sql.DB
 	file        *os.File
 	writer      *bufio.Writer
-	log         *zap.Logger
 	marshaler   protojson.MarshalOptions
 	unmarshaler protojson.UnmarshalOptions
 	sessionID   string
@@ -57,7 +56,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 // New opens (or creates) the SQLite session index at dbPath, creates the frames
 // directory, and registers a new session for this process lifetime.
-func New(ctx context.Context, dbPath, framesDir string, maxSessions int, log *zap.Logger) (*Recorder, error) {
+func New(ctx context.Context, dbPath, framesDir string, maxSessions int) (*Recorder, error) {
 	if err := os.MkdirAll(framesDir, dirPerm); err != nil {
 		return nil, fmt.Errorf("create frames dir: %w", err)
 	}
@@ -91,16 +90,15 @@ func New(ctx context.Context, dbPath, framesDir string, maxSessions int, log *za
 		sessionID:   sessionID,
 		framesDir:   framesDir,
 		maxSessions: maxSessions,
-		log:         log,
 		marshaler:   protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true},
 		unmarshaler: protojson.UnmarshalOptions{DiscardUnknown: true},
 	}
 
 	if err := r.pruneOldSessions(ctx); err != nil {
-		log.Warn("prune old sessions", zap.Error(err))
+		slog.Warn("prune old sessions", "error", err)
 	}
 
-	log.Info("recorder started", zap.String("session_id", sessionID), zap.String("frames_dir", framesDir))
+	slog.Info("recorder started", "session_id", sessionID, "frames_dir", framesDir)
 	return r, nil
 }
 
@@ -129,7 +127,7 @@ func (r *Recorder) Record(ctx context.Context, snap *telemetryv1.RobotSnapshot) 
 	}
 
 	if err := r.queries.IncrementEntryCount(ctx, r.sessionID); err != nil {
-		r.log.Warn("increment entry count", zap.Error(err))
+		slog.Warn("increment entry count", "error", err)
 	}
 	return nil
 }
@@ -178,7 +176,7 @@ func (r *Recorder) LoadSession(ctx context.Context, sessionID string) ([]*teleme
 		}
 		snap := &telemetryv1.RobotSnapshot{}
 		if err := r.unmarshaler.Unmarshal(line, snap); err != nil {
-			r.log.Warn("skip malformed frame", zap.Error(err))
+			slog.Warn("skip malformed frame", "error", err)
 			continue
 		}
 		snaps = append(snaps, snap)
@@ -233,7 +231,7 @@ func (r *Recorder) pruneOldSessions(ctx context.Context) error {
 		if err := r.queries.DeleteSession(ctx, oldest.SessionID); err != nil {
 			return err
 		}
-		r.log.Info("pruned old session", zap.String("session_id", oldest.SessionID))
+		slog.Info("pruned old session", "session_id", oldest.SessionID)
 		count--
 	}
 	return nil

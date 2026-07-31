@@ -3,8 +3,8 @@ package ingest
 import (
 	"errors"
 	"io"
+	"log/slog"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -19,13 +19,12 @@ type Server struct {
 	telemetryv1.UnimplementedTelemetryIngestServiceServer
 	telSvc  telemetry.TelemetryService
 	sessSvc session.SessionService
-	log     *zap.Logger
 }
 
 // New returns a Server that writes every received frame to the telemetry
 // service and records it via the session service.
-func New(telSvc telemetry.TelemetryService, sessSvc session.SessionService, log *zap.Logger) *Server {
-	return &Server{telSvc: telSvc, sessSvc: sessSvc, log: log}
+func New(telSvc telemetry.TelemetryService, sessSvc session.SessionService) *Server {
+	return &Server{telSvc: telSvc, sessSvc: sessSvc}
 }
 
 // StreamSnapshots receives a client-stream of robot snapshots and writes each
@@ -35,11 +34,11 @@ func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_Strea
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			s.log.Info("snapshot stream closed", zap.Uint64("received", count))
+			slog.Info("snapshot stream closed", "received", count)
 			return stream.SendAndClose(&telemetryv1.StreamSnapshotsResponse{SnapshotsReceived: count})
 		}
 		if err != nil {
-			s.log.Warn("snapshot stream error", zap.Error(err))
+			slog.Warn("snapshot stream error", "error", err)
 			return status.Errorf(codes.Internal, "recv: %v", err)
 		}
 		if req.Snapshot == nil {
@@ -47,7 +46,7 @@ func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_Strea
 		}
 		s.telSvc.Write(req.Snapshot)
 		if err := s.sessSvc.Record(stream.Context(), req.Snapshot); err != nil {
-			s.log.Warn("record snapshot", zap.Error(err))
+			slog.Warn("record snapshot", "error", err)
 		}
 		count++
 	}
@@ -60,11 +59,11 @@ func (s *Server) StreamTopics(stream telemetryv1.TelemetryIngestService_StreamTo
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			s.log.Info("topics stream closed", zap.Uint64("received", count))
+			slog.Info("topics stream closed", "received", count)
 			return stream.SendAndClose(&telemetryv1.StreamTopicsResponse{UpdatesReceived: count})
 		}
 		if err != nil {
-			s.log.Warn("topics stream error", zap.Error(err))
+			slog.Warn("topics stream error", "error", err)
 			return status.Errorf(codes.Internal, "recv: %v", err)
 		}
 		if req.Topics == nil {

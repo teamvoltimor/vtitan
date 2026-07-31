@@ -57,7 +57,8 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.gateway import CONTROL_DT, ScenarioSimulator, SensorErrors, SimResult
+from src.simulation.scenario_simulator import ScenarioSimulator, SimResult
+from src.simulation.simulated_hardware_gateway import CONTROL_DT, SensorErrors
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
     RealTimePacer,

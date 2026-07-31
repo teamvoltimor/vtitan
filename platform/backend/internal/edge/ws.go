@@ -2,25 +2,24 @@ package edge
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 )
 
 const wsWriteTimeout = 5 * time.Second
 
 type wsManager struct {
 	telSvc telemetry.TelemetryService
-	log    *zap.Logger
 }
 
-func newWSManager(telSvc telemetry.TelemetryService, log *zap.Logger) *wsManager {
-	return &wsManager{telSvc: telSvc, log: log}
+func newWSManager(telSvc telemetry.TelemetryService) *wsManager {
+	return &wsManager{telSvc: telSvc}
 }
 
 // handle upgrades an HTTP connection to WebSocket and streams snapshots until
@@ -31,7 +30,7 @@ func (m *wsManager) handle(c *gin.Context) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		m.log.Warn("ws accept failed", zap.Error(err))
+		slog.Warn("ws accept failed", "error", err)
 		return
 	}
 	defer func() { _ = conn.CloseNow() }()
@@ -54,7 +53,7 @@ func (m *wsManager) handle(c *gin.Context) {
 				return
 			}
 			if err := m.send(ctx, conn, snap); err != nil {
-				m.log.Debug("ws write error", zap.Error(err))
+				slog.Debug("ws write error", "error", err)
 				return
 			}
 		}
@@ -64,7 +63,7 @@ func (m *wsManager) handle(c *gin.Context) {
 func (m *wsManager) send(ctx context.Context, conn *websocket.Conn, snap *telemetryv1.RobotSnapshot) error {
 	b, err := marshaler.Marshal(snap)
 	if err != nil {
-		m.log.Error("ws marshal snapshot", zap.Error(err))
+		slog.Error("ws marshal snapshot", "error", err)
 		return nil // marshal error is not a connection error; skip the frame
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, wsWriteTimeout)

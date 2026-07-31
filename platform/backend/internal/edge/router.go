@@ -1,12 +1,12 @@
 package edge
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	navigationdomain "github.com/teamvoltimor/vtitan/platform/backend/domain/navigation"
@@ -44,7 +44,7 @@ type Services struct {
 }
 
 // NewRouter wires up the gin router for the REST + WebSocket edge.
-func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
+func NewRouter(svcs Services, cfg *config.Config) *gin.Engine {
 	if !cfg.Dev {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -53,18 +53,18 @@ func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	// Order matters: RequestID must run first so the correlation ID it sets is
 	// already in context by the time Recovery's deferred recover() (or any
 	// later middleware/handler) needs it.
-	r.Use(requestIDMiddleware(log))
-	r.Use(recoverMiddleware(log))
+	r.Use(requestIDMiddleware())
+	r.Use(recoverMiddleware())
 	r.Use(corsMiddleware())
 
-	ws := newWSManager(svcs.Telemetry, log)
+	ws := newWSManager(svcs.Telemetry)
 
 	r.GET(RouteOpenAPISpec, func(c *gin.Context) {
 		c.File(cfg.OpenAPISpecPath)
 	})
 
 	v1 := r.Group(RouteV1Telemetry)
-	apitelemetry.NewHandler(svcs.Telemetry, svcs.Session, svcs.Robot, svcs.DefaultRobotID, cfg, log).RegisterRoutes(v1)
+	apitelemetry.NewHandler(svcs.Telemetry, svcs.Session, svcs.Robot, svcs.DefaultRobotID, cfg).RegisterRoutes(v1)
 	v1.GET(RouteWS, ws.handle)
 
 	apiV1 := r.Group(RouteV1)
@@ -76,14 +76,14 @@ func NewRouter(svcs Services, cfg *config.Config, log *zap.Logger) *gin.Engine {
 	return r
 }
 
-func recoverMiddleware(log *zap.Logger) gin.HandlerFunc {
+func recoverMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("http panic",
-					zap.Any("panic", r),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("request_id", c.GetString(problem.CtxKeyRequestID)),
+				slog.Error("http panic",
+					"panic", r,
+					"path", c.Request.URL.Path,
+					"request_id", c.GetString(problem.CtxKeyRequestID),
 				)
 				problem.Write(c, http.StatusInternalServerError, "Internal Server Error", "")
 			}
@@ -105,7 +105,7 @@ func corsMiddleware() gin.HandlerFunc {
 	}
 }
 
-func requestIDMiddleware(log *zap.Logger) gin.HandlerFunc {
+func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rid := c.GetHeader(headerRequestID)
 		if rid == "" {
@@ -115,12 +115,12 @@ func requestIDMiddleware(log *zap.Logger) gin.HandlerFunc {
 		c.Header(headerRequestID, rid)
 		start := time.Now()
 		c.Next()
-		log.Info("request",
-			zap.String("method", c.Request.Method),
-			zap.String("path", c.Request.URL.Path),
-			zap.Int("status", c.Writer.Status()),
-			zap.Int64("duration_ms", time.Since(start).Milliseconds()),
-			zap.String("request_id", rid),
+		slog.Info("request",
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", c.Writer.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+			"request_id", rid,
 		)
 	}
 }

@@ -16,7 +16,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.enums import Direction, Section
 
 from src.navigation.ports import DriveCommand, WheelOdometry
-from src.simulation.gateway import SimulatedHardwareGateway
+from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.kinematics import AckermannState
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.track_model import TrackModel

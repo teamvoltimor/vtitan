@@ -1,16 +1,15 @@
-import { useTelemetry } from '../contexts/telemetryState';
-import { formatNumber } from '../utils/formatting';
-import { formatTimestamp } from '../utils/formatting';
 import { UI_STRINGS } from '../config';
-import { Label, MetricRow, StatTile } from './ui';
+import { useTelemetry } from '../contexts/telemetryState';
+import { formatNumber, formatTimestamp } from '../utils/formatting';
 import {
-  SensorHealthPanel,
-  SpeedControl,
-  VisionDebugControl,
-  TimelineSlider,
-  SessionList,
   LogPanel,
+  SensorHealthPanel,
+  SessionList,
+  SpeedControl,
+  TimelineSlider,
+  VisionDebugControl,
 } from './sidebar-panels';
+import { Label, MetricRow, StatTile } from './ui';
 
 export function Sidebar() {
   const { displaySnapshot: snapshot, liveMode } = useTelemetry();
@@ -39,6 +38,7 @@ export function Sidebar() {
   return (
     <aside className="control-panel">
       <div className="panel-header">
+        <img className="panel-logo" src="/voltimor-logo-square.png" alt="Voltimor" />
         <Label>{liveMode ? UI_STRINGS.LIVE_TRACKING : 'REPLAY'}</Label>
         <h1>{snapshot.mission_name}</h1>
         <Label>Updated {formatTimestamp(snapshot.timestamp)}</Label>

@@ -2,15 +2,15 @@ package sim
 
 import (
 	"context"
+	"log/slog"
 	"math"
 	"math/rand"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 	"github.com/teamvoltimor/vtitan/platform/backend/domain/telemetry"
+	telemetryv1 "github.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1"
 )
 
 const (
@@ -34,16 +34,14 @@ const (
 // the contract is the schema shape, not the numeric sequence.
 type Generator struct {
 	telSvc telemetry.TelemetryService
-	log    *zap.Logger
 	rng    *rand.Rand
 	frame  int
 }
 
 // New returns a Generator that publishes synthetic frames via telSvc.
-func New(telSvc telemetry.TelemetryService, log *zap.Logger) *Generator {
+func New(telSvc telemetry.TelemetryService) *Generator {
 	return &Generator{
 		telSvc: telSvc,
-		log:    log,
 		rng:    rand.New(rand.NewSource(0)), //nolint:gosec // deterministic sim seed, not crypto
 	}
 }
@@ -52,11 +50,11 @@ func New(telSvc telemetry.TelemetryService, log *zap.Logger) *Generator {
 func (g *Generator) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	g.log.Info("simulator started", zap.Duration("interval", interval))
+	slog.Info("simulator started", "interval", interval)
 	for {
 		select {
 		case <-ctx.Done():
-			g.log.Info("simulator stopped")
+			slog.Info("simulator stopped")
 			return
 		case <-ticker.C:
 			g.telSvc.Write(g.next())

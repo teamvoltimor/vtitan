@@ -11,9 +11,9 @@ package robotcmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -38,17 +38,14 @@ const (
 type Server struct {
 	telemetryv1.UnimplementedRobotCommandServiceServer
 
-	log *zap.Logger
-
 	mu      sync.Mutex
 	subs    map[string]chan *telemetryv1.RobotCommand // robotID -> active stream's outbound channel
 	backlog map[string][]*telemetryv1.RobotCommand    // robotID -> undelivered/unacked commands, oldest first
 }
 
 // New returns a Server with no robots connected.
-func New(log *zap.Logger) *Server {
+func New() *Server {
 	return &Server{
-		log:     log,
 		subs:    make(map[string]chan *telemetryv1.RobotCommand),
 		backlog: make(map[string][]*telemetryv1.RobotCommand),
 	}
@@ -109,8 +106,7 @@ func (s *Server) StreamCommands(req *telemetryv1.StreamCommandsRequest, stream t
 	replay := replayFrom(s.backlog[robotID], req.LastCommandId)
 	s.mu.Unlock()
 
-	s.log.Info("robot command stream opened",
-		zap.String("robot_id", robotID), zap.Int("replay_count", len(replay)))
+	slog.Info("robot command stream opened", "robot_id", robotID, "replay_count", len(replay))
 
 	defer func() {
 		s.mu.Lock()
@@ -144,11 +140,11 @@ func (s *Server) StreamCommands(req *telemetryv1.StreamCommandsRequest, stream t
 // AckCommand records the robot's execution outcome for a previously streamed
 // command and trims it (and anything older) from the retry backlog.
 func (s *Server) AckCommand(_ context.Context, req *telemetryv1.AckCommandRequest) (*telemetryv1.AckCommandResponse, error) {
-	s.log.Info("robot command ack",
-		zap.String("robot_id", req.GetRobotId()),
-		zap.String("command_id", req.GetCommandId()),
-		zap.String("status", req.GetStatus().String()),
-		zap.String("message", req.GetMessage()))
+	slog.Info("robot command ack",
+		"robot_id", req.GetRobotId(),
+		"command_id", req.GetCommandId(),
+		"status", req.GetStatus().String(),
+		"message", req.GetMessage())
 
 	s.mu.Lock()
 	s.backlog[req.GetRobotId()] = trimBacklog(s.backlog[req.GetRobotId()], req.GetCommandId())

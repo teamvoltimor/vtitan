@@ -42,9 +42,9 @@ from shared.config.constants import DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 
 import src.navigation.planning.sign_router as sign_router_module
-import src.simulation.gateway as gateway_module
+import src.simulation.scenario_simulator as gateway_module
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.track_model import TrackModel, obstacles_from_metadata
 

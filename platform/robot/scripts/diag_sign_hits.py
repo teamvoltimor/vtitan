@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared.config.enums import Section
 
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
 MAX_STEPS = 6000

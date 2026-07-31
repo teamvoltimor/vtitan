@@ -2,10 +2,10 @@ package telemetry
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -20,10 +20,10 @@ const contentTypeJSON = "application/json; charset=utf-8"
 var marshaler = protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true}
 
 // writeProto marshals a single proto message to JSON and writes it to the response.
-func writeProto(c *gin.Context, code int, msg proto.Message, log *zap.Logger) {
+func writeProto(c *gin.Context, code int, msg proto.Message) {
 	b, err := marshaler.Marshal(msg)
 	if err != nil {
-		log.Error("proto marshal", zap.Error(err))
+		slog.Error("proto marshal", "error", err)
 		problem.InternalError(c)
 		return
 	}
@@ -31,12 +31,12 @@ func writeProto(c *gin.Context, code int, msg proto.Message, log *zap.Logger) {
 }
 
 // writeProtoSlice marshals a slice of proto messages to a JSON array.
-func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger) {
+func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T) {
 	parts := make([]json.RawMessage, len(msgs))
 	for i, msg := range msgs {
 		b, err := marshaler.Marshal(msg)
 		if err != nil {
-			log.Error("proto marshal slice item", zap.Error(err), zap.Int("index", i))
+			slog.Error("proto marshal slice item", "error", err, "index", i)
 			problem.InternalError(c)
 			return
 		}
@@ -44,7 +44,7 @@ func writeProtoSlice[T proto.Message](c *gin.Context, msgs []T, log *zap.Logger)
 	}
 	out, err := json.Marshal(parts)
 	if err != nil {
-		log.Error("json marshal slice", zap.Error(err))
+		slog.Error("json marshal slice", "error", err)
 		problem.InternalError(c)
 		return
 	}

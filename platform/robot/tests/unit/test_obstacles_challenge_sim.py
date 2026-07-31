@@ -50,10 +50,10 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import src.navigation.planning.sign_router as sign_router_module
-import src.simulation.gateway as gateway_module
+import src.simulation.simulated_hardware_gateway as gateway_module
 from shared.domain.models import SignColor
 from src.navigation.planning.sign_router import signs_from_metadata
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
 if TYPE_CHECKING:

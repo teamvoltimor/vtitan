@@ -33,7 +33,7 @@ from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.enums import Section
 
 from src.navigation.planning.sign_router import corridor_for_position
-from src.simulation.gateway import ScenarioSimulator
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_test_scenarios
 
 _NARROW = CorridorDimensions.NARROW

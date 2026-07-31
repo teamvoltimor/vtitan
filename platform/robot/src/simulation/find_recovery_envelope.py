@@ -22,7 +22,7 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.track_geometry import cross_track_error
-from src.simulation.gateway import PoseDisturbance, ScenarioSimulator
+from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 
 if TYPE_CHECKING:

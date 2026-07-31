@@ -5,13 +5,9 @@ Drives the real ``CoreNavigator`` stack through a simulated ``HardwareGateway``
 validated end-to-end without Gazebo or ROS2.
 """
 
-from src.simulation.gateway import (
-    PoseDisturbance,
-    ScenarioSimulator,
-    SimResult,
-    SimulatedHardwareGateway,
-)
 from src.simulation.kinematics import AckermannKinematics, AckermannState
+from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator, SimResult
+from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import TrackModel
 
 __all__ = [

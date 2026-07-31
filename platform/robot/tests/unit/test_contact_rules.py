@@ -17,7 +17,8 @@ from shared.config.enums import Direction, ScenarioType, Section
 
 from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.gateway import TERMINAL_SURFACES, SimulatedHardwareGateway
+from src.simulation.scenario_simulator import TERMINAL_SURFACES
+from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.kinematics import AckermannState
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.track_model import ContactSurface, TrackModel
@@ -142,7 +143,7 @@ class TestPermittedSurfacesStillBlock:
     """
 
     def test_the_inner_block_stops_an_open_challenge_robot(self) -> None:
-        from src.simulation.gateway import ScenarioSimulator
+        from src.simulation.scenario_simulator import ScenarioSimulator
 
         metadata = build_open_metadata(uniform_widths(_WIDE_MM), Section.SOUTH, Direction.CLOCKWISE)
         sim = ScenarioSimulator(metadata, num_laps=1, seed=0)
