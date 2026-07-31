@@ -13,25 +13,25 @@ option go_package = "github.com/teamvoltimor/vtitan/platform/backend/gen/telemet
 service TelemetryIngestService {
   // StreamSnapshots accepts a continuous stream of robot state snapshots.
   // The server returns a summary on stream close (or producer disconnect).
-  rpc StreamSnapshots(stream IngestSnapshotRequest) returns (IngestSnapshotResponse);
+  rpc StreamSnapshots(stream StreamSnapshotsRequest) returns (StreamSnapshotsResponse);
 
   // StreamTopics accepts a continuous stream of ROS2 topic frames.
   // Populates the data exposed by GET /v1/telemetry/topics on the REST edge.
-  rpc StreamTopics(stream IngestTopicsRequest) returns (IngestTopicsResponse);
+  rpc StreamTopics(stream StreamTopicsRequest) returns (StreamTopicsResponse);
 }
 
-message IngestSnapshotRequest {
+message StreamSnapshotsRequest {
   RobotSnapshot snapshot = 1 [(buf.validate.field).required = true];
 }
 
-message IngestSnapshotResponse {
+message StreamSnapshotsResponse {
   uint64 snapshots_received = 1;
 }
 
-message IngestTopicsRequest {
+message StreamTopicsRequest {
   TopicsSnapshot topics = 1 [(buf.validate.field).required = true];
 }
 
-message IngestTopicsResponse {
+message StreamTopicsResponse {
   uint64 updates_received = 1;
 }

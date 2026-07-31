@@ -33,10 +33,10 @@ const (
 type TelemetryIngestServiceClient interface {
 	// StreamSnapshots accepts a continuous stream of robot state snapshots.
 	// The server returns a summary on stream close (or producer disconnect).
-	StreamSnapshots(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestSnapshotRequest, IngestSnapshotResponse], error)
+	StreamSnapshots(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[StreamSnapshotsRequest, StreamSnapshotsResponse], error)
 	// StreamTopics accepts a continuous stream of ROS2 topic frames.
 	// Populates the data exposed by GET /v1/telemetry/topics on the REST edge.
-	StreamTopics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestTopicsRequest, IngestTopicsResponse], error)
+	StreamTopics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[StreamTopicsRequest, StreamTopicsResponse], error)
 }
 
 type telemetryIngestServiceClient struct {
@@ -47,31 +47,31 @@ func NewTelemetryIngestServiceClient(cc grpc.ClientConnInterface) TelemetryInges
 	return &telemetryIngestServiceClient{cc}
 }
 
-func (c *telemetryIngestServiceClient) StreamSnapshots(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestSnapshotRequest, IngestSnapshotResponse], error) {
+func (c *telemetryIngestServiceClient) StreamSnapshots(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[StreamSnapshotsRequest, StreamSnapshotsResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TelemetryIngestService_ServiceDesc.Streams[0], TelemetryIngestService_StreamSnapshots_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[IngestSnapshotRequest, IngestSnapshotResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[StreamSnapshotsRequest, StreamSnapshotsResponse]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryIngestService_StreamSnapshotsClient = grpc.ClientStreamingClient[IngestSnapshotRequest, IngestSnapshotResponse]
+type TelemetryIngestService_StreamSnapshotsClient = grpc.ClientStreamingClient[StreamSnapshotsRequest, StreamSnapshotsResponse]
 
-func (c *telemetryIngestServiceClient) StreamTopics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestTopicsRequest, IngestTopicsResponse], error) {
+func (c *telemetryIngestServiceClient) StreamTopics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[StreamTopicsRequest, StreamTopicsResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TelemetryIngestService_ServiceDesc.Streams[1], TelemetryIngestService_StreamTopics_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[IngestTopicsRequest, IngestTopicsResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[StreamTopicsRequest, StreamTopicsResponse]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryIngestService_StreamTopicsClient = grpc.ClientStreamingClient[IngestTopicsRequest, IngestTopicsResponse]
+type TelemetryIngestService_StreamTopicsClient = grpc.ClientStreamingClient[StreamTopicsRequest, StreamTopicsResponse]
 
 // TelemetryIngestServiceServer is the server API for TelemetryIngestService service.
 // All implementations should embed UnimplementedTelemetryIngestServiceServer
@@ -83,10 +83,10 @@ type TelemetryIngestService_StreamTopicsClient = grpc.ClientStreamingClient[Inge
 type TelemetryIngestServiceServer interface {
 	// StreamSnapshots accepts a continuous stream of robot state snapshots.
 	// The server returns a summary on stream close (or producer disconnect).
-	StreamSnapshots(grpc.ClientStreamingServer[IngestSnapshotRequest, IngestSnapshotResponse]) error
+	StreamSnapshots(grpc.ClientStreamingServer[StreamSnapshotsRequest, StreamSnapshotsResponse]) error
 	// StreamTopics accepts a continuous stream of ROS2 topic frames.
 	// Populates the data exposed by GET /v1/telemetry/topics on the REST edge.
-	StreamTopics(grpc.ClientStreamingServer[IngestTopicsRequest, IngestTopicsResponse]) error
+	StreamTopics(grpc.ClientStreamingServer[StreamTopicsRequest, StreamTopicsResponse]) error
 }
 
 // UnimplementedTelemetryIngestServiceServer should be embedded to have
@@ -96,10 +96,10 @@ type TelemetryIngestServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedTelemetryIngestServiceServer struct{}
 
-func (UnimplementedTelemetryIngestServiceServer) StreamSnapshots(grpc.ClientStreamingServer[IngestSnapshotRequest, IngestSnapshotResponse]) error {
+func (UnimplementedTelemetryIngestServiceServer) StreamSnapshots(grpc.ClientStreamingServer[StreamSnapshotsRequest, StreamSnapshotsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamSnapshots not implemented")
 }
-func (UnimplementedTelemetryIngestServiceServer) StreamTopics(grpc.ClientStreamingServer[IngestTopicsRequest, IngestTopicsResponse]) error {
+func (UnimplementedTelemetryIngestServiceServer) StreamTopics(grpc.ClientStreamingServer[StreamTopicsRequest, StreamTopicsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamTopics not implemented")
 }
 func (UnimplementedTelemetryIngestServiceServer) testEmbeddedByValue() {}
@@ -123,18 +123,18 @@ func RegisterTelemetryIngestServiceServer(s grpc.ServiceRegistrar, srv Telemetry
 }
 
 func _TelemetryIngestService_StreamSnapshots_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TelemetryIngestServiceServer).StreamSnapshots(&grpc.GenericServerStream[IngestSnapshotRequest, IngestSnapshotResponse]{ServerStream: stream})
+	return srv.(TelemetryIngestServiceServer).StreamSnapshots(&grpc.GenericServerStream[StreamSnapshotsRequest, StreamSnapshotsResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryIngestService_StreamSnapshotsServer = grpc.ClientStreamingServer[IngestSnapshotRequest, IngestSnapshotResponse]
+type TelemetryIngestService_StreamSnapshotsServer = grpc.ClientStreamingServer[StreamSnapshotsRequest, StreamSnapshotsResponse]
 
 func _TelemetryIngestService_StreamTopics_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(TelemetryIngestServiceServer).StreamTopics(&grpc.GenericServerStream[IngestTopicsRequest, IngestTopicsResponse]{ServerStream: stream})
+	return srv.(TelemetryIngestServiceServer).StreamTopics(&grpc.GenericServerStream[StreamTopicsRequest, StreamTopicsResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type TelemetryIngestService_StreamTopicsServer = grpc.ClientStreamingServer[IngestTopicsRequest, IngestTopicsResponse]
+type TelemetryIngestService_StreamTopicsServer = grpc.ClientStreamingServer[StreamTopicsRequest, StreamTopicsResponse]
 
 // TelemetryIngestService_ServiceDesc is the grpc.ServiceDesc for TelemetryIngestService service.
 // It's only intended for direct use with grpc.RegisterService,

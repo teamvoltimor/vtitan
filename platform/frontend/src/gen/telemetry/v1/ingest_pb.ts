@@ -13,12 +13,12 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file telemetry/v1/ingest.proto.
  */
 export const file_telemetry_v1_ingest: GenFile = /*@__PURE__*/
-  fileDesc("Chl0ZWxlbWV0cnkvdjEvaW5nZXN0LnByb3RvEhN2dGl0YW4udGVsZW1ldHJ5LnYxIlUKFUluZ2VzdFNuYXBzaG90UmVxdWVzdBI8CghzbmFwc2hvdBgBIAEoCzIiLnZ0aXRhbi50ZWxlbWV0cnkudjEuUm9ib3RTbmFwc2hvdEIGukgDyAEBIjQKFkluZ2VzdFNuYXBzaG90UmVzcG9uc2USGgoSc25hcHNob3RzX3JlY2VpdmVkGAEgASgEIlIKE0luZ2VzdFRvcGljc1JlcXVlc3QSOwoGdG9waWNzGAEgASgLMiMudnRpdGFuLnRlbGVtZXRyeS52MS5Ub3BpY3NTbmFwc2hvdEIGukgDyAEBIjAKFEluZ2VzdFRvcGljc1Jlc3BvbnNlEhgKEHVwZGF0ZXNfcmVjZWl2ZWQYASABKAQy7QEKFlRlbGVtZXRyeUluZ2VzdFNlcnZpY2USbAoPU3RyZWFtU25hcHNob3RzEioudnRpdGFuLnRlbGVtZXRyeS52MS5Jbmdlc3RTbmFwc2hvdFJlcXVlc3QaKy52dGl0YW4udGVsZW1ldHJ5LnYxLkluZ2VzdFNuYXBzaG90UmVzcG9uc2UoARJlCgxTdHJlYW1Ub3BpY3MSKC52dGl0YW4udGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1JlcXVlc3QaKS52dGl0YW4udGVsZW1ldHJ5LnYxLkluZ2VzdFRvcGljc1Jlc3BvbnNlKAFCTlpMZ2l0aHViLmNvbS90ZWFtdm9sdGltb3IvdnRpdGFuL3BsYXRmb3JtL2JhY2tlbmQvZ2VuL3RlbGVtZXRyeS92MTt0ZWxlbWV0cnl2MWIGcHJvdG8z", [file_buf_validate_validate, file_telemetry_v1_types]);
+  fileDesc("Chl0ZWxlbWV0cnkvdjEvaW5nZXN0LnByb3RvEhN2dGl0YW4udGVsZW1ldHJ5LnYxIlYKFlN0cmVhbVNuYXBzaG90c1JlcXVlc3QSPAoIc25hcHNob3QYASABKAsyIi52dGl0YW4udGVsZW1ldHJ5LnYxLlJvYm90U25hcHNob3RCBrpIA8gBASI1ChdTdHJlYW1TbmFwc2hvdHNSZXNwb25zZRIaChJzbmFwc2hvdHNfcmVjZWl2ZWQYASABKAQiUgoTU3RyZWFtVG9waWNzUmVxdWVzdBI7CgZ0b3BpY3MYASABKAsyIy52dGl0YW4udGVsZW1ldHJ5LnYxLlRvcGljc1NuYXBzaG90Qga6SAPIAQEiMAoUU3RyZWFtVG9waWNzUmVzcG9uc2USGAoQdXBkYXRlc19yZWNlaXZlZBgBIAEoBDLvAQoWVGVsZW1ldHJ5SW5nZXN0U2VydmljZRJuCg9TdHJlYW1TbmFwc2hvdHMSKy52dGl0YW4udGVsZW1ldHJ5LnYxLlN0cmVhbVNuYXBzaG90c1JlcXVlc3QaLC52dGl0YW4udGVsZW1ldHJ5LnYxLlN0cmVhbVNuYXBzaG90c1Jlc3BvbnNlKAESZQoMU3RyZWFtVG9waWNzEigudnRpdGFuLnRlbGVtZXRyeS52MS5TdHJlYW1Ub3BpY3NSZXF1ZXN0GikudnRpdGFuLnRlbGVtZXRyeS52MS5TdHJlYW1Ub3BpY3NSZXNwb25zZSgBQk5aTGdpdGh1Yi5jb20vdGVhbXZvbHRpbW9yL3Z0aXRhbi9wbGF0Zm9ybS9iYWNrZW5kL2dlbi90ZWxlbWV0cnkvdjE7dGVsZW1ldHJ5djFiBnByb3RvMw", [file_buf_validate_validate, file_telemetry_v1_types]);
 
 /**
- * @generated from message vtitan.telemetry.v1.IngestSnapshotRequest
+ * @generated from message vtitan.telemetry.v1.StreamSnapshotsRequest
  */
-export type IngestSnapshotRequest = Message<"vtitan.telemetry.v1.IngestSnapshotRequest"> & {
+export type StreamSnapshotsRequest = Message<"vtitan.telemetry.v1.StreamSnapshotsRequest"> & {
   /**
    * @generated from field: vtitan.telemetry.v1.RobotSnapshot snapshot = 1;
    */
@@ -26,16 +26,16 @@ export type IngestSnapshotRequest = Message<"vtitan.telemetry.v1.IngestSnapshotR
 };
 
 /**
- * Describes the message vtitan.telemetry.v1.IngestSnapshotRequest.
- * Use `create(IngestSnapshotRequestSchema)` to create a new message.
+ * Describes the message vtitan.telemetry.v1.StreamSnapshotsRequest.
+ * Use `create(StreamSnapshotsRequestSchema)` to create a new message.
  */
-export const IngestSnapshotRequestSchema: GenMessage<IngestSnapshotRequest> = /*@__PURE__*/
+export const StreamSnapshotsRequestSchema: GenMessage<StreamSnapshotsRequest> = /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 0);
 
 /**
- * @generated from message vtitan.telemetry.v1.IngestSnapshotResponse
+ * @generated from message vtitan.telemetry.v1.StreamSnapshotsResponse
  */
-export type IngestSnapshotResponse = Message<"vtitan.telemetry.v1.IngestSnapshotResponse"> & {
+export type StreamSnapshotsResponse = Message<"vtitan.telemetry.v1.StreamSnapshotsResponse"> & {
   /**
    * @generated from field: uint64 snapshots_received = 1;
    */
@@ -43,16 +43,16 @@ export type IngestSnapshotResponse = Message<"vtitan.telemetry.v1.IngestSnapshot
 };
 
 /**
- * Describes the message vtitan.telemetry.v1.IngestSnapshotResponse.
- * Use `create(IngestSnapshotResponseSchema)` to create a new message.
+ * Describes the message vtitan.telemetry.v1.StreamSnapshotsResponse.
+ * Use `create(StreamSnapshotsResponseSchema)` to create a new message.
  */
-export const IngestSnapshotResponseSchema: GenMessage<IngestSnapshotResponse> = /*@__PURE__*/
+export const StreamSnapshotsResponseSchema: GenMessage<StreamSnapshotsResponse> = /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 1);
 
 /**
- * @generated from message vtitan.telemetry.v1.IngestTopicsRequest
+ * @generated from message vtitan.telemetry.v1.StreamTopicsRequest
  */
-export type IngestTopicsRequest = Message<"vtitan.telemetry.v1.IngestTopicsRequest"> & {
+export type StreamTopicsRequest = Message<"vtitan.telemetry.v1.StreamTopicsRequest"> & {
   /**
    * @generated from field: vtitan.telemetry.v1.TopicsSnapshot topics = 1;
    */
@@ -60,16 +60,16 @@ export type IngestTopicsRequest = Message<"vtitan.telemetry.v1.IngestTopicsReque
 };
 
 /**
- * Describes the message vtitan.telemetry.v1.IngestTopicsRequest.
- * Use `create(IngestTopicsRequestSchema)` to create a new message.
+ * Describes the message vtitan.telemetry.v1.StreamTopicsRequest.
+ * Use `create(StreamTopicsRequestSchema)` to create a new message.
  */
-export const IngestTopicsRequestSchema: GenMessage<IngestTopicsRequest> = /*@__PURE__*/
+export const StreamTopicsRequestSchema: GenMessage<StreamTopicsRequest> = /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 2);
 
 /**
- * @generated from message vtitan.telemetry.v1.IngestTopicsResponse
+ * @generated from message vtitan.telemetry.v1.StreamTopicsResponse
  */
-export type IngestTopicsResponse = Message<"vtitan.telemetry.v1.IngestTopicsResponse"> & {
+export type StreamTopicsResponse = Message<"vtitan.telemetry.v1.StreamTopicsResponse"> & {
   /**
    * @generated from field: uint64 updates_received = 1;
    */
@@ -77,10 +77,10 @@ export type IngestTopicsResponse = Message<"vtitan.telemetry.v1.IngestTopicsResp
 };
 
 /**
- * Describes the message vtitan.telemetry.v1.IngestTopicsResponse.
- * Use `create(IngestTopicsResponseSchema)` to create a new message.
+ * Describes the message vtitan.telemetry.v1.StreamTopicsResponse.
+ * Use `create(StreamTopicsResponseSchema)` to create a new message.
  */
-export const IngestTopicsResponseSchema: GenMessage<IngestTopicsResponse> = /*@__PURE__*/
+export const StreamTopicsResponseSchema: GenMessage<StreamTopicsResponse> = /*@__PURE__*/
   messageDesc(file_telemetry_v1_ingest, 3);
 
 /**
@@ -99,8 +99,8 @@ export const TelemetryIngestService: GenService<{
    */
   streamSnapshots: {
     methodKind: "client_streaming";
-    input: typeof IngestSnapshotRequestSchema;
-    output: typeof IngestSnapshotResponseSchema;
+    input: typeof StreamSnapshotsRequestSchema;
+    output: typeof StreamSnapshotsResponseSchema;
   },
   /**
    * StreamTopics accepts a continuous stream of ROS2 topic frames.
@@ -110,8 +110,8 @@ export const TelemetryIngestService: GenService<{
    */
   streamTopics: {
     methodKind: "client_streaming";
-    input: typeof IngestTopicsRequestSchema;
-    output: typeof IngestTopicsResponseSchema;
+    input: typeof StreamTopicsRequestSchema;
+    output: typeof StreamTopicsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_telemetry_v1_ingest, 0);

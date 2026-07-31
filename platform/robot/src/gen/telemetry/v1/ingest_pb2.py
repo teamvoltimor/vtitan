@@ -26,7 +26,7 @@ from buf.validate import validate_pb2 as buf_dot_validate_dot_validate__pb2
 from telemetry.v1 import types_pb2 as telemetry_dot_v1_dot_types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19telemetry/v1/ingest.proto\x12\x13vtitan.telemetry.v1\x1a\x1b\x62uf/validate/validate.proto\x1a\x18telemetry/v1/types.proto\"_\n\x15IngestSnapshotRequest\x12\x46\n\x08snapshot\x18\x01 \x01(\x0b\x32\".vtitan.telemetry.v1.RobotSnapshotB\x06\xbaH\x03\xc8\x01\x01R\x08snapshot\"G\n\x16IngestSnapshotResponse\x12-\n\x12snapshots_received\x18\x01 \x01(\x04R\x11snapshotsReceived\"Z\n\x13IngestTopicsRequest\x12\x43\n\x06topics\x18\x01 \x01(\x0b\x32#.vtitan.telemetry.v1.TopicsSnapshotB\x06\xbaH\x03\xc8\x01\x01R\x06topics\"A\n\x14IngestTopicsResponse\x12)\n\x10updates_received\x18\x01 \x01(\x04R\x0fupdatesReceived2\xed\x01\n\x16TelemetryIngestService\x12l\n\x0fStreamSnapshots\x12*.vtitan.telemetry.v1.IngestSnapshotRequest\x1a+.vtitan.telemetry.v1.IngestSnapshotResponse(\x01\x12\x65\n\x0cStreamTopics\x12(.vtitan.telemetry.v1.IngestTopicsRequest\x1a).vtitan.telemetry.v1.IngestTopicsResponse(\x01\x42NZLgithub.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19telemetry/v1/ingest.proto\x12\x13vtitan.telemetry.v1\x1a\x1b\x62uf/validate/validate.proto\x1a\x18telemetry/v1/types.proto\"`\n\x16StreamSnapshotsRequest\x12\x46\n\x08snapshot\x18\x01 \x01(\x0b\x32\".vtitan.telemetry.v1.RobotSnapshotB\x06\xbaH\x03\xc8\x01\x01R\x08snapshot\"H\n\x17StreamSnapshotsResponse\x12-\n\x12snapshots_received\x18\x01 \x01(\x04R\x11snapshotsReceived\"Z\n\x13StreamTopicsRequest\x12\x43\n\x06topics\x18\x01 \x01(\x0b\x32#.vtitan.telemetry.v1.TopicsSnapshotB\x06\xbaH\x03\xc8\x01\x01R\x06topics\"A\n\x14StreamTopicsResponse\x12)\n\x10updates_received\x18\x01 \x01(\x04R\x0fupdatesReceived2\xef\x01\n\x16TelemetryIngestService\x12n\n\x0fStreamSnapshots\x12+.vtitan.telemetry.v1.StreamSnapshotsRequest\x1a,.vtitan.telemetry.v1.StreamSnapshotsResponse(\x01\x12\x65\n\x0cStreamTopics\x12(.vtitan.telemetry.v1.StreamTopicsRequest\x1a).vtitan.telemetry.v1.StreamTopicsResponse(\x01\x42NZLgithub.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,18 +34,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'telemetry.v1.ingest_pb2', _
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZLgithub.com/teamvoltimor/vtitan/platform/backend/gen/telemetry/v1;telemetryv1'
-  _globals['_INGESTSNAPSHOTREQUEST'].fields_by_name['snapshot']._loaded_options = None
-  _globals['_INGESTSNAPSHOTREQUEST'].fields_by_name['snapshot']._serialized_options = b'\272H\003\310\001\001'
-  _globals['_INGESTTOPICSREQUEST'].fields_by_name['topics']._loaded_options = None
-  _globals['_INGESTTOPICSREQUEST'].fields_by_name['topics']._serialized_options = b'\272H\003\310\001\001'
-  _globals['_INGESTSNAPSHOTREQUEST']._serialized_start=105
-  _globals['_INGESTSNAPSHOTREQUEST']._serialized_end=200
-  _globals['_INGESTSNAPSHOTRESPONSE']._serialized_start=202
-  _globals['_INGESTSNAPSHOTRESPONSE']._serialized_end=273
-  _globals['_INGESTTOPICSREQUEST']._serialized_start=275
-  _globals['_INGESTTOPICSREQUEST']._serialized_end=365
-  _globals['_INGESTTOPICSRESPONSE']._serialized_start=367
-  _globals['_INGESTTOPICSRESPONSE']._serialized_end=432
-  _globals['_TELEMETRYINGESTSERVICE']._serialized_start=435
-  _globals['_TELEMETRYINGESTSERVICE']._serialized_end=672
+  _globals['_STREAMSNAPSHOTSREQUEST'].fields_by_name['snapshot']._loaded_options = None
+  _globals['_STREAMSNAPSHOTSREQUEST'].fields_by_name['snapshot']._serialized_options = b'\272H\003\310\001\001'
+  _globals['_STREAMTOPICSREQUEST'].fields_by_name['topics']._loaded_options = None
+  _globals['_STREAMTOPICSREQUEST'].fields_by_name['topics']._serialized_options = b'\272H\003\310\001\001'
+  _globals['_STREAMSNAPSHOTSREQUEST']._serialized_start=105
+  _globals['_STREAMSNAPSHOTSREQUEST']._serialized_end=201
+  _globals['_STREAMSNAPSHOTSRESPONSE']._serialized_start=203
+  _globals['_STREAMSNAPSHOTSRESPONSE']._serialized_end=275
+  _globals['_STREAMTOPICSREQUEST']._serialized_start=277
+  _globals['_STREAMTOPICSREQUEST']._serialized_end=367
+  _globals['_STREAMTOPICSRESPONSE']._serialized_start=369
+  _globals['_STREAMTOPICSRESPONSE']._serialized_end=434
+  _globals['_TELEMETRYINGESTSERVICE']._serialized_start=437
+  _globals['_TELEMETRYINGESTSERVICE']._serialized_end=676
 # @@protoc_insertion_point(module_scope)

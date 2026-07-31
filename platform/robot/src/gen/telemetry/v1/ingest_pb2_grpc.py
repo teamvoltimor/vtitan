@@ -19,13 +19,13 @@ class TelemetryIngestServiceStub(object):
         """
         self.StreamSnapshots = channel.stream_unary(
                 '/vtitan.telemetry.v1.TelemetryIngestService/StreamSnapshots',
-                request_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotRequest.SerializeToString,
-                response_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotResponse.FromString,
+                request_serializer=telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsRequest.SerializeToString,
+                response_deserializer=telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsResponse.FromString,
                 _registered_method=True)
         self.StreamTopics = channel.stream_unary(
                 '/vtitan.telemetry.v1.TelemetryIngestService/StreamTopics',
-                request_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsRequest.SerializeToString,
-                response_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsResponse.FromString,
+                request_serializer=telemetry_dot_v1_dot_ingest__pb2.StreamTopicsRequest.SerializeToString,
+                response_deserializer=telemetry_dot_v1_dot_ingest__pb2.StreamTopicsResponse.FromString,
                 _registered_method=True)
 
 
@@ -56,13 +56,13 @@ def add_TelemetryIngestServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'StreamSnapshots': grpc.stream_unary_rpc_method_handler(
                     servicer.StreamSnapshots,
-                    request_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotRequest.FromString,
-                    response_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotResponse.SerializeToString,
+                    request_deserializer=telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsRequest.FromString,
+                    response_serializer=telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsResponse.SerializeToString,
             ),
             'StreamTopics': grpc.stream_unary_rpc_method_handler(
                     servicer.StreamTopics,
-                    request_deserializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsRequest.FromString,
-                    response_serializer=telemetry_dot_v1_dot_ingest__pb2.IngestTopicsResponse.SerializeToString,
+                    request_deserializer=telemetry_dot_v1_dot_ingest__pb2.StreamTopicsRequest.FromString,
+                    response_serializer=telemetry_dot_v1_dot_ingest__pb2.StreamTopicsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -93,8 +93,8 @@ class TelemetryIngestService(object):
             request_iterator,
             target,
             '/vtitan.telemetry.v1.TelemetryIngestService/StreamSnapshots',
-            telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotRequest.SerializeToString,
-            telemetry_dot_v1_dot_ingest__pb2.IngestSnapshotResponse.FromString,
+            telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsRequest.SerializeToString,
+            telemetry_dot_v1_dot_ingest__pb2.StreamSnapshotsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -120,8 +120,8 @@ class TelemetryIngestService(object):
             request_iterator,
             target,
             '/vtitan.telemetry.v1.TelemetryIngestService/StreamTopics',
-            telemetry_dot_v1_dot_ingest__pb2.IngestTopicsRequest.SerializeToString,
-            telemetry_dot_v1_dot_ingest__pb2.IngestTopicsResponse.FromString,
+            telemetry_dot_v1_dot_ingest__pb2.StreamTopicsRequest.SerializeToString,
+            telemetry_dot_v1_dot_ingest__pb2.StreamTopicsResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -36,7 +36,7 @@ func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_Strea
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
 			s.log.Info("snapshot stream closed", zap.Uint64("received", count))
-			return stream.SendAndClose(&telemetryv1.IngestSnapshotResponse{SnapshotsReceived: count})
+			return stream.SendAndClose(&telemetryv1.StreamSnapshotsResponse{SnapshotsReceived: count})
 		}
 		if err != nil {
 			s.log.Warn("snapshot stream error", zap.Error(err))
@@ -61,7 +61,7 @@ func (s *Server) StreamTopics(stream telemetryv1.TelemetryIngestService_StreamTo
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
 			s.log.Info("topics stream closed", zap.Uint64("received", count))
-			return stream.SendAndClose(&telemetryv1.IngestTopicsResponse{UpdatesReceived: count})
+			return stream.SendAndClose(&telemetryv1.StreamTopicsResponse{UpdatesReceived: count})
 		}
 		if err != nil {
 			s.log.Warn("topics stream error", zap.Error(err))
