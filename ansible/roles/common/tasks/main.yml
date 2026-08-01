@@ -24,15 +24,17 @@
     update_cache: true
 
 - name: Authenticate gh via GH_TOKEN
+  # gh refuses to persist credentials via `auth login` when GH_TOKEN is set
+  # in its own environment ("use the env var, don't store it"), so the token
+  # must reach stdin without also being exported for this shell.
   ansible.builtin.shell: |
     set -o pipefail
-    printf '%s' "$GH_TOKEN" | gh auth login --with-token
+    printf '%s' {{ lookup('env', 'GH_TOKEN') | quote }} | gh auth login --with-token
   args:
     executable: /bin/bash
-  environment:
-    GH_TOKEN: "{{ lookup('env', 'GH_TOKEN') }}"
   when: lookup('env', 'GH_TOKEN') | length > 0
   changed_when: true
+  no_log: true
 
 - name: Check gh auth status
   ansible.builtin.command: gh auth status
