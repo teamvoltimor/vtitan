@@ -32,6 +32,7 @@ export function VisionDebugControl() {
       pending={pending}
       disabled={!liveMode}
       error={writeError}
+      showLabel={false}
       onToggle={handleToggle}
     />
   );

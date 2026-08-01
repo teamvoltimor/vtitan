@@ -1,3 +1,4 @@
+export { ChannelsGroup } from './ChannelsGroup';
 export { CommandChannelControl } from './CommandChannelControl';
 export { LogPanel } from './LogPanel';
 export { SensorHealthPanel } from './SensorHealthPanel';

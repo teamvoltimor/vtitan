@@ -21,8 +21,8 @@ the track walls, the path trail accumulates, and IMU/vision/motor/topic panels
 animate. Two mock replay "sessions" are available in the Replays list.
 
 ```bash
-npm install
-npm run dev          # then click "Demo Mode", or open http://localhost:5173/?demo
+pnpm install
+pnpm dev          # then click "Demo Mode", or open http://localhost:5173/?demo
 ```
 
 ---

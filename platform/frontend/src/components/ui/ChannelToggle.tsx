@@ -9,6 +9,8 @@ interface ChannelToggleProps {
   disabled?: boolean;
   /** Backend write failure message, rendered as an inline error. */
   error?: string | null;
+  /** Render the label inside the control (false when grouped under a shared header). */
+  showLabel?: boolean;
   onToggle: (next: boolean) => void;
 }
 
@@ -23,11 +25,12 @@ export function ChannelToggle({
   pending = false,
   disabled = false,
   error,
+  showLabel = true,
   onToggle,
 }: ChannelToggleProps) {
   return (
     <div className="channel-toggle">
-      <Label>{label}</Label>
+      {showLabel && <Label>{label}</Label>}
       <div className="control-row">
         <input
           type="checkbox"

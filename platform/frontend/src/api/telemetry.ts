@@ -1,106 +1,25 @@
 /**
  * src/api/telemetry.ts
  *
- * Telemetry API client with improved error handling and configuration.
- * Includes Zod runtime validation for type safety.
- * Follows the architectural refactoring patterns recommended in the audit report.
+ * Telemetry API client. Request/response models come from the
+ * OpenAPI-generated types (./generated); the shared HTTP client in ./http
+ * handles transport, timeouts, error classification, and RFC 7807 surfacing.
+ * Zod adds runtime validation of the wire data (audit §5.5 tolerant parsing).
  */
 
-import type { HealthResponse } from '../api/generated';
-import { API_CONFIG, URL_PROTOCOL_MAP } from '../config';
-import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
+import type {
+  HealthCheckResponses,
+  ListSessionsResponses,
+  UpdateRobotSpeedData,
+  UpdateRobotSpeedResponses,
+} from '../api/generated';
+import { API_CONFIG } from '../config';
+import type { RobotSnapshot, TopicsSnapshot } from '../types';
 import { getErrorMessage } from '../utils/formatting';
-import { classifyHttpError, ExponentialBackoff, TelemetryError } from './errors';
+import { ExponentialBackoff, TelemetryError } from './errors';
 import { isRobotSnapshotShape } from './guards';
+import { fetchJson, httpToWsUrl, postJson } from './http';
 import { safeParseTopicsSnapshot, schemas } from './schemas';
-
-/**
- * Resolve URL with base path configuration.
- */
-const resolveUrl = (path: string): string => {
-  const baseUrl = API_CONFIG.BASE_URL;
-  return baseUrl ? `${baseUrl}${path}` : path;
-};
-
-/**
- * Convert HTTP protocol to WebSocket protocol.
- */
-const httpToWsUrl = (url: string): string => {
-  return Object.entries(URL_PROTOCOL_MAP).reduce(
-    (acc, [httpProtocol, wsProtocol]) => acc.replace(httpProtocol, wsProtocol),
-    url
-  );
-};
-
-/**
- * Fetch JSON with error handling, classification, and optional validation.
- *
- * @throws TelemetryError with appropriate error code
- */
-async function fetchJson<T>(
-  path: string,
-  signal: AbortSignal = AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
-  schema?: { parse: (data: unknown) => T }
-): Promise<T> {
-  try {
-    const response = await fetch(resolveUrl(path), {
-      cache: API_CONFIG.FETCH_CACHE,
-      signal,
-    });
-
-    // Handle HTTP errors
-    if (!response.ok) {
-      const code = classifyHttpError(response.status);
-      throw new TelemetryError(
-        code,
-        `HTTP ${response.status}: ${response.statusText}`,
-        response.status
-      );
-    }
-
-    // Parse JSON
-    let data: unknown;
-    try {
-      data = await response.json();
-    } catch (err) {
-      throw new TelemetryError(
-        'PARSE',
-        `Invalid JSON response: ${getErrorMessage(err)}`,
-        response.status,
-        err
-      );
-    }
-
-    // Validate with schema if provided
-    if (schema) {
-      try {
-        return schema.parse(data);
-      } catch (err) {
-        throw new TelemetryError(
-          'PARSE',
-          `Invalid response structure: ${getErrorMessage(err)}`,
-          response.status,
-          err
-        );
-      }
-    }
-
-    return data as T;
-  } catch (err) {
-    // Re-throw TelemetryErrors as-is
-    if (err instanceof TelemetryError) {
-      throw err;
-    }
-
-    // Handle abort signals (timeouts)
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new TelemetryError('TIMEOUT', 'Request timeout', undefined, err);
-    }
-
-    // Classify all other errors as network errors
-    throw new TelemetryError('NETWORK', `Network error: ${getErrorMessage(err)}`, undefined, err);
-  }
-}
 
 // API endpoints
 
@@ -110,18 +29,22 @@ async function fetchJson<T>(
  * event fires) while failing to actually serve requests; polling this
  * catches that in a way the WS callbacks alone can't.
  */
-export const fetchHealth = (): Promise<HealthResponse> =>
-  fetchJson(
-    API_CONFIG.ENDPOINTS.HEALTH,
-    AbortSignal.timeout(API_CONFIG.HEALTH_CHECK_INTERVAL_MS),
-    schemas.HealthResponse
-  );
+export const fetchHealth = (): Promise<HealthCheckResponses['200']> =>
+  fetchJson<HealthCheckResponses['200']>(API_CONFIG.ENDPOINTS.HEALTH, {
+    signal: AbortSignal.timeout(API_CONFIG.HEALTH_CHECK_INTERVAL_MS),
+    schema: schemas.HealthResponse,
+  });
 
 /**
  * Fetch the latest robot telemetry snapshot.
+ *
+ * Returns the frontend RobotSnapshot type: the wire's optional arrays are
+ * made required by the Zod schema's `.default([])` guarantees.
  */
 export const fetchLatestTelemetry = (): Promise<RobotSnapshot> =>
-  fetchJson(API_CONFIG.ENDPOINTS.LATEST, undefined, schemas.RobotSnapshot);
+  fetchJson<RobotSnapshot>(API_CONFIG.ENDPOINTS.LATEST, {
+    schema: schemas.RobotSnapshot,
+  });
 
 /**
  * Fetch current topic information.
@@ -159,8 +82,10 @@ export const fetchHistory = (): Promise<RobotSnapshot[]> =>
 /**
  * Fetch available replay sessions.
  */
-export const fetchSessions = (): Promise<ReplaySessionInfo[]> =>
-  fetchJson(API_CONFIG.ENDPOINTS.SESSIONS, undefined, schemas.SessionsResponse);
+export const fetchSessions = (): Promise<ListSessionsResponses['200']> =>
+  fetchJson<ListSessionsResponses['200']>(API_CONFIG.ENDPOINTS.SESSIONS, {
+    schema: schemas.SessionsResponse,
+  });
 
 /**
  * Fetch snapshots for a specific replay session.
@@ -172,39 +97,8 @@ export const fetchSession = (sessionId: string): Promise<RobotSnapshot[]> =>
  * Update robot maximum linear speed.
  */
 export const updateRobotSpeed = async (speed: number): Promise<void> => {
-  try {
-    const response = await fetch(resolveUrl(API_CONFIG.ENDPOINTS.ROBOT_SPEED), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ maxLinearSpeed: speed }),
-      signal: AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      const code = classifyHttpError(response.status);
-      throw new TelemetryError(
-        code,
-        `Failed to update robot speed: HTTP ${response.status}`,
-        response.status
-      );
-    }
-
-    // Parse response but don't require specific format
-    await response.json();
-  } catch (err) {
-    if (err instanceof TelemetryError) {
-      throw err;
-    }
-
-    throw new TelemetryError(
-      'NETWORK',
-      `Failed to update robot speed: ${getErrorMessage(err)}`,
-      undefined,
-      err
-    );
-  }
+  const body: UpdateRobotSpeedData['body'] = { maxLinearSpeed: speed };
+  await postJson<UpdateRobotSpeedResponses['200']>(API_CONFIG.ENDPOINTS.ROBOT_SPEED, body);
 };
 
 // WebSocket
@@ -248,7 +142,7 @@ export function connectTelemetryWS(
   onError?: TelemetryErrorHandler,
   onConnected?: TelemetryConnectedHandler
 ): () => void {
-  // Build WebSocket URL
+  // Build WebSocket URL from the OpenAPI request model (GET /v1/telemetry/ws).
   const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
   const wsUrl = httpToWsUrl(baseUrl) + API_CONFIG.ENDPOINTS.STREAM;
 

@@ -5,7 +5,6 @@
 export type {
   ConfigResponse,
   Detection,
-  ErrorResponse,
   HealthResponse,
   ImuData,
   MotorState,

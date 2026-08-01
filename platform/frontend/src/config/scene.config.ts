@@ -1,35 +1,11 @@
 /**
- * src/config/app.config.ts
+ * src/config/scene.config.ts
  *
- * Centralized application configuration.
- * All magic numbers, strings, and constants are defined here.
- * This eliminates hardcoded values scattered throughout the codebase.
+ * 3D scene, simulation, and visualizer geometry. Palette references come from
+ * colors.ts; transport settings live in api.config.ts.
  */
 
-// COLOR PALETTE
-//
-// Used by JS/TSX-rendered colours: three.js materials, canvas drawing, and SVG.
-// Where a colour also exists in CSS it must match the custom property in
-// index.css (--color-*) — they are the shared source of truth and must not
-// drift (audit §8.4). Note SURFACE is the *opaque* solid used for the 3D floor;
-// the stylesheet's --color-surface is a translucent overlay and intentionally
-// different.
-
-export const COLORS = {
-  BACKGROUND: '#050b12',
-  PANEL: '#0a1525',
-  SURFACE: '#111b27',
-  ACCENT: '#ff8a65',
-  HIGHLIGHT: '#5fdde5',
-  WHITE: '#ffffff',
-  BLUE: '#2196f3',
-  DANGER: '#f44336',
-  WARNING: '#ff9800',
-  SUCCESS: '#4caf50',
-  ERROR: '#ff0000',
-  GRID_LINE: 'rgba(255, 255, 255, 0.1)',
-  FORWARD_INDICATOR: 'rgba(255, 255, 255, 0.3)',
-} as const;
+import { COLORS } from './colors';
 
 // SIMULATION & 3D RENDERING
 
@@ -171,106 +147,6 @@ export const SPEED_GAUGE_CONFIG = {
   STEERING_SENSITIVITY: 2.0, // Divider for angular speed (higher = less sensitive)
 } as const;
 
-// ROBOT SPEED CONTROL
-
-export const SPEED_CONTROL_CONFIG = {
-  MIN: 0,
-  MAX: 2,
-  STEP: 0.1,
-  DEFAULT: 1.0,
-} as const;
-
-// API CONFIGURATION
-
-export const API_CONFIG = {
-  BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
-
-  ENDPOINTS: {
-    HEALTH: '/v1/telemetry/health',
-    LATEST: '/v1/telemetry/latest',
-    TOPICS: '/v1/telemetry/topics',
-    HISTORY: '/v1/telemetry/history',
-    SESSIONS: '/v1/telemetry/sessions',
-    SESSION: (id: string) => `/v1/telemetry/sessions/${id}`,
-    ROBOT_SPEED: '/v1/telemetry/robot/config/speed',
-    STREAM: '/v1/telemetry/ws',
-    ROBOTS: '/v1/robots',
-    ROBOT_COMMAND: (id: string) => `/v1/robots/${id}/command`,
-    ROBOT_STATUS: (id: string) => `/v1/robots/${id}/status`,
-    ROBOT_CONFIG: (id: string) => `/v1/robots/${id}/config`,
-  },
-
-  FETCH_CACHE: 'no-store' as const,
-  TIMEOUT_MS: 30000,
-
-  // Independent backstop for connection status — a stalled/wedged backend
-  // process can hold a WebSocket connection open (no onerror/onclose event)
-  // while failing to actually serve requests; polling health catches that.
-  HEALTH_CHECK_INTERVAL_MS: 5000,
-
-  WEBSOCKET: {
-    RECONNECT_DELAY_MS: 2000,
-    RECONNECT_MAX_ATTEMPTS: 5,
-    RECONNECT_BACKOFF_MULTIPLIER: 1.5,
-  },
-} as const;
-
-// PROTOCOL CONVERSION
-
-export const URL_PROTOCOL_MAP = {
-  'http://': 'ws://',
-  'https://': 'wss://',
-} as const;
-
-// UI STRINGS
-
-export const UI_STRINGS = {
-  SENSOR_STATUS: 'SENSOR STATUS',
-  LIVE_TRACKING: 'LIVE TRACKING',
-  SPEED_CONTROL: 'MAX LINEAR SPEED',
-  EVENT_FEED: 'Event Feed',
-  NODE_BRIDGE: 'Node Bridge',
-  REPLAYS: 'Replays',
-  GO_LIVE: 'Go live',
-  LIVE: 'Live',
-  FILTER_TOPICS: 'Filter topics...',
-  VISION_DEBUG: 'VISION DEBUG STREAM',
-  TELEMETRY_CHANNEL: 'TELEMETRY CHANNEL',
-  COMMAND_CHANNEL: 'COMMAND CHANNEL',
-} as const;
-
-// TELEMETRY SETTINGS
-
-export const TELEMETRY_CONFIG = {
-  HISTORY_MAX_SIZE: 60, // Max snapshots kept in memory
-  LOG_BUFFER_MAX_SIZE: 200, // Max accumulated log lines kept for the Event Feed
-  TOPIC_STALENESS_THRESHOLD_SECONDS: 2.0, // Mark topic stale after this duration
-  POLL_INTERVAL_MS: parseInt(import.meta.env.VITE_POLL_INTERVAL_MS ?? '2500', 10),
-} as const;
-
-// THEME COLORS
-
-export const THEME = {
-  COLORS: {
-    BACKGROUND: COLORS.BACKGROUND,
-    PANEL: COLORS.PANEL,
-    ACCENT: COLORS.ACCENT,
-    HIGHLIGHT: COLORS.HIGHLIGHT,
-    ERROR: COLORS.ERROR,
-    SUCCESS: COLORS.SUCCESS,
-    WARNING: COLORS.WARNING,
-  },
-} as const;
-
-// SENSOR CONFIGURATION
-
-export const SENSOR_CONFIG = [
-  { id: 'lidar', name: 'LiDAR', key: 'lidar_available' as const },
-  { id: 'imu', name: 'IMU', key: 'imu_available' as const },
-  { id: 'camera', name: 'Camera', key: 'camera_available' as const },
-  { id: 'odometry', name: 'Odometry', key: 'odometry_available' as const },
-] as const;
-
 // IMU VISUALIZATION
 
 export const IMU_METRICS_CONFIG = [
@@ -319,17 +195,3 @@ export const VISION_CONFIG = {
     BLUE: COLORS.BLUE,
   },
 } as const;
-
-// JSON VIEW CONFIGURATION
-
-export const JSON_VIEW_CONFIG = {
-  ARRAY_PREVIEW_LIMIT: 10,
-  ARRAY_EXPAND_STEP: 20,
-  DECIMAL_PRECISION: 4,
-  INDENT_PER_LEVEL: 16,
-  MAX_DEPTH: 20, // recursion guard — ROS messages are shallow, but arbitrary payloads need not be
-} as const;
-
-// SPEED CONTROL VALIDATION
-
-export const SPEED_CONTROL_DEBOUNCE_MS = 250;

@@ -15,6 +15,7 @@ import { MotorDials } from './MotorDials';
 import { SpeedGauge } from './SpeedGauge';
 import { StateDiagram } from './StateDiagram';
 import { VisionBoundingBoxes } from './VisionBoundingBoxes';
+import { VisionStrip } from './VisionStrip';
 
 export {
   ImuCompass,
@@ -24,6 +25,7 @@ export {
   SpeedGauge,
   StateDiagram,
   VisionBoundingBoxes,
+  VisionStrip,
 };
 
 /**

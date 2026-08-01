@@ -9,8 +9,19 @@ export type HealthResponse = {
     version: string;
 };
 
-export type ErrorResponse = {
-    error: string;
+/**
+ * RFC 7807 Problem Details, emitted uniformly for every error response.
+ */
+export type ProblemDetails = {
+    type: string;
+    title: string;
+    status: number;
+    detail?: string;
+    instance: string;
+    /**
+     * Matches the request_id in server logs for this response.
+     */
+    correlation_id?: string;
 };
 
 export type SessionResponse = {
@@ -154,7 +165,7 @@ export type GetLatestTelemetryErrors = {
     /**
      * No snapshot received yet
      */
-    503: ErrorResponse;
+    503: ProblemDetails;
 };
 
 export type GetLatestTelemetryError = GetLatestTelemetryErrors[keyof GetLatestTelemetryErrors];
@@ -250,11 +261,11 @@ export type LoadSessionErrors = {
     /**
      * Invalid session ID format
      */
-    400: ErrorResponse;
+    400: ProblemDetails;
     /**
      * Session not found
      */
-    404: ErrorResponse;
+    404: ProblemDetails;
 };
 
 export type LoadSessionError = LoadSessionErrors[keyof LoadSessionErrors];
@@ -279,7 +290,7 @@ export type UpdateRobotSpeedErrors = {
     /**
      * Invalid request
      */
-    400: ErrorResponse;
+    400: ProblemDetails;
 };
 
 export type UpdateRobotSpeedError = UpdateRobotSpeedErrors[keyof UpdateRobotSpeedErrors];

@@ -1,7 +1,11 @@
 /**
  * src/config/index.ts
  *
- * Export all configuration modules from a single entry point.
+ * Barrel — re-export every configuration module from a single entry point so
+ * consumers keep a single `from '../config'` import (audit §4.4).
  */
 
-export * from './app.config';
+export * from './api.config';
+export * from './colors';
+export * from './scene.config';
+export * from './ui.config';

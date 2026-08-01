@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { TelemetryScene } from './components/scene/TelemetryScene';
 import { AsyncState, ErrorBoundary } from './components/ui';
 import { DemoToggle } from './components/ui/DemoToggle';
+import { VisionStrip } from './components/visualizers/VisionStrip';
 import { TelemetryProvider } from './contexts/TelemetryContext';
 import { useTelemetry } from './contexts/telemetryState';
 
@@ -44,6 +45,9 @@ function AppContent() {
           <ErrorBoundary fallback={<div className="scene-error">3D scene failed to render</div>}>
             {displaySnapshot && <TelemetryScene snapshot={displaySnapshot} />}
           </ErrorBoundary>
+          {displaySnapshot?.vision_detections && displaySnapshot.vision_detections.length > 0 && (
+            <VisionStrip detections={displaySnapshot.vision_detections} />
+          )}
           <DemoToggle />
         </div>
         <Sidebar />

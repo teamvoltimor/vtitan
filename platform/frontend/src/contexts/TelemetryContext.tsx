@@ -35,10 +35,13 @@ function appendLogs(prev: string[], logs: string[]): string[] {
   const lastExisting = prev[prev.length - 1];
   const incoming = logs.filter((line, i) => !(i === 0 && line === lastExisting));
   if (incoming.length === 0) return prev;
-  const updated = [...prev, ...incoming];
-  return updated.length > TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE
-    ? updated.slice(-TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE)
-    : updated;
+  // Trim before spreading (micro-opt, audit §12): `[...prev, ...incoming]` then
+  // slicing re-copies the combined array; trimming `prev` to the room available
+  // keeps a single bounded allocation instead.
+  if (prev.length + incoming.length > TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE) {
+    return [...prev.slice(-(TELEMETRY_CONFIG.LOG_BUFFER_MAX_SIZE - incoming.length)), ...incoming];
+  }
+  return [...prev, ...incoming];
 }
 
 export function TelemetryProvider({ children }: { children: ReactNode }) {
@@ -83,14 +86,14 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     snapshotRef.current = snapshot;
   }, [snapshot]);
 
-  // Append a snapshot to history, capped at HISTORY_MAX_SIZE.
+  // Append a snapshot to history, capped at HISTORY_MAX_SIZE. Micro-opt
+  // (audit §12): drop the oldest before spreading when at cap, avoiding the
+  // intermediate `[...prev, snap]` copy that the previous slice would then
+  // re-copy.
   const pushHistory = useCallback((snap: RobotSnapshot) => {
-    setHistory((prev) => {
-      const updated = [...prev, snap];
-      return updated.length > TELEMETRY_CONFIG.HISTORY_MAX_SIZE
-        ? updated.slice(-TELEMETRY_CONFIG.HISTORY_MAX_SIZE)
-        : updated;
-    });
+    setHistory((prev) =>
+      prev.length >= TELEMETRY_CONFIG.HISTORY_MAX_SIZE ? [...prev.slice(1), snap] : [...prev, snap]
+    );
   }, []);
 
   const pushLogs = useCallback((snap: RobotSnapshot) => {

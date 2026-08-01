@@ -44,7 +44,7 @@
   background: var(--color-bg);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-base);
   letter-spacing: 0.12em;
   text-align: center;
   padding: 2rem;
@@ -72,12 +72,12 @@
 
 .shell-loading-actions button {
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.5rem 1.4rem;
   background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.15em;
   text-transform: uppercase;
   cursor: pointer;
@@ -104,12 +104,12 @@
   left: 1rem;
   z-index: 50;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.4rem 1rem;
   background: rgba(5, 11, 18, 0.72);
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
@@ -137,6 +137,24 @@
   min-height: 0;
 }
 
+/* Live vision-detections strip (§7.2): compact camera-frame overlay in the
+   canvas's top-right corner, mirroring the demo-toggle chrome on the left. */
+.vision-strip {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: rgba(5, 11, 18, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.vision-strip svg {
+  display: block;
+}
+
 .connection-banner {
   position: absolute;
   top: 1rem;
@@ -144,12 +162,12 @@
   transform: translateX(-50%);
   z-index: 60;
   border: 1px solid var(--color-accent-orange);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.4rem 1.1rem;
   background: rgba(5, 11, 18, 0.85);
   color: var(--color-accent-orange);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   backdrop-filter: blur(6px);
@@ -165,7 +183,7 @@
   min-height: 200px;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-base);
   text-align: center;
   padding: 2rem;
 }
@@ -200,9 +218,46 @@
 .panel-logo {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   object-fit: cover;
   margin-bottom: 0.25rem;
+}
+
+/* Live/replay switch (§4.4): replaces the passive LIVE/REPLAY header label
+   with the single control that owns returning to live — the timeline's
+   duplicate "Go live" button was removed in favour of this. */
+.live-switch {
+  align-self: flex-start;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.9rem;
+  background: rgba(5, 11, 18, 0.6);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.live-switch.is-live {
+  border-color: rgba(95, 221, 229, 0.45);
+  color: var(--color-accent-teal);
+  cursor: default;
+}
+
+.live-switch.is-replay {
+  border-color: var(--color-accent-orange);
+  background: var(--color-accent-orange-fade);
+  color: var(--color-accent-orange);
+}
+
+.live-switch:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
 }
 
 .panel-header h1 {
@@ -210,12 +265,12 @@
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 1.15rem;
+  font-size: var(--text-xl);
 }
 
 .label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--color-text-muted);
@@ -244,7 +299,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   transition: all 0.2s;
 }
 
@@ -280,19 +335,19 @@
 }
 
 .sensor-info strong {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
 }
 
 .status-ok {
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   color: var(--color-success);
   font-weight: 600;
 }
 
 .status-error {
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   color: var(--color-danger);
   font-weight: 600;
 }
@@ -300,7 +355,7 @@
 .metrics-grid .stat-tile {
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.65rem;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   animation: fade-up 0.4s ease both;
 }
@@ -320,14 +375,14 @@
 
 .metrics-grid p {
   margin: 0 0 0.2rem;
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
 .metrics-grid strong {
   display: block;
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: var(--text-lg);
   line-height: 1.2;
   color: var(--color-accent-teal);
 }
@@ -336,6 +391,27 @@
 .channel-toggle,
 .command-channel-control {
   padding: 0 1.5rem;
+}
+
+/* Grouped channel toggles (§4.4): one shared header instead of three
+   stacked per-control labels. */
+.channels-group {
+  margin: 0;
+  padding: 0 1.5rem;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.channels-group legend {
+  padding: 0;
+  margin-bottom: 0.75rem;
+}
+
+.channels-group .channel-toggle,
+.channels-group .command-channel-control {
+  padding: 0;
 }
 
 /* Shared label + control row (previously an identical inline style block in
@@ -379,7 +455,7 @@
 
 .command-channel-control-notice {
   margin: 0.35rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--color-warning);
 }
 
@@ -387,7 +463,7 @@
 .channel-toggle-error,
 .command-channel-control-error {
   margin: 0.35rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   color: var(--color-danger);
 }
 
@@ -402,18 +478,18 @@
   align-items: center;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
 .telemetry-list span {
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
 .telemetry-list strong {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: var(--text-base);
   color: var(--color-text);
 }
 
@@ -449,13 +525,13 @@
   width: 40px;
   height: 3px;
   background: var(--color-border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .log-panel {
   flex: 1;
   border: 1px solid var(--color-border);
-  border-radius: 1rem;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.35);
 }
@@ -465,7 +541,7 @@
   justify-content: space-between;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--color-border);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   font-family: var(--font-mono);
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -480,7 +556,7 @@
   flex-direction: column;
   gap: 0.7rem;
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   max-height: 220px;
   overflow-y: auto;
 }
@@ -494,7 +570,7 @@
 .timeline {
   padding: 0.75rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.8rem;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
@@ -502,31 +578,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.5rem;
-}
-
-.timeline-button {
-  border: 1px solid var(--color-accent-teal);
-  border-radius: 999px;
-  padding: 0.2rem 0.9rem;
-  background: var(--color-accent-teal-fade);
-  color: var(--color-accent-teal);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.timeline-button:hover {
-  background: rgba(95, 221, 229, 0.14);
-}
-
-.timeline-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .timeline input[type="range"] {
@@ -539,7 +592,7 @@
   display: flex;
   justify-content: flex-end;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
@@ -556,10 +609,10 @@
   gap: 0.5rem;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.8rem;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   color: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   font-family: var(--font-mono);
   cursor: pointer;
   transition:
@@ -579,7 +632,7 @@
 }
 
 .session-item strong {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--color-text);
 }
 
@@ -627,7 +680,7 @@
   }
 
   .panel-header h1 {
-    font-size: 1rem;
+    font-size: var(--text-lg);
   }
 
   .metrics-grid,
@@ -642,7 +695,7 @@
 
   .connection-banner {
     top: 0.5rem;
-    font-size: 0.62rem;
+    font-size: var(--text-xs);
     padding: 0.35rem 0.85rem;
     max-width: calc(100% - 2rem);
     text-align: center;
@@ -651,8 +704,13 @@
   .demo-toggle {
     top: 0.5rem;
     left: 0.5rem;
-    font-size: 0.6rem;
+    font-size: var(--text-xs);
     padding: 0.35rem 0.8rem;
+  }
+
+  .vision-strip {
+    top: 0.5rem;
+    right: 0.5rem;
   }
 
   /* Touch targets: range inputs and small icon buttons are otherwise too
@@ -662,13 +720,11 @@
     min-height: 32px;
   }
 
-  .timeline-button,
   .mode-toggle,
   .topic-expand-btn,
   .modal-close {
     min-height: 36px;
   }
-
   .inspector-panel {
     max-height: 45vh;
   }

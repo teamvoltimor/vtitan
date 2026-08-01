@@ -4,47 +4,22 @@
  * Robot fleet-management API client. Served by the same backend process and
  * base URL as telemetry.ts (internal/edge mounts both route groups on one
  * gin.Engine) — no separate backend base URL needed.
+ *
+ * Request/response models come from the OpenAPI-generated types
+ * (./generated/robot); this file only adapts them to the app's needs.
  */
 
 import { API_CONFIG } from '../config';
-import { getErrorMessage } from '../utils/formatting';
-import { classifyHttpError, TelemetryError } from './errors';
+import { TelemetryError } from './errors';
 import type {
-  Robot,
+  ListRobotsResponses,
   RobotCommandResponse,
+  SendRobotCommandData,
+  SendRobotCommandResponses,
   SetTelemetryChannelParams,
   SetVisionDebugParams,
 } from './generated/robot';
-
-const resolveUrl = (path: string): string => {
-  const baseUrl = API_CONFIG.BASE_URL;
-  return baseUrl ? `${baseUrl}${path}` : path;
-};
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  try {
-    const response = await fetch(resolveUrl(path), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      const code = classifyHttpError(response.status);
-      throw new TelemetryError(
-        code,
-        `HTTP ${response.status}: ${response.statusText}`,
-        response.status
-      );
-    }
-
-    return (await response.json()) as T;
-  } catch (err) {
-    if (err instanceof TelemetryError) throw err;
-    throw new TelemetryError('NETWORK', `Network error: ${getErrorMessage(err)}`, undefined, err);
-  }
-}
+import { fetchJson, postJson } from './http';
 
 /**
  * This is a single-robot project (see backend's `defaultRobotName`/
@@ -59,18 +34,7 @@ let cachedRobotId: string | null = null;
 
 export async function fetchDefaultRobotId(): Promise<string> {
   if (cachedRobotId !== null) return cachedRobotId;
-  const response = await fetch(resolveUrl(API_CONFIG.ENDPOINTS.ROBOTS), {
-    signal: AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    const code = classifyHttpError(response.status);
-    throw new TelemetryError(
-      code,
-      `HTTP ${response.status}: ${response.statusText}`,
-      response.status
-    );
-  }
-  const robots = (await response.json()) as Robot[];
+  const robots = await fetchJson<ListRobotsResponses['200']>(API_CONFIG.ENDPOINTS.ROBOTS);
   if (robots.length === 0) {
     throw new TelemetryError('NETWORK', 'No robots registered');
   }
@@ -82,28 +46,38 @@ export async function fetchDefaultRobotId(): Promise<string> {
 export const setVisionDebug = (
   robotId: string,
   parameters: SetVisionDebugParams
-): Promise<RobotCommandResponse> =>
-  postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
-    command_type: 'SET_VISION_DEBUG',
-    parameters,
-  });
+): Promise<RobotCommandResponse> => {
+  const command: SendRobotCommandData['body'] = { command_type: 'SET_VISION_DEBUG', parameters };
+  return postJson<SendRobotCommandResponses['202']>(
+    API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId),
+    command
+  );
+};
 
 /** Toggle the robot's telemetry gRPC stream at runtime — remotely reversible either way. */
 export const setTelemetryChannel = (
   robotId: string,
   parameters: SetTelemetryChannelParams
-): Promise<RobotCommandResponse> =>
-  postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
+): Promise<RobotCommandResponse> => {
+  const command: SendRobotCommandData['body'] = {
     command_type: 'SET_TELEMETRY_CHANNEL',
     parameters,
-  });
+  };
+  return postJson<SendRobotCommandResponses['202']>(
+    API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId),
+    command
+  );
+};
 
 /**
  * One-way: disables the robot's gRPC command channel remotely. Not
  * remotely reversible, since disabling it closes the only channel a
  * remote re-enable command would need to travel over.
  */
-export const disableCommandChannel = (robotId: string): Promise<RobotCommandResponse> =>
-  postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
-    command_type: 'DISABLE_COMMAND_CHANNEL',
-  });
+export const disableCommandChannel = (robotId: string): Promise<RobotCommandResponse> => {
+  const command: SendRobotCommandData['body'] = { command_type: 'DISABLE_COMMAND_CHANNEL' };
+  return postJson<SendRobotCommandResponses['202']>(
+    API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId),
+    command
+  );
+};

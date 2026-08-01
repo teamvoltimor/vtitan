@@ -13,7 +13,7 @@ import { Label } from '../ui';
  * notice until the page is reloaded. Two-click confirm (no confirm-dialog
  * component exists elsewhere in this codebase to reuse).
  */
-export function CommandChannelControl() {
+export function CommandChannelControl({ showLabel = true }: { showLabel?: boolean }) {
   const { disableCommandChannel, liveMode } = useTelemetry();
   const [confirming, setConfirming] = useState(false);
   const [disabled, setDisabled] = useState(false);
@@ -38,7 +38,7 @@ export function CommandChannelControl() {
 
   return (
     <div className="command-channel-control">
-      <Label>{UI_STRINGS.COMMAND_CHANNEL}</Label>
+      {showLabel && <Label>{UI_STRINGS.COMMAND_CHANNEL}</Label>}
       {disabled ? (
         <p className="command-channel-control-notice">
           Command channel disabled — re-enabling requires robot-side access

@@ -12,6 +12,7 @@ import type {
   ImuData,
   MotorState,
   Position3d,
+  ProblemDetails,
   SessionResponse,
   TelemetryMetrics,
   TopicsSnapshot,
@@ -125,11 +126,17 @@ const ReplaySessionInfoSchema = z.object({
 
 const SessionsResponseSchema = z.array(ReplaySessionInfoSchema);
 
-const ErrorResponseSchema = z.object({
-  error: z.string(),
-  message: z.string().optional(),
-  statusCode: z.number().int().optional(),
-});
+// RFC 7807 Problem Details (model from the OpenAPI-generated schema; Zod only
+// adds runtime validation). Parsed by api/http.ts so the server's title/detail
+// reach the UI instead of a bare "HTTP 500: Internal Server Error" (audit §7.3).
+const ProblemDetailsSchema = z.object({
+  type: z.string(),
+  title: z.string(),
+  status: z.number().int(),
+  detail: z.string().optional(),
+  instance: z.string(),
+  correlation_id: z.string().optional(),
+}) as z.ZodType<ProblemDetails>;
 
 const HealthResponseSchema = z.object({
   status: z.string(),
@@ -147,7 +154,7 @@ export const schemas = {
   RobotSnapshot: RobotSnapshotSchema,
   ReplaySessionInfo: ReplaySessionInfoSchema,
   SessionsResponse: SessionsResponseSchema,
-  ErrorResponse: ErrorResponseSchema,
+  ProblemDetails: ProblemDetailsSchema,
   HealthResponse: HealthResponseSchema,
 };
 

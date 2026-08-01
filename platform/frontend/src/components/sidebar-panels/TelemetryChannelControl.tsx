@@ -34,6 +34,7 @@ export function TelemetryChannelControl() {
       pending={pending}
       disabled={!liveMode}
       error={writeError}
+      showLabel={false}
       onToggle={handleToggle}
     />
   );
