@@ -280,6 +280,16 @@ class OLEDDisplayNode(LifecycleNode):
             _QOS_LATCHED,
         )
         self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
+
+        # Hold feedback. BEST_EFFORT depth 1 to match button_node: this is a
+        # live readout, so a late frame is worthless and a queue of them worse.
+        self._button_hold: dict[str, object] = {}
+        self.button_hold_sub = self.create_subscription(
+            String,
+            "/button/hold",
+            self._button_hold_callback,
+            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
+        )
         self.ui_summary_sub = self.create_subscription(
             String,
             "/ui/telemetry_summary",
@@ -445,8 +455,14 @@ class OLEDDisplayNode(LifecycleNode):
         if self.display_driver is None:
             return
 
-        # Create display image based on state
-        if self.current_state == RobotState.BOOT_CHECK.value:
+        # A hold in progress outranks every state page. The operator is
+        # actively holding the one control they have and needs to know what it
+        # is about to do -- ten seconds with no feedback is long enough to doubt
+        # the press registered and let go a second early.
+        held_sec = float(self._button_hold.get("held_sec", 0.0) or 0.0)
+        if held_sec > 0.0:
+            image = self._render_button_hold(held_sec)
+        elif self.current_state == RobotState.BOOT_CHECK.value:
             image = self._render_boot_check()
         elif self.current_state == RobotState.READY.value:
             image = self._render_ready()
@@ -475,6 +491,45 @@ class OLEDDisplayNode(LifecycleNode):
 
         # Publish mirror for remote viewing
         self._publish_mirror_image(image)
+
+    def _button_hold_callback(self, msg: String) -> None:
+        """Track how long the button has been held, and what that will trigger."""
+        try:
+            self._button_hold = json.loads(msg.data)
+        except (ValueError, TypeError):
+            # A malformed frame must not blank the display mid-hold; keep the
+            # last good one and let the next 50ms frame correct it.
+            self.get_logger().warning("Ignoring malformed /button/hold payload", throttle_duration_sec=5.0)
+
+    def _render_button_hold(self, held_sec: float) -> Image.Image:
+        """Render the hold counter, with what the next threshold will do.
+
+        The wording comes from button_node rather than from here, so the
+        thresholds live in exactly one place -- the button driver's config --
+        rather than drifting between a TOML on this board and a render function
+        that nobody thinks to update alongside it.
+        """
+        assert self.display_driver is not None
+        image = self.display_driver.get_blank_image()
+        draw = ImageDraw.Draw(image)
+
+        draw.text((_MARGIN_X, _TITLE_Y), "HOLDING", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
+
+        draw.text((_MARGIN_X, 20), f"{held_sec:.1f}s", fill=_ON)
+
+        next_action = self._button_hold.get("next")
+        next_at = self._button_hold.get("next_at_sec")
+        if next_action and next_at:
+            remaining = max(0.0, float(next_at) - held_sec)  # type: ignore[arg-type]
+            draw.text((_MARGIN_X, 36), f"{next_action} in {remaining:.1f}s", fill=_ON)
+            draw.text((_MARGIN_X, 50), "release to cancel", fill=_ON)
+        else:
+            # Past the last threshold: nothing further to warn about, and a
+            # countdown to nothing would be a lie.
+            draw.text((_MARGIN_X, 36), "POWERING OFF", fill=_ON)
+
+        return image
 
     def _render_boot_check(self) -> Image.Image:
         """Render BOOT_CHECK view - hardware checklist."""

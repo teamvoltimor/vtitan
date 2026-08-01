@@ -18,10 +18,13 @@ Usage:
 Topics:
     Published:
         - /button/event (std_msgs/String) — ButtonEvent value on each event
+        - /button/hold (std_msgs/String) — JSON progress while the button is
+          held, so the OLED can show the operator what a longer hold will do
 """
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -35,11 +38,20 @@ if TYPE_CHECKING:
     from rclpy.lifecycle.publisher import Publisher
     from rclpy.timer import Timer
 
+    from src.hardware.button.state import ButtonState
+
 NODE_NAME = "button_node"
 BUTTON_EVENT_TOPIC = "/button/event"
+BUTTON_HOLD_TOPIC = "/button/hold"
 DEFAULT_QUEUE_DEPTH = 10
 BUTTON_POLL_HZ = 20.0
 BUTTON_POLL_PERIOD_S = 1.0 / BUTTON_POLL_HZ
+
+# What each threshold does, in the operator's words rather than the enum's.
+# Published from here rather than hardcoded in the display, so the thresholds
+# stay defined in exactly one place -- the button driver's config -- instead of
+# drifting between a TOML on one board and a render function on the other.
+_HOLD_ACTIONS = ("STOP", "POWER OFF")
 
 
 class ButtonNode(LifecycleNode):
@@ -50,7 +62,10 @@ class ButtonNode(LifecycleNode):
         self.get_logger().info("Button Node constructed (unconfigured)")
         self.driver: ButtonDriver | None = None
         self.pub: Publisher | None = None
+        self.pub_hold: Publisher | None = None
         self.timer: Timer | None = None
+        self._was_pressed: bool = False
+        """Tracks the press so release publishes one clearing frame, not a stream of zeros."""
         self.driver_fault: str | None = None
         """Why the driver is unavailable, replayed by _poll so the reason is in
         the log at press time rather than only in a startup line."""
@@ -61,6 +76,9 @@ class ButtonNode(LifecycleNode):
         self.get_logger().info("Configuring Button Node")
 
         self.pub = self.create_lifecycle_publisher(String, BUTTON_EVENT_TOPIC, DEFAULT_QUEUE_DEPTH)
+        # Depth 1: this is a liveness readout at 20Hz, and a subscriber that
+        # fell behind wants the current hold time, never a backlog of old ones.
+        self.pub_hold = self.create_lifecycle_publisher(String, BUTTON_HOLD_TOPIC, 1)
 
         try:
             self.driver = ButtonDriver()
@@ -99,6 +117,9 @@ class ButtonNode(LifecycleNode):
         if self.pub is not None:
             self.destroy_publisher(self.pub)
             self.pub = None
+        if self.pub_hold is not None:
+            self.destroy_publisher(self.pub_hold)
+            self.pub_hold = None
         return TransitionCallbackReturn.SUCCESS
 
     @override
@@ -110,6 +131,9 @@ class ButtonNode(LifecycleNode):
         if self.pub is not None:
             self.destroy_publisher(self.pub)
             self.pub = None
+        if self.pub_hold is not None:
+            self.destroy_publisher(self.pub_hold)
+            self.pub_hold = None
         return TransitionCallbackReturn.SUCCESS
 
     def _destroy_timer(self) -> None:
@@ -146,6 +170,52 @@ class ButtonNode(LifecycleNode):
             msg = String()
             msg.data = state.last_event.value
             self.pub.publish(msg)
+        self._publish_hold_progress(state)
+
+    def _publish_hold_progress(self, state: ButtonState) -> None:
+        """Tell the display how long the button has been held and what comes next.
+
+        Ten seconds is a long time to hold a button with no feedback -- long
+        enough to doubt whether the press registered at all and let go a second
+        early. This is what lets the OLED count it out.
+
+        Only published while the button is down, plus one final frame on
+        release so the display clears instead of freezing on the last number.
+        """
+        if self.pub_hold is None:
+            return
+        if not state.is_pressed:
+            if self._was_pressed:
+                self._was_pressed = False
+                msg = String()
+                msg.data = json.dumps({"held_sec": 0.0})
+                self.pub_hold.publish(msg)
+            return
+
+        self._was_pressed = True
+        thresholds = (
+            self.driver.config.button.long_press_threshold_sec,
+            self.driver.config.button.shutdown_press_threshold_sec,
+        )
+        next_action: str | None = None
+        next_at: float | None = None
+        for threshold, action in zip(thresholds, _HOLD_ACTIONS, strict=True):
+            if state.press_duration < threshold:
+                next_action, next_at = action, threshold
+                break
+
+        msg = String()
+        msg.data = json.dumps(
+            {
+                "held_sec": round(state.press_duration, 1),
+                # Absent once the last threshold is passed: there is nothing
+                # further to warn about, and the display says so rather than
+                # showing a countdown to nothing.
+                "next": next_action,
+                "next_at_sec": next_at,
+            },
+        )
+        self.pub_hold.publish(msg)
 
     @override
     def destroy_node(self) -> None:
@@ -159,6 +229,7 @@ class ButtonNode(LifecycleNode):
         self._destroy_timer()
         self._disconnect_driver()
         self.pub = None
+        self.pub_hold = None
         return super().destroy_node()
 
 
