@@ -13,10 +13,12 @@
     - do_camera 0
     - do_i2c 0
     - do_spi 0
-    - do_serial 2  # serial hardware on, login shell off (IMU UART-RVC)
-  # do_serial shells out to code that calls clear/tput, which aborts with
-  # "terminal lacks the ability to..." when TERM is unset — true over
-  # Ansible's SSH connections, which don't allocate a pty.
+    # Current raspi-config (Bookworm/Trixie) split the old combined
+    # do_serial 0/1/2 into do_serial_hw/do_serial_cons — do_serial no
+    # longer accepts "2" as a nonint arg and falls back to an interactive
+    # whiptail dialog instead, which then fails with no real pty available.
+    - do_serial_hw 0    # serial hardware on (IMU UART-RVC)
+    - do_serial_cons 1  # login shell over serial off
   environment:
     TERM: linux
   changed_when: true
