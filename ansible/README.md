@@ -9,7 +9,7 @@ Idempotent, re-runnable Ansible roles, ported from the old `setup_pi_5.sh`/
 - `inventory/hosts.yml` — `robot_pi5` / `robot_pi_zero` groups. `ansible_host`
   defaults mirror `Taskfile.yml`'s `RPI_LOCAL_IP`/`ZERO_WIFI_IP`; override with
   `-e ansible_host=<ip>` per run.
-- `group_vars/all.yml` — shared vars (repo, paths, USB gadget subnet, WiFi
+- `inventory/group_vars/all.yml` — shared vars (repo, paths, USB gadget subnet, WiFi
   band-lock BSSID). Mirrors the equivalent `Taskfile.yml` vars.
 - `roles/common/` — GitHub auth, apt upgrade, hardware groups, pixi install,
   private repo clone, `.env`, udev rules. Shared by both boards.
@@ -60,7 +60,7 @@ Real hardware as of 2026-07-29 still has the pre-rename checkout(s)
 — the org/repo rename to `teamvoltimor/vtitan` never landed on the robots.
 
 The `common` role always does a **fresh `gh repo clone`** into `~/vtitan`
-(`old_repo_dir` in `group_vars/all.yml` names the old location), regardless
+(`old_repo_dir` in `inventory/group_vars/all.yml` names the old location), regardless
 of whether that old location is a git checkout (Pi 5) or a tarball-deployed
 directory with no git history at all (Pi Zero, via
 `scripts/deploy-dev-env-to-zero.sh`). The only thing carried over from the
@@ -79,7 +79,7 @@ The Pi 5 also had 5 sibling `git worktree` checkouts of other branches
 (`voldemorbot-auto-annotator`, `-docs`, `-hailo`, `-hugo-docs`, `-platform`)
 plus a stale manual `voldemorbot-session-backup` dir from an older rename.
 All confirmed clean the same way — the `pi5` role removes them
-(`old_worktree_dirs` in `group_vars/robot_pi5.yml`) once the main migration
+(`old_worktree_dirs` in `inventory/group_vars/robot_pi5.yml`) once the main migration
 succeeds, leaving a single `~/vtitan` checkout. `ansible/` and `scripts/`
 both live on `master` now, so nothing else needs that separate worktree —
 `ANSIBLE_DIR`/`PLATFORM_SCRIPTS` in the root `Taskfile.yml` point straight
