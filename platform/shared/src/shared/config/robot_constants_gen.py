@@ -13,7 +13,13 @@ CHASSIS_MASS: Final[float] = 1.3
 # Ackermann geometry (meters, radians)
 WHEELBASE: Final[float] = 0.19
 TRACK_WIDTH: Final[float] = 0.1675
-MAX_STEERING_ANGLE: Final[float] = 1.2253
+# Road-wheel angle at full lock, derived from the servo travel below.
+MAX_STEERING_ANGLE: Final[float] = 1.2252211349000193
+
+# Steering hardware (servo degrees, ratio). The road-wheel angle above is
+# their product; these are the two measured facts it comes from.
+SERVO_MAX_ANGLE_DEG: Final[float] = 90.0
+LINKAGE_RATIO: Final[float] = 0.78
 
 # Wheel (meters, kg)
 WHEEL_RADIUS: Final[float] = 0.035

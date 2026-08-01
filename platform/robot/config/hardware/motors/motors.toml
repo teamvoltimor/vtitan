@@ -11,19 +11,17 @@ left_limit_angle = -83.0
 right_limit_angle = 22.0
 center_angle = -30.0
 
-max_steering_angle = 90.0
-# 90.0 is the servo's full travel: with SERVO_RANGE_DEG=180 and a 500-2500us
-# pulse span, 90 deg maps exactly to SERVO_MAX_PULSE_US, so larger values are
-# clamped to the same pulse and do nothing. Verified on hardware 2026-07-25.
-
 centering_speed = 20
 turning_speed = 30
 reversed = false
 
-linkage_ratio = 0.78
-# Road-wheel degrees per servo degree. Measured 0.78 on this chassis (servo
-# at 90 deg puts the wheels at ~70 deg). Everything upstream speaks WHEEL
-# angles; only the servo speaks servo angles.
+# max_steering_angle and linkage_ratio are NOT declared here. They are physical
+# facts of the steering hardware, so they live in platform/shared/config/
+# robot.toml, which is also where the navigator's road-wheel limit is derived
+# from them. Declaring them here too is what let this file say 90 x 0.78 while
+# the code defaults said 45 x 1.0 -- two different robots. Override per-unit
+# with MOTOR_STEERING__MAX_STEERING_ANGLE / __LINKAGE_RATIO if a chassis
+# genuinely differs.
 
 [drive]
 reversed = true

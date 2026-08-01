@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
+from shared.config.constants import RobotSpecs
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
@@ -28,8 +29,14 @@ class MotorSteeringConfig(BaseModel):
     center_angle: float
     """Center position for steering in degrees. This defines the angle that corresponds to the centered steering position."""
 
-    max_steering_angle: float = 45.0
-    """Maximum steering angle (absolute value) in degrees. Commands beyond ±this angle are clamped for safety."""
+    max_steering_angle: float = RobotSpecs.SERVO_MAX_ANGLE_DEG
+    """Maximum SERVO angle (absolute value) in degrees. Commands beyond ±this are clamped for safety.
+
+    Defaults to the servo's measured full travel from robot.toml. It used to
+    default to 45.0, which is not this robot: the servo reaches 90, and the
+    navigator's own steering limit is derived from that number, so a stale
+    default here described a different chassis from the one the planner assumed.
+    """
 
     centering_speed: int = 20
     """Speed for centering steering. This can be used to define how quickly the steering motor should move when centering the wheels."""
@@ -40,17 +47,19 @@ class MotorSteeringConfig(BaseModel):
     reversed: bool = False
     """Whether the steering motor is reversed. This can be used to invert the direction of the steering motor if it is mounted in a way that causes left commands to actually turn the wheels right."""
 
-    linkage_ratio: float = 1.0
+    linkage_ratio: float = RobotSpecs.LINKAGE_RATIO
     """Road-wheel degrees produced per servo degree.
 
-    Measured 0.78 on this chassis (servo 90 deg -> wheels ~70 deg). Everything
-    upstream -- /ackermann_cmd, the navigator, the simulator -- speaks in WHEEL
-    angles, per the ROS convention; only the servo speaks servo angles. Without
-    this conversion the node fed a wheel angle straight to the servo and the
-    wheels under-turned by ~22%, so the robot consistently cornered wider than
-    the path it was following.
+    Measured 0.78 on this chassis (servo 90 deg -> wheels ~70 deg), and read
+    from robot.toml so it cannot disagree with the road-wheel limit derived
+    from it. Everything upstream -- /ackermann_cmd, the navigator, the
+    simulator -- speaks in WHEEL angles, per the ROS convention; only the servo
+    speaks servo angles. Without this conversion the node fed a wheel angle
+    straight to the servo and the wheels under-turned by ~22%, so the robot
+    consistently cornered wider than the path it was following.
 
-    1.0 means "servo angle is the wheel angle", i.e. direct-drive steering.
+    The default used to be 1.0 -- "servo angle is the wheel angle", i.e.
+    direct-drive steering, which this chassis is not.
     """
 
 

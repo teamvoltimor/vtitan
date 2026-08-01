@@ -6,6 +6,7 @@ package robotconfig
 
 import (
 	"fmt"
+	"math"
 	"os"
 
 	"github.com/pelletier/go-toml/v2"
@@ -17,6 +18,7 @@ type (
 	Config struct {
 		Chassis    Chassis    `toml:"chassis"`
 		Ackermann  Ackermann  `toml:"ackermann"`
+		Steering   Steering   `toml:"steering"`
 		Wheel      Wheel      `toml:"wheel"`
 		Drivetrain Drivetrain `toml:"drivetrain"`
 		Lidar      Lidar      `toml:"lidar"`
@@ -33,11 +35,19 @@ type (
 	}
 
 	// Ackermann holds the steering geometry shared by the drivetrain and the
-	// Gazebo Ackermann-steering plugin.
+	// Gazebo Ackermann-steering plugin. The full-lock road-wheel angle is not
+	// a field: it is whatever the steering hardware produces, so it is derived
+	// from Steering rather than declared alongside it.
 	Ackermann struct {
-		Wheelbase        float64 `toml:"wheelbase"`
-		TrackWidth       float64 `toml:"track_width"`
-		MaxSteeringAngle float64 `toml:"max_steering_angle"`
+		Wheelbase  float64 `toml:"wheelbase"`
+		TrackWidth float64 `toml:"track_width"`
+	}
+
+	// Steering holds the servo's travel and the linkage that converts it into
+	// road-wheel angle.
+	Steering struct {
+		ServoMaxAngleDeg float64 `toml:"servo_max_angle_deg"`
+		LinkageRatio     float64 `toml:"linkage_ratio"`
 	}
 
 	// Drivetrain holds the drive motor's measured limits and the steering
@@ -75,6 +85,17 @@ type (
 		MountPitch   float64 `toml:"mount_pitch"`
 	}
 )
+
+// MaxSteeringAngle is the road-wheel angle at full lock, in radians.
+//
+// Derived rather than declared: it is not a free parameter, it is whatever the
+// servo's travel produces through the linkage. Declaring it invites the two
+// from drifting apart, which is exactly what happened -- the checked-in value
+// was a hand-computed product whose comment pointed at a file that pointed at
+// another file.
+func (s Steering) MaxSteeringAngle() float64 {
+	return s.ServoMaxAngleDeg * s.LinkageRatio * math.Pi / 180
+}
 
 // Load reads and parses the robot.toml config at path.
 func Load(path string) (*Config, error) {

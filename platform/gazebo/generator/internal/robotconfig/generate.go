@@ -39,7 +39,13 @@ func GenerateGo(cfg *Config) (string, error) {
 	fmt.Fprintf(&sb, "\tRobotTrackWidth  = %s\n", f(cfg.Ackermann.TrackWidth))
 	fmt.Fprintf(&sb, "\tRobotWheelRadius = %s\n", f(cfg.Wheel.Radius))
 	fmt.Fprintf(&sb, "\tRobotWheelWidth  = %s\n", f(cfg.Wheel.Width))
-	fmt.Fprintf(&sb, "\tRobotMaxSteering = %s // ~30°\n", f(cfg.Ackermann.MaxSteeringAngle))
+	sb.WriteString("\t// RobotMaxSteering is the ROAD-WHEEL angle at full lock, derived from the\n")
+	sb.WriteString("\t// servo's travel through the linkage rather than declared.\n")
+	fmt.Fprintf(&sb, "\tRobotMaxSteering    = %s\n", f(cfg.Steering.MaxSteeringAngle()))
+	fmt.Fprintf(&sb, "\tRobotServoMaxAngleDeg = %s // SERVO degrees at full travel\n",
+		f(cfg.Steering.ServoMaxAngleDeg))
+	fmt.Fprintf(&sb, "\tRobotLinkageRatio     = %s // road-wheel degrees per servo degree\n",
+		f(cfg.Steering.LinkageRatio))
 	fmt.Fprintf(&sb, "\tRobotChassisMass = %s // kg, body alone\n", f(cfg.Chassis.Mass))
 	fmt.Fprintf(&sb, "\tRobotWheelMass   = %s // kg per wheel\n", f(cfg.Wheel.Mass))
 	sb.WriteString("\n")
@@ -98,7 +104,7 @@ func GenerateXacro(cfg *Config) string {
 	fmt.Fprintf(
 		&sb,
 		"  <xacro:property name=\"max_steering_angle\" value=\"%s\"/>\n\n",
-		f(cfg.Ackermann.MaxSteeringAngle),
+		f(cfg.Steering.MaxSteeringAngle()),
 	)
 
 	sb.WriteString("  <!-- Wheel properties -->\n")
@@ -138,7 +144,13 @@ func GeneratePython(cfg *Config) string {
 	sb.WriteString("# Ackermann geometry (meters, radians)\n")
 	fmt.Fprintf(&sb, "WHEELBASE: Final[float] = %s\n", f(cfg.Ackermann.Wheelbase))
 	fmt.Fprintf(&sb, "TRACK_WIDTH: Final[float] = %s\n", f(cfg.Ackermann.TrackWidth))
-	fmt.Fprintf(&sb, "MAX_STEERING_ANGLE: Final[float] = %s\n\n", f(cfg.Ackermann.MaxSteeringAngle))
+	sb.WriteString("# Road-wheel angle at full lock, derived from the servo travel below.\n")
+	fmt.Fprintf(&sb, "MAX_STEERING_ANGLE: Final[float] = %s\n\n", f(cfg.Steering.MaxSteeringAngle()))
+
+	sb.WriteString("# Steering hardware (servo degrees, ratio). The road-wheel angle above is\n")
+	sb.WriteString("# their product; these are the two measured facts it comes from.\n")
+	fmt.Fprintf(&sb, "SERVO_MAX_ANGLE_DEG: Final[float] = %s\n", f(cfg.Steering.ServoMaxAngleDeg))
+	fmt.Fprintf(&sb, "LINKAGE_RATIO: Final[float] = %s\n\n", f(cfg.Steering.LinkageRatio))
 
 	sb.WriteString("# Wheel (meters, kg)\n")
 	fmt.Fprintf(&sb, "WHEEL_RADIUS: Final[float] = %s\n", f(cfg.Wheel.Radius))

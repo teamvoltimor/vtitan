@@ -8,10 +8,11 @@ Reference: https://www.ri.cmu.edu/pub_files/pub3/coulter_1992_1.pdf
 
 from __future__ import annotations
 
-from shared.config.navigation_tuning import NavigationTuning
-
 import logging
 import math
+
+from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class WaypointController:
 
     def __init__(
         self,
-        max_steering_angle: float = 0.5236,  # ~30 degrees
+        max_steering_angle: float = RobotSpecs.MAX_STEERING_ANGLE,
         lookahead_short: float = 0.20,
         lookahead_long: float = 0.40,
         lookahead_transition: float = 0.30,

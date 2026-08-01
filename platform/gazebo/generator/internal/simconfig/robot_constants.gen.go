@@ -11,9 +11,13 @@ const (
 	RobotTrackWidth  = 0.1675
 	RobotWheelRadius = 0.035
 	RobotWheelWidth  = 0.025
-	RobotMaxSteering = 1.2253 // ~30°
-	RobotChassisMass = 1.3    // kg, body alone
-	RobotWheelMass   = 0.05   // kg per wheel
+	// RobotMaxSteering is the ROAD-WHEEL angle at full lock, derived from the
+	// servo's travel through the linkage rather than declared.
+	RobotMaxSteering      = 1.2252211349000193
+	RobotServoMaxAngleDeg = 90.0 // SERVO degrees at full travel
+	RobotLinkageRatio     = 0.78 // road-wheel degrees per servo degree
+	RobotChassisMass      = 1.3  // kg, body alone
+	RobotWheelMass        = 0.05 // kg per wheel
 
 	// Drive motor limits. Hard ceilings the kinematics clamp to, not tuning.
 	RobotMaxSpeedMPS    = 0.156

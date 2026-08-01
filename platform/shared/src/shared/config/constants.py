@@ -193,6 +193,15 @@ class RobotSpecs:
     TRACK_WIDTH: Final[float] = _gen.TRACK_WIDTH  # 167.5mm wheel-to-wheel distance
     WHEEL_RADIUS: Final[float] = _gen.WHEEL_RADIUS  # 35mm (measured 70mm wheel diameter / 2)
     MAX_STEERING_ANGLE: Final[float] = _gen.MAX_STEERING_ANGLE  # ~70.2 deg road-wheel angle at full lock
+    """Road-wheel angle at full lock (radians).
+
+    Derived in the generator as SERVO_MAX_ANGLE_DEG * LINKAGE_RATIO, not
+    declared: it is not a free parameter, it is whatever the steering hardware
+    produces. Everything upstream of the servo speaks wheel angles."""
+
+    # Steering hardware. The servo speaks servo degrees; the linkage converts.
+    SERVO_MAX_ANGLE_DEG: Final[float] = _gen.SERVO_MAX_ANGLE_DEG
+    LINKAGE_RATIO: Final[float] = _gen.LINKAGE_RATIO
 
     # Wheel details (measured 2026-07-11)
     WHEEL_WIDTH: Final[float] = _gen.WHEEL_WIDTH  # 25mm
