@@ -207,9 +207,16 @@ reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && pytho
 fetch-lidar-driver = "test -d ros2_ws/src/sllidar_ros2 || git clone https://github.com/Slamtec/sllidar_ros2.git ros2_ws/src/sllidar_ros2"
 
 [target.win-64.tasks]
-# Windows-specific overrides to fix the "Multiple executables" error
-graph = "ros2 run rqt_graph rqt_graph.exe"
-viz   = "ros2 run rviz2 rviz2.exe -d config/live_visualization.rviz"
+# Windows-specific overrides to fix the "Multiple executables" error.
+# `ros2` itself is unusable here: conda-forge ships Library/bin/ros2.exe as a
+# setuptools console-script launcher whose embedded shebang is the relative
+# `#!python.exe`, so it looks for python.exe next to itself in Library/bin --
+# but the env's interpreter lives in the env root. Every invocation dies with
+# "failed to create process." before ros2cli ever runs. rviz2 is a native C++
+# binary on Library/bin (already on PATH inside the env), so call it directly
+# instead of routing through `ros2 run`.
+graph = "python Library/bin/rqt_graph-script.py"
+viz   = "rviz2.exe -d config/live_visualization.rviz"
 
 # pytest/ruff/mypy only exist in the dev feature (see [feature.dev.dependencies])
 # -- these must live here, not in the global [tasks], or `pixi run <task>`
