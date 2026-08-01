@@ -44,11 +44,16 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+# One load, reused by the module-level constants below -- see
+# direction_estimator.toml.
+_ESTIMATOR = NavigationTuning.load_default().direction_estimator
 
 _WIDE = CorridorDimensions.WIDE
 
@@ -63,7 +68,7 @@ plausibility bound :mod:`src.navigation.corridor_estimator` uses to reject the
 readings this module is looking for.
 """
 
-CORNER_CLEARANCE_M = 1.00
+CORNER_CLEARANCE_M = _ESTIMATOR.CORNER_CLEARANCE_M
 """Forward clearance below which the corridor counts as ending, for inference.
 
 Deliberately *larger* than the clearance at which
@@ -79,7 +84,7 @@ The gap between this and the turn threshold is the window in which the robot is
 still square to the corridor and the way ahead is visibly closing.
 """
 
-_MAX_IN_TRACK_RANGE_M = 4.5
+_MAX_IN_TRACK_RANGE_M = _ESTIMATOR.MAX_IN_TRACK_RANGE_M
 """Above this a side ray is a dropout, not an open side.
 
 Real Slamtec drivers emit no measurement off dark or shallow-incidence
@@ -99,7 +104,7 @@ Measured: 3 of 28 blind Open Challenge fixtures settled on the wrong direction
 this way, one of them into a wall.
 """
 
-_MIN_ASYMMETRY_M = 0.20
+_MIN_ASYMMETRY_M = _ESTIMATOR.MIN_ASYMMETRY_M
 """How much further the open side must see than the closed one.
 
 Guards the case where both sides read long -- at the very corner the robot can

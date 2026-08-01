@@ -26,6 +26,16 @@ vars:
   # Override with BASH=... if Git is installed somewhere else.
   BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
   SIMGEN: ./gazebo/generator/bin/simgen{{.EXE}}
+  # Statistical corpus for the navigation sweeps. The committed fixture set
+  # (16 obstacles, 28 open) is the unit-test battery and has to stay fast, so
+  # it is far too small to attribute a failure to a cause -- measured: the
+  # aggregate rate generalised from 16 to 200, but two ATTRIBUTIONS taken off
+  # the 16 were wrong (see platform/robot/docs/sign-avoidance-investigation.md).
+  # Regenerate rather than commit: same generator, pinned seed, identical
+  # output every time.
+  CORPUS_SIZE: 256
+  CORPUS_SEED: 2026
+  CORPUS_DIR: ./robot/.corpus
 
 tasks:
   default:
@@ -100,7 +110,10 @@ tasks:
         GEN (track + scenario generation)
           task gen:track            Generate/regenerate WRO 2026 base track SDF
           task gen:robot-constants  Regenerate robot constants (Go/xacro/Python) from robot.toml
+          task gen:track-constants  Regenerate mat geometry constants (Go/Python) from track.toml
           task gen:scenarios        Generate scenarios for CHALLENGE=open|obstacles (SCENARIOS=10 default)
+          task gen:corpus           Generate the pinned-seed sweep corpus (256 scenarios, seed 2026)
+          task gen:corpus:all       Same, for both challenges
           task gen:all              Generate both open and obstacles scenarios
           task gen:preview          Render SVG top-down preview (METADATA=path)
           task gen:rviz             Stream one scenario's layout live to RViz2 (METADATA=path)
@@ -491,6 +504,12 @@ tasks:
     cmds:
       - "{{.SIMGEN}} generate-robot-constants"
 
+  gen:track-constants:
+    desc: Regenerate mat geometry constants (Go/Python) from shared/config/track.toml
+    deps: [simgen:build]
+    cmds:
+      - "{{.SIMGEN}} generate-track-constants"
+
   gen:scenarios:
     desc: "Generate scenarios for a challenge (usage: task gen:scenarios CHALLENGE=open|obstacles, SCENARIOS={{.SCENARIOS}} default)"
     deps: [simgen:build]
@@ -499,6 +518,31 @@ tasks:
         - CHALLENGE
     cmds:
       - "{{.SIMGEN}} generate --challenge {{.CHALLENGE}} --num-scenarios {{.SCENARIOS}} --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}"
+
+  gen:corpus:
+    desc: "Generate the pinned-seed sweep corpus (CHALLENGE=open|obstacles, CORPUS_SIZE/CORPUS_SEED overridable)"
+    deps: [simgen:build]
+    requires:
+      vars:
+        - CHALLENGE
+    cmds:
+      - >-
+        {{.SIMGEN}} generate --challenge {{.CHALLENGE}}
+        --num-scenarios {{.CORPUS_SIZE}} --seed {{.CORPUS_SEED}}
+        --output-dir {{.CORPUS_DIR}}/{{.CHALLENGE}}
+      - >-
+        echo "corpus: {{.CORPUS_DIR}}/{{.CHALLENGE}}/scenarios
+        ({{.CORPUS_SIZE}} scenarios, seed {{.CORPUS_SEED}})"
+
+  gen:corpus:all:
+    desc: Generate the pinned-seed sweep corpus for both challenges
+    cmds:
+      - task: gen:corpus
+        vars:
+          CHALLENGE: open
+      - task: gen:corpus
+        vars:
+          CHALLENGE: obstacles
 
   gen:all:
     desc: Generate both open and obstacles scenarios

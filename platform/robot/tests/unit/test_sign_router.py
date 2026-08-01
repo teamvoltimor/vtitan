@@ -26,6 +26,8 @@ from src.navigation.planning.sign_discovery import (
 )
 from src.navigation.planning.sign_router import (
     _ROUTING_TABLE,
+    _SIGN_CLEARANCE_MARGIN,
+    _SIGN_LATERAL_OFFSET,
     _WALL_CLEARANCE,
     SignRouter,
     SignRouterConfig,
@@ -47,6 +49,20 @@ from tests.test_constants import (
     TRACK_CORNER_SOUTH,
     TRACK_CORNER_WEST,
 )
+
+# Robot-to-sign gaps expressed against the configured thresholds instead of as
+# literals. They used to be hardcoded (0.2 to engage, 1.5 to pass) against an
+# activation of 0.80 and a passed of 1.20; when the tuning moved to 1.40/1.60
+# those numbers stopped meaning "just inside" and "well beyond" and started
+# meaning the opposite, without a single test changing.
+_GAP_ENGAGED = SIGN_ACTIVATION_DIST / 4
+"""Comfortably inside the activation radius."""
+
+_GAP_CLEAR = SIGN_ACTIVATION_DIST + 0.2
+"""Comfortably outside it."""
+
+_GAP_PASSED = SIGN_PASSED_DIST + 0.2
+"""Comfortably beyond the distance at which a sign counts as passed."""
 
 CFG = SignRouterConfig(
     lateral_offset=SIGN_LATERAL_OFFSET,
@@ -250,7 +266,7 @@ class TestActivationDistance:
         # Robot far from sign (> activation_dist)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(0.5, 0.4),
+            robot_pos=(1.5 - _GAP_CLEAR, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -262,11 +278,77 @@ class TestActivationDistance:
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - 0.3, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         assert result != wp
+
+
+class TestLateralOffsetTracksChassis:
+    """The production offset must follow the measured chassis, not a stale literal.
+
+    ``robot.toml``'s chassis width changed from 0.200 to 0.194 mid-investigation
+    and moved every clearance constant derived from it. Anything that hard-codes
+    a number instead of deriving it silently stops matching the robot — and at
+    this scale it matters: a 0.28 mm perturbation was enough to flip a corpus
+    scenario.
+    """
+
+    def test_offset_is_half_diagonal_plus_sign_half_width_plus_margin(self):
+        expected = (
+            math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
+            + TrafficSignSpecs.WIDTH / 2
+            + _SIGN_CLEARANCE_MARGIN
+        )
+        assert _SIGN_LATERAL_OFFSET == pytest.approx(expected)
+
+    def test_offset_uses_the_diagonal_not_the_width(self):
+        """Half-width sizes a pass the robot can only make while already square.
+
+        Two-thirds of legal WRO sign positions sit on a corner boundary, where
+        the chassis is mid-turn and presents its corner. The half-width
+        derivation gives an offset below what such a pass needs, which is the
+        bug 47827ca fixed; this pins it from coming back.
+        """
+        half_width_derivation = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
+        assert _SIGN_LATERAL_OFFSET > half_width_derivation
+
+    def test_wall_clearance_tracks_the_same_chassis(self):
+        assert _WALL_CLEARANCE == pytest.approx(math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2) + 0.04)
+
+
+class TestActivationPassedOrdering:
+    """``activation_dist`` must stay below ``passed_dist``.
+
+    ``_active_sign_candidates`` engages a sign nearer than ``activation_dist``
+    and retires one further than ``passed_dist`` on the same tick, in that
+    order. Invert them and every sign is engaged and marked passed in the same
+    breath, from a metre away, then stays retired for the rest of the run:
+    deformation never fires at the real pass. Measured on the 256-scenario
+    corpus, ``activation_dist=1.30`` against the shipped ``passed_dist=1.20``
+    took it from 209 collisions to 256/256 with zero laps completed, silently.
+    """
+
+    @pytest.mark.parametrize(
+        ("activation", "passed"),
+        [
+            (1.30, 1.20),  # the measured cliff
+            (1.20, 1.20),  # equal is just as broken: engage and retire coincide
+            (2.00, 0.50),
+        ],
+    )
+    def test_activation_at_or_above_passed_is_rejected(self, activation: float, passed: float):
+        with pytest.raises(ValueError, match="must be < passed_dist"):
+            SignRouterConfig(activation_dist=activation, passed_dist=passed)
+
+    def test_valid_ordering_is_accepted(self):
+        config = SignRouterConfig(activation_dist=1.60, passed_dist=1.80)
+        assert config.activation_dist < config.passed_dist
+
+    def test_shipped_defaults_satisfy_the_ordering(self):
+        config = SignRouterConfig()
+        assert config.activation_dist < config.passed_dist
 
 
 # 4. Passed signs ignored
@@ -290,10 +372,16 @@ class TestRoutedSignPositions:
         router = _router(signs)
         # Engage the first sign, then drive well past it, which retires it.
         router.deform_waypoint(
-            waypoint=(1.5, 0.4), robot_pos=(1.3, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(1.5, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
         router.deform_waypoint(
-            waypoint=(0.5, 0.4), robot_pos=(3.0, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+            waypoint=(0.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
+            robot_yaw=0.0,
+            corridor=Section.SOUTH,
         )
 
         assert router.routed_sign_positions == [(2.5, 0.4)]
@@ -309,41 +397,47 @@ class TestPassedSigns:
         # Engage the sign first (robot approaches within activation distance)...
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         # ...then drive past it (> passed_dist), which retires it.
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - 0.2, 0.4),  # back near sign — must stay retired
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),  # back near sign — must stay retired
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         assert result == wp
 
     def test_active_sign_count_decrements(self):
-        signs = [_sign_at(1.0, 0.4, "red"), _sign_at(2.0, 0.4, "green")]
+        # The two signs are spaced against the passed threshold, not a metre
+        # apart: the point that retires the first has to still be short of the
+        # second, and with signs 1.0 m apart there is no such point once
+        # passed_dist exceeds that spacing.
+        first_x = 1.0
+        second_x = first_x + _GAP_PASSED + 0.4
+        signs = [_sign_at(first_x, 0.4, "red"), _sign_at(second_x, 0.4, "green")]
         router = _router(signs)
         assert router.active_sign_count == 2
         # Engage the first sign (within activation distance).
         router.deform_waypoint(
-            waypoint=(1.0, 0.4),
-            robot_pos=(0.8, 0.4),
+            waypoint=(first_x, 0.4),
+            robot_pos=(first_x - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
-        # Then drive past it (> passed_dist).
+        # Then drive past it (> passed_dist) but not yet past the second.
         router.deform_waypoint(
-            waypoint=(2.0, 0.4),
-            robot_pos=(2.5, 0.4),
+            waypoint=(second_x, 0.4),
+            robot_pos=(first_x + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -355,13 +449,13 @@ class TestPassedSigns:
         router = _router([sign])
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -373,7 +467,7 @@ class TestPassedSigns:
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -405,13 +499,13 @@ class TestSettleWindow:
         # it once settled (see the follow-up calls below).
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -429,13 +523,13 @@ class TestSettleWindow:
         # Past the settle window, the same engage-then-leave sequence retires it.
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -454,7 +548,7 @@ class TestSettleWindow:
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -472,13 +566,13 @@ class TestSettleWindow:
         for _ in range(4):
             router.deform_waypoint(
                 waypoint=(1.5, 0.4),
-                robot_pos=(1.5 - 0.2, 0.4),
+                robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
                 robot_yaw=0.0,
                 corridor=Section.SOUTH,
             )
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -488,13 +582,13 @@ class TestSettleWindow:
         # Immediately after reset, back inside a fresh settle window.
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
-            robot_pos=(1.5 - 0.2, 0.4),
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
         router.deform_waypoint(
             waypoint=(0.5, 0.4),
-            robot_pos=(1.5 + 1.5, 0.4),
+            robot_pos=(1.5 + _GAP_PASSED, 0.4),
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )

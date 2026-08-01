@@ -173,3 +173,86 @@ def test_load_default_finds_the_checked_in_config_tree():
     assert pytest.approx(0.10) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.pursuit.STEER_KP
     assert pytest.approx(1.00) == tuning.clearance.FAST_DIST
+
+
+class TestConfiguredValuesAreActuallyRead:
+    """Every configured field must have a reader, and no module may shadow one.
+
+    Two failure modes, both silent, both found in this codebase on 2026-08-01:
+
+    * ``SignRouterParams.DEFORM_DEPTH_BUFFER_M`` sat in sign_router.toml with no
+      reader anywhere while the router used its own literal — editing the config
+      file did nothing at all.
+    * ``parking.py``, ``sign_discovery.py`` and ``waypoints.py`` each kept a
+      private literal beside a live config field, annotated "same concept/value
+      as NavigationTuning.X", so the two agreed only as long as a human kept
+      them agreeing.
+
+    A config entry that nothing reads is worse than no entry: it advertises
+    control it does not have. This walks the declared fields and asserts each is
+    referenced somewhere outside its own definition.
+    """
+
+    _SEARCH_ROOTS = ("src", "tests", "scripts")
+    _KNOWN_UNREAD = {
+        # Declared, configurable, and read by nothing. Left failing-visible here
+        # rather than silently excluded: each is either dead config to delete or
+        # a limit someone believed was in force. Speed limits in particular look
+        # like they bound the robot and do not.
+        "SLALOM_REVERSE_FRAMES",
+        "SLALOM_FORWARD_FRAMES",
+        # The ENTIRE HeadingErrorZones group: heading.toml ships, loads, and is
+        # consulted by nothing. The class is re-exported from shared.config but
+        # never read. Speed is modulated by heading error somewhere -- just not
+        # through these. Delete the group and its TOML, or wire it to whatever
+        # currently hard-codes the equivalent thresholds.
+        "CRAWL",
+        "SLOW",
+        "MEDIUM",
+        "NORMAL",
+    }
+
+    @staticmethod
+    def _corpus() -> str:
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parents[2]
+        chunks = []
+        for sub in TestConfiguredValuesAreActuallyRead._SEARCH_ROOTS:
+            for path in (root / sub).rglob("*.py"):
+                # Skip the definition itself, and this module: it names the
+                # fields it is checking, so counting it as a reader would make
+                # every exclusion look wired up.
+                if path.name in {"navigation_tuning.py", "test_navigation_tuning.py"}:
+                    continue
+                try:
+                    chunks.append(path.read_text(encoding="utf-8"))
+                except OSError:
+                    continue
+        return "\n".join(chunks)
+
+    def test_every_configured_field_has_a_reader(self):
+        import re
+
+        corpus = self._corpus()
+        tuning = NavigationTuning()
+        unread = []
+        for group_name in type(tuning).__dataclass_fields__:
+            group = getattr(tuning, group_name)
+            for field in getattr(type(group), "model_fields", {}):
+                if field in self._KNOWN_UNREAD:
+                    continue
+                if not re.search(rf"\b{re.escape(field)}\b", corpus):
+                    unread.append(f"{group_name}.{field}")
+        assert not unread, (
+            f"configured but never read: {unread}. Either wire them up or delete them — "
+            f"a config entry nothing reads advertises control it does not have."
+        )
+
+    def test_known_unread_list_has_not_grown_stale(self):
+        """If one of these gets wired up, drop it from the exclusion list."""
+        import re
+
+        corpus = self._corpus()
+        now_read = [f for f in self._KNOWN_UNREAD if re.search(rf"\b{re.escape(f)}\b", corpus)]
+        assert not now_read, f"now read, remove from _KNOWN_UNREAD: {now_read}"

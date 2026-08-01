@@ -16,10 +16,13 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from shared.config.navigation_tuning import NavigationTuning
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
@@ -35,6 +38,9 @@ if TYPE_CHECKING:
 
 MAX_STEPS = 6000
 
+CORPUS_DIR = Path(__file__).resolve().parents[1] / ".corpus" / "obstacles" / "scenarios"
+"""Pinned-seed sweep corpus — see ``diag_sign_sweep.SweepConfig.scenarios_dir``."""
+
 
 def main() -> None:
     """Trace one scenario and print the ticks near the chosen sign."""
@@ -42,9 +48,23 @@ def main() -> None:
     parser.add_argument("scenario", type=int, help="index into all_obstacles_demo_scenarios()")
     parser.add_argument("--around-sign", type=int, default=None, help="only print ticks near this sign")
     parser.add_argument("--radius", type=float, default=0.9, help="how near, in metres")
+    parser.add_argument(
+        "--activation",
+        type=float,
+        default=None,
+        help="override ACTIVATION_DIST_M (default 0.80); 1.00-1.20 is the measured plateau, 1.30 the cliff",
+    )
+    parser.add_argument("--corpus", action="store_true", help="trace a corpus scenario instead of the committed 16")
+    parser.add_argument(
+        "--buffer",
+        type=float,
+        default=None,
+        help="override sign_router._DEFORM_DEPTH_BUFFER (default 0.30); patched on the module that resolves it",
+    )
     args = parser.parse_args()
 
-    scenario = all_obstacles_demo_scenarios()[args.scenario]
+    fixtures = CORPUS_DIR if args.corpus else None
+    scenario = all_obstacles_demo_scenarios(fixtures)[args.scenario]
     signs = signs_from_metadata(scenario.metadata)
     print(f"{scenario.label}")
     for i, s in enumerate(signs):
@@ -63,18 +83,36 @@ def main() -> None:
         robot_pos: tuple[float, float],
         robot_yaw: float,
         corridor: Section,
-        detections: list[Detection] | None = None,
+        *args: object,
+        **kwargs: object,
     ) -> tuple[float, float]:
-        """Stand-in for ``SignRouter.deform_waypoint`` that records its output."""
-        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, detections)
+        """Stand-in for ``SignRouter.deform_waypoint`` that records its output.
+
+        The trailing arguments are passed straight through rather than named:
+        this wrapper pinned ``detections`` positionally and broke the moment
+        ``deform_waypoint`` grew an ``observations`` keyword, which is how a
+        diagnostic goes stale without anything failing until you need it.
+        """
+        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, *args, **kwargs)
         last["raw"] = waypoint
         last["deformed"] = result
         last["corridor"] = corridor
+        last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
         return result
 
     sign_router_module.SignRouter.deform_waypoint = capturing_deform
+    original_buffer = sign_router_module._DEFORM_DEPTH_BUFFER  # noqa: SLF001
+    if args.buffer is not None:
+        sign_router_module._DEFORM_DEPTH_BUFFER = args.buffer  # noqa: SLF001
     try:
-        sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
+        tuning = None
+        if args.activation is not None:
+            base = NavigationTuning()
+            tuning = replace(
+                base,
+                sign_router=base.sign_router.model_copy(update={"ACTIVATION_DIST_M": args.activation}),
+            )
+        sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=tuning)
         gw = sim.gateway
         step = [0]
 
@@ -91,12 +129,14 @@ def main() -> None:
             rows.append(
                 f"t={step[0]:>4} pos=({state.x:.3f},{state.y:.3f}) yaw={math.degrees(state.yaw):7.1f} "
                 f"raw={_fmt(raw)} def={_fmt(deformed)} {deformed_by:<6} "
+                f"sign={last.get('committed')} "
                 f"steer={cmd.steering_norm:+.3f} v={cmd.speed_mps:.3f}{dist}"
             )
 
         result = sim.run(max_steps=MAX_STEPS, on_step=record)
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform
+        sign_router_module._DEFORM_DEPTH_BUFFER = original_buffer  # noqa: SLF001
 
     print("\n".join(rows[-args_limit(rows) :]))
     print(

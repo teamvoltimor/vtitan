@@ -1,0 +1,32 @@
+# Blind corridor-following and corner-turn parameters.
+#
+# See shared.config.navigation_tuning.CorridorFollowerParams.
+
+# Forward clearance at which the corner turn begins. Must stay strictly below
+# direction_estimator.toml's corner_clearance_m -- NavigationTuning refuses to
+# load otherwise. The gap between the two is the window in which the robot is
+# still square to the corridor and the way ahead is visibly closing, which is
+# the only chance it gets to read which side is open.
+turn_clearance_m = 0.60
+
+# Steering per metre of lateral offset from the centreline, and a hard cap on
+# the result.
+#
+# Both are deliberately timid. The chassis is counter-phase four-wheel steering
+# with a 0.034 m minimum turn radius, so it responds violently -- the same
+# reason pursuit's steer_kp came down to 1.2. A hot gain here does not merely
+# wander: the resulting oscillation swings the heading past the direction
+# estimator's alignment gate, which then refuses every reading and the
+# direction never settles at all. Measured at gain 2.0, that cost 12 of 28
+# fixtures their direction and put 9 into a wall.
+#
+# Sitting off-centre for one metre costs nothing. Oscillating costs the round.
+centering_gain = 0.8
+max_centering_steer = 0.25
+
+# Fraction of creep speed while turning a corner blind. Slower than straight
+# running, because the turn is committed on one comparison rather than a plan.
+corner_speed_scale = 0.6
+
+# Fraction of creep speed while backing off a wall.
+reverse_speed_scale = 0.6

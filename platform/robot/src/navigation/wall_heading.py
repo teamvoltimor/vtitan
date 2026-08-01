@@ -42,13 +42,20 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shared.config.navigation_tuning import NavigationTuning
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 _QUARTER = math.pi / 2
 
-MIN_CONCENTRATION = 0.55
+# Read from wall_heading.toml. These feed module-level free functions with no
+# instance to inject tuning into, which is not a reason to restate a configured
+# number -- see the sign router's DEFORM_DEPTH_BUFFER_M, which sat in its TOML
+# with no reader at all while a duplicate literal did the work.
+_WALL_HEADING = NavigationTuning.load_default().wall_heading
+
+MIN_CONCENTRATION = _WALL_HEADING.MIN_CONCENTRATION
 """How aligned the segment directions must be before the estimate is used.
 
 The circular mean's resultant length on a rectilinear scan runs high; a low
@@ -58,7 +65,7 @@ Reporting nothing is correct there -- the IMU carries heading between
 corrections, so a skipped scan costs only that scan.
 """
 
-_BASELINE_RAYS = 15
+_BASELINE_RAYS = _WALL_HEADING.BASELINE_RAYS
 """How far apart the two returns forming a segment are taken.
 
 Not adjacent, which is the obvious choice and does not work. At a typical
@@ -73,7 +80,7 @@ but starts spanning corners, where the segment joins two surfaces and means
 nothing.
 """
 
-_MAX_SEGMENT_JUMP_M = 0.30
+_MAX_SEGMENT_JUMP_M = _WALL_HEADING.MAX_SEGMENT_JUMP_M
 """Range step above which the two returns are treated as different surfaces.
 
 Scaled for the baseline above: along a single flat wall the range genuinely
@@ -83,13 +90,13 @@ corridor width, so a ray pair spanning the inner block and the outer wall is
 rejected.
 """
 
-_MIN_SEGMENT_M = 0.02
+_MIN_SEGMENT_M = _WALL_HEADING.MIN_SEGMENT_M
 """Segments shorter than this are dominated by range noise, not wall direction."""
 
-_NEAR_MAX_RANGE_M = 11.0
+_NEAR_MAX_RANGE_M = _WALL_HEADING.NEAR_MAX_RANGE_M
 """Returns at or beyond this are no-return rays sanitised to max range."""
 
-_MIN_RETURNS = 3
+_MIN_RETURNS = _WALL_HEADING.MIN_RETURNS
 """Fewer returns than this cannot form a segment at all."""
 
 

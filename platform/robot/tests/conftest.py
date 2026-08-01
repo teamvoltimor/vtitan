@@ -18,9 +18,6 @@ if str(_shared_src) not in sys.path:
 from tests.test_constants import (
     CHALLENGE_TYPE_OBSTACLES,
     CHALLENGE_TYPE_OPEN,
-    CORRIDOR_DEPTH_MAX,
-    CORRIDOR_DEPTH_MIDPOINT,
-    CORRIDOR_DEPTH_MIN,
     CORRIDOR_EAST,
     CORRIDOR_NORTH,
     CORRIDOR_SOUTH,
@@ -28,7 +25,6 @@ from tests.test_constants import (
     CORRIDOR_TYPE_WIDE,
     CORRIDOR_WEST,
     CORRIDOR_WIDTH_NARROW_MM,
-    CORRIDOR_WIDTH_QUARTER_NORTH,
     CORRIDOR_WIDTH_QUARTER_SOUTH,
     CORRIDOR_WIDTH_WIDE_MM,
     DIRECTION_CLOCKWISE,
@@ -42,25 +38,21 @@ from tests.test_constants import (
     LIDAR_DEFAULT_FAR,
     LIDAR_NEAR_WALL,
     LIDAR_WALL_DISTANCE,
-    META_BLOCK_DEPTH,
+    META_BLOCK1_POSITION,
+    META_BLOCK2_POSITION,
     META_BLOCK_X,
     META_BLOCK_Y,
     META_CHALLENGE_TYPE,
     META_CORRIDOR_WIDTHS,
     META_DIRECTION,
+    META_HAS_PARKING,
     META_NUM_SIGNS,
-    META_PARKING_BLOCKS,
     META_PARKING_LOT,
-    META_PARKING_ZONE_END,
-    META_PARKING_ZONE_START,
     META_POSITION,
     META_SCENARIO_ID,
     META_SECTION,
     META_SIGN_COLOR,
-    META_SIGN_DEPTH,
-    META_SIGN_LANE,
     META_SIGN_POSITIONS,
-    META_SIGN_SECTION,
     META_STARTING_CONDITIONS,
     META_TYPE,
     META_WIDTH_MM,
@@ -69,8 +61,6 @@ from tests.test_constants import (
     PARKING_BLOCK_X,
     PARKING_BLOCK_Y_MID,
     PARKING_BLOCK_Y_OFFSET,
-    PARKING_ZONE_END,
-    PARKING_ZONE_START,
     ROBOT_CHASSIS_WIDTH,
     SIGN_COLOR_GREEN,
     SIGN_COLOR_RED,
@@ -147,7 +137,14 @@ def sample_metadata_open():
 
 @pytest.fixture()
 def sample_metadata_obstacles():
-    """Sample metadata JSON for obstacles challenge."""
+    """Sample metadata JSON for obstacles challenge.
+
+    Matches ``shared.domain.models.ScenarioMetadata`` -- the schema
+    ``TrackNavigator._plan()`` actually validates against -- rather than the
+    legacy ``ScenarioSimulator`` sign/parking shape this fixture used before
+    (section/color/depth/lane, blocks/zone_start/zone_end), which fails
+    pydantic validation against the current model.
+    """
     return {
         META_SCENARIO_ID: 1,
         META_CHALLENGE_TYPE: CHALLENGE_TYPE_OBSTACLES,
@@ -165,18 +162,8 @@ def sample_metadata_obstacles():
         },
         META_NUM_SIGNS: 2,
         META_SIGN_POSITIONS: [
-            {
-                META_SIGN_SECTION: CORRIDOR_NORTH,
-                META_SIGN_COLOR: SIGN_COLOR_GREEN,
-                META_SIGN_DEPTH: CORRIDOR_DEPTH_MIDPOINT,
-                META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_NORTH,
-            },
-            {
-                META_SIGN_SECTION: CORRIDOR_EAST,
-                META_SIGN_COLOR: SIGN_COLOR_RED,
-                META_SIGN_DEPTH: CORRIDOR_DEPTH_MAX,
-                META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_SOUTH,
-            },
+            {META_BLOCK_X: TRACK_CENTER_X, META_BLOCK_Y: TRACK_CORNER_NORTH, META_SIGN_COLOR: SIGN_COLOR_GREEN},
+            {META_BLOCK_X: TRACK_CORNER_EAST, META_BLOCK_Y: TRACK_CENTER_Y, META_SIGN_COLOR: SIGN_COLOR_RED},
         ],
         META_PARKING_LOT: None,
     }
@@ -184,7 +171,10 @@ def sample_metadata_obstacles():
 
 @pytest.fixture()
 def sample_metadata_parking():
-    """Sample metadata JSON with parking."""
+    """Sample metadata JSON with parking.
+
+    See ``sample_metadata_obstacles`` -- same schema-correction rationale.
+    """
     return {
         META_SCENARIO_ID: 2,
         META_CHALLENGE_TYPE: CHALLENGE_TYPE_OBSTACLES,
@@ -202,28 +192,12 @@ def sample_metadata_parking():
         },
         META_NUM_SIGNS: 1,
         META_SIGN_POSITIONS: [
-            {
-                META_SIGN_SECTION: CORRIDOR_NORTH,
-                META_SIGN_COLOR: SIGN_COLOR_GREEN,
-                META_SIGN_DEPTH: CORRIDOR_DEPTH_MIDPOINT,
-                META_SIGN_LANE: CORRIDOR_WIDTH_QUARTER_NORTH,
-            },
+            {META_BLOCK_X: TRACK_CENTER_X, META_BLOCK_Y: TRACK_CORNER_NORTH, META_SIGN_COLOR: SIGN_COLOR_GREEN},
         ],
+        META_HAS_PARKING: True,
         META_PARKING_LOT: {
-            META_PARKING_BLOCKS: [
-                {
-                    META_BLOCK_X: PARKING_BLOCK_X,
-                    META_BLOCK_Y: PARKING_BLOCK_Y_MID,
-                    META_BLOCK_DEPTH: CORRIDOR_DEPTH_MIN,
-                },
-                {
-                    META_BLOCK_X: PARKING_BLOCK_X,
-                    META_BLOCK_Y: PARKING_BLOCK_Y_OFFSET,
-                    META_BLOCK_DEPTH: CORRIDOR_DEPTH_MIDPOINT,
-                },
-            ],
-            META_PARKING_ZONE_START: PARKING_ZONE_START,
-            META_PARKING_ZONE_END: PARKING_ZONE_END,
+            META_BLOCK1_POSITION: {META_BLOCK_X: PARKING_BLOCK_X, META_BLOCK_Y: PARKING_BLOCK_Y_MID},
+            META_BLOCK2_POSITION: {META_BLOCK_X: PARKING_BLOCK_X, META_BLOCK_Y: PARKING_BLOCK_Y_OFFSET},
         },
     }
 

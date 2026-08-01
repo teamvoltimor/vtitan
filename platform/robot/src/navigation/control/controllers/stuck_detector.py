@@ -10,11 +10,15 @@ import logging
 from collections import deque
 
 import numpy as np
+from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
-_MIN_HISTORY_FOR_DISTANCE: int = 2
-"""Minimum number of tracked positions needed to compute a movement distance."""
+_MIN_HISTORY_FOR_DISTANCE: int = NavigationTuning.load_default().escape.MIN_HISTORY_FOR_DISTANCE
+"""Minimum number of tracked positions needed to compute a movement distance.
+
+Configured alongside the other STUCK_* thresholds in escape.toml, since they
+describe one mechanism between them."""
 
 
 class StuckDetector:

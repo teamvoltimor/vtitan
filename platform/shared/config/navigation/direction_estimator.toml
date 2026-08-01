@@ -1,0 +1,31 @@
+# Blind travel-direction inference parameters.
+#
+# See shared.config.navigation_tuning.DirectionEstimatorParams.
+
+# Forward clearance below which the corridor counts as ending, opening the
+# window in which the robot reads which side is open.
+#
+# Deliberately larger than corridor_follower.toml's turn_clearance_m, and
+# NavigationTuning enforces that ordering across the two files. Turning swings
+# the heading past the alignment gate, so a robot that begins its turn the
+# instant the comparison becomes decisive rotates straight through its only
+# measurement window and comes out with a wall on both sides and nothing
+# learned. Measured with both at 0.75 m: three fixtures never settled at all
+# and two settled wrong after 20-plus seconds of wandering.
+corner_clearance_m = 1.00
+
+# Side rays longer than this cannot be a wall of this 3 m track, so they are
+# rejected rather than voted on.
+#
+# This is not a tidiness bound. A LIDAR dropout is substituted with MAX RANGE
+# (12 m) by both the real driver and the simulator, which reads as "this side
+# is wide open" -- precisely the signal this module hunts for. Sweeps arrive at
+# 10 Hz against a 20 Hz control loop, so one bad sweep could supply a whole
+# vote block and send the robot around the track backwards with a clean
+# scoreboard.
+max_in_track_range_m = 4.5
+
+# Minimum left/right difference for a sweep to count as evidence rather than
+# noise. Was 0.30, which discarded the asymmetry a robot starting near the
+# centre of a wide corridor actually sees.
+min_asymmetry_m = 0.20

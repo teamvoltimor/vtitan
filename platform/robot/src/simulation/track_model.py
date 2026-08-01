@@ -39,9 +39,10 @@ from shared.config.constants import (
     RobotSpecs,
     TrackDimensions,
     TrafficSignSpecs,
+    WallSpecs,
 )
-
 from shared.domain.models import CorridorGeometry
+
 from src.navigation.track_geometry import TrackWalls
 
 if TYPE_CHECKING:
@@ -53,12 +54,15 @@ if TYPE_CHECKING:
 # swapped rather than treated as axis-aligned.
 _AXIS_ALIGN_TOLERANCE = 1e-6
 
-# Wall thickness halves (metres) — straight from the generator's constants:
-# WallThickness = 0.10 (visual), WallCollisionThickness = 0.18 (collision).
-_WALL_VISUAL_HALF = 0.05
-_WALL_COLLISION_HALF = 0.09
+# Wall thickness halves (metres), read from track.toml rather than restated.
+# The simulator and the world generator must agree on where a wall face is to
+# the millimetre: a copy here that drifts from WallSpecs would put the collision
+# boundary somewhere the generated SDF has nothing, and the sim would score
+# contacts the real track never produces.
+_WALL_VISUAL_HALF = WallSpecs.THICKNESS / 2
+_WALL_COLLISION_HALF = WallSpecs.COLLISION_THICKNESS / 2
 # How much further the collision mesh protrudes past the visual face.
-_COLLISION_MARGIN = _WALL_COLLISION_HALF - _WALL_VISUAL_HALF  # 0.04 m
+_COLLISION_MARGIN = _WALL_COLLISION_HALF - _WALL_VISUAL_HALF
 
 
 class ContactSurface(StrEnum):
@@ -74,8 +78,8 @@ class ContactSurface(StrEnum):
     OBSTACLE = "obstacle"
     """A traffic sign or parking block, which belongs to neither wall."""
 
-_TRACK_MIN = 0.0
-_TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
+_TRACK_MIN = TrackDimensions.MIN_COORD
+_TRACK_MAX = TrackDimensions.MAX_COORD
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,6 +1,6 @@
 """Counter-phase four-wheel-steer kinematics for the headless car simulation.
 
-Integrates the same motion a real LEGO Bugatti Bolide chassis produces from a
+Integrates the same motion a real vTitan chassis produces from a
 ``(linear_speed, steering)`` command, honouring the physical limits the actual
 hardware imposes:
 
@@ -38,13 +38,21 @@ import math
 from dataclasses import dataclass, replace
 
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.simulation.geometry import _clamp, _wrap_angle
 
-_DEFAULT_MAX_STEER_RATE = 2.0  # rad/s (NavigationTuning.pursuit.MAX_STEERING_RATE)
-_DEFAULT_MAX_ACCEL = 2.0  # m/s² (drive motor's physical acceleration limit)
+_DEFAULT_MAX_STEER_RATE = NavigationTuning.load_default().pursuit.MAX_STEERING_RATE
+"""Steering rate limit (rad/s), read from the tuning the navigator itself uses.
 
-_DEFAULT_MAX_SPEED_MPS = 0.156
+Restating it here would let the simulated chassis slew faster or slower than
+the one the controller was tuned against, which is the one thing a kinematics
+model must not do."""
+
+_DEFAULT_MAX_ACCEL = RobotSpecs.MAX_ACCEL_MPS2
+"""Drive motor's physical acceleration limit (m/s²), from robot.toml."""
+
+_DEFAULT_MAX_SPEED_MPS = RobotSpecs.MAX_SPEED_MPS
 """Top speed the real drivetrain reaches, measured 2026-07-25 (0.796 m / 5.11 s).
 
 The simulator previously integrated whatever speed it was handed, and the
@@ -56,7 +64,7 @@ Sags with battery charge (0.129 m/s measured on a tired pack), so this is a
 ceiling rather than a guarantee.
 """
 
-_DEFAULT_REAR_STEER_RATIO = 1.0
+_DEFAULT_REAR_STEER_RATIO = RobotSpecs.REAR_STEER_RATIO
 """Rear steering magnitude relative to the front, counter-phase.
 
 1.0 = rear wheels turn equally and oppositely to the front (confirmed on the

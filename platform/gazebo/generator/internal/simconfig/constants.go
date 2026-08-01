@@ -13,108 +13,10 @@ const (
 	FilePermissions = 0o644
 )
 
-// Track dimensions (meters). Official WRO 2026 Future Engineers spec.
-const (
-	TrackMatSize     = 3.2
-	TrackSize        = 3.0
-	TrackMinCoord    = 0.0
-	TrackMaxCoord    = 3.0
-	TrackCenterCoord = 1.5
-	TrackCornerMin   = 1.0
-	TrackCornerMax   = 2.0
-	TrackCornerSize  = 1.0
-)
-
-// Wall dimensions (meters).
-const (
-	WallHeight             = 0.10
-	WallThickness          = 0.10
-	WallCollisionThickness = 0.18
-	WallExteriorOffset     = 0.05
-	WallInteriorOffset     = 0.05
-)
-
-var (
-	// WallColor is the normalized RGB for all walls (black).
-	WallColor = [3]float64{0.0, 0.0, 0.0}
-)
-
-// Corridor widths (meters).
-const (
-	CorridorNarrow    = 0.6 // 600 mm
-	CorridorWide      = 1.0 // 1000 mm
-	CorridorObstacles = 1.0 // fixed width for obstacles challenge
-	CorridorMinWidth  = 0.5 // validation lower bound
-	CorridorMaxWidth  = 1.5 // validation upper bound
-	CorridorDivOuter  = 0.4 // 400 mm from outer wall
-	CorridorDivInner  = 0.6 // 600 mm from outer wall
-	CorridorDivWidth  = 0.2 // 200 mm middle section
-)
-
-// Traffic sign dimensions and grid positions (meters). WRO Spec 13.21–13.22.
-const (
-	SignWidth           = 0.05
-	SignDepth           = 0.05
-	SignHeight          = 0.10
-	SignZPosition       = 0.05
-	SignGridDepthNear   = 1.0
-	SignGridDepthMiddle = 1.5
-	SignGridDepthFar    = 2.0
-	SignGridWidthOuter  = 0.4
-	SignGridWidthInner  = 0.6
-	SignMinCount        = 6
-	SignMaxCount        = 14
-)
-
-var (
-	// SignColorRed is the official WRO red pillar color (RGB normalized). RGB(238,39,55).
-	SignColorRed = [3]float64{0.933, 0.153, 0.216}
-
-	// SignColorGreen is the official WRO green pillar color (RGB normalized). RGB(68,214,44).
-	SignColorGreen = [3]float64{0.267, 0.839, 0.173}
-
-	// SignColorRedStd is the standard deviation for Gaussian noise on red traffic sign colors.
-	SignColorRedStd = [3]float64{0.05, 0.02, 0.02}
-
-	// SignColorGreenStd is the standard deviation for Gaussian noise on green traffic sign colors.
-	SignColorGreenStd = [3]float64{0.02, 0.05, 0.02}
-)
-
-// Parking block dimensions (meters, obstacles challenge only).
-const (
-	ParkingLength        = 0.20
-	ParkingWidth         = 0.02
-	ParkingHeight        = 0.10
-	ParkingZPosition     = 0.05
-	ParkingWallOffset    = 0.10
-	ParkingSpacingFactor = 1.5
-)
-
-var (
-	// ParkingColor is the magenta parking block color (RGB normalized). RGB(255,0,255).
-	ParkingColor = [3]float64{1.0, 0.0, 1.0}
-)
-
-// Starting zone dimensions (meters).
-const (
-	StartingZoneDefaultLength   = 0.5
-	StartingZoneWidth           = 0.2
-	StartingZoneThickness       = 0.001
-	StartingZoneObstaclesFactor = 0.9
-	StartingZoneIndicatorRadius = 0.035
-)
-
-var (
-	// StartingZoneColor is the grey color for the starting zone base rectangle.
-	StartingZoneColor = [3]float64{0.5, 0.5, 0.5}
-
-	// StartingZoneClockwiseColor is the blue color indicator for clockwise direction.
-	StartingZoneClockwiseColor = [3]float64{0.2, 0.4, 1.0}
-
-	// StartingZoneCounterClockwiseColor is the green color indicator for counterclockwise direction.
-	StartingZoneCounterClockwiseColor = [3]float64{0.2, 1.0, 0.4}
-)
-
+// Mat geometry — track, wall, corridor, traffic sign, parking and starting
+// zone constants — now lives in track_constants.gen.go, generated from
+// platform/shared/config/track.toml.
+//
 // Robot chassis, Ackermann, wheel, LIDAR-mount, and camera-mount constants now live in
 // robot_constants.gen.go, generated from platform/shared/config/robot.toml.
 
@@ -151,12 +53,6 @@ const (
 	LidarNoiseStddev = 0.03
 	LidarMinAngle    = -math.Pi // full 360° clockwise bound
 	LidarMaxAngle    = math.Pi  // full 360° counterclockwise bound
-)
-
-// Grid section length offsets for starting zone placement (meters).
-const (
-	GridLengthSectionLeft  = 1.25
-	GridLengthSectionRight = 1.75
 )
 
 // File path conventions.
@@ -442,20 +338,6 @@ const (
 	MillimetersPerMeter     = 1000
 )
 
-var (
-	// StartingZoneWidthFractions are candidate cross-corridor spawn positions,
-	// expressed as a fraction of corridor width rather than an absolute
-	// offset — so the choice always scales with narrow vs. wide corridors.
-	// A fixed offset (e.g. 0.5m) can sit flush against a narrow (0.6m)
-	// corridor's inner wall, leaving less than RobotWidth/2 clearance; 0.3/0.7
-	// keeps at least 0.3*CorridorMinWidth (0.15m) clear on both sides, comfortably
-	// more than RobotWidth/2 (0.1m).
-	StartingZoneWidthFractions = [3]float64{0.3, 0.5, 0.7}
-
-	// StartPositionOffsets are the centerline offsets for robot spawn position selection.
-	StartPositionOffsets = [3]float64{-0.5, 0.0, 0.5}
-)
-
 // Default generation parameters (CLI flags).
 const (
 	DefaultChallengeType = "open"
@@ -469,8 +351,6 @@ const (
 	DefaultLightingIntensity = 0.95
 	DefaultAmbientIntensity  = 0.35
 	DefaultLightingScenario  = string(LightingDirectSunlight)
-	DefaultSpawnX            = 1.5
-	DefaultSpawnY            = 0.4
 )
 
 var (

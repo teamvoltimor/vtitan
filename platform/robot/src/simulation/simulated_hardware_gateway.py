@@ -16,6 +16,7 @@ from typing import cast
 import numpy as np
 from numpy.random import SeedSequence
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 from src.navigation.localization import LidarLocalizer
@@ -29,11 +30,14 @@ from src.simulation.track_model import ContactSurface, TrackModel
 from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
-CONTROL_HZ = 20.0
+CONTROL_HZ = NavigationTuning.load_default().control.CONTROL_HZ
 CONTROL_DT = 1.0 / CONTROL_HZ
 
-LIDAR_SCAN_HZ = 10.0
+LIDAR_SCAN_HZ = RobotSpecs.LIDAR_UPDATE_RATE
 """Sweep rate of the Slamtec C1, which is what the robot actually has.
+
+Read from the sensor's own spec rather than restated, so the simulated scan
+rate cannot drift from the rate the rest of the stack assumes.
 
 The simulator previously regenerated the scan on every control tick, so the
 navigator saw a fresh position fix at 20 Hz with no age. Real scans arrive at
@@ -45,7 +49,7 @@ however much that staleness costs.
 Set to 0 to restore the old always-fresh behaviour.
 """
 
-LIDAR_INVALID_RAY_RATE = 0.01
+LIDAR_INVALID_RAY_RATE = NavigationTuning.load_default().simulation.LIDAR_INVALID_RAY_RATE
 """Fraction of rays returning no measurement, as NaN/inf.
 
 Slamtec drivers emit these off dark or shallow-incidence surfaces, and

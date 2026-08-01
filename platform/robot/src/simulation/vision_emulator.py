@@ -16,13 +16,18 @@ from __future__ import annotations
 import math
 
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.navigation.planning.sign_discovery import SignSpec
 from src.simulation.geometry import _wrap_angle
 
-_DETECTION_CONFIDENCE: float = 0.9
-"""Fixed confidence reported for every emulated detection."""
+_DETECTION_CONFIDENCE: float = NavigationTuning.load_default().simulation.DETECTION_CONFIDENCE
+"""Fixed confidence reported for every emulated detection.
+
+Must stay above the sign router's ``min_confidence`` or no emulated detection
+would ever be accepted -- which is why it is configured next to it rather than
+picked here."""
 
 
 def emulate_sign_observations(

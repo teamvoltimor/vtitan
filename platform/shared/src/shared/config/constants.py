@@ -12,110 +12,133 @@ import math
 from dataclasses import dataclass
 from typing import Final
 
-from shared.config import robot_constants_gen as _gen
+from shared.config import (
+    robot_constants_gen as _gen,
+    track_constants_gen as _track,
+)
 from shared.domain.enums import LightingScenario, Section
 
 
 class TrackDimensions:
-    """Official WRO track dimensions (meters)."""
+    """Official WRO track dimensions (meters).
+
+    Generated from platform/shared/config/track.toml — see track_constants_gen.py.
+    Do not hand-edit these values here; edit the TOML and run
+    `task gen:track-constants`.
+    """
 
     # Mat and track sizes
-    MAT_SIZE: Final[float] = 3.2  # 3200mm mat size
-    TRACK_SIZE: Final[float] = 3.0  # 3000mm inner track size
+    MAT_SIZE: Final[float] = _track.TRACK_MAT_SIZE  # 3200mm mat size
+    TRACK_SIZE: Final[float] = _track.TRACK_SIZE  # 3000mm inner track size
 
     # Coordinate system (bottom-left origin)
-    MIN_COORD: Final[float] = 0.0  # Minimum coordinate (bottom-left)
-    MAX_COORD: Final[float] = 3.0  # Maximum coordinate (top-right)
-    CENTER_COORD: Final[float] = 1.5  # Center of track
+    MIN_COORD: Final[float] = _track.TRACK_MIN_COORD  # Minimum coordinate (bottom-left)
+    MAX_COORD: Final[float] = _track.TRACK_MAX_COORD  # Maximum coordinate (top-right)
+    CENTER_COORD: Final[float] = _track.TRACK_CENTER_COORD  # Center of track
 
     # Corner section (obstacles challenge)
-    CORNER_MIN: Final[float] = 1.0  # Corner section start
-    CORNER_MAX: Final[float] = 2.0  # Corner section end
-    CORNER_SIZE: Final[float] = 1.0  # 1000mm × 1000mm corner
+    CORNER_MIN: Final[float] = _track.TRACK_CORNER_MIN  # Corner section start
+    CORNER_MAX: Final[float] = _track.TRACK_CORNER_MAX  # Corner section end
+    CORNER_SIZE: Final[float] = _track.TRACK_CORNER_SIZE  # 1000mm × 1000mm corner
 
 
 class WallSpecs:
-    """Wall dimensions and positioning."""
+    """Wall dimensions and positioning.
 
-    HEIGHT: Final[float] = 0.1  # 100mm wall height
-    THICKNESS: Final[float] = 0.1  # 100mm wall thickness (visual)
+    Generated from track.toml — see TrackDimensions.
+    """
+
+    HEIGHT: Final[float] = _track.WALL_HEIGHT  # 100mm wall height
+    THICKNESS: Final[float] = _track.WALL_THICKNESS  # 100mm wall thickness (visual)
     # Collision extends 40mm per side past visual to prevent LIDAR pass-through.
     # LIDAR is 30mm ahead of chassis front, so 40mm buffer ensures the LIDAR
     # stays ≥10mm outside the visual wall face even at full contact.
-    COLLISION_THICKNESS: Final[float] = 0.18  # 100mm visual + 40mm per side
+    COLLISION_THICKNESS: Final[float] = _track.WALL_COLLISION_THICKNESS
 
     # Wall positioning offsets
-    EXTERIOR_OFFSET: Final[float] = 0.05  # Half thickness for exterior walls
-    INTERIOR_OFFSET: Final[float] = 0.05  # Half thickness for interior walls
+    EXTERIOR_OFFSET: Final[float] = _track.WALL_EXTERIOR_OFFSET  # Half thickness for exterior walls
+    INTERIOR_OFFSET: Final[float] = _track.WALL_INTERIOR_OFFSET  # Half thickness for interior walls
 
     # Color (RGB normalized 0-1)
-    COLOR: Final[tuple[float, float, float]] = (0.0, 0.0, 0.0)  # Black
+    COLOR: Final[tuple[float, float, float]] = _track.WALL_COLOR  # Black
 
 
 class CorridorDimensions:
-    """Corridor width specifications for different challenges."""
+    """Corridor width specifications for different challenges.
+
+    Generated from track.toml — see TrackDimensions.
+    """
 
     # Open challenge: Variable corridor widths
-    NARROW: Final[float] = 0.6  # 600mm narrow corridor
-    WIDE: Final[float] = 1.0  # 1000mm wide corridor
+    NARROW: Final[float] = _track.CORRIDOR_NARROW  # 600mm narrow corridor
+    WIDE: Final[float] = _track.CORRIDOR_WIDE  # 1000mm wide corridor
 
     # Validation bounds (wider range to allow test tolerance)
-    MIN_WIDTH: Final[float] = 0.5  # Minimum valid corridor width (500mm)
-    MAX_WIDTH: Final[float] = 1.5  # Maximum valid corridor width (1500mm)
+    MIN_WIDTH: Final[float] = _track.CORRIDOR_MIN_WIDTH  # Minimum valid corridor width (500mm)
+    MAX_WIDTH: Final[float] = _track.CORRIDOR_MAX_WIDTH  # Maximum valid corridor width (1500mm)
 
     # Obstacles challenge: Fixed corridor width
-    OBSTACLES_WIDTH: Final[float] = 1.0  # 1000mm fixed width
+    OBSTACLES_WIDTH: Final[float] = _track.CORRIDOR_OBSTACLES_WIDTH  # 1000mm fixed width
 
-    # Corridor division grid
-    DIVISION_OUTER: Final[float] = 0.4  # 400mm from outer wall
-    DIVISION_INNER: Final[float] = 0.6  # 600mm from outer wall
-    DIVISION_WIDTH: Final[float] = 0.2  # 200mm middle section width
+    # Corridor division grid. DIVISION_WIDTH is derived from the two lines, not
+    # a third independent number.
+    DIVISION_OUTER: Final[float] = _track.CORRIDOR_DIVISION_OUTER  # 400mm from outer wall
+    DIVISION_INNER: Final[float] = _track.CORRIDOR_DIVISION_INNER  # 600mm from outer wall
+    DIVISION_WIDTH: Final[float] = _track.CORRIDOR_DIVISION_WIDTH  # 200mm middle section width
 
 
 class TrafficSignSpecs:
-    """Official WRO traffic sign dimensions and colors."""
+    """Official WRO traffic sign dimensions and colors.
 
-    WIDTH: Final[float] = 0.05  # 50mm
-    DEPTH: Final[float] = 0.05  # 50mm
-    HEIGHT: Final[float] = 0.10  # 100mm
-    Z_POSITION: Final[float] = 0.05  # Half height (50mm)
+    Generated from track.toml — see TrackDimensions.
+    """
+
+    WIDTH: Final[float] = _track.SIGN_WIDTH  # 50mm
+    DEPTH: Final[float] = _track.SIGN_DEPTH  # 50mm
+    HEIGHT: Final[float] = _track.SIGN_HEIGHT  # 100mm
+    Z_POSITION: Final[float] = _track.SIGN_Z_POSITION  # Half height (50mm)
 
     # Official colors (RGB normalized 0-1)
     # WRO Spec 13.21-13.22
-    RED_COLOR: Final[tuple[float, float, float]] = (0.933, 0.153, 0.216)  # RGB(238, 39, 55)
-    GREEN_COLOR: Final[tuple[float, float, float]] = (0.267, 0.839, 0.173)  # RGB(68, 214, 44)
+    RED_COLOR: Final[tuple[float, float, float]] = _track.SIGN_RED_COLOR  # RGB(238, 39, 55)
+    GREEN_COLOR: Final[tuple[float, float, float]] = _track.SIGN_GREEN_COLOR  # RGB(68, 214, 44)
 
     # Color randomization (standard deviation for Gaussian noise)
-    RED_STD: Final[tuple[float, float, float]] = (0.05, 0.02, 0.02)
-    GREEN_STD: Final[tuple[float, float, float]] = (0.02, 0.05, 0.02)
+    RED_STD: Final[tuple[float, float, float]] = _track.SIGN_RED_STD
+    GREEN_STD: Final[tuple[float, float, float]] = _track.SIGN_GREEN_STD
 
-    # Grid positions (intersections of corridor divisions)
-    GRID_DEPTH_NEAR: Final[float] = 1.0  # Entry position
-    GRID_DEPTH_MIDDLE: Final[float] = 1.5  # Center position
-    GRID_DEPTH_FAR: Final[float] = 2.0  # Exit position
-    GRID_WIDTH_OUTER: Final[float] = 0.4  # Outer division line
-    GRID_WIDTH_INNER: Final[float] = 0.6  # Inner division line
+    # Grid positions. The width lines are the corridor's own division lines —
+    # CorridorDimensions.DIVISION_OUTER/INNER — not separate measurements.
+    GRID_DEPTH_NEAR: Final[float] = _track.SIGN_GRID_DEPTH_NEAR  # Entry position
+    GRID_DEPTH_MIDDLE: Final[float] = _track.SIGN_GRID_DEPTH_MIDDLE  # Center position
+    GRID_DEPTH_FAR: Final[float] = _track.SIGN_GRID_DEPTH_FAR  # Exit position
+    GRID_WIDTH_OUTER: Final[float] = _track.SIGN_GRID_WIDTH_OUTER  # Outer division line
+    GRID_WIDTH_INNER: Final[float] = _track.SIGN_GRID_WIDTH_INNER  # Inner division line
 
     # Number of signs
-    MIN_SIGNS: Final[int] = 6  # Minimum per round
-    MAX_SIGNS: Final[int] = 14  # Maximum per round (7 red + 7 green)
+    MIN_SIGNS: Final[int] = _track.SIGN_MIN_COUNT  # Minimum per round
+    MAX_SIGNS: Final[int] = _track.SIGN_MAX_COUNT  # Maximum per round (7 red + 7 green)
 
 
 class ParkingLotSpecs:
-    """Parking block dimensions and positioning (obstacles challenge only)."""
+    """Parking block dimensions and positioning (obstacles challenge only).
+
+    Generated from track.toml — see TrackDimensions.
+    """
 
     # Block dimensions (meters)
-    LENGTH: Final[float] = 0.20  # 200mm
-    WIDTH: Final[float] = 0.02  # 20mm
-    HEIGHT: Final[float] = 0.10  # 100mm
-    Z_POSITION: Final[float] = 0.05  # Half height (50mm)
+    LENGTH: Final[float] = _track.PARKING_LENGTH  # 200mm
+    WIDTH: Final[float] = _track.PARKING_WIDTH  # 20mm
+    HEIGHT: Final[float] = _track.PARKING_HEIGHT  # 100mm
+    Z_POSITION: Final[float] = _track.PARKING_Z_POSITION  # Half height (50mm)
 
     # Color (RGB normalized 0-1)
-    COLOR: Final[tuple[float, float, float]] = (1.0, 0.0, 1.0)  # Magenta RGB(255, 0, 255)
+    COLOR: Final[tuple[float, float, float]] = _track.PARKING_COLOR  # Magenta RGB(255, 0, 255)
 
     # Positioning
-    WALL_OFFSET: Final[float] = 0.1  # Half of LENGTH (100mm from wall edge)
-    BLOCK_SPACING_FACTOR: Final[float] = 1.5  # Spacing = 1.5 × robot_length (bay length the robot must pull into)
+    WALL_OFFSET: Final[float] = _track.PARKING_WALL_OFFSET  # Half of LENGTH (100mm from wall edge)
+    # Spacing = 1.5 × robot_length (bay length the robot must pull into)
+    BLOCK_SPACING_FACTOR: Final[float] = _track.PARKING_SPACING_FACTOR
 
 
 class CompetitionSpecs:
@@ -127,27 +150,32 @@ class CompetitionSpecs:
 
 
 class StartingZoneSpecs:
-    """Starting zone dimensions and visual appearance."""
+    """Starting zone dimensions and visual appearance.
+
+    Generated from track.toml — see TrackDimensions. The starting-square
+    layout (bands, spawn offsets, cell midpoints) lives in
+    shared.config.starting_zone.STARTING_ZONE_LAYOUT, which validates it.
+    """
 
     # Default dimensions (meters)
-    DEFAULT_LENGTH: Final[float] = 0.5  # 500mm
-    WIDTH: Final[float] = 0.2  # 200mm
-    THICKNESS: Final[float] = 0.001  # 1mm visual marker
+    DEFAULT_LENGTH: Final[float] = _track.STARTING_ZONE_DEFAULT_LENGTH  # 500mm
+    WIDTH: Final[float] = _track.STARTING_ZONE_WIDTH  # 200mm, the middle band
+    THICKNESS: Final[float] = _track.STARTING_ZONE_THICKNESS  # 1mm visual marker
 
     # Obstacles challenge adjustment
-    OBSTACLES_SIZE_FACTOR: Final[float] = 0.9  # Use 90% of available gap
+    OBSTACLES_SIZE_FACTOR: Final[float] = _track.STARTING_ZONE_OBSTACLES_SIZE_FACTOR  # 90% of gap
 
     # Visual appearance (RGB normalized 0-1)
-    COLOR: Final[tuple[float, float, float]] = (0.5, 0.5, 0.5)  # Grey
+    COLOR: Final[tuple[float, float, float]] = _track.STARTING_ZONE_COLOR  # Grey
 
     # Direction indicators
-    CLOCKWISE_COLOR: Final[tuple[float, float, float]] = (0.2, 0.4, 1.0)  # Blue
-    COUNTERCLOCKWISE_COLOR: Final[tuple[float, float, float]] = (0.2, 1.0, 0.4)  # Green
-    INDICATOR_RADIUS: Final[float] = 0.035  # 35mm radius
+    CLOCKWISE_COLOR: Final[tuple[float, float, float]] = _track.STARTING_ZONE_CLOCKWISE_COLOR  # Blue
+    COUNTERCLOCKWISE_COLOR: Final[tuple[float, float, float]] = _track.STARTING_ZONE_COUNTERCLOCKWISE_COLOR  # Green
+    INDICATOR_RADIUS: Final[float] = _track.STARTING_ZONE_INDICATOR_RADIUS  # 35mm radius
 
 
 class RobotSpecs:
-    """WRO Future Engineers robot specs (LEGO Bugatti Bolide + Ackermann).
+    """WRO Future Engineers robot specs (vTitan + Ackermann).
 
     Physical constants (chassis, Ackermann geometry, wheel, LIDAR/camera mount offsets) are
     generated from platform/shared/config/robot.toml — see robot_constants_gen.py — and must
@@ -169,14 +197,26 @@ class RobotSpecs:
     # Wheel details (measured 2026-07-11)
     WHEEL_WIDTH: Final[float] = _gen.WHEEL_WIDTH  # 25mm
     WHEEL_MASS: Final[float] = _gen.WHEEL_MASS  # 50g per wheel
-    CHASSIS_MASS: Final[float] = _gen.CHASSIS_MASS  # 800g total chassis
+    CHASSIS_MASS: Final[float] = _gen.CHASSIS_MASS  # body alone, without wheels
+    WHEEL_COUNT: Final[int] = 4
+    TOTAL_MASS: Final[float] = CHASSIS_MASS + WHEEL_COUNT * WHEEL_MASS
+    """Assembled car, 1.5 kg measured 2026-08-01.
+
+    Derived rather than declared: the URDF and the Gazebo model build the robot
+    out of a body plus four wheels, so the total is a consequence of those
+    masses. Declaring it separately would let it disagree with the model that
+    actually runs."""
+
+    # Drivetrain limits (from robot.toml). Hard ceilings the kinematics clamp
+    # to, not tuning: a speed profile asking for more is inert.
+    MAX_SPEED_MPS: Final[float] = _gen.MAX_SPEED_MPS
+    MAX_ACCEL_MPS2: Final[float] = _gen.MAX_ACCEL_MPS2
+    REAR_STEER_RATIO: Final[float] = _gen.REAR_STEER_RATIO
 
     # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
     # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
     LIDAR_MIN_RANGE: Final[float] = 0.05  # 50mm minimum detection range (real sensor)
-    LIDAR_SIM_MIN_RANGE: Final[float] = (
-        0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
-    )
+    LIDAR_SIM_MIN_RANGE: Final[float] = 0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
     LIDAR_MAX_RANGE: Final[float] = 12.0  # 12m maximum detection range
     LIDAR_SAMPLES: Final[int] = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE: Final[float] = 10.0  # 10 Hz scan rate
@@ -349,9 +389,10 @@ class GridSections:
     # Sections as strings (for JSON serialization)
     SECTION_NAMES = tuple(s.value for s in SECTIONS)
 
-    # Length section centers (for starting zone randomization)
-    LENGTH_SECTION_LEFT = 1.25  # Center of [1.0-1.5] section
-    LENGTH_SECTION_RIGHT = 1.75  # Center of [1.5-2.0] section
+    # Along-corridor midpoints of the two starting cells in each band.
+    # Generated from track.toml: the track centre plus or minus half a cell.
+    LENGTH_SECTION_LEFT = _track.GRID_LENGTH_SECTION_LEFT  # Center of [1.0-1.5] section
+    LENGTH_SECTION_RIGHT = _track.GRID_LENGTH_SECTION_RIGHT  # Center of [1.5-2.0] section
 
 
 class FilePaths:

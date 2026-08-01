@@ -63,7 +63,10 @@ func FixedCorridorWidths() map[simconfig.Section]simconfig.CorridorWidth {
 	return result
 }
 
-// RandomizeStartingConditions picks a random corridor, direction, and spawn position.
+// RandomizeStartingConditions picks a random corridor, direction, and starting
+// cell. The spawn pose is the chosen cell's centre — one of the mat's real
+// starting positions — not the corridor centreline, which is not a legal start
+// and was the only pose the generator ever emitted.
 func (r *Randomizer) RandomizeStartingConditions(
 	widths map[simconfig.Section]simconfig.CorridorWidth,
 ) simconfig.StartingConditions {
@@ -71,16 +74,17 @@ func (r *Randomizer) RandomizeStartingConditions(
 	section := allSections[r.rng.Intn(len(allSections))]
 	direction := simconfig.AllDirections[r.rng.Intn(len(simconfig.AllDirections))]
 
-	corridorWidth := widths[section].Width
-	position := r.pickStartPosition(section, corridorWidth)
+	cells := StartCells(section, widths[section].Width)
+	cell := r.rng.Intn(len(cells))
 	yaw := computeStartingYaw(section, direction)
 
 	return simconfig.StartingConditions{
 		Direction:   direction,
 		Section:     section,
 		SectionName: section.Capitalized(),
-		Position:    position,
+		Position:    cells[cell].Spawn,
 		Yaw:         yaw,
+		StartCell:   cell,
 	}
 }
 
@@ -112,32 +116,34 @@ func (r *Randomizer) GenerateParkingLotPositions(startSection simconfig.Section)
 }
 
 // GenerateStartingZone computes the starting zone rectangle and position.
-func (r *Randomizer) GenerateStartingZone(
+//
+// It consumes no randomness: the Open Challenge zone is the cell already drawn
+// by RandomizeStartingConditions, looked up by index. Deriving both the zone
+// and the spawn pose from that single draw is what keeps them consistent —
+// they used to be randomized independently, and AddStartingZone then silently
+// overwrote the spawn with the zone centre.
+func GenerateStartingZone(
 	section simconfig.Section,
 	corridorWidth float64,
+	startCell int,
 	parking *simconfig.ParkingConfig,
 ) simconfig.StartingZone {
 	defaultLength := simconfig.StartingZoneDefaultLength
 
 	if parking != nil {
-		return zoneFromParking(section, parking, defaultLength)
+		zone := zoneFromParking(section, parking, defaultLength)
+		zone.Width = simconfig.StartingZoneWidth
+		return zone
 	}
 
-	// Open challenge: random width and length offset. The width offset is a
-	// fraction of this corridor's own width (not a fixed absolute meter
-	// value) so the spawn always keeps chassis clearance from both the inner
-	// block and the outer wall, regardless of which width the corridor
-	// randomizer assigned this section.
-	fractions := simconfig.StartingZoneWidthFractions[:]
-	widthOffset := fractions[r.rng.Intn(len(fractions))] * corridorWidth
-	lengthOffsets := []float64{
-		simconfig.GridLengthSectionLeft,
-		simconfig.GridLengthSectionRight,
+	cells := StartCells(section, corridorWidth)
+	cell := cells[startCell%len(cells)]
+	return simconfig.StartingZone{
+		Length: defaultLength,
+		Width:  cell.BandWidth,
+		X:      cell.ZoneCentre[0],
+		Y:      cell.ZoneCentre[1],
 	}
-	lengthOffset := lengthOffsets[r.rng.Intn(len(lengthOffsets))]
-
-	zoneX, zoneY := computeZoneCoords(section, lengthOffset, widthOffset, simconfig.TrackMaxCoord)
-	return simconfig.StartingZone{Length: defaultLength, X: zoneX, Y: zoneY}
 }
 
 // computeZoneCoords determines the (x, y) position for a starting zone given a section and offsets.
@@ -202,25 +208,6 @@ func (r *Randomizer) GenerateSignPositions(
 // uniform samples uniformly from [lo, hi).
 func (r *Randomizer) uniform(lo, hi float64) float64 {
 	return lo + r.rng.Float64()*(hi-lo)
-}
-
-// pickStartPosition selects a random spawn position within the given corridor.
-func (r *Randomizer) pickStartPosition(section simconfig.Section, corridorWidth float64) simconfig.Vec2 {
-	trackMax := simconfig.TrackMaxCoord
-	center := simconfig.TrackCenterCoord
-	offsets := simconfig.StartPositionOffsets[:]
-	d := offsets[r.rng.Intn(len(offsets))]
-
-	switch section {
-	case simconfig.SectionNorth:
-		return simconfig.Vec2{center + d, trackMax - corridorWidth/2}
-	case simconfig.SectionSouth:
-		return simconfig.Vec2{center + d, corridorWidth / 2}
-	case simconfig.SectionEast:
-		return simconfig.Vec2{trackMax - corridorWidth/2, center + d}
-	default: // West
-		return simconfig.Vec2{corridorWidth / 2, center + d}
-	}
 }
 
 // computeSecondBlockDepth calculates the depth position of the second parking block given the first block's depth.

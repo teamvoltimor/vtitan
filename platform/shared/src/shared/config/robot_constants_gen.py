@@ -6,9 +6,9 @@ from typing import Final
 
 # Chassis (meters, kg)
 CHASSIS_LENGTH: Final[float] = 0.3
-CHASSIS_WIDTH: Final[float] = 0.2
+CHASSIS_WIDTH: Final[float] = 0.194
 CHASSIS_HEIGHT: Final[float] = 0.1
-CHASSIS_MASS: Final[float] = 0.8
+CHASSIS_MASS: Final[float] = 1.3
 
 # Ackermann geometry (meters, radians)
 WHEELBASE: Final[float] = 0.19
@@ -20,10 +20,15 @@ WHEEL_RADIUS: Final[float] = 0.035
 WHEEL_WIDTH: Final[float] = 0.025
 WHEEL_MASS: Final[float] = 0.05
 
+# Drivetrain limits (m/s, m/s^2, ratio). Hard ceilings, not tuning.
+MAX_SPEED_MPS: Final[float] = 0.156
+MAX_ACCEL_MPS2: Final[float] = 2.0
+REAR_STEER_RATIO: Final[float] = 1.0
+
 # LIDAR mount (meters, degrees)
 LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
 LIDAR_MOUNT_Z_OFFSET: Final[float] = 0.02
-LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 180
+LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 180.0
 
 # IMU mount (meters)
 IMU_MOUNT_Z_OFFSET: Final[float] = 0.01

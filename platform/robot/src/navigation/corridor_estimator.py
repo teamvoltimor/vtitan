@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import CorridorWidthMeasurement
 
 from src.navigation.race_tracker import TRAVEL_DIRS
@@ -57,7 +58,7 @@ _MIN_PLAUSIBLE_WIDTH = _NARROW - 0.25
 _MAX_PLAUSIBLE_WIDTH = _WIDE + 0.25
 """Outside this band the inward ray has missed the inner block (a corner)."""
 
-_MIN_SAMPLES = 12
+_MIN_SAMPLES = NavigationTuning.load_default().corridor_estimator.MIN_SAMPLES
 """Readings for a corridor before its width is called at all.
 
 A single reading is already better than 4 sigma against sensor noise, so this

@@ -59,6 +59,15 @@ if TYPE_CHECKING:
 MAX_STEPS = 6000
 """Matches ``tests/unit/test_obstacles_challenge_sim.py``."""
 
+CORPUS_DIR = Path(__file__).resolve().parents[1] / ".corpus" / "obstacles" / "scenarios"
+"""Pinned-seed sweep corpus, built by ``task gen:corpus CHALLENGE=obstacles``.
+
+Gitignored and regenerated rather than committed -- same generator, same seed,
+identical output. Pass ``--corpus`` to use it instead of the committed 16.
+Attributions must come from here: the 16 gave the right aggregate but two wrong
+diagnoses (see docs/sign-avoidance-investigation.md).
+"""
+
 _TARGET_LAPS = 3
 """Laps a scenario must finish to count as a driving success."""
 
@@ -150,11 +159,64 @@ class SweepConfig:
     for the real robot.
     """
 
+    passed_dist: float | None = None
+    """Override ``SignRouterParams.PASSED_DIST_M`` (default 1.20 m).
+
+    Must stay ABOVE ``activation_dist``. The two are coupled by
+    ``_active_sign_candidates``, which engages a sign at ``activation_dist``
+    and retires it beyond ``passed_dist`` in the same pass: invert the order and
+    every sign is engaged and marked passed on the same tick, from a metre away,
+    permanently. Nothing in the router guards this -- it is the 256/256-collision
+    cliff at activation 1.30.
+    """
+
+    activation_dist: float | None = None
+    """Override ``SignRouterParams.ACTIVATION_DIST_M`` (default 0.80 m).
+
+    How far out a sign starts deforming the waypoint. The trace of scenario 5
+    showed the deformed line being tracked correctly but converged to only
+    asymptotically: the chassis drew abreast of the sign 0.25 m short of the
+    commanded lateral target, because pure pursuit closes cross-track error
+    over distance and there was not enough of it left. Engaging earlier buys
+    that distance without touching the deformation itself.
+    """
+
+    park: bool = True
+    """Attempt the parking maneuver after the final lap.
+
+    ``False`` scores the run on laps alone. The parking blocks stay on the mat
+    and stay collidable — only the maneuver is skipped. Sign avoidance is the
+    open problem and parking sits downstream of it, so while avoidance is being
+    measured a clean three-lap run should read as a clean three-lap run instead
+    of as a ParkController give-up.
+    """
+
     known_signs: bool = False
     """Hand the router the sign layout even in a blind run.
 
     Only meaningful with ``blind=True``, where it holds back the corridor
     widths and travel direction but skips discovery.
+    """
+
+    scenarios_dir: str | None = None
+    """Run against a generated corpus instead of the committed 16 fixtures.
+
+    Every figure in ``docs/sign-avoidance-investigation.md`` before 2026-08-01
+    was taken over the same 16, which is a small sample for a space this size
+    and under-represents configurations that need two signs interacting. A
+    corpus is reproducible from the generator and its seed rather than
+    committed:
+
+        go run ./cmd/simgen generate --challenge obstacles             --num-scenarios 200 --seed 2026 --output-dir <dir>
+    """
+
+    commit_hysteresis: bool | None = None
+    """Override ``SignRouterParams.COMMIT_HYSTERESIS``.
+
+    ``False`` restores the per-tick nearest-wins race, where the commanded
+    lateral line can jump between two signs mid-approach. Both arms belong in
+    ONE harness run: editing the router between two runs silently mixes old and
+    new code across an already-warm process pool.
     """
 
     escape_mask_radius: float | None = None
@@ -191,7 +253,13 @@ class SweepConfig:
         )
         speed = _with(base.speed, FAST_SPEED=self.fast_speed)
         waypoints = _with(base.waypoints, ARC_RADIUS=self.arc_radius)
-        sign_router = _with(base.sign_router, ESCAPE_MASK_RADIUS_M=self.escape_mask_radius)
+        sign_router = _with(
+            base.sign_router,
+            ESCAPE_MASK_RADIUS_M=self.escape_mask_radius,
+            COMMIT_HYSTERESIS=self.commit_hysteresis,
+            ACTIVATION_DIST_M=self.activation_dist,
+            PASSED_DIST_M=self.passed_dist,
+        )
         return replace(base, pursuit=pursuit, speed=speed, waypoints=waypoints, sign_router=sign_router)
 
 
@@ -309,9 +377,14 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
     return restore
 
 
+def _scenarios(config: SweepConfig) -> list[Any]:
+    """The scenario set this config runs over."""
+    return all_obstacles_demo_scenarios(Path(config.scenarios_dir) if config.scenarios_dir else None)
+
+
 def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
     index, config = args
-    scenario = all_obstacles_demo_scenarios()[index]
+    scenario = _scenarios(config)[index]
     metadata = scenario.metadata
     dropped = set()
     if config.strip_obstacles or config.strip_signs:
@@ -330,6 +403,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             seed=scenario.seed,
             tuning=config.tuning(),
             blind=config.blind,
+            park=config.park,
         )
         result = sim.run(max_steps=MAX_STEPS)
     finally:
@@ -406,7 +480,7 @@ class SweepResult:
 
 def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -> list[SweepResult]:
     """Run every config over every fixture, fixtures fanned out across processes."""
-    scenario_count = len(all_obstacles_demo_scenarios())
+    scenario_count = len(_scenarios(configs[0])) if configs else 0
     results = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for config in configs:
@@ -540,6 +614,43 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     ),
     "mask-radius": lambda v: SweepConfig(f"escape_mask_radius {v:.3f}", escape_mask_radius=v),
     "wall": lambda v: SweepConfig(f"wall_clearance {v:.3f}", wall_clearance=v),
+    "activation": lambda v: SweepConfig(f"activation_dist {v:.2f}", activation_dist=v),
+    # Wall clearance measured at the TUNED activation distance, not the stock
+    # 0.80. The two are coupled: activation distance buys convergence runway,
+    # wall clearance sets how far there is to converge to. Sweeping either
+    # against the other's untuned value measures a corner of the space nobody
+    # would ship.
+    "wall-tuned": lambda v: SweepConfig(f"wall {v:.3f} @ act 1.00", wall_clearance=v, activation_dist=1.00),
+    # The corner dead zone, measured at the tuned activation distance. Tracing
+    # the 1.20->1.30 cliff showed deform_waypoint returning the waypoint
+    # UNTOUCHED 0.20 m from a sign at grid depth 1.0: the lookahead target had
+    # crossed into the corner, _is_squarely_in_corridor rejected every
+    # candidate, and avoidance switched itself off during the final approach.
+    # This buffer is how far past the corner span a target may sit and still be
+    # deformed, so it is the direct control on that dead zone.
+    # Re-measure the activation curve on top of the tuned buffer. The 1.20->1.30
+    # collapse was traced to the corner dead zone, so if that diagnosis is right
+    # a wider buffer should flatten the cliff rather than merely shift it --
+    # which is also what decides whether the activation peak is safe to adopt on
+    # hardware, where pose error would otherwise tip runs across it.
+    # Activation and passed distance raised TOGETHER, holding the 0.10 m gap
+    # that keeps activation below passed. The plateau ends at 1.20 only because
+    # PASSED_DIST_M sits there: past it a sign is engaged and marked passed on
+    # the same tick, from a metre away, and retired for the rest of the run --
+    # which is the 256/0 cliff, not any geometric limit. This asks whether the
+    # pair wants to move up, or whether 1.00 is a real optimum.
+    "reach": lambda v: SweepConfig(
+        f"activation {v:.2f} / passed {v + 0.20:.2f} @ buffer 0.50",
+        activation_dist=v,
+        passed_dist=v + 0.20,
+        deform_depth_buffer=0.50,
+    ),
+    "activation-buf": lambda v: SweepConfig(
+        f"activation {v:.2f} @ buffer 0.50", activation_dist=v, deform_depth_buffer=0.50,
+    ),
+    "buffer-tuned": lambda v: SweepConfig(
+        f"depth_buffer {v:.2f} @ act 1.00", deform_depth_buffer=v, activation_dist=1.00,
+    ),
 }
 """Modes that sweep one numeric knob across the values given on the CLI."""
 
@@ -590,6 +701,21 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind track+direction, signs known", blind=True, known_signs=True),
         SweepConfig("fully blind (signs discovered)", blind=True),
     ],
+    # Sign avoidance on its own, with parking deferred until it is solved.
+    # Blocks stay on the mat and stay collidable; only the maneuver is skipped.
+    "no-park": [
+        SweepConfig("laps only, sighted", park=False),
+        SweepConfig("laps only, blind", blind=True, park=False),
+        SweepConfig("with parking, sighted"),
+        SweepConfig("with parking, blind", blind=True),
+    ],
+    # What commit hysteresis is worth. Both arms in one run, deliberately.
+    "hysteresis": [
+        SweepConfig("per-tick race (hysteresis off)", commit_hysteresis=False),
+        SweepConfig("committed sign held (hysteresis on)", commit_hysteresis=True),
+        SweepConfig("blind, hysteresis off", blind=True, commit_hysteresis=False),
+        SweepConfig("blind, hysteresis on", blind=True, commit_hysteresis=True),
+    ],
     "blind-split": [
         SweepConfig("blind, pre-fix (offset 0.20, split off)", blind=True, lateral_offset=0.20, escape_mask_radius=0.0),
         SweepConfig("blind, split only (offset 0.20)", blind=True, lateral_offset=0.20),
@@ -622,13 +748,23 @@ def main() -> None:
     parser.add_argument("values", nargs="*", type=float)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--verbose", action="store_true", help="print per-scenario detail rows")
+    parser.add_argument(
+        "--scenarios-dir",
+        default=None,
+        help="directory of generated *_metadata.json to run instead of the committed 16",
+    )
+    parser.add_argument("--corpus", action="store_true", help=f"shorthand for --scenarios-dir {CORPUS_DIR}")
     args = parser.parse_args()
 
     if args.mode == "crosstrack":
         report_cross_track(args.workers, args.values)
         return
 
-    run_sweep(_build_configs(args.mode, args.values), args.workers, verbose=args.verbose)
+    configs = _build_configs(args.mode, args.values)
+    scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
+    if scenarios_dir:
+        configs = [replace(c, scenarios_dir=scenarios_dir) for c in configs]
+    run_sweep(configs, args.workers, verbose=args.verbose)
 
 
 if __name__ == "__main__":

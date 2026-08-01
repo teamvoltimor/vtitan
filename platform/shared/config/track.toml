@@ -1,0 +1,117 @@
+# Single source of truth for the WRO 2026 Future Engineers mat geometry.
+#
+# Edit this file, then regenerate every consumer with `task gen:track-constants`:
+#   - platform/gazebo/generator/internal/simconfig/track_constants.gen.go
+#   - platform/shared/src/shared/config/track_constants_gen.py
+#
+# These values used to be hand-maintained twice — once in the Python classes of
+# shared/config/constants.py and once in the Go const blocks of
+# simconfig/constants.go, which carried a comment asking future editors to keep
+# the two in sync by hand. That is the same hazard robot.toml already removed
+# for the robot's own dimensions; this file removes it for the mat.
+#
+# All lengths are metres. Colours are normalized RGB triples in [0, 1].
+#
+# Values that genuinely belong to one side only are NOT here: competition rules
+# (lap counts, round time), simulator-only tuning (lighting ranges, sensor
+# noise) and rendering z-order stay in their own language's config.
+
+[track]
+# The printed mat is larger than the driveable track it carries.
+mat_size = 3.2
+size = 3.0
+# Coordinate system: bottom-left origin, metres.
+min_coord = 0.0
+max_coord = 3.0
+# Corner region, i.e. the middle third of each axis.
+corner_min = 1.0
+corner_max = 2.0
+
+[wall]
+height = 0.10
+thickness = 0.10
+# Collision extends 40 mm per side past the visual so the LIDAR cannot see
+# through a wall. The LIDAR sits 30 mm ahead of the chassis front, so 40 mm
+# keeps it >=10 mm outside the visual face even at full contact.
+collision_thickness = 0.18
+exterior_offset = 0.05
+interior_offset = 0.05
+color = [0.0, 0.0, 0.0]
+
+[corridor]
+narrow = 0.6
+wide = 1.0
+obstacles = 1.0
+# Validation bounds, deliberately wider than the two legal widths so tests can
+# exercise off-spec layouts.
+min_width = 0.5
+max_width = 1.5
+# The two division lines painted across every corridor, measured out from the
+# outer wall. Everything else that divides a corridor lengthwise derives from
+# these: the starting square's 40/20/40 bands, and the outer/inner lines the
+# traffic-sign grid places pillars on. They were previously written out four
+# times over -- CorridorDivOuter/Inner, SignGridWidthOuter/Inner and their two
+# Python twins -- as four constants holding two numbers.
+division_lines = [0.40, 0.60]
+
+[sign]
+width = 0.05
+depth = 0.05
+height = 0.10
+# Half of height: pillars are placed by their centre.
+z_position = 0.05
+# Along-corridor positions of the three sign grid rows.
+grid_depth_near = 1.0
+grid_depth_middle = 1.5
+grid_depth_far = 2.0
+min_count = 6
+max_count = 14
+# Official WRO pillar colours: RGB(238,39,55) and RGB(68,214,44).
+red_color = [0.933, 0.153, 0.216]
+green_color = [0.267, 0.839, 0.173]
+# Per-channel stddev for Gaussian colour noise in the simulator.
+red_std = [0.05, 0.02, 0.02]
+green_std = [0.02, 0.05, 0.02]
+
+[parking]
+length = 0.20
+width = 0.02
+height = 0.10
+z_position = 0.05
+# Half of length: the block is placed by its centre, flush to the wall.
+wall_offset = 0.10
+# Bay length as a multiple of the robot's LENGTH -- the dimension that has to
+# fit inside the bay. Scaling it by width instead once produced a bay exactly
+# one chassis long, which the robot could never enter.
+spacing_factor = 1.5
+color = [1.0, 0.0, 1.0]
+
+[starting_zone]
+# One cell of the starting square, along the corridor.
+default_length = 0.5
+thickness = 0.001
+obstacles_size_factor = 0.9
+indicator_radius = 0.035
+color = [0.5, 0.5, 0.5]
+clockwise_color = [0.2, 0.4, 1.0]
+counterclockwise_color = [0.2, 1.0, 0.4]
+
+# Which edge of its band the chassis is pushed flush against, one per band.
+# "outer" is the band edge nearer the outer wall, "inner" the edge nearer the
+# inner block. The actual spawn offset is derived from this and the chassis
+# width in robot.toml, so it follows a re-measurement instead of going stale.
+#
+# The robot is never centred in its band. The two band edges are not alike: one
+# is a painted division line the robot can sit flush against harmlessly, the
+# other may be a physical obstacle. Splitting the slack evenly spends half the
+# margin on the line and leaves only half against the thing it can actually hit.
+#
+# Band 0 hugs its inner edge because its outer edge IS the outer wall. Bands 1
+# and 2 hug their outer edge because the surface beyond them is the inner
+# block: in a narrow corridor band 1 ends exactly at the block, so this is the
+# difference between 3 mm and 6 mm of clearance from it.
+#
+# The resulting offsets are absolute metres, not fractions of the corridor
+# width. A narrow corridor simply stops after the first two bands, because the
+# third lies under the centre square where it cannot be a start.
+spawn_alignment = ["inner", "outer", "outer"]

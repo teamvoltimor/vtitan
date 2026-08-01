@@ -1,0 +1,34 @@
+# Knobs that exist only in the headless simulator.
+#
+# See shared.config.navigation_tuning.SimulationParams.
+#
+# These describe neither the robot nor the mat, so they belong in neither
+# robot.toml nor track.toml -- but they decide what a simulated run scores,
+# which is exactly why they should not be literals buried in a module.
+
+# Opening seconds during which wall contact is treated as an artefact of where
+# the robot was placed rather than a crash.
+#
+# This exists because a legal starting cell may already sit against a wall. The
+# starting square's middle band is only millimetres wider than the chassis, so
+# a start there begins with almost no clearance to the inner block, and scoring
+# that as a collision on tick one would fail a placement the rules allow.
+start_collision_window_s = 2.0
+
+# How long such an opening contact may persist before it counts as a real
+# failure rather than "still steering clear".
+start_collision_grace_s = 15.0
+
+# Fraction of LIDAR rays returning no measurement, emitted as NaN/inf so the
+# sanitising path the real driver uses is actually exercised.
+#
+# A placeholder. Slamtec drivers emit these off dark or shallow-incidence
+# surfaces and the true rate depends on the mat, so this is worth measuring
+# from a recorded bag rather than left at a guess. It matters more than it
+# looks: a dropout is substituted with MAX RANGE, which reads as "this side is
+# wide open" to the direction estimator.
+lidar_invalid_ray_rate = 0.01
+
+# Confidence stamped on emulated camera detections. Must stay above the sign
+# router's min_confidence or no emulated detection would ever be accepted.
+detection_confidence = 0.9

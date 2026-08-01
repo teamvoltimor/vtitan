@@ -10,6 +10,7 @@ input would resurrect the same silent-drift risk that motivated the LIDAR fix.
 
 import math
 
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose
 
 
@@ -18,7 +19,7 @@ def wrap_angle(angle: float) -> float:
     return math.remainder(angle, 2 * math.pi)
 
 
-YAW_CORRECTION_GAIN = 0.05
+YAW_CORRECTION_GAIN = NavigationTuning.load_default().state_estimator.YAW_CORRECTION_GAIN
 """Fraction of the wall-vs-IMU heading discrepancy absorbed per scan.
 
 At the C1's ~10 Hz that is a time constant near two seconds: fast enough to

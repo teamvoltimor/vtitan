@@ -437,6 +437,19 @@ class CoreNavigator:
         else:
             speed = self._tuning.speed.FAST_SPEED
 
+        # Bound the selected cruise speed by the configured envelope. MIN_SPEED
+        # and MAX_SPEED read like hard limits on the robot and were enforced
+        # nowhere: a profile setting FAST_SPEED above MAX_SPEED was simply
+        # obeyed. A no-op at the shipped values (CREEP == MIN_SPEED, FAST ==
+        # MAX_SPEED), which is the point -- it constrains mis-tuned profiles
+        # without changing this one.
+        #
+        # Deliberately applied HERE, to a zone speed that is always positive,
+        # and not to the final command: clamping that up to MIN_SPEED would turn
+        # every legitimate stop (escape hand-off, park complete, blocked at both
+        # ends) into a 0.05 m/s crawl the robot cannot be commanded out of.
+        speed = min(max(speed, self._tuning.speed.MIN_SPEED), self._tuning.speed.MAX_SPEED)
+
         # Never blast past a non-forward obstacle (e.g. a sign alongside the
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:

@@ -42,9 +42,24 @@ class NamedScenario:
     seed: int
 
 
-def _load_fixture_scenarios(subdir: str, label_prefix: str) -> list[NamedScenario]:
+def _load_fixture_scenarios(
+    subdir: str,
+    label_prefix: str,
+    fixtures_dir: Path | None = None,
+) -> list[NamedScenario]:
+    """Load every ``*_metadata.json`` under ``fixtures_dir/subdir``.
+
+    ``fixtures_dir`` overrides the committed fixture set. The committed one is
+    deliberately small (16 obstacles, 28 open) because it is the unit-test
+    battery and has to stay fast; statistical questions -- how often some
+    configuration occurs, how a change behaves across the space rather than on
+    one sample -- need hundreds, which is what the override is for. Generate
+    them with the same Go generator and a pinned seed (see the module
+    docstring), so a corpus is reproducible without being committed.
+    """
+    root = fixtures_dir if fixtures_dir is not None else _FIXTURES_DIR / subdir
     scenarios = []
-    for path in sorted((_FIXTURES_DIR / subdir).glob("*_metadata.json")):
+    for path in sorted(root.glob("*_metadata.json")):
         meta = json.loads(path.read_text())
         sc = meta["starting_conditions"]
         label = f"{label_prefix}_{meta['scenario_id']:04d}[{sc['section']}/{sc['direction']}]"
@@ -52,19 +67,22 @@ def _load_fixture_scenarios(subdir: str, label_prefix: str) -> list[NamedScenari
     return scenarios
 
 
-def all_test_scenarios() -> list[NamedScenario]:
+def all_test_scenarios(fixtures_dir: Path | None = None) -> list[NamedScenario]:
     """The Go-generated Open Challenge scenario fixtures."""
-    return _load_fixture_scenarios("open", "go_open")
+    return _load_fixture_scenarios("open", "go_open", fixtures_dir)
 
 
-def all_obstacles_demo_scenarios() -> list[NamedScenario]:
+def all_obstacles_demo_scenarios(fixtures_dir: Path | None = None) -> list[NamedScenario]:
     """The Go-generated Obstacles Challenge scenario fixtures (signs + parking).
 
     Every scenario has both a sign layout (from the real 36-scenario table)
     and a parking lot — the Go generator always builds them together for the
     Obstacles Challenge, matching the real competition rules.
+
+    Pass ``fixtures_dir`` to run against a larger generated corpus instead of
+    the committed 16 — see :func:`_load_fixture_scenarios`.
     """
-    return _load_fixture_scenarios("obstacles", "go_obstacles")
+    return _load_fixture_scenarios("obstacles", "go_obstacles", fixtures_dir)
 
 
 def find_scenario(selector: str, scenarios: list[NamedScenario]) -> NamedScenario:

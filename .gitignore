@@ -162,3 +162,6 @@ docs/internal/
 
 # Debug recordings pulled off the robot by task robot:record-vision
 platform/robot/vision-*.mp4
+
+# Pinned-seed sweep corpus (task gen:corpus) — regenerated, never committed.
+platform/robot/.corpus/

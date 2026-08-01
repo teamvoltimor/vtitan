@@ -66,7 +66,12 @@ func AddInteriorWalls(world *Node, corridorWidths map[simconfig.Section]simconfi
 
 // AddStartingZone removes any existing starting zone placeholder from the base
 // template, then adds the dynamically positioned zone rectangle and direction
-// indicator. It also updates sc.Position to match (zone_x, zone_y).
+// indicator.
+//
+// It does not touch sc.Position. It used to overwrite it with the zone centre,
+// which made the generator's own spawn selection dead code and, once the spawn
+// stopped being the centre of its cell, would have silently discarded the
+// chosen StartingZoneSpawnOffsets. CreateScenario owns the spawn pose.
 func AddStartingZone(
 	world *Node,
 	sc *simconfig.StartingConditions,
@@ -80,11 +85,19 @@ func AddStartingZone(
 	}
 
 	isNS := sc.Section == simconfig.SectionNorth || sc.Section == simconfig.SectionSouth
+	// Cross-corridor size comes from the zone, not a fixed constant: an Open
+	// Challenge zone is one cell of the starting square and is as wide as the
+	// band that cell sits in (0.40 or 0.20 m), so painting every zone 0.20 m
+	// wide would misdraw four of the six cells.
+	zoneWidth := zone.Width
+	if zoneWidth <= 0 {
+		zoneWidth = simconfig.StartingZoneWidth
+	}
 	var zoneSizeStr string
 	if isNS {
-		zoneSizeStr = vec3(zone.Length, simconfig.StartingZoneWidth, simconfig.StartingZoneThickness)
+		zoneSizeStr = vec3(zone.Length, zoneWidth, simconfig.StartingZoneThickness)
 	} else {
-		zoneSizeStr = vec3(simconfig.StartingZoneWidth, zone.Length, simconfig.StartingZoneThickness)
+		zoneSizeStr = vec3(zoneWidth, zone.Length, simconfig.StartingZoneThickness)
 	}
 
 	var indicatorRGB simconfig.RGB
@@ -122,7 +135,4 @@ func AddStartingZone(
 	matInd.SubT("emissive", ic)
 
 	world.Add(model)
-
-	// Sync spawn position to zone center (mirrors Python's starting_conditions[POSITION] = ...)
-	sc.Position = simconfig.Vec2{zone.X, zone.Y}
 }

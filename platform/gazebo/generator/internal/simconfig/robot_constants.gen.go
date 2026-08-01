@@ -2,18 +2,23 @@
 
 package simconfig
 
-// Robot chassis dimensions (meters). LEGO Bugatti Bolide + Ackermann.
+// Robot chassis dimensions (meters). vTitan + Ackermann.
 const (
 	RobotLength      = 0.3
-	RobotWidth       = 0.2
+	RobotWidth       = 0.194
 	RobotHeight      = 0.1
 	RobotWheelbase   = 0.19
 	RobotTrackWidth  = 0.1675
 	RobotWheelRadius = 0.035
 	RobotWheelWidth  = 0.025
 	RobotMaxSteering = 1.2253 // ~30°
-	RobotChassisMass = 0.8    // kg
+	RobotChassisMass = 1.3    // kg, body alone
 	RobotWheelMass   = 0.05   // kg per wheel
+
+	// Drive motor limits. Hard ceilings the kinematics clamp to, not tuning.
+	RobotMaxSpeedMPS    = 0.156
+	RobotMaxAccelMPS2   = 2.0
+	RobotRearSteerRatio = 1.0 // 1.0 = counter-phase four-wheel steering
 
 	// RobotLidarMountXOffset: chassis_length/2 - the lidar mesh's own radius (0.0278,
 	// matching wro_robot.urdf.xacro's lidar_link visual/collision cylinder) — the C1
@@ -24,7 +29,7 @@ const (
 	RobotLidarMountZOffset = 0.02
 	// RobotLidarMountYawOffsetDeg: the C1 is mounted upside-down, so its raw
 	// angle-zero points opposite robot-front.
-	RobotLidarMountYawOffsetDeg = 180
+	RobotLidarMountYawOffsetDeg = 180.0
 
 	// IMU mounted near the chassis floor.
 	RobotImuMountZOffset = 0.01

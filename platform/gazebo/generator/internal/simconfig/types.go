@@ -13,11 +13,16 @@ type (
 		Width float64 // meters
 	}
 
-	// StartingZone is the computed position and length of the starting rectangle.
+	// StartingZone is the computed position and size of the starting rectangle.
 	StartingZone struct {
 		Length float64
-		X      float64
-		Y      float64
+		// Width is the cross-corridor size of the rectangle. For the Open
+		// Challenge this is the width of the StartingZoneBandWidths band the
+		// chosen cell sits in, so the painted zone matches the cell the robot
+		// actually starts in rather than a fixed 0.2 m.
+		Width float64
+		X     float64
+		Y     float64
 	}
 
 	// StartingConditions is the fully resolved robot starting state for one scenario.
@@ -28,6 +33,10 @@ type (
 		Position    Vec2
 		Yaw         float64
 		Zone        StartingZone
+		// StartCell indexes generate.StartCells for this section and corridor
+		// width. It is what ties the painted zone to the spawn pose: both are
+		// derived from this one draw, so they cannot disagree.
+		StartCell int
 	}
 
 	// ParkingConfig holds the resolved positions for both parking blocks.

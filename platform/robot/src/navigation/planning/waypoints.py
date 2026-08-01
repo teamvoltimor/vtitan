@@ -21,17 +21,17 @@ from shared.domain.models import PathPlannability, ScenarioMetadata
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
-# Same concept/value as NavigationTuning.waypoints.DEDUPE_DISTANCE_M. Not
-# threaded through calculate_waypoints (unlike arc_radius above): this is a
-# geometric near-duplicate floor for the internal segment-assembly free
-# functions, not something that benefits from runtime tuning.
-_DEDUPE_DISTANCE_M: float = 0.001  # 1 mm
+# Read from waypoints.toml rather than restated. Used by internal
+# segment-assembly free functions, which have no instance to inject tuning
+# into -- but the config entry existed alongside this literal, so editing it
+# changed nothing.
+_WAYPOINT_TUNING = NavigationTuning.load_default().waypoints
+_DEDUPE_DISTANCE_M: float = _WAYPOINT_TUNING.DEDUPE_DISTANCE_M  # 1 mm
 
 # Bias corridor centres toward the outer wall. Compensates for the robot's
 # chassis width so the planned path stays clear of the inner-wall face.
-# Same concept/value as NavigationTuning.waypoints.OUTER_WALL_BIAS -- not
-# threaded through for the same reason as _DEDUPE_DISTANCE_M above.
-_OUTER_WALL_BIAS = 0.05
+# Read from waypoints.toml for the same reason as _DEDUPE_DISTANCE_M above.
+_OUTER_WALL_BIAS = _WAYPOINT_TUNING.OUTER_WALL_BIAS
 
 
 def validate_path_feasibility(min_corridor_width_m: float, arc_radius: float) -> PathPlannability:

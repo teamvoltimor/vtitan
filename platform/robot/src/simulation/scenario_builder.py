@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CorridorDimensions, StartingZoneSpecs, TrackDimensions
+from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.enums import Section
+from shared.config.starting_zone import STARTING_ZONE_LAYOUT
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
@@ -34,27 +35,18 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 
 __all__ = ["build_open_metadata", "start_cells", "start_pose", "uniform_widths"]
 
-_BAND_WIDTHS_M: tuple[float, float, float] = (0.40, 0.20, 0.40)
-"""Starting-zone bands across the corridor, outer wall inward.
-
-Each side of the mat carries a marked square, one metre along the corridor and
-one metre across, divided into six cells: three bands of 40/20/40 cm, each
-split into two cells of ``StartingZoneSpecs.DEFAULT_LENGTH``. The middle band
-is the 20 cm one already in :class:`StartingZoneSpecs`.
-
-The widths are what make the layout conditional. 40 + 20 = 60 cm, so a narrow
-corridor contains exactly the first two bands and the innermost one falls
-inside the centre square, where it cannot be a start. 40 + 20 + 40 = 100 cm, so
-a wide corridor contains all three. Six legal starting cells on a wide side,
-four on a narrow one.
-"""
-
 
 def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[float, float]]:
-    """Every legal starting-zone cell centre for this side, as (x, y).
+    """Every legal starting-zone spawn pose for this side, as (x, y).
 
     Ordered outer wall inward, and within each band along the travel axis, so
     index 0 is always the cell hard against the outer wall.
+
+    The pose is the band's chosen spawn offset, not the band centre -- the cell
+    is where the robot must legally be, the offset is where within it we choose
+    to put it. Both come from
+    :data:`shared.config.starting_zone.STARTING_ZONE_LAYOUT`, which is
+    generated from ``track.toml`` and shared with the Go scenario generator.
 
     ``start_pose`` spawns on the corridor centreline instead, which is not one
     of these cells and is the only start the simulator has ever exercised. A
@@ -67,26 +59,20 @@ def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[floa
         widths_m: Corridor width per side name, in metres.
 
     Returns:
-        Cell centres, four for a narrow corridor and six for a wide one.
+        Spawn poses, four for a narrow corridor and six for a wide one.
     """
     width = widths_m[section.value.lower()]
     track_max = TrackDimensions.MAX_COORD
-    centre = track_max / 2.0
-    half = StartingZoneSpecs.DEFAULT_LENGTH / 2.0
+    layout = STARTING_ZONE_LAYOUT
 
     # The square occupies the middle metre of the side, leaving a metre of
     # corner region either end; the two cells sit either side of the midpoint.
-    alongs = (centre - half, centre + half)
+    alongs = layout.cell_centers_along
 
     cells: list[tuple[float, float]] = []
-    edge = 0.0
-    for band in _BAND_WIDTHS_M:
-        far_edge = edge + band
-        # Bands are only reachable while they lie inside the corridor; past its
-        # inner edge the band is under the centre square.
-        if far_edge > width + 1e-9:
-            break
-        across = edge + band / 2.0
+    # Bands are only reachable while they lie inside the corridor; past its
+    # inner edge the band is under the centre square.
+    for across in layout.spawn_offsets[: layout.bands_within(width)]:
         for along in alongs:
             if section is Section.SOUTH:
                 cells.append((along, across))
@@ -96,7 +82,6 @@ def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[floa
                 cells.append((across, along))
             else:
                 cells.append((track_max - across, along))
-        edge = far_edge
     return cells
 
 

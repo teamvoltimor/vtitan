@@ -12,12 +12,31 @@ attribute access on the in-memory message object does NOT reproduce it.
 
 from __future__ import annotations
 
+import pytest
+import rclpy
 from rclpy.serialization import deserialize_message, serialize_message
 from shared.config.enums import Section
 from visualization_msgs.msg import Marker
 
 from src.simulation.live_visualizer import LiveScenarioVisualizer, init_rclpy_once
 from src.simulation.track_model import TrackModel
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_rclpy_after_test():
+    """Undo init_rclpy_once()'s process-lifetime init after each test here.
+
+    init_rclpy_once() is correct for its real caller (a long-lived visualizer
+    script that runs until process exit, so it never needs to shut back
+    down) but leaves rclpy.ok() True for the rest of the pytest session if
+    left as-is here -- breaking any later test/fixture elsewhere in the
+    suite that calls rclpy.init() unconditionally, expecting a clean
+    context (e.g. test_imu_bno08x_i2c_node.py's fixture, or
+    track_navigator_node.main()).
+    """
+    yield
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 def _wide_track() -> TrackModel:

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/shopspring/decimal"
 	"github.com/spf13/cobra"
 
 	"vtitan/gazebo/generator/internal/generate"
@@ -21,6 +22,7 @@ import (
 	"vtitan/gazebo/generator/internal/robotconfig"
 	"vtitan/gazebo/generator/internal/sdf"
 	"vtitan/gazebo/generator/internal/simconfig"
+	"vtitan/gazebo/generator/internal/trackconfig"
 )
 
 // generatedFile pairs a destination path with the source text to write there.
@@ -37,7 +39,13 @@ func main() {
 		Short:        "WRO 2026 Gazebo SDF world generator",
 		SilenceUsage: true,
 	}
-	root.AddCommand(generateCmd(), generateTrackCmd(), generateRobotConstantsCmd(), previewCmd())
+	root.AddCommand(
+		generateCmd(),
+		generateTrackCmd(),
+		generateRobotConstantsCmd(),
+		generateTrackConstantsCmd(),
+		previewCmd(),
+	)
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -203,6 +211,63 @@ func generateRobotConstantsCmd() *cobra.Command {
 		"./gazebo/runtime/robot_description/robot_properties.gen.xacro", "xacro property fragment output path")
 	cmd.Flags().StringVar(&pythonOutput, "python-output",
 		"./shared/src/shared/config/robot_constants_gen.py", "Python constants module output path")
+
+	return cmd
+}
+
+func generateTrackConstantsCmd() *cobra.Command {
+	var (
+		config       string
+		goOutput     string
+		pythonOutput string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "generate-track-constants",
+		Short: "Regenerate mat geometry constants from track.toml",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			// The chassis width is what decides whether a spawn offset fits
+			// inside its band, so validation needs it; it comes from the
+			// already-generated robot constants, keeping one direction of
+			// dependency between the two sources of truth.
+			cfg, err := trackconfig.Load(config, decimal.NewFromFloat(simconfig.RobotWidth))
+			if err != nil {
+				return fmt.Errorf("load track config: %w", err)
+			}
+
+			chassisWidth := decimal.NewFromFloat(simconfig.RobotWidth)
+			goSrc, err := trackconfig.GenerateGo(cfg, chassisWidth)
+			if err != nil {
+				return fmt.Errorf("generate go constants: %w", err)
+			}
+			pySrc, err := trackconfig.GeneratePython(cfg, chassisWidth)
+			if err != nil {
+				return fmt.Errorf("generate python constants: %w", err)
+			}
+
+			outputs := []generatedFile{
+				{path: goOutput, contents: goSrc},
+				{path: pythonOutput, contents: pySrc},
+			}
+			for _, out := range outputs {
+				if err := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); err != nil {
+					return fmt.Errorf("create output dir for %s: %w", out.path, err)
+				}
+				if err := os.WriteFile(out.path, []byte(out.contents), simconfig.FilePermissions); err != nil {
+					return fmt.Errorf("write %s: %w", out.path, err)
+				}
+				slog.Info("track constants written", "path", out.path)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&config, "config", "./shared/config/track.toml", "Path to track.toml source of truth")
+	cmd.Flags().StringVar(&goOutput, "go-output",
+		"./gazebo/generator/internal/simconfig/track_constants.gen.go", "Go const block output path")
+	cmd.Flags().StringVar(&pythonOutput, "python-output",
+		"./shared/src/shared/config/track_constants_gen.py", "Python constants module output path")
 
 	return cmd
 }

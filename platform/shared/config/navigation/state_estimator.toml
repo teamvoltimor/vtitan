@@ -1,0 +1,12 @@
+# Odometry/IMU fusion parameters.
+#
+# See shared.config.navigation_tuning.StateEstimatorParams.
+
+# Fraction of the observed yaw discrepancy folded into the estimate per update.
+#
+# Distinct from localization.toml, which tunes the LIDAR pose *search*: this is
+# the dead-reckoning blend, and it runs whether or not localization is enabled.
+# Deliberately small -- the IMU is the only absolute heading reference the
+# robot has, so a hot gain lets a single bad correction drag the heading, and
+# corridor_estimator files every width reading by heading.
+yaw_correction_gain = 0.05

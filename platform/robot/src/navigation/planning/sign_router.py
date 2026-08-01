@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
-from shared.config.navigation_tuning import SignDiscoveryParams, SignRouterParams
+from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.models import SignColor
 
 from src.navigation.planning.sign_discovery import (
@@ -73,14 +73,20 @@ __all__ = [
 # fixtures, widening this removed one inner-block and one sign collision (9/16
 # -> 7/16); going further to 0.24 over-constrains the deformation and regresses
 # to 10/16.
-# The 0.04 margin here is the same concept and value as
-# NavigationTuning.sign_router.WALL_CLEARANCE_MARGIN_M (shared/config/
-# navigation/sign_router.toml). Not threaded through as an injected value:
-# it's read inside a module-level clamp used from a free function, not a
-# SignRouter instance method, so there's no natural instance to hold tuning
-# state. Keep the two values in sync if either changes.
+# The margin comes from shared/config/navigation/sign_router.toml, not a
+# literal here. These three module-level constants feed free functions rather
+# than SignRouter methods, so there is no instance to inject tuning into — but
+# "no natural injection point" is not a reason to restate a configured number.
+# A duplicated literal keeps passing while describing a robot that no longer
+# exists: DEFORM_DEPTH_BUFFER_M sat in the TOML with NO reader at all while the
+# router used its own copy, and the chassis width moved 0.200 -> 0.194
+# mid-investigation and silently changed every clearance derived from it.
+# Reading the defaults once at import keeps one source of truth; the sweep
+# harness still overrides these by patching the module attribute.
+_SIGN_ROUTER_DEFAULTS = NavigationTuning.load_default().sign_router
+
 _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
-_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + 0.04
+_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + _SIGN_ROUTER_DEFAULTS.WALL_CLEARANCE_MARGIN_M
 
 # Default lateral deformation magnitude, derived the same way as
 # _WALL_CLEARANCE above: chassis half-DIAGONAL + the sign's own half-width (the
@@ -106,7 +112,7 @@ _WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + 0.04
 # with the split active: 0.20 -> 16/16 collisions and 0 laps, 0.24 and beyond
 # -> 14/16 and 2/16 completing all three laps, plateauing from 0.24 where
 # _WALL_CLEARANCE starts to bind instead.
-_SIGN_CLEARANCE_MARGIN = 0.075
+_SIGN_CLEARANCE_MARGIN = _SIGN_ROUTER_DEFAULTS.SIGN_CLEARANCE_MARGIN_M
 _SIGN_LATERAL_OFFSET = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
 
 # How far behind the robot's own origin a sign may still sit and remain an
@@ -118,9 +124,9 @@ _BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
 # How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
 # axis may drift and still count as a valid straight-corridor deformation
 # candidate — see _is_squarely_in_corridor. Same concept/value as
-# NavigationTuning.sign_router.DEFORM_DEPTH_BUFFER_M -- not threaded through
-# for the same free-function reason as _WALL_CLEARANCE above.
-_DEFORM_DEPTH_BUFFER = 0.3
+# NavigationTuning.sign_router.DEFORM_DEPTH_BUFFER_M, which until now had no
+# reader at all -- the TOML value was inert while this literal did the work.
+_DEFORM_DEPTH_BUFFER = _SIGN_ROUTER_DEFAULTS.DEFORM_DEPTH_BUFFER_M
 
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
 # axis: "y" means deform the y-coordinate; "x" deforms x.
@@ -151,10 +157,10 @@ class SignRouterConfig:
     lateral_offset: float = _SIGN_LATERAL_OFFSET
     """Metres of lateral deformation perpendicular to the corridor."""
 
-    activation_dist: float = 0.80
+    activation_dist: float = 1.40
     """Deformation activates when robot is within this distance of a sign (m)."""
 
-    passed_dist: float = 1.20
+    passed_dist: float = 1.60
     """Sign is marked as passed once robot moves further than this from it (m)."""
 
     detection_match_dist: float = 0.30
@@ -162,6 +168,9 @@ class SignRouterConfig:
 
     min_confidence: float = 0.25
     """Minimum detection confidence to accept a camera-based color update."""
+
+    commit_hysteresis: bool = True
+    """Hold the engaged sign across ticks instead of re-racing every tick."""
 
     settle_ticks: int = 150
     """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
@@ -174,6 +183,38 @@ class SignRouterConfig:
     happens. Deferring bookkeeping (not candidate selection — a sign already
     in the robot's actual corridor still deforms normally) for this settle
     window prevents that incidental graze from ever registering."""
+
+    def __post_init__(self) -> None:
+        """Reject a configuration that would silently disable sign avoidance.
+
+        ``_active_sign_candidates`` engages a sign once it is nearer than
+        ``activation_dist`` and retires it once it is further than
+        ``passed_dist``, in that order, on the same tick. So with
+        ``activation_dist >= passed_dist`` every sign entering the activation
+        radius is engaged and marked passed in the same breath, from a metre
+        away, and stays retired for the rest of the run — deformation never
+        fires at the real pass and the robot drives straight into it.
+
+        Measured: at ``activation_dist`` 1.30 against the shipped
+        ``passed_dist`` 1.20, the corpus goes from 209 collisions to 256/256
+        with not one lap completed. Nothing failed, nothing logged; avoidance
+        simply stopped existing. That is the worst shape a config error can
+        take in a safety path, so it is an error rather than a clamp: silently
+        repairing it would hide that the tuning being run is not the tuning
+        that was asked for.
+
+        This is the same defect ``settle_ticks`` guards from the other
+        direction — there an incidental spawn-time graze retires a sign early;
+        here the thresholds themselves do it, on every sign.
+        """
+        if self.activation_dist >= self.passed_dist:
+            msg = (
+                f"activation_dist ({self.activation_dist}) must be < passed_dist "
+                f"({self.passed_dist}): a sign would be engaged and marked passed on the "
+                f"same tick, permanently retiring it before its real pass and disabling "
+                f"sign avoidance for the whole run."
+            )
+            raise ValueError(msg)
 
     @classmethod
     def from_tuning(cls, params: SignRouterParams) -> SignRouterConfig:
@@ -192,6 +233,7 @@ class SignRouterConfig:
             detection_match_dist=params.DETECTION_MATCH_DIST_M,
             min_confidence=params.MIN_CONFIDENCE,
             settle_ticks=params.SETTLE_TICKS,
+            commit_hysteresis=params.COMMIT_HYSTERESIS,
         )
 
 
@@ -229,6 +271,10 @@ class SignRouter:
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
         self._lap_tick = 0
+        # The sign currently being routed around, kept across ticks so the
+        # commanded line does not jump between two legal ones mid-pass. See
+        # _prefer_committed.
+        self._committed: int | None = None
         # Each sign's own corridor, kept in step with _signs — deform_waypoint()
         # must never apply a sign's (x, y) through a different corridor's axis
         # convention (see _nearest_active_sign). Recomputed per sign rather than
@@ -326,6 +372,7 @@ class SignRouter:
         self._passed.clear()
         self._engaged.clear()
         self._lap_tick = 0
+        self._committed = None
 
     def deform_waypoint(
         self,
@@ -356,7 +403,7 @@ class SignRouter:
         # selection rather than after it.
         self._ingest_observations(observations, robot_pos)
 
-        candidates = self._active_sign_candidates(robot_pos, robot_yaw, corridor)
+        candidates = self._prefer_committed(self._active_sign_candidates(robot_pos, robot_yaw, corridor))
 
         # Walk candidates nearest-first and use the first whose deformation is
         # actually applicable, rather than giving up entirely if the closest one
@@ -397,8 +444,12 @@ class SignRouter:
                 break
         else:
             # No candidate produced an applicable deformation.
+            self._committed = None
             return waypoint
 
+        # Stay with this sign until it is genuinely cleared, rather than
+        # re-running the nearest-wins race from scratch next tick.
+        self._committed = nearest_idx
         sign = self._signs[nearest_idx]
         color = sign.color
 
@@ -458,6 +509,41 @@ class SignRouter:
             )
 
         return deformed
+
+    def _prefer_committed(self, candidates: list[tuple[int, float]]) -> list[tuple[int, float]]:
+        """Keep routing around the sign already being routed around.
+
+        ``_active_sign_candidates`` re-runs a pure nearest-wins race every tick
+        with no memory of the previous one. Where two signs are both in play —
+        common, since the WRO grid puts them 0.50 m apart along a corridor and
+        the corridor is only 1.0 m wide — the winner can flip while the chassis
+        is already committed, and the commanded lateral line jumps from one
+        sign's required value to the other's in a single tick. Both lines are
+        legal; the damage is switching between them with no runway left to
+        track the new one. Measured over the 256-scenario corpus, 28 of 229
+        collisions had the winner change during the fatal approach.
+
+        So a sign that is still an applicable candidate holds its claim. This
+        is deliberately hysteresis on SELECTION only — the deformation math and
+        the pass-side rule are untouched, which is what the two clearance-bound
+        attempts got wrong (see the investigation doc).
+
+        The claim is dropped as soon as it stops being reachable: when the sign
+        retires (``_passed``), falls behind the chassis, leaves
+        ``activation_dist``, or yields no applicable deformation. Without the
+        distance test a receding sign could hold the claim from beyond its own
+        activation range and mask the one coming up — the same masking bug
+        already fixed once in the nearest-wins ordering.
+        """
+        if not self._config.commit_hysteresis or self._committed is None:
+            return candidates
+        for entry in candidates:
+            if entry[0] == self._committed:
+                if entry[1] > self._config.activation_dist:
+                    break
+                return [entry, *(c for c in candidates if c[0] != self._committed)]
+        self._committed = None
+        return candidates
 
     def _active_sign_candidates(
         self,

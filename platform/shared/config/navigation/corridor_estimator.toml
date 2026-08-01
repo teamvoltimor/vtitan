@@ -1,0 +1,11 @@
+# Blind corridor-width estimation parameters.
+#
+# See shared.config.navigation_tuning.CorridorEstimatorParams.
+
+# Width readings a corridor must accumulate before its estimate is trusted.
+#
+# Readings are attributed to a corridor by heading, so a handful taken while
+# the chassis is still swinging through a corner can land in the wrong one.
+# Requiring a dozen costs about half a second at the 20 Hz control loop and
+# makes a single mis-filed sweep unable to move the answer.
+min_samples = 12

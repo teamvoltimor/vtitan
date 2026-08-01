@@ -51,11 +51,16 @@ from src.simulation.track_model import ContactSurface, TrackModel, obstacles_fro
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-START_COLLISION_WINDOW_S = 2.0
-"""A collision streak beginning within this long of run start is judged as a
-starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake."""
+_SIM_TUNING = NavigationTuning.load_default().simulation
 
-START_COLLISION_GRACE_S = 15.0
+START_COLLISION_WINDOW_S = _SIM_TUNING.START_COLLISION_WINDOW_S
+"""A collision streak beginning within this long of run start is judged as a
+starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake.
+
+Read from simulation.toml: this decides whether a legal start already touching
+a wall is scored as a crash, which is too consequential to sit as a literal."""
+
+START_COLLISION_GRACE_S = _SIM_TUNING.START_COLLISION_GRACE_S
 """How long a starting-position collision streak may continue before it's a real failure."""
 
 TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
@@ -312,6 +317,7 @@ class ScenarioSimulator:
         lidar_hz: float = LIDAR_SCAN_HZ,
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
         wall_heading: bool = True,
+        park: bool = True,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -442,8 +448,15 @@ class ScenarioSimulator:
                 discovery_config=nav_tuning.sign_discovery,
             )
 
+        # ``park=False`` runs an Obstacles scenario as laps-only: the signs, the
+        # parking blocks and their collision geometry all stay on the mat, but
+        # no parking maneuver is attempted and the run is scored purely on
+        # completing its laps without a collision. Sign avoidance is the open
+        # problem and parking is a separate one downstream of it; with the
+        # controller engaged, a run that drove three clean laps still ends in a
+        # ParkController give-up, which buries the signal being measured.
         self._park_controller: ParkController | None = None
-        if not is_open_challenge:
+        if not is_open_challenge and park:
             self._park_controller = park_controller_from_metadata(
                 metadata.model_dump(), start.section, start.direction, tuning=nav_tuning,
             )

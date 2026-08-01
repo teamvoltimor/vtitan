@@ -57,6 +57,121 @@ knob rather than a disconnected one. **That diagnosis was right.**
    matches sighted exactly" below. Regression-gated against the 28 blind Open
    Challenge fixtures: 27/28 pass, 0 collisions, unchanged.
 
+### The corpus, and how to reproduce any of this
+
+```
+task gen:corpus CHALLENGE=obstacles              # 256 scenarios, seed 2026
+python scripts/diag_sign_sweep.py <mode> --corpus
+python scripts/diag_sign_pairs.py --corpus --quiet
+```
+
+Lands in `platform/robot/.corpus/` — gitignored, regenerated, byte-identical
+from the same generator and seed. `CORPUS_SIZE`/`CORPUS_SEED`/`CORPUS_DIR` are
+Taskfile vars.
+
+**Aggregates may be quoted from the committed 16. Attributions may not.** The
+16 gave the right overall rate but two wrong diagnoses (below). Anything of the
+form "X causes Y" needs the corpus.
+
+**Measurement hazard, hit twice in one session.** Do not edit navigation code
+while a sweep is running: `ProcessPoolExecutor` workers are already warm and
+you get a mix of old and new code with no error. Put both arms of a comparison
+in ONE invocation — that is what `SweepConfig.commit_hysteresis` and the
+`hysteresis` mode exist for, rather than editing between two runs.
+
+### Baseline at 256
+
+| Metric | value |
+|---|---|
+| collisions | 229/256 |
+| two signs in play at the fatal approach | 37/229 (16%) |
+| ...of which the winner CHANGED mid-approach | **28** |
+| collisions on an already-clear line | 175/219 (80%) |
+
+### Re-measured over 200 scenarios (2026-08-01)
+
+Every figure in this document before this section was taken over the SAME 16
+committed fixtures. That is one small sample of a large space, so the headline
+was re-run against a 200-scenario corpus from the same Go generator:
+
+```
+go run ./cmd/simgen generate --challenge obstacles \
+    --num-scenarios 200 --seed 2026 --output-dir <dir>
+python scripts/diag_sign_sweep.py <mode> --scenarios-dir <dir>
+```
+
+Not committed — the 16 are the unit-test battery and have to stay fast; the
+corpus is reproducible from the generator and its seed. `scenario_catalog`
+takes a `fixtures_dir`, and `diag_sign_sweep.py` / `diag_sign_pairs.py` take
+`--scenarios-dir`.
+
+**The aggregate held.** The 16-fixture sample was not misleading about the
+overall rate:
+
+| Set | sighted | blind |
+|---|---|---|
+| 16 fixtures | 14/16 collisions (87.5%), 2/16 laps>=3 | 14/16, 2/16 |
+| **200 corpus** | **179/200 (89.5%), 21/200 laps>=3** | **178/200, 22/200** |
+
+Blind/sighted parity survives at scale, so the wide-prior fix is sound.
+
+**The driving is flawless; 100% of the failure is signs.** `diagnose` at 200:
+
+| Physical objects | Collisions | laps>=3 |
+|---|---|---|
+| signs + parking (default) | 179/200 | 21/200 |
+| **no signs, parking physical** | **0/200** | **200/200** |
+| nothing physical | 0/200 | 200/200 |
+
+**The router works, and is worth about 10%.** With it off, every single
+scenario fails:
+
+| Configuration | Collisions | laps>=3 |
+|---|---|---|
+| physical signs, router **off** | **200/200** | **0/200** |
+| physical signs, router on | 179/200 | 21/200 |
+
+#### Where the corpus changed the ANSWER, not just the denominator
+
+Two attributions taken from the 16 were wrong. The aggregate generalised; the
+diagnoses did not.
+
+* **Two signs bracketing a gap is NOT rare.** Reported from the mat, and
+  dismissed here off the 16 as "13 of 14 collisions have one sign in play".
+  Over 200 (`diag_sign_pairs.py`): **31 of 179 collisions (17%) involve two
+  signs**, 24 of them with the nearest-wins winner CHANGING mid-approach —
+  roughly triple the rate the small sample implied. Statically the
+  configuration is everywhere: 147/200 scenarios (74%) have two signs within
+  `activation_dist`. The small-sample undercount was an artefact of runs dying
+  early (typically step 100-600 of 3000), so the robot rarely reaches a point
+  where two are simultaneously in play — not evidence the layouts lack it.
+* **82% of collisions happen on an already-clear line.** 141 of 173, against
+  86% on the 16. The router is putting an already-safe robot back into
+  contention far more often than it is rescuing an unsafe one.
+
+#### Tried and reverted (again): clearance as a bound
+
+The 82% figure suggests treating `lateral_offset` as a MINIMUM rather than a
+target line — `min`/`max` against the required value instead of assignment, so
+a target already clear is left alone while a wrong-side one is still moved all
+the way across. Two anchorings, both dead:
+
+* **Anchored on the waypoint.** Byte-identical at 200 (179/200, 21 laps), and
+  provably so: the planned path runs down the corridor centre, and across all
+  **1009 sign passes in the corpus that centreline sits at exactly 0.100 m from
+  every sign** against a 0.280 m requirement — `already clear on path = 0/1009`.
+  The bound can never bind. It is dead code, not a weak effect.
+* **Anchored on the robot.** This one *would* bind — the robot is usually off
+  the centreline, because a previous sign's deformation put it there — but it
+  broke 36 tests, the whole `TestPassSideRule` matrix, since a robot
+  approaching from the wrong side stops being moved across.
+
+That 0.100 m figure is the useful residue: **on the planned path there is never
+a straight line through**. The "just go straight" option only exists because
+the *previous* deformation moved the robot off-centre. Any fix here has to
+reason about the robot's actual line without losing the wrong-side guarantee,
+which is what the robot-anchored attempt failed to do.
+
 ### The 14/16 plateau is NOT the wall clamp
 
 The section below predicted a second ceiling at `_WALL_CLEARANCE` (0.220).
@@ -239,16 +354,46 @@ to have a disconnected knob behind them.
 
 ### Next
 
-1. **Find what holds the remaining 14** — now the same question in both
-   regimes, since blind and sighted agree fixture-for-fixture. It is not the
-   escape layer (split lands), not the wall clamp (swept flat-to-worse), not
-   the tracker (16/16 clean without signs), not offset magnitude (plateaued
-   from 0.24) and no longer the layout prior. `diag_sign_trace.py` on one of
-   the 14 is the tool; the counting harnesses are exhausted on this question.
-2. **Re-sweep lookahead, arc radius and speed.** Every one of those numbers was
+0. **Run everything against the 200-scenario corpus, not the 16.** Two
+   attributions taken off the 16 were wrong (see above) while the aggregate was
+   fine, so the rule is: aggregates may be quoted from the 16, *attributions*
+   may not.
+
+1. **The two-sign winner switch — IN PROGRESS, UNMEASURED.** 28 of 229
+   collisions at 256. `SignRouter` re-ran a pure nearest-wins race every tick
+   with no memory, so with two signs in play the commanded lateral line could
+   jump from one sign's required value to the other's while the chassis was
+   already committed. Both lines are legal; the damage is switching between
+   them with no runway left to track the new one.
+
+   `SignRouter._prefer_committed` (behind `COMMIT_HYSTERESIS`, default on) now
+   holds the engaged sign until it is genuinely cleared — retired, behind the
+   chassis, beyond `activation_dist`, or yielding no applicable deformation.
+   That last guard matters: without it a receding sign holds its claim from out
+   of range and masks the one coming up, which is the same masking bug the
+   nearest-wins ordering already had to fix once.
+
+   Selection-only hysteresis, deliberately: the deformation math and the
+   pass-side rule are untouched, which is what sank both clearance-bound
+   attempts. All 105 `test_sign_router.py` tests pass.
+
+   **Not yet measured.** Run `diag_sign_sweep.py hysteresis --corpus` (all four
+   arms — off/on x sighted/blind — in one invocation) and
+   `diag_sign_pairs.py --corpus --quiet` to confirm the switch count actually
+   drops rather than reading the aggregate alone. If the aggregate is flat but
+   switches fall to ~0, the mechanism is fixed and something else dominates
+   those 28; if switches do not fall, the hysteresis is not binding and the
+   claim-drop conditions are the place to look.
+
+2. **Find what holds the other 148.** Not the escape layer (split lands), not
+   the wall clamp (swept flat-to-worse), not the tracker (200/200 clean without
+   signs), not offset magnitude (plateaued from 0.24), not the layout prior,
+   and not the "already clear" line (both anchorings dead). `diag_sign_trace.py`
+   on one of them is the tool; the counting harnesses are exhausted here.
+3. **Re-sweep lookahead, arc radius and speed.** Every one of those numbers was
    taken either in the masked regime or through a harness that raised before
    running. They are unmeasured, not flat.
-3. `ESCAPE_MASK_RADIUS_M` has not been swept — 0.12 is derived (sign
+4. `ESCAPE_MASK_RADIUS_M` has not been swept — 0.12 is derived (sign
    half-diagonal 0.035 + ~0.085 pose/mapping error), not tuned.
    `diag_sign_sweep.py mask-radius ...` exists for it.
 
@@ -1032,6 +1177,189 @@ claiming it for the mat; since 2026-08-01 the two no longer agree.
 `diag_sign_sweep.py diagnose` is the one to run first on any change — it
 separates "the tracker broke" from "sign avoidance failed", which no aggregate
 collision count can do.
+
+## Commit hysteresis — measured, DEFAULTED OFF (2026-08-01)
+
+Four arms over the 256-scenario corpus, one invocation
+(`diag_sign_sweep.py hysteresis --corpus`):
+
+| Configuration | Collisions | laps>=3 |
+|---|---|---|
+| sighted, hysteresis off | 229/256 | 27/256 |
+| sighted, hysteresis on | 229/256 | 27/256 |
+| blind, hysteresis off | 227/256 | **29/256** |
+| blind, hysteresis on | 228/256 | 28/256 |
+
+Flat sighted, marginally worse blind. `COMMIT_HYSTERESIS` now defaults to
+`false` in `sign_router.toml` and `SignRouterParams`; `_prefer_committed` and
+the `hysteresis` sweep arm stay so it can be re-tested once the dominant
+failure is understood. The winner-switch case it targets is real — 28 corpus
+approaches switch mid-approach — it is simply not what decides those runs.
+
+The probe that was supposed to confirm the mechanism fired was itself wrong,
+for the third time in this investigation. `diag_sign_pairs.py` wrapped
+`_active_sign_candidates`, which runs *before* `_prefer_committed` reorders,
+so it measured the raw nearest-wins race and was blind to hysteresis by
+construction — it reported an unchanged switch count for a change that was
+working exactly as written. It now reads `router._committed`, the sign
+`deform_waypoint` actually selected, and takes `--hysteresis on|off` so both
+arms come from one harness.
+
+## Parking is not in the way (2026-08-01)
+
+`ScenarioSimulator(..., park=False)` skips the parking maneuver while leaving
+the blocks on the mat and collidable; `diag_sign_sweep.py no-park --corpus`
+runs it against the parking arm. Parking changes **nothing**:
+
+| Arm | Collisions | laps>=3 |
+|---|---|---|
+| laps only, sighted | 229/256 | 27/256 |
+| with parking, sighted | 229/256 | 27/256 |
+| laps only, blind | 228/256 | 28/256 |
+| with parking, blind | 228/256 | 28/256 |
+
+Every collision happens during the laps, before parking would engage. So
+deferring parking until sign avoidance works costs no information, and a clean
+three-lap run now reads as one instead of ending in a `ParkController` give-up.
+The switch was verified live (controller present vs `None`) rather than
+inferred from the identical aggregates — identical numbers are the signature of
+an inert knob here, and twice they have been exactly that.
+
+**Baseline to beat: 27/256 sighted, 28/256 blind (~10.6%) complete three laps.**
+
+## The corner dead zone — root cause found (2026-08-01)
+
+`diag_sign_trace.py` on two failing scenarios shows **two distinct** failure
+modes, not one.
+
+**Mode A — deformation active but geometrically insufficient** (fixture 5, red
+sign at (1.00, 2.60) on the north outer division line):
+
+```
+t=115 pos=(0.832,2.528) raw=(1.243,2.550) def=(1.243,2.780) DEFORM sign=0 steer=-0.035
+collided=True laps=0
+```
+
+The router engages the right sign, picks the right side, and holds it. But the
+target is wall-clamped: it wants `sign_y + 0.280 = 2.880` and `_WALL_CLEARANCE`
+caps it at `3.0 - 0.220 = 2.7797`, leaving 0.1797 m to the sign where a yawed
+chassis needs 0.2053 (half-diagonal 0.1803 + half-sign 0.025). **The commanded
+line is 25.6 mm short before the robot even tries to follow it** — and it never
+arrives anyway: impact at y=2.528 is 0.25 m short of the target, because pure
+pursuit closes cross-track error over distance and the chassis draws abreast of
+the sign first. Impact is 0.183 m from sign centre at 33° of yaw: a corner
+strike.
+
+The geometry underneath: an outer-line sign leaves 0.40 m to the outer wall. A
+yawed chassis needs 0.3856 m of that plus wall margin (0.4256 total) and does
+not fit; **aligned it needs 0.225 m and fits easily.** These passes are only
+feasible square to the corridor, and two-thirds of WRO signs sit at corner
+positions.
+
+**Mode B — no deformation at all** (corpus scenario 1, red sign at (1.00,
+0.60), the one that explains the activation cliff):
+
+```
+t=299 pos=(1.175,0.497) raw=(0.728,0.484) def=(0.728,0.484) sign=None
+collided=True laps=0
+```
+
+`def == raw`, `sign=None`, 0.203 m from the sign. The waypoint has reached
+x=0.728 but the south corridor's straight segment is x in [1.0, 2.0], so
+`_is_squarely_in_corridor` rejects it, every candidate falls through
+`deform_waypoint`'s loop, and the waypoint returns untouched. Signs at grid
+depth 1.0 and 2.0 sit *on* the corner boundary, so the lookahead target crosses
+into the corner during the final approach and **avoidance switches itself
+off** — exactly what `_DEFORM_DEPTH_BUFFER`'s own comment predicts.
+
+## Tuning measured against the corpus (2026-08-01)
+
+All figures are 256 scenarios, laps-only scoring (`park=False` changes nothing).
+
+| Configuration | Collisions | laps>=3 |
+|---|---|---|
+| baseline (act 0.80, buffer 0.30) | 229 | 27 |
+| act 1.00 | 216 | 40 |
+| **act 1.00 + buffer 0.50** | **209** | **47** |
+
+Activation distance, at buffer 0.30: 0.80 -> 229/27, 0.90 -> 225/31,
+**1.00 -> 216/40**, 1.10 -> 217/39, 1.20 -> 217/39, then a *total* collapse at
+1.30/1.40/1.70 -> 256 collisions, 0 laps. The collapse is Mode B: all 39
+survivors flip to lap-0 sign collisions.
+
+Corner buffer, at act 1.00: 0.30 -> 216/40, **0.50 -> 209/47**, 0.70 -> 218/38,
+0.90 -> 218/38.
+
+Wall clearance, at act 1.00: 0.185 -> 221 (**16 wall**, 205 sign)/35,
+0.200 -> 214/42, 0.220 -> 217/39. Lowering it relocates the crash onto walls;
+read the wall/sign split, never the total.
+
+**Noise floor:** `wall 0.220 @ act 1.00` gives 217/39 while the untouched
+default (0.22027756) gives 216/40 — a **0.28 mm** change flips a scenario. Treat
+differences of 1-3 runs as noise. The activation and buffer gains are well
+outside it; the wall-clearance gain is not.
+
+## The retirement bug — the real cliff (2026-08-01, FIXED)
+
+The 256/256 collapse at ``activation_dist >= 1.30`` is **not** the corner dead
+zone. That was my diagnosis from one trace and it was wrong: widening the
+buffer to 0.50 left 1.30 at 256/0, which the dead-zone story cannot explain.
+
+Instrumenting the router at the moment of impact:
+
+```
+final corridor south   candidates []
+_engaged {2, 3, 4}   _passed {2, 4}
+```
+
+Sign 2 — the sign being hit — was already retired. ``_active_sign_candidates``
+does this, in this order, on one tick:
+
+```python
+if settled and d < self._config.activation_dist:
+    self._engaged.add(i)
+if d > self._config.passed_dist:
+    if settled and i in self._engaged:
+        self._passed.add(i)
+    continue
+```
+
+With ``activation_dist >= passed_dist`` every sign entering the activation
+radius is engaged and marked passed in the same breath, a metre out, and stays
+retired for the whole run. Nothing logs, nothing raises; avoidance simply stops
+existing. The shipped ``passed_dist`` is 1.20, which is exactly where the cliff
+sits.
+
+Proof by construction: at ``activation 1.30`` the old pairing gives 256
+collisions / 0 laps; moving ``passed`` to 1.50 gives 210 / 46. Same activation
+distance, one coupled threshold.
+
+**Fixed** by ``SignRouterConfig.__post_init__``, which raises rather than
+clamps — silently repairing the config would hide that the tuning being run is
+not the tuning that was asked for. Pinned by ``TestActivationPassedOrdering``.
+This is the same defect ``settle_ticks`` guards from the other direction.
+
+## Tuning peak, thresholds moved together (2026-08-01)
+
+Buffer 0.50 throughout, ``passed = activation + 0.20``:
+
+| activation / passed | Collisions | laps>=3 |
+|---|---|---|
+| 1.00 / 1.20 | 209 | 47 |
+| 1.30 / 1.50 | 210 | 46 |
+| 1.40 / 1.60 | 209 | 47 |
+| **1.60 / 1.80** | **205** | **51** |
+| 1.80 / 2.00 | 224 | 32 |
+| 2.00 / 2.20 | 218 | 38 |
+
+**Best measured: 205 collisions, 51/256 three-lap finishes — 27 -> 51, 10.5% ->
+19.9%.** The peak is not broad: 1.80 costs 19 runs against 1.60. 1.40 holds 47
+with twice the margin to that edge, which is the safer pick for hardware where
+pose error moves the effective distance.
+
+Still unadopted — every default is untouched. And still four failures in five:
+this is tuning, not a geometric fix. Mode A (wall-clamped, 25.6 mm short of the
+clearance a yawed chassis needs) is untouched by any of it.
 
 ## Open questions
 

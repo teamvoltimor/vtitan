@@ -74,6 +74,33 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 		sc = g.strategy.StartingConditions(corridorWidths)
 		signs, parking = g.resolveObstacles(corridorWidths, sc.Section)
 
+		// Resolve the zone before validating, for both challenges, so that
+		// checkRobotSpawnClearance runs against the pose the robot ACTUALLY
+		// starts from. The Open Challenge zone used to be drawn after the loop
+		// and then written over the spawn, leaving the validated position and
+		// the emitted one unrelated.
+		//
+		// Obstacles Challenge starts at the parking bay, not at a point along
+		// the starting section: the official round begins with the robot in
+		// the lot and requires it to pull out before running laps. The bay is
+		// a parallel-park slot ParkingSpacingFactor x RobotLength long (0.45 m
+		// for a 0.30 m chassis), and the robot cannot yet start boxed between
+		// the two blocks -- so it spawns alongside the bay instead: same
+		// along-travel midpoint, offset out to the corridor centreline,
+		// already parallel to the outer wall. zoneFromParking computes exactly
+		// that pose, and the spawn is its centre.
+		//
+		// Open Challenge instead keeps the spawn RandomizeStartingConditions
+		// already derived from the drawn cell, which sits inside the painted
+		// rectangle but not at its centre (see StartingZoneSpawnOffsets).
+		//
+		// Neither branch consumes RNG, so resolving them inside the retry loop
+		// leaves the seeded sequence untouched.
+		sc.Zone = GenerateStartingZone(sc.Section, corridorWidths[sc.Section].Width, sc.StartCell, parking)
+		if parking != nil {
+			sc.Position = simconfig.Vec2{sc.Zone.X, sc.Zone.Y}
+		}
+
 		ctx := validate.WorldContext{
 			CorridorWidths:     corridorWidths,
 			Signs:              signs,
@@ -102,14 +129,6 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 		)
 	}
 
-	// Generate starting zone (after validation, so parking is confirmed valid)
-	var parkingPtr *simconfig.ParkingConfig
-	if parking != nil {
-		parkingPtr = parking
-	}
-	zone := g.randomizer.GenerateStartingZone(sc.Section, corridorWidths[sc.Section].Width, parkingPtr)
-	sc.Zone = zone
-
 	// Adjust signs that would collide with parking blocks
 	if parking != nil {
 		signs = adjustSignsForParking(signs, sc.Section)
@@ -133,7 +152,7 @@ func (g *ScenarioGenerator) CreateScenario(idx int) (worldPath string, meta Meta
 		return "", Metadata{}, err
 	}
 
-	meta = BuildMetadata(idx, g.challengeType, corridorWidths, sc, signs, parkingPtr, g.seed)
+	meta = BuildMetadata(idx, g.challengeType, corridorWidths, sc, signs, parking, g.seed)
 	if err := g.saveMetadata(meta, idx); err != nil {
 		return "", Metadata{}, err
 	}

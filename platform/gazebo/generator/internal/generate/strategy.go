@@ -63,15 +63,22 @@ func (DeterministicDefaults) Lighting() simconfig.LightingConfig {
 	}
 }
 
+// StartingConditions returns the fixed South/clockwise start, spawning from the
+// starting cell hard against the outer wall. It uses a real cell rather than a
+// hardcoded pose so the non-randomized path and the randomized one agree on
+// what a legal start is.
 func (DeterministicDefaults) StartingConditions(
-	_ map[simconfig.Section]simconfig.CorridorWidth,
+	w map[simconfig.Section]simconfig.CorridorWidth,
 ) simconfig.StartingConditions {
+	section := simconfig.SectionSouth
+	cells := StartCells(section, w[section].Width)
 	return simconfig.StartingConditions{
 		Direction:   simconfig.DirectionClockwise,
-		Section:     simconfig.SectionSouth,
-		SectionName: simconfig.SectionSouth.Capitalized(),
-		Position:    simconfig.Vec2{simconfig.DefaultSpawnX, simconfig.DefaultSpawnY},
+		Section:     section,
+		SectionName: section.Capitalized(),
+		Position:    cells[0].Spawn,
 		Yaw:         math.Pi,
+		StartCell:   0,
 	}
 }
 

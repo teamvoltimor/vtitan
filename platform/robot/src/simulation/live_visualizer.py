@@ -23,7 +23,14 @@ from geometry_msgs.msg import Point, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-from shared.config.constants import ColorNames, ParkingLotSpecs, RobotSpecs, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import (
+    ColorNames,
+    ParkingLotSpecs,
+    RobotSpecs,
+    TrackDimensions,
+    TrafficSignSpecs,
+    WallSpecs,
+)
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -34,7 +41,7 @@ if TYPE_CHECKING:
 
 _MAP_FRAME = "map"
 _ROBOT_FRAME = "base_link"
-_WALL_THICKNESS_M = 0.10
+_WALL_THICKNESS_M = WallSpecs.THICKNESS
 
 
 def _yaw_to_quaternion(yaw: float) -> Quaternion:

@@ -43,6 +43,7 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from shared.config.navigation_tuning import NavigationTuning
 from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
 from shared.domain.models import SignColor, TrafficSignObservation
 
@@ -55,11 +56,11 @@ logger = logging.getLogger(__name__)
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
 # Bounding boxes shorter than this (px) are too degenerate for a reliable
-# pinhole distance estimate. Same concept/value as
-# NavigationTuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX -- not threaded
-# through since _detection_to_world (this constant's only use) is a free
-# function, not a method on an instance that could hold injected tuning.
-_MIN_RELIABLE_BBOX_HEIGHT_PX: int = 5
+# pinhole distance estimate. Read from sign_discovery.toml rather than restated:
+# a free function has no instance to inject tuning into, but a duplicated
+# literal is still a second source of truth that drifts silently.
+_DISCOVERY_TUNING = NavigationTuning.load_default().sign_discovery
+_MIN_RELIABLE_BBOX_HEIGHT_PX: int = _DISCOVERY_TUNING.MIN_RELIABLE_BBOX_HEIGHT_PX
 
 
 @dataclass(frozen=True)
@@ -137,14 +138,17 @@ def _detection_to_world(
     wy = robot_pos[1] + distance * math.sin(bearing)
     return wx, wy
 
-_MAX_INGEST_RANGE: float = 2.0
+_MAX_INGEST_RANGE: float = _DISCOVERY_TUNING.MAX_INGEST_RANGE_M
 """Ignore observations further than this (m) — see the module docstring.
 
-Well clear of the router's 0.80 m ``activation_dist``, so a sign is discovered
-with over a metre of runway left to steer around it.
+Must stay clear of the router's ``activation_dist`` so a sign is discovered
+with runway left to steer around it. That margin is thinner than it was: this
+docstring cited 0.80 m activation, but the router was retuned to 1.40 m on
+2026-08-01, cutting the gap from 1.2 m to 0.6 m. Raise this if activation rises
+again -- a sign discovered later than it is engaged cannot be routed around.
 """
 
-_ASSOCIATION_DIST: float = 0.25
+_ASSOCIATION_DIST: float = _DISCOVERY_TUNING.ASSOCIATION_DIST_M
 """Two observations within this distance (m) are the same sign.
 
 Bounded above by the WRO sign grid's own spacing: signs sit 0.50 m apart along
@@ -153,7 +157,7 @@ would merge a red and a green sign into one track and average them into the
 gap between the lanes.
 """
 
-_MIN_HITS: int = 3
+_MIN_HITS: int = _DISCOVERY_TUNING.MIN_HITS
 """Observations before a track is published as a real sign.
 
 A single frame is enough for a false positive; requiring agreement across

@@ -22,11 +22,17 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.ports import DriveCommand
 from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap
 
-TURN_CLEARANCE_M = 0.60
+# One load, reused by the module-level constants below. These feed free
+# functions with no instance to inject tuning into, but that is not a reason to
+# restate a configured number -- see corridor_follower.toml.
+_FOLLOWER = NavigationTuning.load_default().corridor_follower
+
+TURN_CLEARANCE_M = _FOLLOWER.TURN_CLEARANCE_M
 """Forward clearance at which to start turning the corner.
 
 Strictly below :data:`~src.navigation.direction_estimator.CORNER_CLEARANCE_M`,
@@ -34,13 +40,16 @@ and the gap matters. Turning swings the heading past the direction estimator's
 alignment gate, so beginning the turn as soon as the corner is detectable
 rotates the robot straight through the only window in which it can read which
 side is open. Hold the line for that window first, then turn.
+
+``NavigationTuning`` enforces that ordering at load time, so the two can no
+longer be edited into agreement by accident.
 """
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_CENTERING_GAIN = 0.8
-_MAX_CENTERING_STEER = 0.25
+_CENTERING_GAIN = _FOLLOWER.CENTERING_GAIN
+_MAX_CENTERING_STEER = _FOLLOWER.MAX_CENTERING_STEER
 """Steering per metre of lateral offset, and a hard cap on the result.
 
 Both are deliberately timid. The chassis is counter-phase four-wheel steering
@@ -54,7 +63,7 @@ fixtures their direction and put 9 into a wall.
 Sitting off-centre for one metre costs nothing. Oscillating costs the round.
 """
 
-_CORNER_SPEED_SCALE = 0.6
+_CORNER_SPEED_SCALE = _FOLLOWER.CORNER_SPEED_SCALE
 """Fraction of creep speed while turning a corner blind. Slower than straight
 running, because the turn is committed on one comparison rather than a plan."""
 
@@ -80,7 +89,7 @@ than this the robot is boxed at both ends and holding still is genuinely all
 that is left.
 """
 
-_REVERSE_SPEED_SCALE = 0.6
+_REVERSE_SPEED_SCALE = _FOLLOWER.REVERSE_SPEED_SCALE
 """Fraction of creep speed to back off at.
 
 Reverse is for realigning the nose over a few centimetres, not for travelling.

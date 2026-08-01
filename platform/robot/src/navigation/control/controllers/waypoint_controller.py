@@ -8,12 +8,14 @@ Reference: https://www.ri.cmu.edu/pub_files/pub3/coulter_1992_1.pdf
 
 from __future__ import annotations
 
+from shared.config.navigation_tuning import NavigationTuning
+
 import logging
 import math
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONTROL_DT_S: float = 0.05
+_DEFAULT_CONTROL_DT_S: float = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
 """Control-loop tick interval, matching the 20 Hz loop assumed throughout
 navigation tuning (see e.g. ``EscapeManeuverParams.STUCK_TIMEOUT_FRAMES``)."""
 

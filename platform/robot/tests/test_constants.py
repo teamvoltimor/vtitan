@@ -6,7 +6,23 @@ import math
 from pathlib import Path
 
 import numpy as np
-from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.constants import (
+    CorridorDimensions,
+    ParkingLotSpecs,
+    RobotSpecs,
+    TrackDimensions,
+    TrafficSignSpecs,
+)
+from shared.config.navigation_tuning import NavigationTuning
+from shared.config.starting_zone import STARTING_ZONE_LAYOUT
+
+# Geometry and tuning below are read from the checked-in configuration rather
+# than restated. A test constant that repeats a configured value is a second
+# source of truth that drifts silently: it keeps passing while describing a
+# robot or a mat that no longer exists. Values that are genuinely test
+# *fixtures* -- chosen to make an assertion read cleanly, not to mirror
+# reality -- stay literal and say so.
+_TUNING = NavigationTuning.load_default()
 
 # LIDAR Geometry
 NUM_RAYS = 360
@@ -29,48 +45,68 @@ MIN_REAR_CLEARANCE = 5.0  # m
 MAX_THREAT_DISTANCE = 0.3  # m
 
 # Corridor Geometry
-CORRIDOR_DEPTH_MIDPOINT = 1.5  # m — center of 3m track depth
-CORRIDOR_DEPTH_MIN = 1.0  # m
-CORRIDOR_DEPTH_MAX = 2.0  # m
-CORRIDOR_WIDTH_QUARTER_NORTH = 0.4  # m
-CORRIDOR_WIDTH_QUARTER_SOUTH = 0.6  # m
+CORRIDOR_DEPTH_MIDPOINT = TrackDimensions.CENTER_COORD  # m — center of track depth
+CORRIDOR_DEPTH_MIN = TrackDimensions.CORNER_MIN  # m
+CORRIDOR_DEPTH_MAX = TrackDimensions.CORNER_MAX  # m
+# The two division lines painted across every corridor, out from the outer wall.
+CORRIDOR_WIDTH_QUARTER_NORTH = CorridorDimensions.DIVISION_OUTER  # m
+CORRIDOR_WIDTH_QUARTER_SOUTH = CorridorDimensions.DIVISION_INNER  # m
 
-# Track geometry positions (from TrackDimensions)
-TRACK_CENTER_X = 1.5  # m
-TRACK_CENTER_Y = 1.5  # m
-TRACK_CORNER_SOUTH = 0.4
-TRACK_CORNER_NORTH = 2.6
-TRACK_CORNER_EAST = 2.6
-TRACK_CORNER_WEST = 0.4
+# Track geometry positions
+TRACK_CENTER_X = TrackDimensions.CENTER_COORD  # m
+TRACK_CENTER_Y = TrackDimensions.CENTER_COORD  # m
+# One outer-division line in from each wall.
+TRACK_CORNER_SOUTH = CorridorDimensions.DIVISION_OUTER
+TRACK_CORNER_NORTH = TrackDimensions.MAX_COORD - CorridorDimensions.DIVISION_OUTER
+TRACK_CORNER_EAST = TrackDimensions.MAX_COORD - CorridorDimensions.DIVISION_OUTER
+TRACK_CORNER_WEST = CorridorDimensions.DIVISION_OUTER
 
-# Inner block geometry (WRO standard)
-INNER_BLOCK_MIN = 1.0  # m
-INNER_BLOCK_MAX = 2.0  # m
+# Inner block geometry — the corner region bounds are the block's own extent.
+INNER_BLOCK_MIN = TrackDimensions.CORNER_MIN  # m
+INNER_BLOCK_MAX = TrackDimensions.CORNER_MAX  # m
 
 # Sign Router Test Config
-SIGN_LATERAL_OFFSET = 0.20  # m — RobotSpecs.WIDTH/2 + TrafficSignSpecs.WIDTH/2 + 0.075m margin
-SIGN_ACTIVATION_DIST = 0.80  # m
-SIGN_PASSED_DIST = 1.20  # m
+# A deliberate round FIXTURE value, injected into the router under test so the
+# deformation-direction assertions read cleanly. NOT the production offset:
+# that is _SIGN_LATERAL_OFFSET (0.2786 at the current chassis), derived from the
+# chassis half-DIAGONAL, and pinned separately by
+# TestLateralOffsetTracksChassis. This previously carried a comment claiming the
+# half-WIDTH derivation, which was superseded when the offset moved to the
+# diagonal — and which does not evaluate to 0.20 at the measured 0.194 m width
+# anyway. Read as "some offset", not "the offset".
+SIGN_LATERAL_OFFSET = 0.20  # m — fixture value only; see comment above
+SIGN_ACTIVATION_DIST = _TUNING.sign_router.ACTIVATION_DIST_M  # m
+SIGN_PASSED_DIST = _TUNING.sign_router.PASSED_DIST_M  # m
 
-# Sign position grid (WRO standard, 6 positions per corridor)
+# Sign position grid: every intersection of the three grid rows along the
+# corridor with the two division lines across it. Six per corridor, by
+# construction rather than by transcription.
 SIGN_GRID_POSITIONS: list[tuple[float, float]] = [
-    (1.0, 0.4),
-    (1.0, 0.6),
-    (1.5, 0.4),
-    (1.5, 0.6),
-    (2.0, 0.4),
-    (2.0, 0.6),
+    (depth, width)
+    for depth in (
+        TrafficSignSpecs.GRID_DEPTH_NEAR,
+        TrafficSignSpecs.GRID_DEPTH_MIDDLE,
+        TrafficSignSpecs.GRID_DEPTH_FAR,
+    )
+    for width in (TrafficSignSpecs.GRID_WIDTH_OUTER, TrafficSignSpecs.GRID_WIDTH_INNER)
 ]
 
 # Robot Specs
 ROBOT_CHASSIS_WIDTH = RobotSpecs.WIDTH  # m
 ROBOT_FOOTPRINT_RADIUS = ROBOT_CHASSIS_WIDTH / 2  # m
 
-# Start Positions
-START_POSITION_SOUTH = (1.5, 0.3)
-START_POSITION_NORTH = (1.5, 2.7)
-START_POSITION_EAST = (2.7, 1.5)
-START_POSITION_WEST = (0.3, 1.5)
+# Start Positions — the outer band's spawn offset, in from each wall, at the
+# track's midpoint along the corridor. Derived from the starting-zone layout so
+# a re-measured chassis moves these with it: the offset is the chassis pushed
+# flush against a band edge, not a round number.
+_START_OFFSET = STARTING_ZONE_LAYOUT.spawn_offsets[0]
+_START_MID = TrackDimensions.CENTER_COORD
+_START_FAR = TrackDimensions.MAX_COORD - _START_OFFSET
+
+START_POSITION_SOUTH = (_START_MID, _START_OFFSET)
+START_POSITION_NORTH = (_START_MID, _START_FAR)
+START_POSITION_EAST = (_START_FAR, _START_MID)
+START_POSITION_WEST = (_START_OFFSET, _START_MID)
 
 # Yaw angles (radians)
 YAW_NORTH = math.pi / 2
@@ -97,7 +133,7 @@ SCENARIO_ID_OBSTACLES = 1
 SCENARIO_ID_PARKING = 2
 
 # Simulation Track Model Tests
-TRACK_MODEL_CORRIDOR_WIDTH_WIDE = 1.0  # m — wide corridor in track model tests
+TRACK_MODEL_CORRIDOR_WIDTH_WIDE = CorridorDimensions.WIDE  # m
 
 # Collision detection distances
 COLLISION_TEST_NEAR_WALL = 0.05  # m — distance that triggers collision
@@ -176,9 +212,9 @@ SELF_DETECTION_RADIUS = 0.08  # m — chassis/cable reflection threshold
 SELF_DETECTION_NEAR = 0.05  # m — inside self-detection zone
 SELF_DETECTION_FAR = 0.15  # m — beyond self-detection (genuine wall)
 
-# Risk Assessment Distances (for speed control)
-CONTACT_DISTANCE = 0.10  # m — creep forward zone
-SLOW_ZONE_DISTANCE = 0.25  # m — slow speed zone
+# Risk Assessment Distances (for speed control) — the tuned clearance zones.
+CONTACT_DISTANCE = _TUNING.clearance.CONTACT_DIST  # m — creep forward zone
+SLOW_ZONE_DISTANCE = _TUNING.clearance.SLOW_DIST  # m — slow speed zone
 SLOW_ZONE_TEST = 0.20  # m — test slow zone boundary
 CONTACT_ZONE_TEST = 0.08  # m — test contact zone
 
@@ -208,28 +244,22 @@ META_WIDTH_MM = "width_mm"
 CORRIDOR_TYPE_WIDE = "wide"
 CORRIDOR_TYPE_NARROW = "narrow"
 
-# Sign Metadata
-META_SIGN_SECTION = "section"
+# Sign Metadata -- shared.domain.models.SignPosition: {x, y, color}
 META_SIGN_COLOR = "color"
-META_SIGN_DEPTH = "depth"
-META_SIGN_LANE = "lane"
 
-# WRO Corridor Widths (mm)
-CORRIDOR_WIDTH_WIDE_MM = 1000
-CORRIDOR_WIDTH_NARROW_MM = 600
+# WRO Corridor Widths (mm) — the metadata schema carries millimetres.
+CORRIDOR_WIDTH_WIDE_MM = round(CorridorDimensions.WIDE * 1000)
+CORRIDOR_WIDTH_NARROW_MM = round(CorridorDimensions.NARROW * 1000)
 
-# Parking Metadata
-META_PARKING_BLOCKS = "blocks"
-META_PARKING_ZONE_START = "zone_start"
-META_PARKING_ZONE_END = "zone_end"
+# Parking Metadata -- shared.domain.models.ParkingLot: {block1_position, block2_position},
+# each a BlockPosition {x, y}. No zone_start/zone_end or per-block depth in this schema.
+META_BLOCK1_POSITION = "block1_position"
+META_BLOCK2_POSITION = "block2_position"
 META_BLOCK_X = "x"
 META_BLOCK_Y = "y"
-META_BLOCK_DEPTH = "depth"
 
-# Parking Zone Boundaries
-PARKING_ZONE_START = 0.3  # m
-PARKING_ZONE_END = 0.7  # m
-PARKING_BLOCK_X = 0.1  # m — typical x position for parking blocks
+# Parking Block Positions
+PARKING_BLOCK_X = ParkingLotSpecs.WALL_OFFSET  # m — blocks stand this far off the wall
 PARKING_BLOCK_Y_MID = 0.5  # m
 PARKING_BLOCK_Y_OFFSET = 0.85  # m
 

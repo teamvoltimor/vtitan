@@ -3,10 +3,28 @@
 # See shared.config.navigation_tuning.SignRouterParams.
 
 sign_clearance_margin_m = 0.075   # extra margin beyond chassis+sign half-widths
-deform_depth_buffer_m = 0.3       # depth-axis slack for "in corridor" check
 wall_clearance_margin_m = 0.04    # margin beyond chassis half-diagonal from a wall
-activation_dist_m = 0.80          # distance at which deformation activates
-passed_dist_m = 1.20              # distance beyond which a sign is "passed"
+
+# Tuned 2026-08-01 against the 256-scenario corpus: 27 -> 47 three-lap finishes
+# (229 -> 209 collisions). Stock values were 0.80 / 1.20 / 0.3, none of them
+# ever measured against a corpus.
+#
+# activation_dist MUST stay below passed_dist -- SignRouterConfig enforces it.
+# A sign is engaged inside activation_dist and retired outside passed_dist on
+# the SAME tick, so inverting them engages and retires every sign a metre out
+# and disables avoidance for the whole run (256/256 collisions, silently).
+#
+# The pair is deliberately 1.40/1.60 rather than the measured peak 1.60/1.80
+# (51 finishes): 1.80 costs 19 runs against 1.60, and 1.40 keeps twice the
+# margin to that edge for hardware pose error.
+#
+# deform_depth_buffer is how far past the corner span a target may sit and
+# still be deformed. Too small and avoidance switches OFF during the final
+# approach to any sign at grid depth 1.0 or 2.0 -- i.e. at the corners, where
+# two-thirds of WRO signs sit. 0.70+ is worse again (38 finishes).
+activation_dist_m = 1.40          # distance at which deformation activates
+passed_dist_m = 1.60              # distance beyond which a sign is "passed"
+deform_depth_buffer_m = 0.5       # depth-axis slack for "in corridor" check
 detection_match_dist_m = 0.30     # max distance to associate a detection with a sign
 min_confidence = 0.25             # minimum confidence to accept a camera color update
 settle_ticks = 150                # ticks after lap start before bookkeeping activates
@@ -21,3 +39,19 @@ settle_ticks = 150                # ticks after lap start before bookkeeping act
 # remove a guard nothing else replaces. Set to 0.0 to disable the split.
 escape_mask_radius_m = 0.12
 
+
+# Once the router has engaged a sign, keep routing around THAT sign until it is
+# cleared, rather than re-running the nearest-wins race every tick. With two
+# signs in play -- the WRO grid spaces them 0.50 m apart along a 1.0 m corridor,
+# so this is common -- a pure per-tick race can flip the winner mid-approach and
+# jump the commanded lateral line from one sign's required value to the other's
+# with no runway left to track it. Set true to hold the committed sign.
+#
+# DEFAULT OFF, measured 2026-08-01 over the 256-scenario corpus: sighted 229
+# collisions either way, blind 227 off vs 228 on. Flat sighted and marginally
+# worse blind, so the mechanism is not earning its place in a safety path. The
+# code stays so the `hysteresis` sweep arm can re-test it once the dominant
+# failure is understood -- the winner-switch case it targets is real (28 of the
+# corpus approaches switch mid-approach) but is evidently not what decides
+# those runs.
+commit_hysteresis = false

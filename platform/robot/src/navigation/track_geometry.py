@@ -26,7 +26,7 @@ from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.config.enums import Section
 from shared.domain.models import CorridorGeometry, InnerBlock
 
-_TRACK_MIN = 0.0
+_TRACK_MIN = TrackDimensions.MIN_COORD
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
 
 

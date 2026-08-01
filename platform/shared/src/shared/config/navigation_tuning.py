@@ -197,6 +197,9 @@ class EscapeManeuverParams(BaseModel):
     STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(
         default=2, validation_alias=_alias("STUCK_ESCALATION_FRAMES_PER_ATTEMPT")
     )
+    MIN_HISTORY_FOR_DISTANCE: int = Field(
+        default=2, validation_alias=_alias("MIN_HISTORY_FOR_DISTANCE")
+    )  # Poses needed before StuckDetector can measure distance travelled
 
 
 class WaypointParams(BaseModel):
@@ -310,6 +313,12 @@ class SignRouterParams(BaseModel):
             color update for a sign.
         SETTLE_TICKS: Ticks after lap start before sign engage/pass
             bookkeeping activates (~7.5s @ 20Hz by default).
+        COMMIT_HYSTERESIS: Keep routing around the sign already engaged
+            instead of re-running the nearest-wins race every tick. Prevents
+            the commanded lateral line jumping between two legal values while
+            the chassis is committed. See SignRouter._prefer_committed.
+            Defaults OFF: measured flat sighted and marginally worse blind
+            (see the note in sign_router.toml).
         ESCAPE_MASK_RADIUS_M: How close a LIDAR return must land to a routed
             sign to be attributed to it and withheld from the reactive escape
             trigger. Zero disables the mapped/unmapped split entirely, which
@@ -320,14 +329,190 @@ class SignRouterParams(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     SIGN_CLEARANCE_MARGIN_M: float = Field(default=0.075, validation_alias=_alias("SIGN_CLEARANCE_MARGIN_M"))
-    DEFORM_DEPTH_BUFFER_M: float = Field(default=0.3, validation_alias=_alias("DEFORM_DEPTH_BUFFER_M"))
+    DEFORM_DEPTH_BUFFER_M: float = Field(default=0.5, validation_alias=_alias("DEFORM_DEPTH_BUFFER_M"))
     WALL_CLEARANCE_MARGIN_M: float = Field(default=0.04, validation_alias=_alias("WALL_CLEARANCE_MARGIN_M"))
-    ACTIVATION_DIST_M: float = Field(default=0.80, validation_alias=_alias("ACTIVATION_DIST_M"))
-    PASSED_DIST_M: float = Field(default=1.20, validation_alias=_alias("PASSED_DIST_M"))
+    ACTIVATION_DIST_M: float = Field(default=1.40, validation_alias=_alias("ACTIVATION_DIST_M"))
+    PASSED_DIST_M: float = Field(default=1.60, validation_alias=_alias("PASSED_DIST_M"))
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
+    COMMIT_HYSTERESIS: bool = Field(default=False, validation_alias=_alias("COMMIT_HYSTERESIS"))
+
+
+class CorridorEstimatorParams(BaseModel):
+    """Blind corridor-width estimation parameters.
+
+    Attributes:
+        MIN_SAMPLES: Width readings a corridor must accumulate before its
+            estimate is trusted. Readings are attributed to a corridor by
+            heading, so a handful taken while the chassis is still swinging
+            through a corner can land in the wrong one.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    MIN_SAMPLES: int = Field(default=12, validation_alias=_alias("MIN_SAMPLES"))
+
+
+class StateEstimatorParams(BaseModel):
+    """Odometry/IMU fusion parameters.
+
+    Attributes:
+        YAW_CORRECTION_GAIN: Fraction of the observed yaw discrepancy folded
+            into the estimate per update. Distinct from LocalizationParams,
+            which tunes the LIDAR pose *search*; this is the dead-reckoning
+            blend that runs whether or not localization is enabled.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    YAW_CORRECTION_GAIN: float = Field(default=0.05, validation_alias=_alias("YAW_CORRECTION_GAIN"))
+
+
+class SimulationParams(BaseModel):
+    """Knobs that exist only in the headless simulator.
+
+    These do not describe the robot or the mat, so they belong neither in
+    robot.toml nor track.toml -- but they decide what a simulated run scores,
+    which makes them exactly the kind of value that must not be a literal
+    buried in a module. The contact policy in particular governs whether a
+    legal start already touching a wall is a failure or a recoverable state.
+
+    Attributes:
+        START_COLLISION_WINDOW_S: Opening seconds during which contact is
+            treated as a start-position artefact rather than a crash, because
+            a legal starting cell may already sit against a wall.
+        START_COLLISION_GRACE_S: How long such an opening contact may persist
+            before it counts as a real failure.
+        LIDAR_INVALID_RAY_RATE: Fraction of rays returning no measurement.
+            A placeholder: the real rate depends on the mat's surface and is
+            worth measuring from a recorded bag rather than guessed at.
+        DETECTION_CONFIDENCE: Confidence stamped on emulated camera
+            detections.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    START_COLLISION_WINDOW_S: float = Field(
+        default=2.0, validation_alias=_alias("START_COLLISION_WINDOW_S")
+    )
+    START_COLLISION_GRACE_S: float = Field(
+        default=15.0, validation_alias=_alias("START_COLLISION_GRACE_S")
+    )
+    LIDAR_INVALID_RAY_RATE: float = Field(
+        default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE")
+    )
+    DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
+
+
+class CorridorFollowerParams(BaseModel):
+    """Blind corridor-following and corner-turn parameters.
+
+    Attributes:
+        TURN_CLEARANCE_M: Forward clearance (m) at which the corner turn
+            begins. Must stay strictly below
+            DirectionEstimatorParams.CORNER_CLEARANCE_M -- see the
+            cross-group check on NavigationTuning.
+        CENTERING_GAIN: Steering per metre of lateral offset from the
+            corridor centreline.
+        MAX_CENTERING_STEER: Hard cap on the steering that gain may
+            produce. Both are deliberately timid: the counter-phase
+            four-wheel chassis responds violently, and oscillation swings
+            the heading past the direction estimator's alignment gate,
+            which then refuses every reading.
+        CORNER_SPEED_SCALE: Fraction of creep speed while turning a corner
+            blind, which is committed on one comparison rather than a plan.
+        REVERSE_SPEED_SCALE: Fraction of creep speed while backing off.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    TURN_CLEARANCE_M: float = Field(default=0.60, validation_alias=_alias("TURN_CLEARANCE_M"))
+    CENTERING_GAIN: float = Field(default=0.8, validation_alias=_alias("CENTERING_GAIN"))
+    MAX_CENTERING_STEER: float = Field(default=0.25, validation_alias=_alias("MAX_CENTERING_STEER"))
+    CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
+    REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
+
+
+class ControlLoopParams(BaseModel):
+    """The rate the navigation control loop runs at.
+
+    One number, previously written twice: ``waypoint_controller`` carried
+    ``_DEFAULT_CONTROL_DT_S = 0.05`` and the simulation gateway carried
+    ``CONTROL_HZ = 20.0``. They agreed only because someone kept them agreeing.
+    The controller uses ``dt`` to rate-limit steering, so a divergence would not
+    fail -- it would quietly tune the real robot against a cadence the simulator
+    never ran at.
+
+    Attributes:
+        CONTROL_HZ: Control loop frequency (Hz). Derive periods from
+            ``NavigationTuning.control_dt_s`` rather than restating 0.05.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CONTROL_HZ: float = Field(default=20.0, validation_alias=_alias("CONTROL_HZ"))
+
+
+class WallHeadingParams(BaseModel):
+    """LIDAR wall-direction estimation for the blind heading reference.
+
+    Fits short segments across the LIDAR returns and takes their common
+    direction as the corridor's. Every threshold here decides whether a pair of
+    returns describes one flat surface or two different things.
+
+    Attributes:
+        MIN_CONCENTRATION: How aligned the segment directions must be before
+            the estimate is trusted at all. Low concentration means the
+            returns disagree about where the wall runs, which is what a
+            corner, a sign or a doorway looks like.
+        BASELINE_RAYS: How far apart (in rays) the two returns forming one
+            segment are taken. Wider is less noise-sensitive but blurs
+            genuine corners.
+        MAX_SEGMENT_JUMP_M: Range step above which two returns are treated as
+            different surfaces rather than one wall.
+        MIN_SEGMENT_M: Segments shorter than this are dominated by range
+            noise rather than wall direction.
+        NEAR_MAX_RANGE_M: Returns at or beyond this are no-return rays
+            sanitised to max range, not real surfaces.
+        MIN_RETURNS: Fewer usable returns than this cannot form a segment.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    MIN_CONCENTRATION: float = Field(default=0.55, validation_alias=_alias("MIN_CONCENTRATION"))
+    BASELINE_RAYS: int = Field(default=15, validation_alias=_alias("BASELINE_RAYS"))
+    MAX_SEGMENT_JUMP_M: float = Field(default=0.30, validation_alias=_alias("MAX_SEGMENT_JUMP_M"))
+    MIN_SEGMENT_M: float = Field(default=0.02, validation_alias=_alias("MIN_SEGMENT_M"))
+    NEAR_MAX_RANGE_M: float = Field(default=11.0, validation_alias=_alias("NEAR_MAX_RANGE_M"))
+    MIN_RETURNS: int = Field(default=3, validation_alias=_alias("MIN_RETURNS"))
+
+
+class DirectionEstimatorParams(BaseModel):
+    """Blind travel-direction inference parameters.
+
+    Attributes:
+        CORNER_CLEARANCE_M: Forward clearance (m) below which the corridor
+            counts as ending, opening the window in which the robot reads
+            which side is open. Deliberately larger than
+            CorridorFollowerParams.TURN_CLEARANCE_M: turning swings the
+            heading past the alignment gate, so a robot that begins its
+            turn the instant the comparison becomes decisive rotates
+            straight through its only measurement window.
+        MAX_IN_TRACK_RANGE_M: Side rays longer than this (m) cannot be a
+            wall of this track and are rejected. A LIDAR dropout is
+            reported as max range, which reads as "this side is open" --
+            exactly the signal the estimator looks for.
+        MIN_ASYMMETRY_M: Minimum left/right difference (m) for a sweep to
+            count as evidence rather than noise.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CORNER_CLEARANCE_M: float = Field(default=1.00, validation_alias=_alias("CORNER_CLEARANCE_M"))
+    MAX_IN_TRACK_RANGE_M: float = Field(default=4.5, validation_alias=_alias("MAX_IN_TRACK_RANGE_M"))
+    MIN_ASYMMETRY_M: float = Field(default=0.20, validation_alias=_alias("MIN_ASYMMETRY_M"))
 
 
 class SignDiscoveryParams(BaseModel):
@@ -439,10 +624,49 @@ class NavigationTuning:
     sensor: SensorHealthParams = SensorHealthParams()
     waypoints: WaypointParams = WaypointParams()
     lidar_sectors: LidarSectorParams = LidarSectorParams()
+    corridor_estimator: CorridorEstimatorParams = CorridorEstimatorParams()
+    corridor_follower: CorridorFollowerParams = CorridorFollowerParams()
+    direction_estimator: DirectionEstimatorParams = DirectionEstimatorParams()
+    wall_heading: WallHeadingParams = WallHeadingParams()
+    control: ControlLoopParams = ControlLoopParams()
     sign_router: SignRouterParams = SignRouterParams()
     sign_discovery: SignDiscoveryParams = SignDiscoveryParams()
     parking: ParkingParams = ParkingParams()
     localization: LocalizationParams = LocalizationParams()
+    state_estimator: StateEstimatorParams = StateEstimatorParams()
+    simulation: SimulationParams = SimulationParams()
+
+    def __post_init__(self) -> None:
+        """Check invariants that span two tuning groups.
+
+        This is a frozen dataclass aggregating pydantic groups, so per-group
+        rules live on the groups as validators and only cross-group ones belong
+        here. A ``@model_validator`` would be inert on a dataclass -- it is
+        silently ignored, which is worse than no check at all.
+
+        The turn must begin strictly after the direction window opens.
+
+        Turning swings the heading past the direction estimator's alignment
+        gate, which then refuses every reading. If the robot began its turn at
+        the same clearance that makes the left/right comparison decisive, it
+        would rotate straight through the only window in which it can read
+        which side is open, and come out the far side with a wall on both
+        sides and nothing learned. Measured with both at 0.75 m: three fixtures
+        never settled at all and two settled wrong after 20-plus seconds.
+
+        The two values live in different groups and so in different TOML files,
+        which is exactly why this belongs here -- editing one file cannot see
+        the other.
+        """
+        turn = self.corridor_follower.TURN_CLEARANCE_M
+        corner = self.direction_estimator.CORNER_CLEARANCE_M
+        if turn >= corner:
+            msg = (
+                f"corridor_follower.TURN_CLEARANCE_M ({turn}) must be strictly below "
+                f"direction_estimator.CORNER_CLEARANCE_M ({corner}); the gap is the window "
+                "in which the robot is still square to the corridor and can read which side is open"
+            )
+            raise ValueError(msg)
 
     # (group key, dataclass) pairs — the single source of truth for which
     # sections load_from_yaml/load_from_json/to_dict handle, so adding a new
@@ -456,10 +680,17 @@ class NavigationTuning:
         ("sensor", SensorHealthParams),
         ("waypoints", WaypointParams),
         ("lidar_sectors", LidarSectorParams),
+        ("corridor_estimator", CorridorEstimatorParams),
+        ("corridor_follower", CorridorFollowerParams),
+        ("direction_estimator", DirectionEstimatorParams),
+        ("wall_heading", WallHeadingParams),
+        ("control", ControlLoopParams),
         ("sign_router", SignRouterParams),
         ("sign_discovery", SignDiscoveryParams),
         ("parking", ParkingParams),
         ("localization", LocalizationParams),
+        ("state_estimator", StateEstimatorParams),
+        ("simulation", SimulationParams),
     )
 
     # No ``for_obstacles()`` profile. One existed (lookahead 0.12/0.24 +

@@ -6,18 +6,19 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from shared.config.navigation_tuning import NavigationTuning
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
 _FORWARD_ARC_RAD = math.radians(8.0)
-# Same concept and value as NavigationTuning.lidar_sectors.MIN_VALID_RANGE_M
-# (shared/config/navigation/lidar_sectors.toml). Not threaded through as a
-# tuning-injected parameter here: corridor_follower/direction_estimator (this
-# module's only callers) have no existing tuning-injection path, and this is
-# a fixed physical no-return floor, not something that benefits from runtime
-# tuning at this call site. Keep the two values in sync if either changes.
-_MIN_VALID_RANGE_M = 0.01
+# Read from lidar_sectors.toml rather than restated. This module's callers
+# (corridor_follower, direction_estimator) have no tuning-injection path, which
+# is why it sits at module level -- but "keep the two values in sync if either
+# changes" is not a mechanism, it is a hope, and the same arrangement in the
+# sign router already produced a TOML value with no reader at all.
+_MIN_VALID_RANGE_M = NavigationTuning.load_default().lidar_sectors.MIN_VALID_RANGE_M
 _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
 
 

@@ -15,12 +15,13 @@ type (
 	// Config is the parsed contents of robot.toml. All lengths are meters, masses are
 	// kilograms, angles are radians.
 	Config struct {
-		Chassis   Chassis   `toml:"chassis"`
-		Ackermann Ackermann `toml:"ackermann"`
-		Wheel     Wheel     `toml:"wheel"`
-		Lidar     Lidar     `toml:"lidar"`
-		Imu       Imu       `toml:"imu"`
-		Camera    Camera    `toml:"camera"`
+		Chassis    Chassis    `toml:"chassis"`
+		Ackermann  Ackermann  `toml:"ackermann"`
+		Wheel      Wheel      `toml:"wheel"`
+		Drivetrain Drivetrain `toml:"drivetrain"`
+		Lidar      Lidar      `toml:"lidar"`
+		Imu        Imu        `toml:"imu"`
+		Camera     Camera     `toml:"camera"`
 	}
 
 	// Chassis holds the robot body's box dimensions and mass.
@@ -37,6 +38,15 @@ type (
 		Wheelbase        float64 `toml:"wheelbase"`
 		TrackWidth       float64 `toml:"track_width"`
 		MaxSteeringAngle float64 `toml:"max_steering_angle"`
+	}
+
+	// Drivetrain holds the drive motor's measured limits and the steering
+	// linkage ratio. These are physical ceilings, not tuning: the kinematics
+	// clamp to them, so a speed profile above the top speed is inert.
+	Drivetrain struct {
+		MaxSpeedMPS    float64 `toml:"max_speed_mps"`
+		MaxAccelMPS2   float64 `toml:"max_accel_mps2"`
+		RearSteerRatio float64 `toml:"rear_steer_ratio"`
 	}
 
 	// Wheel holds one wheel's dimensions and mass.
