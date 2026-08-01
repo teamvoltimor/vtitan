@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shared.config.constants import DictKeys
+from shared.config.constants import CompetitionSpecs, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 
 import src.navigation.planning.sign_router as sign_router_module
@@ -275,6 +275,18 @@ class ScenarioOutcome:
     collision_kind: str
     collision_step: int
     steps: int
+    sim_time_s: float = 0.0
+    """Simulated seconds the run took.
+
+    Needed because ``laps >= 3`` is not the same as passing: the official round
+    limit is ``CompetitionSpecs.ROUND_TIME_LIMIT_S`` (180 s) while this
+    harness's own budget is ``MAX_STEPS * CONTROL_DT`` = 300 s, so a run could
+    take 250 s, be counted a three-lap success here, and be stopped by the
+    judges. The gap only became reachable once the kinematics started clamping
+    to the measured 0.156 m/s drivetrain: a clean three-lap run now takes
+    ~130 s, leaving 50 s of margin instead of the ~140 s it had at the speed
+    profile's unreachable 0.5 m/s.
+    """
 
 
 def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, float]) -> str:
@@ -423,6 +435,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_kind=kind,
         collision_step=result.steps,
         steps=result.steps,
+        sim_time_s=result.sim_time_s,
     )
 
 
@@ -449,6 +462,21 @@ class SweepResult:
         return sum(1 for o in self.outcomes if o.laps >= _TARGET_LAPS)
 
     @property
+    def laps_ge_3_in_time(self) -> int:
+        """Three laps AND inside the official round limit -- the competition result.
+
+        Reported alongside ``laps>=3`` rather than replacing it: the difference
+        between the two is exactly the set of runs that drive correctly but too
+        slowly, which is a different failure from driving into a sign and wants
+        a different fix.
+        """
+        return sum(
+            1
+            for o in self.outcomes
+            if o.laps >= _TARGET_LAPS and o.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+        )
+
+    @property
     def timeouts(self) -> int:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
@@ -466,6 +494,7 @@ class SweepResult:
             f"(wall {self.kind('wall'):>2} sign {self.kind('sign'):>2} park {self.kind('parking'):>2})  "
             f"laps>=1 {self.laps_ge_1:>2}/{n}  "
             f"laps>=3 {self.laps_ge_3:>2}/{n}  "
+            f"in-time {self.laps_ge_3_in_time:>2}/{n}  "
             f"timeouts {self.timeouts:>2}/{n}"
         )
 
@@ -639,6 +668,22 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # the same tick, from a metre away, and retired for the rest of the run --
     # which is the 256/0 cliff, not any geometric limit. This asks whether the
     # pair wants to move up, or whether 1.00 is a real optimum.
+    # THE COMPETITION CONFIGURATION. No scenario file exists on the mat, so the
+    # router discovers signs from the camera rather than being handed them.
+    # activation/passed/buffer were all tuned on SIGHTED arms, which is a
+    # configuration that never occurs in a round -- blind improving too was
+    # luck, not design. Any operating point meant for the robot has to be
+    # chosen here.
+    "reach-blind": lambda v: SweepConfig(
+        f"BLIND activation {v:.2f} / passed {v + 0.20:.2f} @ buffer 0.50",
+        activation_dist=v,
+        passed_dist=v + 0.20,
+        deform_depth_buffer=0.50,
+        blind=True,
+    ),
+    "buffer-blind": lambda v: SweepConfig(
+        f"BLIND depth_buffer {v:.2f} @ act 1.40", deform_depth_buffer=v, activation_dist=1.40, blind=True,
+    ),
     "reach": lambda v: SweepConfig(
         f"activation {v:.2f} / passed {v + 0.20:.2f} @ buffer 0.50",
         activation_dist=v,
