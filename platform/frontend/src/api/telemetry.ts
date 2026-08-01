@@ -301,6 +301,13 @@ export function connectTelemetryWS(
       };
 
       ws.onerror = () => {
+        // Same guard as onclose below: closing a socket that's still
+        // CONNECTING (the disconnect function runs `ws.close()` regardless of
+        // readyState) makes the browser fire `error` before `close`. Without
+        // this, a deliberate teardown is reported to the caller as a genuine
+        // network failure — which under React StrictMode's dev-mode
+        // mount/unmount/remount cycle happens on every single page load.
+        if (isClosed) return;
         const error = new TelemetryError('NETWORK', 'WebSocket connection error');
         onError?.(error);
       };

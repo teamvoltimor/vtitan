@@ -257,6 +257,13 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       () => {
         if (!mounted.current) return;
         setWsConnected(true);
+        // Clear any connection error the failed attempt(s) left behind. The
+        // reconnect loop retries indefinitely precisely so a dropped link
+        // recovers without a manual refresh, but nothing else resets `error`
+        // (only retry/goLive/setDemoMode/loadSession do) — so without this a
+        // recovered connection stayed stuck behind a stale fatal error and
+        // needed the Retry button anyway, defeating the auto-reconnect.
+        setError(null);
       }
     );
 
