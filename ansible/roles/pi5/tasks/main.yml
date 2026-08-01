@@ -58,6 +58,18 @@
     ifname: usb0
     method4: manual
     ip4: "{{ usb_gadget_pi5_ip }}/{{ usb_gadget_subnet_prefix }}"
+    # Pins DDS discovery to the gadget link. Without it the two boards never
+    # find each other in competition: multicast follows the default route, the
+    # Pi 5 has no default route once WiFi is gone, and `ros2 multicast send`
+    # fails outright with "Network is unreachable". Both boards then run happy,
+    # healthy ROS2 graphs that cannot see one another — meaning the navigator's
+    # /ackermann_cmd never reaches the Zero's motor node and the robot simply
+    # does not move, with nothing in any log saying why.
+    #
+    # It also fixes the case where WiFi *is* up: discovery then went over WiFi
+    # rather than the gadget link, which is why this looked fine on the bench.
+    routes4:
+      - 224.0.0.0/4
     method6: disabled
     autoconnect: true
     state: present

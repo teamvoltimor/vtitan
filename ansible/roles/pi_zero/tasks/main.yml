@@ -123,6 +123,11 @@
     ifname: usb0
     method4: manual
     ip4: "{{ usb_gadget_zero_ip }}/{{ usb_gadget_subnet_prefix }}"
+    # Must match the Pi 5 side — see the matching comment in roles/pi5. The
+    # Zero has a default route via WiFi, so without this its multicast leaves
+    # over wlan0 while the Pi 5's leaves over usb0 and the two never meet.
+    routes4:
+      - 224.0.0.0/4
     method6: disabled
     autoconnect: true
     state: present
