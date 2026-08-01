@@ -501,9 +501,15 @@ class TelemetryBridgeNode(Node):
         return result
 
     def _build_topics_snapshot(self) -> TopicsSnapshot:
+        # update_rate_hz is genuinely 0.0 until a topic has accumulated
+        # _MIN_TIMESTAMPS_FOR_RATE samples (see _update_raw_topic), but the
+        # backend's TopicUpdate.update_rate_hz requires a strictly positive
+        # value -- omit not-yet-measurable topics rather than sending 0 and
+        # failing validation. They reappear a few ticks later once the rate
+        # is real.
         return TopicsSnapshot(
             timestamp=time.time(),
-            topics=list(self._topic_updates.values()),
+            topics=[t for t in self._topic_updates.values() if t.updateRateHz > 0],
         )
 
     def _publish_telemetry(self) -> None:
