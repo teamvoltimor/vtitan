@@ -22,11 +22,16 @@
 
 # Strip any prior dwc2 overlay first (e.g. a stock dr_mode=host image
 # default) — otherwise it survives alongside the one ensured below.
-- name: Remove any existing dtoverlay=dwc2 lines from config.txt
+#
+# The negative lookahead spares the exact line the next task ensures. Without
+# it this pair removed and re-added the same overlay on every single run, which
+# reported changed both times and rebooted the Zero for no reason — an
+# expensive no-op on a board that takes minutes to come back.
+- name: Remove any other dtoverlay=dwc2 lines from config.txt
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
-    regexp: '^dtoverlay=dwc2'
+    regexp: '^dtoverlay=dwc2(?!,dr_mode=peripheral$)'
     state: absent
   notify: Reboot pi zero
 
@@ -38,7 +43,15 @@
     state: present
   loop:
     - dtparam=i2c_arm=on
-    - dtoverlay=dwc2
+    # dr_mode is explicit rather than left to the overlay's default of otg.
+    # This is hardening, NOT a fix for the half-dead-link failure -- that was
+    # traced to a cdc_ether transmit-queue timeout and reproduced with this
+    # exact line in place, so do not read it as the cure (see
+    # scripts/usb-link-watchdog.sh). It is here to remove USB role negotiation
+    # as a variable: the Zero is only ever the peripheral in this build, and
+    # letting it negotiate that on every boot is one more nondeterministic step
+    # in the path that is already nondeterministic.
+    - dtoverlay=dwc2,dr_mode=peripheral
     - enable_uart=1
   notify: Reboot pi zero
 
@@ -265,14 +278,6 @@
 # Repairs the gadget link when it comes up half-dead. Installed on the Zero
 # rather than the Pi 5 because the link it repairs may be the robot's only
 # path, so the repair cannot depend on having another one.
-- name: Install usb-link watchdog script
-  become: true
-  ansible.builtin.copy:
-    src: "{{ robot_dir }}/scripts/usb-link-watchdog.sh"
-    dest: "{{ robot_dir }}/scripts/usb-link-watchdog.sh"
-    remote_src: true
-    mode: "0755"
-
 - name: Install usb-link watchdog units
   become: true
   ansible.builtin.copy:

@@ -4,6 +4,9 @@
 ansible_user: ralvarezdev  # account created on every Pi via Raspberry Pi Imager (not "pi")
 
 github_repo: teamvoltimor/vtitan
+# Which ref the boards are brought to. Override with `-e repo_ref=<branch>` to
+# provision a board from a feature branch without merging it first.
+repo_ref: master
 repo_dir: "/home/{{ ansible_user }}/vtitan"
 robot_dir: "{{ repo_dir }}/platform/robot"
 backend_dir: "{{ repo_dir }}/platform/backend"

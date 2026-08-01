@@ -8,7 +8,12 @@ After=network.target
 Type=oneshot
 # Root, not __TARGET_USER__: modprobe needs it, and this unit does nothing else.
 User=root
-ExecStart=__TARGET_HOME__/vtitan/platform/robot/scripts/usb-link-watchdog.sh
+# Invoked through bash rather than executed directly, matching how every other
+# script in this repo is called -- they are all mode 644 in git. Executing by
+# path would make this unit depend on an executable bit that a plain `git pull`
+# silently reverts, which would leave the watchdog dead exactly when the link it
+# guards is the robot's only route.
+ExecStart=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/usb-link-watchdog.sh
 # Bounded so a wedged reload can never pin the timer indefinitely; the reload
 # path itself sleeps ~11s, so this leaves generous headroom.
 TimeoutStartSec=60

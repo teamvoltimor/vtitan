@@ -110,6 +110,46 @@
   args:
     creates: "{{ repo_dir }}/.git"
 
+# The clone above is `creates:`-guarded, so on a board that already has a
+# checkout it does nothing -- which meant provisioning never updated the code.
+# Boards stayed pinned at whatever commit they were first cloned at (the Pi 5
+# was months behind and still pointing at the pre-rename URL), and every deploy
+# quietly shipped stale source unless someone remembered to pull by hand.
+- name: Read the checkout's current origin URL
+  ansible.builtin.command: "git remote get-url origin"
+  args:
+    chdir: "{{ repo_dir }}"
+  register: repo_origin_url
+  changed_when: false
+
+- name: Point origin at the canonical repo URL
+  ansible.builtin.command: "git remote set-url origin https://github.com/{{ github_repo }}.git"
+  args:
+    chdir: "{{ repo_dir }}"
+  when: repo_origin_url.stdout | trim != "https://github.com/" ~ github_repo ~ ".git"
+  changed_when: true
+
+- name: Fetch latest refs
+  ansible.builtin.command: "git fetch --prune origin"
+  args:
+    chdir: "{{ repo_dir }}"
+  changed_when: false
+
+- name: Check out {{ repo_ref }}
+  ansible.builtin.command: "git checkout {{ repo_ref }}"
+  args:
+    chdir: "{{ repo_dir }}"
+  changed_when: true
+
+# --ff-only deliberately, never a merge or a reset. A board that has diverged is
+# something to look at by hand -- provisioning should not paper over local work
+# by discarding it, and a failure here is more useful than a silent overwrite.
+- name: Fast-forward {{ repo_ref }} to origin
+  ansible.builtin.command: "git merge --ff-only origin/{{ repo_ref }}"
+  args:
+    chdir: "{{ repo_dir }}"
+  changed_when: true
+
 - name: Check for real .env in the pre-rename deployment
   ansible.builtin.stat:
     path: "{{ old_repo_dir }}/platform/robot/.env"
