@@ -47,11 +47,12 @@ DEFAULT_QUEUE_DEPTH = 10
 BUTTON_POLL_HZ = 20.0
 BUTTON_POLL_PERIOD_S = 1.0 / BUTTON_POLL_HZ
 
-# What each threshold does, in the operator's words rather than the enum's.
-# Published from here rather than hardcoded in the display, so the thresholds
-# stay defined in exactly one place -- the button driver's config -- instead of
-# drifting between a TOML on one board and a render function on the other.
-_HOLD_ACTIONS = ("STOP", "POWER OFF")
+# Names the *kind* of each threshold, not what it does. What a hold does
+# depends on the robot state -- past the long threshold it stops a running
+# robot but restarts a finished one -- and this node has no idea which state
+# the machine is in. It publishes when things happen; the display, which does
+# subscribe to /robot_state, decides what to call them.
+_HOLD_KINDS = ("long", "shutdown")
 
 
 class ButtonNode(LifecycleNode):
@@ -197,22 +198,17 @@ class ButtonNode(LifecycleNode):
             self.driver.config.button.long_press_threshold_sec,
             self.driver.config.button.shutdown_press_threshold_sec,
         )
-        next_action: str | None = None
-        next_at: float | None = None
-        for threshold, action in zip(thresholds, _HOLD_ACTIONS, strict=True):
-            if state.press_duration < threshold:
-                next_action, next_at = action, threshold
-                break
-
         msg = String()
         msg.data = json.dumps(
             {
                 "held_sec": round(state.press_duration, 1),
-                # Absent once the last threshold is passed: there is nothing
-                # further to warn about, and the display says so rather than
-                # showing a countdown to nothing.
-                "next": next_action,
-                "next_at_sec": next_at,
+                # All of them, not just the next one: the display skips any
+                # whose action is meaningless in the current state (holding
+                # from READY does nothing at the long threshold), and it can
+                # only do that if it can see past the first.
+                "thresholds": [
+                    {"at": at, "kind": kind} for at, kind in zip(thresholds, _HOLD_KINDS, strict=True)
+                ],
             },
         )
         self.pub_hold.publish(msg)

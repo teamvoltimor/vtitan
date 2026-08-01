@@ -501,14 +501,27 @@ class OLEDDisplayNode(LifecycleNode):
             # last good one and let the next 50ms frame correct it.
             self.get_logger().warning("Ignoring malformed /button/hold payload", throttle_duration_sec=5.0)
 
-    def _render_button_hold(self, held_sec: float) -> Image.Image:
-        """Render the hold counter, with what the next threshold will do.
+    def _hold_action_label(self, kind: str) -> str | None:
+        """What a hold past `kind` will actually do *from the current state*.
 
-        The wording comes from button_node rather than from here, so the
-        thresholds live in exactly one place -- the button driver's config --
-        rather than drifting between a TOML on this board and a render function
-        that nobody thinks to update alongside it.
+        Lives here rather than in button_node because it is state-dependent and
+        that node cannot see the state: the same 3s hold stops a running robot
+        but sends a finished one back to the start, and telling an operator
+        "STOP" while the robot is already stopped is worse than saying nothing.
+        Returns None when the threshold does nothing from here, so the display
+        can skip it and count down to the one that matters.
         """
+        if kind == "shutdown":
+            return "POWER OFF"
+        if kind == "long":
+            if self.current_state == RobotState.RACING.value:
+                return "STOP"
+            if self.current_state == RobotState.FINISHED.value:
+                return "RESTART"
+        return None
+
+    def _render_button_hold(self, held_sec: float) -> Image.Image:
+        """Render the hold counter, counting down to whatever it will trigger."""
         assert self.display_driver is not None
         image = self.display_driver.get_blank_image()
         draw = ImageDraw.Draw(image)
@@ -518,16 +531,25 @@ class OLEDDisplayNode(LifecycleNode):
 
         draw.text((_MARGIN_X, 20), f"{held_sec:.1f}s", fill=_ON)
 
-        next_action = self._button_hold.get("next")
-        next_at = self._button_hold.get("next_at_sec")
-        if next_action and next_at:
-            remaining = max(0.0, float(next_at) - held_sec)  # type: ignore[arg-type]
-            draw.text((_MARGIN_X, 36), f"{next_action} in {remaining:.1f}s", fill=_ON)
+        thresholds = self._button_hold.get("thresholds") or []
+        upcoming: tuple[str, float] | None = None
+        for entry in thresholds:  # type: ignore[union-attr]
+            at = float(entry["at"])
+            if held_sec >= at:
+                continue
+            label = self._hold_action_label(str(entry["kind"]))
+            if label is not None:
+                upcoming = (label, at)
+                break
+
+        if upcoming is not None:
+            label, at = upcoming
+            draw.text((_MARGIN_X, 36), f"{label} in {at - held_sec:.1f}s", fill=_ON)
             draw.text((_MARGIN_X, 50), "release to cancel", fill=_ON)
         else:
-            # Past the last threshold: nothing further to warn about, and a
-            # countdown to nothing would be a lie.
-            draw.text((_MARGIN_X, 36), "POWERING OFF", fill=_ON)
+            # Nothing left that this hold can trigger. A countdown to nothing
+            # would be a lie, and "keep holding" would be worse.
+            draw.text((_MARGIN_X, 36), "nothing further", fill=_ON)
 
         return image
 

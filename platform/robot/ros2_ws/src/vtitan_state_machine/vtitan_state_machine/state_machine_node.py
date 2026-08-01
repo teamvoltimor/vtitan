@@ -22,6 +22,7 @@ Topics:
 """
 
 import json
+import os
 import socket
 import subprocess  # noqa: S404 - used only to hand a fixed argv to systemd-run
 import time
@@ -372,6 +373,15 @@ class StateMachineNode(Node, ResettableNode):
                     "systemd-run",
                     "--unit=vtitan-button-shutdown",
                     "--collect",
+                    # As the invoking user, with their HOME. A transient unit
+                    # defaults to root, and the script's first act is to SSH
+                    # into the Zero -- as root that finds no key and no
+                    # ~/.ssh/config, the preflight fails, and `set -e` aborts
+                    # before anything is powered off. Observed exactly that:
+                    # the unit exited 1 while this node had already reported
+                    # success.
+                    f"--uid={os.getuid()}",
+                    f"--setenv=HOME={Path.home()}",
                     "bash",
                     str(script),
                 ],
@@ -379,9 +389,15 @@ class StateMachineNode(Node, ResettableNode):
                 capture_output=True,
                 timeout=15,
             )
-            self.get_logger().info("Clean shutdown started - safe to remove power once the boards are down")
+            # Deliberately "requested", not "started": all this call proves is
+            # that systemd accepted the unit. Whether the shutdown actually
+            # runs shows up in that unit's own journal, not here -- claiming
+            # more than that is how the earlier failure went unnoticed.
+            self.get_logger().info(
+                "Clean shutdown requested - watch `journalctl -u vtitan-button-shutdown` if the boards stay up",
+            )
         except (subprocess.SubprocessError, OSError) as exc:
-            self.get_logger().error(f"Clean shutdown failed to start: {exc}")
+            self.get_logger().error(f"Clean shutdown could not be requested: {exc}")
 
     def _state_machine_loop(self) -> None:
         """Main state machine loop - runs at 10Hz."""
