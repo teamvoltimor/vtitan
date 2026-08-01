@@ -14,6 +14,11 @@
     - do_i2c 0
     - do_spi 0
     - do_serial 2  # serial hardware on, login shell off (IMU UART-RVC)
+  # do_serial shells out to code that calls clear/tput, which aborts with
+  # "terminal lacks the ability to..." when TERM is unset — true over
+  # Ansible's SSH connections, which don't allocate a pty.
+  environment:
+    TERM: linux
   changed_when: true
   notify: Reboot pi5
 
