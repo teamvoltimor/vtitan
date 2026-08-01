@@ -1,0 +1,14 @@
+[Unit]
+Description=vTitan — periodic usb0 gadget link health check
+
+[Timer]
+# Deliberately later than the script's own MIN_UPTIME_SEC grace: the link is
+# still coming up in the first seconds after boot, and the script exits early
+# during that window anyway.
+OnBootSec=60
+OnUnitActiveSec=30
+AccuracySec=5
+Unit=vtitan-usb-link-watchdog.service
+
+[Install]
+WantedBy=timers.target

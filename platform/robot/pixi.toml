@@ -178,6 +178,10 @@ run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)
 launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
 launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
+# No metadata argument: that is competition mode, where the navigator estimates
+# the layout from LIDAR instead of reading a scenario file. Pass metadata:=...
+# by hand when reproducing a known layout in testing.
+launch-race            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup race.launch.py'", env = { PYTHONPATH = "." } }
 launch-state-machine   = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup wro_state_machine_launch.py'", env = { PYTHONPATH = "." } }
 launch-telemetry       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup telemetry_bridge_launch.py'", env = { PYTHONPATH = "." } }
 launch-simulator       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup simulator.launch.py'", env = { PYTHONPATH = "." } }

@@ -174,13 +174,19 @@
         path: /etc/fstab
         line: "/swapfile none swap sw 0 0"
 
-- name: Install pixi env and build ROS2 workspace
-  ansible.builtin.shell: "{{ pixi_bin }} install && {{ pixi_bin }} run -e dev build-ws"
-  args:
-    executable: /bin/bash
-    chdir: "{{ robot_dir }}"
-  changed_when: true
-
+# Built on the Pi 5 and shipped, NOT built here. Installing a full ROS2 Kilted
+# + robostack env directly on the Zero swap-thrashes its ~415 MB of RAM hard
+# enough to spike load average into double digits, leave SSH unresponsive for
+# minutes, and crash the board outright with an unclean shutdown — a real
+# filesystem-corruption risk on repeat. Confirmed again on 2026-08-01: the Zero
+# rebooted on its own mid-`pixi install`. The Pi 5 does the same work in under a
+# minute. See docs/sensor-verification.md's "Pi Zero deployment" section.
+#
+# Delegated to the existing deploy script rather than reimplemented as tasks:
+# it already handles the transfer retries, the atomic swap into place, and the
+# --symlink-install dereference trap (both boards share the same absolute repo
+# path, so an un-dereferenced symlink extracted on the Zero silently resolves
+# to the Zero's own stale src instead of what was just built).
 - name: Verify PWM availability
   ansible.builtin.command: ls /sys/class/pwm/pwmchip0/
   register: pwm_check
@@ -218,6 +224,59 @@
     user: "{{ ansible_user }}"
     key: "{{ pi5_pubkey_slurp.content | b64decode }}"
     state: present
+
+# Ordered after the authorized_keys task above, not before it: the deploy
+# script SSHes from the Pi 5 into the Zero and runs non-interactively, so
+# without that trust already in place it fails outright on a fresh board.
+- name: Build the Zero's pixi env and ROS2 workspace on the Pi 5, then ship it
+  delegate_to: pi5
+  ansible.builtin.command: "bash scripts/deploy-dev-env-to-zero.sh"
+  args:
+    chdir: "{{ robot_dir }}"
+  environment:
+    ZERO_HOST: "{{ ansible_user }}@{{ usb_gadget_zero_ip }}"
+  changed_when: true
+
+# Repairs the gadget link when it comes up half-dead. Installed on the Zero
+# rather than the Pi 5 because the link it repairs may be the robot's only
+# path, so the repair cannot depend on having another one.
+- name: Install usb-link watchdog script
+  become: true
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/scripts/usb-link-watchdog.sh"
+    dest: "{{ robot_dir }}/scripts/usb-link-watchdog.sh"
+    remote_src: true
+    mode: "0755"
+
+- name: Install usb-link watchdog units
+  become: true
+  ansible.builtin.copy:
+    src: "{{ robot_dir }}/systemd/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ zero_watchdog_units }}"
+  notify: Reload systemd zero
+
+- name: Substitute __TARGET_HOME__ placeholder in watchdog units
+  become: true
+  ansible.builtin.replace:
+    path: "/etc/systemd/system/{{ item }}"
+    regexp: '__TARGET_HOME__'
+    replace: "/home/{{ ansible_user }}"
+  loop: "{{ zero_watchdog_units }}"
+  notify: Reload systemd zero
+
+# Only the timer is enabled: it is what pulls in the oneshot service. Enabling
+# the service itself would additionally run it once at boot, inside the very
+# window its own uptime grace exists to skip.
+- name: Enable usb-link watchdog timer
+  become: true
+  ansible.builtin.systemd_service:
+    name: vtitan-usb-link-watchdog.timer
+    enabled: true
+    state: started
+    daemon_reload: true
 
 - name: Install vtitan-pi-zero systemd unit
   become: true

@@ -75,6 +75,9 @@
       - python3-pip
       - i2c-tools
       - network-manager
+      # Long provisioning runs (the Zero's colcon build takes hours) must
+      # survive the SSH session that launched them; nohup alone does not.
+      - tmux
     state: present
 
 - name: Check if pixi is already installed

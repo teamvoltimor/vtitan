@@ -113,3 +113,8 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     tuning: str = ""
     record: bool = True
     bag_dir: str = "~/vtitan_runs"
+    # Retention caps for bag_recorder_node. Recording is race-gated, but a
+    # competition day is many rounds and the Pi 5's card is not large, so old
+    # runs are pruned oldest-first once either cap is exceeded.
+    bag_max_runs: int = 20
+    bag_max_total_gb: float = 4.0

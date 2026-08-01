@@ -3,6 +3,10 @@ pi5_systemd_units:
   - vtitan-pi5.service
   - vtitan-lidar.service
   - vtitan-backend.service
+  # Starts the navigator at boot. Safe despite being the thing that drives the
+  # robot: it holds until /robot_state reports racing, so the physical start
+  # button stays the only way to make it move.
+  - vtitan-race.service
 
 # Keep in sync with platform/backend/go.mod's `go` directive. Trixie's apt only
 # carries 1.24, which is why the backend's toolchain comes from mise rather

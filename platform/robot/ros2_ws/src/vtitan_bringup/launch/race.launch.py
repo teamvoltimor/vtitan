@@ -21,11 +21,8 @@ Usage:
     ros2 launch vtitan_bringup race.launch.py metadata:=... bag_dir:=/path/to/runs
 """
 
-import datetime
-from pathlib import Path
-
 from launch import LaunchContext, LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -36,10 +33,14 @@ _race_defaults = RaceLaunchDefaults()
 # Topics worth keeping for post-run analysis: sensor input, the vision and
 # navigation decisions derived from it, the resulting drive command, and the
 # state machine/telemetry view of what the robot thought was happening.
+#
+# /camera/image_raw is deliberately absent: it was measured at 63 MB/s, which
+# dwarfs everything else here combined and is what turns a race bag into a full
+# SD card. The detections it produces are recorded instead, which is what
+# replaying a run's decisions actually needs.
 _BAG_TOPICS = [
     "/scan",
     "/imu/data",
-    "/camera/image_raw",
     "/vision/detections",
     "/ackermann_cmd",
     "/robot_state",
@@ -81,15 +82,27 @@ def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list:
 
     record = LaunchConfiguration("record").perform(context).lower() not in ("false", "0", "")
     if record:
-        bag_dir = Path(LaunchConfiguration("bag_dir").perform(context)).expanduser()
-        bag_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
-        run_name = f"run_{Path(metadata).stem}_{stamp}" if metadata else f"run_{stamp}"
-        bag_record_node = ExecuteProcess(
-            cmd=["ros2", "bag", "record", "-o", str(bag_dir / run_name), *_BAG_TOPICS],
-            output="screen",
+        # A node rather than an ExecuteProcess that starts recording straight
+        # away: this launch file now also runs as a boot-time service, and
+        # recording from power-on would fill the card with bags of a
+        # stationary robot. bag_recorder_node opens a bag when /robot_state
+        # reports RACING and closes it when the round ends.
+        actions.append(
+            Node(
+                package="vtitan_state_machine",
+                executable="bag_recorder_node",
+                name="bag_recorder",
+                output="screen",
+                parameters=[
+                    {
+                        "bag_dir": LaunchConfiguration("bag_dir").perform(context),
+                        "topics": _BAG_TOPICS,
+                        "max_runs": _race_defaults.bag_max_runs,
+                        "max_total_gb": _race_defaults.bag_max_total_gb,
+                    },
+                ],
+            ),
         )
-        actions.append(bag_record_node)
 
     return actions
 

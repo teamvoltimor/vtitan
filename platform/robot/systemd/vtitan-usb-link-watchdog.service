@@ -1,0 +1,17 @@
+[Unit]
+Description=vTitan — usb0 gadget link watchdog (repairs a half-dead link)
+# Runs on the Pi Zero. Deliberately has no network dependency: the link this
+# repairs may be the only path the robot has, so the repair cannot need one.
+After=network.target
+
+[Service]
+Type=oneshot
+# Root, not __TARGET_USER__: modprobe needs it, and this unit does nothing else.
+User=root
+ExecStart=__TARGET_HOME__/vtitan/platform/robot/scripts/usb-link-watchdog.sh
+# Bounded so a wedged reload can never pin the timer indefinitely; the reload
+# path itself sleeps ~11s, so this leaves generous headroom.
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target

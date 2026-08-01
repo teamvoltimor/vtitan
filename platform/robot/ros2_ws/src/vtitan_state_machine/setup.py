@@ -18,6 +18,7 @@ setup(
         "console_scripts": [
             "state_machine_node = vtitan_state_machine.state_machine_node:main",
             "telemetry_bridge_node = vtitan_state_machine.telemetry_bridge_node:main",
+            "bag_recorder_node = vtitan_state_machine.bag_recorder_node:main",
         ],
     },
 )

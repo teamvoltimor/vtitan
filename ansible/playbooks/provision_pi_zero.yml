@@ -2,6 +2,16 @@
 - name: Provision Robot Pi Zero
   hosts: robot_pi_zero
   gather_facts: true
+  vars:
+    # The 2.4GHz lock below exists purely for first contact: reaching the Zero
+    # over WiFi before the usb0 gadget link exists. When this run targets the
+    # gadget address, that link is up by definition, so locking is pointless —
+    # and not free. It bounces the Pi 5's own WiFi (the control node, which
+    # every delegate_to: pi5 task and the operator's SSH session both ride),
+    # and re-activation has failed in practice on DHCP re-acquisition
+    # ("IP configuration could not be reserved"), aborting the whole run
+    # before provisioning even started.
+    wifi_lock_needed: "{{ ansible_host != usb_gadget_zero_ip }}"
   tasks:
     - name: Provision with WiFi 2.4GHz lock safety net
       block:
@@ -18,16 +28,19 @@
             nmcli connection modify {{ wifi_conn_name }}
             802-11-wireless.bssid {{ wifi_2g_bssid }}
           changed_when: true
+          when: wifi_lock_needed | bool
 
         - name: Bring Pi 5 WiFi connection up on the locked band
           delegate_to: pi5
           become: true
           ansible.builtin.command: "nmcli connection up {{ wifi_conn_name }}"
           changed_when: true
+          when: wifi_lock_needed | bool
 
         - name: Give the Pi 5 WiFi radio a moment to settle on 2.4GHz
           ansible.builtin.pause:
             seconds: 3
+          when: wifi_lock_needed | bool
 
         - name: Run common provisioning
           ansible.builtin.include_role:
@@ -36,7 +49,58 @@
         - name: Run Pi Zero provisioning
           ansible.builtin.include_role:
             name: pi_zero
+
+        # The usb0 gadget link is how the two boards talk during a race;
+        # WiFi is only a provisioning fallback. Configuring both endpoints
+        # is NOT proof the link carries traffic: it has been observed with
+        # carrier up, correct MACs, correct IPs, correct cdc_ether binding
+        # and no firewall on either side, while the host->gadget direction
+        # was silently dead. Verify explicitly, and reboot the Zero first so
+        # the link is exercised in the exact state it will race in.
+        - name: Reboot the Zero now, before the link is verified
+          ansible.builtin.meta: flush_handlers
+
+        - name: Verify the gadget link carries traffic (Pi 5 -> Zero)
+          delegate_to: pi5
+          ansible.builtin.command: "ping -c 3 -W 2 {{ usb_gadget_zero_ip }}"
+          register: gadget_link_out
+          changed_when: false
+          failed_when: false
+          retries: 12
+          delay: 10
+          until: gadget_link_out.rc == 0
+
+        # Checked separately, not as a formality: the failure mode seen in
+        # practice was one-directional, so a single ping can pass while the
+        # link is still half-dead.
+        - name: Verify the gadget link carries traffic (Zero -> Pi 5)
+          ansible.builtin.command: "ping -c 3 -W 2 {{ usb_gadget_pi5_ip }}"
+          register: gadget_link_in
+          changed_when: false
+          failed_when: false
+          retries: 6
+          delay: 5
+          until: gadget_link_in.rc == 0
+
+        - name: Fail loudly if the gadget link does not carry traffic both ways
+          ansible.builtin.assert:
+            that:
+              - gadget_link_out.rc == 0
+              - gadget_link_in.rc == 0
+            fail_msg: >-
+              usb0 gadget link is NOT usable
+              (Pi 5 -> Zero rc={{ gadget_link_out.rc }},
+              Zero -> Pi 5 rc={{ gadget_link_in.rc }}).
+              This is the competition comms path between the boards, so the
+              run is not complete. Do not trust `ip addr` on either end —
+              both sides show UP with correct addressing even when dead.
+              Compare `ip -s link show usb0` on both boards: counters that
+              match in one direction only mean the link needs USB
+              re-enumeration, not reconfiguration.
+            success_msg: "usb0 gadget link verified in both directions."
       always:
+        # Only undo what was actually done — restoring an untouched connection
+        # would bounce the Pi 5's WiFi for nothing.
         - name: Restore Pi 5 WiFi to automatic band selection
           delegate_to: pi5
           become: true
@@ -44,9 +108,11 @@
             nmcli connection modify {{ wifi_conn_name }}
             802-11-wireless.bssid ""
           changed_when: true
+          when: wifi_lock_needed | bool
 
         - name: Bring Pi 5 WiFi connection back up
           delegate_to: pi5
           become: true
           ansible.builtin.command: "nmcli connection up {{ wifi_conn_name }}"
           changed_when: true
+          when: wifi_lock_needed | bool

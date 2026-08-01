@@ -122,7 +122,7 @@
     chdir: "{{ backend_dir }}"
   changed_when: true
 
-- name: Install vtitan-pi5 + vtitan-lidar + vtitan-backend systemd units
+- name: Install Pi 5 systemd units
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/systemd/{{ item }}"
@@ -150,7 +150,7 @@
   loop: "{{ pi5_systemd_units }}"
   notify: Reload systemd
 
-- name: Enable vtitan-pi5 + vtitan-lidar + vtitan-backend services
+- name: Enable Pi 5 services
   become: true
   ansible.builtin.systemd_service:
     name: "{{ item }}"
