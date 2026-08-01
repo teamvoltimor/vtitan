@@ -90,7 +90,12 @@ func New(ctx context.Context, dbPath, framesDir string, maxSessions int) (*Recor
 		sessionID:   sessionID,
 		framesDir:   framesDir,
 		maxSessions: maxSessions,
-		marshaler:   protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true},
+		// EmitUnpopulated: true matches internal/edge/router.go and
+		// internal/api/telemetry/mapping.go -- replayed frames go through
+		// the same frontend schema as live ones, so a recorded frame
+		// omitting zero-valued fields (e.g. angular_velocity.x/y/z) would
+		// fail replay the same way it failed live streaming.
+		marshaler:   protojson.MarshalOptions{EmitUnpopulated: true, UseProtoNames: true},
 		unmarshaler: protojson.UnmarshalOptions{DiscardUnknown: true},
 	}
 

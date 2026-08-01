@@ -16,8 +16,15 @@ import (
 const contentTypeJSON = "application/json; charset=utf-8"
 
 // marshaler serializes proto messages to snake_case JSON for the frontend.
-// EmitUnpopulated = false omits zero-value optional fields.
-var marshaler = protojson.MarshalOptions{EmitUnpopulated: false, UseProtoNames: true}
+// EmitUnpopulated = true forces zero-valued *implicit*-presence fields
+// (e.g. angular_velocity.x/y/z when the IMU reads exactly 0) onto the wire
+// instead of omitting them -- the frontend's schema requires these numeric
+// fields always be present. This does NOT affect proto3 `optional` fields
+// (range_min, speed, etc.): those are backed by a synthetic oneof, which
+// EmitUnpopulated explicitly excludes, so a genuinely-unset optional still
+// doesn't get force-emitted -- the "not measured" vs "measured as zero"
+// distinction those fields rely on is preserved.
+var marshaler = protojson.MarshalOptions{EmitUnpopulated: true, UseProtoNames: true}
 
 // writeProto marshals a single proto message to JSON and writes it to the response.
 func writeProto(c *gin.Context, code int, msg proto.Message) {
