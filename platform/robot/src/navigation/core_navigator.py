@@ -22,6 +22,7 @@ from src.navigation.control.controllers import (
     ManeuverType,
     StuckDetector,
     WaypointController,
+    mask_mapped_obstacles,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
@@ -350,6 +351,31 @@ class CoreNavigator:
             forward_clearance = self._tuning.clearance.SLOW_DIST
             risk = RiskLevel.OBSTACLE
 
+        # Two risk readings, deliberately: the RAW scan governs how fast the
+        # robot may go, the MAPPED-OBSTACLE-MASKED scan governs whether the
+        # escape maneuver fires.
+        #
+        # A sign the router is routing around is passed at ``lateral_offset``
+        # centre-to-centre by design, which is inside CONTACT_DIST — so on the
+        # raw scan the escape maneuver fires at every sign pass and reverses the
+        # robot out of the very gap the planner aimed for, deciding the run
+        # before the router's aim can matter. Withholding those returns from the
+        # escape trigger alone keeps the split honest: the robot still slows
+        # down for a sign (raw ``risk`` caps speed below), it just no longer
+        # panics at one the planner is already handling. Walls and unmapped
+        # returns are untouched in both readings.
+        escape_ranges = scan.ranges_m if scan else None
+        escape_risk = risk
+        if scan and self._sign_router is not None:
+            escape_ranges = mask_mapped_obstacles(
+                scan.ranges_m,
+                scan.angles_rad,
+                (robot_x, robot_y, robot_yaw),
+                self._sign_router.routed_sign_positions,
+                self._tuning.sign_router.ESCAPE_MASK_RADIUS_M,
+            )
+            escape_risk = self._collision_controller.assess_risk(escape_ranges, scan.angles_rad)
+
         # Check waypoint reached — against the *raw* planned point, not the
         # sign-deformed one: deformation only biases steering near a sign, it
         # must never stall path progression. A sign can pull the steering
@@ -416,15 +442,19 @@ class CoreNavigator:
         if risk != RiskLevel.SAFE:
             speed = min(speed, self._tuning.speed.SLOW_SPEED)
 
-        # Escape maneuvers if critical
-        if risk == RiskLevel.CRITICAL and scan:
-            threat_dir = self._collision_controller.detect_threat_direction(scan.ranges_m, scan.angles_rad)
+        # Escape maneuvers if critical — judged on the masked scan, so a mapped
+        # sign cannot trigger one, and steered by the masked scan too: the
+        # threat this escape is running from is by construction not the sign.
+        if escape_risk == RiskLevel.CRITICAL and scan:
+            threat_dir = self._collision_controller.detect_threat_direction(escape_ranges, scan.angles_rad)
             maneuver = self._collision_controller.compute_escape_maneuver(
-                risk,
+                escape_risk,
                 threat_dir,
-                scan.ranges_m,
+                escape_ranges,
                 scan.angles_rad,
             )
+            # Rear clearance is checked against the RAW scan: a sign behind the
+            # robot is still something to not reverse into, whoever owns it.
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
                 # Blocked at both ends: fall through to the capped creep-speed
                 # publish below rather than backing into an unseen wall. The

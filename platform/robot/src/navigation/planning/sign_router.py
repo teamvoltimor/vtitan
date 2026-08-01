@@ -83,14 +83,31 @@ _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
 _WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + 0.04
 
 # Default lateral deformation magnitude, derived the same way as
-# _WALL_CLEARANCE above: chassis half-width + the sign's own half-width (the
+# _WALL_CLEARANCE above: chassis half-DIAGONAL + the sign's own half-width (the
 # offset is applied from the sign's CENTER, so its footprint eats into the
 # gap too) + a safety margin. A flat 0.15m default here previously left only
 # ~2.5cm of actual edge-to-edge clearance once those two half-widths were
 # subtracted — the robot visibly grazed signs in RViz even though it wasn't
 # technically colliding.
+#
+# Half-DIAGONAL, not half-width, for exactly the reason _WALL_CLEARANCE gives
+# above: half-width only bounds a robot travelling PARALLEL to the thing it is
+# clearing, and two-thirds of legal WRO sign positions sit on a corner boundary
+# where the robot is still mid-turn and presenting its corner (0.180 m) rather
+# than its flank (0.100 m). The old half-width derivation gave 0.20 m, which is
+# below the 0.205 m a mid-turn pass actually needs — i.e. the shipped default
+# was sized just under the requirement at the majority of sign positions. Same
+# bug as 47827ca fixed in _WALL_CLEARANCE, on the other consumer of the figure.
+#
+# This only became measurable once the reactive escape layer stopped firing at
+# routed signs (see collision_avoidance_controller.mask_mapped_obstacles):
+# before that the offset was inert at every value, because the run was decided
+# before the router's aim could matter. Measured over the 16 obstacles fixtures
+# with the split active: 0.20 -> 16/16 collisions and 0 laps, 0.24 and beyond
+# -> 14/16 and 2/16 completing all three laps, plateauing from 0.24 where
+# _WALL_CLEARANCE starts to bind instead.
 _SIGN_CLEARANCE_MARGIN = 0.075
-_SIGN_LATERAL_OFFSET = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
+_SIGN_LATERAL_OFFSET = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
 
 # How far behind the robot's own origin a sign may still sit and remain an
 # avoidance candidate. Half the chassis length, so a sign level with the rear
@@ -165,10 +182,11 @@ class SignRouterConfig:
         ``lateral_offset`` isn't a raw tunable in ``SignRouterParams`` -- only
         its safety-margin component is (``SIGN_CLEARANCE_MARGIN_M``), so this
         recomputes the same derivation ``_SIGN_LATERAL_OFFSET`` uses at module
-        scope: chassis half-width + sign half-width + margin.
+        scope: chassis half-DIAGONAL + sign half-width + margin. Keep the two
+        in step; see that constant for why it is the diagonal.
         """
         return cls(
-            lateral_offset=RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
+            lateral_offset=_CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
             activation_dist=params.ACTIVATION_DIST_M,
             passed_dist=params.PASSED_DIST_M,
             detection_match_dist=params.DETECTION_MATCH_DIST_M,
@@ -280,6 +298,22 @@ class SignRouter:
     def active_sign_count(self) -> int:
         """Number of signs not yet marked as passed (this lap)."""
         return len(self._signs) - len(self._passed)
+
+    @property
+    def routed_sign_positions(self) -> list[tuple[float, float]]:
+        """World positions of the signs this router still intends to route around.
+
+        The reactive collision layer uses this to tell a mapped obstacle it has
+        a plan for from an unmapped one it does not (see
+        ``collision_avoidance_controller.mask_mapped_obstacles``). Signs already
+        marked passed are excluded: the router has stopped steering around them,
+        so nothing owns them any more and they get the full reactive guard back.
+
+        Discovered signs are included on the same footing as metadata ones —
+        both live in ``_signs`` — but only once ``ObservedSignMap`` has actually
+        published them, so an unconfirmed track never suppresses the guard.
+        """
+        return [(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
 
     def reset_for_new_lap(self) -> None:
         """Re-arm every sign so it's routed again on the next lap.

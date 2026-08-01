@@ -10,13 +10,96 @@ import logging
 import math
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.domain.enums import RiskLevel
 from shared.domain.models import SectorRanges
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 logger = logging.getLogger(__name__)
+
+
+def mask_mapped_obstacles(
+    lidar_ranges: np.ndarray | tuple[float, ...],
+    lidar_angles: np.ndarray | tuple[float, ...] | None,
+    robot_pose: tuple[float, float, float],
+    mapped_xy: Sequence[tuple[float, float]],
+    radius_m: float,
+) -> np.ndarray:
+    """Blank the LIDAR returns that land on an obstacle the planner already owns.
+
+    The reactive layer in this module exists for what the planner does *not*
+    know about: walls it is drifting into, and unmapped returns. A traffic sign
+    the ``SignRouter`` is actively routing around is the opposite case — the
+    planner has a deliberate plan for it, and that plan is to pass it at
+    ``lateral_offset`` centre-to-centre — a gap narrower than ``contact_dist``
+    once the sign's own half-width is subtracted.
+    So with the raw scan the escape maneuver
+    fires on every single sign pass and reverses the robot out of a gap the
+    planner aimed for on purpose. Measured over the 16 obstacles fixtures, that
+    decides the run before the router's aim can matter at all: every
+    planning-side knob reads flat because the reactive layer overrides it (see
+    ``docs/sign-avoidance-investigation.md``, "The escape layer is the gate").
+
+    So the split is by *provenance*, not by distance: a return attributable to a
+    mapped, actively-routed sign is withheld from the escape trigger, while
+    walls and genuinely unknown returns keep the full guard. This is
+    deliberately narrower than blanking the whole obstacle class from
+    perception (``lidar_sees_obstacles=False``), which is a diagnostic only —
+    the C1 really does see the signs, and an unmapped one must still stop the
+    robot.
+
+    Masked rays are set to ``inf`` rather than dropped, so the returned array
+    stays index-aligned with ``lidar_angles``. ``inf`` is already this module's
+    no-return sentinel: ``_sector_ranges`` filters it via ``np.isfinite`` and
+    ``_forward_path_ranges`` rejects it via its lateral-offset test.
+
+    Args:
+        lidar_ranges: Array of LIDAR range measurements.
+        lidar_angles: Per-ray bearings (radians, 0 = forward). Synthesised from
+            a full ``[-pi, pi)`` sweep when omitted, matching the rest of this
+            module.
+        robot_pose: Robot ``(x, y, yaw)`` in world frame, needed to place each
+            ray's endpoint on the map.
+        mapped_xy: World positions of the mapped obstacles to withhold.
+        radius_m: How close a ray endpoint must be to a mapped position to count
+            as that obstacle. Must cover the obstacle's own half-diagonal plus
+            localisation and mapping error, but stay well under the distance to
+            the nearest wall behind it — too large and a wall standing behind a
+            sign is silently masked along with it.
+
+    Returns:
+        A copy of ``lidar_ranges`` with attributed rays set to ``inf``. The
+        input is returned unchanged (as an array) when there is nothing to mask.
+    """
+    ranges = np.asarray(lidar_ranges, dtype=float)
+    if ranges.size == 0 or len(mapped_xy) == 0 or radius_m <= 0.0:
+        return ranges
+
+    if lidar_angles is None:
+        angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
+    else:
+        angles = np.asarray(lidar_angles, dtype=float)
+
+    robot_x, robot_y, robot_yaw = robot_pose
+    # Only finite returns have an endpoint to attribute; inf rays are already
+    # no-returns and feeding them through cos/sin yields inf-inf = nan.
+    finite = np.isfinite(ranges)
+    bearings = angles + robot_yaw
+    end_x = robot_x + ranges * np.cos(bearings)
+    end_y = robot_y + ranges * np.sin(bearings)
+
+    attributed = np.zeros(ranges.shape, dtype=bool)
+    for mapped_x, mapped_y in mapped_xy:
+        attributed |= np.hypot(end_x - mapped_x, end_y - mapped_y) < radius_m
+
+    masked = ranges.copy()
+    masked[attributed & finite] = np.inf
+    return masked
 
 
 class ThreatDirection(StrEnum):

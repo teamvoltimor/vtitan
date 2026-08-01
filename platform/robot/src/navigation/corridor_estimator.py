@@ -148,13 +148,30 @@ def section_from_heading(yaw: float, direction: Direction) -> Section:
 class CorridorWidthEstimator:
     """Running per-section estimate of the track layout, from LIDAR only.
 
-    Starts with every corridor assumed narrow (the safe prior — see the module
-    docstring) and widens each one only after repeated agreeing observations.
+    Starts from ``assumed_width`` and re-classifies each corridor only after
+    repeated agreeing observations.
+
+    The default prior is narrow, which is the safe one for the Open Challenge
+    (see the module docstring): its corridors are independently 60 or 100 cm, so
+    neither value is a better guess than the other and the tighter one fails
+    safe. **The Obstacles Challenge is not that round.** Its corridors are all
+    100 cm, which is a rule of the event and therefore knowable before the
+    robot is placed — exactly like "the track is 3x3 m and the loop is
+    rectangular". Assuming narrow there is not conservative, it is *known to be
+    wrong for every corridor*, and it costs real runs: measured over the 16
+    obstacles fixtures, 9 of 16 blind collisions happened in a corridor still
+    held at the narrow default, because the robot turns into a corridor and
+    meets a traffic sign there before ``_MIN_SAMPLES`` readings have accumulated
+    to correct it. In the Open Challenge that same latency is harmless -- there
+    is nothing in the corridor to hit.
+
+    The estimator still runs and can still override the prior: this changes
+    where it starts, not whether it measures.
     """
 
-    def __init__(self, min_samples: int = _MIN_SAMPLES) -> None:
+    def __init__(self, min_samples: int = _MIN_SAMPLES, assumed_width: float = _NARROW) -> None:
         self._min_samples = min_samples
-        self._widths: dict[Section, float] = dict.fromkeys(Section, _NARROW)
+        self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()
         self._votes: dict[Section, list[int]] = {s: [0, 0] for s in Section}
         """Per section, ``[narrow_votes, wide_votes]``."""

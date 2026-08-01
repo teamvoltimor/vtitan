@@ -8,15 +8,18 @@ dead behind must never produce a reversing command.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 import numpy as np
 import pytest
+from shared.config.constants import ColorNames
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
+from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
 from src.navigation.ports import DriveCommand, LidarScan
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -93,6 +96,111 @@ class TestCriticalEscapeRearGate:
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps < 0, "front-only threat should trigger the reverse K-turn"
+
+
+class TestMappedObstacleEscapeSplit:
+    """A sign the SignRouter is routing around must not trigger the reactive
+    escape maneuver; anything the router does not own still must.
+
+    The router passes a sign at ~lateral_offset centre-to-centre by design,
+    which is inside CONTACT_DIST — so without this split the escape fires on
+    every sign pass and reverses the robot out of the gap the planner aimed
+    for. Measured over the 16 obstacles fixtures, that decided the run before
+    the router's aim could matter: the lateral_offset knob was byte-identical
+    from 0.20 to 0.32 with the split off, and 16/16 -> 14/16 with 2/16
+    completing three laps once it was on (docs/sign-avoidance-investigation.md).
+    """
+
+    _FRONT_RANGE = 0.06
+    """Inside CONTACT_DIST (0.10), so the raw scan reads CRITICAL."""
+
+    @staticmethod
+    def _navigator(waypoints, sign_xy, mask_radius=None):
+        """A navigator facing a close front return, with a sign mapped at ``sign_xy``.
+
+        The robot sits at the origin facing east, so the front return lands at
+        ``(_FRONT_RANGE, 0)`` in world coordinates.
+        """
+        ranges = _scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
+        gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
+        tuning = NavigationTuning()
+        if mask_radius is not None:
+            tuning = dataclasses.replace(
+                tuning,
+                sign_router=tuning.sign_router.model_copy(update={"ESCAPE_MASK_RADIUS_M": mask_radius}),
+            )
+        router = SignRouter(
+            [SignSpec(x=sign_xy[0], y=sign_xy[1], color=ColorNames.RED)],
+            config=SignRouterConfig.from_tuning(tuning.sign_router),
+        )
+        nav = CoreNavigator(
+            gateway=gateway,
+            waypoints=waypoints,
+            num_laps=1,
+            tuning=tuning,
+            sign_router=router,
+        )
+        return gateway, nav
+
+    def test_routed_sign_does_not_trigger_the_escape(self, waypoints):
+        """The front return lands on the mapped sign, so no reverse is commanded."""
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+
+        nav.step()
+
+        assert gateway.commands
+        assert gateway.commands[-1].speed_mps > 0, "a sign the router owns must not trigger a reversing escape"
+
+    def test_unmapped_obstacle_at_the_same_range_still_escapes(self, waypoints):
+        """Same scan, sign mapped elsewhere: the full reactive guard applies.
+
+        This is the half that makes the split a split rather than a blanket
+        suppression — the robot must still reverse off a wall or an
+        undiscovered obstacle at exactly this range.
+        """
+        gateway, nav = self._navigator(waypoints, sign_xy=(0.0, 0.9))
+
+        nav.step()
+
+        assert gateway.commands
+        assert gateway.commands[-1].speed_mps < 0, "an obstacle nothing owns must still trigger the escape"
+
+    def test_zero_mask_radius_restores_the_escape(self, waypoints):
+        """The documented off-switch really is off."""
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), mask_radius=0.0)
+
+        nav.step()
+
+        assert gateway.commands
+        assert gateway.commands[-1].speed_mps < 0
+
+    def test_masked_sign_still_slows_the_robot(self, waypoints):
+        """Speed is governed by the RAW scan, so the robot still slows for a
+        sign — it just no longer panics at one.
+
+        Specifically the raw ``risk != SAFE`` cap still applies, which is what
+        holds this to SLOW_SPEED rather than FAST_SPEED. Losing it would mean
+        taking every sign pass at full speed, which is not what the split is
+        for: the split removes the escape maneuver, not the caution.
+        """
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+
+        nav.step()
+
+        assert gateway.commands
+        assert gateway.commands[-1].speed_mps <= nav._tuning.speed.SLOW_SPEED
+
+    def test_passed_sign_gets_its_guard_back(self, waypoints):
+        """Once the router retires a sign it stops owning it, so the reactive
+        layer must resume treating that return as a real threat.
+        """
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+        nav.sign_router._passed.add(0)
+
+        nav.step()
+
+        assert gateway.commands
+        assert gateway.commands[-1].speed_mps < 0
 
 
 class TestStuckDetectionDuringParking:

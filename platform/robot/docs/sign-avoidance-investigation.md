@@ -6,6 +6,254 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
+## Current state (2026-08-01) — the gate is open, three fixes landed
+
+**Shipped defaults now: 14/16 collisions (14 sign, 0 wall, 0 parking), 2/16
+complete all three laps, 0 timeouts — the same numbers SIGHTED and BLIND, on
+the same fixtures.** Previously 16/16 and 0/16 in both. This is the first
+non-zero `laps>=3` ever recorded here with physical signs and the LIDAR seeing
+them. It is an improvement, not a solution.
+
+Fixes 1 and 2 buy the sighted result; fix 3 makes blind match it.
+
+The ORDER of the first two is the point — neither is measurable without the
+other, which is why every earlier attempt at the second one read as flat:
+
+1. **The mapped/unmapped split in the reactive layer**
+   (`collision_avoidance_controller.mask_mapped_obstacles`, wired in
+   `CoreNavigator.step`). A LIDAR return landing within
+   `ESCAPE_MASK_RADIUS_M` (0.12) of a sign the `SignRouter` still intends to
+   route around is withheld from the CRITICAL escape trigger. Walls, unmapped
+   returns, and signs the router has already retired keep the full guard.
+   Speed is still governed by the **raw** scan, so the robot goes on slowing
+   for a sign — the split removes the escape maneuver, not the caution. This is
+   the "ordinary split between mapped and unmapped obstacles" the old next-steps
+   list asked for, and emphatically not `lidar_blind`.
+
+2. **`_SIGN_LATERAL_OFFSET` sized on the chassis half-DIAGONAL**, matching what
+   `47827ca` already did to `_WALL_CLEARANCE`. Was `WIDTH/2 + sign_half +
+   margin` = 0.200; now `hypot(LENGTH/2, WIDTH/2) + sign_half + margin` = 0.280.
+   The old value sat *below* the 0.205 m a mid-turn pass needs, at the corner
+   positions where two-thirds of legal WRO signs sit.
+
+Measured with the offset knob genuinely connected (see the harness warning
+below), the two together:
+
+| `lateral_offset` | split off | split on |
+|---|---|---|
+| 0.20 | 16/16, 0 laps>=3 | 16/16, 0 laps>=3 |
+| 0.24 | 16/16, 0 laps>=3 | **14/16, 2 laps>=3** |
+| 0.28 (shipped) | 16/16, 0 laps>=3 | **14/16, 2 laps>=3** |
+| 0.32 | 16/16, 0 laps>=3 | **14/16, 2 laps>=3** |
+
+Reproduce with `diag_sign_sweep.py offset ...` and `unsplit-offset ...`. With
+the split off the knob is byte-identical across a 60% change in magnitude —
+the same inertness the section below diagnosed, now confirmed with a working
+knob rather than a disconnected one. **That diagnosis was right.**
+
+3. **The blind layout prior seeded from the challenge's own rules**
+   (`CorridorWidthEstimator(assumed_width=...)`). The Obstacles Challenge fixes
+   every corridor at 1.0 m; a blind run was assuming 0.6 m. See "Blind now
+   matches sighted exactly" below. Regression-gated against the 28 blind Open
+   Challenge fixtures: 27/28 pass, 0 collisions, unchanged.
+
+### The 14/16 plateau is NOT the wall clamp
+
+The section below predicted a second ceiling at `_WALL_CLEARANCE` (0.220).
+Swept (`diag_sign_sweep.py wall ...`), it is already at its optimum and the
+plateau is something else:
+
+| `_WALL_CLEARANCE` | Collisions | laps>=3 |
+|---|---|---|
+| 0.16 | 16/16 (wall 4, sign 12) | 0/16 |
+| 0.18 | 15/16 (wall 3, sign 12) | 1/16 |
+| 0.20 | 14/16 (wall 0, sign 14) | 2/16 |
+| **0.22 (shipped)** | **14/16 (wall 0, sign 14)** | **2/16** |
+| 0.24 | 16/16 (wall 0, sign 16) | 0/16 |
+
+Loosening it buys wall contacts one-for-one; tightening it over-constrains the
+deformation. So the prediction was wrong and **what holds the remaining 14 is
+still unidentified.** Do not spend the next session on the clamp.
+
+### Blind now matches sighted exactly (the wide prior)
+
+**Fixed.** `blind` is now 14/16 with 2/16 three-lap finishes — identical to
+sighted, and identical fixture-for-fixture (the same two, `0001` and `0003`,
+are the ones that finish).
+
+The cause was a prior that is simply wrong for this round. A blind run assumed
+every corridor was narrow (0.6 m) and corrected it from LIDAR as it drove. That
+is the right default for the Open Challenge, whose corridors are independently
+60 or 100 cm — neither value is a better guess and the tighter one fails safe.
+**The Obstacles Challenge fixes every corridor at 1.0 m**, which is a rule of
+the event and therefore knowable before the robot is placed, exactly like "the
+track is 3x3 m and the loop is rectangular". Verified across the fixture sets:
+
+| Fixture set | Corridor widths |
+|---|---|
+| obstacles (16) | **64/64 at 1.0 m** |
+| open/test (28) | 55 at 0.6 m, 57 at 1.0 m |
+
+So the robot was starting every blind obstacles round holding a belief that was
+wrong for all four corridors, and paying the ``_MIN_SAMPLES`` (12 valid
+readings) latency to correct each one — while driving past traffic signs on a
+path built for the wrong geometry. `CorridorWidthEstimator` now takes an
+``assumed_width``; `ScenarioSimulator` and `TrackNavigator` seed it from the
+challenge type. The estimator still measures and can still override the prior;
+this changes only where it starts. `CorridorDimensions.OBSTACLES_WIDTH` already
+existed and documented the rule — it just was not wired to the estimator.
+
+> A note on reading vote data. Before this was understood, the obstacles
+> fixtures' all-wide voting (`east: [0, 152]`) looked like a measurement bug.
+> It was not: every corridor genuinely *is* wide, so the occasional narrow vote
+> was the error and the all-wide result was correct. Any future change here
+> should be judged against the true widths, not against vote diversity.
+
+### Superseded: the gains did not used to carry to blind
+
+> **Resolved by the wide prior above.** Kept because the attribution below is
+> what located the cause, and because the method — split what `blind` withholds
+> rather than treating it as one switch — is the reusable part.
+
+As first measured (`diag_sign_sweep.py blind`, ideal sensors, so this is the
+equivalent of the open-challenge evaluation's `ideal` row and not its
+`bno085 at spec` one):
+
+| Configuration | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| sighted (signs from metadata) | 14/16 | 2/16 | **2/16** |
+| blind (track, direction, signs) | 16/16 | 1/16 | **0/16** |
+
+Before these fixes the two regimes were identical (16/16, 0 laps either way),
+which is what made "blind costs nothing" true. **It is no longer true**: the
+sighted improvement largely does not survive discovery.
+
+What the fixes are worth in blind, isolated within a single tree
+(`diag_sign_sweep.py blind-split`). Measure it this way rather than against a
+blind figure from an earlier session — unrelated changes move blind lap counts
+on their own, `replace_path`'s lap-seam fix among them:
+
+| Blind configuration | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| pre-fix (offset 0.20, split off) | 16/16 | 0/16 | 0/16 |
+| split only (offset 0.20) | 16/16 | 0/16 | 0/16 |
+| offset only (0.28, split off) | 16/16 | 0/16 | 0/16 |
+| **both (shipped defaults)** | 16/16 | **1/16** | 0/16 |
+
+So the gain is real and it is attributable — and it is **one fixture reaching
+one lap**. Collisions do not move at all and no fixture finishes three. Note
+the combinatorial signature is the same as sighted: neither fix does anything
+alone, which is consistent with the split being the gate and the offset being
+what the open gate lets through.
+
+#### The shortfall is the corridor layout, not the signs — attributed
+
+`diag_sign_sweep.py blind-source` holds the track and direction back but hands
+the sign layout over, which separates the two things `blind` withholds at once:
+
+| Configuration | Collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| sighted (everything known) | 14/16 | 2/16 | 2/16 |
+| blind track+direction, **signs known** | 16/16 | 1/16 | 0/16 |
+| fully blind (signs discovered) | 16/16 | 1/16 | 0/16 |
+
+The bottom two rows are identical, so **sign discovery costs nothing** and the
+entire blind loss is the estimated corridor layout. The discovery-timing
+hypothesis (`MIN_HITS` vs `activation_dist`) is dead; do not spend time on it.
+
+`diag_blind_layout.py` then attributes it further, scoring only the corridor the
+robot is *in* when it dies (scoring the whole belief would blame the estimator
+for corridors the collision itself prevented it from ever visiting):
+
+```
+WRONG+UNMEASURED (still on the narrow default) = 9
+belief here correct, still collided            = 7
+```
+
+**9 of 16 blind collisions happen in a corridor the robot has never measured.**
+A blind run assumes every corridor is narrow and corrects from LIDAR; the robot
+banks its starting corridor, turns into the next one still holding the narrow
+default, and meets a sign there before `_MIN_SAMPLES` (12) valid readings have
+accumulated. In the Open Challenge that same latency is harmless — there is
+nothing in the corridor to hit — which is why blind open reaches 28/28 while
+blind obstacles is stuck at 16/16. **The lever is how fast a newly-entered
+corridor is committed, or what the robot does before it is.**
+
+The remaining 7 are collisions with a correct, settled belief for that
+corridor — the same unexplained residue as the sighted 14.
+
+##### Tried and reverted: median-window wall distance
+
+`measure_corridor_width` takes the single ray at +-90 deg (`_nearest_ray`),
+which during a sign pass measures the sign rather than the wall, biasing the
+width *short* — i.e. toward "narrow", which is what a blind run already assumes,
+so the error silently confirms the wrong default. Replacing it with a median of
+`r*cos(offset)` over a +-25 deg window (robust to a sign occupying a minority of
+the window, and unbiased for a flat wall) **changed nothing**: still 16/16 and
+9 WRONG+UNMEASURED. It also moved the vote distribution the wrong way — narrow
+votes across the fixtures went from a real minority (e.g. `east: [24, 152]`) to
+exactly zero — so it was reverted rather than kept as a neutral cleanup. The
+window evidently picks up returns past the inner block's end, which is only
+1 m long against a 3 m corridor. Note the bias is real; it is just not what is
+costing the runs, because the corridors that lose them are never measured at
+all.
+
+Still unvalidated on the perception side, independent of the above: the emulator
+emits detections every control tick at 20 Hz, which the real Hailo pipeline will
+not match, so `MIN_HITS` confirmation costs more distance on the mat than in
+sim. That does not affect these numbers (discovery is free here) but it could on
+hardware.
+
+Blind is the configuration that matters on the mat, so **this gap is the result
+to close, and no sighted-only number here should be claimed for race day.**
+
+### The tracker is still fine
+
+`diagnose` at the new defaults: strip the signs and all 16 fixtures drive three
+clean laps, exactly as before. 100% of the remaining failure is traffic signs.
+
+### WARNING: this harness was silently broken, and it voids numbers below
+
+`diag_sign_sweep.py` had **two independent breakages**, both of which failed
+silently as "the knob does nothing" rather than as an error. Both are fixed;
+both invalidate figures in the sections below.
+
+* **The `lateral_offset` override never reached the router.** It patched
+  `sign_router.SignRouterConfig`, but `scenario_simulator` binds that name at
+  import time and builds the config via `SignRouterConfig.from_tuning(...)`,
+  so neither half of the patch applied. Every `offset` and `masked-offset`
+  figure taken after the config moved to `from_tuning` measured the default
+  0.20 repeatedly. **This is why the `masked-offset` table below no longer
+  reproduces** — that table is from before the breakage and cannot currently be
+  confirmed or refuted.
+* **Every tuning override raised `TypeError`.** `NavigationTuning` is a
+  dataclass but its groups are frozen *pydantic* models, and `tuning()` used
+  `dataclasses.replace` on the groups. So `lookahead`, `arc` and `speed` could
+  not run at all after that migration.
+
+Practical rule for the next session: **before citing any number in this
+document, check it was taken with the knob it claims to sweep actually
+connected.** A flat sweep is now the first thing to distrust, not the last —
+two of the three "every tuning knob is flat" style conclusions here turned out
+to have a disconnected knob behind them.
+
+### Next
+
+1. **Find what holds the remaining 14** — now the same question in both
+   regimes, since blind and sighted agree fixture-for-fixture. It is not the
+   escape layer (split lands), not the wall clamp (swept flat-to-worse), not
+   the tracker (16/16 clean without signs), not offset magnitude (plateaued
+   from 0.24) and no longer the layout prior. `diag_sign_trace.py` on one of
+   the 14 is the tool; the counting harnesses are exhausted on this question.
+2. **Re-sweep lookahead, arc radius and speed.** Every one of those numbers was
+   taken either in the masked regime or through a harness that raised before
+   running. They are unmeasured, not flat.
+3. `ESCAPE_MASK_RADIUS_M` has not been swept — 0.12 is derived (sign
+   half-diagonal 0.035 + ~0.085 pose/mapping error), not tuned.
+   `diag_sign_sweep.py mask-radius ...` exists for it.
+
+---
+
 > **The "Re-measured under 4WS" section's central conclusion is wrong.** It
 > reports every tuning knob as flat and concludes the router's commanded offset
 > never reaches the chassis. The knobs are flat, but not for that reason, and
@@ -79,6 +327,13 @@ are two independent ceilings stacked, and only the first is currently visible.
 Expect to have to clear both.
 
 ### Blind changes nothing, which is itself the useful result
+
+> **SUPERSEDED (2026-08-01).** True only while both regimes were stuck at the
+> same 16/16. Once the escape split and the half-diagonal offset landed, sighted
+> moved to 14/16 with 2/16 three-lap finishes and blind did not follow — see
+> "The gains do NOT carry to blind" at the top. The closing claim here, that
+> "nothing above needs re-measuring against blind before it is fixed", has now
+> expired: it is fixed, and blind does need re-measuring.
 
 Since 2026-07-27 an obstacles scenario can be run properly blind: `blind=True`
 withholds the corridor widths, the travel direction *and* the sign positions,
@@ -764,7 +1019,12 @@ Run from `platform/robot` with `PYTHONPATH=.` under `pixi run -e dev`.
 
 | Script | What it answers |
 |---|---|
-| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `masked-offset` `buffer` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
+| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `unsplit-offset` `masked-offset` `buffer` `wall` `mask-radius` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
+| `scripts/diag_escape_mask.py` | Whether the mapped/unmapped split is actually firing, per tick: raw vs masked risk, and which escapes began. Answers "is this knob connected?" — the question two silent harness breakages here turned on. |
+
+Every mode except `blind` runs **sighted**, which is not the competition
+configuration. Re-read any result through `diag_sign_sweep.py blind` before
+claiming it for the mat; since 2026-08-01 the two no longer agree.
 | `scripts/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
 | `scripts/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
 | `scripts/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |

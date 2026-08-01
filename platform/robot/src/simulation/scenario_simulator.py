@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from shared.config.constants import RobotSpecs
+from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import ScenarioMetadata
@@ -326,10 +326,23 @@ class ScenarioSimulator:
 
         # What the robot is allowed to believe about the layout. Sighted runs
         # get the truth (as the ROS2 node does, from its metadata file); blind
-        # runs start with every corridor assumed narrow and correct it from
+        # runs start from the prior their challenge allows and correct it from
         # LIDAR as they go.
+        #
+        # The Obstacles Challenge fixes every corridor at 1.0 m, so that is
+        # prior knowledge, not a guess -- confirmed across the fixture set,
+        # where all 64 corridors are wide. The Open Challenge's are
+        # independently 60 or 100 cm, so it keeps the narrow (fail-safe) prior.
         self._arc_radius = nav_tuning.waypoints.ARC_RADIUS
-        self._width_estimator = CorridorWidthEstimator() if blind else None
+        self._width_estimator = (
+            CorridorWidthEstimator(
+                assumed_width=CorridorDimensions.NARROW
+                if is_open_challenge
+                else CorridorDimensions.OBSTACLES_WIDTH,
+            )
+            if blind
+            else None
+        )
         # Travel direction is inferred from LIDAR too when asked. Until it
         # settles there is no usable plan -- the path for the wrong direction
         # runs the opposite way down this same corridor -- so the robot follows

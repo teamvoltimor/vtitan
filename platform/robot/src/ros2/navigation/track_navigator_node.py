@@ -18,7 +18,7 @@ from typing import Any, cast, override
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
-from shared.config.constants import DictKeys
+from shared.config.constants import CorridorDimensions, DictKeys
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RobotState
@@ -127,19 +127,34 @@ class TrackNavigator(Node, ResettableNode):
         start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
 
         # What the robot is allowed to believe about the layout. Sighted runs
-        # read it from the metadata; blind runs start with every corridor
-        # assumed narrow and correct it from LIDAR as they drive.
+        # read it from the metadata; blind runs start from a prior and correct
+        # it from LIDAR as they drive.
         #
-        # Narrow is the safe prior: planning a 1.0 m corridor as if it were
-        # 0.6 m puts the path nearer the outer wall, which is still inside it.
-        # The converse puts the path 0.15 m from the inner block face, inside
-        # the chassis half-diagonal, and clips it mid-turn.
+        # In the OPEN Challenge narrow is the safe prior: planning a 1.0 m
+        # corridor as if it were 0.6 m puts the path nearer the outer wall,
+        # which is still inside it. The converse puts the path 0.15 m from the
+        # inner block face, inside the chassis half-diagonal, and clips it
+        # mid-turn. That argument only applies where the width is genuinely
+        # unknown -- see the estimator's construction below for why the
+        # Obstacles Challenge is a different case.
         self._arc_radius = tuning.waypoints.ARC_RADIUS
         self._tuning = tuning
         self._direction = start_direction
         self._start_xy = (start_x, start_y)
         self._start_section = start_section
-        self._width_estimator = CorridorWidthEstimator() if self._blind else None
+        # The Obstacles Challenge fixes every corridor at 1.0 m, so a blind run
+        # there starts from that rather than from the Open Challenge's
+        # fail-safe narrow prior -- assuming narrow is not conservative when
+        # the round's rules say it cannot be true. See CorridorWidthEstimator.
+        self._width_estimator = (
+            CorridorWidthEstimator(
+                assumed_width=CorridorDimensions.NARROW
+                if self._is_open_challenge
+                else CorridorDimensions.OBSTACLES_WIDTH,
+            )
+            if self._blind
+            else None
+        )
         # Blind implies inferring the direction: it is drawn at random on the
         # day, so a blind robot cannot be handed it either. ``direction`` is
         # only the provisional the first path is built from, and is replaced

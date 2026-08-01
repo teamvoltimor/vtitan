@@ -10,3 +10,14 @@ passed_dist_m = 1.20              # distance beyond which a sign is "passed"
 detection_match_dist_m = 0.30     # max distance to associate a detection with a sign
 min_confidence = 0.25             # minimum confidence to accept a camera color update
 settle_ticks = 150                # ticks after lap start before bookkeeping activates
+
+# A LIDAR return landing within this distance of a sign the router is still
+# routing around is attributed to that sign and withheld from the reactive
+# escape trigger -- the planner owns it, so the escape maneuver must not fire
+# and reverse the robot out of a gap the planner aimed for. Sized as the sign's
+# own half-diagonal (0.035 m for a 50x50 mm footprint) plus ~0.085 m of pose
+# and mapping error. Do NOT raise this much further: the wall behind a sign can
+# be as close as ~0.15 m in a narrow corridor, and masking that wall too would
+# remove a guard nothing else replaces. Set to 0.0 to disable the split.
+escape_mask_radius_m = 0.12
+

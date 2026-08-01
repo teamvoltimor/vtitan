@@ -17,6 +17,7 @@ from shared.domain.enums import RiskLevel
 
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
+    mask_mapped_obstacles,
 )
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
@@ -220,3 +221,107 @@ class TestForwardPathRisk:
         i = _index_for(0.0)
         ranges[i - 4 : i + 4] = 0.20  # contact_dist < 0.20 < slow_dist (0.25)
         assert controller.assess_risk(ranges, ANGLES) == RiskLevel.OBSTACLE
+
+
+class TestMaskMappedObstacles:
+    """Returns attributable to a planner-owned obstacle are withheld from the
+    escape trigger; everything else keeps the full reactive guard.
+
+    The split is by provenance, not distance — so these tests pin that a
+    mapped position at a given range is masked while an identical return at a
+    position nothing owns is not.
+    """
+
+    _MASK_RADIUS = 0.12
+
+    def test_return_on_a_mapped_position_is_masked(self):
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i - 4 : i + 4] = 0.08  # inside contact_dist
+
+        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+
+        assert np.isinf(masked[i]), "a return landing on a mapped sign must be withheld"
+
+    def test_unmapped_return_at_the_same_range_is_untouched(self):
+        """The guard is removed for the mapped obstacle only, not for the range."""
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i - 4 : i + 4] = 0.08
+
+        # Mapped sign is off to the side; the forward return belongs to nothing.
+        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.0, 0.9)], self._MASK_RADIUS)
+
+        assert masked[i] == pytest.approx(0.08)
+
+    def test_masking_downgrades_risk_from_critical_to_safe(self, controller):
+        """The whole point: the same scan is CRITICAL raw and SAFE once masked."""
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i - 4 : i + 4] = 0.08
+
+        assert controller.assess_risk(ranges, ANGLES) == RiskLevel.CRITICAL
+        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+        assert controller.assess_risk(masked, ANGLES) == RiskLevel.SAFE
+
+    def test_mapped_positions_are_world_frame_not_robot_frame(self):
+        """Ray endpoints are placed using the robot's pose, so a sign's world
+        position masks the correct ray whatever the robot's heading is.
+
+        Pinning this because a robot-frame reading would appear to work at
+        yaw=0 — the pose the other tests here use — and silently mask the wrong
+        bearing everywhere else on the track.
+        """
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i - 4 : i + 4] = 0.08
+        # Robot at (1.0, 2.0) facing north: the forward return lands at
+        # (1.0, 2.08), NOT at (0.08, 0).
+        pose = (1.0, 2.0, math.pi / 2)
+
+        masked_world = mask_mapped_obstacles(ranges, ANGLES, pose, [(1.0, 2.08)], self._MASK_RADIUS)
+        masked_body = mask_mapped_obstacles(ranges, ANGLES, pose, [(0.08, 0.0)], self._MASK_RADIUS)
+
+        assert np.isinf(masked_world[i])
+        assert masked_body[i] == pytest.approx(0.08)
+
+    def test_zero_radius_and_empty_map_are_no_ops(self):
+        """Both disable the split — the escape trigger sees the raw scan.
+
+        ``escape_mask_radius_m = 0`` is the documented off-switch and the
+        comparison every measurement of the split is read against, so it has to
+        be exactly the old behaviour rather than approximately it.
+        """
+        ranges = _scan()
+        ranges[_index_for(0.0)] = 0.08
+
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], 0.0), ranges)
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [], self._MASK_RADIUS), ranges)
+
+    def test_no_return_rays_stay_infinite_and_never_become_nan(self):
+        """``inf`` ranges have no endpoint to attribute.
+
+        ``inf * cos(theta)`` is ``+-inf`` and ``inf - inf`` is ``nan``, so an
+        unguarded distance test would turn every no-return ray into ``nan`` —
+        which compares False everywhere and would quietly corrupt the sector
+        helpers' min/mean rather than failing loudly.
+        """
+        ranges = _scan()
+        ranges[:] = np.inf
+
+        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+
+        assert np.all(np.isinf(masked))
+        assert not np.any(np.isnan(masked))
+
+    def test_input_scan_is_not_mutated(self):
+        """The raw scan still governs speed and the rear gate, so masking must
+        return a copy rather than editing the caller's array in place.
+        """
+        ranges = _scan()
+        i = _index_for(0.0)
+        ranges[i] = 0.08
+
+        mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+
+        assert ranges[i] == pytest.approx(0.08)

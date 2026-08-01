@@ -310,6 +310,11 @@ class SignRouterParams(BaseModel):
             color update for a sign.
         SETTLE_TICKS: Ticks after lap start before sign engage/pass
             bookkeeping activates (~7.5s @ 20Hz by default).
+        ESCAPE_MASK_RADIUS_M: How close a LIDAR return must land to a routed
+            sign to be attributed to it and withheld from the reactive escape
+            trigger. Zero disables the mapped/unmapped split entirely, which
+            restores the pre-fix behaviour where the escape maneuver fires on
+            every sign pass.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -322,6 +327,7 @@ class SignRouterParams(BaseModel):
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
+    ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
 
 
 class SignDiscoveryParams(BaseModel):

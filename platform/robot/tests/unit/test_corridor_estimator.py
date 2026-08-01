@@ -133,6 +133,30 @@ class TestCorridorWidthEstimator:
         assert all(w == pytest.approx(_NARROW) for w in estimator.widths.values())
         assert not estimator.observed_sections
 
+    def test_prior_can_be_seeded_for_a_round_whose_width_is_a_rule(self) -> None:
+        """The Obstacles Challenge fixes every corridor at 1.0 m.
+
+        There the narrow prior is not conservative, it is known-wrong for every
+        corridor, and a blind run pays for it: the robot turns into a corridor
+        still holding the default and meets a traffic sign before it has taken
+        enough readings to correct it. Seeding the prior removed the entire
+        blind penalty over the 16 obstacles fixtures (16/16 collisions and 0
+        three-lap finishes, to 14/16 and 2 — exactly matching the sighted run).
+        """
+        estimator = CorridorWidthEstimator(assumed_width=_WIDE)
+        assert all(w == pytest.approx(_WIDE) for w in estimator.widths.values())
+        # Seeded, not decided: nothing has been measured yet, so the estimator
+        # must not report these as observed or it would suppress its own
+        # replanning when a real reading disagrees.
+        assert not estimator.observed_sections
+
+    def test_a_seeded_prior_is_still_overridden_by_measurement(self) -> None:
+        """Seeding changes where the estimator starts, not whether it measures."""
+        estimator = CorridorWidthEstimator(assumed_width=_WIDE)
+        self._feed(estimator, Section.EAST, _NARROW, times=20)
+        assert estimator.widths[Section.EAST] == pytest.approx(_NARROW)
+        assert Section.EAST in estimator.observed_sections
+
     def test_learns_a_wide_corridor(self) -> None:
         estimator = CorridorWidthEstimator()
         self._feed(estimator, Section.EAST, _WIDE, times=20)

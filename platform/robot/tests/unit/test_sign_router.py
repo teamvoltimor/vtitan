@@ -272,6 +272,36 @@ class TestActivationDistance:
 # 4. Passed signs ignored
 
 
+class TestRoutedSignPositions:
+    """What the router publishes to the reactive collision layer as "mine".
+
+    The collision layer withholds returns landing on these positions from its
+    escape trigger, so this list is a safety-relevant contract: anything wrongly
+    on it loses its guard, and anything wrongly off it triggers an escape the
+    router did not want.
+    """
+
+    def test_lists_every_sign_it_still_intends_to_route_around(self):
+        signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
+        assert _router(signs).routed_sign_positions == [(1.5, 0.4), (2.5, 0.4)]
+
+    def test_retired_sign_is_dropped_so_its_guard_comes_back(self):
+        signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
+        router = _router(signs)
+        # Engage the first sign, then drive well past it, which retires it.
+        router.deform_waypoint(
+            waypoint=(1.5, 0.4), robot_pos=(1.3, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+        router.deform_waypoint(
+            waypoint=(0.5, 0.4), robot_pos=(3.0, 0.4), robot_yaw=0.0, corridor=Section.SOUTH,
+        )
+
+        assert router.routed_sign_positions == [(2.5, 0.4)]
+
+    def test_empty_when_there_are_no_signs(self):
+        assert _router([]).routed_sign_positions == []
+
+
 class TestPassedSigns:
     def test_passed_sign_not_deformed(self):
         sign = _sign_at(1.5, 0.4, "red")
