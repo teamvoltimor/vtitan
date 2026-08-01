@@ -225,6 +225,31 @@
     key: "{{ pi5_pubkey_slurp.content | b64decode }}"
     state: present
 
+# The reverse direction, which used to be missing. It matters when the Pi 5 is
+# the board in trouble: observed 2026-08-01 with the Pi 5 off WiFi for ~5
+# minutes after a reboot, where the gadget link was the only route to it and
+# the Zero — reachable the whole time — could not be used to get in.
+- name: Check for existing Zero SSH key
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
+  register: zero_ssh_key_stat
+
+- name: Generate Zero SSH key
+  ansible.builtin.command: "ssh-keygen -t ed25519 -N '' -f /home/{{ ansible_user }}/.ssh/id_ed25519"
+  when: not zero_ssh_key_stat.stat.exists
+
+- name: Read the Zero's public key
+  ansible.builtin.slurp:
+    src: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
+  register: zero_pubkey_slurp
+
+- name: Trust the Zero's SSH key into the Pi 5's authorized_keys
+  delegate_to: pi5
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ zero_pubkey_slurp.content | b64decode }}"
+    state: present
+
 # Ordered after the authorized_keys task above, not before it: the deploy
 # script SSHes from the Pi 5 into the Zero and runs non-interactively, so
 # without that trust already in place it fails outright on a fresh board.
