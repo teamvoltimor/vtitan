@@ -384,7 +384,21 @@ class TelemetryBridgeNode(Node):
         # set_parameters service (see ros2/vision/node.py's
         # add_on_set_parameters_callback) -- these are separate OS processes
         # with no shared Python objects, so this is the only way in.
-        vision_params_client: Client = self.create_client(SetParameters, "/vision_detector/set_parameters")
+        #
+        # The service path is built from a parameter rather than hardcoded:
+        # VisionNode's own default name is "vision_detector", but the launch
+        # file renames it (Node(name=...)), and the service lives under
+        # whatever the deployed name is. Hardcoding the code-side default
+        # meant this client pointed at a node that does not exist under the
+        # real deployment, so every SET_VISION_DEBUG was acked FAILED with
+        # "parameter service unavailable" -- the command looked delivered
+        # (the backend returns 202 on stream delivery, not on execution) but
+        # could never take effect. Launch files that rename the node must
+        # pass the same name here; rpi5_nodes.launch.py derives both from
+        # one constant.
+        self.declare_parameter("vision_node_name", "vision")
+        vision_node_name = self.get_parameter("vision_node_name").get_parameter_value().string_value
+        vision_params_client: Client = self.create_client(SetParameters, f"/{vision_node_name}/set_parameters")
 
         self._telemetry_channel = TelemetryIngestChannel(
             backend_target=telemetry_channel_target,
