@@ -60,6 +60,9 @@ class Driver(ABC_Driver):
         self._press_start_time: float | None = None
         self._last_event: ButtonEvent | None = None
         self._is_pressed: bool = False
+        self._hold_timers: list[threading.Timer] = []
+        self._threshold_reached: bool = False
+        """Whether this press already emitted a hold event, so release does not repeat it."""
         self._lock: threading.Lock = threading.Lock()
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -98,34 +101,74 @@ class Driver(ABC_Driver):
             self._is_pressed = True
             self._press_start_time = time.time()
             self._last_event = ButtonEvent.PRESSED
+            self._threshold_reached = False
+            self._start_hold_timers()
         self.logger.debug("Button pressed")
+
+    def _start_hold_timers(self) -> None:
+        """Arm the timers that emit hold events *while the button is still down*.
+
+        Long presses used to be classified on release, which meant the E-STOP
+        did not fire until the operator let go. That is backwards for the one
+        control that exists to stop a moving robot: the instinct in an emergency
+        is to press and keep pressing, and the robot kept driving for exactly as
+        long as they did.
+
+        Caller must hold the lock.
+        """
+        self._cancel_hold_timers()
+        for threshold, event in (
+            (self.config.button.long_press_threshold_sec, ButtonEvent.LONG_PRESS),
+            (self.config.button.shutdown_press_threshold_sec, ButtonEvent.SHUTDOWN_PRESS),
+        ):
+            timer = threading.Timer(threshold, self._on_hold_threshold, args=(event, threshold))
+            timer.daemon = True
+            self._hold_timers.append(timer)
+            timer.start()
+
+    def _cancel_hold_timers(self) -> None:
+        """Caller must hold the lock."""
+        for timer in self._hold_timers:
+            timer.cancel()
+        self._hold_timers.clear()
+
+    def _on_hold_threshold(self, event: ButtonEvent, threshold: float) -> None:
+        """Emit a hold event from a timer thread, if the button is still down."""
+        with self._lock:
+            if not self._is_pressed:
+                return
+            self._last_event = event
+            self._threshold_reached = True
+        self.logger.info(
+            "Button hold threshold reached",
+            extra={"details": {"event": event.value, "threshold_sec": threshold}},
+        )
 
     def _on_released(self) -> None:
         """Internal callback when button is released."""
         with self._lock:
             self._is_pressed = False
+            self._cancel_hold_timers()
 
-            # Determine if it was a short or long press
-            if self._press_start_time is None:
+            press_duration = 0.0 if self._press_start_time is None else time.time() - self._press_start_time
+
+            if self._threshold_reached:
+                # Every hold event this press earned was already emitted while
+                # it was held. Re-emitting on release would deliver a second
+                # E-STOP (or a second shutdown) for one gesture.
                 self._last_event = ButtonEvent.RELEASED
+                self.logger.debug(
+                    "Button released after a hold",
+                    extra={"details": {"duration": round(press_duration, 2)}},
+                )
             else:
-                press_duration = time.time() - self._press_start_time
-
-                # Log the press duration and type of press
-                if press_duration >= self.config.button.long_press_threshold_sec:
-                    self._last_event = ButtonEvent.LONG_PRESS
-                    self.logger.info(
-                        "Button long press detected",
-                        extra={"details": {"duration": round(press_duration, 2)}},
-                    )
-                else:
-                    self._last_event = ButtonEvent.SHORT_PRESS
-                    self.logger.debug(
-                        "Button short press detected",
-                        extra={"details": {"duration": round(press_duration, 2)}},
-                    )
-
-                self._press_start_time = None
+                self._last_event = ButtonEvent.SHORT_PRESS
+                self.logger.debug(
+                    "Button short press detected",
+                    extra={"details": {"duration": round(press_duration, 2)}},
+                )
+            self._threshold_reached = False
+            self._press_start_time = None
 
     @override
     def get_state(self) -> ButtonState:

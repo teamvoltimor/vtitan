@@ -19,3 +19,13 @@ long_press_threshold_sec = 3.0
 # A hold past this is E-STOP while racing, or a reset to BOOT_CHECK once
 # finished; anything shorter starts the race. 3s not 2s: a firm start press
 # measured 2.13s on the bench, 130ms from E-STOPping instead of starting.
+# Fires while the button is still held, not on release -- an E-STOP that waits
+# for the operator to let go is useless to someone gripping it in a panic.
+
+shutdown_press_threshold_sec = 10.0
+# Keep holding past this and the robot powers itself down cleanly, so it can be
+# unplugged without the ext4 damage safe-shutdown-zero.sh documents -- no
+# laptop, network or SSH required, none of which are guaranteed at a table.
+# This escalates rather than replaces: the robot has already stopped at 3s, so
+# a panicked grip can only ever stop it, never skip straight to power-off. The
+# 7s gap is the margin for that; nobody counts seconds during an emergency.

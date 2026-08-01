@@ -23,9 +23,11 @@ Topics:
 
 import json
 import socket
+import subprocess  # noqa: S404 - used only to hand a fixed argv to systemd-run
 import time
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -333,6 +335,53 @@ class StateMachineNode(Node, ResettableNode):
             self.get_logger().info("Reset requested - returning to BOOT_CHECK")
             self.state_machine.transition_to(RobotState.BOOT_CHECK, StateTransitionReason.SYSTEM_RESET)
             self.reset()
+
+        elif event == "shutdown_press":
+            # Accepted from any state on purpose. This escalates a hold rather
+            # than competing with it: the robot already stopped when the same
+            # press crossed the long-press threshold seven seconds earlier, so
+            # by the time this arrives it is standing still whatever it was
+            # doing. Refusing it while RACING would only mean refusing it right
+            # after an E-STOP, which is exactly when an operator wants to pack
+            # up and carry the robot away.
+            self.get_logger().warning("Shutdown hold - powering both boards down cleanly")
+            self._publish_stop_command()
+            self._trigger_clean_shutdown()
+
+    def _trigger_clean_shutdown(self) -> None:
+        """Run safe-shutdown-both.sh detached from this process.
+
+        systemd-run rather than a plain subprocess: the script shuts the Zero
+        down first and this node last, and a child of this node would be killed
+        the moment its own shutdown began -- leaving the Pi 5 running with no
+        route left to the board it just powered off. A transient unit outlives
+        the process that asked for it.
+
+        Failure here is logged, never raised: the button handler must not take
+        the state machine down with it, and an operator who gets no shutdown
+        still has the same options they had before this existed.
+        """
+        script = Path.home() / "vtitan" / "platform" / "robot" / "scripts" / "safe-shutdown-both.sh"
+        if not script.is_file():
+            self.get_logger().error(f"Cannot shut down: {script} not found")
+            return
+        try:
+            subprocess.run(  # noqa: S603 - fixed argv, no shell, no user input
+                [  # noqa: S607
+                    "sudo",
+                    "systemd-run",
+                    "--unit=vtitan-button-shutdown",
+                    "--collect",
+                    "bash",
+                    str(script),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=15,
+            )
+            self.get_logger().info("Clean shutdown started - safe to remove power once the boards are down")
+        except (subprocess.SubprocessError, OSError) as exc:
+            self.get_logger().error(f"Clean shutdown failed to start: {exc}")
 
     def _state_machine_loop(self) -> None:
         """Main state machine loop - runs at 10Hz."""
