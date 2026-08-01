@@ -99,12 +99,26 @@ Measured: 3 of 28 blind Open Challenge fixtures settled on the wrong direction
 this way, one of them into a wall.
 """
 
-_MIN_ASYMMETRY_M = 0.30
+_MIN_ASYMMETRY_M = 0.20
 """How much further the open side must see than the closed one.
 
 Guards the case where both sides read long -- at the very corner the robot can
 briefly see past the block on one side and down the finishing corridor on the
 other, and a marginal difference there is not evidence.
+
+Lowered from 0.30, which was costing whole corners. The robot is square to the
+corridor for only about eight scans on the approach -- outside that the turn
+swings the heading past the alignment gate and every reading is refused -- and
+on go_open_0000 exactly one of those eight cleared 0.30 (0.306, against 0.287,
+0.218 and 0.198 either side of it). Three ticks of one scan is not five votes,
+so the round was decided a full corridor later at the opposite corner: 35 s of
+creep and a 196 s round, over the 180 s limit. All eight readings agreed on the
+direction; the threshold was not separating signal from noise, it was
+discarding most of a window that had already made up its mind.
+
+0.30 was also carrying weight it no longer has to. The confident wrong answers
+it was guarding against came from dropouts reading 12 m, which
+:data:`_MAX_IN_TRACK_RANGE_M` now rejects outright and by a margin of metres.
 """
 
 
