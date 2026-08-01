@@ -59,11 +59,35 @@ _CORNER_SPEED_SCALE = 0.6
 running, because the turn is committed on one comparison rather than a plan."""
 
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
-"""Stop creeping when the wall ahead is this close.
+"""Back off when the wall ahead is this close.
 
 The direction should have settled long before this -- measured, it resolves
 after about 0.8 m of travel with roughly 0.5 m to spare. Reaching here means it
-did not, so stopping is better than driving into the corner with no plan.
+did not, so driving on into the corner with no plan is not an option.
+
+Stopping is not either, and used to be what happened. With no direction there is
+no plan to hand over to and nothing else is steering, so a stopped robot stays
+stopped: go_open_0020 sat at zero speed for 400 ticks with the wall 0.13 m away
+and the round expired around it. The corner branch below carries a comment
+warning of exactly that deadlock; this branch reintroduced it.
+"""
+
+_MIN_REVERSE_CLEARANCE_M = RobotSpecs.LENGTH
+"""Room needed behind before backing off is allowed.
+
+Backing blindly into whatever is behind trades one wall for another. With less
+than this the robot is boxed at both ends and holding still is genuinely all
+that is left.
+"""
+
+_REVERSE_SPEED_SCALE = 0.6
+"""Fraction of creep speed to back off at.
+
+Reverse is for realigning the nose over a few centimetres, not for travelling.
+The robot must never cover ground backwards: the round is driven in the
+direction drawn on the day, and a robot reversing down a corridor is going the
+wrong way regardless of which way it is pointing. Clearance recovers within a
+few ticks, at which point the forward branches take over again.
 """
 
 
@@ -96,8 +120,20 @@ def follow_corridor(
         # plan to hand over to, so the robot would sit at the corner until the
         # round expired. That was every closed-loop failure of this feature.
         steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
-        crawl = 0.0 if forward < _MIN_FORWARD_CLEARANCE_M else speed_mps * _CORNER_SPEED_SCALE
-        return DriveCommand(speed_mps=crawl, steering_norm=steering)
+        if forward >= _MIN_FORWARD_CLEARANCE_M:
+            return DriveCommand(speed_mps=speed_mps * _CORNER_SPEED_SCALE, steering_norm=steering)
+
+        # Too close to keep turning in. Back off far enough to point somewhere
+        # useful, steering the mirror of the turn: reversing swings the nose
+        # away from the steer direction, so the inverted sign walks the nose
+        # toward the open side instead of further into the wall it is against.
+        rear = _nearest_ray(ranges_m, angles_rad, math.pi)
+        if rear > _MIN_REVERSE_CLEARANCE_M:
+            return DriveCommand(
+                speed_mps=-speed_mps * _REVERSE_SPEED_SCALE,
+                steering_norm=-steering,
+            )
+        return DriveCommand(speed_mps=0.0, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a
     # corridor wall, and centring against it would steer into the other one.
