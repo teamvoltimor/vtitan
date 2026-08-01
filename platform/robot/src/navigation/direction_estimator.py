@@ -79,6 +79,26 @@ The gap between this and the turn threshold is the window in which the robot is
 still square to the corridor and the way ahead is visibly closing.
 """
 
+_MAX_IN_TRACK_RANGE_M = 4.5
+"""Above this a side ray is a dropout, not an open side.
+
+Real Slamtec drivers emit no measurement off dark or shallow-incidence
+surfaces, and both ``ROS2HardwareGateway._lidar_callback`` and the simulator
+substitute *max range* (12 m) for them. To this module that substitution is
+indistinguishable from the signal it is looking for -- a side that stopped
+returning a wall -- except by magnitude: the mat is 3 m square, so no ray that
+hits anything can exceed its 4.24 m diagonal. A genuinely open side reads down
+the next corridor at a few metres and passes; a dropout reads 12 m and is
+rejected.
+
+Without this a single 1%-probability dropout on the ±90° ray reads as "this
+side is open for twelve metres" and votes a confident wrong direction. Because
+scans arrive at half the control rate the same bad ray is then re-observed on
+consecutive ticks, so one dropout can supply every vote ``min_votes`` needs.
+Measured: 3 of 28 blind Open Challenge fixtures settled on the wrong direction
+this way, one of them into a wall.
+"""
+
 _MIN_ASYMMETRY_M = 0.30
 """How much further the open side must see than the closed one.
 
@@ -113,6 +133,12 @@ def infer_direction(
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+
+    # A dropout carries no information about whether a side is open, and the
+    # span test below cannot tell one from a corridor running away: both read
+    # long. Reject rather than guess.
+    if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+        return None
 
     # Decide on the SPAN, not on either range alone. Two walls span the
     # corridor wherever the chassis sits between them, so left + right stays at

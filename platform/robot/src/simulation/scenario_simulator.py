@@ -129,6 +129,43 @@ class PoseDisturbance:
     heading_rad: float = 0.0
 
 
+@dataclass(slots=True)
+class _RunMetrics:
+    """Per-tick accumulators for the run's distance, speed and clearance.
+
+    One object rather than four locals because the control loop accounts for a
+    tick in two places -- once for a creep tick taken before the travel
+    direction is known, once for a normal driving tick -- and those had drifted
+    apart. The creep branch fed distance and the step count but not speed, so
+    ``avg_speed`` (which divides by the full step count) was understated on
+    every blind run, and a run that collided before the direction settled
+    reported ``vmax=vavg=0.00`` alongside a non-zero distance for the same
+    ticks. Both branches now call :meth:`observe`, so a metric cannot be added
+    to one and forgotten in the other.
+    """
+
+    distance: float = 0.0
+    max_speed: float = 0.0
+    speed_sum: float = 0.0
+    min_range: float = math.inf
+
+    def observe(self, gateway: SimulatedHardwareGateway, distance_increment: float) -> None:
+        """Fold one tick of motion into the accumulators."""
+        self.distance += distance_increment
+        speed = abs(gateway.state.v)
+        self.max_speed = max(self.max_speed, speed)
+        self.speed_sum += speed
+        self.min_range = min(self.min_range, gateway.last_min_range)
+
+    def avg_speed(self, steps: int) -> float:
+        """Mean speed over every tick of the run, creep included."""
+        return (self.speed_sum / steps) if steps else 0.0
+
+    def min_range_or_zero(self) -> float:
+        """Closest LIDAR return seen, or 0.0 if no scan ever reported one."""
+        return self.min_range if math.isfinite(self.min_range) else 0.0
+
+
 class _ContactTracker:
     """Decides when a wall-contact streak stops being survivable and ends the run.
 
@@ -530,6 +567,16 @@ class ScenarioSimulator:
         return self._track
 
     @property
+    def navigator(self) -> CoreNavigator:
+        """The navigator this scenario drives, for diagnostics to inspect."""
+        return self._navigator
+
+    @property
+    def direction_estimator(self) -> DirectionEstimator | None:
+        """The travel-direction estimator, or ``None`` when told the direction."""
+        return self._direction_estimator
+
+    @property
     def gateway(self) -> SimulatedHardwareGateway:
         """The simulated hardware this scenario drives."""
         return self._gateway
@@ -603,10 +650,7 @@ class ScenarioSimulator:
         nav = self._navigator
 
         prev_xy = (gw.state.x, gw.state.y)
-        distance = 0.0
-        max_speed = 0.0
-        speed_sum = 0.0
-        min_range = math.inf
+        metrics = _RunMetrics()
         prev_laps = 0
         lap_steps: list[int] = []
         terminal_collision = False
@@ -628,9 +672,8 @@ class ScenarioSimulator:
                 # them hides the creep from the visualizer and every diagnostic.
                 gw.advance(dt)
                 step += 1
-                distance += self._creep_telemetry(prev_xy, on_step)
+                metrics.observe(gw, self._creep_telemetry(prev_xy, on_step))
                 prev_xy = (gw.state.x, gw.state.y)
-                min_range = min(min_range, gw.last_min_range)
                 if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
                     terminal_collision = True
                     break
@@ -649,12 +692,8 @@ class ScenarioSimulator:
                 on_step(gw.state, scan)
 
             sx, sy = gw.state.x, gw.state.y
-            distance += math.hypot(sx - prev_xy[0], sy - prev_xy[1])
+            metrics.observe(gw, math.hypot(sx - prev_xy[0], sy - prev_xy[1]))
             prev_xy = (sx, sy)
-            speed = abs(gw.state.v)
-            max_speed = max(max_speed, speed)
-            speed_sum += speed
-            min_range = min(min_range, gw.last_min_range)
 
             if nav.laps_completed > prev_laps:
                 lap_steps.append(step)
@@ -676,10 +715,7 @@ class ScenarioSimulator:
             max_steps=max_steps,
             collided=terminal_collision,
             contacts=contacts,
-            distance=distance,
-            max_speed=max_speed,
-            speed_sum=speed_sum,
-            min_range=min_range,
+            metrics=metrics,
             lap_steps=lap_steps,
         )
 
@@ -691,10 +727,7 @@ class ScenarioSimulator:
         max_steps: int,
         collided: bool,
         contacts: _ContactTracker,
-        distance: float,
-        max_speed: float,
-        speed_sum: float,
-        min_range: float,
+        metrics: _RunMetrics,
         lap_steps: list[int],
     ) -> SimResult:
         """Assemble the run outcome from the loop's accumulators."""
@@ -710,10 +743,10 @@ class ScenarioSimulator:
             timed_out=timed_out,
             steps=step,
             sim_time_s=step * dt,
-            distance_m=distance,
-            max_speed_mps=max_speed,
-            avg_speed_mps=(speed_sum / step) if step else 0.0,
-            min_lidar_range_m=(min_range if math.isfinite(min_range) else 0.0),
+            distance_m=metrics.distance,
+            max_speed_mps=metrics.max_speed,
+            avg_speed_mps=metrics.avg_speed(step),
+            min_lidar_range_m=metrics.min_range_or_zero(),
             collision_xy=gw.collision_xy,
             contact_count=contacts.count,
             contact_time_s=contacts.time_s,
