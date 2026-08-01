@@ -99,8 +99,17 @@
               re-enumeration, not reconfiguration.
             success_msg: "usb0 gadget link verified in both directions."
       always:
-        # Only undo what was actually done — restoring an untouched connection
-        # would bounce the Pi 5's WiFi for nothing.
+        # Clearing the lock is NOT gated on wifi_lock_needed, unlike bringing
+        # the connection back up below. It used to be, and that left the Pi 5
+        # pinned to one AP radio for an entire day: a run over WiFi applied the
+        # lock and then died without reaching this block, and every run after it
+        # targeted the gadget link — so wifi_lock_needed was false, this task
+        # skipped, and nothing was ever going to clear it again. The symptom was
+        # the Pi 5 repeatedly losing its DHCP lease while NetworkManager still
+        # reported "connected" with only a link-local IPv6 address.
+        #
+        # Clearing an already-clear bssid is a no-op on the profile, so making
+        # this unconditional costs nothing and removes the orphan case entirely.
         - name: Restore Pi 5 WiFi to automatic band selection
           delegate_to: pi5
           become: true
@@ -108,7 +117,6 @@
             nmcli connection modify {{ wifi_conn_name }}
             802-11-wireless.bssid ""
           changed_when: true
-          when: wifi_lock_needed | bool
 
         - name: Bring Pi 5 WiFi connection back up
           delegate_to: pi5
