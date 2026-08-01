@@ -2,3 +2,9 @@
 pi5_systemd_units:
   - vtitan-pi5.service
   - vtitan-lidar.service
+  - vtitan-backend.service
+
+# Keep in sync with platform/backend/go.mod's `go` directive. Trixie's apt only
+# carries 1.24, which is why the backend's toolchain comes from mise rather
+# than the distro.
+go_version: "1.26"

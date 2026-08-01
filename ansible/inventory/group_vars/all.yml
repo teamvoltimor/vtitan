@@ -6,7 +6,12 @@ ansible_user: ralvarezdev  # account created on every Pi via Raspberry Pi Imager
 github_repo: teamvoltimor/vtitan
 repo_dir: "/home/{{ ansible_user }}/vtitan"
 robot_dir: "{{ repo_dir }}/platform/robot"
+backend_dir: "{{ repo_dir }}/platform/backend"
 pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
+# Go toolchain manager, for the Pi 5's telemetry backend. Separate from pixi
+# (which manages the ROS2/Python side) because the repo already pins its Go
+# tooling with mise -- see the root mise.toml.
+mise_bin: "/home/{{ ansible_user }}/.local/bin/mise"
 
 # Pre-rename checkout name, still live on real hardware as of 2026-07-29
 # (org teamvoldemor/repo voldemorbot -> teamvoltimor/vtitan). common role

@@ -502,6 +502,31 @@ tasks:
       - free -h
       - uptime
 
+  # vTitan service stack (run on the Pi 5)
+
+  rpi:stack:
+    desc: "vTitan service stack ops (usage: task rpi:stack ACTION=up|down|restart|status|logs)"
+    requires:
+      vars:
+        - ACTION
+    vars:
+      # Order matters on up: the backend should be accepting gRPC before the
+      # robot's telemetry bridge starts dialling it, and the lidar should be
+      # publishing /scan before the nodes that consume it come up. `down`
+      # reverses this.
+      UNITS: vtitan-backend.service vtitan-lidar.service vtitan-pi5.service
+      UNITS_REVERSED: vtitan-pi5.service vtitan-lidar.service vtitan-backend.service
+    cmds:
+      - cmd: |
+          case "{{.ACTION}}" in
+            up) sudo systemctl start {{.UNITS}} && echo "Started: {{.UNITS}}" ;;
+            down) sudo systemctl stop {{.UNITS_REVERSED}} && echo "Stopped: {{.UNITS_REVERSED}}" ;;
+            restart) sudo systemctl stop {{.UNITS_REVERSED}} && sudo systemctl start {{.UNITS}} ;;
+            status) systemctl status --no-pager {{.UNITS}} ;;
+            logs) journalctl -u vtitan-backend -u vtitan-lidar -u vtitan-pi5 -n 80 --no-pager ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use up|down|restart|status|logs" && exit 1 ;;
+          esac
+
   # Hailo AI accelerator
 
   rpi:hailo:

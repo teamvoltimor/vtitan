@@ -87,7 +87,42 @@
     chdir: "{{ robot_dir }}"
   changed_when: true
 
-- name: Install vtitan-pi5 + vtitan-lidar systemd units
+# The telemetry backend runs on the Pi 5 itself rather than on a dev laptop:
+# a laptop behind a VPN whose LAN filter drops inbound connections is simply
+# unreachable from the robot (verified 2026-08-01 -- an explicit allow rule in
+# Windows Firewall for the backend's ports made no difference, and even ICMP
+# was dropped). Keeping the backend on the robot also means the robot's own
+# localhost defaults just work, with no per-host address wiring.
+- name: Install mise (Go toolchain manager)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl -fsSL https://mise.run | sh
+  args:
+    executable: /bin/bash
+    creates: "{{ mise_bin }}"
+
+# Without this, mise prompts for confirmation the first time it picks up the
+# repo's root mise.toml while resolving the build below -- which would hang a
+# non-interactive provisioning run.
+- name: Trust the repo's mise config
+  ansible.builtin.command: "{{ mise_bin }} trust {{ repo_dir }}"
+  changed_when: false
+
+- name: Install Go via mise
+  ansible.builtin.command: "{{ mise_bin }} install go@{{ go_version }}"
+  register: mise_go_install
+  changed_when: "'installing' in (mise_go_install.stderr | lower)"
+
+# vtitan-backend.service runs a prebuilt binary, so the build happens here
+# rather than at service start -- `go run` would recompile on every restart
+# (over a minute on this hardware) and turn a crash-loop into a CPU sink.
+- name: Build the telemetry backend binary
+  ansible.builtin.command: "{{ mise_bin }} exec go@{{ go_version }} -- go build -o bin/server ./cmd/server"
+  args:
+    chdir: "{{ backend_dir }}"
+  changed_when: true
+
+- name: Install vtitan-pi5 + vtitan-lidar + vtitan-backend systemd units
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/systemd/{{ item }}"
@@ -115,7 +150,7 @@
   loop: "{{ pi5_systemd_units }}"
   notify: Reload systemd
 
-- name: Enable vtitan-pi5 + vtitan-lidar services
+- name: Enable vtitan-pi5 + vtitan-lidar + vtitan-backend services
   become: true
   ansible.builtin.systemd_service:
     name: "{{ item }}"
