@@ -29,6 +29,10 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from src.config.launch_settings import RaceLaunchDefaults
+
+_race_defaults = RaceLaunchDefaults()
+
 # Topics worth keeping for post-run analysis: sensor input, the vision and
 # navigation decisions derived from it, the resulting drive command, and the
 # state machine/telemetry view of what the robot thought was happening.
@@ -105,7 +109,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "direction",
-                default_value="cw",
+                default_value=_race_defaults.direction,
                 description=(
                     "Travel direction for the round (cw|ccw). The only start condition "
                     "that cannot be assumed: assuming the starting section merely rotates "
@@ -115,7 +119,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "blind",
-                default_value="false",
+                default_value=str(_race_defaults.blind).lower(),
                 description=(
                     "Force layout estimation even when metadata is supplied. Implied "
                     "automatically when metadata is empty, since there is then nothing "
@@ -124,27 +128,27 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "laps",
-                default_value="3",
+                default_value=str(_race_defaults.laps),
                 description="Laps to complete",
             ),
             DeclareLaunchArgument(
                 "params",
-                default_value="",
+                default_value=_race_defaults.params,
                 description="Optional navigator_params.json for runtime overrides",
             ),
             DeclareLaunchArgument(
                 "tuning",
-                default_value="",
+                default_value=_race_defaults.tuning,
                 description="Optional navigation tuning YAML",
             ),
             DeclareLaunchArgument(
                 "record",
-                default_value="true",
+                default_value=str(_race_defaults.record).lower(),
                 description="Record a rosbag of the run (sensors, decisions, drive commands)",
             ),
             DeclareLaunchArgument(
                 "bag_dir",
-                default_value="~/vtitan_runs",
+                default_value=_race_defaults.bag_dir,
                 description="Directory to write timestamped rosbag run folders into",
             ),
             OpaqueFunction(function=_launch_setup),

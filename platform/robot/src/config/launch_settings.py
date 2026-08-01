@@ -1,16 +1,34 @@
-"""Typed env-var overrides for ROS2 launch files under ``ros2_ws/src/vtitan_bringup/launch/``.
+"""Typed config for ROS2 launch files under ``ros2_ws/src/vtitan_bringup/launch/``.
 
 Launch files run as plain Python (``PYTHONPATH=.`` set by the pixi ``launch-*``
 tasks), so they can import from ``src/`` the same way node code does. This
-replaces ad hoc ``os.environ.get(...)`` calls with pydantic-settings, per the
-repo's env-config convention (see ``src/hardware/settings_base.py``).
+replaces ad hoc ``os.environ.get(...)`` calls and hardcoded
+``DeclareLaunchArgument(default_value=...)`` literals with pydantic-settings,
+per the repo's env-config convention (see ``src/hardware/settings_base.py``).
 
-Field names map directly to env var names (case-insensitive, no prefix) so
-existing ``BACKEND_URL=...`` / ``HAILO_MODEL_PATH=...`` overrides (systemd
-``EnvironmentFile=``, local ``.env``, shell exports) keep working unchanged.
+Two distinct uses here:
+
+- ``VisionLaunchSettings``/``TelemetryBridgeLaunchSettings`` feed ``Node``
+  parameters directly (no ``ros2 launch key:=value`` layer exists for
+  these today) -- field names map to env var names (case-insensitive, no
+  prefix) so existing ``BACKEND_URL=...`` overrides keep working unchanged.
+- ``LidarLaunchDefaults``/``RaceLaunchDefaults``/``StateMachineLaunchDefaults``
+  only supply ``DeclareLaunchArgument(default_value=...)`` values.
+  ``LaunchConfiguration``/``ros2 launch key:=value`` stays the actual
+  override mechanism at runtime -- these just move the *default* out of a
+  hardcoded string literal into a config file, so the ``ros2 launch ...
+  key:=value`` CLI surface is unchanged.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.hardware.settings_base import ROBOT_ROOT, HardwareBaseSettings
+
+# Separate from config/hardware/ (driver calibration) -- these are
+# launch-time session/routing defaults, a different concern.
+LAUNCH_CONFIG_DIR: Path = ROBOT_ROOT / "config" / "launch"
 
 
 class VisionLaunchSettings(BaseSettings):
@@ -57,3 +75,41 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
             "command_channel_target": self.command_channel_target,
             "telemetry_channel_target": self.resolved_telemetry_channel_target,
         }
+
+
+class LidarLaunchDefaults(HardwareBaseSettings):
+    """Default for lidar_launch.py's ``serial_port`` DeclareLaunchArgument."""
+
+    model_config = SettingsConfigDict(env_prefix="lidar_launch_", toml_file=LAUNCH_CONFIG_DIR / "lidar.toml")
+
+    serial_port: str = "/dev/ttyUSB0"
+
+
+class StateMachineLaunchDefaults(HardwareBaseSettings):
+    """Default for wro_state_machine_launch.py's ``use_sim_time`` DeclareLaunchArgument."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="state_machine_launch_",
+        toml_file=LAUNCH_CONFIG_DIR / "wro_state_machine.toml",
+    )
+
+    use_sim_time: bool = False
+
+
+class RaceLaunchDefaults(HardwareBaseSettings):
+    """Defaults for race.launch.py's DeclareLaunchArguments.
+
+    ``metadata`` deliberately has no useful default beyond "" (empty ->
+    competition mode, LIDAR-only layout estimation) -- there's no single
+    scenario file that makes sense as a checked-in default.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="race_launch_", toml_file=LAUNCH_CONFIG_DIR / "race.toml")
+
+    direction: str = "cw"
+    blind: bool = False
+    laps: int = 3
+    params: str = ""
+    tuning: str = ""
+    record: bool = True
+    bag_dir: str = "~/vtitan_runs"

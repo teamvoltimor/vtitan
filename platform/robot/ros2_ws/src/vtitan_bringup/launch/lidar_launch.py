@@ -10,6 +10,10 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from src.config.launch_settings import LidarLaunchDefaults
+
+_lidar_defaults = LidarLaunchDefaults()
+
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for the LIDAR node."""
@@ -17,7 +21,7 @@ def generate_launch_description() -> LaunchDescription:
         [
             DeclareLaunchArgument(
                 "serial_port",
-                default_value="/dev/ttyUSB0",
+                default_value=_lidar_defaults.serial_port,
                 description="Serial port the C1 LIDAR is connected to",
             ),
             Node(

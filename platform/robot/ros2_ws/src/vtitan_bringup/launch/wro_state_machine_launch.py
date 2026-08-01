@@ -26,8 +26,11 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from src.config.launch_settings import StateMachineLaunchDefaults
+
 # Seconds to wait before restarting a crashed node.
 _RESPAWN_DELAY_SEC = 2.0
+_state_machine_defaults = StateMachineLaunchDefaults()
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -35,7 +38,7 @@ def generate_launch_description() -> LaunchDescription:
     # Declare launch arguments
     use_sim_time_arg = DeclareLaunchArgument(
         "use_sim_time",
-        default_value="false",
+        default_value=str(_state_machine_defaults.use_sim_time).lower(),
         description="Use simulation time if true",
     )
 
