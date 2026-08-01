@@ -630,14 +630,6 @@ class ScenarioSimulator:
                 step += 1
                 distance += self._creep_telemetry(prev_xy, on_step)
                 prev_xy = (gw.state.x, gw.state.y)
-                # Creep ticks are real motion and must feed the speed metrics.
-                # avg_speed divides speed_sum by the full step count, so leaving
-                # them out understated every blind run and reported a flat
-                # vmax=vavg=0.00 for a run that collided before the direction
-                # settled -- alongside a non-zero distance for the same ticks.
-                speed = abs(gw.state.v)
-                max_speed = max(max_speed, speed)
-                speed_sum += speed
                 min_range = min(min_range, gw.last_min_range)
                 if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
                     terminal_collision = True
