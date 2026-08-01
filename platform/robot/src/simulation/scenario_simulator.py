@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import ScenarioMetadata
@@ -112,9 +112,27 @@ class SimResult:
     (as opposed to giving up on its frame budget — see ``ParkController.is_timed_out``)."""
 
     @property
+    def over_time(self) -> bool:
+        """Exceeded the official 3-minute round limit.
+
+        Derived from ``sim_time_s`` rather than stored, so it cannot drift from
+        the time actually simulated. Distinct from ``timed_out``, which only
+        says the run hit the harness's ``max_steps`` budget -- that budget is
+        200 s, more generous than the rule, so a run could finish its laps at
+        196 s and be scored a clean pass for something the judges would not
+        have let finish.
+        """
+        return self.sim_time_s > CompetitionSpecs.ROUND_TIME_LIMIT_S
+
+    @property
     def success(self) -> bool:
-        """Completed all target laps without a wall contact (and parked cleanly, if required)."""
-        return self.laps_completed >= self.target_laps and not self.collided and self.parked is not False
+        """Completed all target laps in time, without a wall contact (and parked cleanly, if required)."""
+        return (
+            self.laps_completed >= self.target_laps
+            and not self.collided
+            and not self.over_time
+            and self.parked is not False
+        )
 
 
 @dataclass(frozen=True, slots=True)

@@ -50,9 +50,11 @@ def _report(scenario: object, blind: bool) -> None:
         prev_step = lap_step
 
     print(
-        f"{scenario.label} laps={result.laps_completed}/{result.target_laps} "
+        f"{'OK  ' if result.success else 'FAIL'} {scenario.label} "
+        f"laps={result.laps_completed}/{result.target_laps} "
         f"collided={result.collided} dist={result.distance_m:.2f}m "
-        f"steps={result.steps} | " + " ".join(splits)
+        f"t={result.sim_time_s:.1f}s{' OVER-TIME' if result.over_time else ''} | "
+        + " ".join(splits)
     )
 
 

@@ -156,12 +156,12 @@ def _log_result(label: str, result: Any) -> None:
 def _within_round_limit(result: Any) -> bool:
     """Solved AND finished inside the official WRO round time limit.
 
-    ``SimResult.success`` only checks laps-completed/collision; a scenario that
-    finishes 3 laps at, say, 195s "passes" a lap-count-only check but scores
-    zero in competition. The sim's own step budget (200s) is looser than the
-    180s round limit, so this must be checked explicitly.
+    The time limit now lives in ``SimResult.success`` itself, so this is just
+    that. Kept as a name because the call sites read better for it, and because
+    the distinction it used to make -- the sim's 200 s step budget being looser
+    than the 180 s round limit -- is still the reason the check has to exist.
     """
-    return result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+    return result.success
 
 
 class TestThreeLapSolvability:
