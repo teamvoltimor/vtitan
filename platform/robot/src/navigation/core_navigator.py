@@ -59,6 +59,7 @@ class CoreNavigator:
 
         self._waypoint_index = 0
         self._laps_completed = 0
+        self._suppress_next_wrap = False
         self._waypoint_threshold = self._tuning.waypoints.MAIN_LOOP_REACHED_DISTANCE_M
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
@@ -152,12 +153,29 @@ class CoreNavigator:
             waypoints: The replacement path (single canonical lap).
             robot_xy: Current position, used to resume at the nearest waypoint.
         """
+        previous_index = self._waypoint_index
         self._waypoints = waypoints
         robot_x, robot_y = robot_xy
         self._waypoint_index = min(
             range(len(waypoints)),
             key=lambda i: math.hypot(waypoints[i][0] - robot_x, waypoints[i][1] - robot_y),
         )
+
+        # A large forward jump is never earned progress — the robot cannot skip
+        # most of a lap between two ticks. It means the re-seek landed on the
+        # far side of the start/finish seam: the path was rebuilt running the
+        # other way, leaving the robot just *behind* the new waypoint 0, which
+        # on a closed loop is also the tail of the list. The tail it is about to
+        # drive belongs to a lap it never ran, so the wrap at the end of it is
+        # the entry into lap 1, not the completion of it.
+        #
+        # A correct direction inference never lands here: the robot creeps
+        # forward along its corridor, so its heading already matches the true
+        # travel direction and the rebuilt path runs the way it is pointing.
+        # This is a guard against a *wrong* inference, which on the mat is the
+        # case the robot cannot rule out for itself.
+        if self._waypoint_index - previous_index > len(waypoints) // 2:
+            self._suppress_next_wrap = True
 
     def replace_park_controller(self, park_controller: ParkController | None) -> None:
         """Swap in a fresh ParkController ahead of a new race.
@@ -182,6 +200,7 @@ class CoreNavigator:
         """
         self._waypoint_index = 0
         self._laps_completed = 0
+        self._suppress_next_wrap = False
         self._parking_engaged = False
         self._active_maneuver = None
         self._maneuver_frames_left = 0
@@ -273,7 +292,10 @@ class CoreNavigator:
         if self._waypoint_index >= len(self._waypoints):
             self._waypoint_index = 0
             self._stuck_detector.reset()
-            if self._lap_detector is not None:
+            if self._suppress_next_wrap:
+                # Seeded past the seam by replace_path, not driven — see there.
+                self._suppress_next_wrap = False
+            elif self._lap_detector is not None:
                 self._lap_detector.notify_waypoint_wrapped()
             else:
                 # Fallback: no geometric guard — count directly.

@@ -42,7 +42,7 @@ if str(_GEN_ROOT) not in sys.path:
 
 import grpc  # noqa: E402
 from google.protobuf import struct_pb2, timestamp_pb2  # noqa: E402
-from telemetry.v1 import ingest_pb2_grpc, types_pb2  # noqa: E402
+from telemetry.v1 import ingest_pb2, ingest_pb2_grpc, types_pb2  # noqa: E402
 
 _BACKOFF_INITIAL = 1.0
 _BACKOFF_MAX = 60.0
@@ -213,8 +213,8 @@ class TelemetryIngestChannel:
         self._logger = logger
         self._on_state_changed = on_state_changed
 
-        self._snapshot_queue: queue.Queue[types_pb2.RobotSnapshot] = queue.Queue(maxsize=1)
-        self._topics_queue: queue.Queue[types_pb2.TopicsSnapshot] = queue.Queue(maxsize=1)
+        self._snapshot_queue: queue.Queue[ingest_pb2.StreamSnapshotsRequest] = queue.Queue(maxsize=1)
+        self._topics_queue: queue.Queue[ingest_pb2.StreamTopicsRequest] = queue.Queue(maxsize=1)
 
         self._stop_event = threading.Event()
         self._snapshot_thread: threading.Thread | None = None
@@ -252,10 +252,18 @@ class TelemetryIngestChannel:
         self.start()
 
     def push_snapshot(self, snapshot: RobotSnapshot) -> None:
-        self._push_latest(self._snapshot_queue, _snapshot_to_proto(snapshot))
+        # StreamSnapshots' wire type is StreamSnapshotsRequest{snapshot=1},
+        # not a bare RobotSnapshot -- sending the unwrapped message serializes
+        # its fields under RobotSnapshot's own field numbers, which the
+        # server then misparses as StreamSnapshotsRequest.snapshot's nested
+        # bytes (both happen to be wire type 2 at field 1, so it "parses"
+        # into an empty/garbage snapshot instead of failing outright).
+        request = ingest_pb2.StreamSnapshotsRequest(snapshot=_snapshot_to_proto(snapshot))
+        self._push_latest(self._snapshot_queue, request)
 
     def push_topics(self, topics: TopicsSnapshot) -> None:
-        self._push_latest(self._topics_queue, _topics_snapshot_to_proto(topics))
+        request = ingest_pb2.StreamTopicsRequest(topics=_topics_snapshot_to_proto(topics))
+        self._push_latest(self._topics_queue, request)
 
     def _is_running(self) -> bool:
         return (self._snapshot_thread is not None and self._snapshot_thread.is_alive()) or (
