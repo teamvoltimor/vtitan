@@ -61,8 +61,27 @@ _AXIS_ALIGN_TOLERANCE = 1e-6
 # contacts the real track never produces.
 _WALL_VISUAL_HALF = WallSpecs.THICKNESS / 2
 _WALL_COLLISION_HALF = WallSpecs.COLLISION_THICKNESS / 2
-# How much further the collision mesh protrudes past the visual face.
-_COLLISION_MARGIN = _WALL_COLLISION_HALF - _WALL_VISUAL_HALF
+
+_COLLISION_MARGIN = 0.0
+"""How far past the visual face the chassis keep-out extends.
+
+Zero: the chassis may drive right up to the wall it can see, because that is
+what the real one does.
+
+This used to be ``_WALL_COLLISION_HALF - _WALL_VISUAL_HALF`` (0.04 m), copying
+the fatter collision mesh the Go generator emits. That mesh exists for Gazebo,
+and for a reason that does not apply here: the LIDAR link sits 30 mm ahead of
+the chassis front, so the wall is padded to keep the link from ending up inside
+it in the physics engine. This simulator has no link and no physics -- it
+raycasts from the chassis centre against the *visual* faces -- so the padding
+bought nothing and cost 4 cm of driveable corridor on every side, making the
+robot effectively 8 cm wider and 8 cm longer than it is.
+
+It also made a legal start impossible. A narrow corridor's middle band spans
+0.400-0.600 and the only placement of a 0.194 m chassis in it puts the edge at
+0.594, which is 34 mm inside a keep-out boundary sitting at 0.560. Every such
+start was frozen before the robot had moved: 23 failures out of 23.
+"""
 
 
 class ContactSurface(StrEnum):
@@ -305,6 +324,34 @@ class TrackModel:
             return ContactSurface.OBSTACLE
         return ContactSurface.NONE
 
+    def obstacle_displacements(
+        self,
+        x: float,
+        y: float,
+        yaw: float,
+        length: float = RobotSpecs.LENGTH,
+        width: float = RobotSpecs.WIDTH,
+    ) -> dict[int, float]:
+        """How far the chassis has intruded into each obstacle it overlaps.
+
+        Keyed by obstacle index, in metres, omitting the ones not touched.
+
+        This is the quantity the Obstacles Challenge is actually scored on.
+        Contact with a pillar is legal -- the pillar may be nudged, and the run
+        stands as long as any corner of it is still inside its 85mm placement
+        circle. Treating first contact as a crash, which is what
+        ``contact_surface`` alone supports, therefore fails runs the judges
+        would pass. The intrusion depth stands in for how far the pillar was
+        shoved: the chassis cannot occupy its space, so it goes ahead of it.
+        """
+        corners = _rect_corners(x, y, yaw, length, width)
+        depths: dict[int, float] = {}
+        for i, box in enumerate(self._obstacle_boxes):
+            depth = _convex_penetration(corners, box.corners(), yaw)
+            if depth > 0.0:
+                depths[i] = depth
+        return depths
+
     # Geometry helpers exposed for tests / planners
 
     def point_in_free_space(self, x: float, y: float, clearance: float = 0.0) -> bool:
@@ -399,3 +446,37 @@ def _convex_overlap(
         if max(a_proj) < min(b_proj) or max(b_proj) < min(a_proj):
             return False  # found a separating axis -> no overlap
     return True
+
+
+def _convex_penetration(
+    poly_a: list[tuple[float, float]],
+    poly_b: list[tuple[float, float]],
+    yaw: float,
+) -> float:
+    """How deeply two overlapping convex polygons intrude, in metres.
+
+    The minimum overlap across the same separating axes -- the magnitude of the
+    translation that would just separate them. Zero when they do not overlap.
+
+    Used as the model for how far a touched pillar gets shoved: the chassis
+    cannot occupy the pillar's space, so in reality the pillar is pushed ahead
+    by roughly the distance the chassis has intruded. That matters because
+    touching a pillar is legal (see ``TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M``)
+    and only pushing it out of its placement circle is not, so the simulator
+    needs a displacement rather than a boolean.
+    """
+    axes = (
+        (np.cos(yaw), np.sin(yaw)),
+        (-np.sin(yaw), np.cos(yaw)),
+        (1.0, 0.0),
+        (0.0, 1.0),
+    )
+    smallest = math.inf
+    for ax, ay in axes:
+        a_proj = [px * ax + py * ay for px, py in poly_a]
+        b_proj = [px * ax + py * ay for px, py in poly_b]
+        overlap = min(max(a_proj), max(b_proj)) - max(min(a_proj), min(b_proj))
+        if overlap <= 0.0:
+            return 0.0
+        smallest = min(smallest, overlap)
+    return 0.0 if smallest is math.inf else smallest

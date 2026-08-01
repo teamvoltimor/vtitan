@@ -10,6 +10,7 @@ without Gazebo, ROS2, or a physics engine.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import cast
 
@@ -48,6 +49,18 @@ however much that staleness costs.
 
 Set to 0 to restore the old always-fresh behaviour.
 """
+
+_MIN_STEP_SCALE = 1e-3
+"""Smallest usable fraction of a commanded step.
+
+Below this the move is submillimetre and the chassis is, for scoring purposes,
+against the surface rather than sliding along it."""
+
+_STEP_BISECTIONS = 8
+"""Bisections used to find the largest fitting fraction of a step.
+
+Eight halvings resolve a 7.5 mm tick to ~0.03 mm, well under the 30 mm LIDAR
+noise the navigator is steering on, so more would be measuring nothing."""
 
 LIDAR_INVALID_RAY_RATE = NavigationTuning.load_default().simulation.LIDAR_INVALID_RAY_RATE
 """Fraction of rays returning no measurement, as NaN/inf.
@@ -255,6 +268,84 @@ class SimulatedHardwareGateway:
 
     # HardwareGateway protocol
 
+    def _allowed_step(self, candidate: AckermannState) -> AckermannState | None:
+        """The furthest along the commanded step the chassis may actually go.
+
+        Returns ``candidate`` itself when the whole step is clear, a scaled
+        pose when a solid surface cuts it short, or ``None`` when no part of
+        it fits and the body cannot move at all.
+
+        Rotation and translation are limited separately, and that separation
+        is the whole point. A wall bounds how far the chassis may TURN, not
+        whether it may advance: a real car against a wall keeps driving with
+        its corner scraping while the steering gradually pulls it clear.
+        Scaling both together instead leaves the chassis stuck at its maximum
+        yaw forever, because from there every step asks for more rotation --
+        each tick the turn needs about 2 mm more clearance than the same
+        tick's forward motion earns, so no fraction of it ever fits.
+
+        So: keep the full translation and take whatever fraction of the turn
+        fits alongside it. Advancing at the limiting angle earns a fraction of
+        a millimetre of clearance per tick, which lets a little more of the
+        turn through on the next one, and the chassis peels away. Only if the
+        translation itself is blocked -- driving squarely into a wall -- is it
+        cut back, and then to nothing, so head-on contact still makes no
+        progress and reversing out is still a real escape.
+
+        Args:
+            candidate: The pose the kinematics produced for this tick.
+
+        Returns:
+            The pose to adopt, or ``None`` if even the smallest step collides.
+        """
+        if self._track.contact_surface(candidate.x, candidate.y, candidate.yaw) not in self._solid_surfaces:
+            return candidate
+
+        state = self._state
+        dx, dy = candidate.x - state.x, candidate.y - state.y
+        dyaw = _wrap_angle(candidate.yaw - state.yaw)
+
+        def free(move: float, turn: float) -> bool:
+            return (
+                self._track.contact_surface(
+                    state.x + dx * move,
+                    state.y + dy * move,
+                    state.yaw + dyaw * turn,
+                )
+                not in self._solid_surfaces
+            )
+
+        def largest(fits: Callable[[float], bool]) -> float:
+            """Greatest fraction in [0, 1] that fits, by bisection."""
+            if not fits(_MIN_STEP_SCALE):
+                return 0.0
+            lo, hi = _MIN_STEP_SCALE, 1.0
+            for _ in range(_STEP_BISECTIONS):
+                mid = (lo + hi) / 2
+                if fits(mid):
+                    lo = mid
+                else:
+                    hi = mid
+            return lo
+
+        # Full translation, as much of the turn as fits alongside it.
+        if free(1.0, 0.0):
+            turn = largest(lambda t: free(1.0, t))
+            return replace(candidate, yaw=state.yaw + dyaw * turn)
+
+        # The translation itself is blocked: hold the heading and advance as
+        # far as fits, which is nothing when driving squarely into a wall.
+        move = largest(lambda m: free(m, 0.0))
+        if move == 0.0:
+            return None
+        return replace(
+            candidate,
+            x=state.x + dx * move,
+            y=state.y + dy * move,
+            yaw=state.yaw,
+            v=candidate.v * move,
+        )
+
     def publish_drive(self, command: DriveCommand) -> None:
         """Store the latest command; applied on the next :meth:`advance`."""
         self._command = command
@@ -394,20 +485,37 @@ class SimulatedHardwareGateway:
             target_steer_norm=self._command.steering_norm,
             dt=dt,
         )
-        # With solid walls a move that would put the chassis inside one is
-        # refused outright and the body stops where it is, so driving into a
-        # wall makes no progress and only a move that clears the wall is
-        # allowed through. That is what makes reversing out a real escape
-        # rather than a cosmetic one: without it the chassis passes straight
-        # through and "recovered" would mean "drove through the wall".
-        blocked_surface = self._track.contact_surface(candidate.x, candidate.y, candidate.yaw)
-        if blocked_surface in self._solid_surfaces:
-            self._state = replace(self._state, v=0.0)
-            self.blocked = True
-        else:
-            self._state = candidate
-            self.blocked = False
-            blocked_surface = ContactSurface.NONE
+        # A solid wall constrains the POSE, not the motion: the chassis
+        # advances as far along the commanded step as fits and stops there,
+        # rather than the whole step being refused.
+        #
+        # All-or-nothing refusal made contact absorbing. Every candidate that
+        # kept any overlap was rejected, including the one that would have
+        # slid the chassis free, so a robot that once touched a wall could
+        # never move again -- it sat commanding 0.15 m/s with 0.76 m clear
+        # ahead and travelled 0.00 m for the whole round. That is also why a
+        # start in the narrow corridor's middle band failed 23 times out of
+        # 23: with 6 mm of lateral clearance the chassis may yaw only 2.3
+        # degrees before a corner reaches the block, and the navigator's very
+        # first steering command asks for more.
+        #
+        # Grazing along a surface is what the real robot does to centre itself.
+        # Scaling the step keeps the original guarantee intact -- driving
+        # squarely into a wall still yields a scale of ~0 and makes no
+        # progress, so reversing out remains a real escape rather than a
+        # cosmetic one.
+        allowed = self._allowed_step(candidate)
+        self.blocked = allowed is not candidate
+        self._state = replace(self._state, v=0.0) if allowed is None else allowed
+        # Whenever the step had to be cut short the chassis is against the
+        # surface the full step would have entered, so that is what gets
+        # scored -- the limited pose itself is clear by construction, and
+        # reading the surface from it would report no contact at all.
+        blocked_surface = (
+            self._track.contact_surface(candidate.x, candidate.y, candidate.yaw)
+            if self.blocked
+            else ContactSurface.NONE
+        )
         # Unwrapped so a lap's worth of same-sign cornering adds up instead of
         # wrapping back to zero at +/-pi.
         self._rotation_rad += _wrap_angle(self._state.yaw - self._prev_true_yaw)
