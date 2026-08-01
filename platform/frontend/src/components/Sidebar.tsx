@@ -2,10 +2,12 @@ import { UI_STRINGS } from '../config';
 import { useTelemetry } from '../contexts/telemetryState';
 import { formatNumber, formatTimestamp } from '../utils/formatting';
 import {
+  CommandChannelControl,
   LogPanel,
   SensorHealthPanel,
   SessionList,
   SpeedControl,
+  TelemetryChannelControl,
   TimelineSlider,
   VisionDebugControl,
 } from './sidebar-panels';
@@ -54,6 +56,8 @@ export function Sidebar() {
 
       <SpeedControl />
       <VisionDebugControl />
+      <TelemetryChannelControl />
+      <CommandChannelControl />
 
       <div className="telemetry-list">
         {telemetryEntries.map(([label, value]) => (

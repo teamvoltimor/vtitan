@@ -142,7 +142,11 @@ export type RobotCommand = ({
     command_type: 'SHUTDOWN';
 } & ShutdownCommand) | ({
     command_type: 'SET_VISION_DEBUG';
-} & SetVisionDebugCommand);
+} & SetVisionDebugCommand) | ({
+    command_type: 'DISABLE_COMMAND_CHANNEL';
+} & DisableCommandChannelCommand) | ({
+    command_type: 'SET_TELEMETRY_CHANNEL';
+} & SetTelemetryChannelCommand);
 
 export type StartRaceCommand = {
     command_type: 'START_RACE';
@@ -195,6 +199,28 @@ export type SetVisionDebugParams = {
      * Optional cap on the debug stream frame rate
      */
     stream_fps?: number;
+};
+
+/**
+ * One-way: disables the robot's gRPC command channel remotely. Re-enabling requires local robot access, since disabling this command closes the very channel a remote re-enable command would need to travel over.
+ */
+export type DisableCommandChannelCommand = {
+    command_type: 'DISABLE_COMMAND_CHANNEL';
+};
+
+/**
+ * Bidirectional: toggles the telemetry gRPC channel without affecting the command channel, so it is remotely reversible either way.
+ */
+export type SetTelemetryChannelCommand = {
+    command_type: 'SET_TELEMETRY_CHANNEL';
+    parameters: SetTelemetryChannelParams;
+};
+
+export type SetTelemetryChannelParams = {
+    /**
+     * Enable or disable the telemetry gRPC stream
+     */
+    enabled: boolean;
 };
 
 export type RobotCommandResponse = {

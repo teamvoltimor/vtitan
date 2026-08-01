@@ -134,6 +134,15 @@ func fromCommand(req RobotCommand) (domain.Command, error) {
 		if vision.Parameters.StreamFps != nil {
 			cmd.Parameters["stream_fps"] = uint32(*vision.Parameters.StreamFps)
 		}
+	case string(SETTELEMETRYCHANNEL):
+		telemetry, err := req.AsSetTelemetryChannelCommand()
+		if err != nil {
+			return domain.Command{}, err
+		}
+		cmd.Parameters = map[string]any{"enabled": telemetry.Parameters.Enabled}
+		// DISABLECOMMANDCHANNEL needs no case: it carries no parameters, so the
+		// default cmd.Type assignment above (from the discriminator string) is
+		// sufficient.
 	}
 	return cmd, nil
 }

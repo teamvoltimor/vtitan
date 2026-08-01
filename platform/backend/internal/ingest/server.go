@@ -27,6 +27,19 @@ func New(telSvc telemetry.TelemetryService, sessSvc session.SessionService) *Ser
 	return &Server{telSvc: telSvc, sessSvc: sessSvc}
 }
 
+// wrapRecvErr normalizes a stream.Recv() error into a gRPC status. Recv can
+// surface an error that's already a well-formed status -- notably
+// validatingStream.RecvMsg (see cmd/server's streamValidationInterceptor)
+// returning InvalidArgument for a frame that fails protovalidate -- and that
+// code must reach the caller as-is; collapsing it to Internal would make a
+// client's own bad input indistinguishable from an actual server fault.
+func wrapRecvErr(err error) error {
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+	return status.Errorf(codes.Internal, "recv: %v", err)
+}
+
 // StreamSnapshots receives a client-stream of robot snapshots and writes each
 // to the store. The summary response is sent on clean stream close.
 func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_StreamSnapshotsServer) error {
@@ -39,7 +52,7 @@ func (s *Server) StreamSnapshots(stream telemetryv1.TelemetryIngestService_Strea
 		}
 		if err != nil {
 			slog.Warn("snapshot stream error", "error", err)
-			return status.Errorf(codes.Internal, "recv: %v", err)
+			return wrapRecvErr(err)
 		}
 		if req.Snapshot == nil {
 			return status.Error(codes.InvalidArgument, "snapshot must not be nil")
@@ -64,7 +77,7 @@ func (s *Server) StreamTopics(stream telemetryv1.TelemetryIngestService_StreamTo
 		}
 		if err != nil {
 			slog.Warn("topics stream error", "error", err)
-			return status.Errorf(codes.Internal, "recv: %v", err)
+			return wrapRecvErr(err)
 		}
 		if req.Topics == nil {
 			return status.Error(codes.InvalidArgument, "topics must not be nil")

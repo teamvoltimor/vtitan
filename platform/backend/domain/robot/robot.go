@@ -115,12 +115,23 @@ const (
 	CommandReboot         CommandType = "REBOOT"
 	CommandShutdown       CommandType = "SHUTDOWN"
 	CommandSetVisionDebug CommandType = "SET_VISION_DEBUG"
+	// CommandDisableCommandChannel shuts down the robot's gRPC command
+	// channel. This is one-way: the backend can disable the channel, but
+	// cannot remotely re-enable it, since disabling it closes the very
+	// stream a re-enable command would need to travel over. Re-enabling
+	// requires local access to the robot.
+	CommandDisableCommandChannel CommandType = "DISABLE_COMMAND_CHANNEL"
+	// CommandSetTelemetryChannel toggles the robot's gRPC telemetry
+	// channel. Unlike CommandDisableCommandChannel, this is safely
+	// bidirectional since it doesn't affect the command channel.
+	CommandSetTelemetryChannel CommandType = "SET_TELEMETRY_CHANNEL"
 )
 
 // Command is a control command sent to a robot. Parameters is loosely typed
 // at this port boundary; each CommandType defines which keys it reads:
 //   - CommandStartRace: "mission_name" (string, optional)
 //   - CommandSetVisionDebug: "enabled" (bool, required), "stream_fps" (uint32, optional)
+//   - CommandSetTelemetryChannel: "enabled" (bool, required)
 //   - all other command types currently take no parameters
 type Command struct {
 	Type       CommandType

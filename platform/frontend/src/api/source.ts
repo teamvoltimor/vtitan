@@ -9,7 +9,7 @@
 
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
 import type { HealthResponse } from './generated';
-import type { SetVisionDebugParams } from './generated/robot';
+import type { SetTelemetryChannelParams, SetVisionDebugParams } from './generated/robot';
 import type { TelemetryMessage } from './guards';
 import {
   fetchHealth,
@@ -21,7 +21,12 @@ import {
   connectTelemetryWS,
   updateRobotSpeed,
 } from './telemetry';
-import { fetchDefaultRobotId, setVisionDebug } from './robot';
+import {
+  disableCommandChannel,
+  fetchDefaultRobotId,
+  setTelemetryChannel,
+  setVisionDebug,
+} from './robot';
 import {
   generateMockSnapshot,
   generateMockTopics,
@@ -53,6 +58,8 @@ export interface TelemetrySource {
   ): () => void;
   updateSpeed(speed: number): Promise<void>;
   setVisionDebug(parameters: SetVisionDebugParams): Promise<void>;
+  setTelemetryChannel(parameters: SetTelemetryChannelParams): Promise<void>;
+  disableCommandChannel(): Promise<void>;
 }
 
 /** Real backend: HTTP fetches + WebSocket stream. */
@@ -68,6 +75,16 @@ export class LiveSource implements TelemetrySource {
   async setVisionDebug(parameters: SetVisionDebugParams): Promise<void> {
     const robotId = await fetchDefaultRobotId();
     await setVisionDebug(robotId, parameters);
+  }
+
+  async setTelemetryChannel(parameters: SetTelemetryChannelParams): Promise<void> {
+    const robotId = await fetchDefaultRobotId();
+    await setTelemetryChannel(robotId, parameters);
+  }
+
+  async disableCommandChannel(): Promise<void> {
+    const robotId = await fetchDefaultRobotId();
+    await disableCommandChannel(robotId);
   }
 
   connect(
@@ -105,6 +122,12 @@ export class MockSource implements TelemetrySource {
     /* no backend in demo mode */
   }
   async setVisionDebug() {
+    /* no backend in demo mode */
+  }
+  async setTelemetryChannel() {
+    /* no backend in demo mode */
+  }
+  async disableCommandChannel() {
     /* no backend in demo mode */
   }
 

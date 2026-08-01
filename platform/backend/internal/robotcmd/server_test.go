@@ -125,6 +125,73 @@ func TestAckCommand_TrimsBacklog(t *testing.T) {
 	}
 }
 
+func TestDispatch_DisableCommandChannel(t *testing.T) {
+	s := New()
+	ctx := context.Background()
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	fs := newFakeStream(streamCtx)
+	go func() {
+		_ = s.StreamCommands(&telemetryv1.StreamCommandsRequest{RobotId: "robot-1"}, fs)
+	}()
+
+	// Give StreamCommands a moment to register its subscriber channel.
+	time.Sleep(50 * time.Millisecond)
+
+	res, err := s.Dispatch(ctx, "robot-1", robotdomain.Command{Type: robotdomain.CommandDisableCommandChannel})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	select {
+	case cmd := <-fs.out:
+		if cmd.CommandId != res.CommandID {
+			t.Fatalf("delivered command id = %q, want %q", cmd.CommandId, res.CommandID)
+		}
+		if cmd.GetDisableCommandChannel() == nil {
+			t.Fatalf("expected DisableCommandChannel payload, got %#v", cmd.Payload)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for live command")
+	}
+}
+
+func TestDispatch_SetTelemetryChannel(t *testing.T) {
+	s := New()
+	ctx := context.Background()
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	fs := newFakeStream(streamCtx)
+	go func() {
+		_ = s.StreamCommands(&telemetryv1.StreamCommandsRequest{RobotId: "robot-1"}, fs)
+	}()
+
+	// Give StreamCommands a moment to register its subscriber channel.
+	time.Sleep(50 * time.Millisecond)
+
+	res, err := s.Dispatch(ctx, "robot-1", robotdomain.Command{
+		Type:       robotdomain.CommandSetTelemetryChannel,
+		Parameters: map[string]any{"enabled": true},
+	})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	select {
+	case cmd := <-fs.out:
+		if cmd.CommandId != res.CommandID {
+			t.Fatalf("delivered command id = %q, want %q", cmd.CommandId, res.CommandID)
+		}
+		if got := cmd.GetSetTelemetryChannel().GetEnabled(); !got {
+			t.Fatalf("SetTelemetryChannel.Enabled = %v, want true", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for live command")
+	}
+}
+
 func TestDispatch_UnsupportedCommandType_Errors(t *testing.T) {
 	s := New()
 	if _, err := s.Dispatch(context.Background(), "robot-1", robotdomain.Command{Type: "NOT_A_REAL_COMMAND"}); err == nil {

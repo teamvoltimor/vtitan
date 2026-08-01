@@ -81,6 +81,8 @@ message RobotCommand {
     RebootParams         reboot           = 9;
     ShutdownParams       shutdown         = 10;
     SetVisionDebugParams set_vision_debug = 11;
+    DisableCommandChannelParams disable_command_channel = 12;
+    SetTelemetryChannelParams   set_telemetry_channel    = 13;
   }
 }
 
@@ -113,4 +115,22 @@ message SetVisionDebugParams {
     gt:  0,
     lte: 30
   }];
+}
+
+// DisableCommandChannelParams shuts down the robot's gRPC command channel
+// (StreamCommands/AckCommand) itself. Deliberately ONE-WAY: once applied,
+// the very stream this command arrived on closes, so the backend has no
+// remaining path to send a re-enable command. Re-enabling requires local
+// access to the robot (ros2 param set /telemetry_bridge
+// command_channel_enabled true). There is no SetCommandChannelParams
+// counterpart -- only this disable command exists.
+message DisableCommandChannelParams {}
+
+// SetTelemetryChannelParams toggles the robot's gRPC telemetry channel
+// (TelemetryIngestService StreamSnapshots/StreamTopics). Unlike
+// DisableCommandChannelParams, this is safely bidirectional: disabling
+// telemetry does not affect the command channel, so the backend can still
+// push a re-enable command down StreamCommands afterward.
+message SetTelemetryChannelParams {
+  bool enabled = 1;
 }

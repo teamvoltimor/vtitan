@@ -222,6 +222,14 @@ func toProto(cmd robotdomain.Command) (*telemetryv1.RobotCommand, error) {
 			params.StreamFps = &v
 		}
 		pb.Payload = &telemetryv1.RobotCommand_SetVisionDebug{SetVisionDebug: params}
+	case robotdomain.CommandDisableCommandChannel:
+		pb.Payload = &telemetryv1.RobotCommand_DisableCommandChannel{DisableCommandChannel: &telemetryv1.DisableCommandChannelParams{}}
+	case robotdomain.CommandSetTelemetryChannel:
+		params := &telemetryv1.SetTelemetryChannelParams{}
+		if v, ok := cmd.Parameters["enabled"].(bool); ok {
+			params.Enabled = v
+		}
+		pb.Payload = &telemetryv1.RobotCommand_SetTelemetryChannel{SetTelemetryChannel: params}
 	default:
 		return nil, fmt.Errorf("robotcmd: unsupported command type %q", cmd.Type)
 	}

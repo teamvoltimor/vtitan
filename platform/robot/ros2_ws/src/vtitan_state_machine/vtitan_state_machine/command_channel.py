@@ -23,9 +23,13 @@ from rcl_interfaces.srv import SetParameters
 from std_msgs.msg import String
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rclpy.client import Client
     from rclpy.impl.rcutils_logger import RcutilsLogger
     from rclpy.publisher import Publisher
+
+    from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
 
 # buf's Python plugin generates gen/telemetry/v1/*_pb2*.py rooted so that
 # "telemetry.v1.commands_pb2" is a top-level import (its own internal imports
@@ -60,12 +64,16 @@ class CommandChannel:
         button_pub: Publisher,
         vision_params_client: Client,
         logger: RcutilsLogger,
+        on_state_changed: Callable[[bool], None] | None = None,
+        telemetry_channel: TelemetryIngestChannel | None = None,
     ) -> None:
         self._backend_url = backend_url
         self._command_channel_target = command_channel_target
         self._button_pub = button_pub
         self._vision_params_client = vision_params_client
         self._logger = logger
+        self._on_state_changed = on_state_changed
+        self._telemetry_channel = telemetry_channel
 
         self._session = requests.Session()
 
@@ -79,12 +87,27 @@ class CommandChannel:
         self._last_command_id: str | None = None
         self._command_backoff_delay: float = _BACKOFF_INITIAL
         self._command_stream_stop = threading.Event()
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        threading.Thread(target=self._command_channel_loop, name="robot-command-channel", daemon=True).start()
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._thread = threading.Thread(target=self._command_channel_loop, name="robot-command-channel", daemon=True)
+        self._thread.start()
 
     def stop(self) -> None:
         self._command_stream_stop.set()
+        if self._on_state_changed is not None:
+            connected = False
+            self._on_state_changed(connected)
+
+    def restart(self) -> None:
+        """Re-open the command stream after a local stop() -- no-op if already running."""
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._command_stream_stop.clear()
+        self._command_backoff_delay = _BACKOFF_INITIAL
+        self.start()
 
     def _resolve_robot_id(self) -> str | None:
         """GET {backend_url}/v1/robots and return the first robot's id.
@@ -136,6 +159,9 @@ class CommandChannel:
             if self._last_command_id:
                 request.last_command_id = self._last_command_id
             self._logger.info(f"Opening command stream to {self._command_channel_target}")
+            if self._on_state_changed is not None:
+                connected = True
+                self._on_state_changed(connected)
 
             for cmd in stub.StreamCommands(request):
                 self._command_backoff_delay = _BACKOFF_INITIAL
@@ -160,9 +186,40 @@ class CommandChannel:
             return self._dispatch_button_event("long_press", kind.replace("_", " "))
         if kind == "set_vision_debug":
             return self._dispatch_set_vision_debug(cmd.set_vision_debug)
+        if kind == "disable_command_channel":
+            return self._dispatch_disable_command_channel()
+        if kind == "set_telemetry_channel":
+            return self._dispatch_set_telemetry_channel(cmd.set_telemetry_channel)
         return (
             commands_pb2.COMMAND_EXECUTION_STATUS_FAILED,
             f"command type '{kind}' is not implemented on this robot",
+        )
+
+    def _dispatch_disable_command_channel(self) -> tuple[int, str]:
+        """Close this stream -- deliberately one-way, see commands.proto's docstring.
+
+        Safe to stop() from inside dispatch: _ack_command runs immediately
+        after this returns, before _run_command_stream's post-dispatch
+        stop-check closes the stream, so the ack is guaranteed to go out
+        first.
+        """
+        self.stop()
+        return (
+            commands_pb2.COMMAND_EXECUTION_STATUS_COMPLETED,
+            "command channel disabled; robot-side ros2 param access required to re-enable",
+        )
+
+    def _dispatch_set_telemetry_channel(self, params: commands_pb2.SetTelemetryChannelParams) -> tuple[int, str]:
+        """Toggle the telemetry channel -- bidirectional, unlike the command channel."""
+        if self._telemetry_channel is None:
+            return commands_pb2.COMMAND_EXECUTION_STATUS_FAILED, "telemetry channel is not configured on this robot"
+        if params.enabled:
+            self._telemetry_channel.restart()
+        else:
+            self._telemetry_channel.stop()
+        return (
+            commands_pb2.COMMAND_EXECUTION_STATUS_COMPLETED,
+            f"telemetry channel {'enabled' if params.enabled else 'disabled'}",
         )
 
     def _dispatch_button_event(self, event: str, label: str) -> tuple[int, str]:

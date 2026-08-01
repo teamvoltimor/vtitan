@@ -6,7 +6,12 @@
  * gin.Engine) — no separate backend base URL needed.
  */
 
-import type { Robot, RobotCommandResponse, SetVisionDebugParams } from './generated/robot';
+import type {
+  Robot,
+  RobotCommandResponse,
+  SetTelemetryChannelParams,
+  SetVisionDebugParams,
+} from './generated/robot';
 import { TelemetryError, classifyHttpError } from './errors';
 import { API_CONFIG } from '../config';
 import { getErrorMessage } from '../utils/formatting';
@@ -65,4 +70,24 @@ export const setVisionDebug = (
   postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
     command_type: 'SET_VISION_DEBUG',
     parameters,
+  });
+
+/** Toggle the robot's telemetry gRPC stream at runtime — remotely reversible either way. */
+export const setTelemetryChannel = (
+  robotId: string,
+  parameters: SetTelemetryChannelParams
+): Promise<RobotCommandResponse> =>
+  postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
+    command_type: 'SET_TELEMETRY_CHANNEL',
+    parameters,
+  });
+
+/**
+ * One-way: disables the robot's gRPC command channel remotely. Not
+ * remotely reversible, since disabling it closes the only channel a
+ * remote re-enable command would need to travel over.
+ */
+export const disableCommandChannel = (robotId: string): Promise<RobotCommandResponse> =>
+  postJson(API_CONFIG.ENDPOINTS.ROBOT_COMMAND(robotId), {
+    command_type: 'DISABLE_COMMAND_CHANNEL',
   });

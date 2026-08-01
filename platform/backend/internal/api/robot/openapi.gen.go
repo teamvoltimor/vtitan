@@ -16,6 +16,21 @@ const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
+// Defines values for DisableCommandChannelCommandCommandType.
+const (
+	DISABLECOMMANDCHANNEL DisableCommandChannelCommandCommandType = "DISABLE_COMMAND_CHANNEL"
+)
+
+// Valid indicates whether the value is a known member of the DisableCommandChannelCommandCommandType enum.
+func (e DisableCommandChannelCommandCommandType) Valid() bool {
+	switch e {
+	case DISABLECOMMANDCHANNEL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EmergencyStopCommandCommandType.
 const (
 	EMERGENCYSTOP EmergencyStopCommandCommandType = "EMERGENCY_STOP"
@@ -142,6 +157,21 @@ func (e RobotState) Valid() bool {
 	}
 }
 
+// Defines values for SetTelemetryChannelCommandCommandType.
+const (
+	SETTELEMETRYCHANNEL SetTelemetryChannelCommandCommandType = "SET_TELEMETRY_CHANNEL"
+)
+
+// Valid indicates whether the value is a known member of the SetTelemetryChannelCommandCommandType enum.
+func (e SetTelemetryChannelCommandCommandType) Valid() bool {
+	switch e {
+	case SETTELEMETRYCHANNEL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SetVisionDebugCommandCommandType.
 const (
 	SETVISIONDEBUG SetVisionDebugCommandCommandType = "SET_VISION_DEBUG"
@@ -219,6 +249,14 @@ type CreateRobotRequest struct {
 	FleetId openapi_types.UUID `binding:"required,uuid" json:"fleet_id"`
 	Name    string             `binding:"required,max=255" json:"name"`
 }
+
+// DisableCommandChannelCommand One-way: disables the robot's gRPC command channel remotely. Re-enabling requires local robot access, since disabling this command closes the very channel a remote re-enable command would need to travel over.
+type DisableCommandChannelCommand struct {
+	CommandType DisableCommandChannelCommandCommandType `json:"command_type"`
+}
+
+// DisableCommandChannelCommandCommandType defines model for DisableCommandChannelCommand.CommandType.
+type DisableCommandChannelCommandCommandType string
 
 // EmergencyStopCommand defines model for EmergencyStopCommand.
 type EmergencyStopCommand struct {
@@ -341,6 +379,21 @@ type RobotStatus struct {
 	SystemStatus SystemStatus       `json:"system_status"`
 	Timestamp    time.Time          `json:"timestamp"`
 	Velocity     Velocity           `json:"velocity"`
+}
+
+// SetTelemetryChannelCommand Bidirectional: toggles the telemetry gRPC channel without affecting the command channel, so it is remotely reversible either way.
+type SetTelemetryChannelCommand struct {
+	CommandType SetTelemetryChannelCommandCommandType `json:"command_type"`
+	Parameters  SetTelemetryChannelParams             `json:"parameters"`
+}
+
+// SetTelemetryChannelCommandCommandType defines model for SetTelemetryChannelCommand.CommandType.
+type SetTelemetryChannelCommandCommandType string
+
+// SetTelemetryChannelParams defines model for SetTelemetryChannelParams.
+type SetTelemetryChannelParams struct {
+	// Enabled Enable or disable the telemetry gRPC stream
+	Enabled bool `json:"enabled"`
 }
 
 // SetVisionDebugCommand defines model for SetVisionDebugCommand.
@@ -711,6 +764,62 @@ func (t *RobotCommand) MergeSetVisionDebugCommand(v SetVisionDebugCommand) error
 	return err
 }
 
+// AsDisableCommandChannelCommand returns the union data inside the RobotCommand as a DisableCommandChannelCommand
+func (t RobotCommand) AsDisableCommandChannelCommand() (DisableCommandChannelCommand, error) {
+	var body DisableCommandChannelCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDisableCommandChannelCommand overwrites any union data inside the RobotCommand as the provided DisableCommandChannelCommand
+func (t *RobotCommand) FromDisableCommandChannelCommand(v DisableCommandChannelCommand) error {
+	v.CommandType = "DISABLE_COMMAND_CHANNEL"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDisableCommandChannelCommand performs a merge with any union data inside the RobotCommand, using the provided DisableCommandChannelCommand
+func (t *RobotCommand) MergeDisableCommandChannelCommand(v DisableCommandChannelCommand) error {
+	v.CommandType = "DISABLE_COMMAND_CHANNEL"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSetTelemetryChannelCommand returns the union data inside the RobotCommand as a SetTelemetryChannelCommand
+func (t RobotCommand) AsSetTelemetryChannelCommand() (SetTelemetryChannelCommand, error) {
+	var body SetTelemetryChannelCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetTelemetryChannelCommand overwrites any union data inside the RobotCommand as the provided SetTelemetryChannelCommand
+func (t *RobotCommand) FromSetTelemetryChannelCommand(v SetTelemetryChannelCommand) error {
+	v.CommandType = "SET_TELEMETRY_CHANNEL"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetTelemetryChannelCommand performs a merge with any union data inside the RobotCommand, using the provided SetTelemetryChannelCommand
+func (t *RobotCommand) MergeSetTelemetryChannelCommand(v SetTelemetryChannelCommand) error {
+	v.CommandType = "SET_TELEMETRY_CHANNEL"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RobotCommand) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"command_type"`
@@ -725,6 +834,8 @@ func (t RobotCommand) ValueByDiscriminator() (interface{}, error) {
 		return nil, err
 	}
 	switch discriminator {
+	case "DISABLE_COMMAND_CHANNEL":
+		return t.AsDisableCommandChannelCommand()
 	case "EMERGENCY_STOP":
 		return t.AsEmergencyStopCommand()
 	case "PAUSE":
@@ -735,6 +846,8 @@ func (t RobotCommand) ValueByDiscriminator() (interface{}, error) {
 		return t.AsResumeCommand()
 	case "RETURN_TO_START":
 		return t.AsReturnToStartCommand()
+	case "SET_TELEMETRY_CHANNEL":
+		return t.AsSetTelemetryChannelCommand()
 	case "SET_VISION_DEBUG":
 		return t.AsSetVisionDebugCommand()
 	case "SHUTDOWN":

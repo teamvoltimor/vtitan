@@ -59,6 +59,8 @@ tasks:
           task backend:test         Run Go backend tests
           task backend:lint         Run golangci-lint
           task backend:lint:fix     Auto-fix Go lint issues
+          task backend:align        Check struct field alignment (betteralign)
+          task backend:align:fix    Auto-fix struct field alignment
           task backend:fmt          Format (goimports + gofmt)
           task backend:sqlc         Regenerate Go DB layer from SQL (requires sqlc CLI)
           task backend:typecheck    Run go vet
@@ -81,6 +83,8 @@ tasks:
           task simgen:test          Run simgen tests
           task simgen:lint          Run golangci-lint
           task simgen:lint:fix      Auto-fix simgen lint issues
+          task simgen:align         Check struct field alignment (betteralign)
+          task simgen:align:fix     Auto-fix struct field alignment
           task simgen:fmt           Format (golangci-lint fmt — goimports + golines)
 
         FRONTEND (Vite + React telemetry dashboard)
@@ -276,6 +280,18 @@ tasks:
     cmds:
       - golangci-lint run --fix ./...
 
+  backend:align:
+    desc: Check Go struct field alignment (betteralign)
+    dir: backend
+    cmds:
+      - betteralign ./...
+
+  backend:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    dir: backend
+    cmds:
+      - betteralign -fix ./...
+
   backend:fmt:
     desc: Format Go backend code (goimports + gofmt)
     dir: backend
@@ -379,6 +395,18 @@ tasks:
     dir: gazebo/generator
     cmds:
       - golangci-lint run --fix ./...
+
+  simgen:align:
+    desc: Check Go struct field alignment (betteralign)
+    dir: gazebo/generator
+    cmds:
+      - betteralign ./...
+
+  simgen:align:fix:
+    desc: Auto-fix Go struct field alignment with betteralign
+    dir: gazebo/generator
+    cmds:
+      - betteralign -fix ./...
 
   simgen:fmt:
     desc: Format simgen code via golangci-lint fmt (goimports + golines per .golangci.yml)

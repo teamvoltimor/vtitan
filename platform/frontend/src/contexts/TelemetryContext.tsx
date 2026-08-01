@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
-import type { SetVisionDebugParams } from '../api/generated/robot';
+import type { SetTelemetryChannelParams, SetVisionDebugParams } from '../api/generated/robot';
 import { isRobotSnapshot, isTopicsSnapshot } from '../api/guards';
 import { createTelemetrySource } from '../api/source';
 import { getErrorMessage } from '../utils/formatting';
@@ -210,6 +210,24 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     [source]
   );
 
+  const setTelemetryChannel = useCallback(
+    (parameters: SetTelemetryChannelParams): Promise<void> =>
+      source.setTelemetryChannel(parameters).catch((err) => {
+        console.error('Failed to update telemetry channel:', err);
+        throw err;
+      }),
+    [source]
+  );
+
+  const disableCommandChannel = useCallback(
+    (): Promise<void> =>
+      source.disableCommandChannel().catch((err) => {
+        console.error('Failed to disable command channel:', err);
+        throw err;
+      }),
+    [source]
+  );
+
   // Live stream subscription (WebSocket for live, timer for demo).
   useEffect(() => {
     if (!liveMode || !mounted.current) return;
@@ -305,6 +323,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       toggleDemoMode,
       updateSpeed,
       setVisionDebug,
+      setTelemetryChannel,
+      disableCommandChannel,
     }),
     [
       snapshot,
@@ -327,6 +347,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       toggleDemoMode,
       updateSpeed,
       setVisionDebug,
+      setTelemetryChannel,
+      disableCommandChannel,
     ]
   );
 

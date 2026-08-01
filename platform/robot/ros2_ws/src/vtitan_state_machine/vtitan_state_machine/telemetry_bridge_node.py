@@ -1,4 +1,4 @@
-"""ROS2 Telemetry Bridge — Publishes robot data to FastAPI backend."""
+"""ROS2 Telemetry Bridge — streams robot data to the backend over gRPC."""
 
 from __future__ import annotations
 
@@ -6,20 +6,19 @@ import json
 import math
 import time
 from collections import deque
-from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import asdict, dataclass
-from http import HTTPStatus
+from dataclasses import dataclass
 from typing import Any, override
 
 import numpy as np
 import rclpy
-import requests
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
+from rcl_interfaces.msg import SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.client import Client
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
@@ -30,9 +29,7 @@ from vision_msgs.msg import Detection2DArray
 
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
 from vtitan_state_machine.command_channel import CommandChannel
-
-_BACKOFF_INITIAL = 1.0
-_BACKOFF_MAX = 60.0
+from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
 
 _MIN_TIMESTAMPS_FOR_RATE = 2
 """Minimum tracked timestamps needed to compute a topic update rate."""
@@ -118,7 +115,7 @@ class _VisionDetectionPayload:
 
 @dataclass(frozen=True, slots=True)
 class TelemetryMetrics:
-    """Backend-facing telemetry metrics payload (POSTed as part of RobotSnapshot)."""
+    """Backend-facing telemetry metrics payload (streamed as part of RobotSnapshot)."""
 
     timestamp: float
     nodeHealth: str
@@ -140,7 +137,7 @@ class TelemetryMetrics:
 
 @dataclass(frozen=True, slots=True)
 class RobotSnapshot:
-    """Backend-facing telemetry snapshot POSTed to /telemetry/record."""
+    """Backend-facing telemetry snapshot streamed via TelemetryIngestService.StreamSnapshots."""
 
     timestamp: float
     missionName: str
@@ -173,7 +170,7 @@ class _TopicUpdatePayload:
 
 @dataclass(frozen=True, slots=True)
 class TopicsSnapshot:
-    """Backend-facing topic-health snapshot POSTed to /telemetry/topics/update."""
+    """Backend-facing topic-health snapshot streamed via TelemetryIngestService.StreamTopics."""
 
     timestamp: float
     topics: list[_TopicUpdatePayload]
@@ -282,7 +279,7 @@ def _best_detection(msg: Detection2DArray) -> tuple[str, float] | None:
 
 
 class TelemetryBridgeNode(Node):
-    """Subscribes to robot topics and POSTs telemetry to backend API."""
+    """Subscribes to robot topics and streams telemetry to the backend over gRPC."""
 
     def __init__(self) -> None:
         super().__init__("telemetry_bridge")
@@ -335,7 +332,10 @@ class TelemetryBridgeNode(Node):
         self._path_history: deque = deque(maxlen=self._max_history)
         self._logs: deque = deque(maxlen=10)
 
-        # Backend-status publisher (reuses system_status topic).
+        # Backend-status publisher (reuses system_status topic). Driven by
+        # the telemetry gRPC channel's connect/disconnect events -- see
+        # _on_telemetry_channel_state_changed.
+        self._backend_down = False
         self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", _QOS_SYSTEM_STATUS)
 
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
@@ -343,29 +343,33 @@ class TelemetryBridgeNode(Node):
         # subscribe to /scan, /imu/data and /hailo/detections directly.
         self._ui_summary_pub = self.create_publisher(String, "/ui/telemetry_summary", _QOS_UI_SUMMARY)
 
-        # HTTP: single session for connection pooling; backoff state.
-        self._session = requests.Session()
-        self._backend_down = False
-        self._next_retry_time: float = 0.0
-        self._backoff_delay: float = _BACKOFF_INITIAL
-        # POSTs run here, off the executor thread that also processes
-        # /scan, /imu/data and the ui-summary timer -- two sequential
-        # requests.post() calls at timeout=1.0 each could otherwise block
-        # this node's entire callback processing for up to 2s on any
-        # backend hang/slow-fail (a normal ECONNREFUSED is near-instant,
-        # but not every failure mode is), which stalls
-        # /ui/telemetry_summary right along with it -- the OLED's
-        # multi-second freezes traced back to this.
-        self._http_executor = ThreadPoolExecutor(max_workers=1)
-        self._telemetry_post_in_flight = False
-
         # TEMP DIAGNOSTIC (2026-07-28): see _publish_ui_summary.
         self._last_ui_summary_publish_time: float | None = None
 
-        # Backend->robot command channel (gRPC RobotCommandService). host:port,
-        # not a URL -- gRPC channels don't take a scheme, unlike backend_url.
+        # command_channel_enabled/telemetry_channel_enabled are the LOCAL
+        # recovery surface for both gRPC channels (e.g. `ros2 param set
+        # /telemetry_bridge command_channel_enabled true` after a remote
+        # DISABLE_COMMAND_CHANNEL command, which can only be undone this
+        # way -- see command_channel.py's docstring). Both channels also
+        # sync these params on their own state changes (_on_channel_state_
+        # changed below), so `ros2 param get` always reflects reality even
+        # after a remote-triggered stop/restart.
+        default_channel_enabled = True
+        self.declare_parameter("command_channel_enabled", default_channel_enabled)
+        self.declare_parameter("telemetry_channel_enabled", default_channel_enabled)
+        self._syncing_channel_param = False
+        self.add_on_set_parameters_callback(self._on_set_parameters)
+
+        # Backend<->robot gRPC channels. host:port, not a URL -- gRPC
+        # channels don't take a scheme, unlike backend_url.
         self.declare_parameter("command_channel_target", "localhost:9010")
         command_channel_target = self.get_parameter("command_channel_target").value
+        # Same backend process, same grpcSrv (see cmd/server/main.go), so the
+        # ingest service listens on the same port as the command channel --
+        # reusing command_channel_target's default rather than inventing a
+        # second port.
+        self.declare_parameter("telemetry_channel_target", command_channel_target)
+        telemetry_channel_target = self.get_parameter("telemetry_channel_target").value
 
         # START_RACE/STOP_RACE/EMERGENCY_STOP are applied by publishing the
         # same synthetic /button/event the physical button already produces
@@ -382,14 +386,22 @@ class TelemetryBridgeNode(Node):
         # with no shared Python objects, so this is the only way in.
         vision_params_client: Client = self.create_client(SetParameters, "/vision_detector/set_parameters")
 
+        self._telemetry_channel = TelemetryIngestChannel(
+            backend_target=telemetry_channel_target,
+            logger=self.get_logger(),
+            on_state_changed=self._on_telemetry_channel_state_changed,
+        )
         self._command_channel = CommandChannel(
             backend_url=self._backend_url,
             command_channel_target=command_channel_target,
             button_pub=button_pub,
             vision_params_client=vision_params_client,
             logger=self.get_logger(),
+            on_state_changed=self._on_command_channel_state_changed,
+            telemetry_channel=self._telemetry_channel,
         )
         self._command_channel.start()
+        self._telemetry_channel.start()
 
         # Timer for publishing
         self.create_timer(1.0 / self._rate, self._publish_telemetry)
@@ -495,11 +507,12 @@ class TelemetryBridgeNode(Node):
         )
 
     def _publish_telemetry(self) -> None:
-        """Aggregate data and hand the backend POST off to a worker thread.
+        """Aggregate current sensor data and push it onto the telemetry channel.
 
-        Only the (cheap, in-memory) snapshot building happens here; the
-        network call itself runs on _http_executor so a slow/hung backend
-        can never stall this node's own callback processing.
+        push_snapshot/push_topics are non-blocking by construction (keep-
+        latest queues drained by TelemetryIngestChannel's own background
+        threads), so there's no in-flight tracking needed here the way the
+        old HTTP POST path required.
         """
         # TEMP DIAGNOSTIC (2026-07-28): time each step of this callback's
         # synchronous portion -- this node runs on a plain rclpy.spin()
@@ -508,68 +521,85 @@ class TelemetryBridgeNode(Node):
         # the one thread/default callback group). Remove once root-caused.
         t0 = time.monotonic()
 
-        now = time.monotonic()
-        if self._backend_down and now < self._next_retry_time:
-            return
-        if self._telemetry_post_in_flight:
-            # Previous POST hasn't finished (still inside its own timeout) --
-            # skip this tick rather than queue up a second one behind it.
-            return
-
-        t1 = time.monotonic()
         snapshot = self._build_snapshot()
-        t2 = time.monotonic()
+        t1 = time.monotonic()
         topics_snapshot = self._build_topics_snapshot()
+        t2 = time.monotonic()
+
+        self._telemetry_channel.push_snapshot(snapshot)
+        self._telemetry_channel.push_topics(topics_snapshot)
         t3 = time.monotonic()
 
-        self._telemetry_post_in_flight = True
-        future = self._http_executor.submit(self._post_telemetry, snapshot, topics_snapshot)
-        future.add_done_callback(self._on_telemetry_posted)
-        t4 = time.monotonic()
-
-        total = t4 - t0
+        total = t3 - t0
         if total > 0.3:
             self.get_logger().warning(
                 f"[DIAG] _publish_telemetry took {total:.2f}s "
-                f"(pre-check={t1 - t0:.2f}s build_snapshot={t2 - t1:.2f}s "
-                f"build_topics={t3 - t2:.2f}s submit={t4 - t3:.2f}s)",
+                f"(build_snapshot={t1 - t0:.2f}s build_topics={t2 - t1:.2f}s push={t3 - t2:.2f}s)",
             )
 
-    def _post_telemetry(self, snapshot: RobotSnapshot, topics_snapshot: TopicsSnapshot) -> None:
-        """Runs on the HTTP worker thread -- the two blocking POSTs live here."""
-        r = self._session.post(
-            f"{self._backend_url}/telemetry/record",
-            json=asdict(snapshot),
-            timeout=1.0,
-        )
-        if r.status_code != HTTPStatus.OK:
-            self.get_logger().warning(f"Backend returned {r.status_code}")
+    def _on_command_channel_state_changed(self, connected: bool) -> None:
+        """Keep command_channel_enabled in sync after a remote-triggered stop."""
+        self._sync_channel_param("command_channel_enabled", connected)
 
-        self._session.post(
-            f"{self._backend_url}/telemetry/topics/update",
-            json=asdict(topics_snapshot),
-            timeout=1.0,
-        )
+    def _on_telemetry_channel_state_changed(self, connected: bool) -> None:
+        """Drive /system_status and telemetry_channel_enabled off gRPC stream health.
 
-    def _on_telemetry_posted(self, future: Future[None]) -> None:
-        """Done-callback for the background POST -- runs on the worker thread."""
-        self._telemetry_post_in_flight = False
-        now = time.monotonic()
+        Preserves the old HTTP-era /system_status connected/disconnected
+        semantics -- only now driven by the ingest stream's own connect/
+        disconnect events instead of POST response codes. Only acts (logs,
+        publishes) on an actual transition: both the snapshot and topics
+        stream threads call this independently, so it fires far more often
+        than the connectivity state actually changes.
+        """
+        was_down = self._backend_down
+        self._backend_down = not connected
+        if connected and was_down:
+            self.get_logger().info("Backend reconnected — telemetry resumed")
+            self._publish_backend_status("connected")
+        elif not connected and not was_down:
+            self.get_logger().warning("Backend unreachable")
+            self._publish_backend_status("disconnected")
+        self._sync_channel_param("telemetry_channel_enabled", connected)
+
+    def _sync_channel_param(self, name: str, value: bool) -> None:
+        """Keep a ROS2 bool param in sync with actual channel state.
+
+        Guarded by _syncing_channel_param so this internal set_parameters
+        call doesn't re-enter _on_set_parameters and try to restart/stop the
+        channel a second time (it would otherwise recurse indefinitely).
+        """
+        if self.get_parameter(name).value == value:
+            return
+        self._syncing_channel_param = True
         try:
-            future.result()
-        except requests.exceptions.RequestException as exc:
-            if not self._backend_down:
-                self.get_logger().warning(f"Backend unreachable: {exc}")
-                self._publish_backend_status("disconnected")
-            self._backend_down = True
-            self._next_retry_time = now + self._backoff_delay
-            self._backoff_delay = min(self._backoff_delay * 2, _BACKOFF_MAX)
-        else:
-            if self._backend_down:
-                self.get_logger().info("Backend reconnected — telemetry resumed")
-                self._publish_backend_status("connected")
-            self._backend_down = False
-            self._backoff_delay = _BACKOFF_INITIAL
+            self.set_parameters([Parameter(name, Parameter.Type.BOOL, value)])
+        finally:
+            self._syncing_channel_param = False
+
+    def _on_set_parameters(self, params: list[Parameter]) -> SetParametersResult:
+        """Local recovery surface for both gRPC channels.
+
+        `ros2 param set /telemetry_bridge command_channel_enabled true` is
+        the only way to re-enable the command channel after a remote
+        DISABLE_COMMAND_CHANNEL command (see command_channel.py's docstring
+        -- that command is deliberately one-way over gRPC).
+        """
+        if self._syncing_channel_param:
+            return SetParametersResult(successful=True)
+        for param in params:
+            if param.name == "command_channel_enabled":
+                old = self.get_parameter("command_channel_enabled").value
+                if param.value and not old:
+                    self._command_channel.restart()
+                elif not param.value and old:
+                    self._command_channel.stop()
+            elif param.name == "telemetry_channel_enabled":
+                old = self.get_parameter("telemetry_channel_enabled").value
+                if param.value and not old:
+                    self._telemetry_channel.restart()
+                elif not param.value and old:
+                    self._telemetry_channel.stop()
+        return SetParametersResult(successful=True)
 
     def _publish_backend_status(self, status: str) -> None:
         """Publish backend connectivity state to /system_status."""
@@ -837,9 +867,9 @@ class TelemetryBridgeNode(Node):
 
     @override
     def destroy_node(self) -> None:
-        """Release the HTTP worker thread and command-channel thread before teardown."""
+        """Stop both gRPC channel threads before teardown."""
         self._command_channel.stop()
-        self._http_executor.shutdown(wait=False)
+        self._telemetry_channel.stop()
         super().destroy_node()
 
 

@@ -450,6 +450,8 @@ components:
         - $ref: '#/components/schemas/RebootCommand'
         - $ref: '#/components/schemas/ShutdownCommand'
         - $ref: '#/components/schemas/SetVisionDebugCommand'
+        - $ref: '#/components/schemas/DisableCommandChannelCommand'
+        - $ref: '#/components/schemas/SetTelemetryChannelCommand'
       discriminator:
         propertyName: command_type
         mapping:
@@ -462,6 +464,8 @@ components:
           REBOOT: '#/components/schemas/RebootCommand'
           SHUTDOWN: '#/components/schemas/ShutdownCommand'
           SET_VISION_DEBUG: '#/components/schemas/SetVisionDebugCommand'
+          DISABLE_COMMAND_CHANNEL: '#/components/schemas/DisableCommandChannelCommand'
+          SET_TELEMETRY_CHANNEL: '#/components/schemas/SetTelemetryChannelCommand'
 
     StartRaceCommand:
       type: object
@@ -557,6 +561,40 @@ components:
           format: int32
           minimum: 1
           description: Optional cap on the debug stream frame rate
+
+    DisableCommandChannelCommand:
+      type: object
+      description: >-
+        One-way: disables the robot's gRPC command channel remotely.
+        Re-enabling requires local robot access, since disabling this
+        command closes the very channel a remote re-enable command would
+        need to travel over.
+      required: [command_type]
+      properties:
+        command_type:
+          type: string
+          enum: [DISABLE_COMMAND_CHANNEL]
+
+    SetTelemetryChannelCommand:
+      type: object
+      description: >-
+        Bidirectional: toggles the telemetry gRPC channel without affecting
+        the command channel, so it is remotely reversible either way.
+      required: [command_type, parameters]
+      properties:
+        command_type:
+          type: string
+          enum: [SET_TELEMETRY_CHANNEL]
+        parameters:
+          $ref: '#/components/schemas/SetTelemetryChannelParams'
+
+    SetTelemetryChannelParams:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: Enable or disable the telemetry gRPC stream
 
     RobotCommandResponse:
       type: object

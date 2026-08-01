@@ -211,72 +211,71 @@ class TestPublishUiSummary:
 class TestPublishTelemetryDoesNotBlock:
     """A slow/hung backend must never stall this node's own callback processing.
 
-    Two sequential requests.post() calls at timeout=1.0 each, run inline on
-    the executor thread, could block /scan, /imu/data and the ui-summary
-    timer for up to 2s -- traced back as the cause of the OLED's
-    multi-second freezes. The fix moves the POSTs to a background thread;
-    _publish_telemetry itself must return almost immediately regardless of
-    how long the backend takes to respond.
+    _publish_telemetry now hands snapshots off to TelemetryIngestChannel's
+    push_snapshot/push_topics, which are non-blocking by construction (each
+    backed by a maxsize=1 keep-latest queue.Queue, drained by the channel's
+    own background threads) -- so there's no in-flight tracking left at the
+    bridge-node level the way the old HTTP POST path required. These tests
+    stub out the channel itself (no real threads/grpc) and assert
+    _publish_telemetry returns immediately and calls push_snapshot/
+    push_topics exactly once each, with the freshly-built dataclasses,
+    regardless of the channel's connection state.
     """
 
-    def test_publish_telemetry_returns_before_a_slow_post_completes(self, ros_context, bridge_node):
-        release = threading.Event()
-
-        def slow_post(*args, **kwargs):
-            release.wait(timeout=2.0)
-            return mock.Mock(status_code=200)
-
-        bridge_node._session.post = mock.Mock(side_effect=slow_post)
+    def test_publish_telemetry_returns_immediately_and_pushes_snapshot_and_topics(self, ros_context, bridge_node):
+        pushed_snapshots = []
+        pushed_topics = []
+        bridge_node._telemetry_channel.push_snapshot = pushed_snapshots.append
+        bridge_node._telemetry_channel.push_topics = pushed_topics.append
 
         start = time.perf_counter()
         bridge_node._publish_telemetry()
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 0.2, "a slow backend must not block _publish_telemetry itself"
-        assert bridge_node._telemetry_post_in_flight is True
+        assert elapsed < 0.2, "push_snapshot/push_topics must not block _publish_telemetry"
+        assert len(pushed_snapshots) == 1
+        assert len(pushed_topics) == 1
+        assert pushed_snapshots[0].missionName == bridge_node._build_snapshot().missionName
 
-        release.set()
-        for _ in range(50):
-            if not bridge_node._telemetry_post_in_flight:
-                break
-            time.sleep(0.05)
-        assert bridge_node._telemetry_post_in_flight is False
-        assert bridge_node._backend_down is False
+    def test_publish_telemetry_still_pushes_when_channel_reports_disconnected(self, ros_context, bridge_node):
+        """push_snapshot/push_topics never raise/block even while the channel is disconnected.
 
-    def test_a_second_tick_is_skipped_while_one_is_already_in_flight(self, ros_context, bridge_node):
-        # Patches _post_telemetry itself (one call = one _publish_telemetry
-        # that actually ran the POST), not the underlying _session.post --
-        # that gets called twice per real execution (record + topics/update
-        # endpoints), which would make a raw call-count assertion here
-        # meaningless.
-        started = threading.Event()
-        release = threading.Event()
-        call_count = 0
-        lock = threading.Lock()
-        real_post_telemetry = bridge_node._post_telemetry
-
-        def blocking_post_telemetry(*args, **kwargs):
-            nonlocal call_count
-            with lock:
-                call_count += 1
-            started.set()
-            release.wait(timeout=2.0)
-
-        bridge_node._post_telemetry = blocking_post_telemetry
+        Doesn't need a real disconnected TelemetryIngestChannel here --
+        push_snapshot/push_topics are non-blocking by construction (see
+        test_telemetry_ingest_channel.py's TestPushLatest), so plain mocks
+        standing in for them are enough to pin _publish_telemetry's own
+        contract: call both, once each, and return.
+        """
+        bridge_node._telemetry_channel.push_snapshot = mock.Mock()
+        bridge_node._telemetry_channel.push_topics = mock.Mock()
 
         bridge_node._publish_telemetry()
-        assert started.wait(timeout=1.0), "first POST never started"
 
-        bridge_node._publish_telemetry()  # should be a no-op: one is already in flight
+        bridge_node._telemetry_channel.push_snapshot.assert_called_once()
+        bridge_node._telemetry_channel.push_topics.assert_called_once()
 
-        release.set()
-        for _ in range(50):
-            if not bridge_node._telemetry_post_in_flight:
-                break
-            time.sleep(0.05)
+    def test_second_ticks_data_replaces_the_first_via_keep_latest_queue(self, bridge_module):
+        """Ported from the old bridge-node-level in-flight test -- now expressed against
 
-        assert call_count == 1
-        bridge_node._post_telemetry = real_post_telemetry
+        TelemetryIngestChannel's keep-latest queue directly (see
+        test_telemetry_ingest_channel.py's TestPushLatest for the
+        thorough coverage); this just confirms the bridge node's two push
+        calls per tick land on that same drop-oldest-keep-latest queue.
+        """
+        from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
+
+        channel = TelemetryIngestChannel(
+            backend_target="localhost:9010",
+            logger=mock.Mock(),
+        )
+        first = mock.Mock(name="first")
+        second = mock.Mock(name="second")
+
+        channel._push_latest(channel._snapshot_queue, first)
+        channel._push_latest(channel._snapshot_queue, second)
+
+        assert channel._snapshot_queue.qsize() == 1
+        assert channel._snapshot_queue.get_nowait() is second
 
 
 class TestUiSummaryRoundTripsWithOledNode:

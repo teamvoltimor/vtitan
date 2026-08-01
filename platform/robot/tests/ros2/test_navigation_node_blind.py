@@ -10,20 +10,56 @@ the localizer, and that the heading reference is re-zeroed at the start button.
 
 from __future__ import annotations
 
+import json
 import math
+from unittest import mock
 
 import numpy as np
 import pytest
 import rclpy
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
-from shared.domain.models import IMUReading
+from shared.domain.models import IMUReading, Pose
 
+from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
 from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node, ros_context
 
 _NARROW = CorridorDimensions.NARROW
 _WIDE = CorridorDimensions.WIDE
+
+# A scan whose side rays give a plausible, axis-aligned 1.0 m corridor reading
+# (left=right=0.5 m at yaw=0.0) -- what measure_corridor_width and
+# DirectionEstimator both need to accept a reading rather than discard it.
+_STRAIGHT_SCAN = LidarScan(
+    ranges_m=(0.5, 2.0, 0.5, 2.0),
+    angles_rad=(-math.pi / 2, 0.0, math.pi / 2, math.pi),
+)
+
+
+def _write_open_metadata(tmp_path) -> str:
+    """A minimal, valid Open Challenge metadata file -- for the not-blind branches."""
+    path = tmp_path / "metadata.json"
+    path.write_text(
+        json.dumps(
+            {
+                "scenario_id": 0,
+                "challenge_type": "open",
+                "corridor_widths": {s: {"type": "wide", "width_mm": 1000} for s in ("north", "south", "east", "west")},
+                "starting_conditions": {
+                    "direction": "clockwise",
+                    "section": "South",
+                    "position": {"x": 1.5, "y": 0.3},
+                    "yaw": 3.14,
+                },
+                "num_signs": 0,
+                "sign_positions": [],
+                "parking_lot": None,
+            },
+        ),
+        encoding="utf-8",
+    )
+    return str(path)
 
 
 class TestGatewayBeliefUpdate:
@@ -246,6 +282,173 @@ class TestAssumedStartConditions:
         from src.simulation.scenario_builder import start_pose as reexported
 
         assert reexported is moved
+
+
+class TestResolveDirection:
+    """The creep-until-direction-known state machine, driven directly."""
+
+    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
+        try:
+            assert navigator._direction_estimator is None
+            assert navigator._resolve_direction() is False
+        finally:
+            navigator.destroy_node()
+
+    def test_returns_false_once_the_estimator_has_settled(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            with (
+                mock.patch.object(
+                    type(navigator._direction_estimator),
+                    "is_settled",
+                    new_callable=mock.PropertyMock,
+                    return_value=True,
+                ),
+                mock.patch.object(navigator._direction_estimator, "observe") as observe_mock,
+            ):
+                assert navigator._resolve_direction() is False
+            observe_mock.assert_not_called()
+        finally:
+            navigator.destroy_node()
+
+    def test_holds_and_returns_true_when_scan_or_pose_is_missing(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            with (
+                mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=None),
+                mock.patch.object(navigator._gateway, "publish_drive") as publish_mock,
+            ):
+                assert navigator._resolve_direction() is True
+            publish_mock.assert_called_once_with(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        finally:
+            navigator.destroy_node()
+
+    def test_not_yet_settled_buffers_a_width_reading_and_creeps(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            pose = Pose(x=1.5, y=0.25, yaw=0.0)
+            with (
+                mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=_STRAIGHT_SCAN),
+                mock.patch.object(navigator._gateway, "get_current_pose", return_value=pose),
+                mock.patch.object(navigator._direction_estimator, "observe", return_value=False),
+                mock.patch.object(navigator._gateway, "publish_drive") as publish_mock,
+            ):
+                result = navigator._resolve_direction()
+            assert result is True
+            publish_mock.assert_called_once()
+            # The reading is real (a plausible, aligned 1.0 m corridor) so it
+            # must have been buffered for replay once the direction commits.
+            assert navigator._creep_widths == [(0.0, pytest.approx(1.0))]
+        finally:
+            navigator.destroy_node()
+
+    def test_settling_commits_the_direction_and_reports_no_plan_step(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
+        try:
+            pose = Pose(x=1.5, y=0.25, yaw=0.0)
+            with (
+                mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=_STRAIGHT_SCAN),
+                mock.patch.object(navigator._gateway, "get_current_pose", return_value=pose),
+                mock.patch.object(navigator._direction_estimator, "observe", return_value=True),
+                mock.patch.object(
+                    type(navigator._direction_estimator),
+                    "direction",
+                    new_callable=mock.PropertyMock,
+                    return_value=Direction.COUNTERCLOCKWISE,
+                ),
+                mock.patch.object(navigator, "_commit_direction") as commit_mock,
+            ):
+                result = navigator._resolve_direction()
+            assert result is False
+            commit_mock.assert_called_once_with(Direction.COUNTERCLOCKWISE, pose)
+        finally:
+            navigator.destroy_node()
+
+
+class TestCommitDirectionFlushesBufferedWidths:
+    """The creep buffer built up while direction was unknown must reach the estimator."""
+
+    def test_buffered_readings_are_replayed_and_the_buffer_is_cleared(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
+        try:
+            navigator._creep_widths = [(0.0, 1.0), (0.01, 0.62)]
+            with mock.patch.object(navigator._width_estimator, "observe_measurement") as observe_mock:
+                navigator._commit_direction(Direction.CLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0))
+            assert observe_mock.call_count == 2
+            assert navigator._creep_widths == []
+        finally:
+            navigator.destroy_node()
+
+
+class TestUpdateLayoutBelief:
+    """Folding LIDAR readings into the width estimate mid-run, and replanning off it."""
+
+    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
+        try:
+            assert navigator._width_estimator is None
+            assert navigator._update_layout_belief() is False
+        finally:
+            navigator.destroy_node()
+
+    def test_returns_false_when_scan_or_pose_is_missing(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            with mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=None):
+                assert navigator._update_layout_belief() is False
+        finally:
+            navigator.destroy_node()
+
+    def test_returns_false_when_the_estimate_does_not_change(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            pose = Pose(x=1.5, y=0.25, yaw=0.0)
+            with (
+                mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=_STRAIGHT_SCAN),
+                mock.patch.object(navigator._gateway, "get_current_pose", return_value=pose),
+                mock.patch.object(navigator._width_estimator, "observe", return_value=False),
+            ):
+                assert navigator._update_layout_belief() is False
+        finally:
+            navigator.destroy_node()
+
+    def test_a_settled_estimate_replans_and_repoints_the_localizer(self, ros_context) -> None:  # noqa: F811
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=1)
+        try:
+            pose = Pose(x=1.5, y=0.25, yaw=0.0)
+            with (
+                mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=_STRAIGHT_SCAN),
+                mock.patch.object(navigator._gateway, "get_current_pose", return_value=pose),
+                mock.patch.object(navigator._width_estimator, "observe", return_value=True),
+                mock.patch.object(navigator._gateway, "set_believed_walls") as set_walls_mock,
+                mock.patch.object(navigator._core_navigator, "replace_path") as replace_path_mock,
+            ):
+                assert navigator._update_layout_belief() is True
+            set_walls_mock.assert_called_once()
+            replace_path_mock.assert_called_once()
+        finally:
+            navigator.destroy_node()
 
 
 if __name__ == "__main__":
