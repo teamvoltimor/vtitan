@@ -232,10 +232,23 @@ class TrackNavigator(Node, ResettableNode):
         # button is the operator's only physical control, so it has to gate the
         # thing that actually moves the robot.
         #
-        # TRANSIENT_LOCAL matches state_machine_node's /robot_state publisher, so
-        # the current state arrives immediately rather than only on the next
-        # transition -- otherwise launching mid-race would sit idle until the
-        # state happened to change.
+        # Both policies must match state_machine_node's _QOS_TRANSIENT publisher
+        # or this subscription silently receives nothing at all.
+        #
+        # TRANSIENT_LOCAL so the current state arrives immediately rather than
+        # only on the next transition -- otherwise launching mid-race would sit
+        # idle until the state happened to change.
+        #
+        # BEST_EFFORT, not RELIABLE: a RELIABLE reader is incompatible with that
+        # BEST_EFFORT writer, and DDS resolves the mismatch by never delivering.
+        # This was live on hardware -- both this node and bag_recorder logged
+        # "offering incompatible QoS. No messages will be received", meaning the
+        # navigator could never observe RACING and the robot would never have
+        # driven. The publisher is deliberately BEST_EFFORT (it must not block on
+        # the Pi Zero's OLED, which stalls for 30+ s), so the reader is what has
+        # to give. Losing reliability costs nothing here: _publish_state runs
+        # every tick of the state machine loop, not only on transitions, so a
+        # dropped sample is corrected within one tick.
         self._racing = False
         self.create_subscription(
             String,
@@ -243,7 +256,7 @@ class TrackNavigator(Node, ResettableNode):
             self._on_robot_state,
             QoSProfile(
                 depth=1,
-                reliability=QoSReliabilityPolicy.RELIABLE,
+                reliability=QoSReliabilityPolicy.BEST_EFFORT,
                 durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
             ),
         )

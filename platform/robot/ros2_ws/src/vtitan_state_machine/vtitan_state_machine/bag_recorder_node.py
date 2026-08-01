@@ -36,13 +36,18 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.domain.enums import RobotState
 from std_msgs.msg import String
 
-# Matches state_machine_node's /robot_state publisher. TRANSIENT_LOCAL matters
-# here for the same reason it does in track_navigator_node: without it, a
-# recorder started mid-race would sit idle until the state next changed, so the
-# round it was meant to capture would go unrecorded.
+# Must match state_machine_node's _QOS_TRANSIENT publisher on both policies, or
+# this subscription receives nothing at all -- a RELIABLE reader against that
+# BEST_EFFORT writer is an incompatible pair, and DDS resolves it by never
+# delivering (observed on hardware: "offering incompatible QoS. No messages will
+# be received").
+#
+# TRANSIENT_LOCAL matters for the same reason it does in track_navigator_node:
+# without it, a recorder started mid-race would sit idle until the state next
+# changed, so the round it was meant to capture would go unrecorded.
 _QOS_ROBOT_STATE = QoSProfile(
     depth=1,
-    reliability=QoSReliabilityPolicy.RELIABLE,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
 
