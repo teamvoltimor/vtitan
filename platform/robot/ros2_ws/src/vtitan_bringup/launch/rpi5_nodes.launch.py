@@ -1,20 +1,12 @@
 """Launch file for the Raspberry Pi 5 nodes (State Machine, Vision, IMU, LiDAR bridge, Telemetry)."""
 
-import os
-
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
-# The vision node's own defaults are the simulation ones (ultralytics on a .pt
-# checkpoint). On the Pi the detector is the compiled GMR HEF on the NPU, so the
-# backend and model are named here rather than left to fall back.
-HAILO_MODEL_PATH = os.environ.get("HAILO_MODEL_PATH", "/usr/local/hailo/models/gmr.hef")
+from src.config.launch_settings import TelemetryBridgeLaunchSettings, VisionLaunchSettings
 
-# The vision node opens the camera itself and feeds frames straight to the NPU,
-# so a race puts detections on the wire and no imagery at all. Set
-# VISION_DEBUG_VIDEO=1 (or launch with debug_video:=true) to also publish the
-# annotated stream for testing -- roughly 1.2 MB per frame, so not for a run.
-DEBUG_VIDEO = os.environ.get("VISION_DEBUG_VIDEO", "").lower() in {"1", "true", "yes"}
+_vision_settings = VisionLaunchSettings()
+_telemetry_settings = TelemetryBridgeLaunchSettings()
 
 # Seconds to wait before restarting a crashed node.
 _RESPAWN_DELAY_SEC = 3.0
@@ -49,10 +41,10 @@ def generate_launch_description() -> LaunchDescription:
                 parameters=[
                     {
                         "backend": "hailo",
-                        "model_path": HAILO_MODEL_PATH,
+                        "model_path": _vision_settings.hailo_model_path,
                         "camera_source": "direct",
-                        "publish_annotated": DEBUG_VIDEO,
-                        "publish_raw": DEBUG_VIDEO,
+                        "publish_annotated": _vision_settings.vision_debug_video,
+                        "publish_raw": _vision_settings.vision_debug_video,
                     },
                 ],
                 respawn=True,
@@ -63,6 +55,7 @@ def generate_launch_description() -> LaunchDescription:
                 executable="telemetry_bridge_node",
                 name="telemetry_bridge",
                 output="screen",
+                parameters=[_telemetry_settings.as_node_parameters()],
                 respawn=True,
                 respawn_delay=_TELEMETRY_RESPAWN_DELAY_SEC,
             ),
