@@ -68,23 +68,22 @@
     chdir: "{{ robot_dir }}"
   changed_when: true
 
-- name: Install pixi env and build ROS2 workspace
-  ansible.builtin.shell: "{{ pixi_bin }} install -e dev && {{ pixi_bin }} run -e dev build-ws"
+# Built under -e vision, not -e dev: colcon bakes the building env's own
+# python path into each generated executable's shebang (e.g.
+# install/lib/vtitan_vision/vision_node), so whichever env builds the
+# workspace is also the one that runs it at launch time regardless of which
+# env `ros2 launch` itself is invoked under. vision_node needs hailo_platform
+# (a vision-only pypi-dependency, see [feature.vision.target.linux-aarch64.
+# pypi-dependencies] in pixi.toml) at import time, so building under -e dev
+# left it crash-looping with "No module named 'hailo_platform'" even though
+# the vision env had it installed and importable directly. -e vision is a
+# strict superset of -e dev (see [environments] in pixi.toml: vision =
+# features ["dev", "vision"]), so this single step also installs
+# ultralytics + hailort -- no separate vision-env install step needed.
+- name: Install pixi vision env and build ROS2 workspace
+  ansible.builtin.shell: "{{ pixi_bin }} install -e vision && {{ pixi_bin }} run -e vision build-ws"
   args:
     executable: /bin/bash
-    chdir: "{{ robot_dir }}"
-  changed_when: true
-
-# Installs ultralytics + hailort together — hailort is a
-# [feature.vision.target.linux-aarch64.pypi-dependencies] wheel path in
-# pixi.toml (cp312, matching this env's Python), resolved by pixi's own
-# installer. No separate manual `pip install` step needed (and the old one
-# here was broken: its `find` glob matched both the current cp312 wheel and
-# a stale cp310 one in the same libs/ dir, non-deterministically grabbing
-# whichever sorted first).
-- name: Install pixi vision env (ultralytics + hailort)
-  ansible.builtin.command: "{{ pixi_bin }} install -e vision"
-  args:
     chdir: "{{ robot_dir }}"
   changed_when: true
 
