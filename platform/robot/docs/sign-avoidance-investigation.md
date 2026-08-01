@@ -6,6 +6,13 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
+> **Start here.** The current headline is **137/256 rounds in time (54%),
+> 119/256 collisions**, blind, `park=False`, scored under the real push rule.
+> It is set by the depth pin and the geometric ceiling behind it — see "The
+> depth pin" and "What the remaining 108 sign collisions are" below. Every
+> figure in the section immediately following predates the pin and is the
+> `pin off` arm (182 collisions, 74 in time).
+
 ## Current state (2026-08-01) — the gate is open, three fixes landed
 
 **Shipped defaults now: 14/16 collisions (14 sign, 0 wall, 0 parking), 2/16
@@ -352,6 +359,152 @@ connected.** A flat sweep is now the first thing to distrust, not the last —
 two of the three "every tuning knob is flat" style conclusions here turned out
 to have a disconnected knob behind them.
 
+### Scoring: the real push rule, and the 10-round modelling gap
+
+Until now every number in this document scored **any** chassis-sign contact as a
+failure. That is stricter than the event. The real rule: each pillar is placed
+inside an **85 mm circle**, and the round stands as long as **any corner of the
+pillar's square is still inside that circle** — brushing it, or nudging it a few
+millimetres, costs nothing. `TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M` turns
+that into a displacement bound: **59.4 mm** for an axis-aligned push, which is
+the worst case (a diagonal push tolerates 77.9 mm), so the axis figure is used
+everywhere as the conservative choice. Scored against the 256-corpus:
+
+| Scoring criterion | Collisions | In time |
+|---|---|---|
+| strict (any contact = failure) | 194 | 62 |
+| real rule, push = magnitude of the advance | 192 | 64 |
+| **real rule, push = advance projected onto the sign** | **182** | **74** |
+
+So the correct rule is worth **+12 rounds** over the criterion used above, 24% →
+29%.
+
+**Read the spread before quoting the headline.** The two rows differ only in how
+the *simulator* converts a contact into a displacement, and they differ by 10
+rounds — more than almost any tuning change measured in this document. The rule
+is unambiguous; **how far a sign travels when the chassis touches it is not**,
+and neither row is a measurement. Both are assumptions about friction and
+contact that this simulator does not model:
+
+* *magnitude of the advance* — the sign absorbs the robot's whole forward
+  motion. Conservative; over-counts glancing contacts.
+* *projected onto the sign* — only the component of the advance directed at the
+  sign moves it. Optimistic; this is the row that produces 74.
+
+The 74 is therefore a **projection, not a result**, and 64 is the number to
+quote if only one is quoted. Resolving the gap is empirical, not a choice
+between models: push a real sign with the real chassis and measure the
+displacement per centimetre of advance, then pin whichever model matches. Until
+that measurement exists, do not tune against the difference — a change worth
+fewer than 10 rounds cannot be distinguished from the modelling choice.
+
+**What none of this changes:** the 182 remaining failures are not borderline.
+They are frontal pushes of 60+ mm, past the 59.4 mm bound under either model,
+so no push model rescues them and the diagnosis in the sections above is
+untouched. Avoidance *does* execute in all 182; it does not arrive in time. That
+remains the open question.
+
+### The depth pin — the largest single effect measured here (2026-08-01)
+
+**74 -> 137 rounds in time, +63, 29% -> 54%.** Nothing else in this document
+comes close. Attributed with both arms in ONE invocation
+(`diag_sign_sweep.py pin --corpus`), blind, `park=False`:
+
+| Arm | Collisions | wall / sign | in time |
+|---|---|---|---|
+| pin off (the whole document above) | 182/256 | 0 / 182 | 74/256 |
+| **pin on (shipped)** | **119/256** | 11 / 108 | **137/256** |
+
+`_apply_deformation` used to pass the lookahead point's depth coordinate
+straight through, deforming only the lateral one. So the commanded point held a
+fixed lateral value but kept receding 0.2-0.4 m per tick: the slope the chassis
+had to follow to reach it flattened every tick and the lateral error closed only
+asymptotically. Traced on `go_obstacles_0000`, the chassis needed 0.324 m of
+lateral travel over the 0.42 m of runway left and achieved 0.163 m of it,
+arriving level with the pillar half a chassis width inside its own commanded
+line.
+
+`_pin_depth` holds the commanded point at the SIGN's own depth while the sign
+lies between the chassis and the lookahead point. The target stops receding and
+becomes a fixed gate abeam the pillar, which the chassis has to be on by the
+time it arrives. The condition lapses on its own once the robot is level, so
+there is no release to get wrong. Toggle: `SignRouterParams.DEPTH_PIN`.
+
+**It costs 11 wall collisions**, up from 0 — pulling the target back to the
+sign's depth near a corner evidently puts the line into a wall. That is a real
+regression riding along with a large net win, and it is the cheapest thing left
+to fix.
+
+### What the remaining 108 sign collisions are: a geometric ceiling
+
+With the pin on, `diag_failure_split.py --corpus` classifies **108 of 108
+remaining sign collisions as `A-clamped`** — the commanded lateral line is
+itself closer to the sign than a yawed chassis needs. Zero `A-lag`. **The pin
+eliminated lag as a failure mode entirely.** (The split's `A-lag 7` +
+`B-no-deform 4` = 11 are the wall collisions, where those labels mean nothing.)
+
+The cause is not tuning. At real WRO grid positions, with `_WALL_CLEARANCE`
+0.219 reserving room for the chassis half-diagonal:
+
+| Sign line | Colour | Commanded | After clamp | Achievable | vs 0.204 needed mid-turn |
+|---|---|---|---|---|---|
+| outer (0.4) | red -> outward | 0.279 | 0.219 | **0.181** | **short** |
+| outer (0.4) | green -> inward | 0.279 | 0.679 | 0.279 | ok |
+| inner (0.6) | red -> outward | 0.279 | 0.321 | 0.279 | ok |
+| inner (0.6) | green -> inward | 0.279 | 0.781 | **0.181** | **short** |
+
+**Half of all legal sign/colour combinations cannot be passed mid-turn at all.**
+Whenever the pass-side rule pushes the robot toward the nearer boundary, a 1.0 m
+corridor simply does not contain 0.204 m of clearance plus the clamp. No offset,
+taper or steering gain reaches this; the clamp is already saturated.
+
+But 0.181 m is not a dead end — **it is a yaw budget**. A square pass needs only
+0.122 m, so there is 6 cm of surplus, and the requirement scales with heading as
+`(L/2)|sin th| + (W/2)|cos th| + sign_half`:
+
+```
+clearance available to the chassis   0.156 m   (0.181 - sign half-width)
+MAX YAW that still clears            28.0 deg off the corridor axis
+  yaw 20 deg -> needs 0.168 m   clears
+  yaw 28 deg -> needs 0.181 m   COLLIDES
+```
+
+So these signs are passable **iff the chassis is within ~28 deg of the corridor
+axis when it draws level**. That is consistent with the oldest observation in
+this document — 14 of 16 collisions on a corner boundary — those being exactly
+the signs met while still rotating. **The lever is arriving square, not aiming
+wider.**
+
+#### Tried and rejected: ramping the offset in
+
+The taper fades the offset in as well as out, which peaks it *at* the sign: at
+`activation_dist` 1.40 against `passed_dist` 1.60 it opens at 0.125, asking for
+3.5 cm where a mid-turn pass needs 20.4 cm. Holding full offset from activation
+and fading only on the way out, swept at 0.20/0.40/0.70 m:
+
+* **pin off: byte-identical**, 182 collisions at every value.
+* **pin on: slightly worse** — 119 -> 117 collisions but 137 -> 135 in time.
+
+The lateral clamp saturates before the taper ever binds, so the ramp has nothing
+to give. Removed rather than shipped as an inert tunable. Do not re-try without
+new information.
+
+#### Methodological warning: two harness failures in one session
+
+Both produced confident, wrong answers that looked reasonable.
+
+* **The failure split compared Euclidean distances.** `target_gap` was
+  `dist(deformed_waypoint, sign)`, which folds in the lookahead's along-track
+  lead — so a line clamped to 0.181 m of real clearance still measured >0.205 m
+  and `A-clamped` could essentially never fire. It reported **182/182 `A-lag`**
+  and "the wall clamp is exonerated". The exact opposite is true. Fixed to
+  compare lateral separation on the sign's own corridor axis.
+* **The depth pin landed mid-measurement.** Its 182 -> 119 was briefly
+  attributed to the classifier fix, because the two numbers came from two
+  different invocations. This is the third time this document records that
+  mistake. **A number compared across invocations is not a measurement**; that
+  is what the `pin`/`hysteresis`/`ramp` fixed-arm modes exist for.
+
 ### Next
 
 0. **Run everything against the 200-scenario corpus, not the 16.** Two
@@ -385,14 +538,31 @@ to have a disconnected knob behind them.
    those 28; if switches do not fall, the hysteresis is not binding and the
    claim-drop conditions are the place to look.
 
-2. **Find what holds the other 148.** Not the escape layer (split lands), not
-   the wall clamp (swept flat-to-worse), not the tracker (200/200 clean without
-   signs), not offset magnitude (plateaued from 0.24), not the layout prior,
-   and not the "already clear" line (both anchorings dead). `diag_sign_trace.py`
-   on one of them is the tool; the counting harnesses are exhausted here.
-3. **Re-sweep lookahead, arc radius and speed.** Every one of those numbers was
-   taken either in the masked regime or through a harness that raised before
-   running. They are unmeasured, not flat.
+2. **ANSWERED — it was the receding target, and the residue is geometric.**
+   The depth pin took 182 collisions to 119 and 74 in-time rounds to 137, and
+   the corpus split now puts 108 of 108 remaining sign collisions at
+   `A-clamped` with zero `A-lag`. See the two sections above. What replaces
+   this item:
+
+   * **2a. The 11 new wall collisions the pin introduced** (0 -> 11). Cheapest
+     open item, and a pure regression: `_pin_depth` pulls the commanded point
+     back to the sign's depth, which near a corner can put the line into a
+     wall. Likely wants the same corner guard `_is_squarely_in_corridor`
+     already applies to the lateral deformation.
+   * **2b. Arrive square, do not aim wider.** The 108 are capped at 0.181 m of
+     achievable clearance against 0.204 m needed while yawed, but a square pass
+     needs only 0.122 m — a **28 deg yaw budget**. Measure the actual yaw at
+     the fatal tick first (`diag_sign_trace.py`): if it clusters past 28 deg,
+     the fix is finishing the corner arc before the sign or holding heading
+     through the pass. Do NOT spend time on offset magnitude, the taper or the
+     clamp value — all three are saturated or measured flat.
+
+3. **Re-sweep lookahead, arc radius and speed — now genuinely worth it.**
+   Every one of those numbers was taken either in the masked regime or through
+   a harness that raised before running, so they are unmeasured rather than
+   flat. They are also exactly the knobs that govern *how square the chassis
+   is at a corner exit*, which item 2b identifies as the binding constraint —
+   arc radius most of all.
 4. `ESCAPE_MASK_RADIUS_M` has not been swept — 0.12 is derived (sign
    half-diagonal 0.035 + ~0.085 pose/mapping error), not tuned.
    `diag_sign_sweep.py mask-radius ...` exists for it.
