@@ -184,21 +184,18 @@ class TestStructFromDict:
         struct = tic._struct_from_dict({})
         assert len(struct.fields) == 0
 
-    def test_non_json_serializable_value_does_not_raise(self):
+    def test_non_json_serializable_value_yields_a_clean_empty_struct(self):
         # protobuf's Struct.update() raises ValueError("Unexpected type") on
         # a bytes value, but not before it has already auto-vivified the map
-        # entry for that key (a protobuf map field creates the entry on
-        # first access, then _SetStructValue fails to populate it) -- so the
-        # struct this function returns can carry a present-but-empty field
-        # for the value that failed to convert. suppress(TypeError,
-        # ValueError) in _struct_from_dict exists so that failure can't kill
-        # the stream thread over one topic's diagnostic payload; it does not
-        # promise the failed key is absent, only that nothing raises.
+        # entry for that key -- leaving a google.protobuf.Value with no oneof
+        # case set, which protojson then refuses to marshal at all. So the
+        # partially-converted struct is discarded entirely rather than
+        # returned: the keys that did convert are lost along with the one
+        # that didn't, and callers get an empty payload instead of a corrupt
+        # one that 500s every /v1/telemetry/topics request.
         struct = tic._struct_from_dict({"ok": 1, "bad": b"\x00\x01"})
 
-        assert struct["ok"] == 1
-        assert "bad" in struct.fields
-        assert struct.fields["bad"].WhichOneof("kind") is None
+        assert len(struct.fields) == 0
 
     def test_value_type_that_raises_is_swallowed_without_propagating(self):
         class _Unconvertible:
@@ -206,8 +203,7 @@ class TestStructFromDict:
 
         struct = tic._struct_from_dict({"bad": _Unconvertible()})  # must not raise
 
-        assert "bad" in struct.fields
-        assert struct.fields["bad"].WhichOneof("kind") is None
+        assert len(struct.fields) == 0
 
 
 class TestTopicUpdate:
