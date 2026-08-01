@@ -30,7 +30,10 @@
   letter-spacing: 0.15em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
 }
 
 .mode-toggle:hover {
@@ -38,7 +41,7 @@
   color: var(--color-text);
 }
 
-.mode-toggle[aria-pressed='true'] {
+.mode-toggle.active {
   border-color: var(--color-accent-teal);
   background: var(--color-accent-teal-fade);
   color: var(--color-accent-teal);
@@ -74,7 +77,6 @@
 }
 
 .topic-search:focus {
-  outline: none;
   border-color: var(--color-accent-teal);
 }
 
@@ -142,7 +144,9 @@
   padding: 0.1rem 0.25rem;
   border-radius: 3px;
   opacity: 0.5;
-  transition: opacity 120ms ease, color 120ms ease;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease;
 }
 
 .topic-expand-btn:hover {
@@ -172,7 +176,7 @@
 .topic-data {
   padding: 0.75rem;
   background: rgba(0, 0, 0, 0.2);
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   max-height: 300px;
   overflow-y: auto;
@@ -239,6 +243,41 @@
   flex-direction: column;
   align-items: center;
   padding: 1rem;
+}
+
+/* Base styling for visualizers that previously only had rules under
+   .topic-modal-body, leaving the inline topic-list versions unstyled. */
+.motor-dials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.motor-dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.motor-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.motor-info strong {
+  color: var(--color-text);
+}
+
+.state-diagram,
+.vision-boxes {
+  width: 100%;
 }
 
 .radar-viz canvas {
@@ -373,8 +412,12 @@
 }
 
 @keyframes overlay-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .topic-modal {
@@ -390,8 +433,14 @@
 }
 
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.97) translateY(8px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .topic-modal-header {
@@ -433,7 +482,9 @@
   justify-content: center;
   font-size: 0.85rem;
   line-height: 1;
-  transition: border-color 120ms ease, color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .modal-close:hover {
@@ -462,14 +513,6 @@
 .topic-modal-body .imu-bars,
 .topic-modal-body .imu-compass,
 .topic-modal-body .json-object {
-  width: 100%;
-}
-
-.topic-modal-body .motor-dials {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  justify-content: center;
   width: 100%;
 }
 

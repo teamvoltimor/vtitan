@@ -7,12 +7,12 @@
  */
 
 import { useState } from 'react';
+import { TELEMETRY_CONFIG, UI_STRINGS } from '../config';
 import type { TopicsSnapshot } from '../types';
 import { formatNumber, timestampAgeSeconds } from '../utils/formatting';
-import { TELEMETRY_CONFIG, UI_STRINGS } from '../config';
-import { TopicVisualization } from './visualizers';
 import { TopicModal } from './TopicModal';
 import { StatusBadge } from './ui';
+import { TopicVisualization } from './visualizers';
 import './TopicInspector.css';
 
 interface TopicInspectorProps {
@@ -59,11 +59,10 @@ export function TopicInspector({ topics }: TopicInspectorProps) {
           <h3>Sensor Dashboard</h3>
           <button
             type="button"
-            className="mode-toggle"
+            className={`mode-toggle${visualMode ? ' active' : ''}`}
             onClick={() => setVisualMode(!visualMode)}
-            aria-pressed={visualMode}
           >
-            {visualMode ? 'Visual' : 'JSON'}
+            {visualMode ? 'Show JSON' : 'Show Visual'}
           </button>
           <StatusBadge online label={`${topics.topics.length} topics`} />
         </div>

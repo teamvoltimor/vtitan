@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
 import { Line } from '@react-three/drei';
-import type { RobotSnapshot } from '../../types';
+import { useMemo } from 'react';
 import { ROBOT_PATH_CONFIG, THEME } from '../../config';
+import type { RobotSnapshot } from '../../types';
 import { simToThree } from '../../utils/coords';
 
 /**

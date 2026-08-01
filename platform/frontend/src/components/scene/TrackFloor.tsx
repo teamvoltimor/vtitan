@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { SIMULATION_CONFIG, SCENE_CONFIG } from '../../config';
+import { SCENE_CONFIG, SIMULATION_CONFIG } from '../../config';
 
 /** Flat reflective track floor. Static geometry — memoized since it takes no props. */
 export const TrackFloor = memo(function TrackFloor() {

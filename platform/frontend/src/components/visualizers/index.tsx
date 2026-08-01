@@ -1,29 +1,29 @@
 import type {
-  TopicUpdate,
-  LaserScanMsg,
-  TwistMsg,
+  Detection2DArrayMsg,
   ImuMsg,
   JointStateMsg,
+  LaserScanMsg,
   StringMsg,
-  Detection2DArrayMsg,
+  TopicUpdate,
+  TwistMsg,
 } from '../../types';
 import { RosMessageType } from '../../types';
-import { LidarRadarChart } from './LidarRadarChart';
-import { SpeedGauge } from './SpeedGauge';
 import { ImuCompass } from './ImuCompass';
+import { JsonView } from './JsonView';
+import { LidarRadarChart } from './LidarRadarChart';
 import { MotorDials } from './MotorDials';
+import { SpeedGauge } from './SpeedGauge';
 import { StateDiagram } from './StateDiagram';
 import { VisionBoundingBoxes } from './VisionBoundingBoxes';
-import { JsonView } from './JsonView';
 
 export {
-  LidarRadarChart,
-  SpeedGauge,
   ImuCompass,
+  JsonView,
+  LidarRadarChart,
   MotorDials,
+  SpeedGauge,
   StateDiagram,
   VisionBoundingBoxes,
-  JsonView,
 };
 
 /**

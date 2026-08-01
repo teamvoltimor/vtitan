@@ -1,6 +1,6 @@
-import { calculateGaugePath, calculateNeedle } from '../../utils/gauges';
+import { COLORS, SPEED_GAUGE_CONFIG } from '../../config';
 import { formatNumber } from '../../utils/formatting';
-import { SPEED_GAUGE_CONFIG, COLORS } from '../../config';
+import { calculateGaugePath, calculateNeedle } from '../../utils/gauges';
 
 interface GaugeProps {
   value: number;

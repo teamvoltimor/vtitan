@@ -4,8 +4,8 @@
  * Coordinate transforms between simulation space and Three.js space.
  */
 
-import type { Position3D, Vec3 } from '../types';
 import { SIMULATION_CONFIG } from '../config';
+import type { Position3D, Vec3 } from '../types';
 
 /**
  * Map simulation coords (origin bottom-left, 0–3 range, Z up) to Three.js

@@ -1,6 +1,6 @@
+import { COLORS, MOTOR_DIALS_CONFIG } from '../../config';
 import type { JointStateMsg } from '../../types';
 import { formatNumber, radiansToDegrees } from '../../utils/formatting';
-import { MOTOR_DIALS_CONFIG, COLORS } from '../../config';
 
 const { CIRCLE_CENTER: C, CIRCLE_RADIUS: R } = MOTOR_DIALS_CONFIG;
 

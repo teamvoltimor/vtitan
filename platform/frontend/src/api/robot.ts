@@ -6,15 +6,15 @@
  * gin.Engine) — no separate backend base URL needed.
  */
 
+import { API_CONFIG } from '../config';
+import { getErrorMessage } from '../utils/formatting';
+import { classifyHttpError, TelemetryError } from './errors';
 import type {
   Robot,
   RobotCommandResponse,
   SetTelemetryChannelParams,
   SetVisionDebugParams,
 } from './generated/robot';
-import { TelemetryError, classifyHttpError } from './errors';
-import { API_CONFIG } from '../config';
-import { getErrorMessage } from '../utils/formatting';
 
 const resolveUrl = (path: string): string => {
   const baseUrl = API_CONFIG.BASE_URL;
@@ -32,7 +32,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
     if (!response.ok) {
       const code = classifyHttpError(response.status);
-      throw new TelemetryError(code, `HTTP ${response.status}: ${response.statusText}`, response.status);
+      throw new TelemetryError(
+        code,
+        `HTTP ${response.status}: ${response.statusText}`,
+        response.status
+      );
     }
 
     return (await response.json()) as T;
@@ -46,20 +50,32 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
  * This is a single-robot project (see backend's `defaultRobotName`/
  * `DefaultRobotID`) — fetch the one registered robot rather than surfacing a
  * fleet picker the product doesn't have.
+ *
+ * The result is cached: every command previously paid an extra round trip to
+ * /v1/robots before its POST, and the ID cannot change within a session in a
+ * single-robot product (audit §10.2).
  */
+let cachedRobotId: string | null = null;
+
 export async function fetchDefaultRobotId(): Promise<string> {
+  if (cachedRobotId !== null) return cachedRobotId;
   const response = await fetch(resolveUrl(API_CONFIG.ENDPOINTS.ROBOTS), {
     signal: AbortSignal.timeout(API_CONFIG.TIMEOUT_MS),
   });
   if (!response.ok) {
     const code = classifyHttpError(response.status);
-    throw new TelemetryError(code, `HTTP ${response.status}: ${response.statusText}`, response.status);
+    throw new TelemetryError(
+      code,
+      `HTTP ${response.status}: ${response.statusText}`,
+      response.status
+    );
   }
   const robots = (await response.json()) as Robot[];
   if (robots.length === 0) {
     throw new TelemetryError('NETWORK', 'No robots registered');
   }
-  return robots[0].id;
+  cachedRobotId = robots[0].id;
+  return cachedRobotId;
 }
 
 /** Toggle the robot's vision debug annotated-image stream at runtime. */

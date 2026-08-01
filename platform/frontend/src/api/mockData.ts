@@ -14,13 +14,13 @@
  */
 
 import type {
+  Position3D,
+  ReplaySessionInfo,
   RobotSnapshot,
   TopicsSnapshot,
   TopicUpdate,
-  Position3D,
-  ReplaySessionInfo,
 } from '../types';
-import { RosMessageType, RobotState, NodeHealth } from '../types';
+import { NodeHealth, RobotState, RosMessageType } from '../types';
 
 // World geometry (metres) — mirrors SIMULATION_CONFIG.TRACK.
 const TRACK_MIN = 0;

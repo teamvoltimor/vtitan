@@ -6,22 +6,25 @@
  * This eliminates hardcoded values scattered throughout the codebase.
  */
 
-// COLOR PALETTE (single source of truth)
+// COLOR PALETTE
 //
-// Every colour used in JS/TSX derives from here. The CSS custom properties in
-// index.css mirror these values for styling that lives in stylesheets.
-
+// Used by JS/TSX-rendered colours: three.js materials, canvas drawing, and SVG.
+// Where a colour also exists in CSS it must match the custom property in
+// index.css (--color-*) — they are the shared source of truth and must not
+// drift (audit §8.4). Note SURFACE is the *opaque* solid used for the 3D floor;
+// the stylesheet's --color-surface is a translucent overlay and intentionally
+// different.
 
 export const COLORS = {
   BACKGROUND: '#050b12',
-  PANEL: '#0f1c2b',
+  PANEL: '#0a1525',
   SURFACE: '#111b27',
   ACCENT: '#ff8a65',
   HIGHLIGHT: '#5fdde5',
   WHITE: '#ffffff',
   BLUE: '#2196f3',
-  DANGER: '#ff4444',
-  WARNING: '#ffaa00',
+  DANGER: '#f44336',
+  WARNING: '#ff9800',
   SUCCESS: '#4caf50',
   ERROR: '#ff0000',
   GRID_LINE: 'rgba(255, 255, 255, 0.1)',
@@ -29,7 +32,6 @@ export const COLORS = {
 } as const;
 
 // SIMULATION & 3D RENDERING
-
 
 export const SIMULATION_CONFIG = {
   // Track geometry
@@ -57,7 +59,6 @@ export const SIMULATION_CONFIG = {
 } as const;
 
 // 3D SCENE (lighting, materials, track geometry)
-
 
 export const SCENE_CONFIG = {
   AMBIENT_INTENSITY: 0.6,
@@ -105,7 +106,6 @@ export const SCENE_CONFIG = {
 
 // LIDAR VISUALIZATION
 
-
 export const LIDAR_CONFIG = {
   MAX_RANGE_METERS: 2.0,
 
@@ -114,10 +114,10 @@ export const LIDAR_CONFIG = {
     // Slamtec C1 at ~0.25° angular resolution over 360° — fixed buffer capacity
     // so the GPU attribute is allocated once instead of reallocated per snapshot.
     MAX_POINTS: 1440,
-    OPACITY: {
-      AVAILABLE: 0.9,
-      UNAVAILABLE: 0.3,
-    },
+    // The point cloud is only ever rendered when data is present (the no-data
+    // fallback sphere handles the lidar_available=false case), so a single
+    // opacity value suffices.
+    OPACITY: 0.9,
     NO_DATA_RADIUS: 0.05, // Fallback sphere when no LIDAR data
   },
 
@@ -143,13 +143,11 @@ export const LIDAR_CONFIG = {
 
 // ROBOT PATH VISUALIZATION
 
-
 export const ROBOT_PATH_CONFIG = {
   Y_OFFSET: 0.03, // Vertical offset from ground
 } as const;
 
 // SPEED GAUGE VISUALIZATION
-
 
 export const SPEED_GAUGE_CONFIG = {
   CANVAS_WIDTH: 200,
@@ -175,7 +173,6 @@ export const SPEED_GAUGE_CONFIG = {
 
 // ROBOT SPEED CONTROL
 
-
 export const SPEED_CONTROL_CONFIG = {
   MIN: 0,
   MAX: 2,
@@ -184,7 +181,6 @@ export const SPEED_CONTROL_CONFIG = {
 } as const;
 
 // API CONFIGURATION
-
 
 export const API_CONFIG = {
   BASE_URL: (import.meta.env.VITE_TELEMETRY_BASE ?? '').replace(/\/$/, ''),
@@ -221,14 +217,12 @@ export const API_CONFIG = {
 
 // PROTOCOL CONVERSION
 
-
 export const URL_PROTOCOL_MAP = {
   'http://': 'ws://',
   'https://': 'wss://',
 } as const;
 
 // UI STRINGS
-
 
 export const UI_STRINGS = {
   SENSOR_STATUS: 'SENSOR STATUS',
@@ -247,7 +241,6 @@ export const UI_STRINGS = {
 
 // TELEMETRY SETTINGS
 
-
 export const TELEMETRY_CONFIG = {
   HISTORY_MAX_SIZE: 60, // Max snapshots kept in memory
   LOG_BUFFER_MAX_SIZE: 200, // Max accumulated log lines kept for the Event Feed
@@ -256,7 +249,6 @@ export const TELEMETRY_CONFIG = {
 } as const;
 
 // THEME COLORS
-
 
 export const THEME = {
   COLORS: {
@@ -272,7 +264,6 @@ export const THEME = {
 
 // SENSOR CONFIGURATION
 
-
 export const SENSOR_CONFIG = [
   { id: 'lidar', name: 'LiDAR', key: 'lidar_available' as const },
   { id: 'imu', name: 'IMU', key: 'imu_available' as const },
@@ -281,7 +272,6 @@ export const SENSOR_CONFIG = [
 ] as const;
 
 // IMU VISUALIZATION
-
 
 export const IMU_METRICS_CONFIG = [
   { label: 'Accel X', range: [-10, 10], unit: 'm/s²', key: 'linear_acceleration.x' },
@@ -293,7 +283,6 @@ export const IMU_METRICS_CONFIG = [
 ] as const;
 
 // MOTOR DIALS VISUALIZATION
-
 
 export const MOTOR_DIALS_CONFIG = {
   CANVAS_WIDTH: 120,
@@ -309,7 +298,6 @@ export const MOTOR_DIALS_CONFIG = {
 } as const;
 
 // VISION VISUALIZATION
-
 
 // Raspberry Pi Camera Module 3 Wide native resolution (16:9). The
 // vision_msgs/Detection2DArray topic carries pixel-space bboxes with no
@@ -334,15 +322,14 @@ export const VISION_CONFIG = {
 
 // JSON VIEW CONFIGURATION
 
-
 export const JSON_VIEW_CONFIG = {
   ARRAY_PREVIEW_LIMIT: 10,
   ARRAY_EXPAND_STEP: 20,
   DECIMAL_PRECISION: 4,
   INDENT_PER_LEVEL: 16,
+  MAX_DEPTH: 20, // recursion guard — ROS messages are shallow, but arbitrary payloads need not be
 } as const;
 
 // SPEED CONTROL VALIDATION
-
 
 export const SPEED_CONTROL_DEBOUNCE_MS = 250;

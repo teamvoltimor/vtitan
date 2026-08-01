@@ -1,6 +1,6 @@
+import { COLORS, VISION_CONFIG } from '../../config';
 import type { Detection2DArrayMsg } from '../../types';
 import { formatNumber } from '../../utils/formatting';
-import { VISION_CONFIG, COLORS } from '../../config';
 
 /** Draws vision detection bounding boxes, coloured by class, from a Detection2DArray. */
 export function VisionBoundingBoxes({ data }: { data: Detection2DArrayMsg }) {

@@ -6,12 +6,12 @@
  * Demo Mode, so this tests real behavior rather than a hand-rolled fixture.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TELEMETRY_CONFIG } from '../config';
 import { TelemetryProvider } from './TelemetryContext';
 import { useTelemetry } from './telemetryState';
-import { TELEMETRY_CONFIG } from '../config';
 
 function wrapper({ children }: { children: ReactNode }) {
   return <TelemetryProvider>{children}</TelemetryProvider>;

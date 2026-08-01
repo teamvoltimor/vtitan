@@ -1,5 +1,5 @@
+import { SCENE_CONFIG, SIMULATION_CONFIG } from '../../config';
 import type { RobotSnapshot } from '../../types';
-import { SIMULATION_CONFIG, SCENE_CONFIG } from '../../config';
 import { simToThree } from '../../utils/coords';
 
 /** Renders the robot chassis plus a forward-heading marker. */

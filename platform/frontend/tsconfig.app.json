@@ -24,5 +24,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // src/gen/** are unused generated gRPC-web stubs (see audit §7.3) that
+  // import @bufbuild/protobuf, which is not a dependency — exclude them so
+  // `tsc -b` (and therefore `pnpm build`) doesn't fail on unreferenced code.
+  "exclude": ["src/gen"]
 }

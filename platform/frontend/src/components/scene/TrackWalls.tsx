@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import type { Position3D, Vec3 } from '../../types';
 import { SCENE_CONFIG } from '../../config';
+import type { Position3D, Vec3 } from '../../types';
 import { simToThree } from '../../utils/coords';
 
 interface WallSpec {

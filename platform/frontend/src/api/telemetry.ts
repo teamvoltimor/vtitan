@@ -6,13 +6,13 @@
  * Follows the architectural refactoring patterns recommended in the audit report.
  */
 
-import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
 import type { HealthResponse } from '../api/generated';
-import { TelemetryError, ExponentialBackoff, classifyHttpError } from './errors';
 import { API_CONFIG, URL_PROTOCOL_MAP } from '../config';
+import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
 import { getErrorMessage } from '../utils/formatting';
-import { schemas } from './schemas';
+import { classifyHttpError, ExponentialBackoff, TelemetryError } from './errors';
 import { isRobotSnapshotShape } from './guards';
+import { safeParseTopicsSnapshot, schemas } from './schemas';
 
 /**
  * Resolve URL with base path configuration.
@@ -126,17 +126,35 @@ export const fetchLatestTelemetry = (): Promise<RobotSnapshot> =>
 /**
  * Fetch current topic information.
  */
-export const fetchRawTopics = (): Promise<TopicsSnapshot> =>
-  fetchJson(API_CONFIG.ENDPOINTS.TOPICS, undefined, schemas.TopicsSnapshot);
+export const fetchRawTopics = async (): Promise<TopicsSnapshot> => {
+  const data = await fetchJson<unknown>(API_CONFIG.ENDPOINTS.TOPICS);
+  const parsed = safeParseTopicsSnapshot(data);
+  if (parsed === null) {
+    throw new TelemetryError('PARSE', 'Invalid topics snapshot response');
+  }
+  return parsed;
+};
 
 /**
  * Fetch telemetry history.
  */
+/** Parse a list of snapshots tolerantly, dropping malformed entries. */
+const parseSnapshotList = (data: unknown): RobotSnapshot[] => {
+  if (!Array.isArray(data)) return [];
+  const out: RobotSnapshot[] = [];
+  for (const item of data) {
+    const result = schemas.RobotSnapshot.safeParse(item);
+    if (result.success) {
+      out.push(result.data);
+    } else {
+      console.warn('Dropping invalid history snapshot:', result.error.issues);
+    }
+  }
+  return out;
+};
+
 export const fetchHistory = (): Promise<RobotSnapshot[]> =>
-  fetchJson(API_CONFIG.ENDPOINTS.HISTORY, undefined, {
-    parse: (data: unknown) =>
-      Array.isArray(data) ? data.map((item) => schemas.RobotSnapshot.parse(item)) : [],
-  });
+  fetchJson<unknown>(API_CONFIG.ENDPOINTS.HISTORY).then(parseSnapshotList);
 
 /**
  * Fetch available replay sessions.
@@ -148,10 +166,7 @@ export const fetchSessions = (): Promise<ReplaySessionInfo[]> =>
  * Fetch snapshots for a specific replay session.
  */
 export const fetchSession = (sessionId: string): Promise<RobotSnapshot[]> =>
-  fetchJson(API_CONFIG.ENDPOINTS.SESSION(sessionId), undefined, {
-    parse: (data: unknown) =>
-      Array.isArray(data) ? data.map((item) => schemas.RobotSnapshot.parse(item)) : [],
-  });
+  fetchJson<unknown>(API_CONFIG.ENDPOINTS.SESSION(sessionId)).then(parseSnapshotList);
 
 /**
  * Update robot maximum linear speed.
@@ -275,10 +290,16 @@ export function connectTelemetryWS(
           // before parsing, rather than trying RobotSnapshot, catching the
           // failure, and retrying against TopicsSnapshot on every message.
           try {
+            // Topics go through safeParseTopicsSnapshot: per-topic tolerance so
+            // one malformed topic can't reject the whole snapshot (§5.5).
             const validated = isRobotSnapshotShape(parsed)
               ? schemas.RobotSnapshot.parse(parsed)
-              : schemas.TopicsSnapshot.parse(parsed);
-            onMessage(validated);
+              : safeParseTopicsSnapshot(parsed);
+            if (validated !== null) {
+              onMessage(validated);
+              return;
+            }
+            throw new Error('Invalid TopicsSnapshot shape');
           } catch (validationErr) {
             const error = new TelemetryError(
               'PARSE',

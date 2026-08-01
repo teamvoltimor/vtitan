@@ -7,15 +7,15 @@
 
 import { z } from 'zod';
 import type {
-  Position3d,
-  ImuData,
   Detection,
-  MotorState,
-  TelemetryMetrics,
-  TopicUpdate,
-  TopicsSnapshot,
-  SessionResponse,
   HealthResponse,
+  ImuData,
+  MotorState,
+  Position3d,
+  SessionResponse,
+  TelemetryMetrics,
+  TopicsSnapshot,
+  TopicUpdate,
 } from '../api/generated';
 import type { RobotSnapshot } from '../types';
 
@@ -88,7 +88,9 @@ const TopicUpdateSchema = z.object({
   topic_name: z.string().nonempty(),
   message_type: z.string(),
   timestamp: TimestampSchema,
-  update_rate_hz: z.number().positive(),
+  // Nonnegative, not positive: a topic that has stopped publishing legitimately
+  // reads 0 Hz and must survive validation (staleness rendering handles it).
+  update_rate_hz: z.number().nonnegative(),
   data: z.record(z.string(), z.unknown()),
 }) as z.ZodType<TopicUpdate>;
 
@@ -159,6 +161,34 @@ export function validateReplaySessionInfo(data: unknown): SessionResponse {
 
 export function validateSessions(data: unknown): SessionResponse[] {
   return SessionsResponseSchema.parse(data);
+}
+
+/**
+ * Parse a TopicsSnapshot tolerantly: each topic is validated individually and
+ * structurally invalid entries are dropped with a console warning, so one bad
+ * topic (e.g. a zero or malformed update rate) can't reject the whole snapshot
+ * and blank every topic — audit §5.5. Returns null only when the envelope
+ * itself is unrecognisable.
+ */
+export function safeParseTopicsSnapshot(data: unknown): TopicsSnapshot | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const raw = data as Record<string, unknown>;
+
+  const timestamp = TimestampSchema.safeParse(raw.timestamp);
+  if (!timestamp.success) return null;
+  if (!Array.isArray(raw.topics)) return null;
+
+  const topics: TopicUpdate[] = [];
+  for (const item of raw.topics) {
+    const parsed = TopicUpdateSchema.safeParse(item);
+    if (parsed.success) {
+      topics.push(parsed.data);
+    } else {
+      console.warn('Dropping invalid topic entry:', parsed.error.issues);
+    }
+  }
+
+  return { timestamp: timestamp.data, topics };
 }
 
 export function safeValidateRobotSnapshot(data: unknown):

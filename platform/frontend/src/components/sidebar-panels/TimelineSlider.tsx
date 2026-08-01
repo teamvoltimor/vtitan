@@ -1,6 +1,6 @@
+import { UI_STRINGS } from '../../config';
 import { useTelemetry } from '../../contexts/telemetryState';
 import { formatTimestamp } from '../../utils/formatting';
-import { UI_STRINGS } from '../../config';
 
 export function TimelineSlider() {
   const { history, timelineIndex, liveMode, selectedSessionId, setTimelineIndex, goLive } =

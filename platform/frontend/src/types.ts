@@ -1,25 +1,24 @@
 // API request/response types — generated from OpenAPI spec via `pnpm api:generate`.
 // Import from here (not directly from ./api/generated) so aliases and overrides stay in one place.
 
+// Backward-compat aliases for renamed generated types.
 export type {
-  Position3d,
-  ImuData,
-  Detection,
-  MotorState,
-  TelemetryMetrics,
-  TopicUpdate,
-  TopicsSnapshot,
-  HealthResponse,
-  ErrorResponse,
-  SessionResponse,
   ConfigResponse,
+  Detection,
+  ErrorResponse,
+  HealthResponse,
+  ImuData,
+  MotorState,
+  Position3d,
+  Position3d as Position3D,
+  SessionResponse,
+  SessionResponse as ReplaySessionInfo,
   SpeedRequest,
   SpeedUpdateResponse,
+  TelemetryMetrics,
+  TopicsSnapshot,
+  TopicUpdate,
 } from './api/generated';
-
-// Backward-compat aliases for renamed generated types.
-export type { Position3d as Position3D } from './api/generated';
-export type { SessionResponse as ReplaySessionInfo } from './api/generated';
 
 // RobotSnapshot: generated type has optional arrays; Zod `.default([])` in schemas.ts
 // guarantees they're always present after validation, so we override them as required here.
@@ -40,11 +39,15 @@ export type NodeHealthValue = TelemetryMetrics['node_health'];
 
 // Frontend-specific constants (not derived from the OpenAPI spec)
 
+// Robot state-machine stages. Values are lowercase to match what
+// state_machine_node publishes on /robot_state (shared/domain/enums.py
+// defines the enum with lowercase values); consumers must compare against
+// the same casing. See StateDiagram's boundary normalisation.
 export const RobotState = {
-  BOOT_CHECK: 'BOOT_CHECK',
-  READY: 'READY',
-  RACING: 'RACING',
-  FINISHED: 'FINISHED',
+  BOOT_CHECK: 'boot_check',
+  READY: 'ready',
+  RACING: 'racing',
+  FINISHED: 'finished',
 } as const;
 
 export const RosMessageType = {

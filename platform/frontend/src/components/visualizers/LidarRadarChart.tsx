@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react';
-import type { LaserScanMsg } from '../../types';
+import { useEffect, useRef } from 'react';
 import { LIDAR_CONFIG } from '../../config';
+import type { LaserScanMsg } from '../../types';
 
 /** Top-down LiDAR radar chart with danger/warning/safe colouring. */
 export function LidarRadarChart({ data, expanded }: { data: LaserScanMsg; expanded?: boolean }) {
@@ -14,13 +14,21 @@ export function LidarRadarChart({ data, expanded }: { data: LaserScanMsg; expand
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
-    const { width, height } = canvasRef.current;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const maxRange = LIDAR_CONFIG.MAX_RANGE_METERS;
-    const scale = Math.min(width, height) / 2 / maxRange;
+    // Scale the backing store by devicePixelRatio so the radar isn't blurry on
+    // HiDPI displays, then draw in logical (CSS) pixels.
+    const dpr = window.devicePixelRatio || 1;
+    canvasRef.current.width = size * dpr;
+    canvasRef.current.height = size * dpr;
+    canvasRef.current.style.width = `${size}px`;
+    canvasRef.current.style.height = `${size}px`;
+    ctx.scale(dpr, dpr);
 
-    ctx.clearRect(0, 0, width, height);
+    const centerX = size / 2;
+    const centerY = size / 2;
+    const maxRange = LIDAR_CONFIG.MAX_RANGE_METERS;
+    const scale = size / 2 / maxRange;
+
+    ctx.clearRect(0, 0, size, size);
 
     ctx.strokeStyle = LIDAR_CONFIG.RADAR_CHART.COLORS.GRID;
     ctx.lineWidth = 1;
@@ -58,7 +66,7 @@ export function LidarRadarChart({ data, expanded }: { data: LaserScanMsg; expand
         LIDAR_CONFIG.RADAR_CHART.DOT_SIZE_PIXELS
       );
     });
-  }, [data]);
+  }, [data, size]);
 
   return (
     <div className="specialized-viz radar-viz">

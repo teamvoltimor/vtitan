@@ -1,13 +1,13 @@
-import { useEffect } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { useEffect } from 'react';
+import { SCENE_CONFIG, SIMULATION_CONFIG, THEME } from '../../config';
 import type { RobotSnapshot } from '../../types';
-import { SIMULATION_CONFIG, SCENE_CONFIG, THEME } from '../../config';
+import { LidarPointCloud } from './LidarPointCloud';
+import { RobotModel } from './RobotModel';
+import { RobotPath } from './RobotPath';
 import { TrackFloor } from './TrackFloor';
 import { TrackWalls } from './TrackWalls';
-import { LidarPointCloud } from './LidarPointCloud';
-import { RobotPath } from './RobotPath';
-import { RobotModel } from './RobotModel';
 
 /**
  * Triggers a render in `frameloop="demand"` mode whenever a new snapshot

@@ -1,6 +1,6 @@
+import { IMU_METRICS_CONFIG } from '../../config';
 import type { ImuMsg, Quaternion } from '../../types';
 import { formatNumber, radiansToDegrees } from '../../utils/formatting';
-import { IMU_METRICS_CONFIG } from '../../config';
 import { BarChart } from '../ui';
 
 function quaternionToEuler(q: Quaternion) {

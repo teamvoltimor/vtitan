@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  clamp,
   formatNumber,
   formatTimestamp,
-  timestampAgeSeconds,
   getErrorMessage,
-  clamp,
   radiansToDegrees,
+  timestampAgeSeconds,
 } from './formatting';
 
 describe('formatNumber', () => {

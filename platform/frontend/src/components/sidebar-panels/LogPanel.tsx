@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useTelemetry } from '../../contexts/telemetryState';
 import { UI_STRINGS } from '../../config';
+import { useTelemetry } from '../../contexts/telemetryState';
 
 /**
  * Renders the accumulated log buffer (see TelemetryContext's `logs`), not

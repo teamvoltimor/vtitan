@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useTelemetry } from '../../contexts/telemetryState';
 import { UI_STRINGS } from '../../config';
-import { Label } from '../ui';
+import { useTelemetry } from '../../contexts/telemetryState';
+import { ChannelToggle } from '../ui';
 
 /**
  * Remote toggle for the robot's telemetry gRPC channel, wired through the
@@ -28,19 +28,13 @@ export function TelemetryChannelControl() {
   };
 
   return (
-    <div className="telemetry-channel-control">
-      <Label>{UI_STRINGS.TELEMETRY_CHANNEL}</Label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '4px' }}>
-        <input
-          type="checkbox"
-          aria-label={UI_STRINGS.TELEMETRY_CHANNEL}
-          checked={enabled}
-          disabled={!liveMode || pending}
-          onChange={(e) => handleToggle(e.target.checked)}
-        />
-        <span>{enabled ? 'Enabled' : 'Disabled'}</span>
-      </div>
-      {writeError && <p className="telemetry-channel-control-error">{writeError}</p>}
-    </div>
+    <ChannelToggle
+      label={UI_STRINGS.TELEMETRY_CHANNEL}
+      enabled={enabled}
+      pending={pending}
+      disabled={!liveMode}
+      error={writeError}
+      onToggle={handleToggle}
+    />
   );
 }

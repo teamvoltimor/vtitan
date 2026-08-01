@@ -1,5 +1,5 @@
-import { useTelemetry } from '../../contexts/telemetryState';
 import { SENSOR_CONFIG, UI_STRINGS } from '../../config';
+import { useTelemetry } from '../../contexts/telemetryState';
 import { Label } from '../ui';
 
 export function SensorHealthPanel() {
@@ -15,7 +15,7 @@ export function SensorHealthPanel() {
           const available = metrics[key];
           return (
             <div key={id} className={`sensor-item ${available ? 'online' : 'offline'}`}>
-              <span className="sensor-dot" />
+              <span className="sensor-dot" aria-hidden="true" />
               <div className="sensor-info">
                 <strong>{name}</strong>
                 <span className={available ? 'status-ok' : 'status-error'}>

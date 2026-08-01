@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useTelemetry } from '../../contexts/telemetryState';
 import { UI_STRINGS } from '../../config';
+import { useTelemetry } from '../../contexts/telemetryState';
 import { Label } from '../ui';
 
 /**
@@ -44,7 +44,7 @@ export function CommandChannelControl() {
           Command channel disabled — re-enabling requires robot-side access
         </p>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '4px' }}>
+        <div className="control-row">
           <button type="button" disabled={!liveMode || pending} onClick={handleDisable}>
             {confirming ? 'Confirm disable' : 'Disable'}
           </button>

@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { formatNumber } from '../../utils/formatting';
 import { JSON_VIEW_CONFIG } from '../../config';
+import { formatNumber } from '../../utils/formatting';
 
 /** Recursive, syntax-highlighted view of arbitrary topic data. */
 export function JsonView({ data, level = 0 }: { data: unknown; level?: number }) {
+  if (level > JSON_VIEW_CONFIG.MAX_DEPTH) {
+    return <span className="json-null">… (depth limit)</span>;
+  }
+
   if (data === null || data === undefined) {
     return <span className="json-null">null</span>;
   }

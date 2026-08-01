@@ -1,26 +1,63 @@
 /* Self-hosted (was a render-blocking Google Fonts @import to a third-party
    CDN — a poor fit for a robot dashboard that may run on a competition-venue
    LAN with no internet access). Weights match what was previously loaded. */
-@import '@fontsource/chakra-petch/latin-400.css';
-@import '@fontsource/chakra-petch/latin-600.css';
-@import '@fontsource/chakra-petch/latin-700.css';
-@import '@fontsource/share-tech-mono/latin-400.css';
+@import "@fontsource/chakra-petch/latin-400.css";
+@import "@fontsource/chakra-petch/latin-600.css";
+@import "@fontsource/chakra-petch/latin-700.css";
+@import "@fontsource/share-tech-mono/latin-400.css";
 
 :root {
-  --font-display: 'Chakra Petch', sans-serif;
-  --font-mono: 'Share Tech Mono', monospace;
+  /* Typography */
+  --font-display: "Chakra Petch", sans-serif;
+  --font-mono: "Share Tech Mono", monospace;
 
+  /* Colour — the source of truth for stylesheet colours. JS-rendered colours
+     (three.js materials, canvas, SVG) live in src/config/app.config.ts and
+     reuse the same hex values; see that file for the correspondence. */
   --color-bg: #050b12;
   --color-panel: #0a1525;
   --color-surface: rgba(255, 255, 255, 0.02);
   --color-border: rgba(255, 255, 255, 0.08);
   --color-border-strong: rgba(255, 255, 255, 0.15);
   --color-text: #e5e9f0;
-  --color-text-muted: rgba(255, 255, 255, 0.55);
+  --color-text-muted: rgba(255, 255, 255, 0.65);
   --color-accent-teal: #5fdde5;
   --color-accent-orange: #ff8a65;
   --color-accent-teal-fade: rgba(95, 221, 229, 0.08);
   --color-accent-orange-fade: rgba(255, 138, 101, 0.08);
+  --color-success: #4caf50;
+  --color-danger: #f44336;
+  --color-warning: #ff9800;
+
+  /* Type scale — 5 roles on a 4px grid (replaces ~16 hand-written sizes). */
+  --text-xs: 0.625rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+
+  /* Radii — 4 roles on a 4px grid. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Spacing scale. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Motion. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 450ms;
+
+  /* Layout tokens — single source of truth for the shell grid (§4.3). */
+  --sidebar-width: 360px;
+  --inspector-height: 300px;
 
   font-family: var(--font-display);
   color: var(--color-text);
@@ -50,9 +87,14 @@ body {
   *,
   *::before,
   *::after {
+    /* This block must win over every component animation/transition declaration regardless of specificity, so !important is intentional and required here. */
+    /* biome-ignore lint/complexity/noImportantStyles: intentional — reduced-motion overrides must beat higher-specificity animation declarations */
     animation-duration: 0.001ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: intentional — see above */
     animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: intentional — see above */
     transition-duration: 0.001ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: intentional — see above */
     scroll-behavior: auto !important;
   }
 }

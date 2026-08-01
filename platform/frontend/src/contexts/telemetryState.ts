@@ -7,8 +7,8 @@
  */
 
 import { createContext, useContext } from 'react';
-import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
 import type { SetTelemetryChannelParams, SetVisionDebugParams } from '../api/generated/robot';
+import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
 
 export interface TelemetryContextType {
   // State

@@ -1,7 +1,7 @@
 import { useId } from 'react';
+import { COLORS } from '../../config';
 import type { StringMsg } from '../../types';
 import { RobotState } from '../../types';
-import { COLORS } from '../../config';
 
 const STATE_NAMES = Object.values(RobotState);
 const NODE_SPACING = 100;
@@ -14,7 +14,10 @@ const STATES = STATE_NAMES.map((name, i) => ({ name, x: 50 + i * NODE_SPACING, y
 
 /** Robot state-machine diagram, highlighting the current state. */
 export function StateDiagram({ data }: { data: StringMsg }) {
-  const currentState = data?.data || 'UNKNOWN';
+  // The wire carries lowercase enum values (state_machine_node publishes
+  // current_state.value). Normalise at the boundary so any casing mismatch
+  // can never mute the whole diagram — audit §3.3.
+  const currentState = (data?.data || 'unknown').toLowerCase();
   const isKnownState = (STATE_NAMES as readonly string[]).includes(currentState);
   const muted = 'rgba(255,255,255,0.3)';
   // Unique per instance — the inspector and the "expand to full view" modal

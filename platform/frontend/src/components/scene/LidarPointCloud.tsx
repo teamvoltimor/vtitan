@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { BufferAttribute, BufferGeometry } from 'three';
-import type { RobotSnapshot } from '../../types';
 import { LIDAR_CONFIG, SCENE_CONFIG, THEME } from '../../config';
+import type { RobotSnapshot } from '../../types';
 import { simToThree } from '../../utils/coords';
 
 const MAX_POINTS = LIDAR_CONFIG.POINT_CLOUD.MAX_POINTS;
@@ -42,10 +42,6 @@ export function LidarPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
     );
   }
 
-  const opacity = snapshot.metrics.lidar_available
-    ? LIDAR_CONFIG.POINT_CLOUD.OPACITY.AVAILABLE
-    : LIDAR_CONFIG.POINT_CLOUD.OPACITY.UNAVAILABLE;
-
   return (
     <points>
       <bufferGeometry ref={geometryRef}>
@@ -55,7 +51,7 @@ export function LidarPointCloud({ snapshot }: { snapshot: RobotSnapshot }) {
         size={LIDAR_CONFIG.POINT_CLOUD.POINT_SIZE}
         color={THEME.COLORS.HIGHLIGHT}
         transparent
-        opacity={opacity}
+        opacity={LIDAR_CONFIG.POINT_CLOUD.OPACITY}
       />
     </points>
   );

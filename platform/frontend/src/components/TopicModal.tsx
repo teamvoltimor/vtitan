@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { TopicUpdate } from '../types';
 import { TopicVisualization } from './visualizers';
@@ -77,11 +77,10 @@ export function TopicModal({ topic, onClose }: TopicModalProps) {
           <div className="topic-modal-controls">
             <button
               type="button"
-              className="mode-toggle"
+              className={`mode-toggle${modalVisualMode ? ' active' : ''}`}
               onClick={() => setModalVisualMode(!modalVisualMode)}
-              aria-pressed={modalVisualMode}
             >
-              {modalVisualMode ? 'Visual' : 'JSON'}
+              {modalVisualMode ? 'Show JSON' : 'Show Visual'}
             </button>
             <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
               ✕

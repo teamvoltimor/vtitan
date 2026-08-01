@@ -1,18 +1,35 @@
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes panel-slide-in {
-  from { opacity: 0; transform: translateX(18px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  background: radial-gradient(circle at top right, rgba(95, 221, 229, 0.25), transparent 35%), var(--color-bg);
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "canvas sidebar"
+    "inspector sidebar";
+  background:
+    radial-gradient(circle at top right, rgba(95, 221, 229, 0.25), transparent 35%), var(--color-bg);
   position: relative;
   overflow: hidden;
 }
@@ -39,7 +56,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinner {
@@ -62,7 +81,9 @@
   letter-spacing: 0.15em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .shell-loading-actions button:hover {
@@ -70,7 +91,7 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-.shell-loading-actions .demo-launch {
+.demo-launch {
   border-color: var(--color-accent-teal);
   background: var(--color-accent-teal-fade);
   color: var(--color-accent-teal);
@@ -93,7 +114,10 @@
   text-transform: uppercase;
   cursor: pointer;
   backdrop-filter: blur(6px);
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .demo-toggle:hover {
@@ -108,6 +132,7 @@
 }
 
 .canvas-wrapper {
+  grid-area: canvas;
   position: relative;
   min-height: 0;
 }
@@ -150,20 +175,16 @@
   background: var(--color-bg);
 }
 
-.atmosphere {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(135deg, var(--color-accent-orange-fade), transparent 55%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-
 .control-panel {
+  grid-area: sidebar;
   padding: 2rem;
   border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--color-text);
   background: var(--color-panel);
   animation: panel-slide-in 0.45s ease 0.08s both;
@@ -209,7 +230,6 @@
 
 .sensor-health {
   margin: 1.5rem 0;
-  padding: 0 0;
 }
 
 .sensor-grid {
@@ -246,11 +266,11 @@
 }
 
 .sensor-item.online .sensor-dot {
-  background: #4caf50;
+  background: var(--color-success);
 }
 
 .sensor-item.offline .sensor-dot {
-  background: #f44336;
+  background: var(--color-danger);
 }
 
 .sensor-info {
@@ -262,22 +282,22 @@
 .sensor-info strong {
   font-size: 0.8rem;
   font-weight: 600;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .status-ok {
   font-size: 0.7rem;
-  color: #4caf50;
+  color: var(--color-success);
   font-weight: 600;
 }
 
 .status-error {
   font-size: 0.7rem;
-  color: #f44336;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
-.metrics-grid > div {
+.metrics-grid .stat-tile {
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: 0.65rem;
@@ -285,10 +305,18 @@
   animation: fade-up 0.4s ease both;
 }
 
-.metrics-grid > div:nth-child(1) { animation-delay: 0.12s; }
-.metrics-grid > div:nth-child(2) { animation-delay: 0.17s; }
-.metrics-grid > div:nth-child(3) { animation-delay: 0.22s; }
-.metrics-grid > div:nth-child(4) { animation-delay: 0.27s; }
+.metrics-grid .stat-tile:nth-child(1) {
+  animation-delay: 0.12s;
+}
+.metrics-grid .stat-tile:nth-child(2) {
+  animation-delay: 0.17s;
+}
+.metrics-grid .stat-tile:nth-child(3) {
+  animation-delay: 0.22s;
+}
+.metrics-grid .stat-tile:nth-child(4) {
+  animation-delay: 0.27s;
+}
 
 .metrics-grid p {
   margin: 0 0 0.2rem;
@@ -304,14 +332,63 @@
   color: var(--color-accent-teal);
 }
 
-.speed-control {
+.speed-control,
+.channel-toggle,
+.command-channel-control {
   padding: 0 1.5rem;
 }
 
-.speed-control-error {
+/* Shared label + control row (previously an identical inline style block in
+   four components). */
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-bottom: 0.25rem;
+}
+
+.channel-toggle input[type="checkbox"] {
+  accent-color: var(--color-accent-teal);
+}
+
+.command-channel-control button {
+  border: 1px solid var(--color-accent-orange);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.9rem;
+  background: var(--color-accent-orange-fade);
+  color: var(--color-accent-orange);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.command-channel-control button:hover {
+  border-color: var(--color-border-strong);
+  background: rgba(255, 138, 101, 0.14);
+}
+
+.command-channel-control button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.command-channel-control-notice {
   margin: 0.35rem 0 0;
   font-size: 0.72rem;
-  color: var(--color-danger, #ff4444);
+  color: var(--color-warning);
+}
+
+.speed-control-error,
+.channel-toggle-error,
+.command-channel-control-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-danger);
 }
 
 .telemetry-list {
@@ -319,7 +396,7 @@
   gap: 0.5rem;
 }
 
-.telemetry-list > div {
+.telemetry-list .metric-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -341,12 +418,10 @@
 }
 
 .inspector-panel {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: calc(100% - 360px);
+  grid-area: inspector;
   background: var(--color-panel);
   border-top: 1px solid var(--color-border);
+  height: var(--inspector-height);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -357,6 +432,7 @@
   flex-shrink: 0;
   height: 6px;
   cursor: ns-resize;
+  touch-action: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -369,7 +445,7 @@
 }
 
 .inspector-resize-handle::after {
-  content: '';
+  content: "";
   width: 40px;
   height: 3px;
   background: var(--color-border-strong);
@@ -453,7 +529,7 @@
   cursor: not-allowed;
 }
 
-.timeline input[type='range'] {
+.timeline input[type="range"] {
   width: 100%;
   cursor: pointer;
   accent-color: var(--color-accent-teal);
@@ -486,7 +562,9 @@
   font-size: 0.78rem;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 
 .session-item:hover {
@@ -512,10 +590,11 @@
 @media (max-width: 1100px) {
   .shell {
     grid-template-columns: 1fr;
-  }
-
-  .canvas-wrapper {
-    height: 50vh;
+    grid-template-rows: 50vh minmax(0, 1fr) auto;
+    grid-template-areas:
+      "canvas"
+      "sidebar"
+      "inspector";
   }
 
   .control-panel {
@@ -523,11 +602,9 @@
     border-top: 1px solid var(--color-border);
   }
 
-  /* Single-column layout: the inspector flows below instead of overlapping. */
+  /* Single-column layout: the inspector flows below the sidebar. */
   .inspector-panel {
-    position: static;
-    width: 100%;
-    height: auto !important;
+    height: auto;
     max-height: 320px;
   }
 
@@ -540,8 +617,8 @@
    single-column grids (2-column sensor/metric tiles get cramped under ~360px
    of usable width), and touch-sized interactive targets. */
 @media (max-width: 640px) {
-  .canvas-wrapper {
-    height: 38vh;
+  .shell {
+    grid-template-rows: 38vh minmax(0, 1fr) auto;
   }
 
   .control-panel {
@@ -580,8 +657,8 @@
 
   /* Touch targets: range inputs and small icon buttons are otherwise too
      small to reliably hit on a phone. */
-  .timeline input[type='range'],
-  .speed-control input[type='range'] {
+  .timeline input[type="range"],
+  .speed-control input[type="range"] {
     min-height: 32px;
   }
 

@@ -6,13 +6,13 @@
  * branching — it selects a source from `demoMode` and calls it uniformly.
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SetTelemetryChannelParams, SetVisionDebugParams } from '../api/generated/robot';
 import { isRobotSnapshot, isTopicsSnapshot } from '../api/guards';
 import { createTelemetrySource } from '../api/source';
+import { API_CONFIG, TELEMETRY_CONFIG } from '../config';
+import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
 import { getErrorMessage } from '../utils/formatting';
-import { TELEMETRY_CONFIG, API_CONFIG } from '../config';
 import { TelemetryContext, type TelemetryContextType } from './telemetryState';
 
 /**

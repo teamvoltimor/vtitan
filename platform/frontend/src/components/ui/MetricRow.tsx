@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 /** A label/value row used in the telemetry list (`span` + `strong`). */
 export function MetricRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div>
+    <div className="metric-row">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -13,7 +13,7 @@ export function MetricRow({ label, value }: { label: string; value: ReactNode })
 /** A label/value tile used in the metrics grid (`p` + `strong`). */
 export function StatTile({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div>
+    <div className="stat-tile">
       <p>{label}</p>
       <strong>{value}</strong>
     </div>

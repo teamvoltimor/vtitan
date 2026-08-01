@@ -6,6 +6,7 @@
       "**/*.jsx",
       "**/*.ts",
       "**/*.tsx",
+      "**/*.css",
       "**/*.json",
       "**/*.jsonc",
       "!!**/node_modules",
@@ -32,6 +33,7 @@
       "!!**/*.d.ts",
       "!!**/generated",
       "!!**/__generated__",
+      "!!**/gen",
       "!!**/.git",
       "!!**/.vscode",
       "!!**/.idea",
@@ -86,59 +88,9 @@
   },
   "overrides": [
     {
-      "includes": [
-        "**/*.test.js",
-        "**/*.test.jsx",
-        "**/*.test.ts",
-        "**/*.test.tsx",
-        "**/*.spec.js",
-        "**/*.spec.jsx",
-        "**/*.spec.ts",
-        "**/*.spec.tsx",
-        "**/test/**",
-        "**/tests/**",
-        "**/__tests__/**"
-      ],
-      "linter": {
-        "rules": {
-          "preset": "recommended"
-        }
-      }
-    },
-    {
-      "includes": [
-        "**/*.config.js",
-        "**/*.config.ts",
-        "**/vite.config.*",
-        "**/vitest.config.*",
-        "**/webpack.config.*",
-        "**/rollup.config.*",
-        "**/jest.config.*",
-        "**/.eslintrc.js"
-      ],
-      "linter": {
-        "rules": {
-          "preset": "recommended"
-        }
-      }
-    },
-    {
-      "includes": ["**/scripts/**", "**/bin/**", "**/tools/**"],
-      "linter": {
-        "rules": {
-          "preset": "recommended"
-        }
-      }
-    },
-    {
       "includes": ["**/*.json", "**/*.jsonc"],
       "formatter": {
         "indentWidth": 2
-      },
-      "linter": {
-        "rules": {
-          "preset": "recommended"
-        }
       }
     }
   ]

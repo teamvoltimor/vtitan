@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useTelemetry } from '../../contexts/telemetryState';
 import { UI_STRINGS } from '../../config';
-import { Label } from '../ui';
+import { useTelemetry } from '../../contexts/telemetryState';
+import { ChannelToggle } from '../ui';
 
 /**
  * Remote toggle for the robot's vision debug annotated-image stream, wired
@@ -26,19 +26,13 @@ export function VisionDebugControl() {
   };
 
   return (
-    <div className="vision-debug-control">
-      <Label>{UI_STRINGS.VISION_DEBUG}</Label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '4px' }}>
-        <input
-          type="checkbox"
-          aria-label={UI_STRINGS.VISION_DEBUG}
-          checked={enabled}
-          disabled={!liveMode || pending}
-          onChange={(e) => handleToggle(e.target.checked)}
-        />
-        <span>{enabled ? 'Enabled' : 'Disabled'}</span>
-      </div>
-      {writeError && <p className="vision-debug-control-error">{writeError}</p>}
-    </div>
+    <ChannelToggle
+      label={UI_STRINGS.VISION_DEBUG}
+      enabled={enabled}
+      pending={pending}
+      disabled={!liveMode}
+      error={writeError}
+      onToggle={handleToggle}
+    />
   );
 }

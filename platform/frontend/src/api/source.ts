@@ -7,20 +7,17 @@
  * `demoMode` branching: it just selects a source and calls it uniformly.
  */
 
-import type { RobotSnapshot, TopicsSnapshot, ReplaySessionInfo } from '../types';
+import { TELEMETRY_CONFIG } from '../config';
+import type { ReplaySessionInfo, RobotSnapshot, TopicsSnapshot } from '../types';
 import type { HealthResponse } from './generated';
 import type { SetTelemetryChannelParams, SetVisionDebugParams } from './generated/robot';
 import type { TelemetryMessage } from './guards';
 import {
-  fetchHealth,
-  fetchLatestTelemetry,
-  fetchRawTopics,
-  fetchHistory,
-  fetchSessions,
-  fetchSession,
-  connectTelemetryWS,
-  updateRobotSpeed,
-} from './telemetry';
+  generateMockSession,
+  generateMockSessions,
+  generateMockSnapshot,
+  generateMockTopics,
+} from './mockData';
 import {
   disableCommandChannel,
   fetchDefaultRobotId,
@@ -28,12 +25,15 @@ import {
   setVisionDebug,
 } from './robot';
 import {
-  generateMockSnapshot,
-  generateMockTopics,
-  generateMockSession,
-  generateMockSessions,
-} from './mockData';
-import { TELEMETRY_CONFIG } from '../config';
+  connectTelemetryWS,
+  fetchHealth,
+  fetchHistory,
+  fetchLatestTelemetry,
+  fetchRawTopics,
+  fetchSession,
+  fetchSessions,
+  updateRobotSpeed,
+} from './telemetry';
 
 /** Number of snapshots pre-seeded into history when Demo Mode starts. */
 export const DEMO_SEED_FRAMES = 24;

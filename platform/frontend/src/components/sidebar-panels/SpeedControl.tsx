@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { NodeHealth } from '../../types';
-import { useTelemetry } from '../../contexts/telemetryState';
-import { formatNumber } from '../../utils/formatting';
 import { SPEED_CONTROL_CONFIG, SPEED_CONTROL_DEBOUNCE_MS, UI_STRINGS } from '../../config';
+import { useTelemetry } from '../../contexts/telemetryState';
+import { NodeHealth } from '../../types';
+import { formatNumber } from '../../utils/formatting';
 import { Label } from '../ui';
 
 /**
@@ -52,7 +52,7 @@ export function SpeedControl() {
   return (
     <div className="speed-control">
       <Label>{UI_STRINGS.SPEED_CONTROL}</Label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '4px' }}>
+      <div className="control-row">
         <input
           type="range"
           aria-label={UI_STRINGS.SPEED_CONTROL}

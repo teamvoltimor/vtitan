@@ -1,12 +1,12 @@
 import './App.css';
 
+import { InspectorPanel } from './components/InspectorPanel';
+import { Sidebar } from './components/Sidebar';
+import { TelemetryScene } from './components/scene/TelemetryScene';
+import { AsyncState, ErrorBoundary } from './components/ui';
+import { DemoToggle } from './components/ui/DemoToggle';
 import { TelemetryProvider } from './contexts/TelemetryContext';
 import { useTelemetry } from './contexts/telemetryState';
-import { TelemetryScene } from './components/scene/TelemetryScene';
-import { Sidebar } from './components/Sidebar';
-import { DemoToggle } from './components/ui/DemoToggle';
-import { InspectorPanel } from './components/InspectorPanel';
-import { AsyncState, ErrorBoundary } from './components/ui';
 
 function AppContent() {
   const {

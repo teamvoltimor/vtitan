@@ -1,5 +1,5 @@
-import { formatNumber, clamp } from '../../utils/formatting';
 import { COLORS } from '../../config';
+import { clamp, formatNumber } from '../../utils/formatting';
 
 interface BarChartProps {
   label: string;
