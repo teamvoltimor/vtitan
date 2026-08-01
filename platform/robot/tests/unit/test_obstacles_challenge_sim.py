@@ -234,9 +234,14 @@ class TestVisionConfirmedSignRouting:
         used_pairs: list[tuple[str, str]] = []
         original_apply = sign_router_module._apply_deformation
 
-        def spying_apply_deformation(waypoint, sign, color, corridor, direction, lateral_offset):
+        def spying_apply_deformation(*args, **kwargs):
+            # Trailing arguments pass straight through rather than being named:
+            # pinning them here is how this spy would go stale the next time
+            # ``_apply_deformation`` grows one (it grew ``robot_pos``), with
+            # nothing failing until the spy is needed.
+            sign, color = args[1], args[2]
             used_pairs.append((sign.color, color))
-            return original_apply(waypoint, sign, color, corridor, direction, lateral_offset)
+            return original_apply(*args, **kwargs)
 
         monkeypatch.setattr(sign_router_module, "_apply_deformation", spying_apply_deformation)
 

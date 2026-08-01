@@ -219,6 +219,13 @@ class SweepConfig:
     new code across an already-warm process pool.
     """
 
+    depth_pin: bool | None = None
+    """Override ``SignRouterParams.DEPTH_PIN`` (default True).
+
+    ``False`` is the pre-pin arm every figure in the investigation doc older
+    than 2026-08-01 was measured against.
+    """
+
     escape_mask_radius: float | None = None
     """Override ``SignRouterParams.ESCAPE_MASK_RADIUS_M`` (default 0.12 m).
 
@@ -259,6 +266,7 @@ class SweepConfig:
             COMMIT_HYSTERESIS=self.commit_hysteresis,
             ACTIVATION_DIST_M=self.activation_dist,
             PASSED_DIST_M=self.passed_dist,
+            DEPTH_PIN=self.depth_pin,
         )
         return replace(base, pursuit=pursuit, speed=speed, waypoints=waypoints, sign_router=sign_router)
 
@@ -760,6 +768,19 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("committed sign held (hysteresis on)", commit_hysteresis=True),
         SweepConfig("blind, hysteresis off", blind=True, commit_hysteresis=False),
         SweepConfig("blind, hysteresis on", blind=True, commit_hysteresis=True),
+    ],
+    # Does the offset arrive in time? 182/182 surviving collisions are lag
+    # (diag_failure_split.py), and the symmetric taper is only at 0.125 when a
+    # sign activates. Baseline 0.0 shares the invocation, so the comparison is
+    # immune to the warm-pool hazard.
+    # What the depth pin is worth. Both arms in one run, deliberately: the pin
+    # first appeared mid-session and its 182 -> 119 was briefly mis-attributed
+    # to an unrelated harness fix measured in a different invocation.
+    "pin": [
+        SweepConfig("blind, pin off (pre-pin baseline)", blind=True, park=False, depth_pin=False),
+        SweepConfig("blind, pin on", blind=True, park=False, depth_pin=True),
+        SweepConfig("sighted, pin off", park=False, depth_pin=False),
+        SweepConfig("sighted, pin on", park=False, depth_pin=True),
     ],
     "blind-split": [
         SweepConfig("blind, pre-fix (offset 0.20, split off)", blind=True, lateral_offset=0.20, escape_mask_radius=0.0),

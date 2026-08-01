@@ -163,6 +163,16 @@ class SignRouterConfig:
     passed_dist: float = 1.60
     """Sign is marked as passed once robot moves further than this from it (m)."""
 
+    depth_pin: bool = True
+    """Hold the commanded point abeam the sign instead of letting it recede.
+
+    ``False`` restores the plain lookahead depth, which is the arm every figure
+    recorded before the pin was measured against. Both arms belong in ONE
+    harness invocation: this lives in the router, so measuring it by editing
+    between two runs mixes old and new code across a warm process pool -- which
+    is exactly how the pin's own effect was first mistaken for a classifier fix.
+    """
+
     detection_match_dist: float = 0.30
     """Max world-frame distance to associate a camera detection with an expected sign (m)."""
 
@@ -230,6 +240,7 @@ class SignRouterConfig:
             lateral_offset=_CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + params.SIGN_CLEARANCE_MARGIN_M,
             activation_dist=params.ACTIVATION_DIST_M,
             passed_dist=params.PASSED_DIST_M,
+            depth_pin=params.DEPTH_PIN,
             detection_match_dist=params.DETECTION_MATCH_DIST_M,
             min_confidence=params.MIN_CONFIDENCE,
             settle_ticks=params.SETTLE_TICKS,
@@ -484,6 +495,16 @@ class SignRouter:
             _dist2d(waypoint, (sign.x, sign.y)),
             _dist2d(robot_pos, (sign.x, sign.y)),
         )
+        # This shape peaks the commanded offset AT the sign: at activation_dist
+        # 1.40 against passed_dist 1.60 the taper opens at 0.125, so avoidance
+        # asks for 3.5 cm where a mid-turn pass needs 20.4 cm. That looks like
+        # the reason the offset arrives late, and it is not. Holding full offset
+        # from activation and fading only on the way out was measured over the
+        # 256-scenario corpus at ramps of 0.20/0.40/0.70 m: byte-identical
+        # without the depth pin (182 collisions at every value), and slightly
+        # WORSE with it (137 -> 135 in-time). The lateral clamp saturates before
+        # the taper ever binds, so the ramp has nothing to give. Do not re-try
+        # it without new information; see docs/sign-avoidance-investigation.md.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
         effective_offset = self._config.lateral_offset * taper
 
@@ -494,6 +515,7 @@ class SignRouter:
             sign_corridor,
             self._direction,
             effective_offset,
+            robot_pos if self._config.depth_pin else None,
         )
 
         if deformed != waypoint:
@@ -647,12 +669,32 @@ def _apply_deformation(
     corridor: Section,
     direction: Direction,
     lateral_offset: float,
+    robot_pos: tuple[float, float] | None = None,
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
 
     The result is clamped so it can't land inside the restricted inner square
     or beyond the outer wall (WP-1) — a sign positioned near a corridor edge
     would otherwise deform the waypoint straight into a hazard.
+
+    Only the LATERAL coordinate carries the avoidance; the depth coordinate is
+    whatever the lookahead search picked, which sits 0.2-0.4 m further along
+    the corridor every tick. Passing that through unchanged is what makes the
+    offset arrive late: the commanded point holds a constant lateral value but
+    keeps receding, so the slope the chassis must follow to reach it flattens
+    tick by tick and the lateral error is only ever asymptotically closed --
+    traced on go_obstacles_0000, the chassis needed 0.324 m of lateral travel
+    over the 0.42 m of runway left and achieved 0.163 m of it, arriving level
+    with the pillar still half a chassis width inside the line it was given.
+    Ramping to full offset sooner does NOT fix that lag -- measured and
+    rejected, see the taper comment in ``deform_waypoint`` -- because the target
+    the offset is attached to is the thing running away.
+
+    So while the sign lies between the robot and the lookahead point, pin the
+    depth coordinate to the SIGN's own depth. The commanded point stops
+    receding and becomes a fixed gate abeam the pillar, which the chassis has
+    to be on by the time it gets there. ``robot_pos`` is optional so callers
+    testing the pure pass-side mapping can keep asking for it alone.
 
     Args:
         waypoint: Original target waypoint (x, y).
@@ -661,6 +703,7 @@ def _apply_deformation(
         corridor: Current track section.
         direction: Travel direction (CW/CCW) — selects the pass-side mapping.
         lateral_offset: Lateral deformation magnitude (m).
+        robot_pos: Current robot position (x, y); enables the depth pin.
 
     Returns:
         Deformed waypoint (x, y).
@@ -673,8 +716,28 @@ def _apply_deformation(
 
     wx, wy = waypoint
     if axis == "y":
-        return wx, _clamp_lateral(sign.y + mult * lateral_offset, corridor)
-    return _clamp_lateral(sign.x + mult * lateral_offset, corridor), wy
+        return _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None), _clamp_lateral(
+            sign.y + mult * lateral_offset, corridor
+        )
+    return _clamp_lateral(sign.x + mult * lateral_offset, corridor), _pin_depth(
+        wy, sign.y, robot_pos[1] if robot_pos else None
+    )
+
+
+def _pin_depth(waypoint_depth: float, sign_depth: float, robot_depth: float | None) -> float:
+    """Hold the commanded point abeam the sign instead of letting it recede.
+
+    Applies only while the sign is genuinely between the chassis and the
+    lookahead point, in whichever direction the robot is travelling along the
+    corridor. Once the robot is level with the sign the condition lapses on its
+    own and the ordinary lookahead resumes -- there is no separate "release"
+    to get wrong, and a sign already behind never pulls the target backwards.
+    """
+    if robot_depth is None:
+        return waypoint_depth
+    if min(robot_depth, waypoint_depth) < sign_depth < max(robot_depth, waypoint_depth):
+        return sign_depth
+    return waypoint_depth
 
 
 def _clamp_lateral(value: float, corridor: Section) -> float:
