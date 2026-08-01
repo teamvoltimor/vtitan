@@ -146,10 +146,21 @@ def _struct_from_dict(data: dict[str, Any]) -> struct_pb2.Struct:
     telemetry_bridge_node._msg_to_dict) -- it's expected to already be
     JSON-shaped, but a stray non-JSON-serializable value (e.g. bytes) must
     not kill the stream thread over one topic's diagnostic payload.
+
+    struct.update() isn't transactional: a mid-conversion failure (e.g. a
+    nested list item protobuf can't represent) leaves the *same* struct
+    object partially mutated, including a stray google.protobuf.Value with
+    no oneof case set -- which protojson then refuses to marshal at all
+    ("none of the oneof fields is set"), turning one bad topic frame into a
+    hard 500 on every /v1/telemetry/topics request. Update a scratch struct
+    instead and only return it on success, so a failure yields a clean
+    empty struct rather than a corrupt partial one.
     """
     struct = struct_pb2.Struct()
-    with suppress(TypeError, ValueError):
+    try:
         struct.update(data)
+    except (TypeError, ValueError):
+        return struct_pb2.Struct()
     return struct
 
 
