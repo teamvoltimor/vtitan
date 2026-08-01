@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs, TrafficSignSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import ScenarioMetadata
@@ -318,6 +318,7 @@ class ScenarioSimulator:
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
         wall_heading: bool = True,
         park: bool = True,
+        allow_sign_nudge: bool = True,
     ) -> None:
         if isinstance(metadata, dict):
             metadata = ScenarioMetadata.model_validate(metadata)
@@ -346,6 +347,16 @@ class ScenarioSimulator:
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
         self._track = TrackModel(true_geometry, obstacles=obstacles_from_metadata(metadata.model_dump()))
+
+        # ``None`` restores the old all-or-nothing scoring, where any contact
+        # with a pillar ends the run. Kept switchable because every figure
+        # recorded before 2026-08-01 was measured that way, and comparing
+        # against them needs the same rule.
+        self._max_sign_push: float | None = (
+            TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
+        )
+        self._sign_push: dict[int, float] = {}
+        self._prev_contact_xy: tuple[float, float] = (start.x, start.y)
         self._true_geometry = true_geometry
 
         # What the robot is allowed to believe about the layout. Sighted runs
@@ -744,6 +755,7 @@ class ScenarioSimulator:
                 prev_laps = nav.laps_completed
 
             surface = gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE
+            surface = self._score_obstacle_contact(surface, gw.state)
             if contacts.update(step, surface):
                 terminal_collision = True
                 break
@@ -762,6 +774,55 @@ class ScenarioSimulator:
             metrics=metrics,
             lap_steps=lap_steps,
         )
+
+    def _score_obstacle_contact(self, surface: ContactSurface, state: AckermannState) -> ContactSurface:
+        """Downgrade a legal pillar nudge to a non-event, keep an illegal shove.
+
+        Touching a pillar does not end an Obstacles round. The pillar may be
+        moved, and the run stands as long as any corner of it is still inside
+        its 85mm placement circle -- ``TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M``
+        (59.4mm) is the displacement at which that stops being true. Scoring
+        first contact as a crash, which is what the surface alone says, fails
+        runs the judges would pass.
+
+        Displacement ACCUMULATES over the ticks in contact rather than being
+        read off the instantaneous overlap. Overlap depth is bounded by the
+        pillar's own 50mm extent, so a max-overlap model tops out below the
+        59.4mm limit and no run could ever fail it -- a scoring rule that
+        cannot be violated measures nothing. Physically the pillar is shoved
+        ahead of the chassis, so the distance the chassis covers while touching
+        it is what moves it.
+        """
+        # Advance the reference EVERY tick, not only while touching. Updating it
+        # only during contact makes ``moved`` the distance since the last touch,
+        # so a pillar brushed twice a metre apart accumulates that whole metre
+        # of driving as if it had been pushed through it.
+        dx = state.x - self._prev_contact_xy[0]
+        dy = state.y - self._prev_contact_xy[1]
+        self._prev_contact_xy = (state.x, state.y)
+        if surface is not ContactSurface.OBSTACLE or self._max_sign_push is None:
+            return surface
+        for index in self._track.obstacle_displacements(state.x, state.y, state.yaw):
+            # Only the component of travel pointing AT the pillar moves it. The
+            # magnitude of travel does not: a chassis sliding past a pillar it
+            # is brushing covers distance without pushing it anywhere, and
+            # counting that as displacement made a 0.4 s graze -- eight ticks at
+            # the measured 0.156 m/s -- reach the 59.4mm limit on its own.
+            sign = self._track.obstacle_center(index)
+            if sign is None:
+                continue
+            to_sign_x, to_sign_y = sign[0] - state.x, sign[1] - state.y
+            norm = math.hypot(to_sign_x, to_sign_y)
+            if norm <= 0.0:
+                continue
+            push = (dx * to_sign_x + dy * to_sign_y) / norm
+            if push > 0.0:
+                self._sign_push[index] = self._sign_push.get(index, 0.0) + push
+        if any(push > self._max_sign_push for push in self._sign_push.values()):
+            return surface
+        # Touched, but still inside its circle: not a collision, and not the
+        # controller's cue to run an escape either.
+        return ContactSurface.NONE
 
     def _build_result(
         self,

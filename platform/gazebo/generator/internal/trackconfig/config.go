@@ -78,19 +78,20 @@ type (
 
 	// Sign holds the traffic pillar dimensions, grid rows and colours.
 	Sign struct {
-		Width         decimal.Decimal `toml:"width"`
-		Depth         decimal.Decimal `toml:"depth"`
-		Height        decimal.Decimal `toml:"height"`
-		ZPosition     decimal.Decimal `toml:"z_position"`
-		GridDepthNear decimal.Decimal `toml:"grid_depth_near"`
-		GridDepthMid  decimal.Decimal `toml:"grid_depth_middle"`
-		GridDepthFar  decimal.Decimal `toml:"grid_depth_far"`
-		MinCount      int             `toml:"min_count"`
-		MaxCount      int             `toml:"max_count"`
-		RedColor      RGB             `toml:"red_color"`
-		GreenColor    RGB             `toml:"green_color"`
-		RedColorStd   RGB             `toml:"red_std"`
-		GreenColorStd RGB             `toml:"green_std"`
+		Width                   decimal.Decimal `toml:"width"`
+		Depth                   decimal.Decimal `toml:"depth"`
+		Height                  decimal.Decimal `toml:"height"`
+		ZPosition               decimal.Decimal `toml:"z_position"`
+		GridDepthNear           decimal.Decimal `toml:"grid_depth_near"`
+		GridDepthMid            decimal.Decimal `toml:"grid_depth_middle"`
+		GridDepthFar            decimal.Decimal `toml:"grid_depth_far"`
+		PlacementCircleDiameter decimal.Decimal `toml:"placement_circle_diameter"`
+		MinCount                int             `toml:"min_count"`
+		MaxCount                int             `toml:"max_count"`
+		RedColor                RGB             `toml:"red_color"`
+		GreenColor              RGB             `toml:"green_color"`
+		RedColorStd             RGB             `toml:"red_std"`
+		GreenColorStd           RGB             `toml:"green_std"`
 	}
 
 	// Parking holds the magenta block dimensions and bay sizing.

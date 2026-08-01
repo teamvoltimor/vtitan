@@ -42,6 +42,9 @@ SIGN_GRID_DEPTH_MIDDLE: Final[float] = 1.5
 SIGN_GRID_DEPTH_FAR: Final[float] = 2.0
 SIGN_GRID_WIDTH_OUTER: Final[float] = 0.4
 SIGN_GRID_WIDTH_INNER: Final[float] = 0.6
+# Circle each pillar is placed within. Nudging a pillar is legal; the run
+# stays valid while ANY corner of its square is still inside this circle.
+SIGN_PLACEMENT_CIRCLE_DIAMETER: Final[float] = 0.085
 SIGN_MIN_COUNT: Final[int] = 6
 SIGN_MAX_COUNT: Final[int] = 14
 SIGN_RED_COLOR: Final[tuple[float, float, float]] = (0.933, 0.153, 0.216)

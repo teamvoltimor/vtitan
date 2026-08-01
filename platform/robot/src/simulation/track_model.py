@@ -352,6 +352,17 @@ class TrackModel:
                 depths[i] = depth
         return depths
 
+    def obstacle_center(self, index: int) -> tuple[float, float] | None:
+        """Centre of the indexed obstacle, or ``None`` if there is no such box.
+
+        Needed to tell a push from a slide: only the component of chassis travel
+        pointing at a pillar displaces it.
+        """
+        if index < 0 or index >= len(self._obstacle_boxes):
+            return None
+        box = self._obstacle_boxes[index]
+        return ((box.x_min + box.x_max) / 2.0, (box.y_min + box.y_max) / 2.0)
+
     # Geometry helpers exposed for tests / planners
 
     def point_in_free_space(self, x: float, y: float, clearance: float = 0.0) -> bool:

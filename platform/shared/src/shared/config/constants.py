@@ -116,6 +116,27 @@ class TrafficSignSpecs:
     GRID_WIDTH_INNER: Final[float] = _track.SIGN_GRID_WIDTH_INNER  # Inner division line
 
     # Number of signs
+    PLACEMENT_CIRCLE_DIAMETER: Final[float] = _track.SIGN_PLACEMENT_CIRCLE_DIAMETER
+    """Circle on the mat each pillar is placed within (85mm).
+
+    Touching a pillar is NOT a failure. The pillar may be nudged, and the run
+    stays valid as long as ANY corner of its square is still inside this circle
+    — only pushing it fully out counts against the team. See
+    ``MAX_LEGAL_DISPLACEMENT_M`` for the tolerance that follows.
+    """
+
+    MAX_LEGAL_DISPLACEMENT_M: Final[float] = math.sqrt(
+        (PLACEMENT_CIRCLE_DIAMETER / 2) ** 2 - (WIDTH / 2) ** 2,
+    ) + (WIDTH / 2)
+    """How far a pillar may be pushed and still have a corner in its circle.
+
+    Derived, not measured: the corner that survives longest is the one trailing
+    the push, so the bound is the displacement at which even that corner leaves
+    the circle. Worst case is a push along an axis (59.4mm at the official
+    50mm/85mm geometry); a diagonal push tolerates more (77.9mm), so using the
+    axis figure everywhere is the conservative choice.
+    """
+
     MIN_SIGNS: Final[int] = _track.SIGN_MIN_COUNT  # Minimum per round
     MAX_SIGNS: Final[int] = _track.SIGN_MAX_COUNT  # Maximum per round (7 red + 7 green)
 

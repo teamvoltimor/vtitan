@@ -49,8 +49,11 @@ const (
 	// Pillars stand on the corridor division lines.
 	SignGridWidthOuter = 0.4
 	SignGridWidthInner = 0.6
-	SignMinCount       = 6
-	SignMaxCount       = 14
+	// Circle each pillar is placed within. Nudging a pillar is legal; the run
+	// stays valid while ANY corner of its square is still inside this circle.
+	SignPlacementCircleDiameter = 0.085
+	SignMinCount                = 6
+	SignMaxCount                = 14
 )
 
 // Parking block dimensions (meters, obstacles challenge only).

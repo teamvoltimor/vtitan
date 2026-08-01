@@ -64,6 +64,15 @@ z_position = 0.05
 grid_depth_near = 1.0
 grid_depth_middle = 1.5
 grid_depth_far = 2.0
+# Diameter of the circle each pillar is placed within on the mat. Touching a
+# pillar is NOT a failure: the pillar may be nudged, and the run stays valid so
+# long as ANY corner of its 50 mm square is still inside this circle. Only
+# pushing it fully out counts against the team.
+#
+# The tolerance that follows from the geometry is generous -- 59.4 mm of
+# displacement pushing along an axis, 77.9 mm diagonally -- which is why the
+# simulator must model displacement rather than end the run on first contact.
+placement_circle_diameter = 0.085
 min_count = 6
 max_count = 14
 # Official WRO pillar colours: RGB(238,39,55) and RGB(68,214,44).
