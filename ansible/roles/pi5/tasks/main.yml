@@ -75,25 +75,17 @@
     chdir: "{{ robot_dir }}"
   changed_when: true
 
+# Installs ultralytics + hailort together — hailort is a
+# [feature.vision.target.linux-aarch64.pypi-dependencies] wheel path in
+# pixi.toml (cp312, matching this env's Python), resolved by pixi's own
+# installer. No separate manual `pip install` step needed (and the old one
+# here was broken: its `find` glob matched both the current cp312 wheel and
+# a stale cp310 one in the same libs/ dir, non-deterministically grabbing
+# whichever sorted first).
 - name: Install pixi vision env (ultralytics + hailort)
   ansible.builtin.command: "{{ pixi_bin }} install -e vision"
   args:
     chdir: "{{ robot_dir }}"
-  changed_when: true
-
-# Hailo python bindings go INTO the pixi env (where vision_node actually
-# runs), not system python — sidesteps Trixie's externally-managed pip.
-- name: Find HailoRT wheel
-  ansible.builtin.find:
-    paths: "{{ robot_dir }}/libs/linux_aarch64"
-    patterns: "hailort-*.whl"
-  register: hailort_wheel
-
-- name: Install HailoRT python wheel into the pixi vision env
-  ansible.builtin.command: "{{ pixi_bin }} run -e vision python -m pip install {{ hailort_wheel.files[0].path }}"
-  args:
-    chdir: "{{ robot_dir }}"
-  when: hailort_wheel.matched > 0
   changed_when: true
 
 - name: Install vtitan-pi5 + vtitan-lidar systemd units
