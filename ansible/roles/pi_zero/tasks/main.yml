@@ -273,7 +273,12 @@
     chdir: "{{ robot_dir }}"
   environment:
     ZERO_HOST: "{{ ansible_user }}@{{ usb_gadget_zero_ip }}"
-  changed_when: true
+  register: zero_deploy
+  # The script skips whatever already matches the Zero's fingerprints, so a
+  # converged run must report ok rather than changed -- otherwise the recap
+  # claims work that did not happen, which is exactly the kind of noise that
+  # makes a recap stop being worth reading.
+  changed_when: "'DEPLOYED' in zero_deploy.stdout"
 
 # Repairs the gadget link when it comes up half-dead. Installed on the Zero
 # rather than the Pi 5 because the link it repairs may be the robot's only
