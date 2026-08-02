@@ -1,0 +1,31 @@
+# Single source of truth for ROS2 topic names used by the robot and telemetry.
+# Updated 2026-08-02 — stale topic references (stale: /state_machine/state, /odom) corrected.
+#
+# Edit this file, then reference in code via RosTopicConfig.load_default().
+
+[state_machine]
+# Robot state published by state_machine_node.
+state = "/robot_state"
+
+[navigation]
+# Odometry from track_navigator_node (if available).
+# NOTE: As of 2026-08-02, no node publishes this topic.
+# The telemetry_bridge_node subscribes but receives no data.
+# Uncomment when odometry is implemented; leave empty or remove if it won't be.
+# odometry = "/odom"
+
+[sensors]
+# LIDAR range data from the Slamtec C1.
+scan = "/scan"
+# IMU data from the BNO085.
+imu = "/imu/data"
+# Hailo vision detections.
+hailo_detections = "/hailo/detections"
+
+[commands]
+# Drive command velocity (Twist) sent to the drive/steering nodes.
+cmd_vel = "/cmd_vel"
+
+[actuators]
+# Joint state feedback (steering angle, drive speed, encoder position).
+joint_states = "/joint_states"

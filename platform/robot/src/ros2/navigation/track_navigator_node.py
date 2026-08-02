@@ -240,6 +240,7 @@ class TrackNavigator(Node, ResettableNode):
             sign_router=sign_router,
             lap_detector=lap_detector,
             park_controller=park_controller,
+            direction=start_direction,
         )
 
         # Race-state gate. Without this the navigator drives the moment it has a
@@ -278,7 +279,8 @@ class TrackNavigator(Node, ResettableNode):
         )
 
         # Control Loop
-        self.create_timer(0.05, self._control_loop)  # 20 Hz
+        control_period = 1.0 / self._tuning.control.CONTROL_HZ
+        self.create_timer(control_period, self._control_loop)
 
         self.get_logger().info(
             f"Navigator ready: {len(waypoints)} waypoints, {num_laps} lap(s) - "
@@ -428,6 +430,7 @@ class TrackNavigator(Node, ResettableNode):
                     direction=inferred,
                 ),
             )
+            self._core_navigator.set_travel_direction(inferred)
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
@@ -575,6 +578,7 @@ class TrackNavigator(Node, ResettableNode):
                 direction=self._direction,
             ),
         )
+        self._core_navigator.set_travel_direction(self._direction)
         self._core_navigator.replace_path(self._plan(self._to_widths_dict()), self._start_xy)
         self._core_navigator.reset()
 
