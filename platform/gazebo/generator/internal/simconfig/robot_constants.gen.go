@@ -31,9 +31,16 @@ const (
 	// RobotLidarMountZOffset: LIDAR sits above the chassis top by this much;
 	// add RobotHeight for the LIDAR's absolute mount z.
 	RobotLidarMountZOffset = 0.02
-	// RobotLidarMountYawOffsetDeg: the C1 is mounted upside-down, so its raw
-	// angle-zero points opposite robot-front.
-	RobotLidarMountYawOffsetDeg = 180.0
+	// RobotLidarInverted: single source of truth for the upside-down mount.
+	// Drives BOTH the sllidar_ros2 driver's own inverted launch parameter AND
+	// a mandatory 180deg yaw rotation wherever raw /scan angles are consumed --
+	// the two are consequences of the same physical fact, not independent
+	// settings. Re-verify against a known object at chassis front/back/left/
+	// right after any remount or cable work; don't assume the old value holds.
+	RobotLidarInverted = true
+	// RobotLidarMountYawOffsetDeg: residual yaw miscalibration NOT explained by
+	// RobotLidarInverted's 180deg -- added on top of it, not a replacement.
+	RobotLidarMountYawOffsetDeg = 0.0
 
 	// IMU mounted near the chassis floor.
 	RobotImuMountZOffset = 0.01

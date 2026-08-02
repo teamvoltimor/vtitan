@@ -254,15 +254,14 @@ build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/
 
 [target.linux-aarch64.tasks]
 # frame_id matches static_tfs.launch.py's child_frame_id for lidar -- must stay in sync.
-# inverted:=false -- re-verified 2026-08-02 against a known object placed at the
-# chassis's physical left/right: with inverted:=true (this task's setting until
-# now, from an earlier "confirmed empirically" mounting check), /scan's left and
-# right sectors read the physically opposite side -- e.g. an object at the
-# robot's true right showed up as the "left" sector's near reading. inverted:=false
-# matched the physical placement cleanly and repeatably. Whatever changed between
-# that earlier check and now (remount, cable reseat, driver update) isn't known;
-# what's confirmed is which setting matches reality today.
-run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=false'"
+# inverted:= is read from RobotSpecs.LIDAR_INVERTED (robot.toml's [lidar].inverted) at
+# launch time rather than hardcoded here, so this can never drift from the 180deg yaw
+# rotation ros2_hardware_gateway.py and static_tfs.launch.py apply for the same
+# upside-down-mount fact -- letting a hardcoded value here fall out of sync with that
+# rotation is exactly the bug found and fixed 2026-08-02 (stale inverted:=true stacked
+# with an already-correct raw scan, and separately a stale 180deg stacked on an
+# already-correct inverted:=false, at different points the same day).
+run-lidar = "bash -c '. ros2_ws/install/setup.bash && INVERTED=$(python3 -c \"from shared.config.constants import RobotSpecs; print(str(RobotSpecs.LIDAR_INVERTED).lower())\") && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=$INVERTED'"
 
 # Run ON Pi 5 -- one-shot setup for a freshly-flashed Pi Zero (SSH trust,
 # .env, pixi CLI, I2C, systemd unit). Idempotent, safe to re-run. See

@@ -31,10 +31,15 @@ MAX_SPEED_MPS: Final[float] = 0.156
 MAX_ACCEL_MPS2: Final[float] = 2.0
 REAR_STEER_RATIO: Final[float] = 1.0
 
-# LIDAR mount (meters, degrees)
+# LIDAR mount (meters, degrees). LIDAR_INVERTED is the single source of
+# truth for the upside-down mount -- consumers needing the total yaw
+# correction combine (180.0 if LIDAR_INVERTED else 0.0) + LIDAR_MOUNT_YAW_OFFSET_DEG
+# themselves rather than reading a pre-combined constant, since some (the
+# sllidar_ros2 launch parameter) need LIDAR_INVERTED alone.
 LIDAR_MOUNT_X_OFFSET: Final[float] = 0.1222
 LIDAR_MOUNT_Z_OFFSET: Final[float] = 0.02
-LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 180.0
+LIDAR_INVERTED: Final[bool] = True
+LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = 0.0
 
 # IMU mount (meters)
 IMU_MOUNT_Z_OFFSET: Final[float] = 0.01

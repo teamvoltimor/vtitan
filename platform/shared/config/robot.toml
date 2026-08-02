@@ -75,7 +75,7 @@ max_accel_mps2 = 2.0
 rear_steer_ratio = 1.0
 
 [lidar]
-# Slamtec C1, mounted upside-down and flush with the front edge, centered left/right.
+# Slamtec C1, flush with the front edge, centered left/right.
 # Derived as chassis.length/2 - lidar mesh radius (0.0278, matching the xacro cylinder mesh).
 mount_x_offset = 0.1222
 # LIDAR sits 20mm above the chassis top -- add to chassis.height for the LIDAR's absolute
@@ -83,12 +83,26 @@ mount_x_offset = 0.1222
 # (= chassis.height + this) in static_tfs.launch.py and the URDF xacro; consolidated here
 # 2026-07-30 so all three consumers derive from one value instead of three that could drift.
 mount_z_offset = 0.02
-# Moved from platform/robot/.env.example's LIDAR_YAW_OFFSET_DEG -- a physical mount fact
-# ("the C1 is mounted inverted, so its raw angle-zero points opposite robot-front"), not a
-# runtime knob, and the TF tree (sim + real) and perception both need it. Confirmed
-# empirically: the sector with the largest ranges (open space, robot-front) lands at +-180
-# deg in raw /scan data.
-mount_yaw_offset_deg = 180.0
+# The chassis is physically mounted upside-down, which is why an "inverted" correction
+# exists at all. Confirmed 2026-08-02: the mount IS upside-down, so `inverted = true`.
+# An earlier same-day measurement had found `false` matching behavior, but that was
+# testing the wrong data path (raw /scan directly, which the navigator never reads --
+# see ros2_hardware_gateway.py); re-confirmed against the physical mount fact itself,
+# it is true. Re-measure after any remount or cable work rather than assuming.
+#
+# Every consumer that needs the LIDAR's angle correction derives it from THIS flag alone,
+# not a second independent setting: `inverted` drives both the sllidar_ros2 driver's own
+# `inverted` launch parameter (its left-right mirror) AND a mandatory 180 deg yaw rotation
+# applied wherever raw /scan angles are consumed (front/back come attached to the same
+# upside-down-mount fact as left/right, not a separate one). A driver-level `inverted:=true`
+# with no matching 180 deg yaw application (or vice versa) is exactly the bug found and
+# fixed today: the two drifted out of sync when only one was re-verified.
+inverted = true
+# Independent of `inverted` above: any additional yaw miscalibration NOT explained by the
+# upside-down mount (e.g. the unit sits rotated a few degrees off dead-ahead within its
+# bracket). Added on top of the 180 deg from `inverted`, not a replacement for it. Zero
+# until something measures otherwise.
+mount_yaw_offset_deg = 0.0
 
 [imu]
 # IMU sits 10mm above the chassis floor. Was hand-duplicated as simconfig.RobotImuZOffset

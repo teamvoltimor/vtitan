@@ -70,6 +70,7 @@ type (
 	Lidar struct {
 		MountXOffset      float64 `toml:"mount_x_offset"`
 		MountZOffset      float64 `toml:"mount_z_offset"`
+		Inverted          bool    `toml:"inverted"`
 		MountYawOffsetDeg float64 `toml:"mount_yaw_offset_deg"`
 	}
 
@@ -95,6 +96,18 @@ type (
 // another file.
 func (s Steering) MaxSteeringAngle() float64 {
 	return s.ServoMaxAngleDeg * s.LinkageRatio * math.Pi / 180
+}
+
+// TotalYawOffsetDeg combines the mandatory 180deg from an inverted (upside-down)
+// mount with any independent residual miscalibration. Consumers that only need
+// the resulting frame orientation (the URDF/xacro model) use this; consumers
+// that also need to set a driver-level `inverted` launch parameter (the real
+// ROS2 nodes) read Inverted and MountYawOffsetDeg separately instead.
+func (l Lidar) TotalYawOffsetDeg() float64 {
+	if l.Inverted {
+		return 180.0 + l.MountYawOffsetDeg
+	}
+	return l.MountYawOffsetDeg
 }
 
 // Load reads and parses the robot.toml config at path.

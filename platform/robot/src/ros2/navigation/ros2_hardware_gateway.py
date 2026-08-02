@@ -34,22 +34,29 @@ from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_wid
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.state_machine.estimator import StateEstimator
 
-_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+_LIDAR_YAW_OFFSET_RAD = math.radians(
+    (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
+)
 """Rotates raw /scan bearings into the robot frame (0 rad = forward).
 
-The C1 is mounted inverted, so its raw angle-zero points opposite
-robot-front (confirmed empirically: the open-space/robot-front sector
-lands at +-180 deg in raw /scan data, not 0 deg). This constant already
-drives static_tfs.launch.py's lidar_link TF rotation, but nothing
-reads that TF back -- every consumer of LidarScan.angles_rad
-(CollisionAvoidanceController via core_navigator.py, and
-estimate_yaw_from_walls) documents and requires 0 rad = forward, so
-the correction has to happen here, where angles_rad is actually built.
-Previously uncorrected, real-hardware navigation saw front and rear
-(and, since it's a single 180 deg rotation, left and right too)
-swapped -- invisible in simulation, which synthesizes scan angles
-already in the correct robot frame and never models the raw LIDAR
-mounting frame at all.
+Two independent components, combined here rather than read as one pre-combined
+constant: RobotSpecs.LIDAR_INVERTED (mandatory 180 deg when the mount is
+upside-down -- the same fact that also has to drive the sllidar_ros2 driver's
+own `inverted` launch parameter, see robot.toml's [lidar] section) plus
+RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG (any additional residual miscalibration,
+independent of the inversion). Getting these out of sync -- e.g. flipping the
+driver's `inverted` parameter without updating this rotation, or vice versa --
+is exactly the bug found and fixed 2026-08-02: a stale 180 deg applied on top
+of already-correctly-oriented raw data rotated the navigator's whole picture
+180 deg, front read as back and left read as right.
+
+This constant already drives static_tfs.launch.py's lidar_link TF rotation
+(computed the same way there), but nothing reads that TF back -- every
+consumer of LidarScan.angles_rad (CollisionAvoidanceController via
+core_navigator.py, and estimate_yaw_from_walls) documents and requires 0 rad
+= forward, so the correction has to happen here, where angles_rad is actually
+built. Invisible in simulation, which synthesizes scan angles already in the
+correct robot frame and never models a raw LIDAR mounting frame at all.
 """
 
 
