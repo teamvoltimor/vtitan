@@ -29,6 +29,9 @@ SERIAL_TIMEOUT = 1.0
 DATA_LOCK_TIMEOUT = 2.0
 """Timeout in seconds for waiting on new data to be available"""
 
+DEFAULT_SERIAL_PORT = "/dev/ttyACM0"
+"""Default serial port for UART connection fallback."""
+
 
 class Config(HardwareBaseSettings):
     """Configuration for BNO08x via UART RVC."""
@@ -81,8 +84,8 @@ class Driver(ABC_RVCDriver):
 
         port = self.config.port
         if not port:
-            self.logger.info("No serial port specified, attempting with default port /dev/ttyACM0")
-            port = "/dev/ttyACM0"
+            self.logger.info(f"No serial port specified, attempting with default port {DEFAULT_SERIAL_PORT}")
+            port = DEFAULT_SERIAL_PORT
 
         # The adafruit_bno08x_rvc library does not support direct USB communication,
         # but it can work with a serial port provided in UART mode.
