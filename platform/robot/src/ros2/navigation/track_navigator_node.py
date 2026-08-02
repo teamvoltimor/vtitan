@@ -280,6 +280,22 @@ class TrackNavigator(Node, ResettableNode):
             "holding until /robot_state reports racing",
         )
 
+        # A blind round has to *assume* where on the track it is standing, and
+        # nothing until now reported what it assumed. That matters because the
+        # failure it produces looks like a steering fault rather than a
+        # localisation one: if the assumed corridor is not the real one, the
+        # first waypoints sit behind the robot, and the only way to reach
+        # something behind you is to turn around. Observed on the track as a
+        # U-turn followed by a lap driven backwards -- with the servo, the IMU,
+        # the LIDAR bearing, the gateway and the inferred direction all checked
+        # and correct.
+        head = waypoints[:3]
+        self.get_logger().info(
+            f"Assumed start: section={start_section.value} direction={start_direction.value} "
+            f"pose=({start_x:.2f}, {start_y:.2f}) - first waypoints "
+            + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in head),
+        )
+
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
 
