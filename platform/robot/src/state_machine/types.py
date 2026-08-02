@@ -8,15 +8,16 @@ States:
 """
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 
 # Re-export RobotState/ScenarioType from shared module (single source of truth). ScenarioType
 # is the existing open-vs-obstacles concept (already used by the navigator's scenario
 # metadata) -- the challenge-mode jumper reuses it rather than introducing a duplicate enum.
-from shared.config.enums import RobotState, ScenarioType
+from shared.config.enums import RobotState, ScenarioType, Section
 
 __all__ = [
     "LidarMetrics",
+    "PathStatus",
     "RaceMetrics",
     "RobotState",
     "ScenarioType",
@@ -25,6 +26,19 @@ __all__ = [
     "SystemStatus",
     "VisionMetrics",
 ]
+
+
+class PathStatus(StrEnum):
+    """Current state of the navigation path."""
+
+    CLEAR = "CLEAR"
+    """No obstacles detected, clear path."""
+
+    BLOCKED = "BLOCKED"
+    """Path is blocked by obstacles."""
+
+    NARROW = "NARROW"
+    """Path is clear but narrow."""
 
 
 @dataclass
@@ -89,8 +103,8 @@ class RaceStatus:
     gyro_yaw: float
     """Current gyroscope yaw in degrees."""
 
-    current_corridor: str = ""
-    """Active track corridor: 'north', 'south', 'east', 'west', or '' if unknown."""
+    current_corridor: Section | None = None
+    """Active track corridor, or None if unknown."""
 
 
 @dataclass
@@ -132,8 +146,8 @@ class LidarMetrics:
     right_clearance_cm: float
     """Right clearance distance in centimeters."""
 
-    path_status: str
-    """Current path status (e.g., 'CLEAR', 'BLOCKED', 'NARROW')."""
+    path_status: PathStatus
+    """Current path status."""
 
 
 class StateTransitionReason(Enum):
