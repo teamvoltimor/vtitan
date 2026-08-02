@@ -168,12 +168,13 @@ class SimulatedHardwareGateway:
         self,
         track: TrackModel,
         initial_state: AckermannState,
+        believed_start: AckermannState | None = None,
         kinematics: AckermannKinematics | None = None,
         lidar_rays: int = RobotSpecs.LIDAR_SAMPLES,
         lidar_noise_std: float = RobotSpecs.LIDAR_NOISE_STDDEV,
         rng: np.random.Generator | None = None,
         signs: list[SignSpec] | None = None,
-        localize: bool = False,
+        localize: bool = True,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         solid_surfaces: frozenset[ContactSurface] | None = None,
@@ -231,14 +232,23 @@ class SimulatedHardwareGateway:
         # actually moved -- a chassis held against a wall reports no travel,
         # matching an encoder on a stalled but not slipping wheel.
         self._wheel_distance_m = 0.0
+        # The frame the robot believes it is standing in. A robot that assumes a
+        # start pose it was not placed at does not perceive a corrected world --
+        # its whole belief system is displaced together, heading included, and
+        # the IMU zero goes with it. Keeping the offset here rather than at each
+        # consumer is what stops the plan, the estimator and the lap line from
+        # ending up in different frames, which is an incoherent state no robot
+        # is ever in.
+        believed = believed_start or initial_state
+        self._yaw_offset = _wrap_angle(believed.yaw - initial_state.yaw)
         # Seed the estimator where the robot *thinks* it was placed. Offset at a
         # random bearing so the error is not systematically along-track (which
         # the localizer finds far easier to correct than a lateral one).
         seed_bearing = float(self._error_rng.uniform(-math.pi, math.pi))
         self._estimator = StateEstimator(
-            initial_state.x + self._errors.start_pos_error_m * math.cos(seed_bearing),
-            initial_state.y + self._errors.start_pos_error_m * math.sin(seed_bearing),
-            self._imu_yaw(),
+            believed.x + self._errors.start_pos_error_m * math.cos(seed_bearing),
+            believed.y + self._errors.start_pos_error_m * math.sin(seed_bearing),
+            self._reported_yaw(),
         )
         # Uses LidarLocalizer's own defaults, which match NavigationTuning.localization's
         # defaults -- not threaded through a tuning param here (this __init__ has no
@@ -353,10 +363,14 @@ class SimulatedHardwareGateway:
     def get_current_pose(self) -> Pose | None:
         """Return the pose the navigator gets to see.
 
-        Ground truth by default (perfect odometry), which isolates control
-        behaviour from state-estimation error. With ``localize=True`` this is
-        instead the LIDAR-matched estimate the real robot actually navigates
-        on, so the error the localizer makes reaches the controller.
+        The LIDAR-matched estimate by default — the position source the real
+        robot actually navigates on, so the error the localizer makes reaches
+        the controller exactly as it does on hardware.
+
+        ``localize=False`` gives ground truth (perfect odometry) instead, which
+        isolates control behaviour from state-estimation error. That is a useful
+        control to run deliberately; it used to be the default, which meant
+        every result quietly assumed an accuracy the robot does not have.
         """
         if self._localize:
             return self._estimator.estimate_pose()
@@ -398,9 +412,10 @@ class SimulatedHardwareGateway:
     def get_imu_reading(self) -> IMUReading | None:
         """Return the IMU yaw (pitch/roll are zero on a flat mat).
 
-        Ground truth unless ``SensorErrors`` configures drift or noise.
+        Ground truth unless ``SensorErrors`` configures drift or noise, and
+        expressed in the frame the robot believes it started in.
         """
-        return IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0)
+        return IMUReading(yaw=self._reported_yaw(), pitch=0.0, roll=0.0)
 
     def _imu_yaw(self) -> float:
         """Heading as the IMU reports it: truth plus accumulated drift and noise.
@@ -419,6 +434,19 @@ class SimulatedHardwareGateway:
         if errors.imu_noise_rad > 0.0:
             yaw += float(self._error_rng.normal(0.0, errors.imu_noise_rad))
         return yaw
+
+    def _reported_yaw(self) -> float:
+        """The IMU heading as the *navigator* receives it, in the believed frame.
+
+        Identical to :meth:`_imu_yaw` unless the robot was seeded believing it
+        started somewhere other than where it was placed, in which case the
+        constant frame offset rides along -- a heading is only meaningful
+        relative to the frame the robot thinks it is driving in.
+
+        Kept separate from :meth:`_imu_yaw` so ``heading_error_rad`` still
+        measures what the sensor got wrong, not where the robot thinks it is.
+        """
+        return _wrap_angle(self._imu_yaw() + self._yaw_offset)
 
     @property
     def heading_error_rad(self) -> float:
@@ -547,7 +575,7 @@ class SimulatedHardwareGateway:
         # did, gives the navigator a perfectly fresh position it will never
         # have, and leaves no interval for wheel odometry to fill.
         if self._localizer is not None:
-            self._estimator.update_imu(IMUReading(yaw=self._imu_yaw(), pitch=0.0, roll=0.0))
+            self._estimator.update_imu(IMUReading(yaw=self._reported_yaw(), pitch=0.0, roll=0.0))
         if self._elapsed_s - self._last_scan_s >= self._lidar_period_s:
             self._last_scan_s = self._elapsed_s
             self._refresh_sensors()

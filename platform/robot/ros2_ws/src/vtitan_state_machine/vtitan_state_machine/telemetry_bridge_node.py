@@ -23,6 +23,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
 from vision_msgs.msg import Detection2DArray
@@ -176,16 +177,6 @@ class TopicsSnapshot:
     topics: list[_TopicUpdatePayload]
 
 
-class RosTopic:
-    """ROS2 topic name constants used by the telemetry bridge."""
-
-    SCAN = "/scan"
-    ODOM = "/odom"
-    IMU = "/imu/data"
-    STATE = "/state_machine/state"
-    CMD_VEL = "/cmd_vel"
-    JOINT_STATES = "/joint_states"
-    HAILO_DETECTIONS = "/hailo/detections"
 
 
 class RosMsgType:
@@ -302,17 +293,20 @@ class TelemetryBridgeNode(Node):
         self._max_history = self.get_parameter("max_path_history").value
         self._ui_summary_rate = self.get_parameter("ui_summary_rate_hz").value
 
+        self._topics = RosTopicConfig.load_default()
+
         # Subscriptions — sensor topics use qos_profile_sensor_data to match
         # the BEST_EFFORT QoS that hardware drivers publish with.
-        self.create_subscription(LaserScan, RosTopic.SCAN, self._scan_callback, qos_profile_sensor_data)
-        self.create_subscription(Odometry, RosTopic.ODOM, self._odom_callback, 10)
-        self.create_subscription(Imu, RosTopic.IMU, self._imu_callback, qos_profile_sensor_data)
-        self.create_subscription(String, RosTopic.STATE, self._state_callback, 10)
-        self.create_subscription(Twist, RosTopic.CMD_VEL, self._cmd_vel_callback, 10)
-        self.create_subscription(JointState, RosTopic.JOINT_STATES, self._joint_callback, 10)
+        self.create_subscription(LaserScan, self._topics.sensors.scan, self._scan_callback, qos_profile_sensor_data)
+        if self._topics.navigation.odometry:
+            self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, 10)
+        self.create_subscription(Imu, self._topics.sensors.imu, self._imu_callback, qos_profile_sensor_data)
+        self.create_subscription(String, self._topics.state_machine.state, self._state_callback, 10)
+        self.create_subscription(Twist, self._topics.commands.cmd_vel, self._cmd_vel_callback, 10)
+        self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
         self.create_subscription(
             Detection2DArray,
-            RosTopic.HAILO_DETECTIONS,
+            self._topics.sensors.hailo_detections,
             self._vision_callback,
             qos_profile_sensor_data,
         )
@@ -425,34 +419,34 @@ class TelemetryBridgeNode(Node):
 
     def _scan_callback(self, msg: LaserScan) -> None:
         self._latest_scan = msg
-        self._update_raw_topic(RosTopic.SCAN, RosMsgType.LASER_SCAN, msg)
+        self._update_raw_topic(self._topics.sensors.scan, RosMsgType.LASER_SCAN, msg)
 
     def _odom_callback(self, msg: Odometry) -> None:
         self._latest_odom = msg
-        self._update_raw_topic(RosTopic.ODOM, RosMsgType.ODOMETRY, msg)
+        self._update_raw_topic(self._topics.navigation.odometry or "/odom", RosMsgType.ODOMETRY, msg)
         pos = msg.pose.pose.position
         self._path_history.append([pos.x, pos.y, pos.z])
 
     def _imu_callback(self, msg: Imu) -> None:
         self._latest_imu = msg
-        self._update_raw_topic(RosTopic.IMU, RosMsgType.IMU, msg)
+        self._update_raw_topic(self._topics.sensors.imu, RosMsgType.IMU, msg)
 
     def _state_callback(self, msg: String) -> None:
         self._latest_state = msg.data
-        self._update_raw_topic(RosTopic.STATE, RosMsgType.STRING, msg)
+        self._update_raw_topic(self._topics.state_machine.state, RosMsgType.STRING, msg)
         self._logs.append(f"State: {msg.data}")
 
     def _cmd_vel_callback(self, msg: Twist) -> None:
         self._latest_cmd_vel = msg
-        self._update_raw_topic(RosTopic.CMD_VEL, RosMsgType.TWIST, msg)
+        self._update_raw_topic(self._topics.commands.cmd_vel, RosMsgType.TWIST, msg)
 
     def _joint_callback(self, msg: JointState) -> None:
         self._latest_joints = msg
-        self._update_raw_topic(RosTopic.JOINT_STATES, RosMsgType.JOINT_STATE, msg)
+        self._update_raw_topic(self._topics.actuators.joint_states, RosMsgType.JOINT_STATE, msg)
 
     def _vision_callback(self, msg: Detection2DArray) -> None:
         self._latest_vision = msg
-        self._update_raw_topic(RosTopic.HAILO_DETECTIONS, RosMsgType.DETECTION_2D_ARRAY, msg)
+        self._update_raw_topic(self._topics.sensors.hailo_detections, RosMsgType.DETECTION_2D_ARRAY, msg)
 
     def _update_raw_topic(self, topic_name: str, msg_type: str, msg: object) -> None:
         """Track a topic's freshness/rate and snapshot it for the backend POST.

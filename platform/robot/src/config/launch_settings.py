@@ -118,3 +118,26 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # runs are pruned oldest-first once either cap is exceeded.
     bag_max_runs: int = 20
     bag_max_total_gb: float = 4.0
+    # Topics worth keeping for post-run analysis: sensor input, the vision and
+    # navigation decisions derived from it, the resulting drive command, the
+    # state machine/telemetry view of what the robot thought was happening,
+    # and the motor node's own measured speed/steering (the only ground truth
+    # for what the robot actually did, as opposed to what it was commanded).
+    #
+    # /camera/image_raw is deliberately absent: it was measured at 63 MB/s,
+    # which dwarfs everything else here combined and is what turns a race bag
+    # into a full SD card. The detections it produces are recorded instead,
+    # which is what replaying a run's decisions actually needs.
+    bag_topics: list[str] = [
+        "/scan",
+        "/imu/data",
+        "/vision/detections",
+        "/ackermann_cmd",
+        "/robot_state",
+        "/race_metrics",
+        "/system_status",
+        "/motor/drive_speed",
+        "/motor/steering_position",
+        "/tf",
+        "/tf_static",
+    ]

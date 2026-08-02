@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.enums import RiskLevel
+from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, RiskLevel
 from shared.domain.models import SectorRanges
 
 if TYPE_CHECKING:
@@ -227,6 +228,40 @@ class CollisionAvoidanceController:
         self.min_valid_range_m = min_valid_range_m
         self.threat_no_detection_range_m = threat_no_detection_range_m
 
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> CollisionAvoidanceController:
+        """Build controller from NavigationTuning parameters.
+
+        This is the preferred constructor for production code; it ensures that
+        any loaded tuning profile actually takes effect rather than being
+        silently overridden by hardcoded defaults.
+
+        Args:
+            tuning: NavigationTuning instance (usually from load_default).
+
+        Returns:
+            CollisionAvoidanceController with values from tuning.
+        """
+        return cls(
+            contact_dist=tuning.clearance.CONTACT_DIST,
+            slow_dist=tuning.clearance.SLOW_DIST,
+            fast_dist=tuning.clearance.FAST_DIST,
+            escape_rev_speed=tuning.escape.REV_SPEED,
+            escape_steer_scale=tuning.escape.REV_STEERING_SCALE,
+            stuck_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
+            path_margin=tuning.clearance.PATH_MARGIN,
+            k_turn_min_frames=tuning.escape.K_TURN_MIN_FRAMES,
+            k_turn_max_frames=tuning.escape.K_TURN_MAX_FRAMES,
+            side_correction_steer=tuning.escape.SIDE_CORRECTION_STEER,
+            side_correction_speed=tuning.escape.SIDE_CORRECTION_SPEED,
+            side_correction_frames=tuning.escape.SIDE_CORRECTION_FRAMES,
+            front_half_fov_deg=tuning.lidar.FRONT_HALF_FOV_DEG,
+            threat_half_fov_deg=tuning.lidar.THREAT_HALF_FOV_DEG,
+            self_detection_threshold_m=tuning.lidar.SELF_DETECTION_THRESHOLD_M,
+            min_valid_range_m=tuning.lidar.MIN_VALID_RANGE_M,
+            threat_no_detection_range_m=tuning.lidar.THREAT_NO_DETECTION_RANGE_M,
+        )
+
     def _forward_path_ranges(
         self,
         lidar_ranges: np.ndarray | tuple[float, ...],
@@ -297,8 +332,8 @@ class CollisionAvoidanceController:
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
-        self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.01,
+        self_detection_threshold_m: float | None = None,
+        min_valid_range_m: float | None = None,
     ) -> np.ndarray:
         """Valid ranges whose bearing falls within ``center ± half_fov``.
 
@@ -335,6 +370,13 @@ class CollisionAvoidanceController:
         if ranges.size == 0:
             return ranges
 
+        if self_detection_threshold_m is None or min_valid_range_m is None:
+            tuning = NavigationTuning.load_default()
+            if self_detection_threshold_m is None:
+                self_detection_threshold_m = tuning.lidar.SELF_DETECTION_THRESHOLD_M
+            if min_valid_range_m is None:
+                min_valid_range_m = tuning.lidar.MIN_VALID_RANGE_M
+
         if lidar_angles is None:
             angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
         else:
@@ -359,8 +401,8 @@ class CollisionAvoidanceController:
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
-        self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.01,
+        self_detection_threshold_m: float | None = None,
+        min_valid_range_m: float | None = None,
     ) -> SectorRanges:
         """Compute aggregate metrics for an angular sector as a SectorRanges."""
         ranges = CollisionAvoidanceController._sector_ranges(
@@ -508,6 +550,7 @@ class CollisionAvoidanceController:
         self,
         lidar_ranges: np.ndarray | tuple[float, ...] | None,
         lidar_angles: np.ndarray | tuple[float, ...] | None,
+        direction: Direction | None = None,
     ) -> float:
         """Steering sign that swings the nose toward the clearer side in reverse.
 
@@ -518,32 +561,56 @@ class CollisionAvoidanceController:
         into whichever wall happens to be on that side half the time; picking
         the sign from the wider of the two side clearances swings away from the
         tighter wall instead.
+
+        Neither side clearance is usable exactly when this matters most: a
+        FRONT threat fires at every corner, where both side sectors legitimately
+        see past the inner block into open track and read as no-return (or as a
+        near-tie), not as a wall. A fixed fallback there is not a rare edge
+        case, it is every corner of every lap, and always resolving it toward
+        the same side is a standing bias that never shows up in a sim whose
+        LIDAR sees the true walls cleanly enough to rarely tie at all — no
+        symmetry check catches it because it does not depend on which way
+        around the loop the round travels; it depends only on which body side
+        the fallback happens to prefer.
+
+        The loop geometry itself resolves it without guessing: going clockwise
+        around the island keeps it on the robot's right for the entire lap,
+        counterclockwise keeps it on the left, so the side away from the island
+        is the structurally safer one to swing the nose toward whenever LIDAR
+        alone cannot decide. ``direction`` is the inferred travel direction, the
+        same source ``LapDetector`` and the planned path already trust; ``None``
+        (only possible in the sliver before inference settles, a few corridor
+        widths into the round) falls back to the old fixed side rather than
+        stall the maneuver.
         """
-        if lidar_ranges is None:
+        if lidar_ranges is not None:
+            left = self._sector_to_model(
+                lidar_ranges,
+                lidar_angles,
+                math.pi / 2,
+                self.threat_half_fov_rad,
+                filter_self_detection=True,
+                self_detection_threshold_m=self.self_detection_threshold_m,
+                min_valid_range_m=self.min_valid_range_m,
+            )
+            right = self._sector_to_model(
+                lidar_ranges,
+                lidar_angles,
+                -math.pi / 2,
+                self.threat_half_fov_rad,
+                filter_self_detection=True,
+                self_detection_threshold_m=self.self_detection_threshold_m,
+                min_valid_range_m=self.min_valid_range_m,
+            )
+            if left.valid_count > 0 and right.valid_count > 0 and left.min_range_m != right.min_range_m:
+                # Swing left (negative steering while reversing) when the left is
+                # clearer; swing right (positive) when the right is clearer.
+                return -1.0 if left.min_range_m > right.min_range_m else 1.0
+        if direction is Direction.CLOCKWISE:
+            return -1.0
+        if direction is Direction.COUNTERCLOCKWISE:
             return 1.0
-        left = self._sector_to_model(
-            lidar_ranges,
-            lidar_angles,
-            math.pi / 2,
-            self.threat_half_fov_rad,
-            filter_self_detection=True,
-            self_detection_threshold_m=self.self_detection_threshold_m,
-            min_valid_range_m=self.min_valid_range_m,
-        )
-        right = self._sector_to_model(
-            lidar_ranges,
-            lidar_angles,
-            -math.pi / 2,
-            self.threat_half_fov_rad,
-            filter_self_detection=True,
-            self_detection_threshold_m=self.self_detection_threshold_m,
-            min_valid_range_m=self.min_valid_range_m,
-        )
-        left_clear = left.min_range_m if left.valid_count > 0 else 10.0
-        right_clear = right.min_range_m if right.valid_count > 0 else 10.0
-        # Swing left (negative steering while reversing) when the left is
-        # clearer; swing right (positive) when the right is clearer.
-        return -1.0 if left_clear > right_clear else 1.0
+        return 1.0
 
     def compute_escape_maneuver(
         self,
@@ -551,6 +618,7 @@ class CollisionAvoidanceController:
         threat_dir: ThreatDirection,
         lidar_ranges: np.ndarray | tuple[float, ...] | None = None,
         lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        direction: Direction | None = None,
     ) -> EscapeManeuver | None:
         """Generate escape maneuver for detected threat.
 
@@ -558,9 +626,10 @@ class CollisionAvoidanceController:
             risk: Current risk level
             threat_dir: Threat direction from detect_threat_direction()
             lidar_ranges: Current scan, used to pick the K-turn's steering side
-                (toward the clearer side, not a fixed direction). Optional —
-                omitting it keeps the K-turn steering toward the robot's right.
+                (toward the clearer side, not a fixed direction).
             lidar_angles: Per-ray bearings matching ``lidar_ranges``.
+            direction: Inferred travel direction, the fallback for the K-turn's
+                side when LIDAR alone cannot tell (see ``_k_turn_steer_sign``).
 
         Returns:
             EscapeManeuver command or None if no maneuver needed
@@ -571,7 +640,7 @@ class CollisionAvoidanceController:
         if threat_dir == ThreatDirection.FRONT:
             # K-turn: reverse while steering hard for CRITICAL risk; a shorter,
             # straight reverse to open clearance for the milder OBSTACLE risk.
-            steer_sign = self._k_turn_steer_sign(lidar_ranges, lidar_angles)
+            steer_sign = self._k_turn_steer_sign(lidar_ranges, lidar_angles, direction)
             return EscapeManeuver(
                 maneuver_type=ManeuverType.K_TURN,
                 steering=self.escape_steer_scale * steer_sign if risk == RiskLevel.CRITICAL else 0.0,

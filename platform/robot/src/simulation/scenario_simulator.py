@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs, TrafficSignSpecs
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import ScenarioMetadata
@@ -37,6 +37,7 @@ from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, Si
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import LidarScan
 from src.navigation.race_tracker import LapDetector
+from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.simulated_hardware_gateway import (
@@ -276,14 +277,27 @@ class ScenarioSimulator:
     camera confirmation path in ``sign_router.py`` via a synthetic emulator
     (``src/simulation/vision_emulator.py``).
 
-    Pose is ground truth by default. Pass ``use_lidar_localization=True`` to
-    navigate on the ``LidarLocalizer`` estimate instead — the same position
-    source the real robot uses, and otherwise exercised by no closed-loop test
-    at all. Keeping it opt-in preserves the perfect-odometry runs as a control,
-    so the difference between the two is a direct measure of what state
-    estimation costs.
+    Pose comes from the ``LidarLocalizer`` estimate by default — the same
+    position source the real robot uses. Pass ``use_lidar_localization=False``
+    for ground-truth pose, which is still useful as a control: the difference
+    between the two runs is a direct measure of what state estimation costs.
 
-    ``blind=True`` goes further and withholds the *layout*. Normally the
+    The default was ground truth until 2026-08-01, and that flattered every
+    number the sim produced. A robot handed perfect odometry is being asked an
+    easier question than the one it faces on a track, and the gap only shows up
+    where it is expensive to find. Defaults now match the hardware; make the
+    sim easier deliberately, not by omission.
+
+    ``blind`` is on by default too, for the same reason: a round the robot
+    drives knowing the corridor widths is not the round it will actually be
+    given. Note what blind still does *not* withhold — the start pose and
+    section come from the scenario, so the robot always begins knowing exactly
+    where it is standing. Real hardware has no such luxury: it falls back to
+    ``assumed_start_conditions``, a fixed guess, and on 2026-08-01 that gap is
+    what a full afternoon of on-track debugging turned out to be chasing. Use
+    ``sensor_errors`` to close it; see below.
+
+    ``blind=True`` withholds the *layout*. Normally the
     corridor widths in the metadata reach the robot twice over — the planned
     path is built from them and the localizer matches scans against a wall
     model built from them — which is only honest if someone measured the mat
@@ -309,8 +323,8 @@ class ScenarioSimulator:
         kinematics: AckermannKinematics | None = None,
         seed: int = 0,
         emit_vision_detections: bool = False,
-        use_lidar_localization: bool = False,
-        blind: bool = False,
+        use_lidar_localization: bool = True,
+        blind: bool = True,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         infer_direction: bool | None = None,
@@ -335,6 +349,39 @@ class ScenarioSimulator:
 
         true_geometry = corridor_widths_from_metadata(metadata)
         start = _start_conditions(metadata)
+
+        # Where the robot *believes* it is standing, which is not the same thing
+        # as where it is. Blind used to withhold only the layout and still hand
+        # over the exact start pose and section, so the robot began every run
+        # knowing precisely where it was -- a luxury the hardware does not have.
+        # There it falls back to assumed_start_conditions, a fixed guess of the
+        # canonical section at (1.50, 0.25); place the robot anywhere else and it
+        # plans a lap from a position a metre from the truth. On 2026-08-01 that
+        # was an afternoon of on-track debugging, and no simulated scenario could
+        # have caught it, because none of them ever started the robot anywhere
+        # but where it thought it was.
+        #
+        # The physical placement stays at `start`; the whole belief system moves
+        # together -- plan, estimator seed, IMU zero, lap line, park controller.
+        # Moving only some of them is the tempting shortcut and it is wrong: a
+        # run that steers in the true frame while counting laps in the believed
+        # one spends a partial lap reaching a finish line it never started at,
+        # which reads as a slow robot and is really just two frames disagreeing.
+        # That mistake cost a measured quarter-to-half lap per run before this
+        # was made consistent.
+        believed_start = start
+        if blind:
+            # No widths passed, so it falls back to the all-narrow prior --
+            # which is exactly what the hardware does at startup, before any
+            # corridor has been measured.
+            assumed = assumed_start_conditions(start.direction)
+            believed_start = _StartConditions(
+                section=Section.from_string(assumed[DictKeys.SECTION]),
+                direction=start.direction,
+                x=float(assumed[DictKeys.POSITION][DictKeys.X]),
+                y=float(assumed[DictKeys.POSITION][DictKeys.Y]),
+                yaw=float(assumed[DictKeys.YAW]),
+            )
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
@@ -394,6 +441,7 @@ class ScenarioSimulator:
         self._creep_widths: list[tuple[float, float]] = []
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
+        self._believed_start = believed_start
         # Provisional until inference settles. Everything built from it -- the
         # path and the lap detector's finish-line normal -- is rebuilt then.
         self._direction = start.direction
@@ -420,6 +468,9 @@ class ScenarioSimulator:
         self._gateway = SimulatedHardwareGateway(
             track=self._track,
             initial_state=AckermannState(x=start.x, y=start.y, yaw=start.yaw),
+            believed_start=AckermannState(
+                x=believed_start.x, y=believed_start.y, yaw=believed_start.yaw,
+            ),
             kinematics=kinematics,
             lidar_noise_std=lidar_noise_std,
             rng=np.random.default_rng(seed),
@@ -443,10 +494,12 @@ class ScenarioSimulator:
             else:
                 self._gateway.set_believed_walls(TrackWalls(true_geometry))
 
+        # believed_start, not start: the lap line is part of the robot's plan,
+        # so it belongs in the frame the robot thinks it is driving in.
         lap_detector = LapDetector(
-            start_pos=(start.x, start.y),
-            start_section=start.section,
-            direction=start.direction,
+            start_pos=(believed_start.x, believed_start.y),
+            start_section=believed_start.section,
+            direction=believed_start.direction,
         )
 
         sign_router: SignRouter | None = None
@@ -469,7 +522,7 @@ class ScenarioSimulator:
         self._park_controller: ParkController | None = None
         if not is_open_challenge and park:
             self._park_controller = park_controller_from_metadata(
-                metadata.model_dump(), start.section, start.direction, tuning=nav_tuning,
+                metadata.model_dump(), believed_start.section, believed_start.direction, tuning=nav_tuning,
             )
 
         self._navigator = CoreNavigator(
@@ -480,17 +533,28 @@ class ScenarioSimulator:
             sign_router=sign_router,
             lap_detector=lap_detector,
             park_controller=self._park_controller,
+            direction=self._direction,
         )
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on."""
-        from shared.domain.models import CorridorWidthEntry, CorridorWidths
+        from shared.domain.models import CorridorWidthEntry, CorridorWidths, Position2D
 
         new_widths = CorridorWidths(
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
+        # The believed start, not the true one: a path is built from where the
+        # robot thinks it is, and on hardware that is the assumed pose. Planning
+        # from the true start while the estimator runs in the believed frame
+        # would hand the robot a route to a place it does not think it is.
+        believed = self._believed_start
         new_starting = self._metadata.starting_conditions.model_copy(
-            update={"direction": str(self._direction)},
+            update={
+                "direction": str(self._direction),
+                "section": believed.section.capitalized,
+                "position": Position2D(x=believed.x, y=believed.y),
+                "yaw": believed.yaw,
+            },
         )
         planning_metadata = self._metadata.model_copy(
             update={
@@ -539,11 +603,15 @@ class ScenarioSimulator:
                 )
                 self._navigator.replace_lap_detector(
                     LapDetector(
-                        start_pos=(self._start.x, self._start.y),
-                        start_section=self._start.section,
+                        # Believed, not true: the real node has no ground truth to
+                        # leak here at all, only its belief, and the finish line
+                        # lives in whatever frame the rest of the plan is in.
+                        start_pos=(self._believed_start.x, self._believed_start.y),
+                        start_section=self._believed_start.section,
                         direction=inferred,
                     ),
                 )
+                self._navigator.set_travel_direction(inferred)
             # Replay the buffered widths now that they can be attributed.
             if self._width_estimator is not None and inferred is not None:
                 for buffered_yaw, buffered_width in self._creep_widths:
