@@ -134,19 +134,23 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--localize",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Navigate on the LidarLocalizer position estimate instead of ground-truth "
-        "pose, matching what the real robot does. The published pose stays ground "
+        "pose, matching what the real robot does. On by default; --no-localize gives "
+        "perfect odometry as a deliberate control. The published pose stays ground "
         "truth, so RViz shows where the robot actually is while it steers on the "
         "estimate — any wandering you see is state-estimation error reaching control.",
     )
     parser.add_argument(
         "--blind",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Withhold the corridor layout too, so the robot estimates the widths from "
-        "LIDAR instead of being handed them. Implies --localize. RViz shows the true "
-        "track, so a corridor the robot has mis-learned shows up as a path hugging the "
-        "wrong wall.",
+        "LIDAR instead of being handed them. On by default, since a round is never "
+        "driven knowing the widths; --no-blind hands them over. Implies --localize. "
+        "RViz shows the true track, so a corridor the robot has mis-learned shows up "
+        "as a path hugging the wrong wall.",
     )
     parser.add_argument(
         "--place-error",
@@ -240,8 +244,11 @@ class _RunOptions:
     """Everything the CLI can vary about how a scenario is driven."""
 
     rate: float = 1.0
-    localize: bool = False
-    blind: bool = False
+    # Both default on so the CLI drives the scenario the way the robot will
+    # meet it, rather than the easiest version of it. Pass --no-localize /
+    # --no-blind to relax that on purpose.
+    localize: bool = True
+    blind: bool = True
     errors: SensorErrors | None = None
     recover: bool = False
     contact_grace_s: float = 5.0

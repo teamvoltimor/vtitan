@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, RiskLevel
 from shared.domain.models import SectorRanges
 
@@ -227,6 +228,40 @@ class CollisionAvoidanceController:
         self.min_valid_range_m = min_valid_range_m
         self.threat_no_detection_range_m = threat_no_detection_range_m
 
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> CollisionAvoidanceController:
+        """Build controller from NavigationTuning parameters.
+
+        This is the preferred constructor for production code; it ensures that
+        any loaded tuning profile actually takes effect rather than being
+        silently overridden by hardcoded defaults.
+
+        Args:
+            tuning: NavigationTuning instance (usually from load_default).
+
+        Returns:
+            CollisionAvoidanceController with values from tuning.
+        """
+        return cls(
+            contact_dist=tuning.clearance.CONTACT_DIST,
+            slow_dist=tuning.clearance.SLOW_DIST,
+            fast_dist=tuning.clearance.FAST_DIST,
+            escape_rev_speed=tuning.escape.REV_SPEED,
+            escape_steer_scale=tuning.escape.REV_STEERING_SCALE,
+            stuck_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
+            path_margin=tuning.clearance.PATH_MARGIN,
+            k_turn_min_frames=tuning.escape.K_TURN_MIN_FRAMES,
+            k_turn_max_frames=tuning.escape.K_TURN_MAX_FRAMES,
+            side_correction_steer=tuning.escape.SIDE_CORRECTION_STEER,
+            side_correction_speed=tuning.escape.SIDE_CORRECTION_SPEED,
+            side_correction_frames=tuning.escape.SIDE_CORRECTION_FRAMES,
+            front_half_fov_deg=tuning.lidar.FRONT_HALF_FOV_DEG,
+            threat_half_fov_deg=tuning.lidar.THREAT_HALF_FOV_DEG,
+            self_detection_threshold_m=tuning.lidar.SELF_DETECTION_THRESHOLD_M,
+            min_valid_range_m=tuning.lidar.MIN_VALID_RANGE_M,
+            threat_no_detection_range_m=tuning.lidar.THREAT_NO_DETECTION_RANGE_M,
+        )
+
     def _forward_path_ranges(
         self,
         lidar_ranges: np.ndarray | tuple[float, ...],
@@ -297,8 +332,8 @@ class CollisionAvoidanceController:
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
-        self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.01,
+        self_detection_threshold_m: float | None = None,
+        min_valid_range_m: float | None = None,
     ) -> np.ndarray:
         """Valid ranges whose bearing falls within ``center ± half_fov``.
 
@@ -335,6 +370,13 @@ class CollisionAvoidanceController:
         if ranges.size == 0:
             return ranges
 
+        if self_detection_threshold_m is None or min_valid_range_m is None:
+            tuning = NavigationTuning.load_default()
+            if self_detection_threshold_m is None:
+                self_detection_threshold_m = tuning.lidar.SELF_DETECTION_THRESHOLD_M
+            if min_valid_range_m is None:
+                min_valid_range_m = tuning.lidar.MIN_VALID_RANGE_M
+
         if lidar_angles is None:
             angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
         else:
@@ -359,8 +401,8 @@ class CollisionAvoidanceController:
         center_rad: float,
         half_fov_rad: float,
         filter_self_detection: bool = False,
-        self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.01,
+        self_detection_threshold_m: float | None = None,
+        min_valid_range_m: float | None = None,
     ) -> SectorRanges:
         """Compute aggregate metrics for an angular sector as a SectorRanges."""
         ranges = CollisionAvoidanceController._sector_ranges(
