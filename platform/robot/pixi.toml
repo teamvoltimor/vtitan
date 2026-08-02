@@ -254,10 +254,15 @@ build-ws = "colcon build --symlink-install --merge-install --base-paths ros2_ws/
 
 [target.linux-aarch64.tasks]
 # frame_id matches static_tfs.launch.py's child_frame_id for lidar -- must stay in sync.
-# inverted:=true -- the C1 is mounted upside-down, which mirrors left/right in the raw
-# scan (confirmed empirically: front/back read correctly with just the yaw offset, but
-# left and right came out swapped until this was set).
-run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=true'"
+# inverted:=false -- re-verified 2026-08-02 against a known object placed at the
+# chassis's physical left/right: with inverted:=true (this task's setting until
+# now, from an earlier "confirmed empirically" mounting check), /scan's left and
+# right sectors read the physically opposite side -- e.g. an object at the
+# robot's true right showed up as the "left" sector's near reading. inverted:=false
+# matched the physical placement cleanly and repeatably. Whatever changed between
+# that earlier check and now (remount, cable reseat, driver update) isn't known;
+# what's confirmed is which setting matches reality today.
+run-lidar = "bash -c '. ros2_ws/install/setup.bash && ros2 launch sllidar_ros2 sllidar_c1_launch.py serial_port:=/dev/ttyUSB0 frame_id:=lidar_link inverted:=false'"
 
 # Run ON Pi 5 -- one-shot setup for a freshly-flashed Pi Zero (SSH trust,
 # .env, pixi CLI, I2C, systemd unit). Idempotent, safe to re-run. See
