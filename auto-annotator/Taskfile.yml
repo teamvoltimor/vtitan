@@ -242,6 +242,18 @@ tasks:
     cmds:
       - golangci-lint run ./...
 
+  align:api:
+    desc: Check Go struct field alignment (betteralign)
+    dir: api
+    cmds:
+      - betteralign ./...
+
+  align:fix:api:
+    desc: Auto-fix Go struct field alignment with betteralign
+    dir: api
+    cmds:
+      - betteralign -fix ./...
+
   lint:all:
     desc: Run linters on ml-service, frontend, and Go API
     aliases: [lint]
