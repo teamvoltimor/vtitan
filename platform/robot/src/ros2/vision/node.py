@@ -20,6 +20,7 @@ from std_msgs.msg import String
 from src.hardware.camera.base import Driver as CameraDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.vision import create_detector
+from src.vision.detector import DEFAULT_YOLO_MODEL_PATH
 from src.vision.overlay import annotate
 
 
@@ -35,7 +36,7 @@ class Config(HardwareBaseSettings):
 
     camera_topic: str = "/camera/image_raw"
     detections_topic: str = "/vision/detections"
-    model_path: str = "yolov8n.pt"
+    model_path: str = DEFAULT_YOLO_MODEL_PATH
     backend: str = "yolo"  # 'yolo' or 'hailo'
     # 'direct' opens the camera in this process and feeds frames straight to
     # the model -- no sensor_msgs/Image on the wire, which is what a race
