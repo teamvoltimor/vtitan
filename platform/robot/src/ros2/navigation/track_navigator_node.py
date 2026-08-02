@@ -151,6 +151,11 @@ class TrackNavigator(Node, ResettableNode):
         self._arc_radius = tuning.waypoints.ARC_RADIUS
         self._tuning = tuning
         self._direction = start_direction
+        # Kept separately from self._direction, which _commit_direction
+        # overwrites once LIDAR inference settles: reset() needs the original
+        # provisional value to restart from, not whatever direction the
+        # previous race happened to resolve to. See reset().
+        self._initial_direction = start_direction
         self._start_xy = (start_x, start_y)
         self._start_section = start_section
         # The Obstacles Challenge fixes every corridor at 1.0 m, so a blind run
@@ -518,6 +523,17 @@ class TrackNavigator(Node, ResettableNode):
         ParkController can't be rewound once its phase reaches DONE, so a
         fresh one is built the same way the first one was, from the same
         section/direction/metadata.
+
+        A blind round also rebuilds the width and direction estimators here.
+        The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
+        purely from the button, with no process restart, so without this a
+        re-run inherits the previous race's learned corridor widths and
+        resolved travel direction: _direction_estimator.is_settled stays True
+        forever once the first race infers a direction, so _resolve_direction
+        would short-circuit and the robot would drive the new race believing
+        it is still going whichever way the last one went -- observed as
+        "it keeps the old track" and, if the new race is actually the other
+        direction, as steering the wrong way from the first waypoint.
         """
         self._gateway.reset_heading_reference()
         # Re-stamp anything measured before the start to the heading frame that
@@ -528,6 +544,17 @@ class TrackNavigator(Node, ResettableNode):
         # known to be sitting at its starting pose, so "the heading it has now"
         # and "the heading those readings were taken at" are the same.
         self._creep_widths = [(0.0, width) for _, width in self._creep_widths]
+
+        self._direction = self._initial_direction
+        if self._blind:
+            self._width_estimator = CorridorWidthEstimator(
+                assumed_width=CorridorDimensions.NARROW
+                if self._is_open_challenge
+                else CorridorDimensions.OBSTACLES_WIDTH,
+            )
+            self._direction_estimator = DirectionEstimator()
+            self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
+
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
             park_controller = park_controller_from_metadata(
@@ -537,6 +564,18 @@ class TrackNavigator(Node, ResettableNode):
                 tuning=self._tuning,
             )
         self._core_navigator.replace_park_controller(park_controller)
+        # The previous race's lap detector counts crossings against whatever
+        # direction it resolved to, and carries a pending-waypoint flag from
+        # wherever the robot last was on the loop -- neither belongs to a
+        # race that hasn't started yet.
+        self._core_navigator.replace_lap_detector(
+            LapDetector(
+                start_pos=self._start_xy,
+                start_section=self._start_section,
+                direction=self._direction,
+            ),
+        )
+        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), self._start_xy)
         self._core_navigator.reset()
 
     def _control_loop(self) -> None:
