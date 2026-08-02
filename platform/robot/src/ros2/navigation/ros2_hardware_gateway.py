@@ -27,6 +27,7 @@ from shared.domain.models import CorridorGeometry, Detection, IMUReading, Pose, 
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
+from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import LidarLocalizer
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
@@ -51,13 +52,6 @@ already in the correct robot frame and never models the raw LIDAR
 mounting frame at all.
 """
 
-_DRIVE_JOINT = "drive_wheel"
-"""Drive-wheel joint name on /joint_states.
-
-Must match ackermann_motor_node's ``_DRIVE_JOINT``; the topic-contract test
-pins the two together, since a rename on either side would otherwise just stop
-producing odometry with no error anywhere.
-"""
 
 def _topic(node: Node, name: str, default: str) -> str:
     """Resolve a topic parameter, declaring it if the host node has not.
@@ -175,7 +169,7 @@ class ROS2HardwareGateway(HardwareGateway):
         the drive wheel would break silently the moment another joint is added.
         """
         try:
-            i = msg.name.index(_DRIVE_JOINT)
+            i = msg.name.index(DRIVE_JOINT)
         except ValueError:
             return
         if i >= len(msg.position):

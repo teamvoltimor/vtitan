@@ -6,6 +6,7 @@ from shared.domain.models import Detection
 
 from src.vision.detector import (
     DEFAULT_CLASS_TO_COLOR,
+    DEFAULT_YOLO_MODEL_PATH,
     BBoxFormat,
     DetectorBase,
     DetectorConfig,
@@ -58,7 +59,7 @@ def create_detector(backend: VisionBackend | str = VisionBackend.YOLO, config: D
     backend = VisionBackend(backend) if isinstance(backend, str) else backend
     if backend == VisionBackend.YOLO:
         if config is None:
-            config = DetectorConfig(model_path="yolov8n.pt", class_to_color=DEFAULT_CLASS_TO_COLOR)
+            config = DetectorConfig(model_path=DEFAULT_YOLO_MODEL_PATH, class_to_color=DEFAULT_CLASS_TO_COLOR)
         return LocalYoloDetector(config)
     if backend == VisionBackend.HAILO:
         try:

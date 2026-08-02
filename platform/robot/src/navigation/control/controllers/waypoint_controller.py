@@ -94,7 +94,7 @@ class WaypointController:
             lookahead_transition=tuning.pursuit.LOOKAHEAD_TRANSITION,
             steer_kp=tuning.pursuit.STEER_KP,
             max_steering_rate=tuning.pursuit.MAX_STEERING_RATE,
-            waypoint_reached_distance_m=tuning.waypoint.CONTROLLER_REACHED_DISTANCE_M,
+            waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
         )
 
     def select_lookahead(self, forward_clearance: float) -> float:

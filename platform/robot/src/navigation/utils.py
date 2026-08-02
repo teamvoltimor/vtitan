@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 
 _tuning = NavigationTuning.load_default()
 # Sourced from tuning rather than hardcoded, so TOML edits take effect everywhere.
-_FORWARD_ARC_RAD = math.radians(_tuning.lidar.FRONT_HALF_FOV_DEG)
-_MIN_VALID_RANGE_M = _tuning.lidar.MIN_VALID_RANGE_M
+_FORWARD_ARC_RAD = math.radians(_tuning.lidar_sectors.FRONT_HALF_FOV_DEG)
+_MIN_VALID_RANGE_M = _tuning.lidar_sectors.MIN_VALID_RANGE_M
 # Alignment tolerance: 25 deg is HEADING_ERROR_ZONES.MEDIUM from tuning
-_ALIGNMENT_TOLERANCE_RAD = _tuning.heading_error.MEDIUM
+_ALIGNMENT_TOLERANCE_RAD = _tuning.heading.MEDIUM
 
 
 def _wrap(angle: float) -> float:

@@ -290,6 +290,13 @@ class LidarSectorParams(BaseModel):
     THREAT_NO_DETECTION_RANGE_M: float = Field(
         default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")
     )
+    NO_DATA_RANGE_M: float = Field(
+        default=10.0, validation_alias=_alias("NO_DATA_RANGE_M")
+    )
+    """Fallback range (m) when no valid LIDAR readings are available.
+
+    Used as sentinel value in sector computations when all rays are invalid.
+    Conservative estimate between min (0.05m) and max (12m) sensor range."""
 
 
 class SignRouterParams(BaseModel):

@@ -511,11 +511,12 @@ tasks:
         - ACTION
     vars:
       # Order matters on up: the backend should be accepting gRPC before the
-      # robot's telemetry bridge starts dialling it, and the lidar should be
-      # publishing /scan before the nodes that consume it come up. `down`
-      # reverses this.
-      UNITS: vtitan-backend.service vtitan-lidar.service vtitan-pi5.service
-      UNITS_REVERSED: vtitan-pi5.service vtitan-lidar.service vtitan-backend.service
+      # robot's telemetry bridge starts dialling it, the lidar should be
+      # publishing /scan before the nodes that consume it come up, and the
+      # race navigator (Wants=vtitan-pi5.service) needs pi5's topics already
+      # there. `down` reverses this.
+      UNITS: vtitan-backend.service vtitan-lidar.service vtitan-pi5.service vtitan-race.service
+      UNITS_REVERSED: vtitan-race.service vtitan-pi5.service vtitan-lidar.service vtitan-backend.service
     cmds:
       - cmd: |
           case "{{.ACTION}}" in
@@ -523,7 +524,7 @@ tasks:
             down) sudo systemctl stop {{.UNITS_REVERSED}} && echo "Stopped: {{.UNITS_REVERSED}}" ;;
             restart) sudo systemctl stop {{.UNITS_REVERSED}} && sudo systemctl start {{.UNITS}} ;;
             status) systemctl status --no-pager {{.UNITS}} ;;
-            logs) journalctl -u vtitan-backend -u vtitan-lidar -u vtitan-pi5 -n 80 --no-pager ;;
+            logs) journalctl -u vtitan-backend -u vtitan-lidar -u vtitan-pi5 -u vtitan-race -n 80 --no-pager ;;
             *) echo "Unknown ACTION: {{.ACTION}}. Use up|down|restart|status|logs" && exit 1 ;;
           esac
 

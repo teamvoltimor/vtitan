@@ -24,6 +24,16 @@ from dataclasses import dataclass
 STEERING_CENTER_DEG = 0.0
 """Absolute steering angle (deg) for wheels-straight, by convention."""
 
+DEFAULT_STEERING_SPEED = 20
+"""Default steering move speed (deg/s) used when a caller does not give one.
+
+Mirrors motors.toml:steering.centering_speed. Kept as a plain literal here
+rather than reading the pydantic-settings ``Config`` at import time: this is
+the abstract driver interface, and every servo.centering_speed override
+already reaches the concrete drivers (servo/driver.py, build_hat/driver.py)
+through their own config, not through this default -- it only matters for a
+caller that omits ``speed`` entirely."""
+
 
 @dataclass(frozen=True)
 class CalibrationData:

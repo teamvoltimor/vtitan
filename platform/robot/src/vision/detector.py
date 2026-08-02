@@ -41,6 +41,9 @@ DEFAULT_CLASS_TO_COLOR: dict[int, TrafficSignColor] = {
     class_id: TrafficSignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
 }
 
+DEFAULT_YOLO_MODEL_PATH = "yolov8n.pt"
+"""Default YOLO model path for test/debug scenarios. Production paths come from config."""
+
 
 class BBoxFormat(Enum):
     """Output bounding-box coordinate convention."""
@@ -97,7 +100,7 @@ class DetectorConfig(HardwareBaseSettings):
 
     model_path: str
     class_to_color: dict[int, TrafficSignColor]
-    min_confidence: float = 0.25
+    min_confidence: float = 0.45
     output_format: BBoxFormat = BBoxFormat.NORMALIZED
 
     def get_color(self, class_id: int) -> TrafficSignColor | None:
@@ -134,7 +137,7 @@ class LocalYoloDetector(DetectorBase):
 
         if config is None:
             config = DetectorConfig(
-                model_path="yolov8n.pt",
+                model_path=DEFAULT_YOLO_MODEL_PATH,
                 class_to_color=DEFAULT_CLASS_TO_COLOR,
             )
 

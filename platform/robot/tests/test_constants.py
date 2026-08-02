@@ -203,9 +203,9 @@ CORRIDORS = [CORRIDOR_SOUTH, CORRIDOR_NORTH, CORRIDOR_EAST, CORRIDOR_WEST]
 CHALLENGE_TYPE_OPEN = "open"
 CHALLENGE_TYPE_OBSTACLES = "obstacles"
 
-# Direction Strings
+# Direction Strings (should match shared.domain.enums.Direction values)
 DIRECTION_CLOCKWISE = "clockwise"
-DIRECTION_COUNTER_CLOCKWISE = "counter_clockwise"
+DIRECTION_COUNTER_CLOCKWISE = "counterclockwise"
 
 # Self-Detection & Sensor Filtering
 SELF_DETECTION_RADIUS = 0.08  # m — chassis/cable reflection threshold
