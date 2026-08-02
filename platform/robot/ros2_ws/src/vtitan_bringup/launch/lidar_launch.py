@@ -34,9 +34,11 @@ def generate_launch_description() -> LaunchDescription:
                         "serial_baudrate": 460800,
                         # Matches static_tfs.launch.py's child_frame_id -- must stay in sync.
                         "frame_id": "lidar_link",
-                        # C1 is mounted upside-down -- mirrors left/right in the raw scan
-                        # without this. Confirmed empirically during sensor verification.
-                        "inverted": True,
+                        # Re-verified 2026-08-02 against a known object placed at the
+                        # chassis's physical left/right -- see run-lidar's pixi.toml
+                        # comment for the full story. inverted:=True (this file's
+                        # setting until now) read the physically opposite side.
+                        "inverted": False,
                         "angle_compensate": True,
                         "scan_mode": "Standard",
                     },
