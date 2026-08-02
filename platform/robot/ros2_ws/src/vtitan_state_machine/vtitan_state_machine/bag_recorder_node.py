@@ -51,6 +51,12 @@ _QOS_ROBOT_STATE = QoSProfile(
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
 
+# Fallback only -- race.launch.py always passes "topics" explicitly, sourced
+# from RaceLaunchDefaults.bag_topics (platform/robot/src/config/launch_settings.py)
+# so it stays configurable via config/launch/race.toml like the rest of this
+# node's parameters. This default only matters if the node is ever run
+# standalone (e.g. `ros2 run vtitan_state_machine bag_recorder_node`).
+#
 # Deliberately excludes /camera/image_raw. The camera was measured publishing
 # 63 MB/s, which on this hardware is the difference between a bag that fits on
 # the card and one that does not -- and the frames are reconstructible from the
@@ -65,6 +71,8 @@ _DEFAULT_TOPICS = [
     "/robot_state",
     "/race_metrics",
     "/system_status",
+    "/motor/drive_speed",
+    "/motor/steering_position",
     "/tf",
     "/tf_static",
 ]

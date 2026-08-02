@@ -30,26 +30,6 @@ from src.config.launch_settings import RaceLaunchDefaults
 
 _race_defaults = RaceLaunchDefaults()
 
-# Topics worth keeping for post-run analysis: sensor input, the vision and
-# navigation decisions derived from it, the resulting drive command, and the
-# state machine/telemetry view of what the robot thought was happening.
-#
-# /camera/image_raw is deliberately absent: it was measured at 63 MB/s, which
-# dwarfs everything else here combined and is what turns a race bag into a full
-# SD card. The detections it produces are recorded instead, which is what
-# replaying a run's decisions actually needs.
-_BAG_TOPICS = [
-    "/scan",
-    "/imu/data",
-    "/vision/detections",
-    "/ackermann_cmd",
-    "/robot_state",
-    "/race_metrics",
-    "/system_status",
-    "/tf",
-    "/tf_static",
-]
-
 
 def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list:
     metadata = LaunchConfiguration("metadata").perform(context)
@@ -96,7 +76,7 @@ def _launch_setup(context: LaunchContext, *_args, **_kwargs) -> list:
                 parameters=[
                     {
                         "bag_dir": LaunchConfiguration("bag_dir").perform(context),
-                        "topics": _BAG_TOPICS,
+                        "topics": _race_defaults.bag_topics,
                         "max_runs": _race_defaults.bag_max_runs,
                         "max_total_gb": _race_defaults.bag_max_total_gb,
                     },
