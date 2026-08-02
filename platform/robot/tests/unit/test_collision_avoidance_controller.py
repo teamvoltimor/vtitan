@@ -138,6 +138,51 @@ class TestKTurnSteersTowardClearerSide:
         assert maneuver.steering > 0
 
 
+class TestSideCorrectionFlipsSignWhenReversing:
+    """Ackermann reverse flips yaw response (see TestKTurnSteersTowardClearerSide),
+    and SIDE_CORRECTION switches to reverse exactly when already touching the
+    threatened side. A fixed steering sign there drives the nose further into
+    the wall it is already touching instead of away from it -- measured on
+    hardware pinning a side at 4.5 cm for the rest of a run that never
+    recovered, reversing repeatedly without ever creating separation.
+    """
+
+    def test_left_threat_creeping_steers_right(self, controller):
+        ranges = _scan()
+        i = _index_for(math.pi / 2)
+        ranges[i - 6 : i + 6] = 0.20  # left threat, not yet touching (> contact_dist)
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "left", ranges, ANGLES)
+        assert maneuver.speed > 0  # creeping forward, not reversing
+        assert maneuver.steering < 0  # forward frame: negative swings the nose right
+
+    def test_left_threat_touching_reverses_and_flips_sign(self, controller):
+        ranges = _scan()
+        i = _index_for(math.pi / 2)
+        # Between self_detection_threshold_m (0.08, filtered as chassis
+        # reflection below this) and contact_dist (0.10, "already touching" at
+        # or below this).
+        ranges[i - 6 : i + 6] = 0.09
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "left", ranges, ANGLES)
+        assert maneuver.speed < 0  # reversing
+        assert maneuver.steering > 0  # reverse frame: positive swings the nose right, still away
+
+    def test_right_threat_creeping_steers_left(self, controller):
+        ranges = _scan()
+        i = _index_for(-math.pi / 2)
+        ranges[i - 6 : i + 6] = 0.20  # right threat, not yet touching
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "right", ranges, ANGLES)
+        assert maneuver.speed > 0
+        assert maneuver.steering > 0  # forward frame: positive swings the nose left
+
+    def test_right_threat_touching_reverses_and_flips_sign(self, controller):
+        ranges = _scan()
+        i = _index_for(-math.pi / 2)
+        ranges[i - 6 : i + 6] = 0.09  # already touching, above the self-detection filter
+        maneuver = controller.compute_escape_maneuver(RiskLevel.CRITICAL, "right", ranges, ANGLES)
+        assert maneuver.speed < 0
+        assert maneuver.steering < 0  # reverse frame: negative swings the nose left, still away
+
+
 class TestSelfDetectionFilter:
     """Chassis/cable reflections at <= 0.08 m on side/rear sectors must not
     permanently read as a wall — that would block every reverse escape.

@@ -408,6 +408,7 @@ class CollisionAvoidanceController:
         filter_self_detection: bool = False,
         self_detection_threshold_m: float | None = None,
         min_valid_range_m: float | None = None,
+        no_data_range_m: float | None = None,
     ) -> SectorRanges:
         """Compute aggregate metrics for an angular sector as a SectorRanges."""
         ranges = CollisionAvoidanceController._sector_ranges(
@@ -419,12 +420,14 @@ class CollisionAvoidanceController:
             self_detection_threshold_m,
             min_valid_range_m,
         )
+        if no_data_range_m is None:
+            no_data_range_m = NavigationTuning.load_default().lidar_sectors.NO_DATA_RANGE_M
         return SectorRanges(
             bearing_rad=center_rad,
             half_fov_rad=half_fov_rad,
-            mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else self.no_data_range_m,
-            min_range_m=float(np.min(ranges)) if ranges.size > 0 else self.no_data_range_m,
-            max_range_m=float(np.max(ranges)) if ranges.size > 0 else self.no_data_range_m,
+            mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else no_data_range_m,
+            min_range_m=float(np.min(ranges)) if ranges.size > 0 else no_data_range_m,
+            max_range_m=float(np.max(ranges)) if ranges.size > 0 else no_data_range_m,
             valid_count=int(ranges.size),
         )
 
@@ -452,6 +455,7 @@ class CollisionAvoidanceController:
             self.front_half_fov_rad,
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
+            no_data_range_m=self.no_data_range_m,
         )
         return sr.mean_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -478,6 +482,7 @@ class CollisionAvoidanceController:
             filter_self_detection=True,
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
+            no_data_range_m=self.no_data_range_m,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -500,7 +505,12 @@ class CollisionAvoidanceController:
             return self.no_data_range_m
 
         sr = self._sector_to_model(
-            lidar_ranges, lidar_angles, center_rad, half_fov_rad, min_valid_range_m=self.min_valid_range_m,
+            lidar_ranges,
+            lidar_angles,
+            center_rad,
+            half_fov_rad,
+            min_valid_range_m=self.min_valid_range_m,
+            no_data_range_m=self.no_data_range_m,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -534,6 +544,7 @@ class CollisionAvoidanceController:
                 filter_self_detection,
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
+                no_data_range_m=self.no_data_range_m,
             )
             return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -578,15 +589,30 @@ class CollisionAvoidanceController:
         around the loop the round travels; it depends only on which body side
         the fallback happens to prefer.
 
-        The loop geometry itself resolves it without guessing: going clockwise
-        around the island keeps it on the robot's right for the entire lap,
-        counterclockwise keeps it on the left, so the side away from the island
-        is the structurally safer one to swing the nose toward whenever LIDAR
-        alone cannot decide. ``direction`` is the inferred travel direction, the
-        same source ``LapDetector`` and the planned path already trust; ``None``
-        (only possible in the sliver before inference settles, a few corridor
-        widths into the round) falls back to the old fixed side rather than
-        stall the maneuver.
+        The loop geometry itself resolves the *remaining* tie without guessing:
+        going clockwise around the island keeps it on the robot's right for the
+        entire lap, counterclockwise keeps it on the left, so the side away
+        from the island is the structurally safer one to swing the nose toward
+        when LIDAR gives no side any edge at all. ``direction`` is the inferred
+        travel direction, the same source ``LapDetector`` and the planned path
+        already trust; ``None`` (only possible in the sliver before inference
+        settles, a few corridor widths into the round) falls back to the old
+        fixed side rather than stall the maneuver.
+
+        A side with no valid ray is not the same as a tie: it means nothing
+        registered within sensor range on that side at all, which is itself
+        the clearest possible "open" reading -- most sharply so pinned against
+        a wall, where the jammed side reads a real, close, valid return and
+        the free side legitimately has nothing to reflect off within range.
+        Requiring both sides to have a valid ray before trusting the
+        comparison (an earlier version of this method did) throws away exactly
+        that reading and falls through to the direction-based guess instead,
+        which reasons about the island and has nothing to say about a chassis
+        pinned against the *outer* wall -- measured pinning the right side at
+        4.5 cm for the remainder of a run that never recovered. Substituting
+        ``no_data_range_m`` for a missing side keeps that signal instead of
+        discarding it; the direction fallback below now only fires when
+        neither side has anything to say.
         """
         if lidar_ranges is not None:
             left = self._sector_to_model(
@@ -597,6 +623,7 @@ class CollisionAvoidanceController:
                 filter_self_detection=True,
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
+                no_data_range_m=self.no_data_range_m,
             )
             right = self._sector_to_model(
                 lidar_ranges,
@@ -606,11 +633,15 @@ class CollisionAvoidanceController:
                 filter_self_detection=True,
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
+                no_data_range_m=self.no_data_range_m,
             )
-            if left.valid_count > 0 and right.valid_count > 0 and left.min_range_m != right.min_range_m:
-                # Swing left (negative steering while reversing) when the left is
-                # clearer; swing right (positive) when the right is clearer.
-                return -1.0 if left.min_range_m > right.min_range_m else 1.0
+            if left.valid_count > 0 or right.valid_count > 0:
+                left_clear = left.min_range_m if left.valid_count > 0 else self.no_data_range_m
+                right_clear = right.min_range_m if right.valid_count > 0 else self.no_data_range_m
+                if left_clear != right_clear:
+                    # Swing left (negative steering while reversing) when the left is
+                    # clearer; swing right (positive) when the right is clearer.
+                    return -1.0 if left_clear > right_clear else 1.0
         if direction is Direction.CLOCKWISE:
             return -1.0
         if direction is Direction.COUNTERCLOCKWISE:
@@ -656,23 +687,35 @@ class CollisionAvoidanceController:
 
         if threat_dir == ThreatDirection.LEFT:
             # Threat on the left — steer right (away). Positive steering is left
-            # (CCW) throughout the stack, so steering away from a left threat is
-            # negative.
+            # (CCW) throughout the stack for FORWARD travel, so the creeping
+            # (non-touching) correction is negative.
+            #
+            # Already touching switches speed to reverse, and Ackermann reverse
+            # flips the yaw response relative to forward (see
+            # _k_turn_steer_sign's docstring for the physics), so the sign has
+            # to flip with it. A fixed negative sign here drove the nose
+            # further into the wall it was already touching instead of away
+            # from it whenever this branch reversed -- measured pinning a side
+            # at 4.5cm clearance for the rest of a run that never recovered.
             already_touching = self._side_clearance(math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
+            steer_sign = 1.0 if already_touching else -1.0
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
-                steering=-self.side_correction_steer,
+                steering=steer_sign * self.side_correction_steer,
                 speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
                 duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
                 priority=1,
             )
 
         if threat_dir == ThreatDirection.RIGHT:
-            # Threat on the right — steer left (away): positive steering.
+            # Threat on the right — steer left (away): positive steering while
+            # creeping forward, negative once already touching and reversing,
+            # for the same reverse-flips-yaw reason as the LEFT branch above.
             already_touching = self._side_clearance(-math.pi / 2, lidar_ranges, lidar_angles) < self.contact_dist
+            steer_sign = -1.0 if already_touching else 1.0
             return EscapeManeuver(
                 maneuver_type=ManeuverType.SIDE_CORRECTION,
-                steering=self.side_correction_steer,
+                steering=steer_sign * self.side_correction_steer,
                 speed=self.escape_rev_speed if already_touching else self.side_correction_speed,
                 duration_frames=self.k_turn_min_frames if already_touching else self.side_correction_frames,
                 priority=1,
@@ -711,5 +754,6 @@ class CollisionAvoidanceController:
             filter_self_detection=True,
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
+            no_data_range_m=self.no_data_range_m,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
