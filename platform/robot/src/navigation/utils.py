@@ -12,14 +12,12 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-_FORWARD_ARC_RAD = math.radians(8.0)
-# Read from lidar_sectors.toml rather than restated. This module's callers
-# (corridor_follower, direction_estimator) have no tuning-injection path, which
-# is why it sits at module level -- but "keep the two values in sync if either
-# changes" is not a mechanism, it is a hope, and the same arrangement in the
-# sign router already produced a TOML value with no reader at all.
-_MIN_VALID_RANGE_M = NavigationTuning.load_default().lidar_sectors.MIN_VALID_RANGE_M
-_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
+_tuning = NavigationTuning.load_default()
+# Sourced from tuning rather than hardcoded, so TOML edits take effect everywhere.
+_FORWARD_ARC_RAD = math.radians(_tuning.lidar.FRONT_HALF_FOV_DEG)
+_MIN_VALID_RANGE_M = _tuning.lidar.MIN_VALID_RANGE_M
+# Alignment tolerance: 25 deg is HEADING_ERROR_ZONES.MEDIUM from tuning
+_ALIGNMENT_TOLERANCE_RAD = _tuning.heading_error.MEDIUM
 
 
 def _wrap(angle: float) -> float:

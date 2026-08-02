@@ -29,6 +29,7 @@ from enum import StrEnum
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import BlockPosition, ParkingLot
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ class ParkCommand:
     linear: float  # m/s
     steering: float  # normalised [-1, 1]
     done: bool = False
-    phase: str = "stage"
+    phase: ParkPhase = ParkPhase.STAGE
 
 
 class ParkPhase(StrEnum):
@@ -282,7 +283,7 @@ class ParkController:
             ParkCommand with speed, normalised steering, and done flag.
         """
         if self._phase is ParkPhase.DONE:
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         self._frames_elapsed += 1
         if self._frames_elapsed > self._max_frames:
@@ -292,14 +293,14 @@ class ParkController:
             )
             self._timed_out = True
             self._phase = ParkPhase.DONE
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         # Early exit: if already inside the zone at any phase, we're done.
         pos_inside, yaw_ok = _inside_zone(robot_pos[0], robot_pos[1], robot_yaw, self._zone)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE — already inside zone")
             self._phase = ParkPhase.DONE
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         if self._phase is ParkPhase.STAGE:
             return self._handle_stage(robot_pos, robot_yaw)
@@ -312,7 +313,7 @@ class ParkController:
         robot_pos: tuple[float, float],
         robot_yaw: float,
         target: tuple[float, float],
-        phase_name: str,
+        phase_name: ParkPhase,
     ) -> ParkCommand:
         """Curvature-based pure pursuit of ``target``, with reverse-and-reorient recovery.
 
@@ -365,7 +366,7 @@ class ParkController:
         robot_pos: tuple[float, float],
         robot_yaw: float,
         target: tuple[float, float],
-        phase_name: str,
+        phase_name: ParkPhase,
         reason: str,
     ) -> ParkCommand:
         """Latch a reverse-and-reorient recovery burst. See _pursue_with_reposition."""
@@ -403,7 +404,7 @@ class ParkController:
             self._phase = ParkPhase.ENTER
             return self._handle_enter(robot_pos, robot_yaw)
 
-        return self._pursue_with_reposition(robot_pos, robot_yaw, (tx, ty), "stage")
+        return self._pursue_with_reposition(robot_pos, robot_yaw, (tx, ty), ParkPhase.STAGE)
 
     def _handle_enter(
         self,
@@ -417,21 +418,21 @@ class ParkController:
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE — fully inside the lot, wall-parallel")
             self._phase = ParkPhase.DONE
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         if _footprint_breaches_wall(rx, ry, robot_yaw, z):
             logger.warning("ParkController: giving up — footprint reached the field wall without parking")
             self._timed_out = True
             self._phase = ParkPhase.DONE
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         if _footprint_breaches_markers(rx, ry, robot_yaw, z):
             logger.warning("ParkController: giving up — footprint reached a marker fin without parking")
             self._timed_out = True
             self._phase = ParkPhase.DONE
-            return ParkCommand(linear=0.0, steering=0.0, done=True, phase="done")
+            return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
-        return self._pursue_with_reposition(robot_pos, robot_yaw, (z.gap_cx, z.gap_cy), "enter")
+        return self._pursue_with_reposition(robot_pos, robot_yaw, (z.gap_cx, z.gap_cy), ParkPhase.ENTER)
 
 
 # Pure helpers

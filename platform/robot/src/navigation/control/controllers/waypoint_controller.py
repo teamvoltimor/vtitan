@@ -74,6 +74,29 @@ class WaypointController:
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self._prev_steering_rad = 0.0
 
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> WaypointController:
+        """Build controller from NavigationTuning parameters.
+
+        The steer_kp default has drifted before (1.5 vs 1.2); this constructor
+        ensures the tuning profile's value is actually used.
+
+        Args:
+            tuning: NavigationTuning instance (usually from load_default).
+
+        Returns:
+            WaypointController with values from tuning.
+        """
+        return cls(
+            max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
+            lookahead_short=tuning.pursuit.LOOKAHEAD_SHORT,
+            lookahead_long=tuning.pursuit.LOOKAHEAD_LONG,
+            lookahead_transition=tuning.pursuit.LOOKAHEAD_TRANSITION,
+            steer_kp=tuning.pursuit.STEER_KP,
+            max_steering_rate=tuning.pursuit.MAX_STEERING_RATE,
+            waypoint_reached_distance_m=tuning.waypoint.CONTROLLER_REACHED_DISTANCE_M,
+        )
+
     def select_lookahead(self, forward_clearance: float) -> float:
         """Select lookahead distance based on forward clearance.
 

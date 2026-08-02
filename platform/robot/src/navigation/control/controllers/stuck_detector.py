@@ -70,6 +70,23 @@ class StuckDetector:
         self.stuck_count = 0
         self.is_stuck = False
 
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> StuckDetector:
+        """Build detector from NavigationTuning parameters.
+
+        Args:
+            tuning: NavigationTuning instance (usually from load_default).
+
+        Returns:
+            StuckDetector with values from tuning.
+        """
+        return cls(
+            move_threshold=tuning.escape.STUCK_MOVE_THRESHOLD,
+            timeout_frames=tuning.escape.STUCK_TIMEOUT_FRAMES,
+            history_size=max(tuning.escape.STUCK_TIMEOUT_FRAMES * 2, 60),
+            confirmation_checks=tuning.escape.STUCK_CONFIRMATION_CHECKS,
+        )
+
     def update(self, current_pos: tuple[float, float]) -> bool:
         """Update detector with current position.
 
