@@ -70,7 +70,13 @@ export function LidarRadarChart({ data, expanded }: { data: LaserScanMsg; expand
 
   return (
     <div className="specialized-viz radar-viz">
-      <canvas ref={canvasRef} width={size} height={size} />
+      <canvas
+        ref={canvasRef}
+        width={size}
+        height={size}
+        role="img"
+        aria-label="LIDAR range radar"
+      />
     </div>
   );
 }

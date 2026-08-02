@@ -3,7 +3,6 @@
 
 // Backward-compat aliases for renamed generated types.
 export type {
-  ConfigResponse,
   Detection,
   HealthResponse,
   ImuData,
@@ -12,8 +11,6 @@ export type {
   Position3d as Position3D,
   SessionResponse,
   SessionResponse as ReplaySessionInfo,
-  SpeedRequest,
-  SpeedUpdateResponse,
   TelemetryMetrics,
   TopicsSnapshot,
   TopicUpdate,
