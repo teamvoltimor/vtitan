@@ -21,9 +21,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-DEFAULT_STEERING_SPEED = 20
-"""Default steering move speed (deg/s) used when a caller does not give one."""
-
 STEERING_CENTER_DEG = 0.0
 """Absolute steering angle (deg) for wheels-straight, by convention."""
 

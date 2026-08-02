@@ -12,7 +12,6 @@ from pydantic_settings import SettingsConfigDict
 os.environ.setdefault("BLINKA_MCP2221", "1")
 
 from src.hardware.imu.bno08x.uart_rvc import (
-    DEFAULT_SERIAL_PORT,
     SERIAL_TIMEOUT,
     Config as UARTRVCConfig,
     Driver as UARTRVCDriver,
@@ -102,8 +101,8 @@ class Driver(UARTRVCDriver):
         if not port:
             port = self.find_mcp2221_port()
             if not port:
-                self.logger.warning(f"MCP2221 auto-detect failed, using {DEFAULT_SERIAL_PORT}")
-                port = DEFAULT_SERIAL_PORT
+                port = self.config.default_port
+                self.logger.warning(f"MCP2221 auto-detect failed, using configured default port {port}")
 
         self.logger.info(
             "Connecting to BNO08x via MCP2221",
