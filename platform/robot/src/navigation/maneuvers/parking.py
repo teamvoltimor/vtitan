@@ -219,6 +219,28 @@ class ParkController:
             direction,
         )
 
+    @classmethod
+    def from_tuning(cls, parking_config: ParkingLot, start_section: Section, direction: Direction, tuning: NavigationTuning | None = None) -> ParkController:
+        """Build controller from tuning parameters.
+
+        Args:
+            parking_config: Parking lot geometry configuration.
+            start_section: Starting section of the parking lot.
+            direction: Travel direction.
+            tuning: NavigationTuning instance (defaults to load_default).
+
+        Returns:
+            ParkController with values from tuning.
+        """
+        tuning = tuning or NavigationTuning.load_default()
+        return cls(
+            parking_config=parking_config,
+            start_section=start_section,
+            direction=direction,
+            speed=tuning.parking.SPEED,
+            max_frames=tuning.parking.DEFAULT_MAX_FRAMES,
+        )
+
     @property
     def is_repositioning(self) -> bool:
         """Whether STAGE is mid reverse-and-reorient recovery (see _handle_stage).
