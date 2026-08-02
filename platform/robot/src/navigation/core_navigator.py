@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import RiskLevel
+from shared.domain.enums import Direction, RiskLevel
 
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
@@ -50,6 +50,7 @@ class CoreNavigator:
         sign_router: SignRouter | None = None,
         lap_detector: LapDetector | None = None,
         park_controller: ParkController | None = None,
+        direction: Direction | None = None,
     ) -> None:
         self._gateway = gateway
         self._waypoints = waypoints
@@ -57,6 +58,10 @@ class CoreNavigator:
         self._tuning = tuning or NavigationTuning.load_default()
         self._sign_router = sign_router
         self._lap_detector = lap_detector
+        # Best current guess of travel direction, same source LapDetector and
+        # the planned path already trust. ``None`` only in the sliver before
+        # LIDAR inference settles; see ``set_travel_direction``.
+        self._direction = direction
 
         self._waypoint_index = 0
         self._laps_completed = 0
@@ -226,6 +231,16 @@ class CoreNavigator:
         finish line is re-crossed.
         """
         self._lap_detector = lap_detector
+
+    def set_travel_direction(self, direction: Direction) -> None:
+        """Adopt the (re-)inferred travel direction.
+
+        Called alongside ``replace_lap_detector`` whenever inference settles or
+        revises its answer. Consumed by the collision-avoidance escape maneuver
+        as the fallback side when a LIDAR-only clearance comparison cannot
+        decide one (see ``CollisionAvoidanceController._k_turn_steer_sign``).
+        """
+        self._direction = direction
 
     @property
     def laps_completed(self) -> int:
@@ -465,6 +480,7 @@ class CoreNavigator:
                 threat_dir,
                 escape_ranges,
                 scan.angles_rad,
+                self._direction,
             )
             # Rear clearance is checked against the RAW scan: a sign behind the
             # robot is still something to not reverse into, whoever owns it.
