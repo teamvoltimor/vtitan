@@ -40,6 +40,9 @@ class Config(HardwareBaseSettings):
     port: str
     """Serial port for UART connection. If empty, the driver will attempt to auto-detect the port based on VID/PID."""
 
+    default_port: str = "/dev/ttyACM0"
+    """Fallback port when port is not configured and MCP2221 auto-detect fails."""
+
     baudrate: int = 115200
     """Baud rate for UART communication. The BNO08x RVC library typically uses 115200 baud."""
 
