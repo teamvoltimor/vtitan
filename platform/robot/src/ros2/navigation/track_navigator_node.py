@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import statistics
 from pathlib import Path
 from typing import Any, cast, override
 
@@ -44,6 +45,15 @@ from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
+
+_MAX_START_SAMPLES = 20
+"""How many stationary width readings to take before the race starts.
+
+Enough to outvote the narrow prior comfortably (the estimator needs
+MIN_SAMPLES agreeing readings) without letting a robot that sits on the line
+for a minute accumulate thousands. At the 20 Hz control rate this fills in
+about a second, so it costs the operator nothing.
+"""
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -305,6 +315,50 @@ class TrackNavigator(Node, ResettableNode):
         self._gateway.publish_drive(follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed))
         return True
 
+    def _sample_start_corridor(self) -> None:
+        """Measure the starting corridor while the robot is still stationary.
+
+        The width estimator starts from a narrow (60 cm) prior and only leaves
+        it after repeated agreeing measurements. In a 100 cm corridor that prior
+        is self-reinforcing on real hardware, and measurably so: believing the
+        corridor is 60 cm wide while sitting centred in a 100 cm one makes the
+        robot think it is badly off-centre, so it saturates steering to correct
+        toward a centre that is not there, ends up skewed against a wall, and
+        from that pose ``measure_corridor_width`` returns None -- so the belief
+        that caused the pose can never be corrected by it. Measured on the
+        track: 390 consecutive drive commands at full left lock, ending 14 cm
+        from a wall, with the belief still reading 60 cm.
+
+        The one moment the robot is guaranteed to be well placed is before it
+        has moved: an operator sets it down centred and square in a corridor.
+        That is exactly the geometry the measurement needs -- verified on
+        hardware, the same function returns None when the robot is skewed 24
+        degrees against a wall and 0.97 m when it is squarely placed in the same
+        1 m corridor.
+
+        Readings go into the same buffer the creep phase uses, so they are
+        attributed to a section by the existing replay in _commit_direction
+        once the travel direction is known. Nothing here needs to know which
+        corridor it is sitting in.
+        """
+        if self._width_estimator is None or len(self._creep_widths) >= _MAX_START_SAMPLES:
+            return
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            return
+        m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
+        if m is None:
+            return
+        self._creep_widths.append((pose.yaw, m.width_m))
+        if len(self._creep_widths) == _MAX_START_SAMPLES:
+            widths = [w for _, w in self._creep_widths]
+            self.get_logger().info(
+                f"Start corridor measured before launch: {statistics.fmean(widths):.2f}m "
+                f"from {len(widths)} readings - the layout belief will start from this "
+                "rather than from the narrow prior",
+            )
+
     def _to_widths_dict(self) -> dict[Section, float]:
         """Current believed widths as a per-section dict (for _plan)."""
         if self._width_estimator:
@@ -439,6 +493,14 @@ class TrackNavigator(Node, ResettableNode):
         section/direction/metadata.
         """
         self._gateway.reset_heading_reference()
+        # Re-stamp anything measured before the start to the heading frame that
+        # reset just established. The yaws recorded against the old reference
+        # would otherwise file those readings under the wrong section, since
+        # _commit_direction attributes them by heading. Zero is correct rather
+        # than approximate: this method runs at the one instant the robot is
+        # known to be sitting at its starting pose, so "the heading it has now"
+        # and "the heading those readings were taken at" are the same.
+        self._creep_widths = [(0.0, width) for _, width in self._creep_widths]
         park_controller: ParkController | None = None
         if not self._is_open_challenge:
             park_controller = park_controller_from_metadata(
@@ -457,6 +519,7 @@ class TrackNavigator(Node, ResettableNode):
             # has a 1 s command watchdog, and silence would let it latch a stop
             # only after that delay.
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._sample_start_corridor()
             return
         try:
             if self._resolve_direction():
