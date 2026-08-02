@@ -3,5 +3,6 @@
 # (backend-specific / derived from the model's class order), so only the
 # fields below are sourced from here.
 
-min_confidence = 0.25
+min_confidence = 0.45
+# Matches hailo.toml and hailo_streaming.toml threshold for consistency.
 output_format = "normalized"

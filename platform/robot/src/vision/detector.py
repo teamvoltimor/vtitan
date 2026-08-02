@@ -97,7 +97,7 @@ class DetectorConfig(HardwareBaseSettings):
 
     model_path: str
     class_to_color: dict[int, TrafficSignColor]
-    min_confidence: float = 0.25
+    min_confidence: float = 0.45
     output_format: BBoxFormat = BBoxFormat.NORMALIZED
 
     def get_color(self, class_id: int) -> TrafficSignColor | None:
