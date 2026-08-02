@@ -47,12 +47,13 @@ from src.ros2.resettable_node import ResettableNode
 logger = logging.getLogger(__name__)
 
 _MAX_START_SAMPLES = 20
-"""How many stationary width readings to take before the race starts.
+"""Length of the rolling window of stationary width readings kept before start.
 
 Enough to outvote the narrow prior comfortably (the estimator needs
-MIN_SAMPLES agreeing readings) without letting a robot that sits on the line
-for a minute accumulate thousands. At the 20 Hz control rate this fills in
-about a second, so it costs the operator nothing.
+MIN_SAMPLES agreeing readings), and at the 20 Hz control rate it spans the
+last second before the button is pressed. A window rather than a total,
+because the robot is often powered on well away from the track and only what
+it sees once placed should count.
 """
 
 
@@ -341,7 +342,7 @@ class TrackNavigator(Node, ResettableNode):
         once the travel direction is known. Nothing here needs to know which
         corridor it is sitting in.
         """
-        if self._width_estimator is None or len(self._creep_widths) >= _MAX_START_SAMPLES:
+        if self._width_estimator is None:
             return
         scan = self._gateway.get_lidar_scan()
         pose = self._gateway.get_current_pose()
@@ -350,14 +351,24 @@ class TrackNavigator(Node, ResettableNode):
         m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
         if m is None:
             return
+
+        # A rolling window, not a fill-once buffer. The robot is routinely
+        # powered on somewhere other than the track -- a bench, a table, the
+        # floor beside it -- and readings taken there describe a room, not a
+        # corridor. Keeping the first N would mean whatever it happened to see
+        # at power-on decides the layout, and no amount of correctly placing it
+        # afterwards could displace them. What matters is the last second
+        # before the operator presses start, so old readings age out.
         self._creep_widths.append((pose.yaw, m.width_m))
-        if len(self._creep_widths) == _MAX_START_SAMPLES:
-            widths = [w for _, w in self._creep_widths]
-            self.get_logger().info(
-                f"Start corridor measured before launch: {statistics.fmean(widths):.2f}m "
-                f"from {len(widths)} readings - the layout belief will start from this "
-                "rather than from the narrow prior",
-            )
+        if len(self._creep_widths) > _MAX_START_SAMPLES:
+            del self._creep_widths[0]
+
+        widths = [w for _, w in self._creep_widths]
+        self.get_logger().info(
+            f"Start corridor reads {statistics.fmean(widths):.2f}m over the last "
+            f"{len(widths)} samples - this is what the layout belief will start from",
+            throttle_duration_sec=5.0,
+        )
 
     def _to_widths_dict(self) -> dict[Section, float]:
         """Current believed widths as a per-section dict (for _plan)."""
