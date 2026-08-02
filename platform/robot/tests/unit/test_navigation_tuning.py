@@ -201,14 +201,13 @@ class TestConfiguredValuesAreActuallyRead:
         # like they bound the robot and do not.
         "SLALOM_REVERSE_FRAMES",
         "SLALOM_FORWARD_FRAMES",
-        # The ENTIRE HeadingErrorZones group: heading.toml ships, loads, and is
-        # consulted by nothing. The class is re-exported from shared.config but
-        # never read. Speed is modulated by heading error somewhere -- just not
-        # through these. Delete the group and its TOML, or wire it to whatever
-        # currently hard-codes the equivalent thresholds.
+        # The rest of HeadingErrorZones: heading.toml ships, loads, and these
+        # three are consulted by nothing. MEDIUM is read now (src.navigation.utils'
+        # _ALIGNMENT_TOLERANCE_RAD, wired 2026-08-02) -- CRAWL/SLOW/NORMAL are
+        # still dead config to delete, or wire to whatever currently hard-codes
+        # the equivalent thresholds.
         "CRAWL",
         "SLOW",
-        "MEDIUM",
         "NORMAL",
     }
 
