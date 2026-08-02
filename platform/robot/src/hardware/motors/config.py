@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
 from shared.config.constants import RobotSpecs
 
+from src.hardware.motors.base import DEFAULT_STEERING_SPEED
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 
@@ -38,7 +39,7 @@ class MotorSteeringConfig(BaseModel):
     default here described a different chassis from the one the planner assumed.
     """
 
-    centering_speed: int = 20
+    centering_speed: int = DEFAULT_STEERING_SPEED
     """Speed for centering steering. This can be used to define how quickly the steering motor should move when centering the wheels."""
 
     turning_speed: int = 30
