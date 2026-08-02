@@ -71,7 +71,12 @@ from std_msgs.msg import Float32
 
 from src.hardware.motors.base import EncodedDriveDriver
 from src.hardware.motors.config import Config
-from src.hardware.motors.enums import DriveBackend, SteeringBackend
+from src.hardware.motors.enums import (
+    DRIVE_JOINT,
+    STEERING_JOINT,
+    DriveBackend,
+    SteeringBackend,
+)
 from src.logger import configure_json_logging
 from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
 
@@ -130,9 +135,6 @@ Must stay 50 Hz: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` both hardcode
 gains and the speed estimate without changing a single number in the tuning.
 """
 
-_DRIVE_JOINT = "drive_wheel"
-_STEERING_JOINT = "steering"
-"""Joint names on /joint_states. Consumers index by name, not position."""
 
 
 # Backend selection (from environment)
@@ -585,7 +587,7 @@ class AckermannMotorNode(LifecycleNode):
             if self.joint_state_pub is not None:
                 joint_msg = JointState()
                 joint_msg.header.stamp = self.get_clock().now().to_msg()
-                joint_msg.name = [_DRIVE_JOINT, _STEERING_JOINT]
+                joint_msg.name = [DRIVE_JOINT, STEERING_JOINT]
                 # SI, unlike the degree-based Float32 topics above.
                 joint_msg.position = [
                     math.radians(self.drive.get_drive_position()),

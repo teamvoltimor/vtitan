@@ -21,3 +21,11 @@ class DriveBackend(StrEnum):
 
     DC_ENCODER = "dc_encoder"
     BUILD_HAT = "build_hat"
+
+
+# ROS2 joint names
+DRIVE_JOINT = "drive_wheel"
+"""Joint state name for the drive motor."""
+
+STEERING_JOINT = "steering"
+"""Joint state name for the steering servo."""
