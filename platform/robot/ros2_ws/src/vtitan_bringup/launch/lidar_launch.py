@@ -9,6 +9,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from shared.config.constants import RobotSpecs
 
 from src.config.launch_settings import LidarLaunchDefaults
 
@@ -34,11 +35,13 @@ def generate_launch_description() -> LaunchDescription:
                         "serial_baudrate": 460800,
                         # Matches static_tfs.launch.py's child_frame_id -- must stay in sync.
                         "frame_id": "lidar_link",
-                        # Re-verified 2026-08-02 against a known object placed at the
-                        # chassis's physical left/right -- see run-lidar's pixi.toml
-                        # comment for the full story. inverted:=True (this file's
-                        # setting until now) read the physically opposite side.
-                        "inverted": False,
+                        # Single source of truth: RobotSpecs.LIDAR_INVERTED (robot.toml's
+                        # [lidar].inverted). Never hardcode this separately from the
+                        # 180deg yaw rotation ros2_hardware_gateway.py and
+                        # static_tfs.launch.py apply for the same upside-down-mount
+                        # fact -- letting the two drift apart is exactly the bug found
+                        # and fixed 2026-08-02.
+                        "inverted": RobotSpecs.LIDAR_INVERTED,
                         "angle_compensate": True,
                         "scan_mode": "Standard",
                     },

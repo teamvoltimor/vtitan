@@ -266,7 +266,14 @@ class RobotSpecs:
     # LIDAR sits above the chassis top by this much; add HEIGHT for the LIDAR's absolute
     # mount z (matches the long-standing z=0.12 in static_tfs.launch.py / the URDF).
     LIDAR_MOUNT_Z_OFFSET: Final[float] = _gen.LIDAR_MOUNT_Z_OFFSET
-    # The C1 is mounted inverted, so its raw angle-zero points opposite robot-front.
+    # Single source of truth for the upside-down mount. Drives BOTH the sllidar_ros2
+    # driver's own `inverted` launch parameter AND a mandatory 180deg yaw rotation
+    # wherever raw /scan angles are consumed -- see robot.toml's [lidar] section for
+    # why these must never be set independently again.
+    LIDAR_INVERTED: Final[bool] = _gen.LIDAR_INVERTED
+    # Residual yaw miscalibration NOT explained by LIDAR_INVERTED's 180deg -- added on
+    # top of it, not a replacement. Consumers wanting the full correction compute
+    # (180.0 if LIDAR_INVERTED else 0.0) + this, in degrees, themselves.
     LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _gen.LIDAR_MOUNT_YAW_OFFSET_DEG
     # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
     # (platform/shared/config/navigation/lidar_sectors.toml) -- it's collision-logic
