@@ -298,6 +298,30 @@ class LidarSectorParams(BaseModel):
     Used as sentinel value in sector computations when all rays are invalid.
     Conservative estimate between min (0.05m) and max (12m) sensor range."""
 
+    DIRECTION_ARC_HALF_FOV_DEG: float = Field(
+        default=8.0, validation_alias=_alias("DIRECTION_ARC_HALF_FOV_DEG")
+    )
+    """Half-width (deg) of the narrow forward cone src.navigation.utils'
+    _forward_clearance uses, consumed by corridor_follower's turn-start gate
+    and direction_estimator's corner-detection gate.
+
+    Deliberately its own field, not FRONT_HALF_FOV_DEG: the two look
+    interchangeable (both "how wide is forward") but are not -- FRONT_HALF_FOV_DEG
+    (30 deg) is collision-avoidance's braking cone, sized to catch an obstacle
+    with margin. This one gates *when a corridor counts as ending* for corner
+    detection, where direction_estimator's own docstring warns the gap between
+    this and TURN_CLEARANCE_M is a fragile, measured window: three fixtures
+    never settled and two settled wrong when it was mistuned by less than this
+    field's difference from FRONT_HALF_FOV_DEG alone. A prior refactor pointed
+    _forward_clearance at FRONT_HALF_FOV_DEG to remove a hardcoded 8.0, on the
+    reasonable-looking assumption that one "forward cone" tuning number should
+    serve both -- widening the corner-detection cone by 3.75x broke the
+    timing outright, reproduced as every clockwise narrow-corridor run timing
+    out mid-lap while every counterclockwise one passed clean (an unrelated
+    starting section makes the two directions meet their first corner at a
+    different point in this timing window, so the same corruption did not
+    fail identically)."""
+
 
 class SignRouterParams(BaseModel):
     """Traffic-sign avoidance routing parameters.
