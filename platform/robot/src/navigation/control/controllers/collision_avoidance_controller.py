@@ -177,6 +177,7 @@ class CollisionAvoidanceController:
         self_detection_threshold_m: float = 0.08,
         min_valid_range_m: float = 0.01,
         threat_no_detection_range_m: float = 1.0,
+        no_data_range_m: float = 10.0,
     ):
         """Initialize collision avoidance controller.
 
@@ -209,6 +210,8 @@ class CollisionAvoidanceController:
                 invalid (no-return) readings (m)
             threat_no_detection_range_m: A sector's nearest reading beyond
                 this distance doesn't count as a threat at all (m)
+            no_data_range_m: Fallback range when no valid LIDAR readings are
+                available (m)
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist
@@ -227,6 +230,7 @@ class CollisionAvoidanceController:
         self.self_detection_threshold_m = self_detection_threshold_m
         self.min_valid_range_m = min_valid_range_m
         self.threat_no_detection_range_m = threat_no_detection_range_m
+        self.no_data_range_m = no_data_range_m
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning) -> CollisionAvoidanceController:
@@ -260,6 +264,7 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=tuning.lidar.SELF_DETECTION_THRESHOLD_M,
             min_valid_range_m=tuning.lidar.MIN_VALID_RANGE_M,
             threat_no_detection_range_m=tuning.lidar.THREAT_NO_DETECTION_RANGE_M,
+            no_data_range_m=tuning.lidar.NO_DATA_RANGE_M,
         )
 
     def _forward_path_ranges(
@@ -417,9 +422,9 @@ class CollisionAvoidanceController:
         return SectorRanges(
             bearing_rad=center_rad,
             half_fov_rad=half_fov_rad,
-            mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else 10.0,
-            min_range_m=float(np.min(ranges)) if ranges.size > 0 else 10.0,
-            max_range_m=float(np.max(ranges)) if ranges.size > 0 else 10.0,
+            mean_range_m=float(np.mean(ranges)) if ranges.size > 0 else self.no_data_range_m,
+            min_range_m=float(np.min(ranges)) if ranges.size > 0 else self.no_data_range_m,
+            max_range_m=float(np.max(ranges)) if ranges.size > 0 else self.no_data_range_m,
             valid_count=int(ranges.size),
         )
 
@@ -438,7 +443,7 @@ class CollisionAvoidanceController:
             Forward clearance distance (m).
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
-            return 10.0
+            return self.no_data_range_m
 
         sr = self._sector_to_model(
             lidar_ranges,
@@ -448,7 +453,7 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
         )
-        return sr.mean_range_m if sr.valid_count > 0 else 10.0
+        return sr.mean_range_m if sr.valid_count > 0 else self.no_data_range_m
 
     def compute_rear_clearance(
         self,
@@ -463,7 +468,7 @@ class CollisionAvoidanceController:
         there" and block every reverse escape for the rest of the run.
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
-            return 10.0
+            return self.no_data_range_m
 
         sr = self._sector_to_model(
             lidar_ranges,
@@ -474,7 +479,7 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
         )
-        return sr.min_range_m if sr.valid_count > 0 else 10.0
+        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
     def compute_min_clearance(
         self,
@@ -492,12 +497,12 @@ class CollisionAvoidanceController:
         caught before it happens instead of only checking what's dead ahead.
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
-            return 10.0
+            return self.no_data_range_m
 
         sr = self._sector_to_model(
             lidar_ranges, lidar_angles, center_rad, half_fov_rad, min_valid_range_m=self.min_valid_range_m,
         )
-        return sr.min_range_m if sr.valid_count > 0 else 10.0
+        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
     def detect_threat_direction(
         self,
@@ -530,7 +535,7 @@ class CollisionAvoidanceController:
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
             )
-            return sr.min_range_m if sr.valid_count > 0 else 10.0
+            return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
         directions = {
             # Forward is never self-detection filtered: a genuine near-contact
@@ -707,4 +712,4 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
         )
-        return sr.min_range_m if sr.valid_count > 0 else 10.0
+        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
