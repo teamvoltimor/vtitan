@@ -259,12 +259,12 @@ class CollisionAvoidanceController:
             side_correction_steer=tuning.escape.SIDE_CORRECTION_STEER,
             side_correction_speed=tuning.escape.SIDE_CORRECTION_SPEED,
             side_correction_frames=tuning.escape.SIDE_CORRECTION_FRAMES,
-            front_half_fov_deg=tuning.lidar.FRONT_HALF_FOV_DEG,
-            threat_half_fov_deg=tuning.lidar.THREAT_HALF_FOV_DEG,
-            self_detection_threshold_m=tuning.lidar.SELF_DETECTION_THRESHOLD_M,
-            min_valid_range_m=tuning.lidar.MIN_VALID_RANGE_M,
-            threat_no_detection_range_m=tuning.lidar.THREAT_NO_DETECTION_RANGE_M,
-            no_data_range_m=tuning.lidar.NO_DATA_RANGE_M,
+            front_half_fov_deg=tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
+            threat_half_fov_deg=tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
+            self_detection_threshold_m=tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
+            min_valid_range_m=tuning.lidar_sectors.MIN_VALID_RANGE_M,
+            threat_no_detection_range_m=tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
+            no_data_range_m=tuning.lidar_sectors.NO_DATA_RANGE_M,
         )
 
     def _forward_path_ranges(
@@ -378,9 +378,9 @@ class CollisionAvoidanceController:
         if self_detection_threshold_m is None or min_valid_range_m is None:
             tuning = NavigationTuning.load_default()
             if self_detection_threshold_m is None:
-                self_detection_threshold_m = tuning.lidar.SELF_DETECTION_THRESHOLD_M
+                self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M
             if min_valid_range_m is None:
-                min_valid_range_m = tuning.lidar.MIN_VALID_RANGE_M
+                min_valid_range_m = tuning.lidar_sectors.MIN_VALID_RANGE_M
 
         if lidar_angles is None:
             angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)

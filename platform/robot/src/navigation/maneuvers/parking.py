@@ -137,6 +137,14 @@ class ParkZone:
         return (self.x_min, self.x_max) if self.wall_is_x else (self.y_min, self.y_max)
 
 
+class ParkPhase(StrEnum):
+    """Parking maneuver phases."""
+
+    STAGE = "stage"
+    ENTER = "enter"
+    DONE = "done"
+
+
 @dataclass
 class ParkCommand:
     """Motor command from the park controller."""
@@ -145,14 +153,6 @@ class ParkCommand:
     steering: float  # normalised [-1, 1]
     done: bool = False
     phase: ParkPhase = ParkPhase.STAGE
-
-
-class ParkPhase(StrEnum):
-    """Parking maneuver phases."""
-
-    STAGE = "stage"
-    ENTER = "enter"
-    DONE = "done"
 
 
 class ParkController:
