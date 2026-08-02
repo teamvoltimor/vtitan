@@ -1,8 +1,9 @@
 # BNO08x IMU via MCP2221A UART RVC bridge -- the actively deployed IMU
-# backend (src/hardware/imu/bno08x/mcp2221/uart_rvc.py). port has no
-# default -- device path stays in .env (BNO08X_UART_RVC_PORT), required
-# exactly as before this migration.
+# backend (src/hardware/imu/bno08x/mcp2221/uart_rvc.py). port: device path
+# stays in .env (BNO08X_UART_RVC_PORT) by preference, but falls back to
+# default_port if unset. Override per-unit with env var if needed.
 
+default_port = "/dev/ttyACM0"
 baudrate = 115200
 poll_rate_hz = 100.0
 

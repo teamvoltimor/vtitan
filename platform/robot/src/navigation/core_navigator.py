@@ -12,7 +12,7 @@ import math
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs
+from shared.config.constants import CompetitionSpecs, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, RiskLevel
 
@@ -45,7 +45,7 @@ class CoreNavigator:
         self,
         gateway: HardwareGateway,
         waypoints: list[tuple[float, float]],
-        num_laps: int = 3,
+        num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
         tuning: NavigationTuning | None = None,
         sign_router: SignRouter | None = None,
         lap_detector: LapDetector | None = None,

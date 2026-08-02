@@ -23,6 +23,7 @@ Two distinct uses here:
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from shared.config.constants import CompetitionSpecs
 
 from src.hardware.settings_base import ROBOT_ROOT, HardwareBaseSettings
 
@@ -108,7 +109,7 @@ class RaceLaunchDefaults(HardwareBaseSettings):
 
     direction: str = "cw"
     blind: bool = False
-    laps: int = 3
+    laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS
     params: str = ""
     tuning: str = ""
     record: bool = True

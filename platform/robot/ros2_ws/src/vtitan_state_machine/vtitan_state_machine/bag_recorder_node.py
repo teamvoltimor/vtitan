@@ -34,6 +34,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.domain.enums import RobotState
+from src.config.launch_settings import RaceLaunchDefaults
 from std_msgs.msg import String
 
 # Must match state_machine_node's _QOS_TRANSIENT publisher on both policies, or
@@ -63,19 +64,7 @@ _QOS_ROBOT_STATE = QoSProfile(
 # detections for the purpose these bags serve (replaying a bad run's decisions).
 # Add it explicitly via the "topics" parameter if a specific investigation needs
 # imagery.
-_DEFAULT_TOPICS = [
-    "/scan",
-    "/imu/data",
-    "/vision/detections",
-    "/ackermann_cmd",
-    "/robot_state",
-    "/race_metrics",
-    "/system_status",
-    "/motor/drive_speed",
-    "/motor/steering_position",
-    "/tf",
-    "/tf_static",
-]
+_DEFAULT_TOPICS = RaceLaunchDefaults().bag_topics
 
 _BYTES_PER_GB = 1024**3
 

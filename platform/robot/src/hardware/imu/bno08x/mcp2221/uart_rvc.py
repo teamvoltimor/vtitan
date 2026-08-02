@@ -101,8 +101,8 @@ class Driver(UARTRVCDriver):
         if not port:
             port = self.find_mcp2221_port()
             if not port:
-                self.logger.warning("MCP2221 auto-detect failed, using /dev/ttyACM0")
-                port = "/dev/ttyACM0"
+                port = self.config.default_port
+                self.logger.warning(f"MCP2221 auto-detect failed, using configured default port {port}")
 
         self.logger.info(
             "Connecting to BNO08x via MCP2221",

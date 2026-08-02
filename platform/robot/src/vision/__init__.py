@@ -1,5 +1,7 @@
 """Vision module exports and detector factory."""
 
+from enum import StrEnum
+
 from shared.domain.models import Detection
 
 from src.vision.detector import (
@@ -13,6 +15,16 @@ from src.vision.detector import (
     TrafficSignColor,
 )
 
+
+class VisionBackend(StrEnum):
+    """Available vision detector backends."""
+
+    YOLO = "yolo"
+    """Local YOLOv8 inference."""
+
+    HAILO = "hailo"
+    """Hailo-8 NPU inference (Raspberry Pi 5 only)."""
+
 __all__ = [
     "DEFAULT_CLASS_TO_COLOR",
     "BBoxFormat",
@@ -23,15 +35,16 @@ __all__ = [
     "LocalYoloDetector",
     "SignDetection",
     "TrafficSignColor",
+    "VisionBackend",
     "create_detector",
 ]
 
 
-def create_detector(backend: str = "yolo", config: DetectorConfig | None = None) -> DetectorBase:
+def create_detector(backend: VisionBackend | str = VisionBackend.YOLO, config: DetectorConfig | None = None) -> DetectorBase:
     """Create a detector instance with optional configuration injection.
 
     Args:
-        backend: Detector backend ('yolo' or 'hailo').
+        backend: Detector backend (VisionBackend enum or string 'yolo'/'hailo' for backward compat).
         config: Optional DetectorConfig for custom model path and class mappings.
 
     Returns:
@@ -42,11 +55,12 @@ def create_detector(backend: str = "yolo", config: DetectorConfig | None = None)
     Raises:
         ValueError: If backend is not recognized.
     """
-    if backend == "yolo":
+    backend = VisionBackend(backend) if isinstance(backend, str) else backend
+    if backend == VisionBackend.YOLO:
         if config is None:
             config = DetectorConfig(model_path="yolov8n.pt", class_to_color=DEFAULT_CLASS_TO_COLOR)
         return LocalYoloDetector(config)
-    if backend == "hailo":
+    if backend == VisionBackend.HAILO:
         try:
             from src.hardware.hailo.base import Config as HailoConfig  # noqa: PLC0415
             from src.hardware.hailo.hailo_8.driver import Driver  # noqa: PLC0415

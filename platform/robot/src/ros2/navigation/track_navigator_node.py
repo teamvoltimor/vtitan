@@ -19,7 +19,7 @@ from typing import Any, cast, override
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
-from shared.config.constants import CorridorDimensions, DictKeys
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import RobotState
@@ -70,7 +70,7 @@ class TrackNavigator(Node, ResettableNode):
     def __init__(
         self,
         metadata_path: str | Path | None = None,
-        num_laps: int = 3,
+        num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
         params_path: str | Path | None = None,
         tuning_path: str | Path | None = None,
         blind: bool = False,

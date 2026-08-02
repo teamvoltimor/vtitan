@@ -39,7 +39,9 @@ class MotorSteeringConfig(BaseModel):
     """
 
     centering_speed: int = 20
-    """Speed for centering steering. This can be used to define how quickly the steering motor should move when centering the wheels."""
+    """Speed for centering steering (deg/s). Mirrors motors.toml:steering.centering_speed.
+    This can be used to define how quickly the steering motor should move when centering the wheels.
+    Override per-unit with MOTOR_STEERING__CENTERING_SPEED env var if needed."""
 
     turning_speed: int = 30
     """Default speed for turning steering. This can be used as a default speed when moving the steering motor to a specific position, allowing for consistent and predictable steering behavior."""
