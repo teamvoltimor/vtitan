@@ -33,6 +33,7 @@ from src.hardware.imu.readings import (
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -66,7 +67,7 @@ class Driver(ABC_Driver):
         """Connect to IMU via MCP2221A I2C using Blinka."""
         self.logger.info(
             "Connecting to BNO08x via MCP2221A I2C (Blinka)",
-            extra={"details": {"i2c_address": hex(self.config.i2c_address)}},
+            extra={DETAILS_KEY: {"i2c_address": hex(self.config.i2c_address)}},
         )
 
         try:
@@ -127,7 +128,7 @@ class Driver(ABC_Driver):
         """Get accelerometer data (m/s²)."""
         assert self.imu is not None
         accel = self.imu.acceleration
-        self.logger.debug("Accelerometer read", extra={"details": {"x": accel[0], "y": accel[1], "z": accel[2]}})
+        self.logger.debug("Accelerometer read", extra={DETAILS_KEY: {"x": accel[0], "y": accel[1], "z": accel[2]}})
         return AccelerometerReading(*accel)
 
     @override
@@ -135,7 +136,7 @@ class Driver(ABC_Driver):
         """Get gyroscope data (rad/s)."""
         assert self.imu is not None
         gyro = self.imu.gyro
-        self.logger.debug("Gyroscope read", extra={"details": {"x": gyro[0], "y": gyro[1], "z": gyro[2]}})
+        self.logger.debug("Gyroscope read", extra={DETAILS_KEY: {"x": gyro[0], "y": gyro[1], "z": gyro[2]}})
         return GyroscopeReading(*gyro)
 
     @override
@@ -143,7 +144,7 @@ class Driver(ABC_Driver):
         """Get magnetometer data (µT)."""
         assert self.imu is not None
         mag = self.imu.magnetic
-        self.logger.debug("Magnetometer read", extra={"details": {"x": mag[0], "y": mag[1], "z": mag[2]}})
+        self.logger.debug("Magnetometer read", extra={DETAILS_KEY: {"x": mag[0], "y": mag[1], "z": mag[2]}})
         return MagnetometerReading(*mag)
 
     @override
@@ -155,7 +156,7 @@ class Driver(ABC_Driver):
 
         self.logger.debug(
             "Quaternion read",
-            extra={"details": {"x": x, "y": y, "z": z, "w": w}},
+            extra={DETAILS_KEY: {"x": x, "y": y, "z": z, "w": w}},
         )
         # QuaternionReading is (w, x, y, z) -- keyword args so the fields
         # line up correctly regardless of Adafruit's (x, y, z, w) order.
@@ -166,7 +167,7 @@ class Driver(ABC_Driver):
         """Get fused Euler angles (pitch, roll, yaw) in degrees."""
         assert self.imu is not None
         euler = self.imu.euler
-        self.logger.debug("Euler read", extra={"details": {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}})
+        self.logger.debug("Euler read", extra={DETAILS_KEY: {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}})
         return EulerReading(*euler)
 
     @override
@@ -174,7 +175,7 @@ class Driver(ABC_Driver):
         """Get linear acceleration (m/s², gravity removed)."""
         assert self.imu is not None
         linear = self.imu.linear_acceleration
-        self.logger.debug("Linear accel read", extra={"details": {"x": linear[0], "y": linear[1], "z": linear[2]}})
+        self.logger.debug("Linear accel read", extra={DETAILS_KEY: {"x": linear[0], "y": linear[1], "z": linear[2]}})
         return LinearAccelelerometerReading(*linear)
 
     @override
@@ -196,7 +197,7 @@ class Driver(ABC_Driver):
             return None
         try:
             cal = imu.calibration_status
-            self.logger.info("Calibration status read", extra={"details": {"calibration": cal}})
+            self.logger.info("Calibration status read", extra={DETAILS_KEY: {"calibration": cal}})
         except AttributeError:
             return None
         else:

@@ -257,20 +257,30 @@ class ROS2HardwareGateway(HardwareGateway):
 
     def _vision_callback(self, msg: String) -> None:
         try:
+            from ros2.vision.detection_payload_keys import (
+                AREA_KEY,
+                BBOX_KEY,
+                CLASS_NAME_KEY,
+                CONFIDENCE_KEY,
+                HEIGHT_KEY,
+                WIDTH_KEY,
+                X_KEY,
+                Y_KEY,
+            )
+
             raw_data = json.loads(msg.data)
             self._latest_detections = []
             for d in raw_data:
-                # Need to map detection dict to Detection dataclass
                 self._latest_detections.append(
                     Detection(
-                        class_name=d.get("class_name", ""),
-                        confidence=d.get("confidence", 0.0),
-                        bbox=d.get("bbox", (0.0, 0.0, 0.0, 0.0)),
-                        x=d.get("x", 0.0),
-                        y=d.get("y", 0.0),
-                        width=d.get("width", 0.0),
-                        height=d.get("height", 0.0),
-                        area=d.get("area", 0.0),
+                        class_name=d.get(CLASS_NAME_KEY, ""),
+                        confidence=d.get(CONFIDENCE_KEY, 0.0),
+                        bbox=d.get(BBOX_KEY, (0.0, 0.0, 0.0, 0.0)),
+                        x=d.get(X_KEY, 0.0),
+                        y=d.get(Y_KEY, 0.0),
+                        width=d.get(WIDTH_KEY, 0.0),
+                        height=d.get(HEIGHT_KEY, 0.0),
+                        area=d.get(AREA_KEY, 0.0),
                     ),
                 )
         except (json.JSONDecodeError, TypeError):

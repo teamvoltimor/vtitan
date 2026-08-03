@@ -31,6 +31,7 @@ from shared.domain.models import CameraSize, ImageRotation
 from src.hardware.camera.base import Driver as CameraDriver, Frame
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -112,7 +113,7 @@ class Driver(CameraDriver):
     def connect(self) -> None:
         """Start the capture process."""
         cmd = self._command()
-        log.info("Starting rpicam-vid", extra={"details": {"cmd": " ".join(cmd)}})
+        log.info("Starting rpicam-vid", extra={DETAILS_KEY: {"cmd": " ".join(cmd)}})
         self._process = subprocess.Popen(  # noqa: S603
             cmd,
             stdout=subprocess.PIPE,

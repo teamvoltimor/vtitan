@@ -44,7 +44,8 @@ from rclpy.qos import (
 )
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
-from std_msgs.msg import Bool, Float32, String
+from shared.config.ros_topics import RosTopicConfig
+from std_msgs.msg import Bool, Float32, Int32, String
 
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.ros2.resettable_node import ResettableNode
@@ -199,6 +200,21 @@ class StateMachineNode(Node, ResettableNode):
             self._button_event_callback,
             10,
         )
+        # track_navigator_node's CoreNavigator/LapDetector is the only thing
+        # that actually detects a lap crossing -- this node used to track its
+        # own laps_completed with nothing anywhere incrementing it, so the
+        # OLED's lap counter stayed 0 and _handle_racing's laps_completed >=
+        # target_laps check could never fire, meaning a race never finished
+        # on its own (only a manual E-STOP hold reached FINISHED). QoS must
+        # match track_navigator_node's publisher (BEST_EFFORT) or this
+        # receives nothing at all, same failure mode as /robot_state.
+        self._topics = RosTopicConfig.load_default()
+        self.laps_sub: Subscription[Int32] = self.create_subscription(
+            Int32,
+            self._topics.navigation.laps_completed,
+            self._on_laps_completed,
+            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
+        )
 
         # Sensor status tracking
         self.imu_last_msg_time: float | None = None
@@ -262,6 +278,16 @@ class StateMachineNode(Node, ResettableNode):
         that moved it back.
         """
         self._jumper_inserted = msg.data
+
+    def _on_laps_completed(self, msg: Int32) -> None:
+        """Latest lap count from track_navigator_node's LapDetector.
+
+        Replaces rather than increments: track_navigator_node's own reset()
+        (fired from the same RACING transition this node resets on) is the
+        authoritative zero point, so mirroring its count exactly can never
+        drift from it the way an independently-incremented counter could.
+        """
+        self.laps_completed = msg.data
 
     def _fetch_ip_address_async(self) -> None:
         """Fetch IP address in background thread without blocking."""

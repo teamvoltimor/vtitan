@@ -1,7 +1,25 @@
 [Unit]
 Description=vTitan Pi Zero — Motors, Button, OLED
-Wants=network-online.target dev-gpiochip0.device
-After=network-online.target dev-gpiochip0.device
+# No network-online.target: everything this unit drives (motors, button, OLED,
+# challenge-mode jumper) is local GPIO/I2C/PWM. Gating on it made boot time
+# hostage to NetworkManager-wait-online, which measured 6-60s (sometimes
+# timing out outright) depending on the already-flaky USB gadget link to the
+# Pi 5 -- see usb-gadget-link-nondeterministic notes. Networked components
+# (gRPC telemetry) are already best-effort and must not gate the robot; this
+# unit shouldn't be either.
+#
+# No dev-gpiochip0.device either (2026-08-02, found while verifying the
+# network-online.target removal above on real hardware): Raspberry Pi OS's
+# default udev rules never tag GPIO chardevs for systemd tracking (confirmed
+# via `udevadm info -q property /dev/gpiochip0` -- no TAGS=... with
+# "systemd"), so that .device unit can never become "active" on its own and
+# After= on it always burns the full ~90s device-job timeout every boot,
+# regardless of how fast the hardware is actually ready (measured
+# USEC_INITIALIZED=15s). It was invisible before because the
+# network-online.target wait usually took just as long, so removing only
+# that one made this the new bottleneck instead of fixing anything. The
+# driver layer already retries transient hardware-not-ready failures
+# (Restart=on-failure below), so no device-unit dependency is needed here.
 StartLimitBurst=5
 StartLimitIntervalSec=30
 

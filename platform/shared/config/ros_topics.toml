@@ -13,6 +13,10 @@ state = "/robot_state"
 # The telemetry_bridge_node subscribes but receives no data.
 # Uncomment when odometry is implemented; leave empty or remove if it won't be.
 # odometry = "/odom"
+# Lap count from track_navigator_node's CoreNavigator/LapDetector -- the only
+# thing that actually detects a lap crossing. state_machine_node subscribes
+# to drive /race_metrics and the FINISHED transition.
+laps_completed = "/race/laps_completed"
 
 [sensors]
 # LIDAR range data from the Slamtec C1.
