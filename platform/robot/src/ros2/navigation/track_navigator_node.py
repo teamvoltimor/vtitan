@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import statistics
 from pathlib import Path
 from typing import Any, cast, override
@@ -34,7 +35,12 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import follow_corridor
-from src.navigation.direction_estimator import DirectionEstimator
+from src.navigation.direction_estimator import (
+    _MAX_IN_TRACK_RANGE_M,
+    _MAX_PLAUSIBLE_SPAN_M,
+    _MIN_ASYMMETRY_M,
+    DirectionEstimator,
+)
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
@@ -42,6 +48,7 @@ from src.navigation.ports import DriveCommand
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
+from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.resettable_node import ResettableNode
 
@@ -56,6 +63,44 @@ last second before the button is pressed. A window rather than a total,
 because the robot is often powered on well away from the track and only what
 it sees once placed should count.
 """
+
+
+_DIRECTION_GATE_LOG_PERIOD = 5
+"""Log one direction-gate verdict every this many unresolved creep ticks.
+
+Diagnostic only: at the ~20 Hz control rate, logging every tick during a
+prolonged corridor-follower hold (see follow_corridor's undefined-duration
+full-lock branch) would flood the log; this keeps enough resolution to see
+which gate is refusing readings without drowning it out. Added 2026-08-02
+after a real CCW run held full-lock steering for ~7s with direction never
+settling -- see docs/robot-physical-constants.md and
+docs/known-issues-backlog.md for the investigation this feeds.
+"""
+
+
+def _direction_gate_verdict(
+    ranges_m: Any,
+    angles_rad: Any,
+    yaw: float,
+) -> str:
+    """Name which gate in ``infer_direction`` would refuse this scan, for logging.
+
+    Mirrors ``scripts/diag_open_direction_gates.py``'s ``_GateTracer._verdict``
+    (a sim-only tool) so a live run's log can show the same diagnosis without
+    needing a bag replay -- see that script's docstring for what each gate means.
+    """
+    axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+    left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
+    right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+    if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+        return f"dropout (left={left:.2f} right={right:.2f})"
+    if axis_error > _ALIGNMENT_TOLERANCE_RAD:
+        return f"align-fail (axis_error={math.degrees(axis_error):.1f}deg)"
+    if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+        return f"span-fail (span={left + right:.2f})"
+    if abs(left - right) < _MIN_ASYMMETRY_M:
+        return f"asym-fail (|left-right|={abs(left - right):.3f})"
+    return f"vote-pending (left={left:.2f} right={right:.2f})"
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -350,6 +395,11 @@ class TrackNavigator(Node, ResettableNode):
             if inferred is not None:
                 self._commit_direction(inferred, pose)
             return False
+
+        self._direction_gate_log_counter += 1
+        if self._direction_gate_log_counter % _DIRECTION_GATE_LOG_PERIOD == 0:
+            verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw)
+            logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
         self._gateway.publish_drive(follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed))
         return True
