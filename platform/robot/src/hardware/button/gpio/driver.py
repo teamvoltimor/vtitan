@@ -15,6 +15,7 @@ from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -141,7 +142,7 @@ class Driver(ABC_Driver):
             self._threshold_reached = True
         self.logger.info(
             "Button hold threshold reached",
-            extra={"details": {"event": event.value, "threshold_sec": threshold}},
+            extra={DETAILS_KEY: {"event": event.value, "threshold_sec": threshold}},
         )
 
     def _on_released(self) -> None:
@@ -159,13 +160,13 @@ class Driver(ABC_Driver):
                 self._last_event = ButtonEvent.RELEASED
                 self.logger.debug(
                     "Button released after a hold",
-                    extra={"details": {"duration": round(press_duration, 2)}},
+                    extra={DETAILS_KEY: {"duration": round(press_duration, 2)}},
                 )
             else:
                 self._last_event = ButtonEvent.SHORT_PRESS
                 self.logger.debug(
                     "Button short press detected",
-                    extra={"details": {"duration": round(press_duration, 2)}},
+                    extra={DETAILS_KEY: {"duration": round(press_duration, 2)}},
                 )
             self._threshold_reached = False
             self._press_start_time = None

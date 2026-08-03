@@ -19,6 +19,7 @@ from src.hardware.imu.bno08x.uart_rvc import (
 from src.hardware.imu.config import QuaternionConfig
 from src.hardware.mcp2221.config import MCP2221Config
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.logger.constants import DETAILS_KEY
 
 
 class Config(HardwareBaseSettings):
@@ -80,13 +81,13 @@ class Driver(UARTRVCDriver):
 
         for port in ports:
             if port.vid == self._mcp2221_config.mcp2221.vid and port.pid == self._mcp2221_config.mcp2221.pid:
-                self.logger.info("Found MCP2221", extra={"details": {"port": port.device}})
+                self.logger.info("Found MCP2221", extra={DETAILS_KEY: {"port": port.device}})
                 return str(port.device)
 
         self.logger.warning(
             "MCP2221 not found during auto-detect",
             extra={
-                "details": {
+                DETAILS_KEY: {
                     "vid": hex(self._mcp2221_config.mcp2221.vid),
                     "pid": hex(self._mcp2221_config.mcp2221.pid),
                 },
@@ -109,7 +110,7 @@ class Driver(UARTRVCDriver):
 
         self.logger.info(
             "Connecting to BNO08x via MCP2221",
-            extra={"details": {"port": port, "baudrate": self.config.baudrate}},
+            extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
         )
         self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=SERIAL_TIMEOUT)
 

@@ -18,6 +18,7 @@ from src.hardware.hailo.inferences import (
     InferenceResult,
 )
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -43,7 +44,7 @@ class Driver(ABC_Driver):
         self._vdevice = VDevice(params)
         self.logger.info(
             "Connected to Hailo 8 NPU",
-            extra={"details": {"device_ids": self._vdevice.get_physical_devices_ids()}},
+            extra={DETAILS_KEY: {"device_ids": self._vdevice.get_physical_devices_ids()}},
         )
 
     @property
@@ -56,7 +57,7 @@ class Driver(ABC_Driver):
     def load_model(self, model_path: str | None = None) -> None:
         """Load a .hef model."""
         path = model_path or self.config.model_path
-        self.logger.info("Loading HEF model", extra={"details": {"model_path": path}})
+        self.logger.info("Loading HEF model", extra={DETAILS_KEY: {"model_path": path}})
 
         # Load the model onto the virtual device
         self._infer_model = self.vdevice.create_infer_model(path)
@@ -139,7 +140,7 @@ class Driver(ABC_Driver):
         self.infer(input_data)
         latency_ms = (time.perf_counter() - start) * 1000
 
-        self.logger.info("Inference completed", extra={"details": {"latency_ms": latency_ms}})
+        self.logger.info("Inference completed", extra={DETAILS_KEY: {"latency_ms": latency_ms}})
         return InferenceResult(detections=[], latency_ms=latency_ms)
 
     def infer_with_image_size(
@@ -179,7 +180,7 @@ class Driver(ABC_Driver):
         avg_latency = sum(latencies) / len(latencies)
         self.logger.info(
             "Latency benchmark",
-            extra={"details": {"avg_latency_ms": avg_latency, "iterations": iterations}},
+            extra={DETAILS_KEY: {"avg_latency_ms": avg_latency, "iterations": iterations}},
         )
         return avg_latency
 
@@ -189,7 +190,7 @@ class Driver(ABC_Driver):
             devices = self.vdevice.get_physical_devices()
             if devices:
                 temp = devices[0].control.get_device_temperature()
-                self.logger.info("Temperature read", extra={"details": {"temperature_c": temp}})
+                self.logger.info("Temperature read", extra={DETAILS_KEY: {"temperature_c": temp}})
                 return float(temp)
         except (RuntimeError, OSError, ValueError):
             return None
@@ -202,7 +203,7 @@ class Driver(ABC_Driver):
             devices = self.vdevice.get_physical_devices()
             if devices:
                 power = devices[0].get_power_usage()
-                self.logger.info("Power usage read", extra={"details": {"power_mw": power}})
+                self.logger.info("Power usage read", extra={DETAILS_KEY: {"power_mw": power}})
                 return int(power)
         except (RuntimeError, OSError, ValueError):
             return None

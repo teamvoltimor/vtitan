@@ -14,6 +14,7 @@ from src.hardware.button.event import ButtonEvent
 from src.hardware.button.mcp2221.config import Config
 from src.hardware.button.state import ButtonState
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 os.environ.setdefault("BLINKA_MCP2221", "1")
 
@@ -142,13 +143,13 @@ class Driver(BaseDriver):
                     self._last_event = ButtonEvent.LONG_PRESS
                     self.logger.info(
                         "Button long press detected",
-                        extra={"details": {"duration": round(press_duration, 2)}},
+                        extra={DETAILS_KEY: {"duration": round(press_duration, 2)}},
                     )
                 else:
                     self._last_event = ButtonEvent.SHORT_PRESS
                     self.logger.debug(
                         "Button short press detected",
-                        extra={"details": {"duration": round(press_duration, 2)}},
+                        extra={DETAILS_KEY: {"duration": round(press_duration, 2)}},
                     )
 
                 self._press_start_time = None

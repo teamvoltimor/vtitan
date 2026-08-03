@@ -6,6 +6,7 @@ from gpiozero import InputDevice
 
 from src.hardware.challenge_mode.config import Config
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -31,7 +32,7 @@ class Driver:
         """Initialize GPIO with the internal pull-up enabled."""
         self.logger.info(
             "Connecting to challenge-mode jumper",
-            extra={"details": {"gpio_pin": self.config.gpio_pin}},
+            extra={DETAILS_KEY: {"gpio_pin": self.config.gpio_pin}},
         )
         self._input = InputDevice(self.config.gpio_pin, pull_up=True)
         self.logger.info("Challenge-mode jumper connected successfully")

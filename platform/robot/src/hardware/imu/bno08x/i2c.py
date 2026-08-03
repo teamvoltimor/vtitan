@@ -34,6 +34,7 @@ from src.hardware.imu.readings import (
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -97,7 +98,7 @@ class Driver(ABC_Driver):
 
         self.logger.info(
             "Connecting to BNO08x via I2C (Blinka)",
-            extra={"details": {"i2c_address": hex(self.config.address)}},
+            extra={DETAILS_KEY: {"i2c_address": hex(self.config.address)}},
         )
 
         try:
@@ -109,7 +110,7 @@ class Driver(ABC_Driver):
             self._imu = BNO08X_I2C(self._i2c, address=self.config.address)
             self.logger.info("Connected to BNO08x IMU via I2C")
         except (RuntimeError, OSError) as e:
-            self.logger.exception("Failed to connect to IMU", extra={"details": {"error": str(e)}})
+            self.logger.exception("Failed to connect to IMU", extra={DETAILS_KEY: {"error": str(e)}})
             raise IMUConnectionError(
                 hex(self.config.address),
                 "Connection failed (check wiring, power, and I2C address)",
@@ -117,7 +118,7 @@ class Driver(ABC_Driver):
         except Exception as e:
             self.logger.exception(
                 "Unexpected error connecting to IMU",
-                extra={"details": {"error": str(e)}},
+                extra={DETAILS_KEY: {"error": str(e)}},
             )
             raise IMUConnectionError(
                 hex(self.config.address),
@@ -162,7 +163,7 @@ class Driver(ABC_Driver):
         accel = self.imu.acceleration
         self.logger.debug(
             "Accelerometer read",
-            extra={"details": {"x": accel[0], "y": accel[1], "z": accel[2]}},
+            extra={DETAILS_KEY: {"x": accel[0], "y": accel[1], "z": accel[2]}},
         )
         return AccelerometerReading(x=accel[0], y=accel[1], z=accel[2])
 
@@ -176,7 +177,7 @@ class Driver(ABC_Driver):
         gyro = self.imu.gyro
         self.logger.debug(
             "Gyroscope read",
-            extra={"details": {"x": gyro[0], "y": gyro[1], "z": gyro[2]}},
+            extra={DETAILS_KEY: {"x": gyro[0], "y": gyro[1], "z": gyro[2]}},
         )
         return GyroscopeReading(x=gyro[0], y=gyro[1], z=gyro[2])
 
@@ -190,7 +191,7 @@ class Driver(ABC_Driver):
         mag = self.imu.magnetic
         self.logger.debug(
             "Magnetometer read",
-            extra={"details": {"x": mag[0], "y": mag[1], "z": mag[2]}},
+            extra={DETAILS_KEY: {"x": mag[0], "y": mag[1], "z": mag[2]}},
         )
         return MagnetometerReading(x=mag[0], y=mag[1], z=mag[2])
 
@@ -206,7 +207,7 @@ class Driver(ABC_Driver):
 
         self.logger.debug(
             "Quaternion read",
-            extra={"details": {"x": x, "y": y, "z": z, "w": w}},
+            extra={DETAILS_KEY: {"x": x, "y": y, "z": z, "w": w}},
         )
         # QuaternionReading is (w, x, y, z) -- keyword args so the fields
         # line up correctly regardless of Adafruit's (x, y, z, w) order.
@@ -222,7 +223,7 @@ class Driver(ABC_Driver):
         euler = self.imu.euler
         self.logger.debug(
             "Euler read",
-            extra={"details": {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}},
+            extra={DETAILS_KEY: {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}},
         )
         return EulerReading(pitch=euler[0], roll=euler[1], yaw=euler[2])
 
@@ -236,7 +237,7 @@ class Driver(ABC_Driver):
         linear = self.imu.linear_acceleration
         self.logger.debug(
             "Linear accel read",
-            extra={"details": {"x": linear[0], "y": linear[1], "z": linear[2]}},
+            extra={DETAILS_KEY: {"x": linear[0], "y": linear[1], "z": linear[2]}},
         )
         return AccelerometerReading(x=linear[0], y=linear[1], z=linear[2])
 
@@ -248,7 +249,7 @@ class Driver(ABC_Driver):
 
         try:
             cal = self.imu.calibration_status
-            self.logger.info("Calibration status read", extra={"details": {"calibration": cal}})
+            self.logger.info("Calibration status read", extra={DETAILS_KEY: {"calibration": cal}})
         except AttributeError:
             return None
         else:

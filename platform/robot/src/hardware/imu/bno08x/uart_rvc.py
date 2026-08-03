@@ -20,6 +20,7 @@ from src.hardware.imu.config import QuaternionConfig
 from src.hardware.imu.readings import RVCReading
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -92,7 +93,7 @@ class Driver(ABC_RVCDriver):
         # We will use pyserial to open the serial port and pass it to the B
         self.logger.info(
             "Connecting to BNO08x",
-            extra={"details": {"port": port, "baudrate": self.config.baudrate}},
+            extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
         )
         self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=SERIAL_TIMEOUT)
 
@@ -111,7 +112,7 @@ class Driver(ABC_RVCDriver):
         self._running.acquire()
         self._thread = Thread(target=self._poll_loop, daemon=True)
         self._thread.start()
-        self.logger.info("Polling started", extra={"details": {"rate_hz": self.config.poll_rate_hz}})
+        self.logger.info("Polling started", extra={DETAILS_KEY: {"rate_hz": self.config.poll_rate_hz}})
 
     @override
     def stop_polling(self) -> None:

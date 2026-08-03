@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from shared.config.enums import Direction, Section
 from shared.domain.models import LoopProgress
+from src.logger.constants import DETAILS_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,7 @@ class RaceTracker:
         if self.metrics.completed_laps >= self.num_laps:
             logger.info(
                 "Race FINISHED",
-                extra={"details": {"lap_splits": self.metrics.lap_splits}},
+                extra={DETAILS_KEY: {"lap_splits": self.metrics.lap_splits}},
             )
 
     def record_escape_maneuver(self) -> None:
@@ -265,5 +266,5 @@ class RaceTracker:
         summary = self.get_race_summary()
         logger.info(
             "Race Summary",
-            extra={"details": summary},
+            extra={DETAILS_KEY: summary},
         )

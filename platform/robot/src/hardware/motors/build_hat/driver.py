@@ -17,6 +17,7 @@ from src.hardware.motors.base import (
 )
 from src.hardware.motors.config import Config
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -127,7 +128,7 @@ class Driver(MotorDriver):
 
         self.logger.info(
             "Connected",
-            extra={"details": {"steering": self.config.steering.port, "drive": self.config.drive.port}},
+            extra={DETAILS_KEY: {"steering": self.config.steering.port, "drive": self.config.drive.port}},
         )
 
     @override
@@ -200,14 +201,14 @@ class Driver(MotorDriver):
     def run_drive_forward(self, speed: int | None = None) -> None:
         """Run drive motor forward with optional speed limit."""
         s = self._clamp_speed(speed or self.config.drive.default_speed)
-        self.logger.info("Starting drive forward", extra={"details": {"speed": s}})
+        self.logger.info("Starting drive forward", extra={DETAILS_KEY: {"speed": s}})
         self.drive.start(s)
 
     @override
     def run_drive_reverse(self, speed: int | None = None) -> None:
         """Run drive motor in reverse."""
         s = self._clamp_speed(speed or self.config.drive.default_speed)
-        self.logger.info("Starting drive reverse", extra={"details": {"speed": -s}})
+        self.logger.info("Starting drive reverse", extra={DETAILS_KEY: {"speed": -s}})
         self.drive.start(-s)
 
     @override
@@ -220,7 +221,7 @@ class Driver(MotorDriver):
     def move_steering_to(self, position: float, speed: int = DEFAULT_STEERING_SPEED) -> None:
         """Move steering to absolute position in degrees."""
         s = self._clamp_speed(speed)
-        self.logger.info("Moving steering", extra={"details": {"target_position": position, "speed": speed}})
+        self.logger.info("Moving steering", extra={DETAILS_KEY: {"target_position": position, "speed": speed}})
         self.steering.run_to_position(position, speed=s)
 
     @override
@@ -231,7 +232,7 @@ class Driver(MotorDriver):
     @override
     def move_steering_to_right_from_center(self, position: float, speed: int = 20) -> None:  # 20 from DEFAULT_STEERING_SPEED
         """Move steering to right relative position in degrees from center position."""
-        self.logger.info("Moving steering right", extra={"details": {"relative_position": position, "speed": speed}})
+        self.logger.info("Moving steering right", extra={DETAILS_KEY: {"relative_position": position, "speed": speed}})
         position = self._clamp_position(position)
         target_position = (
             self.config.steering.center_angle + position
@@ -243,7 +244,7 @@ class Driver(MotorDriver):
     @override
     def move_steering_to_left_from_center(self, position: float, speed: int = 20) -> None:
         """Move steering to left relative position in degrees from center position."""
-        self.logger.info("Moving steering left", extra={"details": {"relative_position": position, "speed": speed}})
+        self.logger.info("Moving steering left", extra={DETAILS_KEY: {"relative_position": position, "speed": speed}})
         position = self._clamp_position(position)
         target_position = (
             self.config.steering.center_angle - position

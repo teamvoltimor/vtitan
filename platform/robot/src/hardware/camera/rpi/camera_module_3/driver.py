@@ -19,6 +19,7 @@ from src.hardware.camera.base import (
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
+from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
@@ -134,7 +135,7 @@ class Driver(CameraDriver):
         timestamp = time.time()
         height, width = frame.shape[:2]
 
-        self.logger.debug("Frame captured", extra={"details": {"width": width, "height": height}})
+        self.logger.debug("Frame captured", extra={DETAILS_KEY: {"width": width, "height": height}})
         return Frame(frame=frame, timestamp=timestamp, width=width, height=height)
 
     @staticmethod
@@ -232,7 +233,7 @@ class Driver(CameraDriver):
         elapsed = time.time() - start_time
         fps = num_frames / elapsed
 
-        self.logger.info("FPS measured", extra={"details": {"fps": fps, "num_frames": num_frames}})
+        self.logger.info("FPS measured", extra={DETAILS_KEY: {"fps": fps, "num_frames": num_frames}})
         return fps
 
     def measure_latency(self, num_frames: int = 10) -> float:
@@ -245,7 +246,7 @@ class Driver(CameraDriver):
             latencies.append(time.time() - start)
 
         avg_latency = sum(latencies) / len(latencies)
-        self.logger.info("Latency measured", extra={"details": {"avg_latency_ms": avg_latency * 1000}})
+        self.logger.info("Latency measured", extra={DETAILS_KEY: {"avg_latency_ms": avg_latency * 1000}})
         return avg_latency
 
     def close(self) -> None:
