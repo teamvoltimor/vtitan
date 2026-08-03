@@ -28,3 +28,13 @@ main_loop_reached_distance_m = 0.20
 # Distance within which WaypointController's own internal pure-pursuit logic
 # counts a waypoint as reached.
 controller_reached_distance_m = 0.01
+
+# When CoreNavigator.replace_path is given the robot's current heading,
+# candidate waypoints within this much of the nearest one's distance are
+# re-ranked by heading agreement instead of taking the nearest purely by
+# position -- near a corner several waypoints can sit at almost the same
+# distance while pointing in very different directions. Measured on real
+# hardware: picking purely by position handed pursuit a ~193 deg correction
+# where finishing the corner only needed ~90 deg, right after a blind round's
+# direction inference committed.
+replan_heading_tie_margin_m = 0.15

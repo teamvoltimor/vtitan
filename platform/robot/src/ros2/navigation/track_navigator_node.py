@@ -499,7 +499,7 @@ class TrackNavigator(Node, ResettableNode):
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
-        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y))
+        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y), pose.yaw)
         self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:

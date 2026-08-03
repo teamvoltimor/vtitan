@@ -26,6 +26,7 @@ from src.navigation.control.controllers import (
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
+from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
     from shared.config.enums import Section
@@ -36,6 +37,17 @@ if TYPE_CHECKING:
     from src.navigation.race_tracker import LapDetector
 
 logger = logging.getLogger(__name__)
+
+
+def _outgoing_bearing(waypoints: list[tuple[float, float]], index: int) -> float:
+    """Direction the path points at ``index``, toward its next waypoint.
+
+    Wraps to waypoint 0 past the end -- the planned path is one canonical lap
+    of a closed loop (see ``replace_path``), not an open segment.
+    """
+    x0, y0 = waypoints[index]
+    x1, y1 = waypoints[(index + 1) % len(waypoints)]
+    return math.atan2(y1 - y0, x1 - x0)
 
 
 class CoreNavigator:
@@ -140,7 +152,12 @@ class CoreNavigator:
         """The traffic-sign router, or None outside the Obstacles Challenge."""
         return self._sign_router
 
-    def replace_path(self, waypoints: list[tuple[float, float]], robot_xy: tuple[float, float]) -> None:
+    def replace_path(
+        self,
+        waypoints: list[tuple[float, float]],
+        robot_xy: tuple[float, float],
+        robot_yaw: float | None = None,
+    ) -> None:
         """Swap in a new planned path mid-run, resuming at the nearest point.
 
         Needed when the layout the path was planned against turns out to be
@@ -155,17 +172,46 @@ class CoreNavigator:
         nearest point on the new path is essentially where the robot already
         was on the old one.
 
+        Nearest-by-position alone can go wrong right after a blind round's
+        direction inference commits: near a corner, several waypoints sit at
+        almost the same distance while pointing in very different directions,
+        and the robot's heading at that instant does not always match the
+        path's local direction there yet (it has been steering, within the
+        blind corridor-follower's own limits, during the creep leading up to
+        the commit). Picking purely by position can then hand
+        :class:`~src.navigation.control.controllers.WaypointController` a
+        point past the turn, demanding a correction far larger than finishing
+        the corner needs — measured on real hardware as a ~193 deg swing
+        where ~90 deg would do. Passing ``robot_yaw`` re-ranks the
+        near-tied-by-distance candidates (see
+        ``NavigationTuning.waypoints.REPLAN_HEADING_TIE_MARGIN_M``) by
+        heading agreement instead.
+
         Args:
             waypoints: The replacement path (single canonical lap).
             robot_xy: Current position, used to resume at the nearest waypoint.
+            robot_yaw: Current heading (radians), if known. When given, breaks
+                near-ties in the position search by heading agreement instead
+                of taking the strict nearest. Omit where the robot has been
+                tracking a path very similar to the new one (e.g. a small
+                corridor-width belief update), where nearest-by-position alone
+                is already safe.
         """
         previous_index = self._waypoint_index
         self._waypoints = waypoints
         robot_x, robot_y = robot_xy
-        self._waypoint_index = min(
-            range(len(waypoints)),
-            key=lambda i: math.hypot(waypoints[i][0] - robot_x, waypoints[i][1] - robot_y),
-        )
+        distances = [math.hypot(wx - robot_x, wy - robot_y) for wx, wy in waypoints]
+        nearest_index = min(range(len(waypoints)), key=lambda i: distances[i])
+
+        if robot_yaw is not None:
+            margin = distances[nearest_index] + self._tuning.waypoints.REPLAN_HEADING_TIE_MARGIN_M
+            candidates = [i for i, d in enumerate(distances) if d <= margin]
+            nearest_index = min(
+                candidates,
+                key=lambda i: abs(_wrap(_outgoing_bearing(waypoints, i) - robot_yaw)),
+            )
+
+        self._waypoint_index = nearest_index
 
         # A large forward jump is never earned progress — the robot cannot skip
         # most of a lap between two ticks. It means the re-seek landed on the

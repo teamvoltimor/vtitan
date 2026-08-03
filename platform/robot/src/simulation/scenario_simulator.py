@@ -629,7 +629,7 @@ class ScenarioSimulator:
             # still 0 while the robot has driven a metre past it -- it would
             # resume by chasing a waypoint behind itself. Measured: this alone
             # cost fixtures that had inferred the direction perfectly.
-            self._navigator.replace_path(self._waypoints, (pose.x, pose.y))
+            self._navigator.replace_path(self._waypoints, (pose.x, pose.y), pose.yaw)
             return False
 
         self._gateway.publish_drive(

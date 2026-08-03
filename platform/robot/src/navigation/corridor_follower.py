@@ -14,6 +14,23 @@ hands over to the real path.
 Starting on the assumed direction instead does not work. The path for the wrong
 direction runs the opposite way down the same corridor, so its lookahead point
 is *behind* the robot and pure pursuit turns it around inside the corridor.
+
+Tried and reverted (2026-08-02): a dead zone on the turn-below's ``left >
+right`` comparison, holding straight instead of committing to a side when the
+two were within a few centimetres -- meant to filter the occasional noisy scan
+that steers the wrong way for a tick before the direction estimator's own
+(much stricter, 5-vote) test corrects it. Even sized to real LIDAR noise
+(~3 cm), it regressed multiple blind Open Challenge fixtures into the 180 s
+round limit or stuck oscillating near a corner: in a narrow (0.6 m) corridor
+the asymmetry signal grows slowly approaching a turn, so any dead zone here
+eats into the same margin the deadlock-avoidance back-off branch below
+depends on, disproportionately to the noise it was filtering. The wrong-side
+steer this was meant to fix is now largely absorbed by
+:mod:`src.navigation.core_navigator`'s heading-aware ``replace_path`` reseek
+instead (a bad blind-phase guess gets a correctly-sized correction once the
+direction estimator settles, rather than an oversized one) -- do not
+re-attempt a dead zone here without re-measuring against the full Open
+Challenge sim battery, not just the fixture that motivated it.
 """
 
 from __future__ import annotations
