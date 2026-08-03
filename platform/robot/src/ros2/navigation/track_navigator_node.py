@@ -22,9 +22,10 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState
 from shared.domain.models import CorridorWidthEntry, CorridorWidths, Pose, ScenarioMetadata
-from std_msgs.msg import String
+from std_msgs.msg import Int32, String
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import (
@@ -176,6 +177,7 @@ class TrackNavigator(Node, ResettableNode):
         # only the provisional the first path is built from, and is replaced
         # the moment the inference settles.
         self._direction_estimator = DirectionEstimator() if self._blind else None
+        self._direction_gate_log_counter = 0
         self._creep_widths: list[tuple[float, float]] = []
         self._creep_speed = tuning.speed.SLOW_SPEED
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
@@ -276,6 +278,19 @@ class TrackNavigator(Node, ResettableNode):
                 reliability=QoSReliabilityPolicy.BEST_EFFORT,
                 durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
             ),
+        )
+
+        # state_machine_node owns /race_metrics (what the OLED and FINISHED
+        # transition read) but has no way to count laps itself -- only this
+        # node's CoreNavigator/LapDetector actually detects a crossing. BEST_
+        # EFFORT, published every control tick regardless of outcome, same
+        # rationale as /robot_state above: a dropped sample is corrected
+        # within one tick, so nothing here can be allowed to block this loop.
+        self._topics = RosTopicConfig.load_default()
+        self._laps_pub = self.create_publisher(
+            Int32,
+            self._topics.navigation.laps_completed,
+            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
         )
 
         # Control Loop
@@ -584,6 +599,7 @@ class TrackNavigator(Node, ResettableNode):
 
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""
+        self._laps_pub.publish(Int32(data=self._core_navigator.laps_completed))
         if not self._racing:
             # Keep publishing zeros rather than going silent: ackermann_motor_node
             # has a 1 s command watchdog, and silence would let it latch a stop

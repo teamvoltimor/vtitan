@@ -40,6 +40,9 @@ class NavigationTopics(BaseModel):
     odometry: str | None = None
     """Odometry from track_navigator_node (if implemented)."""
 
+    laps_completed: str
+    """Lap count from track_navigator_node's CoreNavigator/LapDetector."""
+
 
 class SensorTopics(BaseModel):
     """Sensor data topics."""
