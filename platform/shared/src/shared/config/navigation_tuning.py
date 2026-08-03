@@ -225,6 +225,22 @@ class WaypointParams(BaseModel):
         CONTROLLER_REACHED_DISTANCE_M: Distance within which
             WaypointController's own internal pure-pursuit logic counts a
             waypoint as reached.
+        REPLAN_HEADING_TIE_MARGIN_M: When ``CoreNavigator.replace_path`` is
+            given the robot's current heading, candidate waypoints within
+            this much of the nearest one's distance are re-ranked by heading
+            agreement instead of taking the nearest purely by position. Near
+            a corner, several waypoints can sit at almost the same distance
+            from the robot while pointing in very different directions --
+            picking purely by position there can hand the pursuit controller
+            a point past the turn, demanding a correction far larger than
+            finishing the corner needs. Measured on real hardware: a ~193 deg
+            swing where completing the corner only needed ~90 deg, right
+            after a blind round's direction inference committed. Deliberately
+            a tie-margin rather than a blended cost -- it only overrides the
+            nearest-position pick when a comparably-close, better-aligned
+            alternative actually exists, so the normal small-adjustment
+            reseek (``_update_layout_belief``, following an already-similar
+            path) is unaffected.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -239,6 +255,9 @@ class WaypointParams(BaseModel):
     )
     CONTROLLER_REACHED_DISTANCE_M: float = Field(
         default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M")
+    )
+    REPLAN_HEADING_TIE_MARGIN_M: float = Field(
+        default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M")
     )
 
 
