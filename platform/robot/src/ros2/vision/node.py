@@ -21,6 +21,16 @@ from src.hardware.camera.base import Driver as CameraDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.vision import create_detector
 from src.vision.detector import DEFAULT_YOLO_MODEL_PATH
+from src.vision.detection_payload_keys import (
+    AREA_KEY,
+    BBOX_KEY,
+    CLASS_NAME_KEY,
+    CONFIDENCE_KEY,
+    HEIGHT_KEY,
+    WIDTH_KEY,
+    X_KEY,
+    Y_KEY,
+)
 from src.vision.overlay import annotate
 
 
@@ -233,12 +243,19 @@ class VisionNode(Node):
         try:
             detections = self.detector.detect(rgb)
 
-            # Publish the shared-domain Detection, not SignDetection's compact
-            # form. The navigator rebuilds Detection from this payload and keys
-            # sign confirmation off class_name; to_dict() emits "color" and no
-            # centroid, so every field the navigator reads came back empty and
-            # colour confirmation silently never fired.
-            data = [asdict(d.to_detection()) for d in detections]
+            data = []
+            for d in detections:
+                det = d.to_detection()
+                data.append({
+                    CLASS_NAME_KEY: det.class_name,
+                    CONFIDENCE_KEY: det.confidence,
+                    BBOX_KEY: det.bbox,
+                    X_KEY: det.x,
+                    Y_KEY: det.y,
+                    WIDTH_KEY: det.width,
+                    HEIGHT_KEY: det.height,
+                    AREA_KEY: det.area,
+                })
 
             out_msg = String()
             out_msg.data = json.dumps(data)

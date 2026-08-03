@@ -1,0 +1,10 @@
+"""Shared keys for detection JSON payload sent from vision node to hardware gateway."""
+
+CLASS_NAME_KEY = "class_name"
+CONFIDENCE_KEY = "confidence"
+BBOX_KEY = "bbox"
+X_KEY = "x"
+Y_KEY = "y"
+WIDTH_KEY = "width"
+HEIGHT_KEY = "height"
+AREA_KEY = "area"
