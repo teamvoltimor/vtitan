@@ -101,6 +101,25 @@ class StateEstimator:
         error = wrap_angle(measured_yaw - self.estimate_pose().yaw)
         self._yaw_correction = wrap_angle(self._yaw_correction + gain * error)
 
+    def apply_yaw_correction(self, delta_rad: float) -> None:
+        """Shift the heading estimate by a known, exact amount, applied in full.
+
+        Unlike ``correct_yaw`` (a gradual complementary-filter pull toward a
+        *noisy* measurement, gained down so per-scan wall noise doesn't inject
+        straight into steering), this is for a *known* delta that must land
+        exactly and immediately -- e.g. when blind direction inference
+        overturns the direction assumed at construction. ``assumed_start_conditions``
+        pairs a starting yaw with the assumed direction (the two travel-direction
+        unit vectors for a section are exact opposites, so CW and CCW always
+        differ by exactly pi), so discovering the assumption was wrong leaves
+        the heading estimate anchored to a reference that no longer matches
+        the just-corrected direction, or the just-rebuilt path -- unless
+        the caller corrects it by exactly the same delta.
+
+        Args:
+            delta_rad: Signed radians to add to the current estimate.
+        """
+        self._yaw_correction = wrap_angle(self._yaw_correction + delta_rad)
 
     def estimate_pose(self) -> Pose:
         """Calculate and return the current fused Pose in the world frame."""

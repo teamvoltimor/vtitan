@@ -243,6 +243,35 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
+    def test_overturning_the_assumed_direction_corrects_the_heading_estimate(self, ros_context) -> None:  # noqa: F811
+        """2026-08-04: the bug behind "CCW never resolves its heading".
+
+        assumed_start_conditions pairs a starting yaw with whichever direction
+        was assumed at construction -- CW and CCW differ by exactly pi for the
+        same section. Overturning the assumption used to rebuild the path
+        (test above) without correcting the heading estimate to match, leaving
+        it anchored to the old, wrong half of the pair for the rest of the
+        run -- a fixed, non-decaying bias, confirmed on real hardware
+        (2026-08-04, see docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
+        """
+        from shared.domain.models import Pose
+
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            # Nothing has published an IMU reading yet, so this is exactly the
+            # yaw assumed_start_conditions(CLOCKWISE) seeded at construction.
+            before_yaw = navigator._gateway.get_current_pose().yaw
+            assert before_yaw == pytest.approx(math.pi)
+
+            navigator._commit_direction(Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=before_yaw))
+
+            after_yaw = navigator._gateway.get_current_pose().yaw
+            assert after_yaw == pytest.approx(0.0, abs=1e-9)
+        finally:
+            navigator.destroy_node()
+
 
 class TestAssumedStartConditions:
     """Section can be assumed; direction cannot."""

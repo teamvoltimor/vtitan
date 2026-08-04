@@ -45,7 +45,7 @@ from src.navigation.maneuvers.parking import ParkController, park_controller_fro
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
 from src.navigation.ports import DriveCommand
-from src.navigation.race_tracker import LapDetector
+from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
@@ -505,7 +505,8 @@ class TrackNavigator(Node, ResettableNode):
 
     def _commit_direction(self, inferred: Direction, pose: Pose) -> None:
         """Adopt the inferred direction and rebuild everything derived from it."""
-        changed = inferred is not self._direction
+        previous = self._direction
+        changed = inferred is not previous
         self._direction = inferred
         if self._width_estimator is not None:
             for buffered_yaw, buffered_width in self._creep_widths:
@@ -516,6 +517,26 @@ class TrackNavigator(Node, ResettableNode):
             self._creep_widths.clear()
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
         if changed:
+            # assumed_start_conditions paired a starting yaw with whichever
+            # direction was assumed at construction (the two travel-direction
+            # unit vectors for a section are exact opposites, so CW and CCW
+            # always differ by exactly pi). Overturning that assumption
+            # rebuilds the path below in the now-correct frame, but leaves the
+            # heading estimate anchored to the old, wrong half of that pair --
+            # a fixed bias that never decays, since nothing else in the control
+            # loop can correct a wrong reference frame, only a wrong response
+            # to a correctly-known one. Correcting by exactly the delta
+            # between what was assumed and what's now known keeps the
+            # estimate's reference matched to the direction it's paired with.
+            old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
+            new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
+            heading_delta = _wrap(new_yaw - old_yaw)
+            self._gateway.correct_heading_for_direction_change(heading_delta)
+            # ``pose`` was read from the gateway before the correction above
+            # landed, so it still carries the old, now-stale yaw -- replan
+            # below with the corrected value or the heading-aware reseek in
+            # replace_path would pick a waypoint using the wrong heading.
+            pose = Pose(x=pose.x, y=pose.y, yaw=_wrap(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted.
             self._core_navigator.replace_lap_detector(

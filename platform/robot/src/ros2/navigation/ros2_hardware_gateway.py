@@ -168,6 +168,14 @@ class ROS2HardwareGateway(HardwareGateway):
         """Re-zero the estimator's heading against the next IMU reading."""
         self._estimator.reset_heading_reference()
 
+    def correct_heading_for_direction_change(self, delta_rad: float) -> None:
+        """Shift the estimator's heading by a known amount, applied in full.
+
+        See ``StateEstimator.apply_yaw_correction`` -- used when blind
+        direction inference overturns the direction assumed at construction.
+        """
+        self._estimator.apply_yaw_correction(delta_rad)
+
     def _joint_state_callback(self, msg: JointState) -> None:
         """Convert the drive wheel's angle and rate into linear travel.
 

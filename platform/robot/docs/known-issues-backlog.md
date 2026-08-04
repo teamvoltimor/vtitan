@@ -85,3 +85,19 @@ excludes them -- verified at 55s for 523 tests. Not fixed: `raycast()`'s per-cal
 (~0.46ms) is unexamined -- worth profiling whether the coarse-to-fine grid search
 (4 passes x 5x5 = 100 raycasts per scan) is doing more work than it needs to, independent of
 whether it's fast enough for these tests' purposes.
+
+## `telemetry_bridge_node.py`'s `_LIDAR_YAW_OFFSET_RAD` is missing the mount-inversion term
+
+Pre-existing, confirmed present at `5378e42` (before the 2026-08-04 collision-avoidance
+work) -- not caused by that session. `telemetry_bridge_node.py:194` computes
+`_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)`, but
+`ros2_hardware_gateway.py`'s equivalent constant additionally includes
+`180.0 if RobotSpecs.LIDAR_INVERTED else 0.0` (currently `LIDAR_INVERTED=True`,
+`LIDAR_MOUNT_YAW_OFFSET_DEG=0.0`, so the real offset is 180 deg and this file's copy is
+computing 0). The module's own docstring claims it "matches the correction
+ros2/navigation/node.py applies" -- it doesn't. Surfaced by 4 failing tests in
+`tests/ros2/test_telemetry_bridge_node.py::TestLidarClearancesCm` (front/left/right sector
+means come back reading the 10m background fill instead of the injected near-range window,
+because the sector center ends up 180 deg away from where the test places it). Likely means
+the real OLED front/left/right clearance display is rotated 180 deg from reality on hardware,
+the same class of bug the docstring says it was written to prevent.
