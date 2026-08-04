@@ -265,7 +265,7 @@ class ROS2HardwareGateway(HardwareGateway):
 
     def _vision_callback(self, msg: String) -> None:
         try:
-            from ros2.vision.detection_payload_keys import (
+            from src.ros2.vision.detection_payload_keys import (
                 AREA_KEY,
                 BBOX_KEY,
                 CLASS_NAME_KEY,

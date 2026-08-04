@@ -21,7 +21,7 @@ from src.hardware.camera.base import Driver as CameraDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.vision import create_detector
 from src.vision.detector import DEFAULT_YOLO_MODEL_PATH
-from src.vision.detection_payload_keys import (
+from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
     CLASS_NAME_KEY,

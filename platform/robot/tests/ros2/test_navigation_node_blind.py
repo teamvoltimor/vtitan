@@ -108,6 +108,53 @@ class TestGatewayBeliefUpdate:
         assert err_right < err_wrong
 
 
+class TestVisionCallbackParsesDetections:
+    """2026-08-04: _vision_callback's deferred import of detection_payload_keys
+    named the wrong module path (``ros2.vision...``, missing the ``src.``
+    prefix) since the commit that introduced it (2026-08-02, 4f8dbdf) --
+    every real /vision/detections message raised ModuleNotFoundError, which
+    the surrounding except (JSONDecodeError, TypeError) does not catch, so it
+    propagated out of the callback and left _latest_detections permanently
+    empty. No test exercised this method at all, which is how it went
+    unnoticed. node.py's own top-level import of the same module had the same
+    class of bug (missing ``ros2.``, not just ``src.``), which crash-looped
+    vision_node outright rather than failing silently -- see
+    docs/known-issues-backlog.md.
+    """
+
+    def test_a_real_detections_message_populates_latest_detections(self, ros_context) -> None:  # noqa: F811
+        import json
+
+        from std_msgs.msg import String
+
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+        try:
+            msg = String()
+            msg.data = json.dumps(
+                [
+                    {
+                        "class_name": "red_sign",
+                        "confidence": 0.9,
+                        "bbox": [10.0, 10.0, 20.0, 20.0],
+                        "x": 15.0,
+                        "y": 15.0,
+                        "width": 20.0,
+                        "height": 20.0,
+                        "area": 400.0,
+                    },
+                ],
+            )
+
+            gateway._vision_callback(msg)
+
+            assert len(gateway._latest_detections) == 1
+            assert gateway._latest_detections[0].class_name == "red_sign"
+            assert gateway._latest_detections[0].confidence == pytest.approx(0.9)
+        finally:
+            node.destroy_node()
+
+
 class TestHeadingResetReachesTheEstimator:
     """The race-start re-zero must actually reach the state estimator.
 
