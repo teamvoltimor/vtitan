@@ -175,7 +175,7 @@ class CollisionAvoidanceController:
         front_half_fov_deg: float = 30.0,
         threat_half_fov_deg: float = 45.0,
         self_detection_threshold_m: float = 0.08,
-        min_valid_range_m: float = 0.01,
+        min_valid_range_m: float = 0.05,
         threat_no_detection_range_m: float = 1.0,
         no_data_range_m: float = 10.0,
     ):
@@ -436,7 +436,24 @@ class CollisionAvoidanceController:
         lidar_ranges: np.ndarray | tuple[float, ...],
         lidar_angles: np.ndarray | tuple[float, ...] | None = None,
     ) -> float:
-        """Mean clearance in the forward +/-30 deg sector (0 rad = forward).
+        """Minimum clearance in the forward +/-30 deg sector (0 rad = forward).
+
+        Was the sector's MEAN, not its minimum -- a real near-contact dead
+        ahead widens the cone's grazing-incidence edges into no-returns
+        (physically expected: a flat surface a few cm away reflects rays near
+        its own edge too shallowly to return a signal at all), and the LIDAR
+        callback substitutes those no-returns with ``LIDAR_MAX_RANGE`` before
+        this ever sees them (see ``ros2_hardware_gateway._lidar_callback``).
+        Averaging genuine ~0.08m readings together with several fabricated
+        12m ones reports several metres of open road during the single most
+        blocked moment of a run -- confirmed against a real 2026-08-04 bag
+        (``run_20260804_114500``, t=26.02s): the sector's true minimum was
+        0.078m dead ahead (matching flat-wall-at-close-range raycast geometry,
+        ``d/cos(theta)`` across the cone) while the old mean reported 5.15m.
+        Minimum matches the pattern ``compute_rear_clearance``/
+        ``compute_min_clearance`` already use, and is what a clearance number
+        meant to gate speed should be: the worst case in the cone, not an
+        average that a single no-return can swamp.
 
         Args:
             lidar_ranges: Array of LIDAR measurements.
@@ -457,7 +474,7 @@ class CollisionAvoidanceController:
             min_valid_range_m=self.min_valid_range_m,
             no_data_range_m=self.no_data_range_m,
         )
-        return sr.mean_range_m if sr.valid_count > 0 else self.no_data_range_m
+        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
     def compute_rear_clearance(
         self,

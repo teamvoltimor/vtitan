@@ -211,7 +211,10 @@ class TestSelfDetectionFilter:
         # near-contact obstacle has to still register.
         ranges = _scan()
         i = _index_for(0.0)
-        ranges[i - 4 : i + 4] = 0.05
+        # Just above MIN_VALID_RANGE_M (0.05m, the C1's real rated minimum) --
+        # this test is about the self-detection exemption, not the
+        # invalid-reading floor itself, so it must not sit exactly on it.
+        ranges[i - 4 : i + 4] = 0.06
         assert controller.detect_threat_direction(ranges, ANGLES) == "front"
 
 

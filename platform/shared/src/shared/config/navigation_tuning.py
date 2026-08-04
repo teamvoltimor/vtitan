@@ -285,13 +285,15 @@ class LidarSectorParams(BaseModel):
             used by CollisionAvoidanceController.compute_forward_clearance.
         THREAT_HALF_FOV_DEG: Half-width (deg) of the threat-detection sectors
             (front/left/right/back), used by detect_threat_direction and
-            related methods -- a narrower, min-based cone for "is something
-            about to hit me," distinct from the wider, mean-based forward
-            clearance cone above.
+            related methods -- a narrower cone than the forward clearance
+            cone above; both are min-based (see compute_forward_clearance's
+            docstring for why it switched from mean 2026-08-04).
         SELF_DETECTION_THRESHOLD_M: Rays no farther than this are discarded
             as chassis/cable self-reflection when a sector filters for it.
         MIN_VALID_RANGE_M: LIDAR ranges at or below this are treated as
-            invalid (no-return) readings.
+            invalid (no-return) readings. Matches RobotSpecs.LIDAR_MIN_RANGE
+            (the C1's real rated minimum, 0.05m) -- was 0.01m, five times
+            below what the sensor can physically report.
         THREAT_NO_DETECTION_RANGE_M: A sector's nearest reading beyond this
             distance doesn't count as a threat at all -- used by
             detect_threat_direction to return ThreatDirection.NONE instead
@@ -305,7 +307,7 @@ class LidarSectorParams(BaseModel):
     SELF_DETECTION_THRESHOLD_M: float = Field(
         default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M")
     )
-    MIN_VALID_RANGE_M: float = Field(default=0.01, validation_alias=_alias("MIN_VALID_RANGE_M"))
+    MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
     THREAT_NO_DETECTION_RANGE_M: float = Field(
         default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")
     )
