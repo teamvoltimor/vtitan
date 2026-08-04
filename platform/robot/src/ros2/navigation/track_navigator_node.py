@@ -24,8 +24,8 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKe
 from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import RobotState
-from shared.domain.models import CorridorWidthEntry, CorridorWidths, Pose, ScenarioMetadata
+from shared.domain.enums import NavigatorPhase, RobotState
+from shared.domain.models import CorridorWidthEntry, CorridorWidths, NavigatorDebugSnapshot, Pose, ScenarioMetadata
 from std_msgs.msg import Int32, String
 
 from src.navigation.core_navigator import CoreNavigator
@@ -338,6 +338,15 @@ class TrackNavigator(Node, ResettableNode):
             QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
         )
 
+        # Full internal navigation state, every tick, regardless of phase --
+        # see NavigatorDebugSnapshot's own docstring. Recorded into every bag
+        # (see bag_recorder_node's topic list) so a real-hardware run's
+        # crosstrack error, chosen lookahead/target, risk state, direction-gate
+        # verdict etc. never again have to be reconstructed by hand from raw
+        # /motor/* and /imu/data topics after the fact.
+        self._debug_pub = self.create_publisher(String, self._topics.navigation.nav_debug, 10)
+        self._latest_debug = NavigatorDebugSnapshot()
+
         # Control Loop
         control_period = 1.0 / self._tuning.control.CONTROL_HZ
         self.create_timer(control_period, self._control_loop)
@@ -378,6 +387,11 @@ class TrackNavigator(Node, ResettableNode):
         pose = self._gateway.get_current_pose()
         if scan is None or pose is None:
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._latest_debug = NavigatorDebugSnapshot(
+                phase=NavigatorPhase.NO_POSE,
+                commanded_speed_mps=0.0,
+                commanded_steering_norm=0.0,
+            )
             return True
 
         # Width readings taken now cannot be filed under a corridor yet -- that
@@ -396,12 +410,28 @@ class TrackNavigator(Node, ResettableNode):
                 self._commit_direction(inferred, pose)
             return False
 
+        verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw)
         self._direction_gate_log_counter += 1
         if self._direction_gate_log_counter % _DIRECTION_GATE_LOG_PERIOD == 0:
-            verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw)
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
-        self._gateway.publish_drive(follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed))
+        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed)
+        self._gateway.publish_drive(drive)
+        votes = estimator.votes
+        self._latest_debug = NavigatorDebugSnapshot(
+            phase=NavigatorPhase.BLIND_CREEP,
+            pose_x=pose.x,
+            pose_y=pose.y,
+            pose_yaw=pose.yaw,
+            direction_gate_verdict=verdict,
+            direction_left_range_m=_nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2),
+            direction_right_range_m=_nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2),
+            direction_votes_clockwise=votes.get(Direction.CLOCKWISE),
+            direction_votes_counterclockwise=votes.get(Direction.COUNTERCLOCKWISE),
+            corridor_width_belief_m=statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None,
+            commanded_speed_mps=drive.speed_mps,
+            commanded_steering_norm=drive.steering_norm,
+        )
         return True
 
     def _sample_start_corridor(self) -> None:
@@ -650,27 +680,42 @@ class TrackNavigator(Node, ResettableNode):
     def _control_loop(self) -> None:
         """Execute one control step, or hold the robot stopped when not racing."""
         self._laps_pub.publish(Int32(data=self._core_navigator.laps_completed))
-        if not self._racing:
-            # Keep publishing zeros rather than going silent: ackermann_motor_node
-            # has a 1 s command watchdog, and silence would let it latch a stop
-            # only after that delay.
-            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
-            self._sample_start_corridor()
-            return
         try:
+            if not self._racing:
+                # Keep publishing zeros rather than going silent: ackermann_motor_node
+                # has a 1 s command watchdog, and silence would let it latch a stop
+                # only after that delay.
+                self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+                self._sample_start_corridor()
+                self._latest_debug = NavigatorDebugSnapshot(
+                    phase=NavigatorPhase.NOT_YET_STEPPED,
+                    commanded_speed_mps=0.0,
+                    commanded_steering_norm=0.0,
+                )
+                return
             if self._resolve_direction():
                 # Direction unknown: the corridor follower drove this tick and
-                # there is no usable plan to step yet.
+                # there is no usable plan to step yet. _resolve_direction already
+                # set self._latest_debug.
                 return
             if self._blind:
                 self._update_layout_belief()
             self._core_navigator.step()
+            self._latest_debug = self._core_navigator.debug_snapshot
         except RuntimeError as e:
             self.get_logger().error(f"Runtime error in control loop: {e}")
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
         except ValueError as e:
             self.get_logger().error(f"Value error in control loop: {e}")
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+        finally:
+            if self._width_estimator is not None:
+                believed = self._width_estimator.widths
+                self._latest_debug.belief_north_m = believed.get(Section.NORTH)
+                self._latest_debug.belief_south_m = believed.get(Section.SOUTH)
+                self._latest_debug.belief_east_m = believed.get(Section.EAST)
+                self._latest_debug.belief_west_m = believed.get(Section.WEST)
+            self._debug_pub.publish(String(data=self._latest_debug.model_dump_json()))
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:
         """Load a JSON file of {param_name: value} overrides and apply to this node."""

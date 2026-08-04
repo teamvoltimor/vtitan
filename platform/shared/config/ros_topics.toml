@@ -17,6 +17,8 @@ state = "/robot_state"
 # thing that actually detects a lap crossing. state_machine_node subscribes
 # to drive /race_metrics and the FINISHED transition.
 laps_completed = "/race/laps_completed"
+# Full per-tick NavigatorDebugSnapshot (JSON) -- see NavigatorDebugSnapshot's own docstring.
+nav_debug = "/nav_debug"
 
 [sensors]
 # LIDAR range data from the Slamtec C1.

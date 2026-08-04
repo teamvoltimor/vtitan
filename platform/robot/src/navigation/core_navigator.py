@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CompetitionSpecs, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Direction, RiskLevel
+from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
+from shared.domain.models import NavigatorDebugSnapshot
 
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
@@ -26,6 +27,7 @@ from src.navigation.control.controllers import (
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
+from src.navigation.track_geometry import cross_track_error
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
@@ -141,6 +143,15 @@ class CoreNavigator:
             timeout_frames=self._tuning.escape.STUCK_TIMEOUT_FRAMES,
             confirmation_checks=self._tuning.escape.STUCK_CONFIRMATION_CHECKS,
         )
+
+        # Full internal state of the most recent step(), for telemetry -- see
+        # NavigatorDebugSnapshot's own docstring for why this exists.
+        self._debug = NavigatorDebugSnapshot()
+
+    @property
+    def debug_snapshot(self) -> NavigatorDebugSnapshot:
+        """Full internal state of the most recent ``step()`` call."""
+        return self._debug
 
     @property
     def current_corridor(self) -> Section | None:
@@ -293,6 +304,21 @@ class CoreNavigator:
         """Number of laps confirmed completed so far."""
         return self._laps_completed
 
+    def _base_debug(self, robot_x: float | None, robot_y: float | None, robot_yaw: float | None) -> NavigatorDebugSnapshot:
+        """Fields available on every phase once pose is known -- the common
+        prefix every ``step()`` branch's snapshot builds on."""
+        return NavigatorDebugSnapshot(
+            pose_x=robot_x,
+            pose_y=robot_y,
+            pose_yaw=robot_yaw,
+            direction=self._direction.value if self._direction else None,
+            current_corridor=self._current_corridor.value if self._current_corridor else None,
+            waypoint_index=self._waypoint_index,
+            laps_completed=self._laps_completed,
+            num_laps=self._num_laps,
+            parking_engaged=self._parking_engaged if self._park_controller is not None else None,
+        )
+
     def step(self) -> None:
         """Execute one control step.
 
@@ -304,6 +330,11 @@ class CoreNavigator:
             # No localisation available (startup or sensor dropout): stop rather
             # than coast on the last published command.
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._debug = NavigatorDebugSnapshot(
+                phase=NavigatorPhase.NO_POSE,
+                commanded_speed_mps=0.0,
+                commanded_steering_norm=0.0,
+            )
             return
 
         robot_x, robot_y = pose.x, pose.y
@@ -315,7 +346,7 @@ class CoreNavigator:
         # elapses, so escapes are real motions rather than single-tick pulses that
         # never clear the wall.
         if self._active_maneuver is not None:
-            self._drive_active_maneuver()
+            self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ACTIVE_MANEUVER)
             return
 
         # Update stuck detector — runs while actively driving OR maneuvering
@@ -337,7 +368,7 @@ class CoreNavigator:
         elif not self._is_holding():
             self._stuck_detector.update((robot_x, robot_y))
             if self._stuck_detector.is_stuck:
-                self._handle_stuck_escape()
+                self._handle_stuck_escape(robot_x, robot_y, robot_yaw)
                 return
 
         # Lap completion: defer the parking handoff until the robot is actually
@@ -365,6 +396,8 @@ class CoreNavigator:
                 logger.info("Lap %d complete (waypoint-only fallback)", self._laps_completed)
                 if self._sign_router is not None:
                     self._sign_router.reset_for_new_lap()
+                self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
+                self._debug.phase = NavigatorPhase.WAYPOINT_WRAP_FALLBACK
                 return
 
         # Geometric lap counting (requires LapDetector).
@@ -448,16 +481,33 @@ class CoreNavigator:
         dist_to_wp = math.hypot(raw_wp[0] - robot_x, raw_wp[1] - robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
+            self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
+            self._debug.phase = NavigatorPhase.WAYPOINT_REACHED
+            self._debug.forward_clearance_m = forward_clearance
+            self._debug.min_lidar_range_m = min(scan.ranges_m) if scan and scan.ranges_m else None
+            self._debug.risk = risk.value
+            self._debug.escape_risk = escape_risk.value
             return
 
         # Steer at a lookahead point, not directly at the (often much closer)
         # next waypoint — otherwise the lookahead distance is computed but
         # discarded, producing weave on straights and corner cutting (PP-1).
-        lookahead_distance = self._waypoint_controller.select_lookahead(forward_clearance)
+        #
+        # Lookahead selection itself is gated on crosstrack error (how far off
+        # the planned path the robot actually is), not forward LIDAR clearance
+        # -- see WaypointController.select_lookahead's docstring for why that
+        # mismatch produced slow, lazy cornering and weak centering on real
+        # hardware once the steering law became curvature-based (2026-08-03).
+        crosstrack = cross_track_error(self._waypoints, robot_x, robot_y)
+        lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack)
+        # Full waypoint list, not a slice from _waypoint_index -- select_target_point
+        # wraps the search around the lap itself now (see its docstring); slicing here
+        # would cut that wraparound off right back out again.
         steer_target = self._waypoint_controller.select_target_point(
             current_pos=(robot_x, robot_y),
-            waypoints=self._waypoints[self._waypoint_index :],
-            waypoint_index=0,
+            current_yaw=robot_yaw,
+            waypoints=self._waypoints,
+            waypoint_index=self._waypoint_index,
             lookahead_distance=lookahead_distance,
         )
 
@@ -470,8 +520,11 @@ class CoreNavigator:
         # one). Deforming the search's own output guarantees the bias is
         # exactly what gets steered toward, at full tapered strength whenever
         # that point is close to the sign.
+        sign_deform_magnitude: float | None = None
+        active_sign_count: int | None = None
         if self._sign_router is not None and self._current_corridor is not None:
             observations = self._gateway.get_vision_detections()
+            raw_target = steer_target
             steer_target = self._sign_router.deform_waypoint(
                 waypoint=steer_target,
                 robot_pos=(robot_x, robot_y),
@@ -479,13 +532,15 @@ class CoreNavigator:
                 corridor=self._current_corridor,
                 observations=observations,
             )
+            sign_deform_magnitude = math.hypot(steer_target[0] - raw_target[0], steer_target[1] - raw_target[1])
+            active_sign_count = self._sign_router.active_sign_count
 
         # Get steering from waypoint controller
-        steering_normalized, _ = self._waypoint_controller.compute_steering(
+        steering_normalized, _, angle_error = self._waypoint_controller.compute_steering(
             current_pos=(robot_x, robot_y),
             current_yaw=robot_yaw,
             target_waypoint=steer_target,
-            forward_clearance=forward_clearance,
+            crosstrack_error=crosstrack,
         )
 
         # Determine speed
@@ -497,6 +552,26 @@ class CoreNavigator:
             speed = self._tuning.speed.MEDIUM_SPEED
         else:
             speed = self._tuning.speed.FAST_SPEED
+
+        # Never take a sharp turn at a speed the steering actuator can't keep
+        # up with. The steering servo has a fixed slew rate (MAX_STEERING_RATE)
+        # independent of how fast the chassis is moving, so a big required
+        # heading correction taken at full speed demands a yaw rate the
+        # actuator cannot track -- it saturates, overshoots, and oscillates
+        # instead of settling (measured on real hardware 2026-08-03, see
+        # docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
+        # Clearance alone never catches this: a corner can have 0.50m+ of open
+        # space ahead while still demanding a 90-180 deg correction.
+        abs_error = abs(angle_error)
+        if abs_error >= self._tuning.heading.CRAWL:
+            heading_speed = self._tuning.speed.CREEP_SPEED
+        elif abs_error >= self._tuning.heading.SLOW:
+            heading_speed = self._tuning.speed.SLOW_SPEED
+        elif abs_error >= self._tuning.heading.MEDIUM:
+            heading_speed = self._tuning.speed.MEDIUM_SPEED
+        else:
+            heading_speed = self._tuning.speed.FAST_SPEED
+        speed = min(speed, heading_speed)
 
         # Bound the selected cruise speed by the configured envelope. MIN_SPEED
         # and MAX_SPEED read like hard limits on the robot and were enforced
@@ -515,6 +590,24 @@ class CoreNavigator:
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:
             speed = min(speed, self._tuning.speed.SLOW_SPEED)
+
+        # Snapshot everything decided so far -- both the escape-trigger branch
+        # below and the normal publish at the end of this method share it, only
+        # differing in phase and the final command actually sent.
+        debug = self._base_debug(robot_x, robot_y, robot_yaw)
+        debug.forward_clearance_m = forward_clearance
+        debug.min_lidar_range_m = min(scan.ranges_m) if scan and scan.ranges_m else None
+        debug.risk = risk.value
+        debug.escape_risk = escape_risk.value
+        debug.crosstrack_error_m = crosstrack
+        debug.lookahead_distance_m = lookahead_distance
+        debug.steer_target_x = steer_target[0]
+        debug.steer_target_y = steer_target[1]
+        debug.angle_error_rad = angle_error
+        debug.clearance_speed_mps = speed
+        debug.heading_speed_mps = heading_speed
+        debug.sign_deform_magnitude_m = sign_deform_magnitude
+        debug.active_sign_count = active_sign_count
 
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the
@@ -538,12 +631,18 @@ class CoreNavigator:
             if maneuver:
                 self._escape_count += 1
                 self._begin_maneuver(self._maybe_escalate(maneuver))
-                self._drive_active_maneuver()
+                self._debug = debug
+                self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED)
                 return
 
         # Normal publish — the robot is driving, so clear the escape escalation.
         self._escape_count = 0
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
+        debug.phase = NavigatorPhase.NORMAL_DRIVE
+        debug.commanded_speed_mps = speed
+        debug.commanded_steering_norm = steering_normalized
+        debug.escape_count = self._escape_count
+        self._debug = debug
 
     def _reversing_into_unseen_wall(self, maneuver: EscapeManeuver, scan: LidarScan) -> bool:
         """True if executing ``maneuver`` would back into a wall behind the robot."""
@@ -561,7 +660,13 @@ class CoreNavigator:
         # first post-maneuver command against a stale pre-maneuver angle.
         self._waypoint_controller.reset()
 
-    def _drive_active_maneuver(self) -> None:
+    def _drive_active_maneuver(
+        self,
+        robot_x: float,
+        robot_y: float,
+        robot_yaw: float,
+        phase: NavigatorPhase,
+    ) -> None:
         """Publish the active escape command and count down its latched duration."""
         maneuver = self._active_maneuver
         if maneuver is None:
@@ -570,6 +675,16 @@ class CoreNavigator:
         if self._maneuver_frames_left <= 0:
             self._active_maneuver = None
         self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
+        debug = self._base_debug(robot_x, robot_y, robot_yaw)
+        debug.phase = phase
+        debug.active_maneuver_type = maneuver.maneuver_type.value
+        debug.maneuver_steering = maneuver.steering
+        debug.maneuver_speed_mps = maneuver.speed
+        debug.maneuver_frames_left = self._maneuver_frames_left
+        debug.escape_count = self._escape_count
+        debug.commanded_speed_mps = maneuver.speed
+        debug.commanded_steering_norm = maneuver.steering
+        self._debug = debug
 
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
@@ -609,6 +724,11 @@ class CoreNavigator:
         if pc is None:
             # Open challenge: no parking maneuver — hold position.
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            debug = self._base_debug(robot_x, robot_y, robot_yaw)
+            debug.phase = NavigatorPhase.FINISHED_HOLD
+            debug.commanded_speed_mps = 0.0
+            debug.commanded_steering_norm = 0.0
+            self._debug = debug
             return True
 
         if not self._parking_engaged and self._should_engage_parking(robot_x, robot_y):
@@ -620,6 +740,11 @@ class CoreNavigator:
 
         if pc.is_done:
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            debug = self._base_debug(robot_x, robot_y, robot_yaw)
+            debug.phase = NavigatorPhase.FINISHED_HOLD
+            debug.commanded_speed_mps = 0.0
+            debug.commanded_steering_norm = 0.0
+            self._debug = debug
             return True
 
         cmd = pc.update((robot_x, robot_y), robot_yaw)
@@ -665,6 +790,12 @@ class CoreNavigator:
             if fwd < self._tuning.clearance.CONTACT_DIST or side < side_margin:
                 linear = 0.0
         self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
+        debug = self._base_debug(robot_x, robot_y, robot_yaw)
+        debug.phase = NavigatorPhase.PARKING
+        debug.park_phase = str(cmd.phase)
+        debug.commanded_speed_mps = linear
+        debug.commanded_steering_norm = cmd.steering
+        self._debug = debug
         return True
 
     def _should_engage_parking(self, robot_x: float, robot_y: float) -> bool:
@@ -677,7 +808,7 @@ class CoreNavigator:
         sx, sy = pc.staging
         return math.hypot(sx - robot_x, sy - robot_y) < self._park_engage_dist
 
-    def _handle_stuck_escape(self) -> None:
+    def _handle_stuck_escape(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
         """Reverse out of a stuck state, but never back into an unseen wall.
 
         The reverse is latched for several frames (escalating with repeated
@@ -686,6 +817,7 @@ class CoreNavigator:
         seconds forever.
         """
         logger.warning("Robot stuck - triggering escape")
+        stuck_diag = self._stuck_detector.get_diagnostics()
         rear_clear = 10.0
         scan = self._gateway.get_lidar_scan()
         if scan:
@@ -697,6 +829,15 @@ class CoreNavigator:
             logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self._stuck_detector.reset()
+            debug = self._base_debug(robot_x, robot_y, robot_yaw)
+            debug.phase = NavigatorPhase.STUCK_ESCAPE_HOLDING
+            debug.is_stuck = bool(stuck_diag["is_stuck"])
+            debug.stuck_count = int(stuck_diag["stuck_count"])
+            debug.recent_movement_m = float(stuck_diag["recent_movement"])
+            debug.rear_clearance_m = rear_clear
+            debug.commanded_speed_mps = 0.0
+            debug.commanded_steering_norm = 0.0
+            self._debug = debug
             return
 
         self._escape_count += 1
@@ -716,4 +857,8 @@ class CoreNavigator:
             ),
         )
         self._stuck_detector.reset()
-        self._drive_active_maneuver()
+        self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.STUCK_ESCAPE_MANEUVER)
+        self._debug.is_stuck = bool(stuck_diag["is_stuck"])
+        self._debug.stuck_count = int(stuck_diag["stuck_count"])
+        self._debug.recent_movement_m = float(stuck_diag["recent_movement"])
+        self._debug.rear_clearance_m = rear_clear

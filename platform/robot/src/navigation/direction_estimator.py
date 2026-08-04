@@ -205,6 +205,12 @@ class DirectionEstimator:
         """True once the direction has been decided."""
         return self._settled is not None
 
+    @property
+    def votes(self) -> dict[Direction, int]:
+        """Current vote tally per direction, for telemetry (a copy -- callers
+        cannot perturb the real count through it)."""
+        return dict(self._votes)
+
     def observe(
         self,
         ranges_m: Sequence[float],

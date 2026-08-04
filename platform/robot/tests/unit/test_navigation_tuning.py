@@ -201,13 +201,15 @@ class TestConfiguredValuesAreActuallyRead:
         # like they bound the robot and do not.
         "SLALOM_REVERSE_FRAMES",
         "SLALOM_FORWARD_FRAMES",
-        # The rest of HeadingErrorZones: heading.toml ships, loads, and these
-        # three are consulted by nothing. MEDIUM is read now (src.navigation.utils'
-        # _ALIGNMENT_TOLERANCE_RAD, wired 2026-08-02) -- CRAWL/SLOW/NORMAL are
-        # still dead config to delete, or wire to whatever currently hard-codes
-        # the equivalent thresholds.
-        "CRAWL",
-        "SLOW",
+        # The rest of HeadingErrorZones: heading.toml ships, loads, MEDIUM is read
+        # (src.navigation.utils' _ALIGNMENT_TOLERANCE_RAD, wired 2026-08-02), and
+        # CRAWL/SLOW are read now too (CoreNavigator.step's heading-to-speed
+        # coupling, wired 2026-08-03 alongside the pure-pursuit steering fix --
+        # see docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
+        # NORMAL is still dead config: the speed ladder only needed three
+        # thresholds (mirroring ClearanceZones' three), so it was left unused
+        # rather than forcing a fourth rung. Delete it, or wire it to a finer
+        # "full speed" cutoff if one turns out to be needed.
         "NORMAL",
     }
 

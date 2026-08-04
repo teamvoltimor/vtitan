@@ -9,19 +9,18 @@ matching what button_node actually publishes.
 
 from __future__ import annotations
 
+import math
 import time
-from typing import TYPE_CHECKING
 
 import pytest
 import rclpy
+from ackermann_msgs.msg import AckermannDriveStamped
+from sensor_msgs.msg import Imu
 from shared.config.constants import CompetitionSpecs
 from std_msgs.msg import Bool, String
 
 from src.hardware.button.event import ButtonEvent
 from src.state_machine import RobotState, ScenarioType
-
-if TYPE_CHECKING:
-    from ackermann_msgs.msg import AckermannDriveStamped
 
 
 @pytest.fixture()
@@ -277,6 +276,38 @@ class TestRacingCompletion:
         assert len(published) == 1
         assert published[0].drive.speed == pytest.approx(0.0)
         assert published[0].drive.steering_angle == pytest.approx(0.0)
+        node.destroy_node()
+
+
+class TestRaceMetricsReflectRealTelemetry:
+    """gyro_yaw/current_velocity/current_steering used to be dead: gyro_yaw was
+    hardcoded to 0.0 in _imu_callback regardless of the message, and the other
+    two were only ever set by _publish_stop_command (also to 0.0) -- /race_metrics
+    reported zero for the entire race. Fixed 2026-08-03.
+    """
+
+    def test_imu_callback_derives_yaw_from_the_real_quaternion(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        msg = Imu()
+        # Pure 90 deg yaw rotation: q = (0, 0, sin(yaw/2), cos(yaw/2)).
+        msg.orientation.z = math.sin(math.radians(90) / 2)
+        msg.orientation.w = math.cos(math.radians(90) / 2)
+
+        node._imu_callback(msg)
+
+        assert node.gyro_yaw == pytest.approx(90.0)
+        node.destroy_node()
+
+    def test_ackermann_callback_mirrors_last_commanded_drive(self, ros_context, state_machine_node_class):
+        node = state_machine_node_class()
+        msg = AckermannDriveStamped()
+        msg.drive.speed = 0.30
+        msg.drive.steering_angle = math.radians(15.0)
+
+        node._ackermann_callback(msg)
+
+        assert node.current_velocity == pytest.approx(0.30)
+        assert node.current_steering == pytest.approx(15.0)
         node.destroy_node()
 
 

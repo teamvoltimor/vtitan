@@ -36,33 +36,52 @@ LIDAR coupling change, unrelated to LIDAR code):
   traced to `simulated_hardware_gateway.py`'s `position_error_m`, modified in separate
   pre-existing uncommitted branch work predating this session.
 
-## CCW-only sustained full-lock steering (turns correct direction, but into a U-turn)
+## Sustained full-lock steering / U-turn oscillation -- ROOT-CAUSED 2026-08-03
 
-Confirmed on real hardware 2026-08-02, reproduced twice (`run_20260802_205407`,
-`run_20260802_205613`): driving CCW, the robot correctly starts turning toward the open
-side, but holds full-lock steering (~70 deg) continuously for ~7 seconds before ever
-releasing -- long enough to spin around into the wrong heading rather than complete a
-normal corner turn. A CW run in the same session (`run_20260802_205031`, 142s) never held
-full lock for more than ~3s anywhere.
+Originally logged 2026-08-02 as "CCW-only", with a hypothesis pointing at
+`corridor_follower.py`'s blind-phase turn branch / `DirectionEstimator` settling (see git
+history of this file for that superseded writeup). The 2026-08-03 `replace_path`
+heading-aware fix (`55e5a6d`) targeted that hypothesis and did not resolve the symptom on
+real hardware -- three more on-track runs the same day (2 CCW, 1 CW) all reproduced full-lock
+oscillation after direction had already settled correctly.
 
-Root cause hypothesis (not yet confirmed against live data): `corridor_follower.py`'s
-`follow_corridor()` turn branch has no release condition of its own -- it commands full
-lock every tick for as long as forward clearance stays below `TURN_CLEARANCE_M`, relying
-entirely on `DirectionEstimator` settling to hand off control (see that module's own
-docstring warning about this exact deadlock: "Measured at gain 2.0, that cost 12 of 28
-fixtures their direction and put 9 into a wall"). `DirectionEstimator.infer_direction`
-only accepts a reading inside a narrow alignment window (~8 scans) and rejects dropouts
-(`_MAX_IN_TRACK_RANGE_M`) and insufficiently asymmetric readings (`_MIN_ASYMMETRY_M`). No
-code branches explicitly on CW vs CCW -- the asymmetry most likely comes from CCW corner
-geometry failing to produce 5 agreeing votes inside that window.
+Full root cause, with file:line citations and real-hardware numbers, is now written up in
+`docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md`: the pursuit
+controller (`WaypointController.compute_steering`) is an undamped proportional loop tuned
+~3x too aggressive for the real chassis's turn geometry, feeding a steering actuator an
+order of magnitude slower than the yaw rate it produces at commanded speed -- a rate-limited
+limit cycle, independent of which waypoint is targeted. Compounded by speed never being
+reduced for the size of the required heading correction, and a non-wrapping waypoint slice
+that can hand the lookahead an out-of-lap point at the exact moment direction commits. Not
+CW/CCW-specific -- the CW run that day failed the same way, just faster.
 
-Diagnostic logging was added 2026-08-02 (`track_navigator_node.py`'s
-`_direction_gate_verdict`, throttled `logger.info` in `_resolve_direction`) to capture
-which gate (dropout/align-fail/span-fail/asym-fail) is refusing readings on the next live
-CCW run -- read-only, no behavior change. Next step: run one more CCW test with this
-logging deployed and read the log to confirm which gate is binding, then fix from there.
+Same investigation also root-caused a related failure: the stuck-escape and K-turn
+maneuvers both gate on rear clearance and have no fallback when it's blocked, so a wedged
+robot just falls back to the same unstable forward-driving law that wedged it -- see the
+audit doc for details.
 
-Separately, regardless of root cause: `follow_corridor()`'s full-lock branch having no
-maximum-duration safety net is worth its own fix -- bound how long it can hold full lock
-before falling back to something safer (stop or a slower creep), independent of whatever
-turns out to be causing the CCW-specific failure.
+Fix not yet implemented; see the audit doc's "Suggested next steps" for the concrete work
+items (controller re-tune/redamp, speed-to-heading-error coupling, waypoint-slice wrap fix,
+stuck-escape fallback maneuver).
+
+## Full unit suite runtime looks like a hang -- DIAGNOSED 2026-08-04, mitigated not fixed
+
+Running plain `pytest tests/unit` (no marker filter) took 10+ minutes with zero output and
+was indistinguishable from a genuine hang -- confirmed via `cProfile` it is not: the cost is
+real work in `TrackWalls.raycast()` (`src/navigation/track_geometry.py:161`), called ~100
+times per LIDAR scan refresh by `LidarLocalizer.estimate_position`'s coarse-to-fine grid
+search (`src/navigation/localization.py`). Several files each run dozens of parametrized full
+closed-loop sims through that path -- `test_open_challenge_sim.py` (many
+section/direction/width combinations), `test_obstacles_challenge_sim.py` (7 full 3-lap+park
+scenarios), `test_deviation_recovery.py` (24 parametrized cases), plus one especially
+expensive case in `test_sensor_errors.py::test_drift_stops_accumulating` (two 600-tick sims,
+~32s alone). Summed, the full suite plausibly needs 10-15+ minutes, and `pytest -q` piped
+through `tail` buffers all output until the run ends, so there is no visible progress to
+distinguish "slow" from "stuck" while it runs.
+
+Mitigated by marking the expensive files/tests `@pytest.mark.slow` (registered in
+`pytest.ini`) and adding `task robot:test SCOPE=fast` (`platform/Taskfile.yml`), which
+excludes them -- verified at 55s for 523 tests. Not fixed: `raycast()`'s per-call cost itself
+(~0.46ms) is unexamined -- worth profiling whether the coarse-to-fine grid search
+(4 passes x 5x5 = 100 raycasts per scan) is doing more work than it needs to, independent of
+whether it's fast enough for these tests' purposes.
