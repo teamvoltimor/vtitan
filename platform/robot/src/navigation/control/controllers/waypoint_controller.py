@@ -175,34 +175,48 @@ class WaypointController:
         Returns:
             The selected (x, y) target point: the nearest point at least
             ``lookahead_distance`` away that is also ahead of the chassis, or
-            (failing that) the farthest ahead point found in one full lap, or
+            (failing that) the nearest ahead point found in one full lap, or
             (only if literally nothing in the entire lap is ahead of the
             chassis -- a degenerate case, e.g. a wildly wrong heading) the
-            farthest point found at all.
+            nearest point found at all.
+
+            Nearest, not farthest, in both fallback tiers: ``compute_steering``'s
+            curvature formula divides by the target's actual squared distance, so
+            a farther fallback target produces a *weaker* commanded curvature --
+            backwards from what a large heading error needs. Picking farthest
+            when nothing qualified handed back points 1-3m away (multiple laps'
+            worth of waypoint spacing) while the chassis sat 90 deg off the path,
+            starving the correction and locking the robot into repeatedly
+            re-selecting a similarly distant point forever -- measured on real
+            hardware 2026-08-03/04 as a self-reinforcing deadlock: creep speed +
+            weak curvature never closes the heading error that caused both (see
+            ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+            Nearest keeps the fallback target's distance close to a sane
+            pure-pursuit lookahead instead.
         """
         cx, cy = current_pos
         cos_yaw, sin_yaw = math.cos(current_yaw), math.sin(current_yaw)
         n = len(waypoints)
-        farthest_ahead: tuple[float, float] | None = None
-        farthest_ahead_dist = -1.0
-        farthest_any = waypoints[waypoint_index % n]
-        farthest_any_dist = -1.0
+        nearest_ahead: tuple[float, float] | None = None
+        nearest_ahead_dist = math.inf
+        nearest_any = waypoints[waypoint_index % n]
+        nearest_any_dist = math.inf
         for offset in range(n):
             wx, wy = waypoints[(waypoint_index + offset) % n]
             dx, dy = wx - cx, wy - cy
             dist = math.hypot(dx, dy)
-            if dist > farthest_any_dist:
-                farthest_any_dist = dist
-                farthest_any = (wx, wy)
+            if dist < nearest_any_dist:
+                nearest_any_dist = dist
+                nearest_any = (wx, wy)
             x_local = dx * cos_yaw + dy * sin_yaw
             if x_local <= 0:
                 continue
             if dist >= lookahead_distance:
                 return (wx, wy)
-            if dist > farthest_ahead_dist:
-                farthest_ahead_dist = dist
-                farthest_ahead = (wx, wy)
-        return farthest_ahead if farthest_ahead is not None else farthest_any
+            if dist < nearest_ahead_dist:
+                nearest_ahead_dist = dist
+                nearest_ahead = (wx, wy)
+        return nearest_ahead if nearest_ahead is not None else nearest_any
 
     def reset(self) -> None:
         """Clear the steering-rate-limit memory.

@@ -148,7 +148,10 @@ class TestSelectTargetPointWrapsAndStaysAhead:
 
         assert target == (3.0, 0.0)
 
-    def test_falls_back_to_farthest_ahead_when_nothing_reaches_lookahead(self):
+    def test_falls_back_to_nearest_ahead_when_nothing_reaches_lookahead(self):
+        # 2026-08-04: was "farthest ahead" -- see select_target_point's
+        # docstring for why that starved the curvature formula on real
+        # hardware and got reversed to nearest.
         waypoints = [(0.0, 0.0), (0.1, 0.0), (0.2, 0.0)]
         controller = _make_controller()
 
@@ -160,4 +163,4 @@ class TestSelectTargetPointWrapsAndStaysAhead:
             lookahead_distance=5.0,  # farther than anything on this tiny loop
         )
 
-        assert target == (0.2, 0.0)  # farthest point that is still ahead
+        assert target == (0.1, 0.0)  # nearest point that is still ahead
