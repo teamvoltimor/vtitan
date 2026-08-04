@@ -16,6 +16,14 @@ given bearing error is far higher than the gain was ever fitted to.
 Sweeps the two knobs that would confirm it — the speed ceiling and
 ``STEER_KP`` — over the 8 symmetric-narrow starts the test battery uses.
 
+2026-08-03 update: root-caused and fixed structurally --
+``WaypointController.compute_steering`` no longer uses ``steer_kp`` at all
+(replaced with curvature-based pure pursuit off the real chassis geometry, see
+``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+The ``steer_kp`` arm of this sweep is now inert -- every case in it behaves
+identically regardless of the value swept, since nothing reads it anymore.
+Kept for the speed-ceiling arm, which is still a live question.
+
 Usage (from ``platform/robot``, with PYTHONPATH=.)::
 
     python scripts/diag_open_narrow.py

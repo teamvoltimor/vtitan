@@ -29,8 +29,10 @@ from enum import StrEnum
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import BlockPosition, ParkingLot
+
+from src.navigation.utils import _local_frame
+from src.navigation.utils import _pure_pursuit_steer as _shared_pure_pursuit_steer
 
 logger = logging.getLogger(__name__)
 
@@ -526,45 +528,14 @@ def _bearing_error(
 _MIN_LOOKAHEAD_DIST = _parking_tuning.MIN_LOOKAHEAD_DIST_M  # floor to avoid a near-zero-distance curvature blow-up
 
 
-def _local_frame(
-    robot_pos: tuple[float, float],
-    robot_yaw: float,
-    target: tuple[float, float],
-) -> tuple[float, float]:
-    """``target`` expressed in the robot's local frame (x=forward, y=left)."""
-    dx = target[0] - robot_pos[0]
-    dy = target[1] - robot_pos[1]
-    cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
-    x_local = dx * cos_yaw + dy * sin_yaw
-    y_local = -dx * sin_yaw + dy * cos_yaw
-    return x_local, y_local
-
-
 def _pure_pursuit_steer(x_local: float, y_local: float) -> float:
-    """Curvature-based pure pursuit steering toward a local-frame target (normalised [-1, 1]).
-
-    Standard formulation, treating the target itself as the lookahead point (unlike
-    ``WaypointController``, which searches a path for a point at a fixed lookahead
-    distance, ParkController always aims directly at a single fixed target):
-    curvature = 2*y_local / L_d**2, steering angle = atan(curvature * L_eff), clamped
-    to the chassis's physical steering limit.
-
-    ``L_eff`` is the wheelbase HALVED, not the wheelbase: this chassis steers both
-    axles in opposite directions by the same amount (confirmed on hardware
-    2026-07-25), which pivots it about its centre instead of the rear axle and
-    doubles the yaw rate for a given steering angle. Using the full wheelbase here
-    -- the previous behaviour -- asked for twice the steering angle each curvature
-    actually needs, so every parking arc over-steered.
-
-    Only valid for a target roughly ahead (``x_local > 0``) — the formula gives a
-    plausible-looking but wrong result for a target behind the robot; callers must check
-    that separately (see ``_pursue_with_reposition``'s target-behind check).
+    """``ParkController``-bound wrapper: always aims directly at a single fixed
+    target (unlike ``WaypointController``, which searches a path for a point at a
+    fixed lookahead distance), so it supplies its own lookahead floor here rather
+    than at each call site. See ``src.navigation.utils._pure_pursuit_steer`` for
+    the shared formula and its physical reasoning.
     """
-    lookahead = max(math.hypot(x_local, y_local), _MIN_LOOKAHEAD_DIST)
-    curvature = 2.0 * y_local / (lookahead**2)
-    steer_angle = math.atan(curvature * RobotSpecs.WHEELBASE / 2.0)
-    steer_angle = _clamp(steer_angle, -RobotSpecs.MAX_STEERING_ANGLE, RobotSpecs.MAX_STEERING_ANGLE)
-    return steer_angle / RobotSpecs.MAX_STEERING_ANGLE
+    return _shared_pure_pursuit_steer(x_local, y_local, _MIN_LOOKAHEAD_DIST)
 
 
 def _chassis_corners(

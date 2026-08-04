@@ -136,6 +136,7 @@ class RaceLaunchDefaults(HardwareBaseSettings):
         "/ackermann_cmd",
         "/robot_state",
         "/race_metrics",
+        "/nav_debug",
         "/system_status",
         "/motor/drive_speed",
         "/motor/steering_position",

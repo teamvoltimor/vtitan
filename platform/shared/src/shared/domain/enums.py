@@ -94,6 +94,25 @@ class NodeHealth(_FromStringEnum):
     REPLANNING = "replanning"
 
 
+class NavigatorPhase(StrEnum):
+    """Which branch of ``CoreNavigator.step()`` produced a given
+    ``NavigatorDebugSnapshot`` -- see that model's docstring for why a field
+    being ``None`` means "not computed on this phase", not "unknown"."""
+
+    NOT_YET_STEPPED = "not_yet_stepped"
+    NO_POSE = "no_pose"
+    BLIND_CREEP = "blind_creep"
+    ACTIVE_MANEUVER = "active_maneuver"
+    STUCK_ESCAPE_HOLDING = "stuck_escape_holding"
+    STUCK_ESCAPE_MANEUVER = "stuck_escape_maneuver"
+    FINISHED_HOLD = "finished_hold"
+    PARKING = "parking"
+    WAYPOINT_WRAP_FALLBACK = "waypoint_wrap_fallback"
+    WAYPOINT_REACHED = "waypoint_reached"
+    NORMAL_DRIVE = "normal_drive"
+    ESCAPE_TRIGGERED = "escape_triggered"
+
+
 # The class ids the retrained GMR traffic-sign detector emits, in the order the
 # checkpoint itself declares them. Confirmed by running the checkpoint over the
 # per-class image folders: green_prism images predict green, red_prism predict

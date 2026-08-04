@@ -14,6 +14,8 @@ import math
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.navigation.utils import _local_frame, _pure_pursuit_steer
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONTROL_DT_S: float = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
@@ -33,7 +35,12 @@ class WaypointController:
         lookahead_short: Distance for sharp corners (meters)
         lookahead_long: Distance for straight sections (meters)
         lookahead_transition: Forward clearance threshold (meters)
-        steer_kp: P-gain for steering control
+        steer_kp: No longer consumed by ``compute_steering`` (see its
+            docstring) -- steering is now curvature-based pure pursuit, not a
+            gain on heading error. Kept only so ``NavigationTuning.pursuit.
+            STEER_KP`` (still read by diagnostic sweep scripts and exposed via
+            the backend API) has somewhere to land without raising; changing
+            it no longer has any effect.
         max_steering_rate: Maximum steering command rate (rad/s)
     """
 
@@ -54,13 +61,10 @@ class WaypointController:
             lookahead_short: Lookahead for corners (m)
             lookahead_long: Lookahead for straights (m)
             lookahead_transition: Crosstrack threshold for mode switch (m)
-            steer_kp: P-controller gain. Default matches
-                ``NavigationTuning.pursuit.STEER_KP`` -- ``CoreNavigator``
-                always passes that value explicitly, so this default is only
-                ever exercised by a caller that constructs this class
-                directly; keep the two in sync rather than letting this one
-                drift into unused, misleading dead code again (was 1.5 vs.
-                the real wired 1.2 previously).
+            steer_kp: Accepted for backward compatibility with
+                ``NavigationTuning.pursuit.STEER_KP`` and callers that still
+                pass it, but no longer read by ``compute_steering`` -- see
+                that method's docstring and the class docstring above.
             max_steering_rate: Max steering rate (rad/s)
             waypoint_reached_distance_m: Distance below which the current
                 target waypoint is considered reached (m)
@@ -78,8 +82,9 @@ class WaypointController:
     def from_tuning(cls, tuning: NavigationTuning) -> WaypointController:
         """Build controller from NavigationTuning parameters.
 
-        The steer_kp default has drifted before (1.5 vs 1.2); this constructor
-        ensures the tuning profile's value is actually used.
+        Still passes through ``STEER_KP`` even though ``compute_steering`` no
+        longer reads it (see its docstring), so the field stays wired rather
+        than silently disconnected for whichever caller still sets it.
 
         Args:
             tuning: NavigationTuning instance (usually from load_default).
@@ -97,49 +102,107 @@ class WaypointController:
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
         )
 
-    def select_lookahead(self, forward_clearance: float) -> float:
-        """Select lookahead distance based on forward clearance.
+    def select_lookahead(self, crosstrack_error: float) -> float:
+        """Select lookahead distance based on how far off-path the robot is.
+
+        Was gated on forward LIDAR clearance instead, despite
+        ``lookahead_transition``'s own name and config docstring already
+        saying "crosstrack" -- in a wide corridor, forward clearance often
+        stays generous through a corner, so the long lookahead never yielded
+        to the short one exactly when a tighter turn was needed. With
+        curvature-based steering (see ``compute_steering``), a long lookahead
+        to a target that is only modestly off-axis commands a much smaller
+        curvature than the corner needs, producing a wide, slow arc instead of
+        a decisive turn -- measured on real hardware 2026-08-03 (see
+        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+
+        Gating on crosstrack error instead closes the loop correctly: falling
+        behind on a turn grows the crosstrack error, which shortens the
+        lookahead, which increases the commanded curvature, which corrects the
+        error back down.
 
         Args:
-            forward_clearance: Distance to nearest forward obstacle (meters)
+            crosstrack_error: Perpendicular distance from the planned path (metres)
 
         Returns:
             Lookahead distance in meters
         """
-        if forward_clearance < self.lookahead_transition:
+        if crosstrack_error > self.lookahead_transition:
             return self.lookahead_short
         return self.lookahead_long
 
     def select_target_point(
         self,
         current_pos: tuple[float, float],
+        current_yaw: float,
         waypoints: list[tuple[float, float]],
         waypoint_index: int,
         lookahead_distance: float,
     ) -> tuple[float, float]:
-        """Find the path point at least ``lookahead_distance`` ahead.
+        """Find the path point at least ``lookahead_distance`` ahead, and
+        geometrically ahead of the chassis right now.
 
-        Searches forward from ``waypoint_index`` for the first waypoint whose
-        distance from ``current_pos`` reaches the lookahead distance, instead
-        of steering directly at the next waypoint (which can be well under the
-        lookahead distance and produces weave on straights / corner cutting).
+        Searches forward from ``waypoint_index``, wrapping around the end of
+        the list back to the start -- at most one full lap. ``waypoints`` is
+        the full canonical-lap path, not a pre-sliced remainder: a caller
+        slicing it themselves let the search run out of points near the end
+        of a lap (or right after a reseek lands close to the tail) and fall
+        back to a single fixed final point instead of continuing around the
+        loop, producing a long stretch of barely-changing bearing to a point
+        that should have already been left behind -- measured on real
+        hardware 2026-08-03 as steering pinned near zero for tens of seconds
+        while heading drifted 85+ degrees (see
+        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+
+        Also skips any candidate that is behind the chassis in its current
+        local frame -- accepting one there previously handed ``compute_steering``
+        a target its curvature formula is not valid for, forcing an
+        unreliable side-guessing fallback (also measured 2026-08-03 as a
+        wrong-direction turn on real hardware; not reproducible in sim, where
+        the localizer's pose estimate does not drift between ticks the way
+        real sensor noise does). Skipping forward instead of guessing means
+        the chosen target is always one the curvature formula actually
+        applies to.
 
         Args:
             current_pos: Robot position (x, y)
-            waypoints: Ordered path waypoints, searched from waypoint_index
+            current_yaw: Robot heading (radians) -- used only to skip
+                behind-the-chassis candidates, not to compute anything returned.
+            waypoints: The full canonical-lap path (not pre-sliced)
             waypoint_index: Index to start the forward search from
             lookahead_distance: Minimum distance from current_pos to target (meters)
 
         Returns:
-            The selected (x, y) target point. Falls back to the last waypoint
-            if none in the remaining path reach the lookahead distance.
+            The selected (x, y) target point: the nearest point at least
+            ``lookahead_distance`` away that is also ahead of the chassis, or
+            (failing that) the farthest ahead point found in one full lap, or
+            (only if literally nothing in the entire lap is ahead of the
+            chassis -- a degenerate case, e.g. a wildly wrong heading) the
+            farthest point found at all.
         """
         cx, cy = current_pos
-        for i in range(waypoint_index, len(waypoints)):
-            wx, wy = waypoints[i]
-            if math.hypot(wx - cx, wy - cy) >= lookahead_distance:
-                return waypoints[i]
-        return waypoints[-1]
+        cos_yaw, sin_yaw = math.cos(current_yaw), math.sin(current_yaw)
+        n = len(waypoints)
+        farthest_ahead: tuple[float, float] | None = None
+        farthest_ahead_dist = -1.0
+        farthest_any = waypoints[waypoint_index % n]
+        farthest_any_dist = -1.0
+        for offset in range(n):
+            wx, wy = waypoints[(waypoint_index + offset) % n]
+            dx, dy = wx - cx, wy - cy
+            dist = math.hypot(dx, dy)
+            if dist > farthest_any_dist:
+                farthest_any_dist = dist
+                farthest_any = (wx, wy)
+            x_local = dx * cos_yaw + dy * sin_yaw
+            if x_local <= 0:
+                continue
+            if dist >= lookahead_distance:
+                return (wx, wy)
+            if dist > farthest_ahead_dist:
+                farthest_ahead_dist = dist
+                farthest_ahead = (wx, wy)
+        return farthest_ahead if farthest_ahead is not None else farthest_any
 
     def reset(self) -> None:
         """Clear the steering-rate-limit memory.
@@ -156,62 +219,62 @@ class WaypointController:
         current_pos: tuple[float, float],
         current_yaw: float,
         target_waypoint: tuple[float, float],
-        forward_clearance: float,
+        crosstrack_error: float,
         dt: float = _DEFAULT_CONTROL_DT_S,
-    ) -> tuple[float, float]:
-        """Compute steering angle and lookahead for next control step.
+    ) -> tuple[float, float, float]:
+        """Compute steering angle, lookahead, and heading error for the next control step.
 
-        NOT pure pursuit, despite the lookahead: this is a proportional
-        controller on heading error (``steer_kp * angle_error``), with no
-        vehicle geometry in it at all. The lookahead only selects *which*
-        waypoint to aim at, not the steering law. Real pure pursuit would
-        convert a curvature to a steering angle via the wheelbase, as
-        ``ParkController._pure_pursuit_steer`` does.
-
-        This matters when tuning: ``steer_kp`` has no physical units, so it
-        absorbs whatever the plant does. The simulation previously modelled
-        this chassis as a front-steer car when it actually steers both axles
-        in counter-phase (twice the yaw rate), so a gain tuned in sim is
-        hotter on hardware. Re-tune against the corrected kinematics rather
-        than reasoning from the old value.
+        Curvature-based pure pursuit (see ``src.navigation.utils._pure_pursuit_steer``
+        for the formula and its physical reasoning), not a gain on heading error.
+        A bare ``steer_kp * angle_error`` P-term has no physical units, so it
+        silently absorbs whatever the plant does -- this chassis was modelled as
+        front-steer in the simulator the old gain was tuned against, when it
+        actually steers both axles in counter-phase (double the yaw rate for the
+        same angle), and that mismatch produced full-lock steering oscillation on
+        real hardware (2026-08-03, see
+        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        The lookahead still only selects *which* waypoint to aim at; it is the
+        steering law itself that changed.
 
         Args:
             current_pos: Robot position (x, y)
             current_yaw: Robot heading (radians)
             target_waypoint: Next waypoint (x, y)
-            forward_clearance: Distance to forward obstacle (meters)
+            crosstrack_error: Perpendicular distance from the planned path
+                (metres), used to select the lookahead -- see ``select_lookahead``.
             dt: Time since the previous call (seconds), used to cap the
                 steering delta at ``max_steering_rate * dt``
 
         Returns:
-            Tuple of (steering_angle, lookahead_distance)
-            steering_angle: Command in [-1, 1] normalized range
-            lookahead_distance: Selected lookahead (for diagnostics)
+            Tuple of (steering_angle, lookahead_distance, angle_error_rad).
+            steering_angle: Command in [-1, 1] normalized range, after rate limiting.
+            lookahead_distance: Selected lookahead (for diagnostics).
+            angle_error_rad: Signed bearing error to the target, before rate
+                limiting -- lets the caller slow down for a sharp turn instead
+                of taking it at whatever speed forward clearance alone selects.
         """
-        lookahead = self.select_lookahead(forward_clearance)
+        lookahead = self.select_lookahead(crosstrack_error)
 
-        # Vector from robot to target
-        dx = target_waypoint[0] - current_pos[0]
-        dy = target_waypoint[1] - current_pos[1]
-        distance = math.sqrt(dx**2 + dy**2)
+        x_local, y_local = _local_frame(current_pos, current_yaw, target_waypoint)
+        distance = math.hypot(x_local, y_local)
 
         if distance < self.waypoint_reached_distance_m:
-            return 0.0, lookahead
+            return 0.0, lookahead, 0.0
 
-        # Pure pursuit: steering angle to intercept lookahead circle
-        # Simplified version: angle error to target
-        target_angle = math.atan2(dy, dx)
-        angle_error = target_angle - current_yaw
+        angle_error = math.atan2(y_local, x_local)
 
-        # Wrap angle to [-pi, pi]
-        while angle_error > math.pi:
-            angle_error -= 2 * math.pi
-        while angle_error < -math.pi:
-            angle_error += 2 * math.pi
+        if x_local > 0:
+            steering_normalized_raw = _pure_pursuit_steer(
+                x_local, y_local, self.waypoint_reached_distance_m, self.max_steering_angle
+            )
+        else:
+            # Target behind the robot: the curvature formula is only valid for a
+            # roughly-forward target (see _pure_pursuit_steer). Saturate toward
+            # whichever side it's on instead of trusting a formula that can look
+            # plausible while actually steering away from the target.
+            steering_normalized_raw = 1.0 if y_local >= 0 else -1.0
 
-        # P-controller on angle error
-        steering_rad = self.steer_kp * angle_error
-        steering_rad = max(-self.max_steering_angle, min(self.max_steering_angle, steering_rad))
+        steering_rad = steering_normalized_raw * self.max_steering_angle
 
         # Rate-limit against the previous tick's command so a large angle
         # error can't demand a full-deflection step in a single tick.
@@ -225,4 +288,4 @@ class WaypointController:
         # Normalize to [-1, 1]
         steering_normalized = steering_rad / self.max_steering_angle
 
-        return steering_normalized, lookahead
+        return steering_normalized, lookahead, angle_error

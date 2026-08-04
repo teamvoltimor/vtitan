@@ -10,7 +10,7 @@ from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel
 
-from shared.domain.enums import Direction, ScenarioType, Section
+from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 
 
 @dataclass(slots=True, frozen=True)
@@ -349,3 +349,98 @@ class ScenarioMetadata(BaseModel):
     sign_positions: list[SignPosition] = []
     corridor_widths: CorridorWidths = CorridorWidths()
     starting_conditions: StartingConditions = StartingConditions()
+
+
+class NavigatorDebugSnapshot(BaseModel):
+    """Complete per-tick internal state of ``CoreNavigator.step()``.
+
+    Diagnosing 2026-08-03's real-hardware failures (full-lock steering
+    oscillation, wrong-direction turns, wedged-against-a-wall thrashing) meant
+    reconstructing crosstrack error, angle error, which lookahead/target were
+    chosen, and risk state by hand from raw ``/motor/*`` and ``/imu/data``
+    topics after the fact -- slow, and some internal values (e.g. crosstrack
+    error, the chosen steer target) cannot be recovered from those topics at
+    all. Published every control tick regardless of which branch ``step()``
+    took, so this is always current, not just on request.
+
+    ``phase`` identifies which branch of ``step()`` produced this snapshot --
+    a field being ``None`` means "not computed on this tick's branch", not
+    "unknown" or a bug. E.g. ``crosstrack_error_m`` is only set on the
+    ``normal_drive`` phase; it is meaningless (and left ``None``) while an
+    escape maneuver is latched.
+    """
+
+    phase: NavigatorPhase = NavigatorPhase.NOT_YET_STEPPED
+
+    # Pose and race state -- available on every phase except "no_pose".
+    pose_x: float | None = None
+    pose_y: float | None = None
+    pose_yaw: float | None = None
+    direction: str | None = None
+    current_corridor: str | None = None
+    waypoint_index: int | None = None
+    laps_completed: int = 0
+    num_laps: int = 0
+
+    # Stuck detection -- set whenever the detector runs (see StuckDetector.get_diagnostics).
+    is_stuck: bool | None = None
+    stuck_count: int | None = None
+    recent_movement_m: float | None = None
+
+    # Perception / risk -- set on the normal_drive phase.
+    forward_clearance_m: float | None = None
+    min_lidar_range_m: float | None = None
+    risk: str | None = None
+    escape_risk: str | None = None
+    rear_clearance_m: float | None = None
+
+    # Path tracking -- set on the normal_drive phase.
+    crosstrack_error_m: float | None = None
+    lookahead_distance_m: float | None = None
+    steer_target_x: float | None = None
+    steer_target_y: float | None = None
+    angle_error_rad: float | None = None
+
+    # Speed selection -- set on the normal_drive phase.
+    clearance_speed_mps: float | None = None
+    heading_speed_mps: float | None = None
+
+    # Final command -- set on every phase that actually publishes a drive command.
+    commanded_speed_mps: float | None = None
+    commanded_steering_norm: float | None = None
+
+    # Escape/stuck maneuver -- set whenever one is latched or begun.
+    active_maneuver_type: str | None = None
+    maneuver_steering: float | None = None
+    maneuver_speed_mps: float | None = None
+    maneuver_frames_left: int | None = None
+    escape_count: int | None = None
+
+    # Parking -- set once a ParkController exists.
+    parking_engaged: bool | None = None
+    park_phase: str | None = None
+
+    # Obstacles Challenge sign routing -- set on the normal_drive phase
+    # whenever a SignRouter is attached.
+    active_sign_count: int | None = None
+    sign_deform_magnitude_m: float | None = None
+
+    # Blind creep / direction inference -- set only on the "blind_creep" phase,
+    # before the travel direction has settled and CoreNavigator.step() has ever
+    # run (see corridor_follower.follow_corridor and direction_estimator.py).
+    direction_gate_verdict: str | None = None
+    direction_left_range_m: float | None = None
+    direction_right_range_m: float | None = None
+    direction_votes_clockwise: int | None = None
+    direction_votes_counterclockwise: int | None = None
+    corridor_width_belief_m: float | None = None
+
+    # Per-corridor width belief (CorridorWidthEstimator) -- set whenever the
+    # robot is running blind (widths estimated from LIDAR, not told them),
+    # regardless of phase: this is track_navigator_node's own state, not
+    # CoreNavigator's, so it is overlaid after every phase rather than tied
+    # to just one of them.
+    belief_north_m: float | None = None
+    belief_south_m: float | None = None
+    belief_east_m: float | None = None
+    belief_west_m: float | None = None
