@@ -619,11 +619,36 @@ class TestReset:
         try:
             with (
                 mock.patch.object(navigator._gateway, "reset_heading_reference") as reset_heading_mock,
+                mock.patch.object(navigator._gateway, "reset_position") as reset_position_mock,
                 mock.patch.object(navigator._core_navigator, "reset") as core_reset_mock,
             ):
                 navigator.reset()
             reset_heading_mock.assert_called_once()
+            reset_position_mock.assert_called_once_with(*navigator._start_xy)
             core_reset_mock.assert_called_once()
+        finally:
+            navigator.destroy_node()
+
+    def test_resetting_actually_clears_position_drift_on_the_estimator(self, tmp_path, sample_metadata_open, ros_context):
+        """2026-08-04: the bug behind hundreds-of-metres pose_x/pose_y on real hardware.
+
+        The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
+        purely from the button, with no process restart, so reset() has to
+        re-seed position the same way it already re-zeroed heading -- without
+        it a new race inherits wherever the previous race's LIDAR localizer
+        last drifted to. Goes through the real gateway/estimator, not a mock,
+        to pin the actual value landing correctly.
+        """
+        navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
+        try:
+            navigator._gateway._estimator.update_position(-125.4, -127.1)
+            assert navigator._gateway.get_current_pose().x == pytest.approx(-125.4)
+
+            navigator.reset()
+
+            pose = navigator._gateway.get_current_pose()
+            assert pose.x == pytest.approx(navigator._start_xy[0])
+            assert pose.y == pytest.approx(navigator._start_xy[1])
         finally:
             navigator.destroy_node()
 

@@ -101,3 +101,72 @@ means come back reading the 10m background fill instead of the injected near-ran
 because the sector center ends up 180 deg away from where the test places it). Likely means
 the real OLED front/left/right clearance display is rotated 180 deg from reality on hardware,
 the same class of bug the docstring says it was written to prevent.
+
+## Vision detection payload import path -- FIXED 2026-08-04
+
+`src/ros2/vision/node.py` imported `from src.vision.detection_payload_keys import (...)`
+and `ros2_hardware_gateway.py::_vision_callback` imported `from ros2.vision.detection_payload_keys
+import (...)` -- both wrong; the module actually lives at
+`src/ros2/vision/detection_payload_keys.py`. Neither path was ever correct: both were
+introduced in the same commit that added the file (`4f8dbdf`, 2026-08-02). No test exercised
+either import path, which is how both went unnoticed for two days.
+
+Real-hardware impact, confirmed live on the Pi 5 (2026-08-04): `vision_node`'s copy is a
+top-level `ModuleNotFoundError` at import time, so the node crash-looped continuously
+(`journalctl` showed it dying and respawning every few seconds). The gateway's copy is inside
+a `try: ... except (json.JSONDecodeError, TypeError):` that does not catch
+`ModuleNotFoundError`, so every real `/vision/detections` message raised uncaught out of the
+ROS2 callback and `_latest_detections` never updated -- sign/vision detections silently never
+reached the navigator, no crash, no error visible short of reading the node's own logs.
+
+Fixed by correcting both import paths to `from src.ros2.vision.detection_payload_keys import
+(...)`. Regression test added: `tests/ros2/test_navigation_node_blind.py::TestVisionCallbackParsesDetections`
+(verified it fails against the broken path, passes against the fix -- no prior test covered
+`_vision_callback` at all). `vision_node`'s own crash-loop has no unit-test path to pin
+directly (`tests/ros2/test_vision_node.py` cannot even collect in this dev environment, see
+the cv2 recursion entry elsewhere in this doc) -- confirmed only by redeploying and reading
+`journalctl -u vtitan-pi5.service` on the Pi 5.
+
+## Position estimate carried hundreds of metres of drift across race boundaries -- FIXED 2026-08-04
+
+Confirmed on real hardware across two consecutive races the same session
+(`run_20260804_143942`, `run_20260804_144019`): `pose_x`/`pose_y` in `nav_debug` reached
+the hundreds (e.g. `-195, -197`) on a track no larger than 3m square, and the second race's
+*first logged tick* continued directly from where the first race's *last* tick left off
+(`-98.4, -100.1` -> `-125.4, -127.1`) rather than resetting -- confirmed not a parsing
+artifact by replaying the real recorded `/scan` through `LidarLocalizer.estimate_position`
+directly with the canonical seed `(1.5, 0.25)`: it returns a sane, in-track result (`1.22,
+0.09`), so the localizer's own math is fine given a sane prior. The real running node simply
+wasn't giving it one on a new race.
+
+Root cause: `TrackNavigator.reset()` (runs at every FINISHED -> RACING transition -- the
+state machine cycles this purely from the button, with no process restart) already re-zeroed
+the heading reference but never re-seeded position. So while heading correctly started fresh
+every race, position silently carried over from wherever the *previous* race's LIDAR
+localizer estimate last drifted to. The localizer's own coarse-to-fine grid search is
+provably bounded to `search_radius_m` (0.15m) per call, so it cannot itself explain a
+sudden 100+m jump -- what compounds is a *persistent, unresetting* small per-tick disagreement
+accumulating across many minutes and multiple races in one process lifetime, not one dramatic
+event. The exact per-tick mechanism generating that disagreement in the first place -- most
+likely the local search losing track after a fast true displacement it can't see across (e.g.
+an escape/K-turn maneuver moving the robot faster than the search radius can follow) -- is
+still open; this fix only stops the drift from surviving a race boundary, so future
+investigation of the within-race drift itself now gets a clean starting point each race
+instead of a contaminated one.
+
+Fixed: `StateEstimator.reset_position(x, y)`, exposed via
+`ROS2HardwareGateway.reset_position`, called from `TrackNavigator.reset()` alongside the
+existing `reset_heading_reference()`. Regression tests:
+`tests/ros2/test_navigation_node.py::TestReset::test_resetting_actually_clears_position_drift_on_the_estimator`
+(goes through the real gateway/estimator, not a mock, seeds a hundreds-of-metres value and
+confirms `reset()` clears it) and the existing mock-based `TestReset` test extended to assert
+`reset_position` is called with the race's actual starting position.
+
+Separately confirmed and unrelated: the same testing session also surfaced that restarting
+only the Pi 5's systemd services (not the Pi Zero's) after a code deploy can leave the
+Pi5<->Zero comms link half-dead -- motor commands published and logged correctly
+(`/ackermann_cmd` nonzero throughout) but `/motor/drive_speed` read exactly 0.0 for an entire
+~6-minute session despite continuous creep commands. A full reboot of both boards resolved it;
+this matches the already-known "USB gadget link is nondeterministic" entry above. Worth a
+documented redeploy procedure (restart/reboot both boards together) rather than relying on
+each ad-hoc session to remember it.

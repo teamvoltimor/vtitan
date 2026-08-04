@@ -643,6 +643,17 @@ class TrackNavigator(Node, ResettableNode):
         fresh one is built the same way the first one was, from the same
         section/direction/metadata.
 
+        Also re-seeds the position estimate to this race's starting pose, for
+        the same reason: the state machine can cycle FINISHED -> BOOT_CHECK ->
+        READY -> RACING purely from the button, with no process restart, so
+        without this a new race's very first tick starts from wherever the
+        *previous* race's LIDAR localizer last drifted to, not from the new
+        race's actual starting pose -- confirmed on real hardware 2026-08-04,
+        pose_x/pose_y in the hundreds of metres on a 3m track, continuous
+        across a race boundary (see docs/known-issues-backlog.md). The
+        localizer's own drift during a single race is a separate, still-open
+        question; this only stops it from compounding across races.
+
         A blind round also rebuilds the width and direction estimators here.
         The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
         purely from the button, with no process restart, so without this a
@@ -655,6 +666,7 @@ class TrackNavigator(Node, ResettableNode):
         direction, as steering the wrong way from the first waypoint.
         """
         self._gateway.reset_heading_reference()
+        self._gateway.reset_position(*self._start_xy)
         # Re-stamp anything measured before the start to the heading frame that
         # reset just established. The yaws recorded against the old reference
         # would otherwise file those readings under the wrong section, since

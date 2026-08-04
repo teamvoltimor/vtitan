@@ -79,6 +79,32 @@ class StateEstimator:
         self._x = x
         self._y = y
 
+    def reset_position(self, x: float, y: float) -> None:
+        """Re-seed the position estimate at the start of a new race.
+
+        The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
+        purely from the button, with no process restart (see
+        ``reset_heading_reference``'s docstring for the same fact about
+        heading) -- so without this, a new race's very first tick starts from
+        wherever the *previous* race's ``update_position`` last left ``_x``/
+        ``_y``, not from the new race's actual starting pose. If the LIDAR
+        localizer drifted during that previous race (its coarse-to-fine grid
+        search is only ever a local correction -- see its own docstring --
+        so a large true displacement between ticks, e.g. during an escape
+        maneuver, can desync the search from truth with no way back), every
+        subsequent race inherits and compounds that drift instead of starting
+        clean. Confirmed on real hardware 2026-08-04: two consecutive races
+        the same day showed pose_x/pose_y in the hundreds of metres,
+        continuous across the race boundary, on a track no larger than 3m
+        square (see docs/known-issues-backlog.md).
+
+        Args:
+            x: The new race's starting X coordinate (world frame).
+            y: The new race's starting Y coordinate (world frame).
+        """
+        self._x = x
+        self._y = y
+
     def correct_yaw(self, measured_yaw: float, gain: float = YAW_CORRECTION_GAIN) -> None:
         """Pull the heading estimate toward an absolute measurement of it.
 

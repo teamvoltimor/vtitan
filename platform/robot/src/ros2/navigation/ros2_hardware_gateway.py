@@ -168,6 +168,15 @@ class ROS2HardwareGateway(HardwareGateway):
         """Re-zero the estimator's heading against the next IMU reading."""
         self._estimator.reset_heading_reference()
 
+    def reset_position(self, x: float, y: float) -> None:
+        """Re-seed the estimator's position at the start of a new race.
+
+        See ``StateEstimator.reset_position`` -- without this a new race
+        inherits wherever the previous one's position estimate last drifted
+        to, instead of starting from this race's actual starting pose.
+        """
+        self._estimator.reset_position(x, y)
+
     def correct_heading_for_direction_change(self, delta_rad: float) -> None:
         """Shift the estimator's heading by a known amount, applied in full.
 
