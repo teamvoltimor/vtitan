@@ -197,3 +197,37 @@ Fixed: `reset_heading_reference()` now also zeroes `_yaw_correction`. Regression
 `tests/unit/test_heading_reference.py::TestHeadingReference::test_reset_clears_a_leftover_direction_reassumption_correction`
 (applies a pi correction, resets, confirms the estimate falls back to the fresh start_yaw
 rather than carrying the old correction forward).
+
+## CW always worked, CCW never did -- root-caused and fixed 2026-08-04
+
+After the two fixes above, four consecutive real-hardware attempts (2 CW, 2 CCW) still split
+cleanly along direction: both CW attempts finished all 3 laps within the 180s WRO limit
+(`run_20260804_161412` 139.4s, `run_20260804_161956` 157.7s); both CCW attempts failed
+without completing a lap (`run_20260804_161650` froze for 27s and gave up,
+`run_20260804_161931` wedged in a corner). Neither failure was the `_yaw_correction`
+carryover bug -- both showed the *correct* ~0 deg heading for CCW once direction resolved.
+
+Root cause: the LIDAR localizer takes yaw as given (see `LidarLocalizer`'s own docstring) --
+it only solves for position, matching the scan against the walls at whatever yaw the
+estimator currently reports. Blind races always start assuming the launch default (CW,
+`--direction`'s default), so a CW race's `blind_creep` phase always fits position with the
+*correct* yaw from the first tick. A CCW race's `blind_creep` always fits position with the
+*wrong* (CW-assumed) yaw until direction inference resolves and `_commit_direction` corrects
+it -- but correcting yaw at that moment does nothing to repair the position estimate the
+wrong yaw already corrupted, and `LidarLocalizer.estimate_position`'s coarse-to-fine search
+reseeds from whatever the previous (already wrong) fix was, so the error compounds across the
+whole creep instead of self-correcting. Confirmed directly: both real CCW captures showed
+physically impossible implied speeds in `pose_x`/`pose_y` (2.8-6.4 m/s against a ~0.156 m/s
+real maximum) throughout `blind_creep` and immediately after `_commit_direction`'s yaw
+correction landed. CW never hits this, because its creep's yaw assumption was never wrong in
+the first place -- which is exactly the observed asymmetry.
+
+Fixed: `_commit_direction()` now also calls `reset_position()` (the same method the
+cross-race fix above added) whenever direction actually changes, discarding whatever position
+the wrong-yaw creep produced and re-seeding from the known starting position. Safe because
+this fires within ~1-2s of race start (both real captures committed by t=1.2s) against a
+capped creep speed, so the true displacement discarded is at most ~0.2m -- far smaller than
+the corruption it replaces. Regression test:
+`tests/ros2/test_navigation_node_blind.py::TestBlindImpliesDirectionInference::test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep`.
+
+Not yet re-verified on real hardware -- next CCW attempt is the real test.

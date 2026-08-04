@@ -319,6 +319,38 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
+    def test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep(self, ros_context) -> None:  # noqa: F811
+        """2026-08-04: the bug behind "CW always works, CCW never does".
+
+        The LIDAR localizer takes yaw as given, so every position fix taken
+        during the creep -- while yaw was still anchored to whichever
+        direction was assumed at construction -- was matched against the
+        walls at the wrong orientation if that assumption turns out wrong.
+        Correcting yaw alone (test above) doesn't fix a position estimate the
+        wrong yaw already corrupted. Confirmed on real hardware: two CCW
+        races showed physically impossible implied speeds (2.8-6.4 m/s
+        against a ~0.156 m/s real maximum) in pose_x/pose_y throughout the
+        creep and right after the yaw correction landed -- CW races never hit
+        this because their creep's yaw assumption was already correct from
+        the first tick. See docs/known-issues-backlog.md.
+        """
+        from shared.domain.models import Pose
+
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            navigator._gateway._estimator.update_position(0.9, 0.1)  # corrupted creep fix
+            drifted_pose = navigator._gateway.get_current_pose()
+            assert (drifted_pose.x, drifted_pose.y) == pytest.approx((0.9, 0.1))
+
+            navigator._commit_direction(Direction.COUNTERCLOCKWISE, drifted_pose)
+
+            pose = navigator._gateway.get_current_pose()
+            assert (pose.x, pose.y) == pytest.approx(navigator._start_xy)
+        finally:
+            navigator.destroy_node()
+
 
 class TestAssumedStartConditions:
     """Section can be assumed; direction cannot."""

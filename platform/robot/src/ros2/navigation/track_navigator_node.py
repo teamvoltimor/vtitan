@@ -532,11 +532,34 @@ class TrackNavigator(Node, ResettableNode):
             new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
             heading_delta = _wrap(new_yaw - old_yaw)
             self._gateway.correct_heading_for_direction_change(heading_delta)
-            # ``pose`` was read from the gateway before the correction above
-            # landed, so it still carries the old, now-stale yaw -- replan
-            # below with the corrected value or the heading-aware reseek in
-            # replace_path would pick a waypoint using the wrong heading.
-            pose = Pose(x=pose.x, y=pose.y, yaw=_wrap(pose.yaw + heading_delta))
+            # The LIDAR localizer takes yaw as given (it only solves for
+            # position), so every position fix computed during the creep --
+            # while yaw was still anchored to the assumption that just turned
+            # out wrong -- was matched against the walls at the wrong
+            # orientation and cannot be trusted, however plausible any single
+            # fix looked. Its own coarse-to-fine search is bounded to
+            # search_radius_m per call, but each call reseeds from the
+            # previous (already wrong) fix, so the error compounds across the
+            # whole creep instead of correcting once yaw does. Confirmed on
+            # real hardware 2026-08-04: two CCW races' pose_x/pose_y showed
+            # physically impossible implied speeds (2.8-6.4 m/s against a
+            # ~0.156 m/s real maximum) throughout blind_creep and right after
+            # this method's yaw correction landed -- the yaw fix alone wasn't
+            # enough because it doesn't touch the position estimate the wrong
+            # yaw already corrupted. Re-seeding position the same way a new
+            # race does (see reset()) is safe here: creep is capped at
+            # SLOW_SPEED and this fires within a second or two of race start
+            # (both real captures committed by t=1.2s), so the true
+            # displacement being discarded is at most ~0.2m -- far smaller
+            # than the corruption it replaces. See
+            # docs/known-issues-backlog.md.
+            self._gateway.reset_position(*self._start_xy)
+            # ``pose`` was read from the gateway before the corrections above
+            # landed, so it still carries the old, now-stale yaw and position
+            # -- replan below with the corrected values or the heading-aware
+            # reseek in replace_path would use the wrong heading, and resync
+            # against a position replace_path won't have caught up to yet.
+            pose = Pose(x=self._start_xy[0], y=self._start_xy[1], yaw=_wrap(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted.
             self._core_navigator.replace_lap_detector(
