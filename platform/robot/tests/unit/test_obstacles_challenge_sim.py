@@ -47,8 +47,8 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import replace
-from typing import TYPE_CHECKING
 
+import pytest
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.simulated_hardware_gateway as gateway_module
 from shared.domain.models import SignColor
@@ -56,10 +56,11 @@ from src.navigation.planning.sign_router import signs_from_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
-if TYPE_CHECKING:
-    import pytest
-
 logger = logging.getLogger(__name__)
+
+# Full closed-loop sim (3 laps + parking) per scenario -- slow enough to skip
+# from the default fast test loop (see task robot:test SCOPE=fast).
+pytestmark = pytest.mark.slow
 
 _MAX_STEPS = 6000
 """Every scenario now includes a parking maneuver, which needs more budget than a bare lap."""

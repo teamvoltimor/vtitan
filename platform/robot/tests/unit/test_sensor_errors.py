@@ -222,11 +222,20 @@ class TestWallHeadingCorrectsThem:
         assert yaw_err(biased) < yaw_err(uncorrected)
         assert yaw_err(biased) < 3.0
 
+    @pytest.mark.slow
     def test_drift_stops_accumulating(self) -> None:
         """Drift is a ramp; the walls turn it into a bounded error.
 
         This is the whole point -- 0.1 deg/s took blind from 26/28 to 9/28
         without the correction and back to 26/28 with it.
+
+        Runs two full 600-tick closed-loop sims (corrected + uncorrected),
+        each refreshing its LIDAR-localizer grid search (~100 raycasts) every
+        scan -- ~30s combined, not a hang (2026-08-04: was mistaken for one
+        after several 20-40s timeouts cut it off mid-run; see
+        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``
+        for how that got tracked down). Marked slow rather than sped up: the
+        cost is the real localizer doing real work, not test-only overhead.
         """
         drift = SensorErrors(imu_drift_rad_per_s=math.radians(0.5))
         corrected = _sim(drift, wall_heading=True)

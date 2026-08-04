@@ -63,3 +63,25 @@ audit doc for details.
 Fix not yet implemented; see the audit doc's "Suggested next steps" for the concrete work
 items (controller re-tune/redamp, speed-to-heading-error coupling, waypoint-slice wrap fix,
 stuck-escape fallback maneuver).
+
+## Full unit suite runtime looks like a hang -- DIAGNOSED 2026-08-04, mitigated not fixed
+
+Running plain `pytest tests/unit` (no marker filter) took 10+ minutes with zero output and
+was indistinguishable from a genuine hang -- confirmed via `cProfile` it is not: the cost is
+real work in `TrackWalls.raycast()` (`src/navigation/track_geometry.py:161`), called ~100
+times per LIDAR scan refresh by `LidarLocalizer.estimate_position`'s coarse-to-fine grid
+search (`src/navigation/localization.py`). Several files each run dozens of parametrized full
+closed-loop sims through that path -- `test_open_challenge_sim.py` (many
+section/direction/width combinations), `test_obstacles_challenge_sim.py` (7 full 3-lap+park
+scenarios), `test_deviation_recovery.py` (24 parametrized cases), plus one especially
+expensive case in `test_sensor_errors.py::test_drift_stops_accumulating` (two 600-tick sims,
+~32s alone). Summed, the full suite plausibly needs 10-15+ minutes, and `pytest -q` piped
+through `tail` buffers all output until the run ends, so there is no visible progress to
+distinguish "slow" from "stuck" while it runs.
+
+Mitigated by marking the expensive files/tests `@pytest.mark.slow` (registered in
+`pytest.ini`) and adding `task robot:test SCOPE=fast` (`platform/Taskfile.yml`), which
+excludes them -- verified at 55s for 523 tests. Not fixed: `raycast()`'s per-call cost itself
+(~0.46ms) is unexamined -- worth profiling whether the coarse-to-fine grid search
+(4 passes x 5x5 = 100 raycasts per scan) is doing more work than it needs to, independent of
+whether it's fast enough for these tests' purposes.

@@ -31,6 +31,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Full closed-loop sim per case, 24 parametrized cases -- slow enough to skip
+# from the default fast test loop (see task robot:test SCOPE=fast).
+pytestmark = pytest.mark.slow
+
 _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
