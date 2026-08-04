@@ -170,3 +170,30 @@ Pi5<->Zero comms link half-dead -- motor commands published and logged correctly
 this matches the already-known "USB gadget link is nondeterministic" entry above. Worth a
 documented redeploy procedure (restart/reboot both boards together) rather than relying on
 each ad-hoc session to remember it.
+
+## `_yaw_correction` also carried across race boundaries -- FIXED 2026-08-04
+
+A second half of the same class of bug as the position-carryover fix above, in a field the
+first pass missed. Confirmed on real hardware: a CW race (`run_20260804_151809`) that
+immediately followed a CCW one (`run_20260804_151732`, same process, button-reset in
+between, ~37s apart -- too fast for a reboot) started at `pose_yaw` ~0 deg instead of ~180
+deg, which is CCW's assumed starting convention, not CW's. Traced to `steer_target` sitting
+~2.4m away at an ~88 deg bearing from t=2s onward -- confirmed via `calculate_waypoints`
+that the *planned path* itself is fine (first waypoints proceed near 0 deg local bearing from
+the canonical CW start, nothing like an 88 deg turn), so the corruption was in the heading
+estimate, not the plan.
+
+Root cause: `apply_yaw_correction` (added earlier the same day, see the "heading estimate
+when direction inference overturns the assumption" fix above) writes a full, up-to-pi jump to
+`StateEstimator._yaw_correction` whenever blind direction inference overturns the assumed
+direction. `reset_heading_reference()` -- called by `TrackNavigator.reset()` at every race
+start -- only cleared `_imu_yaw_offset`/`_relative_imu_yaw` (the IMU power-on reference), not
+`_yaw_correction`. So the CCW race's -pi correction survived into the next race untouched;
+that race's own reset correctly rebuilt the path for CW and zeroed the IMU reference, but
+silently kept the previous race's leftover correction on top of it, netting the heading
+estimate out to CCW's convention while the direction label and path were both genuinely CW.
+
+Fixed: `reset_heading_reference()` now also zeroes `_yaw_correction`. Regression test:
+`tests/unit/test_heading_reference.py::TestHeadingReference::test_reset_clears_a_leftover_direction_reassumption_correction`
+(applies a pi correction, resets, confirms the estimate falls back to the fresh start_yaw
+rather than carrying the old correction forward).

@@ -58,7 +58,8 @@ class StateEstimator:
         self._relative_imu_yaw = wrap_angle(reading.yaw - self._imu_yaw_offset)
 
     def reset_heading_reference(self) -> None:
-        """Re-zero the heading reference against the next IMU reading.
+        """Re-zero the heading reference against the next IMU reading, and
+        clear any accumulated correction.
 
         The BNO085 in UART-RVC mode reports yaw relative to power-on and has no
         absolute reference, so the offset latched by the first reading is only
@@ -68,11 +69,28 @@ class StateEstimator:
         180 degrees, against a heading budget where 5 degrees already costs
         real pass rate.
 
+        Also zeroes ``_yaw_correction`` -- both the slow wall-heading
+        complementary-filter drift (``correct_yaw``) and the full
+        direction-reassumption jump (``apply_yaw_correction``, up to +/-pi)
+        accumulate there, and neither belongs to a race that hasn't started
+        yet. Without this, a race that overturns the assumed direction (see
+        ``apply_yaw_correction``) leaves that correction sitting in
+        ``_yaw_correction`` after the race ends; the *next* race's reset()
+        re-zeros the IMU offset and rebuilds the path for its own (possibly
+        different) direction, but silently kept the previous race's leftover
+        correction, netting out to the wrong race's heading convention.
+        Confirmed on real hardware 2026-08-04: a CW race immediately
+        following a CCW one started at pose_yaw ~0 deg (CCW's convention)
+        instead of ~180 deg (CW's), because the CCW race's -pi correction
+        was still sitting in ``_yaw_correction`` (see
+        docs/known-issues-backlog.md).
+
         Call this at the moment the robot is known to be in its starting pose,
         which is the start-button press. Everything before then is transport.
         """
         self._imu_yaw_offset = None
         self._relative_imu_yaw = None
+        self._yaw_correction = 0.0
 
     def update_position(self, x: float, y: float) -> None:
         """Process an absolute world-frame position fix (from LIDAR localization)."""

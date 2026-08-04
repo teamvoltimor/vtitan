@@ -100,3 +100,23 @@ class TestHeadingReference:
         est.update_imu(_imu(90.0))
         est.reset_heading_reference()
         assert est.estimate_pose().yaw == pytest.approx(_START_YAW)
+
+    def test_reset_clears_a_leftover_direction_reassumption_correction(self) -> None:
+        """2026-08-04: a CW race right after a CCW one started at ~0 deg
+        instead of ~180 deg on real hardware.
+
+        apply_yaw_correction (a full, up-to-pi jump applied when blind
+        direction inference overturns the assumed direction -- see
+        track_navigator_node._commit_direction) writes to the same
+        _yaw_correction reset_heading_reference must clear, or the next
+        race silently inherits the previous race's direction-convention
+        correction on top of its own (possibly different) start_yaw.
+        """
+        est = _estimator()
+        est.update_imu(_imu(0.0))
+        est.apply_yaw_correction(math.pi)  # e.g. the previous race's CW->CCW jump
+
+        est.reset_heading_reference()
+        est.update_imu(_imu(0.0))
+
+        assert est.estimate_pose().yaw == pytest.approx(_START_YAW)
