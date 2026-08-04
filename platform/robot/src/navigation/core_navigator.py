@@ -815,18 +815,72 @@ class CoreNavigator:
         attempts) and alternates steering side each attempt, so a wall-pinned
         robot actually backs away instead of twitching one centimetre every few
         seconds forever.
+
+        When reverse itself is blocked (wedged both front and rear -- a real
+        corner, or a moderate turn normal_drive's own curvature-based
+        steering isn't decisive enough to complete at creep speed), this used
+        to just hold and reset the stuck detector, over and over, forever:
+        confirmed on real hardware 2026-08-04 as a robot frozen at the same
+        position for 27s straight, is_stuck firing repeatedly and each time
+        just re-arming the same forward command that had already failed for
+        the previous window (see docs/known-issues-backlog.md). Holding is
+        only actually the safe choice when forward is *also* blocked; when
+        it isn't, a forward creep at full steering lock (alternating side
+        each attempt, same escalation pattern as the reverse case) gives the
+        robot a real chance to walk itself clear using more decisive
+        steering than normal_drive's own pure-pursuit curvature was willing
+        to command for this same geometry.
         """
         logger.warning("Robot stuck - triggering escape")
         stuck_diag = self._stuck_detector.get_diagnostics()
         rear_clear = 10.0
+        forward_clear = 10.0
         scan = self._gateway.get_lidar_scan()
         if scan:
             rear_clear = self._collision_controller.compute_rear_clearance(
                 scan.ranges_m,
                 scan.angles_rad,
             )
+            forward_clear = self._collision_controller.compute_forward_clearance(
+                scan.ranges_m,
+                scan.angles_rad,
+            )
         if rear_clear < self._tuning.clearance.CONTACT_DIST:
-            logger.warning("Stuck escape blocked: rear clearance %.2f m - holding", rear_clear)
+            if forward_clear >= self._tuning.clearance.CONTACT_DIST:
+                logger.warning(
+                    "Stuck escape: rear blocked (%.2f m), forward clear (%.2f m) - forcing forward escape",
+                    rear_clear,
+                    forward_clear,
+                )
+                self._escape_count += 1
+                frames = min(
+                    self._tuning.escape.K_TURN_MIN_FRAMES
+                    + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
+                    self._tuning.escape.MAX_ESCAPE_FRAMES,
+                )
+                steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign
+                self._escape_steer_sign = -self._escape_steer_sign
+                self._begin_maneuver(
+                    EscapeManeuver(
+                        maneuver_type=ManeuverType.STUCK_FORWARD,
+                        steering=steering,
+                        speed=self._tuning.speed.CREEP_SPEED,
+                        duration_frames=frames,
+                    ),
+                )
+                self._stuck_detector.reset()
+                self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.STUCK_ESCAPE_MANEUVER)
+                self._debug.is_stuck = bool(stuck_diag["is_stuck"])
+                self._debug.stuck_count = int(stuck_diag["stuck_count"])
+                self._debug.recent_movement_m = float(stuck_diag["recent_movement"])
+                self._debug.rear_clearance_m = rear_clear
+                self._debug.forward_clearance_m = forward_clear
+                return
+            logger.warning(
+                "Stuck escape blocked: rear clearance %.2f m, forward clearance %.2f m - holding",
+                rear_clear,
+                forward_clear,
+            )
             self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
             self._stuck_detector.reset()
             debug = self._base_debug(robot_x, robot_y, robot_yaw)
@@ -835,6 +889,7 @@ class CoreNavigator:
             debug.stuck_count = int(stuck_diag["stuck_count"])
             debug.recent_movement_m = float(stuck_diag["recent_movement"])
             debug.rear_clearance_m = rear_clear
+            debug.forward_clearance_m = forward_clear
             debug.commanded_speed_mps = 0.0
             debug.commanded_steering_norm = 0.0
             self._debug = debug

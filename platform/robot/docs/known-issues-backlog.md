@@ -231,3 +231,34 @@ the corruption it replaces. Regression test:
 `tests/ros2/test_navigation_node_blind.py::TestBlindImpliesDirectionInference::test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep`.
 
 Not yet re-verified on real hardware -- next CCW attempt is the real test.
+
+## Stuck-escape held forever instead of escaping when only reverse was blocked -- FIXED 2026-08-04
+
+The "stuck-escape and K-turn maneuvers both gate on rear clearance and have no fallback when
+it's blocked" gap flagged in the 2026-08-03 root-cause writeup (see the "sustained full-lock
+steering" entry above) turned out to also be the actual cause of a *different*-looking real
+failure: `run_20260804_161650` (CCW) froze at one position for 27s straight. It looked at
+first like a separate creep/curvature control-authority deadlock (a genuine ~59 deg turn near
+a close obstacle, `forward_clearance` ~0.245m, well above `CONTACT_DIST`), but the frozen
+`pose_x`/`pose_y` and `forward_clearance` values (bit-for-bit identical for 5+ second
+stretches, not slowly closing) meant the robot wasn't moving at all despite continuous
+nonzero `speed`/`steering` commands -- and `_handle_stuck_escape`'s own rear-clearance check
+(`rear_clearance_m` = 0.089m, just below `CONTACT_DIST`) was firing every time
+`is_stuck` did. `_handle_stuck_escape` held (speed=steering=0) and reset the stuck detector
+whenever reverse was blocked, with no fallback -- so it just re-armed the same forward
+command that had already failed for the entire previous stuck-timeout window, over and over,
+forever. Same root gap as the corner-wedge case (`run_20260804_161931`), not a new bug.
+
+Fixed: when reverse is blocked but `forward_clearance` has room (>= `CONTACT_DIST`),
+`_handle_stuck_escape` now commands a forward creep at full steering lock (new
+`ManeuverType.STUCK_FORWARD`, alternating side each attempt, same escalation pattern the
+reverse case already used) instead of holding -- giving the robot a real, decisive-steering
+attempt to walk itself clear, rather than repeating the same modest pure-pursuit curvature
+that got it stuck in the first place. Holding is still correct, and still happens, when
+forward is *also* blocked (genuinely sandwiched). Regression tests:
+`tests/unit/test_core_navigator_escape.py::TestStuckEscapeRearBlocked` (forward-room case
+gets a real forward escape; both-ends-blocked case still holds and never reverses) --
+verified the first assertion fails against the pre-fix code (holds instead of escaping) and
+passes against the fix.
+
+Not yet re-verified on real hardware.

@@ -119,6 +119,7 @@ class ManeuverType(StrEnum):
     K_TURN = "k_turn"
     SIDE_CORRECTION = "side_correction"
     STUCK_REVERSE = "stuck_reverse"
+    STUCK_FORWARD = "stuck_forward"
 
 
 @dataclass

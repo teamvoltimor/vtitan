@@ -243,6 +243,50 @@ class TestStuckDetectionDuringParking:
         assert all(cmd.speed_mps == 0.0 for cmd in gateway.commands)
 
 
+class TestStuckEscapeRearBlocked:
+    """2026-08-04: a robot wedged with reverse blocked used to just hold and
+    reset the stuck detector forever, re-arming the same forward command that
+    had already failed -- confirmed on real hardware as frozen at one
+    position for 27s straight (see docs/known-issues-backlog.md). When
+    forward has room, it should get a real forward escape at full steering
+    lock instead of an indefinite hold.
+    """
+
+    def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints):
+        ranges = _scan_with_sectors(back=0.09)  # rear blocked, front stays LIDAR_DEFAULT_FAR
+        gateway = _FakeGateway(
+            Pose(x=0.0, y=0.0, yaw=0.0),
+            LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
+        )
+        tuning = NavigationTuning()
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+
+        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
+            nav.step()
+
+        escape_cmds = [c for c in gateway.commands if c.speed_mps > 0 and abs(c.steering_norm) > 0.5]
+        assert escape_cmds, "expected a forward escape at strong steering once stuck with rear blocked"
+        assert nav.debug_snapshot.active_maneuver_type == ManeuverType.STUCK_FORWARD.value
+
+    def test_both_ends_blocked_still_holds(self, waypoints):
+        """Genuinely sandwiched (front AND rear blocked): holding is still correct."""
+        ranges = _scan_with_sectors(front=0.06, back=0.09)
+        gateway = _FakeGateway(
+            Pose(x=0.0, y=0.0, yaw=0.0),
+            LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
+        )
+        tuning = NavigationTuning()
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+
+        for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
+            nav.step()
+
+        assert all(c.speed_mps >= 0 for c in gateway.commands), "must not reverse into an unseen rear wall"
+        assert not any(abs(c.steering_norm) > 0.5 and c.speed_mps > 0 for c in gateway.commands), (
+            "must not force a forward escape when forward is also blocked"
+        )
+
+
 class _StubParkController:
     """Minimal ParkController stand-in: always drives in place, never finishes
     on its own unless constructed with ``done=True``.
