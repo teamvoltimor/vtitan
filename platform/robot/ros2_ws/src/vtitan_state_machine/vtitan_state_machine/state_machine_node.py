@@ -14,6 +14,8 @@ Topics:
     Subscribed:
         - /button/event (std_msgs/String) — button events from button_node (Pi Zero)
         - /challenge_mode/jumper_inserted (std_msgs/Bool) — challenge-mode jumper (Pi Zero)
+        - /ackermann_cmd (ackermann_msgs/AckermannDriveStamped) — mirrors the real
+          navigator's drive commands into /race_metrics' current_velocity/current_steering
     Published:
         - /robot_state (std_msgs/String) - Current robot state
         - /ackermann_cmd (ackermann_msgs/AckermannDriveStamped) - Drive commands
@@ -22,6 +24,7 @@ Topics:
 """
 
 import json
+import math
 import os
 import socket
 import subprocess  # noqa: S404 - used only to hand a fixed argv to systemd-run
@@ -174,6 +177,20 @@ class StateMachineNode(Node, ResettableNode):
         )
         self.metrics_pub: Publisher[String] = self.create_publisher(String, "/race_metrics", 10)
 
+        # /race_metrics' current_velocity/current_steering used to only ever be set
+        # by this node's own _publish_stop_command (always to 0.0) -- nothing updated
+        # them from the real driving commands Ros2HardwareGateway.publish_drive()
+        # actually publishes to this same topic, so the metrics read zero for the
+        # entire race. Subscribing here, rather than duplicating CoreNavigator's
+        # command computation, means this always matches whatever the robot is
+        # actually being told to do, from whichever publisher last sent it.
+        self.ackermann_sub: Subscription[AckermannDriveStamped] = self.create_subscription(
+            AckermannDriveStamped,
+            "/ackermann_cmd",
+            self._ackermann_callback,
+            _QOS_ACKERMANN,
+        )
+
         # Subscribers — sensor topics use qos_profile_sensor_data (BEST_EFFORT +
         # VOLATILE, depth=10) to match the publisher QoS on sensor drivers.
         self.imu_sub: Subscription[Imu] = self.create_subscription(
@@ -319,10 +336,34 @@ class StateMachineNode(Node, ResettableNode):
         future = self._executor.submit(fetch_ip)
         future.add_done_callback(on_complete)
 
-    def _imu_callback(self, _msg: Imu) -> None:
-        """Handle IMU data."""
+    def _imu_callback(self, msg: Imu) -> None:
+        """Handle IMU data.
+
+        ``gyro_yaw`` used to be hardcoded to 0.0 here regardless of the
+        message -- /race_metrics reported a flat yaw for the entire race.
+        Derived from the orientation quaternion (matching the convention used
+        elsewhere for this same computation, e.g. real-hardware bag analysis),
+        not the raw angular_velocity.z: that is a rate, not a heading, and
+        integrating it here would drift independently of whatever heading
+        reference the navigator itself is using.
+        """
         self.imu_last_msg_time = time.time()
-        self.gyro_yaw = 0.0
+        q = msg.orientation
+        siny_cosp = 2 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
+        self.gyro_yaw = math.degrees(math.atan2(siny_cosp, cosy_cosp))
+
+    def _ackermann_callback(self, msg: AckermannDriveStamped) -> None:
+        """Mirror the last commanded drive -- from whichever publisher sent it.
+
+        ``Ros2HardwareGateway.publish_drive`` (the real navigator) and this
+        node's own ``_publish_stop_command`` both publish to ``/ackermann_cmd``;
+        subscribing to it rather than duplicating either's computation means
+        ``current_velocity``/``current_steering`` always match what the robot
+        was actually just told to do.
+        """
+        self.current_velocity = msg.drive.speed
+        self.current_steering = math.degrees(msg.drive.steering_angle)
 
     def _lidar_callback(self, _msg: LaserScan) -> None:
         """Handle LiDAR scan data."""
