@@ -36,3 +36,11 @@ AMENT_IGNORE
 
 # Internal docs
 docs/internal/
+
+# Bag runs pulled from the robot for local diagnosis -- large binary data,
+# never committed. Extraction scripts live in vtitan_runs_pulled/ and ARE
+# tracked (the !-negations below re-include everything but the run data).
+vtitan_runs_pulled/*
+!vtitan_runs_pulled/.gitkeep
+!vtitan_runs_pulled/*.py
+!vtitan_runs_pulled/*.sh
