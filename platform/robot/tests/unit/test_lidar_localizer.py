@@ -129,6 +129,15 @@ class TestPlausibilityGuards:
     race start (see test_sensor_errors.py::TestStartPlacement, which starts up
     to 0.4m off and expects convergence within ~1s); there's no way to tell a
     wrong snap apart from a correct one by jump size alone.
+
+    Replaying real hardware captures (2026-08-05) against this exact search
+    showed the bounds guard's actual blind spot: an in-bounds wrong match from
+    a nearly flat cost landscape, where the winner beats the runner-up by well
+    under 1% of cost and a scan just as ambiguous a moment later flips which
+    one wins. Guard: reject a result whose winning margin over the runner-up
+    is too thin to trust, holding prior_xy instead -- unless the winner's own
+    absolute cost is already excellent, since a well-converged match
+    legitimately has a tiny gap to its own neighbours too.
     """
 
     def test_rejects_result_outside_track_bounds(self):
@@ -161,6 +170,35 @@ class TestPlausibilityGuards:
 
         assert est_x == pytest.approx(true_x, abs=0.02)
         assert est_y == pytest.approx(true_y, abs=0.02)
+
+    def test_rejects_an_ambiguous_match_even_in_bounds(self):
+        """The actual failure mode found on real hardware: not a wrong-but-
+        confident match, but a flat cost landscape with no real winner.
+
+        A stub whose predicted range is the same constant regardless of (x, y)
+        makes every candidate in the search tie exactly -- the most extreme
+        case of the ambiguity confirmed on real CCW/CW captures, where the
+        winner led the runner-up by well under 1% of cost. Distinct from
+        ``test_accepts_a_large_in_bounds_correction`` (a real, unambiguous
+        global minimum far below every alternative): here there is no
+        alternative that is actually worse, so the result must not be trusted.
+        """
+
+        class _FlatWalls:
+            def raycast(self, x, y, yaw, angles_rad):
+                return np.full(len(angles_rad), 1.0)
+
+        localizer = LidarLocalizer(_FlatWalls())
+        prior = (1.5, 0.5)
+        # Every candidate predicts 1.0m; a uniform 1.3m "scan" disagrees by the
+        # same clipped 0.3m on every ray, everywhere in the search window --
+        # cost is well above the floor (large, real disagreement) but tied
+        # between every candidate (zero distinctiveness).
+        ranges = np.full(RobotSpecs.LIDAR_SAMPLES, 1.3)
+
+        est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+
+        assert est == prior
 
 
 def test_estimate_runs_within_control_tick_budget():

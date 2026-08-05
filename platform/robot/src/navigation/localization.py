@@ -39,6 +39,14 @@ class LidarLocalizer:
             per-tick displacement so the true position is never outside it.
         passes: Number of coarse-to-fine grid-search passes.
         grid_points: Candidates per axis per pass (grid is ``grid_points**2``).
+        min_distinctiveness: Minimum fractional cost gap the final pass's
+            winning candidate must have over its runner-up, else the match is
+            treated as ambiguous and ``prior_xy`` is held (see below).
+        distinctiveness_cost_floor: Below this absolute cost, the winner is
+            trusted regardless of the gap (see below) -- a converged, near-
+            perfect fit can legitimately have a tiny gap to its immediate
+            neighbours simply because the cost surface is nearly flat right at
+            its own true minimum, not because it is ambiguous.
     """
 
     def __init__(
@@ -48,12 +56,16 @@ class LidarLocalizer:
         passes: int = 4,
         grid_points: int = 5,
         residual_clip_m: float = 0.25,
+        min_distinctiveness: float = 0.02,
+        distinctiveness_cost_floor: float = 3.0,
     ) -> None:
         self._walls = walls
         self._search_radius = search_radius_m
         self._passes = passes
         self._grid_points = grid_points
         self._residual_clip = residual_clip_m
+        self._min_distinctiveness = min_distinctiveness
+        self._distinctiveness_cost_floor = distinctiveness_cost_floor
 
     def estimate_position(
         self,
@@ -74,7 +86,7 @@ class LidarLocalizer:
         Returns:
             The best-matching (x, y) found within the search window, or
             ``prior_xy`` unchanged if that result fell outside the known
-            track (see below).
+            track, or if the match was too ambiguous to trust (see below).
         """
         ranges = np.asarray(ranges_m, dtype=float)
         angles = np.asarray(angles_rad, dtype=float)
@@ -82,10 +94,13 @@ class LidarLocalizer:
         best_x, best_y = prior_xy
         radius = self._search_radius
         n = self._grid_points
+        best_cost = np.inf
+        second_cost = np.inf
 
         for _ in range(self._passes):
             offsets = np.linspace(-radius, radius, n)
             best_cost = np.inf
+            second_cost = np.inf
             cand_x, cand_y = best_x, best_y
             for dx in offsets:
                 x = best_x + dx
@@ -106,8 +121,11 @@ class LidarLocalizer:
                     np.minimum(residual, self._residual_clip, out=residual)
                     cost = float(np.sum(residual**2))
                     if cost < best_cost:
+                        second_cost = best_cost
                         best_cost = cost
                         cand_x, cand_y = x, y
+                    elif cost < second_cost:
+                        second_cost = cost
             best_x, best_y = cand_x, cand_y
             # Refine at the resolution just found, for the next pass.
             radius = 2.0 * radius / (n - 1)
@@ -136,6 +154,39 @@ class LidarLocalizer:
         # weaker (an in-bounds wrong match still slips through) but catches
         # the failure actually observed without that conflict.
         if not (_TRACK_MIN <= best_x <= _TRACK_MAX) or not (_TRACK_MIN <= best_y <= _TRACK_MAX):
+            return prior_xy
+
+        # Bounds catch an in-bounds wrong match reaching only as far as "off
+        # the track" -- most don't. Replaying real hardware captures (2026-08-05)
+        # against this exact search showed the actual failure mode is a nearly
+        # flat cost landscape: the winning candidate beats the runner-up by
+        # well under 1% of cost, and a scan just as ambiguous a moment later
+        # flips which one wins. A plain distance or absolute-cost threshold
+        # can't tell this apart from a genuine match (both the
+        # placement-absorption case and a bad snap can be large single-tick
+        # jumps; a bad snap's absolute cost is not reliably worse than a good
+        # one's), but a genuine match is never a close call against its own
+        # runner-up -- the true geometry beats every alternative by orders of
+        # magnitude, not fractions of a percent.
+        #
+        # The exemption below is required: a well-converged, low-cost fit
+        # naturally has a tiny gap to its immediate grid neighbours too (the
+        # cost surface is nearly flat right at its own true minimum), so
+        # applying the gap check unconditionally rejected the noiseless
+        # baseline case that used to be exact -- confirmed via
+        # test_sensor_errors.py::TestStartPlacement::test_placement_error_is_absent_by_default
+        # regressing from 0.0 to ~3mm of error. Real bad snaps replayed from
+        # hardware had absolute costs around 15-22 (real geometry disagreeing
+        # substantially with the assumed walls), far above what a clean or
+        # realistically-noisy true match costs (well under 1, given ~500 rays
+        # at 3cm LIDAR noise), so gating the ambiguity check on cost being
+        # non-trivial keeps the exact-baseline case intact while still
+        # catching the observed failure.
+        ambiguous = (
+            best_cost > self._distinctiveness_cost_floor
+            and (second_cost - best_cost) / best_cost < self._min_distinctiveness
+        )
+        if ambiguous:
             return prior_xy
 
         return best_x, best_y
