@@ -116,6 +116,53 @@ def test_tracks_a_moving_pose_tick_by_tick():
         assert est[1] == pytest.approx(y, abs=0.05)
 
 
+class TestPlausibilityGuards:
+    """The search is a local hill-climb reseeded from prior_xy every call with
+    no other check on its own output -- confirmed on real hardware 2026-08-04
+    to snap to a physically impossible (off-track) position during a k_turn
+    escape and stay there for the rest of the run. Guard: reject a result
+    outside the known track, holding prior_xy instead.
+
+    A companion "reject a jump larger than real motion could explain" guard
+    was tried and reverted -- it also rejected the deliberate large single-tick
+    correction this same search performs to absorb a hand-placement error at
+    race start (see test_sensor_errors.py::TestStartPlacement, which starts up
+    to 0.4m off and expects convergence within ~1s); there's no way to tell a
+    wrong snap apart from a correct one by jump size alone.
+    """
+
+    def test_rejects_result_outside_track_bounds(self):
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        prior = (0.05, 1.5)
+        # A scan generated from a position outside the track (x < 0):
+        # mathematically valid raycast geometry, physically impossible.
+        ranges = walls.raycast(-0.2, 1.5, 0.0, _ANGLES)
+
+        est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+
+        assert est == prior
+
+    def test_accepts_a_large_in_bounds_correction(self):
+        """The start-placement-absorption case: a big single-tick jump is
+        legitimate as long as it lands inside the track.
+
+        15cm, well beyond the old (reverted) max_step_m=0.05 that broke this
+        case, but within one call's actual reach (default search_radius_m=0.15
+        across 4 shrinking passes tops out around ~0.28m) -- the multi-tick
+        convergence over ~1s that TestStartPlacement exercises is a separate,
+        gradual process, not one call doing the whole correction.
+        """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        prior = (1.35, 0.5)
+        true_x, true_y = 1.5, 0.5
+        ranges = walls.raycast(true_x, true_y, 0.0, _ANGLES)
+
+        est_x, est_y = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+
+        assert est_x == pytest.approx(true_x, abs=0.02)
+        assert est_y == pytest.approx(true_y, abs=0.02)
+
+
 def test_estimate_runs_within_control_tick_budget():
     """A single estimate must comfortably fit inside a 50 ms (20 Hz) control tick."""
     localizer, walls = _localizer_for(_UNIFORM_1000)

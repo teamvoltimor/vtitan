@@ -20,9 +20,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shared.config.constants import TrackDimensions
 
 if TYPE_CHECKING:
     from src.navigation.track_geometry import TrackWalls
+
+_TRACK_MIN = TrackDimensions.MIN_COORD
+_TRACK_MAX = TrackDimensions.MAX_COORD
 
 
 class LidarLocalizer:
@@ -68,7 +72,9 @@ class LidarLocalizer:
             angles_rad: Per-ray bearings matching ``ranges_m`` (0 = forward).
 
         Returns:
-            The best-matching (x, y) found within the search window.
+            The best-matching (x, y) found within the search window, or
+            ``prior_xy`` unchanged if that result fell outside the known
+            track (see below).
         """
         ranges = np.asarray(ranges_m, dtype=float)
         angles = np.asarray(angles_rad, dtype=float)
@@ -105,5 +111,31 @@ class LidarLocalizer:
             best_x, best_y = cand_x, cand_y
             # Refine at the resolution just found, for the next pass.
             radius = 2.0 * radius / (n - 1)
+
+        # The search is a local hill-climb reseeded from prior_xy every call,
+        # with no independent check on its own output: search_radius_m is
+        # sized generously (0.15m) for search robustness, not as a physical
+        # displacement bound, so a wrong-but-locally-cheap match (e.g. during
+        # a K-turn's rapid reorientation, when the cost landscape shifts
+        # quickly between ticks) can become the new seed and then propagate
+        # forever -- nothing else in this call chain ever re-checks it.
+        # Confirmed on real hardware 2026-08-04: a CCW run's position snapped
+        # from (0.86, ...) to (-0.12, ...) in under a second during a k_turn
+        # escape (real motion at that speed is ~1.6cm/tick, see
+        # ros2_hardware_gateway.py), then stayed at that physically
+        # impossible (off-track, x < 0) position for the rest of the run.
+        #
+        # A companion "reject if the jump is larger than real motion could
+        # explain" guard was tried and reverted: it also rejected the large,
+        # *intentional* single-tick correction this same search performs to
+        # absorb a hand-placement error at race start (see
+        # test_sensor_errors.py::TestStartPlacement, which starts up to 0.4m
+        # off and expects the localizer to converge within ~1s) -- there is
+        # no way to tell "wrong snap during a maneuver" apart from "correct
+        # snap onto the true start pose" by jump size alone. Track-bounds is
+        # weaker (an in-bounds wrong match still slips through) but catches
+        # the failure actually observed without that conflict.
+        if not (_TRACK_MIN <= best_x <= _TRACK_MAX) or not (_TRACK_MIN <= best_y <= _TRACK_MAX):
+            return prior_xy
 
         return best_x, best_y
