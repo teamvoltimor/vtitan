@@ -104,8 +104,9 @@ class CoreNavigator:
         # longer, alternate side) rather than repeating an identical failed pulse.
         self._active_maneuver: EscapeManeuver | None = None
         self._maneuver_frames_left = 0
-        self._escape_count = 0  # escapes begun since the last normal drive tick
+        self._escape_count = 0  # escapes begun since the last normal drive tick with real progress
         self._escape_steer_sign = 1.0
+        self._escape_sequence_start_xy: tuple[float, float] | None = None
 
         # Controllers
         self._waypoint_controller = WaypointController(
@@ -269,6 +270,7 @@ class CoreNavigator:
         self._maneuver_frames_left = 0
         self._escape_count = 0
         self._escape_steer_sign = 1.0
+        self._escape_sequence_start_xy = None
         self._stuck_detector.reset()
         self._waypoint_controller.reset()
         if self._sign_router is not None:
@@ -629,14 +631,31 @@ class CoreNavigator:
                 # stuck detector is the backstop if the robot truly can't move.
                 maneuver = None
             if maneuver:
+                if self._escape_count == 0:
+                    self._escape_sequence_start_xy = (robot_x, robot_y)
                 self._escape_count += 1
                 self._begin_maneuver(self._maybe_escalate(maneuver))
                 self._debug = debug
                 self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED)
                 return
 
-        # Normal publish — the robot is driving, so clear the escape escalation.
-        self._escape_count = 0
+        # Normal publish — clear the escape escalation, but only once the
+        # robot has actually moved since the sequence started. A single
+        # normal_drive tick between escape attempts doesn't mean the escape
+        # worked -- confirmed on real hardware 2026-08-04 (run_20260804_213147):
+        # normal_drive -> escape_triggered alternated for 34+ seconds with the
+        # robot pinned in place, and this unconditional reset zeroed
+        # escape_count every single cycle, so it never reached
+        # ESCALATE_AFTER_ATTEMPTS and _maybe_escalate never fired. Requiring
+        # real displacement first means a genuinely stuck sequence keeps
+        # accumulating toward escalation instead of resetting on every tick
+        # that merely classifies as "not critical" for one frame.
+        if self._escape_sequence_start_xy is None or math.hypot(
+            robot_x - self._escape_sequence_start_xy[0],
+            robot_y - self._escape_sequence_start_xy[1],
+        ) >= self._tuning.escape.STUCK_MOVE_THRESHOLD:
+            self._escape_count = 0
+            self._escape_sequence_start_xy = None
         self._gateway.publish_drive(DriveCommand(speed_mps=speed, steering_norm=steering_normalized))
         debug.phase = NavigatorPhase.NORMAL_DRIVE
         debug.commanded_speed_mps = speed
@@ -852,6 +871,8 @@ class CoreNavigator:
                     rear_clear,
                     forward_clear,
                 )
+                if self._escape_count == 0:
+                    self._escape_sequence_start_xy = (robot_x, robot_y)
                 self._escape_count += 1
                 frames = min(
                     self._tuning.escape.K_TURN_MIN_FRAMES
@@ -895,6 +916,8 @@ class CoreNavigator:
             self._debug = debug
             return
 
+        if self._escape_count == 0:
+            self._escape_sequence_start_xy = (robot_x, robot_y)
         self._escape_count += 1
         frames = min(
             self._tuning.escape.K_TURN_MIN_FRAMES

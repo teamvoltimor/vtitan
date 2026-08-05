@@ -435,3 +435,57 @@ class TestEscapeEscalationIntegration:
         assert escalated.duration_frames > last_pre_escalation.duration_frames
         if last_pre_escalation.steering:
             assert math.copysign(1.0, escalated.steering) == -math.copysign(1.0, last_pre_escalation.steering)
+
+
+class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
+    """A brief normal_drive tick between escape attempts must not reset the
+    escalation counter unless the robot actually moved.
+
+    Confirmed on real hardware 2026-08-04 (run_20260804_213147): with the
+    robot genuinely pinned in place, SIDE_CORRECTION's brief creep read as
+    "not critical" for one tick between escapes, which reset escape_count to
+    0 every single cycle -- so it never reached ESCALATE_AFTER_ATTEMPTS and
+    never escalated, for 34+ seconds. The threat toggling on/off each
+    decision tick (rather than staying permanently critical, as in
+    TestEscapeEscalationIntegration above) is what reproduces the gap that
+    test doesn't cover: a *fixed* threat never even reaches the normal_drive
+    reset branch, since a new escape re-triggers before the old one clears.
+    """
+
+    def test_oscillating_threat_without_progress_still_escalates(self, waypoints):
+        close = tuple(_scan_with_sectors(front=0.06))
+        far = tuple(np.full(NUM_RAYS, LIDAR_DEFAULT_FAR).tolist())
+
+        class _OscillatingGateway(_FakeGateway):
+            def __init__(self, pose):
+                super().__init__(pose, LidarScan(ranges_m=close, angles_rad=tuple(ANGLES)))
+                self._tick = 0
+
+            def get_lidar_scan(self):
+                self._tick += 1
+                ranges = close if self._tick % 2 else far
+                return LidarScan(ranges_m=ranges, angles_rad=tuple(ANGLES))
+
+        gateway = _OscillatingGateway(Pose(x=0.0, y=0.0, yaw=0.0))
+        tuning = NavigationTuning()
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+
+        maneuvers_begun: list[EscapeManeuver] = []
+        was_active = False
+        target = tuning.escape.ESCALATE_AFTER_ATTEMPTS + 2
+        for _ in range(1000):
+            nav.step()
+            now_active = nav._active_maneuver is not None
+            if now_active and not was_active:
+                maneuvers_begun.append(nav._active_maneuver)
+                if len(maneuvers_begun) >= target:
+                    break
+            was_active = now_active
+
+        assert len(maneuvers_begun) == target, "expected escapes to keep re-triggering with the threat oscillating"
+
+        pre_escalation = maneuvers_begun[: tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        escalated = maneuvers_begun[tuning.escape.ESCALATE_AFTER_ATTEMPTS]
+        assert escalated.duration_frames > pre_escalation[-1].duration_frames, (
+            "escape_count must survive the intervening normal_drive tick since the robot never moved"
+        )
