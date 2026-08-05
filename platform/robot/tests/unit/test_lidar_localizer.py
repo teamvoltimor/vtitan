@@ -151,6 +151,22 @@ class TestPlausibilityGuards:
 
         assert est == prior
 
+    def test_rejects_result_inside_inner_block(self):
+        """The inner block (the 1x1 m island in the middle, x/y in [1, 2] for
+        the uniform 1.0 m corridor layout) is just as physically impossible
+        to be inside as being outside the outer walls -- the robot cannot be
+        inside a solid obstacle. point_in_free_space rejects both.
+        """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        prior = (0.9, 1.5)
+        # A scan generated from a position inside the inner block:
+        # mathematically valid raycast geometry, physically impossible.
+        ranges = walls.raycast(1.5, 1.5, 0.0, _ANGLES)
+
+        est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+
+        assert est == prior
+
     def test_accepts_a_large_in_bounds_correction(self):
         """The start-placement-absorption case: a big single-tick jump is
         legitimate as long as it lands inside the track.
@@ -187,6 +203,9 @@ class TestPlausibilityGuards:
         class _FlatWalls:
             def raycast(self, x, y, yaw, angles_rad):
                 return np.full(len(angles_rad), 1.0)
+
+            def point_in_free_space(self, x, y):
+                return True
 
         localizer = LidarLocalizer(_FlatWalls())
         prior = (1.5, 0.5)

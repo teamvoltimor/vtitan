@@ -20,13 +20,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.constants import TrackDimensions
 
 if TYPE_CHECKING:
     from src.navigation.track_geometry import TrackWalls
-
-_TRACK_MIN = TrackDimensions.MIN_COORD
-_TRACK_MAX = TrackDimensions.MAX_COORD
 
 
 class LidarLocalizer:
@@ -153,7 +149,13 @@ class LidarLocalizer:
         # snap onto the true start pose" by jump size alone. Track-bounds is
         # weaker (an in-bounds wrong match still slips through) but catches
         # the failure actually observed without that conflict.
-        if not (_TRACK_MIN <= best_x <= _TRACK_MAX) or not (_TRACK_MIN <= best_y <= _TRACK_MAX):
+        #
+        # point_in_free_space rejects both the outer boundary AND the inner
+        # block: a match landing inside the inner block is exactly as
+        # physically impossible as one landing outside the outer walls (the
+        # robot cannot be inside a solid obstacle), so it gets the same
+        # guard rather than a narrower bounds-only check.
+        if not self._walls.point_in_free_space(best_x, best_y):
             return prior_xy
 
         # Bounds catch an in-bounds wrong match reaching only as far as "off
