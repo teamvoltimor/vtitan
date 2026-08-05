@@ -127,12 +127,14 @@ class TestGatewayPublishDrive:
         published: list[AckermannDriveStamped] = []
         gateway._drive_publisher.publish = published.append
 
-        gateway.publish_drive(DriveCommand(speed_mps=0.42, steering_norm=0.5))
+        # Within RobotSpecs.MAX_SPEED_MPS (0.156) so this exercises the
+        # steering contract, not the speed clamp (see TestGatewaySpeedClamp).
+        gateway.publish_drive(DriveCommand(speed_mps=0.1, steering_norm=0.5))
 
         assert len(published) == 1
         msg = published[0]
         assert isinstance(msg, AckermannDriveStamped)
-        assert msg.drive.speed == pytest.approx(0.42)
+        assert msg.drive.speed == pytest.approx(0.1)
         # steering_norm decodes through the same shared mapping the motor
         # node and simulator use — not a bare pass-through of the normalised
         # value (that was the CRIT-1 bug: 0.5 treated as 0.5 rad).
@@ -153,6 +155,58 @@ class TestGatewayPublishDrive:
 
         assert published[0].drive.speed == pytest.approx(0.0)
         assert published[0].drive.steering_angle == pytest.approx(0.0)
+
+        node.destroy_node()
+
+
+class TestGatewaySpeedClamp:
+    """The published speed must never exceed what the drive motor can
+    physically do (RobotSpecs.MAX_SPEED_MPS, measured top speed under load).
+
+    Real motor behaviour is identical either way -- the PID's own output-duty
+    clamp already saturates at the same point whether the setpoint is 0.156
+    or 0.5 -- but an unclamped setpoint made commanded_speed_mps telemetry
+    report an aspirational, unreachable value instead of what the motor was
+    actually asked to do, matching neither reality nor the simulator (which
+    AckermannKinematics already clamps to this same constant).
+    """
+
+    def test_speed_above_max_is_clamped(self, ros_context):
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        published: list[AckermannDriveStamped] = []
+        gateway._drive_publisher.publish = published.append
+
+        gateway.publish_drive(DriveCommand(speed_mps=0.5, steering_norm=0.0))
+
+        assert published[0].drive.speed == pytest.approx(RobotSpecs.MAX_SPEED_MPS)
+
+        node.destroy_node()
+
+    def test_reverse_speed_below_max_is_clamped(self, ros_context):
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        published: list[AckermannDriveStamped] = []
+        gateway._drive_publisher.publish = published.append
+
+        gateway.publish_drive(DriveCommand(speed_mps=-0.5, steering_norm=0.0))
+
+        assert published[0].drive.speed == pytest.approx(-RobotSpecs.MAX_SPEED_MPS)
+
+        node.destroy_node()
+
+    def test_speed_within_max_is_untouched(self, ros_context):
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
+
+        published: list[AckermannDriveStamped] = []
+        gateway._drive_publisher.publish = published.append
+
+        gateway.publish_drive(DriveCommand(speed_mps=0.1, steering_norm=0.0))
+
+        assert published[0].drive.speed == pytest.approx(0.1)
 
         node.destroy_node()
 

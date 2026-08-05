@@ -311,10 +311,22 @@ class ROS2HardwareGateway(HardwareGateway):
         in radians (not the normalised [-1, 1] steer CoreNavigator computes
         internally) — decoded via the same shared mapping the motor node and
         the simulator both use.
+
+        Speed is clamped to RobotSpecs.MAX_SPEED_MPS (the drive motor's
+        measured top speed under load), matching what AckermannKinematics
+        already enforces in the simulator -- previously only the sim clamped,
+        so a speed profile asking for e.g. 0.5 m/s published that value
+        verbatim here while the real motor physically saturates well below
+        it. The clamp changes nothing about real motor behaviour (the PID's
+        own output-duty clamp already saturates identically whether the
+        setpoint is 0.156 or 0.5), it only stops logging/telemetry
+        (commanded_speed_mps) from reporting an unreachable aspirational
+        value instead of what was actually asked of the motor.
         """
         msg = AckermannDriveStamped()
         msg.header.stamp = self._node.get_clock().now().to_msg()
-        msg.drive.speed = float(command.speed_mps)
+        speed = max(-RobotSpecs.MAX_SPEED_MPS, min(RobotSpecs.MAX_SPEED_MPS, command.speed_mps))
+        msg.drive.speed = float(speed)
         msg.drive.steering_angle = steering_norm_to_angle_rad(
             command.steering_norm,
             RobotSpecs.MAX_STEERING_ANGLE,
