@@ -135,7 +135,8 @@ tasks:
 
         ROBOT (on-robot platform — run build-ws before any run-/launch- task)
           task robot:install        Install robot platform dependencies (default + dev envs)
-          task robot:test           Run robot tests (SCOPE=all|unit|hardware, default all excludes on-device hardware tests; TEST=path targets one file/module)
+          task robot:test           Run robot tests (SCOPE=all|unit|fast|hardware|navigation|vision|drivers, default all excludes on-device hardware tests;
+                                     fast=unit minus @slow closed-loop sims; navigation/vision/drivers scope by subsystem; TEST=path targets one file/module)
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
@@ -712,7 +713,7 @@ tasks:
       - pixi install -e dev
 
   robot:test:
-    desc: "Run robot tests (pixi dev env — robot is pixi-only, not uv). Usage: task robot:test [SCOPE=all|unit|fast|hardware] [TEST=path], default all (excludes on-device hardware tests). unit: no hardware/ROS2 deps required. fast: unit minus the full closed-loop sim tests (marker 'slow') — use this for a quick check after a focused change. hardware: requires a real Raspberry Pi with peripherals attached. TEST overrides SCOPE with a specific file/module/node id, e.g. TEST=tests/unit/test_open_challenge_sim.py."
+    desc: "Run robot tests (pixi dev env — robot is pixi-only, not uv). Usage: task robot:test [SCOPE=all|unit|fast|hardware|navigation|vision|drivers] [TEST=path], default all (excludes on-device hardware tests). unit: no hardware/ROS2 deps required, includes slow closed-loop sims. fast: unit minus the full closed-loop sim tests (marker 'slow') — use this for a quick check after a focused change. hardware: requires a real Raspberry Pi with peripherals attached. navigation/vision/drivers: scope tests/unit to one subsystem by filename keyword (see the -k expressions below) — includes that subsystem's slow sim tests, same as unit. TEST overrides SCOPE with a specific file/module/node id, e.g. TEST=tests/unit/test_open_challenge_sim.py."
     dir: robot
     vars:
       SCOPE: '{{.SCOPE | default "all"}}'
@@ -727,7 +728,10 @@ tasks:
               unit) pixi run -e dev pytest tests/unit -q ;;
               fast) pixi run -e dev pytest tests/unit -q -m "not slow" ;;
               hardware) pixi run -e dev pytest tests/hardware -m hardware -v ;;
-              *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|fast|hardware" && exit 1 ;;
+              navigation) pixi run -e dev pytest tests/unit -q -k "collision_avoidance or core_navigator or contact_rules or corridor_estimator or deviation_recovery or lap_detector or lidar_localizer or race_tracker or sign_router or parking or stuck_detector or steering_contract or wall_heading or waypoint or open_challenge_sim or obstacles_challenge_sim or scenario_catalog or sensor_errors or live_visualizer_markers or navigation_tuning or track_constants" ;;
+              vision) pixi run -e dev pytest tests/unit -q -k "vision_overlay or nms_by_class or sign_discovery" ;;
+              drivers) pixi run -e dev pytest tests/unit -q -k "dc_encoder or wheel_odometry or resiliency or joy_teleop or heading_reference" ;;
+              *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|fast|hardware|navigation|vision|drivers" && exit 1 ;;
             esac
           fi
 
