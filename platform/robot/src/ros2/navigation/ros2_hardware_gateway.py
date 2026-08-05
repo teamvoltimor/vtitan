@@ -269,6 +269,7 @@ class ROS2HardwareGateway(HardwareGateway):
             prior_pose.yaw,
             raw.tolist(),
             angles,
+            now_s=self._now(),
         )
         self._estimator.update_position(est_x, est_y)
 

@@ -17,6 +17,7 @@ wall", which a direct geometric (wall-distance) approach would need.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -35,14 +36,14 @@ class LidarLocalizer:
             per-tick displacement so the true position is never outside it.
         passes: Number of coarse-to-fine grid-search passes.
         grid_points: Candidates per axis per pass (grid is ``grid_points**2``).
-        min_distinctiveness: Minimum fractional cost gap the final pass's
-            winning candidate must have over its runner-up, else the match is
-            treated as ambiguous and ``prior_xy`` is held (see below).
-        distinctiveness_cost_floor: Below this absolute cost, the winner is
-            trusted regardless of the gap (see below) -- a converged, near-
-            perfect fit can legitimately have a tiny gap to its immediate
-            neighbours simply because the cost surface is nearly flat right at
-            its own true minimum, not because it is ambiguous.
+        max_speed_mps: Upper bound on real motion between ticks, used to
+            reject a candidate that implies impossible speed (see below).
+            Deliberately above the measured real top speed (0.156 m/s, see
+            ``RobotSpecs.MAX_SPEED_MPS``) to leave headroom for a faster
+            drivetrain later without this guard needing to move with it.
+        jump_confirm_tolerance_m: How close two consecutive ticks' rejected
+            candidates must be to count as the same correction confirming
+            itself (see below).
     """
 
     def __init__(
@@ -52,16 +53,18 @@ class LidarLocalizer:
         passes: int = 4,
         grid_points: int = 5,
         residual_clip_m: float = 0.25,
-        min_distinctiveness: float = 0.02,
-        distinctiveness_cost_floor: float = 3.0,
+        max_speed_mps: float = 0.25,
+        jump_confirm_tolerance_m: float = 0.05,
     ) -> None:
         self._walls = walls
         self._search_radius = search_radius_m
         self._passes = passes
         self._grid_points = grid_points
         self._residual_clip = residual_clip_m
-        self._min_distinctiveness = min_distinctiveness
-        self._distinctiveness_cost_floor = distinctiveness_cost_floor
+        self._max_speed_mps = max_speed_mps
+        self._jump_confirm_tolerance = jump_confirm_tolerance_m
+        self._last_estimate_time_s: float | None = None
+        self._pending_jump_xy: tuple[float, float] | None = None
 
     def estimate_position(
         self,
@@ -69,6 +72,7 @@ class LidarLocalizer:
         yaw: float,
         ranges_m: tuple[float, ...] | list[float],
         angles_rad: tuple[float, ...] | list[float],
+        now_s: float | None = None,
     ) -> tuple[float, float]:
         """Return the (x, y) that best explains the given LIDAR sweep.
 
@@ -78,25 +82,38 @@ class LidarLocalizer:
             yaw: Current heading (radians), taken as accurate (IMU-fused).
             ranges_m: LIDAR range readings (robot frame).
             angles_rad: Per-ray bearings matching ``ranges_m`` (0 = forward).
+            now_s: Current clock time (seconds; real or simulated, whichever
+                the caller's other timestamps use). Enables the speed-bound
+                guard below -- omitted (the default), that guard is skipped
+                entirely, matching every call before it existed. The very
+                first call also skips it regardless of ``now_s``, since there
+                is no prior timestamp yet to compute elapsed time from -- this
+                is what lets the deliberate large single-tick correction that
+                absorbs a hand-placement error at race start through (see
+                test_sensor_errors.py::TestStartPlacement).
 
         Returns:
             The best-matching (x, y) found within the search window, or
             ``prior_xy`` unchanged if that result fell outside the known
-            track, or if the match was too ambiguous to trust (see below).
+            track, or if it implied impossible speed and was not yet
+            confirmed by a second tick agreeing (see below).
         """
+        dt = None
+        if now_s is not None:
+            if self._last_estimate_time_s is not None:
+                dt = now_s - self._last_estimate_time_s
+            self._last_estimate_time_s = now_s
+
         ranges = np.asarray(ranges_m, dtype=float)
         angles = np.asarray(angles_rad, dtype=float)
 
         best_x, best_y = prior_xy
         radius = self._search_radius
         n = self._grid_points
-        best_cost = np.inf
-        second_cost = np.inf
 
         for _ in range(self._passes):
             offsets = np.linspace(-radius, radius, n)
             best_cost = np.inf
-            second_cost = np.inf
             cand_x, cand_y = best_x, best_y
             for dx in offsets:
                 x = best_x + dx
@@ -117,11 +134,8 @@ class LidarLocalizer:
                     np.minimum(residual, self._residual_clip, out=residual)
                     cost = float(np.sum(residual**2))
                     if cost < best_cost:
-                        second_cost = best_cost
                         best_cost = cost
                         cand_x, cand_y = x, y
-                    elif cost < second_cost:
-                        second_cost = cost
             best_x, best_y = cand_x, cand_y
             # Refine at the resolution just found, for the next pass.
             radius = 2.0 * radius / (n - 1)
@@ -139,56 +153,43 @@ class LidarLocalizer:
         # ros2_hardware_gateway.py), then stayed at that physically
         # impossible (off-track, x < 0) position for the rest of the run.
         #
-        # A companion "reject if the jump is larger than real motion could
-        # explain" guard was tried and reverted: it also rejected the large,
-        # *intentional* single-tick correction this same search performs to
-        # absorb a hand-placement error at race start (see
-        # test_sensor_errors.py::TestStartPlacement, which starts up to 0.4m
-        # off and expects the localizer to converge within ~1s) -- there is
-        # no way to tell "wrong snap during a maneuver" apart from "correct
-        # snap onto the true start pose" by jump size alone. Track-bounds is
-        # weaker (an in-bounds wrong match still slips through) but catches
-        # the failure actually observed without that conflict.
-        #
         # point_in_free_space rejects both the outer boundary AND the inner
         # block: a match landing inside the inner block is exactly as
         # physically impossible as one landing outside the outer walls (the
         # robot cannot be inside a solid obstacle), so it gets the same
         # guard rather than a narrower bounds-only check.
         if not self._walls.point_in_free_space(best_x, best_y):
+            self._pending_jump_xy = None
             return prior_xy
 
-        # Bounds catch an in-bounds wrong match reaching only as far as "off
-        # the track" -- most don't. Replaying real hardware captures (2026-08-05)
-        # against this exact search showed the actual failure mode is a nearly
-        # flat cost landscape: the winning candidate beats the runner-up by
-        # well under 1% of cost, and a scan just as ambiguous a moment later
-        # flips which one wins. A plain distance or absolute-cost threshold
-        # can't tell this apart from a genuine match (both the
-        # placement-absorption case and a bad snap can be large single-tick
-        # jumps; a bad snap's absolute cost is not reliably worse than a good
-        # one's), but a genuine match is never a close call against its own
-        # runner-up -- the true geometry beats every alternative by orders of
-        # magnitude, not fractions of a percent.
+        # A cost/margin-based ambiguity guard (rejecting a winning candidate
+        # whose cost margin over its runner-up was too thin) was tried,
+        # committed, and reverted 2026-08-05 after replaying it against 22
+        # real hardware runs (846 sampled ticks): confirmed-bad and genuinely
+        # correct matches had statistically indistinguishable cost and margin
+        # distributions on real, noisy scans (median cost ~25-26 either way,
+        # median margin ~0.02% either way) -- the signal the guard depended on
+        # does not exist on real data, only in the clean simulator. No
+        # threshold on it can work; the search's own cost surface cannot tell
+        # a real correction from an ambiguous flip.
         #
-        # The exemption below is required: a well-converged, low-cost fit
-        # naturally has a tiny gap to its immediate grid neighbours too (the
-        # cost surface is nearly flat right at its own true minimum), so
-        # applying the gap check unconditionally rejected the noiseless
-        # baseline case that used to be exact -- confirmed via
-        # test_sensor_errors.py::TestStartPlacement::test_placement_error_is_absent_by_default
-        # regressing from 0.0 to ~3mm of error. Real bad snaps replayed from
-        # hardware had absolute costs around 15-22 (real geometry disagreeing
-        # substantially with the assumed walls), far above what a clean or
-        # realistically-noisy true match costs (well under 1, given ~500 rays
-        # at 3cm LIDAR noise), so gating the ambiguity check on cost being
-        # non-trivial keeps the exact-baseline case intact while still
-        # catching the observed failure.
-        ambiguous = (
-            best_cost > self._distinctiveness_cost_floor
-            and (second_cost - best_cost) / best_cost < self._min_distinctiveness
-        )
-        if ambiguous:
-            return prior_xy
+        # This guard instead bounds physical plausibility directly: how far
+        # the candidate is from prior_xy against how much time actually
+        # passed and the drivetrain's real top speed (with headroom -- see
+        # max_speed_mps above). A single tick implying impossible speed is
+        # held; if the SAME candidate (within jump_confirm_tolerance_m) wins
+        # again on the very next tick, it is trusted -- a real correction
+        # reconverges to nearly the same position from an independent scan,
+        # while an ambiguous flip (this class's actual observed failure mode)
+        # does not typically repeat identically.
+        if dt is not None and dt > 0:
+            implied_dist = math.hypot(best_x - prior_xy[0], best_y - prior_xy[1])
+            if implied_dist > self._max_speed_mps * dt:
+                pending = self._pending_jump_xy
+                confirmed = pending is not None and math.hypot(best_x - pending[0], best_y - pending[1]) <= self._jump_confirm_tolerance
+                if not confirmed:
+                    self._pending_jump_xy = (best_x, best_y)
+                    return prior_xy
 
+        self._pending_jump_xy = None
         return best_x, best_y

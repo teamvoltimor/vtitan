@@ -121,23 +121,25 @@ class TestPlausibilityGuards:
     no other check on its own output -- confirmed on real hardware 2026-08-04
     to snap to a physically impossible (off-track) position during a k_turn
     escape and stay there for the rest of the run. Guard: reject a result
-    outside the known track, holding prior_xy instead.
+    outside the known track (or inside the inner block -- equally impossible),
+    holding prior_xy instead.
 
-    A companion "reject a jump larger than real motion could explain" guard
-    was tried and reverted -- it also rejected the deliberate large single-tick
-    correction this same search performs to absorb a hand-placement error at
-    race start (see test_sensor_errors.py::TestStartPlacement, which starts up
-    to 0.4m off and expects convergence within ~1s); there's no way to tell a
-    wrong snap apart from a correct one by jump size alone.
+    A cost/margin ambiguity guard (reject a winning candidate whose margin
+    over its runner-up was too thin) was tried, committed, and reverted
+    2026-08-05 after replaying it against 22 real hardware runs (846 sampled
+    ticks): confirmed-bad and genuinely correct matches had statistically
+    indistinguishable cost and margin distributions on real, noisy scans. The
+    signal it depended on only existed in the clean simulator.
 
-    Replaying real hardware captures (2026-08-05) against this exact search
-    showed the bounds guard's actual blind spot: an in-bounds wrong match from
-    a nearly flat cost landscape, where the winner beats the runner-up by well
-    under 1% of cost and a scan just as ambiguous a moment later flips which
-    one wins. Guard: reject a result whose winning margin over the runner-up
-    is too thin to trust, holding prior_xy instead -- unless the winner's own
-    absolute cost is already excellent, since a well-converged match
-    legitimately has a tiny gap to its own neighbours too.
+    Guard instead: bound physical plausibility directly, from elapsed time and
+    the drivetrain's real top speed (with headroom for a future faster
+    drivetrain). A single tick implying impossible speed is held; the same
+    candidate winning again on the very next tick is trusted, since a real
+    correction reconverges to nearly the same position from an independent
+    scan while an ambiguous flip does not typically repeat identically. This
+    needs the caller to pass ``now_s`` -- omitted, the guard (and the
+    hand-placement-absorption exemption on a localizer's very first call) does
+    not apply at all, matching every call before it existed.
     """
 
     def test_rejects_result_outside_track_bounds(self):
@@ -187,37 +189,46 @@ class TestPlausibilityGuards:
         assert est_x == pytest.approx(true_x, abs=0.02)
         assert est_y == pytest.approx(true_y, abs=0.02)
 
-    def test_rejects_an_ambiguous_match_even_in_bounds(self):
-        """The actual failure mode found on real hardware: not a wrong-but-
-        confident match, but a flat cost landscape with no real winner.
-
-        A stub whose predicted range is the same constant regardless of (x, y)
-        makes every candidate in the search tie exactly -- the most extreme
-        case of the ambiguity confirmed on real CCW/CW captures, where the
-        winner led the runner-up by well under 1% of cost. Distinct from
-        ``test_accepts_a_large_in_bounds_correction`` (a real, unambiguous
-        global minimum far below every alternative): here there is no
-        alternative that is actually worse, so the result must not be trusted.
+    def test_rejects_an_implausibly_fast_single_tick_jump(self):
+        """A candidate implying far more speed than the drivetrain can produce
+        is held on its first appearance, even though it is otherwise a clean,
+        unambiguous match (within the search's actual per-call reach) --
+        distinct from ``test_accepts_a_large_in_bounds_correction``, which is
+        the SAME kind of jump but on a localizer's very first call, where
+        there is no elapsed-time baseline yet and the guard does not apply.
         """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        x0, y0 = 1.5, 0.5
+        ranges0 = walls.raycast(x0, y0, 0.0, _ANGLES)
+        est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
-        class _FlatWalls:
-            def raycast(self, x, y, yaw, angles_rad):
-                return np.full(len(angles_rad), 1.0)
+        # 0.15m in 0.05s implies 3 m/s -- far beyond max_speed_mps (0.25 default).
+        far_x, far_y = x0 + 0.15, y0
+        ranges1 = walls.raycast(far_x, far_y, 0.0, _ANGLES)
+        est1 = localizer.estimate_position(est0, 0.0, ranges1, _ANGLES, now_s=0.05)
 
-            def point_in_free_space(self, x, y):
-                return True
+        assert est1 == est0
 
-        localizer = LidarLocalizer(_FlatWalls())
-        prior = (1.5, 0.5)
-        # Every candidate predicts 1.0m; a uniform 1.3m "scan" disagrees by the
-        # same clipped 0.3m on every ray, everywhere in the search window --
-        # cost is well above the floor (large, real disagreement) but tied
-        # between every candidate (zero distinctiveness).
-        ranges = np.full(RobotSpecs.LIDAR_SAMPLES, 1.3)
+    def test_confirms_a_repeated_jump_on_the_next_tick(self):
+        """The same implausible jump winning again on the very next tick is
+        trusted: a real correction reconverges to nearly the same position
+        from an independent scan, unlike the ambiguous-flip failure mode this
+        guard replaced (see class docstring).
+        """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        x0, y0 = 1.5, 0.5
+        ranges0 = walls.raycast(x0, y0, 0.0, _ANGLES)
+        est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
-        est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
+        far_x, far_y = x0 + 0.15, y0
+        ranges1 = walls.raycast(far_x, far_y, 0.0, _ANGLES)
+        est1 = localizer.estimate_position(est0, 0.0, ranges1, _ANGLES, now_s=0.05)
+        assert est1 == est0  # held on first appearance
 
-        assert est == prior
+        est2 = localizer.estimate_position(est1, 0.0, ranges1, _ANGLES, now_s=0.10)
+
+        assert est2[0] == pytest.approx(far_x, abs=0.02)
+        assert est2[1] == pytest.approx(far_y, abs=0.02)
 
 
 def test_estimate_runs_within_control_tick_budget():

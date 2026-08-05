@@ -639,6 +639,7 @@ class SimulatedHardwareGateway:
             prior.yaw,
             self._scan_ranges,
             self._angles_list,
+            now_s=self._elapsed_s,
         )
         self._estimator.update_position(est_x, est_y)
 
