@@ -271,6 +271,77 @@ class TestForwardPathRisk:
         assert controller.assess_risk(ranges, ANGLES) == RiskLevel.OBSTACLE
 
 
+class TestBlindWedgeMasking:
+    """The rear-left (-160..-115 deg) and rear-right (115..175 deg) mount
+    wedges self-collide at every range, not just close ones -- a distance
+    threshold can't tell that apart from a real close obstacle at the same
+    bearing, so these rays must be excluded by angle regardless of range.
+    """
+
+    def test_left_wedge_self_collision_does_not_register_as_back_threat(self, controller):
+        ranges = _scan()
+        i = _index_for(math.radians(-140))  # inside the left wedge (-160..-115)
+        ranges[i - 4 : i + 4] = 0.02  # self-collision range, would otherwise scream "threat"
+        assert controller.detect_threat_direction(ranges, ANGLES) == "none"
+
+    def test_right_wedge_self_collision_does_not_register_as_back_threat(self, controller):
+        ranges = _scan()
+        i = _index_for(math.radians(140))  # inside the right wedge (115..175)
+        ranges[i - 4 : i + 4] = 0.02
+        assert controller.detect_threat_direction(ranges, ANGLES) == "none"
+
+    def test_real_wall_just_outside_left_wedge_still_detected(self, controller):
+        ranges = _scan()
+        i = _index_for(math.radians(-110))  # just outside the wedge (< -115 boundary)
+        ranges[i - 4 : i + 4] = 0.15  # above self_detection_threshold_m (0.08): a real return
+        assert controller.detect_threat_direction(ranges, ANGLES) == "right"
+
+    def test_rear_clearance_ignores_wedge_self_collision(self, controller):
+        ranges = _scan()
+        i = _index_for(math.radians(150))  # inside the right wedge, within the rear sector
+        ranges[i - 4 : i + 4] = 0.02
+        assert controller.compute_rear_clearance(ranges, ANGLES) > MIN_REAR_CLEARANCE
+
+    def test_sector_fully_inside_wedge_reports_wedge_masked(self, controller):
+        ranges = _scan()
+        i = _index_for(math.radians(-140))
+        ranges[i - 2 : i + 2] = 0.02  # only rays available are inside the wedge
+        sr = controller._sector_to_model(
+            ranges,
+            ANGLES,
+            math.radians(-140),
+            math.radians(5),
+            filter_self_detection=True,
+            self_detection_threshold_m=controller.self_detection_threshold_m,
+            min_valid_range_m=controller.min_valid_range_m,
+            no_data_range_m=controller.no_data_range_m,
+            blind_wedge_left_min_rad=controller.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=controller.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=controller.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=controller.blind_wedge_right_max_rad,
+        )
+        assert sr.valid_count == 0
+        assert sr.wedge_masked is True
+
+    def test_sector_with_no_rays_at_all_is_not_reported_as_wedge_masked(self, controller):
+        ranges = np.full(NUM_RAYS, np.inf)  # genuinely no data anywhere, not a wedge artifact
+        sr = controller._sector_to_model(
+            ranges,
+            ANGLES,
+            0.0,
+            controller.front_half_fov_rad,
+            self_detection_threshold_m=controller.self_detection_threshold_m,
+            min_valid_range_m=controller.min_valid_range_m,
+            no_data_range_m=controller.no_data_range_m,
+            blind_wedge_left_min_rad=controller.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=controller.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=controller.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=controller.blind_wedge_right_max_rad,
+        )
+        assert sr.valid_count == 0
+        assert sr.wedge_masked is False
+
+
 class TestMaskMappedObstacles:
     """Returns attributable to a planner-owned obstacle are withheld from the
     escape trigger; everything else keeps the full reactive guard.

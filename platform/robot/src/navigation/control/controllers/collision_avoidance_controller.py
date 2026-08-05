@@ -179,6 +179,10 @@ class CollisionAvoidanceController:
         min_valid_range_m: float = 0.05,
         threat_no_detection_range_m: float = 1.0,
         no_data_range_m: float = 10.0,
+        blind_wedge_left_min_deg: float = -160.0,
+        blind_wedge_left_max_deg: float = -115.0,
+        blind_wedge_right_min_deg: float = 115.0,
+        blind_wedge_right_max_deg: float = 175.0,
     ):
         """Initialize collision avoidance controller.
 
@@ -213,6 +217,13 @@ class CollisionAvoidanceController:
                 this distance doesn't count as a threat at all (m)
             no_data_range_m: Fallback range when no valid LIDAR readings are
                 available (m)
+            blind_wedge_left_min_deg: Start bearing (deg) of the rear-left
+                mount-occlusion wedge, excluded from every sector by angle
+                regardless of range (see ``_sector_ranges``)
+            blind_wedge_left_max_deg: End bearing (deg) of the rear-left wedge
+            blind_wedge_right_min_deg: Start bearing (deg) of the rear-right
+                mount-occlusion wedge
+            blind_wedge_right_max_deg: End bearing (deg) of the rear-right wedge
         """
         self.contact_dist = contact_dist
         self.slow_dist = slow_dist
@@ -232,6 +243,10 @@ class CollisionAvoidanceController:
         self.min_valid_range_m = min_valid_range_m
         self.threat_no_detection_range_m = threat_no_detection_range_m
         self.no_data_range_m = no_data_range_m
+        self.blind_wedge_left_min_rad = math.radians(blind_wedge_left_min_deg)
+        self.blind_wedge_left_max_rad = math.radians(blind_wedge_left_max_deg)
+        self.blind_wedge_right_min_rad = math.radians(blind_wedge_right_min_deg)
+        self.blind_wedge_right_max_rad = math.radians(blind_wedge_right_max_deg)
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning) -> CollisionAvoidanceController:
@@ -266,6 +281,10 @@ class CollisionAvoidanceController:
             min_valid_range_m=tuning.lidar_sectors.MIN_VALID_RANGE_M,
             threat_no_detection_range_m=tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
             no_data_range_m=tuning.lidar_sectors.NO_DATA_RANGE_M,
+            blind_wedge_left_min_deg=tuning.lidar_sectors.BLIND_WEDGE_LEFT_MIN_DEG,
+            blind_wedge_left_max_deg=tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG,
+            blind_wedge_right_min_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG,
+            blind_wedge_right_max_deg=tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG,
         )
 
     def _forward_path_ranges(
@@ -340,6 +359,11 @@ class CollisionAvoidanceController:
         filter_self_detection: bool = False,
         self_detection_threshold_m: float | None = None,
         min_valid_range_m: float | None = None,
+        blind_wedge_left_min_rad: float | None = None,
+        blind_wedge_left_max_rad: float | None = None,
+        blind_wedge_right_min_rad: float | None = None,
+        blind_wedge_right_max_rad: float | None = None,
+        apply_blind_wedge_mask: bool = True,
     ) -> np.ndarray:
         """Valid ranges whose bearing falls within ``center ± half_fov``.
 
@@ -371,17 +395,37 @@ class CollisionAvoidanceController:
             min_valid_range_m: LIDAR ranges at or below this are treated as
                 invalid (no-return) readings (m), used when
                 ``filter_self_detection`` is not set.
+            blind_wedge_left_min_rad / blind_wedge_left_max_rad /
+            blind_wedge_right_min_rad / blind_wedge_right_max_rad: Bearing
+                ranges (radians) always excluded, regardless of range. These
+                cover the two rear-corner mount-occlusion wedges measured
+                2026-08-04, where self-collision reads as a real close range
+                at every distance -- a distance threshold can't separate that
+                from a genuine close obstacle at the same bearing, so this is
+                filtered by angle instead. Always applied (not gated behind
+                ``filter_self_detection``): the pure-forward bearing never
+                overlaps these rear wedges, so there's no case where a real
+                forward contact would be discarded by them.
+            apply_blind_wedge_mask: Set False to skip the wedge exclusion --
+                used by ``_sector_to_model`` to tell "this bearing is a known
+                blind spot" apart from "genuinely nothing out there" by
+                re-running the same query with the mask lifted.
         """
         ranges = np.asarray(lidar_ranges, dtype=float)
         if ranges.size == 0:
             return ranges
 
-        if self_detection_threshold_m is None or min_valid_range_m is None:
+        if self_detection_threshold_m is None or min_valid_range_m is None or blind_wedge_left_min_rad is None:
             tuning = NavigationTuning.load_default()
             if self_detection_threshold_m is None:
                 self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M
             if min_valid_range_m is None:
                 min_valid_range_m = tuning.lidar_sectors.MIN_VALID_RANGE_M
+            if blind_wedge_left_min_rad is None:
+                blind_wedge_left_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MIN_DEG)
+                blind_wedge_left_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_LEFT_MAX_DEG)
+                blind_wedge_right_min_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MIN_DEG)
+                blind_wedge_right_max_rad = math.radians(tuning.lidar_sectors.BLIND_WEDGE_RIGHT_MAX_DEG)
 
         if lidar_angles is None:
             angles = np.linspace(-math.pi, math.pi, ranges.size, endpoint=False)
@@ -391,13 +435,24 @@ class CollisionAvoidanceController:
         # Wrapped angular distance from the sector centre, in [-pi, pi].
         delta = np.arctan2(np.sin(angles - center_rad), np.cos(angles - center_rad))
         min_valid = self_detection_threshold_m if filter_self_detection else min_valid_range_m
+        if apply_blind_wedge_mask:
+            in_blind_wedge = (
+                (angles >= blind_wedge_left_min_rad) & (angles <= blind_wedge_left_max_rad)
+            ) | ((angles >= blind_wedge_right_min_rad) & (angles <= blind_wedge_right_max_rad))
+        else:
+            in_blind_wedge = np.zeros(angles.shape, dtype=bool)
         # np.isfinite excludes no-return rays (+inf beyond LIDAR max range):
         # ranges > min_valid alone lets them through (inf > any finite
         # threshold), and a single stray inf inside a sector's window turns
         # its mean/min/max into inf for every caller -- both the OLED's
         # displayed clearance and detect_threat_direction's real
         # collision-avoidance sectors.
-        mask = (np.abs(delta) <= half_fov_rad) & (ranges > min_valid) & np.isfinite(ranges)
+        mask = (
+            (np.abs(delta) <= half_fov_rad)
+            & (ranges > min_valid)
+            & np.isfinite(ranges)
+            & ~in_blind_wedge
+        )
         return np.asarray(ranges[mask])
 
     @staticmethod
@@ -410,6 +465,10 @@ class CollisionAvoidanceController:
         self_detection_threshold_m: float | None = None,
         min_valid_range_m: float | None = None,
         no_data_range_m: float | None = None,
+        blind_wedge_left_min_rad: float | None = None,
+        blind_wedge_left_max_rad: float | None = None,
+        blind_wedge_right_min_rad: float | None = None,
+        blind_wedge_right_max_rad: float | None = None,
     ) -> SectorRanges:
         """Compute aggregate metrics for an angular sector as a SectorRanges."""
         ranges = CollisionAvoidanceController._sector_ranges(
@@ -420,9 +479,33 @@ class CollisionAvoidanceController:
             filter_self_detection,
             self_detection_threshold_m,
             min_valid_range_m,
+            blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad,
         )
         if no_data_range_m is None:
             no_data_range_m = NavigationTuning.load_default().lidar_sectors.NO_DATA_RANGE_M
+        wedge_masked = False
+        if ranges.size == 0:
+            # Distinguish "this bearing is a known permanent blind spot" from
+            # "nothing is out there right now": re-run the same sector query
+            # with the wedge exclusion lifted -- if rays appear, every ray
+            # this sector could see was inside a blind wedge, not genuinely
+            # absent. Both cases still report no_data_range_m (a fully-masked
+            # sector is no more "definitely clear" than a fully-empty one),
+            # but callers that care (e.g. telemetry) can check wedge_masked.
+            unmasked = CollisionAvoidanceController._sector_ranges(
+                lidar_ranges,
+                lidar_angles,
+                center_rad,
+                half_fov_rad,
+                filter_self_detection,
+                self_detection_threshold_m,
+                min_valid_range_m,
+                apply_blind_wedge_mask=False,
+            )
+            wedge_masked = unmasked.size > 0
         return SectorRanges(
             bearing_rad=center_rad,
             half_fov_rad=half_fov_rad,
@@ -430,6 +513,7 @@ class CollisionAvoidanceController:
             min_range_m=float(np.min(ranges)) if ranges.size > 0 else no_data_range_m,
             max_range_m=float(np.max(ranges)) if ranges.size > 0 else no_data_range_m,
             valid_count=int(ranges.size),
+            wedge_masked=wedge_masked,
         )
 
     def compute_forward_clearance(
@@ -474,6 +558,10 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
             no_data_range_m=self.no_data_range_m,
+            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -501,6 +589,10 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
             no_data_range_m=self.no_data_range_m,
+            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -529,6 +621,10 @@ class CollisionAvoidanceController:
             half_fov_rad,
             min_valid_range_m=self.min_valid_range_m,
             no_data_range_m=self.no_data_range_m,
+            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -563,6 +659,10 @@ class CollisionAvoidanceController:
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
                 no_data_range_m=self.no_data_range_m,
+                blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+                blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+                blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+                blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
             )
             return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
 
@@ -642,6 +742,10 @@ class CollisionAvoidanceController:
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
                 no_data_range_m=self.no_data_range_m,
+                blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+                blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+                blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+                blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
             )
             right = self._sector_to_model(
                 lidar_ranges,
@@ -652,6 +756,10 @@ class CollisionAvoidanceController:
                 self_detection_threshold_m=self.self_detection_threshold_m,
                 min_valid_range_m=self.min_valid_range_m,
                 no_data_range_m=self.no_data_range_m,
+                blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+                blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+                blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+                blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
             )
             if left.valid_count > 0 or right.valid_count > 0:
                 left_clear = left.min_range_m if left.valid_count > 0 else self.no_data_range_m
@@ -773,5 +881,9 @@ class CollisionAvoidanceController:
             self_detection_threshold_m=self.self_detection_threshold_m,
             min_valid_range_m=self.min_valid_range_m,
             no_data_range_m=self.no_data_range_m,
+            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
         )
         return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m

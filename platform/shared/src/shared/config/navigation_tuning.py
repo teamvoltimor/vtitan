@@ -298,6 +298,21 @@ class LidarSectorParams(BaseModel):
             distance doesn't count as a threat at all -- used by
             detect_threat_direction to return ThreatDirection.NONE instead
             of the nearest-but-still-far sector.
+        BLIND_WEDGE_LEFT_MIN_DEG / BLIND_WEDGE_LEFT_MAX_DEG: Bearing range
+            (deg, 0 = forward, +90 = left) where the rear-left mount
+            structurally occludes the LIDAR -- rays here self-collide
+            regardless of range, so they're excluded by angle rather than by
+            a distance threshold. Measured 2026-08-04 against a real bag: a
+            5deg-resolution sweep found this arc self-colliding on the
+            majority of rays at every distance, while the same rays a few
+            degrees either side read a clean, consistent open-track range.
+            A range-based filter can't tell those two cases apart -- a real
+            close object at the same distance in a reliable bearing would be
+            discarded too -- so this must be masked by angle, not distance.
+        BLIND_WEDGE_RIGHT_MIN_DEG / BLIND_WEDGE_RIGHT_MAX_DEG: Mirror of the
+            above for the rear-right mount. Not symmetric with the left
+            wedge (measured wider) -- the mount occlusion itself isn't
+            symmetric.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -308,6 +323,18 @@ class LidarSectorParams(BaseModel):
         default=0.08, validation_alias=_alias("SELF_DETECTION_THRESHOLD_M")
     )
     MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
+    BLIND_WEDGE_LEFT_MIN_DEG: float = Field(
+        default=-160.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG")
+    )
+    BLIND_WEDGE_LEFT_MAX_DEG: float = Field(
+        default=-115.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG")
+    )
+    BLIND_WEDGE_RIGHT_MIN_DEG: float = Field(
+        default=115.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG")
+    )
+    BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(
+        default=175.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG")
+    )
     THREAT_NO_DETECTION_RANGE_M: float = Field(
         default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")
     )

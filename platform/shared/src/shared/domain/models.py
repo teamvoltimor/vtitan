@@ -142,6 +142,12 @@ class SectorRanges:
     min_range_m: float
     max_range_m: float
     valid_count: int
+    wedge_masked: bool = False
+    """True when valid_count is 0 because every ray in this sector fell inside
+    a known LIDAR blind wedge (mount occlusion), not because nothing is out
+    there. Distinguishes "this bearing can't be trusted" from "genuinely
+    clear" for callers that care (e.g. telemetry); the numeric fields still
+    fall back to the same no-data sentinel either way."""
 
 
 @dataclass(slots=True, frozen=True)
