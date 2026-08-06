@@ -369,15 +369,31 @@ class TestEscapeEscalation:
         assert result.maneuver_type == maneuver.maneuver_type
         assert result.speed == maneuver.speed
 
-    def test_successive_escalations_alternate_sides(self, waypoints):
+    def test_successive_escalations_commit_to_a_side_before_switching(self, waypoints):
+        """A side is held for several attempts, not flipped on every one.
+
+        Flipping every attempt means consecutive escapes rotate the chassis in
+        opposite directions and cancel out -- measured on real hardware
+        2026-08-05 as four escalating escapes over 40 s that rocked the yaw and
+        translated the robot nowhere. Escaping a wedge needs several attempts
+        pushing the same way to accumulate.
+        """
         nav = self._navigator(waypoints)
         maneuver = self._maneuver(steering=0.4, duration=6)
-        nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
+        commit = nav._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS
+        assert commit > 1, "a commit of 1 is the alternate-every-attempt behaviour this pins against"
 
-        first = nav._maybe_escalate(maneuver)
-        second = nav._maybe_escalate(maneuver)
+        signs = []
+        for count in range(
+            nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1,
+            nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1 + 2 * commit,
+        ):
+            nav._escape_count = count
+            signs.append(math.copysign(1.0, nav._maybe_escalate(maneuver).steering))
 
-        assert math.copysign(1.0, first.steering) == -math.copysign(1.0, second.steering)
+        assert len(set(signs[:commit])) == 1, f"first {commit} attempts must share a side, got {signs}"
+        assert len(set(signs[commit:])) == 1, f"next {commit} attempts must share a side, got {signs}"
+        assert signs[0] == -signs[commit], f"the two blocks must be opposite sides, got {signs}"
 
     def test_duration_caps_at_max_escape_frames(self, waypoints):
         nav = self._navigator(waypoints)

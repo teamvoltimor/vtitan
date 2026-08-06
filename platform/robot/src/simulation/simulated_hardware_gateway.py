@@ -240,6 +240,7 @@ class SimulatedHardwareGateway:
         # ending up in different frames, which is an incoherent state no robot
         # is ever in.
         believed = believed_start or initial_state
+        self._localizer_inputs: tuple[float, float, float] | None = None
         self._yaw_offset = _wrap_angle(believed.yaw - initial_state.yaw)
         # Seed the estimator where the robot *thinks* it was placed. Offset at a
         # random bearing so the error is not systematically along-track (which
@@ -634,6 +635,7 @@ class SimulatedHardwareGateway:
                 self._estimator.correct_yaw(measured)
 
         prior = self._estimator.estimate_pose()
+        self._localizer_inputs = (prior.yaw, prior.x, prior.y)
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
             prior.yaw,
@@ -642,6 +644,10 @@ class SimulatedHardwareGateway:
             now_s=self._elapsed_s,
         )
         self._estimator.update_position(est_x, est_y)
+
+    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+        """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
+        return self._localizer_inputs
 
     @property
     def last_min_range(self) -> float:

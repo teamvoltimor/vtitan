@@ -161,6 +161,12 @@ class EscapeManeuverParams(BaseModel):
         SIDE_CORRECTION_FRAMES: Duration of a side-threat correction (frames)
         ESCALATE_AFTER_ATTEMPTS: Consecutive escapes before escalating (longer
             duration, opposite side) instead of repeating an identical pulse
+        ESCAPE_SIDE_COMMIT_ATTEMPTS: Consecutive escape attempts made toward one
+            side before switching to the other. Escapes used to flip side on
+            every attempt, so successive attempts rotated the chassis opposite
+            ways and cancelled out -- measured on real hardware as 40 s of
+            rocking in place with zero net translation. Committing to a side for
+            more than one attempt is what lets a wedged robot actually walk out
         MAX_ESCAPE_FRAMES: Hard cap on any single escalated escape duration
         STUCK_CONFIRMATION_CHECKS: Consecutive below-threshold stuck checks
             required before StuckDetector declares the robot stuck
@@ -192,6 +198,9 @@ class EscapeManeuverParams(BaseModel):
     SIDE_CORRECTION_SPEED: float = Field(default=0.1, validation_alias=_alias("SIDE_CORRECTION_SPEED"))
     SIDE_CORRECTION_FRAMES: int = Field(default=4, validation_alias=_alias("SIDE_CORRECTION_FRAMES"))
     ESCALATE_AFTER_ATTEMPTS: int = Field(default=3, validation_alias=_alias("ESCALATE_AFTER_ATTEMPTS"))
+    ESCAPE_SIDE_COMMIT_ATTEMPTS: int = Field(
+        default=2, ge=1, validation_alias=_alias("ESCAPE_SIDE_COMMIT_ATTEMPTS")
+    )
     MAX_ESCAPE_FRAMES: int = Field(default=20, validation_alias=_alias("MAX_ESCAPE_FRAMES"))
     STUCK_CONFIRMATION_CHECKS: int = Field(default=3, validation_alias=_alias("STUCK_CONFIRMATION_CHECKS"))
     STUCK_ESCALATION_FRAMES_PER_ATTEMPT: int = Field(

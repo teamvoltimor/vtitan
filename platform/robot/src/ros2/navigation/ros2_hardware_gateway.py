@@ -109,6 +109,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
         self._latest_wheel: WheelOdometry | None = None
+        self._localizer_inputs: tuple[float, float, float] | None = None
         # Receipt timestamp (seconds) for staleness / dropout detection. LIDAR
         # is the position source (no wheel odometry exists on real hardware),
         # so its staleness gates get_current_pose() too.
@@ -174,8 +175,15 @@ class ROS2HardwareGateway(HardwareGateway):
         See ``StateEstimator.reset_position`` -- without this a new race
         inherits wherever the previous one's position estimate last drifted
         to, instead of starting from this race's actual starting pose.
+
+        The localizer's own between-tick state is cleared alongside it: a
+        re-seed declares the previous fix void, and leaving the guard's held
+        candidate behind lets it confirm the first post-reset estimate against
+        a position computed in the frame that was just discarded (see
+        ``LidarLocalizer.reset_tracking``).
         """
         self._estimator.reset_position(x, y)
+        self._localizer.reset_tracking()
 
     def correct_heading_for_direction_change(self, delta_rad: float) -> None:
         """Shift the estimator's heading by a known amount, applied in full.
@@ -264,6 +272,10 @@ class ROS2HardwareGateway(HardwareGateway):
         # wrong and dead reckoning between poor fixes compounds drift rather
         # than staying anchored to the last one.
         prior_pose = self._estimator.estimate_pose()
+        # Recorded before the call, not reconstructed from the pose afterwards:
+        # these are the localizer's actual inputs, and the whole point is to be
+        # able to tell them apart from the corrected pose the navigator reports.
+        self._localizer_inputs = (prior_pose.yaw, prior_pose.x, prior_pose.y)
         est_x, est_y = self._localizer.estimate_position(
             (prior_pose.x, prior_pose.y),
             prior_pose.yaw,
@@ -272,6 +284,10 @@ class ROS2HardwareGateway(HardwareGateway):
             now_s=self._now(),
         )
         self._estimator.update_position(est_x, est_y)
+
+    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+        """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
+        return self._localizer_inputs
 
     def _vision_callback(self, msg: String) -> None:
         try:

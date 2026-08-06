@@ -101,10 +101,12 @@ class CoreNavigator:
 
         # Escape-maneuver latching: an escape runs for its full duration_frames
         # instead of a single 50 ms tick, and repeated escapes escalate (reverse
-        # longer, alternate side) rather than repeating an identical failed pulse.
+        # longer, switch side) rather than repeating an identical failed pulse.
         self._active_maneuver: EscapeManeuver | None = None
         self._maneuver_frames_left = 0
         self._escape_count = 0  # escapes begun since the last normal drive tick with real progress
+        # Base side for escapes, not a running toggle: which side a given
+        # attempt actually uses is derived in _escape_steer_sign_for_attempt.
         self._escape_steer_sign = 1.0
         self._escape_sequence_start_xy: tuple[float, float] | None = None
 
@@ -705,6 +707,27 @@ class CoreNavigator:
         debug.commanded_steering_norm = maneuver.steering
         self._debug = debug
 
+    def _escape_steer_sign_for_attempt(self) -> float:
+        """Which side this escape attempt swings toward.
+
+        Derived from ``_escape_count`` rather than flipped in place, so a side
+        is held for ``ESCAPE_SIDE_COMMIT_ATTEMPTS`` consecutive attempts before
+        the other is tried. Flipping on every attempt (which all three escape
+        paths used to do independently) means consecutive attempts rotate the
+        chassis in opposite directions and undo each other: measured on real
+        hardware 2026-08-05 (run_20260805_200011) as four escalating escapes
+        over 40 s that rocked the yaw between -0.4 and -0.8 rad and translated
+        the robot exactly nowhere. Escaping a wedge needs several attempts
+        pushing the *same* way to accumulate; alternating guarantees they
+        cannot.
+
+        ``_escape_steer_sign`` is the base side, not a running toggle -- the
+        blocks alternate around it.
+        """
+        commit = max(1, self._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS)
+        block = max(0, self._escape_count - 1) // commit
+        return self._escape_steer_sign if block % 2 == 0 else -self._escape_steer_sign
+
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
 
@@ -714,8 +737,7 @@ class CoreNavigator:
         """
         if self._escape_count <= self._tuning.escape.ESCALATE_AFTER_ATTEMPTS:
             return maneuver
-        self._escape_steer_sign = -self._escape_steer_sign
-        steering = abs(maneuver.steering) * self._escape_steer_sign if maneuver.steering else 0.0
+        steering = abs(maneuver.steering) * self._escape_steer_sign_for_attempt() if maneuver.steering else 0.0
         return replace(
             maneuver,
             steering=steering,
@@ -831,9 +853,10 @@ class CoreNavigator:
         """Reverse out of a stuck state, but never back into an unseen wall.
 
         The reverse is latched for several frames (escalating with repeated
-        attempts) and alternates steering side each attempt, so a wall-pinned
-        robot actually backs away instead of twitching one centimetre every few
-        seconds forever.
+        attempts) and switches steering side only after committing to one for
+        several attempts (see ``_escape_steer_sign_for_attempt``), so a
+        wall-pinned robot actually backs away instead of twitching one
+        centimetre every few seconds forever.
 
         When reverse itself is blocked (wedged both front and rear -- a real
         corner, or a moderate turn normal_drive's own curvature-based
@@ -844,8 +867,8 @@ class CoreNavigator:
         just re-arming the same forward command that had already failed for
         the previous window (see docs/known-issues-backlog.md). Holding is
         only actually the safe choice when forward is *also* blocked; when
-        it isn't, a forward creep at full steering lock (alternating side
-        each attempt, same escalation pattern as the reverse case) gives the
+        it isn't, a forward creep at full steering lock (same side-commit and
+        escalation pattern as the reverse case) gives the
         robot a real chance to walk itself clear using more decisive
         steering than normal_drive's own pure-pursuit curvature was willing
         to command for this same geometry.
@@ -879,8 +902,7 @@ class CoreNavigator:
                     + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
                     self._tuning.escape.MAX_ESCAPE_FRAMES,
                 )
-                steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign
-                self._escape_steer_sign = -self._escape_steer_sign
+                steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign_for_attempt()
                 self._begin_maneuver(
                     EscapeManeuver(
                         maneuver_type=ManeuverType.STUCK_FORWARD,
@@ -924,8 +946,7 @@ class CoreNavigator:
             + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
             self._tuning.escape.MAX_ESCAPE_FRAMES,
         )
-        steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign
-        self._escape_steer_sign = -self._escape_steer_sign  # alternate side each attempt
+        steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign_for_attempt()
         self._begin_maneuver(
             EscapeManeuver(
                 maneuver_type=ManeuverType.STUCK_REVERSE,

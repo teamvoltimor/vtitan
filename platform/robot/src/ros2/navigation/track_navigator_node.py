@@ -508,10 +508,24 @@ class TrackNavigator(Node, ResettableNode):
         previous = self._direction
         changed = inferred is not previous
         self._direction = inferred
+        # Computed before the width readings are filed, not with the heading
+        # correction further down where it is applied. The buffered yaws were
+        # recorded against the *old* direction's reference frame, and CW and
+        # CCW differ by exactly pi, so filing them by heading against the newly
+        # inferred direction attributes every one of them to the opposite
+        # corridor -- a reading taken driving down one corridor becomes evidence
+        # about the one across the track. reset() already re-stamps the same
+        # buffer for exactly this reason (see its comment); this path, which is
+        # the only other place those yaws are consumed, did not.
+        heading_delta = 0.0
+        if changed:
+            old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
+            new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
+            heading_delta = _wrap(new_yaw - old_yaw)
         if self._width_estimator is not None:
             for buffered_yaw, buffered_width in self._creep_widths:
                 self._width_estimator.observe_measurement(
-                    section_from_heading(buffered_yaw, inferred),
+                    section_from_heading(_wrap(buffered_yaw + heading_delta), inferred),
                     buffered_width,
                 )
             self._creep_widths.clear()
@@ -528,9 +542,6 @@ class TrackNavigator(Node, ResettableNode):
             # to a correctly-known one. Correcting by exactly the delta
             # between what was assumed and what's now known keeps the
             # estimate's reference matched to the direction it's paired with.
-            old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
-            new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
-            heading_delta = _wrap(new_yaw - old_yaw)
             self._gateway.correct_heading_for_direction_change(heading_delta)
             # The LIDAR localizer takes yaw as given (it only solves for
             # position), so every position fix computed during the creep --
@@ -771,6 +782,12 @@ class TrackNavigator(Node, ResettableNode):
                 self._latest_debug.belief_south_m = believed.get(Section.SOUTH)
                 self._latest_debug.belief_east_m = believed.get(Section.EAST)
                 self._latest_debug.belief_west_m = believed.get(Section.WEST)
+            localizer_inputs = self._gateway.get_localizer_inputs()
+            if localizer_inputs is not None:
+                yaw, prior_x, prior_y = localizer_inputs
+                self._latest_debug.localizer_input_yaw_rad = yaw
+                self._latest_debug.localizer_prior_x = prior_x
+                self._latest_debug.localizer_prior_y = prior_y
             self._debug_pub.publish(String(data=self._latest_debug.model_dump_json()))
 
     def _apply_param_overrides(self, params_path: str | Path) -> None:

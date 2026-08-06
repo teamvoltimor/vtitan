@@ -77,6 +77,15 @@ class HardwareGateway(Protocol):
     def get_vision_detections(self) -> list[TrafficSignObservation]:
         """Get the latest sign observations from the camera."""
 
+    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+        """(yaw, prior_x, prior_y) last handed to the LIDAR localizer.
+
+        Diagnostic only. The localizer solves for position alone and trusts
+        the yaw it is given, so a heading wrong by pi yields a confidently
+        tracked but wrong position, and the fused pose that comes back cannot
+        show the mismatch. ``None`` before the first scan.
+        """
+
     def get_wheel_odometry(self) -> WheelOdometry | None:
         """Get the latest wheel travel and speed, or ``None`` if unavailable.
 

@@ -15,6 +15,7 @@ side_correction_steer = 0.3   # Steering magnitude for a side-threat correction
 side_correction_speed = 0.1   # Forward speed during a side-threat correction
 side_correction_frames = 4    # Duration of a side-threat correction (frames)
 escalate_after_attempts = 3   # Consecutive escapes before escalating (longer duration, opposite side)
+escape_side_commit_attempts = 2  # Attempts spent on one side before trying the other (1 = alternate every attempt, which cancels itself out)
 max_escape_frames = 20        # Hard cap on any single escalated escape duration
 stuck_confirmation_checks = 3            # Consecutive below-threshold checks before declaring "stuck"
 stuck_escalation_frames_per_attempt = 2  # Frames added to a stuck-reverse duration per repeated attempt

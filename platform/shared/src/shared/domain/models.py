@@ -450,3 +450,15 @@ class NavigatorDebugSnapshot(BaseModel):
     belief_south_m: float | None = None
     belief_east_m: float | None = None
     belief_west_m: float | None = None
+
+    # What LidarLocalizer was actually handed, as distinct from the fused pose
+    # reported above. The localizer only ever solves for position and takes
+    # yaw as given, so a heading that is wrong (notably by pi, when blind
+    # direction inference overturns the assumed direction) produces a
+    # confidently-tracked but wrong position with nothing in the pose itself
+    # to show for it. Diagnosing the 2026-08-05 CCW run required replaying
+    # recorded scans to recover these, because pose_yaw is the corrected
+    # heading and cannot reveal a mismatch with what the localizer consumed.
+    localizer_input_yaw_rad: float | None = None
+    localizer_prior_x: float | None = None
+    localizer_prior_y: float | None = None

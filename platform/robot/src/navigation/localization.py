@@ -66,6 +66,22 @@ class LidarLocalizer:
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: tuple[float, float] | None = None
 
+    def reset_tracking(self) -> None:
+        """Forget everything carried between ticks, for a re-seeded position.
+
+        The speed-bound guard below is a statement about motion *between*
+        consecutive estimates. When the caller re-seeds position outright --
+        a new race, or blind direction inference overturning the frame every
+        creep-time fix was computed in -- there is no such continuity: the
+        held candidate was found in the old frame, and the elapsed time since
+        it spans a discontinuity rather than real travel. Left in place, the
+        very first estimate after a re-seed can have its "impossible" jump
+        confirmed by that stale candidate and be accepted immediately, which
+        is precisely the corruption the re-seed exists to discard.
+        """
+        self._pending_jump_xy = None
+        self._last_estimate_time_s = None
+
     def estimate_position(
         self,
         prior_xy: tuple[float, float],
