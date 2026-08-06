@@ -11,7 +11,6 @@ Run with: python -m pytest tests/ros2/test_imu_uart_rvc_node.py -v
 
 import logging
 import sys
-from dataclasses import dataclass
 from unittest import mock
 
 import pytest
@@ -19,22 +18,9 @@ import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
 
+from src.hardware.imu.readings import QuaternionReading, RVCReading
+
 logger = logging.getLogger(__name__)
-
-
-# Define IMU_RVCData locally to avoid circular imports
-@dataclass
-class IMU_RVCData:
-    """IMU RVC sensor data."""
-
-    yaw_deg: float
-    pitch_deg: float
-    roll_deg: float
-    x_accel: float
-    y_accel: float
-    z_accel: float
-    quaternion: tuple[float, float, float, float]
-    """(qw, qx, qy, qz) -- matches QuaternionReading's field order."""
 
 
 @pytest.fixture(autouse=True)
@@ -207,14 +193,14 @@ class TestIMU_UART_RVCNodePublishing:
         node.trigger_activate()
 
         # Create mock sensor data
-        mock_data = IMU_RVCData(
+        mock_data = RVCReading(
             yaw_deg=45.0,
             pitch_deg=10.0,
             roll_deg=-5.0,
             x_accel=0.1,
             y_accel=0.2,
             z_accel=9.8,
-            quaternion=(0.707, 0.0, 0.0, 0.707),
+            quaternion=QuaternionReading(0.707, 0.0, 0.0, 0.707),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -297,14 +283,14 @@ class TestIMU_UART_RVCNodePublishing:
         node.trigger_configure()
         node.trigger_activate()
 
-        mock_data = IMU_RVCData(
+        mock_data = RVCReading(
             yaw_deg=0.0,
             pitch_deg=0.0,
             roll_deg=0.0,
             x_accel=0.0,
             y_accel=0.0,
             z_accel=0.0,
-            quaternion=(1.0, 0.0, 0.0, 0.0),
+            quaternion=QuaternionReading(1.0, 0.0, 0.0, 0.0),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -336,14 +322,14 @@ class TestIMU_UART_RVCNodePublishing:
         node.trigger_configure()
         node.trigger_activate()
 
-        mock_data = IMU_RVCData(
+        mock_data = RVCReading(
             yaw_deg=0.0,
             pitch_deg=0.0,
             roll_deg=0.0,
             x_accel=0.0,
             y_accel=0.0,
             z_accel=0.0,
-            quaternion=(1.0, 0.0, 0.0, 0.0),
+            quaternion=QuaternionReading(1.0, 0.0, 0.0, 0.0),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
@@ -375,23 +361,23 @@ class TestIMU_UART_RVCNodePublishing:
         node.trigger_configure()
         node.trigger_activate()
 
-        mock_data_1 = IMU_RVCData(
+        mock_data_1 = RVCReading(
             yaw_deg=10.0,
             pitch_deg=5.0,
             roll_deg=2.0,
             x_accel=0.5,
             y_accel=1.5,
             z_accel=9.8,
-            quaternion=(0.9, 0.1, 0.2, 0.3),
+            quaternion=QuaternionReading(0.9, 0.1, 0.2, 0.3),
         )
-        mock_data_2 = IMU_RVCData(
+        mock_data_2 = RVCReading(
             yaw_deg=20.0,
             pitch_deg=10.0,
             roll_deg=4.0,
             x_accel=1.0,
             y_accel=2.0,
             z_accel=9.9,
-            quaternion=(0.8, 0.2, 0.3, 0.4),
+            quaternion=QuaternionReading(0.8, 0.2, 0.3, 0.4),
         )
 
         mock_driver_instance.get_data.side_effect = [mock_data_1, mock_data_2]
@@ -469,14 +455,14 @@ class TestIMU_UART_RVCNodeIntegration:
         mock_driver_instance = mock.MagicMock()
         mock_driver_cls.return_value = mock_driver_instance
 
-        mock_data = IMU_RVCData(
+        mock_data = RVCReading(
             yaw_deg=45.0,
             pitch_deg=10.0,
             roll_deg=-5.0,
             x_accel=0.1,
             y_accel=0.2,
             z_accel=9.8,
-            quaternion=(0.707, 0.0, 0.0, 0.707),
+            quaternion=QuaternionReading(0.707, 0.0, 0.0, 0.707),
         )
         mock_driver_instance.get_data.return_value = mock_data
 
