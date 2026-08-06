@@ -47,7 +47,15 @@ from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap
 # One load, reused by the module-level constants below. These feed free
 # functions with no instance to inject tuning into, but that is not a reason to
 # restate a configured number -- see corridor_follower.toml.
-_FOLLOWER = NavigationTuning.load_default().corridor_follower
+_TUNING = NavigationTuning.load_default()
+_FOLLOWER = _TUNING.corridor_follower
+
+# Both read from the group that owns them rather than restated here: the
+# no-return floor is a LIDAR fact, and the in-track ceiling is the same 3 m-mat
+# plausibility bound direction_estimator.MAX_IN_TRACK_RANGE_M documents at
+# length. A second copy of either would be a second thing to keep in step.
+_MIN_VALID_RANGE_M = _TUNING.lidar_sectors.MIN_VALID_RANGE_M
+_MAX_IN_TRACK_RANGE_M = _TUNING.direction_estimator.MAX_IN_TRACK_RANGE_M
 
 TURN_CLEARANCE_M = _FOLLOWER.TURN_CLEARANCE_M
 """Forward clearance at which to start turning the corner.
@@ -84,6 +92,35 @@ _CORNER_SPEED_SCALE = _FOLLOWER.CORNER_SPEED_SCALE
 """Fraction of creep speed while turning a corner blind. Slower than straight
 running, because the turn is committed on one comparison rather than a plan."""
 
+_TURN_ARC_HALF_FOV_RAD = math.radians(_FOLLOWER.TURN_ARC_HALF_FOV_DEG)
+_TURN_OPEN_RANGE_M = _FOLLOWER.TURN_OPEN_RANGE_M
+"""Arc and range for the second opinion on whether the corridor has ended.
+
+:data:`TURN_CLEARANCE_M` is applied to ``_forward_clearance``, which is the
+*minimum* over a +/-8 deg cone. A minimum over a narrow cone answers "is
+anything close ahead", which is not the same question as "has the corridor
+ended", and the two come apart exactly when the chassis is oblique: 0.24 m off
+a wall at 30 deg puts the whole cone on that wall at 0.24/sin(30) = 0.48 m,
+below a 0.60 m threshold, in the middle of a perfectly open corridor.
+
+That is not hypothetical. On run_20260806_162008 it held the corner branch --
+and with it hard-over steering -- for 53% of a 305 s round, at 47% precision
+against a 45% base rate: no better than chance. Hard-over steering swings the
+heading past the direction estimator's alignment gate, so the round never
+inferred its travel direction, never planned a path, and scored no laps at all.
+That is the failure this module's own header warns about ("Oscillating costs
+the round"), reached at a centring gain well below the one it was measured at.
+
+So ask the complementary question, as a *maximum* over a *wider* arc: is there
+any bearing ahead with real room left. At a real corner the end wall blocks
+every bearing in the arc. An oblique chassis still has the corridor's own axis
+inside it, reading metres. Scored against run_20260806_161659, a healthy
+three-lap round, requiring both tests fires 12 times -- one episode per corner
+per lap -- at 96% precision, where the clearance test alone fired 13 times at
+88%. On the failing round it cuts the hard-over ticks by a sixth even before
+the loop closes; the remainder is geometry the weave itself created.
+"""
+
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
 """Back off when the wall ahead is this close.
 
@@ -117,6 +154,29 @@ few ticks, at which point the forward branches take over again.
 """
 
 
+def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> bool:
+    """Is any bearing in the forward arc still open enough to drive down?
+
+    The maximum, over an arc wide enough to contain the corridor's own axis
+    when the chassis is oblique -- see :data:`_TURN_OPEN_RANGE_M` for why the
+    forward *minimum* cannot answer this.
+
+    Dropouts are excluded on the same reasoning, and against the same bound, as
+    :mod:`src.navigation.direction_estimator` uses: the gateway substitutes max
+    range (12 m) for a no-return, and nothing on a 3 m mat can be further than
+    its diagonal. Left in, a single dropped beam would read as wide-open track
+    and veto every corner turn on the round.
+    """
+    open_ranges = [
+        r
+        for r, a in zip(ranges_m, angles_rad, strict=False)
+        if abs(_wrap(a)) <= _TURN_ARC_HALF_FOV_RAD and _MIN_VALID_RANGE_M < r < _MAX_IN_TRACK_RANGE_M
+    ]
+    if not open_ranges:
+        return False
+    return max(open_ranges) >= _TURN_OPEN_RANGE_M
+
+
 def follow_corridor(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
@@ -137,22 +197,17 @@ def follow_corridor(
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
 
-    if forward < TURN_CLEARANCE_M:
-        # The corridor is ending. Turn toward the side with more room, which is
-        # where the track continues -- and is the same observation the
-        # direction estimator settles on, so the turn and the answer agree.
-        #
-        # Stopping here instead is a deadlock: with no direction there is no
-        # plan to hand over to, so the robot would sit at the corner until the
-        # round expired. That was every closed-loop failure of this feature.
+    # Something close ahead is a fact about safety, not about the layout, so it
+    # is answered first and on the forward minimum -- whether or not the
+    # corridor has ended, there is no room to drive on. Hoisted out of the
+    # corner branch below, which no longer fires on every close wall and so can
+    # no longer be relied on to reach this.
+    if forward < _MIN_FORWARD_CLEARANCE_M:
+        # Back off far enough to point somewhere useful, steering the mirror of
+        # the turn: reversing swings the nose away from the steer direction, so
+        # the inverted sign walks the nose toward the open side instead of
+        # further into the wall it is against.
         steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
-        if forward >= _MIN_FORWARD_CLEARANCE_M:
-            return DriveCommand(speed_mps=speed_mps * _CORNER_SPEED_SCALE, steering_norm=steering)
-
-        # Too close to keep turning in. Back off far enough to point somewhere
-        # useful, steering the mirror of the turn: reversing swings the nose
-        # away from the steer direction, so the inverted sign walks the nose
-        # toward the open side instead of further into the wall it is against.
         rear = _nearest_ray(ranges_m, angles_rad, math.pi)
         if rear > _MIN_REVERSE_CLEARANCE_M:
             return DriveCommand(
@@ -160,6 +215,19 @@ def follow_corridor(
                 steering_norm=-steering,
             )
         return DriveCommand(speed_mps=0.0, steering_norm=steering)
+
+    if forward < TURN_CLEARANCE_M and not _way_through(ranges_m, angles_rad):
+        # The corridor is ending -- close ahead AND nothing open across the
+        # wider arc, so this is a wall spanning the track rather than one seen
+        # at an angle. Turn toward the side with more room, which is where the
+        # track continues, and is the same observation the direction estimator
+        # settles on, so the turn and the answer agree.
+        #
+        # Stopping here instead is a deadlock: with no direction there is no
+        # plan to hand over to, so the robot would sit at the corner until the
+        # round expired. That was every closed-loop failure of this feature.
+        steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
+        return DriveCommand(speed_mps=speed_mps * _CORNER_SPEED_SCALE, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a
     # corridor wall, and centring against it would steer into the other one.

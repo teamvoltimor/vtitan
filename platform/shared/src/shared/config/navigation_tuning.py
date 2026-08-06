@@ -560,6 +560,13 @@ class CorridorFollowerParams(BaseModel):
         CORNER_SPEED_SCALE: Fraction of creep speed while turning a corner
             blind, which is committed on one comparison rather than a plan.
         REVERSE_SPEED_SCALE: Fraction of creep speed while backing off.
+        TURN_ARC_HALF_FOV_DEG: Half-width (deg) of the arc searched for a way
+            through before committing to a corner turn. Wider than
+            LidarSectorParams.DIRECTION_ARC_HALF_FOV_DEG on purpose -- that
+            8 deg cone cannot tell a corridor that has ended from a chassis
+            pointed obliquely at the wall beside it.
+        TURN_OPEN_RANGE_M: If any bearing within that arc has at least this
+            much room, the corridor has not ended and the turn is refused.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -569,6 +576,8 @@ class CorridorFollowerParams(BaseModel):
     MAX_CENTERING_STEER: float = Field(default=0.25, validation_alias=_alias("MAX_CENTERING_STEER"))
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
+    TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
+    TURN_OPEN_RANGE_M: float = Field(default=1.00, validation_alias=_alias("TURN_OPEN_RANGE_M"))
 
 
 class ControlLoopParams(BaseModel):

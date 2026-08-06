@@ -30,3 +30,25 @@ corner_speed_scale = 0.6
 
 # Fraction of creep speed while backing off a wall.
 reverse_speed_scale = 0.6
+
+# Second opinion on "has the corridor ended?", checked before committing to a
+# hard-over corner turn.
+#
+# turn_clearance_m alone reads the MINIMUM over lidar_sectors.toml's +/-8 deg
+# cone, which is too narrow to separate a corridor that has ended from a
+# chassis pointed obliquely at the wall beside it: 0.24 m off a wall at 30 deg
+# puts that whole cone on the wall at 0.24/sin(30) = 0.48 m -- under the
+# threshold, mid-corridor. Measured on run_20260806_162008, that fired the
+# corner branch for 53% of a 305 s round at 47% precision against a 45% base
+# rate, i.e. no better than chance. The robot held hard-over steering half the
+# round, never came square to a corridor, and so never inferred its travel
+# direction, never planned a path, and scored zero laps.
+#
+# This asks the complementary question -- is there anywhere ahead still open --
+# as a MAXIMUM over a wider arc. At a real corner the end wall blocks every
+# bearing in the arc; an oblique chassis still has the corridor's own axis
+# inside it, reading metres. Scored on run_20260806_161659 (a healthy 3-lap
+# round) the pair fires 12 times, exactly one episode per corner per lap, at
+# 96% precision.
+turn_arc_half_fov_deg = 15.0
+turn_open_range_m = 1.00
