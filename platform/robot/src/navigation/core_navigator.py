@@ -454,12 +454,34 @@ class CoreNavigator:
         # and get selected as the steering target even though it's now behind
         # the robot, spiraling the heading around to chase a point it already
         # passed instead of the path ahead.
-        while self._waypoint_index + 1 < len(self._waypoints) and math.hypot(
-            self._waypoints[self._waypoint_index + 1][0] - robot_x,
-            self._waypoints[self._waypoint_index + 1][1] - robot_y,
-        ) < math.hypot(raw_wp[0] - robot_x, raw_wp[1] - robot_y):
-            self._waypoint_index += 1
-            raw_wp = self._waypoints[self._waypoint_index]
+        #
+        # The comparison wraps around the seam, so the *last* waypoint gets the
+        # same pass-by rescue as every other one. It used to stop at
+        # ``index + 1 < len``, which left entering a MAIN_LOOP_REACHED_DISTANCE_M
+        # circle as the only way past the final point — and a robot running
+        # wider than that radius never gets past it, never wraps, and so never
+        # completes a lap no matter how many times it drives the loop. Measured
+        # on the 2026-08-06 counterclockwise round: crosstrack ran 0.26-0.51 m
+        # against a 0.20 m radius, the index froze on the last waypoint at
+        # t=90s, and the robot circled the mat for a further 7 minutes with the
+        # lap count stuck at zero. Advancing to ``len(waypoints)`` here is the
+        # same state reaching the last waypoint produces, and the wrap branch
+        # at the top of the next tick is what turns it into a counted lap.
+        count = len(self._waypoints)
+        for _ in range(count):
+            next_index = self._waypoint_index + 1
+            next_wp = self._waypoints[next_index % count]
+            if math.hypot(next_wp[0] - robot_x, next_wp[1] - robot_y) >= math.hypot(
+                raw_wp[0] - robot_x, raw_wp[1] - robot_y
+            ):
+                break
+            self._waypoint_index = next_index
+            if next_index >= count:
+                # Seam crossed. Leave raw_wp on the final waypoint and let the
+                # wrap branch count the lap next tick — walking on into the new
+                # lap here would skip waypoints the wrap is about to rewind to.
+                break
+            raw_wp = next_wp
 
         # Get LIDAR scan from gateway
         scan = self._gateway.get_lidar_scan()
