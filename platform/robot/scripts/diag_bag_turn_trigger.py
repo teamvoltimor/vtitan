@@ -24,30 +24,31 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String
+from _bag_io import open_reader, read_bag
+from shared.config.constants import RobotSpecs
 
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
 from src.navigation.utils import _forward_clearance, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
-MIN_VALID_M = 0.05
-MAX_RANGE_M = 11.9
+MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
+# A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
+# told apart from the synthetic fill value substituted for a LIDAR dropout
+# (RobotSpecs.LIDAR_MAX_RANGE itself, used below).
+MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 # Mat corners; the loop turns at each one.
 CORNERS = ((0.0, 0.0), (3.0, 0.0), (0.0, 3.0), (3.0, 3.0))
 CORNER_RADIUS_M = 1.0
 
 
-def _arc_max(ranges: list[float], angles: list[float], half_fov: float) -> float:
+def _arc_max(ranges: Sequence[float], angles: Sequence[float], half_fov: float) -> float:
     """Furthest in-track return within ``half_fov`` of straight ahead.
 
     Max, not min: this asks whether ANY bearing ahead still has room, which is
@@ -66,33 +67,11 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-
-    t0 = None
-    scans = []
-    poses: list[tuple[float, float, float]] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        rel = (t - t0) / 1e9
-        if topic == "/scan":
-            msg = deserialize_message(data, LaserScan)
-            ranges = [v if math.isfinite(v) else 12.0 for v in msg.ranges]
-            n = len(ranges)
-            angles = [
-                msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1) + _LIDAR_YAW_OFFSET_RAD
-                for i in range(n)
-            ]
-            scans.append((rel, ranges, angles))
-        elif topic == "/nav_debug":
-            p = json.loads(deserialize_message(data, String).data)
-            if isinstance(p.get("pose_x"), (int, float)) and isinstance(p.get("pose_y"), (int, float)):
-                poses.append((rel, p["pose_x"], p["pose_y"]))
+    reader = open_reader(args.bag_dir)
+    scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)
+    poses: list[tuple[float, float, float]] = [
+        (t, snap.pose_x, snap.pose_y) for t, snap in nav_rows if snap.pose_x is not None and snap.pose_y is not None
+    ]
 
     print(f"== {args.bag_dir.name}  scans={len(scans)}")
     if not scans or not poses:
@@ -100,15 +79,15 @@ def main() -> None:
         return
 
     rows = []
-    for t, ranges, angles in scans:
+    for t, scan in scans:
         _, x, y = min(poses, key=lambda p: abs(p[0] - t))
         near = min(math.hypot(x - cx, y - cy) for cx, cy in CORNERS) < CORNER_RADIUS_M
         rows.append(
             {
                 "near": near,
-                "min8": _forward_clearance(ranges, angles),
+                "min8": _forward_clearance(scan.ranges_m, scan.angles_rad),
                 **{
-                    f"max{arc}": _arc_max(ranges, angles, math.radians(arc))
+                    f"max{arc}": _arc_max(scan.ranges_m, scan.angles_rad, math.radians(arc))
                     for arc in (12, 15, 20, 30)
                 },
             }

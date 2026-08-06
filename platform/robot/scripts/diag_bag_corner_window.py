@@ -18,18 +18,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import LaserScan
+from _bag_io import open_reader, read_bag
 from shared.config.constants import CorridorDimensions, RobotSpecs
-from std_msgs.msg import String
 
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
 from src.navigation.direction_estimator import _MAX_PLAUSIBLE_SPAN_M, CORNER_CLEARANCE_M
@@ -42,35 +38,9 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-
-    t0 = None
-    scans = []
-    yaws: list[tuple[float, float]] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        rel = (t - t0) / 1e9
-        if topic == "/scan":
-            msg = deserialize_message(data, LaserScan)
-            # Same rotation ROS2HardwareGateway._lidar_callback applies; see the
-            # note in diag_bag_side_ray_robustness.py.
-            ranges = [v if math.isfinite(v) else 12.0 for v in msg.ranges]
-            n = len(ranges)
-            angles = [
-                msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1) + _LIDAR_YAW_OFFSET_RAD
-                for i in range(n)
-            ]
-            scans.append((rel, ranges, angles))
-        elif topic == "/nav_debug":
-            p = json.loads(deserialize_message(data, String).data)
-            if isinstance(p.get("pose_yaw"), (int, float)):
-                yaws.append((rel, p["pose_yaw"]))
+    reader = open_reader(args.bag_dir)
+    scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)
+    yaws: list[tuple[float, float]] = [(t, snap.pose_yaw) for t, snap in nav_rows if snap.pose_yaw is not None]
 
     print(f"== {args.bag_dir.name}  scans={len(scans)}")
     if not scans or not yaws:
@@ -78,12 +48,12 @@ def main() -> None:
         return
 
     rows = []
-    for t, ranges, angles in scans:
+    for t, scan in scans:
         yaw = min(yaws, key=lambda p: abs(p[0] - t))[1]
-        fwd = _forward_clearance(ranges, angles)
+        fwd = _forward_clearance(scan.ranges_m, scan.angles_rad)
         axis = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
-        left = _nearest_ray(ranges, angles, math.pi / 2)
-        right = _nearest_ray(ranges, angles, -math.pi / 2)
+        left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
+        right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
         rows.append((t, fwd, axis, left, right))
 
     finite = [r[1] for r in rows if math.isfinite(r[1])]

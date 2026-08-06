@@ -15,16 +15,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
+from _bag_io import open_reader, read_nav_debug_rows
 
 
 def main() -> None:
@@ -33,42 +30,27 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=20.0)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-
-    t0 = None
-    rows: list[dict] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        if topic != "/nav_debug":
-            continue
-        p = json.loads(deserialize_message(data, String).data)
-        p["_t"] = (t - t0) / 1e9
-        rows.append(p)
+    reader = open_reader(args.bag_dir)
+    rows, _topics = read_nav_debug_rows(reader)
 
     print(f"== {args.bag_dir.name}  samples={len(rows)}")
 
-    verdicts = Counter(str(r.get("direction_gate_verdict")) for r in rows)
+    verdicts = Counter(str(snap.direction_gate_verdict) for _, snap in rows)
     print("\ndirection_gate_verdict:")
     for val, count in verdicts.most_common():
         print(f"  {count:6d}  {val}")
 
-    cw = [r.get("direction_votes_clockwise") for r in rows]
-    ccw = [r.get("direction_votes_counterclockwise") for r in rows]
-    numeric_cw = [v for v in cw if isinstance(v, (int, float))]
-    numeric_ccw = [v for v in ccw if isinstance(v, (int, float))]
+    numeric_cw = [snap.direction_votes_clockwise for _, snap in rows if snap.direction_votes_clockwise is not None]
+    numeric_ccw = [
+        snap.direction_votes_counterclockwise for _, snap in rows if snap.direction_votes_counterclockwise is not None
+    ]
     if numeric_cw:
         print(f"\nvotes clockwise:        min={min(numeric_cw)} max={max(numeric_cw)} last={numeric_cw[-1]}")
     if numeric_ccw:
         print(f"votes counterclockwise: min={min(numeric_ccw)} max={max(numeric_ccw)} last={numeric_ccw[-1]}")
 
     def stats(key: str) -> str:
-        vals = [r.get(key) for r in rows]
+        vals = [getattr(snap, key) for _, snap in rows]
         seen = [v for v in vals if isinstance(v, (int, float))]
         nulls = sum(1 for v in vals if v is None)
         if not seen:
@@ -95,15 +77,15 @@ def main() -> None:
     )
     print("     t  " + "  ".join(f"{c.replace('direction_', '')[:12]:>12s}" for c in cols))
     next_t = 0.0
-    for row in rows:
-        if row["_t"] < next_t:
+    for t, snap in rows:
+        if t < next_t:
             continue
-        next_t = row["_t"] + args.every
+        next_t = t + args.every
         cells = []
         for key in cols:
-            val = row.get(key)
+            val = getattr(snap, key)
             cells.append(f"{val:12.2f}" if isinstance(val, float) else f"{str(val)[:12]:>12s}")
-        print(f"{row['_t']:6.1f}  " + "  ".join(cells))
+        print(f"{t:6.1f}  " + "  ".join(cells))
 
 
 if __name__ == "__main__":

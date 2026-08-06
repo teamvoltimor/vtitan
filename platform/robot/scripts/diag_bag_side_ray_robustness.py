@@ -20,18 +20,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String
+from _bag_io import open_reader, read_bag
+from shared.config.constants import RobotSpecs
 
 from src.navigation.direction_estimator import (
     _MAX_IN_TRACK_RANGE_M,
@@ -41,17 +39,20 @@ from src.navigation.direction_estimator import (
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
-MAX_RANGE_M = 11.9
-MIN_VALID_M = 0.05
+MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
+# A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
+# told apart from the synthetic fill value substituted for a LIDAR dropout
+# (RobotSpecs.LIDAR_MAX_RANGE itself, used below).
+MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 MIN_VOTES = 5
 
 
-def _single(ranges: list[float], angles: list[float], target: float) -> float:
+def _single(ranges: Sequence[float], angles: Sequence[float], target: float) -> float:
     idx = min(range(len(angles)), key=lambda i: abs(_wrap(angles[i] - target)))
     return ranges[idx]
 
 
-def _windowed(ranges: list[float], angles: list[float], target: float, half_width: float) -> float | None:
+def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, half_width: float) -> float | None:
     """Median of the in-track returns within ``half_width`` of ``target``.
 
     Returns None when every beam in the window is a dropout -- that is a
@@ -74,43 +75,16 @@ def main() -> None:
     args = parser.parse_args()
     half = math.radians(args.window_deg)
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-
-    t0 = None
-    scans: list[tuple[float, list[float], list[float]]] = []
-    yaws: list[tuple[float, float]] = []
-    poses: list[tuple[float, float, float]] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        rel = (t - t0) / 1e9
-        if topic == "/scan":
-            msg = deserialize_message(data, LaserScan)
-            # Same rotation ROS2HardwareGateway._lidar_callback applies -- the
-            # LIDAR is mounted inverted, so raw bearings are 180 deg out and a
-            # replay that skips this reads left as right and infers the mirror
-            # image of the direction the node actually inferred.
-            ranges = [
-                v if math.isfinite(v) else MAX_RANGE_M + 0.1
-                for v in msg.ranges
-            ]
-            n = len(ranges)
-            angles = [
-                msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1) + _LIDAR_YAW_OFFSET_RAD
-                for i in range(n)
-            ]
-            scans.append((rel, ranges, angles))
-        elif topic == "/nav_debug":
-            p = json.loads(deserialize_message(data, String).data)
-            if isinstance(p.get("pose_yaw"), (int, float)):
-                yaws.append((rel, p["pose_yaw"]))
-            if isinstance(p.get("pose_x"), (int, float)) and isinstance(p.get("pose_y"), (int, float)):
-                poses.append((rel, p["pose_x"], p["pose_y"]))
+    reader = open_reader(args.bag_dir)
+    # Same rotation ROS2HardwareGateway._lidar_callback applies -- the LIDAR is
+    # mounted inverted, so raw bearings are 180 deg out and a replay that skips
+    # this reads left as right and infers the mirror image of the direction
+    # the node actually inferred.
+    scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)
+    yaws: list[tuple[float, float]] = [(t, snap.pose_yaw) for t, snap in nav_rows if snap.pose_yaw is not None]
+    poses: list[tuple[float, float, float]] = [
+        (t, snap.pose_x, snap.pose_y) for t, snap in nav_rows if snap.pose_x is not None and snap.pose_y is not None
+    ]
 
     print(f"== {args.bag_dir.name}  scans={len(scans)}  window=+/-{args.window_deg:.0f}deg")
 
@@ -118,9 +92,9 @@ def main() -> None:
         print("no /scan messages")
         return
 
-    beams = len(scans[0][1])
-    total = sum(len(r) for _, r, _ in scans)
-    dropouts = sum(1 for _, r, _ in scans for v in r if v >= MAX_RANGE_M)
+    beams = len(scans[0][1].ranges_m)
+    total = sum(len(scan.ranges_m) for _, scan in scans)
+    dropouts = sum(1 for _, scan in scans for v in scan.ranges_m if v >= MAX_RANGE_M)
     print(f"beams/scan={beams}  overall max-range fraction: {100.0 * dropouts / total:.1f}%")
 
     def nearest_yaw(t: float) -> float | None:
@@ -130,14 +104,14 @@ def main() -> None:
 
     recovered = Counter()
     rows = []
-    for t, ranges, angles in scans:
+    for t, scan in scans:
         yaw = nearest_yaw(t)
         if yaw is None:
             continue
-        s_l = _single(ranges, angles, math.pi / 2)
-        s_r = _single(ranges, angles, -math.pi / 2)
-        w_l = _windowed(ranges, angles, math.pi / 2, half)
-        w_r = _windowed(ranges, angles, -math.pi / 2, half)
+        s_l = _single(scan.ranges_m, scan.angles_rad, math.pi / 2)
+        s_r = _single(scan.ranges_m, scan.angles_rad, -math.pi / 2)
+        w_l = _windowed(scan.ranges_m, scan.angles_rad, math.pi / 2, half)
+        w_r = _windowed(scan.ranges_m, scan.angles_rad, -math.pi / 2, half)
         for single, win in ((s_l, w_l), (s_r, w_r)):
             if single >= MAX_RANGE_M:
                 recovered["single max-range"] += 1

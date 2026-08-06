@@ -21,6 +21,7 @@ from src.navigation.corridor_follower import (
 
 CREEP_SPEED = 0.15
 BEAMS = 720
+JUST_INSIDE_TURN_M = TURN_CLEARANCE_M - 0.1
 
 
 def _angles() -> list[float]:
@@ -49,17 +50,17 @@ def _corridor(left_m: float, right_m: float, ahead_m: float) -> tuple[list[float
 class TestCornerTurn:
     def test_wall_spanning_the_track_commits_to_the_turn(self) -> None:
         """A corridor that has genuinely ended must still turn, hard over."""
-        ranges, angles = _corridor(left_m=0.5, right_m=0.5, ahead_m=TURN_CLEARANCE_M - 0.1)
+        ranges, angles = _corridor(left_m=0.5, right_m=0.5, ahead_m=JUST_INSIDE_TURN_M)
         cmd = follow_corridor(ranges, angles, CREEP_SPEED)
         assert abs(cmd.steering_norm) == pytest.approx(_MAX_CENTERING_STEER)
         assert cmd.speed_mps > 0.0
 
     def test_turns_toward_the_side_with_more_room(self) -> None:
         """The open side is where the track continues; +1 is full left."""
-        ranges, angles = _corridor(left_m=0.9, right_m=0.3, ahead_m=TURN_CLEARANCE_M - 0.1)
+        ranges, angles = _corridor(left_m=0.9, right_m=0.3, ahead_m=JUST_INSIDE_TURN_M)
         assert follow_corridor(ranges, angles, CREEP_SPEED).steering_norm > 0
 
-        ranges, angles = _corridor(left_m=0.3, right_m=0.9, ahead_m=TURN_CLEARANCE_M - 0.1)
+        ranges, angles = _corridor(left_m=0.3, right_m=0.9, ahead_m=JUST_INSIDE_TURN_M)
         assert follow_corridor(ranges, angles, CREEP_SPEED).steering_norm < 0
 
     def test_oblique_chassis_in_an_open_corridor_does_not_turn(self) -> None:
@@ -91,7 +92,7 @@ class TestCornerTurn:
         """The gateway substitutes max range for a no-return; 23-26% of beams
         were max range in both 2026-08-06 bags. Counted as open track, one such
         beam in the arc would refuse every corner turn of the round."""
-        ranges, angles = _corridor(left_m=0.5, right_m=0.5, ahead_m=TURN_CLEARANCE_M - 0.1)
+        ranges, angles = _corridor(left_m=0.5, right_m=0.5, ahead_m=JUST_INSIDE_TURN_M)
         ranges[BEAMS // 2] = RobotSpecs.LIDAR_MAX_RANGE
         cmd = follow_corridor(ranges, angles, CREEP_SPEED)
         assert abs(cmd.steering_norm) == pytest.approx(_MAX_CENTERING_STEER)

@@ -20,7 +20,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from collections import Counter
@@ -28,9 +27,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
+from _bag_io import open_reader, read_nav_debug_rows
+from shared.config.constants import RobotSpecs
+from shared.domain.models import NavigatorDebugSnapshot
 
 from src.navigation.direction_estimator import (
     _MAX_IN_TRACK_RANGE_M,
@@ -40,10 +39,14 @@ from src.navigation.direction_estimator import (
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _wrap
 
 MIN_VOTES = 5
+# A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
+# told apart from the synthetic fill value substituted for a LIDAR dropout
+# (RobotSpecs.LIDAR_MAX_RANGE itself, published as *_range_m by the node).
+_MAX_RANGE_FILL_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 
 
 def settle(
-    rows: list[dict],
+    rows: list[tuple[float, NavigatorDebugSnapshot]],
     *,
     max_range: float,
     max_span: float,
@@ -53,13 +56,11 @@ def settle(
     """Replay the gate with these thresholds; return (time, direction, votes-cast)."""
     votes: Counter[str] = Counter()
     cast = 0
-    for row in rows:
-        left = row.get("direction_left_range_m")
-        right = row.get("direction_right_range_m")
-        yaw = row.get("pose_yaw")
-        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-            continue
-        if not isinstance(yaw, (int, float)):
+    for t, snap in rows:
+        left = snap.direction_left_range_m
+        right = snap.direction_right_range_m
+        yaw = snap.pose_yaw
+        if left is None or right is None or yaw is None:
             continue
         if left > max_range or right > max_range:
             continue
@@ -74,17 +75,17 @@ def settle(
         votes[inferred] += 1
         cast += 1
         if votes[inferred] >= MIN_VOTES:
-            return row["_t"], inferred, cast
+            return t, inferred, cast
     return None
 
 
-def true_direction(rows: list[dict]) -> tuple[str, float]:
+def true_direction(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> tuple[str, float]:
     """Winding sense of the pose trace about the mat centre (1.5, 1.5)."""
     total = 0.0
     prev = None
-    for row in rows:
-        x, y = row.get("pose_x"), row.get("pose_y")
-        if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+    for _, snap in rows:
+        x, y = snap.pose_x, snap.pose_y
+        if x is None or y is None:
             continue
         ang = math.atan2(y - 1.5, x - 1.5)
         if prev is not None:
@@ -99,23 +100,8 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-
-    t0 = None
-    rows: list[dict] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        if topic != "/nav_debug":
-            continue
-        p = json.loads(deserialize_message(data, String).data)
-        p["_t"] = (t - t0) / 1e9
-        rows.append(p)
+    reader = open_reader(args.bag_dir)
+    rows, _topics = read_nav_debug_rows(reader)
 
     truth, laps = true_direction(rows)
     print(f"== {args.bag_dir.name}  samples={len(rows)}")
@@ -124,11 +110,19 @@ def main() -> None:
     print("\nside-range population (both sides pooled):")
     pool = [
         v
-        for r in rows
-        for v in (r.get("direction_left_range_m"), r.get("direction_right_range_m"))
-        if isinstance(v, (int, float))
+        for _, snap in rows
+        for v in (snap.direction_left_range_m, snap.direction_right_range_m)
+        if v is not None
     ]
-    buckets = [(0, 0.5), (0.5, 1.0), (1.0, 1.25), (1.25, 2.0), (2.0, 4.5), (4.5, 11.9), (11.9, 99)]
+    buckets = [
+        (0, 0.5),
+        (0.5, 1.0),
+        (1.0, 1.25),
+        (1.25, 2.0),
+        (2.0, 4.5),
+        (4.5, _MAX_RANGE_FILL_M),
+        (_MAX_RANGE_FILL_M, 99),
+    ]
     for lo, hi in buckets:
         n = sum(1 for v in pool if lo <= v < hi)
         pct = 100.0 * n / len(pool) if pool else 0.0
@@ -136,16 +130,16 @@ def main() -> None:
 
     print("\nticks where exactly one side reads max-range (the rejected signal):")
     one_side_max = [
-        r
-        for r in rows
-        if isinstance(r.get("direction_left_range_m"), (int, float))
-        and isinstance(r.get("direction_right_range_m"), (int, float))
-        and (r["direction_left_range_m"] > 11.9) != (r["direction_right_range_m"] > 11.9)
+        snap
+        for _, snap in rows
+        if snap.direction_left_range_m is not None
+        and snap.direction_right_range_m is not None
+        and (snap.direction_left_range_m > _MAX_RANGE_FILL_M) != (snap.direction_right_range_m > _MAX_RANGE_FILL_M)
     ]
     print(f"  {len(one_side_max)} ticks")
     implied = Counter(
-        "counterclockwise" if r["direction_left_range_m"] > 11.9 else "clockwise"
-        for r in one_side_max
+        "counterclockwise" if snap.direction_left_range_m > _MAX_RANGE_FILL_M else "clockwise"
+        for snap in one_side_max
     )
     for name, count in implied.most_common():
         mark = "  <- matches pose" if name == truth else "  <- WRONG"

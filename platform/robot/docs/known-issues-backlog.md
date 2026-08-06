@@ -102,6 +102,12 @@ because the sector center ends up 180 deg away from where the test places it). L
 the real OLED front/left/right clearance display is rotated 180 deg from reality on hardware,
 the same class of bug the docstring says it was written to prevent.
 
+The diagnostic script `scripts/diag_corridor_measure.py:30` had the identical bug (same
+missing `LIDAR_INVERTED` term, same formula shape) -- fixed 2026-08-06 alongside the
+tests/scripts refactor pass, see
+`docs/internal/audits/2026-08-06-robot-tests-scripts-refactor.md`. The
+`telemetry_bridge_node.py` copy above is still open.
+
 ## Vision detection payload import path -- FIXED 2026-08-04
 
 `src/ros2/vision/node.py` imported `from src.vision.detection_payload_keys import (...)`

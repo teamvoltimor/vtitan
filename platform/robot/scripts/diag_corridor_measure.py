@@ -27,7 +27,9 @@ from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.navigation.corridor_estimator import measure_corridor_width
 
-_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+_OFFSET_RAD = math.radians(
+    (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
+)
 _BOUNDARY = (CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2.0
 
 
