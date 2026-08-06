@@ -27,7 +27,7 @@ from src.navigation.control.controllers import (
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
-from src.navigation.track_geometry import cross_track_error
+from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
@@ -551,7 +551,15 @@ class CoreNavigator:
         # mismatch produced slow, lazy cornering and weak centering on real
         # hardware once the steering law became curvature-based (2026-08-03).
         crosstrack = cross_track_error(self._waypoints, robot_x, robot_y)
-        lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack)
+        # Crosstrack alone arms the short lookahead only after a corner has
+        # been missed; the path's own upcoming turn arms it on entry. See
+        # select_lookahead's docstring for the hardware measurement behind it.
+        turn_ahead = path_turn_ahead(
+            self._waypoints,
+            self._waypoint_index,
+            self._tuning.pursuit.CORNER_PREVIEW_DISTANCE_M,
+        )
+        lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack, turn_ahead)
         # Full waypoint list, not a slice from _waypoint_index -- select_target_point
         # wraps the search around the lap itself now (see its docstring); slicing here
         # would cut that wraparound off right back out again.
@@ -653,6 +661,7 @@ class CoreNavigator:
         debug.escape_risk = escape_risk.value
         debug.crosstrack_error_m = crosstrack
         debug.lookahead_distance_m = lookahead_distance
+        debug.path_turn_ahead_rad = turn_ahead
         debug.steer_target_x = steer_target[0]
         debug.steer_target_y = steer_target[1]
         debug.angle_error_rad = angle_error

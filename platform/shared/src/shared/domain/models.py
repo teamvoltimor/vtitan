@@ -403,6 +403,10 @@ class NavigatorDebugSnapshot(BaseModel):
     # Path tracking -- set on the normal_drive phase.
     crosstrack_error_m: float | None = None
     lookahead_distance_m: float | None = None
+    # Heading change the planned path makes within the preview distance. Reads
+    # ~0 on a straight and rises before a corner, so a bag shows whether the
+    # short lookahead armed on entry or (as before 2026-08-06) a corner late.
+    path_turn_ahead_rad: float | None = None
     steer_target_x: float | None = None
     steer_target_y: float | None = None
     angle_error_rad: float | None = None

@@ -110,6 +110,67 @@ def cross_track_error(waypoints: list[tuple[float, float]], x: float, y: float) 
     return best
 
 
+_MIN_WAYPOINTS_FOR_TURN = 3
+"""Two waypoints are a single segment, which has no heading change to measure."""
+
+
+def path_turn_ahead(
+    waypoints: list[tuple[float, float]],
+    waypoint_index: int,
+    preview_distance_m: float,
+) -> float:
+    """Unsigned heading change the path makes within ``preview_distance_m``.
+
+    Measured forward from ``waypoint_index``. Near zero along a straight and roughly ``preview_distance / arc_radius``
+    approaching a corner, so it says "a corner is coming" *before* the robot
+    has begun to fall behind one. That is the distinction crosstrack error
+    cannot draw: crosstrack only rises once the turn has already been missed.
+
+    Walks the waypoint ring, so it reads correctly across the start/finish
+    seam rather than reporting a straight for the last few waypoints of a lap.
+
+    Args:
+        waypoints: The closed-loop planned path.
+        waypoint_index: Index the robot is currently working toward.
+        preview_distance_m: How far along the path to look.
+
+    Returns:
+        Unsigned heading change in radians, or 0.0 if the path is too short
+        to measure one.
+    """
+    count = len(waypoints)
+    if count < _MIN_WAYPOINTS_FOR_TURN or preview_distance_m <= 0.0:
+        return 0.0
+
+    start = waypoint_index % count
+    first_heading: float | None = None
+    last_heading: float | None = None
+    travelled = 0.0
+
+    for offset in range(count):
+        ax, ay = waypoints[(start + offset) % count]
+        bx, by = waypoints[(start + offset + 1) % count]
+        seg_len = math.hypot(bx - ax, by - ay)
+        if seg_len == 0.0:
+            continue
+        heading = math.atan2(by - ay, bx - ax)
+        if first_heading is None:
+            first_heading = heading
+        last_heading = heading
+        travelled += seg_len
+        if travelled >= preview_distance_m:
+            break
+
+    if first_heading is None or last_heading is None:
+        return 0.0
+    return abs(_wrap_angle(last_heading - first_heading))
+
+
+def _wrap_angle(angle: float) -> float:
+    """Wrap to [-pi, pi] so a turn through the +/-pi branch reads as small."""
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
 @dataclass(frozen=True, slots=True)
 class _Segment:
     """An axis-aligned wall face as a line segment (for LIDAR raycasting)."""

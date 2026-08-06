@@ -42,6 +42,9 @@ class WaypointController:
             the backend API) has somewhere to land without raising; changing
             it no longer has any effect.
         max_steering_rate: Maximum steering command rate (rad/s)
+        corner_turn_threshold_rad: Path heading change within the preview
+            distance above which the short lookahead engages regardless of
+            crosstrack error
     """
 
     def __init__(
@@ -53,6 +56,7 @@ class WaypointController:
         steer_kp: float = 1.2,
         max_steering_rate: float = 2.0,
         waypoint_reached_distance_m: float = 0.01,
+        corner_turn_threshold_rad: float = 0.35,
     ):
         """Initialize pure pursuit controller.
 
@@ -68,6 +72,8 @@ class WaypointController:
             max_steering_rate: Max steering rate (rad/s)
             waypoint_reached_distance_m: Distance below which the current
                 target waypoint is considered reached (m)
+            corner_turn_threshold_rad: Upcoming-turn threshold for engaging
+                the short lookahead (rad)
         """
         self.max_steering_angle = max_steering_angle
         self.lookahead_short = lookahead_short
@@ -76,6 +82,7 @@ class WaypointController:
         self.steer_kp = steer_kp
         self.max_steering_rate = max_steering_rate
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
+        self.corner_turn_threshold_rad = corner_turn_threshold_rad
         self._prev_steering_rad = 0.0
         # How much crosstrack the current path can absorb before the chassis
         # reaches an outer wall. None until a path is set, meaning
@@ -104,10 +111,11 @@ class WaypointController:
             steer_kp=tuning.pursuit.STEER_KP,
             max_steering_rate=tuning.pursuit.MAX_STEERING_RATE,
             waypoint_reached_distance_m=tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
+            corner_turn_threshold_rad=tuning.pursuit.CORNER_TURN_THRESHOLD_RAD,
         )
 
-    def select_lookahead(self, crosstrack_error: float) -> float:
-        """Select lookahead distance based on how far off-path the robot is.
+    def select_lookahead(self, crosstrack_error: float, turn_ahead_rad: float = 0.0) -> float:
+        """Select lookahead distance from off-path distance and upcoming turn.
 
         Was gated on forward LIDAR clearance instead, despite
         ``lookahead_transition``'s own name and config docstring already
@@ -134,13 +142,34 @@ class WaypointController:
         into the wall. The loop above is sound; it was armed past the point of
         no return.
 
+        Crosstrack is nonetheless a *lagging* signal -- it cannot rise until
+        the corner has already been missed -- so it is joined here by the
+        planned path's own upcoming turn, which is known in advance. On
+        hardware 2026-08-06 the robot sat at 0.9 rad of heading error for three
+        seconds commanding 0.23 of full lock, because it was still on-path
+        (crosstrack ~0.01) and so still on the long lookahead; the moment
+        crosstrack reached 0.13 the short lookahead armed and steering jumped
+        to 0.52. The magnitude was right and the timing was a corner late.
+        Previewing the turn arms the same response on entry instead.
+
+        Either signal alone shortens the lookahead. Curvature (``2y/L**2``) is
+        quadratic in lookahead, so halving it quadruples the commanded turn
+        without touching a gain -- which is why this is the lever rather than
+        ``STEER_KP``, whose removal fixed the 2026-08-03 oscillation.
+
         Args:
             crosstrack_error: Perpendicular distance from the planned path (metres)
+            turn_ahead_rad: Heading change the planned path makes within the
+                preview distance (see ``track_geometry.path_turn_ahead``).
+                Defaults to 0.0, i.e. "no corner known", which preserves the
+                pure crosstrack behaviour for callers that cannot supply it.
 
         Returns:
             Lookahead distance in meters
         """
         if crosstrack_error > self.effective_transition:
+            return self.lookahead_short
+        if turn_ahead_rad > self.corner_turn_threshold_rad:
             return self.lookahead_short
         return self.lookahead_long
 

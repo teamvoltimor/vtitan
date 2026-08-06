@@ -121,6 +121,19 @@ class PurePursuitParams(BaseModel):
             Without it a path planned very close to a wall would pin the
             controller to the short lookahead permanently, which is twitchy on
             straights -- trading one failure for another.
+        CORNER_PREVIEW_DISTANCE_M: How far along the planned path to look for
+            an upcoming turn. Crosstrack error is a lagging signal -- it cannot
+            rise until the corner has already been missed -- so gating the
+            lookahead on it alone means the sharp correction always arrives
+            after the corner. Measured on hardware 2026-08-06: the robot held
+            0.9 rad of heading error for three seconds at 0.23 of full lock,
+            and only once crosstrack reached 0.13 did the short lookahead arm
+            and steering jump to 0.52 -- the right magnitude, ~1.5 s late.
+        CORNER_TURN_THRESHOLD_RAD: Heading change within the preview distance
+            above which the corner is treated as imminent and the short
+            lookahead engages. A straight reads ~0; a corner on the default
+            0.45 m arc turns preview/0.45 rad, so 0.40 m of preview reads
+            ~0.89 rad. The default sits well clear of both.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -138,6 +151,12 @@ class PurePursuitParams(BaseModel):
     MIN_LOOKAHEAD_TRANSITION_M: float = Field(
         default=0.10, validation_alias=_alias("MIN_LOOKAHEAD_TRANSITION_M")
     )  # Floor for the derived threshold
+    CORNER_PREVIEW_DISTANCE_M: float = Field(
+        default=0.40, validation_alias=_alias("CORNER_PREVIEW_DISTANCE_M")
+    )  # Path distance previewed for an upcoming turn
+    CORNER_TURN_THRESHOLD_RAD: float = Field(
+        default=0.35, validation_alias=_alias("CORNER_TURN_THRESHOLD_RAD")
+    )  # Heading change over that preview that counts as a corner
 
 
 class SpeedControlParams(BaseModel):

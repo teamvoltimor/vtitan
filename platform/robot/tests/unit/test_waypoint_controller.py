@@ -212,3 +212,41 @@ class TestCrosstrackBudgetFromWallDistance:
         controller.set_crosstrack_budget(0.123)
 
         assert controller.select_lookahead(0.15) == pytest.approx(0.20)
+
+
+class TestUpcomingTurnArmsTheShortLookahead:
+    """Crosstrack error cannot rise until a corner has already been missed, so
+    gating on it alone lands the sharp correction after the corner. Measured on
+    hardware 2026-08-06: 0.9 rad of heading error held for three seconds at
+    0.23 of full lock while crosstrack sat near 0.01, then steering jumped to
+    0.52 the moment crosstrack reached 0.13 -- right magnitude, a corner late.
+    """
+
+    def _controller(self):
+        return _make_controller(
+            lookahead_transition=0.30,
+            lookahead_short=0.20,
+            lookahead_long=0.40,
+            corner_turn_threshold_rad=0.35,
+        )
+
+    def test_straight_ahead_keeps_the_long_lookahead(self):
+        """A straight must behave exactly as before -- a short lookahead there
+        is twitchy, which is the failure this trades against."""
+        assert self._controller().select_lookahead(0.01, turn_ahead_rad=0.0) == pytest.approx(0.40)
+
+    def test_corner_ahead_shortens_it_while_still_on_path(self):
+        # 0.40 m of preview on the default 0.45 m corner arc turns ~0.89 rad.
+        assert self._controller().select_lookahead(0.01, turn_ahead_rad=0.89) == pytest.approx(0.20)
+
+    def test_a_gentle_bend_is_not_treated_as_a_corner(self):
+        assert self._controller().select_lookahead(0.01, turn_ahead_rad=0.20) == pytest.approx(0.40)
+
+    def test_crosstrack_still_arms_it_with_no_turn_ahead(self):
+        """The lagging signal stays wired -- the new one is added, not swapped."""
+        assert self._controller().select_lookahead(0.35, turn_ahead_rad=0.0) == pytest.approx(0.20)
+
+    def test_omitting_the_turn_preserves_the_old_behaviour(self):
+        controller = self._controller()
+        assert controller.select_lookahead(0.01) == pytest.approx(0.40)
+        assert controller.select_lookahead(0.35) == pytest.approx(0.20)

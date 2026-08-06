@@ -14,3 +14,10 @@ max_steering_rate = 2.0       # Maximum steering command rate (rad/s)
 # could not fire before the wall arrived (hardware, 2026-08-06).
 wall_margin_safety_m = 0.03        # Clearance to leave between chassis and outer wall (m)
 min_lookahead_transition_m = 0.10  # Floor for the derived threshold (m)
+
+# Crosstrack error lags a corner: it cannot rise until the turn has already
+# been missed, so gating the lookahead on it alone lands the sharp correction
+# after the corner rather than in it (hardware, 2026-08-06). Previewing the
+# planned path's own turn arms the short lookahead on entry instead.
+corner_preview_distance_m = 0.40   # Path distance previewed for an upcoming turn (m)
+corner_turn_threshold_rad = 0.35   # Heading change over that preview that counts as a corner
