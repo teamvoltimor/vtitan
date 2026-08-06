@@ -73,6 +73,7 @@ def main() -> None:
             rel = r["_t"] - t_corner
             print(
                 f"   {rel:+5.1f}s xtrack={g(r, 'crosstrack_error_m')} "
+                f"turn={g(r, 'path_turn_ahead_rad')} "
                 f"look={g(r, 'lookahead_distance_m')} steer={g(r, 'commanded_steering_norm')} "
                 f"aerr={g(r, 'angle_error_rad')} spd={g(r, 'commanded_speed_mps')} "
                 f"fwd={g(r, 'forward_clearance_m')}"
@@ -90,6 +91,19 @@ def main() -> None:
         ]
         if xt and st:
             print(f"   => peak xtrack in the 8s after: {max(xt):.2f} m; peak |steer| through: {max(st):.2f}")
+
+        # The question the 2026-08-06 fix exists to answer: did the short
+        # lookahead arm on the way IN, or only once the corner had been run
+        # wide of? Anything but "before" means the preview fired too late.
+        armed = next(
+            (r["_t"] - t_corner for r in window if r.get("lookahead_distance_m") == 0.20),
+            None,
+        )
+        if armed is not None:
+            when = "before the corner" if armed < 0 else "after the corner"
+            print(f"   => short lookahead armed at {armed:+.1f}s ({when})")
+        else:
+            print("   => short lookahead never armed through this corner")
 
 
 if __name__ == "__main__":

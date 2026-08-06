@@ -138,8 +138,24 @@ def main() -> None:
             f"  {r['_t']:6.1f}s lap={r.get('laps_completed')} corr={str(r.get('current_corridor')):6} "
             f"N/S/E/W={g('belief_north_m')}/{g('belief_south_m')}/{g('belief_east_m')}/{g('belief_west_m')} "
             f"width={g('corridor_width_belief_m')} xtrack={g('crosstrack_error_m')} "
+            f"turn={g('path_turn_ahead_rad')} "
             f"look={g('lookahead_distance_m')} steer={g('commanded_steering_norm')} "
             f"spd={g('commanded_speed_mps')}"
+        )
+
+    # Which signal actually armed the short lookahead. Before 2026-08-06 only
+    # crosstrack could, and it cannot rise until the corner is already missed;
+    # a healthy run should show the turn preview arming most of them.
+    short = [
+        r
+        for r in rows
+        if r.get("lookahead_distance_m") == 0.20 and isinstance(r.get("crosstrack_error_m"), (int, float))
+    ]
+    if short:
+        by_turn = sum(1 for r in short if (r.get("path_turn_ahead_rad") or 0.0) > 0.35)
+        print(
+            f"\nshort-lookahead ticks: {len(short)}  armed by turn preview: {by_turn} "
+            f"({by_turn / len(short):.0%})  by crosstrack alone: {len(short) - by_turn}"
         )
 
     # Speed headroom.
