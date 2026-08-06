@@ -164,3 +164,51 @@ class TestSelectTargetPointWrapsAndStaysAhead:
         )
 
         assert target == (0.1, 0.0)  # nearest point that is still ahead
+
+
+class TestCrosstrackBudgetFromWallDistance:
+    """The crosstrack threshold must not exceed what the path can afford.
+
+    ``lookahead_transition`` is a fixed 0.30 m, which assumes the path has that
+    much room to drift into before a wall. Under the blind narrow prior it does
+    not: a corridor believed 0.60 puts the path ~0.25-0.30 m from the outer
+    wall and the chassis half-width takes 0.097 of that. Measured on hardware
+    2026-08-06, crosstrack ran 0.09 -> 0.15 through a corner and never crossed
+    0.30, so the short lookahead never engaged and the robot drove to within
+    0.10 m of the wall.
+    """
+
+    def test_defaults_to_the_configured_transition(self):
+        controller = _make_controller(lookahead_transition=0.30)
+        assert controller.effective_transition == pytest.approx(0.30)
+
+    def test_a_tight_budget_lowers_the_threshold(self):
+        controller = _make_controller(lookahead_transition=0.30)
+        controller.set_crosstrack_budget(0.123)
+        assert controller.effective_transition == pytest.approx(0.123)
+
+    def test_a_generous_budget_does_not_raise_it(self):
+        """A wide corridor must behave exactly as before, not steer twitchier."""
+        controller = _make_controller(lookahead_transition=0.30)
+        controller.set_crosstrack_budget(0.373)
+        assert controller.effective_transition == pytest.approx(0.30)
+
+    def test_clearing_the_budget_restores_the_configured_value(self):
+        controller = _make_controller(lookahead_transition=0.30)
+        controller.set_crosstrack_budget(0.10)
+        controller.set_crosstrack_budget(None)
+        assert controller.effective_transition == pytest.approx(0.30)
+
+    def test_short_lookahead_engages_within_the_budget(self):
+        """The point of the whole thing: 0.15 m of crosstrack must arm the
+        correction on a wall-hugging path, where it previously did not."""
+        controller = _make_controller(
+            lookahead_transition=0.30,
+            lookahead_short=0.20,
+            lookahead_long=0.40,
+        )
+        assert controller.select_lookahead(0.15) == pytest.approx(0.40)
+
+        controller.set_crosstrack_budget(0.123)
+
+        assert controller.select_lookahead(0.15) == pytest.approx(0.20)

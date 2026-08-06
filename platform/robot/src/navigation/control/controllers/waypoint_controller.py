@@ -77,6 +77,10 @@ class WaypointController:
         self.max_steering_rate = max_steering_rate
         self.waypoint_reached_distance_m = waypoint_reached_distance_m
         self._prev_steering_rad = 0.0
+        # How much crosstrack the current path can absorb before the chassis
+        # reaches an outer wall. None until a path is set, meaning
+        # ``lookahead_transition`` stands unmodified.
+        self._crosstrack_budget_m: float | None = None
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning) -> WaypointController:
@@ -121,15 +125,43 @@ class WaypointController:
         lookahead, which increases the commanded curvature, which corrects the
         error back down.
 
+        The threshold is the smaller of ``lookahead_transition`` and what the
+        path itself can afford (see :meth:`set_crosstrack_budget`). The fixed
+        value silently assumes at least 0.30 m of room to drift into, which the
+        blind narrow prior does not leave: measured on hardware 2026-08-06,
+        crosstrack ran 0.09 -> 0.15 through a corner and never crossed 0.30, so
+        the lookahead stayed long and the curvature stayed weak the whole way
+        into the wall. The loop above is sound; it was armed past the point of
+        no return.
+
         Args:
             crosstrack_error: Perpendicular distance from the planned path (metres)
 
         Returns:
             Lookahead distance in meters
         """
-        if crosstrack_error > self.lookahead_transition:
+        if crosstrack_error > self.effective_transition:
             return self.lookahead_short
         return self.lookahead_long
+
+    @property
+    def effective_transition(self) -> float:
+        """The crosstrack threshold actually in force, after the wall budget."""
+        if self._crosstrack_budget_m is None:
+            return self.lookahead_transition
+        return min(self.lookahead_transition, self._crosstrack_budget_m)
+
+    def set_crosstrack_budget(self, budget_m: float | None) -> None:
+        """Declare how far this path may be strayed from before a wall is hit.
+
+        Only ever tightens the threshold -- a path with room to spare keeps
+        ``lookahead_transition``, so nothing changes on a confirmed-wide
+        corridor. Pass ``None`` to drop back to the configured value.
+
+        Args:
+            budget_m: Crosstrack error (m) the path can absorb, or None.
+        """
+        self._crosstrack_budget_m = budget_m
 
     def select_target_point(
         self,

@@ -4,6 +4,13 @@
 
 lookahead_short = 0.20        # Lookahead distance for sharp corners (m)
 lookahead_long = 0.40         # Lookahead distance for straights (m)
-lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m)
+lookahead_transition = 0.30   # Crosstrack error threshold to switch modes (m) -- a ceiling; see below
 steer_kp = 1.2                # Proportional gain for the steering P-controller
 max_steering_rate = 2.0       # Maximum steering command rate (rad/s)
+
+# The operative crosstrack threshold is the smaller of lookahead_transition and
+# what the path's own distance to the outer wall actually affords. Under the
+# blind narrow prior the fixed 0.30 exceeded that budget, so the correction
+# could not fire before the wall arrived (hardware, 2026-08-06).
+wall_margin_safety_m = 0.03        # Clearance to leave between chassis and outer wall (m)
+min_lookahead_transition_m = 0.10  # Floor for the derived threshold (m)

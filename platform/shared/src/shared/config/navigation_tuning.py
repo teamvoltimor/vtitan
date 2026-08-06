@@ -100,9 +100,27 @@ class PurePursuitParams(BaseModel):
     Attributes:
         LOOKAHEAD_SHORT: Lookahead distance for sharp corners (m)
         LOOKAHEAD_LONG: Lookahead distance for straights (m)
-        LOOKAHEAD_TRANSITION: Crosstrack error threshold to switch modes (m)
+        LOOKAHEAD_TRANSITION: Crosstrack error threshold to switch modes (m).
+            A ceiling, not the operative value -- see WALL_MARGIN_SAFETY_M.
         STEER_KP: Proportional gain for steering P-controller
         MAX_STEERING_RATE: Maximum steering command rate (rad/s)
+        WALL_MARGIN_SAFETY_M: Clearance (m) to leave between the chassis and an
+            outer wall when deciding how much crosstrack error the robot can
+            afford before the short lookahead must engage.
+
+            LOOKAHEAD_TRANSITION alone is a fixed 0.30 m, which silently
+            assumes the path has at least that much room to drift into. Under
+            the blind narrow prior it does not: a corridor believed 0.60 puts
+            the path ~0.25-0.30 m from the outer wall, and the chassis
+            half-width takes 0.097 of that, leaving 0.15-0.20 m of real
+            budget. The correction was therefore armed to fire only after the
+            wall had already been reached -- measured on hardware 2026-08-06 as
+            crosstrack running 0.09 -> 0.15 through a corner while never
+            crossing 0.30, with the robot ending up 0.10 m from the wall.
+        MIN_LOOKAHEAD_TRANSITION_M: Floor (m) for that derived threshold.
+            Without it a path planned very close to a wall would pin the
+            controller to the short lookahead permanently, which is twitchy on
+            straights -- trading one failure for another.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -114,6 +132,12 @@ class PurePursuitParams(BaseModel):
     )  # Crosstrack threshold
     STEER_KP: float = Field(default=1.2, validation_alias=_alias("STEER_KP"))  # Steering P-gain
     MAX_STEERING_RATE: float = Field(default=2.0, validation_alias=_alias("MAX_STEERING_RATE"))  # rad/s
+    WALL_MARGIN_SAFETY_M: float = Field(
+        default=0.03, validation_alias=_alias("WALL_MARGIN_SAFETY_M")
+    )  # Kept clear of an outer wall
+    MIN_LOOKAHEAD_TRANSITION_M: float = Field(
+        default=0.10, validation_alias=_alias("MIN_LOOKAHEAD_TRANSITION_M")
+    )  # Floor for the derived threshold
 
 
 class SpeedControlParams(BaseModel):

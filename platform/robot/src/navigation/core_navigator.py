@@ -12,7 +12,7 @@ import math
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CompetitionSpecs, RobotSpecs
+from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot
@@ -120,6 +120,7 @@ class CoreNavigator:
             max_steering_rate=self._tuning.pursuit.MAX_STEERING_RATE,
             waypoint_reached_distance_m=self._tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
         )
+        self._apply_path_wall_budget()
 
         self._collision_controller = CollisionAvoidanceController(
             contact_dist=self._tuning.clearance.CONTACT_DIST,
@@ -165,6 +166,30 @@ class CoreNavigator:
     def sign_router(self) -> SignRouter | None:
         """The traffic-sign router, or None outside the Obstacles Challenge."""
         return self._sign_router
+
+    def _apply_path_wall_budget(self) -> None:
+        """Tell the pursuit controller how much drift this path can absorb.
+
+        Measured off the mat's outer walls rather than the corridor-width
+        belief, deliberately. WRO moves the inner walls between rounds but the
+        mat's own edges are fixed, so the distance from a waypoint to the
+        nearest edge is knowable without believing anything -- and it is the
+        outer wall the robot keeps hitting, because an under-estimated corridor
+        width biases the planned path toward it (narrow belief -> path at
+        ~0.30 where the true centre is 0.50). Deriving the budget from the
+        belief instead would make it wrong in exactly the rounds it matters.
+
+        Subtracts the chassis half-width, since the budget is how far the
+        *body* may stray, not its centreline.
+        """
+        if not self._waypoints:
+            return
+        mat = TrackDimensions.MAX_COORD
+        clearance = min(min(x, mat - x, y, mat - y) for x, y in self._waypoints)
+        budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.WALL_MARGIN_SAFETY_M
+        self._waypoint_controller.set_crosstrack_budget(
+            max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),
+        )
 
     def replace_path(
         self,
@@ -213,6 +238,7 @@ class CoreNavigator:
         """
         previous_index = self._waypoint_index
         self._waypoints = waypoints
+        self._apply_path_wall_budget()
         robot_x, robot_y = robot_xy
         distances = [math.hypot(wx - robot_x, wy - robot_y) for wx, wy in waypoints]
         nearest_index = min(range(len(waypoints)), key=lambda i: distances[i])
