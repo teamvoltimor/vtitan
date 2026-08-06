@@ -707,7 +707,7 @@ class CoreNavigator:
         debug.commanded_steering_norm = maneuver.steering
         self._debug = debug
 
-    def _escape_steer_sign_for_attempt(self) -> float:
+    def _escape_steer_sign_for_attempt(self, first_attempt: int = 1, start_sign: float | None = None) -> float:
         """Which side this escape attempt swings toward.
 
         Derived from ``_escape_count`` rather than flipped in place, so a side
@@ -723,10 +723,21 @@ class CoreNavigator:
 
         ``_escape_steer_sign`` is the base side, not a running toggle -- the
         blocks alternate around it.
+
+        Args:
+            first_attempt: The ``_escape_count`` at which this caller's sequence
+                begins, so its blocks line up with it. Anchoring every caller at
+                1 instead leaves whichever attempt a caller actually starts on
+                stranded mid-block, and a block of one is the alternating
+                behaviour this exists to stop.
+            start_sign: Side for the sequence's first block, defaulting to the
+                base. Escalation passes the opposite, since switching sides is
+                the point of escalating.
         """
+        base = self._escape_steer_sign if start_sign is None else start_sign
         commit = max(1, self._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS)
-        block = max(0, self._escape_count - 1) // commit
-        return self._escape_steer_sign if block % 2 == 0 else -self._escape_steer_sign
+        block = max(0, self._escape_count - first_attempt) // commit
+        return base if block % 2 == 0 else -base
 
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
@@ -737,7 +748,11 @@ class CoreNavigator:
         """
         if self._escape_count <= self._tuning.escape.ESCALATE_AFTER_ATTEMPTS:
             return maneuver
-        steering = abs(maneuver.steering) * self._escape_steer_sign_for_attempt() if maneuver.steering else 0.0
+        side = self._escape_steer_sign_for_attempt(
+            first_attempt=self._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1,
+            start_sign=-self._escape_steer_sign,
+        )
+        steering = abs(maneuver.steering) * side if maneuver.steering else 0.0
         return replace(
             maneuver,
             steering=steering,

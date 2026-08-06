@@ -394,6 +394,9 @@ class TestEscapeEscalation:
         assert len(set(signs[:commit])) == 1, f"first {commit} attempts must share a side, got {signs}"
         assert len(set(signs[commit:])) == 1, f"next {commit} attempts must share a side, got {signs}"
         assert signs[0] == -signs[commit], f"the two blocks must be opposite sides, got {signs}"
+        assert signs[0] == -nav._escape_steer_sign, (
+            f"escalation must start on the side opposite the one that just failed, got {signs}"
+        )
 
     def test_duration_caps_at_max_escape_frames(self, waypoints):
         nav = self._navigator(waypoints)

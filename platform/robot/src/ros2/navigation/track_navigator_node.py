@@ -44,9 +44,10 @@ from src.navigation.direction_estimator import (
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
-from src.navigation.ports import DriveCommand
+from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
+from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
@@ -224,6 +225,9 @@ class TrackNavigator(Node, ResettableNode):
         self._direction_estimator = DirectionEstimator() if self._blind else None
         self._direction_gate_log_counter = 0
         self._creep_widths: list[tuple[float, float]] = []
+        # Set once direction inference settles; None until then, and left
+        # None for a scan the measurement refused (see _commit_direction).
+        self._measured_start: MeasuredStart | None = None
         self._creep_speed = tuning.speed.SLOW_SPEED
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
@@ -407,7 +411,7 @@ class TrackNavigator(Node, ResettableNode):
         if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
             inferred = estimator.direction
             if inferred is not None:
-                self._commit_direction(inferred, pose)
+                self._commit_direction(inferred, pose, scan)
             return False
 
         verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw)
@@ -503,8 +507,15 @@ class TrackNavigator(Node, ResettableNode):
             Section.WEST: g.west_width_m,
         }
 
-    def _commit_direction(self, inferred: Direction, pose: Pose) -> None:
-        """Adopt the inferred direction and rebuild everything derived from it."""
+    def _commit_direction(self, inferred: Direction, pose: Pose, scan: LidarScan) -> None:
+        """Adopt the inferred direction and rebuild everything derived from it.
+
+        Args:
+            inferred: The travel direction LIDAR inference settled on.
+            pose: Pose as read before any of this method's corrections land.
+            scan: The scan inference settled on, reused to measure where the
+                robot actually is rather than assume it.
+        """
         previous = self._direction
         changed = inferred is not previous
         self._direction = inferred
@@ -530,6 +541,42 @@ class TrackNavigator(Node, ResettableNode):
                 )
             self._creep_widths.clear()
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
+
+        # Read the starting pose off the track rather than asserting it. The
+        # assumed start is the middle of the mat's side, which is not even a
+        # legal placement -- the marked square's two cells are centred at 1.25
+        # and 1.75, so the assumption sits exactly on the boundary between
+        # them. Measured against three real rounds this recovers the true pose
+        # to within 5 cm where the assumption was out by 0.35-0.80 m, and the
+        # 0.80 m case is the one that drove into a wall with 0.69 m of track
+        # ahead while planning for 1.5 m. See src/navigation/start_measurement.py.
+        #
+        # Done here rather than at the button press because the measurement
+        # needs the travel direction (it decides which way "ahead" points and
+        # which side the outer wall is on), and this is the moment that becomes
+        # known. It reads the current scan, so it yields where the robot is
+        # *now* -- the creep displacement this method used to discard is simply
+        # never introduced.
+        measured = measure_start_pose(scan.ranges_m, scan.angles_rad, inferred, self._start_section)
+        seed_xy = (measured.x, measured.y) if measured is not None else self._start_xy
+        if measured is None:
+            # Refusing to guess. Opposite rays that do not span the mat mean
+            # something is standing in one of them -- an operator still over
+            # the robot is the ordinary case -- and a measurement taken through
+            # an obstruction is worse than none. Falling back to the assumption
+            # keeps the previous behaviour rather than adding a new failure.
+            self.get_logger().warning(
+                "Start pose could not be measured from the scan (blocked ray, or not on the track) - "
+                "falling back to the assumed start, which is only ever approximately right",
+            )
+        else:
+            self.get_logger().info(
+                f"Start pose measured: ({measured.x:.2f}, {measured.y:.2f}), "
+                f"{measured.distance_ahead_m:.2f} m of track ahead, "
+                f"assumed was ({self._start_xy[0]:.2f}, {self._start_xy[1]:.2f})",
+            )
+        self._measured_start = measured
+
         if changed:
             # assumed_start_conditions paired a starting yaw with whichever
             # direction was assumed at construction (the two travel-direction
@@ -564,23 +611,33 @@ class TrackNavigator(Node, ResettableNode):
             # displacement being discarded is at most ~0.2m -- far smaller
             # than the corruption it replaces. See
             # docs/known-issues-backlog.md.
-            self._gateway.reset_position(*self._start_xy)
+            self._gateway.reset_position(*seed_xy)
             # ``pose`` was read from the gateway before the corrections above
             # landed, so it still carries the old, now-stale yaw and position
             # -- replan below with the corrected values or the heading-aware
             # reseek in replace_path would use the wrong heading, and resync
             # against a position replace_path won't have caught up to yet.
-            pose = Pose(x=self._start_xy[0], y=self._start_xy[1], yaw=_wrap(pose.yaw + heading_delta))
+            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=_wrap(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted.
             self._core_navigator.replace_lap_detector(
                 LapDetector(
-                    start_pos=(self._start_xy),
+                    start_pos=seed_xy,
                     start_section=self._start_section,
                     direction=inferred,
                 ),
             )
             self._core_navigator.set_travel_direction(inferred)
+        elif measured is not None:
+            # Same correction, for the direction that was assumed correctly.
+            # This branch used to do nothing at all, so a run whose inference
+            # agreed with the launch default kept the assumed start for the
+            # whole race -- measured on the 2026-08-05 clockwise round as a
+            # standing 0.35 m error that the localizer's local search can never
+            # remove. That round finished, so the error was invisible; it is
+            # the same error that ends a counterclockwise round against a wall.
+            self._gateway.reset_position(*seed_xy)
+            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=pose.yaw)
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
@@ -709,6 +766,9 @@ class TrackNavigator(Node, ResettableNode):
         # known to be sitting at its starting pose, so "the heading it has now"
         # and "the heading those readings were taken at" are the same.
         self._creep_widths = [(0.0, width) for _, width in self._creep_widths]
+        # Belongs to the round that just ended: the robot is picked up and put
+        # down between rounds, so the next one measures its own.
+        self._measured_start = None
 
         self._direction = self._initial_direction
         if self._blind:
@@ -782,6 +842,11 @@ class TrackNavigator(Node, ResettableNode):
                 self._latest_debug.belief_south_m = believed.get(Section.SOUTH)
                 self._latest_debug.belief_east_m = believed.get(Section.EAST)
                 self._latest_debug.belief_west_m = believed.get(Section.WEST)
+            if self._measured_start is not None:
+                self._latest_debug.start_measured_x = self._measured_start.x
+                self._latest_debug.start_measured_y = self._measured_start.y
+                self._latest_debug.start_measurement_ahead_m = self._measured_start.distance_ahead_m
+                self._latest_debug.start_measured_corridor_width_m = self._measured_start.corridor_width_m
             localizer_inputs = self._gateway.get_localizer_inputs()
             if localizer_inputs is not None:
                 yaw, prior_x, prior_y = localizer_inputs

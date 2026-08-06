@@ -462,3 +462,16 @@ class NavigatorDebugSnapshot(BaseModel):
     localizer_input_yaw_rad: float | None = None
     localizer_prior_x: float | None = None
     localizer_prior_y: float | None = None
+
+    # Where the robot measured itself to be when direction inference settled,
+    # against where it had assumed it was. The 2026-08-05 rounds were lost to a
+    # start that was asserted rather than observed -- 0.69 m of track ahead
+    # while planning for 1.5 m -- and nothing in the bag showed it, because a
+    # pose the robot never doubted looks identical to a correct one.
+    # ``start_measurement_ahead_m`` is the number that would have shown it.
+    # All None on a scan the measurement refused, which is itself the signal
+    # that the robot was obstructed or not on the track.
+    start_measured_x: float | None = None
+    start_measured_y: float | None = None
+    start_measurement_ahead_m: float | None = None
+    start_measured_corridor_width_m: float | None = None

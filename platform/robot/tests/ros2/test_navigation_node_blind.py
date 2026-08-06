@@ -25,6 +25,25 @@ from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
 from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node, ros_context
 
+
+def _scan_at(x: float, y: float, yaw: float) -> LidarScan:
+    """A scan as it would be taken standing at a known pose on the believed layout.
+
+    _commit_direction now measures the start pose off the scan instead of
+    assuming it, so these tests have to hand it a scan that describes a real
+    place on the track rather than an empty one.
+    """
+    from shared.config.constants import RobotSpecs
+
+    from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
+
+    walls = TrackWalls(corridor_geometry_from_widths(_WIDTHS))
+    angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
+    return LidarScan(
+        ranges_m=tuple(walls.raycast(x, y, yaw, angles).tolist()),
+        angles_rad=tuple(angles.tolist()),
+    )
+
 _NARROW = CorridorDimensions.NARROW
 _WIDE = CorridorDimensions.WIDE
 
@@ -283,7 +302,9 @@ class TestBlindImpliesDirectionInference:
         navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
         try:
             before = list(navigator._core_navigator._waypoints)
-            navigator._commit_direction(Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0))
+            navigator._commit_direction(
+                Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0), _scan_at(1.25, 0.5, 0.0)
+            )
             assert navigator._direction is Direction.COUNTERCLOCKWISE
             # The lap is now driven the other way round, so the path differs.
             assert list(navigator._core_navigator._waypoints) != before
@@ -312,7 +333,9 @@ class TestBlindImpliesDirectionInference:
             before_yaw = navigator._gateway.get_current_pose().yaw
             assert before_yaw == pytest.approx(math.pi)
 
-            navigator._commit_direction(Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=before_yaw))
+            navigator._commit_direction(
+                Direction.COUNTERCLOCKWISE, Pose(x=1.5, y=0.25, yaw=before_yaw), _scan_at(1.25, 0.5, 0.0)
+            )
 
             after_yaw = navigator._gateway.get_current_pose().yaw
             assert after_yaw == pytest.approx(0.0, abs=1e-9)
@@ -344,10 +367,16 @@ class TestBlindImpliesDirectionInference:
             drifted_pose = navigator._gateway.get_current_pose()
             assert (drifted_pose.x, drifted_pose.y) == pytest.approx((0.9, 0.1))
 
-            navigator._commit_direction(Direction.COUNTERCLOCKWISE, drifted_pose)
+            navigator._commit_direction(Direction.COUNTERCLOCKWISE, drifted_pose, _scan_at(1.25, 0.5, 0.0))
 
+            # Re-seeded to where the scan says the robot is, not to the assumed
+            # start: the assumption is never exactly right (it names a point on
+            # the boundary between the two legal start cells), so discarding the
+            # creep's corruption in favour of a measurement is strictly better
+            # than discarding it in favour of a different guess.
             pose = navigator._gateway.get_current_pose()
-            assert (pose.x, pose.y) == pytest.approx(navigator._start_xy)
+            assert (pose.x, pose.y) == pytest.approx((1.25, 0.5), abs=0.03)
+            assert (pose.x, pose.y) != pytest.approx((0.9, 0.1), abs=0.05)
         finally:
             navigator.destroy_node()
 
@@ -479,7 +508,9 @@ class TestResolveDirection:
             ):
                 result = navigator._resolve_direction()
             assert result is False
-            commit_mock.assert_called_once_with(Direction.COUNTERCLOCKWISE, pose)
+            # The scan is passed through too: the commit measures the start
+            # pose off it rather than assuming one.
+            commit_mock.assert_called_once_with(Direction.COUNTERCLOCKWISE, pose, _STRAIGHT_SCAN)
         finally:
             navigator.destroy_node()
 
@@ -494,7 +525,9 @@ class TestCommitDirectionFlushesBufferedWidths:
         try:
             navigator._creep_widths = [(0.0, 1.0), (0.01, 0.62)]
             with mock.patch.object(navigator._width_estimator, "observe_measurement") as observe_mock:
-                navigator._commit_direction(Direction.CLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0))
+                navigator._commit_direction(
+                    Direction.CLOCKWISE, Pose(x=1.5, y=0.25, yaw=0.0), _scan_at(1.25, 0.5, math.pi)
+                )
             assert observe_mock.call_count == 2
             assert navigator._creep_widths == []
         finally:
