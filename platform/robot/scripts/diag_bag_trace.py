@@ -7,16 +7,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
+from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
 
 
 def _f(value: object, spec: str = "6.3f") -> str:
@@ -31,18 +29,14 @@ def main() -> None:
     parser.add_argument("--cmd", action="store_true", help="also print /ackermann_cmd rows")
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
+    reader = open_reader(args.bag_dir)
 
     t_start = None
     while reader.has_next():
         topic, data, t = reader.read_next()
         if t_start is None:
             t_start = t
-        ts = (t - t_start) / 1e9
+        ts = elapsed_seconds(t, t_start)
         if not (args.start <= ts <= args.until):
             continue
         if topic == "/ackermann_cmd" and args.cmd:
@@ -51,12 +45,12 @@ def main() -> None:
             continue
         if topic != "/nav_debug":
             continue
-        p = json.loads(deserialize_message(data, String).data)
+        snap = decode_nav_debug(data)
         print(
-            f"{ts:7.2f}s {p.get('phase')!s:22} pose=({_f(p.get('pose_x'))},{_f(p.get('pose_y'))},{_f(p.get('pose_yaw'))}) "
-            f"fwd={_f(p.get('forward_clearance_m'))} risk={p.get('risk')!s:9} erisk={p.get('escape_risk')!s:9} "
-            f"corr={p.get('current_corridor')!s:6} cmd_v={_f(p.get('commanded_speed_mps'))} "
-            f"cmd_s={_f(p.get('commanded_steering_norm'))} esc={p.get('escape_count')!s:4} stuck={p.get('stuck_count')!s:4}",
+            f"{ts:7.2f}s {snap.phase!s:22} pose=({_f(snap.pose_x)},{_f(snap.pose_y)},{_f(snap.pose_yaw)}) "
+            f"fwd={_f(snap.forward_clearance_m)} risk={snap.risk!s:9} erisk={snap.escape_risk!s:9} "
+            f"corr={snap.current_corridor!s:6} cmd_v={_f(snap.commanded_speed_mps)} "
+            f"cmd_s={_f(snap.commanded_steering_norm)} esc={snap.escape_count!s:4} stuck={snap.stuck_count!s:4}",
         )
 
 

@@ -11,15 +11,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
+from _bag_io import open_reader, read_nav_debug_rows
 
 
 def _f(value: object, spec: str = "6.3f") -> str:
@@ -34,31 +31,22 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=0.0)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
+    reader = open_reader(args.bag_dir)
+    rows, _topics = read_nav_debug_rows(reader)
 
-    t_start = None
     next_print = args.start
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t_start is None:
-            t_start = t
-        ts = (t - t_start) / 1e9
-        if topic != "/nav_debug" or not (args.start <= ts <= args.until) or ts < next_print:
+    for ts, snap in rows:
+        if not (args.start <= ts <= args.until) or ts < next_print:
             continue
         next_print += args.every
-        p = json.loads(deserialize_message(data, String).data)
         print(
-            f"{ts:6.2f}s wp={p.get('waypoint_index')!s:4} corr={p.get('current_corridor')!s:6} "
-            f"pose=({_f(p.get('pose_x'))},{_f(p.get('pose_y'))},{_f(p.get('pose_yaw'))}) "
-            f"tgt=({_f(p.get('steer_target_x'))},{_f(p.get('steer_target_y'))}) "
-            f"aerr={_f(p.get('angle_error_rad'))} xtrack={_f(p.get('crosstrack_error_m'))} "
-            f"look={_f(p.get('lookahead_distance_m'))} steer={_f(p.get('commanded_steering_norm'))} "
-            f"belief N/S/E/W={_f(p.get('belief_north_m'), '5.2f')}/{_f(p.get('belief_south_m'), '5.2f')}/"
-            f"{_f(p.get('belief_east_m'), '5.2f')}/{_f(p.get('belief_west_m'), '5.2f')}",
+            f"{ts:6.2f}s wp={snap.waypoint_index!s:4} corr={snap.current_corridor!s:6} "
+            f"pose=({_f(snap.pose_x)},{_f(snap.pose_y)},{_f(snap.pose_yaw)}) "
+            f"tgt=({_f(snap.steer_target_x)},{_f(snap.steer_target_y)}) "
+            f"aerr={_f(snap.angle_error_rad)} xtrack={_f(snap.crosstrack_error_m)} "
+            f"look={_f(snap.lookahead_distance_m)} steer={_f(snap.commanded_steering_norm)} "
+            f"belief N/S/E/W={_f(snap.belief_north_m, '5.2f')}/{_f(snap.belief_south_m, '5.2f')}/"
+            f"{_f(snap.belief_east_m, '5.2f')}/{_f(snap.belief_west_m, '5.2f')}",
         )
 
 

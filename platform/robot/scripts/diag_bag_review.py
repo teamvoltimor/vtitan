@@ -18,35 +18,30 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
+from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
 from rclpy.serialization import deserialize_message
+from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
 
 
-def _read(bag_dir: Path) -> tuple[list[tuple[float, dict]], list[tuple[float, str]]]:
+def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], list[tuple[float, str]]]:
     """Return (nav_debug ticks, robot_state transitions), both stamped from bag start."""
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-    ticks: list[tuple[float, dict]] = []
+    reader = open_reader(bag_dir)
+    ticks: list[tuple[float, NavigatorDebugSnapshot]] = []
     states: list[tuple[float, str]] = []
-    t0: float | None = None
+    t0: int | None = None
     while reader.has_next():
         topic, data, stamp = reader.read_next()
-        t = stamp / 1e9
         if t0 is None:
-            t0 = t
-        rel = t - t0
+            t0 = stamp
+        rel = elapsed_seconds(stamp, t0)
         if topic.endswith("nav_debug"):
-            ticks.append((rel, json.loads(deserialize_message(data, String).data)))
+            ticks.append((rel, decode_nav_debug(data)))
         elif topic.endswith("robot_state"):
             value = deserialize_message(data, String).data
             if not states or states[-1][1] != value:
@@ -58,19 +53,17 @@ def _fmt(value: object, spec: str = ".3f") -> str:
     return "None" if value is None else format(value, spec)
 
 
-def _print_slowdowns(driving: list[tuple[float, dict]], slow_below: float) -> None:
+def _print_slowdowns(driving: list[tuple[float, NavigatorDebugSnapshot]], slow_below: float) -> None:
     """Report every slow tick, attributed to whichever limiter produced it."""
     print(f"\n--- slowdowns (commanded < {slow_below} m/s while racing) ---")
-    slow = [(t, d) for t, d in driving if (d.get("commanded_speed_mps") or 1.0) < slow_below]
+    slow = [(t, d) for t, d in driving if (d.commanded_speed_mps or 1.0) < slow_below]
     print(f"  {len(slow)} of {len(driving)} driving ticks")
     if not slow:
         return
     by_clearance = sum(
         1
         for _, d in slow
-        if d.get("clearance_speed_mps") is not None
-        and d.get("heading_speed_mps") is not None
-        and d["clearance_speed_mps"] <= d["heading_speed_mps"]
+        if d.clearance_speed_mps is not None and d.heading_speed_mps is not None and d.clearance_speed_mps <= d.heading_speed_mps
     )
     print(f"  limited by clearance: {by_clearance}   by heading: {len(slow) - by_clearance}")
     print("  worst 8 ticks:")
@@ -78,12 +71,12 @@ def _print_slowdowns(driving: list[tuple[float, dict]], slow_below: float) -> No
         f"    {'t':>7} {'speed':>7} {'clear_v':>8} {'head_v':>7} "
         f"{'fwd_clr':>8} {'min_rng':>8} {'xtrack':>7} {'risk':>10} {'phase':>14}"
     )
-    for t, d in sorted(slow, key=lambda p: p[1].get("commanded_speed_mps") or 0.0)[:8]:
+    for t, d in sorted(slow, key=lambda p: p[1].commanded_speed_mps or 0.0)[:8]:
         print(
-            f"    {t:7.1f} {_fmt(d.get('commanded_speed_mps')):>7} "
-            f"{_fmt(d.get('clearance_speed_mps')):>8} {_fmt(d.get('heading_speed_mps')):>7} "
-            f"{_fmt(d.get('forward_clearance_m')):>8} {_fmt(d.get('min_lidar_range_m')):>8} "
-            f"{_fmt(d.get('crosstrack_error_m')):>7} {d.get('risk')!s:>10} {d.get('phase')!s:>14}"
+            f"    {t:7.1f} {_fmt(d.commanded_speed_mps):>7} "
+            f"{_fmt(d.clearance_speed_mps):>8} {_fmt(d.heading_speed_mps):>7} "
+            f"{_fmt(d.forward_clearance_m):>8} {_fmt(d.min_lidar_range_m):>8} "
+            f"{_fmt(d.crosstrack_error_m):>7} {d.risk!s:>10} {d.phase!s:>14}"
         )
 
 
@@ -95,35 +88,35 @@ def main() -> None:
     args = parser.parse_args()
 
     ticks, states = _read(args.bag_dir)
-    driving = [(t, d) for t, d in ticks if d.get("pose_x") is not None]
+    driving = [(t, d) for t, d in ticks if d.pose_x is not None]
 
     print(f"bag: {args.bag_dir.name}   ticks: {len(ticks)}   driving: {len(driving)}")
     print(f"states: {', '.join(f'{t:.1f}s {s}' for t, s in states)}")
 
     # Start measurement.
     print("\n--- start measurement ---")
-    measured = next((d for _, d in ticks if d.get("start_measurement_ahead_m") is not None), None)
+    measured = next((d for _, d in ticks if d.start_measurement_ahead_m is not None), None)
     if measured is None:
         print("  never populated: the measurement refused every scan, or this bag predates it")
     else:
-        mx, my = measured["start_measured_x"], measured["start_measured_y"]
+        mx, my = measured.start_measured_x, measured.start_measured_y
         print(f"  measured pose:    ({_fmt(mx)}, {_fmt(my)})")
-        print(f"  track ahead:      {_fmt(measured['start_measurement_ahead_m'])} m")
-        print(f"  corridor width:   {_fmt(measured.get('start_measured_corridor_width_m'))} m")
+        print(f"  track ahead:      {_fmt(measured.start_measurement_ahead_m)} m")
+        print(f"  corridor width:   {_fmt(measured.start_measured_corridor_width_m)} m")
         first_pose = driving[0][1] if driving else None
         if first_pose is not None:
-            fx, fy = first_pose["pose_x"], first_pose["pose_y"]
+            fx, fy = first_pose.pose_x, first_pose.pose_y
             offset = ((mx - fx) ** 2 + (my - fy) ** 2) ** 0.5
             print(f"  first logged pose:({_fmt(fx)}, {_fmt(fy)})  -> measurement moved it {offset:.3f} m")
 
     # Laps and direction.
     print("\n--- progress ---")
-    laps = [(t, d["laps_completed"]) for t, d in driving]
+    laps = [(t, d.laps_completed) for t, d in driving]
     if laps:
         bumps = [(t, n) for (t, n), (_, prev) in zip(laps[1:], laps, strict=False) if n != prev]
-        print(f"  laps completed: {laps[-1][1]} of {driving[-1][1].get('num_laps')}")
+        print(f"  laps completed: {laps[-1][1]} of {driving[-1][1].num_laps}")
         print(f"  lap timestamps: {', '.join(f'{t:.1f}s->{n}' for t, n in bumps) or 'none'}")
-    direction = next((d["direction"] for _, d in driving if d.get("direction")), None)
+    direction = next((d.direction for _, d in driving if d.direction), None)
     print(f"  direction: {direction}")
 
     _print_slowdowns(driving, args.slow_below)
@@ -131,24 +124,24 @@ def main() -> None:
     # Wall proximity.
     print("\n--- closest approaches ---")
     near = sorted(
-        (p for p in driving if p[1].get("min_lidar_range_m") is not None),
-        key=lambda p: p[1]["min_lidar_range_m"],
+        (p for p in driving if p[1].min_lidar_range_m is not None),
+        key=lambda p: p[1].min_lidar_range_m,
     )[:8]
     print(f"    {'t':>7} {'min_rng':>8} {'fwd_clr':>8} {'xtrack':>7} {'steer':>7} {'maneuver':>16} {'phase':>14}")
     for t, d in near:
         print(
-            f"    {t:7.1f} {_fmt(d['min_lidar_range_m']):>8} {_fmt(d.get('forward_clearance_m')):>8} "
-            f"{_fmt(d.get('crosstrack_error_m')):>7} {_fmt(d.get('commanded_steering_norm')):>7} "
-            f"{d.get('active_maneuver_type')!s:>16} {d.get('phase')!s:>14}"
+            f"    {t:7.1f} {_fmt(d.min_lidar_range_m):>8} {_fmt(d.forward_clearance_m):>8} "
+            f"{_fmt(d.crosstrack_error_m):>7} {_fmt(d.commanded_steering_norm):>7} "
+            f"{d.active_maneuver_type!s:>16} {d.phase!s:>14}"
         )
 
     # Escapes and stuck detection.
-    escapes = [(t, d) for t, d in driving if (d.get("escape_count") or 0) > 0]
-    stuck = [(t, d) for t, d in driving if d.get("is_stuck")]
+    escapes = [(t, d) for t, d in driving if (d.escape_count or 0) > 0]
+    stuck = [(t, d) for t, d in driving if d.is_stuck]
     print(f"\n--- recovery ---   escape ticks: {len(escapes)}   stuck ticks: {len(stuck)}")
     if escapes:
-        print(f"  first escape at {escapes[0][0]:.1f}s, max escape_count {max(d.get('escape_count') or 0 for _, d in escapes)}")
-    maneuvers = {d.get("active_maneuver_type") for _, d in driving if d.get("active_maneuver_type")}
+        print(f"  first escape at {escapes[0][0]:.1f}s, max escape_count {max(d.escape_count or 0 for _, d in escapes)}")
+    maneuvers = {d.active_maneuver_type for _, d in driving if d.active_maneuver_type}
     print(f"  maneuver types seen: {', '.join(sorted(maneuvers)) or 'none'}")
 
 

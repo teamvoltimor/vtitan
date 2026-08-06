@@ -14,14 +14,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
+from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
@@ -38,56 +37,50 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
+    reader = open_reader(args.bag_dir)
 
     t_start = None
-    rows: list[dict] = []
+    rows = []
     states: list[tuple[float, str]] = []
     while reader.has_next():
         topic, data, t = reader.read_next()
         if t_start is None:
             t_start = t
-        ts = (t - t_start) / 1e9
+        ts = elapsed_seconds(t, t_start)
         if topic == "/robot_state":
             msg = deserialize_message(data, String)
             if not states or states[-1][1] != msg.data:
                 states.append((ts, msg.data))
         elif topic == "/nav_debug":
-            payload = json.loads(deserialize_message(data, String).data)
-            payload["_t"] = ts
-            rows.append(payload)
+            rows.append((ts, decode_nav_debug(data)))
 
     print(f"== {args.bag_dir.name} ==")
     print("state transitions: " + ", ".join(f"{t:.1f}s->{s}" for t, s in states))
     if not rows:
         print("no /nav_debug samples")
         return
-    print(f"nav_debug samples: {len(rows)}  span {rows[0]['_t']:.1f}s..{rows[-1]['_t']:.1f}s")
+    print(f"nav_debug samples: {len(rows)}  span {rows[0][0]:.1f}s..{rows[-1][0]:.1f}s")
 
     # Lap boundaries as reported by the navigator itself.
     lap_marks = []
     prev = None
-    for r in rows:
-        lap = r.get("laps_completed")
+    for t, snap in rows:
+        lap = snap.laps_completed
         if lap != prev:
-            lap_marks.append((r["_t"], prev, lap))
+            lap_marks.append((t, prev, lap))
             prev = lap
     print("lap counter: " + ", ".join(f"{t:.1f}s {a}->{b}" for t, a, b in lap_marks))
 
     # Steering headroom, bucketed by which lookahead the controller selected.
     by_look: dict[str, list[float]] = defaultdict(list)
     by_corridor: dict[str, list[float]] = defaultdict(list)
-    for r in rows:
-        steer = r.get("commanded_steering_norm")
-        look = r.get("lookahead_distance_m")
+    for t, snap in rows:
+        steer = snap.commanded_steering_norm
+        look = snap.lookahead_distance_m
         if not isinstance(steer, (int, float)) or not isinstance(look, (int, float)):
             continue
         by_look[f"look={look:.2f}"].append(abs(steer))
-        corridor = str(r.get("current_corridor"))
+        corridor = str(snap.current_corridor)
         by_corridor[corridor].append(abs(steer))
 
     print("\n|steer| by selected lookahead (norm, 1.0 = full lock)")
@@ -106,11 +99,7 @@ def main() -> None:
         )
 
     # Rate-limit pressure: how often did the command move by the full allowance?
-    steers = [
-        (r["_t"], r["commanded_steering_norm"])
-        for r in rows
-        if isinstance(r.get("commanded_steering_norm"), (int, float))
-    ]
+    steers = [(t, snap.commanded_steering_norm) for t, snap in rows if isinstance(snap.commanded_steering_norm, (int, float))]
     deltas = []
     for (t0, s0), (t1, s1) in zip(steers, steers[1:]):
         dt = t1 - t0
@@ -125,17 +114,17 @@ def main() -> None:
     # Corridor-width belief over time, sampled per lap.
     print("\ncorridor belief (N/S/E/W, m) and width belief, sampled every ~20s")
     next_t = 0.0
-    for r in rows:
-        if r["_t"] < next_t:
+    for t, snap in rows:
+        if t < next_t:
             continue
-        next_t = r["_t"] + 20.0
+        next_t = t + 20.0
 
-        def g(k: str) -> str:
-            v = r.get(k)
+        def g(k: str, snap=snap) -> str:
+            v = getattr(snap, k)
             return f"{v:5.2f}" if isinstance(v, (int, float)) else " None"
 
         print(
-            f"  {r['_t']:6.1f}s lap={r.get('laps_completed')} corr={str(r.get('current_corridor')):6} "
+            f"  {t:6.1f}s lap={snap.laps_completed} corr={str(snap.current_corridor):6} "
             f"N/S/E/W={g('belief_north_m')}/{g('belief_south_m')}/{g('belief_east_m')}/{g('belief_west_m')} "
             f"width={g('corridor_width_belief_m')} xtrack={g('crosstrack_error_m')} "
             f"turn={g('path_turn_ahead_rad')} "
@@ -147,23 +136,19 @@ def main() -> None:
     # crosstrack could, and it cannot rise until the corner is already missed;
     # a healthy run should show the turn preview arming most of them.
     short = [
-        r
-        for r in rows
-        if r.get("lookahead_distance_m") == 0.20 and isinstance(r.get("crosstrack_error_m"), (int, float))
+        (t, snap)
+        for t, snap in rows
+        if snap.lookahead_distance_m == 0.20 and isinstance(snap.crosstrack_error_m, (int, float))
     ]
     if short:
-        by_turn = sum(1 for r in short if (r.get("path_turn_ahead_rad") or 0.0) > 0.35)
+        by_turn = sum(1 for _, snap in short if (snap.path_turn_ahead_rad or 0.0) > 0.35)
         print(
             f"\nshort-lookahead ticks: {len(short)}  armed by turn preview: {by_turn} "
             f"({by_turn / len(short):.0%})  by crosstrack alone: {len(short) - by_turn}"
         )
 
     # Speed headroom.
-    speeds = [
-        r["commanded_speed_mps"]
-        for r in rows
-        if isinstance(r.get("commanded_speed_mps"), (int, float))
-    ]
+    speeds = [snap.commanded_speed_mps for _, snap in rows if isinstance(snap.commanded_speed_mps, (int, float))]
     if speeds:
         print(
             f"\ncommanded speed (m/s): median={_pct(speeds, 0.5):.3f} p90={_pct(speeds, 0.9):.3f} "

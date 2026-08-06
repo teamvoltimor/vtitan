@@ -7,15 +7,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
+from _bag_io import open_reader, read_nav_debug_rows
 
 
 def main() -> None:
@@ -24,31 +21,20 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=1.0)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
+    reader = open_reader(args.bag_dir)
+    rows, _topics = read_nav_debug_rows(reader)
 
-    t_start = None
     next_print = 0.0
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t_start is None:
-            t_start = t
-        ts = (t - t_start) / 1e9
-        if topic != "/nav_debug":
-            continue
+    for ts, snap in rows:
         if ts < next_print:
             continue
         next_print += args.every
-        payload = json.loads(deserialize_message(data, String).data)
         print(
-            f"{ts:7.2f}s phase={payload.get('phase')!s:14} corridor={payload.get('current_corridor')!s:6} "
-            f"wp={payload.get('waypoint_index')!s:4} laps={payload.get('laps_completed')} "
-            f"pose=({payload.get('pose_x'):.3f},{payload.get('pose_y'):.3f},{payload.get('pose_yaw'):.2f}) "
-            f"fwd={payload.get('forward_clearance_m')!s:6} min_r={payload.get('min_lidar_range_m')!s:6} "
-            f"risk={payload.get('risk')!s:6} stuck={payload.get('is_stuck')} stuck_cnt={payload.get('stuck_count')}",
+            f"{ts:7.2f}s phase={snap.phase!s:14} corridor={snap.current_corridor!s:6} "
+            f"wp={snap.waypoint_index!s:4} laps={snap.laps_completed} "
+            f"pose=({snap.pose_x:.3f},{snap.pose_y:.3f},{snap.pose_yaw:.2f}) "
+            f"fwd={snap.forward_clearance_m!s:6} min_r={snap.min_lidar_range_m!s:6} "
+            f"risk={snap.risk!s:6} stuck={snap.is_stuck} stuck_cnt={snap.stuck_count}",
         )
 
 

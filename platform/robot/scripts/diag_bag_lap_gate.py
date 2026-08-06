@@ -14,18 +14,16 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import rosbag2_py
-from rclpy.serialization import deserialize_message
-from std_msgs.msg import String
+from _bag_io import open_reader, read_nav_debug_rows
+from shared.domain.enums import Direction, Section
 
 from src.navigation.race_tracker import TRAVEL_DIRS
-from shared.domain.enums import Direction, Section
 
 
 def main() -> None:
@@ -33,45 +31,30 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(args.bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
+    reader = open_reader(args.bag_dir)
+    rows, _topics = read_nav_debug_rows(reader)
 
-    t0 = None
-    rows: list[dict] = []
-    while reader.has_next():
-        topic, data, t = reader.read_next()
-        if t0 is None:
-            t0 = t
-        if topic != "/nav_debug":
-            continue
-        p = json.loads(deserialize_message(data, String).data)
-        p["_t"] = (t - t0) / 1e9
-        rows.append(p)
-
-    posed = [r for r in rows if isinstance(r.get("pose_x"), (int, float))]
+    posed = [(t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float))]
     if not posed:
         print("no posed samples")
         return
 
-    direction = next((r["direction"] for r in rows if r.get("direction")), None)
+    direction = next((snap.direction for _, snap in rows if snap.direction), None)
     print(f"== {args.bag_dir.name}  direction={direction}  samples={len(posed)}")
 
-    xs = [r["pose_x"] for r in posed]
-    ys = [r["pose_y"] for r in posed]
+    xs = [snap.pose_x for _, snap in posed]
+    ys = [snap.pose_y for _, snap in posed]
     print(f"pose extent: x {min(xs):.2f}..{max(xs):.2f}   y {min(ys):.2f}..{max(ys):.2f}")
 
     # Gate 2: did the waypoint index ever wrap?
-    idx = [(r["_t"], r.get("waypoint_index")) for r in posed if r.get("waypoint_index") is not None]
+    idx = [(t, snap.waypoint_index) for t, snap in posed if snap.waypoint_index is not None]
     wraps = [(t1, a, b) for (t0_, a), (t1, b) in zip(idx, idx[1:]) if b < a - 1]
     print(f"waypoint_index range: {min(i for _, i in idx)}..{max(i for _, i in idx)}")
     print(f"waypoint wraps: {len(wraps)}  " + ", ".join(f"{t:.0f}s({a}->{b})" for t, a, b in wraps[:12]))
 
     # Gate 1: geometric crossings, using the run's own start pose/section.
-    start = posed[0]
-    origin = (start["pose_x"], start["pose_y"])
+    _, start = posed[0]
+    origin = (start.pose_x, start.pose_y)
     print(f"assumed start origin (first posed sample): ({origin[0]:.2f}, {origin[1]:.2f})")
 
     dir_enum = Direction.COUNTERCLOCKWISE if direction == "counterclockwise" else Direction.CLOCKWISE
@@ -80,11 +63,11 @@ def main() -> None:
         prev = None
         crossings = 0
         in_section_crossings = 0
-        for r in posed:
-            dot = (r["pose_x"] - origin[0]) * nx + (r["pose_y"] - origin[1]) * ny
+        for _, snap in posed:
+            dot = (snap.pose_x - origin[0]) * nx + (snap.pose_y - origin[1]) * ny
             if prev is not None and prev < 0.0 <= dot:
                 crossings += 1
-                if str(r.get("current_corridor")) == section.value:
+                if str(snap.current_corridor) == section.value:
                     in_section_crossings += 1
             prev = dot
         print(
@@ -93,9 +76,7 @@ def main() -> None:
         )
 
     # How much time was actually spent in each corridor?
-    from collections import Counter
-
-    counts = Counter(str(r.get("current_corridor")) for r in posed)
+    counts = Counter(str(snap.current_corridor) for _, snap in posed)
     print("corridor sample counts: " + ", ".join(f"{k}={v}" for k, v in counts.most_common()))
 
 
