@@ -17,7 +17,7 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import Imu
 from shared.config.constants import CompetitionSpecs
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.button.event import ButtonEvent
 from src.state_machine import RobotState, ScenarioType
@@ -250,7 +250,9 @@ class TestRacingCompletion:
 
         published: list[AckermannDriveStamped] = []
         node.ackermann_pub.publish = published.append
-        node.laps_completed = 3  # TARGET_LAPS
+        # 0 first: the navigator's post-reset publish, which is what marks the
+        # count as belonging to this race.
+        _report_laps(node, 0, 3)  # TARGET_LAPS
 
         node._handle_racing()
 
@@ -264,7 +266,7 @@ class TestRacingCompletion:
         _mark_all_sensors_ready(node)
         node._handle_boot_check()
         node._button_event_callback(_string_msg(ButtonEvent.SHORT_PRESS.value))
-        node.laps_completed = 3
+        _report_laps(node, 0, 3)
         node._handle_racing()
         assert node.state_machine.current_state == RobotState.FINISHED
 
@@ -276,6 +278,85 @@ class TestRacingCompletion:
         assert len(published) == 1
         assert published[0].drive.speed == pytest.approx(0.0)
         assert published[0].drive.steering_angle == pytest.approx(0.0)
+        node.destroy_node()
+
+
+class TestRerunDoesNotInheritThePreviousRacesLaps:
+    """A button-cycled re-run must start at zero laps, not the last race's total.
+
+    Measured on hardware 2026-08-06: after a finished round, resetting and
+    pressing start dropped straight back to FINISHED, and only a reboot cleared
+    it. track_navigator_node publishes its lap count on every control tick
+    regardless of state, so the finished race's total keeps arriving while this
+    node sits in BOOT_CHECK/READY -- and _handle_racing runs on this node's own
+    tick, which beats the round trip that would have delivered the navigator's
+    post-reset zero.
+    """
+
+    def _finished_node(self, node_class):
+        node = node_class()
+        _mark_all_sensors_ready(node)
+        node._handle_boot_check()
+        node._button_event_callback(_string_msg(ButtonEvent.SHORT_PRESS.value))
+        _report_laps(node, 0, 3)
+        node._handle_racing()
+        assert node.state_machine.current_state == RobotState.FINISHED
+        return node
+
+    def test_stale_count_during_rerun_does_not_finish_the_race(self, ros_context, state_machine_node_class):
+        node = self._finished_node(state_machine_node_class)
+
+        node._button_event_callback(_string_msg(ButtonEvent.LONG_PRESS.value))
+        assert node.state_machine.current_state == RobotState.BOOT_CHECK
+        # The navigator has not reset yet -- it resets on entering RACING -- so
+        # it is still publishing the finished race's total.
+        _report_laps(node, 3, 3)
+        _mark_all_sensors_ready(node)
+        node._handle_boot_check()
+        node._button_event_callback(_string_msg(ButtonEvent.SHORT_PRESS.value))
+        assert node.state_machine.current_state == RobotState.RACING
+
+        # One more stale sample lands before the navigator's reset propagates.
+        _report_laps(node, 3)
+        node._handle_racing()
+
+        assert node.state_machine.current_state == RobotState.RACING, (
+            "the previous race's lap count finished the new race before it started"
+        )
+        assert node.laps_completed == 0
+        node.destroy_node()
+
+    def test_race_still_finishes_once_the_navigator_reports_afresh(self, ros_context, state_machine_node_class):
+        node = self._finished_node(state_machine_node_class)
+        node._button_event_callback(_string_msg(ButtonEvent.LONG_PRESS.value))
+        _report_laps(node, 3)
+        _mark_all_sensors_ready(node)
+        node._handle_boot_check()
+        node._button_event_callback(_string_msg(ButtonEvent.SHORT_PRESS.value))
+
+        # The navigator resets and its zero arrives, re-arming the count.
+        _report_laps(node, 0)
+        node._handle_racing()
+        assert node.state_machine.current_state == RobotState.RACING
+
+        _report_laps(node, 1, 2, 3)
+        node._handle_racing()
+
+        assert node.state_machine.current_state == RobotState.FINISHED
+        node.destroy_node()
+
+    def test_first_race_after_boot_is_not_gated(self, ros_context, state_machine_node_class):
+        """Nothing stale exists yet, and the navigator's very first publish is a
+        genuine zero -- so the gate must not require a spurious extra sample."""
+        node = state_machine_node_class()
+        _mark_all_sensors_ready(node)
+        node._handle_boot_check()
+        node._button_event_callback(_string_msg(ButtonEvent.SHORT_PRESS.value))
+        _report_laps(node, 0, 1, 2, 3)
+
+        node._handle_racing()
+
+        assert node.state_machine.current_state == RobotState.FINISHED
         node.destroy_node()
 
 
@@ -315,3 +396,15 @@ def _string_msg(data: str) -> String:
     msg = String()
     msg.data = data
     return msg
+
+
+def _report_laps(node, *counts: int) -> None:
+    """Deliver lap counts the way track_navigator_node does.
+
+    Setting ``node.laps_completed`` directly models a count that no navigator
+    ever published, which is the one state the completion gate exists to reject
+    -- so tests that mean "the navigator says N laps are done" have to arrive
+    through the subscription like the real thing.
+    """
+    for count in counts:
+        node._on_laps_completed(Int32(data=count))

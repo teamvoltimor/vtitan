@@ -269,6 +269,10 @@ class StateMachineNode(Node, ResettableNode):
         # Race metrics
         self.race_start_time: float | None = None
         self.laps_completed: int = 0
+        # Whether ``laps_completed`` describes the race now running. False from
+        # the moment RACING is entered until track_navigator_node publishes the
+        # zero produced by its own reset -- see _on_laps_completed.
+        self._lap_count_is_current: bool = True
         self.current_velocity: float = 0.0
         self.current_steering: float = 0.0
         self.gyro_yaw: float = 0.0
@@ -299,11 +303,28 @@ class StateMachineNode(Node, ResettableNode):
     def _on_laps_completed(self, msg: Int32) -> None:
         """Latest lap count from track_navigator_node's LapDetector.
 
-        Replaces rather than increments: track_navigator_node's own reset()
-        (fired from the same RACING transition this node resets on) is the
-        authoritative zero point, so mirroring its count exactly can never
+        Replaces rather than increments: track_navigator_node's own reset() is
+        the authoritative zero point, so mirroring its count exactly can never
         drift from it the way an independently-incremented counter could.
+
+        That reset does not happen when this node's does, though. This node
+        resets on FINISHED -> BOOT_CHECK; the navigator resets only on entering
+        RACING, and until then keeps publishing the finished race's count every
+        control tick. So a button-cycled re-run used to reach _handle_racing
+        with the previous race's total still in hand and finish instantly --
+        measured on hardware 2026-08-06, and only a reboot cleared it, because
+        that is what reconstructed the navigator at zero.
+
+        Ignoring non-zero counts until the navigator's post-reset zero arrives
+        closes that window rather than racing it. The zero is unambiguous: the
+        navigator publishes its stale total right up to its reset, so the first
+        zero after RACING is entered can only be the reset's. Ordering per
+        publisher makes the rest safe -- nothing from before it follows it.
         """
+        if not self._lap_count_is_current:
+            if msg.data != 0:
+                return
+            self._lap_count_is_current = True
         self.laps_completed = msg.data
 
     def _fetch_ip_address_async(self) -> None:
@@ -384,6 +405,11 @@ class StateMachineNode(Node, ResettableNode):
             self.state_machine.transition_to(RobotState.RACING, StateTransitionReason.BUTTON_PRESSED)
             self.race_start_time = time.time()
             self.laps_completed = 0
+            # Zeroing the local copy is not enough: track_navigator_node
+            # publishes its lap count every control tick regardless of state
+            # (see its _control_loop), so the previous race's final count is
+            # still arriving and would overwrite this within one tick.
+            self._lap_count_is_current = False
 
         elif current_state == RobotState.RACING and event == "long_press":
             self.get_logger().warning("EMERGENCY STOP activated!")
@@ -495,6 +521,10 @@ class StateMachineNode(Node, ResettableNode):
         """
         self.race_start_time = None
         self.laps_completed = 0
+        # Re-armed rather than cleared: BOOT_CHECK is reached from FINISHED,
+        # so the navigator is still publishing the finished race's count and
+        # the gate has to survive until RACING re-arms it properly.
+        self._lap_count_is_current = False
         self.current_velocity = 0.0
         self.current_steering = 0.0
         self.challenge_mode = None
@@ -605,8 +635,11 @@ class StateMachineNode(Node, ResettableNode):
 
     def _handle_racing(self) -> None:
         """Handle RACING state - monitor for race completion."""
-        # Check if laps completed
-        if self.laps_completed >= self.target_laps:
+        # Check if laps completed. Not before the count is known to belong to
+        # this race: this runs on our own tick, which beats the round trip out
+        # to the navigator and back, so an ungated check reads the previous
+        # race's total (see _on_laps_completed).
+        if self._lap_count_is_current and self.laps_completed >= self.target_laps:
             self.get_logger().info(f"Race complete! {self.target_laps} laps finished")
             self.state_machine.transition_to(RobotState.FINISHED, StateTransitionReason.LAPS_COMPLETED)
             self._publish_stop_command()
