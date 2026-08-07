@@ -46,7 +46,7 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, _wrap
+from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, axis_error_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -146,8 +146,7 @@ def infer_direction(
         end of its corridor.
     """
     # Off-axis the side rays cut a diagonal and can read long for no good reason.
-    axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
-    if abs(axis_error) > _ALIGNMENT_TOLERANCE_RAD:
+    if axis_error_rad(yaw) > _ALIGNMENT_TOLERANCE_RAD:
         return None
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
@@ -208,7 +207,8 @@ class DirectionEstimator:
     @property
     def votes(self) -> dict[Direction, int]:
         """Current vote tally per direction, for telemetry (a copy -- callers
-        cannot perturb the real count through it)."""
+        cannot perturb the real count through it).
+        """
         return dict(self._votes)
 
     def observe(

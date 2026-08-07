@@ -28,6 +28,7 @@ import rosbag2_py
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
+from shared.domain.enums import Direction
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
 from tabulate import tabulate
@@ -122,6 +123,42 @@ def load_nav_debug_rows(
     pair used in 9+ scripts. Returns the same tuple: `(rows, topic_counts)`.
     """
     return read_nav_debug_rows(open_reader(bag_dir))
+
+
+def posed_rows(
+    rows: Sequence[tuple[float, NavigatorDebugSnapshot]],
+) -> list[tuple[float, NavigatorDebugSnapshot]]:
+    """The rows carrying a usable pose.
+
+    Every phase before the navigator has a fix publishes a snapshot with
+    ``pose_x``/``pose_y`` still None, and any analysis that indexes position
+    has to drop those first. Four lap diagnostics each wrote the same
+    isinstance pair inline.
+    """
+    return [(t, s) for t, s in rows if isinstance(s.pose_x, (int, float)) and isinstance(s.pose_y, (int, float))]
+
+
+def settled_direction(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> Direction | None:
+    """The direction the run committed to, or None if it never settled.
+
+    A bag records the direction only once inference has settled, so the first
+    non-null value is the committed one. None is a finding rather than an
+    error: it means the round never left blind creep.
+    """
+    return next((s.direction for _, s in rows if s.direction), None)
+
+
+def measured_start(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> tuple[float, float] | None:
+    """Where ``measure_start_pose`` put the start, or None if it refused.
+
+    None is normal, not a gap in the bag: the measurement declines when a ray
+    is blocked (an operator still standing over the robot is the usual case)
+    and the node falls back to the assumed start.
+    """
+    return next(
+        ((s.start_measured_x, s.start_measured_y) for _, s in rows if isinstance(s.start_measured_x, (int, float))),
+        None,
+    )
 
 
 def read_bag(

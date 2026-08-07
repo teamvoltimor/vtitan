@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import load_nav_debug_rows, measured_start, posed_rows, print_table, settled_direction
 from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.start_conditions import CANONICAL_SECTION, assumed_start_conditions
 
@@ -33,14 +33,11 @@ def main() -> None:
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
-    posed = [
-        (t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float)) and isinstance(snap.pose_y, (int, float))
-    ]
-    direction_name = next((snap.direction for _, snap in rows if snap.direction), None)
-    if direction_name is None or not posed:
+    posed = posed_rows(rows)
+    direction = settled_direction(rows)
+    if direction is None or not posed:
         print("nothing to measure")
         return
-    direction = Direction(direction_name)
     section = CANONICAL_SECTION
     nx, ny = TRAVEL_DIRS[(section, direction)]
 
@@ -48,14 +45,7 @@ def main() -> None:
         pos = assumed_start_conditions(direction)["position"]
         origin = (pos["x"], pos["y"])
     else:
-        origin = next(
-            (
-                (snap.start_measured_x, snap.start_measured_y)
-                for _, snap in rows
-                if isinstance(getattr(snap, "start_measured_x", None), (int, float))
-            ),
-            None,
-        )
+        origin = measured_start(rows)
         if origin is None:
             print("bag has no measured start")
             return
@@ -70,8 +60,8 @@ def main() -> None:
             out.append(
                 (
                     f"{t:.1f}",
-                    snap.current_corridor or "-",
-                    "YES" if snap.current_corridor == section.value else "no",
+                    snap.current_corridor.value if snap.current_corridor else "-",
+                    "YES" if snap.current_corridor is section else "no",
                     f"{prev_dot:.3f}",
                     f"{dot:.3f}",
                     f"({snap.pose_x:.2f}, {snap.pose_y:.2f})",

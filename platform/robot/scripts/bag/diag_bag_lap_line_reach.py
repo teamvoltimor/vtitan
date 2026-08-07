@@ -25,11 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction, Section
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import load_nav_debug_rows, measured_start, posed_rows, print_table, settled_direction
 from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.start_conditions import CANONICAL_SECTION, assumed_start_conditions
-
-_SECTIONS = {s.value: s for s in Section}
 
 
 def main() -> None:
@@ -38,39 +36,29 @@ def main() -> None:
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
-    posed = [
-        (t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float)) and isinstance(snap.pose_y, (int, float))
-    ]
-    direction_name = next((snap.direction for _, snap in rows if snap.direction), None)
-    if direction_name is None or not posed:
+    posed = posed_rows(rows)
+    direction = settled_direction(rows)
+    if direction is None or not posed:
         print("nothing to measure")
         return
-    direction = Direction(direction_name)
     section = CANONICAL_SECTION
     nx, ny = TRAVEL_DIRS[(section, direction)]
 
     assumed_xy = assumed_start_conditions(direction)["position"]
     assumed = (assumed_xy["x"], assumed_xy["y"])
-    measured = next(
-        (
-            (snap.start_measured_x, snap.start_measured_y)
-            for _, snap in rows
-            if isinstance(getattr(snap, "start_measured_x", None), (int, float))
-        ),
-        None,
-    )
+    measured = measured_start(rows)
 
     print(f"== {args.bag_dir.name}  direction={direction.value}  start_section={section.value}")
     print(f"lap-line normal = ({nx}, {ny})")
 
     # Projection along the normal, in the same units the dot test uses.
     out = []
-    for name in _SECTIONS:
-        proj = [snap.pose_x * nx + snap.pose_y * ny for _, snap in posed if snap.current_corridor == name]
+    for section in Section:
+        proj = [snap.pose_x * nx + snap.pose_y * ny for _, snap in posed if snap.current_corridor is section]
         if not proj:
-            out.append((name, 0, "-", "-"))
+            out.append((section.value, 0, "-", "-"))
             continue
-        out.append((name, len(proj), f"{min(proj):.3f}", f"{max(proj):.3f}"))
+        out.append((section.value, len(proj), f"{min(proj):.3f}", f"{max(proj):.3f}"))
     print_table(out, ["section_label", "samples", "min_proj", "max_proj"])
 
     print()

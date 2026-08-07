@@ -142,7 +142,7 @@ def main() -> None:
             return f"{v:5.2f}" if isinstance(v, (int, float)) else " None"
 
         print(
-            f"  {t:6.1f}s lap={snap.laps_completed} corr={str(snap.current_corridor):6} "
+            f"  {t:6.1f}s lap={snap.laps_completed} corr={snap.current_corridor!s:6} "
             f"N/S/E/W={g('belief_north_m')}/{g('belief_south_m')}/{g('belief_east_m')}/{g('belief_west_m')} "
             f"width={g('corridor_width_belief_m')} xtrack={g('crosstrack_error_m')} "
             f"turn={g('path_turn_ahead_rad')} "

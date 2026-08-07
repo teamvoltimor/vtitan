@@ -382,8 +382,12 @@ class NavigatorDebugSnapshot(BaseModel):
     pose_x: float | None = None
     pose_y: float | None = None
     pose_yaw: float | None = None
-    direction: str | None = None
-    current_corridor: str | None = None
+    # Typed rather than str: both are StrEnum, so the wire format is unchanged
+    # and bags recorded before this still parse, but every consumer stopped
+    # having to rebuild {s.value: s for s in Section} to get back to the enum
+    # the producer already had.
+    direction: Direction | None = None
+    current_corridor: Section | None = None
     waypoint_index: int | None = None
     laps_completed: int = 0
     num_laps: int = 0

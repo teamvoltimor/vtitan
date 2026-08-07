@@ -25,10 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction, Section
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import load_nav_debug_rows, measured_start, posed_rows, print_table, settled_direction
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
-
-_SECTIONS = {s.value: s for s in Section}
 
 
 def main() -> None:
@@ -38,18 +36,15 @@ def main() -> None:
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
 
-    posed = [
-        (t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float)) and isinstance(snap.pose_y, (int, float))
-    ]
+    posed = posed_rows(rows)
     if not posed:
         print("no posed samples")
         return
 
-    direction_name = next((snap.direction for _, snap in rows if snap.direction), None)
-    if direction_name is None:
+    direction = settled_direction(rows)
+    if direction is None:
         print("direction never settled -- lap counting was never reachable")
         return
-    direction = Direction(direction_name)
     origin = (posed[0][1].pose_x, posed[0][1].pose_y)
 
     print(f"== {args.bag_dir.name}  direction={direction.value}  posed samples={len(posed)}")
@@ -73,7 +68,7 @@ def main() -> None:
 
     print("\nreplaying the real LapDetector per candidate start section:")
     rows = []
-    for name, section in _SECTIONS.items():
+    for section in Section:
         detector = LapDetector(start_pos=origin, start_section=section, direction=direction)
         normal = TRAVEL_DIRS[(section, direction)]
         laps: list[float] = []
@@ -86,16 +81,16 @@ def main() -> None:
                     detector.notify_waypoint_wrapped()
                 prev_idx = idx
             corridor = snap.current_corridor
-            if corridor not in _SECTIONS:
+            if corridor is None:
                 continue
             before = detector._prev_dot  # noqa: SLF001 - diagnosing the gate, not using it
-            if detector.update((snap.pose_x, snap.pose_y), _SECTIONS[corridor]):
+            if detector.update((snap.pose_x, snap.pose_y), corridor):
                 laps.append(t)
             elif before is not None and before < 0.0:
                 ox, oy = origin
                 nx, ny = normal
                 dot = (snap.pose_x - ox) * nx + (snap.pose_y - oy) * ny
-                if dot >= 0.0 and _SECTIONS[corridor] is section:
+                if dot >= 0.0 and corridor is section:
                     geo_only += 1
         times = ", ".join(f"{t:.0f}s" for t in laps[:6])
         if laps:
@@ -104,7 +99,7 @@ def main() -> None:
             blocked = f"crossed {geo_only}x in-section but waypoint latch was down"
         else:
             blocked = "never crossed the line while inside this section"
-        rows.append((name, str(normal), len(laps), times, blocked))
+        rows.append((section.value, str(normal), len(laps), times, blocked))
     print_table(rows, ["start_section", "normal", "laps", "lap_times", "blocked_by"])
 
 

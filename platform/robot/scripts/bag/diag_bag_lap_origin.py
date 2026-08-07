@@ -28,11 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction, Section
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import load_nav_debug_rows, measured_start, posed_rows, print_table, settled_direction
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import CANONICAL_SECTION, assumed_start_conditions
-
-_SECTIONS = {s.value: s for s in Section}
 
 
 def _replay(posed, origin, section, direction):
@@ -49,14 +47,14 @@ def _replay(posed, origin, section, direction):
                 detector.notify_waypoint_wrapped()
             prev_idx = idx
         corridor = snap.current_corridor
-        if corridor not in _SECTIONS:
+        if corridor is None:
             continue
         before = detector._prev_dot  # noqa: SLF001 - diagnosing the gate, not using it
-        if detector.update((snap.pose_x, snap.pose_y), _SECTIONS[corridor]):
+        if detector.update((snap.pose_x, snap.pose_y), corridor):
             laps.append(t)
         elif before is not None and before < 0.0:
             dot = (snap.pose_x - origin[0]) * normal[0] + (snap.pose_y - origin[1]) * normal[1]
-            if dot >= 0.0 and _SECTIONS[corridor] is section:
+            if dot >= 0.0 and corridor is section:
                 geo_only += 1
     return laps, geo_only
 
@@ -67,18 +65,15 @@ def main() -> None:
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
-    posed = [
-        (t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float)) and isinstance(snap.pose_y, (int, float))
-    ]
+    posed = posed_rows(rows)
     if not posed:
         print("no posed samples")
         return
 
-    direction_name = next((snap.direction for _, snap in rows if snap.direction), None)
-    if direction_name is None:
+    direction = settled_direction(rows)
+    if direction is None:
         print("direction never settled -- lap counting was never reachable")
         return
-    direction = Direction(direction_name)
 
     # What the node believed before it measured anything: the launch default.
     # Both directions are shown because the bag records only the SETTLED
@@ -90,14 +85,7 @@ def main() -> None:
         cond = assumed_start_conditions(candidate)
         assumed[candidate] = (cond["position"]["x"], cond["position"]["y"])
 
-    measured = next(
-        (
-            (snap.start_measured_x, snap.start_measured_y)
-            for _, snap in rows
-            if isinstance(getattr(snap, "start_measured_x", None), (int, float))
-        ),
-        None,
-    )
+    measured = measured_start(rows)
     first_posed = (posed[0][1].pose_x, posed[0][1].pose_y)
 
     print(f"== {args.bag_dir.name}  settled_direction={direction.value}  posed={len(posed)}")

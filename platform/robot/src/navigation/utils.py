@@ -1,5 +1,6 @@
 """Shared navigation helpers extracted from corridor_estimator, corridor_follower,
-direction_estimator to eliminate identical module-private definitions."""
+direction_estimator to eliminate identical module-private definitions.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +27,20 @@ _ALIGNMENT_TOLERANCE_RAD = _tuning.heading.MEDIUM
 
 def _wrap(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def axis_error_rad(yaw: float) -> float:
+    """How far a heading sits from the nearest track axis, always positive.
+
+    The track is a Manhattan world, so "aligned with a corridor" means "within
+    tolerance of a multiple of 90 degrees" regardless of which corridor. This is
+    the measure the direction gate accepts or refuses readings on
+    (:func:`src.navigation.direction_estimator.infer_direction`), and the one
+    ``track_navigator_node._direction_gate_verdict`` reports for the log; both
+    spelled it out separately, and a bag diagnostic then spelled it a third time.
+    """
+    quarter = math.pi / 2
+    return abs(_wrap(yaw - round(yaw / quarter) * quarter))
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
