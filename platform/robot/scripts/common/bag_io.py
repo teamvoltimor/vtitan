@@ -20,8 +20,10 @@ rather than inventing anonymous tuples/dicts:
 
 from __future__ import annotations
 
+import argparse
 import math
 from collections import Counter
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import rosbag2_py
@@ -31,13 +33,11 @@ from shared.config.constants import RobotSpecs
 from shared.domain.enums import Direction
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
-from tabulate import tabulate
 
 from src.navigation.ports import LidarScan
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
 
 class Topics:
@@ -187,29 +187,36 @@ def read_bag(
     return scans, rows
 
 
-def fmt_optional(value: float | None, spec: str = ".3f") -> str:
-    """Format an optional float for a table cell.
+def create_bag_parser(description: str = "") -> argparse.ArgumentParser:
+    """Standard argument parser for diagnostic scripts that analyze a single bag.
 
-    Anything non-numeric prints as "None", right-justified to the width a
-    real number would occupy under `spec` -- so a column of these lines up
-    with a column of `format(x, spec)` even where nothing else pads it.
+    Adds a positional `bag_dir` argument (Path). Scripts can extend with
+    optional arguments via `.add_argument()`.
+
+    Example:
+        parser = create_bag_parser("Analyze corner overshoots")
+        parser.add_argument("--max-corners", type=int, default=8)
+        args = parser.parse_args()
     """
-    if isinstance(value, (int, float)):
-        return format(value, spec)
-    return "None".rjust(len(format(0.0, spec)))
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("bag_dir", type=Path, help="Path to rosbag directory")
+    return parser
 
 
-def print_table(rows: Sequence[Sequence[object]], headers: Sequence[str], *, floatfmt: str | Sequence[str] = ".3f") -> None:
-    """Print `rows` as a GitHub-flavored markdown table.
+def create_bags_parser(description: str = "") -> argparse.ArgumentParser:
+    """Standard argument parser for diagnostic scripts that analyze multiple bags.
 
-    Picked over hand-aligned f-string columns (the pattern every diag_bag_*.py
-    script used before this) for two audiences at once: `|`-delimited column
-    boundaries are unambiguous to a human skimming a terminal AND to an LLM
-    reading the transcript, where neither has to infer where one column ends
-    and the next begins from a run of whitespace of uncertain width -- exactly
-    the class of bug fmt_optional's width-derivation was hand-patching one
-    call site at a time. `None` cells print as the literal string "None"
-    (tabulate's own missing-value convention would otherwise print an empty
-    cell, which reads as a formatting glitch rather than an absent reading).
+    Adds a positional `bag_dirs` argument (list of Paths). Scripts can extend
+    with optional arguments via `.add_argument()`.
+
+    Example:
+        parser = create_bags_parser("Compare two runs")
+        args = parser.parse_args()
+        for bag_dir in args.bag_dirs:
+            ...
     """
-    print(tabulate(rows, headers=headers, tablefmt="github", floatfmt=floatfmt, missingval="None"))
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("bag_dirs", type=Path, nargs="+", help="Paths to rosbag directories")
+    return parser
+
+
