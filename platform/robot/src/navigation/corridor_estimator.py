@@ -58,23 +58,6 @@ _MIN_PLAUSIBLE_WIDTH = _NARROW - 0.25
 _MAX_PLAUSIBLE_WIDTH = _WIDE + 0.25
 """Outside this band the inward ray has missed the inner block (a corner)."""
 
-_MIN_SAMPLES = NavigationTuning.load_default().corridor_estimator.MIN_SAMPLES
-"""Readings for a corridor before its width is called at all.
-
-A single reading is already better than 4 sigma against sensor noise, so this
-is not about noise — it is about *outliers*. Approaching a corner the sideways
-ray slips past the inner block and returns the next corridor's far wall, which
-reads as a wide corridor no matter how narrow this one is. Those readings are
-not random, they cluster, so requiring consecutive agreement does not help:
-measured on ``go_open_0002``, the north corridor (truly 0.6 m) averages 0.635 m
-but peaks at 1.229 m, and a run of those peaks is enough to flip a
-consecutive-agreement estimator that had already settled correctly.
-
-Majority voting over a decent sample is immune to that — the leaked readings
-are a minority of any corridor's traverse — which is why this counts votes
-rather than streaks.
-"""
-
 
 def measure_corridor_width(
     ranges_m: Sequence[float],
@@ -170,7 +153,9 @@ class CorridorWidthEstimator:
     where it starts, not whether it measures.
     """
 
-    def __init__(self, min_samples: int = _MIN_SAMPLES, assumed_width: float = _NARROW) -> None:
+    def __init__(self, min_samples: int | None = None, assumed_width: float = _NARROW) -> None:
+        if min_samples is None:
+            min_samples = NavigationTuning.load_default().corridor_estimator.MIN_SAMPLES
         self._min_samples = min_samples
         self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()
