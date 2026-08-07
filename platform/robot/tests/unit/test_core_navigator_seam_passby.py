@@ -21,34 +21,14 @@ from typing import TYPE_CHECKING
 
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import Pose
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.race_tracker import LapDetector
+from tests.fixtures import FakeGateway
 
 if TYPE_CHECKING:
     from src.navigation.ports import DriveCommand, LidarScan
-
-
-class _FakeGateway:
-    def __init__(self, pose: Pose) -> None:
-        self.pose = pose
-        self.commands: list[DriveCommand] = []
-
-    def publish_drive(self, command: DriveCommand) -> None:
-        self.commands.append(command)
-
-    def get_current_pose(self) -> Pose | None:
-        return self.pose
-
-    def get_lidar_scan(self) -> LidarScan | None:
-        return None
-
-    def get_imu_reading(self) -> IMUReading | None:
-        return IMUReading(yaw=self.pose.yaw, pitch=0.0, roll=0.0)
-
-    def get_vision_detections(self) -> list[Detection]:
-        return []
 
 
 def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> list[tuple[float, float]]:
@@ -68,8 +48,8 @@ def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> 
     return path
 
 
-def _navigator(waypoints: list[tuple[float, float]], pose: Pose) -> tuple[CoreNavigator, _FakeGateway]:
-    gateway = _FakeGateway(pose)
+def _navigator(waypoints: list[tuple[float, float]], pose: Pose) -> tuple[CoreNavigator, FakeGateway]:
+    gateway = FakeGateway(pose)
     nav = CoreNavigator(
         gateway=gateway,
         waypoints=waypoints,

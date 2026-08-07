@@ -403,11 +403,15 @@ class FakeGateway:
 
     Implements the HardwareGateway protocol structurally for driving CoreNavigator
     directly without ROS2 or the simulator.
+
+    Attributes:
+        pose: The robot's current pose (mutable for test scenarios)
+        commands: List of published drive commands
     """
 
     def __init__(self, pose: Pose, lidar: LidarScan | None = None) -> None:
-        self._pose = pose
-        self._lidar = lidar
+        self.pose = pose
+        self.lidar = lidar
         self.commands: list[DriveCommand] = []
 
     def publish_drive(self, command: DriveCommand) -> None:
@@ -416,15 +420,15 @@ class FakeGateway:
 
     def get_current_pose(self) -> Pose | None:
         """Return the robot's current pose."""
-        return self._pose
+        return self.pose
 
     def get_lidar_scan(self) -> LidarScan | None:
         """Return the latest LIDAR scan."""
-        return self._lidar
+        return self.lidar
 
     def get_imu_reading(self) -> IMUReading | None:
         """Return the latest IMU reading."""
-        return IMUReading(yaw=self._pose.yaw, pitch=0.0, roll=0.0)
+        return IMUReading(yaw=self.pose.yaw, pitch=0.0, roll=0.0)
 
     def get_vision_detections(self) -> list[Detection]:
         """Return vision detections."""
