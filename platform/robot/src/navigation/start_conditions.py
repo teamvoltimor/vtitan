@@ -33,8 +33,8 @@ import math
 
 from shared.config.constants import CorridorDimensions, DictKeys, TrackDimensions
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
 
-from src.navigation.planning.waypoints import _OUTER_WALL_BIAS
 from src.navigation.race_tracker import TRAVEL_DIRS
 
 _TRACK_MAX = TrackDimensions.MAX_COORD
@@ -52,12 +52,27 @@ def start_pose(
     section: Section,
     direction: Direction,
     widths_m: dict[str, float],
+    tuning: NavigationTuning | None = None,
 ) -> tuple[float, float, float]:
-    """Spawn pose on the biased corridor centerline, aligned with travel."""
-    south_cy = widths_m["south"] / 2 - _OUTER_WALL_BIAS
-    north_cy = _TRACK_MAX - widths_m["north"] / 2 + _OUTER_WALL_BIAS
-    east_cx = _TRACK_MAX - widths_m["east"] / 2 + _OUTER_WALL_BIAS
-    west_cx = widths_m["west"] / 2 - _OUTER_WALL_BIAS
+    """Spawn pose on the biased corridor centerline, aligned with travel.
+
+    Uses tuning: waypoints.CENTER_BIAS_M, CENTER_BIAS_SIDE
+    """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+
+    # Derive center bias from tuning (positive toward inner block)
+    from shared.config.enums import CorridorSide
+    center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
+        1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
+    )
+
+    # Same signs as calculate_waypoints, so the assumed start sits on the
+    # path the robot is about to be given rather than beside it.
+    south_cy = widths_m["south"] / 2 + center_bias_m
+    north_cy = _TRACK_MAX - widths_m["north"] / 2 - center_bias_m
+    east_cx = _TRACK_MAX - widths_m["east"] / 2 - center_bias_m
+    west_cx = widths_m["west"] / 2 + center_bias_m
     center = {
         Section.SOUTH: (_TRACK_CENTER, south_cy),
         Section.NORTH: (_TRACK_CENTER, north_cy),
@@ -72,6 +87,7 @@ def assumed_start_conditions(
     direction: Direction,
     widths_m: dict[Section, float] | None = None,
     section: Section = CANONICAL_SECTION,
+    tuning: NavigationTuning | None = None,
 ) -> dict:
     """Starting conditions for a robot that was told nothing but the direction.
 
@@ -81,13 +97,16 @@ def assumed_start_conditions(
         widths_m: The layout the robot believes it is on. Defaults to every
             corridor narrow, the safe prior blind operation starts from.
         section: Which corridor the robot calls its starting one.
+        tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
         A ``starting_conditions`` mapping in scenario-metadata shape.
+
+    Uses tuning: waypoints.CENTER_BIAS_M, CENTER_BIAS_SIDE
     """
     believed = widths_m or dict.fromkeys(Section, CorridorDimensions.NARROW)
     by_name = {s.value.lower(): w for s, w in believed.items()}
-    sx, sy, yaw = start_pose(section, direction, by_name)
+    sx, sy, yaw = start_pose(section, direction, by_name, tuning)
     return {
         DictKeys.DIRECTION: str(direction),
         DictKeys.SECTION: section.capitalized,

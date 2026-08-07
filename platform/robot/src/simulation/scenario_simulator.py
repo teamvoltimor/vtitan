@@ -362,7 +362,7 @@ class ScenarioSimulator:
             # No widths passed, so it falls back to the all-narrow prior --
             # which is exactly what the hardware does at startup, before any
             # corridor has been measured.
-            assumed = assumed_start_conditions(start.direction)
+            assumed = assumed_start_conditions(start.direction, tuning=self._tuning)
             believed_start = _StartConditions(
                 section=Section.from_string(assumed[DictKeys.SECTION]),
                 direction=start.direction,
