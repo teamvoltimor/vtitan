@@ -86,7 +86,7 @@ def _direction_gate_verdict(
 ) -> str:
     """Name which gate in ``infer_direction`` would refuse this scan, for logging.
 
-    Mirrors ``scripts/diag_open_direction_gates.py``'s ``_GateTracer._verdict``
+    Mirrors ``scripts/sim/diag_open_direction_gates.py``'s ``_GateTracer._verdict``
     (a sim-only tool) so a live run's log can show the same diagnosis without
     needing a bag replay -- see that script's docstring for what each gate means.
     """
@@ -619,10 +619,34 @@ class TrackNavigator(Node, ResettableNode):
             # against a position replace_path won't have caught up to yet.
             pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=_wrap(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
-            # built for the provisional one counts crossings inverted.
+            # built for the provisional one counts crossings inverted. Only the
+            # direction is rebuilt: the origin stays the ASSUMED start, not
+            # seed_xy.
+            #
+            # LapDetector fires on a sign flip of (pose - origin).normal that
+            # has to coincide with current_section == start_section, and
+            # corridor_for_position classifies by the inner square (1.0-2.0 in
+            # both axes). The marked starting squares sit at the corridor ends,
+            # straddling that square's corner, so a measured start lands in the
+            # NEIGHBOURING corridor: all three real starts recorded on
+            # 2026-08-06 classify that way -- (2.099, 0.484) and (2.101, 0.487)
+            # as EAST, (0.656, 0.596) as WEST, none as the SOUTH they are gated
+            # to. Anchoring the line there makes the gate unsatisfiable however
+            # many laps are driven. Run 180154 crossed it four times, every
+            # crossing labelled east, and scored 0 laps; replayed against the
+            # assumed origin the same bag counts 4 (see
+            # scripts/bag/diag_bag_lap_origin.py).
+            #
+            # Nothing is lost by not measuring here. The normal is the travel
+            # direction, so the origin's cross-track component has no effect at
+            # all, and the along-track component -- the only one that matters --
+            # is exactly the one the measurement pushes out of the section. The
+            # assumed start is mid-corridor, which is where a lap line belongs.
+            # Phase is unaffected: a robot starting past the line still crosses
+            # it first after one complete loop. reset() builds it the same way.
             self._core_navigator.replace_lap_detector(
                 LapDetector(
-                    start_pos=seed_xy,
+                    start_pos=self._start_xy,
                     start_section=self._start_section,
                     direction=inferred,
                 ),

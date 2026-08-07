@@ -380,6 +380,51 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
+    def test_overturning_the_direction_anchors_the_lap_line_in_the_start_section(self, ros_context) -> None:
+        """2026-08-06: the bug behind "CCW drove four laps and scored zero".
+
+        LapDetector needs the dot-test sign flip and current_section ==
+        start_section on the same sample, and corridor_for_position classifies
+        by the inner square. The marked starting squares sit at the corridor
+        ends, straddling that square's corner, so a MEASURED start falls in the
+        neighbouring corridor -- all three starts recorded on 2026-08-06 did.
+        Rebuilding the detector there gated the line to a section the robot is
+        never in when it crosses it, so no number of laps could satisfy it: run
+        180154 crossed four times, every crossing labelled east, and reported 0.
+        Replayed against the assumed origin the same bag counts 4. See
+        scripts/bag/diag_bag_lap_origin.py.
+        """
+        from shared.domain.models import Pose
+
+        from src.navigation.planning.waypoints import corridor_for_position
+        from src.ros2.navigation.node import TrackNavigator
+
+        # Where the robot really stood in run 180154, not the assumed midpoint.
+        real_start = (2.1, 0.48)
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            navigator._commit_direction(
+                Direction.COUNTERCLOCKWISE,
+                Pose(x=real_start[0], y=real_start[1], yaw=math.pi),
+                _scan_at(*real_start, 0.0),
+            )
+
+            # The premise: this placement really does classify outside the
+            # section the detector is gated to, so the assertion below is not
+            # passing vacuously.
+            assert corridor_for_position(*real_start) is not navigator._start_section
+
+            origin = navigator._core_navigator._lap_detector._origin
+            assert corridor_for_position(*origin) is navigator._start_section
+            assert origin == pytest.approx(navigator._start_xy)
+
+            # The pose frame is still re-seeded to the measurement -- only the
+            # lap line stays mid-corridor (see the two tests above).
+            pose = navigator._gateway.get_current_pose()
+            assert (pose.x, pose.y) == pytest.approx(real_start, abs=0.05)
+        finally:
+            navigator.destroy_node()
+
 
 class TestAssumedStartConditions:
     """Section can be assumed; direction cannot."""
