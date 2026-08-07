@@ -35,12 +35,7 @@ from src.navigation.corridor_estimator import (
     section_from_heading,
 )
 from src.navigation.corridor_follower import follow_corridor
-from src.navigation.direction_estimator import (
-    _MAX_IN_TRACK_RANGE_M,
-    _MAX_PLAUSIBLE_SPAN_M,
-    _MIN_ASYMMETRY_M,
-    DirectionEstimator,
-)
+from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
@@ -49,7 +44,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap, axis_error_rad
+from src.navigation.utils import _nearest_ray, _wrap, axis_error_rad
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.resettable_node import ResettableNode
 
@@ -83,6 +78,7 @@ def _direction_gate_verdict(
     ranges_m: Any,
     angles_rad: Any,
     yaw: float,
+    tuning: NavigationTuning | None = None,
 ) -> str:
     """Name which gate in ``infer_direction`` would refuse this scan, for logging.
 
@@ -90,16 +86,24 @@ def _direction_gate_verdict(
     (a sim-only tool) so a live run's log can show the same diagnosis without
     needing a bag replay -- see that script's docstring for what each gate means.
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+
+    alignment_tol = tuning.heading.MEDIUM
+    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
+    min_asymmetry = tuning.direction_estimator.MIN_ASYMMETRY_M
+    plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
+
     axis_error = axis_error_rad(yaw)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
-    if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+    if left > max_in_track or right > max_in_track:
         return f"dropout (left={left:.2f} right={right:.2f})"
-    if axis_error > _ALIGNMENT_TOLERANCE_RAD:
+    if axis_error > alignment_tol:
         return f"align-fail (axis_error={math.degrees(axis_error):.1f}deg)"
-    if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+    if left + right <= plausible_span:
         return f"span-fail (span={left + right:.2f})"
-    if abs(left - right) < _MIN_ASYMMETRY_M:
+    if abs(left - right) < min_asymmetry:
         return f"asym-fail (|left-right|={abs(left - right):.3f})"
     return f"vote-pending (left={left:.2f} right={right:.2f})"
 
@@ -490,18 +494,18 @@ class TrackNavigator(Node, ResettableNode):
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
 
-        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
+        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
             if inferred is not None:
                 self._commit_direction(inferred, pose, scan)
             return False
 
-        verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw)
+        verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning)
         self._direction_gate_log_counter += 1
         if self._direction_gate_log_counter % _DIRECTION_GATE_LOG_PERIOD == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
-        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed)
+        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed, pose.yaw, self._tuning)
         self._gateway.publish_drive(drive)
         votes = estimator.votes
         self._latest_debug = NavigatorDebugSnapshot(
@@ -776,7 +780,7 @@ class TrackNavigator(Node, ResettableNode):
                 "starting_conditions": new_starting,
             },
         )
-        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
+        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.

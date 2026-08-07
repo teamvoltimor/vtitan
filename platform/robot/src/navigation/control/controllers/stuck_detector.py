@@ -14,12 +14,6 @@ from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
-_MIN_HISTORY_FOR_DISTANCE: int = NavigationTuning.load_default().escape.MIN_HISTORY_FOR_DISTANCE
-"""Minimum number of tracked positions needed to compute a movement distance.
-
-Configured alongside the other STUCK_* thresholds in escape.toml, since they
-describe one mechanism between them."""
-
 
 class StuckDetector:
     """Detects and responds to stuck robot conditions.
@@ -41,6 +35,8 @@ class StuckDetector:
         timeout_frames: int = 40,
         history_size: int = 60,
         confirmation_checks: int = 3,
+        min_history_for_distance: int | None = None,
+        tuning: NavigationTuning | None = None,
     ):
         """Initialize stuck detector.
 
@@ -50,7 +46,14 @@ class StuckDetector:
             history_size: Max position history to maintain
             confirmation_checks: Consecutive below-threshold checks required
                 before declaring the robot stuck
+            min_history_for_distance: Minimum tracked positions to compute movement distance.
+                Defaults to tuning value.
+            tuning: Navigation tuning instance. Defaults to loaded defaults.
+
+        Uses tuning: escape.MIN_HISTORY_FOR_DISTANCE
         """
+        if tuning is None:
+            tuning = NavigationTuning.load_default()
         if history_size < timeout_frames:
             msg = (
                 f"history_size ({history_size}) must be >= timeout_frames ({timeout_frames}), "
@@ -63,6 +66,7 @@ class StuckDetector:
         self.timeout_frames = timeout_frames
         self.history_size = history_size
         self.confirmation_checks = confirmation_checks
+        self._min_history_for_distance = min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
 
         # Position history
         self.position_history: deque[tuple[float, float]] = deque(maxlen=history_size)
@@ -85,6 +89,7 @@ class StuckDetector:
             timeout_frames=tuning.escape.STUCK_TIMEOUT_FRAMES,
             history_size=max(tuning.escape.STUCK_TIMEOUT_FRAMES * 2, 60),
             confirmation_checks=tuning.escape.STUCK_CONFIRMATION_CHECKS,
+            tuning=tuning,
         )
 
     def update(self, current_pos: tuple[float, float]) -> bool:
@@ -134,7 +139,7 @@ class StuckDetector:
         Returns:
             Dict with stuck status and metrics
         """
-        if len(self.position_history) >= _MIN_HISTORY_FOR_DISTANCE:
+        if len(self.position_history) >= self._min_history_for_distance:
             distance = np.sqrt(
                 (self.position_history[-1][0] - self.position_history[0][0]) ** 2
                 + (self.position_history[-1][1] - self.position_history[0][1]) ** 2,

@@ -18,10 +18,6 @@ from src.navigation.utils import _local_frame, _pure_pursuit_steer
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONTROL_DT_S: float = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
-"""Control-loop tick interval, matching the 20 Hz loop assumed throughout
-navigation tuning (see e.g. ``EscapeManeuverParams.STUCK_TIMEOUT_FRAMES``)."""
-
 
 class WaypointController:
     """Pure pursuit steering controller for waypoint following.
@@ -295,7 +291,8 @@ class WaypointController:
         current_yaw: float,
         target_waypoint: tuple[float, float],
         crosstrack_error: float,
-        dt: float = _DEFAULT_CONTROL_DT_S,
+        dt: float | None = None,
+        tuning: NavigationTuning | None = None,
     ) -> tuple[float, float, float]:
         """Compute steering angle, lookahead, and heading error for the next control step.
 
@@ -318,7 +315,8 @@ class WaypointController:
             crosstrack_error: Perpendicular distance from the planned path
                 (metres), used to select the lookahead -- see ``select_lookahead``.
             dt: Time since the previous call (seconds), used to cap the
-                steering delta at ``max_steering_rate * dt``
+                steering delta at ``max_steering_rate * dt``. Defaults to 1 / CONTROL_HZ.
+            tuning: Navigation tuning instance. Defaults to loaded defaults.
 
         Returns:
             Tuple of (steering_angle, lookahead_distance, angle_error_rad).
@@ -327,7 +325,14 @@ class WaypointController:
             angle_error_rad: Signed bearing error to the target, before rate
                 limiting -- lets the caller slow down for a sharp turn instead
                 of taking it at whatever speed forward clearance alone selects.
+
+        Uses tuning: control.CONTROL_HZ
         """
+        if tuning is None:
+            tuning = NavigationTuning.load_default()
+        if dt is None:
+            dt = 1.0 / tuning.control.CONTROL_HZ
+
         lookahead = self.select_lookahead(crosstrack_error)
 
         x_local, y_local = _local_frame(current_pos, current_yaw, target_waypoint)

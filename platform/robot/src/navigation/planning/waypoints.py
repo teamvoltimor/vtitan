@@ -2,7 +2,8 @@
 
 Computes a list of (x, y) waypoints that the TrackNavigator follows.
 Uses circular arc waypoints at corners to stay within the Ackermann robot's
-minimum turning radius (~0.329 m).
+minimum turning radius (~0.034 m, from WHEELBASE/tan(MAX_STEERING_ANGLE) with
+counter-phase steering).
 
 All functions are pure — they accept data and return results without I/O.
 """
@@ -14,24 +15,12 @@ from typing import Any
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.enums import Direction, Section
+from shared.config.enums import CorridorSide, Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import PathPlannability, ScenarioMetadata
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
-
-# Read from waypoints.toml rather than restated. Used by internal
-# segment-assembly free functions, which have no instance to inject tuning
-# into -- but the config entry existed alongside this literal, so editing it
-# changed nothing.
-_WAYPOINT_TUNING = NavigationTuning.load_default().waypoints
-_DEDUPE_DISTANCE_M: float = _WAYPOINT_TUNING.DEDUPE_DISTANCE_M  # 1 mm
-
-# Bias corridor centres toward the outer wall. Compensates for the robot's
-# chassis width so the planned path stays clear of the inner-wall face.
-# Read from waypoints.toml for the same reason as _DEDUPE_DISTANCE_M above.
-_OUTER_WALL_BIAS = _WAYPOINT_TUNING.OUTER_WALL_BIAS
 
 
 def validate_path_feasibility(min_corridor_width_m: float, arc_radius: float) -> PathPlannability:
@@ -66,6 +55,7 @@ def calculate_waypoints(
     metadata: ScenarioMetadata | dict[str, Any],
     num_laps: int,
     arc_radius: float | None = None,
+    tuning: NavigationTuning | None = None,
 ) -> list[tuple[float, float]]:
     """Build the full multi-lap waypoint sequence for a scenario.
 
@@ -77,9 +67,11 @@ def calculate_waypoints(
         metadata: Scenario metadata (Pydantic model or coercible dict).
         num_laps: Total laps the robot must complete.
         arc_radius: Corner arc radius (m). Must exceed the Ackermann minimum
-            turning radius (~0.329 m). Defaults to the tuning profile's value
-            so a loaded profile actually takes effect instead of a value
-            frozen at import time.
+            turning radius (~0.034 m, from WHEELBASE/tan(MAX_STEERING_ANGLE) with
+            counter-phase steering). Defaults to the tuning profile's value so a
+            loaded profile actually takes effect instead of a value frozen at
+            import time.
+        tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
         Ordered list of (x, y) world-frame waypoints starting near the robot's
@@ -88,10 +80,14 @@ def calculate_waypoints(
     Raises:
         ValueError: If a generated or deformed waypoint would fall outside
             the track or inside the restricted inner square.
+
+    Uses tuning: waypoints.ARC_RADIUS, CENTER_BIAS_M, CENTER_BIAS_SIDE
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
     if not isinstance(metadata, ScenarioMetadata):
         metadata = ScenarioMetadata.model_validate(metadata)
-    arc_radius = arc_radius if arc_radius is not None else NavigationTuning.load_default().waypoints.ARC_RADIUS
+    arc_radius = arc_radius if arc_radius is not None else tuning.waypoints.ARC_RADIUS
 
     corridor_widths = metadata.corridor_widths
     starting = metadata.starting_conditions
@@ -114,11 +110,18 @@ def calculate_waypoints(
     east_width = widths[Section.EAST]
     west_width = widths[Section.WEST]
 
+    # Derive center bias from tuning (positive toward inner block)
+    center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
+        1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
+    )
+
     track_max = TrackDimensions.MAX_COORD
-    north_cy = track_max - north_width / 2 + _OUTER_WALL_BIAS
-    south_cy = south_width / 2 - _OUTER_WALL_BIAS
-    east_cx = track_max - east_width / 2 + _OUTER_WALL_BIAS
-    west_cx = west_width / 2 - _OUTER_WALL_BIAS
+    # Signs put the bias toward the inner block on every side: north and east
+    # corridors have the block below/left of them, south and west above/right.
+    north_cy = track_max - north_width / 2 - center_bias_m
+    south_cy = south_width / 2 + center_bias_m
+    east_cx = track_max - east_width / 2 - center_bias_m
+    west_cx = west_width / 2 + center_bias_m
 
     segments = _build_all_segments(
         north_cy,
@@ -144,6 +147,7 @@ def calculate_waypoints(
         start_x,
         start_y,
         num_laps,
+        tuning,
     )
     _validate_bounds(waypoints)
     return waypoints
@@ -223,8 +227,14 @@ def _build_waypoint_sequence(
     start_x: float,
     start_y: float,
     num_laps: int,
+    tuning: NavigationTuning | None = None,
 ) -> list[tuple[float, float]]:
-    """Build multi-lap waypoints starting from the closest point in the first segment."""
+    """Build multi-lap waypoints starting from the closest point in the first segment.
+
+    Uses tuning: waypoints.DEDUPE_DISTANCE_M
+    """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
     first_seg = segments[order[0]]
     start_index = _nearest_waypoint_index(first_seg, start_x, start_y)
 
@@ -239,7 +249,7 @@ def _build_waypoint_sequence(
     if start_index > 0:
         waypoints.extend(first_seg[:start_index])
 
-    return _deduplicate_consecutive(waypoints)
+    return _deduplicate_consecutive(waypoints, tuning)
 
 
 def _nearest_waypoint_index(
@@ -272,14 +282,21 @@ def _validate_bounds(waypoints: list[tuple[float, float]]) -> None:
 
 def _deduplicate_consecutive(
     waypoints: list[tuple[float, float]],
+    tuning: NavigationTuning | None = None,
 ) -> list[tuple[float, float]]:
-    """Remove consecutive duplicate waypoints (within 1 mm)."""
+    """Remove consecutive duplicate waypoints (within dedupe distance).
+
+    Uses tuning: waypoints.DEDUPE_DISTANCE_M
+    """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
     if not waypoints:
         return []
+    dedupe_distance_m = tuning.waypoints.DEDUPE_DISTANCE_M
     deduped = [waypoints[0]]
     for point in waypoints[1:]:
         prev = deduped[-1]
-        if abs(point[0] - prev[0]) > _DEDUPE_DISTANCE_M or abs(point[1] - prev[1]) > _DEDUPE_DISTANCE_M:
+        if abs(point[0] - prev[0]) > dedupe_distance_m or abs(point[1] - prev[1]) > dedupe_distance_m:
             deduped.append(point)
     return deduped
 
