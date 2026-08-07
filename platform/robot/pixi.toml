@@ -67,6 +67,7 @@ protobuf = ">=5.28"
 
 [feature.dev.dependencies]
 pytest                   = ">=8.0"
+pytest-xdist            = ">=3.7,<4"
 ruff = ">=0.15.8,<0.16"
 mypy = ">=1.14,<2"
 types-pyyaml = "*"
