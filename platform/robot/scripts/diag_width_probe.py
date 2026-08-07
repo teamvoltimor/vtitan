@@ -41,12 +41,16 @@ _WIDE = CorridorDimensions.WIDE
 _DECISION_BOUNDARY = (_NARROW + _WIDE) / 2.0
 """0.8 m — halfway between the only two legal widths."""
 
-_MAX_PLAUSIBLE_WIDTH = _WIDE + 0.25
+_CORNER_MISS_MARGIN_M = 0.25
+_MAX_PLAUSIBLE_WIDTH = _WIDE + _CORNER_MISS_MARGIN_M
 """Beyond this the inward ray has missed the inner block (robot is at a corner)."""
 
 _ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
 """How far off the corridor axis the chassis may be for the side rays to still
 span the corridor rather than a diagonal."""
+
+_WIDTH_VALIDITY_MARGIN_M = 0.25
+_MAX_STEPS = 4000
 
 
 def _sample(scan_ranges: list[float], scan_angles: list[float], target_rad: float) -> float:
@@ -77,7 +81,7 @@ def measure_width(scan_ranges: list[float], scan_angles: list[float], yaw: float
     # Project back onto the corridor normal: a small heading error stretches
     # both rays by 1/cos(error).
     width = (left + right) * math.cos(axis_error)
-    if not (_NARROW - 0.25 < width < _MAX_PLAUSIBLE_WIDTH):
+    if not (_NARROW - _WIDTH_VALIDITY_MARGIN_M < width < _MAX_PLAUSIBLE_WIDTH):
         return None
     return width
 
@@ -122,7 +126,7 @@ def main() -> None:
                 wrong += 1
                 per_section_wrong[corridor.value] += 1
 
-        sim.run(max_steps=4000, on_step=on_step)
+        sim.run(max_steps=_MAX_STEPS, on_step=on_step)
 
     total = correct + wrong
     mean_err = sum(errors) / len(errors) if errors else float("nan")
