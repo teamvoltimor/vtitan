@@ -14,6 +14,7 @@ now decodes/encodes the same ``steering_norm: float  # [-1, 1], + = left``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -21,12 +22,23 @@ if TYPE_CHECKING:
     from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, repr=False)
 class LidarScan:
     """A single LIDAR sweep in the robot frame (0 rad = forward, +pi/2 = left)."""
 
     ranges_m: tuple[float, ...]
     angles_rad: tuple[float, ...]
+
+    def __repr__(self) -> str:
+        """Ray count + range span, not every ray -- the default dataclass repr
+        of a 720-ray scan is ~10,000 characters, unusable in a test failure or
+        a debug print."""
+        n = len(self.ranges_m)
+        if n == 0:
+            return "LidarScan(rays=0)"
+        finite = [r for r in self.ranges_m if math.isfinite(r)]
+        span = f"{min(finite):.2f}..{max(finite):.2f}m" if finite else "no finite returns"
+        return f"LidarScan(rays={n}, ranges={span})"
 
 
 @dataclass(frozen=True, slots=True)
