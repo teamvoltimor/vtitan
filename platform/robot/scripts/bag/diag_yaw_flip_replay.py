@@ -18,7 +18,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from pathlib import Path
@@ -102,8 +101,7 @@ def _replay(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     parser.add_argument("--seed", type=float, nargs=2, default=(_DEFAULT_SEED_X_M, _DEFAULT_SEED_Y_M))
     parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
     args = parser.parse_args()

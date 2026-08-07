@@ -21,7 +21,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import statistics
 import sys
@@ -29,8 +28,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
-from src.navigation.utils import axis_error_rad
+from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
+from scripts.common.tables import print_table
+from src.navigation.utils import _wrap, axis_error_rad
 
 _BUCKET_DEG = 5.0
 """Histogram resolution. Axis error spans 0-45 deg, so this gives 9 buckets."""
@@ -42,8 +42,7 @@ def _axis_error_deg(yaw: float) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dirs", type=Path, nargs="+")
+    parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
     rows_out = []

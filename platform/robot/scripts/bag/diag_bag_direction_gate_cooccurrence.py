@@ -19,15 +19,14 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.bag_io import open_reader, print_table, read_bag
-
+from scripts.common.bag_io import create_bags_parser, open_reader, read_bag
+from scripts.common.tables import print_table
 from src.navigation.direction_estimator import (
     _MAX_IN_TRACK_RANGE_M,
     _MAX_PLAUSIBLE_SPAN_M,
@@ -50,8 +49,7 @@ def _gates(scan, yaw: float) -> dict[str, bool]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dirs", type=Path, nargs="+")
+    parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
     names = ("aligned", "no_dropout", "span_open", "asymmetric")

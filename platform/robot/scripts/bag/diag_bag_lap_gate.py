@@ -13,7 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from collections import Counter
 from pathlib import Path
@@ -22,13 +21,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction, Section
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.tables import print_table
 from src.navigation.race_tracker import TRAVEL_DIRS
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
