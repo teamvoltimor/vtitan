@@ -104,10 +104,12 @@ def generate_launch_description():
                 "direction",
                 default_value=_race_defaults.direction,
                 description=(
-                    "Travel direction for the round (cw|ccw). The only start condition "
-                    "that cannot be assumed: assuming the starting section merely rotates "
-                    "the robot's own world frame, but the direction is a reflection and "
-                    "getting it wrong puts the inner block on the wrong side."
+                    "Travel direction for the round (cw|ccw|undetermined). The only start "
+                    "condition that cannot be assumed: assuming the starting section merely "
+                    "rotates the robot's own world frame, but the direction is a reflection "
+                    "and getting it wrong puts the inner block on the wrong side. "
+                    "cw|ccw mean the operator knows, and blind inference is skipped; "
+                    "undetermined means nobody said, and the robot creeps and infers."
                 ),
             ),
             DeclareLaunchArgument(

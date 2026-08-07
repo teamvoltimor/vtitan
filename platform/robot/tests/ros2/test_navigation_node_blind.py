@@ -286,7 +286,7 @@ class TestBlindImpliesDirectionInference:
         """The constructor's direction is a placeholder, not an input."""
         from src.ros2.navigation.node import TrackNavigator
 
-        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=None)
         try:
             assert navigator._direction is Direction.CLOCKWISE
             # Nothing has been observed, so nothing has been committed.
@@ -377,6 +377,56 @@ class TestBlindImpliesDirectionInference:
             pose = navigator._gateway.get_current_pose()
             assert (pose.x, pose.y) == pytest.approx((1.25, 0.5), abs=0.03)
             assert (pose.x, pose.y) != pytest.approx((0.9, 0.1), abs=0.05)
+        finally:
+            navigator.destroy_node()
+
+    def test_a_told_direction_skips_inference_entirely(self, ros_context) -> None:
+        """2026-08-07: blind mode inferred even when the direction was supplied.
+
+        --direction used to default to cw, so "told clockwise" and "nobody said"
+        were the same value and the navigator could not trust either -- it
+        creeped and inferred regardless. Both zero-lap rounds that day were
+        rounds whose direction had in fact been supplied correctly: one never
+        confirmed it across 177 s, the other overturned it to the wrong answer.
+        Undetermined is now its own third choice, so a supplied direction can be
+        taken at its word.
+        """
+        from src.ros2.navigation.node import TrackNavigator
+
+        told = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.CLOCKWISE)
+        try:
+            assert told._direction_known
+            assert told._direction_estimator is None
+            assert told._direction is Direction.CLOCKWISE
+            # No estimator means _resolve_direction cannot hold the round in
+            # creep, which is the whole point.
+            assert told._pending_known_commit
+        finally:
+            told.destroy_node()
+
+        undetermined = TrackNavigator(metadata_path=None, num_laps=3, direction=None)
+        try:
+            assert not undetermined._direction_known
+            assert undetermined._direction_estimator is not None
+            assert not undetermined._pending_known_commit
+        finally:
+            undetermined.destroy_node()
+
+    def test_a_told_direction_survives_a_race_restart(self, ros_context) -> None:
+        """reset() rebuilds the estimator for a new race -- but not when told.
+
+        The state machine cycles into a new race from the button with no process
+        restart, so a reset that rebuilds the estimator unconditionally would put
+        the creep back for every round after the first.
+        """
+        from src.ros2.navigation.node import TrackNavigator
+
+        navigator = TrackNavigator(metadata_path=None, num_laps=3, direction=Direction.COUNTERCLOCKWISE)
+        try:
+            navigator.reset()
+            assert navigator._direction_estimator is None
+            assert navigator._direction is Direction.COUNTERCLOCKWISE
+            assert navigator._pending_known_commit
         finally:
             navigator.destroy_node()
 
@@ -536,7 +586,7 @@ class TestResolveDirection:
     def test_settling_commits_the_direction_and_reports_no_plan_step(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
-        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
+        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=None)
         try:
             pose = Pose(x=1.5, y=0.25, yaw=0.0)
             with (
@@ -566,7 +616,7 @@ class TestCommitDirectionFlushesBufferedWidths:
     def test_buffered_readings_are_replayed_and_the_buffer_is_cleared(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
-        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
+        navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=None)
         try:
             navigator._creep_widths = [(0.0, 1.0), (0.01, 0.62)]
             with mock.patch.object(navigator._width_estimator, "observe_measurement") as observe_mock:

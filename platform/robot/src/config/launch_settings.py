@@ -107,7 +107,11 @@ class RaceLaunchDefaults(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="race_launch_", toml_file=LAUNCH_CONFIG_DIR / "race.toml")
 
-    direction: str = "cw"
+    # "undetermined" rather than a real direction: a default that names a
+    # direction is a claim nobody made, and the navigator cannot tell it apart
+    # from an operator who meant it. Set direction:=cw|ccw per round to skip
+    # blind inference entirely; leave it to infer as before.
+    direction: str = "undetermined"
     blind: bool = False
     laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS
     params: str = ""

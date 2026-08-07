@@ -49,7 +49,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
+from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap, axis_error_rad
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.resettable_node import ResettableNode
 
@@ -90,7 +90,7 @@ def _direction_gate_verdict(
     (a sim-only tool) so a live run's log can show the same diagnosis without
     needing a bag replay -- see that script's docstring for what each gate means.
     """
-    axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+    axis_error = axis_error_rad(yaw)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
     if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
@@ -102,6 +102,23 @@ def _direction_gate_verdict(
     if abs(left - right) < _MIN_ASYMMETRY_M:
         return f"asym-fail (|left-right|={abs(left - right):.3f})"
     return f"vote-pending (left={left:.2f} right={right:.2f})"
+
+
+_DIRECTION_CHOICES: dict[str, Direction | None] = {
+    "cw": Direction.CLOCKWISE,
+    "ccw": Direction.COUNTERCLOCKWISE,
+    "undetermined": None,
+}
+"""The round's direction as the operator can state it, including not knowing.
+
+``None`` rather than a third :class:`Direction` member: Direction indexes track
+geometry (``TRAVEL_DIRS[(section, direction)]``, ``start_pose``, the estimator's
+per-direction vote tally), so a member with no travel vector would make every one
+of those lookups fail on a value the type says is legal. "Not known" is already
+spelled ``None`` throughout -- ``DirectionEstimator.direction`` returns
+``Direction | None`` for exactly this. The three-way choice belongs at the
+interface, where the operator speaks, not in the geometry.
+"""
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -121,7 +138,7 @@ class TrackNavigator(Node, ResettableNode):
         params_path: str | Path | None = None,
         tuning_path: str | Path | None = None,
         blind: bool = False,
-        direction: Direction = Direction.CLOCKWISE,
+        direction: Direction | None = None,
     ) -> None:
         """Drive the track.
 
@@ -137,22 +154,47 @@ class TrackNavigator(Node, ResettableNode):
             blind: Estimate the corridor layout from LIDAR instead of being
                 told it. Implied when ``metadata_path`` is omitted, since there
                 is then nothing to be told.
-            direction: Travel direction for the round. This is the one starting
-                condition that cannot be assumed -- the section can, because
-                assuming it only rotates the robot's private world frame, but
-                the direction is a reflection and no amount of width learning
-                recovers from getting it wrong. See
-                :mod:`src.navigation.start_conditions`. Ignored when
+            direction: Travel direction for the round, or ``None`` for
+                undetermined. This is the one starting condition that cannot be
+                assumed -- the section can, because assuming it only rotates the
+                robot's private world frame, but the direction is a reflection
+                and no amount of width learning recovers from getting it wrong.
+                See :mod:`src.navigation.start_conditions`. Ignored when
                 ``metadata_path`` supplies one.
+
+                ``None`` and a direction are genuinely different instructions,
+                which is why this is not simply defaulted. A value means the
+                operator KNOWS which way the round runs and blind inference is
+                skipped entirely -- no creep, no gate to starve, nothing to
+                overturn. ``None`` means nobody said, and the robot infers as
+                before. Previously this defaulted to CLOCKWISE, so "told
+                clockwise" and "nobody said anything" were the same value: the
+                code could not trust it, so it had to infer even when the answer
+                had already been supplied. Measured on 2026-08-07, all four
+                blind rounds ran on that silent default -- it was right twice
+                and wrong twice, and the two rounds where it was RIGHT are the
+                two that scored zero (one never confirmed it, one overturned it
+                to the wrong answer and drove a mirrored plan into a corner).
         """
         super().__init__("track_navigator")
 
         # No file means nothing to be sighted with.
         self._blind = blind or metadata_path is None
+        # Whether the round's direction was SUPPLIED, as opposed to guessed.
+        # Kept as its own flag because the provisional below erases the
+        # difference: once undetermined has been resolved to a starting pose,
+        # self._direction alone can no longer say whether anyone chose it.
+        self._direction_known = direction is not None
+        # Undetermined still needs a starting pose to plan from, and the pose is
+        # paired with a direction (the two travel vectors for a section are
+        # exact opposites). Clockwise is the provisional purely because it is
+        # what this defaulted to before; it carries no claim, and the estimator
+        # below is free to overturn it.
+        provisional = direction if direction is not None else Direction.CLOCKWISE
         self._metadata = (
             _load_json(metadata_path)
             if metadata_path is not None
-            else {DictKeys.STARTING_CONDITIONS: assumed_start_conditions(direction)}
+            else {DictKeys.STARTING_CONDITIONS: assumed_start_conditions(provisional)}
         )
         self._is_open_challenge = self._metadata.get(DictKeys.CHALLENGE_TYPE, ScenarioType.OPEN) == ScenarioType.OPEN
 
@@ -222,7 +264,17 @@ class TrackNavigator(Node, ResettableNode):
         # day, so a blind robot cannot be handed it either. ``direction`` is
         # only the provisional the first path is built from, and is replaced
         # the moment the inference settles.
-        self._direction_estimator = DirectionEstimator() if self._blind else None
+        # Inference exists to answer a question nobody answered. Told the
+        # direction, there is nothing to infer -- and inferring anyway is not
+        # free: it forces the blind creep, whose alignment gate needs the
+        # chassis square to a corridor at the moment one side opens, and those
+        # two coincided on 0 of 1763 scans in run 141814 (177 s of creep, zero
+        # laps, on a round whose direction had in fact been supplied correctly).
+        self._direction_estimator = DirectionEstimator() if self._blind and not self._direction_known else None
+        # One-shot: take the start measurement on the first tick that has a scan
+        # when there is no inference to carry it. Sighted runs read their start
+        # from metadata and need neither.
+        self._pending_known_commit = self._blind and self._direction_known
         self._direction_gate_log_counter = 0
         self._creep_widths: list[tuple[float, float]] = []
         # Set once direction inference settles; None until then, and left
@@ -376,6 +428,34 @@ class TrackNavigator(Node, ResettableNode):
             + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in head),
         )
 
+    def _commit_told_direction(self) -> bool:
+        """Take the start measurement for a round whose direction was supplied.
+
+        Skipping inference must not also skip measuring where the robot stands:
+        the assumed start is the midpoint of the mat's side, out by 0.35-0.80 m
+        on real rounds, and correcting it is what the creep's commit was
+        carrying besides the direction itself. ``_commit_direction`` called with
+        the direction already held takes its unchanged branch -- reseed position
+        to the measurement and replan, leaving heading and the lap line alone.
+
+        Returns:
+            ``True`` if this tick had no scan yet and the robot was held, meaning
+            there is no plan to step; ``False`` once the measurement is done.
+        """
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._latest_debug = NavigatorDebugSnapshot(
+                phase=NavigatorPhase.NO_POSE,
+                commanded_speed_mps=0.0,
+                commanded_steering_norm=0.0,
+            )
+            return True
+        self._pending_known_commit = False
+        self._commit_direction(self._direction, pose, scan)
+        return False
+
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
 
@@ -384,7 +464,9 @@ class TrackNavigator(Node, ResettableNode):
             was driven by the corridor follower and there is no plan to step.
         """
         estimator = self._direction_estimator
-        if estimator is None or estimator.is_settled:
+        if estimator is None:
+            return self._commit_told_direction() if self._pending_known_commit else False
+        if estimator.is_settled:
             return False
 
         scan = self._gateway.get_lidar_scan()
@@ -801,7 +883,11 @@ class TrackNavigator(Node, ResettableNode):
                 if self._is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
             )
-            self._direction_estimator = DirectionEstimator()
+            # Mirrors construction: a told direction is still told on the next
+            # round, so rebuilding an estimator here would put the creep back
+            # for every race after the first.
+            self._direction_estimator = DirectionEstimator() if not self._direction_known else None
+            self._pending_known_commit = self._direction_known
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
 
         park_controller: ParkController | None = None
@@ -936,12 +1022,16 @@ def main(args: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--direction",
-        choices=["cw", "ccw"],
-        default="cw",
-        help="Travel direction for the round (default: cw). Used only when --metadata "
-        "is omitted. The starting section does not need one of these because assuming "
-        "it merely rotates the robot's own world frame; the direction is a reflection "
-        "and has to be right.",
+        choices=["cw", "ccw", "undetermined"],
+        default="undetermined",
+        help="Travel direction for the round (default: undetermined). Used only when "
+        "--metadata is omitted. The starting section does not need one of these because "
+        "assuming it merely rotates the robot's own world frame; the direction is a "
+        "reflection and has to be right. 'undetermined' is a real third answer, not a "
+        "missing one: cw/ccw mean the operator KNOWS, so blind inference is skipped "
+        "outright, while undetermined means nobody said and the robot creeps and infers. "
+        "This used to default to cw, which made 'told cw' indistinguishable from "
+        "'unset', so the value could never be trusted and inference ran regardless.",
     )
     parsed, _ = parser.parse_known_args(args)
 
@@ -961,7 +1051,7 @@ def main(args: list[str] | None = None) -> None:
             params_path=parsed.params,
             tuning_path=parsed.tuning,
             blind=parsed.blind,
-            direction=Direction.CLOCKWISE if parsed.direction == "cw" else Direction.COUNTERCLOCKWISE,
+            direction=_DIRECTION_CHOICES[parsed.direction],
         )
         while rclpy.ok() and not getattr(navigator, "shutdown_requested", False):
             rclpy.spin_once(navigator, timeout_sec=0.1)
