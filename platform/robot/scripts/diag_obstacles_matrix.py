@@ -24,6 +24,10 @@ from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 MAX_STEPS = 6000
+_LABEL_WIDTH = 12
+_SCENARIO_WIDTH = 40
+_OUTCOME_WIDTH = 9
+_TIME_FORMAT = ".1f"
 
 COMBOS: tuple[tuple[str, bool, bool], ...] = (
     ("laps-only", False, False),
@@ -55,12 +59,12 @@ def main() -> None:
             outcomes.append(ok)
             why = "ok" if ok else ("collided" if result.collided else "short")
             print(
-                f"{label:<12} {scenario.label:<40} {why:<9} "
-                f"laps={result.laps_completed}/{laps} t={result.sim_time_s:.1f}s "
+                f"{label:<{_LABEL_WIDTH}} {scenario.label:<{_SCENARIO_WIDTH}} {why:<{_OUTCOME_WIDTH}} "
+                f"laps={result.laps_completed}/{laps} t={result.sim_time_s:{_TIME_FORMAT}}s "
                 f"surface={result.terminal_surface.value}",
                 flush=True,
             )
-        print(f"{label:<12} TOTAL {sum(outcomes)}/{len(outcomes)}", flush=True)
+        print(f"{label:<{_LABEL_WIDTH}} TOTAL {sum(outcomes)}/{len(outcomes)}", flush=True)
 
 
 if __name__ == "__main__":

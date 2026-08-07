@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 
 import rosbag2_py
@@ -30,6 +31,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
+from tabulate import tabulate
 
 from src.navigation.ports import LidarScan
 
@@ -144,3 +146,19 @@ def fmt_optional(value: float | None, spec: str = ".3f") -> str:
     if isinstance(value, (int, float)):
         return format(value, spec)
     return "None".rjust(len(format(0.0, spec)))
+
+
+def print_table(rows: Sequence[Sequence[object]], headers: Sequence[str], *, floatfmt: str | Sequence[str] = ".3f") -> None:
+    """Print `rows` as a GitHub-flavored markdown table.
+
+    Picked over hand-aligned f-string columns (the pattern every diag_bag_*.py
+    script used before this) for two audiences at once: `|`-delimited column
+    boundaries are unambiguous to a human skimming a terminal AND to an LLM
+    reading the transcript, where neither has to infer where one column ends
+    and the next begins from a run of whitespace of uncertain width -- exactly
+    the class of bug fmt_optional's width-derivation was hand-patching one
+    call site at a time. `None` cells print as the literal string "None"
+    (tabulate's own missing-value convention would otherwise print an empty
+    cell, which reads as a formatting glitch rather than an absent reading).
+    """
+    print(tabulate(rows, headers=headers, tablefmt="github", floatfmt=floatfmt, missingval="None"))

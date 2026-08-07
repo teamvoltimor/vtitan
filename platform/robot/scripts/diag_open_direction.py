@@ -31,6 +31,7 @@ Not a tuning knob -- a fixture that has not settled by here has not settled.
 Measured before the dropout filter, go_open_0021 needed past step 400, so a
 shorter budget reported it as "never settles" when it merely settles late.
 """
+_VERDICT_WIDTH = 9
 
 
 def main() -> None:
@@ -59,7 +60,7 @@ def main() -> None:
         else:
             verdict = "ok"
 
-        print(f"{verdict:>9} | {scenario.label} truth={truth} inferred={inferred}")
+        print(f"{verdict:>{_VERDICT_WIDTH}} | {scenario.label} truth={truth} inferred={inferred}")
 
     total = len(all_test_scenarios())
     print(f"\n{total - wrong - unsettled}/{total} correct, {wrong} wrong, {unsettled} unsettled")

@@ -22,6 +22,13 @@ from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 _TRACE_TICKS = 20
+_STEP_WIDTH = 4
+_MIN_RANGE_THRESHOLD = 0.0
+_POSITION_FORMAT = ".2f"
+_YAW_FORMAT = "+.2f"
+_VELOCITY_FORMAT = "+.2f"
+_STEER_FORMAT = "+.2f"
+_LIDAR_FORMAT = ".2f"
 
 
 class _CreepTracer:
@@ -39,10 +46,10 @@ class _CreepTracer:
         estimator = self._simulator.direction_estimator
         if estimator is not None and estimator.is_settled and self.settled_at is None:
             self.settled_at = self.step
-        nearest = min((r for r in scan.ranges_m if r > 0.0), default=0.0)
+        nearest = min((r for r in scan.ranges_m if r > _MIN_RANGE_THRESHOLD), default=_MIN_RANGE_THRESHOLD)
         self.trace.append(
-            f"  step{self.step:>4} pos=({state.x:.2f},{state.y:.2f}) yaw={state.yaw:+.2f} "
-            f"v={state.v:+.2f} steer={state.steer:+.2f} minLIDAR={nearest:.2f}"
+            f"  step{self.step:>{_STEP_WIDTH}} pos=({state.x:{_POSITION_FORMAT}},{state.y:{_POSITION_FORMAT}}) yaw={state.yaw:{_YAW_FORMAT}} "
+            f"v={state.v:{_VELOCITY_FORMAT}} steer={state.steer:{_STEER_FORMAT}} minLIDAR={nearest:{_LIDAR_FORMAT}}"
         )
 
 

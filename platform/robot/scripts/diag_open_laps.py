@@ -23,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
+_DISTANCE_FORMAT = ".2f"
+_TIME_FORMAT = ".1f"
+
 
 def _report(scenario: object, blind: bool) -> None:
     """Run one fixture and print its per-lap step and distance splits."""
@@ -46,14 +49,14 @@ def _report(scenario: object, blind: bool) -> None:
         # on_step samples lag the loop's step counter by one on creep ticks.
         a = min(prev_step, len(cumulative) - 1)
         b = min(lap_step, len(cumulative) - 1)
-        splits.append(f"lap@step{lap_step}(+{cumulative[b] - cumulative[a]:.2f}m)")
+        splits.append(f"lap@step{lap_step}(+{cumulative[b] - cumulative[a]:{_DISTANCE_FORMAT}}m)")
         prev_step = lap_step
 
     print(
         f"{'OK  ' if result.success else 'FAIL'} {scenario.label} "
         f"laps={result.laps_completed}/{result.target_laps} "
-        f"collided={result.collided} dist={result.distance_m:.2f}m "
-        f"t={result.sim_time_s:.1f}s{' OVER-TIME' if result.over_time else ''} | "
+        f"collided={result.collided} dist={result.distance_m:{_DISTANCE_FORMAT}}m "
+        f"t={result.sim_time_s:{_TIME_FORMAT}}s{' OVER-TIME' if result.over_time else ''} | "
         + " ".join(splits)
     )
 

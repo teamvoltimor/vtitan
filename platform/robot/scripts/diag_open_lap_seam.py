@@ -27,6 +27,10 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 if TYPE_CHECKING:
     from src.navigation.race_tracker import LapDetector
 
+_STEP_WIDTH = 5
+_POSITION_FORMAT = ".2f"
+_DEFAULT_FIXTURES = ("go_open_0010", "go_open_0013")
+
 
 class _IndexTracer:
     """Records index jumps and lap credits for a single fixture run."""
@@ -50,14 +54,14 @@ class _IndexTracer:
             before, before_len = self._waypoint_index, len(self._waypoints)
             tracer._real_path(self, waypoints, robot_xy)
             tracer.events.append(
-                f"  step{tracer.step:>5} replace_path idx {before}/{before_len} "
+                f"  step{tracer.step:>{_STEP_WIDTH}} replace_path idx {before}/{before_len} "
                 f"-> {self._waypoint_index}/{len(waypoints)} "
-                f"at ({robot_xy[0]:.2f},{robot_xy[1]:.2f})"
+                f"at ({robot_xy[0]:{_POSITION_FORMAT}},{robot_xy[1]:{_POSITION_FORMAT}})"
             )
 
         def replace_lap_detector(self: CoreNavigator, lap_detector: LapDetector) -> None:
             tracer._real_detector(self, lap_detector)
-            tracer.events.append(f"  step{tracer.step:>5} replace_lap_detector (direction flipped)")
+            tracer.events.append(f"  step{tracer.step:>{_STEP_WIDTH}} replace_lap_detector (direction flipped)")
 
         CoreNavigator.replace_path = replace_path
         CoreNavigator.replace_lap_detector = replace_lap_detector
@@ -72,7 +76,7 @@ class _IndexTracer:
         self.step += 1
         if navigator.laps_completed > self._laps:
             self._laps = navigator.laps_completed
-            self.events.append(f"  step{self.step:>5} LAP CREDITED -> {self._laps}")
+            self.events.append(f"  step{self.step:>{_STEP_WIDTH}} LAP CREDITED -> {self._laps}")
 
 
 def _report(scenario: Any) -> None:
@@ -100,7 +104,7 @@ def _report(scenario: Any) -> None:
 
 def main() -> None:
     """Trace index jumps and lap credits for the fixtures named on argv."""
-    wanted = sys.argv[1:] or ["go_open_0010", "go_open_0013"]
+    wanted = sys.argv[1:] or list(_DEFAULT_FIXTURES)
     for scenario in all_test_scenarios():
         if any(w in scenario.label for w in wanted):
             _report(scenario)

@@ -3,6 +3,12 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 
+_MIN_LIDAR_RANGE_M = 0.05
+_SAMPLE_SIZE = 8
+_FRONT_OFFSET = 20
+_SPIN_TIMEOUT_SEC = 0.5
+_PROBE_TIMEOUT_SEC = 8
+
 
 class Probe(Node):
     def __init__(self):
@@ -19,10 +25,10 @@ class Probe(Node):
 
         def summarize(name, idxs):
             vals = [msg.ranges[i] for i in idxs if 0 <= i < n]
-            finite = [v for v in vals if v > 0.05 and v != float("inf")]
-            print(f"{name}: total={len(vals)} valid={len(finite)} sample={vals[:8]} min_valid={min(finite) if finite else None}")
+            finite = [v for v in vals if v > _MIN_LIDAR_RANGE_M and v != float("inf")]
+            print(f"{name}: total={len(vals)} valid={len(finite)} sample={vals[:_SAMPLE_SIZE]} min_valid={min(finite) if finite else None}")
 
-        front = range(n // 2 - 20, n // 2 + 20)
+        front = range(n // 2 - _FRONT_OFFSET, n // 2 + _FRONT_OFFSET)
         left = range(n // 4, n // 3)
         right = range(2 * n // 3, 3 * n // 4)
         summarize("front", front)
@@ -36,8 +42,8 @@ def main():
     import time
 
     start = time.time()
-    while rclpy.ok() and not node.got and time.time() - start < 8:
-        rclpy.spin_once(node, timeout_sec=0.5)
+    while rclpy.ok() and not node.got and time.time() - start < _PROBE_TIMEOUT_SEC:
+        rclpy.spin_once(node, timeout_sec=_SPIN_TIMEOUT_SEC)
     node.destroy_node()
     rclpy.shutdown()
 

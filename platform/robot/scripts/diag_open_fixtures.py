@@ -27,6 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_test_scenarios
 
+_DISTANCE_FORMAT = ".2f"
+_TIME_FORMAT = ".1f"
+_SPEED_FORMAT = ".2f"
+
 
 def main() -> None:
     """Report the outcome of a full run for each Open Challenge fixture."""
@@ -58,9 +62,9 @@ def main() -> None:
             f"{'OK ' if ok else 'FAIL'} | {scenario.label} {widths_str} "
             f"laps={result.laps_completed}/{result.target_laps} "
             f"collided={result.collided} timeout={result.timed_out} | "
-            f"dist={result.distance_m:.2f}m t={result.sim_time_s:.1f}s "
-            f"vmax={result.max_speed_mps:.2f} vavg={result.avg_speed_mps:.2f} "
-            f"minLIDAR={result.min_lidar_range_m:.2f}m contacts={result.contact_count}"
+            f"dist={result.distance_m:{_DISTANCE_FORMAT}}m t={result.sim_time_s:{_TIME_FORMAT}}s "
+            f"vmax={result.max_speed_mps:{_SPEED_FORMAT}} vavg={result.avg_speed_mps:{_SPEED_FORMAT}} "
+            f"minLIDAR={result.min_lidar_range_m:{_DISTANCE_FORMAT}}m contacts={result.contact_count}"
         )
 
     total = len(all_test_scenarios())

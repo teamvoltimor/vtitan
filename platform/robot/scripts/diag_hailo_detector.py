@@ -37,6 +37,11 @@ from src.hardware.hailo.inferences import NmsFormatError, iter_nms_by_class
 from src.vision.detector import DEFAULT_CLASS_TO_COLOR
 
 COLOURS = ("red", "green", "magenta")
+_SAMPLE_LIMIT = 4
+_PATH_DISPLAY_WIDTH = 44
+_PATH_FIELD_WIDTH = 46
+_COLOUR_FIELD_WIDTH = 8
+_COLOR_DICT_FORMAT = ".0%"
 
 
 def expected_colour(path: Path) -> str | None:
@@ -51,7 +56,7 @@ def expected_colour(path: Path) -> str | None:
 def describe(raw: object) -> str:
     """Summarise the driver's raw output without assuming a layout."""
     if isinstance(raw, (list, tuple)):
-        inner = ", ".join(f"{np.asarray(item).shape}" for item in raw[:4])
+        inner = ", ".join(f"{np.asarray(item).shape}" for item in raw[:_SAMPLE_LIMIT])
         return f"{type(raw).__name__}[{len(raw)}] of {inner}"
     array = np.asarray(raw)
     return f"ndarray shape={array.shape} dtype={array.dtype}"
@@ -127,7 +132,7 @@ def _probe(driver: Driver, config: HailoConfig, images: list[Path]) -> int:
         if want is not None:
             agree += rgb_top == want
             disagree += rgb_top != want
-        print(f"{path.name[:44]:46s} expect={want or '?':8s} RGB->{rgb_top:8s} BGR->{bgr_top:8s}{mark}")
+        print(f"{path.name[:_PATH_DISPLAY_WIDTH]:{_PATH_FIELD_WIDTH}s} expect={want or '?':{_COLOUR_FIELD_WIDTH}s} RGB->{rgb_top:{_COLOUR_FIELD_WIDTH}s} BGR->{bgr_top:{_COLOUR_FIELD_WIDTH}s}{mark}")
 
     print(f"\nRGB agrees with filename on {agree}/{agree + disagree} images")
     if disagree > agree:
