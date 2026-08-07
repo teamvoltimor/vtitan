@@ -81,17 +81,6 @@ def _obstacles_metadata(*, with_parking: bool) -> dict:
     return metadata
 
 
-@pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
 def _make_host_node() -> Node:
     """A bare Node declaring the parameters ROS2HardwareGateway expects."""
     node = Node("test_track_navigator")

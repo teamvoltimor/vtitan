@@ -39,14 +39,6 @@ class IMU_AllData:
 
 
 @pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    rclpy.init()
-    yield
-    rclpy.shutdown()
-
-
-@pytest.fixture()
 def mock_driver():
     """Create a mock IMU I2C driver."""
     with mock.patch("src.ros2.imu.bno08x.mcp2221.i2c_node.IMU_I2CDriver") as mock_cls:

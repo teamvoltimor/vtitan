@@ -24,17 +24,6 @@ from src.state_machine import RobotState, ScenarioType
 
 
 @pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
-@pytest.fixture()
 def state_machine_node_class():
     from vtitan_state_machine.state_machine_node import StateMachineNode
 

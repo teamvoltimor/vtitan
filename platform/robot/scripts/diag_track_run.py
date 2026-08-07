@@ -65,7 +65,9 @@ class TrackRunProbe(Node):
         # different from "front" there and the two logs could not be compared.
         from shared.config.constants import RobotSpecs
 
-        offset = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+        offset = math.radians(
+            (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
+        )
         n = len(msg.ranges)
         if n == 0:
             return
@@ -74,7 +76,7 @@ class TrackRunProbe(Node):
         def sector(center_deg: float, half_deg: float = 20.0) -> float:
             vals = []
             for i, r in enumerate(msg.ranges):
-                if not (0.05 < r < 12.0):
+                if not (RobotSpecs.LIDAR_MIN_RANGE < r < RobotSpecs.LIDAR_MAX_RANGE):
                     continue
                 ang = math.degrees(msg.angle_min + i * step + offset)
                 delta = (ang - center_deg + 540) % 360 - 180

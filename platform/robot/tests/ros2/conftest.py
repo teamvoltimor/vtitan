@@ -6,6 +6,9 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+import rclpy
+
 # Mock buildhat to avoid import errors when testing ROS2 nodes.
 #
 # Only the BuildHAT motor backend imports it, and only lazily -- see
@@ -44,3 +47,14 @@ _ROS2_WS_SRC = Path(__file__).resolve().parents[2] / "ros2_ws" / "src"
 for _pkg_dir in sorted(_ROS2_WS_SRC.glob("vtitan_*")):
     if str(_pkg_dir) not in sys.path:
         sys.path.insert(0, str(_pkg_dir))
+
+
+@pytest.fixture()
+def ros_context():
+    """Initialize and cleanup ROS2 context for each test."""
+    try:
+        rclpy.init()
+        yield
+        rclpy.shutdown()
+    except Exception as e:
+        pytest.skip(f"ROS2 initialization failed: {e}")

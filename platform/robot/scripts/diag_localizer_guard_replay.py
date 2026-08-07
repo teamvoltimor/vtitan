@@ -30,7 +30,6 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 from pathlib import Path
@@ -38,12 +37,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
-import rosbag2_py
+from _bag_io import Topics, decode_nav_debug, open_reader
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
-from shared.config.enums import Section
-from std_msgs.msg import String
+from shared.domain.enums import Section
+from shared.domain.models import NavigatorDebugSnapshot
 
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
@@ -58,22 +57,23 @@ _LIDAR_YAW_OFFSET_RAD = math.radians(
 _IMPOSSIBLE_SPEED_MPS = 2.0 * RobotSpecs.MAX_SPEED_MPS
 
 
-def _read_bag(bag_dir: Path) -> tuple[list[tuple[int, dict]], list[tuple[int, LaserScan]]]:
-    """Return (nav_debug snapshots, scans), each as (bag-time-ns, msg), time-ordered."""
-    reader = rosbag2_py.SequentialReader()
-    reader.open(
-        rosbag2_py.StorageOptions(uri=str(bag_dir), storage_id="mcap"),
-        rosbag2_py.ConverterOptions("", ""),
-    )
-    nav_debug: list[tuple[int, dict]] = []
+def _read_bag(bag_dir: Path) -> tuple[list[tuple[int, NavigatorDebugSnapshot]], list[tuple[int, LaserScan]]]:
+    """Return (nav_debug snapshots, scans), each as (bag-time-ns, msg), time-ordered.
+
+    Scans are kept as raw messages, decoded lazily only for the handful of
+    jump ticks that actually need them (via _scan_to_ranges_angles below) --
+    a bag can carry thousands of /scan messages and only a few matter here.
+    """
+    reader = open_reader(bag_dir)
+    nav_debug: list[tuple[int, NavigatorDebugSnapshot]] = []
     scans: list[tuple[int, LaserScan]] = []
     while reader.has_next():
         topic, data, t = reader.read_next()
-        if topic == "/nav_debug":
-            payload = json.loads(deserialize_message(data, String).data)
-            if payload.get("pose_x") is not None and payload.get("pose_y") is not None:
-                nav_debug.append((t, payload))
-        elif topic == "/scan":
+        if topic == Topics.NAV_DEBUG:
+            snapshot = decode_nav_debug(data)
+            if snapshot.pose_x is not None and snapshot.pose_y is not None:
+                nav_debug.append((t, snapshot))
+        elif topic == Topics.SCAN:
             scans.append((t, deserialize_message(data, LaserScan)))
     return nav_debug, scans
 
@@ -100,7 +100,7 @@ def _scan_to_ranges_angles(msg: LaserScan) -> tuple[np.ndarray, np.ndarray]:
     return raw, angles
 
 
-def _final_walls(nav_debug: list[tuple[int, dict]]) -> TrackWalls | None:
+def _final_walls(nav_debug: list[tuple[int, NavigatorDebugSnapshot]]) -> TrackWalls | None:
     """Ground-truth geometry for the whole run: the physical corridor widths
     never change mid-run, only the robot's blind-mode belief about them does
     (see CorridorWidthEstimator) -- so the LAST snapshot's belief, once
@@ -113,10 +113,10 @@ def _final_walls(nav_debug: list[tuple[int, dict]]) -> TrackWalls | None:
     """
     for _, snapshot in reversed(nav_debug):
         widths = {
-            Section.NORTH: snapshot.get("belief_north_m"),
-            Section.SOUTH: snapshot.get("belief_south_m"),
-            Section.EAST: snapshot.get("belief_east_m"),
-            Section.WEST: snapshot.get("belief_west_m"),
+            Section.NORTH: snapshot.belief_north_m,
+            Section.SOUTH: snapshot.belief_south_m,
+            Section.EAST: snapshot.belief_east_m,
+            Section.WEST: snapshot.belief_west_m,
         }
         if all(w is not None for w in widths.values()):
             return TrackWalls(corridor_geometry_from_widths(widths))
@@ -182,7 +182,7 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
         dt = (t1 - t0) / 1e9
         if dt <= 0:
             continue
-        dist = math.hypot(cur["pose_x"] - prev["pose_x"], cur["pose_y"] - prev["pose_y"])
+        dist = math.hypot(cur.pose_x - prev.pose_x, cur.pose_y - prev.pose_y)
         implied_speed = dist / dt
         if implied_speed <= _IMPOSSIBLE_SPEED_MPS:
             continue
@@ -190,8 +190,8 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
         jump_count += 1
         scan = _nearest_scan(scans, t1)
         ranges, angles = _scan_to_ranges_angles(scan)
-        prior_xy = (prev["pose_x"], prev["pose_y"])
-        _, _, best_cost, second_cost = _grid_search_costs(walls, prior_xy, cur["pose_yaw"], ranges, angles)
+        prior_xy = (prev.pose_x, prev.pose_y)
+        _, _, best_cost, second_cost = _grid_search_costs(walls, prior_xy, cur.pose_yaw, ranges, angles)
 
         margin = (second_cost - best_cost) / best_cost if best_cost > 0 else float("inf")
         ambiguous = best_cost > cost_floor and margin < min_distinctiveness

@@ -33,18 +33,6 @@ def mock_buildhat():
 
 
 @pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    # Check if ROS2 can be initialized
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
-@pytest.fixture()
 def imu_rvc_node_class():
     """Import IMU_UART_RVCNode with mocked dependencies."""
     with mock.patch("src.ros2.imu.bno08x.mcp2221.uart_rvc_node.IMU_UART_RVCDriver") as mock_uart_rvc:

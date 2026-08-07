@@ -39,17 +39,6 @@ _WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WE
 _MOCK_MAX_STEERING_DEG = 30.0
 
 
-@pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
 def _make_navigator_host_node():
     from rclpy.node import Node
 

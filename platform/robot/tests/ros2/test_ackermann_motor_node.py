@@ -47,17 +47,6 @@ def _wheel_rpm_for(velocity_mps: float) -> float:
 
 
 @pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
-@pytest.fixture()
 def ackermann_node_class(monkeypatch):
     """Import AckermannMotorNode with a mocked Config and driver factory."""
     monkeypatch.setenv("STEERING_BACKEND", SteeringBackend.SERVO.value)

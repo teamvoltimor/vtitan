@@ -23,7 +23,7 @@ from shared.domain.models import IMUReading, Pose
 
 from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
-from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node, ros_context
+from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node
 
 
 def _scan_at(x: float, y: float, yaw: float) -> LidarScan:
@@ -84,7 +84,7 @@ def _write_open_metadata(tmp_path) -> str:
 class TestGatewayBeliefUpdate:
     """The gateway must be able to change which layout it localizes against."""
 
-    def test_set_believed_walls_replaces_the_localizer(self, ros_context) -> None:  # noqa: F811 - pytest fixture
+    def test_set_believed_walls_replaces_the_localizer(self, ros_context) -> None:
         node = _make_host_node()
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
         before = gateway._localizer
@@ -141,7 +141,7 @@ class TestVisionCallbackParsesDetections:
     docs/known-issues-backlog.md.
     """
 
-    def test_a_real_detections_message_populates_latest_detections(self, ros_context) -> None:  # noqa: F811
+    def test_a_real_detections_message_populates_latest_detections(self, ros_context) -> None:
         import json
 
         from std_msgs.msg import String
@@ -183,13 +183,13 @@ class TestHeadingResetReachesTheEstimator:
     covered.
     """
 
-    def test_gateway_exposes_the_reset(self, ros_context) -> None:  # noqa: F811
+    def test_gateway_exposes_the_reset(self, ros_context) -> None:
         node = _make_host_node()
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
         assert callable(gateway.reset_heading_reference)
         node.destroy_node()
 
-    def test_reset_rezeroes_the_heading(self, ros_context) -> None:  # noqa: F811
+    def test_reset_rezeroes_the_heading(self, ros_context) -> None:
         node = _make_host_node()
         start_yaw = math.pi / 2
         gateway = ROS2HardwareGateway(node, 1.5, 0.45, start_yaw, _WIDTHS)
@@ -234,7 +234,7 @@ class TestBlindPrior:
 class TestRunsWithNoScenarioFile:
     """Competition has no metadata file, so the node must start without one."""
 
-    def test_node_constructs_with_no_metadata(self, ros_context) -> None:  # noqa: F811
+    def test_node_constructs_with_no_metadata(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=3)
@@ -245,7 +245,7 @@ class TestRunsWithNoScenarioFile:
         finally:
             navigator.destroy_node()
 
-    def test_no_metadata_plans_a_full_lap(self, ros_context) -> None:  # noqa: F811
+    def test_no_metadata_plans_a_full_lap(self, ros_context) -> None:
         """A path built from the prior still has to be a drivable loop."""
         from src.ros2.navigation.node import TrackNavigator
 
@@ -272,7 +272,7 @@ class TestBlindImpliesDirectionInference:
     harness, which made every measured pass rate a statement about the sim.
     """
 
-    def test_blind_node_has_a_direction_estimator(self, ros_context) -> None:  # noqa: F811
+    def test_blind_node_has_a_direction_estimator(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=3)
@@ -282,7 +282,7 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
-    def test_direction_is_provisional_until_it_settles(self, ros_context) -> None:  # noqa: F811
+    def test_direction_is_provisional_until_it_settles(self, ros_context) -> None:
         """The constructor's direction is a placeholder, not an input."""
         from src.ros2.navigation.node import TrackNavigator
 
@@ -294,7 +294,7 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
-    def test_committing_a_direction_replans(self, ros_context) -> None:  # noqa: F811
+    def test_committing_a_direction_replans(self, ros_context) -> None:
         from shared.domain.models import Pose
 
         from src.ros2.navigation.node import TrackNavigator
@@ -311,7 +311,7 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
-    def test_overturning_the_assumed_direction_corrects_the_heading_estimate(self, ros_context) -> None:  # noqa: F811
+    def test_overturning_the_assumed_direction_corrects_the_heading_estimate(self, ros_context) -> None:
         """2026-08-04: the bug behind "CCW never resolves its heading".
 
         assumed_start_conditions pairs a starting yaw with whichever direction
@@ -342,7 +342,7 @@ class TestBlindImpliesDirectionInference:
         finally:
             navigator.destroy_node()
 
-    def test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep(self, ros_context) -> None:  # noqa: F811
+    def test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep(self, ros_context) -> None:
         """2026-08-04: the bug behind "CW always works, CCW never does".
 
         The LIDAR localizer takes yaw as given, so every position fix taken
@@ -424,7 +424,7 @@ class TestAssumedStartConditions:
 class TestResolveDirection:
     """The creep-until-direction-known state machine, driven directly."""
 
-    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:  # noqa: F811
+    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
@@ -434,7 +434,7 @@ class TestResolveDirection:
         finally:
             navigator.destroy_node()
 
-    def test_returns_false_once_the_estimator_has_settled(self, ros_context) -> None:  # noqa: F811
+    def test_returns_false_once_the_estimator_has_settled(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)
@@ -453,7 +453,7 @@ class TestResolveDirection:
         finally:
             navigator.destroy_node()
 
-    def test_holds_and_returns_true_when_scan_or_pose_is_missing(self, ros_context) -> None:  # noqa: F811
+    def test_holds_and_returns_true_when_scan_or_pose_is_missing(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)
@@ -467,7 +467,7 @@ class TestResolveDirection:
         finally:
             navigator.destroy_node()
 
-    def test_not_yet_settled_buffers_a_width_reading_and_creeps(self, ros_context) -> None:  # noqa: F811
+    def test_not_yet_settled_buffers_a_width_reading_and_creeps(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)
@@ -488,7 +488,7 @@ class TestResolveDirection:
         finally:
             navigator.destroy_node()
 
-    def test_settling_commits_the_direction_and_reports_no_plan_step(self, ros_context) -> None:  # noqa: F811
+    def test_settling_commits_the_direction_and_reports_no_plan_step(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
@@ -518,7 +518,7 @@ class TestResolveDirection:
 class TestCommitDirectionFlushesBufferedWidths:
     """The creep buffer built up while direction was unknown must reach the estimator."""
 
-    def test_buffered_readings_are_replayed_and_the_buffer_is_cleared(self, ros_context) -> None:  # noqa: F811
+    def test_buffered_readings_are_replayed_and_the_buffer_is_cleared(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1, direction=Direction.CLOCKWISE)
@@ -537,7 +537,7 @@ class TestCommitDirectionFlushesBufferedWidths:
 class TestUpdateLayoutBelief:
     """Folding LIDAR readings into the width estimate mid-run, and replanning off it."""
 
-    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:  # noqa: F811
+    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
@@ -547,7 +547,7 @@ class TestUpdateLayoutBelief:
         finally:
             navigator.destroy_node()
 
-    def test_returns_false_when_scan_or_pose_is_missing(self, ros_context) -> None:  # noqa: F811
+    def test_returns_false_when_scan_or_pose_is_missing(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)
@@ -557,7 +557,7 @@ class TestUpdateLayoutBelief:
         finally:
             navigator.destroy_node()
 
-    def test_returns_false_when_the_estimate_does_not_change(self, ros_context) -> None:  # noqa: F811
+    def test_returns_false_when_the_estimate_does_not_change(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)
@@ -572,7 +572,7 @@ class TestUpdateLayoutBelief:
         finally:
             navigator.destroy_node()
 
-    def test_a_settled_estimate_replans_and_repoints_the_localizer(self, ros_context) -> None:  # noqa: F811
+    def test_a_settled_estimate_replans_and_repoints_the_localizer(self, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
         navigator = TrackNavigator(metadata_path=None, num_laps=1)

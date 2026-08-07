@@ -19,17 +19,6 @@ from vision_msgs.msg import BoundingBox2D, Detection2D, Detection2DArray, Object
 
 
 @pytest.fixture()
-def ros_context():
-    """Initialize and cleanup ROS2 context for each test."""
-    try:
-        rclpy.init()
-        yield
-        rclpy.shutdown()
-    except Exception as e:
-        pytest.skip(f"ROS2 initialization failed: {e}")
-
-
-@pytest.fixture()
 def bridge_module():
     from vtitan_state_machine import telemetry_bridge_node as module
 
