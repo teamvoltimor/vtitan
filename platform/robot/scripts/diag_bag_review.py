@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
 from rclpy.serialization import deserialize_message
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
@@ -40,9 +40,9 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
         if t0 is None:
             t0 = stamp
         rel = elapsed_seconds(stamp, t0)
-        if topic.endswith("nav_debug"):
+        if topic == Topics.NAV_DEBUG:
             ticks.append((rel, decode_nav_debug(data)))
-        elif topic.endswith("robot_state"):
+        elif topic == Topics.ROBOT_STATE:
             value = deserialize_message(data, String).data
             if not states or states[-1][1] != value:
                 states.append((rel, value))

@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
-from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
@@ -47,9 +47,9 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
         if t0 is None:
             t0 = stamp
         rel = elapsed_seconds(stamp, t0)
-        if topic.endswith("nav_debug"):
+        if topic == Topics.NAV_DEBUG:
             ticks.append((rel, decode_nav_debug(data)))
-        elif topic.endswith("scan"):
+        elif topic == Topics.SCAN:
             raw = np.array(deserialize_message(data, LaserScan).ranges, dtype=float)
             valid = raw[np.isfinite(raw) & (raw >= RobotSpecs.LIDAR_MIN_RANGE)]
             scans.append((rel, float(valid.min()) if valid.size else float("nan")))

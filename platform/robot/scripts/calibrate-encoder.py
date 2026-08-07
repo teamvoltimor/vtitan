@@ -45,6 +45,7 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.node import Node
+from shared.config.constants import RobotSpecs
 from std_msgs.msg import Float32
 
 
@@ -102,7 +103,12 @@ def main() -> None:
     parser.add_argument("--speed", type=float, default=3.0, help="Commanded speed (current fake m/s units)")
     parser.add_argument("--duration-s", type=float, default=5.0)
     parser.add_argument("--runs", type=int, default=2)
-    parser.add_argument("--wheel-diameter-m", type=float, default=0.070, help="Measured wheel diameter")
+    parser.add_argument(
+        "--wheel-diameter-m",
+        type=float,
+        default=2.0 * RobotSpecs.WHEEL_RADIUS,
+        help="Measured wheel diameter",
+    )
     parser.add_argument("--counts-per-rev-config", type=float, default=194.0, help="Value currently in the driver")
     args = parser.parse_args()
 

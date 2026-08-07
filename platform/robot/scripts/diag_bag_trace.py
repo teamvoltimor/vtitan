@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 
@@ -39,11 +39,11 @@ def main() -> None:
         ts = elapsed_seconds(t, t_start)
         if not (args.start <= ts <= args.until):
             continue
-        if topic == "/ackermann_cmd" and args.cmd:
+        if topic == Topics.ACKERMANN_CMD and args.cmd:
             msg = deserialize_message(data, AckermannDriveStamped)
             print(f"{ts:7.2f}s CMD  speed={msg.drive.speed:6.3f} steer_rad={msg.drive.steering_angle:6.3f}")
             continue
-        if topic != "/nav_debug":
+        if topic != Topics.NAV_DEBUG:
             continue
         snap = decode_nav_debug(data)
         print(

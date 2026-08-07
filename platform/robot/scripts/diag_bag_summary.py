@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
@@ -45,11 +45,11 @@ def main() -> None:
             t_start = t
         ts = elapsed_seconds(t, t_start)
 
-        if topic == "/robot_state":
+        if topic == Topics.ROBOT_STATE:
             msg = deserialize_message(data, String)
             if not state_transitions or state_transitions[-1][1] != msg.data:
                 state_transitions.append((ts, msg.data))
-        elif topic == "/nav_debug":
+        elif topic == Topics.NAV_DEBUG:
             snap = decode_nav_debug(data)
             if nav_debug_first is None:
                 nav_debug_first = (ts, snap)
@@ -66,7 +66,7 @@ def main() -> None:
                 if last_pose is not None:
                     total_dist += ((px - last_pose[0]) ** 2 + (py - last_pose[1]) ** 2) ** 0.5
                 last_pose = (px, py)
-        elif topic == "/ackermann_cmd":
+        elif topic == Topics.ACKERMANN_CMD:
             msg = deserialize_message(data, AckermannDriveStamped)
             drive_count += 1
             max_speed = max(max_speed, msg.drive.speed)
