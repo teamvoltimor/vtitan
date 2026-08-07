@@ -42,7 +42,23 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-# Sweep mode names—must match dict keys in _SWEPT_MODES and _FIXED_MODES
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from shared.config.constants import CompetitionSpecs, DictKeys
+from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import Waypoint
+
+import src.navigation.planning.sign_router as sign_router_module
+import src.simulation.scenario_simulator as gateway_module
+from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+from src.simulation.scenario_simulator import ScenarioSimulator
+from src.simulation.track_model import TrackModel, obstacles_from_metadata
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
 class SweepMode(StrEnum):
     """Diagnostic sweep modes for sign-avoidance tuning."""
 
@@ -72,22 +88,6 @@ class SweepMode(StrEnum):
     NO_PARK = "no-park"
     HYSTERESIS = "hysteresis"
     CROSSTRACK = "crosstrack"
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from shared.config.constants import CompetitionSpecs, DictKeys
-from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Waypoint
-
-import src.navigation.planning.sign_router as sign_router_module
-import src.simulation.scenario_simulator as gateway_module
-from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
-from src.simulation.scenario_simulator import ScenarioSimulator
-from src.simulation.track_model import TrackModel, obstacles_from_metadata
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 MAX_STEPS = 6000
 """Matches ``tests/unit/test_obstacles_challenge_sim.py``."""

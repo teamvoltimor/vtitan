@@ -115,8 +115,8 @@ def main() -> None:
     for r in rows:
         passed += r.success
         contacted += r.contact_count > 0
-        table_rows.append((r.label, 'yes' if r.success else 'NO', r.laps_completed, r.contact_count, r.contact_time_s, r.min_lidar_range_m))
-    print_table(table_rows, ['start', 'pass', 'laps', 'contacts', 'contact_s', 'min_rng'], floatfmt=[None, None, None, None, '.2f', '.3f'])
+        table_rows.append((r.label, "yes" if r.success else "NO", r.laps_completed, r.contact_count, r.contact_time_s, r.min_lidar_range_m))
+    print_table(table_rows, ["start", "pass", "laps", "contacts", "contact_s", "min_rng"], floatfmt=[None, None, None, None, ".2f", ".3f"])
     print(f"\n{passed}/{len(rows)} passed   {contacted}/{len(rows)} touched a wall at least once")
 
 

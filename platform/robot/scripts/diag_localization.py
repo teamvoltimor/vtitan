@@ -40,10 +40,11 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.scenario_simulator import ScenarioSimulator
-from src.simulation.simulated_hardware_gateway import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios, all_test_scenarios
+from src.simulation.scenario_simulator import ScenarioSimulator
+from src.simulation.simulated_hardware_gateway import SensorErrors
+
 
 class DiagMode(StrEnum):
     """Diagnostic comparison modes."""
@@ -273,7 +274,7 @@ def _run_perturbed(args: tuple[int, SensorErrors]) -> _PerturbedRun:
 
     result = sim.run(on_step=on_step)
     believed = sim.believed_widths or {}
-    layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_widths.items())
+    layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_geometry.to_widths_dict().items())
     return _PerturbedRun(
         label=scenario.label,
         passed=result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S,

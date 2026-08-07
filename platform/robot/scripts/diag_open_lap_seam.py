@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.domain.models import Waypoint
+
 from src.navigation.core_navigator import CoreNavigator
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
