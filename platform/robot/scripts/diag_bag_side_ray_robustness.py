@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_bag
+from _bag_io import open_reader, print_table, read_bag
 from shared.config.constants import RobotSpecs
 
 from src.navigation.direction_estimator import (
@@ -39,12 +39,11 @@ from src.navigation.direction_estimator import (
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
-MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
-# A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
-# told apart from the synthetic fill value substituted for a LIDAR dropout
-# (RobotSpecs.LIDAR_MAX_RANGE itself, used below).
-MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
-MIN_VOTES = 5
+__MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
+__MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
+__MIN_VOTES = 5
+_MAT_CENTRE_X = 1.5
+_MAT_CENTRE_Y = 1.5
 
 
 def _single(ranges: Sequence[float], angles: Sequence[float], target: float) -> float:
@@ -61,7 +60,7 @@ def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, h
     vals = sorted(
         r
         for r, a in zip(ranges, angles, strict=False)
-        if abs(_wrap(a - target)) <= half_width and MIN_VALID_M < r < MAX_RANGE_M
+        if abs(_wrap(a - target)) <= half_width and _MIN_VALID_M < r < _MAX_RANGE_M
     )
     if not vals:
         return None
@@ -94,7 +93,7 @@ def main() -> None:
 
     beams = len(scans[0][1].ranges_m)
     total = sum(len(scan.ranges_m) for _, scan in scans)
-    dropouts = sum(1 for _, scan in scans for v in scan.ranges_m if v >= MAX_RANGE_M)
+    dropouts = sum(1 for _, scan in scans for v in scan.ranges_m if v >= _MAX_RANGE_M)
     print(f"beams/scan={beams}  overall max-range fraction: {100.0 * dropouts / total:.1f}%")
 
     def nearest_yaw(t: float) -> float | None:
@@ -113,7 +112,7 @@ def main() -> None:
         w_l = _windowed(scan.ranges_m, scan.angles_rad, math.pi / 2, half)
         w_r = _windowed(scan.ranges_m, scan.angles_rad, -math.pi / 2, half)
         for single, win in ((s_l, w_l), (s_r, w_r)):
-            if single >= MAX_RANGE_M:
+            if single >= _MAX_RANGE_M:
                 recovered["single max-range"] += 1
                 if win is None:
                     recovered["  window also empty (real dropout)"] += 1
@@ -124,14 +123,15 @@ def main() -> None:
         rows.append((t, yaw, s_l, s_r, w_l, w_r))
 
     print("\nside-ray recovery:")
-    for name, count in recovered.items():
-        print(f"  {name:44s} {count}")
+    if recovered:
+        rows = [(name, count) for name, count in recovered.items()]
+        print_table(rows, ["metric", "count"])
 
     # Winding sense of the pose trace, as ground truth.
     total_ang = 0.0
     prev = None
     for _, x, y in poses:
-        ang = math.atan2(y - 1.5, x - 1.5)
+        ang = math.atan2(y - _MAT_CENTRE_Y, x - _MAT_CENTRE_X)
         if prev is not None:
             total_ang += _wrap(ang - prev)
         prev = ang
@@ -157,7 +157,7 @@ def main() -> None:
             inferred = "clockwise" if right > left else "counterclockwise"
             votes[inferred] += 1
             cast += 1
-            if votes[inferred] >= MIN_VOTES:
+            if votes[inferred] >= _MIN_VOTES:
                 return t, inferred, cast
         return None
 

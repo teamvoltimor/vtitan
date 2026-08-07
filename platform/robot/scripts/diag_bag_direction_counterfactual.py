@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 
@@ -38,11 +38,12 @@ from src.navigation.direction_estimator import (
 )
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _wrap
 
-MIN_VOTES = 5
-# A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
-# told apart from the synthetic fill value substituted for a LIDAR dropout
-# (RobotSpecs.LIDAR_MAX_RANGE itself, published as *_range_m by the node).
+_MIN_VOTES = 5
 _MAX_RANGE_FILL_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
+_MAT_CENTRE_X = 1.5
+_MAT_CENTRE_Y = 1.5
+_LARGE_MAX_RANGE_M = 12.5
+_ALIGNMENT_TOL_MULTIPLIER = 2
 
 
 def settle(
@@ -74,7 +75,7 @@ def settle(
         inferred = "clockwise" if right > left else "counterclockwise"
         votes[inferred] += 1
         cast += 1
-        if votes[inferred] >= MIN_VOTES:
+        if votes[inferred] >= _MIN_VOTES:
             return t, inferred, cast
     return None
 
@@ -87,7 +88,7 @@ def true_direction(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> tuple[st
         x, y = snap.pose_x, snap.pose_y
         if x is None or y is None:
             continue
-        ang = math.atan2(y - 1.5, x - 1.5)
+        ang = math.atan2(y - _MAT_CENTRE_Y, x - _MAT_CENTRE_X)
         if prev is not None:
             total += _wrap(ang - prev)
         prev = ang
@@ -123,10 +124,13 @@ def main() -> None:
         (4.5, _MAX_RANGE_FILL_M),
         (_MAX_RANGE_FILL_M, 99),
     ]
+    table_rows = []
     for lo, hi in buckets:
         n = sum(1 for v in pool if lo <= v < hi)
         pct = 100.0 * n / len(pool) if pool else 0.0
-        print(f"  [{lo:5.2f}, {hi:5.2f})  {n:6d}  {pct:5.1f}%")
+        table_rows.append((f"[{lo:.2f}, {hi:.2f})", n, pct))
+    if table_rows:
+        print_table(table_rows, ["range", "count", "percent"])
 
     print("\nticks where exactly one side reads max-range (the rejected signal):")
     one_side_max = [
@@ -150,23 +154,26 @@ def main() -> None:
         ("shipped", dict(max_range=_MAX_IN_TRACK_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
                          min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOLERANCE_RAD)),
         ("max_range=12.5 (accept max-range as open)",
-         dict(max_range=12.5, max_span=_MAX_PLAUSIBLE_SPAN_M,
+         dict(max_range=_LARGE_MAX_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
               min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOLERANCE_RAD)),
         ("align_tol x2",
          dict(max_range=_MAX_IN_TRACK_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
-              min_asym=_MIN_ASYMMETRY_M, align_tol=2 * _ALIGNMENT_TOLERANCE_RAD)),
+              min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOL_MULTIPLIER * _ALIGNMENT_TOLERANCE_RAD)),
         ("max_range=12.5 AND align_tol x2",
-         dict(max_range=12.5, max_span=_MAX_PLAUSIBLE_SPAN_M,
-              min_asym=_MIN_ASYMMETRY_M, align_tol=2 * _ALIGNMENT_TOLERANCE_RAD)),
+         dict(max_range=_LARGE_MAX_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
+              min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOL_MULTIPLIER * _ALIGNMENT_TOLERANCE_RAD)),
     ]
+    table_rows = []
     for name, kwargs in variants:
         result = settle(rows, **kwargs)
         if result is None:
-            print(f"  {name:44s} never settles")
+            table_rows.append((name, "never settles", "", "", ""))
         else:
             t, direction, cast = result
             mark = "OK" if direction == truth else "WRONG"
-            print(f"  {name:44s} settles {direction} at {t:6.1f}s  ({cast} votes cast)  [{mark}]")
+            table_rows.append((name, direction, t, cast, mark))
+    if table_rows:
+        print_table(table_rows, ["variant", "result", "time_s", "votes", "status"])
 
 
 if __name__ == "__main__":
