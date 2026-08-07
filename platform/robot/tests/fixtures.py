@@ -362,3 +362,36 @@ def angle_to_index(bearing_rad: float, angles: np.ndarray = ANGLES_FULL_ROTATION
         Index of the ray closest to the bearing
     """
     return int(np.argmin(np.abs(angles - bearing_rad)))
+
+
+def create_scan_with_sectors(
+    default_distance_m: float = 10.0,
+    angles: np.ndarray = ANGLES_FULL_ROTATION,
+    sector_width_indices: int = 4,
+    **closed_sectors: float,
+) -> list[float]:
+    """Create a LIDAR scan with specific sectors closed and others at default distance.
+
+    Args:
+        default_distance_m: Distance for all rays (default: far/clear)
+        angles: Array of ray angles
+        sector_width_indices: Half-width (in indices) of sectors to close
+        **closed_sectors: Named sectors (front/back/left/right) and their distances
+
+    Returns:
+        List of range measurements (one per ray)
+
+    Example:
+        scan = create_scan_with_sectors(front=0.06, back=0.09)
+    """
+    ranges = np.full(NUM_RAYS, default_distance_m)
+    sector_centers = {"front": 0.0, "left": math.pi / 2, "right": -math.pi / 2, "back": math.pi}
+
+    for name, dist in closed_sectors.items():
+        if name not in sector_centers:
+            raise ValueError(f"Unknown sector '{name}'. Use: front, back, left, right")
+        center_rad = sector_centers[name]
+        idx = angle_to_index(center_rad, angles)
+        ranges[idx - sector_width_indices : idx + sector_width_indices] = dist
+
+    return ranges.tolist()

@@ -21,6 +21,7 @@ from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec
 from src.navigation.ports import DriveCommand, LidarScan
+from tests.fixtures import create_scan_with_sectors
 from tests.test_constants import (
     ANGLES_FULL_ROTATION,
     LIDAR_DEFAULT_FAR,
@@ -29,17 +30,6 @@ from tests.test_constants import (
 )
 
 ANGLES = ANGLES_FULL_ROTATION.tolist()
-
-
-def _scan_with_sectors(**close_sectors: float) -> list[float]:
-    """A far-range scan with the given named sectors (front/back/left/right) closed."""
-    ranges = np.full(NUM_RAYS, LIDAR_DEFAULT_FAR)
-    centers = {"front": 0.0, "left": math.pi / 2, "right": -math.pi / 2, "back": math.pi}
-    for name, dist in close_sectors.items():
-        center = centers[name]
-        idx = int(np.argmin(np.abs(np.asarray(ANGLES) - center)))
-        ranges[idx - SIDE_SECTOR_INDICES : idx + SIDE_SECTOR_INDICES] = dist
-    return ranges.tolist()
 
 
 class _FakeGateway:
@@ -77,7 +67,7 @@ class TestCriticalEscapeRearGate:
         (0.08 m, see CA-4) so this is a genuine wall, not a filtered chassis
         reflection — otherwise the rear-gate would never see it as blocked.
         """
-        ranges = _scan_with_sectors(front=0.06, back=0.09)
+        ranges = create_scan_with_sectors(front=0.06, back=0.09)
         gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
 
@@ -88,7 +78,7 @@ class TestCriticalEscapeRearGate:
 
     def test_front_blocked_rear_clear_reverses(self, waypoints):
         """Front blocked, rear clear: the K-turn escape should reverse."""
-        ranges = _scan_with_sectors(front=0.06)
+        ranges = create_scan_with_sectors(front=0.06)
         gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
 
@@ -121,7 +111,7 @@ class TestMappedObstacleEscapeSplit:
         The robot sits at the origin facing east, so the front return lands at
         ``(_FRONT_RANGE, 0)`` in world coordinates.
         """
-        ranges = _scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
+        ranges = create_scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
         gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         tuning = NavigationTuning()
         if mask_radius is not None:
@@ -253,7 +243,7 @@ class TestStuckEscapeRearBlocked:
     """
 
     def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints):
-        ranges = _scan_with_sectors(back=0.09)  # rear blocked, front stays LIDAR_DEFAULT_FAR
+        ranges = create_scan_with_sectors(back=0.09)  # rear blocked, front stays LIDAR_DEFAULT_FAR
         gateway = _FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
@@ -270,7 +260,7 @@ class TestStuckEscapeRearBlocked:
 
     def test_both_ends_blocked_still_holds(self, waypoints):
         """Genuinely sandwiched (front AND rear blocked): holding is still correct."""
-        ranges = _scan_with_sectors(front=0.06, back=0.09)
+        ranges = create_scan_with_sectors(front=0.06, back=0.09)
         gateway = _FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
@@ -428,7 +418,7 @@ class TestEscapeEscalationIntegration:
     """
 
     def test_persistent_front_threat_escalates_after_repeated_escapes(self, waypoints):
-        ranges = _scan_with_sectors(front=0.06)
+        ranges = create_scan_with_sectors(front=0.06)
         gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
@@ -472,7 +462,7 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
     """
 
     def test_oscillating_threat_without_progress_still_escalates(self, waypoints):
-        close = tuple(_scan_with_sectors(front=0.06))
+        close = tuple(create_scan_with_sectors(front=0.06))
         far = tuple(np.full(NUM_RAYS, LIDAR_DEFAULT_FAR).tolist())
 
         class _OscillatingGateway(_FakeGateway):
