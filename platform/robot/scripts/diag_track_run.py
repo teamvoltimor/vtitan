@@ -17,10 +17,15 @@ from __future__ import annotations
 import argparse
 import math
 import statistics
+import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
+from _bag_io import print_table
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
@@ -31,6 +36,19 @@ _QOS_STATE = QoSProfile(
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
 )
+
+_LIDAR_SECTOR_HALF_WIDTH_DEG = 20.0
+_SECTOR_ANGLES_DEG = (0.0, 90.0, -90.0)
+_SPEED_THRESHOLD = 1e-6
+_STEERING_BIAS_THRESHOLD_RAD = 0.02
+_SAMPLES_TO_DISPLAY_STEERING = 12
+_SAMPLES_TO_DISPLAY_CLEARANCES = 8
+_BAR_SCALE_FACTOR = 20
+_DISCOVERY_SETTLE_TIME_S = 3.0
+_SPIN_TIMEOUT_DISCOVERY_S = 0.1
+_SPIN_TIMEOUT_RUN_S = 0.05
+_ESTOP_SETTLE_TIME_S = 2.0
+_DEFAULT_RUN_SECONDS = 20.0
 
 
 class TrackRunProbe(Node):
@@ -73,7 +91,7 @@ class TrackRunProbe(Node):
             return
         step = (msg.angle_max - msg.angle_min) / max(1, n - 1)
 
-        def sector(center_deg: float, half_deg: float = 20.0) -> float:
+        def sector(center_deg: float, half_deg: float = _LIDAR_SECTOR_HALF_WIDTH_DEG) -> float:
             vals = []
             for i, r in enumerate(msg.ranges):
                 if not (RobotSpecs.LIDAR_MIN_RANGE < r < RobotSpecs.LIDAR_MAX_RANGE):
@@ -85,7 +103,7 @@ class TrackRunProbe(Node):
             return min(vals) if vals else float("nan")
 
         self.clearances.append(
-            (time.monotonic() - self.t0, sector(0.0), sector(90.0), sector(-90.0)),
+            (time.monotonic() - self.t0, *[sector(a) for a in _SECTOR_ANGLES_DEG]),
         )
 
     def press(self, event: str) -> None:
@@ -101,33 +119,37 @@ def _summarise(probe: TrackRunProbe) -> None:
         print(f"  t={t:5.1f}s  {s}")
 
     print("\n--- drive commands (steering + = left) ---")
-    driving = [s for s in probe.samples if abs(s[2]) > 1e-6]
+    driving = [s for s in probe.samples if abs(s[2]) > _SPEED_THRESHOLD]
     if not driving:
         print("  none with non-zero speed -- the robot never drove")
     else:
-        step = max(1, len(driving) // 12)
+        step = max(1, len(driving) // _SAMPLES_TO_DISPLAY_STEERING)
+        rows = []
         for t, steer, speed in driving[::step]:
-            bar = "L" * int(max(0.0, steer) * 20) or "R" * int(max(0.0, -steer) * 20)
-            print(f"  t={t:5.1f}s  steer={math.degrees(steer):+6.1f}deg  speed={speed:+.2f}  {bar}")
+            bar = "L" * int(max(0.0, steer) * _BAR_SCALE_FACTOR) or "R" * int(max(0.0, -steer) * _BAR_SCALE_FACTOR)
+            rows.append((t, math.degrees(steer), speed, bar))
+        if rows:
+            print_table(rows, ["t", "steer_deg", "speed", "bar"])
         steers = [s[1] for s in driving]
         print(
             f"\n  steering: mean={math.degrees(statistics.fmean(steers)):+.1f}deg  "
             f"min={math.degrees(min(steers)):+.1f}  max={math.degrees(max(steers)):+.1f}",
         )
-        left = sum(1 for s in steers if s > 0.02)
-        right = sum(1 for s in steers if s < -0.02)
+        left = sum(1 for s in steers if s > _STEERING_BIAS_THRESHOLD_RAD)
+        right = sum(1 for s in steers if s < -_STEERING_BIAS_THRESHOLD_RAD)
         print(f"  bias: {left} samples left, {right} right (of {len(steers)})")
 
     print("\n--- clearances (m) ---")
     if probe.clearances:
-        step = max(1, len(probe.clearances) // 8)
-        for t, f, left_m, right_m in probe.clearances[::step]:
-            print(f"  t={t:5.1f}s  front={f:5.2f}  left={left_m:5.2f}  right={right_m:5.2f}")
+        step = max(1, len(probe.clearances) // _SAMPLES_TO_DISPLAY_CLEARANCES)
+        rows = [(t, f, left_m, right_m) for t, f, left_m, right_m in probe.clearances[::step]]
+        if rows:
+            print_table(rows, ["t", "front", "left", "right"])
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seconds", type=float, default=20.0, help="How long to let it drive")
+    parser.add_argument("--seconds", type=float, default=_DEFAULT_RUN_SECONDS, help="How long to let it drive")
     args = parser.parse_args()
 
     rclpy.init()
@@ -135,21 +157,21 @@ def main() -> None:
     try:
         # Let discovery settle before pressing anything, or the start event is
         # published into a graph the state machine has not joined yet.
-        deadline = time.monotonic() + 3.0
+        deadline = time.monotonic() + _DISCOVERY_SETTLE_TIME_S
         while time.monotonic() < deadline:
-            rclpy.spin_once(probe, timeout_sec=0.1)
+            rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_DISCOVERY_S)
 
         probe.press("short_press")
         deadline = time.monotonic() + args.seconds
         while time.monotonic() < deadline:
-            rclpy.spin_once(probe, timeout_sec=0.05)
+            rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_RUN_S)
 
         # Always, even if the run looked fine: nothing here should be able to
         # leave the robot driving once this script exits.
         probe.press("long_press")
-        deadline = time.monotonic() + 2.0
+        deadline = time.monotonic() + _ESTOP_SETTLE_TIME_S
         while time.monotonic() < deadline:
-            rclpy.spin_once(probe, timeout_sec=0.05)
+            rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_RUN_S)
     finally:
         _summarise(probe)
         probe.destroy_node()

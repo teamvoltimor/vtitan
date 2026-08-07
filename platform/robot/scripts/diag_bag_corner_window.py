@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_bag
+from _bag_io import open_reader, print_table, read_bag
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
@@ -95,9 +95,11 @@ def main() -> None:
 
     if near_corner:
         print("\nnearest-corner scans (lowest forward clearance), 15 shown:")
-        print("      t     fwd   axis_deg    left   right")
-        for t, fwd, axis, left, right in sorted(near_corner, key=lambda r: r[1])[:15]:
-            print(f"  {t:6.1f}  {fwd:6.2f}  {math.degrees(axis):8.1f}  {left:6.2f}  {right:6.2f}")
+        rows = [
+            (t, fwd, math.degrees(axis), left, right)
+            for t, fwd, axis, left, right in sorted(near_corner, key=lambda r: r[1])[:15]
+        ]
+        print_table(rows, ["t", "fwd", "axis_deg", "left", "right"])
 
 
 if __name__ == "__main__":

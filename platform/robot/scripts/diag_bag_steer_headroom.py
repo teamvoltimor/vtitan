@@ -20,9 +20,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader, print_table
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
+
+_LOOKAHEAD_PRECISION = 0.02
+_STEER_HIGH_THRESHOLD = 0.8
+_DELTA_TIME_MIN_S = 0.01
+_DELTA_TIME_MAX_S = 0.5
+_BELIEF_SAMPLE_INTERVAL_S = 20.0
+_SHORT_LOOKAHEAD_M = 0.20
+_TURN_THRESHOLD_RAD = 0.35
+_SPEED_LOW_THRESHOLD_MPS = 0.10
 
 
 def _pct(values: list[float], q: float) -> float:
@@ -84,26 +93,34 @@ def main() -> None:
         by_corridor[corridor].append(abs(steer))
 
     print("\n|steer| by selected lookahead (norm, 1.0 = full lock)")
+    rows = []
     for key in sorted(by_look):
         v = by_look[key]
-        print(
-            f"  {key:12} n={len(v):5}  median={_pct(v, 0.5):.3f}  p90={_pct(v, 0.9):.3f}  "
-            f"max={max(v):.3f}  frac|steer|>0.8={sum(x > 0.8 for x in v) / len(v):.3f}"
-        )
+        rows.append((
+            key,
+            len(v),
+            _pct(v, 0.5),
+            _pct(v, 0.9),
+            max(v),
+            sum(x > _STEER_HIGH_THRESHOLD for x in v) / len(v)
+        ))
+    if rows:
+        print_table(rows, ["lookahead", "n", "median", "p90", "max", f"frac>_{_STEER_HIGH_THRESHOLD}"])
 
     print("\n|steer| by corridor")
+    rows = []
     for key in sorted(by_corridor):
         v = by_corridor[key]
-        print(
-            f"  {key:12} n={len(v):5}  median={_pct(v, 0.5):.3f}  p90={_pct(v, 0.9):.3f}  max={max(v):.3f}"
-        )
+        rows.append((key, len(v), _pct(v, 0.5), _pct(v, 0.9), max(v)))
+    if rows:
+        print_table(rows, ["corridor", "n", "median", "p90", "max"])
 
     # Rate-limit pressure: how often did the command move by the full allowance?
     steers = [(t, snap.commanded_steering_norm) for t, snap in rows if isinstance(snap.commanded_steering_norm, (int, float))]
     deltas = []
     for (t0, s0), (t1, s1) in zip(steers, steers[1:]):
         dt = t1 - t0
-        if 0.01 < dt < 0.5:
+        if _DELTA_TIME_MIN_S < dt < _DELTA_TIME_MAX_S:
             deltas.append(abs(s1 - s0) / dt)
     if deltas:
         print(
@@ -112,12 +129,12 @@ def main() -> None:
         )
 
     # Corridor-width belief over time, sampled per lap.
-    print("\ncorridor belief (N/S/E/W, m) and width belief, sampled every ~20s")
+    print(f"\ncorridor belief (N/S/E/W, m) and width belief, sampled every ~{_BELIEF_SAMPLE_INTERVAL_S:.0f}s")
     next_t = 0.0
     for t, snap in rows:
         if t < next_t:
             continue
-        next_t = t + 20.0
+        next_t = t + _BELIEF_SAMPLE_INTERVAL_S
 
         def g(k: str, snap=snap) -> str:
             v = getattr(snap, k)
@@ -138,10 +155,10 @@ def main() -> None:
     short = [
         (t, snap)
         for t, snap in rows
-        if snap.lookahead_distance_m == 0.20 and isinstance(snap.crosstrack_error_m, (int, float))
+        if snap.lookahead_distance_m == _SHORT_LOOKAHEAD_M and isinstance(snap.crosstrack_error_m, (int, float))
     ]
     if short:
-        by_turn = sum(1 for _, snap in short if (snap.path_turn_ahead_rad or 0.0) > 0.35)
+        by_turn = sum(1 for _, snap in short if (snap.path_turn_ahead_rad or 0.0) > _TURN_THRESHOLD_RAD)
         print(
             f"\nshort-lookahead ticks: {len(short)}  armed by turn preview: {by_turn} "
             f"({by_turn / len(short):.0%})  by crosstrack alone: {len(short) - by_turn}"
@@ -152,7 +169,7 @@ def main() -> None:
     if speeds:
         print(
             f"\ncommanded speed (m/s): median={_pct(speeds, 0.5):.3f} p90={_pct(speeds, 0.9):.3f} "
-            f"max={max(speeds):.3f}  frac<0.10={sum(s < 0.10 for s in speeds) / len(speeds):.3f}"
+            f"max={max(speeds):.3f}  frac<{_SPEED_LOW_THRESHOLD_MPS}={sum(s < _SPEED_LOW_THRESHOLD_MPS for s in speeds) / len(speeds):.3f}"
         )
 
 
