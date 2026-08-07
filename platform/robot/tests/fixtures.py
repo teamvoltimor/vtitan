@@ -14,6 +14,7 @@ import numpy as np
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
+from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
 
 from src.simulation.kinematics import AckermannState
 
@@ -337,3 +338,27 @@ class ParkingLotFixtures:
             block1_position=BlockPosition(x=ParkingLotFixtures._PARK_NEAR, y=ParkingLotFixtures._PARK_A),
             block2_position=BlockPosition(x=ParkingLotFixtures._PARK_NEAR, y=ParkingLotFixtures._PARK_B),
         )
+
+
+# Helpers for numpy-based LIDAR scans (e.g., collision avoidance controller tests)
+
+
+def create_numpy_scan(default_distance_m: float = 10.0) -> np.ndarray:
+    """Create a numpy array LIDAR scan with uniform distance.
+
+    Use for tests that work with numpy arrays directly (e.g., CollisionAvoidanceController).
+    """
+    return np.full(NUM_RAYS, default_distance_m)
+
+
+def angle_to_index(bearing_rad: float, angles: np.ndarray = ANGLES_FULL_ROTATION) -> int:
+    """Find the ray index closest to a given bearing angle.
+
+    Args:
+        bearing_rad: Bearing in radians (0 = forward, ±π = rear)
+        angles: Array of ray angles (default: ANGLES_FULL_ROTATION)
+
+    Returns:
+        Index of the ray closest to the bearing
+    """
+    return int(np.argmin(np.abs(angles - bearing_rad)))
