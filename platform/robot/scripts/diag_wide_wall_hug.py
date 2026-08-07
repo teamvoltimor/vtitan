@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 
@@ -58,7 +59,19 @@ _REAL_ERRORS = SensorErrors(
 becomes a failure once the pose is not perfect."""
 
 
-def _run(args: tuple[int, int, bool]) -> tuple[str, bool, int, float, float, int]:
+@dataclass(frozen=True, slots=True)
+class _WideWallResult:
+    """Result from running a wide-track wall-hug diagnostic."""
+
+    label: str
+    success: bool
+    contact_count: int
+    contact_time_s: float
+    min_lidar_range_m: float
+    laps_completed: int
+
+
+def _run(args: tuple[int, int, bool]) -> _WideWallResult:
     """Run one start and report how close it came to the walls."""
     width_mm, index, with_errors = args
     section, direction = _STARTS[index]
@@ -69,13 +82,13 @@ def _run(args: tuple[int, int, bool]) -> tuple[str, bool, int, float, float, int
         sensor_errors=_REAL_ERRORS if with_errors else SensorErrors(),
     ).run()
     label = f"{section.value:>5}/{'CW' if direction is Direction.CLOCKWISE else 'CCW':<3}"
-    return (
-        label,
-        result.success,
-        result.contact_count,
-        result.contact_time_s,
-        result.min_lidar_range_m,
-        result.laps_completed,
+    return _WideWallResult(
+        label=label,
+        success=result.success,
+        contact_count=result.contact_count,
+        contact_time_s=result.contact_time_s,
+        min_lidar_range_m=result.min_lidar_range_m,
+        laps_completed=result.laps_completed,
     )
 
 
@@ -99,10 +112,10 @@ def main() -> None:
     contacted = 0
     passed = 0
     table_rows = []
-    for label, ok, contacts, contact_s, min_rng, laps in rows:
-        passed += ok
-        contacted += contacts > 0
-        table_rows.append((label, 'yes' if ok else 'NO', laps, contacts, contact_s, min_rng))
+    for r in rows:
+        passed += r.success
+        contacted += r.contact_count > 0
+        table_rows.append((r.label, 'yes' if r.success else 'NO', r.laps_completed, r.contact_count, r.contact_time_s, r.min_lidar_range_m))
     print_table(table_rows, ['start', 'pass', 'laps', 'contacts', 'contact_s', 'min_rng'], floatfmt=[None, None, None, None, '.2f', '.3f'])
     print(f"\n{passed}/{len(rows)} passed   {contacted}/{len(rows)} touched a wall at least once")
 

@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
@@ -82,13 +83,13 @@ def main() -> None:
 
     def capturing_deform(
         router: SignRouter,
-        waypoint: tuple[float, float],
-        robot_pos: tuple[float, float],
+        waypoint: Waypoint,
+        robot_pos: Waypoint,
         robot_yaw: float,
         corridor: Section,
         *args: object,
         **kwargs: object,
-    ) -> tuple[float, float]:
+    ) -> Waypoint:
         """Stand-in for ``SignRouter.deform_waypoint`` that records its output.
 
         The trailing arguments are passed straight through rather than named:

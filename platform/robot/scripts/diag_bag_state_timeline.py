@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, print_table, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows, print_table
 from shared.domain.models import NavigatorDebugSnapshot
 
 # Real NavigatorDebugSnapshot field names (shared.domain.models). An earlier
@@ -49,8 +49,7 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=20.0, help="seconds between printed samples")
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, topics = read_nav_debug_rows(reader)
+    rows, topics = load_nav_debug_rows(args.bag_dir)
 
     print(f"== {args.bag_dir.name}")
     print("topics:")

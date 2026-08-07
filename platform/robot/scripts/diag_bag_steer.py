@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import fmt_optional, open_reader, print_table, read_nav_debug_rows
+from _bag_io import fmt_optional, load_nav_debug_rows, print_table
 
 
 def main() -> None:
@@ -27,8 +27,7 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=0.0)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     def f6(v: float | None) -> str:
         return fmt_optional(v, "6.3f")

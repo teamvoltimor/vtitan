@@ -38,13 +38,46 @@ import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# Sweep mode names—must match dict keys in _SWEPT_MODES and _FIXED_MODES
+class SweepMode(StrEnum):
+    """Diagnostic sweep modes for sign-avoidance tuning."""
+
+    LOOKAHEAD = "lookahead"
+    ARC = "arc"
+    SPEED = "speed"
+    OFFSET = "offset"
+    MASKED_OFFSET = "masked-offset"
+    BUFFER = "buffer"
+    UNSPLIT_OFFSET = "unsplit-offset"
+    MASK_RADIUS = "mask-radius"
+    WALL = "wall"
+    ACTIVATION = "activation"
+    WALL_TUNED = "wall-tuned"
+    REACH_BLIND = "reach-blind"
+    BUFFER_BLIND = "buffer-blind"
+    REACH = "reach"
+    ACTIVATION_BUF = "activation-buf"
+    BUFFER_TUNED = "buffer-tuned"
+    BASELINE = "baseline"
+    PROFILE = "profile"
+    DIAGNOSE = "diagnose"
+    GHOST = "ghost"
+    LIDAR = "lidar"
+    BLIND = "blind"
+    BLIND_SOURCE = "blind-source"
+    NO_PARK = "no-park"
+    HYSTERESIS = "hysteresis"
+    CROSSTRACK = "crosstrack"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.config.constants import CompetitionSpecs, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
@@ -105,6 +138,15 @@ _OFFSET_ZERO_ROUTER_OFF = 0.0
 _ACTIVATION_FOR_PROFILE = 0.12
 _PASSED_DIST_FOR_PROFILE = 0.24
 _SPEED_FOR_PROFILE = 0.30
+
+
+class CollisionKind(StrEnum):
+    """Categorization of what obstacle the chassis collided with."""
+
+    WALL = "wall"
+    SIGN = "sign"
+    PARKING = "parking"
+    NONE = "none"
 
 
 def _with(group: Any, **fields: float | None) -> Any:
@@ -306,8 +348,8 @@ class ScenarioOutcome:
     collided: bool
     laps: int
     timed_out: bool
-    collision_xy: tuple[float, float] | None
-    collision_kind: str
+    collision_xy: Waypoint | None
+    collision_kind: CollisionKind
     collision_step: int
     steps: int
     sim_time_s: float = 0.0
@@ -324,7 +366,17 @@ class ScenarioOutcome:
     """
 
 
-def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, float]) -> str:
+def _without_parking(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Return metadata dict with parking lot removed."""
+    return {k: v for k, v in metadata.items() if k != DictKeys.PARKING_LOT}
+
+
+def _without_signs(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Return metadata dict with signs removed."""
+    return {k: v for k, v in metadata.items() if k != DictKeys.SIGN_POSITIONS}
+
+
+def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, float]) -> CollisionKind:
     """Name what the chassis was overlapping when the run ended.
 
     "Collisions" is a single counter covering three unrelated failures — outer
@@ -335,14 +387,14 @@ def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, floa
     x, y, yaw = pose
     widths = corridor_widths_from_metadata(metadata)
     if TrackModel(widths).footprint_collides(x, y, yaw):
-        return "wall"
-    signs_only = {k: v for k, v in metadata.items() if k != DictKeys.PARKING_LOT}
+        return CollisionKind.WALL
+    signs_only = _without_signs(metadata)
     if TrackModel(widths, obstacles=obstacles_from_metadata(signs_only)).footprint_collides(x, y, yaw):
-        return "sign"
-    parking_only = {k: v for k, v in metadata.items() if k != DictKeys.SIGN_POSITIONS}
+        return CollisionKind.SIGN
+    parking_only = _without_parking(metadata)
     if TrackModel(widths, obstacles=obstacles_from_metadata(parking_only)).footprint_collides(x, y, yaw):
-        return "parking"
-    return "none"
+        return CollisionKind.PARKING
+    return CollisionKind.NONE
 
 
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
@@ -459,14 +511,15 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
 
     classify_meta = metadata
     if config.ghost_signs:
-        classify_meta = {k: v for k, v in metadata.items() if k != DictKeys.SIGN_POSITIONS}
-    kind = _classify_collision(classify_meta, result.final_pose) if result.collided else "none"
+        classify_meta = _without_signs(classify_meta)
+    kind = _classify_collision(classify_meta, result.final_pose) if result.collided else CollisionKind.NONE
+    collision_xy = None if result.collision_xy is None else Waypoint(*result.collision_xy)
     return ScenarioOutcome(
         label=scenario.label,
         collided=result.collided,
         laps=result.laps_completed,
         timed_out=result.timed_out,
-        collision_xy=result.collision_xy,
+        collision_xy=collision_xy,
         collision_kind=kind,
         collision_step=result.steps,
         steps=result.steps,
@@ -516,7 +569,7 @@ class SweepResult:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
 
-    def kind(self, name: str) -> int:
+    def kind(self, name: CollisionKind) -> int:
         """Scenarios whose collision was of the given kind (wall/sign/parking)."""
         return sum(1 for o in self.outcomes if o.collision_kind == name)
 
@@ -526,7 +579,7 @@ class SweepResult:
         return (
             f"RESULT {self.config.label:<{_RESULT_LABEL_WIDTH}} "
             f"collisions {self.collisions:>{_RESULT_METRIC_WIDTH}}/{n} "
-            f"(wall {self.kind('wall'):>{_RESULT_METRIC_WIDTH}} sign {self.kind('sign'):>{_RESULT_METRIC_WIDTH}} park {self.kind('parking'):>{_RESULT_METRIC_WIDTH}})  "
+            f"(wall {self.kind(CollisionKind.WALL):>{_RESULT_METRIC_WIDTH}} sign {self.kind(CollisionKind.SIGN):>{_RESULT_METRIC_WIDTH}} park {self.kind(CollisionKind.PARKING):>{_RESULT_METRIC_WIDTH}})  "
             f"laps>=1 {self.laps_ge_1:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
@@ -581,7 +634,7 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
         "crosstrack", lookahead_short=lookahead, lookahead_long=None if lookahead is None else lookahead * _LOOKAHEAD_MULTIPLIER
     )
     sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=config.tuning())
-    path = sim.waypoints
+    path = [Waypoint(*w) if isinstance(w, tuple) else w for w in sim.waypoints]
     segments = list(itertools.pairwise(path))
     errors: list[float] = []
 
@@ -592,15 +645,15 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     return errors
 
 
-def _point_segment_dist(px: float, py: float, a: tuple[float, float], b: tuple[float, float]) -> float:
+def _point_segment_dist(px: float, py: float, a: Waypoint, b: Waypoint) -> float:
     """Perpendicular distance from a point to the segment ``a``-``b``.
 
     Distance to the nearest *waypoint* would overstate cross-track error by up
     to half the waypoint spacing — enough to matter for a number being compared
     against a +-6.7 cm budget.
     """
-    ax, ay = a
-    bx, by = b
+    ax, ay = a.x, a.y
+    bx, by = b.x, b.y
     dx, dy = bx - ax, by - ay
     span = dx * dx + dy * dy
     if span == 0.0:

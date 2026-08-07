@@ -30,6 +30,7 @@ import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from enum import StrEnum
 from itertools import product
 from pathlib import Path
 
@@ -43,6 +44,16 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.simulated_hardware_gateway import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios, all_test_scenarios
+
+class DiagMode(StrEnum):
+    """Diagnostic comparison modes."""
+
+    OPEN = "open"
+    OBSTACLES = "obstacles"
+    OPEN_FIXTURES = "open-fixtures"
+    BLIND = "blind"
+    PERTURBED = "perturbed"
+
 
 _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
@@ -81,7 +92,17 @@ _IMU_NOISE_1_0DEG = 1.0
 _IMU_NOISE_2_0DEG = 2.0
 
 
-def _run_open(args: tuple[int, int, bool]) -> tuple[bool, int, bool, float]:
+@dataclass(frozen=True, slots=True)
+class _OpenResult:
+    """Result from running an Open Challenge start position."""
+
+    within_time: bool
+    laps_completed: int
+    collided: bool
+    peak_pos_err: float
+
+
+def _run_open(args: tuple[int, int, bool]) -> _OpenResult:
     index, width_mm, localize = args
     section, direction = _STARTS[index]
     meta = build_open_metadata(uniform_widths(width_mm), section, direction)
@@ -93,7 +114,12 @@ def _run_open(args: tuple[int, int, bool]) -> tuple[bool, int, bool, float]:
 
     result = sim.run(on_step=on_step)
     within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
-    return within, result.laps_completed, result.collided, peak[0]
+    return _OpenResult(
+        within_time=within,
+        laps_completed=result.laps_completed,
+        collided=result.collided,
+        peak_pos_err=peak[0],
+    )
 
 
 def _run_obstacles(args: tuple[int, bool]) -> tuple[bool, int, float]:
@@ -121,10 +147,10 @@ def report_open(workers: int) -> None:
             for localize in (False, True):
                 jobs = [(i, width_mm, localize) for i in range(len(_STARTS))]
                 results = list(pool.map(_run_open, jobs))
-                passed = sum(1 for within, _, _, _ in results if within)
-                collided = sum(1 for _, _, c, _ in results if c)
-                worst_laps = min(laps for _, laps, _, _ in results)
-                peak = max(p for _, _, _, p in results)
+                passed = sum(1 for r in results if r.within_time)
+                collided = sum(1 for r in results if r.collided)
+                worst_laps = min(r.laps_completed for r in results)
+                peak = max(r.peak_pos_err for r in results)
                 pose = "LIDAR-estimated" if localize else "ground truth   "
                 print(
                     f"OPEN {name:<{_OPEN_NAME_WIDTH}} pose={pose}  pass {passed}/{len(_STARTS)}  "
@@ -153,7 +179,19 @@ def report_obstacles(workers: int) -> None:
             )
 
 
-def _run_blind(args: tuple[int]) -> tuple[str, bool, int, bool, bool, float]:
+@dataclass(frozen=True, slots=True)
+class _BlindResult:
+    """Result from running a blind fixture without layout knowledge."""
+
+    label: str
+    within_time: bool
+    laps_completed: int
+    collided: bool
+    layout_ok: bool
+    peak_pos_err: float
+
+
+def _run_blind(args: tuple[int]) -> _BlindResult:
     """One fixture with the layout withheld — LIDAR + IMU only."""
     (index,) = args
     scenario = all_test_scenarios()[index]
@@ -168,7 +206,14 @@ def _run_blind(args: tuple[int]) -> tuple[str, bool, int, bool, bool, float]:
     believed = sim.believed_widths or {}
     layout_ok = all(abs(believed.get(s, -1) - w) < _WIDTH_MATCH_TOLERANCE_M for s, w in true_geometry.to_widths_dict().items())
     within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
-    return scenario.label, within, result.laps_completed, result.collided, layout_ok, peak[0]
+    return _BlindResult(
+        label=scenario.label,
+        within_time=within,
+        laps_completed=result.laps_completed,
+        collided=result.collided,
+        layout_ok=layout_ok,
+        peak_pos_err=peak[0],
+    )
 
 
 def report_blind(workers: int) -> None:
@@ -176,19 +221,19 @@ def report_blind(workers: int) -> None:
     count = len(all_test_scenarios())
     with ProcessPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(_run_blind, [(i,) for i in range(count)]))
-    passed = sum(1 for _, w, _, _, _, _ in results if w)
-    collided = sum(1 for _, _, _, c, _, _ in results if c)
-    layout = sum(1 for _, _, _, _, ok, _ in results if ok)
-    peak = max(p for _, _, _, _, _, p in results)
+    passed = sum(1 for r in results if r.within_time)
+    collided = sum(1 for r in results if r.collided)
+    layout = sum(1 for r in results if r.layout_ok)
+    peak = max(r.peak_pos_err for r in results)
     print(
         f"BLIND  pass {passed}/{count}  collided {collided}/{count}  "
         f"layout_learned {layout}/{count}  peak_pos_err {peak * 100:{_ERROR_FORMAT}}cm",
         flush=True,
     )
-    for label, within, laps, coll, ok, err in results:
-        if not (within and ok):
+    for r in results:
+        if not (r.within_time and r.layout_ok):
             print(
-                f"    {label:<{_LABEL_WIDTH}} pass={within} laps={laps}/{_LAPS_TARGET} collided={coll} layout_ok={ok} pos_err={err * 100:{_ERROR_FORMAT_1F}}cm",
+                f"    {r.label:<{_LABEL_WIDTH}} pass={r.within_time} laps={r.laps_completed}/{_LAPS_TARGET} collided={r.collided} layout_ok={r.layout_ok} pos_err={r.peak_pos_err * 100:{_ERROR_FORMAT_1F}}cm",
                 flush=True,
             )
 
@@ -381,7 +426,18 @@ def report_perturbed(workers: int, sweep: str, verbose: bool) -> None:
                             )
 
 
-def _run_open_fixture(args: tuple[int, bool]) -> tuple[str, bool, int, bool, float]:
+@dataclass(frozen=True, slots=True)
+class _OpenFixtureResult:
+    """Result from running an Open Challenge fixture."""
+
+    label: str
+    within_time: bool
+    laps_completed: int
+    collided: bool
+    peak_pos_err: float
+
+
+def _run_open_fixture(args: tuple[int, bool]) -> _OpenFixtureResult:
     index, localize = args
     scenario = all_test_scenarios()[index]
     sim = ScenarioSimulator(
@@ -397,7 +453,13 @@ def _run_open_fixture(args: tuple[int, bool]) -> tuple[str, bool, int, bool, flo
 
     result = sim.run(on_step=on_step)
     within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
-    return scenario.label, within, result.laps_completed, result.collided, peak[0]
+    return _OpenFixtureResult(
+        label=scenario.label,
+        within_time=within,
+        laps_completed=result.laps_completed,
+        collided=result.collided,
+        peak_pos_err=peak[0],
+    )
 
 
 def report_open_fixtures(workers: int) -> None:
@@ -413,19 +475,19 @@ def report_open_fixtures(workers: int) -> None:
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for localize in (False, True):
             results = list(pool.map(_run_open_fixture, [(i, localize) for i in range(count)]))
-            passed = sum(1 for _, w, _, _, _ in results if w)
-            collided = sum(1 for _, _, _, c, _ in results if c)
-            peak = max(p for _, _, _, _, p in results)
+            passed = sum(1 for r in results if r.within_time)
+            collided = sum(1 for r in results if r.collided)
+            peak = max(r.peak_pos_err for r in results)
             pose = "LIDAR-estimated" if localize else "ground truth   "
             print(
                 f"OPEN-FIXTURES pose={pose}  pass {passed}/{count}  "
                 f"collided {collided}/{count}  peak_pos_err {peak * 100:5.1f}cm",
                 flush=True,
             )
-            for label, within, laps, coll, err in results:
-                if not within:
+            for r in results:
+                if not r.within_time:
                     print(
-                        f"    FAIL {label:<34} laps={laps}/3 collided={coll} pos_err={err * 100:.1f}cm",
+                        f"    FAIL {r.label:<34} laps={r.laps_completed}/3 collided={r.collided} pos_err={r.peak_pos_err * 100:.1f}cm",
                         flush=True,
                     )
 
@@ -433,7 +495,7 @@ def report_open_fixtures(workers: int) -> None:
 def main() -> None:
     """Run the requested comparison."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["open", "obstacles", "open-fixtures", "blind", "perturbed"])
+    parser.add_argument("mode", choices=[m.value for m in DiagMode])
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument(
         "--sweep",
@@ -447,13 +509,14 @@ def main() -> None:
         help="List the individual failing fixtures under each configuration.",
     )
     args = parser.parse_args()
-    if args.mode == "open":
+    mode = DiagMode(args.mode)
+    if mode == DiagMode.OPEN:
         report_open(args.workers)
-    elif args.mode == "open-fixtures":
+    elif mode == DiagMode.OPEN_FIXTURES:
         report_open_fixtures(args.workers)
-    elif args.mode == "blind":
+    elif mode == DiagMode.BLIND:
         report_blind(args.workers)
-    elif args.mode == "perturbed":
+    elif mode == DiagMode.PERTURBED:
         report_perturbed(args.workers, args.sweep, args.verbose)
     else:
         report_obstacles(args.workers)

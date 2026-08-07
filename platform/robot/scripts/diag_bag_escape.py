@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows
 
 _DEFAULT_UNTIL_S = 1e9
 
@@ -27,8 +27,7 @@ def main() -> None:
     parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     prev_key = None
     for ts, snap in rows:

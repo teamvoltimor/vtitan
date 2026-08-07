@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows
 
 _DEFAULT_SAMPLE_INTERVAL_S = 1.0
 
@@ -23,8 +23,7 @@ def main() -> None:
     parser.add_argument("--every", type=float, default=_DEFAULT_SAMPLE_INTERVAL_S)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     next_print = 0.0
     for ts, snap in rows:

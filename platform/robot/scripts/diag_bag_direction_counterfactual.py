@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, print_table, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows, print_table
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 
@@ -101,8 +101,7 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     truth, laps = true_direction(rows)
     print(f"== {args.bag_dir.name}  samples={len(rows)}")

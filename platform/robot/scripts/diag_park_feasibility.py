@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -41,6 +42,15 @@ _BAY = (
     _FIN_B - ParkingLotSpecs.WIDTH / 2,
     _WALL,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _ParkResult:
+    """Result from simulating a parking maneuver."""
+
+    collided: bool
+    protrusion: float
+    final_pose: tuple[float, float, float]
 
 
 def _fins() -> list[ObstacleBox]:
@@ -97,8 +107,8 @@ def _simulate_two_arc(
     n3: int,
     steer_sign: float,
     speed: float = 0.12,
-) -> tuple[bool, float, tuple[float, float, float]]:
-    """Reverse two-arc parallel park. Returns (collided, final protrusion, final pose).
+) -> _ParkResult:
+    """Reverse two-arc parallel park. Returns collision status, final protrusion, and final pose.
 
     Starts parallel to the wall at ``lat0`` metres from it, having already driven ``ahead``
     metres past the bay (travel is -x at yaw=pi, so "past" is -x and the bay is behind the
@@ -115,8 +125,12 @@ def _simulate_two_arc(
         for _ in range(n):
             state = kin.step(state, target_speed=tgt_speed, target_steer_norm=steer, dt=_DT)
             if track.footprint_collides(state.x, state.y, state.yaw):
-                return True, math.inf, (state.x, state.y, state.yaw)
-    return False, _protrusion(state.x, state.y, state.yaw), (state.x, state.y, state.yaw)
+                return _ParkResult(collided=True, protrusion=math.inf, final_pose=(state.x, state.y, state.yaw))
+    return _ParkResult(
+        collided=False,
+        protrusion=_protrusion(state.x, state.y, state.yaw),
+        final_pose=(state.x, state.y, state.yaw),
+    )
 
 
 def report_search() -> None:
@@ -138,14 +152,14 @@ def report_search() -> None:
                     for n3 in (0, 2, 4, 6):
                         for sign in (1.0, -1.0):
                             tried += 1
-                            collided, prot, pose = _simulate_two_arc(lat0, ahead, n1, n2, n3, sign)
-                            if collided:
+                            result = _simulate_two_arc(lat0, ahead, n1, n2, n3, sign)
+                            if result.collided:
                                 continue
                             collision_free += 1
-                            yaw_err = abs(math.atan2(math.sin(pose[2] - math.pi), math.cos(pose[2] - math.pi)))
-                            score = (prot, yaw_err)
+                            yaw_err = abs(math.atan2(math.sin(result.final_pose[2] - math.pi), math.cos(result.final_pose[2] - math.pi)))
+                            score = (result.protrusion, yaw_err)
                             if best is None or score < best[0]:
-                                best = (score, lat0, ahead, n1, n2, n3, sign, pose)
+                                best = (score, lat0, ahead, n1, n2, n3, sign, result.final_pose)
 
     print(f"trajectories tried={tried}  collision-free={collision_free}")
     if best is None:

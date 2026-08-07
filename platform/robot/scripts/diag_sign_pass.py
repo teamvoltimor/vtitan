@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _bag_io import print_table
 from shared.config.enums import Section
+from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.navigation.planning.sign_router import SignRouter, corridor_for_position, signs_from_metadata
@@ -55,6 +56,16 @@ _CHASSIS_HALF_DIAGONAL = math.hypot(0.15, 0.10)
 _SIGN_HALF = 0.025
 
 
+@dataclass(frozen=True, slots=True)
+class PassAnalysisResult:
+    """Per-scenario analysis of sign passes."""
+
+    label: str
+    collided: bool
+    laps_completed: int
+    records: list[PassRecord]
+
+
 @dataclass(slots=True)
 class PassRecord:
     """Closest approach to one sign during one run."""
@@ -63,7 +74,7 @@ class PassRecord:
     color: str
     corridor: Section
     depth: float
-    sign_xy: tuple[float, float]
+    sign_xy: Waypoint
     best_dist: float = math.inf
     lateral: float = math.nan
     longitudinal: float = math.nan
@@ -76,7 +87,7 @@ def _along_x(corridor: Section) -> bool:
     return corridor in (Section.SOUTH, Section.NORTH)
 
 
-def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
+def _analyse(index: int) -> PassAnalysisResult:
     scenario = all_obstacles_demo_scenarios()[index]
     signs = signs_from_metadata(scenario.metadata)
     corridors = [corridor_for_position(s.x, s.y) for s in signs]
@@ -87,24 +98,22 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
             color=s.color,
             corridor=corridors[i],
             depth=s.x if _along_x(corridors[i]) else s.y,
-            sign_xy=(s.x, s.y),
+            sign_xy=Waypoint(s.x, s.y),
         )
         for i, s in enumerate(signs)
     ]
 
-    # The router deforms whichever lookahead target the navigator picked, so the
-    # only way to see what it actually commanded is to watch its return value.
-    latest_target: list[tuple[float, float] | None] = [None]
+    latest_target: list[Waypoint | None] = [None]
     original_deform = sign_router_module.SignRouter.deform_waypoint
 
     def capturing_deform(
         router: SignRouter,
-        waypoint: tuple[float, float],
-        robot_pos: tuple[float, float],
+        waypoint: Waypoint,
+        robot_pos: Waypoint,
         robot_yaw: float,
         corridor: Section,
         detections: list[Detection] | None = None,
-    ) -> tuple[float, float]:
+    ) -> Waypoint:
         """Stand-in for ``SignRouter.deform_waypoint`` that records its output."""
         result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, detections)
         latest_target[0] = result
@@ -116,7 +125,7 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
 
         def record(state: AckermannState, _scan: LidarScan) -> None:
             for rec in records:
-                sx, sy = rec.sign_xy
+                sx, sy = rec.sign_xy.x, rec.sign_xy.y
                 dist = math.hypot(sx - state.x, sy - state.y)
                 if dist >= rec.best_dist:
                     continue
@@ -125,13 +134,12 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
                     rec.lateral = abs(state.y - sy)
                     rec.longitudinal = abs(state.x - sx)
                     axis = 0.0
-                    target_lat = None if latest_target[0] is None else abs(latest_target[0][1] - sy)
+                    target_lat = None if latest_target[0] is None else abs(latest_target[0].y - sy)
                 else:
                     rec.lateral = abs(state.x - sx)
                     rec.longitudinal = abs(state.y - sy)
                     axis = math.pi / 2
-                    target_lat = None if latest_target[0] is None else abs(latest_target[0][0] - sx)
-                # Heading relative to the corridor axis, folded into [0, pi/2].
+                    target_lat = None if latest_target[0] is None else abs(latest_target[0].x - sx)
                 err = abs(math.atan2(math.sin(state.yaw - axis), math.cos(state.yaw - axis)))
                 rec.yaw_err = min(err, math.pi - err)
                 rec.commanded_lat = math.nan if target_lat is None else target_lat
@@ -140,7 +148,12 @@ def _analyse(index: int) -> tuple[str, bool, int, list[PassRecord]]:
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform
 
-    return scenario.label, result.collided, result.laps_completed, records
+    return PassAnalysisResult(
+        label=scenario.label,
+        collided=result.collided,
+        laps_completed=result.laps_completed,
+        records=records,
+    )
 
 
 def main() -> None:
@@ -156,9 +169,9 @@ def main() -> None:
     tight_turning = 0
     total = 0
     table_rows = []
-    for label, collided, laps, records in results:
-        print(f"{label}  collided={collided} laps={laps}")
-        for r in records:
+    for result in results:
+        print(f"{result.label}  collided={result.collided} laps={result.laps_completed}")
+        for r in result.records:
             if not math.isfinite(r.best_dist):
                 continue
             total += 1

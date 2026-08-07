@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, print_table, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows, print_table
 
 _CORNER_WINDOW_S = 4.0
 _SHORT_LOOKAHEAD_M = 0.20
@@ -32,8 +32,7 @@ def main() -> None:
     parser.add_argument("--max-corners", type=int, default=8)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     corners = []
     prev = None

@@ -110,6 +110,17 @@ def read_nav_debug_rows(
     return rows, topics
 
 
+def load_nav_debug_rows(
+    bag_dir: Path,
+) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], Counter[str]]:
+    """Open a bag and load all /nav_debug rows in one call.
+
+    Convenience wrapper collapsing the `open_reader()` + `read_nav_debug_rows()`
+    pair used in 9+ scripts. Returns the same tuple: `(rows, topic_counts)`.
+    """
+    return read_nav_debug_rows(open_reader(bag_dir))
+
+
 def read_bag(
     reader: rosbag2_py.SequentialReader,
     yaw_offset_rad: float,

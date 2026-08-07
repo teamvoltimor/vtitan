@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, print_table, read_nav_debug_rows
+from _bag_io import load_nav_debug_rows, print_table
 from shared.domain.enums import Direction, Section
 
 from src.navigation.race_tracker import TRAVEL_DIRS
@@ -31,8 +31,7 @@ def main() -> None:
     parser.add_argument("bag_dir", type=Path)
     args = parser.parse_args()
 
-    reader = open_reader(args.bag_dir)
-    rows, _topics = read_nav_debug_rows(reader)
+    rows, _topics = load_nav_debug_rows(args.bag_dir)
 
     posed = [(t, snap) for t, snap in rows if isinstance(snap.pose_x, (int, float))]
     if not posed:
