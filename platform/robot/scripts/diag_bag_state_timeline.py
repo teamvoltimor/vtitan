@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 from shared.domain.models import NavigatorDebugSnapshot
 
 # Real NavigatorDebugSnapshot field names (shared.domain.models). An earlier
@@ -78,21 +78,16 @@ def main() -> None:
         print(f"  {key:24s} {shown}")
 
     print(f"\ntimeline (every {args.every:.0f}s):")
-    header = "    t  " + "  ".join(f"{k[:14]:>14s}" for k in present)
-    print(header)
+    table_rows = []
     next_t = 0.0
     for t, snap in rows:
         if t < next_t:
             continue
         next_t = t + args.every
-        cells = []
-        for key in present:
-            val = getattr(snap, key)
-            if isinstance(val, float):
-                cells.append(f"{val:14.3f}")
-            else:
-                cells.append(f"{str(val)[:14]:>14s}")
-        print(f"{t:6.1f}  " + "  ".join(cells))
+        row = [t] + [getattr(snap, key) for key in present]
+        table_rows.append(row)
+    if table_rows:
+        print_table(table_rows, ["t"] + present)
 
 
 if __name__ == "__main__":

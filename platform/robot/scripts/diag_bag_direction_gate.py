@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 
 
 def main() -> None:
@@ -75,17 +75,17 @@ def main() -> None:
         "direction_right_range_m",
         "current_corridor",
     )
-    print("     t  " + "  ".join(f"{c.replace('direction_', '')[:12]:>12s}" for c in cols))
+    col_labels = tuple(c.replace("direction_", "")[:12] for c in cols)
+    table_rows = []
     next_t = 0.0
     for t, snap in rows:
         if t < next_t:
             continue
         next_t = t + args.every
-        cells = []
-        for key in cols:
-            val = getattr(snap, key)
-            cells.append(f"{val:12.2f}" if isinstance(val, float) else f"{str(val)[:12]:>12s}")
-        print(f"{t:6.1f}  " + "  ".join(cells))
+        row = [t] + [getattr(snap, key) for key in cols]
+        table_rows.append(row)
+    if table_rows:
+        print_table(table_rows, ["t"] + list(col_labels))
 
 
 if __name__ == "__main__":

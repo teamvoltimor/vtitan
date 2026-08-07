@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader, print_table
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
@@ -73,15 +73,18 @@ def main() -> None:
 
     print(f"bag: {args.bag_dir}")
     print(f"duration: {ts:.1f}s")
-    print(f"\nrobot_state transitions ({len(state_transitions)}):")
-    for t_, s in state_transitions:
-        print(f"  {t_:7.2f}s  {s}")
-    print(f"\nsection transitions ({len(section_transitions)}):")
-    for t_, s in section_transitions:
-        print(f"  {t_:7.2f}s  {s}")
-    print(f"\ndirection transitions ({len(direction_transitions)}):")
-    for t_, s in direction_transitions:
-        print(f"  {t_:7.2f}s  {s}")
+
+    if state_transitions:
+        print(f"\nrobot_state transitions ({len(state_transitions)}):")
+        print_table(state_transitions, ["t", "state"])
+
+    if section_transitions:
+        print(f"\nsection transitions ({len(section_transitions)}):")
+        print_table(section_transitions, ["t", "section"])
+
+    if direction_transitions:
+        print(f"\ndirection transitions ({len(direction_transitions)}):")
+        print_table(direction_transitions, ["t", "direction"])
     print(f"\ndrive cmds: {drive_count}, speed range [{min_speed:.3f}, {max_speed:.3f}] m/s")
     print(f"total pose travel distance (nav_debug): {total_dist:.2f} m")
     if nav_debug_first:

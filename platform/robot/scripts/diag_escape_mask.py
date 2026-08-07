@@ -31,6 +31,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from _bag_io import print_table
 from shared.domain.enums import RiskLevel
 
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -100,10 +101,13 @@ def main() -> None:
 
     indices = [args.index] if args.index is not None else range(len(all_obstacles_demo_scenarios()))
     total: Counter = Counter()
+    rows = []
     for i in indices:
         counts = probe(i, show_ticks=args.ticks)
-        print(f"FIXTURE {i:>2} " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())), flush=True)
+        row = [f"FIXTURE {i:>2}"] + [counts.get(k, 0) for k in sorted(counts.keys())]
+        rows.append(row)
         total.update(counts)
+        print(f"FIXTURE {i:>2} " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())), flush=True)
     if len(list(indices)) > 1:
         print("TOTAL " + "  ".join(f"{k}={v}" for k, v in sorted(total.items())))
 

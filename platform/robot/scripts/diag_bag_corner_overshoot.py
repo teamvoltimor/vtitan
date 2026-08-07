@@ -19,9 +19,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 
-WINDOW_S = 4.0
+_CORNER_WINDOW_S = 4.0
+_SHORT_LOOKAHEAD_M = 0.20
+_PEAK_XTRACK_WINDOW_S = 8.0
 
 
 def main() -> None:
@@ -50,20 +52,27 @@ def main() -> None:
 
     for t_corner, a, b in corners[: args.max_corners]:
         print(f"\n-- {a} -> {b} at {t_corner:.1f}s")
-        window = [(t, snap) for t, snap in rows if abs(t - t_corner) <= WINDOW_S]
+        window = [(t, snap) for t, snap in rows if abs(t - t_corner) <= _CORNER_WINDOW_S]
+        table_rows = []
         for t, snap in window[::4]:
             rel = t - t_corner
-            print(
-                f"   {rel:+5.1f}s xtrack={g(snap, 'crosstrack_error_m')} "
-                f"turn={g(snap, 'path_turn_ahead_rad')} "
-                f"look={g(snap, 'lookahead_distance_m')} steer={g(snap, 'commanded_steering_norm')} "
-                f"aerr={g(snap, 'angle_error_rad')} spd={g(snap, 'commanded_speed_mps')} "
-                f"fwd={g(snap, 'forward_clearance_m')}"
-            )
+            table_rows.append((
+                rel,
+                snap.crosstrack_error_m,
+                snap.path_turn_ahead_rad,
+                snap.lookahead_distance_m,
+                snap.commanded_steering_norm,
+                snap.angle_error_rad,
+                snap.commanded_speed_mps,
+                snap.forward_clearance_m
+            ))
+        if table_rows:
+            print_table(table_rows, ["rel_t", "xtrack", "turn", "look", "steer", "aerr", "spd", "fwd"])
+
         xt = [
             snap.crosstrack_error_m
             for t, snap in rows
-            if 0 <= t - t_corner <= 8.0 and isinstance(snap.crosstrack_error_m, (int, float))
+            if 0 <= t - t_corner <= _PEAK_XTRACK_WINDOW_S and isinstance(snap.crosstrack_error_m, (int, float))
         ]
         st = [
             abs(snap.commanded_steering_norm)
@@ -77,7 +86,7 @@ def main() -> None:
         # lookahead arm on the way IN, or only once the corner had been run
         # wide of? Anything but "before" means the preview fired too late.
         armed = next(
-            (t - t_corner for t, snap in window if snap.lookahead_distance_m == 0.20),
+            (t - t_corner for t, snap in window if snap.lookahead_distance_m == _SHORT_LOOKAHEAD_M),
             None,
         )
         if armed is not None:
