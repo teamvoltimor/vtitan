@@ -276,3 +276,35 @@ SECTOR_SIZE_4 = 4  # smaller sectors
 
 # Fixtures Directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+# Motion Test Fixtures — hardcoded values chosen to make assertions read cleanly.
+# These are not derived from configuration and should not drift.
+CREEP_SPEED_MPS = 0.15  # Slow speed for fine maneuvers (corridor following, parking)
+CORNER_SPEED_MPS = 0.10  # Speed during turns
+FAST_SPEED_MPS = 0.30  # Aspirational speed (clamped to RobotSpecs.MAX_SPEED_MPS in real hardware)
+
+# Corridor follower test values
+CREEP_CLEARANCE_M = 0.05  # Proximity to obstacles before creeping
+TURN_ENTRY_MARGIN_M = 0.05  # Margin before committing to a turn
+
+# Direction inference and voting
+DIRECTION_VOTE_THRESHOLD = 8  # Confidence threshold (±8° forward cone)
+DIRECTION_VOTE_SAMPLE_SIZE = 5  # Number of votes to reach confidence
+
+# Parking controller test targets
+PARKING_APPROACH_OFFSET_M = 0.30  # Distance to hold when approaching lot
+PARKING_ZONE_TOLERANCE_M = 0.10  # Tolerance for "inside zone" check
+PARKING_ANGLE_TOLERANCE_RAD = math.radians(15)  # Yaw tolerance for final angle
+
+# LiDAR scan anomalies and edge cases
+SCAN_DROPOUT_ANGLE_DEG = 10  # Single beam miss that must not veto valid detections
+MAX_RANGE_SAMPLES_PCT = 25  # Percentage of beams that can be max-range before reacting
+
+# Navigation timing
+TICK_RATE_HZ = 30  # Expected control loop frequency
+TICK_PERIOD_S = 1.0 / TICK_RATE_HZ  # ~33ms per control cycle
+
+# Obstacle detection thresholds
+OBSTACLE_NEAR_M = 0.15  # Close enough to be an immediate threat
+OBSTACLE_MEDIUM_M = 0.30  # Medium-distance obstacle
+OBSTACLE_FAR_M = 0.50  # Far-field obstacle for path planning

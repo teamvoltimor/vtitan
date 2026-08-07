@@ -15,6 +15,7 @@ _shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
 if str(_shared_src) not in sys.path:
     sys.path.insert(0, str(_shared_src))
 
+from tests.fixtures import LidarScanBuilder
 from tests.test_constants import (
     CHALLENGE_TYPE_OBSTACLES,
     CHALLENGE_TYPE_OPEN,
@@ -80,35 +81,22 @@ from tests.test_constants import (
 @pytest.fixture()
 def mock_lidar_scan_360():
     """Mock 360° LIDAR scan with clear path ahead."""
-    angles = [i for i in range(NUM_RAYS)]
-    distances = [LIDAR_DEFAULT_FAR] * NUM_RAYS
-    return list(zip(angles, distances))
+    scan = LidarScanBuilder().clear_path(LIDAR_DEFAULT_FAR).build()
+    return list(zip(scan.angles, scan.ranges))
 
 
 @pytest.fixture()
 def mock_lidar_scan_obstacle():
     """Mock LIDAR scan with obstacle at 0°."""
-    angles = [i for i in range(NUM_RAYS)]
-    distances = []
-    for angle in angles:
-        if -10 <= angle <= 10:
-            distances.append(0.15)
-        else:
-            distances.append(LIDAR_DEFAULT_FAR)
-    return list(zip(angles, distances))
+    scan = LidarScanBuilder().obstacle_ahead(distance_m=0.15).build()
+    return list(zip(scan.angles, scan.ranges))
 
 
 @pytest.fixture()
 def mock_lidar_scan_wall():
     """Mock LIDAR scan with wall very close."""
-    angles = [i for i in range(NUM_RAYS)]
-    distances = []
-    for angle in angles:
-        if -5 <= angle <= 5:
-            distances.append(LIDAR_NEAR_WALL)
-        else:
-            distances.append(LIDAR_WALL_DISTANCE)
-    return list(zip(angles, distances))
+    scan = LidarScanBuilder().wall_close(near_m=LIDAR_NEAR_WALL, far_m=LIDAR_WALL_DISTANCE).build()
+    return list(zip(scan.angles, scan.ranges))
 
 
 @pytest.fixture()
