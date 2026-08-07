@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, fmt_optional, open_reader
 from rclpy.serialization import deserialize_message
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
@@ -49,10 +49,6 @@ def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], li
     return ticks, states
 
 
-def _fmt(value: object, spec: str = ".3f") -> str:
-    return "None" if value is None else format(value, spec)
-
-
 def _print_slowdowns(driving: list[tuple[float, NavigatorDebugSnapshot]], slow_below: float) -> None:
     """Report every slow tick, attributed to whichever limiter produced it."""
     print(f"\n--- slowdowns (commanded < {slow_below} m/s while racing) ---")
@@ -73,10 +69,10 @@ def _print_slowdowns(driving: list[tuple[float, NavigatorDebugSnapshot]], slow_b
     )
     for t, d in sorted(slow, key=lambda p: p[1].commanded_speed_mps or 0.0)[:8]:
         print(
-            f"    {t:7.1f} {_fmt(d.commanded_speed_mps):>7} "
-            f"{_fmt(d.clearance_speed_mps):>8} {_fmt(d.heading_speed_mps):>7} "
-            f"{_fmt(d.forward_clearance_m):>8} {_fmt(d.min_lidar_range_m):>8} "
-            f"{_fmt(d.crosstrack_error_m):>7} {d.risk!s:>10} {d.phase!s:>14}"
+            f"    {t:7.1f} {fmt_optional(d.commanded_speed_mps):>7} "
+            f"{fmt_optional(d.clearance_speed_mps):>8} {fmt_optional(d.heading_speed_mps):>7} "
+            f"{fmt_optional(d.forward_clearance_m):>8} {fmt_optional(d.min_lidar_range_m):>8} "
+            f"{fmt_optional(d.crosstrack_error_m):>7} {d.risk!s:>10} {d.phase!s:>14}"
         )
 
 
@@ -100,14 +96,14 @@ def main() -> None:
         print("  never populated: the measurement refused every scan, or this bag predates it")
     else:
         mx, my = measured.start_measured_x, measured.start_measured_y
-        print(f"  measured pose:    ({_fmt(mx)}, {_fmt(my)})")
-        print(f"  track ahead:      {_fmt(measured.start_measurement_ahead_m)} m")
-        print(f"  corridor width:   {_fmt(measured.start_measured_corridor_width_m)} m")
+        print(f"  measured pose:    ({fmt_optional(mx)}, {fmt_optional(my)})")
+        print(f"  track ahead:      {fmt_optional(measured.start_measurement_ahead_m)} m")
+        print(f"  corridor width:   {fmt_optional(measured.start_measured_corridor_width_m)} m")
         first_pose = driving[0][1] if driving else None
         if first_pose is not None:
             fx, fy = first_pose.pose_x, first_pose.pose_y
             offset = ((mx - fx) ** 2 + (my - fy) ** 2) ** 0.5
-            print(f"  first logged pose:({_fmt(fx)}, {_fmt(fy)})  -> measurement moved it {offset:.3f} m")
+            print(f"  first logged pose:({fmt_optional(fx)}, {fmt_optional(fy)})  -> measurement moved it {offset:.3f} m")
 
     # Laps and direction.
     print("\n--- progress ---")
@@ -130,8 +126,8 @@ def main() -> None:
     print(f"    {'t':>7} {'min_rng':>8} {'fwd_clr':>8} {'xtrack':>7} {'steer':>7} {'maneuver':>16} {'phase':>14}")
     for t, d in near:
         print(
-            f"    {t:7.1f} {_fmt(d.min_lidar_range_m):>8} {_fmt(d.forward_clearance_m):>8} "
-            f"{_fmt(d.crosstrack_error_m):>7} {_fmt(d.commanded_steering_norm):>7} "
+            f"    {t:7.1f} {fmt_optional(d.min_lidar_range_m):>8} {fmt_optional(d.forward_clearance_m):>8} "
+            f"{fmt_optional(d.crosstrack_error_m):>7} {fmt_optional(d.commanded_steering_norm):>7} "
             f"{d.active_maneuver_type!s:>16} {d.phase!s:>14}"
         )
 

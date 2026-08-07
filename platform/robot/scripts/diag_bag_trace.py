@@ -12,13 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, fmt_optional, open_reader
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
-
-
-def _f(value: object, spec: str = "6.3f") -> str:
-    return format(value, spec) if isinstance(value, (int, float)) else "  None"
 
 
 def main() -> None:
@@ -28,6 +24,9 @@ def main() -> None:
     parser.add_argument("--until", type=float, default=1e9)
     parser.add_argument("--cmd", action="store_true", help="also print /ackermann_cmd rows")
     args = parser.parse_args()
+
+    def f6(v: float | None) -> str:
+        return fmt_optional(v, "6.3f")
 
     reader = open_reader(args.bag_dir)
 
@@ -47,10 +46,10 @@ def main() -> None:
             continue
         snap = decode_nav_debug(data)
         print(
-            f"{ts:7.2f}s {snap.phase!s:22} pose=({_f(snap.pose_x)},{_f(snap.pose_y)},{_f(snap.pose_yaw)}) "
-            f"fwd={_f(snap.forward_clearance_m)} risk={snap.risk!s:9} erisk={snap.escape_risk!s:9} "
-            f"corr={snap.current_corridor!s:6} cmd_v={_f(snap.commanded_speed_mps)} "
-            f"cmd_s={_f(snap.commanded_steering_norm)} esc={snap.escape_count!s:4} stuck={snap.stuck_count!s:4}",
+            f"{ts:7.2f}s {snap.phase!s:22} pose=({f6(snap.pose_x)},{f6(snap.pose_y)},{f6(snap.pose_yaw)}) "
+            f"fwd={f6(snap.forward_clearance_m)} risk={snap.risk!s:9} erisk={snap.escape_risk!s:9} "
+            f"corr={snap.current_corridor!s:6} cmd_v={f6(snap.commanded_speed_mps)} "
+            f"cmd_s={f6(snap.commanded_steering_norm)} esc={snap.escape_count!s:4} stuck={snap.stuck_count!s:4}",
         )
 
 

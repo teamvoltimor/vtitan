@@ -135,5 +135,12 @@ def read_bag(
 
 
 def fmt_optional(value: float | None, spec: str = ".3f") -> str:
-    """Format an optional float for a table cell; anything non-numeric prints as "None"."""
-    return format(value, spec) if isinstance(value, (int, float)) else "None"
+    """Format an optional float for a table cell.
+
+    Anything non-numeric prints as "None", right-justified to the width a
+    real number would occupy under `spec` -- so a column of these lines up
+    with a column of `format(x, spec)` even where nothing else pads it.
+    """
+    if isinstance(value, (int, float)):
+        return format(value, spec)
+    return "None".rjust(len(format(0.0, spec)))

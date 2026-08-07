@@ -8,7 +8,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -86,9 +85,9 @@ def main() -> None:
     print(f"\ndrive cmds: {drive_count}, speed range [{min_speed:.3f}, {max_speed:.3f}] m/s")
     print(f"total pose travel distance (nav_debug): {total_dist:.2f} m")
     if nav_debug_first:
-        print(f"\nfirst nav_debug @ {nav_debug_first[0]:.2f}s: {json.dumps(nav_debug_first[1].model_dump())[:400]}")
+        print(f"\nfirst nav_debug @ {nav_debug_first[0]:.2f}s: {nav_debug_first[1]!r:.400}")
     if nav_debug_last:
-        print(f"\nlast nav_debug @ {nav_debug_last[0]:.2f}s: {json.dumps(nav_debug_last[1].model_dump())[:400]}")
+        print(f"\nlast nav_debug @ {nav_debug_last[0]:.2f}s: {nav_debug_last[1]!r:.400}")
 
 
 if __name__ == "__main__":
