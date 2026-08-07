@@ -30,6 +30,7 @@ import statistics
 import time
 
 import rclpy
+from _motor_hold import publish_hold
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from std_msgs.msg import Float32
@@ -107,16 +108,7 @@ def run_drive_test(
     move_msg.drive.speed = speed_mps
     samples.clear()
     hold_start = time.monotonic()
-    hold_deadline = hold_start + duration_s
-    next_publish = 0.0
-    publish_count = 0
-    while time.monotonic() < hold_deadline:
-        now = time.monotonic()
-        if now >= next_publish:
-            pub.publish(move_msg)
-            publish_count += 1
-            next_publish = now + 0.1
-        rclpy.spin_once(node, timeout_sec=0.02)
+    publish_count = publish_hold(node, pub, move_msg, duration_s)
     print(f"  (published {publish_count} drive commands during the hold)")
 
     # Average the steady-state portion instead of a single end-of-hold sample:
@@ -165,18 +157,15 @@ def run_min_speed_test(node: Node, pub, latest: dict, candidates: list[float], h
         move_msg = AckermannDriveStamped()
         move_msg.drive.steering_angle = 0.0
         move_msg.drive.speed = speed
-        hold_deadline = time.monotonic() + hold_s
-        next_publish = 0.0
         peak = 0.0
-        while time.monotonic() < hold_deadline:
-            now = time.monotonic()
-            if now >= next_publish:
-                pub.publish(move_msg)
-                next_publish = now + 0.1
-            rclpy.spin_once(node, timeout_sec=0.02)
+
+        def _track_peak() -> None:
+            nonlocal peak
             value = latest.get("drive")
             if value is not None:
                 peak = max(peak, abs(value))
+
+        publish_hold(node, pub, move_msg, hold_s, on_spin=_track_peak)
 
         moved = peak >= DRIVE_MOVING_THRESHOLD_DEG_S
         print(f"  {speed:+.3f} m/s -> peak feedback {peak:.1f} deg/s [{'MOVED' if moved else 'no movement'}]")

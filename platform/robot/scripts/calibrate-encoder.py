@@ -42,6 +42,7 @@ import sys
 import time
 
 import rclpy
+from _motor_hold import publish_hold
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.node import Node
@@ -79,23 +80,12 @@ class _Probe(Node):
         msg = AckermannDriveStamped()
         msg.drive.steering_angle = 0.0
         msg.drive.speed = speed_mps
-
-        deadline = time.monotonic() + duration_s
-        nxt = 0.0
-        while time.monotonic() < deadline:
-            now = time.monotonic()
-            if now >= nxt:
-                self.pub.publish(msg)
-                nxt = now + 0.1
-            rclpy.spin_once(self, timeout_sec=0.02)
+        publish_hold(self, self.pub, msg, duration_s)
 
         stop = AckermannDriveStamped()
         stop.drive.steering_angle = 0.0
         stop.drive.speed = 0.0
-        end = time.monotonic() + 2.5
-        while time.monotonic() < end:
-            self.pub.publish(stop)
-            rclpy.spin_once(self, timeout_sec=0.02)
+        publish_hold(self, self.pub, stop, 2.5, publish_interval_s=0.0)
 
 
 def main() -> None:

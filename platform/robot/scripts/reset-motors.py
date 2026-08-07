@@ -17,9 +17,8 @@ Usage:
 
 from __future__ import annotations
 
-import time
-
 import rclpy
+from _motor_hold import publish_hold
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 
@@ -40,10 +39,7 @@ def main() -> None:
     stop_msg.drive.speed = 0.0
     stop_msg.drive.steering_angle = 0.0
 
-    deadline = time.monotonic() + _HOLD_S
-    while time.monotonic() < deadline:
-        pub.publish(stop_msg)
-        rclpy.spin_once(node, timeout_sec=_PUBLISH_INTERVAL_S)
+    publish_hold(node, pub, stop_msg, _HOLD_S, publish_interval_s=0.0, spin_timeout_s=_PUBLISH_INTERVAL_S)
 
     node.destroy_node()
     rclpy.shutdown()
