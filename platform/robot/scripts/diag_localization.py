@@ -50,6 +50,35 @@ _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _STARTS = list(product(Section, Direction))
 _OBSTACLES_MAX_STEPS = 6000
 _WIDTH_MATCH_TOLERANCE_M = 1e-6
+_OPEN_NAME_WIDTH = 6
+_ERROR_FORMAT = "5.1f"
+_LABEL_WIDTH = 34
+_LAPS_TARGET = 3
+_ERROR_FORMAT_1F = ".1f"
+_PLACEMENT_ERROR_2CM = 0.02
+_PLACEMENT_ERROR_5CM = 0.05
+_PLACEMENT_ERROR_10CM = 0.10
+_PLACEMENT_ERROR_20CM = 0.20
+_YAW_BIAS_2DEG = 2
+_YAW_BIAS_5DEG = 5
+_YAW_BIAS_10DEG = 10
+_IMU_DRIFT_0_1 = 0.1
+_IMU_DRIFT_0_25 = 0.25
+_IMU_DRIFT_0_5 = 0.5
+_IMU_DRIFT_1_0 = 1.0
+_IMU_DRIFT_FINE_0_01 = 0.01
+_IMU_DRIFT_FINE_0_02 = 0.02
+_IMU_DRIFT_FINE_0_03 = 0.03
+_IMU_DRIFT_FINE_0_05 = 0.05
+_IMU_DRIFT_FINE_0_07 = 0.07
+_GYRO_SCALE_0_1PCT = 0.001
+_GYRO_SCALE_0_25PCT = 0.0025
+_GYRO_SCALE_0_5PCT = 0.005
+_GYRO_SCALE_1_0PCT = 0.01
+_GYRO_SCALE_2_0PCT = 0.02
+_IMU_NOISE_0_5DEG = 0.5
+_IMU_NOISE_1_0DEG = 1.0
+_IMU_NOISE_2_0DEG = 2.0
 
 
 def _run_open(args: tuple[int, int, bool]) -> tuple[bool, int, bool, float]:
@@ -98,9 +127,9 @@ def report_open(workers: int) -> None:
                 peak = max(p for _, _, _, p in results)
                 pose = "LIDAR-estimated" if localize else "ground truth   "
                 print(
-                    f"OPEN {name:<6} pose={pose}  pass {passed}/{len(_STARTS)}  "
+                    f"OPEN {name:<{_OPEN_NAME_WIDTH}} pose={pose}  pass {passed}/{len(_STARTS)}  "
                     f"collided {collided}/{len(_STARTS)}  min_laps {worst_laps}  "
-                    f"peak_pos_err {peak * 100:5.1f}cm",
+                    f"peak_pos_err {peak * 100:{_ERROR_FORMAT}}cm",
                     flush=True,
                 )
 
@@ -119,7 +148,7 @@ def report_obstacles(workers: int) -> None:
             print(
                 f"OBSTACLES pose={pose}  collisions {collisions}/{count}  "
                 f"laps>=1 {laps1}/{count}  laps>=3 {laps3}/{count}  "
-                f"peak_pos_err {peak * 100:5.1f}cm",
+                f"peak_pos_err {peak * 100:{_ERROR_FORMAT}}cm",
                 flush=True,
             )
 
@@ -153,13 +182,13 @@ def report_blind(workers: int) -> None:
     peak = max(p for _, _, _, _, _, p in results)
     print(
         f"BLIND  pass {passed}/{count}  collided {collided}/{count}  "
-        f"layout_learned {layout}/{count}  peak_pos_err {peak * 100:5.1f}cm",
+        f"layout_learned {layout}/{count}  peak_pos_err {peak * 100:{_ERROR_FORMAT}}cm",
         flush=True,
     )
     for label, within, laps, coll, ok, err in results:
         if not (within and ok):
             print(
-                f"    {label:<34} pass={within} laps={laps}/3 collided={coll} layout_ok={ok} pos_err={err * 100:.1f}cm",
+                f"    {label:<{_LABEL_WIDTH}} pass={within} laps={laps}/{_LAPS_TARGET} collided={coll} layout_ok={ok} pos_err={err * 100:{_ERROR_FORMAT_1F}}cm",
                 flush=True,
             )
 
@@ -221,35 +250,35 @@ def _deg(degrees: float) -> float:
 _SWEEPS: dict[str, list[tuple[str, SensorErrors]]] = {
     "placement": [
         ("exact placement", SensorErrors()),
-        ("placement 2cm", SensorErrors(start_pos_error_m=0.02)),
-        ("placement 5cm", SensorErrors(start_pos_error_m=0.05)),
-        ("placement 10cm", SensorErrors(start_pos_error_m=0.10)),
-        ("placement 20cm", SensorErrors(start_pos_error_m=0.20)),
+        ("placement 2cm", SensorErrors(start_pos_error_m=_PLACEMENT_ERROR_2CM)),
+        ("placement 5cm", SensorErrors(start_pos_error_m=_PLACEMENT_ERROR_5CM)),
+        ("placement 10cm", SensorErrors(start_pos_error_m=_PLACEMENT_ERROR_10CM)),
+        ("placement 20cm", SensorErrors(start_pos_error_m=_PLACEMENT_ERROR_20CM)),
     ],
     "heading": [
         ("exact heading", SensorErrors()),
-        ("yaw bias 2deg", SensorErrors(yaw_bias_rad=_deg(2))),
-        ("yaw bias 5deg", SensorErrors(yaw_bias_rad=_deg(5))),
-        ("yaw bias 10deg", SensorErrors(yaw_bias_rad=_deg(10))),
+        ("yaw bias 2deg", SensorErrors(yaw_bias_rad=_deg(_YAW_BIAS_2DEG))),
+        ("yaw bias 5deg", SensorErrors(yaw_bias_rad=_deg(_YAW_BIAS_5DEG))),
+        ("yaw bias 10deg", SensorErrors(yaw_bias_rad=_deg(_YAW_BIAS_10DEG))),
     ],
     "drift": [
         ("perfect IMU", SensorErrors()),
-        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.1))),
-        ("drift 0.25deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.25))),
-        ("drift 0.5deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.5))),
-        ("drift 1.0deg/s", SensorErrors(imu_drift_rad_per_s=_deg(1.0))),
+        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_0_1))),
+        ("drift 0.25deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_0_25))),
+        ("drift 0.5deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_0_5))),
+        ("drift 1.0deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_1_0))),
     ],
     # 0.1 deg/s already scores 6/28, so the usable ceiling is somewhere below
     # it and the coarse ladder never sampled that range. These are the values
     # a BNO085 spec sheet actually lives at.
     "drift-fine": [
         ("perfect IMU", SensorErrors()),
-        ("drift 0.01deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.01))),
-        ("drift 0.02deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.02))),
-        ("drift 0.03deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.03))),
-        ("drift 0.05deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.05))),
-        ("drift 0.07deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.07))),
-        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(0.1))),
+        ("drift 0.01deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_FINE_0_01))),
+        ("drift 0.02deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_FINE_0_02))),
+        ("drift 0.03deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_FINE_0_03))),
+        ("drift 0.05deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_FINE_0_05))),
+        ("drift 0.07deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_FINE_0_07))),
+        ("drift 0.1deg/s", SensorErrors(imu_drift_rad_per_s=_deg(_IMU_DRIFT_0_1))),
     ],
     # Gyro scale-factor error: accumulates per degree turned, not per second.
     # Three laps is 12 corners of 90 degrees, so >1080 deg of deliberate
@@ -258,17 +287,17 @@ _SWEEPS: dict[str, list[tuple[str, SensorErrors]]] = {
     # than a datasheet figure -- hence the spread either side of it.
     "scale": [
         ("perfect gyro", SensorErrors()),
-        ("scale 0.1%", SensorErrors(gyro_scale_error=0.001)),
-        ("scale 0.25%", SensorErrors(gyro_scale_error=0.0025)),
-        ("scale 0.5%", SensorErrors(gyro_scale_error=0.005)),
-        ("scale 1.0%", SensorErrors(gyro_scale_error=0.01)),
-        ("scale 2.0%", SensorErrors(gyro_scale_error=0.02)),
+        ("scale 0.1%", SensorErrors(gyro_scale_error=_GYRO_SCALE_0_1PCT)),
+        ("scale 0.25%", SensorErrors(gyro_scale_error=_GYRO_SCALE_0_25PCT)),
+        ("scale 0.5%", SensorErrors(gyro_scale_error=_GYRO_SCALE_0_5PCT)),
+        ("scale 1.0%", SensorErrors(gyro_scale_error=_GYRO_SCALE_1_0PCT)),
+        ("scale 2.0%", SensorErrors(gyro_scale_error=_GYRO_SCALE_2_0PCT)),
     ],
     "noise": [
         ("clean IMU", SensorErrors()),
-        ("yaw noise 0.5deg", SensorErrors(imu_noise_rad=_deg(0.5))),
-        ("yaw noise 1deg", SensorErrors(imu_noise_rad=_deg(1.0))),
-        ("yaw noise 2deg", SensorErrors(imu_noise_rad=_deg(2.0))),
+        ("yaw noise 0.5deg", SensorErrors(imu_noise_rad=_deg(_IMU_NOISE_0_5DEG))),
+        ("yaw noise 1deg", SensorErrors(imu_noise_rad=_deg(_IMU_NOISE_1_0DEG))),
+        ("yaw noise 2deg", SensorErrors(imu_noise_rad=_deg(_IMU_NOISE_2_0DEG))),
     ],
     # Anchored on the BNO085 in UART-RVC mode: 6-axis fusion, so the drift term
     # is the datasheet's 0.5 deg/min (0.0083 deg/s) rather than a guess, and the

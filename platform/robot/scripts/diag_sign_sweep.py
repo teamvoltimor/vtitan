@@ -79,6 +79,33 @@ _WALL_CLEARANCE_ATTR = "_WALL_CLEARANCE"
 wall; it is what stops a larger ``lateral_offset`` producing any further lateral
 movement, so it is the suspected second ceiling behind the escape-split one."""
 
+_RESULT_LABEL_WIDTH = 32
+_RESULT_METRIC_WIDTH = 2
+_DETAIL_LABEL_WIDTH = 34
+_DETAIL_COLLISION_WIDTH = 9
+_COLLISION_PRECISION = 2
+_FORMAT_2F = ".2f"
+_FORMAT_3F = ".3f"
+_FORMAT_1F = ".1f"
+_CROSSTRACK_LABEL_WIDTH = 24
+_CROSSTRACK_PERCENTILE_WIDTH = 5
+_CROSSTRACK_PERCENTILE_PRECISION = "5.1f"
+_DEFAULT_SHORT_LOOKAHEAD = 0.20
+_DEFAULT_LONG_LOOKAHEAD = 0.40
+_LOOKAHEAD_MULTIPLIER = 2.0
+_ACTIVATION_PASSED_DIST_GAP = 0.20
+_DEFORM_DEPTH_BUFFER_TUNED = 0.50
+_ACTIVATION_DIST_TUNED_1 = 1.00
+_ACTIVATION_DIST_TUNED_2 = 1.40
+_PASSED_DIST_EXTENDED = 1.20
+_PASSED_DIST_CEILING = 1.30
+_ACTIVATION_DIST_FOR_BLIND_REACH = 1.00
+_PASSED_DIST_FOR_BLIND_REACH = 1.20
+_OFFSET_ZERO_ROUTER_OFF = 0.0
+_ACTIVATION_FOR_PROFILE = 0.12
+_PASSED_DIST_FOR_PROFILE = 0.24
+_SPEED_FOR_PROFILE = 0.30
+
 
 def _with(group: Any, **fields: float | None) -> Any:
     """Copy a frozen pydantic tuning group, applying only the non-None fields."""
@@ -497,20 +524,20 @@ class SweepResult:
         """The one-line summary: all four metrics plus the collision-kind split."""
         n = len(self.outcomes)
         return (
-            f"RESULT {self.config.label:<32} "
-            f"collisions {self.collisions:>2}/{n} "
-            f"(wall {self.kind('wall'):>2} sign {self.kind('sign'):>2} park {self.kind('parking'):>2})  "
-            f"laps>=1 {self.laps_ge_1:>2}/{n}  "
-            f"laps>=3 {self.laps_ge_3:>2}/{n}  "
-            f"in-time {self.laps_ge_3_in_time:>2}/{n}  "
-            f"timeouts {self.timeouts:>2}/{n}"
+            f"RESULT {self.config.label:<{_RESULT_LABEL_WIDTH}} "
+            f"collisions {self.collisions:>{_RESULT_METRIC_WIDTH}}/{n} "
+            f"(wall {self.kind('wall'):>{_RESULT_METRIC_WIDTH}} sign {self.kind('sign'):>{_RESULT_METRIC_WIDTH}} park {self.kind('parking'):>{_RESULT_METRIC_WIDTH}})  "
+            f"laps>=1 {self.laps_ge_1:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}"
         )
 
     def detail(self) -> str:
         """Per-scenario rows, for when an aggregate needs breaking down."""
         return "\n".join(
-            f"DETAIL   {o.label:<34} {o.collision_kind:<9} laps={o.laps} steps={o.steps} "
-            f"at={None if o.collision_xy is None else (round(o.collision_xy[0], 2), round(o.collision_xy[1], 2))}"
+            f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
+            f"at={None if o.collision_xy is None else (round(o.collision_xy[0], _COLLISION_PRECISION), round(o.collision_xy[1], _COLLISION_PRECISION))}"
             for o in self.outcomes
         )
 
@@ -551,7 +578,7 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     scenario = all_obstacles_demo_scenarios()[index]
     metadata = {k: v for k, v in scenario.metadata.items() if k not in (DictKeys.SIGN_POSITIONS, DictKeys.PARKING_LOT)}
     config = SweepConfig(
-        "crosstrack", lookahead_short=lookahead, lookahead_long=None if lookahead is None else lookahead * 2
+        "crosstrack", lookahead_short=lookahead, lookahead_long=None if lookahead is None else lookahead * _LOOKAHEAD_MULTIPLIER
     )
     sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=config.tuning())
     path = sim.waypoints
@@ -604,25 +631,25 @@ def report_cross_track(workers: int, lookaheads: list[float]) -> None:
         for lookahead in settings:
             per_scenario = pool.map(_cross_track_errors, [(i, lookahead) for i in range(scenario_count)])
             pooled = [e for errors in per_scenario for e in errors]
-            label = "default (0.20/0.40)" if lookahead is None else f"lookahead {lookahead:.2f}/{lookahead * 2:.2f}"
+            label = f"default ({_DEFAULT_SHORT_LOOKAHEAD:{_FORMAT_2F}}/{_DEFAULT_LONG_LOOKAHEAD:{_FORMAT_2F}})" if lookahead is None else f"lookahead {lookahead:{_FORMAT_2F}}/{lookahead * _LOOKAHEAD_MULTIPLIER:{_FORMAT_2F}}"
             print(
-                f"CROSSTRACK {label:<24} "
-                f"median {_percentile(pooled, 0.5) * 100:5.1f}cm  "
-                f"p90 {_percentile(pooled, 0.9) * 100:5.1f}cm  "
-                f"max {max(pooled) * 100:5.1f}cm",
+                f"CROSSTRACK {label:<{_CROSSTRACK_LABEL_WIDTH}} "
+                f"median {_percentile(pooled, 0.5) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
+                f"p90 {_percentile(pooled, 0.9) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
+                f"max {max(pooled) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm",
                 flush=True,
             )
 
 
 _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     "lookahead": lambda v: SweepConfig(
-        f"lookahead {v:.2f}/{v * 2:.2f}",
+        f"lookahead {v:{_FORMAT_2F}}/{v * _LOOKAHEAD_MULTIPLIER:{_FORMAT_2F}}",
         lookahead_short=v,
-        lookahead_long=v * 2,
+        lookahead_long=v * _LOOKAHEAD_MULTIPLIER,
     ),
-    "arc": lambda v: SweepConfig(f"arc_radius {v:.2f}", arc_radius=v),
-    "speed": lambda v: SweepConfig(f"fast_speed {v:.2f}", fast_speed=v),
-    "offset": lambda v: SweepConfig(f"lateral_offset {v:.3f}", lateral_offset=v),
+    "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
+    "speed": lambda v: SweepConfig(f"fast_speed {v:{_FORMAT_2F}}", fast_speed=v),
+    "offset": lambda v: SweepConfig(f"lateral_offset {v:{_FORMAT_3F}}", lateral_offset=v),
     # The offset sweep CROSSED with lidar_blind. This was how the escape layer
     # was first identified as the gate, back when it was the only way to make
     # the offset knob move.
@@ -635,29 +662,29 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # taken while the offset override was silently disconnected, so it does not
     # currently reproduce and should not be trusted without re-measuring.
     "masked-offset": lambda v: SweepConfig(
-        f"lateral_offset {v:.3f}, lidar blind to signs",
+        f"lateral_offset {v:{_FORMAT_3F}}, lidar blind to signs",
         lateral_offset=v,
         lidar_blind=True,
     ),
-    "buffer": lambda v: SweepConfig(f"depth_buffer {v:.2f}", deform_depth_buffer=v),
+    "buffer": lambda v: SweepConfig(f"depth_buffer {v:{_FORMAT_2F}}", deform_depth_buffer=v),
     # The offset sweep with the mapped/unmapped escape split DISABLED. Pair it
     # with `offset` (split enabled at its default radius) to read what the split
     # is worth: the two differ only in whether a routed sign can trigger the
     # reactive escape maneuver.
     "unsplit-offset": lambda v: SweepConfig(
-        f"lateral_offset {v:.3f}, escape split off",
+        f"lateral_offset {v:{_FORMAT_3F}}, escape split off",
         lateral_offset=v,
-        escape_mask_radius=0.0,
+        escape_mask_radius=_OFFSET_ZERO_ROUTER_OFF,
     ),
-    "mask-radius": lambda v: SweepConfig(f"escape_mask_radius {v:.3f}", escape_mask_radius=v),
-    "wall": lambda v: SweepConfig(f"wall_clearance {v:.3f}", wall_clearance=v),
-    "activation": lambda v: SweepConfig(f"activation_dist {v:.2f}", activation_dist=v),
+    "mask-radius": lambda v: SweepConfig(f"escape_mask_radius {v:{_FORMAT_3F}}", escape_mask_radius=v),
+    "wall": lambda v: SweepConfig(f"wall_clearance {v:{_FORMAT_3F}}", wall_clearance=v),
+    "activation": lambda v: SweepConfig(f"activation_dist {v:{_FORMAT_2F}}", activation_dist=v),
     # Wall clearance measured at the TUNED activation distance, not the stock
     # 0.80. The two are coupled: activation distance buys convergence runway,
     # wall clearance sets how far there is to converge to. Sweeping either
     # against the other's untuned value measures a corner of the space nobody
     # would ship.
-    "wall-tuned": lambda v: SweepConfig(f"wall {v:.3f} @ act 1.00", wall_clearance=v, activation_dist=1.00),
+    "wall-tuned": lambda v: SweepConfig(f"wall {v:{_FORMAT_3F}} @ act {_ACTIVATION_DIST_TUNED_1:{_FORMAT_2F}}", wall_clearance=v, activation_dist=_ACTIVATION_DIST_TUNED_1),
     # The corner dead zone, measured at the tuned activation distance. Tracing
     # the 1.20->1.30 cliff showed deform_waypoint returning the waypoint
     # UNTOUCHED 0.20 m from a sign at grid depth 1.0: the lookahead target had
@@ -683,26 +710,26 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # luck, not design. Any operating point meant for the robot has to be
     # chosen here.
     "reach-blind": lambda v: SweepConfig(
-        f"BLIND activation {v:.2f} / passed {v + 0.20:.2f} @ buffer 0.50",
+        f"BLIND activation {v:{_FORMAT_2F}} / passed {v + _ACTIVATION_PASSED_DIST_GAP:{_FORMAT_2F}} @ buffer {_DEFORM_DEPTH_BUFFER_TUNED:{_FORMAT_2F}}",
         activation_dist=v,
-        passed_dist=v + 0.20,
-        deform_depth_buffer=0.50,
+        passed_dist=v + _ACTIVATION_PASSED_DIST_GAP,
+        deform_depth_buffer=_DEFORM_DEPTH_BUFFER_TUNED,
         blind=True,
     ),
     "buffer-blind": lambda v: SweepConfig(
-        f"BLIND depth_buffer {v:.2f} @ act 1.40", deform_depth_buffer=v, activation_dist=1.40, blind=True,
+        f"BLIND depth_buffer {v:{_FORMAT_2F}} @ act {_ACTIVATION_DIST_TUNED_2:{_FORMAT_2F}}", deform_depth_buffer=v, activation_dist=_ACTIVATION_DIST_TUNED_2, blind=True,
     ),
     "reach": lambda v: SweepConfig(
-        f"activation {v:.2f} / passed {v + 0.20:.2f} @ buffer 0.50",
+        f"activation {v:{_FORMAT_2F}} / passed {v + _ACTIVATION_PASSED_DIST_GAP:{_FORMAT_2F}} @ buffer {_DEFORM_DEPTH_BUFFER_TUNED:{_FORMAT_2F}}",
         activation_dist=v,
-        passed_dist=v + 0.20,
-        deform_depth_buffer=0.50,
+        passed_dist=v + _ACTIVATION_PASSED_DIST_GAP,
+        deform_depth_buffer=_DEFORM_DEPTH_BUFFER_TUNED,
     ),
     "activation-buf": lambda v: SweepConfig(
-        f"activation {v:.2f} @ buffer 0.50", activation_dist=v, deform_depth_buffer=0.50,
+        f"activation {v:{_FORMAT_2F}} @ buffer {_DEFORM_DEPTH_BUFFER_TUNED:{_FORMAT_2F}}", activation_dist=v, deform_depth_buffer=_DEFORM_DEPTH_BUFFER_TUNED,
     ),
     "buffer-tuned": lambda v: SweepConfig(
-        f"depth_buffer {v:.2f} @ act 1.00", deform_depth_buffer=v, activation_dist=1.00,
+        f"depth_buffer {v:{_FORMAT_2F}} @ act {_ACTIVATION_DIST_TUNED_1:{_FORMAT_2F}}", deform_depth_buffer=v, activation_dist=_ACTIVATION_DIST_TUNED_1,
     ),
 }
 """Modes that sweep one numeric knob across the values given on the CLI."""
@@ -711,7 +738,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "baseline": [SweepConfig("defaults")],
     "profile": [
         SweepConfig("defaults"),
-        SweepConfig("for_obstacles (removed)", lookahead_short=0.12, lookahead_long=0.24, fast_speed=0.30),
+        SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_speed=_SPEED_FOR_PROFILE),
     ],
     # Separates "the tracker broke" from "sign avoidance failed" — run this
     # first on any change; no aggregate collision count can tell them apart.
@@ -723,8 +750,8 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     ],
     "ghost": [
         SweepConfig("ghost signs, router on", ghost_signs=True),
-        SweepConfig("ghost signs, router off", ghost_signs=True, lateral_offset=0.0),
-        SweepConfig("physical signs, router off", lateral_offset=0.0),
+        SweepConfig("ghost signs, router off", ghost_signs=True, lateral_offset=_OFFSET_ZERO_ROUTER_OFF),
+        SweepConfig("physical signs, router off", lateral_offset=_OFFSET_ZERO_ROUTER_OFF),
     ],
     "lidar": [
         SweepConfig("lidar sees signs (default)"),
