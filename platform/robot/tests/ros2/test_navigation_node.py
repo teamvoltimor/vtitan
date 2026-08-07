@@ -343,17 +343,45 @@ class TestWheelOdometryWiring:
 
         node.destroy_node()
 
-    def test_publisher_and_consumer_agree_on_the_joint_name(self):
+    def test_the_message_the_motor_node_publishes_is_readable_by_the_gateway(self, ros_context):
         """Different packages, neither importing the other.
 
-        A rename on either side raises nothing -- the navigator would just stop
-        receiving odometry, which is exactly the drift this file exists to stop.
+        This used to compare ``motor_node._DRIVE_JOINT`` against a re-export on
+        the navigator, which stopped meaning anything once both sides began
+        importing the name from ``src.hardware.motors.enums``: it compared a
+        constant to itself down two import paths, and could only ever pass. It
+        did not even do that -- the motor node's copy is public, so the
+        assertion had been raising AttributeError rather than comparing
+        anything, and the drift it was guarding was structurally impossible by
+        then anyway.
+
+        What is still possible is a literal creeping back in on either side, or
+        the message shape changing. So assemble the JointState exactly as
+        ackermann_motor_node does -- its own constants, its own order, its own
+        units -- and require the gateway to read odometry out of it.
         """
-        from vtitan_drivers.motors import ackermann_motor_node as motor_node
+        from sensor_msgs.msg import JointState
+        from vtitan_drivers.motors.ackermann_motor_node import (
+            DRIVE_JOINT as PUBLISHED_DRIVE,
+            STEERING_JOINT as PUBLISHED_STEER,
+        )
 
-        from src.ros2.navigation import node as nav_node
+        node = _make_host_node()
+        gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
-        assert motor_node._DRIVE_JOINT == nav_node._DRIVE_JOINT
+        # Same construction as ackermann_motor_node's publish block: both
+        # joints, drive first, positions in radians.
+        msg = JointState()
+        msg.header.stamp.sec = 7
+        msg.name = [PUBLISHED_DRIVE, PUBLISHED_STEER]
+        msg.position = [math.radians(90.0), math.radians(10.0)]
+        gateway._joint_state_callback(msg)
+
+        odometry = gateway.get_wheel_odometry()
+        assert odometry is not None, "the gateway could not find the drive joint the motor node publishes"
+        assert odometry.distance_m == pytest.approx(math.radians(90.0) * RobotSpecs.WHEEL_RADIUS)
+
+        node.destroy_node()
 
 
 class TestLoadJson:

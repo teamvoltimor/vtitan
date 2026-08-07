@@ -7,7 +7,6 @@ callers) import ``ROS2HardwareGateway``/``TrackNavigator``/``main`` from this
 module path.
 """
 
-from src.hardware.motors.enums import DRIVE_JOINT as _DRIVE_JOINT  # noqa: F401 -- re-exported for test_navigation_node.py's cross-file topic-contract check
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.navigation.track_navigator_node import TrackNavigator, main
 
