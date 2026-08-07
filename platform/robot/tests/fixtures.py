@@ -13,9 +13,10 @@ from typing import Callable
 import numpy as np
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
-from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
+from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, Waypoint
 from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
 
+from src.navigation.ports import DriveCommand, LidarScan
 from src.simulation.kinematics import AckermannState
 
 
@@ -395,3 +396,36 @@ def create_scan_with_sectors(
         ranges[idx - sector_width_indices : idx + sector_width_indices] = dist
 
     return ranges.tolist()
+
+
+class FakeGateway:
+    """Minimal HardwareGateway mock for testing CoreNavigator.
+
+    Implements the HardwareGateway protocol structurally for driving CoreNavigator
+    directly without ROS2 or the simulator.
+    """
+
+    def __init__(self, pose: Pose, lidar: LidarScan | None = None) -> None:
+        self._pose = pose
+        self._lidar = lidar
+        self.commands: list[DriveCommand] = []
+
+    def publish_drive(self, command: DriveCommand) -> None:
+        """Record a drive command."""
+        self.commands.append(command)
+
+    def get_current_pose(self) -> Pose | None:
+        """Return the robot's current pose."""
+        return self._pose
+
+    def get_lidar_scan(self) -> LidarScan | None:
+        """Return the latest LIDAR scan."""
+        return self._lidar
+
+    def get_imu_reading(self) -> IMUReading | None:
+        """Return the latest IMU reading."""
+        return IMUReading(yaw=self._pose.yaw, pitch=0.0, roll=0.0)
+
+    def get_vision_detections(self) -> list[Detection]:
+        """Return vision detections."""
+        return []

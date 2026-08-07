@@ -12,31 +12,11 @@ from shared.domain.models import Detection, IMUReading, Pose
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.ports import DriveCommand, LidarScan
-
-
-class _FakeGateway:
-    def __init__(self, pose: Pose) -> None:
-        self._pose = pose
-        self.commands: list[DriveCommand] = []
-
-    def publish_drive(self, command: DriveCommand) -> None:
-        self.commands.append(command)
-
-    def get_current_pose(self) -> Pose | None:
-        return self._pose
-
-    def get_lidar_scan(self) -> LidarScan | None:
-        return None
-
-    def get_imu_reading(self) -> IMUReading | None:
-        return IMUReading(yaw=self._pose.yaw, pitch=0.0, roll=0.0)
-
-    def get_vision_detections(self) -> list[Detection]:
-        return []
+from tests.fixtures import FakeGateway
 
 
 def test_reset_clears_lap_and_waypoint_state():
-    gateway = _FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0))
+    gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0))
     waypoints = [(5.0, 0.0), (10.0, 0.0)]
     nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
 
