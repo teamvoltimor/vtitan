@@ -33,6 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from _bag_io import print_table
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 
@@ -91,19 +92,18 @@ def main() -> None:
         f"true corridor width: {args.width_mm} mm   blind prior: {narrow_mm} mm   "
         f"{len(_STARTS)} starts   sensor errors: {'on' if args.errors else 'off'}"
     )
-    print(f"  {'start':>10} {'pass':>5} {'laps':>5} {'contacts':>9} {'contact_s':>10} {'min_rng':>8}")
 
     with ProcessPoolExecutor(max_workers=args.jobs) as pool:
         rows = list(pool.map(_run, [(args.width_mm, i, args.errors) for i in range(len(_STARTS))]))
 
     contacted = 0
     passed = 0
+    table_rows = []
     for label, ok, contacts, contact_s, min_rng, laps in rows:
         passed += ok
         contacted += contacts > 0
-        print(
-            f"  {label:>10} {'yes' if ok else 'NO':>5} {laps:>5} {contacts:>9} {contact_s:>10.2f} {min_rng:>8.3f}"
-        )
+        table_rows.append((label, 'yes' if ok else 'NO', laps, contacts, contact_s, min_rng))
+    print_table(table_rows, ['start', 'pass', 'laps', 'contacts', 'contact_s', 'min_rng'], floatfmt=[None, None, None, None, '.2f', '.3f'])
     print(f"\n{passed}/{len(rows)} passed   {contacted}/{len(rows)} touched a wall at least once")
 
 

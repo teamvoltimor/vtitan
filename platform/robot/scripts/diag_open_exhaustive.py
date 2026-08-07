@@ -43,6 +43,10 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 _SIDES = ("south", "north", "east", "west")
 _WIDTHS_MM = (int(CorridorDimensions.NARROW * 1000), int(CorridorDimensions.WIDE * 1000))
 
+_DEFAULT_LAPS = 3
+_DEFAULT_SAMPLE_SIZE = 128
+_DEFAULT_SEED = 0
+
 
 def _all_cases() -> list[tuple[tuple[int, ...], Section, Direction, int]]:
     """Every (layout, section, direction, start cell) the track can present."""
@@ -79,9 +83,9 @@ def _summarise(title: str, counts: Counter[tuple[str, str]]) -> None:
 def main() -> None:
     """Run a seeded sample of the scenario space and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--laps", type=int, default=3)
-    parser.add_argument("--sample", type=int, default=128, help="How many scenarios to draw.")
-    parser.add_argument("--seed", type=int, default=0, help="Draw seed; same seed, same sample.")
+    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
+    parser.add_argument("--sample", type=int, default=_DEFAULT_SAMPLE_SIZE, help="How many scenarios to draw.")
+    parser.add_argument("--seed", type=int, default=_DEFAULT_SEED, help="Draw seed; same seed, same sample.")
     parser.add_argument("--all", action="store_true", help="Run all 640 instead of a sample.")
     args = parser.parse_args()
 

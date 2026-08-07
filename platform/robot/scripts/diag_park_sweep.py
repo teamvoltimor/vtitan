@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 import sys
 
+from _bag_io import print_table
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.config.enums import Section
 
@@ -35,6 +36,14 @@ _YAW_ERRORS = (math.radians(-15), 0.0, math.radians(15))
 _BAY_DEPTH = ParkingLotSpecs.LENGTH
 _FIN_THICKNESS = ParkingLotSpecs.WIDTH
 _STOP_TOLERANCE = 0.01  # metres: how close to the bay midpoint counts as "stopped there"
+
+# Straight-in approach probe parameters
+_STRAIGHTIN_YAW_ERRORS = (-0.05, -0.02, 0.0, 0.02, 0.05)
+_STRAIGHTIN_LATERAL_OFFSETS = (0.09, 0.10, 0.11, 0.12, 0.14)
+_STRAIGHTIN_UPSTREAM_DIST = 0.35  # metres: start distance before bay along travel direction
+_STRAIGHTIN_MAX_STEPS = 200
+_STRAIGHTIN_SPEED = 0.10  # m/s
+_STAGING_APPROACH_OFFSET = 0.5  # metres: offset before bay for ParkController test
 
 
 def _section_of(metadata: dict) -> Section:
@@ -144,11 +153,10 @@ def _run_one(
     yaw = _travel_yaw(section, direction) + yaw_err
     centre = CorridorDimensions.OBSTACLES_WIDTH / 2
     lat_centre = centre if _low_side(section) else 3.0 - centre
-    back = 0.5
     if _is_ns(section):
-        start = (sx - back * math.cos(yaw), lat_centre + lat_err)
+        start = (sx - _STAGING_APPROACH_OFFSET * math.cos(yaw), lat_centre + lat_err)
     else:
-        start = (lat_centre + lat_err, sy - back * math.sin(yaw))
+        start = (lat_centre + lat_err, sy - _STAGING_APPROACH_OFFSET * math.sin(yaw))
 
     track = TrackModel(_TRACK_WIDTHS, obstacles=[b for _, b in blocks])
     kin = AckermannKinematics()
@@ -242,16 +250,15 @@ def report_straight_in() -> None:
 
     print(f"bay rect={tuple(round(v, 3) for v in rect)}  depth={_BAY_DEPTH} m  chassis width={RobotSpecs.WIDTH} m")
     print("lateral = chassis centre distance from the outer wall\n")
-    print(f"{'lat(m)':>7} " + " ".join(f"{math.degrees(y):>+6.1f}d" for y in (-0.05, -0.02, 0.0, 0.02, 0.05)))
 
     kin = AckermannKinematics()
-    for lateral in (0.09, 0.10, 0.11, 0.12, 0.14):
-        row = []
-        for yaw_err in (-0.05, -0.02, 0.0, 0.02, 0.05):
+    table_rows = []
+    for lateral in _STRAIGHTIN_LATERAL_OFFSETS:
+        row_data = [lateral]
+        for yaw_err in _STRAIGHTIN_YAW_ERRORS:
             yaw = _travel_yaw(section, direction) + yaw_err
             lat_coord = wall + lateral if _low_side(section) else wall - lateral
-            # Start 0.35 m upstream of the bay along the direction of travel.
-            along_start = bay_mid - 0.35 * math.cos(yaw) if _is_ns(section) else bay_mid - 0.35 * math.sin(yaw)
+            along_start = bay_mid - _STRAIGHTIN_UPSTREAM_DIST * math.cos(yaw) if _is_ns(section) else bay_mid - _STRAIGHTIN_UPSTREAM_DIST * math.sin(yaw)
             state = (
                 AckermannState(x=along_start, y=lat_coord, yaw=yaw)
                 if _is_ns(section)
@@ -259,8 +266,8 @@ def report_straight_in() -> None:
             )
             hit = False
             contained_at_stop = False
-            for _ in range(200):
-                state = kin.step(state, target_speed=0.10, target_steer_norm=0.0, dt=_DT)
+            for _ in range(_STRAIGHTIN_MAX_STEPS):
+                state = kin.step(state, target_speed=_STRAIGHTIN_SPEED, target_steer_norm=0.0, dt=_DT)
                 if _classify(track, blocks, state.x, state.y, state.yaw):
                     hit = True
                     break
@@ -268,8 +275,10 @@ def report_straight_in() -> None:
                 if abs(along - bay_mid) < _STOP_TOLERANCE:
                     contained_at_stop = _footprint_contained(state.x, state.y, state.yaw, rect)
                     break
-            row.append("HIT " if hit else ("ok  " if contained_at_stop else "out "))
-        print(f"{lateral:>7.2f} " + " ".join(f"{c:>7}" for c in row))
+            row_data.append("HIT " if hit else ("ok  " if contained_at_stop else "out "))
+        table_rows.append(row_data)
+    headers = ['lat(m)'] + [f"{math.degrees(y):+.0f}d" for y in _STRAIGHTIN_YAW_ERRORS]
+    print_table(table_rows, headers)
 
     print("\nok = whole footprint inside the bay at the stop point; out = clear but protruding; HIT = contact")
 

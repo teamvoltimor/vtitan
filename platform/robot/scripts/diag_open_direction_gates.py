@@ -48,6 +48,8 @@ if TYPE_CHECKING:
 
     from shared.config.enums import Direction
 
+_DEFAULT_STEPS = 760
+
 
 class _GateTracer:
     """Records every scan offered to ``infer_direction`` and its verdict."""
@@ -127,7 +129,7 @@ def main() -> None:
     """Print gate verdicts for the fixtures named on argv."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("labels", nargs="*", default=["go_open_0000"])
-    parser.add_argument("--steps", type=int, default=760)
+    parser.add_argument("--steps", type=int, default=_DEFAULT_STEPS)
     parser.add_argument("--show-span-fails", action="store_true")
     args = parser.parse_args()
 

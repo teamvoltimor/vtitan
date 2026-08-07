@@ -56,6 +56,11 @@ _LIDAR_YAW_OFFSET_RAD = math.radians(
 # implied-speed estimate itself without hiding a real jump.
 _IMPOSSIBLE_SPEED_MPS = 2.0 * RobotSpecs.MAX_SPEED_MPS
 
+# Ambiguous-match guard thresholds (tuned against pull data)
+_DEFAULT_MIN_DISTINCTIVENESS = 0.02
+_DEFAULT_COST_FLOOR = 3.0
+_GRID_SEARCH_RADIUS_SCALE = 2.0
+
 
 def _read_bag(bag_dir: Path) -> tuple[list[tuple[int, NavigatorDebugSnapshot]], list[tuple[int, LaserScan]]]:
     """Return (nav_debug snapshots, scans), each as (bag-time-ns, msg), time-ordered.
@@ -156,7 +161,7 @@ def _grid_search_costs(
                 elif cost < second_cost:
                     second_cost = cost
         best_x, best_y = cand_x, cand_y
-        radius = 2.0 * radius / (n - 1)
+        radius = _GRID_SEARCH_RADIUS_SCALE * radius / (n - 1)
 
     return best_x, best_y, best_cost, second_cost
 
@@ -209,8 +214,8 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("bag_dirs", nargs="+", type=Path)
-    parser.add_argument("--min-distinctiveness", type=float, default=0.02)
-    parser.add_argument("--cost-floor", type=float, default=3.0)
+    parser.add_argument("--min-distinctiveness", type=float, default=_DEFAULT_MIN_DISTINCTIVENESS)
+    parser.add_argument("--cost-floor", type=float, default=_DEFAULT_COST_FLOOR)
     args = parser.parse_args()
     for bag_dir in args.bag_dirs:
         replay(bag_dir, args.min_distinctiveness, args.cost_floor)

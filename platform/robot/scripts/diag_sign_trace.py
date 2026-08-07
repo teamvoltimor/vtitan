@@ -41,13 +41,16 @@ MAX_STEPS = 6000
 CORPUS_DIR = Path(__file__).resolve().parents[1] / ".corpus" / "obstacles" / "scenarios"
 """Pinned-seed sweep corpus — see ``diag_sign_sweep.SweepConfig.scenarios_dir``."""
 
+_DEFAULT_RADIUS_M = 0.9
+_MAX_TRACE_ROWS = 200
+
 
 def main() -> None:
     """Trace one scenario and print the ticks near the chosen sign."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scenario", type=int, help="index into all_obstacles_demo_scenarios()")
     parser.add_argument("--around-sign", type=int, default=None, help="only print ticks near this sign")
-    parser.add_argument("--radius", type=float, default=0.9, help="how near, in metres")
+    parser.add_argument("--radius", type=float, default=_DEFAULT_RADIUS_M, help="how near, in metres")
     parser.add_argument(
         "--activation",
         type=float,
@@ -147,7 +150,7 @@ def main() -> None:
 
 def args_limit(rows: list[str]) -> int:
     """Cap how many trailing trace rows get printed."""
-    return min(len(rows), 200)
+    return min(len(rows), _MAX_TRACE_ROWS)
 
 
 def _fmt(pt: object) -> str:

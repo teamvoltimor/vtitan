@@ -38,6 +38,9 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _MIDDLE_BAND_CELLS = (2, 3)
 
+_DEFAULT_LAPS = 3
+_DEFAULT_LIMIT = 8
+
 
 def _cases(limit: int) -> list[tuple[tuple[int, ...], Section, Direction, int]]:
     """Narrow-corridor middle-band starts, which is the whole failing set."""
@@ -56,8 +59,8 @@ def _cases(limit: int) -> list[tuple[tuple[int, ...], Section, Direction, int]]:
 def main() -> None:
     """Run each affected start with the margin on and off."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--laps", type=int, default=3)
-    parser.add_argument("--limit", type=int, default=8)
+    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
+    parser.add_argument("--limit", type=int, default=_DEFAULT_LIMIT)
     args = parser.parse_args()
 
     original = track_model._COLLISION_MARGIN  # noqa: SLF001

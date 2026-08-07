@@ -51,6 +51,14 @@ _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _STARTS = list(product(Section, Direction))
 
+# Sweep parameters
+_SPEED_SWEEP_MPS = (0.156, 0.25, 0.35, 0.50)
+_SHIPPED_STEER_KP = 1.5
+_SHIPPED_MAX_STEER_RATE = 2.0
+_REAL_MAX_SPEED_MPS = 0.156
+_STEER_KP_SWEEP = (1.2, 1.0, 0.8, 0.6, 0.4)
+_STEER_RATE_SWEEP = (1.0, 4.0)
+
 
 @dataclass(frozen=True, slots=True)
 class Case:
@@ -92,11 +100,11 @@ def main() -> None:
     """Sweep speed ceiling and steering gain over the 8 narrow starts."""
     cases = [
         # Speed ceiling, at the shipped gain — does restoring headroom fix it?
-        *(Case(s, 1.5, 2.0) for s in (0.156, 0.25, 0.35, 0.50)),
+        *(Case(s, _SHIPPED_STEER_KP, _SHIPPED_MAX_STEER_RATE) for s in _SPEED_SWEEP_MPS),
         # Steering gain, at the real 0.156 m/s ceiling — does softening fix it?
-        *(Case(0.156, k, 2.0) for k in (1.2, 1.0, 0.8, 0.6, 0.4)),
+        *(Case(_REAL_MAX_SPEED_MPS, k, _SHIPPED_MAX_STEER_RATE) for k in _STEER_KP_SWEEP),
         # Steering rate, at the real ceiling and shipped gain.
-        *(Case(0.156, 1.5, r) for r in (1.0, 4.0)),
+        *(Case(_REAL_MAX_SPEED_MPS, _SHIPPED_STEER_KP, r) for r in _STEER_RATE_SWEEP),
     ]
     with ProcessPoolExecutor(max_workers=8) as pool:
         for case in cases:

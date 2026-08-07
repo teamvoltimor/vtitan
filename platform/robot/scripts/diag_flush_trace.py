@@ -23,11 +23,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
 
+from _bag_io import print_table
 from src.navigation.utils import _forward_clearance, _nearest_ray
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
+_DEFAULT_CELL = 2
+_DEFAULT_TICKS = 400
+_DEFAULT_DOWNSAMPLE = 10
+_DEFAULT_LAPS = 3
+_CONTROL_DT_S = 0.05
 
 
 def main() -> None:
@@ -35,16 +41,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--section", default="south")
     parser.add_argument("--direction", default="counterclockwise")
-    parser.add_argument("--cell", type=int, default=2, help="2 or 3 = the middle band.")
-    parser.add_argument("--ticks", type=int, default=400, help="How many ticks to trace.")
-    parser.add_argument("--every", type=int, default=10, help="Print one row per N ticks.")
+    parser.add_argument("--cell", type=int, default=_DEFAULT_CELL, help="2 or 3 = the middle band.")
+    parser.add_argument("--ticks", type=int, default=_DEFAULT_TICKS, help="How many ticks to trace.")
+    parser.add_argument("--every", type=int, default=_DEFAULT_DOWNSAMPLE, help="Print one row per N ticks.")
     args = parser.parse_args()
 
     section = Section(args.section.upper()) if args.section.isupper() else Section[args.section.upper()]
     direction = Direction[args.direction.upper()]
 
     meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction, start_cell=args.cell)
-    sim = ScenarioSimulator(meta, num_laps=3, seed=0, blind=True)
+    sim = ScenarioSimulator(meta, num_laps=_DEFAULT_LAPS, seed=0, blind=True)
 
     start = meta.starting_conditions.position
     print(f"{section.value}/{direction} celda {args.cell}  arranque=({start.x:.3f}, {start.y:.3f})\n")
@@ -75,7 +81,7 @@ def main() -> None:
         right = _nearest_ray(ranges, angles, -math.pi / 2)
         cmd_v, cmd_s = commands[-1] if commands else (float("nan"), float("nan"))
         rows.append(
-            f"{i:4d} {i * 0.05:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
+            f"{i:4d} {i * _CONTROL_DT_S:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
             f"v={state.v:6.3f} steer={math.degrees(state.steer):6.2f}  "
             f"cmd_v={cmd_v:6.3f} cmd_s={cmd_s:6.3f}  "
             f"fwd={fwd:5.2f} L={left:5.2f} R={right:5.2f}",

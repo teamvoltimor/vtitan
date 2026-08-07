@@ -32,6 +32,13 @@ _OFFSET_RAD = math.radians(
 )
 _BOUNDARY = (CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2.0
 
+# Data collection parameters
+_STARTUP_DEADLINE_S = 25.0
+_SPIN_TIMEOUT_S = 0.2
+_SECTOR_HALF_WIDTH_DEG = 10.0
+_MIN_RANGE_M = 0.05
+_MAX_RANGE_M = 12.0
+
 
 class Probe(Node):
     """Collects one scan and one yaw, then measures."""
@@ -54,9 +61,9 @@ class Probe(Node):
 def main() -> None:
     rclpy.init()
     probe = Probe()
-    deadline = time.monotonic() + 25.0
+    deadline = time.monotonic() + _STARTUP_DEADLINE_S
     while time.monotonic() < deadline and (probe.scan is None or probe.yaw is None):
-        rclpy.spin_once(probe, timeout_sec=0.2)
+        rclpy.spin_once(probe, timeout_sec=_SPIN_TIMEOUT_S)
 
     if probe.scan is None or probe.yaw is None:
         print(f"missing input: scan={probe.scan is not None} imu={probe.yaw is not None}")
@@ -68,9 +75,9 @@ def main() -> None:
     ranges = np.clip(ranges, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
     angles = np.linspace(msg.angle_min, msg.angle_max, len(ranges)) + _OFFSET_RAD
 
-    def sector(center_deg: float, half_deg: float = 10.0) -> float:
+    def sector(center_deg: float, half_deg: float = _SECTOR_HALF_WIDTH_DEG) -> float:
         deltas = (np.degrees(angles) - center_deg + 540) % 360 - 180
-        sel = (np.abs(deltas) <= half_deg) & (ranges > 0.05) & (ranges < 12.0)
+        sel = (np.abs(deltas) <= half_deg) & (ranges > _MIN_RANGE_M) & (ranges < _MAX_RANGE_M)
         return float(np.min(ranges[sel])) if sel.any() else float("nan")
 
     left, right, front = sector(90.0), sector(-90.0), sector(0.0)
