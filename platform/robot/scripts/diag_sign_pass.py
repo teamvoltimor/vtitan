@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from _bag_io import print_table
 from shared.config.enums import Section
 
 import src.navigation.planning.sign_router as sign_router_module
@@ -154,6 +155,7 @@ def main() -> None:
     tight_square = 0
     tight_turning = 0
     total = 0
+    table_rows = []
     for label, collided, laps, records in results:
         print(f"{label}  collided={collided} laps={laps}")
         for r in records:
@@ -165,11 +167,18 @@ def main() -> None:
             if r.lateral < turning_need:
                 tight_turning += 1
             flag = "HIT-SQUARE" if r.lateral < square_need else ("HIT-TURN" if r.lateral < turning_need else "")
-            print(
-                f"   sign#{r.sign_index} {r.color:<5} depth={r.depth:.1f} "
-                f"lat={r.lateral:.3f} lon={r.longitudinal:.3f} "
-                f"cmd={r.commanded_lat:.3f} yaw_err={math.degrees(r.yaw_err):5.1f}deg  {flag}"
-            )
+            table_rows.append((
+                r.sign_index,
+                r.color,
+                r.depth,
+                r.lateral,
+                r.longitudinal,
+                r.commanded_lat,
+                math.degrees(r.yaw_err),
+                flag
+            ))
+    if table_rows:
+        print_table(table_rows, ["sign#", "color", "depth", "lat", "lon", "cmd", "yaw_err_deg", "flag"])
 
     print(f"\npasses measured: {total}")
     print(f"  below square-pass need ({square_need:.3f}): {tight_square}")

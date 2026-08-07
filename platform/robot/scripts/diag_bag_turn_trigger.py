@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_bag
+from _bag_io import open_reader, print_table, read_bag
 from shared.config.constants import RobotSpecs
 
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
@@ -121,17 +121,22 @@ def main() -> None:
                 )
             )
 
-    print(f"{'test':>32s} {'fires':>7s} {'%':>6s} {'prec':>7s} {'recall':>7s} {'episodes':>9s}")
+    table_rows = []
     for label, pred in candidates:
         mask = [bool(pred(r)) for r in rows]
         fires = [r for r, on in zip(rows, mask, strict=True) if on]
         hit = sum(1 for r in fires if r["near"])
         precision = 100.0 * hit / len(fires) if fires else float("nan")
         recall = 100.0 * hit / truth if truth else float("nan")
-        print(
-            f"{label:>32s} {len(fires):7d} {100.0 * len(fires) / n:5.1f}% "
-            f"{precision:6.1f}% {recall:6.1f}% {episodes(mask):9d}"
-        )
+        table_rows.append((
+            label,
+            len(fires),
+            100.0 * len(fires) / n,
+            precision,
+            recall,
+            episodes(mask)
+        ))
+    print_table(table_rows, ["test", "fires", "%", "prec", "recall", "episodes"])
 
 
 if __name__ == "__main__":

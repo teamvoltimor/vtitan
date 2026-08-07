@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import fmt_optional, open_reader, read_nav_debug_rows
+from _bag_io import fmt_optional, open_reader, print_table, read_nav_debug_rows
 
 
 def main() -> None:
@@ -36,20 +36,34 @@ def main() -> None:
     def f5(v: float | None) -> str:
         return fmt_optional(v, "5.2f")
 
+    table_rows = []
     next_print = args.start
     for ts, snap in rows:
         if not (args.start <= ts <= args.until) or ts < next_print:
             continue
         next_print += args.every
-        print(
-            f"{ts:6.2f}s wp={snap.waypoint_index!s:4} corr={snap.current_corridor!s:6} "
-            f"pose=({f6(snap.pose_x)},{f6(snap.pose_y)},{f6(snap.pose_yaw)}) "
-            f"tgt=({f6(snap.steer_target_x)},{f6(snap.steer_target_y)}) "
-            f"aerr={f6(snap.angle_error_rad)} xtrack={f6(snap.crosstrack_error_m)} "
-            f"look={f6(snap.lookahead_distance_m)} steer={f6(snap.commanded_steering_norm)} "
-            f"belief N/S/E/W={f5(snap.belief_north_m)}/{f5(snap.belief_south_m)}/"
-            f"{f5(snap.belief_east_m)}/{f5(snap.belief_west_m)}",
-        )
+        table_rows.append((
+            ts,
+            snap.waypoint_index,
+            snap.current_corridor,
+            f"{snap.pose_x or 0:.3f}",
+            f"{snap.pose_y or 0:.3f}",
+            f"{snap.pose_yaw or 0:.3f}",
+            f"{snap.steer_target_x or 0:.3f}",
+            f"{snap.steer_target_y or 0:.3f}",
+            snap.angle_error_rad,
+            snap.crosstrack_error_m,
+            snap.lookahead_distance_m,
+            snap.commanded_steering_norm,
+            snap.belief_north_m,
+            snap.belief_south_m,
+            snap.belief_east_m,
+            snap.belief_west_m,
+        ))
+    print_table(
+        table_rows,
+        ["t", "wp", "corr", "x", "y", "yaw", "tgt_x", "tgt_y", "aerr", "xtrack", "look", "steer", "N", "S", "E", "W"]
+    )
 
 
 if __name__ == "__main__":

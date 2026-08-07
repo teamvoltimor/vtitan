@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader, print_table
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
@@ -96,7 +96,7 @@ def main() -> None:
     slow = [(t, d) for t, d in driving if 0.0 < (d.commanded_speed_mps or 1.0) < args.slow_below]
     eps = [e for e in _episodes(slow) if e[-1][0] - e[0][0] >= args.min_episode_s]
     print(f"{len(eps)} episode(s) lasting >= {args.min_episode_s}s")
-    print(f"  {'start':>7} {'dur':>6} {'minspd':>7} {'true_rng':>9} {'fwd_clr':>8} {'xtrack':>7} {'pose':>16} {'cause':>10}")
+    rows = []
     for e in eps[:14]:
         t0, t1 = e[0][0], e[-1][0]
         worst = min(e, key=lambda p: p[1].commanded_speed_mps or 0.0)[1]
@@ -105,11 +105,17 @@ def main() -> None:
         cause = "?" if clear_v is None or head_v is None else ("clearance" if clear_v <= head_v else "heading")
         rng = min(true_min_at(t) for t, _ in e)
         pose = f"({worst.pose_x or 0:.2f},{worst.pose_y or 0:.2f})"
-        print(
-            f"  {t0:7.1f} {t1 - t0:6.1f} {worst.commanded_speed_mps or 0:7.3f} {rng:9.3f} "
-            f"{worst.forward_clearance_m or float('nan'):8.3f} "
-            f"{worst.crosstrack_error_m or float('nan'):7.3f} {pose:>16} {cause:>10}"
-        )
+        rows.append((
+            t0,
+            t1 - t0,
+            worst.commanded_speed_mps or 0,
+            rng,
+            worst.forward_clearance_m,
+            worst.crosstrack_error_m,
+            pose,
+            cause
+        ))
+    print_table(rows, ["start", "dur", "minspd", "true_rng", "fwd_clr", "xtrack", "pose", "cause"])
 
     print("\n--- closest real approaches (true scan min) ---")
     with_rng = [(t, d, true_min_at(t)) for t, d in driving]

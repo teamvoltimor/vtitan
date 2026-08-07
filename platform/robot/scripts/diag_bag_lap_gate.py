@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 from shared.domain.enums import Direction, Section
 
 from src.navigation.race_tracker import TRAVEL_DIRS
@@ -58,6 +58,7 @@ def main() -> None:
     print(f"assumed start origin (first posed sample): ({origin[0]:.2f}, {origin[1]:.2f})")
 
     dir_enum = Direction.COUNTERCLOCKWISE if direction == "counterclockwise" else Direction.CLOCKWISE
+    rows = []
     for section in (Section.NORTH, Section.SOUTH, Section.EAST, Section.WEST):
         nx, ny = TRAVEL_DIRS[(section, dir_enum)]
         prev = None
@@ -70,10 +71,8 @@ def main() -> None:
                 if str(snap.current_corridor) == section.value:
                     in_section_crossings += 1
             prev = dot
-        print(
-            f"  start_section={section.value:6} normal=({nx:+.0f},{ny:+.0f})  "
-            f"neg->pos crossings={crossings:3}  with corridor=={section.value}: {in_section_crossings}"
-        )
+        rows.append((section.value, f"({nx:+.0f},{ny:+.0f})", crossings, in_section_crossings))
+    print_table(rows, ["start_section", "normal", "neg->pos_crossings", "in_section"])
 
     # How much time was actually spent in each corridor?
     counts = Counter(str(snap.current_corridor) for _, snap in posed)

@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import Topics, decode_nav_debug, elapsed_seconds, fmt_optional, open_reader
+from _bag_io import Topics, decode_nav_debug, elapsed_seconds, fmt_optional, open_reader, print_table
 from rclpy.serialization import deserialize_message
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
@@ -63,17 +63,20 @@ def _print_slowdowns(driving: list[tuple[float, NavigatorDebugSnapshot]], slow_b
     )
     print(f"  limited by clearance: {by_clearance}   by heading: {len(slow) - by_clearance}")
     print("  worst 8 ticks:")
-    print(
-        f"    {'t':>7} {'speed':>7} {'clear_v':>8} {'head_v':>7} "
-        f"{'fwd_clr':>8} {'min_rng':>8} {'xtrack':>7} {'risk':>10} {'phase':>14}"
-    )
+    rows = []
     for t, d in sorted(slow, key=lambda p: p[1].commanded_speed_mps or 0.0)[:8]:
-        print(
-            f"    {t:7.1f} {fmt_optional(d.commanded_speed_mps):>7} "
-            f"{fmt_optional(d.clearance_speed_mps):>8} {fmt_optional(d.heading_speed_mps):>7} "
-            f"{fmt_optional(d.forward_clearance_m):>8} {fmt_optional(d.min_lidar_range_m):>8} "
-            f"{fmt_optional(d.crosstrack_error_m):>7} {d.risk!s:>10} {d.phase!s:>14}"
-        )
+        rows.append((
+            t,
+            d.commanded_speed_mps,
+            d.clearance_speed_mps,
+            d.heading_speed_mps,
+            d.forward_clearance_m,
+            d.min_lidar_range_m,
+            d.crosstrack_error_m,
+            d.risk,
+            d.phase
+        ))
+    print_table(rows, ["t", "speed", "clear_v", "head_v", "fwd_clr", "min_rng", "xtrack", "risk", "phase"])
 
 
 def main() -> None:
@@ -123,13 +126,18 @@ def main() -> None:
         (p for p in driving if p[1].min_lidar_range_m is not None),
         key=lambda p: p[1].min_lidar_range_m,
     )[:8]
-    print(f"    {'t':>7} {'min_rng':>8} {'fwd_clr':>8} {'xtrack':>7} {'steer':>7} {'maneuver':>16} {'phase':>14}")
+    rows = []
     for t, d in near:
-        print(
-            f"    {t:7.1f} {fmt_optional(d.min_lidar_range_m):>8} {fmt_optional(d.forward_clearance_m):>8} "
-            f"{fmt_optional(d.crosstrack_error_m):>7} {fmt_optional(d.commanded_steering_norm):>7} "
-            f"{d.active_maneuver_type!s:>16} {d.phase!s:>14}"
-        )
+        rows.append((
+            t,
+            d.min_lidar_range_m,
+            d.forward_clearance_m,
+            d.crosstrack_error_m,
+            d.commanded_steering_norm,
+            d.active_maneuver_type,
+            d.phase
+        ))
+    print_table(rows, ["t", "min_rng", "fwd_clr", "xtrack", "steer", "maneuver", "phase"])
 
     # Escapes and stuck detection.
     escapes = [(t, d) for t, d in driving if (d.escape_count or 0) > 0]

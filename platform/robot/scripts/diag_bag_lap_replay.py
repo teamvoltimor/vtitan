@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from _bag_io import open_reader, read_nav_debug_rows
+from _bag_io import open_reader, print_table, read_nav_debug_rows
 from shared.domain.enums import Direction, Section
 
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
@@ -73,7 +73,7 @@ def main() -> None:
     print(f"current_corridor values seen: {sorted(c for c in corridors if c)}")
 
     print("\nreplaying the real LapDetector per candidate start section:")
-    print(f"{'start_section':>14s} {'normal':>12s} {'laps':>6s}  {'lap times':<34s} {'blocked by'}")
+    rows = []
     for name, section in _SECTIONS.items():
         detector = LapDetector(start_pos=origin, start_section=section, direction=direction)
         normal = TRAVEL_DIRS[(section, direction)]
@@ -105,7 +105,8 @@ def main() -> None:
             blocked = f"crossed {geo_only}x in-section but waypoint latch was down"
         else:
             blocked = "never crossed the line while inside this section"
-        print(f"{name:>14s} {str(normal):>12s} {len(laps):6d}  {times:<34s} {blocked}")
+        rows.append((name, str(normal), len(laps), times, blocked))
+    print_table(rows, ["start_section", "normal", "laps", "lap_times", "blocked_by"])
 
 
 if __name__ == "__main__":

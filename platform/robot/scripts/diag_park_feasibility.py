@@ -17,7 +17,11 @@ from __future__ import annotations
 
 import math
 import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from _bag_io import print_table
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.config.enums import Section
 
@@ -69,16 +73,16 @@ def report_analytic() -> None:
     print(f"longitudinal slack: {_BAY[2] - _BAY[0] - RobotSpecs.LENGTH:.3f} m total\n")
 
     print("Swept half-width of the chassis at heading error theta (must be <= bay_depth/2 = 0.100):")
-    print(f"{'theta':>7} {'half-sweep':>11} {'total':>8} {'fits?':>6}")
+    rows = []
     for deg in (0, 1, 2, 3, 5, 8):
         th = math.radians(deg)
         half = RobotSpecs.WIDTH / 2 * math.cos(th) + RobotSpecs.LENGTH / 2 * math.sin(th)
-        print(f"{deg:>6}d {half:>11.4f} {2 * half:>8.4f} {'yes' if 2 * half <= _BAY_DEPTH else 'NO':>6}")
+        rows.append((f"{deg}°", half, 2 * half, "yes" if 2 * half <= _BAY_DEPTH else "NO"))
+    print_table(rows, ["theta", "half-sweep", "total", "fits?"], floatfmt=(".3f", ".3f"))
 
     print("\nBay depth needed for a given chassis width, with per-side margin (theta = 0):")
-    print(f"{'width':>7} {'m=0':>7} {'m=1cm':>7} {'m=2cm':>7}")
-    for w in (0.20, 0.18, 0.16, 0.14):
-        print(f"{w:>7.2f} {w:>7.2f} {w + 0.02:>7.2f} {w + 0.04:>7.2f}")
+    rows = [(w, w, w + 0.02, w + 0.04) for w in (0.20, 0.18, 0.16, 0.14)]
+    print_table(rows, ["width", "m=0", "m=1cm", "m=2cm"])
 
     print("\nSimulator's outer wall collision margin: 0.04 m (mesh 0.18 vs visual 0.10 thickness).")
     print("-> to avoid a modelled wall contact the centre must sit >= 0.14 m from the wall,")
