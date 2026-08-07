@@ -14,23 +14,18 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
-import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
-
-
-def _wrap(a: float) -> float:
-    return math.atan2(math.sin(a), math.cos(a))
+from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.tables import print_table
+from src.navigation.utils import _wrap
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("Look for _commit_direction branch fingerprint in yaw discontinuities")
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)

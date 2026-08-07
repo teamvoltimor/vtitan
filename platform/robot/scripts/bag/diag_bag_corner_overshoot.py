@@ -13,13 +13,13 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.tables import print_table
 
 _CORNER_WINDOW_S = 4.0
 _SHORT_LOOKAHEAD_M = 0.20
@@ -27,9 +27,8 @@ _PEAK_XTRACK_WINDOW_S = 8.0
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
-    parser.add_argument("--max-corners", type=int, default=8)
+    parser = create_bag_parser("Show pursuit controller behavior through corners")
+    parser.add_argument("--max-corners", type=int, default=8, help="Max corners to display")
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
