@@ -29,6 +29,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 
 MAX_STEPS = 6000
+_DEFAULT_WORKERS = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,7 +84,7 @@ def _analyse(index: int) -> HitReport:
 
 def main() -> None:
     """Run every fixture and print which sign each collision belongs to."""
-    with ProcessPoolExecutor(max_workers=8) as pool:
+    with ProcessPoolExecutor(max_workers=_DEFAULT_WORKERS) as pool:
         reports = list(pool.map(_analyse, range(len(all_obstacles_demo_scenarios()))))
 
     depths: Counter[float] = Counter()

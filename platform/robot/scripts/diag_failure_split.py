@@ -59,6 +59,8 @@ cannot be followed safely at an arbitrary heading, which is the condition
 ``A-clamped`` is testing for.
 """
 
+_DEFAULT_WORKERS = 8
+
 
 def _classify(index: int, fixtures: Path | None, blind: bool) -> tuple[str, str]:
     """Run one scenario and name the failure mode at the tick it ended."""
@@ -149,7 +151,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", action="store_true", help="use the pinned-seed 256 corpus")
     parser.add_argument("--sighted", action="store_true", help="run sighted instead of the blind competition config")
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=_DEFAULT_WORKERS)
     args = parser.parse_args()
 
     fixtures = CORPUS_DIR if args.corpus else None

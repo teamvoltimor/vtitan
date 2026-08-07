@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     from shared.config.enums import Direction
 
 _MAX_VOTES_SHOWN = 12
+_DEFAULT_MAX_STEPS = 600
+_DEFAULT_SCENARIOS = ("go_open_0010", "go_open_0012", "go_open_0013")
 
 
 class _VoteTracer:
@@ -97,10 +99,10 @@ def _report(scenario: Any, max_steps: int) -> None:
 
 def main() -> None:
     """Print every accepted direction vote for the fixtures named on argv."""
-    wanted = sys.argv[1:] or ["go_open_0010", "go_open_0012", "go_open_0013"]
+    wanted = sys.argv[1:] or list(_DEFAULT_SCENARIOS)
     for scenario in all_test_scenarios():
         if any(w in scenario.label for w in wanted):
-            _report(scenario, max_steps=600)
+            _report(scenario, max_steps=_DEFAULT_MAX_STEPS)
 
 
 if __name__ == "__main__":

@@ -37,12 +37,19 @@ from shared.config.enums import Section
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
+_RESIDUAL_CLIP_M = 0.25
+_DEFAULT_SEED_X_M = 1.5
+_DEFAULT_SEED_Y_M = 0.25
+_DEFAULT_UNTIL_S = 8.0
+_YAW_FLIP_OFFSET_RAD = math.pi
+_DOWNSAMPLE_FACTOR = 8
+
 
 def _residual(walls: TrackWalls, x: float, y: float, yaw: float, ranges: np.ndarray, angles: np.ndarray) -> float:
     """Clipped least-squares scan-match cost, as LidarLocalizer scores candidates."""
     predicted = walls.raycast(x, y, yaw, angles)
     residual = np.abs(predicted - ranges)
-    np.minimum(residual, 0.25, out=residual)
+    np.minimum(residual, _RESIDUAL_CLIP_M, out=residual)
     return float(np.sum(residual**2))
 
 
@@ -97,8 +104,8 @@ def _replay(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("bag_dir", type=Path)
-    parser.add_argument("--seed", type=float, nargs=2, default=(1.5, 0.25))
-    parser.add_argument("--until", type=float, default=8.0)
+    parser.add_argument("--seed", type=float, nargs=2, default=(_DEFAULT_SEED_X_M, _DEFAULT_SEED_Y_M))
+    parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
     args = parser.parse_args()
 
     snapshots, scans = _read_bag(args.bag_dir)
@@ -111,7 +118,7 @@ def main() -> None:
 
     variants = (
         ("as-believed", 0.0, False),
-        ("flipped +pi", math.pi, False),
+        ("flipped +pi", _YAW_FLIP_OFFSET_RAD, False),
         ("as-believed/per-tick walls", 0.0, True),
     )
     for label, offset, per_tick in variants:
@@ -122,7 +129,7 @@ def main() -> None:
             f"start=({first[1]:.3f},{first[2]:.3f}) end=({last[1]:.3f},{last[2]:.3f})  "
             f"net=({last[1] - first[1]:+.3f},{last[2] - first[2]:+.3f}) over {last[0]:.1f}s",
         )
-        for ts, x, y in track[:: max(1, len(track) // 8)]:
+        for ts, x, y in track[:: max(1, len(track) // _DOWNSAMPLE_FACTOR)]:
             print(f"    {ts:6.2f}s ({x:6.3f},{y:6.3f})")
 
 
