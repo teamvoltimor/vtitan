@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
@@ -32,6 +31,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
     from shared.config.enums import Section
+    from shared.domain.models import Waypoint
 
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState

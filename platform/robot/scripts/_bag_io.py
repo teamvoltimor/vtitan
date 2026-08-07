@@ -22,8 +22,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Sequence
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import rosbag2_py
 from rclpy.serialization import deserialize_message
@@ -34,6 +33,10 @@ from std_msgs.msg import String
 from tabulate import tabulate
 
 from src.navigation.ports import LidarScan
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
 
 
 class Topics:
