@@ -23,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from collections.abc import Sequence
@@ -33,9 +32,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs
 
-from scripts.common.bag_io import open_reader, print_table, read_bag
+from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
+from scripts.common.tables import print_table
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
-from src.navigation.utils import _forward_clearance, _wrap
+from src.navigation.utils import _wrap, _forward_clearance, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
@@ -63,8 +63,7 @@ def _arc_max(ranges: Sequence[float], angles: Sequence[float], half_fov: float) 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
     reader = open_reader(args.bag_dir)

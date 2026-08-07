@@ -13,7 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -23,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
-from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader, print_table
+from scripts.common.bag_io import create_bag_parser, Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.tables import print_table
 
 _LOOKAHEAD_PRECISION = 0.02
 _STEER_HIGH_THRESHOLD = 0.8
@@ -43,8 +43,7 @@ def _pct(values: list[float], q: float) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
     reader = open_reader(args.bag_dir)

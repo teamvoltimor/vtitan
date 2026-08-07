@@ -17,7 +17,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from pathlib import Path
@@ -26,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
-from scripts.common.bag_io import open_reader, print_table, read_bag
+from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
+from scripts.common.tables import print_table
 from src.navigation.corridor_follower import TURN_CLEARANCE_M
 from src.navigation.direction_estimator import _MAX_PLAUSIBLE_SPAN_M, CORNER_CLEARANCE_M
 from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, _wrap
@@ -34,8 +34,7 @@ from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("Check direction inference window conditions")
     args = parser.parse_args()
 
     reader = open_reader(args.bag_dir)

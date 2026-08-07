@@ -16,7 +16,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
@@ -28,7 +27,8 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 
-from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, open_reader, print_table
+from scripts.common.bag_io import create_bag_parser, Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.tables import print_table
 
 
 def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], list[tuple[float, float]]]:
@@ -72,8 +72,7 @@ def _episodes(
 
 def main() -> None:
     """Print the proximity review for the bag named on the command line."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     parser.add_argument("--slow-below", type=float, default=0.14)
     parser.add_argument("--min-episode-s", type=float, default=0.4)
     args = parser.parse_args()

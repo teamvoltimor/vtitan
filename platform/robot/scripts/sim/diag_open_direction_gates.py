@@ -39,7 +39,7 @@ from src.navigation.direction_estimator import (
     _MAX_PLAUSIBLE_SPAN_M,
     _MIN_ASYMMETRY_M,
 )
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
+from src.navigation.utils import _wrap, _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 

@@ -6,7 +6,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 
@@ -15,12 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
 
-from scripts.common.bag_io import Topics, decode_nav_debug, elapsed_seconds, fmt_optional, open_reader, print_table
+from scripts.common.bag_io import create_bag_parser, Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.tables import fmt_optional, print_table
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     parser.add_argument("--start", type=float, default=0.0)
     parser.add_argument("--until", type=float, default=1e9)
     parser.add_argument("--cmd", action="store_true", help="also print /ackermann_cmd rows")

@@ -17,7 +17,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import statistics
 import sys
 from collections import Counter
@@ -27,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import NavigatorPhase
 
-from scripts.common.bag_io import load_nav_debug_rows, measured_start, settled_direction
+from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows, measured_start, settled_direction
 from src.navigation.planning.waypoints import corridor_for_position
 
 _REPORTED_PHASES = (
@@ -130,8 +129,7 @@ def _summarize(bag_dir: Path) -> dict[str, str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dirs", type=Path, nargs="+")
+    parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
     summaries = [_summarize(d) for d in args.bag_dirs]

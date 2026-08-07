@@ -19,7 +19,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from collections import Counter
@@ -30,13 +29,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 
-from scripts.common.bag_io import load_nav_debug_rows, print_table
+from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
+from scripts.common.tables import print_table
 from src.navigation.direction_estimator import (
     _MAX_IN_TRACK_RANGE_M,
     _MAX_PLAUSIBLE_SPAN_M,
     _MIN_ASYMMETRY_M,
 )
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _wrap
+from src.navigation.utils import _wrap, _ALIGNMENT_TOLERANCE_RAD, _wrap
 
 _MIN_VOTES = 5
 _MAX_RANGE_FILL_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
@@ -97,8 +97,7 @@ def true_direction(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> tuple[st
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bag_dir", type=Path)
+    parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
     rows, _topics = load_nav_debug_rows(args.bag_dir)
