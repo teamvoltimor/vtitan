@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 SETTLE_SEC = 2.0
 REPLY_TIMEOUT_SEC = 5.0
+_SUBSCRIPTION_QUEUE_DEPTH = 10
+_SPIN_TIMEOUT_SEC = 0.3
 
 
 class Injector(Node):
@@ -37,7 +39,7 @@ class Injector(Node):
         super().__init__("diag_vision_topic")
         self._publisher = self.create_publisher(Image, "/camera/image_raw", qos_profile_sensor_data)
         self._replies: list[str] = []
-        self.create_subscription(String, "/vision/detections", self._on_detections, 10)
+        self.create_subscription(String, "/vision/detections", self._on_detections, _SUBSCRIPTION_QUEUE_DEPTH)
 
     def _on_detections(self, msg: String) -> None:
         self._replies.append(msg.data)
@@ -61,7 +63,7 @@ class Injector(Node):
         deadline = time.time() + REPLY_TIMEOUT_SEC
         while time.time() < deadline:
             self._publisher.publish(msg)
-            rclpy.spin_once(self, timeout_sec=0.3)
+            rclpy.spin_once(self, timeout_sec=_SPIN_TIMEOUT_SEC)
             if self._replies:
                 return self._replies[0]
         return None

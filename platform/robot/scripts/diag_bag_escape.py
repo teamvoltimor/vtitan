@@ -18,11 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from _bag_io import open_reader, read_nav_debug_rows
 
+_DEFAULT_UNTIL_S = 1e9
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("bag_dir", type=Path)
-    parser.add_argument("--until", type=float, default=1e9)
+    parser.add_argument("--until", type=float, default=_DEFAULT_UNTIL_S)
     args = parser.parse_args()
 
     reader = open_reader(args.bag_dir)
