@@ -52,18 +52,6 @@ from src.simulation.track_model import ContactSurface, TrackModel, obstacles_fro
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-_SIM_TUNING = NavigationTuning.load_default().simulation
-
-START_COLLISION_WINDOW_S = _SIM_TUNING.START_COLLISION_WINDOW_S
-"""A collision streak beginning within this long of run start is judged as a
-starting-position issue (see ``ScenarioSimulator.run``), not a driving mistake.
-
-Read from simulation.toml: this decides whether a legal start already touching
-a wall is scored as a crash, which is too consequential to sit as a literal."""
-
-START_COLLISION_GRACE_S = _SIM_TUNING.START_COLLISION_GRACE_S
-"""How long a starting-position collision streak may continue before it's a real failure."""
-
 TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
     ScenarioType.OPEN: frozenset({ContactSurface.OUTER_WALL}),
     ScenarioType.OBSTACLES: frozenset({ContactSurface.INNER_WALL, ContactSurface.OBSTACLE}),
@@ -389,7 +377,7 @@ class ScenarioSimulator:
         # (shorter lookahead + capped top speed) used to be applied here; it was
         # removed once re-measurement showed it changed nothing — see the note in
         # ``NavigationTuning`` where ``for_obstacles()`` used to be.
-        nav_tuning = tuning if tuning is not None else NavigationTuning.load_default()
+        self._tuning = tuning if tuning is not None else NavigationTuning.load_default()
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
@@ -415,7 +403,7 @@ class ScenarioSimulator:
         # prior knowledge, not a guess -- confirmed across the fixture set,
         # where all 64 corridors are wide. The Open Challenge's are
         # independently 60 or 100 cm, so it keeps the narrow (fail-safe) prior.
-        self._arc_radius = nav_tuning.waypoints.ARC_RADIUS
+        self._arc_radius = self._tuning.waypoints.ARC_RADIUS
         self._width_estimator = (
             CorridorWidthEstimator(
                 assumed_width=CorridorDimensions.NARROW
@@ -437,7 +425,7 @@ class ScenarioSimulator:
         if infer_direction is None:
             infer_direction = blind
         self._direction_estimator = DirectionEstimator() if infer_direction else None
-        self._creep_speed = nav_tuning.speed.SLOW_SPEED
+        self._creep_speed = self._tuning.speed.SLOW_SPEED
         self._creep_widths: list[tuple[float, float]] = []
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
@@ -506,10 +494,10 @@ class ScenarioSimulator:
         if signs:
             sign_router = SignRouter(
                 [] if discover_signs else signs,
-                config=SignRouterConfig.from_tuning(nav_tuning.sign_router),
+                config=SignRouterConfig.from_tuning(self._tuning.sign_router),
                 direction=start.direction,
                 discover=discover_signs,
-                discovery_config=nav_tuning.sign_discovery,
+                discovery_config=self._tuning.sign_discovery,
             )
 
         # ``park=False`` runs an Obstacles scenario as laps-only: the signs, the
@@ -522,14 +510,14 @@ class ScenarioSimulator:
         self._park_controller: ParkController | None = None
         if not is_open_challenge and park:
             self._park_controller = park_controller_from_metadata(
-                metadata.model_dump(), believed_start.section, believed_start.direction, tuning=nav_tuning,
+                metadata.model_dump(), believed_start.section, believed_start.direction, tuning=self._tuning,
             )
 
         self._navigator = CoreNavigator(
             gateway=self._gateway,
             waypoints=self._waypoints,
             num_laps=num_laps,
-            tuning=nav_tuning,
+            tuning=self._tuning,
             sign_router=sign_router,
             lap_detector=lap_detector,
             park_controller=self._park_controller,
@@ -562,7 +550,7 @@ class ScenarioSimulator:
                 "starting_conditions": new_starting,
             },
         )
-        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius)
+        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
@@ -592,7 +580,7 @@ class ScenarioSimulator:
             if m is not None:
                 self._creep_widths.append((pose.yaw, m.width_m))
 
-        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw):
+        if estimator.observe(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning):
             inferred = estimator.direction
             if inferred is not None and inferred is not self._direction:
                 # The path runs the other way round the loop and the finish
@@ -633,7 +621,7 @@ class ScenarioSimulator:
             return False
 
         self._gateway.publish_drive(
-            follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed),
+            follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed, pose.yaw, self._tuning),
         )
         return True
 
@@ -727,8 +715,8 @@ class ScenarioSimulator:
         on_step: Callable[[AckermannState, LidarScan], None] | None = None,
         disturb_at_step: int | None = None,
         disturbance: PoseDisturbance | None = None,
-        start_collision_window_s: float = START_COLLISION_WINDOW_S,
-        start_collision_grace_s: float = START_COLLISION_GRACE_S,
+        start_collision_window_s: float | None = None,
+        start_collision_grace_s: float | None = None,
         contact_grace_s: float | None = None,
     ) -> SimResult:
         """Run the control loop until all laps finish, a wall is hit, or timeout.
@@ -751,9 +739,11 @@ class ScenarioSimulator:
                 a wall, and the robot needs a moment to react. A streak that
                 begins later (a real driving mistake, not a starting
                 position) still fails immediately, same as before.
+                Defaults to tuning.simulation.START_COLLISION_WINDOW_S.
             start_collision_grace_s: How long a start-window collision streak
                 may continue before it's judged a real, terminal failure
                 rather than "still working on steering clear."
+                Defaults to tuning.simulation.START_COLLISION_GRACE_S.
             contact_grace_s: Opt in to treating wall contact as *recoverable*
                 anywhere in the run, not only at the start. A streak then ends
                 the run only if the robot fails to free itself within this many
@@ -771,6 +761,12 @@ class ScenarioSimulator:
         """
         gw = self._gateway
         nav = self._navigator
+
+        # Load defaults from tuning
+        if start_collision_window_s is None:
+            start_collision_window_s = self._tuning.simulation.START_COLLISION_WINDOW_S
+        if start_collision_grace_s is None:
+            start_collision_grace_s = self._tuning.simulation.START_COLLISION_GRACE_S
 
         prev_xy = (gw.state.x, gw.state.y)
         metrics = _RunMetrics()

@@ -601,6 +601,7 @@ class CoreNavigator:
             current_yaw=robot_yaw,
             target_waypoint=steer_target,
             crosstrack_error=crosstrack,
+            tuning=self._tuning,
         )
 
         # Determine speed
