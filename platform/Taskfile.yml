@@ -833,7 +833,7 @@ tasks:
           ssh -o ConnectTimeout=15 "$PI5_HOST" \
             'export PATH="$HOME/.pixi/bin:$PATH"; cd ~/vtitan/platform/robot \
              && bash -c ". ros2_ws/install/setup.bash && PYTHONPATH=. python \
-                scripts/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
+                scripts/hardware/watch_vision_detections.py --seconds '"$SECONDS_TO_RECORD"'"'
 
   robot:fetch-lidar-driver:
     desc: Clone the third-party Slamtec sllidar_ros2 driver into the workspace (run before build-ws to enable LIDAR)

@@ -16,14 +16,14 @@ hand, not competition use.
   `JOY_TELEOP_*` env vars (see the file for the full list and defaults).
 - **`joy_teleop_node`** (`vtitan_drivers`) — subscribes to `/joy`, republishes
   `ackermann_msgs/AckermannDriveStamped` on `/ackermann_cmd` at 20 Hz, the same topic
-  `ackermann_motor_node` and `scripts/test-motors.py` already use. No changes to
+  `ackermann_motor_node` and `scripts/hardware/test_motors.py` already use. No changes to
   `ackermann_motor_node.py` or any hardware driver were needed.
 - **`joy_teleop_launch.py`** (`vtitan_bringup`) — launches `joy_node` + `joy_teleop_node`
   together.
 - **`race.launch.py`** — unchanged, but is now one of two things you choose between (see
   Control modes below) rather than the only "brain" driving `/ackermann_cmd`.
 - **`scripts/setup-joystick.sh`** — one-shot Bluetooth pairing for the controller.
-- **`scripts/reset-motors.py`** — publishes a single zero-speed, zero-steering command and
+- **`scripts/hardware/reset_motors.py`** — publishes a single zero-speed, zero-steering command and
   exits. `ackermann_motor_node`'s watchdog already stops the drive motor 1s after commands
   stop arriving, but it never recenters steering — this does that immediately.
 - pixi tasks: `setup-joystick`, `drive-navigation`, `drive-controller`, `drive-mode`,
@@ -50,7 +50,7 @@ only means stopping one Pi-5-side process and starting the other.
 
 Run on the **Raspberry Pi 5** (it has the Bluetooth radio; `ackermann_motor_node` keeps
 running independently on the Pi Zero the whole time, same cross-board split
-`scripts/test-motors.py` already uses):
+`scripts/hardware/test_motors.py` already uses):
 
 1. **Pull in the dependency and build**: `pixi install -e dev` (picks up `ros-kilted-joy`),
    then `task robot:build-ws` (or `pixi run -e dev build-ws`) — needed once, to compile the

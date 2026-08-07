@@ -1,6 +1,6 @@
 """Unit tests for estimating the track layout from LIDAR instead of metadata.
 
-The closed-loop coverage lives in ``scripts/diag_localization.py blind`` (27/28
+The closed-loop coverage lives in ``scripts/sim/diag_localization.py blind`` (27/28
 Open Challenge fixtures, layout learned in 28/28). These pin the pieces that
 closed-loop runs can only exercise indirectly — in particular the outlier
 resistance, which is where a working estimator regressed once already.

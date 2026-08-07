@@ -68,7 +68,7 @@ fi
 log "Recording ${SECONDS_TO_RECORD}s -- put a block in front of the camera now."
 ssh "${SSH_OPTS[@]}" "$PI5_HOST" "export PATH=\"\$HOME/.pixi/bin:\$PATH\" \
   && cd $REMOTE_ROBOT \
-  && bash -c '. ros2_ws/install/setup.bash && PYTHONPATH=. python scripts/record_vision_video.py \
+  && bash -c '. ros2_ws/install/setup.bash && PYTHONPATH=. python scripts/hardware/record_vision_video.py \
        --seconds $SECONDS_TO_RECORD --out $REMOTE_OUT'" ||
   die "recording failed on the Pi"
 

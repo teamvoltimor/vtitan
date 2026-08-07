@@ -7,8 +7,8 @@ itself.
 
 **Deployed and verified on the Pi 5, 2026-07-26.** The detector runs on the
 Hailo-8 and publishes correct colours on `/vision/detections`. Deploy with
-`bash scripts/deploy-to-pi5.sh`; verify with `scripts/diag_hailo_detector.py`
-(direct, needs the NPU free) or `scripts/diag_vision_topic.py` (through the
+`bash scripts/deploy-to-pi5.sh`; verify with `scripts/hardware/diag_hailo_detector.py`
+(direct, needs the NPU free) or `scripts/hardware/diag_vision_topic.py` (through the
 running stack).
 
 Measured on device:
@@ -181,7 +181,7 @@ pass-side rule with no error anywhere.
 `VISION_DEBUG_VIDEO=1` in `.env` adds `/camera/image_raw` and
 `/vision/image_annotated` (boxes + labels). View with
 `rqt_image_view /vision/image_annotated` or an RViz Image display; record with
-`python scripts/record_vision_video.py --seconds 20 --out /tmp/run.mp4` and copy
+`python scripts/hardware/record_vision_video.py --seconds 20 --out /tmp/run.mp4` and copy
 it off with `scp`. Leave it `0` for a run: the two streams cost roughly 4 MB per
 frame at 1536×864.
 

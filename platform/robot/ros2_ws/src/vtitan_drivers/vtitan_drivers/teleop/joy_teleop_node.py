@@ -2,7 +2,7 @@
 
 Run on: Raspberry Pi 5 (paired to the controller over Bluetooth), reaching
 the Pi Zero's ackermann_motor_node over the network via /ackermann_cmd --
-the same cross-board path scripts/test-motors.py already uses.
+the same cross-board path scripts/hardware/test_motors.py already uses.
 
 Not part of the competition stack: this is a bench-testing tool for driving
 the steering/drive motors by hand instead of via a scripted sweep. Requires

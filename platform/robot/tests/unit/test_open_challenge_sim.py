@@ -177,7 +177,7 @@ def _band_cell(band: int) -> int:
     changes the first LIDAR sweep and therefore the width and direction
     estimates, so it is the axis worth spending a unit test on. The
     along-corridor half is covered by the exhaustive sweep
-    (``scripts/diag_open_exhaustive.py``).
+    (``scripts/sim/diag_open_exhaustive.py``).
     """
     return band * 2
 

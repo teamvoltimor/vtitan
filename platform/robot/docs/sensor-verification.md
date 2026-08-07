@@ -528,7 +528,7 @@ own process, separate from button+OLED — giving it a dedicated core — rather
 
 First tests with the drive motor actually powered — it is wired **only** to the battery, so every
 prior session's "motor" testing had exercised the software path with no current reaching the motor
-at all. Run with `scripts/test-motors.py` (see below); all figures are `/motor/drive_speed` encoder
+at all. Run with `scripts/hardware/test_motors.py` (see below); all figures are `/motor/drive_speed` encoder
 feedback averaged over the steady-state portion of a 5s hold.
 
 #### Direction was inverted (fixed via config, not rewiring)
@@ -580,7 +580,7 @@ on that topic, since an inverted feedback sign in a closed loop is a runaway.
 
 #### Measure steady-state, not a single sample
 
-The first version of `test-motors.py` reported one end-of-hold feedback sample and produced wildly
+The first version of `test_motors.py` reported one end-of-hold feedback sample and produced wildly
 inconsistent numbers (e.g. 48 deg/s at 2.8 m/s but 144 deg/s at 3.0 m/s). The signal is noisy enough
 (stdev ~40 deg/s) that a lone sample says almost nothing. The script now records every sample via
 the subscription callback, discards a `--spinup-s` acceleration window, and reports mean/min/max/
@@ -609,7 +609,7 @@ inflates the count for a given distance, so agreement across a 10-point duty spr
 negligible and this is the true geometric ratio. Validated afterwards on an **independent** run not
 used to derive it -- 1341 counts predicted 43.6 cm, tape said 44 cm (0.9%).
 
-Re-measure with `scripts/calibrate-encoder.py` if the drivetrain changes.
+Re-measure with `scripts/hardware/calibrate_encoder.py` if the drivetrain changes.
 
 #### Why duty-based speed calibration was abandoned
 
@@ -706,10 +706,10 @@ Things tried that did **not** help, so don't burn time on them again: `ethtool -
 tso off gso off gro off`, bouncing `usb0` down/up, reloading `g_ether` on the Zero, and dropping MTU
 to 1000 on both sides.
 
-### `scripts/test-motors.py`
+### `scripts/hardware/test_motors.py`
 
 Hardware smoke test driving the real `ackermann_motor_node` over ROS2, run **on Pi 5**
-(`pixi run -e dev test-motors`, or `python3 scripts/test-motors.py` for the flags below):
+(`pixi run -e dev test-motors`, or `python3 scripts/hardware/test_motors.py` for the flags below):
 
 - Steering sweep (left/center/right/center) checking `/motor/steering_position` converges to each
   commanded angle. Safe with the robot stationary.

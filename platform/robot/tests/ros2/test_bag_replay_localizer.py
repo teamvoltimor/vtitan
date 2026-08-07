@@ -58,7 +58,7 @@ def _bags() -> list[Path]:
     those failures are permanent, so as a gate it would be red forever and stop
     meaning anything. Asserting on the latest run makes it the check you want
     after a race: it went green on the CW run that completed a lap and red on
-    the CCW run that drove into a corner. Use ``scripts/diag_bag_summary.py``
+    the CCW run that drove into a corner. Use ``scripts/bag/diag_bag_summary.py``
     and its siblings for the full sweep.
     """
     if not _BAG_ROOT.is_dir():

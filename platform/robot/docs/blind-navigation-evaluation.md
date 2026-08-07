@@ -91,8 +91,8 @@ from the start is the bias term, not the accumulating ones.
 ### Re-run the numbers
 
 ```
-python scripts/diag_localization.py perturbed --sweep combined --verbose
-python scripts/diag_localization.py perturbed --sweep all --workers 14
+python scripts/sim/diag_localization.py perturbed --sweep combined --verbose
+python scripts/sim/diag_localization.py perturbed --sweep all --workers 14
 ```
 
 Sweeps: `placement` `heading` `drift` `drift-fine` `scale` `noise` `combined`.

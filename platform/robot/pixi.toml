@@ -75,7 +75,7 @@ ros-kilted-ament-cmake   = ">=2.7.4,<3"
 colcon-common-extensions = ">=0.3.0,<0.4"
 cmake                    = ">=4.3.1,<5"
 ninja                    = ">=1.13.2,<2"
-# scripts/*.py table output only (diag_bag_*.py) -- not a runtime dependency
+# scripts/bag/*.py table output only -- not a runtime dependency
 # of any ROS2 node, so kept out of the base [dependencies].
 tabulate = ">=0.9,<1"
 
@@ -206,8 +206,8 @@ drive-mode             = { cmd = "bash -c '. ros2_ws/install/setup.bash && case 
 # Zeros the drive command and recenters steering immediately -- run after
 # switching modes (or after Ctrl+C'ing either drive-* task) instead of
 # waiting on ackermann_motor_node's 1s watchdog, which stops the drive motor
-# but never recenters steering. See scripts/reset-motors.py.
-reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/reset-motors.py'", env = { PYTHONPATH = "." } }
+# but never recenters steering. See scripts/hardware/reset_motors.py.
+reset-motors           = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/reset_motors.py'", env = { PYTHONPATH = "." } }
 
 # Fetch the third-party Slamtec LIDAR driver into the workspace (idempotent).
 # Required before build-ws if you intend to use run-lidar / launch-lidar.
@@ -306,5 +306,5 @@ setup-joystick = "bash scripts/setup-joystick.sh"
 # just that the topics exist) after each command. Steering-only is safe with
 # the robot sitting still; the drive test spins the wheels and asks for a
 # typed confirmation first (pass --yes to skip the prompt, --skip-drive to
-# omit it entirely). See scripts/test-motors.py --help for all options.
-test-motors = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/test-motors.py'"
+# omit it entirely). See scripts/hardware/test_motors.py --help for all options.
+test-motors = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/test_motors.py'"

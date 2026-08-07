@@ -69,7 +69,7 @@ later still. Writing immediately races both and fails with ENOENT or EACCES.
 # negligible and this is the true geometric ratio. Back-predicts both runs to
 # within 1%. Implies ~15.4:1 gearing (676/44 counts per motor revolution).
 #
-# Measure with scripts/calibrate-encoder.py if the drivetrain changes. Do NOT
+# Measure with scripts/hardware/calibrate_encoder.py if the drivetrain changes. Do NOT
 # derive it by integrating /motor/drive_speed -- that feedback is exponentially
 # smoothed and rate-derived, and doing so gave answers ~2x wrong.
 _DEFAULT_COUNTS_PER_REV = 676.0

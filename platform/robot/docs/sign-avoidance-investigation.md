@@ -68,8 +68,8 @@ knob rather than a disconnected one. **That diagnosis was right.**
 
 ```
 task gen:corpus CHALLENGE=obstacles              # 256 scenarios, seed 2026
-python scripts/diag_sign_sweep.py <mode> --corpus
-python scripts/diag_sign_pairs.py --corpus --quiet
+python scripts/sim/diag_sign_sweep.py <mode> --corpus
+python scripts/sim/diag_sign_pairs.py --corpus --quiet
 ```
 
 Lands in `platform/robot/.corpus/` — gitignored, regenerated, byte-identical
@@ -104,7 +104,7 @@ was re-run against a 200-scenario corpus from the same Go generator:
 ```
 go run ./cmd/simgen generate --challenge obstacles \
     --num-scenarios 200 --seed 2026 --output-dir <dir>
-python scripts/diag_sign_sweep.py <mode> --scenarios-dir <dir>
+python scripts/sim/diag_sign_sweep.py <mode> --scenarios-dir <dir>
 ```
 
 Not committed — the 16 are the unit-test battery and have to stay fast; the
@@ -614,7 +614,7 @@ longer see them — and the identical offset sweep stops being inert:
 | 0.28 | 16/16, 0 laps | **14/16, 2 laps** |
 | 0.32 | 16/16, 0 laps | 14/16, 2 laps |
 
-Reproduce with `scripts/diag_sign_sweep.py masked-offset 0.20 0.24 0.28 0.32`.
+Reproduce with `scripts/sim/diag_sign_sweep.py masked-offset 0.20 0.24 0.28 0.32`.
 
 So the router works. It is **masked**: while the robot turns past a
 corner-adjacent sign, the sign enters the collision controller's forward
@@ -691,7 +691,7 @@ been made.
 
 All figures here are over the 16 Go-generated obstacles fixtures via
 `ScenarioSimulator(...).run()`, reported as collisions / laps>=1 / laps>=3 /
-timeouts together. Reproduce with `scripts/diag_sign_sweep.py` (see
+timeouts together. Reproduce with `scripts/sim/diag_sign_sweep.py` (see
 "Harnesses" at the end). Runs are deterministic: the same config repeated three
 times gives byte-identical counts.
 
@@ -807,7 +807,7 @@ proof that the router is not bending the trajectory in any useful amount.
 
 Traced tick-by-tick on `go_obstacles_0004` past its red sign at (2.40, 1.00),
 grid depth 1.0 in the east corridor — i.e. right at the corner exit
-(`scripts/diag_sign_trace.py 4 --around-sign 2 --radius 0.55`). At the collision
+(`scripts/sim/diag_sign_trace.py 4 --around-sign 2 --radius 0.55`). At the collision
 tick (t=105) the chassis is at **x = 2.401** while the sign is at x = 2.40:
 
 | | value |
@@ -845,13 +845,13 @@ forward/reverse into the sign — a *consequence*, not the cause: with signs
 invisible to LIDAR (no escape trigger at all) the result is unchanged at 16/16.
 
 Aggregated over all 84 sign encounters in the 16 fixtures
-(`scripts/diag_sign_pass.py`): **26 passes are inside the 0.205 m mid-turn
+(`scripts/sim/diag_sign_pass.py`): **26 passes are inside the 0.205 m mid-turn
 requirement and 16 are inside even the 0.125 m square-pass requirement.**
 
 ### Sign depth
 
 Every collision, attributed to the specific sign hit
-(`scripts/diag_sign_hits.py`), by that sign's depth along its own corridor:
+(`scripts/sim/diag_sign_hits.py`), by that sign's depth along its own corridor:
 
 ```
 depth 1.00: 10     depth 1.50: 2      depth 2.00: 4
@@ -1334,15 +1334,15 @@ Run from `platform/robot` with `PYTHONPATH=.` under `pixi run -e dev`.
 
 | Script | What it answers |
 |---|---|
-| `scripts/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `unsplit-offset` `masked-offset` `buffer` `wall` `mask-radius` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
-| `scripts/diag_escape_mask.py` | Whether the mapped/unmapped split is actually firing, per tick: raw vs masked risk, and which escapes began. Answers "is this knob connected?" — the question two silent harness breakages here turned on. |
+| `scripts/sim/diag_sign_sweep.py` | The four metrics over all 16 fixtures. Swept modes take values as arguments (`lookahead` `arc` `speed` `offset` `unsplit-offset` `masked-offset` `buffer` `wall` `mask-radius` `crosstrack`); fixed comparison modes do not (`baseline` `profile` `diagnose` `ghost` `lidar`). `--verbose` adds per-scenario rows. |
+| `scripts/sim/diag_escape_mask.py` | Whether the mapped/unmapped split is actually firing, per tick: raw vs masked risk, and which escapes began. Answers "is this knob connected?" — the question two silent harness breakages here turned on. |
 
 Every mode except `blind` runs **sighted**, which is not the competition
 configuration. Re-read any result through `diag_sign_sweep.py blind` before
 claiming it for the mat; since 2026-08-01 the two no longer agree.
-| `scripts/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
-| `scripts/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
-| `scripts/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |
+| `scripts/sim/diag_sign_hits.py` | Attributes every collision to the specific sign hit, with its grid depth. |
+| `scripts/sim/diag_sign_pass.py` | Achieved vs commanded lateral clearance, and heading relative to the corridor, at closest approach to each sign. |
+| `scripts/sim/diag_sign_trace.py` | Per-tick trace of one scenario: lookahead target, deformed target, steering, pose. The only tool here that shows *mechanism* rather than counts. |
 
 `diag_sign_sweep.py diagnose` is the one to run first on any change — it
 separates "the tracker broke" from "sign avoidance failed", which no aggregate
