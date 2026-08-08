@@ -15,7 +15,8 @@ import sys
 import traceback
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parents[1]
+SELF = Path(__file__).resolve()
+SCRIPTS = SELF.parents[1]
 sys.path.insert(0, str(SCRIPTS.parent))
 
 failures: list[tuple[str, str]] = []
@@ -23,6 +24,10 @@ checked = 0
 for folder in ("bag", "sim", "hardware", "common"):
     for path in sorted((SCRIPTS / folder).glob("*.py")):
         if path.name.startswith("__"):
+            continue
+        # This checker does its work at module level, so importing it would rerun
+        # the whole sweep -- once per level, until the recursion limit stops it.
+        if path.resolve() == SELF:
             continue
         checked += 1
         name = f"_check_{folder}_{path.stem}"

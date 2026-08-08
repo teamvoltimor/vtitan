@@ -28,15 +28,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
-from src.navigation.direction_estimator import (
-    _MAX_IN_TRACK_RANGE_M,
-    _MAX_PLAUSIBLE_SPAN_M,
-    _MIN_ASYMMETRY_M,
-)
-from src.navigation.utils import _wrap, _ALIGNMENT_TOLERANCE_RAD, _wrap
+from src.navigation.utils import _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 _MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
@@ -72,6 +68,9 @@ def main() -> None:
     parser.add_argument("--window-deg", type=float, default=5.0)
     args = parser.parse_args()
     half = math.radians(args.window_deg)
+
+    tuning = NavigationTuning.load_default()
+    estimator = tuning.direction_estimator
 
     reader = open_reader(args.bag_dir)
     # Same rotation ROS2HardwareGateway._lidar_callback applies -- the LIDAR is
@@ -117,7 +116,7 @@ def main() -> None:
                     recovered["  window also empty (real dropout)"] += 1
                 else:
                     recovered["  window recovers a reading"] += 1
-                    if win > _MAX_PLAUSIBLE_SPAN_M:
+                    if win > estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
                         recovered["    ...and it is an OPEN side (>1.25m)"] += 1
         rows.append((t, yaw, s_l, s_r, w_l, w_r))
 
@@ -144,14 +143,14 @@ def main() -> None:
             left, right = (w_l, w_r) if use_window else (s_l, s_r)
             if left is None or right is None:
                 continue
-            if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+            if left > estimator.MAX_IN_TRACK_RANGE_M or right > estimator.MAX_IN_TRACK_RANGE_M:
                 continue
             axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
-            if axis_error > _ALIGNMENT_TOLERANCE_RAD:
+            if axis_error > estimator.ALIGNMENT_TOLERANCE_RAD:
                 continue
-            if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+            if left + right <= estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
                 continue
-            if abs(left - right) < _MIN_ASYMMETRY_M:
+            if abs(left - right) < estimator.MIN_ASYMMETRY_M:
                 continue
             inferred = "clockwise" if right > left else "counterclockwise"
             votes[inferred] += 1

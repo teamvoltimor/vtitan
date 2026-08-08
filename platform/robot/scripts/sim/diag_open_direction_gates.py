@@ -30,16 +30,10 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.navigation import direction_estimator as de
+from shared.config.navigation_tuning import NavigationTuning
 
-# The thresholds themselves, not copies: this tracer exists to say which gate
-# refused a reading, so it has to test the values the estimator actually uses.
-from src.navigation.direction_estimator import (
-    _MAX_IN_TRACK_RANGE_M,
-    _MAX_PLAUSIBLE_SPAN_M,
-    _MIN_ASYMMETRY_M,
-)
-from src.navigation.utils import _wrap, _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
+from src.navigation import direction_estimator as de
+from src.navigation.utils import _nearest_ray, _wrap
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -57,6 +51,9 @@ class _GateTracer:
     def __init__(self) -> None:
         self.rows: list[tuple[tuple[float, float], float, float, float, str]] = []
         self.pos: tuple[float, float] = (0.0, 0.0)
+        # The thresholds themselves, not copies: this tracer exists to say which
+        # gate refused a reading, so it reads the same tuning infer_direction does.
+        self.tuning = NavigationTuning.load_default()
 
     def patch(self) -> None:
         """Wrap ``infer_direction`` where the estimator resolves it."""
@@ -86,16 +83,16 @@ class _GateTracer:
         de.infer_direction = self._real
         de.DirectionEstimator.observe.__globals__["infer_direction"] = self._real
 
-    @staticmethod
-    def _verdict(axis_error: float, left: float, right: float, result: Direction | None) -> str:
+    def _verdict(self, axis_error: float, left: float, right: float, result: Direction | None) -> str:
         """Name the first gate that refuses this reading, in the order it applies."""
-        if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+        estimator = self.tuning.direction_estimator
+        if left > estimator.MAX_IN_TRACK_RANGE_M or right > estimator.MAX_IN_TRACK_RANGE_M:
             return "dropout"
-        if axis_error > _ALIGNMENT_TOLERANCE_RAD:
+        if axis_error > estimator.ALIGNMENT_TOLERANCE_RAD:
             return "align-fail"
-        if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+        if left + right <= estimator.PLAUSIBLE_SPAN_THRESHOLD_M:
             return "span-fail"
-        if abs(left - right) < _MIN_ASYMMETRY_M:
+        if abs(left - right) < estimator.MIN_ASYMMETRY_M:
             return "ASYM-FAIL"
         return f"VOTE {result.value if result else '-'}"
 

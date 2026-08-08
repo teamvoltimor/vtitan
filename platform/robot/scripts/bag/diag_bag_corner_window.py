@@ -37,7 +37,7 @@ def main() -> None:
     args = parser.parse_args()
 
     tuning = NavigationTuning.load_default()
-    alignment_tol = tuning.heading.MEDIUM
+    alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
     corner_clearance_m = tuning.direction_estimator.CORNER_CLEARANCE_M
     turn_clearance_m = tuning.corridor_follower.TURN_CLEARANCE_M
     plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
@@ -77,7 +77,7 @@ def main() -> None:
 
     n = len(rows)
     print(f"\nof {n} scans:")
-    print(f"  near a corner (fwd < {CORNER_CLEARANCE_M:.2f}m):      {len(near_corner):5d}  {100.0 * len(near_corner) / n:5.1f}%")
+    print(f"  near a corner (fwd < {corner_clearance_m:.2f}m):      {len(near_corner):5d}  {100.0 * len(near_corner) / n:5.1f}%")
     print(f"  axis-aligned (err <= {math.degrees(alignment_tol):.0f}deg):        {len(aligned):5d}  {100.0 * len(aligned) / n:5.1f}%")
     print(f"  a side reads open (> {plausible_span:.2f}m):     {len(open_side):5d}  {100.0 * len(open_side) / n:5.1f}%")
     print(f"  near corner AND aligned:              {len(both):5d}  {100.0 * len(both) / n:5.1f}%")

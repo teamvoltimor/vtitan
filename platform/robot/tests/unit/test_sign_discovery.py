@@ -18,16 +18,22 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.navigation.planning.sign_discovery import (
-    _ASSOCIATION_DIST,
-    _MAX_INGEST_RANGE,
-    _MIN_HITS,
     ObservedSignMap,
     SignSpec,
 )
 from src.simulation.vision_emulator import emulate_sign_observations
+
+# These were module constants until tuning was threaded through; the values are
+# now read per-call from NavigationTuning. Bound once here so the tests below
+# keep reading as statements about the shipped configuration.
+_SIGN_DISCOVERY = NavigationTuning.load_default().sign_discovery
+_ASSOCIATION_DIST = _SIGN_DISCOVERY.ASSOCIATION_DIST_M
+_MAX_INGEST_RANGE = _SIGN_DISCOVERY.MAX_INGEST_RANGE_M
+_MIN_HITS = _SIGN_DISCOVERY.MIN_HITS
 
 _CONFIDENCE = 0.25
 """Matches ``SignRouterConfig.min_confidence``, the threshold the map inherits."""

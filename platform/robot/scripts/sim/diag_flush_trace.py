@@ -22,8 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
 
-from scripts.common.bag_io import print_table
+from scripts.common.tables import print_table
 from src.navigation.utils import _forward_clearance, _nearest_ray
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -51,6 +52,7 @@ def main() -> None:
 
     meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction, start_cell=args.cell)
     sim = ScenarioSimulator(meta, num_laps=_DEFAULT_LAPS, seed=0, blind=True)
+    tuning = NavigationTuning.load_default()
 
     start = meta.starting_conditions.position
     print(f"{section.value}/{direction} celda {args.cell}  arranque=({start.x:.3f}, {start.y:.3f})\n")
@@ -76,7 +78,7 @@ def main() -> None:
         if i >= args.ticks:
             return
         ranges, angles = scan.ranges_m, scan.angles_rad
-        fwd = _forward_clearance(ranges, angles)
+        fwd = _forward_clearance(ranges, angles, tuning)
         left = _nearest_ray(ranges, angles, math.pi / 2)
         right = _nearest_ray(ranges, angles, -math.pi / 2)
         cmd_v, cmd_s = commands[-1] if commands else (float("nan"), float("nan"))

@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.config.enums import Section
 
-from scripts.common.bag_io import print_table
+from scripts.common.tables import print_table
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 
