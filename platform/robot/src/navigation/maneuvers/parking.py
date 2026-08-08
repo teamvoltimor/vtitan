@@ -89,8 +89,6 @@ class ParkingContext:
 
 _DEFAULT_PARKING_CONTEXT = ParkingContext()
 
-# All constants accessed via context.constants — no module-level duplicates
-
 
 @dataclass(frozen=True)
 class ParkZone:
