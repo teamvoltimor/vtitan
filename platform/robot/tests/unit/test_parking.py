@@ -18,8 +18,7 @@ from dataclasses import dataclass
 
 import pytest
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
-from shared.config.enums import Direction, Section
-
+from shared.domain.enums import Direction, Section
 from shared.domain.models import BlockPosition, ParkingLot
 
 from src.navigation.maneuvers.parking import (
@@ -33,7 +32,16 @@ from src.navigation.maneuvers.parking import (
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 from tests.fixtures import ParkingLotFixtures
-from tests.test_constants import PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2
+from tests.test_constants import (
+    PARKING_EAST_BLOCK1,
+    PARKING_EAST_BLOCK2,
+    PARKING_NORTH_BLOCK1,
+    PARKING_NORTH_BLOCK2,
+    PARKING_SOUTH_BLOCK1,
+    PARKING_SOUTH_BLOCK2,
+    PARKING_WEST_BLOCK1,
+    PARKING_WEST_BLOCK2,
+)
 
 _CW = Direction.CLOCKWISE
 _CCW = Direction.COUNTERCLOCKWISE

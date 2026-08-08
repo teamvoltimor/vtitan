@@ -21,10 +21,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
-from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.enums import NavigatorPhase, RobotState
+from shared.domain.enums import Direction, NavigatorPhase, RobotState, ScenarioType, Section
 from shared.domain.models import CorridorWidthEntry, CorridorWidths, NavigatorDebugSnapshot, Pose, ScenarioMetadata
 from std_msgs.msg import Int32, String
 
@@ -227,8 +226,17 @@ class TrackNavigator(Node, ResettableNode):
         # Setup Tuning
         tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning.load_default()
 
-        start_section = Section.from_string(start_cond[DictKeys.SECTION])
-        start_direction = Direction.from_string(start_cond[DictKeys.DIRECTION])
+        raw_section = start_cond[DictKeys.SECTION]
+        raw_direction = start_cond[DictKeys.DIRECTION]
+        if raw_section is None or raw_direction is None:
+            msg = (
+                "starting_conditions.section/direction must be resolved by the time "
+                "TrackNavigator starts -- real metadata and assumed_start_conditions() "
+                "both always supply them; a None here means malformed input"
+            )
+            raise ValueError(msg)
+        start_section = Section.from_string(raw_section)
+        start_direction = Direction.from_string(raw_direction)
 
         # What the robot is allowed to believe about the layout. Sighted runs
         # read it from the metadata; blind runs start from a prior and correct

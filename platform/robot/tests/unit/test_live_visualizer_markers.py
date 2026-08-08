@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 import rclpy
 from rclpy.serialization import deserialize_message, serialize_message
-from shared.config.enums import Section
+from shared.domain.enums import Section
 from visualization_msgs.msg import Marker
 
 from src.simulation.live_visualizer import LiveScenarioVisualizer, init_rclpy_once

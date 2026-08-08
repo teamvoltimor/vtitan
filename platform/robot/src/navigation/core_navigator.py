@@ -32,7 +32,7 @@ from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
-    from shared.config.enums import Section
+    from shared.domain.enums import Section
 
     from src.navigation.maneuvers.parking import ParkController
     from src.navigation.planning.sign_router import SignRouter

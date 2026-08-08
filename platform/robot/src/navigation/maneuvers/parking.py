@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
-from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, Section
 from shared.domain.models import BlockPosition, ParkingLot
 
 from src.config.tuning_helpers import get_tuning
@@ -712,7 +712,15 @@ def park_controller_from_metadata(
     if parking is None:
         return None
     if direction is None:
-        direction = Direction.from_string(metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION])
+        raw_direction = metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION]
+        if raw_direction is None:
+            msg = (
+                "park_controller_from_metadata requires a resolved direction; pass it "
+                "explicitly (every real caller already does) rather than relying on "
+                "metadata.starting_conditions.direction, which may still be unresolved"
+            )
+            raise ValueError(msg)
+        direction = Direction.from_string(raw_direction)
     tuning = get_tuning(tuning)
     return ParkController(
         parking_config=ParkingLot(

@@ -40,7 +40,7 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from shared.config.enums import Direction
+    from shared.domain.enums import Direction
 
 _DEFAULT_STEPS = 760
 

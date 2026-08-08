@@ -13,11 +13,11 @@ import math
 
 import pytest
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
+from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.simulated_hardware_gateway import SensorErrors
-from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _DT = 0.05

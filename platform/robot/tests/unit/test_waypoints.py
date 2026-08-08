@@ -6,8 +6,8 @@ import math
 
 import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
-from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, Section
 
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,

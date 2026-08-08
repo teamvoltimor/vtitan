@@ -33,8 +33,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
-from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
+from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor
 
 from src.config.tuning_helpers import get_tuning

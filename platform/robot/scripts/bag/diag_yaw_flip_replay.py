@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from scripts.bag.diag_localizer_guard_replay import (
     _final_walls,

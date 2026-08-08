@@ -49,7 +49,7 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int]) -> dict[
     simulator by case index -- that is what makes the parallel result identical
     to the serial one rather than merely similar.
     """
-    from shared.config.enums import Direction, Section
+    from shared.domain.enums import Direction, Section
 
     index, widths, section_value, direction_value, cell, laps = payload
     section = Section(section_value)

@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.start_measurement import CLOSING_TOLERANCE_M, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths

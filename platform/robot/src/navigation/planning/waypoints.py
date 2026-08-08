@@ -15,8 +15,8 @@ from typing import Any
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.enums import CorridorSide, Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import CorridorSide, Direction, Section
 from shared.domain.models import PathPlannability, ScenarioMetadata
 
 from src.config.tuning_helpers import get_tuning
@@ -147,7 +147,14 @@ def calculate_waypoints(
 
     corridor_widths = metadata.corridor_widths
     starting = metadata.starting_conditions
-    direction = Direction.from_string(starting.direction)
+    if starting.direction is None:
+        msg = (
+            "calculate_waypoints requires a resolved starting_conditions.direction; "
+            "callers must infer/assign it (see TrackNavigator._plan / ScenarioSimulator._plan) "
+            "before planning a path"
+        )
+        raise ValueError(msg)
+    direction = starting.direction
 
     cw_entries = {
         Section.NORTH: corridor_widths.north,
@@ -202,8 +209,13 @@ def calculate_waypoints(
 
     order = _build_corridor_order(direction)
 
-    start_section = Section.from_string(starting.section)
-    order = _rotate_to_start(order, start_section)
+    if starting.section is None:
+        msg = (
+            "calculate_waypoints requires a resolved starting_conditions.section; "
+            "callers must infer/assign it before planning a path"
+        )
+        raise ValueError(msg)
+    order = _rotate_to_start(order, starting.section)
 
     full_loop = _assemble_loop(order, segments)
     start_x, start_y = starting.position.x, starting.position.y

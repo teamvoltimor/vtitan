@@ -25,15 +25,6 @@ from shared.config.constants import (
     ZLayers,
 )
 from shared.config.coordinate_transform import CoordinateTransform
-from shared.config.enums import (
-    Direction,
-    LightingScenario,
-    NodeHealth,
-    RiskLevel,
-    RobotState,
-    ScenarioType,
-    Section,
-)
 from shared.config.navigation_tuning import (
     ClearanceZones,
     EscapeManeuverParams,
@@ -41,6 +32,15 @@ from shared.config.navigation_tuning import (
     NavigationTuning,
     PurePursuitParams,
     SpeedControlParams,
+)
+from shared.domain.enums import (
+    Direction,
+    LightingScenario,
+    NodeHealth,
+    RiskLevel,
+    RobotState,
+    ScenarioType,
+    Section,
 )
 
 __all__ = [

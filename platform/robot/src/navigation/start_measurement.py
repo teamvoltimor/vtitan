@@ -38,7 +38,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 _MAT = TrackDimensions.MAX_COORD
 _SECTION_ROTATIONS: tuple[Section, ...] = (Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST)

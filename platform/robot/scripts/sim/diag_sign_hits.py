@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios

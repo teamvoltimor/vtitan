@@ -13,7 +13,7 @@ from enum import Enum, StrEnum
 # Re-export RobotState/ScenarioType from shared module (single source of truth). ScenarioType
 # is the existing open-vs-obstacles concept (already used by the navigator's scenario
 # metadata) -- the challenge-mode jumper reuses it rather than introducing a duplicate enum.
-from shared.config.enums import RobotState, ScenarioType, Section
+from shared.domain.enums import RobotState, ScenarioType, Section
 
 __all__ = [
     "LidarMetrics",

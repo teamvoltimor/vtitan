@@ -32,8 +32,8 @@ from __future__ import annotations
 import math
 
 from shared.config.constants import CorridorDimensions, DictKeys, TrackDimensions
-from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, Section
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
@@ -62,7 +62,7 @@ def start_pose(
     tuning = get_tuning(tuning)
 
     # Derive center bias from tuning (positive toward inner block)
-    from shared.config.enums import CorridorSide
+    from shared.domain.enums import CorridorSide
     center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
         1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
     )

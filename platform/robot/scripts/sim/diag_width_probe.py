@@ -30,8 +30,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
-from shared.config.enums import Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Section
 
 from src.navigation.planning.sign_router import corridor_for_position
 from src.simulation.scenario_catalog import all_test_scenarios

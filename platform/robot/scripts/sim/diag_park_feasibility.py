@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from scripts.common.tables import print_table
 from src.simulation.kinematics import AckermannKinematics, AckermannState
