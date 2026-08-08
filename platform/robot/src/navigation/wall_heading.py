@@ -79,7 +79,7 @@ class WallHeadingContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize wall-heading context from tuning."""
-    self.tuning = tuning or NavigationTuning()
+    self.tuning = tuning or NavigationTuning.load_default()
     self.constants = _WallHeadingConstants.from_tuning(self.tuning)
 
 

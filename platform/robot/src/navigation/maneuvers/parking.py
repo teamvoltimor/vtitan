@@ -31,8 +31,10 @@ from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import BlockPosition, ParkingLot
 
-from src.navigation.utils import _local_frame
-from src.navigation.utils import _pure_pursuit_steer as _shared_pure_pursuit_steer
+from src.navigation.utils import (
+  _local_frame,
+  _pure_pursuit_steer as _shared_pure_pursuit_steer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +85,7 @@ class ParkingContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize parking context from tuning."""
-    self.tuning = tuning or NavigationTuning()
+    self.tuning = tuning or NavigationTuning.load_default()
     self.constants = _ParkingConstants.from_tuning(self.tuning)
 
 
@@ -185,7 +187,7 @@ class ParkController:
         max_frames: int | None = None,
         tuning: NavigationTuning | None = None,
     ) -> None:
-        self._tuning = tuning or NavigationTuning()
+        self._tuning = tuning or NavigationTuning.load_default()
         self._context = ParkingContext(self._tuning)
         if max_frames is None:
             max_frames = self._context.constants.default_max_frames
@@ -598,7 +600,7 @@ def _footprint_breaches_wall(
     """
     for cx, cy in _chassis_corners(rx, ry, robot_yaw):
         coord = cx if zone.wall_is_x else cy
-        if abs(coord - zone.wall_coord) < _WALL_STANDOFF and _is_beyond_lot_centre(coord, zone):
+        if abs(coord - zone.wall_coord) < _DEFAULT_PARKING_CONTEXT.constants.wall_standoff_m and _is_beyond_lot_centre(coord, zone):
             return True
     return False
 
@@ -630,13 +632,14 @@ def _footprint_breaches_markers(
     A fin flanks the lot along the wall and spans its full depth, so a corner is in fin
     territory when it lies within the lot's depth band and at or past a fin's inner face.
     """
+    marker_standoff = _DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m
     depth_min, depth_max = zone.bounds_depth()
     along_min, along_max = zone.bounds_along()
     for cx, cy in _chassis_corners(rx, ry, robot_yaw):
         along, depth = zone.project(cx, cy)
-        if not (depth_min - _MARKER_STANDOFF <= depth <= depth_max + _MARKER_STANDOFF):
+        if not (depth_min - marker_standoff <= depth <= depth_max + marker_standoff):
             continue  # out in the corridor, past the fins' ends — nothing to hit
-        if along <= along_min + _MARKER_STANDOFF or along >= along_max - _MARKER_STANDOFF:
+        if along <= along_min + marker_standoff or along >= along_max - marker_standoff:
             return True
     return False
 
