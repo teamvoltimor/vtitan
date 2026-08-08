@@ -8,6 +8,7 @@ directly-constructed sensor_msgs, not a live requests.Session.
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
 from unittest import mock
@@ -15,7 +16,14 @@ from unittest import mock
 import pytest
 import rclpy
 from sensor_msgs.msg import Imu, LaserScan
+from shared.config.navigation_tuning import NavigationTuning
 from vision_msgs.msg import BoundingBox2D, Detection2D, Detection2DArray, ObjectHypothesisWithPose
+
+# The real value the node loads from lidar_sectors.toml at runtime (see
+# telemetry_bridge_node.TelemetryBridgeNode.__init__). Read from the checked-in
+# default rather than hardcoding 30.0 a second time, so a tuning change can't
+# silently desync this test from what the node actually passes.
+_HALF_FOV_RAD = math.radians(NavigationTuning.load_default().lidar_sectors.FRONT_HALF_FOV_DEG)
 
 
 @pytest.fixture()
@@ -63,7 +71,7 @@ class TestLidarClearancesCm:
         for i in _window(0, 62, n):
             ranges[i] = 0.5
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert c.front_m * 100 == pytest.approx(50.0, abs=0.5)
 
@@ -73,7 +81,7 @@ class TestLidarClearancesCm:
         for i in _window(n // 4, 62, n):
             ranges[i] = 1.5
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert c.left_m * 100 == pytest.approx(150.0, abs=0.5)
 
@@ -83,7 +91,7 @@ class TestLidarClearancesCm:
         for i in _window(3 * n // 4, 62, n):
             ranges[i] = 0.3
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert c.right_m * 100 == pytest.approx(30.0, abs=0.5)
 
@@ -93,7 +101,7 @@ class TestLidarClearancesCm:
         ranges = [1.0] * n
         ranges[0] = 0.02  # one spurious near-range return, dead ahead
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert c.front_m * 100 == pytest.approx(100.0, abs=5.0)
 
@@ -108,21 +116,21 @@ class TestLidarClearancesCm:
         for i in _window(3 * n // 4, 62, n):
             ranges[i] = 0.02
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert c.front_m * 100 == pytest.approx(2.0, abs=0.5)  # not filtered
         assert c.left_m == 0.0  # filtered out entirely -- no valid points left
         assert c.right_m == 0.0
 
     def test_empty_ranges_returns_zeros(self, bridge_module):
-        c = bridge_module._lidar_clearances([])
+        c = bridge_module._lidar_clearances([], _HALF_FOV_RAD)
         assert (c.front_m, c.left_m, c.right_m) == (0.0, 0.0, 0.0)
 
     def test_no_valid_points_in_a_window_defaults_to_zero(self, bridge_module):
         n = 720
         ranges = [0.0] * n  # every reading below the min-valid floor
 
-        c = bridge_module._lidar_clearances(ranges)
+        c = bridge_module._lidar_clearances(ranges, _HALF_FOV_RAD)
 
         assert (c.front_m, c.left_m, c.right_m) == (0.0, 0.0, 0.0)
 

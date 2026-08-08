@@ -156,12 +156,10 @@ class TestAckermannMotorNodeDecode:
 
         node._ackermann_callback(msg)
 
-        from vtitan_drivers.motors.ackermann_motor_node import STEERING_COMMAND_SPEED
-
         mock_steering.move_steering_to.assert_called_once()
         angle_deg, kwargs = mock_steering.move_steering_to.call_args[0][0], mock_steering.move_steering_to.call_args[1]
         assert angle_deg == pytest.approx(15.0)
-        assert kwargs["speed"] == STEERING_COMMAND_SPEED
+        assert kwargs["speed"] == node.config.steering.turning_speed
 
         # Decode sets a wheel-rpm setpoint; the 50 Hz control loop is what
         # commands the driver. Asserting on run_drive_forward here tested an
