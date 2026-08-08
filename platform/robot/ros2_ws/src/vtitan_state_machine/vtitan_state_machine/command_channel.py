@@ -22,6 +22,8 @@ from rcl_interfaces.msg import (
 from rcl_interfaces.srv import SetParameters
 from std_msgs.msg import String
 
+from vtitan_state_machine.grpc_backoff import BACKOFF_INITIAL_S, BACKOFF_MAX_S
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -43,9 +45,6 @@ if str(_GEN_ROOT) not in sys.path:
 
 import grpc  # noqa: E402
 from telemetry.v1 import commands_pb2, commands_pb2_grpc  # noqa: E402
-
-_BACKOFF_INITIAL = 1.0
-_BACKOFF_MAX = 60.0
 
 
 class CommandChannel:
@@ -85,7 +84,7 @@ class CommandChannel:
         # open a stream.
         self._robot_id: str | None = None
         self._last_command_id: str | None = None
-        self._command_backoff_delay: float = _BACKOFF_INITIAL
+        self._command_backoff_delay: float = BACKOFF_INITIAL_S
         self._command_stream_stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -108,7 +107,7 @@ class CommandChannel:
         if self._thread is not None and self._thread.is_alive():
             return
         self._command_stream_stop.clear()
-        self._command_backoff_delay = _BACKOFF_INITIAL
+        self._command_backoff_delay = BACKOFF_INITIAL_S
         self.start()
 
     def _resolve_robot_id(self) -> str | None:
@@ -136,7 +135,7 @@ class CommandChannel:
             if self._robot_id is None:
                 self._robot_id = self._resolve_robot_id()
                 if self._robot_id is None:
-                    self._command_stream_stop.wait(_BACKOFF_INITIAL)
+                    self._command_stream_stop.wait(BACKOFF_INITIAL_S)
                     continue
                 self._logger.info("Resolved robot id for command channel: %s", self._robot_id)
 
@@ -150,7 +149,7 @@ class CommandChannel:
             if self._command_stream_stop.is_set():
                 return
             self._command_stream_stop.wait(self._command_backoff_delay)
-            self._command_backoff_delay = min(self._command_backoff_delay * 2, _BACKOFF_MAX)
+            self._command_backoff_delay = min(self._command_backoff_delay * 2, BACKOFF_MAX_S)
 
     def _run_command_stream(self, robot_id: str) -> None:
         """Open StreamCommands and apply/ack commands until it drops."""
@@ -166,7 +165,7 @@ class CommandChannel:
                 self._on_state_changed(connected)
 
             for cmd in stub.StreamCommands(request):
-                self._command_backoff_delay = _BACKOFF_INITIAL
+                self._command_backoff_delay = BACKOFF_INITIAL_S
                 self._last_command_id = cmd.command_id
                 status, message = self._dispatch_command(cmd)
                 self._ack_command(stub, robot_id, cmd.command_id, status, message)
