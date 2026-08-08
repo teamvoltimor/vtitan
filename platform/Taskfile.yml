@@ -109,8 +109,8 @@ tasks:
 
         GEN (track + scenario generation)
           task gen:track            Generate/regenerate WRO 2026 base track SDF
-          task gen:robot-constants  Regenerate robot constants (Go/xacro/Python) from robot.toml
-          task gen:track-constants  Regenerate mat geometry constants (Go/Python) from track.toml
+          task gen:robot-constants  Regenerate robot constants (Go/xacro) from robot.toml
+          task gen:track-constants  Regenerate mat geometry constants (Go) from track.toml
           task gen:scenarios        Generate scenarios for CHALLENGE=open|obstacles (SCENARIOS=10 default)
           task gen:corpus           Generate the pinned-seed sweep corpus (256 scenarios, seed 2026)
           task gen:corpus:all       Same, for both challenges
@@ -500,13 +500,13 @@ tasks:
       - "{{.SIMGEN}} generate-track --output {{.BASE_WORLD}}"
 
   gen:robot-constants:
-    desc: Regenerate robot physical constants (Go/xacro/Python) from shared/config/robot.toml
+    desc: Regenerate robot physical constants (Go/xacro) from shared/config/robot.toml
     deps: [simgen:build]
     cmds:
       - "{{.SIMGEN}} generate-robot-constants"
 
   gen:track-constants:
-    desc: Regenerate mat geometry constants (Go/Python) from shared/config/track.toml
+    desc: Regenerate mat geometry constants (Go) from shared/config/track.toml
     deps: [simgen:build]
     cmds:
       - "{{.SIMGEN}} generate-track-constants"

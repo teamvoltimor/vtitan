@@ -1,8 +1,10 @@
 # Single source of truth for the WRO 2026 Future Engineers mat geometry.
 #
-# Edit this file, then regenerate every consumer with `task gen:track-constants`:
+# Edit this file, then regenerate its Go consumer with `task gen:track-constants`:
 #   - platform/gazebo/generator/internal/simconfig/track_constants.gen.go
-#   - platform/shared/src/shared/config/track_constants_gen.py
+#
+# The Python side reads this file directly at runtime via
+# shared.config.track_constants.TrackConstants -- nothing to regenerate there.
 #
 # These values used to be hand-maintained twice — once in the Python classes of
 # shared/config/constants.py and once in the Go const blocks of
