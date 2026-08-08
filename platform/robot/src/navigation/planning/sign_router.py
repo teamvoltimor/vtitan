@@ -73,47 +73,7 @@ __all__ = [
 # fixtures, widening this removed one inner-block and one sign collision (9/16
 # -> 7/16); going further to 0.24 over-constrains the deformation and regresses
 # to 10/16.
-# The margin comes from shared/config/navigation/sign_router.toml, not a
-# literal here. These three module-level constants feed free functions rather
-# than SignRouter methods, so there is no instance to inject tuning into — but
-# "no natural injection point" is not a reason to restate a configured number.
-# A duplicated literal keeps passing while describing a robot that no longer
-# exists: DEFORM_DEPTH_BUFFER_M sat in the TOML with NO reader at all while the
-# router used its own copy, and the chassis width moved 0.200 -> 0.194
-# mid-investigation and silently changed every clearance derived from it.
-# Reading the defaults once at import keeps one source of truth; the sweep
-# harness still overrides these by patching the module attribute.
-_SIGN_ROUTER_DEFAULTS = NavigationTuning.load_default().sign_router
-
 _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
-_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + _SIGN_ROUTER_DEFAULTS.WALL_CLEARANCE_MARGIN_M
-
-# Default lateral deformation magnitude, derived the same way as
-# _WALL_CLEARANCE above: chassis half-DIAGONAL + the sign's own half-width (the
-# offset is applied from the sign's CENTER, so its footprint eats into the
-# gap too) + a safety margin. A flat 0.15m default here previously left only
-# ~2.5cm of actual edge-to-edge clearance once those two half-widths were
-# subtracted — the robot visibly grazed signs in RViz even though it wasn't
-# technically colliding.
-#
-# Half-DIAGONAL, not half-width, for exactly the reason _WALL_CLEARANCE gives
-# above: half-width only bounds a robot travelling PARALLEL to the thing it is
-# clearing, and two-thirds of legal WRO sign positions sit on a corner boundary
-# where the robot is still mid-turn and presenting its corner (0.180 m) rather
-# than its flank (0.100 m). The old half-width derivation gave 0.20 m, which is
-# below the 0.205 m a mid-turn pass actually needs — i.e. the shipped default
-# was sized just under the requirement at the majority of sign positions. Same
-# bug as 47827ca fixed in _WALL_CLEARANCE, on the other consumer of the figure.
-#
-# This only became measurable once the reactive escape layer stopped firing at
-# routed signs (see collision_avoidance_controller.mask_mapped_obstacles):
-# before that the offset was inert at every value, because the run was decided
-# before the router's aim could matter. Measured over the 16 obstacles fixtures
-# with the split active: 0.20 -> 16/16 collisions and 0 laps, 0.24 and beyond
-# -> 14/16 and 2/16 completing all three laps, plateauing from 0.24 where
-# _WALL_CLEARANCE starts to bind instead.
-_SIGN_CLEARANCE_MARGIN = _SIGN_ROUTER_DEFAULTS.SIGN_CLEARANCE_MARGIN_M
-_SIGN_LATERAL_OFFSET = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
 
 # How far behind the robot's own origin a sign may still sit and remain an
 # avoidance candidate. Half the chassis length, so a sign level with the rear
@@ -121,12 +81,6 @@ _SIGN_LATERAL_OFFSET = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + _SI
 # behind stops competing with the sign coming up next.
 _BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
 
-# How far past the inner square's own span [CORNER_MIN, CORNER_MAX] the depth
-# axis may drift and still count as a valid straight-corridor deformation
-# candidate — see _is_squarely_in_corridor. Same concept/value as
-# NavigationTuning.sign_router.DEFORM_DEPTH_BUFFER_M, which until now had no
-# reader at all -- the TOML value was inert while this literal did the work.
-_DEFORM_DEPTH_BUFFER = _SIGN_ROUTER_DEFAULTS.DEFORM_DEPTH_BUFFER_M
 
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
 # axis: "y" means deform the y-coordinate; "x" deforms x.
@@ -154,7 +108,7 @@ _ROUTING_TABLE: dict[tuple[Section, Direction], tuple[str, int, int]] = {
 class SignRouterConfig:
     """Tuning parameters for the sign router."""
 
-    lateral_offset: float = _SIGN_LATERAL_OFFSET
+    lateral_offset: float | None = None
     """Metres of lateral deformation perpendicular to the corridor."""
 
     activation_dist: float = 1.40
@@ -195,7 +149,7 @@ class SignRouterConfig:
     window prevents that incidental graze from ever registering."""
 
     def __post_init__(self) -> None:
-        """Reject a configuration that would silently disable sign avoidance.
+        """Compute derived tuning values and validate the configuration.
 
         ``_active_sign_candidates`` engages a sign once it is nearer than
         ``activation_dist`` and retires it once it is further than
@@ -217,6 +171,10 @@ class SignRouterConfig:
         direction — there an incidental spawn-time graze retires a sign early;
         here the thresholds themselves do it, on every sign.
         """
+        if self.lateral_offset is None:
+            tuning = NavigationTuning.load_default()
+            default_offset = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
+            object.__setattr__(self, "lateral_offset", default_offset)
         if self.activation_dist >= self.passed_dist:
             msg = (
                 f"activation_dist ({self.activation_dist}) must be < passed_dist "
@@ -740,7 +698,7 @@ def _pin_depth(waypoint_depth: float, sign_depth: float, robot_depth: float | No
     return waypoint_depth
 
 
-def _clamp_lateral(value: float, corridor: Section) -> float:
+def _clamp_lateral(value: float, corridor: Section, tuning: NavigationTuning | None = None) -> float:
     """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
 
     SOUTH/WEST corridors border the inner square on their high side (the
@@ -748,13 +706,16 @@ def _clamp_lateral(value: float, corridor: Section) -> float:
     low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
     on its outer side by the track wall.
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+    wall_clearance = _CHASSIS_HALF_DIAGONAL + tuning.sign_router.WALL_CLEARANCE_MARGIN_M
     low_side = corridor in (Section.SOUTH, Section.WEST)
     if low_side:
-        value = min(value, TrackDimensions.CORNER_MIN - _WALL_CLEARANCE)
-        value = max(value, TrackDimensions.MIN_COORD + _WALL_CLEARANCE)
+        value = min(value, TrackDimensions.CORNER_MIN - wall_clearance)
+        value = max(value, TrackDimensions.MIN_COORD + wall_clearance)
     else:
-        value = max(value, TrackDimensions.CORNER_MAX + _WALL_CLEARANCE)
-        value = min(value, TrackDimensions.MAX_COORD - _WALL_CLEARANCE)
+        value = max(value, TrackDimensions.CORNER_MAX + wall_clearance)
+        value = min(value, TrackDimensions.MAX_COORD - wall_clearance)
     return value
 
 
@@ -815,7 +776,7 @@ def signs_from_metadata(metadata: dict | Any) -> list[SignSpec]:
     ]
 
 
-def _is_squarely_in_corridor(x: float, y: float, corridor: Section) -> bool:
+def _is_squarely_in_corridor(x: float, y: float, corridor: Section, tuning: NavigationTuning | None = None) -> bool:
     """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
 
     The deformation model holds the depth axis (whatever value the raw path
@@ -826,7 +787,7 @@ def _is_squarely_in_corridor(x: float, y: float, corridor: Section) -> bool:
     * Lateral axis (the one being overridden) must still read as this
       corridor, not already the opposite wall.
     * Depth axis (held, never touched) must stay within
-      ``_DEFORM_DEPTH_BUFFER`` of the inner square's own span — not the exact
+      ``DEFORM_DEPTH_BUFFER_M`` of the inner square's own span — not the exact
       ``[CORNER_MIN, CORNER_MAX]`` window ``corridor_for_position()`` uses for
       its own robot-position classification, which is far too strict here: the
       lookahead target runs 0.2-0.4m ahead of the robot, so it's often already
@@ -838,8 +799,11 @@ def _is_squarely_in_corridor(x: float, y: float, corridor: Section) -> bool:
       sign finally disengages by corridor mismatch — this buffer catches that
       case without reintroducing the original over-strict cutoff.
     """
-    depth_min = TrackDimensions.CORNER_MIN - _DEFORM_DEPTH_BUFFER
-    depth_max = TrackDimensions.CORNER_MAX + _DEFORM_DEPTH_BUFFER
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+    deform_depth_buffer = tuning.sign_router.DEFORM_DEPTH_BUFFER_M
+    depth_min = TrackDimensions.CORNER_MIN - deform_depth_buffer
+    depth_max = TrackDimensions.CORNER_MAX + deform_depth_buffer
     if corridor is Section.SOUTH:
         return y < TrackDimensions.CORNER_MIN and depth_min <= x <= depth_max
     if corridor is Section.NORTH:
