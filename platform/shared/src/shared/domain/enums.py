@@ -175,6 +175,36 @@ class NavigatorPhase(StrEnum):
     ESCAPE_TRIGGERED = "escape_triggered"
 
 
+class ManeuverType(StrEnum):
+    """Kind of escape maneuver commanded by ``compute_escape_maneuver``.
+
+    Lives here rather than in ``collision_avoidance_controller.py`` (which
+    still owns the controller logic and re-exports this) because
+    ``NavigatorDebugSnapshot.active_maneuver_type`` needs it: that model is
+    the cross-context telemetry/bag-replay wire format, same reason
+    ``RiskLevel``/``Direction``/``Section`` live here instead of their own
+    producing modules.
+    """
+
+    K_TURN = "k_turn"
+    SIDE_CORRECTION = "side_correction"
+    STUCK_REVERSE = "stuck_reverse"
+    STUCK_FORWARD = "stuck_forward"
+
+
+class ParkPhase(StrEnum):
+    """Parking maneuver phases.
+
+    Lives here rather than in ``parking.py`` (which still owns the
+    controller logic and re-exports this) for the same reason
+    ``ManeuverType`` does: ``NavigatorDebugSnapshot.park_phase`` needs it.
+    """
+
+    STAGE = "stage"
+    ENTER = "enter"
+    DONE = "done"
+
+
 # The class ids the retrained GMR traffic-sign detector emits, in the order the
 # checkpoint itself declares them. Confirmed by running the checkpoint over the
 # per-class image folders: green_prism images predict green, red_prism predict

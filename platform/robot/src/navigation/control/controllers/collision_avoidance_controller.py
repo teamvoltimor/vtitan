@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Direction, RiskLevel
+from shared.domain.enums import Direction, ManeuverType, RiskLevel
 from shared.domain.models import SectorRanges
 
 from src.config.tuning_helpers import get_tuning
@@ -113,15 +113,6 @@ class ThreatDirection(StrEnum):
     RIGHT = "right"
     BACK = "back"
     NONE = "none"
-
-
-class ManeuverType(StrEnum):
-    """Kind of escape maneuver commanded by ``compute_escape_maneuver``."""
-
-    K_TURN = "k_turn"
-    SIDE_CORRECTION = "side_correction"
-    STUCK_REVERSE = "stuck_reverse"
-    STUCK_FORWARD = "stuck_forward"
 
 
 @dataclass
