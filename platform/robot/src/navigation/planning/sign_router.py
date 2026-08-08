@@ -113,6 +113,33 @@ _ROUTING_TABLE: dict[tuple[Section, Direction], tuple[Axis, int, int]] = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class _SignRouterConstants:
+    """Tuning-derived sign-router constants, computed once per SignRouter instance."""
+
+    wall_clearance_margin_m: float
+    deform_depth_buffer_m: float
+
+    @classmethod
+    def from_tuning(cls, tuning: NavigationTuning) -> _SignRouterConstants:
+        sr = tuning.sign_router
+        return cls(
+            wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
+            deform_depth_buffer_m=sr.DEFORM_DEPTH_BUFFER_M,
+        )
+
+
+class SignRouterContext:
+    """Context holding tuning-derived sign-router constants, passed to helper functions."""
+
+    def __init__(self, tuning: NavigationTuning | None = None) -> None:
+        self.tuning = get_tuning(tuning)
+        self.constants = _SignRouterConstants.from_tuning(self.tuning)
+
+
+_DEFAULT_SIGN_ROUTER_CONTEXT = SignRouterContext()
+
+
 @dataclass(frozen=True)
 class SignRouterConfig:
     """Tuning parameters for the sign router."""
@@ -242,9 +269,11 @@ class SignRouter:
         direction: Direction = Direction.COUNTERCLOCKWISE,
         discover: bool = False,
         discovery_config: SignDiscoveryParams | None = None,
+        tuning: NavigationTuning | None = None,
     ) -> None:
         self._signs = list(signs)
         self._config = config or SignRouterConfig()
+        self._context = SignRouterContext(tuning)
         self._direction = direction
         self._passed: set[int] = set()
         self._engaged: set[int] = set()
@@ -418,7 +447,7 @@ class SignRouter:
             # vs EAST there and gets assigned NORTH by insertion order, but it's
             # still on the turning arc, not the straight segment this
             # deformation model assumes.
-            if _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor):
+            if _is_squarely_in_corridor(waypoint[0], waypoint[1], sign_corridor, self._context):
                 break
         else:
             # No candidate produced an applicable deformation.
@@ -483,6 +512,7 @@ class SignRouter:
             self._direction,
             effective_offset,
             robot_pos if self._config.depth_pin else None,
+            self._context,
         )
 
         if deformed != waypoint:
@@ -637,6 +667,7 @@ def _apply_deformation(
     direction: Direction,
     lateral_offset: float,
     robot_pos: tuple[float, float] | None = None,
+    context: SignRouterContext | None = None,
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
 
@@ -671,6 +702,8 @@ def _apply_deformation(
         direction: Travel direction (CW/CCW) — selects the pass-side mapping.
         lateral_offset: Lateral deformation magnitude (m).
         robot_pos: Current robot position (x, y); enables the depth pin.
+        context: Tuning-derived constants for the wall-clearance clamp.
+            Defaults to the checked-in tuning.
 
     Returns:
         Deformed waypoint (x, y).
@@ -684,9 +717,9 @@ def _apply_deformation(
     wx, wy = waypoint
     if axis == Axis.Y:
         return _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None), _clamp_lateral(
-            sign.y + mult * lateral_offset, corridor
+            sign.y + mult * lateral_offset, corridor, context
         )
-    return _clamp_lateral(sign.x + mult * lateral_offset, corridor), _pin_depth(
+    return _clamp_lateral(sign.x + mult * lateral_offset, corridor, context), _pin_depth(
         wy, sign.y, robot_pos[1] if robot_pos else None
     )
 
@@ -707,7 +740,7 @@ def _pin_depth(waypoint_depth: float, sign_depth: float, robot_depth: float | No
     return waypoint_depth
 
 
-def _clamp_lateral(value: float, corridor: Section, tuning: NavigationTuning | None = None) -> float:
+def _clamp_lateral(value: float, corridor: Section, context: SignRouterContext | None = None) -> float:
     """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
 
     SOUTH/WEST corridors border the inner square on their high side (the
@@ -715,8 +748,8 @@ def _clamp_lateral(value: float, corridor: Section, tuning: NavigationTuning | N
     low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
     on its outer side by the track wall.
     """
-    tuning = get_tuning(tuning)
-    wall_clearance = _CHASSIS_HALF_DIAGONAL + tuning.sign_router.WALL_CLEARANCE_MARGIN_M
+    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
+    wall_clearance = _CHASSIS_HALF_DIAGONAL + context.constants.wall_clearance_margin_m
     low_side = corridor in (Section.SOUTH, Section.WEST)
     if low_side:
         value = min(value, TrackDimensions.CORNER_MIN - wall_clearance)
@@ -784,7 +817,9 @@ def signs_from_metadata(metadata: dict | Any) -> list[SignSpec]:
     ]
 
 
-def _is_squarely_in_corridor(x: float, y: float, corridor: Section, tuning: NavigationTuning | None = None) -> bool:
+def _is_squarely_in_corridor(
+    x: float, y: float, corridor: Section, context: SignRouterContext | None = None
+) -> bool:
     """True if this waypoint is still a reasonable candidate for straight-corridor deformation.
 
     The deformation model holds the depth axis (whatever value the raw path
@@ -807,8 +842,8 @@ def _is_squarely_in_corridor(x: float, y: float, corridor: Section, tuning: Navi
       sign finally disengages by corridor mismatch — this buffer catches that
       case without reintroducing the original over-strict cutoff.
     """
-    tuning = get_tuning(tuning)
-    deform_depth_buffer = tuning.sign_router.DEFORM_DEPTH_BUFFER_M
+    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
+    deform_depth_buffer = context.constants.deform_depth_buffer_m
     depth_min = TrackDimensions.CORNER_MIN - deform_depth_buffer
     depth_max = TrackDimensions.CORNER_MAX + deform_depth_buffer
     if corridor is Section.SOUTH:

@@ -500,6 +500,7 @@ class ScenarioSimulator:
                 direction=start.direction,
                 discover=discover_signs,
                 discovery_config=self._tuning.sign_discovery,
+                tuning=self._tuning,
             )
 
         # ``park=False`` runs an Obstacles scenario as laps-only: the signs, the
