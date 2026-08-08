@@ -7,7 +7,7 @@ import math
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, override
+from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 import rclpy
@@ -16,7 +16,6 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from rcl_interfaces.srv import SetParameters
-from rclpy.client import Client
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
@@ -31,6 +30,9 @@ from vision_msgs.msg import Detection2DArray
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
+
+if TYPE_CHECKING:
+    from rclpy.client import Client
 
 _MIN_TIMESTAMPS_FOR_RATE = 2
 """Minimum tracked timestamps needed to compute a topic update rate."""
@@ -85,6 +87,15 @@ Matches compute_forward_clearance's own forward cone width, for consistency
 across the two sectors that both use a mean (this is a display readout, not
 a threat gate like detect_threat_direction's narrower, min-based +/-45 deg
 sectors)."""
+
+_DIAG_TELEMETRY_SLOW_S = 0.3
+"""Warn when the whole _publish_telemetry synchronous body exceeds this (s)."""
+
+_DIAG_UI_SUMMARY_SLOW_S = 0.3
+"""Warn when the _publish_ui_summary body exceeds this (s)."""
+
+_DIAG_UI_SUMMARY_GAP_S = 0.5
+"""Warn when consecutive _publish_ui_summary invocations are this far apart (s)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,11 +239,11 @@ def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     ranges_t = tuple(ranges)
     angles = np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD
 
-    front = CollisionAvoidanceController._sector_ranges(ranges_t, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
-    left = CollisionAvoidanceController._sector_ranges(
+    front = CollisionAvoidanceController.sector_ranges(ranges_t, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
+    left = CollisionAvoidanceController.sector_ranges(
         ranges_t, angles, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
-    right = CollisionAvoidanceController._sector_ranges(
+    right = CollisionAvoidanceController.sector_ranges(
         ranges_t, angles, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
     )
 
@@ -295,21 +306,7 @@ class TelemetryBridgeNode(Node):
 
         self._topics = RosTopicConfig.load_default()
 
-        # Subscriptions — sensor topics use qos_profile_sensor_data to match
-        # the BEST_EFFORT QoS that hardware drivers publish with.
-        self.create_subscription(LaserScan, self._topics.sensors.scan, self._scan_callback, qos_profile_sensor_data)
-        if self._topics.navigation.odometry:
-            self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, 10)
-        self.create_subscription(Imu, self._topics.sensors.imu, self._imu_callback, qos_profile_sensor_data)
-        self.create_subscription(String, self._topics.state_machine.state, self._state_callback, 10)
-        self.create_subscription(Twist, self._topics.commands.cmd_vel, self._cmd_vel_callback, 10)
-        self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
-        self.create_subscription(
-            Detection2DArray,
-            self._topics.sensors.hailo_detections,
-            self._vision_callback,
-            qos_profile_sensor_data,
-        )
+        self._setup_subscriptions()
 
         # Latest data cache
         self._latest_scan: LaserScan | None = None
@@ -416,6 +413,26 @@ class TelemetryBridgeNode(Node):
         self.create_timer(1.0 / self._ui_summary_rate, self._publish_ui_summary)
 
         self.get_logger().info(f"Telemetry bridge started → {self._backend_url}")
+
+    def _setup_subscriptions(self) -> None:
+        """Subscribe to every sensor/state topic this bridge relays.
+
+        Sensor topics use qos_profile_sensor_data to match the BEST_EFFORT
+        QoS that hardware drivers publish with.
+        """
+        self.create_subscription(LaserScan, self._topics.sensors.scan, self._scan_callback, qos_profile_sensor_data)
+        if self._topics.navigation.odometry:
+            self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, 10)
+        self.create_subscription(Imu, self._topics.sensors.imu, self._imu_callback, qos_profile_sensor_data)
+        self.create_subscription(String, self._topics.state_machine.state, self._state_callback, 10)
+        self.create_subscription(Twist, self._topics.commands.cmd_vel, self._cmd_vel_callback, 10)
+        self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
+        self.create_subscription(
+            Detection2DArray,
+            self._topics.sensors.hailo_detections,
+            self._vision_callback,
+            qos_profile_sensor_data,
+        )
 
     def _scan_callback(self, msg: LaserScan) -> None:
         self._latest_scan = msg
@@ -545,7 +562,7 @@ class TelemetryBridgeNode(Node):
         t3 = time.monotonic()
 
         total = t3 - t0
-        if total > 0.3:
+        if total > _DIAG_TELEMETRY_SLOW_S:
             self.get_logger().warning(
                 f"[DIAG] _publish_telemetry took {total:.2f}s "
                 f"(build_snapshot={t1 - t0:.2f}s build_topics={t2 - t1:.2f}s push={t3 - t2:.2f}s)",
@@ -643,7 +660,7 @@ class TelemetryBridgeNode(Node):
         now_monotonic = time.monotonic()
         if self._last_ui_summary_publish_time is not None:
             gap = now_monotonic - self._last_ui_summary_publish_time
-            if gap > 0.5:
+            if gap > _DIAG_UI_SUMMARY_GAP_S:
                 self.get_logger().warning(f"[DIAG] ui_summary publish gap: {gap:.2f}s (expected ~0.1s)")
         self._last_ui_summary_publish_time = now_monotonic
 
@@ -686,7 +703,7 @@ class TelemetryBridgeNode(Node):
         # itself took several seconds to return" (the next tick's measured
         # gap includes that time either way). Remove once root-caused.
         own_total = d4 - d0
-        if own_total > 0.3:
+        if own_total > _DIAG_UI_SUMMARY_SLOW_S:
             self.get_logger().warning(
                 f"[DIAG] _publish_ui_summary body took {own_total:.2f}s "
                 f"(lidar_clearances={d1 - d0:.2f}s imu_yaw={d2 - d1:.2f}s "

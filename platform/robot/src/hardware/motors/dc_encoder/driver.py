@@ -262,10 +262,13 @@ class Driver(EncodedDriveDriver):
         """Export the PWM channel and wait for it to become writable."""
         chip = self._chip_dir
         if not chip.is_dir():
-            raise self._fail(
+            msg = (
                 f"{chip} not present -- hardware PWM overlay missing. Add "
                 "'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4' to "
-                "/boot/firmware/config.txt and reboot",
+                "/boot/firmware/config.txt and reboot"
+            )
+            raise self._fail(
+                msg,
             )
 
         channel_dir = chip / f"pwm{self._pwm_config.pwm_channel}"
@@ -275,7 +278,8 @@ class Driver(EncodedDriveDriver):
             except OSError as err:
                 # EBUSY means someone already exported it, which is fine.
                 if not channel_dir.is_dir():
-                    raise self._fail(f"cannot export PWM channel: {err}") from err
+                    msg = f"cannot export PWM channel: {err}"
+                    raise self._fail(msg) from err
 
         # Wait out the export/udev race: the pwmN dir and its group-writable
         # permissions (via udev) both land slightly after the export write
@@ -287,9 +291,12 @@ class Driver(EncodedDriveDriver):
                 return channel_dir
             time.sleep(0.05)
 
-        raise self._fail(
+        msg = (
             f"{channel_dir} did not become writable within {_EXPORT_TIMEOUT_S}s "
-            "(is the service user in the 'gpio' group?)",
+            "(is the service user in the 'gpio' group?)"
+        )
+        raise self._fail(
+            msg,
         )
 
     def connect(self) -> None:
@@ -329,7 +336,8 @@ class Driver(EncodedDriveDriver):
             (channel_dir / "period").write_text(str(self._period_ns))
             (channel_dir / "enable").write_text("1")
         except OSError as err:
-            raise self._fail(f"PWM init failed: {err}") from err
+            msg = f"PWM init failed: {err}"
+            raise self._fail(msg) from err
         self._channel_dir = channel_dir
 
         logger.info("DC encoder driver connected on pins %s (PWM %s)", self._pins, channel_dir)
@@ -371,7 +379,8 @@ class Driver(EncodedDriveDriver):
         try:
             (self._channel_dir / "duty_cycle").write_text(str(int(abs(signed) * self._period_ns)))
         except OSError as err:
-            raise self._fail(f"PWM duty_cycle write failed: {err}") from err
+            msg = f"PWM duty_cycle write failed: {err}"
+            raise self._fail(msg) from err
 
     def run_drive_forward(self, speed: int | None = None) -> None:
         """Open-loop forward at ``speed`` percent duty (default 50%)."""

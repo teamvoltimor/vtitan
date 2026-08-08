@@ -36,16 +36,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.enums import Section
-from shared.domain.models import NavigatorDebugSnapshot
 
 from scripts.common.bag_io import Topics, decode_nav_debug, open_reader
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
+
+if TYPE_CHECKING:
+    from shared.domain.models import NavigatorDebugSnapshot
 
 _LIDAR_YAW_OFFSET_RAD = math.radians(
     (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG,

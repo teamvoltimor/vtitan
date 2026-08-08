@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
-from shared.domain.models import CorridorGeometry, InnerBlock
+from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata
 
 _TRACK_MIN = TrackDimensions.MIN_COORD
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
@@ -60,8 +60,6 @@ def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> CorridorGeo
     scenario's metadata dict (the simulator and the real ROS2 localizer), so
     this parsing lives in exactly one place.
     """
-    from shared.domain.models import ScenarioMetadata
-
     if isinstance(metadata, ScenarioMetadata):
         cw = metadata.corridor_widths
         north = cw.north.width_mm / 1000.0

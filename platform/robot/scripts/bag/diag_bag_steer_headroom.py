@@ -19,6 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import itertools
+
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
@@ -118,7 +120,7 @@ def main() -> None:
     # Rate-limit pressure: how often did the command move by the full allowance?
     steers = [(t, snap.commanded_steering_norm) for t, snap in rows if isinstance(snap.commanded_steering_norm, (int, float))]
     deltas = []
-    for (t0, s0), (t1, s1) in zip(steers, steers[1:]):
+    for (t0, s0), (t1, s1) in itertools.pairwise(steers):
         dt = t1 - t0
         if _DELTA_TIME_MIN_S < dt < _DELTA_TIME_MAX_S:
             deltas.append(abs(s1 - s0) / dt)

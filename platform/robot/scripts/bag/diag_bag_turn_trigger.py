@@ -25,10 +25,11 @@ from __future__ import annotations
 
 import math
 import sys
-from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
@@ -37,6 +38,9 @@ from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
 from src.navigation.utils import _forward_clearance, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 # A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be

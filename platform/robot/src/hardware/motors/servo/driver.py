@@ -108,10 +108,13 @@ class Driver(SteeringDriver):
         """Export the PWM channel and wait for it to become writable."""
         chip = self._chip_dir
         if not chip.is_dir():
-            raise self._fail(
+            msg = (
                 f"{chip} not present -- hardware PWM overlay missing. Add "
                 f"'dtoverlay=pwm,pin={self._config.gpio_pin},func=4' to "
-                "/boot/firmware/config.txt and reboot",
+                "/boot/firmware/config.txt and reboot"
+            )
+            raise self._fail(
+                msg,
             )
 
         channel_dir = chip / f"pwm{self._config.pwm_channel}"
@@ -121,7 +124,8 @@ class Driver(SteeringDriver):
             except OSError as err:
                 # EBUSY means someone already exported it, which is fine.
                 if not channel_dir.is_dir():
-                    raise self._fail(f"cannot export PWM channel: {err}") from err
+                    msg = f"cannot export PWM channel: {err}"
+                    raise self._fail(msg) from err
 
         # Wait out the export/udev race described on _EXPORT_TIMEOUT_S.
         deadline = time.monotonic() + _EXPORT_TIMEOUT_S
@@ -131,9 +135,12 @@ class Driver(SteeringDriver):
                 return channel_dir
             time.sleep(0.05)
 
-        raise self._fail(
+        msg = (
             f"{channel_dir} did not become writable within {_EXPORT_TIMEOUT_S}s "
-            "(is the service user in the 'gpio' group?)",
+            "(is the service user in the 'gpio' group?)"
+        )
+        raise self._fail(
+            msg,
         )
 
     @override
@@ -154,7 +161,8 @@ class Driver(SteeringDriver):
             (channel_dir / "period").write_text(str(_PERIOD_NS))
             (channel_dir / "enable").write_text("1")
         except OSError as err:
-            raise self._fail(f"PWM init failed: {err}") from err
+            msg = f"PWM init failed: {err}"
+            raise self._fail(msg) from err
 
         self._channel_dir = channel_dir
         self.center_steering()
@@ -198,14 +206,16 @@ class Driver(SteeringDriver):
         """
         del speed  # servo self-paces; no host-side rate control
         if self._channel_dir is None:
-            raise self._fail("driver not connected")
+            msg = "driver not connected"
+            raise self._fail(msg)
 
         pulse_us = self._position_to_pulse_us(position)
         if self._pulse_us is None or abs(pulse_us - self._pulse_us) >= _PULSE_EPSILON_US:
             try:
                 (self._channel_dir / "duty_cycle").write_text(str(int(pulse_us * NS_PER_US)))
             except OSError as err:
-                raise self._fail(f"PWM duty_cycle write failed: {err}") from err
+                msg = f"PWM duty_cycle write failed: {err}"
+                raise self._fail(msg) from err
             self._pulse_us = pulse_us
         self._position = position
 

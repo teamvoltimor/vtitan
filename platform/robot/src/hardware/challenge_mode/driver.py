@@ -41,7 +41,7 @@ class Driver:
         """True if the jumper is shorting the pin to GND (Obstacle Challenge)."""
         if self._input is None:
             self.connect()
-        assert self._input is not None
+        assert self._input is not None  # noqa: S101 - guaranteed by connect(); narrows type for mypy
         return bool(self._input.is_active)
 
     def close(self) -> None:

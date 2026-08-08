@@ -36,15 +36,18 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
     _clamp,
     _wrap as _wrap_angle,
 )
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +101,6 @@ class AckermannKinematics:
         substeps: int = 5,
         rear_steer_ratio: float | None = None,
         max_speed_mps: float | None = None,
-        tuning: NavigationTuning | None = None,
         context: KinematicsContext | None = None,
     ) -> None:
         if context is None:

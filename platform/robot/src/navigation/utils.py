@@ -1,5 +1,7 @@
-"""Shared navigation helpers extracted from corridor_estimator, corridor_follower,
-direction_estimator to eliminate identical module-private definitions.
+"""Shared navigation helpers.
+
+Extracted from corridor_estimator, corridor_follower, direction_estimator to
+eliminate identical module-private definitions.
 """
 
 from __future__ import annotations
@@ -8,12 +10,13 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import get_tuning
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 
 def _wrap(angle: float) -> float:

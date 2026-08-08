@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import logging
 import math
+from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _local_frame, _pure_pursuit_steer
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +200,7 @@ class WaypointController:
         waypoint_index: int,
         lookahead_distance: float,
     ) -> tuple[float, float]:
-        """Find the path point at least ``lookahead_distance`` ahead, and
-        geometrically ahead of the chassis right now.
+        """Find the path point at least ``lookahead_distance`` ahead of the chassis.
 
         Searches forward from ``waypoint_index``, wrapping around the end of
         the list back to the start -- at most one full lap. ``waypoints`` is

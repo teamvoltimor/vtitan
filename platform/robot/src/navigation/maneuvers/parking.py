@@ -24,9 +24,9 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, ParkPhase, Section
 from shared.domain.models import BlockPosition, ParkingLot
 
@@ -36,6 +36,9 @@ from src.navigation.utils import (
   _local_frame,
   _pure_pursuit_steer as _shared_pure_pursuit_steer,
 )
+
+if TYPE_CHECKING:
+  from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
@@ -540,11 +543,12 @@ def _bearing_error(
 
 
 def _pure_pursuit_steer(x_local: float, y_local: float, context: ParkingContext) -> float:
-    """``ParkController``-bound wrapper: always aims directly at a single fixed
-    target (unlike ``WaypointController``, which searches a path for a point at a
-    fixed lookahead distance), so it supplies its own lookahead floor here rather
-    than at each call site. See ``src.navigation.utils._pure_pursuit_steer`` for
-    the shared formula and its physical reasoning.
+    """Aim directly at a single fixed target for ``ParkController``.
+
+    Unlike ``WaypointController`` (which searches a path for a point at a fixed
+    lookahead distance), this supplies its own lookahead floor here rather than
+    at each call site. See ``src.navigation.utils._pure_pursuit_steer`` for the
+    shared formula and its physical reasoning.
     """
     return _shared_pure_pursuit_steer(x_local, y_local, context.constants.min_lookahead_dist_m)
 

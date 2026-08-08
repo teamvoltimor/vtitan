@@ -44,13 +44,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _dist2d
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.models import Detection
 
 logger = logging.getLogger(__name__)

@@ -22,6 +22,7 @@ Two distinct uses here:
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config.constants import CompetitionSpecs
 
@@ -68,9 +69,11 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
 
     @property
     def resolved_telemetry_channel_target(self) -> str:
+        """The telemetry channel to use, defaulting to the command channel."""
         return self.telemetry_channel_target or self.command_channel_target
 
     def as_node_parameters(self) -> dict[str, str]:
+        """Dict of parameters to pass to telemetry_bridge_node."""
         return {
             "backend_url": self.backend_url,
             "command_channel_target": self.command_channel_target,
@@ -133,17 +136,19 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # which dwarfs everything else here combined and is what turns a race bag
     # into a full SD card. The detections it produces are recorded instead,
     # which is what replaying a run's decisions actually needs.
-    bag_topics: list[str] = [
-        "/scan",
-        "/imu/data",
-        "/vision/detections",
-        "/ackermann_cmd",
-        "/robot_state",
-        "/race_metrics",
-        "/nav_debug",
-        "/system_status",
-        "/motor/drive_speed",
-        "/motor/steering_position",
-        "/tf",
-        "/tf_static",
-    ]
+    bag_topics: list[str] = Field(
+        default_factory=lambda: [
+            "/scan",
+            "/imu/data",
+            "/vision/detections",
+            "/ackermann_cmd",
+            "/robot_state",
+            "/race_metrics",
+            "/nav_debug",
+            "/system_status",
+            "/motor/drive_speed",
+            "/motor/steering_position",
+            "/tf",
+            "/tf_static",
+        ]
+    )

@@ -162,6 +162,14 @@ encoder feedback, see dc_encoder/driver.py's get_drive_speed()) -- rev/s is
 just that divided by 360, with no wheel-radius conversion (and its
 measurement uncertainty) involved at all."""
 
+_DIAG_UI_SUMMARY_GAP_S = 0.5
+"""Warn when ui_summary receives are this far apart. TEMP DIAGNOSTIC
+(2026-07-28): see _ui_summary_callback. Remove once root-caused."""
+
+_DIAG_SHOW_IMAGE_SLOW_S = 0.3
+"""Warn when show_image() exceeds this wall-time. TEMP DIAGNOSTIC
+(2026-07-28): see _update_display. Remove once root-caused."""
+
 _DISPLAY_DRIVER_BY_BACKEND = {
     DisplayBackend.BLINKA: BlinkaDriver,
     DisplayBackend.RAW_I2C: RawI2CDriver,
@@ -427,7 +435,7 @@ class OLEDDisplayNode(LifecycleNode):
         now_monotonic = time.monotonic()
         if self._last_ui_summary_receive_time is not None:
             gap = now_monotonic - self._last_ui_summary_receive_time
-            if gap > 0.5:
+            if gap > _DIAG_UI_SUMMARY_GAP_S:
                 self.get_logger().warning(f"[DIAG] ui_summary receive gap: {gap:.2f}s (expected ~0.1s)")
         self._last_ui_summary_receive_time = now_monotonic
 
@@ -486,7 +494,7 @@ class OLEDDisplayNode(LifecycleNode):
         write_start = time.monotonic()
         self.display_driver.show_image(image)
         write_duration = time.monotonic() - write_start
-        if write_duration > 0.3:
+        if write_duration > _DIAG_SHOW_IMAGE_SLOW_S:
             self.get_logger().warning(f"[DIAG] show_image took {write_duration:.2f}s (expected ~0.1s)")
 
         # Publish mirror for remote viewing

@@ -19,6 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import itertools
+
 from shared.domain.enums import Direction, Section
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
@@ -46,7 +48,7 @@ def main() -> None:
 
     # Gate 2: did the waypoint index ever wrap?
     idx = [(t, snap.waypoint_index) for t, snap in posed if snap.waypoint_index is not None]
-    wraps = [(t1, a, b) for (t0_, a), (t1, b) in zip(idx, idx[1:]) if b < a - 1]
+    wraps = [(t1, a, b) for (t0_, a), (t1, b) in itertools.pairwise(idx) if b < a - 1]
     print(f"waypoint_index range: {min(i for _, i in idx)}..{max(i for _, i in idx)}")
     print(f"waypoint wraps: {len(wraps)}  " + ", ".join(f"{t:.0f}s({a}->{b})" for t, a, b in wraps[:12]))
 

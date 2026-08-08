@@ -39,7 +39,6 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
@@ -47,6 +46,8 @@ from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap, axis_o
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
 """Back off when the wall ahead is this close.

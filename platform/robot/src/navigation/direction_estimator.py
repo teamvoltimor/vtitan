@@ -42,8 +42,6 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CorridorDimensions
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction
 
 from src.config.tuning_helpers import get_tuning
@@ -51,6 +49,8 @@ from src.navigation.utils import _nearest_ray, axis_error_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 
 def infer_direction(
@@ -141,8 +141,9 @@ class DirectionEstimator:
 
     @property
     def votes(self) -> dict[Direction, int]:
-        """Current vote tally per direction, for telemetry (a copy -- callers
-        cannot perturb the real count through it).
+        """Current vote tally per direction, for telemetry.
+
+        A copy -- callers cannot perturb the real count through it.
         """
         return dict(self._votes)
 

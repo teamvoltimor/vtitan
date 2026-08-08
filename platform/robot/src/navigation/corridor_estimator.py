@@ -38,7 +38,6 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import CorridorWidthMeasurement
 
@@ -48,6 +47,8 @@ from src.navigation.utils import _nearest_ray, _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 _NARROW = CorridorDimensions.NARROW
 _WIDE = CorridorDimensions.WIDE

@@ -35,14 +35,13 @@ from typing import TYPE_CHECKING, Any
 from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.enums import Direction, Section
-from shared.domain.models import SignColor
+from shared.domain.models import ScenarioMetadata, SignColor
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.geometry import behind_tolerance_m, chassis_half_diagonal_m
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
-    detection_to_observation,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d
@@ -794,8 +793,6 @@ def signs_from_metadata(metadata: dict | Any) -> list[SignSpec]:
     Returns:
         List of SignSpec for all signs in the scenario.
     """
-    from shared.domain.models import ScenarioMetadata
-
     if isinstance(metadata, ScenarioMetadata):
         return [SignSpec(x=s.x, y=s.y, color=s.color) for s in metadata.sign_positions]
     sign_positions = metadata.get(DictKeys.SIGN_POSITIONS, [])

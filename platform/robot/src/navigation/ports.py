@@ -30,9 +30,10 @@ class LidarScan:
     angles_rad: tuple[float, ...]
 
     def __repr__(self) -> str:
-        """Ray count + range span, not every ray -- the default dataclass repr
-        of a 720-ray scan is ~10,000 characters, unusable in a test failure or
-        a debug print.
+        """Ray count + range span, not every ray.
+
+        The default dataclass repr of a 720-ray scan is ~10,000 characters,
+        unusable in a test failure or a debug print.
         """
         n = len(self.ranges_m)
         if n == 0:

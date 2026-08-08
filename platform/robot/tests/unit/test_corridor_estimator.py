@@ -58,7 +58,8 @@ class TestMeasureCorridorWidth:
         offset, _ = _scan(0.45, 0.15)
         c = measure_corridor_width(centred, angles, yaw=0.0)
         o = measure_corridor_width(offset, angles, yaw=0.0)
-        assert c is not None and o is not None
+        assert c is not None
+        assert o is not None
         assert c.width_m == pytest.approx(o.width_m)
 
     def test_works_on_every_track_axis(self) -> None:

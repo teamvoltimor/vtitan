@@ -43,13 +43,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import TuningContext
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 _QUARTER = math.pi / 2
 

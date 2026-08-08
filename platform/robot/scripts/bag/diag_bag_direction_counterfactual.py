@@ -26,13 +26,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from typing import TYPE_CHECKING
+
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import NavigatorDebugSnapshot
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
 from src.navigation.utils import _wrap
+
+if TYPE_CHECKING:
+    from shared.domain.models import NavigatorDebugSnapshot
 
 _MIN_VOTES = 5
 _MAX_RANGE_FILL_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1

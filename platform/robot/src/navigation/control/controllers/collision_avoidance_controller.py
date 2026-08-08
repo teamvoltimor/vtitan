@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, ManeuverType, RiskLevel
 from shared.domain.models import SectorRanges
 
@@ -22,6 +21,8 @@ from src.config.tuning_helpers import get_tuning
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def mask_mapped_obstacles(
 
     Masked rays are set to ``inf`` rather than dropped, so the returned array
     stays index-aligned with ``lidar_angles``. ``inf`` is already this module's
-    no-return sentinel: ``_sector_ranges`` filters it via ``np.isfinite`` and
+    no-return sentinel: ``sector_ranges`` filters it via ``np.isfinite`` and
     ``_forward_path_ranges`` rejects it via its lateral-offset test.
 
     Args:
@@ -212,7 +213,7 @@ class CollisionAvoidanceController:
                 available (m)
             blind_wedge_left_min_deg: Start bearing (deg) of the rear-left
                 mount-occlusion wedge, excluded from every sector by angle
-                regardless of range (see ``_sector_ranges``)
+                regardless of range (see ``sector_ranges``)
             blind_wedge_left_max_deg: End bearing (deg) of the rear-left wedge
             blind_wedge_right_min_deg: Start bearing (deg) of the rear-right
                 mount-occlusion wedge
@@ -344,7 +345,7 @@ class CollisionAvoidanceController:
         return RiskLevel.SAFE
 
     @staticmethod
-    def _sector_ranges(
+    def sector_ranges(
         lidar_ranges: np.ndarray | tuple[float, ...],
         lidar_angles: np.ndarray | tuple[float, ...] | None,
         center_rad: float,
@@ -367,7 +368,7 @@ class CollisionAvoidanceController:
 
         A staticmethod on purpose: called both as an instance method (which
         passes its own tuning-sourced thresholds explicitly) and directly as
-        ``CollisionAvoidanceController._sector_ranges(...)`` by external,
+        ``CollisionAvoidanceController.sector_ranges(...)`` by external,
         instance-less callers (e.g. telemetry_bridge_node.py's OLED summary),
         which fall back to these keyword defaults.
 
@@ -388,15 +389,19 @@ class CollisionAvoidanceController:
             min_valid_range_m: LIDAR ranges at or below this are treated as
                 invalid (no-return) readings (m), used when
                 ``filter_self_detection`` is not set.
-            blind_wedge_left_min_rad / blind_wedge_left_max_rad /
-            blind_wedge_right_min_rad / blind_wedge_right_max_rad: Bearing
-                ranges (radians) always excluded, regardless of range. These
-                cover the two rear-corner mount-occlusion wedges measured
-                2026-08-04, where self-collision reads as a real close range
-                at every distance -- a distance threshold can't separate that
-                from a genuine close obstacle at the same bearing, so this is
-                filtered by angle instead. Always applied (not gated behind
-                ``filter_self_detection``): the pure-forward bearing never
+            blind_wedge_left_min_rad: Start bearing of the left rear blind
+                wedge (radians).
+            blind_wedge_left_max_rad: End bearing of the left rear blind wedge
+                (radians).
+            blind_wedge_right_min_rad: Start bearing of the right rear blind
+                wedge (radians).
+            blind_wedge_right_max_rad: End bearing of the right rear blind
+                wedge (radians). These cover the two rear-corner mount-occlusion
+                wedges measured 2026-08-04, where self-collision reads as a real
+                close range at every distance -- a distance threshold can't
+                separate that from a genuine close obstacle at the same bearing,
+                so this is filtered by angle instead. Always applied (not gated
+                behind ``filter_self_detection``): the pure-forward bearing never
                 overlaps these rear wedges, so there's no case where a real
                 forward contact would be discarded by them.
             apply_blind_wedge_mask: Set False to skip the wedge exclusion --
@@ -464,7 +469,7 @@ class CollisionAvoidanceController:
         blind_wedge_right_max_rad: float | None = None,
     ) -> SectorRanges:
         """Compute aggregate metrics for an angular sector as a SectorRanges."""
-        ranges = CollisionAvoidanceController._sector_ranges(
+        ranges = CollisionAvoidanceController.sector_ranges(
             lidar_ranges,
             lidar_angles,
             center_rad,
@@ -488,7 +493,7 @@ class CollisionAvoidanceController:
             # absent. Both cases still report no_data_range_m (a fully-masked
             # sector is no more "definitely clear" than a fully-empty one),
             # but callers that care (e.g. telemetry) can check wedge_masked.
-            unmasked = CollisionAvoidanceController._sector_ranges(
+            unmasked = CollisionAvoidanceController.sector_ranges(
                 lidar_ranges,
                 lidar_angles,
                 center_rad,

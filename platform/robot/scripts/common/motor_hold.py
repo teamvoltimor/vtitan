@@ -11,10 +11,14 @@ this is the one copy.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import rclpy
-from rclpy.node import Node
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from rclpy.node import Node
 
 
 def publish_hold(

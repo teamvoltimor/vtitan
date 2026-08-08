@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from typing import TYPE_CHECKING
 
 import numpy as np
-from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import get_tuning
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 logger = logging.getLogger(__name__)
 

@@ -14,14 +14,18 @@ wiring end-to-end, not building a camera sensor model.
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.planning.sign_discovery import SignSpec
 from src.navigation.utils import _wrap as _wrap_angle
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
+
+    from src.navigation.planning.sign_discovery import SignSpec
 
 
 def emulate_sign_observations(

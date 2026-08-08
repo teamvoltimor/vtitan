@@ -30,13 +30,16 @@ jumper, the same way the challenge mode does.
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, DictKeys, TrackDimensions
-from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Direction, Section
+from shared.domain.enums import CorridorSide, Direction, Section
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 _TRACK_MAX = TrackDimensions.MAX_COORD
 _TRACK_CENTER = _TRACK_MAX / 2
@@ -65,7 +68,6 @@ def start_pose(
     tuning = get_tuning(tuning)
 
     # Derive center bias from tuning (positive toward inner block)
-    from shared.domain.enums import CorridorSide
     center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
         1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
     )
