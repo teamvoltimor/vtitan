@@ -115,7 +115,7 @@ class ThreatDirection(StrEnum):
     NONE = "none"
 
 
-@dataclass
+@dataclass(slots=True)
 class EscapeManeuver:
     """Escape maneuver command.
 

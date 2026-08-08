@@ -7,7 +7,7 @@ import numpy as np
 from shared.domain.models import CameraSize
 
 
-@dataclass
+@dataclass(slots=True)
 class Frame:
     """Captured camera frame."""
 
@@ -17,7 +17,7 @@ class Frame:
     height: int
 
 
-@dataclass
+@dataclass(slots=True)
 class Config:
     """Camera configuration."""
 

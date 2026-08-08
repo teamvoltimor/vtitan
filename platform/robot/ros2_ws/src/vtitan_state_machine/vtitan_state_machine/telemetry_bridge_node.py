@@ -499,7 +499,7 @@ class TelemetryBridgeNode(Node):
                 value = getattr(msg, field, None)
                 if hasattr(value, "__slots__"):
                     result[field] = self._msg_to_dict(value)
-                elif isinstance(value, (list, tuple)):
+                elif isinstance(value, list | tuple):
                     if len(value) > 0 and hasattr(value[0], "__slots__"):
                         result[field] = [self._msg_to_dict(item) for item in value]
                     else:

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from PIL import Image
 
 
-@dataclass
+@dataclass(slots=True)
 class Config:
     """Configuration for OLED display driver."""
 

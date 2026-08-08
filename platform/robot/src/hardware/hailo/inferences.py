@@ -88,7 +88,7 @@ def iter_nms_by_class(raw_output: object) -> Iterator[Detection]:
             loud failure than silently reading coordinates as confidences.
     """
     # A list of per-class arrays: the class is the index, boxes vary per class.
-    if isinstance(raw_output, (list, tuple)):
+    if isinstance(raw_output, list | tuple):
         yield from _iter_per_class_sequence(raw_output)
         return
 

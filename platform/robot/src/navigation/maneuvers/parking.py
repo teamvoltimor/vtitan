@@ -130,7 +130,7 @@ class ParkZone:
 
 
 
-@dataclass
+@dataclass(slots=True)
 class ParkCommand:
     """Motor command from the park controller."""
 

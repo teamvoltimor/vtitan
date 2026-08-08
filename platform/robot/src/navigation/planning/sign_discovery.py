@@ -137,7 +137,7 @@ def _detection_to_world(
 
 
 
-@dataclass
+@dataclass(slots=True)
 class _SignTrack:
     """One candidate sign, accumulated across frames."""
 
