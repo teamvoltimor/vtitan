@@ -202,6 +202,7 @@ tasks:
   lint:
     desc: Run all linters (ruff on Python, golangci-lint on Go, ESLint on frontend, buf lint on proto)
     cmds:
+      - task: shared:lint
       - task: sim:lint
       - task: robot:lint
       - task: backend:lint
@@ -214,6 +215,7 @@ tasks:
   lint:fix:
     desc: Auto-fix linting issues in all modules
     cmds:
+      - task: shared:lint:fix
       - task: sim:lint:fix
       - task: robot:lint:fix
       - task: backend:lint:fix
@@ -690,6 +692,18 @@ tasks:
           else
             uv run pytest tests/ -v
           fi
+
+  shared:lint:
+    desc: Lint shared platform code
+    dir: shared
+    cmds:
+      - uv run ruff check .
+
+  shared:lint:fix:
+    desc: Auto-fix shared platform linting issues
+    dir: shared
+    cmds:
+      - uv run ruff check . --fix
 
   sim:lint:
     desc: Lint simulation code

@@ -196,8 +196,8 @@ select = [
     # flake8-tidy-imports (TID)
     "TID",
 
-    # flake8-type-checking (TCH)
-    "TCH",
+    # flake8-type-checking (TC)
+    "TC",
 
     # flake8-unused-arguments (ARG)
     "ARG",
