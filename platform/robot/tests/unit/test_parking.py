@@ -24,6 +24,7 @@ from shared.domain.models import BlockPosition, ParkingLot
 
 from src.navigation.maneuvers.parking import (
     ParkController,
+    ParkingContext,
     _build_zone,
     _inside_zone,
     _normalise_angle,
@@ -32,6 +33,7 @@ from src.navigation.maneuvers.parking import (
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 from tests.fixtures import ParkingLotFixtures
+from tests.test_constants import PARKING_SOUTH_BLOCK1, PARKING_SOUTH_BLOCK2, PARKING_NORTH_BLOCK1, PARKING_NORTH_BLOCK2, PARKING_EAST_BLOCK1, PARKING_EAST_BLOCK2, PARKING_WEST_BLOCK1, PARKING_WEST_BLOCK2
 
 _CW = Direction.CLOCKWISE
 _CCW = Direction.COUNTERCLOCKWISE
@@ -40,6 +42,13 @@ _SOUTH_CFG = ParkingLotFixtures.south()
 _NORTH_CFG = ParkingLotFixtures.north()
 _EAST_CFG = ParkingLotFixtures.east()
 _WEST_CFG = ParkingLotFixtures.west()
+
+_PARKING_CONTEXT = ParkingContext()
+
+
+def _bp(x: float, y: float) -> BlockPosition:
+    """Shorthand for BlockPosition."""
+    return BlockPosition(x=x, y=y)
 
 
 # Zone geometry
@@ -132,7 +141,7 @@ class TestInsideZone:
     def test_perfectly_placed_footprint_is_parked(self):
         z = self._zone()
         cx, cy = self._bay_centre(z)
-        pos_ok, yaw_ok = _inside_zone(cx, cy, z.target_yaw, z)
+        pos_ok, yaw_ok = _inside_zone(cx, cy, z.target_yaw, z, _PARKING_CONTEXT)
         assert pos_ok
         assert yaw_ok
 
@@ -144,19 +153,19 @@ class TestInsideZone:
         """
         z = self._zone()
         cx, cy = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(cx, cy, z.target_yaw + math.pi / 2, z)
+        pos_ok, _ = _inside_zone(cx, cy, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_nose_through_the_outer_wall_is_not_parked(self):
         z = self._zone()
         cx, _ = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(cx, 0.02, z.target_yaw + math.pi / 2, z)
+        pos_ok, _ = _inside_zone(cx, 0.02, z.target_yaw + math.pi / 2, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_outside_along_the_wall_is_not_parked(self):
         z = self._zone()
         _, cy = self._bay_centre(z)
-        pos_ok, _ = _inside_zone(z.x_min - 0.30, cy, z.target_yaw, z)
+        pos_ok, _ = _inside_zone(z.x_min - 0.30, cy, z.target_yaw, z, _PARKING_CONTEXT)
         assert not pos_ok
 
     def test_parallel_tolerance_follows_the_two_wheel_rule(self):
@@ -164,8 +173,8 @@ class TestInsideZone:
         z = self._zone()
         cx, cy = self._bay_centre(z)
         limit = math.atan2(0.02, RobotSpecs.WHEELBASE)
-        _, just_inside = _inside_zone(cx, cy, z.target_yaw + limit * 0.9, z)
-        _, just_outside = _inside_zone(cx, cy, z.target_yaw + limit * 1.1, z)
+        _, just_inside = _inside_zone(cx, cy, z.target_yaw + limit * 0.9, z, _PARKING_CONTEXT)
+        _, just_outside = _inside_zone(cx, cy, z.target_yaw + limit * 1.1, z, _PARKING_CONTEXT)
         assert just_inside
         assert not just_outside
 
@@ -255,7 +264,7 @@ def _simulate_park(
     hits: set[str] = set()
 
     def _finish(stopped: bool, steps: int) -> ParkRun:
-        pos_ok, yaw_ok = _inside_zone(state.x, state.y, state.yaw, ctrl.zone)
+        pos_ok, yaw_ok = _inside_zone(state.x, state.y, state.yaw, ctrl.zone, _PARKING_CONTEXT)
         return ParkRun(
             stopped=stopped,
             parked=stopped and not ctrl.is_timed_out and pos_ok and yaw_ok,
@@ -347,7 +356,7 @@ for _section, _cfg in (
     (Section.WEST, _WEST_CFG),
 ):
     _zone = _build_zone(_cfg.block1_position, _cfg.block2_position, _section, _CCW)
-    _staging = _staging_pos(_zone, _section)
+    _staging = _staging_pos(_zone, _section, _PARKING_CONTEXT)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0
         _pos = (_staging[0] + 0.15, _staging[1] + _sign * -0.02)

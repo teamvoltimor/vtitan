@@ -363,7 +363,7 @@ class ParkController:
             # from the target instead of toward it. Reverse immediately rather than trust it.
             return self._start_reposition(robot_pos, robot_yaw, target, phase_name, "target behind")
 
-        steer = _pure_pursuit_steer(x_local, y_local)
+        steer = _pure_pursuit_steer(x_local, y_local, self._context)
 
         if abs(steer) >= self._context.constants.saturated_steer_threshold:
             self._saturated_ticks += 1
@@ -546,14 +546,14 @@ def _bearing_error(
 # Already defined above via _DEFAULT_PARKING_CONSTANTS
 
 
-def _pure_pursuit_steer(x_local: float, y_local: float) -> float:
+def _pure_pursuit_steer(x_local: float, y_local: float, context: ParkingContext) -> float:
     """``ParkController``-bound wrapper: always aims directly at a single fixed
     target (unlike ``WaypointController``, which searches a path for a point at a
     fixed lookahead distance), so it supplies its own lookahead floor here rather
     than at each call site. See ``src.navigation.utils._pure_pursuit_steer`` for
     the shared formula and its physical reasoning.
     """
-    return _shared_pure_pursuit_steer(x_local, y_local, _MIN_LOOKAHEAD_DIST)
+    return _shared_pure_pursuit_steer(x_local, y_local, context.constants.min_lookahead_dist_m)
 
 
 def _chassis_corners(
