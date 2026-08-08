@@ -74,22 +74,22 @@ class _ParkingConstants:
         marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
     )
 
-_DEFAULT_PARKING_CONSTANTS = _ParkingConstants.from_tuning(NavigationTuning.load_default())
+class ParkingContext:
+  """Context holding tuning-derived parking constants, passed to helper functions.
 
-# Module-level defaults for backward compatibility. Overridden by ParkController when tuning is injected.
-_PARALLEL_TOLERANCE_M = _DEFAULT_PARKING_CONSTANTS.parallel_tolerance_m
-_YAW_TOLERANCE = _DEFAULT_PARKING_CONSTANTS.yaw_tolerance
-_APPROACH_CLEARANCE = _DEFAULT_PARKING_CONSTANTS.approach_clearance
-_POS_REACH_DIST = _DEFAULT_PARKING_CONSTANTS.pos_reach_dist_m
-_DEFAULT_MAX_FRAMES = _DEFAULT_PARKING_CONSTANTS.default_max_frames
-_SATURATED_STEER_THRESHOLD = _DEFAULT_PARKING_CONSTANTS.saturated_steer_threshold
-_SATURATION_STUCK_TICKS = _DEFAULT_PARKING_CONSTANTS.saturation_stuck_ticks
-_REPOSITION_SPEED = _DEFAULT_PARKING_CONSTANTS.reposition_speed
-_REPOSITION_STEER_MAG = _DEFAULT_PARKING_CONSTANTS.reposition_steer_mag
-_REPOSITION_FRAMES = _DEFAULT_PARKING_CONSTANTS.default_max_frames  # reuses default_max_frames
-_MIN_LOOKAHEAD_DIST = _DEFAULT_PARKING_CONSTANTS.min_lookahead_dist_m
-_WALL_STANDOFF = _DEFAULT_PARKING_CONSTANTS.wall_standoff_m
-_MARKER_STANDOFF = _DEFAULT_PARKING_CONSTANTS.marker_standoff_m
+  Eliminates module-level constants by holding them in an instance,
+  which is passed to functions that need them. Enables test-time tuning injection.
+  """
+
+  def __init__(self, tuning: NavigationTuning | None = None) -> None:
+    """Initialize parking context from tuning."""
+    self.tuning = tuning or NavigationTuning()
+    self.constants = _ParkingConstants.from_tuning(self.tuning)
+
+
+_DEFAULT_PARKING_CONTEXT = ParkingContext()
+
+# Note: All module-level constants have been removed. Access via ParkingContext instance.
 
 
 @dataclass(frozen=True)
@@ -187,9 +187,10 @@ class ParkController:
         max_frames: int | None = None,
         tuning: NavigationTuning | None = None,
     ) -> None:
-        if max_frames is None:
-            max_frames = _DEFAULT_MAX_FRAMES
         self._tuning = tuning or NavigationTuning()
+        self._context = ParkingContext(self._tuning)
+        if max_frames is None:
+            max_frames = self._context.constants.default_max_frames
         self._section = start_section
         self._direction = direction
         self._speed = speed
@@ -208,7 +209,7 @@ class ParkController:
             start_section,
             direction,
         )
-        self._staging = _staging_pos(self._zone, start_section)
+        self._staging = _staging_pos(self._zone, start_section, self._context)
 
         logger.info(
             "ParkController: zone=%s staging=%s section=%s direction=%s",
@@ -316,7 +317,7 @@ class ParkController:
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         # Early exit: if already inside the zone at any phase, we're done.
-        pos_inside, yaw_ok = _inside_zone(robot_pos[0], robot_pos[1], robot_yaw, self._zone)
+        pos_inside, yaw_ok = _inside_zone(robot_pos[0], robot_pos[1], robot_yaw, self._zone, self._context)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE — already inside zone")
             self._phase = ParkPhase.DONE
@@ -366,7 +367,7 @@ class ParkController:
 
         steer = _pure_pursuit_steer(x_local, y_local)
 
-        if abs(steer) >= _SATURATED_STEER_THRESHOLD:
+        if abs(steer) >= self._context.constants.saturated_steer_threshold:
             self._saturated_ticks += 1
         else:
             self._saturated_ticks = 0
@@ -419,7 +420,7 @@ class ParkController:
         rx, ry = robot_pos
         dist = math.sqrt((tx - rx) ** 2 + (ty - ry) ** 2)
 
-        if self._reposition_frames_left <= 0 and dist < _POS_REACH_DIST:
+        if self._reposition_frames_left <= 0 and dist < self._context.constants.pos_reach_dist_m:
             logger.debug("ParkController: STAGE → ENTER")
             self._phase = ParkPhase.ENTER
             return self._handle_enter(robot_pos, robot_yaw)
@@ -434,7 +435,7 @@ class ParkController:
         z = self._zone
         rx, ry = robot_pos
 
-        pos_inside, yaw_ok = _inside_zone(rx, ry, robot_yaw, z)
+        pos_inside, yaw_ok = _inside_zone(rx, ry, robot_yaw, z, self._context)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE — fully inside the lot, wall-parallel")
             self._phase = ParkPhase.DONE
@@ -520,15 +521,16 @@ def _build_zone(
     )
 
 
-def _staging_pos(zone: ParkZone, section: Section) -> tuple[float, float]:
+def _staging_pos(zone: ParkZone, section: Section, context: ParkingContext) -> tuple[float, float]:
     """Position directly in front of the gap opening, on the track side."""
+    clearance = context.constants.approach_clearance
     if section is Section.SOUTH:
-        return zone.gap_cx, zone.y_max + _APPROACH_CLEARANCE
+        return zone.gap_cx, zone.y_max + clearance
     if section is Section.NORTH:
-        return zone.gap_cx, zone.y_min - _APPROACH_CLEARANCE
+        return zone.gap_cx, zone.y_min - clearance
     if section is Section.EAST:
-        return zone.x_min - _APPROACH_CLEARANCE, zone.gap_cy
-    return zone.x_max + _APPROACH_CLEARANCE, zone.gap_cy  # WEST
+        return zone.x_min - clearance, zone.gap_cy
+    return zone.x_max + clearance, zone.gap_cy  # WEST
 
 
 def _bearing_error(
@@ -672,10 +674,11 @@ def _inside_zone(
     ry: float,
     robot_yaw: float,
     zone: ParkZone,
+    context: ParkingContext,
 ) -> tuple[bool, bool]:
     """Return (fully_parked, parallel_ok) per the WRO parking rule."""
     yaw_err = abs(_normalise_angle(robot_yaw - zone.target_yaw))
-    return _footprint_inside(rx, ry, robot_yaw, zone), yaw_err <= _YAW_TOLERANCE
+    return _footprint_inside(rx, ry, robot_yaw, zone), yaw_err <= context.constants.yaw_tolerance
 
 
 def _normalise_angle(angle: float) -> float:
