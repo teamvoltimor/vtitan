@@ -19,11 +19,12 @@ build-backend = "hatchling.build"
 packages = ["src/shared"]
 
 [tool.ruff]
-# Reuse robot's rich ruleset rather than duplicating it -- shared/ was
-# previously covered by no ruff config at all, so `ruff check .` here fell
-# back to ruff's bare default rules (E4/E7/E9/F) whenever run outside
-# platform/robot (e.g. from the repo root, or before this file existed).
-extend = "../robot/ruff.toml"
+# Extends the common base at platform/ruff.toml (shared with platform/robot,
+# a peer package, not a parent) -- shared/ was previously covered by no ruff
+# config at all, so `ruff check .` here fell back to ruff's bare default
+# rules (E4/E7/E9/F) whenever run outside platform/robot (e.g. from the repo
+# root, or before this file existed).
+extend = "../ruff.toml"
 
 [tool.ruff.lint.isort]
 known-first-party = ["shared"]
