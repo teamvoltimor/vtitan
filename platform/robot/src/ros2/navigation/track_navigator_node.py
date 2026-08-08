@@ -322,6 +322,7 @@ class TrackNavigator(Node, ResettableNode):
                 direction=start_direction,
                 discover=self._blind,
                 discovery_config=tuning.sign_discovery,
+                tuning=tuning,
             )
 
         lap_detector = LapDetector(
