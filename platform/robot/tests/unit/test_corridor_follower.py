@@ -19,7 +19,7 @@ from tests.fixtures import LidarScanBuilder
 from tests.test_constants import CREEP_SPEED_MPS, TURN_ENTRY_MARGIN_M
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning.load_default()
 

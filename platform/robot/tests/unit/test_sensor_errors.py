@@ -223,7 +223,7 @@ class TestWallHeadingCorrectsThem:
         assert yaw_err(biased) < yaw_err(uncorrected)
         assert yaw_err(biased) < 3.0
 
-    @pytest.mark.slow
+    @pytest.mark.slow()
     def test_drift_stops_accumulating(self) -> None:
         """Drift is a ramp; the walls turn it into a bounded error.
 

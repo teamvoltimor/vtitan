@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import String
 
-from scripts.common.bag_io import create_bag_parser, Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
 from scripts.common.tables import print_table
 
 _LOOKAHEAD_PRECISION = 0.02

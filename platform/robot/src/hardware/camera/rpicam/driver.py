@@ -26,9 +26,12 @@ import cv2
 import numpy as np
 from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
-
 from shared.domain.models import CameraSize, ImageRotation
-from src.hardware.camera.base import Driver as CameraDriver, Frame
+
+from src.hardware.camera.base import (
+    Driver as CameraDriver,
+    Frame,
+)
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY

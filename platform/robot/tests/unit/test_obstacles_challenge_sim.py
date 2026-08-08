@@ -49,12 +49,13 @@ import math
 from dataclasses import replace
 
 import pytest
+from shared.domain.models import SignColor
+
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.simulated_hardware_gateway as gateway_module
-from shared.domain.models import SignColor
 from src.navigation.planning.sign_router import signs_from_metadata
-from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
+from src.simulation.scenario_simulator import ScenarioSimulator
 
 logger = logging.getLogger(__name__)
 

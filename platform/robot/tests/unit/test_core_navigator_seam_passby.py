@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from src.navigation.ports import DriveCommand, LidarScan
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning()
 

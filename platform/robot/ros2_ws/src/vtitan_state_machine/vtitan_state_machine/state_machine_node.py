@@ -27,7 +27,7 @@ import json
 import math
 import os
 import socket
-import subprocess  # noqa: S404 - used only to hand a fixed argv to systemd-run
+import subprocess
 import time
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor

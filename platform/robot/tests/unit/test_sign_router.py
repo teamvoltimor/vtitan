@@ -314,7 +314,7 @@ class TestLateralOffsetTracksChassis:
             + TrafficSignSpecs.WIDTH / 2
             + _SIGN_CLEARANCE_MARGIN
         )
-        assert _SIGN_LATERAL_OFFSET == pytest.approx(expected)
+        assert pytest.approx(expected) == _SIGN_LATERAL_OFFSET
 
     def test_offset_uses_the_diagonal_not_the_width(self, router_config):
         """Half-width sizes a pass the robot can only make while already square.
@@ -325,10 +325,10 @@ class TestLateralOffsetTracksChassis:
         bug 47827ca fixed; this pins it from coming back.
         """
         half_width_derivation = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
-        assert _SIGN_LATERAL_OFFSET > half_width_derivation
+        assert half_width_derivation < _SIGN_LATERAL_OFFSET
 
     def test_wall_clearance_tracks_the_same_chassis(self, router_config):
-        assert _WALL_CLEARANCE == pytest.approx(math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2) + 0.04)
+        assert pytest.approx(math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2) + 0.04) == _WALL_CLEARANCE
 
 
 class TestActivationPassedOrdering:

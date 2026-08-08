@@ -22,7 +22,7 @@ from src.navigation.planning.waypoints import (
 )
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning.load_default()
 

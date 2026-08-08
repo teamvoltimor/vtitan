@@ -27,7 +27,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.models import NavigatorDebugSnapshot
 
-from scripts.common.bag_io import create_bag_parser, Topics, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
 from scripts.common.tables import print_table
 
 

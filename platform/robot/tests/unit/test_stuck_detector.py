@@ -8,7 +8,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from src.navigation.control.controllers.stuck_detector import StuckDetector
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning.load_default()
 

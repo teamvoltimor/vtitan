@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 _MAT = TrackDimensions.MAX_COORD
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning()
 

@@ -11,8 +11,8 @@ import numpy as np
 from picamera2 import Picamera2
 from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
-
 from shared.domain.models import CameraSize, ImageRotation
+
 from src.hardware.camera.base import (
     Driver as CameraDriver,
     Frame,
