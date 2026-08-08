@@ -85,51 +85,7 @@ class WallHeadingContext:
 
 _DEFAULT_WALL_HEADING_CONTEXT = WallHeadingContext()
 
-# For backward compatibility, expose constants at module level but via context
-MIN_CONCENTRATION = _DEFAULT_WALL_HEADING_CONTEXT.constants.min_concentration
-"""How aligned the segment directions must be before the estimate is used.
-
-The circular mean's resultant length on a rectilinear scan runs high; a low
-value means the returns disagree about where the walls are, which happens
-mid-corner, against a rotated obstacle, or when most rays are no-returns.
-Reporting nothing is correct there -- the IMU carries heading between
-corrections, so a skipped scan costs only that scan.
-"""
-
-_BASELINE_RAYS = _DEFAULT_WALL_HEADING_CONTEXT.constants.baseline_rays
-"""How far apart the two returns forming a segment are taken.
-
-Not adjacent, which is the obvious choice and does not work. At a typical
-0.7 m wall distance neighbouring rays land 12 mm apart, against 30 mm of range
-noise -- so the direction of an adjacent-point segment is mostly noise pointing
-radially. Measured on one fixture, the concentration of adjacent segments is
-0.08 with noise against 0.99 without: the signal is entirely buried.
-
-Stepping 15 rays gives a baseline around 190 mm at that distance, six times the
-noise, and lifts concentration back above 0.7. Longer would be steadier still
-but starts spanning corners, where the segment joins two surfaces and means
-nothing.
-"""
-
-_MAX_SEGMENT_JUMP_M = _DEFAULT_WALL_HEADING_CONTEXT.constants.max_segment_jump_m
-"""Range step above which the two returns are treated as different surfaces.
-
-Scaled for the baseline above: along a single flat wall the range genuinely
-changes across 15 rays, more so at shallow incidence, so the adjacent-ray
-threshold would reject the very segments being looked for. Still far below a
-corridor width, so a ray pair spanning the inner block and the outer wall is
-rejected.
-"""
-
-_MIN_SEGMENT_M = _DEFAULT_WALL_HEADING_CONTEXT.constants.min_segment_m
-"""Segments shorter than this are dominated by range noise, not wall direction."""
-
-_NEAR_MAX_RANGE_M = _DEFAULT_WALL_HEADING_CONTEXT.constants.near_max_range_m
-"""Returns at or beyond this are no-return rays sanitised to max range."""
-
-_MIN_RETURNS = _DEFAULT_WALL_HEADING_CONTEXT.constants.min_returns
-"""Fewer returns than this cannot form a segment at all."""
-
+# All constants accessed via context.constants — no module-level duplicates
 
 def estimate_yaw_from_walls(
     ranges_m: Sequence[float],
