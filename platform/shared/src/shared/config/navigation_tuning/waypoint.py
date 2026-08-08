@@ -1,0 +1,80 @@
+"""Waypoint generation geometry tuning group."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from shared.config.navigation_tuning._shared import _alias
+from shared.domain.enums import CorridorSide
+
+
+class WaypointParams(BaseModel):
+    """Waypoint generation geometry parameters.
+
+    Attributes:
+        ARC_RADIUS: Corner arc radius (m). Must exceed the Ackermann minimum
+            turning radius (~0.329 m, from the measured WHEELBASE=0.19/
+            MAX_STEERING_ANGLE=0.5236) — enforced by a fail-fast width
+            assertion in ``calculate_waypoints``.
+        DEDUPE_DISTANCE_M: Distance below which consecutive generated
+            waypoints are treated as duplicates and merged.
+        CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints off
+            centre. Magnitude only -- which side it shifts toward is
+            CENTER_BIAS_SIDE, so the two can be tuned independently and a
+            side can be A/B'd without touching the distance.
+        CENTER_BIAS_SIDE: Which boundary CENTER_BIAS_M shifts the path toward.
+            Was fixed at OUTER and spelled into the constant's own name
+            (OUTER_WALL_BIAS), which made the preference an assumption of the
+            code rather than a setting. Clearance is symmetric either way --
+            0.05 off centre leaves 0.353 m to the near boundary in a 1.0 m
+            corridor and 0.153 m in a 0.6 m one, whichever side it is -- so the
+            outward choice bought nothing and lengthened every lap, since a
+            path further from the inner block is a longer way round.
+        NUM_INTERMEDIATE_ARC_POINTS: Number of intermediate sample points
+            per corner arc.
+        STRAIGHT_WAYPOINT_COUNT: Number of evenly spaced waypoints generated
+            along a straight corridor segment.
+        MAIN_LOOP_REACHED_DISTANCE_M: Distance within which CoreNavigator's
+            own main loop counts a waypoint as reached. Deliberately a
+            different (coarser) value than CONTROLLER_REACHED_DISTANCE_M —
+            the two serve different layers, not a single duplicated concept.
+        CONTROLLER_REACHED_DISTANCE_M: Distance within which
+            WaypointController's own internal pure-pursuit logic counts a
+            waypoint as reached.
+        REPLAN_HEADING_TIE_MARGIN_M: When ``CoreNavigator.replace_path`` is
+            given the robot's current heading, candidate waypoints within
+            this much of the nearest one's distance are re-ranked by heading
+            agreement instead of taking the nearest purely by position. Near
+            a corner, several waypoints can sit at almost the same distance
+            from the robot while pointing in very different directions --
+            picking purely by position there can hand the pursuit controller
+            a point past the turn, demanding a correction far larger than
+            finishing the corner needs. Measured on real hardware: a ~193 deg
+            swing where completing the corner only needed ~90 deg, right
+            after a blind round's direction inference committed. Deliberately
+            a tie-margin rather than a blended cost -- it only overrides the
+            nearest-position pick when a comparably-close, better-aligned
+            alternative actually exists, so the normal small-adjustment
+            reseek (``_update_layout_belief``, following an already-similar
+            path) is unaffected.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ARC_RADIUS: float = Field(default=0.45, validation_alias=_alias("ARC_RADIUS"))
+    DEDUPE_DISTANCE_M: float = Field(default=0.001, validation_alias=_alias("DEDUPE_DISTANCE_M"))
+    CENTER_BIAS_M: float = Field(default=0.05, validation_alias=_alias("CENTER_BIAS_M"))
+    CENTER_BIAS_SIDE: CorridorSide = Field(
+        default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE")
+    )
+    NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))
+    STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
+    MAIN_LOOP_REACHED_DISTANCE_M: float = Field(
+        default=0.20, validation_alias=_alias("MAIN_LOOP_REACHED_DISTANCE_M")
+    )
+    CONTROLLER_REACHED_DISTANCE_M: float = Field(
+        default=0.01, validation_alias=_alias("CONTROLLER_REACHED_DISTANCE_M")
+    )
+    REPLAN_HEADING_TIE_MARGIN_M: float = Field(
+        default=0.15, validation_alias=_alias("REPLAN_HEADING_TIE_MARGIN_M")
+    )
