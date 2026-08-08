@@ -89,7 +89,7 @@ class ParkingContext:
 
 _DEFAULT_PARKING_CONTEXT = ParkingContext()
 
-# Note: All module-level constants have been removed. Access via ParkingContext instance.
+# All constants accessed via context.constants — no module-level duplicates
 
 
 @dataclass(frozen=True)
@@ -372,7 +372,7 @@ class ParkController:
         else:
             self._saturated_ticks = 0
 
-        if self._saturated_ticks >= _SATURATION_STUCK_TICKS:
+        if self._saturated_ticks >= self._context.constants.saturation_stuck_ticks:
             # Steering has been pinned at physical lock for a full second straight: the
             # required curvature genuinely exceeds what the chassis can do going forward
             # (see the module-level comment). Reverse to open room instead of continuing to
@@ -399,12 +399,12 @@ class ParkController:
             math.degrees(bearing_err),
         )
         self._saturated_ticks = 0
-        self._reposition_frames_left = _REPOSITION_FRAMES
-        self._reposition_speed = _REPOSITION_SPEED
+        self._reposition_frames_left = self._context.constants.default_max_frames
+        self._reposition_speed = self._context.constants.reposition_speed
         # Sign-flipped for reverse Ackermann geometry (v<0 inverts the yaw-rate response
         # to a given steer sign), biased toward whichever side the target currently bears.
         self._reposition_steer = -_clamp(
-            _REPOSITION_STEER_MAG * (1.0 if bearing_err > 0 else -1.0),
+            self._context.constants.reposition_steer_mag * (1.0 if bearing_err > 0 else -1.0),
             -1.0,
             1.0,
         )
