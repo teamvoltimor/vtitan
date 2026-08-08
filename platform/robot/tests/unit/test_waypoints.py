@@ -11,11 +11,13 @@ from shared.config.navigation_tuning import NavigationTuning
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
     _build_corridor_order,
+    _corner_arc_radius,
     _deduplicate_consecutive,
     _rotate_to_start,
     _straight_waypoints,
     calculate_waypoints,
     corridor_for_position,
+    validate_path_feasibility,
 )
 
 
@@ -88,6 +90,75 @@ class TestGenerateCornerArc:
         # End should be around (1.5, 1.05)
         assert arc[-1][0] == pytest.approx(1.5, abs=0.01)
         assert arc[-1][1] == pytest.approx(1.05, abs=0.01)
+
+
+class TestCornerArcRadius:
+    """The corner radius is sized by the two corridors the corner joins.
+
+    A single global radius was correct for every corner type except
+    narrow-to-narrow, where it cost more than half the available clearance --
+    the arc bulged past the centreline and toward the inner block while the
+    straights sat comfortably clear.
+    """
+
+    _CAP = 0.45
+    _BIAS = 0.05
+
+    def test_only_narrow_to_narrow_tightens(self) -> None:
+        """Three of the four corner types keep the configured radius."""
+        assert _corner_arc_radius(0.6, 0.6, self._BIAS, self._CAP) == pytest.approx(0.25)
+        assert _corner_arc_radius(0.6, 1.0, self._BIAS, self._CAP) == pytest.approx(0.45)
+        assert _corner_arc_radius(1.0, 0.6, self._BIAS, self._CAP) == pytest.approx(0.45)
+        assert _corner_arc_radius(1.0, 1.0, self._BIAS, self._CAP) == pytest.approx(0.45)
+
+    def test_symmetric_in_entry_and_exit(self) -> None:
+        """The same physical corner plans the same arc whichever way it is driven.
+
+        Direction-asymmetric geometry is a recurring source of bugs here (the
+        lap line anchored at the measured start, the router's reversed CCW
+        rows), so this holds by construction rather than by coincidence.
+        """
+        for entry, exit_ in ((0.6, 1.0), (1.0, 0.6), (0.6, 0.6)):
+            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+                _corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
+            )
+
+    def test_never_exceeds_the_configured_cap(self) -> None:
+        assert _corner_arc_radius(4.0, 4.0, self._BIAS, self._CAP) == pytest.approx(self._CAP)
+
+    def test_outward_bias_widens_the_arc(self) -> None:
+        """An outward bias leaves more room at the corner, so the arc may open up."""
+        inward = _corner_arc_radius(0.6, 0.6, 0.05, self._CAP)
+        outward = _corner_arc_radius(0.6, 0.6, -0.05, self._CAP)
+        assert outward > inward
+
+
+class TestPathFeasibility:
+    """Feasibility is about fitting the chassis, not about the corner arcs.
+
+    The arcs are capped at the clearance the straights already have, so a corner
+    can never be the tightest point -- which is what the old
+    ``WIDTH/2 + arc_radius`` form tried and failed to express, since it summed a
+    path curvature with a lateral half-extent and ignored the bias entirely.
+    """
+
+    def test_bias_consumes_margin(self) -> None:
+        centred = validate_path_feasibility(0.6, 0.0)
+        biased = validate_path_feasibility(0.6, 0.05)
+        assert centred.is_feasible
+        assert biased.is_feasible
+        # Biasing 0.05 off centre spends 0.05 at each wall.
+        assert centred.margin_m - biased.margin_m == pytest.approx(0.10)
+
+    def test_bias_direction_does_not_matter(self) -> None:
+        assert validate_path_feasibility(0.6, 0.05).margin_m == pytest.approx(
+            validate_path_feasibility(0.6, -0.05).margin_m
+        )
+
+    def test_rejects_a_corridor_the_chassis_cannot_fit(self) -> None:
+        verdict = validate_path_feasibility(0.15, 0.0)
+        assert not verdict.is_feasible
+        assert verdict.reason
 
 
 class TestGenerateAllWaypoints:
