@@ -14,7 +14,6 @@ from __future__ import annotations
 import math
 import tomllib
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -130,5 +129,5 @@ class RobotConstants(BaseModel):
     def load_default(cls) -> RobotConstants:
         """Load from the checked-in ``platform/shared/config/robot.toml``."""
         with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, Any] = tomllib.load(f)
+            data: dict[str, object] = tomllib.load(f)
         return cls.model_validate(data)

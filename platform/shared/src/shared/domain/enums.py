@@ -40,6 +40,7 @@ class Section(FromStringEnum):
 
     @property
     def capitalized(self) -> str:
+        """Return the section name with an initial capital letter."""
         return self.value.capitalize()
 
     @classmethod
@@ -156,9 +157,11 @@ class NodeHealth(FromStringEnum):
 
 
 class NavigatorPhase(StrEnum):
-    """Which branch of ``CoreNavigator.step()`` produced a given
-    ``NavigatorDebugSnapshot`` -- see that model's docstring for why a field
-    being ``None`` means "not computed on this phase", not "unknown".
+    """Branch of ``CoreNavigator.step()`` that produced a snapshot.
+
+    Which branch produced a given ``NavigatorDebugSnapshot`` -- see that
+    model's docstring for why a field being ``None`` means "not computed on
+    this phase", not "unknown".
     """
 
     NOT_YET_STEPPED = "not_yet_stepped"

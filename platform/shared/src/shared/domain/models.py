@@ -10,6 +10,7 @@ from enum import IntEnum, StrEnum
 from typing import ClassVar
 
 from pydantic import BaseModel, field_validator
+
 from shared.domain.enums import (
     CorridorWidthType,
     Direction,
@@ -112,13 +113,16 @@ class CorridorGeometry:
 
     @property
     def min_width_m(self) -> float:
+        """Return the narrowest corridor width across all four sides."""
         return min(self.north_width_m, self.south_width_m, self.east_width_m, self.west_width_m)
 
     @property
     def mean_width_m(self) -> float:
+        """Return the average corridor width across all four sides."""
         return (self.north_width_m + self.south_width_m + self.east_width_m + self.west_width_m) / 4
 
     def to_widths_dict(self) -> dict[Section, float]:
+        """Return corridor widths keyed by their section."""
         return {
             Section.NORTH: self.north_width_m,
             Section.SOUTH: self.south_width_m,
@@ -184,6 +188,7 @@ class CorridorWidthMeasurement:
 
     @property
     def is_valid(self) -> bool:
+        """Whether the measurement is both plausible and aligned."""
         return self.is_plausible and self.is_aligned
 
 
@@ -231,12 +236,14 @@ class CameraSize:
 
     @property
     def effective_width(self) -> int:
+        """Image width accounting for 90/270-degree rotation."""
         if self.rotation_deg in (ImageRotation.CW_90, ImageRotation.CW_270):
             return self.height_px
         return self.width_px
 
     @property
     def effective_height(self) -> int:
+        """Image height accounting for 90/270-degree rotation."""
         if self.rotation_deg in (ImageRotation.CW_90, ImageRotation.CW_270):
             return self.width_px
         return self.height_px
@@ -277,6 +284,7 @@ class LoopProgress:
 
     @property
     def progress_percent(self) -> float:
+        """Fraction of the race distance completed, as a percentage."""
         if self.total_distance_m == 0:
             return 0.0
         return (self.distance_m / self.total_distance_m) * 100

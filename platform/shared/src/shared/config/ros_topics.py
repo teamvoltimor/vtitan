@@ -12,15 +12,11 @@ Example usage:
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
-
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore
 
 
 class StateMachineTopics(BaseModel):
@@ -111,9 +107,10 @@ class RosTopicConfig(BaseModel):
         """
         path = cls._default_config_path
         if not path.exists():
-            raise FileNotFoundError(f"ROS topics config not found: {path}")
+            msg = f"ROS topics config not found: {path}"
+            raise FileNotFoundError(msg)
 
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             data = tomllib.load(f)
 
         return cls.model_validate(data)
