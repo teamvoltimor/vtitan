@@ -357,6 +357,13 @@ class ScenarioSimulator:
         # which reads as a slow robot and is really just two frames disagreeing.
         # That mistake cost a measured quarter-to-half lap per run before this
         # was made consistent.
+        # Both challenges run the same tuning. An Obstacles-specific profile
+        # (shorter lookahead + capped top speed) used to be applied here; it was
+        # removed once re-measurement showed it changed nothing — see the note in
+        # ``NavigationTuning`` where ``for_obstacles()`` used to be.
+        #
+        # Assigned before the blind branch below, which reads it.
+        self._tuning = tuning if tuning is not None else NavigationTuning.load_default()
         believed_start = start
         if blind:
             # No widths passed, so it falls back to the all-narrow prior --
@@ -373,11 +380,6 @@ class ScenarioSimulator:
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
-        # Both challenges run the same tuning. An Obstacles-specific profile
-        # (shorter lookahead + capped top speed) used to be applied here; it was
-        # removed once re-measurement showed it changed nothing — see the note in
-        # ``NavigationTuning`` where ``for_obstacles()`` used to be.
-        self._tuning = tuning if tuning is not None else NavigationTuning.load_default()
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.

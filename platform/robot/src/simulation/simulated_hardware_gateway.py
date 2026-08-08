@@ -73,7 +73,7 @@ class _SimulatorConstants:
   @classmethod
   def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
     if tuning is None:
-      tuning = NavigationTuning()
+      tuning = NavigationTuning.load_default()
     control_hz = tuning.control.CONTROL_HZ
     return cls(
         control_hz=control_hz,
@@ -87,7 +87,7 @@ class SimulatorContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize simulator context from tuning."""
-    self.tuning = tuning or NavigationTuning()
+    self.tuning = tuning or NavigationTuning.load_default()
     self.constants = _SimulatorConstants.from_tuning(self.tuning)
 
 

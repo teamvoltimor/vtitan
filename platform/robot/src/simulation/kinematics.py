@@ -58,7 +58,7 @@ class _KinematicsConstants:
   @classmethod
   def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
     if tuning is None:
-      tuning = NavigationTuning()
+      tuning = NavigationTuning.load_default()
     return cls(
         max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
         max_accel=RobotSpecs.MAX_ACCEL_MPS2,
@@ -72,7 +72,7 @@ class KinematicsContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize kinematics context from tuning."""
-    self.tuning = tuning or NavigationTuning()
+    self.tuning = tuning or NavigationTuning.load_default()
     self.constants = _KinematicsConstants.from_tuning(self.tuning)
 
 
