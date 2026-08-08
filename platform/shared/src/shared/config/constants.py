@@ -15,6 +15,7 @@ from typing import Final
 from shared.config.robot_constants import RobotConstants
 from shared.config.track_constants import TrackConstants
 from shared.domain.enums import LightingScenario, Section
+from shared.domain.models import SignColor
 
 _robot = RobotConstants.load_default()
 _track = TrackConstants.load_default()
@@ -443,21 +444,6 @@ class FilePaths:
     METADATA_SUFFIX = "_metadata.json"
 
 
-class RandomizationRanges:
-    """Physics and appearance randomization ranges."""
-
-    # Friction
-    FRICTION_MIN = 0.6
-    FRICTION_MAX = 1.2
-
-    # Mass variance
-    MASS_VARIANCE = 0.1
-
-    # Traffic sign quantity
-    SIGNS_MIN = 6
-    SIGNS_MAX = 14
-
-
 class DictKeys:
     """Dictionary keys used throughout the codebase for type safety."""
 
@@ -522,10 +508,15 @@ class DictKeys:
 
 
 class ColorNames:
-    """Traffic sign color identifiers."""
+    """Traffic sign color identifiers.
 
-    RED = "red"
-    GREEN = "green"
+    Sourced from ``shared.domain.models.SignColor`` rather than restated as
+    independent literals, so the two can't drift apart the way ``ColorNames``
+    and ``SignColor`` previously did (identical values, no cross-reference).
+    """
+
+    RED = SignColor.RED.value
+    GREEN = SignColor.GREEN.value
 
 
 class ModelNames:

@@ -11,7 +11,6 @@ from shared.config.constants import (
     LightingSpecs,
     ModelNames,
     ParkingLotSpecs,
-    RandomizationRanges,
     RobotSpecs,
     StartingZoneSpecs,
     TrackDimensions,
@@ -19,7 +18,7 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
-from shared.config.enums import Direction, ScenarioType, Section
+from shared.domain.enums import Direction, ScenarioType, Section
 
 __all__ = [
     "ColorNames",
@@ -33,7 +32,6 @@ __all__ = [
     "LightingSpecs",
     "ModelNames",
     "ParkingLotSpecs",
-    "RandomizationRanges",
     "RobotSpecs",
     "ScenarioType",
     "Section",
