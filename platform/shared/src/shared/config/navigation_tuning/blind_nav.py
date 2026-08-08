@@ -21,11 +21,18 @@ class CorridorEstimatorParams(BaseModel):
             estimate is trusted. Readings are attributed to a corridor by
             heading, so a handful taken while the chassis is still swinging
             through a corner can land in the wrong one.
+        PLAUSIBLE_WIDTH_MARGIN_M: How far outside the legal [NARROW, WIDE]
+            band a measured width may still fall and be treated as a
+            plausibility check failure rather than accepted. Beyond
+            NARROW - this margin or WIDE + this margin, the inward ray has
+            missed the inner block entirely (a corner), not just measured a
+            noisy corridor.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     MIN_SAMPLES: int = Field(default=12, validation_alias=_alias("MIN_SAMPLES"))
+    PLAUSIBLE_WIDTH_MARGIN_M: float = Field(default=0.25, validation_alias=_alias("PLAUSIBLE_WIDTH_MARGIN_M"))
 
 
 class CorridorFollowerParams(BaseModel):
@@ -65,6 +72,10 @@ class CorridorFollowerParams(BaseModel):
             pointed obliquely at the wall beside it.
         TURN_OPEN_RANGE_M: If any bearing within that arc has at least this
             much room, the corridor has not ended and the turn is refused.
+        CORNER_LEAK_MARGIN_M: Added to CorridorDimensions.WIDE to get the
+            side-range limit past which a side has "opened" (leaked past the
+            end of the inner block) and is no longer treated as a corridor
+            wall to centre against.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -77,6 +88,7 @@ class CorridorFollowerParams(BaseModel):
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
     TURN_OPEN_RANGE_M: float = Field(default=1.00, validation_alias=_alias("TURN_OPEN_RANGE_M"))
+    CORNER_LEAK_MARGIN_M: float = Field(default=0.35, validation_alias=_alias("CORNER_LEAK_MARGIN_M"))
 
 
 class DirectionEstimatorParams(BaseModel):
@@ -110,6 +122,12 @@ class DirectionEstimatorParams(BaseModel):
             ray ran off-track into an adjacent corridor rather than both
             reading walls of the current one. The margin absorbs scanning
             slightly off-axis.
+        MIN_VOTES: Agreeing observations DirectionEstimator requires before
+            settling on a direction. Voting rather than trusting a single
+            scan, for the same reason CorridorWidthEstimator does: a ray
+            slipping past a block corner produces brief, clustered
+            misreadings, and one of those arriving first should not decide
+            the round.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -121,6 +139,7 @@ class DirectionEstimatorParams(BaseModel):
     MAX_IN_TRACK_RANGE_M: float = Field(default=4.5, validation_alias=_alias("MAX_IN_TRACK_RANGE_M"))
     MIN_ASYMMETRY_M: float = Field(default=0.20, validation_alias=_alias("MIN_ASYMMETRY_M"))
     PLAUSIBLE_SPAN_THRESHOLD_M: float = Field(default=1.25, validation_alias=_alias("PLAUSIBLE_SPAN_THRESHOLD_M"))
+    MIN_VOTES: int = Field(default=5, validation_alias=_alias("MIN_VOTES"))
 
 
 class LocalizationParams(BaseModel):
@@ -132,6 +151,14 @@ class LocalizationParams(BaseModel):
         GRID_POINTS: Candidates per axis per search pass.
         RESIDUAL_CLIP_M: Per-ray residual clipping distance (m) for the cost
             function (outlier rejection).
+        MAX_SPEED_MPS: Upper bound on real motion between ticks, used to
+            reject a candidate that implies impossible speed. Deliberately
+            above the measured real top speed (0.156 m/s, see
+            RobotSpecs.MAX_SPEED_MPS) to leave headroom for a faster
+            drivetrain later without this guard needing to move with it.
+        JUMP_CONFIRM_TOLERANCE_M: How close two consecutive ticks' rejected
+            candidates must be to count as the same correction confirming
+            itself (see LidarLocalizer._reject_implausible_speed).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -140,6 +167,8 @@ class LocalizationParams(BaseModel):
     PASSES: int = Field(default=4, validation_alias=_alias("PASSES"))
     GRID_POINTS: int = Field(default=5, validation_alias=_alias("GRID_POINTS"))
     RESIDUAL_CLIP_M: float = Field(default=0.25, validation_alias=_alias("RESIDUAL_CLIP_M"))
+    MAX_SPEED_MPS: float = Field(default=0.25, validation_alias=_alias("MAX_SPEED_MPS"))
+    JUMP_CONFIRM_TOLERANCE_M: float = Field(default=0.05, validation_alias=_alias("JUMP_CONFIRM_TOLERANCE_M"))
 
 
 class StateEstimatorParams(BaseModel):

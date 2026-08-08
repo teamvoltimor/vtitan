@@ -1,0 +1,6 @@
+# LIDAR-based start-pose measurement (measure_start_pose) parameters.
+#
+# See shared.config.navigation_tuning.StartMeasurementParams.
+
+ray_half_width_deg = 4.0     # wedge half-width for each cardinal ray's median (converted to radians at point of use)
+closing_tolerance_m = 0.15   # how far forward+back may fall short of the mat before a reading is rejected

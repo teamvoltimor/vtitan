@@ -281,10 +281,24 @@ class SimulatedHardwareGateway:
             believed.y + self._errors.start_pos_error_m * math.sin(seed_bearing),
             self._reported_yaw(),
         )
-        # Uses LidarLocalizer's own defaults, which match NavigationTuning.localization's
-        # defaults -- not threaded through a tuning param here (this __init__ has no
-        # existing tuning-injection path, unlike the real-hardware ROS2HardwareGateway).
-        self._localizer = LidarLocalizer(track.walls) if localize else None
+        # Threaded from self.tuning.localization, matching the real-hardware
+        # ROS2HardwareGateway (which threads the same LocalizationParams
+        # fields) -- previously used LidarLocalizer's own hardcoded defaults
+        # even though this __init__ already accepts and stores `tuning`.
+        loc = self.tuning.localization
+        self._localizer = (
+            LidarLocalizer(
+                track.walls,
+                search_radius_m=loc.SEARCH_RADIUS_M,
+                passes=loc.PASSES,
+                grid_points=loc.GRID_POINTS,
+                residual_clip_m=loc.RESIDUAL_CLIP_M,
+                max_speed_mps=loc.MAX_SPEED_MPS,
+                jump_confirm_tolerance_m=loc.JUMP_CONFIRM_TOLERANCE_M,
+            )
+            if localize
+            else None
+        )
         self._believed_walls: TrackWalls | None = None
 
         self._wall_heading = wall_heading
@@ -419,7 +433,16 @@ class SimulatedHardwareGateway:
         """
         self._believed_walls = walls
         if self._localize:
-            self._localizer = LidarLocalizer(walls)
+            loc = self.tuning.localization
+            self._localizer = LidarLocalizer(
+                walls,
+                search_radius_m=loc.SEARCH_RADIUS_M,
+                passes=loc.PASSES,
+                grid_points=loc.GRID_POINTS,
+                residual_clip_m=loc.RESIDUAL_CLIP_M,
+                max_speed_mps=loc.MAX_SPEED_MPS,
+                jump_confirm_tolerance_m=loc.JUMP_CONFIRM_TOLERANCE_M,
+            )
 
     @property
     def position_error_m(self) -> float:

@@ -9,3 +9,8 @@
 # Requiring a dozen costs about half a second at the 20 Hz control loop and
 # makes a single mis-filed sweep unable to move the answer.
 min_samples = 12
+
+# How far outside the legal [NARROW, WIDE] band a measured width may still
+# fall and be treated as a plausibility failure (a corner, not a noisy
+# corridor) rather than accepted.
+plausible_width_margin_m = 0.25

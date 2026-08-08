@@ -52,3 +52,8 @@ min_asymmetry_m = 0.20
 # Exceeding this sum means one ray ran off-track into an adjacent corridor
 # rather than both reading walls of the current one.
 plausible_span_threshold_m = 1.25
+
+# Agreeing observations DirectionEstimator requires before settling on a
+# direction. Voting rather than trusting a single scan, for the same reason
+# corridor_estimator.toml's min_samples does.
+min_votes = 5

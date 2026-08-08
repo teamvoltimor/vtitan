@@ -119,6 +119,8 @@ class ROS2HardwareGateway(HardwareGateway):
             passes=self._localization_params.PASSES,
             grid_points=self._localization_params.GRID_POINTS,
             residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
+            max_speed_mps=self._localization_params.MAX_SPEED_MPS,
+            jump_confirm_tolerance_m=self._localization_params.JUMP_CONFIRM_TOLERANCE_M,
         )
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
@@ -180,6 +182,8 @@ class ROS2HardwareGateway(HardwareGateway):
             passes=self._localization_params.PASSES,
             grid_points=self._localization_params.GRID_POINTS,
             residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
+            max_speed_mps=self._localization_params.MAX_SPEED_MPS,
+            jump_confirm_tolerance_m=self._localization_params.JUMP_CONFIRM_TOLERANCE_M,
         )
 
     def reset_heading_reference(self) -> None:

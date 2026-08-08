@@ -156,8 +156,14 @@ class SignRouterConfig:
     min_confidence: float = 0.25
     """Minimum detection confidence to accept a camera-based color update."""
 
-    commit_hysteresis: bool = True
-    """Hold the engaged sign across ticks instead of re-racing every tick."""
+    commit_hysteresis: bool = False
+    """Hold the engaged sign across ticks instead of re-racing every tick.
+
+    Matches signs/sign_router.toml's default -- was True here, contradicting
+    the TOML's False, so a bare ``SignRouterConfig()`` (only reachable now if
+    a caller constructs one directly rather than via ``from_tuning()``)
+    silently re-enabled hysteresis the config file disables.
+    """
 
     settle_ticks: int = 150
     """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
@@ -259,7 +265,13 @@ class SignRouter:
         tuning: NavigationTuning | None = None,
     ) -> None:
         self._signs = list(signs)
-        self._config = config or SignRouterConfig()
+        # SignRouterConfig.from_tuning(), not a bare SignRouterConfig(): the
+        # dataclass's own field defaults are a second, independent copy of
+        # the TOML defaults and can drift from them (commit_hysteresis=True
+        # here vs. False in signs/sign_router.toml, until this fix) --
+        # `tuning` is already accepted by this constructor, so there's no
+        # reason the fallback shouldn't use it too.
+        self._config = config or SignRouterConfig.from_tuning(get_tuning(tuning).sign_router)
         self._context = SignRouterContext(tuning)
         self._direction = direction
         self._passed: set[int] = set()

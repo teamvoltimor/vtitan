@@ -54,7 +54,12 @@ from shared.config.navigation_tuning.motion import (
     SpeedControlParams,
 )
 from shared.config.navigation_tuning.parking_params import ParkingParams
-from shared.config.navigation_tuning.sensors import LidarSectorParams, SensorHealthParams, WallHeadingParams
+from shared.config.navigation_tuning.sensors import (
+    LidarSectorParams,
+    SensorHealthParams,
+    StartMeasurementParams,
+    WallHeadingParams,
+)
 from shared.config.navigation_tuning.signs import SignDiscoveryParams, SignRouterParams
 from shared.config.navigation_tuning.simulation_params import SimulationParams
 from shared.config.navigation_tuning.waypoint import WaypointParams
@@ -78,6 +83,7 @@ __all__ = [
     "SignRouterParams",
     "SimulationParams",
     "SpeedControlParams",
+    "StartMeasurementParams",
     "StateEstimatorParams",
     "WallHeadingParams",
     "WaypointParams",
@@ -123,6 +129,7 @@ class NavigationTuning:
     sensor: SensorHealthParams = field(default_factory=SensorHealthParams)
     waypoints: WaypointParams = field(default_factory=WaypointParams)
     lidar_sectors: LidarSectorParams = field(default_factory=LidarSectorParams)
+    start_measurement: StartMeasurementParams = field(default_factory=StartMeasurementParams)
     corridor_estimator: CorridorEstimatorParams = field(default_factory=CorridorEstimatorParams)
     corridor_follower: CorridorFollowerParams = field(default_factory=CorridorFollowerParams)
     direction_estimator: DirectionEstimatorParams = field(default_factory=DirectionEstimatorParams)
@@ -183,6 +190,7 @@ class NavigationTuning:
         ("sensor", SensorHealthParams, "sensors"),
         ("waypoints", WaypointParams, "waypoint"),
         ("lidar_sectors", LidarSectorParams, "sensors"),
+        ("start_measurement", StartMeasurementParams, "sensors"),
         ("corridor_estimator", CorridorEstimatorParams, "blind_nav"),
         ("corridor_follower", CorridorFollowerParams, "blind_nav"),
         ("direction_estimator", DirectionEstimatorParams, "blind_nav"),

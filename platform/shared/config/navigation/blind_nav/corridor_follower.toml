@@ -62,3 +62,8 @@ reverse_speed_scale = 0.6
 # 96% precision.
 turn_arc_half_fov_deg = 15.0
 turn_open_range_m = 1.00
+
+# Added to CorridorDimensions.WIDE to get the side-range limit past which a
+# side has "opened" (leaked past the end of the inner block) and is no longer
+# treated as a corridor wall to centre against.
+corner_leak_margin_m = 0.35
