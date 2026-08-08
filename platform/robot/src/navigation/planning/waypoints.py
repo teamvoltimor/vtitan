@@ -19,6 +19,8 @@ from shared.config.enums import CorridorSide, Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import PathPlannability, ScenarioMetadata
 
+from src.config.tuning_helpers import get_tuning
+
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
@@ -83,8 +85,7 @@ def calculate_waypoints(
 
     Uses tuning: waypoints.ARC_RADIUS, CENTER_BIAS_M, CENTER_BIAS_SIDE
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     if not isinstance(metadata, ScenarioMetadata):
         metadata = ScenarioMetadata.model_validate(metadata)
     arc_radius = arc_radius if arc_radius is not None else tuning.waypoints.ARC_RADIUS
@@ -233,8 +234,7 @@ def _build_waypoint_sequence(
 
     Uses tuning: waypoints.DEDUPE_DISTANCE_M
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     first_seg = segments[order[0]]
     start_index = _nearest_waypoint_index(first_seg, start_x, start_y)
 
@@ -288,8 +288,7 @@ def _deduplicate_consecutive(
 
     Uses tuning: waypoints.DEDUPE_DISTANCE_M
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     if not waypoints:
         return []
     dedupe_distance_m = tuning.waypoints.DEDUPE_DISTANCE_M

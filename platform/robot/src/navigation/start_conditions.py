@@ -35,6 +35,7 @@ from shared.config.constants import CorridorDimensions, DictKeys, TrackDimension
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
 
 _TRACK_MAX = TrackDimensions.MAX_COORD
@@ -58,8 +59,7 @@ def start_pose(
 
     Uses tuning: waypoints.CENTER_BIAS_M, CENTER_BIAS_SIDE
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
 
     # Derive center bias from tuning (positive toward inner block)
     from shared.config.enums import CorridorSide

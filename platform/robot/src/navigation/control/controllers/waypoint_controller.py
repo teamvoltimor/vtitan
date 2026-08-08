@@ -14,6 +14,7 @@ import math
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _local_frame, _pure_pursuit_steer
 
 logger = logging.getLogger(__name__)
@@ -328,8 +329,7 @@ class WaypointController:
 
         Uses tuning: control.CONTROL_HZ
         """
-        if tuning is None:
-            tuning = NavigationTuning.load_default()
+        tuning = get_tuning(tuning)
         if dt is None:
             dt = 1.0 / tuning.control.CONTROL_HZ
 

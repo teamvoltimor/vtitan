@@ -19,15 +19,9 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.sign_discovery import SignSpec
 from src.simulation.geometry import _wrap_angle
-
-_DETECTION_CONFIDENCE: float = NavigationTuning.load_default().simulation.DETECTION_CONFIDENCE
-"""Fixed confidence reported for every emulated detection.
-
-Must stay above the sign router's ``min_confidence`` or no emulated detection
-would ever be accepted -- which is why it is configured next to it rather than
-picked here."""
 
 
 def emulate_sign_observations(
@@ -35,6 +29,7 @@ def emulate_sign_observations(
     robot_pos: tuple[float, float],
     robot_yaw: float,
     max_range: float = RobotSpecs.CAMERA_FAR_CLIP,
+    tuning: NavigationTuning | None = None,
 ) -> list[TrafficSignObservation]:
     """Return synthetic ``TrafficSignObservation``s for every in-frame sign.
 
@@ -46,10 +41,15 @@ def emulate_sign_observations(
         robot_pos: Robot (x, y) position.
         robot_yaw: Robot heading (radians, 0 = east).
         max_range: Maximum detection range.
+        tuning: Source for the fixed detection confidence (must stay above the
+            sign router's ``min_confidence`` or no emulated detection would ever
+            be accepted). Defaults to the checked-in tuning.
 
     Returns:
         Emulated observations, one per in-frame sign.
     """
+    tuning = get_tuning(tuning)
+    detection_confidence = tuning.simulation.DETECTION_CONFIDENCE
     observations: list[TrafficSignObservation] = []
     for sign in signs:
         dx = sign.x - robot_pos[0]
@@ -68,7 +68,7 @@ def emulate_sign_observations(
                 world_x_m=sign.x,
                 world_y_m=sign.y,
                 color=SignColor.RED if sign.color == "red" else SignColor.GREEN,
-                confidence=_DETECTION_CONFIDENCE,
+                confidence=detection_confidence,
                 detected_at_timestamp=0.0,
             ),
         )

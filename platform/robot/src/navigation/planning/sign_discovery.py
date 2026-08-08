@@ -43,9 +43,12 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from shared.config.navigation_tuning import NavigationTuning
 from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
+
+from src.config.tuning_helpers import get_tuning
+from src.navigation.utils import _dist2d
 
 if TYPE_CHECKING:
     from shared.domain.models import Detection
@@ -76,8 +79,7 @@ def detection_to_observation(
     This is the bridge between the ROS wire format (Detection) and the
     internal world-coordinate observation used by ObservedSignMap.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     world = _detection_to_world(det, robot_pos, robot_yaw, tuning)
     if world is None:
         return None
@@ -93,10 +95,6 @@ def detection_to_observation(
         bbox_xmax=int(x2),
         bbox_ymax=int(y2),
     )
-
-
-def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
 
 def _detection_to_world(
@@ -119,8 +117,7 @@ def _detection_to_world(
     Returns:
         Estimated world (x, y) of the sign, or None if bbox is too small.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     x1, y1, x2, y2 = det.bbox
     pixel_height = abs(y2 - y1)
     if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
@@ -199,8 +196,7 @@ class ObservedSignMap:
                 a real sign. Defaults to NavigationTuning.sign_discovery.MIN_HITS.
             tuning: Navigation tuning instance. Defaults to the default tuning profile.
         """
-        if tuning is None:
-            tuning = NavigationTuning.load_default()
+        tuning = get_tuning(tuning)
         sd = tuning.sign_discovery
         self._min_confidence = min_confidence
         self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.MAX_INGEST_RANGE_M

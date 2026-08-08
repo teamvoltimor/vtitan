@@ -28,6 +28,7 @@ from shared.domain.enums import NavigatorPhase, RobotState
 from shared.domain.models import CorridorWidthEntry, CorridorWidths, NavigatorDebugSnapshot, Pose, ScenarioMetadata
 from std_msgs.msg import Int32, String
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import (
     CorridorWidthEstimator,
@@ -86,8 +87,7 @@ def _direction_gate_verdict(
     (a sim-only tool) so a live run's log can show the same diagnosis without
     needing a bag replay -- see that script's docstring for what each gate means.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
 
     alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
     max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M

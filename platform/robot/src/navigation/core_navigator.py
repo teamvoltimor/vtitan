@@ -17,6 +17,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
     EscapeManeuver,
@@ -69,7 +70,7 @@ class CoreNavigator:
         self._gateway = gateway
         self._waypoints = waypoints
         self._num_laps = num_laps
-        self._tuning = tuning or NavigationTuning.load_default()
+        self._tuning = get_tuning(tuning)
         self._sign_router = sign_router
         self._lap_detector = lap_detector
         # Best current guess of travel direction, same source LapDetector and

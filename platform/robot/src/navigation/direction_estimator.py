@@ -46,6 +46,7 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _nearest_ray, axis_error_rad
 
 if TYPE_CHECKING:
@@ -72,8 +73,7 @@ def infer_direction(
         look like walls -- which is the normal state until the robot nears the
         end of its corridor.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
 
     alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
     max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M

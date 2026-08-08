@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
 from src.simulation.geometry import _clamp, _wrap_angle
 
 if TYPE_CHECKING:
@@ -57,8 +58,7 @@ class _KinematicsConstants:
 
   @classmethod
   def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
-    if tuning is None:
-      tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     return cls(
         max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
         max_accel=RobotSpecs.MAX_ACCEL_MPS2,
@@ -72,7 +72,7 @@ class KinematicsContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize kinematics context from tuning."""
-    self.tuning = tuning or NavigationTuning.load_default()
+    self.tuning = get_tuning(tuning)
     self.constants = _KinematicsConstants.from_tuning(self.tuning)
 
 
