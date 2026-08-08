@@ -3,8 +3,7 @@
 Canonical home for cross-context domain enums (track sections, robot
 direction, risk classification, robot/runtime state). Using enums instead of
 bare strings eliminates typo-prone comparisons and provides IDE autocomplete
-throughout the codebase. ``shared.config.enums`` re-exports ``RiskLevel`` from
-here so there is exactly one definition.
+throughout the codebase.
 """
 
 from __future__ import annotations
@@ -102,6 +101,22 @@ class CorridorWidthType(FromStringEnum):
 
     NARROW = "narrow"
     WIDE = "wide"
+
+    @classmethod
+    def blind_default(cls) -> CorridorWidthType:
+        """The classification a corridor is assumed to be before it's measured.
+
+        Narrow, not wide: a narrow corridor planned as if it were wide puts
+        the path 0.15 m from the inner block face, closer than the chassis
+        half-diagonal (0.180 m), so a corner would clip it mid-turn. The
+        converse -- planning a wide corridor as narrow -- only pushes the
+        path nearer the outer wall, which stays inside the true corridor.
+        Unlike ``Section.canonical()``, this isn't an arbitrary label that
+        happens to work either way: getting this one wrong costs a
+        collision, not just a rotated map, so the direction of the guess
+        matters and must always be this one.
+        """
+        return cls.NARROW
 
 
 class RiskLevel(StrEnum):
