@@ -16,7 +16,6 @@ unaffected by the split.
 from __future__ import annotations
 
 from shared.config.constants.identifiers import (
-    ColorNames,
     DictKeys,
     FileExtensions,
     FilePaths,
@@ -43,7 +42,6 @@ from shared.config.constants.track import (
 )
 
 __all__ = [
-    "ColorNames",
     "CompetitionSpecs",
     "CorridorDimensions",
     "DictKeys",
