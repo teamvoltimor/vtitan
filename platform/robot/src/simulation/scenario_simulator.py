@@ -543,8 +543,15 @@ class ScenarioSimulator:
         believed = self._believed_start
         new_starting = self._metadata.starting_conditions.model_copy(
             update={
-                "direction": str(self._direction),
-                "section": believed.section.capitalized,
+                # The enum, not str(): model_copy() skips validation, so a plain
+                # string leaves every `is Direction.CLOCKWISE` test downstream
+                # reading False and plans the round the wrong way round the mat.
+                # See track_navigator_node._plan for the hardware measurement.
+                "direction": self._direction,
+                # Likewise the enum, not .capitalized (which returns "South"):
+                # `section is Section.SOUTH` in parking.py and sign_router.py
+                # reads False for a plain string.
+                "section": believed.section,
                 "position": Position2D(x=believed.x, y=believed.y),
                 "yaw": believed.yaw,
             },
