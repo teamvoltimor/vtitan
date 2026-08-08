@@ -90,6 +90,7 @@ def estimate_yaw_from_walls(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
     prior_yaw: float,
+    context: WallHeadingContext | None = None,
 ) -> float | None:
     """Absolute yaw implied by the wall directions in this sweep.
 
@@ -99,21 +100,27 @@ def estimate_yaw_from_walls(
         prior_yaw: Current heading estimate, used only to pick which of the
             four 90-degree-apart candidates is meant. It does not pull the
             answer -- the returned value is decided by the walls.
+        context: Wall heading context with constants (defaults to module default).
 
     Returns:
         Absolute yaw in the world frame, or ``None`` when the sweep does not
         show a clear rectilinear structure.
     """
+    if context is None:
+        context = _DEFAULT_WALL_HEADING_CONTEXT
+
+    c = context.constants
+
     ranges = np.asarray(ranges_m, dtype=float)
     angles = np.asarray(angles_rad, dtype=float)
-    if ranges.size < _MIN_RETURNS:
+    if ranges.size < c.min_returns:
         return None
 
     # Points in the robot frame.
     xs = ranges * np.cos(angles)
     ys = ranges * np.sin(angles)
 
-    k = _BASELINE_RAYS
+    k = c.baseline_rays
     if ranges.size <= k:
         return None
     dx = xs[k:] - xs[:-k]
@@ -122,10 +129,10 @@ def estimate_yaw_from_walls(
 
     # Both endpoints must be real returns on one surface.
     valid = (
-        (ranges[:-k] < _NEAR_MAX_RANGE_M)
-        & (ranges[k:] < _NEAR_MAX_RANGE_M)
-        & (np.abs(ranges[k:] - ranges[:-k]) < _MAX_SEGMENT_JUMP_M)
-        & (seg_len > _MIN_SEGMENT_M)
+        (ranges[:-k] < c.near_max_range_m)
+        & (ranges[k:] < c.near_max_range_m)
+        & (np.abs(ranges[k:] - ranges[:-k]) < c.max_segment_jump_m)
+        & (seg_len > c.min_segment_m)
     )
     if not np.any(valid):
         return None
@@ -137,7 +144,7 @@ def estimate_yaw_from_walls(
     weights = seg_len[valid]
     resultant = np.sum(weights * np.exp(4j * theta)) / np.sum(weights)
 
-    if abs(resultant) < MIN_CONCENTRATION:
+    if abs(resultant) < c.min_concentration:
         return None
 
     # Offset of the wall grid in the robot frame, in [-45, 45) degrees.

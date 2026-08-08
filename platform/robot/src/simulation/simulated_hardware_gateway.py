@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from numpy.random import SeedSequence
@@ -31,9 +31,8 @@ from src.simulation.track_model import ContactSurface, TrackModel
 from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
 
-_DEFAULT_CONTROL_HZ = NavigationTuning.load_default().control.CONTROL_HZ
-CONTROL_HZ = _DEFAULT_CONTROL_HZ
-CONTROL_DT = 1.0 / CONTROL_HZ
+if TYPE_CHECKING:
+    pass
 
 LIDAR_SCAN_HZ = RobotSpecs.LIDAR_UPDATE_RATE
 """Sweep rate of the Slamtec C1, which is what the robot actually has.
@@ -63,17 +62,40 @@ _STEP_BISECTIONS = 8
 Eight halvings resolve a 7.5 mm tick to ~0.03 mm, well under the 30 mm LIDAR
 noise the navigator is steering on, so more would be measuring nothing."""
 
-_DEFAULT_LIDAR_INVALID_RAY_RATE = NavigationTuning.load_default().simulation.LIDAR_INVALID_RAY_RATE
-LIDAR_INVALID_RAY_RATE = _DEFAULT_LIDAR_INVALID_RAY_RATE
-"""Fraction of rays returning no measurement, as NaN/inf.
 
-Slamtec drivers emit these off dark or shallow-incidence surfaces, and
-``ROS2HardwareGateway._lidar_callback`` has always substituted max range for
-them -- a filter that had never seen a value it was written for, because this
-simulator only ever produced finite ranges. 1% is a placeholder: the real rate
-depends on the mat's surface and is worth measuring from a recorded bag rather
-than guessed at.
-"""
+@dataclass(frozen=True, slots=True)
+class _SimulatorConstants:
+  """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
+  control_hz: float
+  control_dt: float
+  lidar_invalid_ray_rate: float
+
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
+    if tuning is None:
+      tuning = NavigationTuning()
+    control_hz = tuning.control.CONTROL_HZ
+    return cls(
+        control_hz=control_hz,
+        control_dt=1.0 / control_hz,
+        lidar_invalid_ray_rate=tuning.simulation.LIDAR_INVALID_RAY_RATE,
+    )
+
+
+class SimulatorContext:
+  """Context holding tuning-derived simulator constants."""
+
+  def __init__(self, tuning: NavigationTuning | None = None) -> None:
+    """Initialize simulator context from tuning."""
+    self.tuning = tuning or NavigationTuning()
+    self.constants = _SimulatorConstants.from_tuning(self.tuning)
+
+
+_DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
+
+# Backward-compatible exports for existing imports.
+CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
+LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
 
 
 def _sanitize_ranges(ranges: np.ndarray) -> list[float]:
@@ -184,9 +206,13 @@ class SimulatedHardwareGateway:
         lidar_invalid_rate: float | None = None,
         wall_heading: bool = True,
         tuning: NavigationTuning | None = None,
+        context: SimulatorContext | None = None,
     ) -> None:
+        if context is None:
+            context = _DEFAULT_SIMULATOR_CONTEXT
+        self._context = context
         if lidar_invalid_rate is None:
-            lidar_invalid_rate = tuning.simulation.LIDAR_INVALID_RAY_RATE if tuning else _DEFAULT_LIDAR_INVALID_RAY_RATE
+            lidar_invalid_rate = context.constants.lidar_invalid_ray_rate
         self._track = track
         # Which surfaces physically stop the chassis. ``solid_walls`` makes all
         # of them solid; ``solid_surfaces`` names a subset, which is how a
@@ -500,7 +526,7 @@ class SimulatedHardwareGateway:
         """Current kinematic state of the simulated body."""
         return self._state
 
-    def advance(self, dt: float = CONTROL_DT) -> None:
+    def advance(self, dt: float | None = None) -> None:
         """Integrate the last command over ``dt`` and regenerate the sensors.
 
         ``collided`` reflects the *current* tick only (re-evaluated every
@@ -511,6 +537,8 @@ class SimulatedHardwareGateway:
         grace), not something the gateway itself should decide by freezing
         the flag the instant contact first occurs.
         """
+        if dt is None:
+            dt = self._context.constants.control_dt
         self._elapsed_s += dt
         prev_x, prev_y, prev_yaw = self._state.x, self._state.y, self._state.yaw
         candidate = self._kin.step(

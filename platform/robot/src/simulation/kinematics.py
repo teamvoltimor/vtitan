@@ -36,41 +36,47 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
 from src.simulation.geometry import _clamp, _wrap_angle
 
-_DEFAULT_MAX_STEER_RATE = NavigationTuning.load_default().pursuit.MAX_STEERING_RATE
-"""Steering rate limit (rad/s), read from the tuning the navigator itself uses.
+if TYPE_CHECKING:
+    pass
 
-Restating it here would let the simulated chassis slew faster or slower than
-the one the controller was tuned against, which is the one thing a kinematics
-model must not do."""
 
-_DEFAULT_MAX_ACCEL = RobotSpecs.MAX_ACCEL_MPS2
-"""Drive motor's physical acceleration limit (m/s²), from robot.toml."""
+@dataclass(frozen=True, slots=True)
+class _KinematicsConstants:
+  """Tuning-derived kinematics constants, computed on-demand instead of frozen at module level."""
+  max_steer_rate: float
+  max_accel: float
+  max_speed_mps: float
+  rear_steer_ratio: float
 
-_DEFAULT_MAX_SPEED_MPS = RobotSpecs.MAX_SPEED_MPS
-"""Top speed the real drivetrain reaches, measured 2026-07-25 (0.796 m / 5.11 s).
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _KinematicsConstants:
+    if tuning is None:
+      tuning = NavigationTuning()
+    return cls(
+        max_steer_rate=tuning.pursuit.MAX_STEERING_RATE,
+        max_accel=RobotSpecs.MAX_ACCEL_MPS2,
+        max_speed_mps=RobotSpecs.MAX_SPEED_MPS,
+        rear_steer_ratio=RobotSpecs.REAR_STEER_RATIO,
+    )
 
-The simulator previously integrated whatever speed it was handed, and the
-tuning profiles asked for 0.7-0.8 m/s -- roughly 6x what the hardware can do.
-Clamping here means a profile that over-asks produces the same saturated
-behaviour in sim as on the robot instead of a lap time that cannot happen.
 
-Sags with battery charge (0.129 m/s measured on a tired pack), so this is a
-ceiling rather than a guarantee.
-"""
+class KinematicsContext:
+  """Context holding tuning-derived kinematics constants."""
 
-_DEFAULT_REAR_STEER_RATIO = RobotSpecs.REAR_STEER_RATIO
-"""Rear steering magnitude relative to the front, counter-phase.
+  def __init__(self, tuning: NavigationTuning | None = None) -> None:
+    """Initialize kinematics context from tuning."""
+    self.tuning = tuning or NavigationTuning()
+    self.constants = _KinematicsConstants.from_tuning(self.tuning)
 
-1.0 = rear wheels turn equally and oppositely to the front (confirmed on the
-real chassis 2026-07-25: both axles steer, at the same ratio, in opposite
-directions). 0.0 would be a conventional front-only car.
-"""
+
+_DEFAULT_KINEMATICS_CONTEXT = KinematicsContext()
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,14 +98,26 @@ class AckermannKinematics:
         wheelbase: float = RobotSpecs.WHEELBASE,
         max_steer: float = RobotSpecs.MAX_STEERING_ANGLE,
         max_steer_rate: float | None = None,
-        max_accel: float = _DEFAULT_MAX_ACCEL,
+        max_accel: float | None = None,
         substeps: int = 5,
-        rear_steer_ratio: float = _DEFAULT_REAR_STEER_RATIO,
-        max_speed_mps: float = _DEFAULT_MAX_SPEED_MPS,
+        rear_steer_ratio: float | None = None,
+        max_speed_mps: float | None = None,
         tuning: NavigationTuning | None = None,
+        context: KinematicsContext | None = None,
     ) -> None:
+        if context is None:
+            context = _DEFAULT_KINEMATICS_CONTEXT
+        c = context.constants
+
         if max_steer_rate is None:
-            max_steer_rate = tuning.pursuit.MAX_STEERING_RATE if tuning else _DEFAULT_MAX_STEER_RATE
+            max_steer_rate = c.max_steer_rate
+        if max_accel is None:
+            max_accel = c.max_accel
+        if rear_steer_ratio is None:
+            rear_steer_ratio = c.rear_steer_ratio
+        if max_speed_mps is None:
+            max_speed_mps = c.max_speed_mps
+
         self._max_speed = max_speed_mps
         self._wheelbase = wheelbase
         self._max_steer = max_steer
