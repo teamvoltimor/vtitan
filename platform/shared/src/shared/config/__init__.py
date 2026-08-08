@@ -22,7 +22,6 @@ from shared.config.constants import (
     TrackDimensions,
     TrafficSignSpecs,
     WallSpecs,
-    WidthTypes,
     ZLayers,
 )
 from shared.config.coordinate_transform import CoordinateTransform
@@ -56,7 +55,6 @@ __all__ = [
     "TrackDimensions",
     "TrafficSignSpecs",
     "WallSpecs",
-    "WidthTypes",
     "ZLayers",
     # Enums
     "Direction",

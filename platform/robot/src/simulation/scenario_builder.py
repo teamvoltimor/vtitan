@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
-from shared.config.enums import Section
+from shared.config.enums import CorridorWidthType, Section
 from shared.config.starting_zone import STARTING_ZONE_LAYOUT
 from shared.domain.models import (
     CorridorWidthEntry,
@@ -119,7 +119,7 @@ def build_open_metadata(
         corridor_widths=CorridorWidths(
             **{
                 side: CorridorWidthEntry(
-                    type="narrow" if widths_mm[side] == _NARROW_MM else "wide",
+                    type=CorridorWidthType.NARROW if widths_mm[side] == _NARROW_MM else CorridorWidthType.WIDE,
                     width_mm=widths_mm[side],
                 )
                 for side in ("north", "south", "east", "west")
