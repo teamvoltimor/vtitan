@@ -3,17 +3,13 @@
 import logging
 import time
 from collections.abc import Callable
-from typing import ParamSpec, TypeVar
 
 from shared.domain.exceptions import HardwareError
 
 logger = logging.getLogger(__name__)
 
-P = ParamSpec("P")
-R = TypeVar("R")
 
-
-def with_retry(
+def with_retry[**P, R](
     max_retries: int = 3,
     delay_sec: float = 0.5,
     exceptions: tuple[type[Exception], ...] = (HardwareError, IOError),
