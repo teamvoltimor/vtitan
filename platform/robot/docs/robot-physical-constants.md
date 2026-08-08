@@ -7,14 +7,16 @@ in the Go Gazebo generator or the xacro — both silently kept using the old num
 
 **To change a measurement:** edit `platform/shared/config/robot.toml`, then run
 `task gen:robot-constants` (wraps `simgen generate-robot-constants`, see
-`platform/gazebo/generator/internal/robotconfig`). This regenerates all three consumers below —
-do not hand-edit any of them, they're marked `DO NOT EDIT` and will be silently overwritten:
+`platform/gazebo/generator/internal/robotconfig`). This regenerates the two Go/xacro consumers
+below — do not hand-edit either, they're marked `DO NOT EDIT` and will be silently overwritten:
 
 - `platform/gazebo/generator/internal/simconfig/robot_constants.gen.go` (Go)
 - `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` (`xacro:include`d from
   `wro_robot.urdf.xacro`)
-- `platform/shared/src/shared/config/robot_constants_gen.py` (imported by `RobotSpecs` in
-  `platform/shared/src/shared/config/constants.py`)
+
+Python has no generated file to regenerate: `RobotSpecs` in
+`platform/shared/src/shared/config/constants.py` sources its values from
+`shared.config.robot_constants.RobotConstants`, which reads `robot.toml` directly at runtime.
 
 The rest of this doc records the canonical values and remaining known gaps (a second
 hand-maintained `wro_robot.urdf` snapshot, and the sign-router pitch follow-up) — read on for
@@ -69,13 +71,14 @@ camera mount offset/pitch. Edit this, then run `task gen:robot-constants`.
 - `platform/gazebo/runtime/robot_description/robot_properties.gen.xacro` — `xacro:include`d
   from `wro_robot.urdf.xacro`, which still hand-defines wheel joints, links, and sensors below
   it using the included properties (`chassis_length`, `wheelbase`, `lidar_mount_x`, etc.).
-- `platform/shared/src/shared/config/robot_constants_gen.py` — imported by `RobotSpecs` in
-  `platform/shared/src/shared/config/constants.py` (`LENGTH`, `WIDTH`, `HEIGHT`, `WHEELBASE`,
-  `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_MOUNT_X_OFFSET`, `LIDAR_INVERTED`,
-  `LIDAR_MOUNT_YAW_OFFSET_DEG`, `CAMERA_MOUNT_X_OFFSET`,
-  `CAMERA_MOUNT_Z_OFFSET`, `CAMERA_MOUNT_PITCH_DEG`). Every other Python consumer (navigation,
-  simulation, ROS2 nodes — e.g. `static_tfs.launch.py`, `live_visualizer.py`) still imports
-  `RobotSpecs`, unchanged.
+
+Python has no generated file here: `shared.config.robot_constants.RobotConstants` reads
+`robot.toml` directly at runtime (no codegen step), and `RobotSpecs` in
+`platform/shared/src/shared/config/constants.py` sources its fields (`LENGTH`, `WIDTH`,
+`HEIGHT`, `WHEELBASE`, `TRACK_WIDTH`, `WHEEL_RADIUS`, `WHEEL_WIDTH`, `LIDAR_MOUNT_X_OFFSET`,
+`LIDAR_INVERTED`, `LIDAR_MOUNT_YAW_OFFSET_DEG`, `CAMERA_MOUNT_X_OFFSET`, `CAMERA_MOUNT_Z_OFFSET`,
+`CAMERA_MOUNT_PITCH_DEG`) from it. Every other Python consumer (navigation, simulation, ROS2
+nodes — e.g. `static_tfs.launch.py`, `live_visualizer.py`) still imports `RobotSpecs`, unchanged.
 
 ### Not yet generated (pre-existing gap, unrelated to the drift this doc used to describe)
 - `platform/gazebo/runtime/robot_description/wro_robot.urdf` — a **separate, simplified,

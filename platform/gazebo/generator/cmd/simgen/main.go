@@ -165,10 +165,9 @@ func generateTrackCmd() *cobra.Command {
 
 func generateRobotConstantsCmd() *cobra.Command {
 	var (
-		config       string
-		goOutput     string
-		xacroOutput  string
-		pythonOutput string
+		config      string
+		goOutput    string
+		xacroOutput string
 	)
 
 	cmd := &cobra.Command{
@@ -188,7 +187,6 @@ func generateRobotConstantsCmd() *cobra.Command {
 			outputs := []generatedFile{
 				{path: goOutput, contents: goSrc},
 				{path: xacroOutput, contents: robotconfig.GenerateXacro(cfg)},
-				{path: pythonOutput, contents: robotconfig.GeneratePython(cfg)},
 			}
 			for _, out := range outputs {
 				if err := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); err != nil {
@@ -209,17 +207,14 @@ func generateRobotConstantsCmd() *cobra.Command {
 		"./gazebo/generator/internal/simconfig/robot_constants.gen.go", "Go const block output path")
 	cmd.Flags().StringVar(&xacroOutput, "xacro-output",
 		"./gazebo/runtime/robot_description/robot_properties.gen.xacro", "xacro property fragment output path")
-	cmd.Flags().StringVar(&pythonOutput, "python-output",
-		"./shared/src/shared/config/robot_constants_gen.py", "Python constants module output path")
 
 	return cmd
 }
 
 func generateTrackConstantsCmd() *cobra.Command {
 	var (
-		config       string
-		goOutput     string
-		pythonOutput string
+		config   string
+		goOutput string
 	)
 
 	cmd := &cobra.Command{
@@ -240,14 +235,9 @@ func generateTrackConstantsCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("generate go constants: %w", err)
 			}
-			pySrc, err := trackconfig.GeneratePython(cfg, chassisWidth)
-			if err != nil {
-				return fmt.Errorf("generate python constants: %w", err)
-			}
 
 			outputs := []generatedFile{
 				{path: goOutput, contents: goSrc},
-				{path: pythonOutput, contents: pySrc},
 			}
 			for _, out := range outputs {
 				if err := os.MkdirAll(filepath.Dir(out.path), simconfig.DirPermissions); err != nil {
@@ -266,8 +256,6 @@ func generateTrackConstantsCmd() *cobra.Command {
 	cmd.Flags().StringVar(&config, "config", "./shared/config/track.toml", "Path to track.toml source of truth")
 	cmd.Flags().StringVar(&goOutput, "go-output",
 		"./gazebo/generator/internal/simconfig/track_constants.gen.go", "Go const block output path")
-	cmd.Flags().StringVar(&pythonOutput, "python-output",
-		"./shared/src/shared/config/track_constants_gen.py", "Python constants module output path")
 
 	return cmd
 }

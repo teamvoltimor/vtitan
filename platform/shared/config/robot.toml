@@ -1,10 +1,12 @@
 # Single source of truth for the WRO robot's physical constants (custom chassis, counter-phase
 # four-wheel steering). Measured 2026-07-11 — see platform/robot/docs/robot-physical-constants.md.
 #
-# Edit this file, then regenerate every consumer with `task gen:robot-constants`:
+# Edit this file, then regenerate its Go/xacro consumers with `task gen:robot-constants`:
 #   - platform/gazebo/generator/internal/simconfig/robot_constants.gen.go
 #   - platform/gazebo/runtime/robot_description/robot_properties.gen.xacro
-#   - platform/shared/src/shared/config/robot_constants_gen.py
+#
+# The Python side reads this file directly at runtime via
+# shared.config.robot_constants.RobotConstants -- nothing to regenerate there.
 #
 # All lengths are meters, masses are kilograms, angles are radians unless a
 # field is explicitly named _deg (e.g. lidar.mount_yaw_offset_deg).

@@ -1,21 +1,22 @@
 """Typed, validated model of the mat's starting-square layout.
 
-The numbers come from ``track_constants_gen`` (generated from
-``platform/shared/config/track.toml``); this module gives them a shape and
-checks the invariants that make them legal starts. The Go generator validates
-the same invariants at generation time in ``internal/trackconfig``, so a bad
-edit to the TOML fails on both sides rather than producing a robot that starts
-across a band boundary.
+The numbers come from ``TrackConstants``/``RobotConstants`` (loaded from
+``platform/shared/config/track.toml``/``robot.toml``); this module gives them
+a shape and checks the invariants that make them legal starts. The Go
+generator validates the same invariants at generation time in
+``internal/trackconfig``, so a bad edit to the TOML fails on both sides rather
+than producing a robot that starts across a band boundary.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from shared.config import (
-    robot_constants_gen as _robot,
-    track_constants_gen as _track,
-)
+from shared.config.robot_constants import RobotConstants
+from shared.config.track_constants import TrackConstants
+
+_robot = RobotConstants.load_default()
+_track = TrackConstants.load_default()
 
 __all__ = ["STARTING_ZONE_LAYOUT", "StartingZoneLayout"]
 
@@ -63,9 +64,9 @@ class StartingZoneLayout(BaseModel):
             )
             raise ValueError(msg)
 
-        # Read from the generated robot module rather than RobotSpecs, so this
-        # model depends only on generated values and never on constants.py.
-        chassis_width = _robot.CHASSIS_WIDTH
+        # Read from RobotConstants directly rather than RobotSpecs, so this
+        # model depends only on the TOML-sourced values and never on constants.py.
+        chassis_width = _robot.chassis.width
         half = chassis_width / 2.0
         edge = 0.0
         for i, (band, offset) in enumerate(zip(self.band_widths, self.spawn_offsets, strict=True)):
@@ -96,9 +97,9 @@ class StartingZoneLayout(BaseModel):
 
 
 STARTING_ZONE_LAYOUT: StartingZoneLayout = StartingZoneLayout(
-    band_widths=_track.STARTING_ZONE_BAND_WIDTHS,
-    spawn_offsets=_track.STARTING_ZONE_SPAWN_OFFSETS,
-    cell_length=_track.STARTING_ZONE_DEFAULT_LENGTH,
-    cell_centers_along=(_track.GRID_LENGTH_SECTION_LEFT, _track.GRID_LENGTH_SECTION_RIGHT),
+    band_widths=_track.corridor.band_widths,
+    spawn_offsets=_track.spawn_offsets(_robot.chassis.width),
+    cell_length=_track.starting_zone.default_length,
+    cell_centers_along=_track.cell_centers_along,
 )
 """The layout as configured, validated at import."""
