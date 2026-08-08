@@ -160,29 +160,33 @@ class NavigationTuning:
             )
             raise ValueError(msg)
 
-    # (group key, dataclass) pairs — the single source of truth for which
-    # sections load_from_yaml/load_from_json/to_dict handle, so adding a new
-    # tuning group never requires touching more than this tuple.
-    _GROUPS: ClassVar[tuple[tuple[str, type], ...]] = (
-        ("clearance", ClearanceZones),
-        ("heading", HeadingErrorZones),
-        ("pursuit", PurePursuitParams),
-        ("speed", SpeedControlParams),
-        ("escape", EscapeManeuverParams),
-        ("sensor", SensorHealthParams),
-        ("waypoints", WaypointParams),
-        ("lidar_sectors", LidarSectorParams),
-        ("corridor_estimator", CorridorEstimatorParams),
-        ("corridor_follower", CorridorFollowerParams),
-        ("direction_estimator", DirectionEstimatorParams),
-        ("wall_heading", WallHeadingParams),
-        ("control", ControlLoopParams),
-        ("sign_router", SignRouterParams),
-        ("sign_discovery", SignDiscoveryParams),
-        ("parking", ParkingParams),
-        ("localization", LocalizationParams),
-        ("state_estimator", StateEstimatorParams),
-        ("simulation", SimulationParams),
+    # (group key, dataclass, TOML subfolder) triples — the single source of
+    # truth for which sections load_from_yaml/load_from_json/to_dict/
+    # load_from_toml_dir handle, so adding a new tuning group never requires
+    # touching more than this tuple. The subfolder mirrors this package's own
+    # module grouping (motion.py, blind_nav.py, etc.) under
+    # platform/shared/config/navigation/, so a TOML file's location and its
+    # Python group's home module always agree.
+    _GROUPS: ClassVar[tuple[tuple[str, type, str], ...]] = (
+        ("clearance", ClearanceZones, "motion"),
+        ("heading", HeadingErrorZones, "motion"),
+        ("pursuit", PurePursuitParams, "motion"),
+        ("speed", SpeedControlParams, "motion"),
+        ("escape", EscapeManeuverParams, "escape"),
+        ("sensor", SensorHealthParams, "sensors"),
+        ("waypoints", WaypointParams, "waypoint"),
+        ("lidar_sectors", LidarSectorParams, "sensors"),
+        ("corridor_estimator", CorridorEstimatorParams, "blind_nav"),
+        ("corridor_follower", CorridorFollowerParams, "blind_nav"),
+        ("direction_estimator", DirectionEstimatorParams, "blind_nav"),
+        ("wall_heading", WallHeadingParams, "sensors"),
+        ("control", ControlLoopParams, "motion"),
+        ("sign_router", SignRouterParams, "signs"),
+        ("sign_discovery", SignDiscoveryParams, "signs"),
+        ("parking", ParkingParams, "parking"),
+        ("localization", LocalizationParams, "blind_nav"),
+        ("state_estimator", StateEstimatorParams, "blind_nav"),
+        ("simulation", SimulationParams, "simulation"),
     )
 
     # No ``for_obstacles()`` profile. One existed (lookahead 0.12/0.24 +
@@ -212,7 +216,7 @@ class NavigationTuning:
         per-group reconstruction. Missing groups fall back to their defaults,
         allowing partial config files.
         """
-        return cls(**{key: dataclass_type(**data.get(key, {})) for key, dataclass_type in cls._GROUPS})
+        return cls(**{key: dataclass_type(**data.get(key, {})) for key, dataclass_type, _ in cls._GROUPS})
 
     @classmethod
     def load_from_yaml(cls, path: Path | str) -> NavigationTuning:
@@ -266,17 +270,20 @@ class NavigationTuning:
     def load_from_toml_dir(cls, directory: Path | str) -> NavigationTuning:
         """Load tuning configuration from a directory of per-group TOML files.
 
-        One ``<group>.toml`` per ``_GROUPS`` entry (e.g. ``clearance.toml``,
-        ``pursuit.toml``) -- that file's own top-level fields ARE the group,
-        no wrapper table needed since the filename already disambiguates
-        which group it is. A missing file falls back to that group's
-        defaults, same as a missing key in ``load_from_yaml``/
-        ``load_from_json``'s single-file mapping. A missing directory
-        returns all-defaults outright, so constructing a navigator in a
-        test/sim context with no config tree on disk still works.
+        One ``<subfolder>/<group>.toml`` per ``_GROUPS`` entry (e.g.
+        ``motion/clearance.toml``, ``motion/pursuit.toml``) -- that file's own
+        top-level fields ARE the group, no wrapper table needed since the
+        filename already disambiguates which group it is. The subfolder is
+        ``_GROUPS``'s own third element, so it always matches this package's
+        module grouping (see the comment on ``_GROUPS``). A missing file
+        falls back to that group's defaults, same as a missing key in
+        ``load_from_yaml``/``load_from_json``'s single-file mapping. A
+        missing directory returns all-defaults outright, so constructing a
+        navigator in a test/sim context with no config tree on disk still
+        works.
 
         Args:
-            directory: Directory containing the per-group TOML files.
+            directory: Directory containing the per-group TOML tree.
 
         Returns:
             NavigationTuning instance with loaded parameters.
@@ -286,8 +293,8 @@ class NavigationTuning:
         directory = Path(directory)
         data: dict[str, Any] = {}
         if directory.is_dir():
-            for key, _ in cls._GROUPS:
-                toml_path = directory / f"{key}.toml"
+            for key, _, subfolder in cls._GROUPS:
+                toml_path = directory / subfolder / f"{key}.toml"
                 if toml_path.exists():
                     with open(toml_path, "rb") as f:
                         data[key] = tomllib.load(f)
@@ -343,7 +350,7 @@ class NavigationTuning:
         Returns:
             Dictionary representation of all parameters
         """
-        return {key: getattr(self, key).model_dump() for key, _ in self._GROUPS}
+        return {key: getattr(self, key).model_dump() for key, _, _sub in self._GROUPS}
 
     def to_json(self) -> str:
         """Export configuration as JSON string.

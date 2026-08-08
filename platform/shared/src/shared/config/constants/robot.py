@@ -90,8 +90,9 @@ class RobotSpecs:
     # (180.0 if LIDAR_INVERTED else 0.0) + this, in degrees, themselves.
     LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _robot.lidar.mount_yaw_offset_deg
     # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
-    # (platform/shared/config/navigation/lidar_sectors.toml) -- it's collision-logic
-    # tuning, not physical geometry, unlike everything else in this class.
+    # (platform/shared/config/navigation/sensors/lidar_sectors.toml) -- it's
+    # collision-logic tuning, not physical geometry, unlike everything else in
+    # this class.
 
     # IMU (Adafruit BNO085)
     IMU_UPDATE_RATE: Final[float] = 100.0  # 100 Hz update rate

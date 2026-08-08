@@ -127,12 +127,18 @@ def _write_toml_line(value) -> str:
 
 
 def _write_toml_dir(tmp_path, groups: dict[str, dict]) -> str:
-    """One <group>.toml per key, matching load_from_toml_dir's expected layout."""
+    """One <subfolder>/<group>.toml per key, matching load_from_toml_dir's
+    expected layout -- the subfolder comes from NavigationTuning._GROUPS
+    itself, so this stays correct if a group's subfolder ever changes.
+    """
+    subfolder_by_group = {key: subfolder for key, _, subfolder in NavigationTuning._GROUPS}
     directory = tmp_path / "navigation"
     directory.mkdir()
     for group, fields in groups.items():
+        group_dir = directory / subfolder_by_group[group]
+        group_dir.mkdir(exist_ok=True)
         lines = [f"{key} = {_write_toml_line(value)}" for key, value in fields.items()]
-        (directory / f"{group}.toml").write_text("\n".join(lines), encoding="utf-8")
+        (group_dir / f"{group}.toml").write_text("\n".join(lines), encoding="utf-8")
     return str(directory)
 
 
