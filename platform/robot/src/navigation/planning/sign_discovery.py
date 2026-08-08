@@ -55,13 +55,6 @@ logger = logging.getLogger(__name__)
 # Camera focal length in pixels — derived from HFOV and image width.
 _CAMERA_FOCAL_PX: float = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
 
-# Bounding boxes shorter than this (px) are too degenerate for a reliable
-# pinhole distance estimate. Read from sign_discovery.toml rather than restated:
-# a free function has no instance to inject tuning into, but a duplicated
-# literal is still a second source of truth that drifts silently.
-_DISCOVERY_TUNING = NavigationTuning.load_default().sign_discovery
-_MIN_RELIABLE_BBOX_HEIGHT_PX: int = _DISCOVERY_TUNING.MIN_RELIABLE_BBOX_HEIGHT_PX
-
 
 @dataclass(frozen=True)
 class SignSpec:
@@ -76,13 +69,16 @@ def detection_to_observation(
     det: Detection,
     robot_pos: tuple[float, float],
     robot_yaw: float,
+    tuning: NavigationTuning | None = None,
 ) -> TrafficSignObservation | None:
     """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
 
     This is the bridge between the ROS wire format (Detection) and the
     internal world-coordinate observation used by ObservedSignMap.
     """
-    world = _detection_to_world(det, robot_pos, robot_yaw)
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+    world = _detection_to_world(det, robot_pos, robot_yaw, tuning)
     if world is None:
         return None
     x1, y1, x2, y2 = det.bbox
@@ -107,6 +103,7 @@ def _detection_to_world(
     det: Detection,
     robot_pos: tuple[float, float],
     robot_yaw: float,
+    tuning: NavigationTuning | None = None,
 ) -> tuple[float, float] | None:
     """Project a bbox detection to an approximate world position.
 
@@ -117,13 +114,16 @@ def _detection_to_world(
         det: Single camera detection with bbox (x1, y1, x2, y2).
         robot_pos: Robot (x, y) position (metres).
         robot_yaw: Robot heading (radians, 0 = east).
+        tuning: Navigation tuning instance. Defaults to the default tuning profile.
 
     Returns:
         Estimated world (x, y) of the sign, or None if bbox is too small.
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
     x1, y1, x2, y2 = det.bbox
     pixel_height = abs(y2 - y1)
-    if pixel_height < _MIN_RELIABLE_BBOX_HEIGHT_PX:
+    if pixel_height < tuning.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX:
         return None
 
     # Estimate distance using pinhole model: d = (f * real_h) / pixel_h
@@ -138,32 +138,6 @@ def _detection_to_world(
     wy = robot_pos[1] + distance * math.sin(bearing)
     return wx, wy
 
-_MAX_INGEST_RANGE: float = _DISCOVERY_TUNING.MAX_INGEST_RANGE_M
-"""Ignore observations further than this (m) — see the module docstring.
-
-Must stay clear of the router's ``activation_dist`` so a sign is discovered
-with runway left to steer around it. That margin is thinner than it was: this
-docstring cited 0.80 m activation, but the router was retuned to 1.40 m on
-2026-08-01, cutting the gap from 1.2 m to 0.6 m. Raise this if activation rises
-again -- a sign discovered later than it is engaged cannot be routed around.
-"""
-
-_ASSOCIATION_DIST: float = _DISCOVERY_TUNING.ASSOCIATION_DIST_M
-"""Two observations within this distance (m) are the same sign.
-
-Bounded above by the WRO sign grid's own spacing: signs sit 0.50 m apart along
-a corridor and the two lanes are ~0.20-0.40 m apart, so anything much larger
-would merge a red and a green sign into one track and average them into the
-gap between the lanes.
-"""
-
-_MIN_HITS: int = _DISCOVERY_TUNING.MIN_HITS
-"""Observations before a track is published as a real sign.
-
-A single frame is enough for a false positive; requiring agreement across
-frames costs ~0.15 s at the 20 Hz control loop, which is nothing against the
-runway :data:`_MAX_INGEST_RANGE` buys.
-"""
 
 
 @dataclass
@@ -205,9 +179,10 @@ class ObservedSignMap:
     def __init__(
         self,
         min_confidence: float,
-        max_ingest_range_m: float = _MAX_INGEST_RANGE,
-        association_dist_m: float = _ASSOCIATION_DIST,
-        min_hits: int = _MIN_HITS,
+        max_ingest_range_m: float | None = None,
+        association_dist_m: float | None = None,
+        min_hits: int | None = None,
+        tuning: NavigationTuning | None = None,
     ) -> None:
         """Start an empty map.
 
@@ -216,16 +191,21 @@ class ObservedSignMap:
                 map inherits the router's own detection threshold rather than
                 introducing a second, independently-tuned one.
             max_ingest_range_m: Ignore observations further than this (m).
-                Defaults mirror NavigationTuning.sign_discovery.
+                Defaults to NavigationTuning.sign_discovery.MAX_INGEST_RANGE_M.
             association_dist_m: Two observations within this distance (m)
                 are treated as the same sign.
+                Defaults to NavigationTuning.sign_discovery.ASSOCIATION_DIST_M.
             min_hits: Observations required before a track is published as
-                a real sign.
+                a real sign. Defaults to NavigationTuning.sign_discovery.MIN_HITS.
+            tuning: Navigation tuning instance. Defaults to the default tuning profile.
         """
+        if tuning is None:
+            tuning = NavigationTuning.load_default()
+        sd = tuning.sign_discovery
         self._min_confidence = min_confidence
-        self._max_ingest_range_m = max_ingest_range_m
-        self._association_dist_m = association_dist_m
-        self._min_hits = min_hits
+        self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.MAX_INGEST_RANGE_M
+        self._association_dist_m = association_dist_m if association_dist_m is not None else sd.ASSOCIATION_DIST_M
+        self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
         self._tracks: list[_SignTrack] = []
 
     def observe(
