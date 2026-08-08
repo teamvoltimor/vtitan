@@ -88,7 +88,7 @@ class TestMappedObstacleEscapeSplit:
     """Inside CONTACT_DIST (0.10), so the raw scan reads CRITICAL."""
 
     @staticmethod
-    def _navigator(waypoints, sign_xy, mask_radius=None):
+    def _navigator(waypoints, sign_xy, tuning, mask_radius=None):
         """A navigator facing a close front return, with a sign mapped at ``sign_xy``.
 
         The robot sits at the origin facing east, so the front return lands at
@@ -96,7 +96,6 @@ class TestMappedObstacleEscapeSplit:
         """
         ranges = create_scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
-        tuning = NavigationTuning()
         if mask_radius is not None:
             tuning = dataclasses.replace(
                 tuning,
@@ -115,39 +114,39 @@ class TestMappedObstacleEscapeSplit:
         )
         return gateway, nav
 
-    def test_routed_sign_does_not_trigger_the_escape(self, waypoints):
+    def test_routed_sign_does_not_trigger_the_escape(self, waypoints, tuning):
         """The front return lands on the mapped sign, so no reverse is commanded."""
-        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning)
 
         nav.step()
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps > 0, "a sign the router owns must not trigger a reversing escape"
 
-    def test_unmapped_obstacle_at_the_same_range_still_escapes(self, waypoints):
+    def test_unmapped_obstacle_at_the_same_range_still_escapes(self, waypoints, tuning):
         """Same scan, sign mapped elsewhere: the full reactive guard applies.
 
         This is the half that makes the split a split rather than a blanket
         suppression — the robot must still reverse off a wall or an
         undiscovered obstacle at exactly this range.
         """
-        gateway, nav = self._navigator(waypoints, sign_xy=(0.0, 0.9))
+        gateway, nav = self._navigator(waypoints, sign_xy=(0.0, 0.9), tuning=tuning)
 
         nav.step()
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps < 0, "an obstacle nothing owns must still trigger the escape"
 
-    def test_zero_mask_radius_restores_the_escape(self, waypoints):
+    def test_zero_mask_radius_restores_the_escape(self, waypoints, tuning):
         """The documented off-switch really is off."""
-        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), mask_radius=0.0)
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning, mask_radius=0.0)
 
         nav.step()
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps < 0
 
-    def test_masked_sign_still_slows_the_robot(self, waypoints):
+    def test_masked_sign_still_slows_the_robot(self, waypoints, tuning):
         """Speed is governed by the RAW scan, so the robot still slows for a
         sign — it just no longer panics at one.
 
@@ -156,18 +155,18 @@ class TestMappedObstacleEscapeSplit:
         taking every sign pass at full speed, which is not what the split is
         for: the split removes the escape maneuver, not the caution.
         """
-        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning)
 
         nav.step()
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps <= nav._tuning.speed.SLOW_SPEED
 
-    def test_passed_sign_gets_its_guard_back(self, waypoints):
+    def test_passed_sign_gets_its_guard_back(self, waypoints, tuning):
         """Once the router retires a sign it stops owning it, so the reactive
         layer must resume treating that return as a real threat.
         """
-        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0))
+        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning)
         nav.sign_router._passed.add(0)
 
         nav.step()
@@ -182,9 +181,8 @@ class TestStuckDetectionDuringParking:
     ran, so a robot nosed against a parking block stalled forever.
     """
 
-    def test_stuck_while_parking_triggers_reverse_escape(self, waypoints):
+    def test_stuck_while_parking_triggers_reverse_escape(self, waypoints, tuning):
         gateway = FakeGateway(Pose(x=1.5, y=0.05, yaw=-math.pi / 2), lidar=None)
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         # Simulate "already finished, parking engaged, nosed against a block":
@@ -200,10 +198,9 @@ class TestStuckDetectionDuringParking:
             "expected a reverse escape once the stuck timeout elapsed while parking"
         )
 
-    def test_holding_after_parking_done_never_reverses(self, waypoints):
+    def test_holding_after_parking_done_never_reverses(self, waypoints, tuning):
         """Once parked (done), stationary holding must never be read as stuck."""
         gateway = FakeGateway(Pose(x=1.5, y=0.05, yaw=-math.pi / 2), lidar=None)
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         nav._laps_completed = 1
@@ -225,13 +222,12 @@ class TestStuckEscapeRearBlocked:
     lock instead of an indefinite hold.
     """
 
-    def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints):
+    def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints, tuning):
         ranges = create_scan_with_sectors(back=0.09)  # rear blocked, front stays LIDAR_DEFAULT_FAR
         gateway = FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
         )
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
@@ -241,14 +237,13 @@ class TestStuckEscapeRearBlocked:
         assert escape_cmds, "expected a forward escape at strong steering once stuck with rear blocked"
         assert nav.debug_snapshot.active_maneuver_type == ManeuverType.STUCK_FORWARD.value
 
-    def test_both_ends_blocked_still_holds(self, waypoints):
+    def test_both_ends_blocked_still_holds(self, waypoints, tuning):
         """Genuinely sandwiched (front AND rear blocked): holding is still correct."""
         ranges = create_scan_with_sectors(front=0.06, back=0.09)
         gateway = FakeGateway(
             Pose(x=0.0, y=0.0, yaw=0.0),
             LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
         )
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         for _ in range(tuning.escape.STUCK_TIMEOUT_FRAMES + 5):
@@ -280,17 +275,16 @@ class _StubParkController:
 
 
 class TestMissingSensorsDegradeSafely:
-    def test_missing_pose_stops(self, waypoints):
+    def test_missing_pose_stops(self, waypoints, tuning):
         gateway = FakeGateway(pose=None, lidar=None)  # type: ignore[arg-type]
-        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         nav.step()
 
         assert gateway.commands == [DriveCommand(speed_mps=0.0, steering_norm=0.0)]
 
-    def test_missing_lidar_does_not_use_full_speed(self, waypoints):
+    def test_missing_lidar_does_not_use_full_speed(self, waypoints, tuning):
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), lidar=None)
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         nav.step()
@@ -307,9 +301,9 @@ class TestEscapeEscalation:
     """
 
     @staticmethod
-    def _navigator(waypoints) -> CoreNavigator:
+    def _navigator(waypoints, tuning) -> CoreNavigator:
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), lidar=None)
-        return CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+        return CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
     @staticmethod
     def _maneuver(steering: float = 0.4, duration: int = 6) -> EscapeManeuver:
@@ -320,16 +314,16 @@ class TestEscapeEscalation:
             duration_frames=duration,
         )
 
-    def test_within_threshold_returns_maneuver_unchanged(self, waypoints):
-        nav = self._navigator(waypoints)
+    def test_within_threshold_returns_maneuver_unchanged(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver()
 
         for count in range(1, nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1):
             nav._escape_count = count
             assert nav._maybe_escalate(maneuver) is maneuver
 
-    def test_beyond_threshold_flips_side_and_extends_duration(self, waypoints):
-        nav = self._navigator(waypoints)
+    def test_beyond_threshold_flips_side_and_extends_duration(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=6)
         nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
         starting_sign = nav._escape_steer_sign
@@ -342,7 +336,7 @@ class TestEscapeEscalation:
         assert result.maneuver_type == maneuver.maneuver_type
         assert result.speed == maneuver.speed
 
-    def test_successive_escalations_commit_to_a_side_before_switching(self, waypoints):
+    def test_successive_escalations_commit_to_a_side_before_switching(self, waypoints, tuning):
         """A side is held for several attempts, not flipped on every one.
 
         Flipping every attempt means consecutive escapes rotate the chassis in
@@ -351,7 +345,7 @@ class TestEscapeEscalation:
         translated the robot nowhere. Escaping a wedge needs several attempts
         pushing the same way to accumulate.
         """
-        nav = self._navigator(waypoints)
+        nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=6)
         commit = nav._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS
         assert commit > 1, "a commit of 1 is the alternate-every-attempt behaviour this pins against"
@@ -371,8 +365,8 @@ class TestEscapeEscalation:
             f"escalation must start on the side opposite the one that just failed, got {signs}"
         )
 
-    def test_duration_caps_at_max_escape_frames(self, waypoints):
-        nav = self._navigator(waypoints)
+    def test_duration_caps_at_max_escape_frames(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=nav._tuning.escape.MAX_ESCAPE_FRAMES)
         nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
 
@@ -380,11 +374,11 @@ class TestEscapeEscalation:
 
         assert result.duration_frames == nav._tuning.escape.MAX_ESCAPE_FRAMES
 
-    def test_straight_reverse_has_no_side_to_flip(self, waypoints):
+    def test_straight_reverse_has_no_side_to_flip(self, waypoints, tuning):
         """A zero-steering escape (e.g. a straight stuck-reverse) stays at zero
         when escalated — only its duration should extend.
         """
-        nav = self._navigator(waypoints)
+        nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.0, duration=6)
         nav._escape_count = nav._tuning.escape.ESCALATE_AFTER_ATTEMPTS + 1
 
@@ -400,10 +394,9 @@ class TestEscapeEscalationIntegration:
     not the same short pulse repeated forever.
     """
 
-    def test_persistent_front_threat_escalates_after_repeated_escapes(self, waypoints):
+    def test_persistent_front_threat_escalates_after_repeated_escapes(self, waypoints, tuning):
         ranges = create_scan_with_sectors(front=0.06)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         maneuvers_begun: list[EscapeManeuver] = []
@@ -444,11 +437,11 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
     reset branch, since a new escape re-triggers before the old one clears.
     """
 
-    def test_oscillating_threat_without_progress_still_escalates(self, waypoints):
+    def test_oscillating_threat_without_progress_still_escalates(self, waypoints, tuning):
         close = tuple(create_scan_with_sectors(front=0.06))
         far = tuple(np.full(NUM_RAYS, LIDAR_DEFAULT_FAR).tolist())
 
-        class _OscillatingGateway(_FakeGateway):
+        class _OscillatingGateway(FakeGateway):
             def __init__(self, pose):
                 super().__init__(pose, LidarScan(ranges_m=close, angles_rad=tuple(ANGLES)))
                 self._tick = 0
@@ -459,7 +452,6 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
                 return LidarScan(ranges_m=ranges, angles_rad=tuple(ANGLES))
 
         gateway = _OscillatingGateway(Pose(x=0.0, y=0.0, yaw=0.0))
-        tuning = NavigationTuning()
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         maneuvers_begun: list[EscapeManeuver] = []
