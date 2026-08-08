@@ -24,7 +24,7 @@ import contextlib
 import os
 import shutil
 import signal
-import subprocess  # noqa: S404 - ros2 bag record has no Python API; a subprocess is the only way
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -34,8 +34,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.domain.enums import RobotState
-from src.config.launch_settings import RaceLaunchDefaults
 from std_msgs.msg import String
+
+from src.config.launch_settings import RaceLaunchDefaults
 
 # Must match state_machine_node's _QOS_TRANSIENT publisher on both policies, or
 # this subscription receives nothing at all -- a RELIABLE reader against that
