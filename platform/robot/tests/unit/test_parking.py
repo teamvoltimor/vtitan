@@ -179,7 +179,7 @@ class TestInsideZone:
         assert not just_outside
 
 
-# ── Controller simulation ─────────────────────────────────────────────────────
+# Controller simulation
 
 # Uniform wide corridors on all four sides, matching the demo/closed-loop scenarios --
 # real Ackermann-relevant wall geometry, not an arbitrary stand-in.
@@ -340,7 +340,7 @@ def test_south_park_from_4_approaches(start_pos, start_yaw):
     )
 
 
-# ── Degenerate approach: target behind the robot / inside its turning radius ──────
+# Degenerate approach: target behind the robot / inside its turning radius
 #
 # Reproduces the actual 2026-07-11 §2.3 failure geometry: the robot arrives near the
 # staging point already, but heading along the corridor cruise direction rather than
@@ -413,7 +413,7 @@ def test_degenerate_approach_still_parks(section):
     assert run.parked, f"{section}: did not park after {run.steps} steps — pos={run.final_pos}"
 
 
-# ── Basic controller behaviour ────────────────────────────────────────────────
+# Basic controller behaviour
 
 
 class TestParkControllerBasics:

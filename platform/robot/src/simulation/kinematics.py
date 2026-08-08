@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
@@ -46,9 +45,6 @@ from src.navigation.utils import (
     _clamp,
     _wrap as _wrap_angle,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass(frozen=True, slots=True)
