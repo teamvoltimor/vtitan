@@ -23,7 +23,7 @@ from shared.config.enums import Direction, Section
 from src.navigation.start_conditions import start_pose
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.navigation.wall_heading import (
-    MIN_CONCENTRATION,
+    WallHeadingContext,
     estimate_yaw_from_walls,
     heading_error,
 )
@@ -173,4 +173,5 @@ class TestSamplingBaseline:
 
 def test_concentration_threshold_is_below_a_real_scan() -> None:
     """A threshold above what real scans achieve would reject everything."""
-    assert 0.0 < MIN_CONCENTRATION < 0.9
+    context = WallHeadingContext()
+    assert 0.0 < context.constants.min_concentration < 0.9

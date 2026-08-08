@@ -8,7 +8,10 @@ that filter is not reinstated here because reintroducing an unfused odometry
 input would resurrect the same silent-drift risk that motivated the LIDAR fix.
 """
 
+from __future__ import annotations
+
 import math
+from dataclasses import dataclass
 
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose
@@ -19,21 +22,36 @@ def wrap_angle(angle: float) -> float:
     return math.remainder(angle, 2 * math.pi)
 
 
-_DEFAULT_YAW_CORRECTION_GAIN = NavigationTuning.load_default().state_estimator.YAW_CORRECTION_GAIN
-YAW_CORRECTION_GAIN = _DEFAULT_YAW_CORRECTION_GAIN
-"""Fraction of the wall-vs-IMU heading discrepancy absorbed per scan.
+@dataclass(frozen=True, slots=True)
+class _EstimatorConstants:
+  """Tuning-derived state estimator constants, computed on-demand instead of frozen at module level."""
+  yaw_correction_gain: float
 
-At the C1's ~10 Hz that is a time constant near two seconds: fast enough to
-absorb gyro drift and scale error, which accumulate over a whole round, and
-slow enough that the wall estimate's own per-sample noise (measured 0.35 deg
-mean, 1.4 deg worst) is averaged away rather than steered on.
-"""
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning | None = None) -> _EstimatorConstants:
+    if tuning is None:
+      tuning = NavigationTuning()
+    return cls(
+        yaw_correction_gain=tuning.state_estimator.YAW_CORRECTION_GAIN,
+    )
+
+
+class EstimatorContext:
+  """Context holding tuning-derived state estimator constants."""
+
+  def __init__(self, tuning: NavigationTuning | None = None) -> None:
+    """Initialize estimator context from tuning."""
+    self.tuning = tuning or NavigationTuning()
+    self.constants = _EstimatorConstants.from_tuning(self.tuning)
+
+
+_DEFAULT_ESTIMATOR_CONTEXT = EstimatorContext()
 
 
 class StateEstimator:
     """Combines IMU heading and LIDAR-fixed position into a world-frame Pose."""
 
-    def __init__(self, start_x: float, start_y: float, start_yaw: float, tuning: NavigationTuning | None = None) -> None:
+    def __init__(self, start_x: float, start_y: float, start_yaw: float, tuning: NavigationTuning | None = None, context: EstimatorContext | None = None) -> None:
         """Initialize the state estimator.
 
         Args:
@@ -43,7 +61,11 @@ class StateEstimator:
             start_yaw: Starting Yaw (heading) in world frame (also the heading
                 estimate until the first IMU reading arrives).
             tuning: NavigationTuning instance (defaults to load_default).
+            context: EstimatorContext instance (defaults to module default).
         """
+        if context is None:
+            context = _DEFAULT_ESTIMATOR_CONTEXT
+        self._context = context
         self._tuning = tuning or NavigationTuning()
         self._start_yaw = start_yaw
         self._imu_yaw_offset: float | None = None
@@ -127,8 +149,6 @@ class StateEstimator:
         self._y = y
 
     def correct_yaw(self, measured_yaw: float, gain: float | None = None) -> None:
-        if gain is None:
-            gain = self._tuning.state_estimator.YAW_CORRECTION_GAIN
         """Pull the heading estimate toward an absolute measurement of it.
 
         A complementary filter, and the only thing that bounds heading. The IMU
@@ -147,6 +167,8 @@ class StateEstimator:
                 :func:`~src.navigation.wall_heading.estimate_yaw_from_walls`.
             gain: Fraction of the discrepancy absorbed per correction.
         """
+        if gain is None:
+            gain = self._context.constants.yaw_correction_gain
         error = wrap_angle(measured_yaw - self.estimate_pose().yaw)
         self._yaw_correction = wrap_angle(self._yaw_correction + gain * error)
 
