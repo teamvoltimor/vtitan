@@ -37,6 +37,8 @@ from typing import TYPE_CHECKING, override
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from pydantic import AliasChoices, Field
+from pydantic_settings import SettingsConfigDict
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import (
@@ -50,6 +52,7 @@ from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool, Float32, Int32, String
 
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
 from src.ros2.resettable_node import ResettableNode
 from src.state_machine import (
@@ -107,31 +110,54 @@ _DEFAULT_TARGET_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 """Default laps required to complete race; overridable via the
 ``target_laps`` ROS2 parameter."""
 
-_CHALLENGE_MODE_SAMPLES_REQUIRED = 3
-"""Consecutive agreeing BOOT_CHECK-tick samples required before trusting the challenge-mode
-jumper reading. At the default 10 Hz state-machine loop rate this spans ~300 ms -- the
-200-300 ms debounce window from the jumper spec -- without a blocking sleep in the ROS2
-spin loop (each tick reads the latest value received from the Pi Zero, not a driver-internal
-sample loop)."""
 
-_CHALLENGE_MODE_TIMEOUT_SEC = 60.0
-"""How long to wait for the Pi Zero's jumper reading before defaulting to Open.
+class NodeConfig(HardwareBaseSettings):
+    """Challenge-mode jumper debounce/timeout config.
 
-Generous on purpose. The previous value (15 s) assumed the Zero takes ~10 s
-from power-on to having its nodes up; measured on a genuine simultaneous
-cold boot of both boards from battery (2026-08-08), the Zero's own local
-startup chain -- pixi task launch overhead, then ROS2 launch, then
-ackermann_motor_node and pi_zero_peripherals_node constructing their
-hardware drivers in sequence -- took 41 s end to end before the jumper
-GPIO connected at all, let alone published. 15 s made the fallback fire on
-every such cold boot, not just flaky ones (see also
-scripts/discovery-watchdog.sh, which repairs the separate, rarer case
-where the USB-gadget link itself comes up half-dead and never completes
-ROS2 discovery no matter how long this waits). The topic is
-TRANSIENT_LOCAL, so a value published before this node subscribed still
-arrives immediately -- this ceiling only matters for how long BOOT_CHECK
-is willing to wait when it hasn't yet.
-"""
+    Configurable via config/hardware/state_machine/state_machine_node.toml.
+    Matches every hardware driver's Config pattern. publisher_rate_hz/
+    target_laps are NOT here -- those already go through
+    declare_and_get_float_param/declare_and_get_int_param (ROS2 parameters).
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="", toml_file=CONFIG_DIR / "state_machine" / "state_machine_node.toml",
+    )
+
+    challenge_mode_samples_required: int = Field(
+        default=3, validation_alias=AliasChoices("CHALLENGE_MODE_SAMPLES_REQUIRED", "challenge_mode_samples_required"),
+    )
+    """Consecutive agreeing BOOT_CHECK-tick samples required before trusting the challenge-mode
+    jumper reading. At the default 10 Hz state-machine loop rate this spans ~300 ms -- the
+    200-300 ms debounce window from the jumper spec -- without a blocking sleep in the ROS2
+    spin loop (each tick reads the latest value received from the Pi Zero, not a driver-internal
+    sample loop)."""
+
+    challenge_mode_timeout_sec: float = Field(
+        default=60.0, validation_alias=AliasChoices("CHALLENGE_MODE_TIMEOUT_SEC", "challenge_mode_timeout_sec"),
+    )
+    """How long to wait for the Pi Zero's jumper reading before defaulting to Open.
+
+    Generous on purpose. The previous value (15 s) assumed the Zero takes ~10 s
+    from power-on to having its nodes up; measured on a genuine simultaneous
+    cold boot of both boards from battery (2026-08-08), the Zero's own local
+    startup chain -- pixi task launch overhead, then ROS2 launch, then
+    ackermann_motor_node and pi_zero_peripherals_node constructing their
+    hardware drivers in sequence -- took 41 s end to end before the jumper
+    GPIO connected at all, let alone published. 15 s made the fallback fire on
+    every such cold boot, not just flaky ones (see also
+    scripts/discovery-watchdog.sh, which repairs the separate, rarer case
+    where the USB-gadget link itself comes up half-dead and never completes
+    ROS2 discovery no matter how long this waits). The topic is
+    TRANSIENT_LOCAL, so a value published before this node subscribed still
+    arrives immediately -- this ceiling only matters for how long BOOT_CHECK
+    is willing to wait when it hasn't yet.
+    """
+
+
+_node_config = NodeConfig()
+_CHALLENGE_MODE_SAMPLES_REQUIRED = _node_config.challenge_mode_samples_required
+_CHALLENGE_MODE_TIMEOUT_SEC = _node_config.challenge_mode_timeout_sec
 
 class StateMachineNode(Node, ResettableNode):
     """ROS2 node that manages the 4-stage state machine for WRO competition.

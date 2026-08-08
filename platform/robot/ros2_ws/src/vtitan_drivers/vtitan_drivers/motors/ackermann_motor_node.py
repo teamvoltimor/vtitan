@@ -64,6 +64,8 @@ from typing import TYPE_CHECKING, override
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
+from pydantic import AliasChoices, Field
+from pydantic_settings import SettingsConfigDict
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from sensor_msgs.msg import JointState
 from shared.config.constants import RobotSpecs
@@ -78,6 +80,7 @@ from src.hardware.motors.enums import (
     DriveBackend,
     SteeringBackend,
 )
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
 
@@ -105,25 +108,48 @@ if TYPE_CHECKING:
 NODE_NAME = "ackermann_motor_node"
 """ROS2 node name for Ackermann motor controller."""
 
-PUBLISHER_RATE_HZ = 20.0
-"""Rate for publishing motor state (steering position, drive speed, joint states).
 
-Was 100Hz -- telemetry consumed by a UI dial or an occasional motion prior
-doesn't need 10ms latency, and rebuilding + publishing 3 messages that often
-was a measurable, unnecessary CPU cost on the Pi Zero this node runs on
-(alongside the same-shaped fix already applied to /ui/telemetry_summary,
-/robot_state and /system_status). 20Hz (50ms) is still well under human
-perception for a dial and far above what a motion prior integrates against.
-"""
+class NodeConfig(HardwareBaseSettings):
+    """Node-level timing, configurable via config/hardware/motors/ackermann_motor_node.toml.
 
-DIAGNOSTICS_RATE_HZ = 2.0
-"""Rate for publishing /motor/status diagnostics.
+    Matches every hardware driver's Config pattern -- separate from
+    motors.toml/dc_encoder.toml/servo.toml alongside it, which are
+    driver-level config (offsets, PID gains, pins), not this node's timer
+    rates.
+    """
 
-Deliberately much slower than PUBLISHER_RATE_HZ: DiagnosticStatus is for a
-human or a monitoring dashboard, not a control loop, and building it involves
-7 KeyValue allocations + f-string formats per call -- paying that cost 100x/s
-for a value that changes on human timescales was pure waste.
-"""
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "motors" / "ackermann_motor_node.toml")
+
+    publisher_rate_hz: float = Field(
+        default=20.0, validation_alias=AliasChoices("PUBLISHER_RATE_HZ", "publisher_rate_hz"),
+    )
+    """Rate for publishing motor state (steering position, drive speed, joint states).
+
+    Was 100Hz -- telemetry consumed by a UI dial or an occasional motion
+    prior doesn't need 10ms latency, and rebuilding + publishing 3 messages
+    that often was a measurable, unnecessary CPU cost on the Pi Zero this
+    node runs on (alongside the same-shaped fix already applied to
+    /ui/telemetry_summary, /robot_state and /system_status). 20Hz (50ms) is
+    still well under human perception for a dial and far above what a motion
+    prior integrates against.
+    """
+
+    diagnostics_rate_hz: float = Field(
+        default=2.0, validation_alias=AliasChoices("DIAGNOSTICS_RATE_HZ", "diagnostics_rate_hz"),
+    )
+    """Rate for publishing /motor/status diagnostics.
+
+    Deliberately much slower than publisher_rate_hz: DiagnosticStatus is for
+    a human or a monitoring dashboard, not a control loop, and building it
+    involves 7 KeyValue allocations + f-string formats per call -- paying
+    that cost 100x/s for a value that changes on human timescales was pure
+    waste.
+    """
+
+
+_node_config = NodeConfig()
+PUBLISHER_RATE_HZ = _node_config.publisher_rate_hz
+DIAGNOSTICS_RATE_HZ = _node_config.diagnostics_rate_hz
 
 DRIVE_CONTROL_RATE_HZ = 50.0
 """Rate of the closed-loop drive step.

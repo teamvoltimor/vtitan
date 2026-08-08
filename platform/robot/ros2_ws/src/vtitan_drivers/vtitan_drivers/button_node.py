@@ -28,11 +28,14 @@ import json
 from typing import TYPE_CHECKING, override
 
 import rclpy
+from pydantic import AliasChoices, Field
+from pydantic_settings import SettingsConfigDict
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 from src.hardware.button.gpio import Driver as ButtonDriver
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -43,7 +46,24 @@ if TYPE_CHECKING:
 
 NODE_NAME = "button_node"
 DEFAULT_QUEUE_DEPTH = 10
-BUTTON_POLL_HZ = 20.0
+
+
+class NodeConfig(HardwareBaseSettings):
+    """Node-level timing, configurable via config/hardware/button/button_node.toml.
+
+    Matches every hardware driver's Config pattern -- separate from
+    gpio.toml/mcp2221.toml alongside it, which are the driver's own
+    debounce/threshold config, not this node's poll rate.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "button" / "button_node.toml")
+
+    poll_hz: float = Field(default=20.0, validation_alias=AliasChoices("POLL_HZ", "poll_hz"))
+    """Rate the physical button is sampled at."""
+
+
+_node_config = NodeConfig()
+BUTTON_POLL_HZ = _node_config.poll_hz
 BUTTON_POLL_PERIOD_S = 1.0 / BUTTON_POLL_HZ
 
 # Names the *kind* of each threshold, not what it does. What a hold does

@@ -647,8 +647,12 @@ class OLEDDisplayNode(LifecycleNode):
             draw.text((_MARGIN_X, row), f"IP: {ip_address}", fill=_ON)
             row += 10
 
-        # AI Model
-        draw.text((_MARGIN_X, row), "Model: yolov8n.hef", fill=_ON)
+        # AI Model. Published by vision_node itself (see VisionNode.
+        # _publish_model_status), not assumed here -- a hardcoded name in this
+        # module had already drifted from the real deployed model with nothing
+        # to notice or correct it.
+        model = self.system_status.get("VisionModel", {}).get("message", "?")
+        draw.text((_MARGIN_X, row), f"Model: {model}", fill=_ON)
         row += 10
 
         # Challenge mode (visual pre-race confirmation of the jumper reading)

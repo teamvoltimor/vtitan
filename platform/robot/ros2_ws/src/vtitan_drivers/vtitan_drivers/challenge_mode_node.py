@@ -23,23 +23,41 @@ wait for the next periodic publish to learn it.
 from __future__ import annotations
 
 import rclpy
+from pydantic import AliasChoices, Field
+from pydantic_settings import SettingsConfigDict
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool
 
 from src.hardware.challenge_mode.driver import Driver as ChallengeModeDriver
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 NODE_NAME = "challenge_mode_node"
 
-PUBLISH_RATE_HZ = 2.0
-"""Republish rate.
 
-The jumper is a boot-time setting, not a live control input, so this only has
-to be frequent enough that the state machine's 3-sample consistency check
-settles quickly at startup. TRANSIENT_LOCAL covers late subscribers, so this
-is really just a liveness heartbeat.
-"""
+class NodeConfig(HardwareBaseSettings):
+    """Node-level timing, configurable via config/hardware/challenge_mode_node.toml.
+
+    Matches every hardware driver's Config pattern -- separate from
+    challenge_mode.toml alongside it, which is the GPIO driver's own config
+    (pin number), not this node's publish rate.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "challenge_mode_node.toml")
+
+    publish_rate_hz: float = Field(default=2.0, validation_alias=AliasChoices("PUBLISH_RATE_HZ", "publish_rate_hz"))
+    """Republish rate.
+
+    The jumper is a boot-time setting, not a live control input, so this only
+    has to be frequent enough that the state machine's 3-sample consistency
+    check settles quickly at startup. TRANSIENT_LOCAL covers late
+    subscribers, so this is really just a liveness heartbeat.
+    """
+
+
+_node_config = NodeConfig()
+PUBLISH_RATE_HZ = _node_config.publish_rate_hz
 
 
 class ChallengeModeNode(Node):

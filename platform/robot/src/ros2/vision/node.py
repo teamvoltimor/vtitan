@@ -5,15 +5,17 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 
 import json
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import rclpy
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from pydantic_settings import SettingsConfigDict
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
@@ -64,6 +66,20 @@ class Config(HardwareBaseSettings):
     # Caps the annotated stream's publish rate independent of capture_fps, so a
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
+
+
+# Matches state_machine_node's/telemetry_bridge_node's _QOS_TRANSIENT-style
+# /system_status publishers: TRANSIENT_LOCAL so a late subscriber (the OLED,
+# which restarts independently on the Pi Zero) gets this node's one startup
+# publish instead of waiting for a periodic re-publish that never comes.
+# BEST_EFFORT for the same reason those publishers are -- a RELIABLE writer
+# blocks on a slow reader, which the OLED's own board has been measured doing
+# for 30+ seconds under contention.
+_QOS_SYSTEM_STATUS = QoSProfile(
+    depth=1,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+)
 
 
 class VisionNode(Node):
@@ -117,6 +133,7 @@ class VisionNode(Node):
         if hasattr(detector, "__enter__"):
             detector.__enter__()
         self.detector = detector
+        self._publish_model_status(Path(model_path).name)
 
         self._publisher = self.create_publisher(String, detections_topic, 10)
         self._annotated_publisher = (
@@ -143,6 +160,30 @@ class VisionNode(Node):
             self.get_logger().info(
                 f"Vision Node ready. Subscribed to {camera_topic}, publishing to {detections_topic}",
             )
+
+    def _publish_model_status(self, model_name: str) -> None:
+        """Publish the real loaded model name to /system_status, once.
+
+        The OLED's READY page used to show a hardcoded "yolov8n.hef" that had
+        already drifted from the actually-deployed model (gmr.hef) -- there was
+        no live source for this at all, just a string nobody updated when the
+        model changed. state_machine_node and telemetry_bridge_node already
+        both publish their own DiagnosticArray to this same topic and the OLED
+        merges entries by name (see oled_display_node._diagnostics_callback),
+        so a third publisher here costs nothing and can't disagree with the
+        others -- it names one field ("VisionModel") that only this node ever
+        sets.
+        """
+        topics = RosTopicConfig.load_default()
+        pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, _QOS_SYSTEM_STATUS)
+        msg = DiagnosticArray()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        status = DiagnosticStatus()
+        status.name = "VisionModel"
+        status.level = DiagnosticStatus.OK
+        status.message = model_name
+        msg.status.append(status)
+        pub.publish(msg)
 
     @staticmethod
     def _detection_threshold(backend: str) -> float:
