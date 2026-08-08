@@ -27,12 +27,21 @@ class CorridorEstimatorParams(BaseModel):
             NARROW - this margin or WIDE + this margin, the inward ray has
             missed the inner block entirely (a corner), not just measured a
             noisy corridor.
+        MAX_START_SAMPLES: Length of the rolling window of stationary width
+            readings kept before the start button is pressed. Enough to
+            outvote the narrow prior comfortably (the estimator needs
+            MIN_SAMPLES agreeing readings), and at the 20 Hz control rate it
+            spans the last second before the button is pressed. A window
+            rather than a total, because the robot is often powered on well
+            away from the track and only what it sees once placed should
+            count.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     MIN_SAMPLES: int = Field(default=12, validation_alias=_alias("MIN_SAMPLES"))
     PLAUSIBLE_WIDTH_MARGIN_M: float = Field(default=0.25, validation_alias=_alias("PLAUSIBLE_WIDTH_MARGIN_M"))
+    MAX_START_SAMPLES: int = Field(default=20, validation_alias=_alias("MAX_START_SAMPLES"))
 
 
 class CorridorFollowerParams(BaseModel):
@@ -128,6 +137,13 @@ class DirectionEstimatorParams(BaseModel):
             slipping past a block corner produces brief, clustered
             misreadings, and one of those arriving first should not decide
             the round.
+        GATE_LOG_PERIOD_TICKS: Log one direction-gate verdict every this many
+            unresolved blind-creep ticks, in track_navigator_node's
+            direction-not-yet-settled logging. Diagnostic only: at the
+            ~20 Hz control rate, logging every tick during a prolonged
+            corridor-follower hold would flood the log; this keeps enough
+            resolution to see which gate is refusing readings without
+            drowning it out.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -140,6 +156,7 @@ class DirectionEstimatorParams(BaseModel):
     MIN_ASYMMETRY_M: float = Field(default=0.20, validation_alias=_alias("MIN_ASYMMETRY_M"))
     PLAUSIBLE_SPAN_THRESHOLD_M: float = Field(default=1.25, validation_alias=_alias("PLAUSIBLE_SPAN_THRESHOLD_M"))
     MIN_VOTES: int = Field(default=5, validation_alias=_alias("MIN_VOTES"))
+    GATE_LOG_PERIOD_TICKS: int = Field(default=5, validation_alias=_alias("GATE_LOG_PERIOD_TICKS"))
 
 
 class LocalizationParams(BaseModel):

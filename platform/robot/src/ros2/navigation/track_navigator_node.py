@@ -50,29 +50,6 @@ from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
 
-_MAX_START_SAMPLES = 20
-"""Length of the rolling window of stationary width readings kept before start.
-
-Enough to outvote the narrow prior comfortably (the estimator needs
-MIN_SAMPLES agreeing readings), and at the 20 Hz control rate it spans the
-last second before the button is pressed. A window rather than a total,
-because the robot is often powered on well away from the track and only what
-it sees once placed should count.
-"""
-
-
-_DIRECTION_GATE_LOG_PERIOD = 5
-"""Log one direction-gate verdict every this many unresolved creep ticks.
-
-Diagnostic only: at the ~20 Hz control rate, logging every tick during a
-prolonged corridor-follower hold (see follow_corridor's undefined-duration
-full-lock branch) would flood the log; this keeps enough resolution to see
-which gate is refusing readings without drowning it out. Added 2026-08-02
-after a real CCW run held full-lock steering for ~7s with direction never
-settling -- see docs/robot-physical-constants.md and
-docs/known-issues-backlog.md for the investigation this feeds.
-"""
-
 
 def _direction_gate_verdict(
     ranges_m: Any,
@@ -539,7 +516,7 @@ class TrackNavigator(Node, ResettableNode):
 
         verdict = _direction_gate_verdict(scan.ranges_m, scan.angles_rad, pose.yaw, self._tuning)
         self._direction_gate_log_counter += 1
-        if self._direction_gate_log_counter % _DIRECTION_GATE_LOG_PERIOD == 0:
+        if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
         drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed, pose.yaw, self._tuning)
@@ -605,7 +582,7 @@ class TrackNavigator(Node, ResettableNode):
         # afterwards could displace them. What matters is the last second
         # before the operator presses start, so old readings age out.
         self._creep_widths.append((pose.yaw, m.width_m))
-        if len(self._creep_widths) > _MAX_START_SAMPLES:
+        if len(self._creep_widths) > self._tuning.corridor_estimator.MAX_START_SAMPLES:
             del self._creep_widths[0]
 
         widths = [w for _, w in self._creep_widths]

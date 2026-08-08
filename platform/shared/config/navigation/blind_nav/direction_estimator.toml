@@ -57,3 +57,10 @@ plausible_span_threshold_m = 1.25
 # direction. Voting rather than trusting a single scan, for the same reason
 # corridor_estimator.toml's min_samples does.
 min_votes = 5
+
+# Log one direction-gate verdict every this many unresolved blind-creep
+# ticks, in track_navigator_node's direction-not-yet-settled logging.
+# Diagnostic only: at the ~20 Hz control rate, logging every tick during a
+# prolonged corridor-follower hold would flood the log; this keeps enough
+# resolution to see which gate is refusing readings without drowning it out.
+gate_log_period_ticks = 5
