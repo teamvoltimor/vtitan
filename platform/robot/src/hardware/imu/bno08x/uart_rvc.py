@@ -24,12 +24,6 @@ from src.logger.constants import DETAILS_KEY
 
 configure_json_logging()
 
-SERIAL_TIMEOUT = 1.0
-"""Timeout in seconds for serial communication"""
-
-DATA_LOCK_TIMEOUT = 2.0
-"""Timeout in seconds for waiting on new data to be available"""
-
 
 class Config(HardwareBaseSettings):
     """Configuration for BNO08x via UART RVC."""
@@ -58,6 +52,18 @@ class Config(HardwareBaseSettings):
 
     poll_rate_hz: float = 100.0
     """Polling rate in Hz for reading data from the IMU. Higher rates may increase CPU usage."""
+
+    serial_timeout: float = 1.0
+    """Timeout in seconds for serial communication.
+
+    Distinct from NavigationTuning.sensors.STALE_TIMEOUT_SEC: that gates how
+    old a cached reading may be before the navigator distrusts it, a
+    control-loop concern. This is a raw pyserial read/thread-join timeout, a
+    driver-internal implementation detail with no navigation meaning.
+    """
+
+    data_lock_timeout: float = 2.0
+    """Timeout in seconds for waiting on new data to be available."""
 
 
 class Driver(ABC_RVCDriver):
@@ -95,7 +101,7 @@ class Driver(ABC_RVCDriver):
             "Connecting to BNO08x",
             extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
         )
-        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=SERIAL_TIMEOUT)
+        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
 
         self._rvc = BNO08x_RVC(self._serial)
         self.logger.info("Connected to BNO08x RVC")
@@ -121,7 +127,7 @@ class Driver(ABC_RVCDriver):
             return
 
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=SERIAL_TIMEOUT)
+            self._thread.join(timeout=self.config.serial_timeout)
 
         self.logger.info("Polling stopped")
         self._running.release()
@@ -173,7 +179,7 @@ class Driver(ABC_RVCDriver):
 
     def get_data_blocking(self) -> RVCReading | None:
         """Get latest sensor data, blocking until available."""
-        _ = self._data_lock.wait(timeout=DATA_LOCK_TIMEOUT)
+        _ = self._data_lock.wait(timeout=self.config.data_lock_timeout)
         return self._latest_data
 
     @override

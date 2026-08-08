@@ -12,7 +12,6 @@ from pydantic_settings import SettingsConfigDict
 os.environ.setdefault("BLINKA_MCP2221", "1")
 
 from src.hardware.imu.bno08x.uart_rvc import (
-    SERIAL_TIMEOUT,
     Config as UARTRVCConfig,
     Driver as UARTRVCDriver,
 )
@@ -112,7 +111,7 @@ class Driver(UARTRVCDriver):
             "Connecting to BNO08x via MCP2221",
             extra={DETAILS_KEY: {"port": port, "baudrate": self.config.baudrate}},
         )
-        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=SERIAL_TIMEOUT)
+        self._serial = serial.Serial(port, baudrate=self.config.baudrate, timeout=self.config.serial_timeout)
 
         self._rvc = BNO08x_RVC(self._serial)
         self.logger.info("Connected to BNO08x RVC")
