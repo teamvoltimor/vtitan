@@ -134,7 +134,7 @@ def _load_json(path: str | Path) -> dict[str, Any]:
 class TrackNavigator(Node, ResettableNode):
     """ROS2 node wrapping the pure Python CoreNavigator."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0915 - constructor wires every navigation subsystem together
         self,
         metadata_path: str | Path | None = None,
         num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
@@ -213,12 +213,7 @@ class TrackNavigator(Node, ResettableNode):
         # this node previously assumed. There is no odom_topic: no node
         # publishes nav_msgs/Odometry on real hardware, so position comes
         # from LIDAR localization instead (see ROS2HardwareGateway).
-        self.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-        self.declare_parameter("lidar_topic", "/scan")
-        self.declare_parameter("vision_topic", "/vision/detections")
-        self.declare_parameter("imu_topic", "/imu/data")
-        self.declare_parameter("joint_states_topic", "/joint_states")
-        self.declare_parameter("is_simulation", value=False)
+        self._declare_parameters()
 
         if params_path is not None:
             self._apply_param_overrides(params_path)
@@ -303,7 +298,7 @@ class TrackNavigator(Node, ResettableNode):
             if self._width_estimator
             else self._told_geometry
         )
-        assert geometry is not None
+        assert geometry is not None  # noqa: S101 - either branch above guarantees a value
 
         self._gateway = ROS2HardwareGateway(
             self,
@@ -316,48 +311,13 @@ class TrackNavigator(Node, ResettableNode):
         )
         waypoints = self._plan(self._to_widths_dict())
 
-        sign_router: SignRouter | None = None
-        if not self._is_open_challenge:
-            # A blind run has no metadata file, so ``signs_from_metadata`` comes
-            # back empty and the router used to be left as None — which meant
-            # blind operation shipped with no sign avoidance whatsoever, the one
-            # thing the Obstacles Challenge is scored on. Build it regardless and
-            # let it discover the layout from ``/vision/detections``, the same
-            # way ``CorridorWidthEstimator`` recovers the corridor widths.
-            signs = [] if self._blind else signs_from_metadata(self._metadata)
-            sign_router = SignRouter(
-                signs,
-                config=SignRouterConfig.from_tuning(tuning.sign_router),
-                direction=start_direction,
-                discover=self._blind,
-                discovery_config=tuning.sign_discovery,
-                tuning=tuning,
-            )
-
-        lap_detector = LapDetector(
-            start_pos=(start_x, start_y),
+        self._core_navigator = self._build_core_navigator(
+            start_xy=(start_x, start_y),
             start_section=start_section,
-            direction=start_direction,
-        )
-
-        park_controller: ParkController | None = None
-        if not self._is_open_challenge:
-            park_controller = park_controller_from_metadata(
-                self._metadata,
-                start_section,
-                start_direction,
-                tuning=tuning,
-            )
-
-        self._core_navigator = CoreNavigator(
-            gateway=self._gateway,
-            waypoints=waypoints,
-            num_laps=num_laps,
+            start_direction=start_direction,
             tuning=tuning,
-            sign_router=sign_router,
-            lap_detector=lap_detector,
-            park_controller=park_controller,
-            direction=start_direction,
+            num_laps=num_laps,
+            waypoints=waypoints,
         )
 
         # Race-state gate. Without this the navigator drives the moment it has a
@@ -440,6 +400,70 @@ class TrackNavigator(Node, ResettableNode):
             f"Assumed start: section={start_section.value} direction={start_direction.value} "
             f"pose=({start_x:.2f}, {start_y:.2f}) - first waypoints "
             + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in head),
+        )
+
+    def _declare_parameters(self) -> None:
+        """Declare this node's ROS2 parameters with their default values."""
+        self.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
+        self.declare_parameter("lidar_topic", "/scan")
+        self.declare_parameter("vision_topic", "/vision/detections")
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("joint_states_topic", "/joint_states")
+        self.declare_parameter("is_simulation", value=False)
+
+    def _build_core_navigator(
+        self,
+        *,
+        start_xy: tuple[float, float],
+        start_section: Section,
+        start_direction: Direction,
+        tuning: NavigationTuning,
+        num_laps: int,
+        waypoints: list[tuple[float, float]],
+    ) -> CoreNavigator:
+        """Build the waypoints, sign router, lap detector, park controller and navigator."""
+        sign_router: SignRouter | None = None
+        if not self._is_open_challenge:
+            # A blind run has no metadata file, so ``signs_from_metadata`` comes
+            # back empty and the router used to be left as None — which meant
+            # blind operation shipped with no sign avoidance whatsoever, the one
+            # thing the Obstacles Challenge is scored on. Build it regardless and
+            # let it discover the layout from ``/vision/detections``, the same
+            # way ``CorridorWidthEstimator`` recovers the corridor widths.
+            signs = [] if self._blind else signs_from_metadata(self._metadata)
+            sign_router = SignRouter(
+                signs,
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+                direction=start_direction,
+                discover=self._blind,
+                discovery_config=tuning.sign_discovery,
+                tuning=tuning,
+            )
+
+        lap_detector = LapDetector(
+            start_pos=start_xy,
+            start_section=start_section,
+            direction=start_direction,
+        )
+
+        park_controller: ParkController | None = None
+        if not self._is_open_challenge:
+            park_controller = park_controller_from_metadata(
+                self._metadata,
+                start_section,
+                start_direction,
+                tuning=tuning,
+            )
+
+        return CoreNavigator(
+            gateway=self._gateway,
+            waypoints=waypoints,
+            num_laps=num_laps,
+            tuning=tuning,
+            sign_router=sign_router,
+            lap_detector=lap_detector,
+            park_controller=park_controller,
+            direction=start_direction,
         )
 
     def _commit_told_direction(self) -> bool:
@@ -595,7 +619,7 @@ class TrackNavigator(Node, ResettableNode):
         g = self._told_geometry
         # Set exactly when not blind (see __init__), which is the only way to
         # reach this branch -- blind means _width_estimator is set instead.
-        assert g is not None
+        assert g is not None  # noqa: S101 - guaranteed non-None in the non-blind branch
         return {
             Section.NORTH: g.north_width_m,
             Section.SOUTH: g.south_width_m,

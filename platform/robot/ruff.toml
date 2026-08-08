@@ -159,6 +159,11 @@ extend = "../ruff.toml"
 "src/ros2/imu/bno08x/mcp2221/i2c_node.py" = ["N801"]
 "src/ros2/imu/bno08x/mcp2221/uart_rvc_node.py" = ["N801"]
 
+# Telemetry-bridge DTOs (RobotSnapshot, TelemetryMetrics, _IMUPayload, etc.)
+# mirror the backend's camelCase gRPC/JSON wire contract field-for-field;
+# renaming them to snake_case would change the on-wire schema.
+"ros2_ws/src/vtitan_state_machine/vtitan_state_machine/telemetry_bridge_node.py" = ["N815"]
+
 # Core navigator step() is complex by design — orchestrates all navigation subsystems
 "src/navigation/core_navigator.py" = ["C901", "PLR0911", "PLR0912", "PLR0915"]
 

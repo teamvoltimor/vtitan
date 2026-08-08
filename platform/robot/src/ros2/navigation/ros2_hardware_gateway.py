@@ -13,26 +13,40 @@ from __future__ import annotations
 
 import json
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
-from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
-from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, Detection, IMUReading, Pose, TrafficSignObservation
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
 from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import LidarLocalizer
+from src.navigation.planning.sign_discovery import detection_to_observation
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 from src.navigation.wall_heading import estimate_yaw_from_walls
+from src.ros2.vision.detection_payload_keys import (
+    AREA_KEY,
+    BBOX_KEY,
+    CLASS_NAME_KEY,
+    CONFIDENCE_KEY,
+    HEIGHT_KEY,
+    WIDTH_KEY,
+    X_KEY,
+    Y_KEY,
+)
 from src.state_machine.estimator import StateEstimator
+
+if TYPE_CHECKING:
+    from rclpy.node import Node
+    from shared.domain.enums import Section
 
 _LIDAR_YAW_OFFSET_RAD = math.radians(
     (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
@@ -291,17 +305,6 @@ class ROS2HardwareGateway(HardwareGateway):
 
     def _vision_callback(self, msg: String) -> None:
         try:
-            from src.ros2.vision.detection_payload_keys import (
-                AREA_KEY,
-                BBOX_KEY,
-                CLASS_NAME_KEY,
-                CONFIDENCE_KEY,
-                HEIGHT_KEY,
-                WIDTH_KEY,
-                X_KEY,
-                Y_KEY,
-            )
-
             raw_data = json.loads(msg.data)
             self._latest_detections = []
             for d in raw_data:
@@ -376,7 +379,6 @@ class ROS2HardwareGateway(HardwareGateway):
         pose = self.get_current_pose()
         if pose is None or not self._latest_detections:
             return []
-        from src.navigation.planning.sign_discovery import detection_to_observation
 
         result: list[TrafficSignObservation] = []
         for det in self._latest_detections:

@@ -7,17 +7,22 @@ and make test intent clearer. Builders are fluent for easy test setup.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
-from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, Waypoint
 
-from src.navigation.ports import DriveCommand, LidarScan
 from src.simulation.kinematics import AckermannState
 from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from shared.domain.enums import Section
+
+    from src.navigation.ports import DriveCommand
 
 
 @dataclass(frozen=True)
@@ -30,7 +35,8 @@ class LidarScan:
 
     def __post_init__(self):
         if len(self.ranges) != len(self.angles):
-            raise ValueError(f"ranges ({len(self.ranges)}) and angles ({len(self.angles)}) must match")
+            msg = f"ranges ({len(self.ranges)}) and angles ({len(self.angles)}) must match"
+            raise ValueError(msg)
 
 
 class LidarScanBuilder:
@@ -263,7 +269,8 @@ class WaypointPathBuilder:
     def build(self) -> WaypointPath:
         """Build the path."""
         if not self.waypoints:
-            raise ValueError("Cannot build an empty path")
+            msg = "Cannot build an empty path"
+            raise ValueError(msg)
         return WaypointPath(waypoints=self.waypoints)
 
 
@@ -301,7 +308,7 @@ class ParkingLotFixtures:
     _PARK_FAR = TrackDimensions.MAX_COORD - ParkingLotSpecs.WALL_OFFSET
 
     @staticmethod
-    def create(section: Section, block1_x: float, block1_y: float, block2_x: float, block2_y: float) -> ParkingLot:
+    def create(section: Section, block1_x: float, block1_y: float, block2_x: float, block2_y: float) -> ParkingLot:  # noqa: ARG004 - section names the corridor but the lot layout is section-independent
         """Create a parking lot with given block positions."""
         return ParkingLot(
             block1_position=BlockPosition(x=block1_x, y=block1_y),
@@ -390,7 +397,8 @@ def create_scan_with_sectors(
 
     for name, dist in closed_sectors.items():
         if name not in sector_centers:
-            raise ValueError(f"Unknown sector '{name}'. Use: front, back, left, right")
+            msg = f"Unknown sector '{name}'. Use: front, back, left, right"
+            raise ValueError(msg)
         center_rad = sector_centers[name]
         idx = angle_to_index(center_rad, angles)
         ranges[idx - sector_width_indices : idx + sector_width_indices] = dist

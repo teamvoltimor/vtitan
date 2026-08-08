@@ -676,7 +676,7 @@ class AckermannMotorNode(LifecycleNode):
                 self.drive.get_drive_rpm()
                 return
             self.drive.run_drive_at_rpm(self.target_wheel_rpm)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any drive fault must stop the motors
             # RcutilsLogger has no exception() (only debug/info/warning/error/
             # fatal) -- calling it here would raise AttributeError instead of
             # stopping the motors, the one thing this handler exists to do.

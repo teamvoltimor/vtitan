@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose
 
 from src.config.tuning_helpers import TuningContext, get_tuning
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 
 def wrap_angle(angle: float) -> float:
@@ -81,8 +84,9 @@ class StateEstimator:
         self._relative_imu_yaw = wrap_angle(reading.yaw - self._imu_yaw_offset)
 
     def reset_heading_reference(self) -> None:
-        """Re-zero the heading reference against the next IMU reading, and
-        clear any accumulated correction.
+        """Re-zero the heading reference against the next IMU reading.
+
+        Clears any accumulated correction.
 
         The BNO085 in UART-RVC mode reports yaw relative to power-on and has no
         absolute reference, so the offset latched by the first reading is only

@@ -74,7 +74,7 @@ class ChallengeModeNode(Node):
     def _publish(self) -> None:
         try:
             inserted = self._driver.is_jumper_inserted()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - any GPIO read fault falls back to Open
             # Publish nothing on fault: the state machine falls back to Open
             # Challenge when it hears nothing. Logged once (not every 500 ms)
             # but at error level, because a wiring fault would otherwise be

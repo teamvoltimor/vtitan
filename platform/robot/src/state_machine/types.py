@@ -18,7 +18,6 @@ from shared.domain.enums import RobotState, ScenarioType, Section
 __all__ = [
     "LidarMetrics",
     "PathStatus",
-    "RaceMetrics",
     "RobotState",
     "ScenarioType",
     "SensorStatus",

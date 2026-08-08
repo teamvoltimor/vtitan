@@ -10,27 +10,31 @@ without Gazebo, ROS2, or a physics engine.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
-from numpy.random import SeedSequence
 from shared.config.constants import RobotSpecs
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import LidarLocalizer
-from src.navigation.planning.sign_router import SignSpec
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
-from src.navigation.track_geometry import TrackWalls
 from src.navigation.utils import _wrap as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel
 from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
+
+if TYPE_CHECKING:
+  from collections.abc import Callable
+
+  from numpy.random import SeedSequence
+  from shared.config.navigation_tuning import NavigationTuning
+
+  from src.navigation.planning.sign_router import SignSpec
+  from src.navigation.track_geometry import TrackWalls
 
 LIDAR_SCAN_HZ = RobotSpecs.LIDAR_UPDATE_RATE
 """Sweep rate of the Slamtec C1, which is what the robot actually has.
@@ -205,6 +209,7 @@ class SimulatedHardwareGateway:
         if context is None:
             context = _DEFAULT_SIMULATOR_CONTEXT
         self._context = context
+        self.tuning = get_tuning(tuning)
         if lidar_invalid_rate is None:
             lidar_invalid_rate = context.constants.lidar_invalid_ray_rate
         self._track = track

@@ -178,34 +178,48 @@ class LidarLocalizer:
             self._pending_jump_xy = None
             return prior_xy
 
-        # A cost/margin-based ambiguity guard (rejecting a winning candidate
-        # whose cost margin over its runner-up was too thin) was tried,
-        # committed, and reverted 2026-08-05 after replaying it against 22
-        # real hardware runs (846 sampled ticks): confirmed-bad and genuinely
-        # correct matches had statistically indistinguishable cost and margin
-        # distributions on real, noisy scans (median cost ~25-26 either way,
-        # median margin ~0.02% either way) -- the signal the guard depended on
-        # does not exist on real data, only in the clean simulator. No
-        # threshold on it can work; the search's own cost surface cannot tell
-        # a real correction from an ambiguous flip.
-        #
-        # This guard instead bounds physical plausibility directly: how far
-        # the candidate is from prior_xy against how much time actually
-        # passed and the drivetrain's real top speed (with headroom -- see
-        # max_speed_mps above). A single tick implying impossible speed is
-        # held; if the SAME candidate (within jump_confirm_tolerance_m) wins
-        # again on the very next tick, it is trusted -- a real correction
-        # reconverges to nearly the same position from an independent scan,
-        # while an ambiguous flip (this class's actual observed failure mode)
-        # does not typically repeat identically.
-        if dt is not None and dt > 0:
-            implied_dist = math.hypot(best_x - prior_xy[0], best_y - prior_xy[1])
-            if implied_dist > self._max_speed_mps * dt:
-                pending = self._pending_jump_xy
-                confirmed = pending is not None and math.hypot(best_x - pending[0], best_y - pending[1]) <= self._jump_confirm_tolerance
-                if not confirmed:
-                    self._pending_jump_xy = (best_x, best_y)
-                    return prior_xy
+        if self._reject_implausible_speed((best_x, best_y), prior_xy, dt):
+            return prior_xy
 
         self._pending_jump_xy = None
         return best_x, best_y
+
+    def _reject_implausible_speed(
+        self,
+        best_xy: tuple[float, float],
+        prior_xy: tuple[float, float],
+        dt: float | None,
+    ) -> bool:
+        """Return True when ``best_xy`` implies a physically impossible speed.
+
+        A cost/margin-based ambiguity guard (rejecting a winning candidate
+        whose cost margin over its runner-up was too thin) was tried,
+        committed, and reverted 2026-08-05 after replaying it against 22 real
+        hardware runs (846 sampled ticks): confirmed-bad and genuinely correct
+        matches had statistically indistinguishable cost and margin
+        distributions on real, noisy scans (median cost ~25-26 either way,
+        median margin ~0.02% either way) -- the signal the guard depended on
+        does not exist on real data, only in the clean simulator. No threshold
+        on it can work; the search's own cost surface cannot tell a real
+        correction from an ambiguous flip.
+
+        This guard instead bounds physical plausibility directly: how far the
+        candidate is from ``prior_xy`` against how much time actually passed
+        and the drivetrain's real top speed (with headroom -- see
+        ``max_speed_mps`` above). A single tick implying impossible speed is
+        held; if the SAME candidate (within ``jump_confirm_tolerance_m``) wins
+        again on the very next tick, it is trusted -- a real correction
+        reconverges to nearly the same position from an independent scan,
+        while an ambiguous flip (this class's actual observed failure mode)
+        does not typically repeat identically.
+        """
+        if dt is None or dt <= 0:
+            return False
+        implied_dist = math.hypot(best_xy[0] - prior_xy[0], best_xy[1] - prior_xy[1])
+        if implied_dist <= self._max_speed_mps * dt:
+            return False
+        pending = self._pending_jump_xy
+        if pending is not None and math.hypot(best_xy[0] - pending[0], best_xy[1] - pending[1]) <= self._jump_confirm_tolerance:
+            return False
+        self._pending_jump_xy = best_xy
+        return True

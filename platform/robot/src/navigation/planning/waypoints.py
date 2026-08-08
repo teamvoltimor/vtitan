@@ -11,15 +11,17 @@ All functions are pure — they accept data and return results without I/O.
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import CorridorSide, Direction, Section
 from shared.domain.models import PathPlannability, ScenarioMetadata
 
 from src.config.tuning_helpers import get_tuning
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
 _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m

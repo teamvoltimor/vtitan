@@ -41,14 +41,13 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
-from shared.domain.models import CorridorGeometry
 
 from src.navigation.track_geometry import TrackWalls
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from shared.domain.enums import Section
+    from shared.domain.models import CorridorGeometry
 
 # |cos(yaw)| below this counts as a quarter-turn, so a block's extents are
 # swapped rather than treated as axis-aligned.

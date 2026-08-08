@@ -86,7 +86,7 @@ def main() -> None:
         row = [t] + [getattr(snap, key) for key in present]
         table_rows.append(row)
     if table_rows:
-        print_table(table_rows, ["t"] + present)
+        print_table(table_rows, ["t", *present])
 
 
 if __name__ == "__main__":

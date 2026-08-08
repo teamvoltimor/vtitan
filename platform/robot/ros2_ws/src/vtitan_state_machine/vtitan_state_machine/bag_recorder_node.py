@@ -85,7 +85,7 @@ class BagRecorderNode(Node):
         self.declare_parameter("topics", _DEFAULT_TOPICS)
         self.declare_parameter("max_runs", 20)
         self.declare_parameter("max_total_gb", 4.0)
-        self.declare_parameter("enabled", True)
+        self.declare_parameter("enabled", True)  # noqa: FBT003 - rclpy API requires the value positionally
 
         self._bag_dir = Path(self.get_parameter("bag_dir").value).expanduser()
         self._topics = list(self.get_parameter("topics").value)

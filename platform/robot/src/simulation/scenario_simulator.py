@@ -20,9 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import ScenarioMetadata
+from shared.domain.models import CorridorWidthEntry, CorridorWidths, Position2D, ScenarioMetadata
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -36,7 +35,6 @@ from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import calculate_waypoints
-from src.navigation.ports import LidarScan
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -52,6 +50,10 @@ from src.simulation.track_model import ContactSurface, TrackModel, obstacles_fro
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from shared.config.navigation_tuning import NavigationTuning
+
+    from src.navigation.ports import LidarScan
 
 TERMINAL_SURFACES: dict[ScenarioType, frozenset[ContactSurface]] = {
     ScenarioType.OPEN: frozenset({ContactSurface.OUTER_WALL}),
@@ -303,7 +305,7 @@ class ScenarioSimulator:
     reason ``blind`` does.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0915 - constructor wires every subsystem together by design
         self,
         metadata: ScenarioMetadata | dict[str, Any],
         num_laps: int = 3,
@@ -531,8 +533,6 @@ class ScenarioSimulator:
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on."""
-        from shared.domain.models import CorridorWidthEntry, CorridorWidths, Position2D
-
         new_widths = CorridorWidths(
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
@@ -713,7 +713,7 @@ class ScenarioSimulator:
         router = self._navigator.sign_router
         return router.signs if router else []
 
-    def run(
+    def run(  # noqa: C901 - main control loop; each branch is a distinct tick policy
         self,
         max_steps: int = 4000,
         dt: float = CONTROL_DT,

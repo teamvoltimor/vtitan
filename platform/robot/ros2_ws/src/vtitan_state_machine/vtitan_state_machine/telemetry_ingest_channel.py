@@ -232,6 +232,7 @@ class TelemetryIngestChannel:
         self._topics_thread: threading.Thread | None = None
 
     def start(self) -> None:
+        """Start the snapshot and topics background stream threads."""
         if self._is_running():
             return
         self._stop_event.clear()
@@ -251,28 +252,34 @@ class TelemetryIngestChannel:
         self._topics_thread.start()
 
     def stop(self) -> None:
+        """Signal both stream threads to stop and report disconnected."""
         self._stop_event.set()
         if self._on_state_changed is not None:
             connected = False
             self._on_state_changed(connected)
 
     def restart(self) -> None:
+        """Restart the stream threads after a stop."""
         if self._is_running():
             return
         self._stop_event.clear()
         self.start()
 
     def push_snapshot(self, snapshot: RobotSnapshot) -> None:
-        # StreamSnapshots' wire type is StreamSnapshotsRequest{snapshot=1},
-        # not a bare RobotSnapshot -- sending the unwrapped message serializes
-        # its fields under RobotSnapshot's own field numbers, which the
-        # server then misparses as StreamSnapshotsRequest.snapshot's nested
-        # bytes (both happen to be wire type 2 at field 1, so it "parses"
-        # into an empty/garbage snapshot instead of failing outright).
+        """Queue a robot snapshot for the StreamSnapshots RPC (keep-latest).
+
+        StreamSnapshots' wire type is StreamSnapshotsRequest{snapshot=1}, not
+        a bare RobotSnapshot -- sending the unwrapped message serializes its
+        fields under RobotSnapshot's own field numbers, which the server then
+        misparses as StreamSnapshotsRequest.snapshot's nested bytes (both
+        happen to be wire type 2 at field 1, so it "parses" into an
+        empty/garbage snapshot instead of failing outright).
+        """
         request = ingest_pb2.StreamSnapshotsRequest(snapshot=_snapshot_to_proto(snapshot))
         self._push_latest(self._snapshot_queue, request)
 
     def push_topics(self, topics: TopicsSnapshot) -> None:
+        """Queue a topics snapshot for the StreamTopics RPC (keep-latest)."""
         request = ingest_pb2.StreamTopicsRequest(topics=_topics_snapshot_to_proto(topics))
         self._push_latest(self._topics_queue, request)
 
@@ -306,9 +313,9 @@ class TelemetryIngestChannel:
             try:
                 self._run_stream(rpc_name, q)
             except grpc.RpcError as exc:
-                self._logger.warning(f"{rpc_name} stream error: {exc.code()} {exc.details()}")
+                self._logger.warning("%s stream error: %s %s", rpc_name, exc.code(), exc.details())
             except Exception as exc:  # noqa: BLE001
-                self._logger.warning(f"{rpc_name} stream error: {exc}")
+                self._logger.warning("%s stream error: %s", rpc_name, exc)
 
             if self._on_state_changed is not None:
                 connected = False
@@ -324,7 +331,7 @@ class TelemetryIngestChannel:
         try:
             stub = ingest_pb2_grpc.TelemetryIngestServiceStub(channel)
             rpc = getattr(stub, rpc_name)
-            self._logger.info(f"Opening {rpc_name} stream to {self._backend_target}")
+            self._logger.info("Opening %s stream to %s", rpc_name, self._backend_target)
             if self._on_state_changed is not None:
                 connected = True
                 self._on_state_changed(connected)

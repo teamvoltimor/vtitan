@@ -5,7 +5,7 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 
 import json
 from contextlib import suppress
-from dataclasses import asdict
+from typing import TYPE_CHECKING
 
 import numpy as np
 import rclpy
@@ -17,7 +17,6 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
-from src.hardware.camera.base import Driver as CameraDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
@@ -33,13 +32,17 @@ from src.vision import create_detector
 from src.vision.detector import DEFAULT_YOLO_MODEL_PATH
 from src.vision.overlay import annotate
 
+if TYPE_CHECKING:
+    from src.hardware.camera.base import Driver as CameraDriver
+
 
 class Config(HardwareBaseSettings):
-    """Fallback defaults for VisionNode's ROS2 parameters, sourced from
-    config/hardware/vision/node.toml. ``rpi5_nodes.launch.py`` still overrides
-    these at launch time via ROS2 parameters (e.g. to select the hailo
-    backend and direct camera capture) -- this only changes what a node
-    launched with no parameter overrides falls back to.
+    """Fallback defaults for VisionNode's ROS2 parameters.
+
+    Sourced from config/hardware/vision/node.toml. ``rpi5_nodes.launch.py``
+    still overrides these at launch time via ROS2 parameters (e.g. to select
+    the hailo backend and direct camera capture) -- this only changes what a
+    node launched with no parameter overrides falls back to.
     """
 
     model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
@@ -203,7 +206,7 @@ class VisionNode(Node):
         """Grab one frame and run the detection/publish path over it."""
         # Only ever scheduled by _start_direct_capture, right after self._camera
         # is set -- guaranteed non-None whenever this timer callback fires.
-        assert self._camera is not None
+        assert self._camera is not None  # noqa: S101 - guaranteed by _start_direct_capture before scheduling
         try:
             frame = self._camera.capture_frame().frame
         except Exception as err:  # noqa: BLE001

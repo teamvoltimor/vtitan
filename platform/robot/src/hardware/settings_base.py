@@ -1,5 +1,7 @@
-"""Shared base for every hardware driver's ``Config`` -- reads from its own
-TOML file under ``platform/robot/config/hardware/`` instead of ``.env``.
+"""Shared base for every hardware driver's ``Config``.
+
+Reads from its own TOML file under ``platform/robot/config/hardware/`` instead
+of ``.env``.
 
 An env var of the same name still overrides the toml value (env_settings
 runs before the toml source below), so systemd EnvironmentFile= and local
@@ -32,6 +34,7 @@ class HardwareBaseSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Prefer init/env, then fall back to the driver's TOML config file."""
         return (
             init_settings,
             env_settings,

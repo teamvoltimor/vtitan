@@ -30,7 +30,6 @@ import rosbag2_py
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
-from shared.domain.enums import Direction
 from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
 
@@ -38,6 +37,8 @@ from src.navigation.ports import LidarScan
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from shared.domain.enums import Direction
 
 
 class Topics:

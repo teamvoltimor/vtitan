@@ -13,7 +13,6 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions
-from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot
 
@@ -32,6 +31,7 @@ from src.navigation.track_geometry import cross_track_error, path_turn_ahead
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.enums import Section
 
     from src.navigation.maneuvers.parking import ParkController
@@ -336,8 +336,9 @@ class CoreNavigator:
         return self._laps_completed
 
     def _base_debug(self, robot_x: float | None, robot_y: float | None, robot_yaw: float | None) -> NavigatorDebugSnapshot:
-        """Fields available on every phase once pose is known -- the common
-        prefix every ``step()`` branch's snapshot builds on.
+        """Fields available on every phase once pose is known.
+
+        These form the common prefix every ``step()`` branch's snapshot builds on.
         """
         return NavigatorDebugSnapshot(
             pose_x=robot_x,

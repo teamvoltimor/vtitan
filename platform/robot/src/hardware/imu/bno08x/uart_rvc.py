@@ -86,7 +86,7 @@ class Driver(ABC_RVCDriver):
         port = self.config.port
         if not port:
             port = self.config.default_port
-            self.logger.info(f"No serial port specified, attempting with configured default port {port}")
+            self.logger.info("No serial port specified, attempting with configured default port %s", port)
 
         # The adafruit_bno08x_rvc library does not support direct USB communication,
         # but it can work with a serial port provided in UART mode.

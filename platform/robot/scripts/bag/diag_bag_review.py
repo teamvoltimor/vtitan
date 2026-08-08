@@ -22,12 +22,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from typing import TYPE_CHECKING
+
 from rclpy.serialization import deserialize_message
-from shared.domain.models import NavigatorDebugSnapshot
 from std_msgs.msg import String
 
 from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
 from scripts.common.tables import fmt_optional, print_table
+
+if TYPE_CHECKING:
+    from shared.domain.models import NavigatorDebugSnapshot
 
 
 def _read(bag_dir: Path) -> tuple[list[tuple[float, NavigatorDebugSnapshot]], list[tuple[float, str]]]:

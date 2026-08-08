@@ -198,7 +198,7 @@ def main() -> None:
     ranked = sorted(deltas, key=lambda d: d[1])
     # The three biggest moves each way, without repeating a case when the sample
     # is smaller than six.
-    extremes = {i: d for i, d in ranked[:3] + ranked[-3:]}
+    extremes = dict(ranked[:3] + ranked[-3:])
     print_table(
         [
             [i, str(base[i]["label"]), f"{base[i]['sim_time_s']:.1f}s", f"{variant[i]['sim_time_s']:.1f}s", f"{d:+.1f}s"]
