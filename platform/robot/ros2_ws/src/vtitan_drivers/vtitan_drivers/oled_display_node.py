@@ -37,6 +37,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import Image as ImageMsg
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32, String
 
 from src.hardware.display.enums import DisplayBackend
@@ -262,6 +263,8 @@ class OLEDDisplayNode(LifecycleNode):
 
         self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, "/ui/oled_mirror", 10)
 
+        topics = RosTopicConfig.load_default()
+
         # TRANSIENT_LOCAL to match state_machine_node, which publishes both of
         # these latched precisely so a late subscriber gets the current value.
         # Subscribing VOLATILE is *compatible*, so DDS reports no error and the
@@ -274,7 +277,7 @@ class OLEDDisplayNode(LifecycleNode):
         # silently reporting a state the robot had left, which is worse than
         # showing nothing -- the button and state machine were both working and
         # the display was the only thing saying otherwise.
-        self.state_sub = self.create_subscription(String, "/robot_state", self._state_callback, _QOS_LATCHED)
+        self.state_sub = self.create_subscription(String, topics.state_machine.state, self._state_callback, _QOS_LATCHED)
         # Now safe to request latched here too: telemetry_bridge_node's
         # /system_status publisher was TRANSIENT_LOCAL-only VOLATILE, which is
         # exactly the same stale-display bug /robot_state hit above -- fixed
@@ -283,11 +286,13 @@ class OLEDDisplayNode(LifecycleNode):
         # on this topic now durability-match a latched subscriber.
         self.diagnostics_sub = self.create_subscription(
             DiagnosticArray,
-            "/system_status",
+            topics.state_machine.system_status,
             self._diagnostics_callback,
             _QOS_LATCHED,
         )
-        self.metrics_sub = self.create_subscription(String, "/race_metrics", self._metrics_callback, 10)
+        self.metrics_sub = self.create_subscription(
+            String, topics.state_machine.race_metrics, self._metrics_callback, 10,
+        )
 
         # Hold feedback. BEST_EFFORT depth 1 to match button_node: this is a
         # live readout, so a late frame is worthless and a queue of them worse.
@@ -308,13 +313,13 @@ class OLEDDisplayNode(LifecycleNode):
         # volatile) QoS matches its create_lifecycle_publisher(..., 10) calls.
         self.drive_speed_sub = self.create_subscription(
             Float32,
-            "/motor/drive_speed",
+            topics.actuators.drive_speed,
             self._drive_speed_callback,
             10,
         )
         self.steering_position_sub = self.create_subscription(
             Float32,
-            "/motor/steering_position",
+            topics.actuators.steering_position,
             self._steering_position_callback,
             10,
         )

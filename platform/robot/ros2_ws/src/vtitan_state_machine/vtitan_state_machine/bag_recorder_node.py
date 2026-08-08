@@ -33,6 +33,7 @@ from typing import override
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState
 from std_msgs.msg import String
 
@@ -96,7 +97,8 @@ class BagRecorderNode(Node):
         self._recorder: subprocess.Popen[bytes] | None = None
         self._racing = False
 
-        self.create_subscription(String, "/robot_state", self._on_robot_state, _QOS_ROBOT_STATE)
+        topics = RosTopicConfig.load_default()
+        self.create_subscription(String, topics.state_machine.state, self._on_robot_state, _QOS_ROBOT_STATE)
 
         if self._enabled:
             self.get_logger().info(

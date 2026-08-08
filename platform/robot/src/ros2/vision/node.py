@@ -15,6 +15,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -48,7 +49,6 @@ class Config(HardwareBaseSettings):
     model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
 
     camera_topic: str = "/camera/image_raw"
-    detections_topic: str = "/vision/detections"
     model_path: str = DEFAULT_YOLO_MODEL_PATH
     backend: str = "yolo"  # 'yolo' or 'hailo'
     # 'direct' opens the camera in this process and feeds frames straight to
@@ -73,8 +73,9 @@ class VisionNode(Node):
         super().__init__("vision_detector")
 
         defaults = Config()
+        topics = RosTopicConfig.load_default()
         self.declare_parameter("camera_topic", defaults.camera_topic)
-        self.declare_parameter("detections_topic", defaults.detections_topic)
+        self.declare_parameter("detections_topic", topics.sensors.vision_detections)
         self.declare_parameter("model_path", defaults.model_path)
         self.declare_parameter("backend", defaults.backend)
         self.declare_parameter("camera_source", defaults.camera_source)

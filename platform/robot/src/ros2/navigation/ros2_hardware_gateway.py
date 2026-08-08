@@ -22,6 +22,7 @@ from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import CorridorGeometry, Detection, IMUReading, Pose, TrafficSignObservation
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
@@ -130,35 +131,37 @@ class ROS2HardwareGateway(HardwareGateway):
         self._lidar_stamp: float | None = None
         self._stale_timeout_sec = stale_timeout_sec
 
+        topics = RosTopicConfig.load_default()
+
         # Publishers
         self._drive_publisher = node.create_publisher(
             AckermannDriveStamped,
-            _topic(node, "ackermann_cmd_topic", "/ackermann_cmd"),
+            _topic(node, "ackermann_cmd_topic", topics.commands.ackermann_cmd),
             10,
         )
 
         # Subscribers
         node.create_subscription(
             LaserScan,
-            _topic(node, "lidar_topic", "/scan"),
+            _topic(node, "lidar_topic", topics.sensors.scan),
             self._lidar_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             String,
-            _topic(node, "vision_topic", "/vision/detections"),
+            _topic(node, "vision_topic", topics.sensors.vision_detections),
             self._vision_callback,
             10,
         )
         node.create_subscription(
             Imu,
-            _topic(node, "imu_topic", "/imu/data"),
+            _topic(node, "imu_topic", topics.sensors.imu),
             self._imu_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             JointState,
-            _topic(node, "joint_states_topic", "/joint_states"),
+            _topic(node, "joint_states_topic", topics.actuators.joint_states),
             self._joint_state_callback,
             qos_profile_sensor_data,
         )

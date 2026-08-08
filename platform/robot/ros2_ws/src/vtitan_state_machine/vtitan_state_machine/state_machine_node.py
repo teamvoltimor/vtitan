@@ -133,10 +133,6 @@ arrives immediately -- this ceiling only matters for how long BOOT_CHECK
 is willing to wait when it hasn't yet.
 """
 
-_JUMPER_TOPIC = "/challenge_mode/jumper_inserted"
-"""Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to)."""
-
-
 class StateMachineNode(Node, ResettableNode):
     """ROS2 node that manages the 4-stage state machine for WRO competition.
 
@@ -172,20 +168,22 @@ class StateMachineNode(Node, ResettableNode):
         self.state_machine = StateMachine()
         self.state_machine.register_transition_callback(self._on_state_transition)
 
+        self._topics = RosTopicConfig.load_default()
+
         # Publishers — robot_state and system_status are TRANSIENT_LOCAL so late
         # subscribers (RViz, dashboard) receive the last value without waiting.
-        self.state_pub: Publisher[String] = self.create_publisher(String, "/robot_state", _QOS_TRANSIENT)
+        self.state_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.state, _QOS_TRANSIENT)
         self.ackermann_pub: Publisher[AckermannDriveStamped] = self.create_publisher(
             AckermannDriveStamped,
-            "/ackermann_cmd",
+            self._topics.commands.ackermann_cmd,
             _QOS_ACKERMANN,
         )
         self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(
             DiagnosticArray,
-            "/system_status",
+            self._topics.state_machine.system_status,
             _QOS_TRANSIENT,
         )
-        self.metrics_pub: Publisher[String] = self.create_publisher(String, "/race_metrics", 10)
+        self.metrics_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.race_metrics, 10)
 
         # /race_metrics' current_velocity/current_steering used to only ever be set
         # by this node's own _publish_stop_command (always to 0.0) -- nothing updated
@@ -196,7 +194,7 @@ class StateMachineNode(Node, ResettableNode):
         # actually being told to do, from whichever publisher last sent it.
         self.ackermann_sub: Subscription[AckermannDriveStamped] = self.create_subscription(
             AckermannDriveStamped,
-            "/ackermann_cmd",
+            self._topics.commands.ackermann_cmd,
             self._ackermann_callback,
             _QOS_ACKERMANN,
         )
@@ -205,13 +203,13 @@ class StateMachineNode(Node, ResettableNode):
         # VOLATILE, depth=10) to match the publisher QoS on sensor drivers.
         self.imu_sub: Subscription[Imu] = self.create_subscription(
             Imu,
-            "/imu/data",
+            self._topics.sensors.imu,
             self._imu_callback,
             qos_profile_sensor_data,
         )
         self.lidar_sub: Subscription[LaserScan] = self.create_subscription(
             LaserScan,
-            "/scan",
+            self._topics.sensors.scan,
             self._lidar_callback,
             qos_profile_sensor_data,
         )
@@ -223,7 +221,7 @@ class StateMachineNode(Node, ResettableNode):
         )
         self.button_sub: Subscription[String] = self.create_subscription(
             String,
-            "/button/event",
+            self._topics.button.event,
             self._button_event_callback,
             10,
         )
@@ -235,7 +233,6 @@ class StateMachineNode(Node, ResettableNode):
         # on its own (only a manual E-STOP hold reached FINISHED). QoS must
         # match track_navigator_node's publisher (BEST_EFFORT) or this
         # receives nothing at all, same failure mode as /robot_state.
-        self._topics = RosTopicConfig.load_default()
         self.laps_sub: Subscription[Int32] = self.create_subscription(
             Int32,
             self._topics.navigation.laps_completed,
@@ -257,7 +254,7 @@ class StateMachineNode(Node, ResettableNode):
         self._challenge_mode_wait_started = self.get_clock().now().nanoseconds / 1e9
         self.create_subscription(
             Bool,
-            _JUMPER_TOPIC,
+            self._topics.challenge_mode.jumper_inserted,
             self._on_jumper_state,
             QoSProfile(
                 depth=1,

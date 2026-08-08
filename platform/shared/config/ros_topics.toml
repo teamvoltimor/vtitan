@@ -1,11 +1,18 @@
 # Single source of truth for ROS2 topic names used by the robot and telemetry.
-# Updated 2026-08-02 — stale topic references (stale: /state_machine/state, /odom) corrected.
+# Updated 2026-08-08 — replaced stale cmd_vel/Twist with the real ackermann_cmd
+# topic, and filled in the topics the 2026-08-08 audit found hardcoded across
+# ~10 node files (challenge-mode jumper, motor feedback, button events,
+# race_metrics, system_status).
 #
 # Edit this file, then reference in code via RosTopicConfig.load_default().
 
 [state_machine]
 # Robot state published by state_machine_node.
 state = "/robot_state"
+# Race metrics (JSON), published by state_machine_node.
+race_metrics = "/race_metrics"
+# System diagnostics, published by both state_machine_node and telemetry_bridge_node.
+system_status = "/system_status"
 
 [navigation]
 # Odometry from track_navigator_node (if available).
@@ -25,13 +32,32 @@ nav_debug = "/nav_debug"
 scan = "/scan"
 # IMU data from the BNO085.
 imu = "/imu/data"
-# Hailo vision detections.
+# Vision detections (std_msgs/String, JSON), published by vision_node.
+vision_detections = "/vision/detections"
+# Hailo vision detections. NOTE: as of 2026-08-08, nothing publishes
+# vision_msgs/Detection2DArray on this topic -- vision_node only ever
+# publishes JSON on `vision_detections` above. Kept for telemetry_bridge_node's
+# still-dead Detection2DArray subscription, tracked separately for a rewrite.
 hailo_detections = "/hailo/detections"
 
 [commands]
-# Drive command velocity (Twist) sent to the drive/steering nodes.
-cmd_vel = "/cmd_vel"
+# Ackermann drive command sent to the drive/steering nodes.
+ackermann_cmd = "/ackermann_cmd"
 
 [actuators]
 # Joint state feedback (steering angle, drive speed, encoder position).
 joint_states = "/joint_states"
+# Current steering position in degrees, published by ackermann_motor_node.
+steering_position = "/motor/steering_position"
+# Current drive speed in degrees/s, published by ackermann_motor_node.
+drive_speed = "/motor/drive_speed"
+# Motor status diagnostics, published by ackermann_motor_node.
+status = "/motor/status"
+
+[challenge_mode]
+# Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to).
+jumper_inserted = "/challenge_mode/jumper_inserted"
+
+[button]
+# Button events from button_node on the Pi Zero.
+event = "/button/event"

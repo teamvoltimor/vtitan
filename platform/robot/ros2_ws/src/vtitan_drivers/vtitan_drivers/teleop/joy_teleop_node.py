@@ -32,6 +32,7 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
+from shared.config.ros_topics import RosTopicConfig
 
 from src.teleop.config import Config
 from src.teleop.mapping import compute_command
@@ -62,8 +63,9 @@ class JoyTeleopNode(Node):
         self._last_joy_time: float = 0.0
         self._drive_armed = False
 
+        topics = RosTopicConfig.load_default()
         self.joy_sub: Subscription = self.create_subscription(Joy, "/joy", self._joy_callback, 10)
-        self.cmd_pub: Publisher = self.create_publisher(AckermannDriveStamped, "/ackermann_cmd", 10)
+        self.cmd_pub: Publisher = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
         self.publish_timer: Timer = self.create_timer(1.0 / self.config.publish_rate_hz, self._publish_command)
 
     def _joy_callback(self, msg: Joy) -> None:
