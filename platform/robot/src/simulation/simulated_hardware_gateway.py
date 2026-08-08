@@ -25,8 +25,8 @@ from src.navigation.localization import LidarLocalizer
 from src.navigation.planning.sign_router import SignSpec
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
 from src.navigation.track_geometry import TrackWalls
+from src.navigation.utils import _wrap as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
-from src.simulation.geometry import _wrap_angle
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel
 from src.simulation.vision_emulator import emulate_sign_observations
