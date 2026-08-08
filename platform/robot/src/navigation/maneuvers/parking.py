@@ -30,7 +30,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, ParkPhase, Section
 from shared.domain.models import BlockPosition, ParkingLot
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
   _clamp,
   _local_frame,
@@ -77,17 +77,14 @@ class _ParkingConstants:
         marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
     )
 
-class ParkingContext:
+class ParkingContext(TuningContext[_ParkingConstants]):
   """Context holding tuning-derived parking constants, passed to helper functions.
 
   Eliminates module-level constants by holding them in an instance,
   which is passed to functions that need them. Enables test-time tuning injection.
   """
 
-  def __init__(self, tuning: NavigationTuning | None = None) -> None:
-    """Initialize parking context from tuning."""
-    self.tuning = get_tuning(tuning)
-    self.constants = _ParkingConstants.from_tuning(self.tuning)
+  _constants_cls = _ParkingConstants
 
 
 _DEFAULT_PARKING_CONTEXT = ParkingContext()

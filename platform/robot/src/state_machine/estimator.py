@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext, get_tuning
 
 
 def wrap_angle(angle: float) -> float:
@@ -37,13 +37,10 @@ class _EstimatorConstants:
     )
 
 
-class EstimatorContext:
+class EstimatorContext(TuningContext[_EstimatorConstants]):
   """Context holding tuning-derived state estimator constants."""
 
-  def __init__(self, tuning: NavigationTuning | None = None) -> None:
-    """Initialize estimator context from tuning."""
-    self.tuning = get_tuning(tuning)
-    self.constants = _EstimatorConstants.from_tuning(self.tuning)
+  _constants_cls = _EstimatorConstants
 
 
 _DEFAULT_ESTIMATOR_CONTEXT = EstimatorContext()

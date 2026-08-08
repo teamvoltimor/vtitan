@@ -20,7 +20,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import LidarLocalizer
 from src.navigation.planning.sign_router import SignSpec
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
@@ -79,13 +79,10 @@ class _SimulatorConstants:
     )
 
 
-class SimulatorContext:
+class SimulatorContext(TuningContext[_SimulatorConstants]):
   """Context holding tuning-derived simulator constants."""
 
-  def __init__(self, tuning: NavigationTuning | None = None) -> None:
-    """Initialize simulator context from tuning."""
-    self.tuning = get_tuning(tuning)
-    self.constants = _SimulatorConstants.from_tuning(self.tuning)
+  _constants_cls = _SimulatorConstants
 
 
 _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()

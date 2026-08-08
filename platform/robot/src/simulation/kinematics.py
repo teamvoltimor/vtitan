@@ -40,7 +40,7 @@ from dataclasses import dataclass, replace
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
     _clamp,
     _wrap as _wrap_angle,
@@ -66,13 +66,10 @@ class _KinematicsConstants:
     )
 
 
-class KinematicsContext:
+class KinematicsContext(TuningContext[_KinematicsConstants]):
   """Context holding tuning-derived kinematics constants."""
 
-  def __init__(self, tuning: NavigationTuning | None = None) -> None:
-    """Initialize kinematics context from tuning."""
-    self.tuning = get_tuning(tuning)
-    self.constants = _KinematicsConstants.from_tuning(self.tuning)
+  _constants_cls = _KinematicsConstants
 
 
 _DEFAULT_KINEMATICS_CONTEXT = KinematicsContext()
