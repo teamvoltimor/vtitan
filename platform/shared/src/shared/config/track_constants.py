@@ -14,7 +14,6 @@ from __future__ import annotations
 import tomllib
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -255,5 +254,5 @@ class TrackConstants(BaseModel):
     def load_default(cls) -> TrackConstants:
         """Load from the checked-in ``platform/shared/config/track.toml``."""
         with DEFAULT_CONFIG_PATH.open("rb") as f:
-            data: dict[str, Any] = tomllib.load(f)
+            data: dict[str, object] = tomllib.load(f)
         return cls.model_validate(data)

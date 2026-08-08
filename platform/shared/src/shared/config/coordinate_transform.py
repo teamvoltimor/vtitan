@@ -19,7 +19,10 @@ def quaternion_to_yaw(x: float, y: float, z: float, w: float) -> float:
     Uses the standard atan2 formula for the Z-axis rotation.
 
     Args:
-        x, y, z, w: Quaternion components.
+        x: X component of the quaternion.
+        y: Y component of the quaternion.
+        z: Z component of the quaternion.
+        w: W component of the quaternion.
 
     Returns:
         Yaw angle in radians, in the range [-π, π].
@@ -57,12 +60,12 @@ class CoordinateTransform:
 
         if section is Section.SOUTH:
             return x, y
-        elif section is Section.NORTH:
+        if section is Section.NORTH:
             return x, track_max - y
-        elif section is Section.EAST:
+        if section is Section.EAST:
             return track_max - y, x
-        else:  # Section.WEST
-            return y, x
+        # Section.WEST
+        return y, x
 
     @staticmethod
     def zone_size_for_section(
@@ -89,13 +92,11 @@ class CoordinateTransform:
     @staticmethod
     def wall_positions_for_section(
         section: Section,
-        corridor_width: float,
     ) -> tuple[float, float]:
         """Return (wall_position, wall_offset) for section's parking/zone.
 
         Args:
             section: Track section.
-            corridor_width: Width of corridor in this section.
 
         Returns:
             Tuple of (depth_from_entry, wall_offset_perpendicular).
@@ -105,12 +106,12 @@ class CoordinateTransform:
 
         if section is Section.SOUTH:
             return 1.5, wall_offset
-        elif section is Section.NORTH:
+        if section is Section.NORTH:
             return 1.5, track_max - wall_offset
-        elif section is Section.EAST:
+        if section is Section.EAST:
             return track_max - wall_offset, 1.5
-        else:  # Section.WEST
-            return wall_offset, 1.5
+        # Section.WEST
+        return wall_offset, 1.5
 
     @staticmethod
     def starting_zone_center(
@@ -132,9 +133,9 @@ class CoordinateTransform:
 
         if section is Section.SOUTH:
             return track_center, corridor_width + zone_offset
-        elif section is Section.NORTH:
+        if section is Section.NORTH:
             return track_center, track_max - corridor_width - zone_offset
-        elif section is Section.EAST:
+        if section is Section.EAST:
             return track_max - corridor_width - zone_offset, track_center
-        else:  # Section.WEST
-            return corridor_width + zone_offset, track_center
+        # Section.WEST
+        return corridor_width + zone_offset, track_center

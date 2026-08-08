@@ -28,10 +28,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from io import TextIOWrapper
 
     from pydantic import BaseModel
 
@@ -57,9 +58,9 @@ class JsonlWriter:
         """
         self.path = Path(path)
         self.encoding = encoding
-        self._file: Any = None
+        self._file: TextIOWrapper | None = None
 
-    def __enter__(self) -> JsonlWriter:
+    def __enter__(self) -> Self:
         """Enter context manager."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.path.open("a", encoding=self.encoding)
@@ -69,7 +70,7 @@ class JsonlWriter:
         """Exit context manager and close file."""
         self.close()
 
-    def write(self, obj: Any) -> None:
+    def write(self, obj: object) -> None:
         """Write a single object as JSON line.
 
         Args:
@@ -87,11 +88,11 @@ class JsonlWriter:
             json.dump(obj, self._file, separators=(",", ":"))
             self._file.write("\n")
             self._file.flush()
-        except OSError as e:
-            logger.error(f"Failed to write JSONL to {self.path}: {e}", exc_info=True)
+        except OSError:
+            logger.exception("Failed to write JSONL to %s", self.path)
             raise
-        except (TypeError, ValueError) as e:
-            logger.error(f"Failed to serialize object to JSON: {e}", exc_info=True)
+        except (TypeError, ValueError):
+            logger.exception("Failed to serialize object to JSON")
             raise
 
     def close(self) -> None:
@@ -116,7 +117,7 @@ class JsonlReader:
         path: Path | str,
         model: type[BaseModel] | None = None,
         skip_corrupted: bool = False,
-    ) -> Iterator[dict[str, Any] | BaseModel]:
+    ) -> Iterator[dict[str, object] | BaseModel]:
         """Iterate over JSONL lines, optionally validating with model.
 
         Args:
@@ -133,7 +134,8 @@ class JsonlReader:
         """
         file_path = Path(path)
         if not file_path.exists():
-            raise FileNotFoundError(f"JSONL file not found: {file_path}")
+            msg = f"JSONL file not found: {file_path}"
+            raise FileNotFoundError(msg)
 
         try:
             with file_path.open("r", encoding="utf-8") as f:
@@ -151,17 +153,21 @@ class JsonlReader:
                     except (json.JSONDecodeError, ValueError) as e:
                         if skip_corrupted:
                             logger.warning(
-                                f"Skipping corrupted line {line_num} in {file_path}: {e}"
+                                "Skipping corrupted line %d in %s: %s",
+                                line_num,
+                                file_path,
+                                e,
                             )
                             continue
                         else:
-                            logger.error(
-                                f"Error parsing line {line_num} in {file_path}: {e}",
-                                exc_info=True,
+                            logger.exception(
+                                "Error parsing line %d in %s",
+                                line_num,
+                                file_path,
                             )
                             raise
-        except OSError as e:
-            logger.error(f"Failed to read JSONL from {file_path}: {e}", exc_info=True)
+        except OSError:
+            logger.exception("Failed to read JSONL from %s", file_path)
             raise
 
     @staticmethod
@@ -169,7 +175,7 @@ class JsonlReader:
         path: Path | str,
         model: type[BaseModel] | None = None,
         skip_corrupted: bool = False,
-    ) -> list[dict[str, Any] | BaseModel]:
+    ) -> list[dict[str, object] | BaseModel]:
         """Read all lines from JSONL file into memory.
 
         Args:
@@ -202,7 +208,7 @@ class JsonlReader:
             # Fast byte-counting approach
             return file_path.read_bytes().count(b"\n")
         except OSError as e:
-            logger.warning(f"Failed to count lines in {file_path}: {e}")
+            logger.warning("Failed to count lines in %s: %s", file_path, e)
             return 0
 
 
@@ -219,7 +225,7 @@ class JsonlValidator:
     def validate_file(
         path: Path | str,
         model: type[BaseModel] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """Validate JSONL file and return statistics.
 
         Args:
@@ -264,10 +270,8 @@ class JsonlValidator:
                         stats["corrupted_lines"] += 1
                         stats["corrupted_indices"].append(line_num)
                         stats["is_valid"] = False
-        except OSError as e:
-            logger.error(
-                f"Failed to validate JSONL file {file_path}: {e}", exc_info=True
-            )
+        except OSError:
+            logger.exception("Failed to validate JSONL file %s", file_path)
             stats["is_valid"] = False
 
         return stats
@@ -304,8 +308,8 @@ class JsonlValidator:
                     else:
                         writer.write(item.model_dump(by_alias=True))
                     stats["lines_written"] += 1
-        except OSError as e:
-            logger.error(f"Failed to repair JSONL file: {e}", exc_info=True)
+        except OSError:
+            logger.exception("Failed to repair JSONL file")
             raise
 
         stats["lines_skipped"] = stats["lines_read"] - stats["lines_written"]

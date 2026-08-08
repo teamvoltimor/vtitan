@@ -1,8 +1,12 @@
-"""Blind-navigation tuning groups: corridor width estimation, corridor
-following, direction inference, LIDAR pose search, and odometry/IMU fusion.
+"""Blind-navigation tuning groups.
+
+Covers corridor width estimation, corridor following, direction inference,
+LIDAR pose search, and odometry/IMU fusion.
 """
 
 from __future__ import annotations
+
+import math
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -110,9 +114,8 @@ class DirectionEstimatorParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    # math.radians(25.0)
     ALIGNMENT_TOLERANCE_RAD: float = Field(
-        default=0.4363323129985824, validation_alias=_alias("ALIGNMENT_TOLERANCE_RAD")
+        default=math.radians(25.0), validation_alias=_alias("ALIGNMENT_TOLERANCE_RAD")
     )
     CORNER_CLEARANCE_M: float = Field(default=1.00, validation_alias=_alias("CORNER_CLEARANCE_M"))
     MAX_IN_TRACK_RANGE_M: float = Field(default=4.5, validation_alias=_alias("MAX_IN_TRACK_RANGE_M"))

@@ -27,9 +27,16 @@ Example usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - PyYAML is an optional extra
+    yaml = None
 
 from shared.config.navigation_tuning.blind_nav import (
     CorridorEstimatorParams,
@@ -108,25 +115,25 @@ class NavigationTuning:
         print(tuning.clearance.SLOW_DIST)
     """
 
-    clearance: ClearanceZones = ClearanceZones()
-    heading: HeadingErrorZones = HeadingErrorZones()
-    pursuit: PurePursuitParams = PurePursuitParams()
-    speed: SpeedControlParams = SpeedControlParams()
-    escape: EscapeManeuverParams = EscapeManeuverParams()
-    sensor: SensorHealthParams = SensorHealthParams()
-    waypoints: WaypointParams = WaypointParams()
-    lidar_sectors: LidarSectorParams = LidarSectorParams()
-    corridor_estimator: CorridorEstimatorParams = CorridorEstimatorParams()
-    corridor_follower: CorridorFollowerParams = CorridorFollowerParams()
-    direction_estimator: DirectionEstimatorParams = DirectionEstimatorParams()
-    wall_heading: WallHeadingParams = WallHeadingParams()
-    control: ControlLoopParams = ControlLoopParams()
-    sign_router: SignRouterParams = SignRouterParams()
-    sign_discovery: SignDiscoveryParams = SignDiscoveryParams()
-    parking: ParkingParams = ParkingParams()
-    localization: LocalizationParams = LocalizationParams()
-    state_estimator: StateEstimatorParams = StateEstimatorParams()
-    simulation: SimulationParams = SimulationParams()
+    clearance: ClearanceZones = field(default_factory=ClearanceZones)
+    heading: HeadingErrorZones = field(default_factory=HeadingErrorZones)
+    pursuit: PurePursuitParams = field(default_factory=PurePursuitParams)
+    speed: SpeedControlParams = field(default_factory=SpeedControlParams)
+    escape: EscapeManeuverParams = field(default_factory=EscapeManeuverParams)
+    sensor: SensorHealthParams = field(default_factory=SensorHealthParams)
+    waypoints: WaypointParams = field(default_factory=WaypointParams)
+    lidar_sectors: LidarSectorParams = field(default_factory=LidarSectorParams)
+    corridor_estimator: CorridorEstimatorParams = field(default_factory=CorridorEstimatorParams)
+    corridor_follower: CorridorFollowerParams = field(default_factory=CorridorFollowerParams)
+    direction_estimator: DirectionEstimatorParams = field(default_factory=DirectionEstimatorParams)
+    wall_heading: WallHeadingParams = field(default_factory=WallHeadingParams)
+    control: ControlLoopParams = field(default_factory=ControlLoopParams)
+    sign_router: SignRouterParams = field(default_factory=SignRouterParams)
+    sign_discovery: SignDiscoveryParams = field(default_factory=SignDiscoveryParams)
+    parking: ParkingParams = field(default_factory=ParkingParams)
+    localization: LocalizationParams = field(default_factory=LocalizationParams)
+    state_estimator: StateEstimatorParams = field(default_factory=StateEstimatorParams)
+    simulation: SimulationParams = field(default_factory=SimulationParams)
 
     def __post_init__(self) -> None:
         """Check invariants that span two tuning groups.
@@ -208,7 +215,7 @@ class NavigationTuning:
     # profile here only with a measurement that survives the current model.
 
     @classmethod
-    def _from_mapping(cls, data: dict[str, Any]) -> NavigationTuning:
+    def _from_mapping(cls, data: dict[str, object]) -> NavigationTuning:
         """Reconstruct nested tuning dataclasses from a parsed mapping.
 
         Shared by :meth:`load_from_yaml` and :meth:`load_from_json` so both
@@ -236,7 +243,7 @@ class NavigationTuning:
         Raises:
             FileNotFoundError: If YAML file not found
             yaml.YAMLError: If YAML parsing fails
-            ValueError: If YAML structure invalid
+            TypeError: If YAML structure invalid
 
         Example YAML structure:
             clearance:
@@ -249,20 +256,21 @@ class NavigationTuning:
               STEER_KP: 2.0
             # ... etc
         """
-        try:
-            import yaml
-        except ImportError as err:
-            raise ImportError("PyYAML required for loading YAML tuning files") from err
+        if yaml is None:
+            msg = "PyYAML required for loading YAML tuning files"
+            raise ImportError(msg)
 
         path = Path(path)
         if not path.exists():
-            raise FileNotFoundError(f"Tuning file not found: {path}")
+            msg = f"Tuning file not found: {path}"
+            raise FileNotFoundError(msg)
 
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not isinstance(data, dict):
-            raise ValueError("YAML must contain a mapping (dict)")
+            msg = "YAML must contain a mapping (dict)"
+            raise TypeError(msg)
 
         return cls._from_mapping(data)
 
@@ -288,15 +296,13 @@ class NavigationTuning:
         Returns:
             NavigationTuning instance with loaded parameters.
         """
-        import tomllib
-
         directory = Path(directory)
-        data: dict[str, Any] = {}
+        data: dict[str, object] = {}
         if directory.is_dir():
             for key, _, subfolder in cls._GROUPS:
                 toml_path = directory / subfolder / f"{key}.toml"
                 if toml_path.exists():
-                    with open(toml_path, "rb") as f:
+                    with toml_path.open("rb") as f:
                         data[key] = tomllib.load(f)
 
         return cls._from_mapping(data)
@@ -327,22 +333,23 @@ class NavigationTuning:
         Raises:
             FileNotFoundError: If JSON file not found
             json.JSONDecodeError: If JSON parsing fails
+            TypeError: If JSON structure invalid
         """
-        import json
-
         path = Path(path)
         if not path.exists():
-            raise FileNotFoundError(f"Tuning file not found: {path}")
+            msg = f"Tuning file not found: {path}"
+            raise FileNotFoundError(msg)
 
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = json.load(f)
 
         if not isinstance(data, dict):
-            raise ValueError("JSON must contain a mapping (dict)")
+            msg = "JSON must contain a mapping (dict)"
+            raise TypeError(msg)
 
         return cls._from_mapping(data)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Export configuration as nested dictionary.
 
         Useful for serialization or debugging.
@@ -358,8 +365,6 @@ class NavigationTuning:
         Returns:
             JSON string representation of all parameters
         """
-        import json
-
         return json.dumps(self.to_dict(), indent=2)
 
     def to_yaml(self) -> str:
@@ -373,9 +378,8 @@ class NavigationTuning:
         Raises:
             ImportError: If PyYAML not available
         """
-        try:
-            import yaml
-        except ImportError as err:
-            raise ImportError("PyYAML required for YAML export") from err
+        if yaml is None:
+            msg = "PyYAML required for YAML export"
+            raise ImportError(msg)
 
         return yaml.dump(self.to_dict(), default_flow_style=False)

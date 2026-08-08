@@ -1,5 +1,7 @@
-"""Speed/steering control tuning groups: clearance zones, heading zones,
-pure pursuit, speed control, and the control loop rate they all run at.
+"""Speed/steering control tuning groups.
+
+Covers clearance zones, heading zones, pure pursuit, speed control, and the
+control loop rate they all run at.
 """
 
 from __future__ import annotations
