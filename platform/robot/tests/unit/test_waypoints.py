@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import pytest
+from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 
@@ -103,13 +104,22 @@ class TestCornerArcRadius:
 
     _CAP = 0.45
     _BIAS = 0.05
+    _NARROW = CorridorDimensions.NARROW
+    _WIDE = CorridorDimensions.WIDE
 
     def test_only_narrow_to_narrow_tightens(self) -> None:
-        """Three of the four corner types keep the configured radius."""
-        assert _corner_arc_radius(0.6, 0.6, self._BIAS, self._CAP) == pytest.approx(0.25)
-        assert _corner_arc_radius(0.6, 1.0, self._BIAS, self._CAP) == pytest.approx(0.45)
-        assert _corner_arc_radius(1.0, 0.6, self._BIAS, self._CAP) == pytest.approx(0.45)
-        assert _corner_arc_radius(1.0, 1.0, self._BIAS, self._CAP) == pytest.approx(0.45)
+        """Three of the four corner types keep the configured radius.
+
+        Expectations are derived from the same widths the rule reads rather than
+        restated as 0.25/0.45, so re-measuring the mat moves the test with the
+        geometry instead of turning it red.
+        """
+        narrow_corner = self._NARROW / 2 - self._BIAS
+        assert _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP) == pytest.approx(narrow_corner)
+        for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._WIDE, self._WIDE)):
+            assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
+                self._WIDE / 2 - self._BIAS
+            )
 
     def test_symmetric_in_entry_and_exit(self) -> None:
         """The same physical corner plans the same arc whichever way it is driven.
@@ -118,18 +128,20 @@ class TestCornerArcRadius:
         lap line anchored at the measured start, the router's reversed CCW
         rows), so this holds by construction rather than by coincidence.
         """
-        for entry, exit_ in ((0.6, 1.0), (1.0, 0.6), (0.6, 0.6)):
+        for entry, exit_ in ((self._NARROW, self._WIDE), (self._WIDE, self._NARROW), (self._NARROW, self._NARROW)):
             assert _corner_arc_radius(entry, exit_, self._BIAS, self._CAP) == pytest.approx(
                 _corner_arc_radius(exit_, entry, self._BIAS, self._CAP)
             )
 
     def test_never_exceeds_the_configured_cap(self) -> None:
-        assert _corner_arc_radius(4.0, 4.0, self._BIAS, self._CAP) == pytest.approx(self._CAP)
+        """A corridor wider than this track can present still respects the cap."""
+        oversized = self._WIDE * 4
+        assert _corner_arc_radius(oversized, oversized, self._BIAS, self._CAP) == pytest.approx(self._CAP)
 
     def test_outward_bias_widens_the_arc(self) -> None:
         """An outward bias leaves more room at the corner, so the arc may open up."""
-        inward = _corner_arc_radius(0.6, 0.6, 0.05, self._CAP)
-        outward = _corner_arc_radius(0.6, 0.6, -0.05, self._CAP)
+        inward = _corner_arc_radius(self._NARROW, self._NARROW, self._BIAS, self._CAP)
+        outward = _corner_arc_radius(self._NARROW, self._NARROW, -self._BIAS, self._CAP)
         assert outward > inward
 
 
@@ -143,20 +155,21 @@ class TestPathFeasibility:
     """
 
     def test_bias_consumes_margin(self) -> None:
-        centred = validate_path_feasibility(0.6, 0.0)
-        biased = validate_path_feasibility(0.6, 0.05)
+        centred = validate_path_feasibility(CorridorDimensions.NARROW, 0.0)
+        biased = validate_path_feasibility(CorridorDimensions.NARROW, 0.05)
         assert centred.is_feasible
         assert biased.is_feasible
         # Biasing 0.05 off centre spends 0.05 at each wall.
         assert centred.margin_m - biased.margin_m == pytest.approx(0.10)
 
     def test_bias_direction_does_not_matter(self) -> None:
-        assert validate_path_feasibility(0.6, 0.05).margin_m == pytest.approx(
-            validate_path_feasibility(0.6, -0.05).margin_m
+        assert validate_path_feasibility(CorridorDimensions.NARROW, 0.05).margin_m == pytest.approx(
+            validate_path_feasibility(CorridorDimensions.NARROW, -0.05).margin_m
         )
 
     def test_rejects_a_corridor_the_chassis_cannot_fit(self) -> None:
-        verdict = validate_path_feasibility(0.15, 0.0)
+        """Narrower than the chassis itself, so no bias could rescue it."""
+        verdict = validate_path_feasibility(RobotSpecs.WIDTH * 0.75, 0.0)
         assert not verdict.is_feasible
         assert verdict.reason
 

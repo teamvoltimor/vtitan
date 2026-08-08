@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
+from typing import ClassVar
 
 from pydantic import BaseModel
 
-from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
+from shared.domain.enums import CorridorWidthType, Direction, NavigatorPhase, ScenarioType, Section
 
 
 @dataclass(slots=True, frozen=True)
@@ -280,10 +281,27 @@ class LoopProgress:
 
 
 class CorridorWidthEntry(BaseModel):
-    """Width and type for one side of the track corridor."""
+    """Width and type for one side of the track corridor.
 
-    type: str = "wide"
-    width_mm: int = 500
+    The two fields have to agree: ``type`` names one of the two legal widths and
+    ``width_mm`` states it. The default was ``type="wide"`` with
+    ``width_mm=500``, which is both self-contradictory and not a legal width at
+    all -- and it was not inert, since ``CorridorWidths`` and
+    ``ScenarioMetadata`` both default through it, so metadata built without
+    explicit widths silently described a track that cannot exist. It did not
+    even fail planning: 0.5 m clears the width the chassis needs, so a path got
+    planned on a fictional mat.
+
+    ``WIDE_WIDTH_MM`` is stated here rather than read from
+    ``CorridorDimensions``, because this layer does not import config. The two
+    are pinned to each other by a test in the robot suite, which may import
+    both.
+    """
+
+    WIDE_WIDTH_MM: ClassVar[int] = 1000
+
+    type: CorridorWidthType = CorridorWidthType.WIDE
+    width_mm: int = WIDE_WIDTH_MM
 
 
 class CorridorWidths(BaseModel):

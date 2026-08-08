@@ -19,6 +19,9 @@ from shared.domain.enums import (
     CorridorSide as CorridorSide,
 )
 from shared.domain.enums import (
+    CorridorWidthType as CorridorWidthType,
+)
+from shared.domain.enums import (
     Direction as Direction,
 )
 from shared.domain.enums import (

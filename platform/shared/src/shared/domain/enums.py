@@ -71,6 +71,23 @@ class CorridorSide(_FromStringEnum):
     OUTER = "outer"
 
 
+class CorridorWidthType(_FromStringEnum):
+    """Which of the two legal widths a corridor is built to.
+
+    The rules allow exactly two, so a corridor's width is a classification
+    rather than a measurement -- the estimator's job is to decide which of the
+    two it is seeing, not to measure a continuous value.
+
+    The metres are deliberately not here. They belong to the mat, are generated
+    into ``shared.config.constants.CorridorDimensions`` from ``track.toml``, and
+    the domain layer does not import config. Anything needing the number reads
+    it from there and uses this only to name which one.
+    """
+
+    NARROW = "narrow"
+    WIDE = "wide"
+
+
 class RiskLevel(StrEnum):
     """Collision risk classification for navigation logic."""
 

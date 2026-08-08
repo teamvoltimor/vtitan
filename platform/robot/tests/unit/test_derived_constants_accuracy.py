@@ -12,7 +12,9 @@ import math
 
 import pytest
 
-from shared.config.constants import RobotSpecs
+from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.config.enums import CorridorWidthType
+from shared.domain.models import CorridorWidthEntry
 from shared.config.navigation_tuning import NavigationTuning
 
 
@@ -124,3 +126,29 @@ def test_waypoints_arc_radius_documented() -> None:
     # Should be documented in the TOML/config, not a surprise value
     # This test just verifies it's a real value, not that it matches docs
     assert arc_radius > 0, "ARC_RADIUS should be positive"
+
+
+def test_corridor_width_model_default_matches_the_mat() -> None:
+    """The domain model's width literal must track ``track.toml``.
+
+    ``CorridorWidthEntry`` cannot import ``CorridorDimensions``: it lives in the
+    domain layer, which does not depend on config. So the wide width is stated
+    in both places, and this is what stops the two drifting -- the check has to
+    live here, in a suite free to import either side.
+
+    The default was ``width_mm=500`` against ``type="wide"``, which is neither
+    of the two legal widths and disagrees with its own type field. It reached
+    ``ScenarioMetadata`` through two layers of model defaults, so metadata built
+    without explicit widths described a mat that cannot be built.
+    """
+    entry = CorridorWidthEntry()
+
+    assert entry.width_mm == round(CorridorDimensions.WIDE * 1000), \
+        "CorridorWidthEntry.WIDE_WIDTH_MM has drifted from CorridorDimensions.WIDE"
+    assert entry.type is CorridorWidthType.WIDE, "default type must name the default width"
+
+
+def test_only_two_corridor_widths_are_legal() -> None:
+    """The width is a classification, not a measurement -- there are exactly two."""
+    assert set(CorridorWidthType) == {CorridorWidthType.NARROW, CorridorWidthType.WIDE}
+    assert CorridorDimensions.NARROW < CorridorDimensions.WIDE

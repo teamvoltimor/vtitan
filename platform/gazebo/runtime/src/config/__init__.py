@@ -18,7 +18,6 @@ from shared.config.constants import (
     TrackMarkings,
     TrafficSignSpecs,
     WallSpecs,
-    WidthTypes,
 )
 from shared.config.enums import Direction, ScenarioType, Section
 
@@ -43,5 +42,4 @@ __all__ = [
     "TrackMarkings",
     "TrafficSignSpecs",
     "WallSpecs",
-    "WidthTypes",
 ]
