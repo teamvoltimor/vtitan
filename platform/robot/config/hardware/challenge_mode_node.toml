@@ -1,0 +1,6 @@
+# challenge_mode_node's own republish cadence -- src/ros2 has no equivalent
+# module; see vtitan_drivers/vtitan_drivers/challenge_mode_node.py.
+# Distinct from challenge_mode.toml alongside this file, which is the GPIO
+# driver's own config (pin number), not this ROS2 node's publish rate.
+
+publish_rate_hz = 2.0
