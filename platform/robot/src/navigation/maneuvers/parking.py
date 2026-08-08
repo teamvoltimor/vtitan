@@ -24,11 +24,10 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from enum import StrEnum
 
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Direction, Section
+from shared.domain.enums import Direction, ParkPhase, Section
 from shared.domain.models import BlockPosition, ParkingLot
 
 from src.config.tuning_helpers import get_tuning
@@ -132,13 +131,6 @@ class ParkZone:
         """The lot's extent out from the wall — i.e. the depth the fins span."""
         return (self.x_min, self.x_max) if self.wall_is_x else (self.y_min, self.y_max)
 
-
-class ParkPhase(StrEnum):
-    """Parking maneuver phases."""
-
-    STAGE = "stage"
-    ENTER = "enter"
-    DONE = "done"
 
 
 @dataclass

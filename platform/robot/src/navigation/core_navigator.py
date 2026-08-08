@@ -538,8 +538,8 @@ class CoreNavigator:
             self._debug.phase = NavigatorPhase.WAYPOINT_REACHED
             self._debug.forward_clearance_m = forward_clearance
             self._debug.min_lidar_range_m = min(scan.ranges_m) if scan and scan.ranges_m else None
-            self._debug.risk = risk.value
-            self._debug.escape_risk = escape_risk.value
+            self._debug.risk = risk
+            self._debug.escape_risk = escape_risk
             return
 
         # Steer at a lookahead point, not directly at the (often much closer)
@@ -659,8 +659,8 @@ class CoreNavigator:
         debug = self._base_debug(robot_x, robot_y, robot_yaw)
         debug.forward_clearance_m = forward_clearance
         debug.min_lidar_range_m = min(scan.ranges_m) if scan and scan.ranges_m else None
-        debug.risk = risk.value
-        debug.escape_risk = escape_risk.value
+        debug.risk = risk
+        debug.escape_risk = escape_risk
         debug.crosstrack_error_m = crosstrack
         debug.lookahead_distance_m = lookahead_distance
         debug.path_turn_ahead_rad = turn_ahead
@@ -757,7 +757,7 @@ class CoreNavigator:
         self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
         debug = self._base_debug(robot_x, robot_y, robot_yaw)
         debug.phase = phase
-        debug.active_maneuver_type = maneuver.maneuver_type.value
+        debug.active_maneuver_type = maneuver.maneuver_type
         debug.maneuver_steering = maneuver.steering
         debug.maneuver_speed_mps = maneuver.speed
         debug.maneuver_frames_left = self._maneuver_frames_left
@@ -907,7 +907,7 @@ class CoreNavigator:
         self._gateway.publish_drive(DriveCommand(speed_mps=linear, steering_norm=cmd.steering))
         debug = self._base_debug(robot_x, robot_y, robot_yaw)
         debug.phase = NavigatorPhase.PARKING
-        debug.park_phase = str(cmd.phase)
+        debug.park_phase = cmd.phase
         debug.commanded_speed_mps = linear
         debug.commanded_steering_norm = cmd.steering
         self._debug = debug

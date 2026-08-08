@@ -10,7 +10,16 @@ from enum import IntEnum, StrEnum
 from typing import ClassVar
 
 from pydantic import BaseModel, field_validator
-from shared.domain.enums import CorridorWidthType, Direction, NavigatorPhase, ScenarioType, Section
+from shared.domain.enums import (
+    CorridorWidthType,
+    Direction,
+    ManeuverType,
+    NavigatorPhase,
+    ParkPhase,
+    RiskLevel,
+    ScenarioType,
+    Section,
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -360,7 +369,7 @@ class SignPosition(BaseModel):
 
     x: float
     y: float
-    color: str = "red"
+    color: SignColor = SignColor.RED
 
 
 class BlockPosition(BaseModel):
@@ -397,7 +406,7 @@ class ScenarioMetadata(BaseModel):
     """
 
     scenario_id: int = 0
-    challenge_type: str = ScenarioType.OPEN.value
+    challenge_type: ScenarioType = ScenarioType.OPEN
     seed: int | None = None
     num_signs: int = 0
     has_parking_lot: bool = False
@@ -450,8 +459,8 @@ class NavigatorDebugSnapshot(BaseModel):
     # Perception / risk -- set on the normal_drive phase.
     forward_clearance_m: float | None = None
     min_lidar_range_m: float | None = None
-    risk: str | None = None
-    escape_risk: str | None = None
+    risk: RiskLevel | None = None
+    escape_risk: RiskLevel | None = None
     rear_clearance_m: float | None = None
 
     # Path tracking -- set on the normal_drive phase.
@@ -474,7 +483,7 @@ class NavigatorDebugSnapshot(BaseModel):
     commanded_steering_norm: float | None = None
 
     # Escape/stuck maneuver -- set whenever one is latched or begun.
-    active_maneuver_type: str | None = None
+    active_maneuver_type: ManeuverType | None = None
     maneuver_steering: float | None = None
     maneuver_speed_mps: float | None = None
     maneuver_frames_left: int | None = None
@@ -482,7 +491,7 @@ class NavigatorDebugSnapshot(BaseModel):
 
     # Parking -- set once a ParkController exists.
     parking_engaged: bool | None = None
-    park_phase: str | None = None
+    park_phase: ParkPhase | None = None
 
     # Obstacles Challenge sign routing -- set on the normal_drive phase
     # whenever a SignRouter is attached.
