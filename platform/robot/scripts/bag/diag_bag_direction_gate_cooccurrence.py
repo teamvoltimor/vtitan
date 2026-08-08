@@ -25,26 +25,29 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.navigation_tuning import NavigationTuning
+
 from scripts.common.bag_io import create_bags_parser, open_reader, read_bag
 from scripts.common.tables import print_table
-from src.navigation.direction_estimator import (
-    _MAX_IN_TRACK_RANGE_M,
-    _MAX_PLAUSIBLE_SPAN_M,
-    _MIN_ASYMMETRY_M,
-)
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, axis_error_rad
+from src.navigation.utils import _nearest_ray, axis_error_rad
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 
-def _gates(scan, yaw: float) -> dict[str, bool]:
-    """Each of infer_direction's conditions, evaluated independently."""
+def _gates(scan, yaw: float, tuning: NavigationTuning) -> dict[str, bool]:
+    """Each of infer_direction's conditions, evaluated independently.
+
+    Reads the same tuning fields infer_direction does, so the gates measured
+    here cannot drift from the gates the robot actually applies.
+    """
+    estimator = tuning.direction_estimator
     left = _nearest_ray(scan.ranges_m, scan.angles_rad, math.pi / 2)
     right = _nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2)
+    max_in_track = estimator.MAX_IN_TRACK_RANGE_M
     return {
-        "aligned": axis_error_rad(yaw) <= _ALIGNMENT_TOLERANCE_RAD,
-        "no_dropout": left <= _MAX_IN_TRACK_RANGE_M and right <= _MAX_IN_TRACK_RANGE_M,
-        "span_open": left + right > _MAX_PLAUSIBLE_SPAN_M,
-        "asymmetric": abs(left - right) >= _MIN_ASYMMETRY_M,
+        "aligned": axis_error_rad(yaw) <= estimator.ALIGNMENT_TOLERANCE_RAD,
+        "no_dropout": left <= max_in_track and right <= max_in_track,
+        "span_open": left + right > estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
+        "asymmetric": abs(left - right) >= estimator.MIN_ASYMMETRY_M,
     }
 
 
@@ -52,12 +55,15 @@ def main() -> None:
     parser = create_bags_parser("Analyze multiple bags")
     args = parser.parse_args()
 
+    tuning = NavigationTuning.load_default()
     names = ("aligned", "no_dropout", "span_open", "asymmetric")
     out = []
     for bag_dir in args.bag_dirs:
         scans, nav = read_bag(open_reader(bag_dir), _LIDAR_YAW_OFFSET_RAD)
         poses = {round(t, 1): s for t, s in nav if isinstance(s.pose_yaw, (int, float))}
-        evaluated = [_gates(sc, poses[round(t, 1)].pose_yaw) for t, sc in scans if round(t, 1) in poses]
+        evaluated = [
+            _gates(sc, poses[round(t, 1)].pose_yaw, tuning) for t, sc in scans if round(t, 1) in poses
+        ]
         if not evaluated:
             continue
         n = len(evaluated)

@@ -30,7 +30,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 
-from scripts.common.bag_io import print_table
+from scripts.common.tables import print_table
 
 _QOS_STATE = QoSProfile(
     depth=1,

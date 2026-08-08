@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.enums import Direction, Section
 
-from scripts.common.bag_io import print_table
+from scripts.common.tables import print_table
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.simulated_hardware_gateway import SensorErrors

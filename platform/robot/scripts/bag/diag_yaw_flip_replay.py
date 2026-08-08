@@ -33,6 +33,7 @@ from scripts.bag.diag_localizer_guard_replay import (
     _read_bag,
     _scan_to_ranges_angles,
 )
+from scripts.common.bag_io import create_bag_parser
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 

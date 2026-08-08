@@ -8,49 +8,88 @@ runtime when the override could be applied.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
-
 from shared.config.navigation_tuning import NavigationTuning
-from src.navigation.corridor_follower import follow_corridor
+
 from src.navigation.corridor_estimator import CorridorWidthEstimator
+from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import infer_direction
+
+_ANGLES_RAD = [math.radians(i - 180) for i in range(360)]
+_FORWARD_CAP_M = 3.0
+
+
+def _corridor_scan(left_m: float, right_m: float) -> list[float]:
+    """Rays into a straight corridor with the walls at these perpendicular distances.
+
+    Forward stays open, so ``follow_corridor`` takes its centering branch rather
+    than the turn branch -- a scan of one uniform range reads as a wall dead
+    ahead and steers hard at any gain, which proves nothing about the gain.
+    """
+    ranges_m = []
+    for angle in _ANGLES_RAD:
+        sin_a = math.sin(angle)
+        if sin_a > 1e-6:
+            wall_dist = left_m / sin_a
+        elif sin_a < -1e-6:
+            wall_dist = right_m / -sin_a
+        else:
+            wall_dist = _FORWARD_CAP_M
+        ranges_m.append(min(wall_dist, _FORWARD_CAP_M))
+    return ranges_m
+
+
+def _with_centering_gain(tuning: NavigationTuning, gain: float) -> NavigationTuning:
+    """A copy of ``tuning`` with CENTERING_GAIN replaced.
+
+    Both the tuning dataclass and its parameter groups are frozen, so this is
+    the only way to build an override -- assigning to the field raises.
+    """
+    return replace(
+        tuning,
+        corridor_follower=tuning.corridor_follower.model_copy(update={"CENTERING_GAIN": gain}),
+    )
 
 
 def test_corridor_follower_respects_tuning_override() -> None:
-    """Verify that follow_corridor uses passed tuning, not frozen defaults."""
+    """Doubling CENTERING_GAIN must double the steering follow_corridor commands."""
     default_tuning = NavigationTuning.load_default()
+    base_gain = default_tuning.corridor_follower.CENTERING_GAIN
 
-    # Create a test scan: robot facing forward, walls at 0.5m left and right
-    ranges_m = [0.5] * 360
-    angles_rad = [math.radians(i - 180) for i in range(360)]
+    # Off-centre, so the centering term has an offset to act on. The doubled
+    # gain must stay under STEERING_CAP or both calls saturate to the same
+    # number and the assertion passes without the override doing anything.
+    ranges_m = _corridor_scan(left_m=0.35, right_m=0.65)
 
-    # Call with default tuning
     default_cmd = follow_corridor(
+        ranges_m=ranges_m, angles_rad=_ANGLES_RAD, speed_mps=0.1, tuning=default_tuning
+    )
+    doubled_cmd = follow_corridor(
         ranges_m=ranges_m,
-        angles_rad=angles_rad,
+        angles_rad=_ANGLES_RAD,
         speed_mps=0.1,
-        tuning=default_tuning,
+        tuning=_with_centering_gain(default_tuning, base_gain * 2.0),
     )
 
-    # Create aggressive tuning with much higher centering gain
-    aggressive = NavigationTuning.load_default()
-    # Manually override for testing (in real use, this would come from YAML)
-    aggressive.corridor_follower.CENTERING_GAIN = default_tuning.corridor_follower.CENTERING_GAIN * 10.0
+    assert default_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
+    assert doubled_cmd.steering_norm == pytest.approx(default_cmd.steering_norm * 2.0)
 
-    # Call with aggressive tuning
-    aggressive_cmd = follow_corridor(
-        ranges_m=ranges_m,
-        angles_rad=angles_rad,
-        speed_mps=0.1,
-        tuning=aggressive,
-    )
 
-    # With higher gain, steering should be more aggressive (different from default)
-    # The exact relationship depends on the centering logic, but they should differ
-    # This verifies tuning parameter is actually being used
-    assert aggressive_cmd.steering_norm != 0.0 or default_cmd.steering_norm != 0.0, \
-        "At least one steering command should be non-zero for a centered scan"
+def test_centred_corridor_steers_straight_at_any_gain() -> None:
+    """The centred case cannot detect an override -- pinned so it is not used as one."""
+    default_tuning = NavigationTuning.load_default()
+    ranges_m = _corridor_scan(left_m=0.5, right_m=0.5)
+
+    for gain in (default_tuning.corridor_follower.CENTERING_GAIN, 10.0):
+        cmd = follow_corridor(
+            ranges_m=ranges_m,
+            angles_rad=_ANGLES_RAD,
+            speed_mps=0.1,
+            tuning=_with_centering_gain(default_tuning, gain),
+        )
+        assert cmd.steering_norm == pytest.approx(0.0)
 
 
 def test_corridor_estimator_respects_tuning_override() -> None:

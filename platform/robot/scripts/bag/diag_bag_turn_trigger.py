@@ -31,11 +31,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
-from src.navigation.corridor_follower import TURN_CLEARANCE_M
-from src.navigation.utils import _wrap, _forward_clearance, _wrap
+from src.navigation.utils import _forward_clearance, _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
@@ -66,6 +66,9 @@ def main() -> None:
     parser = create_bag_parser("TODO: add description")
     args = parser.parse_args()
 
+    tuning = NavigationTuning.load_default()
+    turn_clearance_m = tuning.corridor_follower.TURN_CLEARANCE_M
+
     reader = open_reader(args.bag_dir)
     scans, nav_rows = read_bag(reader, _LIDAR_YAW_OFFSET_RAD)
     poses: list[tuple[float, float, float]] = [
@@ -84,7 +87,7 @@ def main() -> None:
         rows.append(
             {
                 "near": near,
-                "min8": _forward_clearance(scan.ranges_m, scan.angles_rad),
+                "min8": _forward_clearance(scan.ranges_m, scan.angles_rad, tuning),
                 **{
                     f"max{arc}": _arc_max(scan.ranges_m, scan.angles_rad, math.radians(arc))
                     for arc in (12, 15, 20, 30)
@@ -104,7 +107,7 @@ def main() -> None:
         return sum(1 for i, on in enumerate(mask) if on and (i == 0 or not mask[i - 1]))
 
     candidates: list[tuple[str, object]] = [
-        ("min +/-8 < 0.60 (shipped)", lambda r: r["min8"] < TURN_CLEARANCE_M),
+        ("min +/-8 < 0.60 (shipped)", lambda r: r["min8"] < turn_clearance_m),
     ]
     for arc in (12, 15, 20, 30):
         for thr in (0.70, 0.80):
@@ -116,7 +119,7 @@ def main() -> None:
             candidates.append(
                 (
                     f"min+/-8<0.60 AND max+/-{arc}<{thr:.2f}",
-                    lambda r, a=arc, t=thr: r["min8"] < TURN_CLEARANCE_M and r[f"max{a}"] < t,
+                    lambda r, a=arc, t=thr: r["min8"] < turn_clearance_m and r[f"max{a}"] < t,
                 )
             )
 

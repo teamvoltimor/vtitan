@@ -27,16 +27,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import NavigatorDebugSnapshot
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
-from src.navigation.direction_estimator import (
-    _MAX_IN_TRACK_RANGE_M,
-    _MAX_PLAUSIBLE_SPAN_M,
-    _MIN_ASYMMETRY_M,
-)
-from src.navigation.utils import _wrap, _ALIGNMENT_TOLERANCE_RAD, _wrap
+from src.navigation.utils import _wrap
 
 _MIN_VOTES = 5
 _MAX_RANGE_FILL_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
@@ -148,18 +144,22 @@ def main() -> None:
         print(f"    would imply {name}: {count}{mark}")
 
     print("\ncounterfactual settles:")
+    tuning = NavigationTuning.load_default()
+    estimator = tuning.direction_estimator
+    shipped = dict(
+        max_range=estimator.MAX_IN_TRACK_RANGE_M,
+        max_span=estimator.PLAUSIBLE_SPAN_THRESHOLD_M,
+        min_asym=estimator.MIN_ASYMMETRY_M,
+        align_tol=estimator.ALIGNMENT_TOLERANCE_RAD,
+    )
+    wide_tol = _ALIGNMENT_TOL_MULTIPLIER * estimator.ALIGNMENT_TOLERANCE_RAD
     variants = [
-        ("shipped", dict(max_range=_MAX_IN_TRACK_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
-                         min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOLERANCE_RAD)),
+        ("shipped", shipped),
         ("max_range=12.5 (accept max-range as open)",
-         dict(max_range=_LARGE_MAX_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
-              min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOLERANCE_RAD)),
-        ("align_tol x2",
-         dict(max_range=_MAX_IN_TRACK_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
-              min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOL_MULTIPLIER * _ALIGNMENT_TOLERANCE_RAD)),
+         {**shipped, "max_range": _LARGE_MAX_RANGE_M}),
+        ("align_tol x2", {**shipped, "align_tol": wide_tol}),
         ("max_range=12.5 AND align_tol x2",
-         dict(max_range=_LARGE_MAX_RANGE_M, max_span=_MAX_PLAUSIBLE_SPAN_M,
-              min_asym=_MIN_ASYMMETRY_M, align_tol=_ALIGNMENT_TOL_MULTIPLIER * _ALIGNMENT_TOLERANCE_RAD)),
+         {**shipped, "max_range": _LARGE_MAX_RANGE_M, "align_tol": wide_tol}),
     ]
     table_rows = []
     for name, kwargs in variants:

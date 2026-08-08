@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
 from shared.config.enums import Section
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.planning.sign_router import corridor_for_position
 from src.simulation.scenario_catalog import all_test_scenarios
@@ -45,9 +46,10 @@ _CORNER_MISS_MARGIN_M = 0.25
 _MAX_PLAUSIBLE_WIDTH = _WIDE + _CORNER_MISS_MARGIN_M
 """Beyond this the inward ray has missed the inner block (robot is at a corner)."""
 
-_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
+_ALIGNMENT_TOLERANCE_RAD = NavigationTuning.load_default().direction_estimator.ALIGNMENT_TOLERANCE_RAD
 """How far off the corridor axis the chassis may be for the side rays to still
-span the corridor rather than a diagonal."""
+span the corridor rather than a diagonal. Same gate the production direction
+estimator and width estimator read, so this probe measures what they'd accept."""
 
 _WIDTH_VALIDITY_MARGIN_M = 0.25
 _MAX_STEPS = 4000

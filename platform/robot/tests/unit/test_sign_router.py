@@ -17,18 +17,16 @@ import math
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, SignColor, TrafficSignObservation
 
 from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
-    _MIN_RELIABLE_BBOX_HEIGHT_PX,
     _detection_to_world,
 )
 from src.navigation.planning.sign_router import (
+    _CHASSIS_HALF_DIAGONAL,
     _ROUTING_TABLE,
-    _SIGN_CLEARANCE_MARGIN,
-    _SIGN_LATERAL_OFFSET,
-    _WALL_CLEARANCE,
     SignRouter,
     SignRouterConfig,
     SignSpec,
@@ -49,6 +47,15 @@ from tests.test_constants import (
     TRACK_CORNER_SOUTH,
     TRACK_CORNER_WEST,
 )
+
+# These were module constants until tuning was threaded through; the values are
+# now derived per-call from NavigationTuning. Bound once here so the assertions
+# below keep reading as statements about the shipped configuration.
+_TUNING = NavigationTuning.load_default()
+_MIN_RELIABLE_BBOX_HEIGHT_PX = _TUNING.sign_discovery.MIN_RELIABLE_BBOX_HEIGHT_PX
+_SIGN_CLEARANCE_MARGIN = _TUNING.sign_router.SIGN_CLEARANCE_MARGIN_M
+_SIGN_LATERAL_OFFSET = SignRouterConfig.from_tuning(_TUNING.sign_router).lateral_offset
+_WALL_CLEARANCE = _CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.WALL_CLEARANCE_MARGIN_M
 
 # Robot-to-sign gaps expressed against the configured thresholds instead of as
 # literals. They used to be hardcoded (0.2 to engage, 1.5 to pass) against an
@@ -84,7 +91,7 @@ def router_config(tuning_constants):
 # Helper
 
 
-def _router(signs: list[SignSpec], config: SignRouterConfig, router_config) -> SignRouter:
+def _router(signs: list[SignSpec], config: SignRouterConfig) -> SignRouter:
     return SignRouter(signs, config=config)
 
 
@@ -732,7 +739,7 @@ class TestMatchDetectionToSign:
         result = _match_detection_to_sign(
             [obs],
             expected_world_pos=(0.5, 0.0),
-            config=CFG,
+            config=router_config,
         )
         assert result is None
 
@@ -741,7 +748,7 @@ class TestMatchDetectionToSign:
         result = _match_detection_to_sign(
             [obs],
             expected_world_pos=(0.0, 0.0),
-            config=CFG,
+            config=router_config,
         )
         assert result is None
 
@@ -755,7 +762,7 @@ class TestMatchDetectionToSign:
         result = _match_detection_to_sign(
             candidates,
             expected_world_pos=expected,
-            config=CFG,
+            config=router_config,
         )
         assert result is SignColor.GREEN
 

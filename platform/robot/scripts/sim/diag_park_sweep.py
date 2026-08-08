@@ -20,7 +20,7 @@ import sys
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.config.enums import Section
 
-from scripts.common.bag_io import print_table
+from scripts.common.tables import print_table
 from src.navigation.maneuvers.parking import park_controller_from_metadata
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -277,7 +277,7 @@ def report_straight_in() -> None:
                     break
             row_data.append("HIT " if hit else ("ok  " if contained_at_stop else "out "))
         table_rows.append(row_data)
-    headers = ['lat(m)'] + [f"{math.degrees(y):+.0f}d" for y in _STRAIGHTIN_YAW_ERRORS]
+    headers = ["lat(m)"] + [f"{math.degrees(y):+.0f}d" for y in _STRAIGHTIN_YAW_ERRORS]
     print_table(table_rows, headers)
 
     print("\nok = whole footprint inside the bay at the stop point; out = clear but protruding; HIT = contact")
