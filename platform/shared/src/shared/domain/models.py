@@ -322,18 +322,21 @@ class Position2D(BaseModel):
 class StartingConditions(BaseModel):
     """Robot starting pose and direction.
 
-    ``direction``/``section`` are ``None`` when genuinely undetermined -- a
-    blind run only knows its pose relative to its own start, not the track's
-    absolute compass labels or travel direction, until direction/corridor
-    inference resolves them autonomously. A default naming a specific
-    direction/section here previously let metadata built without them
-    silently claim an invented starting condition instead of admitting it
-    doesn't know one yet (the same shape of bug ``CorridorWidthEntry``
-    documents for corridor widths).
+    ``direction``/``section`` are not symmetric. ``section`` defaults to
+    ``Section.canonical()`` -- any consistent label works, since the robot
+    defines its own world frame and everything else follows self-consistently
+    (see ``src.navigation.start_conditions``'s module docstring). ``direction``
+    has no such default and is ``None`` when genuinely undetermined: getting
+    it wrong is a reflection, not a rotation, so it must come from outside
+    (a launch parameter) or from real inference, never an assumption. A
+    default naming a specific direction here previously let metadata built
+    without one silently claim an invented travel direction instead of
+    admitting it doesn't know one yet (the same shape of bug
+    ``CorridorWidthEntry`` documents for corridor widths).
     """
 
     direction: Direction | None = None
-    section: Section | None = None
+    section: Section = Section.canonical()
     position: Position2D = Position2D()
     yaw: float = 0.0
 

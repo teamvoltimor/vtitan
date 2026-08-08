@@ -41,11 +41,14 @@ from src.navigation.race_tracker import TRAVEL_DIRS
 _TRACK_MAX = TrackDimensions.MAX_COORD
 _TRACK_CENTER = _TRACK_MAX / 2
 
-CANONICAL_SECTION = Section.SOUTH
+CANONICAL_SECTION = Section.canonical()
 """The section a robot assumes when it has not been told which one it is in.
 
 Any choice works -- see the module docstring -- so this is a label, not a claim
-about where the robot physically is.
+about where the robot physically is. Sourced from ``Section.canonical()``
+rather than restated here so ``StartingConditions``'s own default (which
+cannot import this module -- domain layer, see its docstring) stays in step
+with this one automatically.
 """
 
 
