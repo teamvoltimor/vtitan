@@ -25,9 +25,7 @@ digital I/O with no PWM jitter to inherit.
 from __future__ import annotations
 
 import logging
-import os
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
@@ -41,21 +39,13 @@ from src.hardware.motors.dc_encoder.control import (
     counts_to_distance,
     counts_to_revolutions,
 )
+from src.hardware.motors.pwm_sysfs import EXPORT_TIMEOUT_S, SYSFS_PWM_ROOT, wait_for_pwm_channel_writable
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-_SYSFS_PWM_ROOT = Path("/sys/class/pwm")
-
-_EXPORT_TIMEOUT_S = 2.0
-"""How long to wait for the kernel + udev to create and chgrp the channel dir.
-
-Exporting a channel is asynchronous: the ``pwmN`` directory appears slightly
-after the write returns, and the udev rule that makes it group-writable runs
-later still. Writing immediately races both and fails with ENOENT or EACCES.
-"""
 
 # JGB37-520 1590 RPM variant defaults — confirm the printed gear ratio per unit.
 # MEASURED on hardware 2026-07-25, not derived from the datasheet: the previous
@@ -256,7 +246,7 @@ class Driver(EncodedDriveDriver):
 
     @property
     def _chip_dir(self) -> Path:
-        return _SYSFS_PWM_ROOT / f"pwmchip{self._pwm_config.pwmchip}"
+        return SYSFS_PWM_ROOT / f"pwmchip{self._pwm_config.pwmchip}"
 
     def _export_channel(self) -> Path:
         """Export the PWM channel and wait for it to become writable."""
@@ -281,18 +271,11 @@ class Driver(EncodedDriveDriver):
                     msg = f"cannot export PWM channel: {err}"
                     raise self._fail(msg) from err
 
-        # Wait out the export/udev race: the pwmN dir and its group-writable
-        # permissions (via udev) both land slightly after the export write
-        # returns, so writing immediately can race either.
-        deadline = time.monotonic() + _EXPORT_TIMEOUT_S
-        while time.monotonic() < deadline:
-            duty = channel_dir / "duty_cycle"
-            if duty.exists() and os.access(duty, os.W_OK):
-                return channel_dir
-            time.sleep(0.05)
+        if wait_for_pwm_channel_writable(channel_dir):
+            return channel_dir
 
         msg = (
-            f"{channel_dir} did not become writable within {_EXPORT_TIMEOUT_S}s "
+            f"{channel_dir} did not become writable within {EXPORT_TIMEOUT_S}s "
             "(is the service user in the 'gpio' group?)"
         )
         raise self._fail(

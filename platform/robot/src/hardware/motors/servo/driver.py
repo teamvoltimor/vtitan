@@ -39,16 +39,18 @@ user is in that group.
 from __future__ import annotations
 
 import logging
-import os
-import time
-from pathlib import Path
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors.base import (
     DEFAULT_STEERING_SPEED,
     STEERING_CENTER_DEG,
     SteeringDriver,
+)
+from src.hardware.motors.pwm_sysfs import (
+    EXPORT_TIMEOUT_S,
+    SYSFS_PWM_ROOT,
+    wait_for_pwm_channel_writable,
 )
 from src.hardware.motors.servo.config import (
     NS_PER_US,
@@ -57,20 +59,13 @@ from src.hardware.motors.servo.config import (
     ServoConfig,
 )
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from pathlib import Path
 
-_SYSFS_PWM_ROOT = Path("/sys/class/pwm")
+logger = logging.getLogger(__name__)
 
 _PERIOD_NS = int(US_PER_SECOND / PWM_FREQUENCY_HZ) * NS_PER_US
 """One PWM frame in nanoseconds (20 ms at 50 Hz)."""
-
-_EXPORT_TIMEOUT_S = 2.0
-"""How long to wait for the kernel + udev to create and chgrp the channel dir.
-
-Exporting a channel is asynchronous: the ``pwmN`` directory appears slightly
-after the write returns, and the udev rule that makes it group-writable runs
-later still. Writing immediately races both and fails with ENOENT or EACCES.
-"""
 
 _PULSE_EPSILON_US = 1.0
 """Smallest pulse-width change worth writing.
@@ -99,7 +94,7 @@ class Driver(SteeringDriver):
 
     @property
     def _chip_dir(self) -> Path:
-        return _SYSFS_PWM_ROOT / f"pwmchip{self._config.pwmchip}"
+        return SYSFS_PWM_ROOT / f"pwmchip{self._config.pwmchip}"
 
     def _fail(self, reason: str) -> MotorConnectionError:
         return MotorConnectionError(str(self._config.gpio_pin), reason)
@@ -127,16 +122,11 @@ class Driver(SteeringDriver):
                     msg = f"cannot export PWM channel: {err}"
                     raise self._fail(msg) from err
 
-        # Wait out the export/udev race described on _EXPORT_TIMEOUT_S.
-        deadline = time.monotonic() + _EXPORT_TIMEOUT_S
-        while time.monotonic() < deadline:
-            duty = channel_dir / "duty_cycle"
-            if duty.exists() and os.access(duty, os.W_OK):
-                return channel_dir
-            time.sleep(0.05)
+        if wait_for_pwm_channel_writable(channel_dir):
+            return channel_dir
 
         msg = (
-            f"{channel_dir} did not become writable within {_EXPORT_TIMEOUT_S}s "
+            f"{channel_dir} did not become writable within {EXPORT_TIMEOUT_S}s "
             "(is the service user in the 'gpio' group?)"
         )
         raise self._fail(
