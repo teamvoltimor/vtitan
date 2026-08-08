@@ -128,9 +128,13 @@ for a value that changes on human timescales was pure waste.
 DRIVE_CONTROL_RATE_HZ = 50.0
 """Rate of the closed-loop drive step.
 
-Must stay 50 Hz: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` both hardcode
-``dt=0.02``, so running the loop at any other rate silently rescales the PID
-gains and the speed estimate without changing a single number in the tuning.
+Free to change: ``run_drive_at_rpm()`` and ``get_drive_rpm()`` (see
+``dc_encoder/driver.py``'s ``_elapsed()``) measure the real wall-clock
+interval between calls rather than assuming a fixed one, specifically so the
+PID gains and speed estimate stay correct if this rate ever changes. The
+``_NOMINAL_DT_S = 0.02`` constant there is only a one-time seed for the very
+first call, before any interval has been measured yet -- it is not coupled to
+this rate.
 """
 
 

@@ -17,6 +17,8 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from vtitan_state_machine.grpc_backoff import BACKOFF_INITIAL_S, BACKOFF_MAX_S
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Sequence
 
@@ -43,9 +45,6 @@ if str(_GEN_ROOT) not in sys.path:
 import grpc  # noqa: E402
 from google.protobuf import struct_pb2, timestamp_pb2  # noqa: E402
 from telemetry.v1 import ingest_pb2, ingest_pb2_grpc, types_pb2  # noqa: E402
-
-_BACKOFF_INITIAL = 1.0
-_BACKOFF_MAX = 60.0
 
 
 def _position3d(values: Sequence[float]) -> types_pb2.Position3D:
@@ -308,7 +307,7 @@ class TelemetryIngestChannel:
 
     def _stream_loop(self, rpc_name: str, q: queue.Queue) -> None:
         """Background thread: keep the given RPC's client-stream open with backoff."""
-        backoff = _BACKOFF_INITIAL
+        backoff = BACKOFF_INITIAL_S
         while not self._stop_event.is_set():
             try:
                 self._run_stream(rpc_name, q)
@@ -324,7 +323,7 @@ class TelemetryIngestChannel:
             if self._stop_event.is_set():
                 return
             self._stop_event.wait(backoff)
-            backoff = min(backoff * 2, _BACKOFF_MAX)
+            backoff = min(backoff * 2, BACKOFF_MAX_S)
 
     def _run_stream(self, rpc_name: str, q: queue.Queue) -> None:
         channel = grpc.insecure_channel(self._backend_target)
