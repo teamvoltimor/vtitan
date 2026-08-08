@@ -139,7 +139,7 @@ def main() -> None:
                 counts = revs * args.counts_per_rev_config
                 source = "integrated speed (approx)"
 
-            raw = input(f"  Measure the distance travelled, in cm (blank to skip): ").strip()
+            raw = input("  Measure the distance travelled, in cm (blank to skip): ").strip()
             if not raw:
                 print("  skipped\n")
                 continue
