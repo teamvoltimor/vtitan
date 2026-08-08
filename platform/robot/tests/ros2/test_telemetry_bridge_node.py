@@ -17,7 +17,19 @@ import pytest
 import rclpy
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.navigation_tuning import NavigationTuning
-from vision_msgs.msg import BoundingBox2D, Detection2D, Detection2DArray, ObjectHypothesisWithPose
+from shared.domain.models import Detection
+from std_msgs.msg import String
+
+from src.ros2.vision.detection_payload_keys import (
+    AREA_KEY,
+    BBOX_KEY,
+    CLASS_NAME_KEY,
+    CONFIDENCE_KEY,
+    HEIGHT_KEY,
+    WIDTH_KEY,
+    X_KEY,
+    Y_KEY,
+)
 
 # The real value the node loads from lidar_sectors.toml at runtime (see
 # telemetry_bridge_node.TelemetryBridgeNode.__init__). Read from the checked-in
@@ -40,14 +52,44 @@ def bridge_node(bridge_module):
     node.destroy_node()
 
 
-def _detection(class_id: str, score: float, size_x: float, size_y: float) -> Detection2D:
-    det = Detection2D()
-    hyp = ObjectHypothesisWithPose()
-    hyp.hypothesis.class_id = class_id
-    hyp.hypothesis.score = score
-    det.results.append(hyp)
-    det.bbox = BoundingBox2D(size_x=size_x, size_y=size_y)
-    return det
+def _detection(class_name: str, confidence: float, size_x: float, size_y: float) -> Detection:
+    """A shared.domain.models.Detection, the type _best_detection now takes directly."""
+    return Detection(
+        class_name=class_name,
+        confidence=confidence,
+        bbox=(0.0, 0.0, size_x, size_y),
+        x=size_x / 2,
+        y=size_y / 2,
+        width=size_x,
+        height=size_y,
+        area=size_x * size_y,
+    )
+
+
+def _vision_msg(*detections: Detection) -> String:
+    """A std_msgs/String matching vision_node's real JSON wire format.
+
+    Mirrors src.ros2.vision.node.VisionNode._process's dict construction --
+    the same shape ROS2HardwareGateway._vision_callback and this node's own
+    _parse_detections both parse.
+    """
+    msg = String()
+    msg.data = json.dumps(
+        [
+            {
+                CLASS_NAME_KEY: d.class_name,
+                CONFIDENCE_KEY: d.confidence,
+                BBOX_KEY: list(d.bbox),
+                X_KEY: d.x,
+                Y_KEY: d.y,
+                WIDTH_KEY: d.width,
+                HEIGHT_KEY: d.height,
+                AREA_KEY: d.area,
+            }
+            for d in detections
+        ],
+    )
+    return msg
 
 
 def _window(center_idx: int, half_width: int, n: int) -> range:
@@ -140,20 +182,41 @@ class TestBestDetection:
 
     def test_picks_confidence_times_area(self, bridge_module):
         """Neither the highest-confidence nor the largest box alone -- the product."""
-        msg = Detection2DArray()
-        # High confidence, tiny box: 0.95 * (5*5) = 23.75
-        msg.detections.append(_detection("small_far_sign", 0.95, 5.0, 5.0))
-        # Lower confidence, much larger box: 0.6 * (40*40) = 960
-        msg.detections.append(_detection("large_near_sign", 0.6, 40.0, 40.0))
+        detections = [
+            # High confidence, tiny box: 0.95 * (5*5) = 23.75
+            _detection("small_far_sign", 0.95, 5.0, 5.0),
+            # Lower confidence, much larger box: 0.6 * (40*40) = 960
+            _detection("large_near_sign", 0.6, 40.0, 40.0),
+        ]
 
-        assert bridge_module._best_detection(msg) == ("large_near_sign", 0.6)
+        assert bridge_module._best_detection(detections) == ("large_near_sign", 0.6)
 
-    def test_skips_results_without_a_hypothesis(self, bridge_module):
-        msg = Detection2DArray()
-        empty = Detection2D()  # no results appended -- must not raise
-        msg.detections.append(empty)
+    def test_empty_list_returns_none(self, bridge_module):
+        assert bridge_module._best_detection([]) is None
 
-        assert bridge_module._best_detection(msg) is None
+
+class TestParseDetections:
+    """_parse_detections is what turns vision_node's raw JSON String into Detections.
+
+    Previously this node subscribed vision_msgs/Detection2DArray on
+    /hailo/detections, a topic nothing has ever published -- visionDetections
+    telemetry and the OLED's best-detection readout were both silently dead.
+    """
+
+    def test_parses_a_valid_detections_list(self, bridge_module):
+        msg = _vision_msg(_detection("red_sign", 0.9, 10.0, 10.0))
+
+        parsed = bridge_module._parse_detections(msg.data)
+
+        assert parsed == [_detection("red_sign", 0.9, 10.0, 10.0)]
+
+    def test_malformed_json_returns_empty_list(self, bridge_module):
+        assert bridge_module._parse_detections("not json") == []
+
+    def test_missing_keys_default_gracefully(self, bridge_module):
+        parsed = bridge_module._parse_detections(json.dumps([{}]))
+
+        assert parsed == [Detection(class_name="", confidence=0.0, bbox=(0.0, 0.0, 0.0, 0.0), x=0.0, y=0.0, width=0.0, height=0.0, area=0.0)]
 
 
 class TestPublishUiSummary:
@@ -190,9 +253,7 @@ class TestPublishUiSummary:
         imu.orientation.w = 0.707
         bridge_node._imu_callback(imu)
 
-        vision = Detection2DArray()
-        vision.detections.append(_detection("red_sign", 0.9, 10.0, 10.0))
-        bridge_node._vision_callback(vision)
+        bridge_node._vision_callback(_vision_msg(_detection("red_sign", 0.9, 10.0, 10.0)))
 
         published = []
         bridge_node._ui_summary_pub.publish = published.append
@@ -305,9 +366,7 @@ class TestUiSummaryRoundTripsWithOledNode:
         scan.ranges = ranges
         bridge_node._scan_callback(scan)
 
-        vision = Detection2DArray()
-        vision.detections.append(_detection("red_sign", 0.9, 10.0, 10.0))
-        bridge_node._vision_callback(vision)
+        bridge_node._vision_callback(_vision_msg(_detection("red_sign", 0.9, 10.0, 10.0)))
 
         published = []
         bridge_node._ui_summary_pub.publish = published.append

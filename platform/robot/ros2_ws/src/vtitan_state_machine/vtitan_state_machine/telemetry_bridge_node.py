@@ -23,12 +23,21 @@ from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.models import LidarClearances, MotorStateSnapshot
+from shared.domain.models import Detection, LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
-from vision_msgs.msg import Detection2DArray
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
+from src.ros2.vision.detection_payload_keys import (
+    AREA_KEY,
+    BBOX_KEY,
+    CLASS_NAME_KEY,
+    CONFIDENCE_KEY,
+    HEIGHT_KEY,
+    WIDTH_KEY,
+    X_KEY,
+    Y_KEY,
+)
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
 
@@ -111,9 +120,9 @@ class _MotorStatePayload:
 
 @dataclass(frozen=True, slots=True)
 class _VisionDetectionPayload:
-    """A single Hailo detection, as reported in a RobotSnapshot."""
+    """A single vision detection, as reported in a RobotSnapshot."""
 
-    className: int | str
+    className: str
     confidence: float
     bbox: list[float]
 
@@ -192,7 +201,6 @@ class RosMsgType:
     STRING = "std_msgs/String"
     ACKERMANN_DRIVE_STAMPED = "ackermann_msgs/AckermannDriveStamped"
     JOINT_STATE = "sensor_msgs/JointState"
-    DETECTION_2D_ARRAY = "vision_msgs/Detection2DArray"
 
 
 _LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
@@ -253,29 +261,50 @@ def _lidar_clearances(ranges: list[float], sector_half_fov_rad: float) -> LidarC
     )
 
 
-def _best_detection(msg: Detection2DArray) -> tuple[str, float] | None:
+def _parse_detections(raw: str) -> list[Detection]:
+    """Parse vision_node's JSON detections payload on /vision/detections.
+
+    vision_node (src/ros2/vision/node.py) only ever publishes a JSON-encoded
+    std_msgs/String here -- it has never published vision_msgs/Detection2DArray
+    on any topic. This node used to subscribe Detection2DArray on
+    /hailo/detections, which nothing publishes, so visionDetections telemetry
+    and the OLED's best-detection readout were both silently dead the entire
+    time. Mirrors ROS2HardwareGateway._vision_callback's parsing exactly (the
+    real, working consumer of this same topic).
+    """
+    try:
+        raw_data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return [
+        Detection(
+            class_name=d.get(CLASS_NAME_KEY, ""),
+            confidence=d.get(CONFIDENCE_KEY, 0.0),
+            bbox=tuple(d.get(BBOX_KEY, (0.0, 0.0, 0.0, 0.0))),
+            x=d.get(X_KEY, 0.0),
+            y=d.get(Y_KEY, 0.0),
+            width=d.get(WIDTH_KEY, 0.0),
+            height=d.get(HEIGHT_KEY, 0.0),
+            area=d.get(AREA_KEY, 0.0),
+        )
+        for d in raw_data
+    ]
+
+
+def _best_detection(detections: list[Detection]) -> tuple[str, float] | None:
     """Track the single most salient detection for the OLED's RACING page.
 
-    Relocated verbatim from oled_display_node.py's old _detections_callback.
     Ranked by confidence x bbox area rather than confidence alone: a small,
     high-confidence false positive and a large, low-confidence smear are
     both less trustworthy than one detection that scores well on both axes.
     """
     best: tuple[str, float] | None = None
     best_score = -1.0
-    for det in msg.detections:
-        if not det.results:
-            continue
-        hyp = det.results[0]
-        if hasattr(hyp, "hypothesis"):
-            class_id, confidence = hyp.hypothesis.class_id, hyp.hypothesis.score
-        else:
-            class_id, confidence = hyp.id, hyp.score
-        area = det.bbox.size_x * det.bbox.size_y
-        score = confidence * area
+    for det in detections:
+        score = det.confidence * det.area
         if score > best_score:
             best_score = score
-            best = (class_id, confidence)
+            best = (det.class_name, det.confidence)
     return best
 
 
@@ -319,7 +348,7 @@ class TelemetryBridgeNode(Node):
         self._latest_state: str = "unknown"
         self._latest_ackermann_cmd: AckermannDriveStamped | None = None
         self._latest_joints: JointState | None = None
-        self._latest_vision: Detection2DArray | None = None
+        self._latest_vision: list[Detection] | None = None
 
         self._topic_updates: dict[str, _TopicUpdatePayload] = {}
         self._topic_timestamps: dict[str, deque] = {}
@@ -438,11 +467,15 @@ class TelemetryBridgeNode(Node):
             10,
         )
         self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
+        # Default (reliable, depth 10) QoS to match vision_node's own
+        # create_publisher(String, detections_topic, 10) -- not
+        # qos_profile_sensor_data, which is BEST_EFFORT and would be
+        # incompatible with that publisher's default RELIABLE reliability.
         self.create_subscription(
-            Detection2DArray,
-            self._topics.sensors.hailo_detections,
+            String,
+            self._topics.sensors.vision_detections,
             self._vision_callback,
-            qos_profile_sensor_data,
+            10,
         )
 
     def _scan_callback(self, msg: LaserScan) -> None:
@@ -472,9 +505,9 @@ class TelemetryBridgeNode(Node):
         self._latest_joints = msg
         self._update_raw_topic(self._topics.actuators.joint_states, RosMsgType.JOINT_STATE, msg)
 
-    def _vision_callback(self, msg: Detection2DArray) -> None:
-        self._latest_vision = msg
-        self._update_raw_topic(self._topics.sensors.hailo_detections, RosMsgType.DETECTION_2D_ARRAY, msg)
+    def _vision_callback(self, msg: String) -> None:
+        self._latest_vision = _parse_detections(msg.data)
+        self._update_raw_topic(self._topics.sensors.vision_detections, RosMsgType.STRING, msg)
 
     def _update_raw_topic(self, topic_name: str, msg_type: str, msg: object) -> None:
         """Track a topic's freshness/rate and snapshot it for the backend POST.
@@ -690,7 +723,7 @@ class TelemetryBridgeNode(Node):
             yaw = math.degrees(self._quaternion_to_yaw(q.x, q.y, q.z, q.w))
         d2 = time.monotonic()
 
-        detection = _best_detection(self._latest_vision) if self._latest_vision is not None else None
+        detection = _best_detection(self._latest_vision) if self._latest_vision else None
         class_id, confidence = detection if detection is not None else (None, None)
         d3 = time.monotonic()
 
@@ -783,28 +816,14 @@ class TelemetryBridgeNode(Node):
         # Vision detections
         vision_detections: list[_VisionDetectionPayload] | None = None
         if self._latest_vision:
-            vision_detections = []
-            for det in self._latest_vision.detections:
-                # Handle varying ROS2 versions
-                if hasattr(det.results[0], "hypothesis"):
-                    class_id = det.results[0].hypothesis.class_id
-                    score = det.results[0].hypothesis.score
-                else:
-                    class_id = det.results[0].id
-                    score = det.results[0].score
-
-                vision_detections.append(
-                    _VisionDetectionPayload(
-                        className=class_id,
-                        confidence=score,
-                        bbox=[
-                            det.bbox.center.position.x,
-                            det.bbox.center.position.y,
-                            det.bbox.size_x,
-                            det.bbox.size_y,
-                        ],
-                    ),
+            vision_detections = [
+                _VisionDetectionPayload(
+                    className=det.class_name,
+                    confidence=det.confidence,
+                    bbox=list(det.bbox),
                 )
+                for det in self._latest_vision
+            ]
 
         return RobotSnapshot(
             timestamp=timestamp,

@@ -68,15 +68,6 @@ class SensorTopics(BaseModel):
     vision_detections: str
     """Vision detections (std_msgs/String, JSON), published by vision_node."""
 
-    hailo_detections: str
-    """Hailo vision detections.
-
-    NOTE: as of 2026-08-08, nothing publishes vision_msgs/Detection2DArray on
-    this topic -- vision_node only ever publishes JSON on `vision_detections`
-    above. Kept for telemetry_bridge_node's still-dead Detection2DArray
-    subscription, tracked separately for a rewrite.
-    """
-
 
 class CommandTopics(BaseModel):
     """Command topics."""
