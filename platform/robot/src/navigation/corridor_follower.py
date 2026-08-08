@@ -42,84 +42,10 @@ from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap
-
-# One load, reused by the module-level constants below. These feed free
-# functions with no instance to inject tuning into, but that is not a reason to
-# restate a configured number -- see corridor_follower.toml.
-_TUNING = NavigationTuning.load_default()
-_FOLLOWER = _TUNING.corridor_follower
-
-# Both read from the group that owns them rather than restated here: the
-# no-return floor is a LIDAR fact, and the in-track ceiling is the same 3 m-mat
-# plausibility bound direction_estimator.MAX_IN_TRACK_RANGE_M documents at
-# length. A second copy of either would be a second thing to keep in step.
-_MIN_VALID_RANGE_M = _TUNING.lidar_sectors.MIN_VALID_RANGE_M
-_MAX_IN_TRACK_RANGE_M = _TUNING.direction_estimator.MAX_IN_TRACK_RANGE_M
-
-TURN_CLEARANCE_M = _FOLLOWER.TURN_CLEARANCE_M
-"""Forward clearance at which to start turning the corner.
-
-Strictly below :data:`~src.navigation.direction_estimator.CORNER_CLEARANCE_M`,
-and the gap matters. Turning swings the heading past the direction estimator's
-alignment gate, so beginning the turn as soon as the corner is detectable
-rotates the robot straight through the only window in which it can read which
-side is open. Hold the line for that window first, then turn.
-
-``NavigationTuning`` enforces that ordering at load time, so the two can no
-longer be edited into agreement by accident.
-"""
+from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap, axis_offset_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-_CENTERING_GAIN = _FOLLOWER.CENTERING_GAIN
-_MAX_CENTERING_STEER = _FOLLOWER.MAX_CENTERING_STEER
-"""Steering per metre of lateral offset, and a hard cap on the result.
-
-Both are deliberately timid. The chassis is counter-phase four-wheel steering
-with a 0.034 m minimum turn radius, so it responds violently -- the same reason
-``STEER_KP`` came down to 1.2. A hot gain here does not merely wander: the
-resulting oscillation swings the heading past the alignment gate in
-:mod:`src.navigation.direction_estimator`, which then refuses every reading and
-the direction never settles at all. Measured at gain 2.0, that cost 12 of 28
-fixtures their direction and put 9 into a wall.
-
-Sitting off-centre for one metre costs nothing. Oscillating costs the round.
-"""
-
-_CORNER_SPEED_SCALE = _FOLLOWER.CORNER_SPEED_SCALE
-"""Fraction of creep speed while turning a corner blind. Slower than straight
-running, because the turn is committed on one comparison rather than a plan."""
-
-_TURN_ARC_HALF_FOV_RAD = math.radians(_FOLLOWER.TURN_ARC_HALF_FOV_DEG)
-_TURN_OPEN_RANGE_M = _FOLLOWER.TURN_OPEN_RANGE_M
-"""Arc and range for the second opinion on whether the corridor has ended.
-
-:data:`TURN_CLEARANCE_M` is applied to ``_forward_clearance``, which is the
-*minimum* over a +/-8 deg cone. A minimum over a narrow cone answers "is
-anything close ahead", which is not the same question as "has the corridor
-ended", and the two come apart exactly when the chassis is oblique: 0.24 m off
-a wall at 30 deg puts the whole cone on that wall at 0.24/sin(30) = 0.48 m,
-below a 0.60 m threshold, in the middle of a perfectly open corridor.
-
-That is not hypothetical. On run_20260806_162008 it held the corner branch --
-and with it hard-over steering -- for 53% of a 305 s round, at 47% precision
-against a 45% base rate: no better than chance. Hard-over steering swings the
-heading past the direction estimator's alignment gate, so the round never
-inferred its travel direction, never planned a path, and scored no laps at all.
-That is the failure this module's own header warns about ("Oscillating costs
-the round"), reached at a centring gain well below the one it was measured at.
-
-So ask the complementary question, as a *maximum* over a *wider* arc: is there
-any bearing ahead with real room left. At a real corner the end wall blocks
-every bearing in the arc. An oblique chassis still has the corridor's own axis
-inside it, reading metres. Scored against run_20260806_161659, a healthy
-three-lap round, requiring both tests fires 12 times -- one episode per corner
-per lap -- at 96% precision, where the clearance test alone fired 13 times at
-88%. On the failing round it cuts the hard-over ticks by a sixth even before
-the loop closes; the remainder is geometry the weave itself created.
-"""
 
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
 """Back off when the wall ahead is this close.
@@ -141,12 +67,7 @@ _MIN_REVERSE_CLEARANCE_M = RobotSpecs.LENGTH
 Backing blindly into whatever is behind trades one wall for another. With less
 than this the robot is boxed at both ends and holding still is genuinely all
 that is left.
-"""
 
-_REVERSE_SPEED_SCALE = _FOLLOWER.REVERSE_SPEED_SCALE
-"""Fraction of creep speed to back off at.
-
-Reverse is for realigning the nose over a few centimetres, not for travelling.
 The robot must never cover ground backwards: the round is driven in the
 direction drawn on the day, and a robot reversing down a corridor is going the
 wrong way regardless of which way it is pointing. Clearance recovers within a
@@ -154,33 +75,45 @@ few ticks, at which point the forward branches take over again.
 """
 
 
-def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> bool:
+def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> bool:
     """Is any bearing in the forward arc still open enough to drive down?
 
     The maximum, over an arc wide enough to contain the corridor's own axis
-    when the chassis is oblique -- see :data:`_TURN_OPEN_RANGE_M` for why the
-    forward *minimum* cannot answer this.
+    when the chassis is oblique -- uses tuning.corridor_follower.TURN_OPEN_RANGE_M
+    and related fields.
 
     Dropouts are excluded on the same reasoning, and against the same bound, as
     :mod:`src.navigation.direction_estimator` uses: the gateway substitutes max
     range (12 m) for a no-return, and nothing on a 3 m mat can be further than
     its diagonal. Left in, a single dropped beam would read as wide-open track
     and veto every corner turn on the round.
+
+    Uses tuning: corridor_follower.TURN_ARC_HALF_FOV_DEG, TURN_OPEN_RANGE_M;
+        lidar_sectors.MIN_VALID_RANGE_M;
+        direction_estimator.MAX_IN_TRACK_RANGE_M
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+    follower = tuning.corridor_follower
+    turn_arc_rad = math.radians(follower.TURN_ARC_HALF_FOV_DEG)
+    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
+    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
     open_ranges = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= _TURN_ARC_HALF_FOV_RAD and _MIN_VALID_RANGE_M < r < _MAX_IN_TRACK_RANGE_M
+        if abs(_wrap(a)) <= turn_arc_rad and min_valid < r < max_in_track
     ]
     if not open_ranges:
         return False
-    return max(open_ranges) >= _TURN_OPEN_RANGE_M
+    return max(open_ranges) >= follower.TURN_OPEN_RANGE_M
 
 
 def follow_corridor(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
     speed_mps: float,
+    yaw: float | None = None,
+    tuning: NavigationTuning | None = None,
 ) -> DriveCommand:
     """Creep along the corridor, centred between whatever walls are visible.
 
@@ -188,12 +121,30 @@ def follow_corridor(
         ranges_m: LIDAR ranges.
         angles_rad: Matching robot-frame bearings (0 = forward).
         speed_mps: Speed to creep at while the direction is unknown.
+        yaw: Current heading (world frame), for the damping term on the
+            centring branch. Optional because the value is only ever used
+            against the nearest 90-degree axis -- the track is a Manhattan
+            world, so this stays as map-free as the rest of the module and
+            consults no plan. Omitted, centring falls back to
+            offset-proportional, which oscillates; see :data:`_HEADING_GAIN`.
+        tuning: Navigation tuning instance. Defaults to the default tuning profile.
 
     Returns:
         A drive command centring the chassis, or a stop if the corridor ends
         before the direction resolved.
     """
-    forward = _forward_clearance(ranges_m, angles_rad)
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+
+    follower = tuning.corridor_follower
+    max_centering = follower.MAX_CENTERING_STEER
+    reverse_scale = follower.REVERSE_SPEED_SCALE
+    corner_scale = follower.CORNER_SPEED_SCALE
+    centering_gain = follower.CENTERING_GAIN
+    heading_gain = follower.HEADING_GAIN
+    turn_clearance = follower.TURN_CLEARANCE_M
+
+    forward = _forward_clearance(ranges_m, angles_rad, tuning)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
 
@@ -207,16 +158,16 @@ def follow_corridor(
         # the turn: reversing swings the nose away from the steer direction, so
         # the inverted sign walks the nose toward the open side instead of
         # further into the wall it is against.
-        steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
+        steering = max_centering if left > right else -max_centering
         rear = _nearest_ray(ranges_m, angles_rad, math.pi)
         if rear > _MIN_REVERSE_CLEARANCE_M:
             return DriveCommand(
-                speed_mps=-speed_mps * _REVERSE_SPEED_SCALE,
+                speed_mps=-speed_mps * reverse_scale,
                 steering_norm=-steering,
             )
         return DriveCommand(speed_mps=0.0, steering_norm=steering)
 
-    if forward < TURN_CLEARANCE_M and not _way_through(ranges_m, angles_rad):
+    if forward < turn_clearance and not _way_through(ranges_m, angles_rad, tuning):
         # The corridor is ending -- close ahead AND nothing open across the
         # wider arc, so this is a wall spanning the track rather than one seen
         # at an angle. Turn toward the side with more room, which is where the
@@ -226,8 +177,8 @@ def follow_corridor(
         # Stopping here instead is a deadlock: with no direction there is no
         # plan to hand over to, so the robot would sit at the corner until the
         # round expired. That was every closed-loop failure of this feature.
-        steering = _MAX_CENTERING_STEER if left > right else -_MAX_CENTERING_STEER
-        return DriveCommand(speed_mps=speed_mps * _CORNER_SPEED_SCALE, steering_norm=steering)
+        steering = max_centering if left > right else -max_centering
+        return DriveCommand(speed_mps=speed_mps * corner_scale, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a
     # corridor wall, and centring against it would steer into the other one.
@@ -241,5 +192,15 @@ def follow_corridor(
     # left to correct -- and steering_norm is +1 = full left (see
     # ``shared.domain.steering``).
     offset = (left - right) / 2.0
-    steering = max(-_MAX_CENTERING_STEER, min(_MAX_CENTERING_STEER, _CENTERING_GAIN * offset))
+    demand = centering_gain * offset
+    # Damping. Offset alone is 90 degrees out of phase with the control the
+    # chassis actually has -- steering sets yaw rate, yaw integrates to heading,
+    # heading integrates to position -- so correcting position without regard to
+    # heading always overshoots and comes back. Subtracting the heading error
+    # takes the corner off that: pointing left of the corridor axis is a reason
+    # to steer right even while still left of centre. Positive axis offset means
+    # the nose is left of the axis, and +1 steering is full left, hence minus.
+    if yaw is not None:
+        demand -= heading_gain * axis_offset_rad(yaw)
+    steering = max(-max_centering, min(max_centering, demand))
     return DriveCommand(speed_mps=speed_mps, steering_norm=steering)

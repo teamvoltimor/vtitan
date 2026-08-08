@@ -3,16 +3,22 @@
 # See shared.config.navigation_tuning.WaypointParams.
 
 # Corner arc radius (m). Must exceed the Ackermann minimum turning radius
-# (~0.329m, from the measured WHEELBASE=0.19/MAX_STEERING_ANGLE=0.5236) --
-# enforced by a fail-fast width assertion in calculate_waypoints.
+# (~0.034m: WHEELBASE=0.19m / tan(MAX_STEERING_ANGLE=1.2252rad), reduced further
+# by counter-phase steering) -- enforced by a fail-fast width assertion in
+# calculate_waypoints.
 arc_radius = 0.45
 
 # Distance below which consecutive generated waypoints are treated as duplicates.
 dedupe_distance_m = 0.001
 
-# Bias (m) added to corridor centerline waypoints toward the outer wall, to
-# compensate for chassis width.
-outer_wall_bias = 0.05
+# How far (m) to shift corridor centreline waypoints off centre, and toward
+# which boundary. Split so a side can be A/B'd without touching the distance.
+# Clearance is symmetric either way (0.05 off centre leaves 0.353 m to the near
+# boundary in a 1.0 m corridor, 0.153 m in a 0.6 m one), so biasing inward
+# costs nothing and shortens every lap -- the path is a loop around the inner
+# block, so each centimetre nearer it comes off all four sides.
+center_bias_m = 0.05
+center_bias_side = "inner"
 
 # Number of intermediate sample points per corner arc.
 num_intermediate_arc_points = 3

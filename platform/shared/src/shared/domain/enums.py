@@ -58,6 +58,19 @@ class ScenarioType(_FromStringEnum):
     OBSTACLES = "obstacles"
 
 
+class CorridorSide(_FromStringEnum):
+    """Which of a corridor's two boundaries something is measured toward.
+
+    Every corridor on this track is bounded by the mat's outer wall on one side
+    and a face of the inner block on the other, whichever cardinal section it
+    is. Naming the side rather than a compass direction keeps the meaning the
+    same for all four.
+    """
+
+    INNER = "inner"
+    OUTER = "outer"
+
+
 class RiskLevel(StrEnum):
     """Collision risk classification for navigation logic."""
 
@@ -97,7 +110,8 @@ class NodeHealth(_FromStringEnum):
 class NavigatorPhase(StrEnum):
     """Which branch of ``CoreNavigator.step()`` produced a given
     ``NavigatorDebugSnapshot`` -- see that model's docstring for why a field
-    being ``None`` means "not computed on this phase", not "unknown"."""
+    being ``None`` means "not computed on this phase", not "unknown".
+    """
 
     NOT_YET_STEPPED = "not_yet_stepped"
     NO_POSE = "no_pose"

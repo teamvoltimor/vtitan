@@ -16,9 +16,6 @@ if TYPE_CHECKING:
 
 _tuning = NavigationTuning.load_default()
 
-# Direction gate alignment tolerance — heading must be within this of a corridor axis.
-_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
-
 # Forward arc for direction inference.
 _FORWARD_ARC_RAD = math.radians(8.0)
 

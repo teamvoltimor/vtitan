@@ -43,7 +43,7 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import CorridorWidthMeasurement
 
 from src.navigation.race_tracker import TRAVEL_DIRS
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _nearest_ray, _wrap
+from src.navigation.utils import _nearest_ray, _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -63,6 +63,7 @@ def measure_corridor_width(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
     yaw: float,
+    tuning: NavigationTuning | None = None,
 ) -> CorridorWidthMeasurement | None:
     """Wall-to-wall width through the robot, or ``None`` if this scan can't say.
 
@@ -70,15 +71,19 @@ def measure_corridor_width(
         ranges_m: LIDAR ranges.
         angles_rad: Matching robot-frame bearings (0 = forward).
         yaw: Current heading (radians, world frame).
+        tuning: Navigation tuning instance. Defaults to the default tuning profile.
 
     Returns:
         CorridorWidthMeasurement with plausibility and alignment flags, or
         ``None`` when the chassis is too far off the corridor axis or the
         total is not physically plausible.
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
-    is_aligned = abs(axis_error) <= _ALIGNMENT_TOLERANCE_RAD
+    is_aligned = abs(axis_error) <= tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
