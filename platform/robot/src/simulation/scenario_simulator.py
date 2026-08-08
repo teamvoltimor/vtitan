@@ -933,11 +933,11 @@ class ScenarioSimulator:
 
 def _start_conditions(metadata: ScenarioMetadata) -> _StartConditions:
     sc = metadata.starting_conditions
-    if sc.section is None or sc.direction is None:
+    if sc.direction is None:
         msg = (
-            "scenario metadata.starting_conditions must have a resolved section/direction; "
+            "scenario metadata.starting_conditions must have a resolved direction; "
             "the sim always knows its own ground truth, so a None here means the scenario "
-            "was built without them"
+            "was built without it"
         )
         raise ValueError(msg)
     # Whole-number JSON metadata values parse as Python int, not float. Coerce here so a

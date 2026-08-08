@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Self
 
 
-class _FromStringEnum(StrEnum):
+class FromStringEnum(StrEnum):
     """Mixin providing a ``from_string`` classmethod to any ``StrEnum`` subclass.
 
     Eliminates the identical try/except boilerplate that every enum in this
@@ -22,16 +22,16 @@ class _FromStringEnum(StrEnum):
 
     @classmethod
     def from_string(cls, value: str) -> Self:
+        """Parse a member from its string value, case-insensitively."""
         try:
             return cls(value.lower())
         except ValueError as err:
             options = tuple(s.value for s in cls)
-            raise ValueError(
-                f"Invalid {cls.__name__.lower()}: {value!r}. Expected one of {options}"
-            ) from err
+            msg = f"Invalid {cls.__name__.lower()}: {value!r}. Expected one of {options}"
+            raise ValueError(msg) from err
 
 
-class Section(_FromStringEnum):
+class Section(FromStringEnum):
     """Four navigable corridors of the WRO 2026 track."""
 
     NORTH = "north"
@@ -43,22 +43,38 @@ class Section(_FromStringEnum):
     def capitalized(self) -> str:
         return self.value.capitalize()
 
+    @classmethod
+    def canonical(cls) -> Section:
+        """The section a robot assumes when it hasn't been told which one it is in.
 
-class Direction(_FromStringEnum):
+        Any choice works: the robot defines its own world frame by declaring
+        its starting corridor to be this one, and everything else -- corridor
+        geometry, sign routing -- follows self-consistently, since the whole
+        map is just the true one rotated to match. See
+        ``src.navigation.start_conditions``'s module docstring for why this
+        is safe for section but NOT for direction, which cannot be assumed
+        the same way (getting it wrong is a reflection, not a rotation).
+
+        A fixed choice, not a claim about where the robot physically is.
+        """
+        return cls.SOUTH
+
+
+class Direction(FromStringEnum):
     """Robot traversal direction around the WRO track."""
 
     CLOCKWISE = "clockwise"
     COUNTERCLOCKWISE = "counterclockwise"
 
 
-class ScenarioType(_FromStringEnum):
+class ScenarioType(FromStringEnum):
     """WRO 2026 challenge type."""
 
     OPEN = "open"
     OBSTACLES = "obstacles"
 
 
-class CorridorSide(_FromStringEnum):
+class CorridorSide(FromStringEnum):
     """Which of a corridor's two boundaries something is measured toward.
 
     Every corridor on this track is bounded by the mat's outer wall on one side
@@ -71,7 +87,7 @@ class CorridorSide(_FromStringEnum):
     OUTER = "outer"
 
 
-class CorridorWidthType(_FromStringEnum):
+class CorridorWidthType(FromStringEnum):
     """Which of the two legal widths a corridor is built to.
 
     The rules allow exactly two, so a corridor's width is a classification
@@ -107,7 +123,7 @@ class LightingScenario(StrEnum):
     MIXED = "mixed"
 
 
-class RobotState(_FromStringEnum):
+class RobotState(FromStringEnum):
     """Robot state machine states."""
 
     BOOT_CHECK = "boot_check"
@@ -116,7 +132,7 @@ class RobotState(_FromStringEnum):
     FINISHED = "finished"
 
 
-class NodeHealth(_FromStringEnum):
+class NodeHealth(FromStringEnum):
     """Telemetry node health status."""
 
     NOMINAL = "nominal"

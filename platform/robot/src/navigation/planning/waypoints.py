@@ -209,12 +209,6 @@ def calculate_waypoints(
 
     order = _build_corridor_order(direction)
 
-    if starting.section is None:
-        msg = (
-            "calculate_waypoints requires a resolved starting_conditions.section; "
-            "callers must infer/assign it before planning a path"
-        )
-        raise ValueError(msg)
     order = _rotate_to_start(order, starting.section)
 
     full_loop = _assemble_loop(order, segments)
