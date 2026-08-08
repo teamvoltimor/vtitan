@@ -22,6 +22,16 @@ turn_clearance_m = 0.60
 #
 # Sitting off-centre for one metre costs nothing. Oscillating costs the round.
 centering_gain = 0.8
+
+# Steering per radian of heading error against the corridor axis -- the damping
+# term centering_gain alone lacks. Position error and heading error are 90 deg
+# out of phase in a steered chassis, so proportional-on-position is an
+# oscillator: measured on hardware 2026-08-07 as 112 steering sign flips in
+# 177 s, 45% of ticks pinned at max_centering_steer, heading 30 deg off axis at
+# the median. That starves the direction gate, which needs the chassis square to
+# a corridor at the moment one side opens. Raising centering_gain cannot fix it
+# and makes it worse (see max_centering_steer).
+heading_gain = 0.8
 max_centering_steer = 0.25
 
 # Fraction of creep speed while turning a corner blind. Slower than straight

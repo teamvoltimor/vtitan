@@ -89,7 +89,7 @@ def _direction_gate_verdict(
     if tuning is None:
         tuning = NavigationTuning.load_default()
 
-    alignment_tol = tuning.heading.MEDIUM
+    alignment_tol = tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
     max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
     min_asymmetry = tuning.direction_estimator.MIN_ASYMMETRY_M
     plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M

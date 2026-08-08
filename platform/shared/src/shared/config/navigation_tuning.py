@@ -28,6 +28,8 @@ from typing import Any, ClassVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from shared.domain.enums import CorridorSide
+
 DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[3] / "config" / "navigation"
 """platform/shared/config/navigation -- the checked-in per-group TOML tree.
 
@@ -264,8 +266,18 @@ class WaypointParams(BaseModel):
             assertion in ``calculate_waypoints``.
         DEDUPE_DISTANCE_M: Distance below which consecutive generated
             waypoints are treated as duplicates and merged.
-        OUTER_WALL_BIAS: Bias (m) added to corridor centerline waypoints
-            toward the outer wall, to compensate for chassis width.
+        CENTER_BIAS_M: How far (m) to shift corridor centreline waypoints off
+            centre. Magnitude only -- which side it shifts toward is
+            CENTER_BIAS_SIDE, so the two can be tuned independently and a
+            side can be A/B'd without touching the distance.
+        CENTER_BIAS_SIDE: Which boundary CENTER_BIAS_M shifts the path toward.
+            Was fixed at OUTER and spelled into the constant's own name
+            (OUTER_WALL_BIAS), which made the preference an assumption of the
+            code rather than a setting. Clearance is symmetric either way --
+            0.05 off centre leaves 0.353 m to the near boundary in a 1.0 m
+            corridor and 0.153 m in a 0.6 m one, whichever side it is -- so the
+            outward choice bought nothing and lengthened every lap, since a
+            path further from the inner block is a longer way round.
         NUM_INTERMEDIATE_ARC_POINTS: Number of intermediate sample points
             per corner arc.
         STRAIGHT_WAYPOINT_COUNT: Number of evenly spaced waypoints generated
@@ -299,7 +311,10 @@ class WaypointParams(BaseModel):
 
     ARC_RADIUS: float = Field(default=0.45, validation_alias=_alias("ARC_RADIUS"))
     DEDUPE_DISTANCE_M: float = Field(default=0.001, validation_alias=_alias("DEDUPE_DISTANCE_M"))
-    OUTER_WALL_BIAS: float = Field(default=0.05, validation_alias=_alias("OUTER_WALL_BIAS"))
+    CENTER_BIAS_M: float = Field(default=0.05, validation_alias=_alias("CENTER_BIAS_M"))
+    CENTER_BIAS_SIDE: CorridorSide = Field(
+        default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE")
+    )
     NUM_INTERMEDIATE_ARC_POINTS: int = Field(default=3, validation_alias=_alias("NUM_INTERMEDIATE_ARC_POINTS"))
     STRAIGHT_WAYPOINT_COUNT: int = Field(default=8, validation_alias=_alias("STRAIGHT_WAYPOINT_COUNT"))
     MAIN_LOOP_REACHED_DISTANCE_M: float = Field(
@@ -552,6 +567,18 @@ class CorridorFollowerParams(BaseModel):
             cross-group check on NavigationTuning.
         CENTERING_GAIN: Steering per metre of lateral offset from the
             corridor centreline.
+        HEADING_GAIN: Steering per radian of heading error against the
+            corridor axis. Centring on offset alone is undamped -- in a
+            steered vehicle heading is the integral of steering and
+            position the integral of heading, so the two are 90 degrees
+            out of phase and proportional-on-position is an oscillator.
+            Measured on real hardware 2026-08-07: 112 steering sign flips
+            in 177 s, a 3.2 s limit cycle, 45% of ticks pinned at
+            MAX_CENTERING_STEER, heading 30 deg off axis at the median.
+            That is what starves the direction gate, which needs the
+            chassis square to a corridor at the moment one side opens.
+            Raising CENTERING_GAIN cannot fix it and makes it worse (see
+            MAX_CENTERING_STEER); the missing term is this one.
         MAX_CENTERING_STEER: Hard cap on the steering that gain may
             produce. Both are deliberately timid: the counter-phase
             four-wheel chassis responds violently, and oscillation swings
@@ -573,6 +600,7 @@ class CorridorFollowerParams(BaseModel):
 
     TURN_CLEARANCE_M: float = Field(default=0.60, validation_alias=_alias("TURN_CLEARANCE_M"))
     CENTERING_GAIN: float = Field(default=0.8, validation_alias=_alias("CENTERING_GAIN"))
+    HEADING_GAIN: float = Field(default=0.8, validation_alias=_alias("HEADING_GAIN"))
     MAX_CENTERING_STEER: float = Field(default=0.25, validation_alias=_alias("MAX_CENTERING_STEER"))
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
@@ -638,6 +666,15 @@ class DirectionEstimatorParams(BaseModel):
     """Blind travel-direction inference parameters.
 
     Attributes:
+        ALIGNMENT_TOLERANCE_RAD: Maximum heading error against the nearest
+            track axis (radians) for a side-ray reading to be trusted. Off
+            axis the side rays cut a diagonal and read long for no good
+            reason. Shared with
+            :func:`~src.navigation.corridor_estimator.measure_corridor_width`,
+            which gates the same side rays on the same geometry -- the two
+            must agree or a scan can be trusted for width and rejected for
+            direction. Deliberately not one of the ``heading`` zones: those
+            modulate speed, and retuning speed must not move this gate.
         CORNER_CLEARANCE_M: Forward clearance (m) below which the corridor
             counts as ending, opening the window in which the robot reads
             which side is open. Deliberately larger than
@@ -651,13 +688,23 @@ class DirectionEstimatorParams(BaseModel):
             exactly the signal the estimator looks for.
         MIN_ASYMMETRY_M: Minimum left/right difference (m) for a sweep to
             count as evidence rather than noise.
+        PLAUSIBLE_SPAN_THRESHOLD_M: Maximum sum of left + right ranges (m)
+            that still represents one corridor. Exceeding this sum means one
+            ray ran off-track into an adjacent corridor rather than both
+            reading walls of the current one. The margin absorbs scanning
+            slightly off-axis.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    # math.radians(25.0)
+    ALIGNMENT_TOLERANCE_RAD: float = Field(
+        default=0.4363323129985824, validation_alias=_alias("ALIGNMENT_TOLERANCE_RAD")
+    )
     CORNER_CLEARANCE_M: float = Field(default=1.00, validation_alias=_alias("CORNER_CLEARANCE_M"))
     MAX_IN_TRACK_RANGE_M: float = Field(default=4.5, validation_alias=_alias("MAX_IN_TRACK_RANGE_M"))
     MIN_ASYMMETRY_M: float = Field(default=0.20, validation_alias=_alias("MIN_ASYMMETRY_M"))
+    PLAUSIBLE_SPAN_THRESHOLD_M: float = Field(default=1.25, validation_alias=_alias("PLAUSIBLE_SPAN_THRESHOLD_M"))
 
 
 class SignDiscoveryParams(BaseModel):

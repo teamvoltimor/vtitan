@@ -15,10 +15,27 @@ enum from different paths then held genuinely unequal objects
 
 from __future__ import annotations
 
-from shared.domain.enums import Direction as Direction
-from shared.domain.enums import LightingScenario as LightingScenario
-from shared.domain.enums import NodeHealth as NodeHealth
-from shared.domain.enums import RiskLevel as RiskLevel
-from shared.domain.enums import RobotState as RobotState
-from shared.domain.enums import ScenarioType as ScenarioType
-from shared.domain.enums import Section as Section
+from shared.domain.enums import (
+    CorridorSide as CorridorSide,
+)
+from shared.domain.enums import (
+    Direction as Direction,
+)
+from shared.domain.enums import (
+    LightingScenario as LightingScenario,
+)
+from shared.domain.enums import (
+    NodeHealth as NodeHealth,
+)
+from shared.domain.enums import (
+    RiskLevel as RiskLevel,
+)
+from shared.domain.enums import (
+    RobotState as RobotState,
+)
+from shared.domain.enums import (
+    ScenarioType as ScenarioType,
+)
+from shared.domain.enums import (
+    Section as Section,
+)

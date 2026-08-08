@@ -2,6 +2,17 @@
 #
 # See shared.config.navigation_tuning.DirectionEstimatorParams.
 
+# Maximum heading error against the nearest track axis for a side-ray reading
+# to be trusted -- 25 degrees. Off axis the side rays cut a diagonal and read
+# long for no good reason.
+#
+# corridor_estimator.measure_corridor_width gates the same side rays on the
+# same geometry and reads this same value; the two must agree, or a scan can be
+# trusted for width and rejected for direction. Deliberately not one of the
+# heading.toml zones: those modulate speed, and retuning speed must not move
+# this gate.
+alignment_tolerance_rad = 0.4363323129985824
+
 # Forward clearance below which the corridor counts as ending, opening the
 # window in which the robot reads which side is open.
 #
@@ -29,3 +40,15 @@ max_in_track_range_m = 4.5
 # noise. Was 0.30, which discarded the asymmetry a robot starting near the
 # centre of a wide corridor actually sees.
 min_asymmetry_m = 0.20
+
+# Maximum sum of left + right ranges that still represents one corridor.
+#
+# The widest legal corridor is 1.0 m and the LIDAR sits at the chassis centre,
+# so the two side rays sum to the corridor width wherever the robot sits across
+# it. A sum past this has to mean one ray missed the inner block and ran off
+# down the next corridor. The margin absorbs scanning slightly off-axis; it is
+# the same plausibility bound used elsewhere to reject stray readings.
+#
+# Exceeding this sum means one ray ran off-track into an adjacent corridor
+# rather than both reading walls of the current one.
+plausible_span_threshold_m = 1.25
