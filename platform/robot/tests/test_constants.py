@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -16,13 +17,24 @@ from shared.config.constants import (
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.starting_zone import STARTING_ZONE_LAYOUT
 
-# Geometry and tuning below are read from the checked-in configuration rather
-# than restated. A test constant that repeats a configured value is a second
-# source of truth that drifts silently: it keeps passing while describing a
-# robot or a mat that no longer exists. Values that are genuinely test
-# *fixtures* -- chosen to make an assertion read cleanly, not to mirror
-# reality -- stay literal and say so.
-_TUNING = NavigationTuning.load_default()
+
+@dataclass(frozen=True, slots=True)
+class TuningDerivedConstants:
+  """Tuning-derived test constants, computed on-demand instead of frozen at module level."""
+  sign_activation_dist: float
+  sign_passed_dist: float
+  contact_distance: float
+  slow_zone_distance: float
+
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning) -> TuningDerivedConstants:
+    """Create from a NavigationTuning instance."""
+    return cls(
+        sign_activation_dist=tuning.sign_router.ACTIVATION_DIST_M,
+        sign_passed_dist=tuning.sign_router.PASSED_DIST_M,
+        contact_distance=tuning.clearance.CONTACT_DIST,
+        slow_zone_distance=tuning.clearance.SLOW_DIST,
+    )
 
 # LIDAR Geometry
 NUM_RAYS = 360
@@ -75,8 +87,10 @@ INNER_BLOCK_MAX = TrackDimensions.CORNER_MAX  # m
 # diagonal — and which does not evaluate to 0.20 at the measured 0.194 m width
 # anyway. Read as "some offset", not "the offset".
 SIGN_LATERAL_OFFSET = 0.20  # m — fixture value only; see comment above
-SIGN_ACTIVATION_DIST = _TUNING.sign_router.ACTIVATION_DIST_M  # m
-SIGN_PASSED_DIST = _TUNING.sign_router.PASSED_DIST_M  # m
+
+_DEFAULT_TUNING_CONSTANTS = TuningDerivedConstants.from_tuning(NavigationTuning.load_default())
+SIGN_ACTIVATION_DIST = _DEFAULT_TUNING_CONSTANTS.sign_activation_dist  # m
+SIGN_PASSED_DIST = _DEFAULT_TUNING_CONSTANTS.sign_passed_dist  # m
 
 # Sign position grid: every intersection of the three grid rows along the
 # corridor with the two division lines across it. Six per corridor, by
@@ -213,8 +227,8 @@ SELF_DETECTION_NEAR = 0.05  # m — inside self-detection zone
 SELF_DETECTION_FAR = 0.15  # m — beyond self-detection (genuine wall)
 
 # Risk Assessment Distances (for speed control) — the tuned clearance zones.
-CONTACT_DISTANCE = _TUNING.clearance.CONTACT_DIST  # m — creep forward zone
-SLOW_ZONE_DISTANCE = _TUNING.clearance.SLOW_DIST  # m — slow speed zone
+CONTACT_DISTANCE = _DEFAULT_TUNING_CONSTANTS.contact_distance  # m — creep forward zone
+SLOW_ZONE_DISTANCE = _DEFAULT_TUNING_CONSTANTS.slow_zone_distance  # m — slow speed zone
 SLOW_ZONE_TEST = 0.20  # m — test slow zone boundary
 CONTACT_ZONE_TEST = 0.08  # m — test contact zone
 

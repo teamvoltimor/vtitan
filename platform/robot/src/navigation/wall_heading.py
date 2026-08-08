@@ -39,6 +39,7 @@ concentration test rather than a mean over everything returned.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -49,13 +50,33 @@ if TYPE_CHECKING:
 
 _QUARTER = math.pi / 2
 
-# Read from wall_heading.toml. These feed module-level free functions with no
-# instance to inject tuning into, which is not a reason to restate a configured
-# number -- see the sign router's DEFORM_DEPTH_BUFFER_M, which sat in its TOML
-# with no reader at all while a duplicate literal did the work.
-_WALL_HEADING = NavigationTuning.load_default().wall_heading
 
-MIN_CONCENTRATION = _WALL_HEADING.MIN_CONCENTRATION
+@dataclass(frozen=True, slots=True)
+class _WallHeadingConstants:
+  """Tuning-derived wall heading constants, computed on-demand instead of frozen at module level."""
+  min_concentration: float
+  baseline_rays: int
+  max_segment_jump_m: float
+  min_segment_m: float
+  near_max_range_m: float
+  min_returns: int
+
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning) -> _WallHeadingConstants:
+    wh = tuning.wall_heading
+    return cls(
+        min_concentration=wh.MIN_CONCENTRATION,
+        baseline_rays=wh.BASELINE_RAYS,
+        max_segment_jump_m=wh.MAX_SEGMENT_JUMP_M,
+        min_segment_m=wh.MIN_SEGMENT_M,
+        near_max_range_m=wh.NEAR_MAX_RANGE_M,
+        min_returns=wh.MIN_RETURNS,
+    )
+
+
+_DEFAULT_WALL_HEADING_CONSTANTS = _WallHeadingConstants.from_tuning(NavigationTuning.load_default())
+
+MIN_CONCENTRATION = _DEFAULT_WALL_HEADING_CONSTANTS.min_concentration
 """How aligned the segment directions must be before the estimate is used.
 
 The circular mean's resultant length on a rectilinear scan runs high; a low
@@ -65,7 +86,7 @@ Reporting nothing is correct there -- the IMU carries heading between
 corrections, so a skipped scan costs only that scan.
 """
 
-_BASELINE_RAYS = _WALL_HEADING.BASELINE_RAYS
+_BASELINE_RAYS = _DEFAULT_WALL_HEADING_CONSTANTS.baseline_rays
 """How far apart the two returns forming a segment are taken.
 
 Not adjacent, which is the obvious choice and does not work. At a typical
@@ -80,7 +101,7 @@ but starts spanning corners, where the segment joins two surfaces and means
 nothing.
 """
 
-_MAX_SEGMENT_JUMP_M = _WALL_HEADING.MAX_SEGMENT_JUMP_M
+_MAX_SEGMENT_JUMP_M = _DEFAULT_WALL_HEADING_CONSTANTS.max_segment_jump_m
 """Range step above which the two returns are treated as different surfaces.
 
 Scaled for the baseline above: along a single flat wall the range genuinely
@@ -90,13 +111,13 @@ corridor width, so a ray pair spanning the inner block and the outer wall is
 rejected.
 """
 
-_MIN_SEGMENT_M = _WALL_HEADING.MIN_SEGMENT_M
+_MIN_SEGMENT_M = _DEFAULT_WALL_HEADING_CONSTANTS.min_segment_m
 """Segments shorter than this are dominated by range noise, not wall direction."""
 
-_NEAR_MAX_RANGE_M = _WALL_HEADING.NEAR_MAX_RANGE_M
+_NEAR_MAX_RANGE_M = _DEFAULT_WALL_HEADING_CONSTANTS.near_max_range_m
 """Returns at or beyond this are no-return rays sanitised to max range."""
 
-_MIN_RETURNS = _WALL_HEADING.MIN_RETURNS
+_MIN_RETURNS = _DEFAULT_WALL_HEADING_CONSTANTS.min_returns
 """Fewer returns than this cannot form a segment at all."""
 
 

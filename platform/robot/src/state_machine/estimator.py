@@ -19,7 +19,8 @@ def wrap_angle(angle: float) -> float:
     return math.remainder(angle, 2 * math.pi)
 
 
-YAW_CORRECTION_GAIN = NavigationTuning.load_default().state_estimator.YAW_CORRECTION_GAIN
+_DEFAULT_YAW_CORRECTION_GAIN = NavigationTuning.load_default().state_estimator.YAW_CORRECTION_GAIN
+YAW_CORRECTION_GAIN = _DEFAULT_YAW_CORRECTION_GAIN
 """Fraction of the wall-vs-IMU heading discrepancy absorbed per scan.
 
 At the C1's ~10 Hz that is a time constant near two seconds: fast enough to
@@ -32,7 +33,7 @@ mean, 1.4 deg worst) is averaged away rather than steered on.
 class StateEstimator:
     """Combines IMU heading and LIDAR-fixed position into a world-frame Pose."""
 
-    def __init__(self, start_x: float, start_y: float, start_yaw: float) -> None:
+    def __init__(self, start_x: float, start_y: float, start_yaw: float, tuning: NavigationTuning | None = None) -> None:
         """Initialize the state estimator.
 
         Args:
@@ -41,7 +42,9 @@ class StateEstimator:
             start_y: Starting Y coordinate in world frame.
             start_yaw: Starting Yaw (heading) in world frame (also the heading
                 estimate until the first IMU reading arrives).
+            tuning: NavigationTuning instance (defaults to load_default).
         """
+        self._tuning = tuning or NavigationTuning()
         self._start_yaw = start_yaw
         self._imu_yaw_offset: float | None = None
         self._relative_imu_yaw: float | None = None
@@ -123,7 +126,9 @@ class StateEstimator:
         self._x = x
         self._y = y
 
-    def correct_yaw(self, measured_yaw: float, gain: float = YAW_CORRECTION_GAIN) -> None:
+    def correct_yaw(self, measured_yaw: float, gain: float | None = None) -> None:
+        if gain is None:
+            gain = self._tuning.state_estimator.YAW_CORRECTION_GAIN
         """Pull the heading estimate toward an absolute measurement of it.
 
         A complementary filter, and the only thing that bounds heading. The IMU

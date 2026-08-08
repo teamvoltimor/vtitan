@@ -15,8 +15,11 @@ _shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
 if str(_shared_src) not in sys.path:
     sys.path.insert(0, str(_shared_src))
 
+from shared.config.navigation_tuning import NavigationTuning
+
 from tests.fixtures import LidarScanBuilder
 from tests.test_constants import (
+    TuningDerivedConstants,
     CHALLENGE_TYPE_OBSTACLES,
     CHALLENGE_TYPE_OPEN,
     CORRIDOR_EAST,
@@ -76,6 +79,18 @@ from tests.test_constants import (
     TRACK_CORNER_WEST,
     YAW_PI_APPROX,
 )
+
+
+@pytest.fixture()
+def tuning():
+    """NavigationTuning fixture for tests that need to pass tuning to constructors."""
+    return NavigationTuning()
+
+
+@pytest.fixture()
+def tuning_constants(tuning):
+    """Tuning-derived test constants computed from fixture instead of frozen at module level."""
+    return TuningDerivedConstants.from_tuning(tuning)
 
 
 @pytest.fixture()

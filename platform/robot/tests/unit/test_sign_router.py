@@ -64,23 +64,28 @@ _GAP_CLEAR = SIGN_ACTIVATION_DIST + 0.2
 _GAP_PASSED = SIGN_PASSED_DIST + 0.2
 """Comfortably beyond the distance at which a sign counts as passed."""
 
-CFG = SignRouterConfig(
-    lateral_offset=SIGN_LATERAL_OFFSET,
-    activation_dist=SIGN_ACTIVATION_DIST,
-    passed_dist=SIGN_PASSED_DIST,
-    # These tests exercise engage/pass logic directly, in isolation, over a
-    # handful of calls — not the settle-window feature itself (see
-    # TestSettleWindow below), so disable it here.
-    settle_ticks=0,
-)
 LATERAL = SIGN_LATERAL_OFFSET
+
+
+@pytest.fixture()
+def router_config(tuning_constants):
+    """SignRouterConfig fixture computed from tuning instead of frozen at module level."""
+    return SignRouterConfig(
+        lateral_offset=SIGN_LATERAL_OFFSET,
+        activation_dist=tuning_constants.sign_activation_dist,
+        passed_dist=tuning_constants.sign_passed_dist,
+        # These tests exercise engage/pass logic directly, in isolation, over a
+        # handful of calls — not the settle-window feature itself (see
+        # TestSettleWindow below), so disable it here.
+        settle_ticks=0,
+    )
 
 
 # Helper
 
 
-def _router(signs: list[SignSpec]) -> SignRouter:
-    return SignRouter(signs, config=CFG)
+def _router(signs: list[SignSpec], config: SignRouterConfig, router_config) -> SignRouter:
+    return SignRouter(signs, config=config)
 
 
 def _sign_at(x: float, y: float, color: str) -> SignSpec:
@@ -118,7 +123,7 @@ class TestDeformationDirections:
             (Direction.CLOCKWISE, "green", -1),
         ],
     )
-    def test_offset_side(self, section, direction, color, color_sign):
+    def test_offset_side(self, section, direction, color, color_sign, router_config):
         axis, (sx, sy), red_mult = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
         rx, ry = _apply_deformation((sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
@@ -230,6 +235,7 @@ def test_routing_decision_all_grid_positions(
     color,
     expected_y,
     expected_x,
+    router_config,
 ):
     """Routing produces correct pass-side for every grid position × color × section."""
     section = Section.from_string(section_str)
@@ -240,7 +246,7 @@ def test_routing_decision_all_grid_positions(
     else:
         robot_pos = (sx, sy - 0.3)  # approach from south
 
-    router = _router([sign])
+    router = _router([sign], router_config)
     wp = (sx, sy)
     result_x, result_y = router.deform_waypoint(
         waypoint=wp,
@@ -259,9 +265,9 @@ def test_routing_decision_all_grid_positions(
 
 
 class TestActivationDistance:
-    def test_sign_outside_activation_not_deformed(self):
+    def test_sign_outside_activation_not_deformed(self, router_config):
         sign = _sign_at(1.5, 0.4, "red")
-        router = _router([sign])
+        router = _router([sign], router_config)
         wp = (0.5, 0.4)
         # Robot far from sign (> activation_dist)
         result = router.deform_waypoint(
@@ -272,9 +278,9 @@ class TestActivationDistance:
         )
         assert result == wp
 
-    def test_sign_inside_activation_deformed(self):
+    def test_sign_inside_activation_deformed(self, router_config):
         sign = _sign_at(1.5, 0.4, "red")
-        router = _router([sign])
+        router = _router([sign], router_config)
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
@@ -295,7 +301,7 @@ class TestLateralOffsetTracksChassis:
     scenario.
     """
 
-    def test_offset_is_half_diagonal_plus_sign_half_width_plus_margin(self):
+    def test_offset_is_half_diagonal_plus_sign_half_width_plus_margin(self, router_config):
         expected = (
             math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
             + TrafficSignSpecs.WIDTH / 2
@@ -303,7 +309,7 @@ class TestLateralOffsetTracksChassis:
         )
         assert _SIGN_LATERAL_OFFSET == pytest.approx(expected)
 
-    def test_offset_uses_the_diagonal_not_the_width(self):
+    def test_offset_uses_the_diagonal_not_the_width(self, router_config):
         """Half-width sizes a pass the robot can only make while already square.
 
         Two-thirds of legal WRO sign positions sit on a corner boundary, where
@@ -314,7 +320,7 @@ class TestLateralOffsetTracksChassis:
         half_width_derivation = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
         assert _SIGN_LATERAL_OFFSET > half_width_derivation
 
-    def test_wall_clearance_tracks_the_same_chassis(self):
+    def test_wall_clearance_tracks_the_same_chassis(self, router_config):
         assert _WALL_CLEARANCE == pytest.approx(math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2) + 0.04)
 
 
@@ -338,15 +344,15 @@ class TestActivationPassedOrdering:
             (2.00, 0.50),
         ],
     )
-    def test_activation_at_or_above_passed_is_rejected(self, activation: float, passed: float):
+    def test_activation_at_or_above_passed_is_rejected(self, activation: float, passed: float, router_config):
         with pytest.raises(ValueError, match="must be < passed_dist"):
             SignRouterConfig(activation_dist=activation, passed_dist=passed)
 
-    def test_valid_ordering_is_accepted(self):
+    def test_valid_ordering_is_accepted(self, router_config):
         config = SignRouterConfig(activation_dist=1.60, passed_dist=1.80)
         assert config.activation_dist < config.passed_dist
 
-    def test_shipped_defaults_satisfy_the_ordering(self):
+    def test_shipped_defaults_satisfy_the_ordering(self, router_config):
         config = SignRouterConfig()
         assert config.activation_dist < config.passed_dist
 
@@ -363,13 +369,13 @@ class TestRoutedSignPositions:
     router did not want.
     """
 
-    def test_lists_every_sign_it_still_intends_to_route_around(self):
+    def test_lists_every_sign_it_still_intends_to_route_around(self, router_config):
         signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
-        assert _router(signs).routed_sign_positions == [(1.5, 0.4), (2.5, 0.4)]
+        assert _router(signs, router_config).routed_sign_positions == [(1.5, 0.4), (2.5, 0.4)]
 
-    def test_retired_sign_is_dropped_so_its_guard_comes_back(self):
+    def test_retired_sign_is_dropped_so_its_guard_comes_back(self, router_config):
         signs = [_sign_at(1.5, 0.4, "red"), _sign_at(2.5, 0.4, "green")]
-        router = _router(signs)
+        router = _router(signs, router_config)
         # Engage the first sign, then drive well past it, which retires it.
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
@@ -386,14 +392,14 @@ class TestRoutedSignPositions:
 
         assert router.routed_sign_positions == [(2.5, 0.4)]
 
-    def test_empty_when_there_are_no_signs(self):
-        assert _router([]).routed_sign_positions == []
+    def test_empty_when_there_are_no_signs(self, router_config):
+        assert _router([], router_config).routed_sign_positions == []
 
 
 class TestPassedSigns:
-    def test_passed_sign_not_deformed(self):
+    def test_passed_sign_not_deformed(self, router_config):
         sign = _sign_at(1.5, 0.4, "red")
-        router = _router([sign])
+        router = _router([sign], router_config)
         # Engage the sign first (robot approaches within activation distance)...
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
@@ -417,7 +423,7 @@ class TestPassedSigns:
         )
         assert result == wp
 
-    def test_active_sign_count_decrements(self):
+    def test_active_sign_count_decrements(self, router_config):
         # The two signs are spaced against the passed threshold, not a metre
         # apart: the point that retires the first has to still be short of the
         # second, and with signs 1.0 m apart there is no such point once
@@ -425,7 +431,7 @@ class TestPassedSigns:
         first_x = 1.0
         second_x = first_x + _GAP_PASSED + 0.4
         signs = [_sign_at(first_x, 0.4, "red"), _sign_at(second_x, 0.4, "green")]
-        router = _router(signs)
+        router = _router(signs, router_config)
         assert router.active_sign_count == 2
         # Engage the first sign (within activation distance).
         router.deform_waypoint(
@@ -443,10 +449,10 @@ class TestPassedSigns:
         )
         assert router.active_sign_count == 1
 
-    def test_reset_for_new_lap_re_arms_passed_signs(self):
+    def test_reset_for_new_lap_re_arms_passed_signs(self, router_config):
         """Every sign must route again each lap — the Obstacles Challenge runs 3."""
         sign = _sign_at(1.5, 0.4, "red")
-        router = _router([sign])
+        router = _router([sign], router_config)
         router.deform_waypoint(
             waypoint=(1.5, 0.4),
             robot_pos=(1.5 - _GAP_ENGAGED, 0.4),
@@ -484,7 +490,7 @@ class TestSettleWindow:
     with no settle window retires the sign before its genuine pass ever happens.
     """
 
-    def test_engage_and_pass_suppressed_within_settle_window(self):
+    def test_engage_and_pass_suppressed_within_settle_window(self, router_config):
         cfg = SignRouterConfig(
             lateral_offset=SIGN_LATERAL_OFFSET,
             activation_dist=SIGN_ACTIVATION_DIST,
@@ -535,7 +541,7 @@ class TestSettleWindow:
         )
         assert router.active_sign_count == 0
 
-    def test_candidate_selection_not_suppressed_within_settle_window(self):
+    def test_candidate_selection_not_suppressed_within_settle_window(self, router_config):
         """A sign in the robot's real corridor still deforms during the settle window."""
         cfg = SignRouterConfig(
             lateral_offset=SIGN_LATERAL_OFFSET,
@@ -554,7 +560,7 @@ class TestSettleWindow:
         )
         assert result != wp
 
-    def test_reset_for_new_lap_restarts_the_settle_window(self):
+    def test_reset_for_new_lap_restarts_the_settle_window(self, router_config):
         cfg = SignRouterConfig(
             lateral_offset=SIGN_LATERAL_OFFSET,
             activation_dist=SIGN_ACTIVATION_DIST,
@@ -598,11 +604,11 @@ class TestSettleWindow:
 class TestEngagementGating:
     """A sign is only retired once approached — never discarded from afar."""
 
-    def test_distant_sign_at_spawn_not_prematurely_passed(self):
+    def test_distant_sign_at_spawn_not_prematurely_passed(self, router_config):
         # Sign is farther than passed_dist at spawn; the buggy behaviour marked
         # it passed on the first tick, silently disabling routing.
         sign = _sign_at(2.0, 0.4, "red")
-        router = _router([sign])
+        router = _router([sign], router_config)
 
         result = router.deform_waypoint(
             waypoint=(0.4, 0.4),
@@ -682,14 +688,14 @@ class TestDetectionToWorld:
     bbox into a world position — previously untested (review 2026-07-11 §2.2).
     """
 
-    def test_round_trip_recovers_distance_and_bearing(self):
+    def test_round_trip_recovers_distance_and_bearing(self, router_config):
         distance, theta_h = 0.6, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
         world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0)
         expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
         assert world == pytest.approx(expected, abs=1e-6)
 
-    def test_round_trip_with_nonzero_robot_pose(self):
+    def test_round_trip_with_nonzero_robot_pose(self, router_config):
         robot_pos = (1.2, 0.4)
         robot_yaw = 0.3
         distance, theta_h = 0.5, -0.1
@@ -702,7 +708,7 @@ class TestDetectionToWorld:
         )
         assert world == pytest.approx(expected, abs=1e-6)
 
-    def test_bbox_shorter_than_minimum_returns_none(self):
+    def test_bbox_shorter_than_minimum_returns_none(self, router_config):
         tiny_height = _MIN_RELIABLE_BBOX_HEIGHT_PX - 1
         bbox = (100.0, 100.0, 101.0, 100.0 + tiny_height)
         det = Detection(
@@ -721,7 +727,7 @@ class TestDetectionToWorld:
 class TestMatchDetectionToSign:
     """Pins the confidence/match-distance/class gating in ``_match_detection_to_sign``."""
 
-    def test_low_confidence_observation_rejected(self):
+    def test_low_confidence_observation_rejected(self, router_config):
         obs = _observation_at(0.5, 0.0, color=SignColor.RED, confidence=0.1)
         result = _match_detection_to_sign(
             [obs],
@@ -730,7 +736,7 @@ class TestMatchDetectionToSign:
         )
         assert result is None
 
-    def test_far_match_rejected(self):
+    def test_far_match_rejected(self, router_config):
         obs = _observation_at(2.0, 0.0, color=SignColor.RED, confidence=0.9)
         result = _match_detection_to_sign(
             [obs],
@@ -740,7 +746,7 @@ class TestMatchDetectionToSign:
         assert result is None
 
     @pytest.mark.parametrize("order", [("near", "far"), ("far", "near")])
-    def test_nearest_candidate_wins_regardless_of_order(self, order):
+    def test_nearest_candidate_wins_regardless_of_order(self, order, router_config):
         expected = (0.5, 0.0)
         near = _observation_at(0.5, 0.0, color=SignColor.GREEN, confidence=0.9)  # dist 0.0
         far = _observation_at(0.65, 0.0, color=SignColor.RED, confidence=0.9)  # dist 0.15
@@ -763,10 +769,10 @@ class TestCameraDetectionOverridesGroundTruth:
     the private color-matching helpers return the right string in isolation.
     """
 
-    def test_camera_color_flips_avoidance_side(self):
+    def test_camera_color_flips_avoidance_side(self, router_config):
         _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
         sign = _sign_at(sx, sy, "red")  # ground truth: red
-        router = _router([sign])
+        router = _router([sign], router_config)
 
         robot_pos = (sx - 0.3, sy)
         obs = _observation_at(0.3, 0.0, color=SignColor.GREEN, confidence=0.9, robot_pos=robot_pos, robot_yaw=0.0)
@@ -802,8 +808,8 @@ class TestCameraDetectionOverridesGroundTruth:
 # 5. No-op with empty sign list
 
 
-def test_empty_sign_list_returns_waypoint_unchanged():
-    router = _router([])
+def test_empty_sign_list_returns_waypoint_unchanged(router_config):
+    router = _router([], router_config)
     wp = (1.5, 0.4)
     result = router.deform_waypoint(
         waypoint=wp,
@@ -822,7 +828,7 @@ class TestDeformationClamping:
     restricted inner square or beyond the outer wall.
     """
 
-    def test_sign_at_inner_edge_does_not_enter_inner_square(self):
+    def test_sign_at_inner_edge_does_not_enter_inner_square(self, router_config):
         # South corridor, sign right at the inner-square boundary (y=1.0):
         # unclamped this deforms to y=1.15 — inside the restricted square.
         sign = _sign_at(1.5, 1.0, "red")
@@ -837,7 +843,7 @@ class TestDeformationClamping:
         assert wx == pytest.approx(1.5)
         assert wy < 1.0, "deformed waypoint must stay below the inner square"
 
-    def test_sign_at_outer_edge_does_not_cross_wall(self):
+    def test_sign_at_outer_edge_does_not_cross_wall(self, router_config):
         # South corridor, sign right at the outer wall (y=0.0): unclamped this
         # deforms to y=-0.15 — beyond the track boundary.
         sign = _sign_at(1.5, 0.0, "green")
@@ -852,7 +858,7 @@ class TestDeformationClamping:
         assert wx == pytest.approx(1.5)
         assert wy >= 0.0, "deformed waypoint must stay on the track"
 
-    def test_sign_at_inner_edge_east_corridor(self):
+    def test_sign_at_inner_edge_east_corridor(self, router_config):
         # East corridor deforms x; sign at the inner-square boundary (x=2.0).
         # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85 — inside the
         # inner square.
@@ -893,7 +899,7 @@ class TestPassSideRule:
 
     @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
-    def test_sign_kept_on_correct_side(self, section, direction, color):
+    def test_sign_kept_on_correct_side(self, section, direction, color, router_config):
         # A realistic in-corridor sign position (clear of the inner square, per
         # WP-1 clamping) rather than a section-agnostic point — (1.5, 1.5) sits
         # inside the restricted inner square itself, which no real sign ever does.
@@ -930,7 +936,7 @@ class TestMinimumClearance:
     give real edge-to-edge clearance, even though direction/side tests
     would still pass."""
 
-    def test_default_offset_clears_sign_footprint(self):
+    def test_default_offset_clears_sign_footprint(self, router_config):
         edge_clearance = SIGN_LATERAL_OFFSET - RobotSpecs.WIDTH / 2 - TrafficSignSpecs.WIDTH / 2
         assert edge_clearance >= _MIN_SIGN_EDGE_CLEARANCE_M, (
             f"lateral_offset={SIGN_LATERAL_OFFSET} leaves only {edge_clearance:.3f}m "
