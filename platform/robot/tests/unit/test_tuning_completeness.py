@@ -7,7 +7,6 @@ persisted in the TOML source, so the override would silently disappear.
 from __future__ import annotations
 
 import pytest
-
 from shared.config.navigation_tuning import NavigationTuning
 
 

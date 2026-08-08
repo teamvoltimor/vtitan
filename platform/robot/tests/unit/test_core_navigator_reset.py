@@ -16,7 +16,7 @@ from src.navigation.ports import DriveCommand, LidarScan
 from tests.fixtures import FakeGateway
 
 
-@pytest.fixture
+@pytest.fixture()
 def tuning():
     return NavigationTuning()
 
@@ -27,14 +27,14 @@ def test_reset_clears_lap_and_waypoint_state(tuning):
     nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
     # Simulate race 1 finishing: no park controller, so a finished lap holds forever.
-    nav._laps_completed = 1  # noqa: SLF001 - simulating end-of-race state directly
-    nav._waypoint_index = 1  # noqa: SLF001
+    nav._laps_completed = 1
+    nav._waypoint_index = 1
     nav.step()
     assert gateway.commands[-1] == DriveCommand(speed_mps=0.0, steering_norm=0.0), "should be holding post-race"
 
     nav.reset()
     assert nav.laps_completed == 0
-    assert nav._waypoint_index == 0  # noqa: SLF001
+    assert nav._waypoint_index == 0
 
     # Race 2 must actually drive again, not immediately re-hold as finished.
     gateway.commands.clear()

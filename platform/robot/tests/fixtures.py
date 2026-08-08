@@ -7,8 +7,8 @@ and make test intent clearer. Builders are fluent for easy test setup.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions

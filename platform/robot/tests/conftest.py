@@ -19,7 +19,6 @@ from shared.config.navigation_tuning import NavigationTuning
 
 from tests.fixtures import LidarScanBuilder
 from tests.test_constants import (
-    TuningDerivedConstants,
     CHALLENGE_TYPE_OBSTACLES,
     CHALLENGE_TYPE_OPEN,
     CORRIDOR_EAST,
@@ -78,6 +77,7 @@ from tests.test_constants import (
     TRACK_CORNER_SOUTH,
     TRACK_CORNER_WEST,
     YAW_PI_APPROX,
+    TuningDerivedConstants,
 )
 
 

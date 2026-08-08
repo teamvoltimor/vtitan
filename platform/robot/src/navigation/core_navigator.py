@@ -337,7 +337,8 @@ class CoreNavigator:
 
     def _base_debug(self, robot_x: float | None, robot_y: float | None, robot_yaw: float | None) -> NavigatorDebugSnapshot:
         """Fields available on every phase once pose is known -- the common
-        prefix every ``step()`` branch's snapshot builds on."""
+        prefix every ``step()`` branch's snapshot builds on.
+        """
         return NavigatorDebugSnapshot(
             pose_x=robot_x,
             pose_y=robot_y,
