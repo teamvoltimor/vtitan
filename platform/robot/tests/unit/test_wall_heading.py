@@ -18,7 +18,7 @@ import math
 
 import numpy as np
 import pytest
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.start_conditions import start_pose
 from src.navigation.track_geometry import corridor_widths_from_metadata

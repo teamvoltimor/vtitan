@@ -13,12 +13,12 @@ import math
 
 import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.ports import DriveCommand, WheelOdometry
-from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.kinematics import AckermannState
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
+from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import TrackModel
 
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)

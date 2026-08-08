@@ -15,7 +15,7 @@ import time
 import numpy as np
 import pytest
 from shared.config.constants import RobotSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls

@@ -54,11 +54,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.scenario_simulator import ScenarioSimulator, SimResult
-from src.simulation.simulated_hardware_gateway import CONTROL_DT, SensorErrors
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
     RealTimePacer,
@@ -71,6 +69,8 @@ from src.simulation.scenario_catalog import (
     all_test_scenarios,
     find_scenario,
 )
+from src.simulation.scenario_simulator import ScenarioSimulator, SimResult
+from src.simulation.simulated_hardware_gateway import CONTROL_DT, SensorErrors
 from src.simulation.track_model import TrackModel
 
 if TYPE_CHECKING:

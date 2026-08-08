@@ -21,8 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, Section
 
 from scripts.common.tables import print_table
 from src.navigation.utils import _forward_clearance, _nearest_ray

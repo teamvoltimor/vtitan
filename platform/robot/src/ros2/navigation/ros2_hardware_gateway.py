@@ -21,8 +21,8 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
-from shared.config.enums import Section
 from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
+from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, Detection, IMUReading, Pose, TrafficSignObservation
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String

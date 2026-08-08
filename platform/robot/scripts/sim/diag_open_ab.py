@@ -38,9 +38,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.navigation_tuning import NavigationTuning
+
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _SIDES, _all_cases, _verdict
-from shared.config.navigation_tuning import NavigationTuning
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -83,7 +84,7 @@ def _apply_overrides(tuning: NavigationTuning, overrides: dict[str, str]) -> Nav
 
 def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, dict[str, str] | None]) -> dict[str, object]:
     """Run one scenario under one arm. Primitive-valued so it pickles."""
-    from shared.config.enums import Direction, Section
+    from shared.domain.enums import Direction, Section
 
     index, widths, section_value, direction_value, cell, laps, overrides = payload
     section = Section(section_value)

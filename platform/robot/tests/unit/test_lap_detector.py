@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 
 import pytest
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.race_tracker import LapDetector
 

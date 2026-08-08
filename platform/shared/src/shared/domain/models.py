@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import ClassVar
 
-from pydantic import BaseModel
-
+from pydantic import BaseModel, field_validator
 from shared.domain.enums import CorridorWidthType, Direction, NavigatorPhase, ScenarioType, Section
 
 
@@ -321,12 +320,36 @@ class Position2D(BaseModel):
 
 
 class StartingConditions(BaseModel):
-    """Robot starting pose and direction."""
+    """Robot starting pose and direction.
 
-    direction: str = Direction.COUNTERCLOCKWISE.value
-    section: str = Section.SOUTH.value
+    ``direction``/``section`` are ``None`` when genuinely undetermined -- a
+    blind run only knows its pose relative to its own start, not the track's
+    absolute compass labels or travel direction, until direction/corridor
+    inference resolves them autonomously. A default naming a specific
+    direction/section here previously let metadata built without them
+    silently claim an invented starting condition instead of admitting it
+    doesn't know one yet (the same shape of bug ``CorridorWidthEntry``
+    documents for corridor widths).
+    """
+
+    direction: Direction | None = None
+    section: Section | None = None
     position: Position2D = Position2D()
     yaw: float = 0.0
+
+    @field_validator("direction", "section", mode="before")
+    @classmethod
+    def _lowercase_strings(cls, value: object) -> object:
+        """Accept any case for a raw string input, matching ``FromStringEnum.from_string``.
+
+        ``assumed_start_conditions()`` and other producers of this shape have
+        always emitted mixed casing (e.g. ``"South"``, ``.capitalized``) that
+        every *reader* tolerated by routing through ``Section.from_string``/
+        ``Direction.from_string`` -- strict enum members alone only accept
+        their exact lowercase value. Normalising on the way in here keeps
+        that same tolerance without every producer needing to agree on case.
+        """
+        return value.lower() if isinstance(value, str) else value
 
 
 class SignPosition(BaseModel):
@@ -362,6 +385,12 @@ class ScenarioMetadata(BaseModel):
     """Full scenario description for Open and Obstacles challenges.
 
     Matches the schema produced by ``simgen`` and ``scenario_builder.py``.
+
+    ``corridor_widths``/``starting_conditions`` have no default: the one real
+    construction site (``scenario_builder.build_open_metadata``) always supplies
+    both explicitly, and a default here would let metadata built without them
+    silently describe a track/start that was never actually measured or
+    randomised -- see ``CorridorWidthEntry`` for the bug that shape caused.
     """
 
     scenario_id: int = 0
@@ -371,8 +400,8 @@ class ScenarioMetadata(BaseModel):
     has_parking_lot: bool = False
     parking_lot: ParkingLot | None = None
     sign_positions: list[SignPosition] = []
-    corridor_widths: CorridorWidths = CorridorWidths()
-    starting_conditions: StartingConditions = StartingConditions()
+    corridor_widths: CorridorWidths
+    starting_conditions: StartingConditions
 
 
 class NavigatorDebugSnapshot(BaseModel):

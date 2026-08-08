@@ -49,7 +49,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from scripts.sim.diag_sign_sweep import SweepConfig
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata

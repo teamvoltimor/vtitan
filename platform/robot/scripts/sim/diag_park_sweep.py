@@ -18,7 +18,7 @@ import math
 import sys
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 from scripts.common.tables import print_table
 from src.navigation.maneuvers.parking import park_controller_from_metadata

@@ -19,11 +19,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import cross_track_error
-from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
+from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator
 
 if TYPE_CHECKING:
     from src.simulation.kinematics import AckermannState

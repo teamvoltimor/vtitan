@@ -20,7 +20,7 @@ import pytest
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from shared.config.constants import RobotSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 from shared.domain.steering import steering_norm_to_angle_rad
 
 from src.hardware.button.event import ButtonEvent

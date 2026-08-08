@@ -11,8 +11,9 @@ import time
 from typing import Any
 
 from pydantic import BaseModel, Field
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 from shared.domain.models import LoopProgress
+
 from src.logger.constants import DETAILS_KEY
 
 logger = logging.getLogger(__name__)

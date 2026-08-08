@@ -30,7 +30,7 @@ from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
-    from shared.config.enums import Section
+    from shared.domain.enums import Section
     from shared.domain.models import Waypoint
 
     from src.navigation.ports import LidarScan

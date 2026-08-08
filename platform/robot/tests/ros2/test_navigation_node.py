@@ -20,7 +20,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
-from shared.config.enums import Section
+from shared.domain.enums import Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 

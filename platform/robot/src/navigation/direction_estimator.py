@@ -43,8 +43,8 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Direction
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _nearest_ray, axis_error_rad

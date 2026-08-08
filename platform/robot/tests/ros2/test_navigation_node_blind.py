@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import rclpy
 from shared.config.constants import CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 from shared.domain.models import IMUReading, Pose
 
 from src.navigation.ports import DriveCommand, LidarScan

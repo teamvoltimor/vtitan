@@ -48,7 +48,7 @@ from src.navigation.track_geometry import TrackWalls
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from shared.config.enums import Section
+    from shared.domain.enums import Section
 
 # |cos(yaw)| below this counts as a quarter-turn, so a block's extents are
 # swapped rather than treated as axis-aligned.

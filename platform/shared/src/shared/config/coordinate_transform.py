@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 
 from shared.config.constants import ParkingLotSpecs, StartingZoneSpecs, TrackDimensions
-from shared.config.enums import Section
+from shared.domain.enums import Section
 
 
 def quaternion_to_yaw(x: float, y: float, z: float, w: float) -> float:

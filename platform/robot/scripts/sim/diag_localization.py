@@ -37,7 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths

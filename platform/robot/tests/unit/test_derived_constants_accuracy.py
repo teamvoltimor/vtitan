@@ -11,11 +11,10 @@ from __future__ import annotations
 import math
 
 import pytest
-
 from shared.config.constants import CorridorDimensions, RobotSpecs
-from shared.config.enums import CorridorWidthType
-from shared.domain.models import CorridorWidthEntry
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import CorridorWidthType
+from shared.domain.models import CorridorWidthEntry
 
 
 def test_arc_radius_floor_derivation() -> None:

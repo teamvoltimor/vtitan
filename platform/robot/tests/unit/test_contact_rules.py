@@ -13,14 +13,14 @@ import math
 
 import pytest
 from shared.config.constants import CorridorDimensions, TrackDimensions
-from shared.config.enums import Direction, ScenarioType, Section
+from shared.domain.enums import Direction, ScenarioType, Section
 
 from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import corridor_widths_from_metadata
-from src.simulation.scenario_simulator import TERMINAL_SURFACES
-from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.kinematics import AckermannState
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
+from src.simulation.scenario_simulator import TERMINAL_SURFACES
+from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import ContactSurface, TrackModel
 
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)

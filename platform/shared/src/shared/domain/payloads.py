@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel, Field
-
 from shared.domain.enums import NodeHealth, RobotState
 from shared.domain.models import Detection, Pose, Velocity
 

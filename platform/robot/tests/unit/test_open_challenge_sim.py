@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 import pytest
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.simulation import ScenarioSimulator, TrackModel
 from src.simulation.scenario_builder import build_open_metadata, start_cells, uniform_widths

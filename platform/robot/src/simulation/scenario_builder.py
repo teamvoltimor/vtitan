@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, TrackDimensions
-from shared.config.enums import CorridorWidthType, Section
 from shared.config.starting_zone import STARTING_ZONE_LAYOUT
+from shared.domain.enums import CorridorWidthType, Section
 from shared.domain.models import (
     CorridorWidthEntry,
     CorridorWidths,
@@ -29,7 +29,7 @@ from shared.domain.models import (
 from src.navigation.start_conditions import start_pose
 
 if TYPE_CHECKING:
-    from shared.config.enums import Direction
+    from shared.domain.enums import Direction
 
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 
@@ -126,8 +126,8 @@ def build_open_metadata(
             },
         ),
         starting_conditions=StartingConditions(
-            direction=str(direction),
-            section=section.capitalized,
+            direction=direction,
+            section=section,
             position=Position2D(x=sx, y=sy),
             yaw=yaw,
         ),

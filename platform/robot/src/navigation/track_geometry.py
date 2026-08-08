@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
-from shared.config.enums import Section
+from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, InnerBlock
 
 _TRACK_MIN = TrackDimensions.MIN_COORD

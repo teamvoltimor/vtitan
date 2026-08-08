@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
-from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Direction, ScenarioType, Section
 from shared.domain.models import ScenarioMetadata
 
 from src.config.tuning_helpers import get_tuning
@@ -933,13 +933,20 @@ class ScenarioSimulator:
 
 def _start_conditions(metadata: ScenarioMetadata) -> _StartConditions:
     sc = metadata.starting_conditions
+    if sc.section is None or sc.direction is None:
+        msg = (
+            "scenario metadata.starting_conditions must have a resolved section/direction; "
+            "the sim always knows its own ground truth, so a None here means the scenario "
+            "was built without them"
+        )
+        raise ValueError(msg)
     # Whole-number JSON metadata values parse as Python int, not float. Coerce here so a
     # downstream int never reaches a ROS message field, where CDR serialization would
     # corrupt it (bit-reinterpreted as float64 instead of converted — see live_visualizer's
     # _sign_marker for the same class of bug with sign/parking coordinates).
     return _StartConditions(
-        section=Section.from_string(sc.section),
-        direction=Direction.from_string(sc.direction),
+        section=sc.section,
+        direction=sc.direction,
         x=float(sc.position.x),
         y=float(sc.position.y),
         yaw=float(sc.yaw),

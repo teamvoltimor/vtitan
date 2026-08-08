@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.enums import Section
+from shared.domain.enums import Section
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module

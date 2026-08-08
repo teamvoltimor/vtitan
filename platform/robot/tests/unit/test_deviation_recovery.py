@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
-from shared.config.enums import Direction, Section
+from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import cross_track_error
 from src.simulation import PoseDisturbance, ScenarioSimulator

@@ -14,10 +14,10 @@ import numpy as np
 from shared.config.constants import ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, Detection, IMUReading, ParkingLot, Pose, Waypoint
-from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
 
 from src.navigation.ports import DriveCommand, LidarScan
 from src.simulation.kinematics import AckermannState
+from tests.test_constants import ANGLES_FULL_ROTATION, NUM_RAYS
 
 
 @dataclass(frozen=True)
