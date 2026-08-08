@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
@@ -83,8 +84,15 @@ _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
 _BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
 
 
+class Axis(StrEnum):
+    """Which world coordinate a routing-table entry deforms."""
+
+    X = "x"
+    Y = "y"
+
+
 # Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
-# axis: "y" means deform the y-coordinate; "x" deforms x.
+# axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
 # red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
 # chosen so red always moves the deformed waypoint OUTWARD (away from the
 # inner square) and green always moves it INWARD — identically for CW and
@@ -93,15 +101,15 @@ _BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
 # world-frame negation of the CCW rows, which instead pinned "red on the
 # robot's right" — a travel-RELATIVE rule that flips outward/inward between
 # CW and CCW. That was wrong: the official rule is the absolute one above.)
-_ROUTING_TABLE: dict[tuple[Section, Direction], tuple[str, int, int]] = {
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): ("y", -1, +1),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): ("y", +1, -1),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): ("x", +1, -1),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): ("x", -1, +1),
-    (Section.SOUTH, Direction.CLOCKWISE): ("y", -1, +1),
-    (Section.NORTH, Direction.CLOCKWISE): ("y", +1, -1),
-    (Section.EAST, Direction.CLOCKWISE): ("x", +1, -1),
-    (Section.WEST, Direction.CLOCKWISE): ("x", -1, +1),
+_ROUTING_TABLE: dict[tuple[Section, Direction], tuple[Axis, int, int]] = {
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (Axis.Y, -1, +1),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): (Axis.Y, +1, -1),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): (Axis.X, +1, -1),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): (Axis.X, -1, +1),
+    (Section.SOUTH, Direction.CLOCKWISE): (Axis.Y, -1, +1),
+    (Section.NORTH, Direction.CLOCKWISE): (Axis.Y, +1, -1),
+    (Section.EAST, Direction.CLOCKWISE): (Axis.X, +1, -1),
+    (Section.WEST, Direction.CLOCKWISE): (Axis.X, -1, +1),
 }
 
 
@@ -674,7 +682,7 @@ def _apply_deformation(
     mult = red_mult if color == ColorNames.RED else green_mult
 
     wx, wy = waypoint
-    if axis == "y":
+    if axis == Axis.Y:
         return _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None), _clamp_lateral(
             sign.y + mult * lateral_offset, corridor
         )

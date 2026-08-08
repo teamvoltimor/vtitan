@@ -33,6 +33,7 @@ from shared.domain.models import BlockPosition, ParkingLot
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import (
+  _clamp,
   _local_frame,
   _pure_pursuit_steer as _shared_pure_pursuit_steer,
 )
@@ -689,10 +690,6 @@ def _normalise_angle(angle: float) -> float:
     while angle < -math.pi:
         angle += 2 * math.pi
     return angle
-
-
-def _clamp(v: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, v))
 
 
 def park_controller_from_metadata(

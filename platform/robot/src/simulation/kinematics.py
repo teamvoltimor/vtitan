@@ -42,7 +42,10 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
 from src.config.tuning_helpers import get_tuning
-from src.simulation.geometry import _clamp, _wrap_angle
+from src.navigation.utils import (
+    _clamp,
+    _wrap as _wrap_angle,
+)
 
 if TYPE_CHECKING:
     pass

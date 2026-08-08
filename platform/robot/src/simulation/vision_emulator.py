@@ -21,7 +21,7 @@ from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.sign_discovery import SignSpec
-from src.simulation.geometry import _wrap_angle
+from src.navigation.utils import _wrap as _wrap_angle
 
 
 def emulate_sign_observations(

@@ -20,6 +20,10 @@ def _wrap(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
+
+
 def axis_offset_rad(yaw: float) -> float:
     """Signed deviation from the nearest track axis: + is left of it, - is right.
 
