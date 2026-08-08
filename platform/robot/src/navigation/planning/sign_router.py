@@ -208,7 +208,7 @@ class SignRouterConfig:
         here the thresholds themselves do it, on every sign.
         """
         if self.lateral_offset is None:
-            tuning = NavigationTuning.load_default()
+            tuning = get_tuning(None)
             default_offset = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2 + tuning.sign_router.SIGN_CLEARANCE_MARGIN_M
             object.__setattr__(self, "lateral_offset", default_offset)
         if self.activation_dist >= self.passed_dist:
