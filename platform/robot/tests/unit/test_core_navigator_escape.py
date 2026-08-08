@@ -32,6 +32,9 @@ from tests.test_constants import (
 ANGLES = ANGLES_FULL_ROTATION.tolist()
 
 
+@pytest.fixture()
+def tuning():
+    return NavigationTuning()
 
 
 @pytest.fixture()
@@ -40,7 +43,7 @@ def waypoints() -> list[tuple[float, float]]:
 
 
 class TestCriticalEscapeRearGate:
-    def test_wedged_both_ends_never_reverses(self, waypoints):
+    def test_wedged_both_ends_never_reverses(self, waypoints, tuning):
         """Front AND rear blocked: the escape must not command a reverse.
 
         Rear distance (0.09 m) is deliberately beyond the self-detection radius
@@ -49,18 +52,18 @@ class TestCriticalEscapeRearGate:
         """
         ranges = create_scan_with_sectors(front=0.06, back=0.09)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
-        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         nav.step()
 
         assert gateway.commands, "expected a published command"
         assert gateway.commands[-1].speed_mps >= 0, "must not reverse into an unseen rear wall"
 
-    def test_front_blocked_rear_clear_reverses(self, waypoints):
+    def test_front_blocked_rear_clear_reverses(self, waypoints, tuning):
         """Front blocked, rear clear: the K-turn escape should reverse."""
         ranges = create_scan_with_sectors(front=0.06)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
-        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
         nav.step()
 

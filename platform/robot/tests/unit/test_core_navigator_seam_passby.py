@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 from shared.domain.models import Pose
@@ -29,6 +30,11 @@ from tests.fixtures import FakeGateway
 
 if TYPE_CHECKING:
     from src.navigation.ports import DriveCommand, LidarScan
+
+
+@pytest.fixture
+def tuning():
+    return NavigationTuning()
 
 
 def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> list[tuple[float, float]]:
@@ -48,13 +54,13 @@ def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> 
     return path
 
 
-def _navigator(waypoints: list[tuple[float, float]], pose: Pose) -> tuple[CoreNavigator, FakeGateway]:
+def _navigator(waypoints: list[tuple[float, float]], pose: Pose, tuning: NavigationTuning) -> tuple[CoreNavigator, FakeGateway]:
     gateway = FakeGateway(pose)
     nav = CoreNavigator(
         gateway=gateway,
         waypoints=waypoints,
         num_laps=3,
-        tuning=NavigationTuning(),
+        tuning=tuning,
         lap_detector=LapDetector(
             start_pos=waypoints[0],
             start_section=Section.SOUTH,
@@ -73,12 +79,12 @@ def _offset_toward_centre(point: tuple[float, float], centre: tuple[float, float
 
 
 class TestFinalWaypointPassBy:
-    def test_index_advances_past_the_last_waypoint_without_entering_its_radius(self):
+    def test_index_advances_past_the_last_waypoint_without_entering_its_radius(self, tuning):
         """The exact CCW failure: sitting past the final waypoint but 0.35 m
         off it -- well outside MAIN_LOOP_REACHED_DISTANCE_M -- must still
         advance rather than freeze."""
         path = _square_loop()
-        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0))
+        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0), tuning=tuning)
 
         last = len(path) - 1
         nav._waypoint_index = last
@@ -96,11 +102,11 @@ class TestFinalWaypointPassBy:
 
         assert nav._waypoint_index > last, "final waypoint must not be a dead end"
 
-    def test_the_seam_crossing_counts_a_lap(self):
+    def test_the_seam_crossing_counts_a_lap(self, tuning):
         """Advancing past the last waypoint is only useful if the wrap that
         follows it is what the lap counter reads."""
         path = _square_loop()
-        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0))
+        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0), tuning=tuning)
         nav._lap_detector.notify_waypoint_wrapped()
         nav._lap_detector = None  # take the waypoint-only fallback, which counts directly
 
@@ -114,11 +120,11 @@ class TestFinalWaypointPassBy:
         assert nav._waypoint_index == 0
         assert nav.laps_completed == 1
 
-    def test_a_robot_behind_the_last_waypoint_does_not_skip_the_seam(self):
+    def test_a_robot_behind_the_last_waypoint_does_not_skip_the_seam(self, tuning):
         """The rescue must not fire early -- still short of the final waypoint,
         the index has to stay put rather than jump the lap."""
         path = _square_loop()
-        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0))
+        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0), tuning=tuning)
 
         last = len(path) - 1
         nav._waypoint_index = last
@@ -130,10 +136,10 @@ class TestFinalWaypointPassBy:
 
         assert nav._waypoint_index == last
 
-    def test_pass_by_still_stops_once_the_nearest_waypoint_is_reached(self):
+    def test_pass_by_still_stops_once_the_nearest_waypoint_is_reached(self, tuning):
         """The wraparound must not let the scan walk the whole ring in one tick."""
         path = _square_loop()
-        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0))
+        nav, gateway = _navigator(path, Pose(x=path[0][0], y=path[0][1], yaw=0.0), tuning=tuning)
 
         nav._waypoint_index = 0
         centre = (1.5, 1.5)

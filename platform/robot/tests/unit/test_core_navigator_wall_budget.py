@@ -32,6 +32,11 @@ if TYPE_CHECKING:
 _MAT = TrackDimensions.MAX_COORD
 
 
+@pytest.fixture
+def tuning():
+    return NavigationTuning()
+
+
 def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | None = None) -> CoreNavigator:
     return CoreNavigator(
         gateway=FakeGateway(Pose(x=waypoints[0][0], y=waypoints[0][1], yaw=0.0)),
@@ -51,50 +56,45 @@ def _straight_path_at(offset_m: float) -> list[tuple[float, float]]:
 
 
 class TestBudgetFollowsThePath:
-    def test_wall_hugging_path_tightens_the_threshold(self):
+    def test_wall_hugging_path_tightens_the_threshold(self, tuning):
         """The narrow-belief geometry that lost both 2026-08-06 rounds."""
-        tuning = NavigationTuning()
         nav = _navigator(_straight_path_at(0.25), tuning)
 
         expected = _expected(0.25, tuning)
         assert nav._waypoint_controller.effective_transition == pytest.approx(expected)
         assert expected < tuning.pursuit.LOOKAHEAD_TRANSITION, "must be tighter than the fixed value"
 
-    def test_centred_path_keeps_the_configured_threshold(self):
+    def test_centred_path_keeps_the_configured_threshold(self, tuning):
         """A confirmed-wide corridor must behave exactly as it did before."""
-        tuning = NavigationTuning()
         nav = _navigator(_straight_path_at(0.50), tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
             tuning.pursuit.LOOKAHEAD_TRANSITION,
         )
 
-    def test_budget_never_falls_below_the_floor(self):
+    def test_budget_never_falls_below_the_floor(self, tuning):
         """A path almost touching a wall must not pin the short lookahead on
         forever -- that trades the wall for a twitchy straight."""
-        tuning = NavigationTuning()
         nav = _navigator(_straight_path_at(0.10), tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
             tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M,
         )
 
-    def test_measures_the_nearest_edge_whichever_it_is(self):
+    def test_measures_the_nearest_edge_whichever_it_is(self, tuning):
         """The path is scored against all four mat edges, not just the south one."""
-        tuning = NavigationTuning()
         near_north = [(x / 10.0, _MAT - 0.25) for x in range(5, 26)]
         nav = _navigator(near_north, tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(_expected(0.25, tuning))
 
-    def test_replanning_onto_a_wider_path_relaxes_the_threshold(self):
+    def test_replanning_onto_a_wider_path_relaxes_the_threshold(self, tuning):
         """The belief widening mid-round has to reach the controller.
 
         This is the moment the hardware bags show the path jumping ~0.20 m
         sideways; the threshold governing recovery from that jump has to move
         with it rather than stay at the tighter value.
         """
-        tuning = NavigationTuning()
         nav = _navigator(_straight_path_at(0.25), tuning)
         assert nav._waypoint_controller.effective_transition < tuning.pursuit.LOOKAHEAD_TRANSITION
 
