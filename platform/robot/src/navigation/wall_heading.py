@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext
 from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
@@ -77,13 +77,10 @@ class _WallHeadingConstants:
     )
 
 
-class WallHeadingContext:
+class WallHeadingContext(TuningContext[_WallHeadingConstants]):
   """Context holding tuning-derived wall-heading constants."""
 
-  def __init__(self, tuning: NavigationTuning | None = None) -> None:
-    """Initialize wall-heading context from tuning."""
-    self.tuning = get_tuning(tuning)
-    self.constants = _WallHeadingConstants.from_tuning(self.tuning)
+  _constants_cls = _WallHeadingConstants
 
 
 _DEFAULT_WALL_HEADING_CONTEXT = WallHeadingContext()

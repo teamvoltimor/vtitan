@@ -32,12 +32,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor
 
-from src.config.tuning_helpers import get_tuning
+from src.config.tuning_helpers import TuningContext, get_tuning
+from src.navigation.geometry import behind_tolerance_m, chassis_half_diagonal_m
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
@@ -64,24 +65,13 @@ __all__ = [
 # How far a deformed waypoint must stay clear of the restricted inner square
 # and the outer wall (WP-1). An unclamped deformation can otherwise place the
 # waypoint inside the inner square or against a wall for a sign positioned near
-# a corridor edge.
-#
-# Sized on the chassis half-DIAGONAL, not half-width. Half-width only bounds a
-# robot travelling parallel to the surface it is clamped against; a robot still
-# turning presents its corner instead, which reaches 0.18m rather than 0.10m.
-# Sign deformations bite hardest right at a corner — exactly where the robot is
-# mid-turn — so a half-width clamp let the corner clip the inner block while the
-# waypoint itself was still nominally legal. Measured over the obstacles
-# fixtures, widening this removed one inner-block and one sign collision (9/16
-# -> 7/16); going further to 0.24 over-constrains the deformation and regresses
-# to 10/16.
-_CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
+# a corridor edge. See navigation.geometry.chassis_half_diagonal_m for why it's
+# the diagonal, not the half-width.
+_CHASSIS_HALF_DIAGONAL = chassis_half_diagonal_m()
 
 # How far behind the robot's own origin a sign may still sit and remain an
-# avoidance candidate. Half the chassis length, so a sign level with the rear
-# bumper still counts (it's alongside, not cleared) but one genuinely receding
-# behind stops competing with the sign coming up next.
-_BEHIND_TOLERANCE = RobotSpecs.LENGTH / 2
+# avoidance candidate. See navigation.geometry.behind_tolerance_m.
+_BEHIND_TOLERANCE = behind_tolerance_m()
 
 
 class Axis(StrEnum):
@@ -129,12 +119,10 @@ class _SignRouterConstants:
         )
 
 
-class SignRouterContext:
+class SignRouterContext(TuningContext[_SignRouterConstants]):
     """Context holding tuning-derived sign-router constants, passed to helper functions."""
 
-    def __init__(self, tuning: NavigationTuning | None = None) -> None:
-        self.tuning = get_tuning(tuning)
-        self.constants = _SignRouterConstants.from_tuning(self.tuning)
+    _constants_cls = _SignRouterConstants
 
 
 _DEFAULT_SIGN_ROUTER_CONTEXT = SignRouterContext()
