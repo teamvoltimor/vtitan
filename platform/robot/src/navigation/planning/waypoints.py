@@ -25,17 +25,30 @@ _INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
 _INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
 
 
-def validate_path_feasibility(min_corridor_width_m: float, arc_radius: float) -> PathPlannability:
-    """Check whether a path fits within the available corridor width.
+def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
+    """Check whether the chassis fits the narrowest corridor once biased off centre.
+
+    The corner arcs deliberately do not appear here. :func:`_corner_arc_radius`
+    caps every arc at the clearance the straights already have, so a corner can
+    never be the tightest point on the path.
+
+    The previous form added ``arc_radius`` to a lateral half-extent, which are
+    not commensurable -- one is a path curvature, the other a width -- and it
+    ignored ``center_bias_m`` entirely, so it scored a centred path and a biased
+    one identically while the bias was the thing actually spending the margin.
 
     Args:
         min_corridor_width_m: Minimum corridor width across all four sides.
-        arc_radius: Corner arc radius (m).
+        center_bias_m: Signed offset of the path from the centreline, positive
+            toward the inner block. Only the magnitude matters: biasing either
+            way moves the chassis toward one wall by the same amount.
 
     Returns:
-        PathPlannability with margin and reason.
+        PathPlannability with margin and reason, in corridor-width units. The
+        margin is the total slack across both walls; clearance to the nearer
+        wall is half of it.
     """
-    required = RobotSpecs.WIDTH / 2 + arc_radius
+    required = RobotSpecs.WIDTH + 2 * abs(center_bias_m)
     margin = min_corridor_width_m - required
     if margin > 0:
         return PathPlannability(
@@ -53,6 +66,45 @@ def validate_path_feasibility(min_corridor_width_m: float, arc_radius: float) ->
     )
 
 
+def _corner_arc_radius(width_entry_m: float, width_exit_m: float, center_bias_m: float, max_radius: float) -> float:
+    """Largest arc radius at one corner that costs no clearance to the inner block.
+
+    A corner arc is tangent to both corridor centrelines, so its centre sits at
+    ``(radius, radius)`` in from their intersection. The path's distance to the
+    inner block corner is therefore set by the radius, and it stays at the value
+    the straights already have -- ``width/2 - center_bias_m`` -- right up until
+    the radius passes that value, after which the arc bulges past the centreline
+    and starts eating margin. Clearance is flat below that point rather than
+    peaked, so the largest such radius is strictly best: a wider arc means a
+    shorter lap (``dP/dr = 2*pi - 8``, i.e. -1.717 m per metre of radius) and
+    gentler steering, both for free until the cap binds.
+
+    Takes the ``max`` of the two corridors, not the ``min``: the radius has to
+    reach the wider corridor's centreline to be tangent to it, and forcing it
+    down to the narrow side's value pulls the arc off that tangent and *into*
+    the corner -- 0.05 m of clearance on a mixed corner instead of 0.25 m.
+    ``max`` is also symmetric, so a corner plans the same arc whichever way the
+    round is driven.
+
+    With the checked-in 0.6/1.0 m widths and a 0.05 m inner bias this returns
+    the configured 0.45 m everywhere except a narrow-to-narrow corner, where it
+    returns 0.25 m and doubles that corner's clearance.
+
+    Args:
+        width_entry_m: Width of the corridor the corner is entered from.
+        width_exit_m: Width of the corridor it exits into.
+        center_bias_m: Signed path offset from the centreline, positive toward
+            the inner block. An outward bias leaves more room, so it widens the
+            arc by the same amount.
+        max_radius: Ceiling from ``waypoints.ARC_RADIUS``. Only binds if a
+            corridor is wider than the geometry this track can present.
+
+    Returns:
+        Arc radius in metres.
+    """
+    return min(max_radius, max(width_entry_m, width_exit_m) / 2 - center_bias_m)
+
+
 def calculate_waypoints(
     metadata: ScenarioMetadata | dict[str, Any],
     num_laps: int,
@@ -68,11 +120,14 @@ def calculate_waypoints(
     Args:
         metadata: Scenario metadata (Pydantic model or coercible dict).
         num_laps: Total laps the robot must complete.
-        arc_radius: Corner arc radius (m). Must exceed the Ackermann minimum
-            turning radius (~0.034 m, from WHEELBASE/tan(MAX_STEERING_ANGLE) with
-            counter-phase steering). Defaults to the tuning profile's value so a
-            loaded profile actually takes effect instead of a value frozen at
-            import time.
+        arc_radius: Ceiling on the corner arc radius (m). Each corner picks its
+            own radius from the two corridors it joins -- see
+            :func:`_corner_arc_radius` -- and this only caps the result, so it
+            no longer sets the geometry on its own. Must exceed the Ackermann
+            minimum turning radius (~0.034 m, from
+            WHEELBASE/tan(MAX_STEERING_ANGLE) with counter-phase steering).
+            Defaults to the tuning profile's value so a loaded profile actually
+            takes effect instead of a value frozen at import time.
         tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
@@ -100,8 +155,13 @@ def calculate_waypoints(
         Section.EAST: corridor_widths.east,
         Section.WEST: corridor_widths.west,
     }
+    # Derive center bias from tuning (positive toward inner block)
+    center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
+        1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
+    )
+
     min_width_m = min(cw.width_mm for cw in cw_entries.values()) / 1000.0
-    feasibility = validate_path_feasibility(min_width_m, arc_radius)
+    feasibility = validate_path_feasibility(min_width_m, center_bias_m)
     if not feasibility.is_feasible:
         raise ValueError(feasibility.reason)
 
@@ -111,11 +171,6 @@ def calculate_waypoints(
     east_width = widths[Section.EAST]
     west_width = widths[Section.WEST]
 
-    # Derive center bias from tuning (positive toward inner block)
-    center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
-        1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
-    )
-
     track_max = TrackDimensions.MAX_COORD
     # Signs put the bias toward the inner block on every side: north and east
     # corridors have the block below/left of them, south and west above/right.
@@ -124,12 +179,24 @@ def calculate_waypoints(
     east_cx = track_max - east_width / 2 - center_bias_m
     west_cx = west_width / 2 + center_bias_m
 
+    # Each corner is sized by the two corridors it joins, so a narrow-to-narrow
+    # corner tightens while the rest keep the configured radius.
+    corner_radii = {
+        corner: _corner_arc_radius(entry_w, exit_w, center_bias_m, arc_radius)
+        for corner, (entry_w, exit_w) in {
+            "se": (east_width, south_width),
+            "sw": (south_width, west_width),
+            "nw": (west_width, north_width),
+            "ne": (north_width, east_width),
+        }.items()
+    }
+
     segments = _build_all_segments(
         north_cy,
         south_cy,
         east_cx,
         west_cx,
-        arc_radius,
+        corner_radii,
         direction,
     )
 
@@ -160,26 +227,44 @@ def _build_all_segments(
     south_cy: float,
     east_cx: float,
     west_cx: float,
-    arc_radius: float,
+    corner_radii: dict[str, float],
     direction: Direction,
 ) -> dict[Section, list[tuple[float, float]]]:
-    """Construct per-corridor waypoint lists (straights + corner arcs) for both directions."""
+    """Construct per-corridor waypoint lists (straights + corner arcs) for both directions.
+
+    Args:
+        north_cy: North corridor centreline (y), already bias-adjusted.
+        south_cy: South corridor centreline (y).
+        east_cx: East corridor centreline (x).
+        west_cx: West corridor centreline (x).
+        corner_radii: Arc radius per corner, keyed ``se``/``sw``/``nw``/``ne``.
+            Sized per corner by :func:`_corner_arc_radius`, so the four can
+            differ and each straight is trimmed by the radius of the corner at
+            its own end rather than by one shared value.
+        direction: Travel direction; CCW reverses each segment.
+
+    Returns:
+        Per-section waypoint lists, each a straight followed by its exit arc.
+    """
+    r_se, r_sw, r_nw, r_ne = (corner_radii[k] for k in ("se", "sw", "nw", "ne"))
+
     # Corner arc ICR positions and arc angle ranges (CW direction)
-    se_icr = (east_cx - arc_radius, south_cy + arc_radius)
-    sw_icr = (west_cx + arc_radius, south_cy + arc_radius)
-    nw_icr = (west_cx + arc_radius, north_cy - arc_radius)
-    ne_icr = (east_cx - arc_radius, north_cy - arc_radius)
+    se_icr = (east_cx - r_se, south_cy + r_se)
+    sw_icr = (west_cx + r_sw, south_cy + r_sw)
+    nw_icr = (west_cx + r_nw, north_cy - r_nw)
+    ne_icr = (east_cx - r_ne, north_cy - r_ne)
 
-    se_cw = _arc_with_endpoints(se_icr, arc_radius, 0.0, -math.pi / 2)
-    sw_cw = _arc_with_endpoints(sw_icr, arc_radius, -math.pi / 2, -math.pi)
-    nw_cw = _arc_with_endpoints(nw_icr, arc_radius, math.pi, math.pi / 2)
-    ne_cw = _arc_with_endpoints(ne_icr, arc_radius, math.pi / 2, 0.0)
+    se_cw = _arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2)
+    sw_cw = _arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi)
+    nw_cw = _arc_with_endpoints(nw_icr, r_nw, math.pi, math.pi / 2)
+    ne_cw = _arc_with_endpoints(ne_icr, r_ne, math.pi / 2, 0.0)
 
-    # CW straight segments
-    east_straight = _straight_waypoints(east_cx, is_x=True, start=north_cy - arc_radius, end=south_cy + arc_radius)
-    south_straight = _straight_waypoints(south_cy, is_x=False, start=east_cx - arc_radius, end=west_cx + arc_radius)
-    west_straight = _straight_waypoints(west_cx, is_x=True, start=south_cy + arc_radius, end=north_cy - arc_radius)
-    north_straight = _straight_waypoints(north_cy, is_x=False, start=west_cx + arc_radius, end=east_cx - arc_radius)
+    # CW straight segments. Each end is trimmed by the radius of the corner it
+    # runs into, which is why the two bounds no longer share a value.
+    east_straight = _straight_waypoints(east_cx, is_x=True, start=north_cy - r_ne, end=south_cy + r_se)
+    south_straight = _straight_waypoints(south_cy, is_x=False, start=east_cx - r_se, end=west_cx + r_sw)
+    west_straight = _straight_waypoints(west_cx, is_x=True, start=south_cy + r_sw, end=north_cy - r_nw)
+    north_straight = _straight_waypoints(north_cy, is_x=False, start=west_cx + r_nw, end=east_cx - r_ne)
 
     if direction is Direction.CLOCKWISE:
         return {
