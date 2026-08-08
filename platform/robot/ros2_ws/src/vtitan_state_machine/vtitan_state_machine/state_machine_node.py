@@ -114,13 +114,23 @@ jumper reading. At the default 10 Hz state-machine loop rate this spans ~300 ms 
 spin loop (each tick reads the latest value received from the Pi Zero, not a driver-internal
 sample loop)."""
 
-_CHALLENGE_MODE_TIMEOUT_SEC = 15.0
+_CHALLENGE_MODE_TIMEOUT_SEC = 60.0
 """How long to wait for the Pi Zero's jumper reading before defaulting to Open.
 
-Generous on purpose: the Zero takes ~10 s from power-on to having its nodes up
-(it shares power with this board), so a shorter window would routinely default
-before the reading ever arrives. The topic is TRANSIENT_LOCAL, so a value
-published before this node subscribed still arrives immediately.
+Generous on purpose. The previous value (15 s) assumed the Zero takes ~10 s
+from power-on to having its nodes up; measured on a genuine simultaneous
+cold boot of both boards from battery (2026-08-08), the Zero's own local
+startup chain -- pixi task launch overhead, then ROS2 launch, then
+ackermann_motor_node and pi_zero_peripherals_node constructing their
+hardware drivers in sequence -- took 41 s end to end before the jumper
+GPIO connected at all, let alone published. 15 s made the fallback fire on
+every such cold boot, not just flaky ones (see also
+scripts/discovery-watchdog.sh, which repairs the separate, rarer case
+where the USB-gadget link itself comes up half-dead and never completes
+ROS2 discovery no matter how long this waits). The topic is
+TRANSIENT_LOCAL, so a value published before this node subscribed still
+arrives immediately -- this ceiling only matters for how long BOOT_CHECK
+is willing to wait when it hasn't yet.
 """
 
 _JUMPER_TOPIC = "/challenge_mode/jumper_inserted"
