@@ -13,9 +13,8 @@ import math
 
 import numpy as np
 import pytest
-from shared.config.constants import ColorNames
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import Detection, IMUReading, Pose, SignColor
 
 from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
@@ -102,7 +101,7 @@ class TestMappedObstacleEscapeSplit:
                 sign_router=tuning.sign_router.model_copy(update={"ESCAPE_MASK_RADIUS_M": mask_radius}),
             )
         router = SignRouter(
-            [SignSpec(x=sign_xy[0], y=sign_xy[1], color=ColorNames.RED)],
+            [SignSpec(x=sign_xy[0], y=sign_xy[1], color=SignColor.RED)],
             config=SignRouterConfig.from_tuning(tuning.sign_router),
         )
         nav = CoreNavigator(

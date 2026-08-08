@@ -1,7 +1,6 @@
 """Public API for the config package."""
 
 from shared.config.constants import (
-    ColorNames,
     CorridorDimensions,
     DictKeys,
     FileExtensions,
@@ -21,7 +20,6 @@ from shared.config.constants import (
 from shared.domain.enums import Direction, ScenarioType, Section
 
 __all__ = [
-    "ColorNames",
     "CorridorDimensions",
     "DictKeys",
     "Direction",

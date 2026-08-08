@@ -1,8 +1,10 @@
-"""String identifiers: dict keys, model name prefixes, file paths/extensions."""
+"""String identifiers: dict keys, model name prefixes, file paths/extensions.
+
+Traffic sign colors use ``shared.domain.models.SignColor`` directly rather
+than a redundant string-alias class here.
+"""
 
 from __future__ import annotations
-
-from shared.domain.models import SignColor
 
 
 class FilePaths:
@@ -75,18 +77,6 @@ class DictKeys:
     MAX = "max"
     CENTER = "center"
     Z_SIGN = "z_sign"
-
-
-class ColorNames:
-    """Traffic sign color identifiers.
-
-    Sourced from ``shared.domain.models.SignColor`` rather than restated as
-    independent literals, so the two can't drift apart the way ``ColorNames``
-    and ``SignColor`` previously did (identical values, no cross-reference).
-    """
-
-    RED = SignColor.RED.value
-    GREEN = SignColor.GREEN.value
 
 
 class ModelNames:

@@ -24,13 +24,13 @@ from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import (
-    ColorNames,
     ParkingLotSpecs,
     RobotSpecs,
     TrackDimensions,
     TrafficSignSpecs,
     WallSpecs,
 )
+from shared.domain.models import SignColor
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -195,7 +195,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = TrafficSignSpecs.WIDTH
         m.scale.y = TrafficSignSpecs.DEPTH
         m.scale.z = TrafficSignSpecs.HEIGHT
-        color = TrafficSignSpecs.RED_COLOR if sign["color"] == ColorNames.RED else TrafficSignSpecs.GREEN_COLOR
+        color = TrafficSignSpecs.RED_COLOR if sign["color"] == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         return m
 

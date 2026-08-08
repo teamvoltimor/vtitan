@@ -12,7 +12,6 @@ Exports:
 """
 
 from shared.config.constants import (
-    ColorNames,
     CorridorDimensions,
     DictKeys,
     LightingScenarios,
@@ -44,7 +43,6 @@ from shared.domain.enums import (
 
 __all__ = [
     # Constants
-    "ColorNames",
     "CorridorDimensions",
     "DictKeys",
     "LightingScenarios",

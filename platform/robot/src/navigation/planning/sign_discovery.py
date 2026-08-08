@@ -43,7 +43,7 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from shared.config.constants import ColorNames, RobotSpecs, TrafficSignSpecs
+from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation
 
@@ -65,7 +65,7 @@ class SignSpec:
 
     x: float
     y: float
-    color: str  # ColorNames.RED or ColorNames.GREEN
+    color: str  # SignColor.RED or SignColor.GREEN
 
 
 def detection_to_observation(
@@ -87,7 +87,7 @@ def detection_to_observation(
     return TrafficSignObservation(
         world_x_m=world[0],
         world_y_m=world[1],
-        color=SignColor.RED if det.class_name == ColorNames.RED else SignColor.GREEN,
+        color=SignColor.RED if det.class_name == SignColor.RED else SignColor.GREEN,
         confidence=det.confidence,
         detected_at_timestamp=0.0,
         bbox_xmin=int(x1),

@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from shared.config.constants import ColorNames, DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.enums import Direction, Section
 from shared.domain.models import SignColor
@@ -712,7 +712,7 @@ def _apply_deformation(
         return waypoint
 
     axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
-    mult = red_mult if color == ColorNames.RED else green_mult
+    mult = red_mult if color == SignColor.RED else green_mult
 
     wx, wy = waypoint
     if axis == Axis.Y:
