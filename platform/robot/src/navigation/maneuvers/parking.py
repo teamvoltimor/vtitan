@@ -37,67 +37,59 @@ from src.navigation.utils import _pure_pursuit_steer as _shared_pure_pursuit_ste
 logger = logging.getLogger(__name__)
 
 
-# One load, reused by every module-level constant below. These feed module-level
-# geometry functions rather than ParkController methods, so there is no instance
-# to inject tuning into -- but that is not a reason to restate a configured
-# number. Each of these previously carried its own literal plus a "same
-# concept/value as NavigationTuning.parking.X" comment, which is two sources of
-# truth: editing parking.toml changed nothing, and the comment was the only
-# thing keeping them in step. The sign router shipped the same pattern and its
-# DEFORM_DEPTH_BUFFER_M sat in the TOML with no reader at all.
-_TUNING = NavigationTuning.load_default()
-_parking_tuning = _TUNING.parking
+@dataclass(frozen=True, slots=True)
+class _ParkingConstants:
+  """Tuning-derived parking constants, computed on-demand instead of frozen at module level."""
+  parallel_tolerance_m: float
+  yaw_tolerance: float
+  approach_clearance: float
+  pos_reach_dist_m: float
+  default_max_frames: int
+  saturated_steer_threshold: float
+  saturation_stuck_ticks: int
+  reposition_speed: float
+  reposition_steer_mag: float
+  min_lookahead_dist_m: float
+  wall_standoff_m: float
+  marker_standoff_m: float
 
-_PARALLEL_TOLERANCE_M = _parking_tuning.PARALLEL_TOLERANCE_M
-"""WRO rule: the two wheels on one side may differ by at most 2 cm in wall distance.
+  @classmethod
+  def from_tuning(cls, tuning: NavigationTuning) -> _ParkingConstants:
+    """Create from a NavigationTuning instance."""
+    parking_tuning = tuning.parking
+    escape_tuning = tuning.escape
+    parallel_tolerance = parking_tuning.PARALLEL_TOLERANCE_M
+    return cls(
+        parallel_tolerance_m=parallel_tolerance,
+        yaw_tolerance=math.atan2(parallel_tolerance, RobotSpecs.WHEELBASE),
+        approach_clearance=tuning.waypoints.ARC_RADIUS,
+        pos_reach_dist_m=parking_tuning.POS_REACH_DIST_M,
+        default_max_frames=parking_tuning.DEFAULT_MAX_FRAMES,
+        saturated_steer_threshold=parking_tuning.SATURATED_STEER_THRESHOLD,
+        saturation_stuck_ticks=parking_tuning.SATURATION_STUCK_TICKS,
+        reposition_speed=escape_tuning.REV_SPEED,
+        reposition_steer_mag=escape_tuning.REV_STEERING_SCALE,
+        min_lookahead_dist_m=parking_tuning.MIN_LOOKAHEAD_DIST_M,
+        wall_standoff_m=parking_tuning.WALL_STANDOFF_M,
+        marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,
+    )
 
-A competition rule, not a tuning choice -- and ``_YAW_TOLERANCE`` below is
-derived from it, so a rules change has to reach both. Config is the one place
-that should carry it."""
+_DEFAULT_PARKING_CONSTANTS = _ParkingConstants.from_tuning(NavigationTuning.load_default())
 
-_YAW_TOLERANCE = math.atan2(_PARALLEL_TOLERANCE_M, RobotSpecs.WHEELBASE)
-"""Heading tolerance implied by the rule above (~6.0 deg at WHEELBASE=0.19).
-
-Derived from the rule rather than picked: the "two wheels on one side" are the front and
-rear wheel of one flank, i.e. WHEELBASE apart along the chassis, so a heading error of
-``theta`` puts ``WHEELBASE * sin(theta)`` between their wall distances. Note this is the
-*looser* of the two stop criteria -- footprint containment (``_footprint_inside``) binds
-first for any chassis whose width approaches the bay depth."""
-# Staging stand-off, perpendicular to the gap opening. Reuses ARC_RADIUS (not a fresh
-# literal) because both share the same real constraint: must clear the chassis's Ackermann
-# minimum turning radius. At the old 0.25m this was smaller than R_min, and for N/S
-# sections nearly collinear with the corridor cruise line -- a robot cruising through could
-# overshoot the staging point in x before y converged, flipping the bearing ~180° in a
-# single tick and forcing `_pursuit_steer` into a non-convergent orbit. See
-# docs/internal/2026-07-11-navigation-logic-review.md §2.3 for the full trace.
-_APPROACH_CLEARANCE = _TUNING.waypoints.ARC_RADIUS
-_POS_REACH_DIST = _parking_tuning.POS_REACH_DIST_M  # metres: "reached staging" threshold
-_DEFAULT_MAX_FRAMES = _parking_tuning.DEFAULT_MAX_FRAMES  # 20s at 20Hz at the configured default
-
-_SATURATED_STEER_THRESHOLD = _parking_tuning.SATURATED_STEER_THRESHOLD
-"""abs(steering) at/above this counts as "at physical lock" for _SATURATION_STUCK_TICKS.
-
-Configured in parking.toml."""
-
-_SATURATION_STUCK_TICKS = _parking_tuning.SATURATION_STUCK_TICKS  # 1s at 20Hz at the configured default
-"""Consecutive ticks of saturated steering before assuming the target requires a tighter
-turn than the chassis can make going forward -- a bearing-angle threshold alone isn't a
-reliable signal (a curvature-correct pure-pursuit controller saturates at exactly the same
-physical limit as a naive one once the *true* required curvature exceeds R_min, regardless
-of how "large" the bearing error looks); sustained saturation is what a genuine
-non-convergent orbit actually looks like in practice -- see _APPROACH_CLEARANCE's
-module-level comment for the full failure trace this fixes."""
-
-# Reuses the same reverse-maneuver tuning CoreNavigator's escape maneuvers already use
-# (K-turn/stuck-reverse) rather than inventing fresh constants -- this is functionally the
-# same kind of "back away and reorient" recovery, just triggered by parking geometry instead
-# of a LIDAR collision risk. A single-tick reaction (re-evaluated every frame) isn't enough:
-# it flickers in and out before actually creating separation -- latched for a fixed duration,
-# like the CoreNavigator escape maneuvers, so it commits to a real repositioning motion.
-_escape_tuning = _TUNING.escape
-_REPOSITION_SPEED = _escape_tuning.REV_SPEED
-_REPOSITION_STEER_MAG = _escape_tuning.REV_STEERING_SCALE
-_REPOSITION_FRAMES = _escape_tuning.MAX_ESCAPE_FRAMES
+# Module-level defaults for backward compatibility. Overridden by ParkController when tuning is injected.
+_PARALLEL_TOLERANCE_M = _DEFAULT_PARKING_CONSTANTS.parallel_tolerance_m
+_YAW_TOLERANCE = _DEFAULT_PARKING_CONSTANTS.yaw_tolerance
+_APPROACH_CLEARANCE = _DEFAULT_PARKING_CONSTANTS.approach_clearance
+_POS_REACH_DIST = _DEFAULT_PARKING_CONSTANTS.pos_reach_dist_m
+_DEFAULT_MAX_FRAMES = _DEFAULT_PARKING_CONSTANTS.default_max_frames
+_SATURATED_STEER_THRESHOLD = _DEFAULT_PARKING_CONSTANTS.saturated_steer_threshold
+_SATURATION_STUCK_TICKS = _DEFAULT_PARKING_CONSTANTS.saturation_stuck_ticks
+_REPOSITION_SPEED = _DEFAULT_PARKING_CONSTANTS.reposition_speed
+_REPOSITION_STEER_MAG = _DEFAULT_PARKING_CONSTANTS.reposition_steer_mag
+_REPOSITION_FRAMES = _DEFAULT_PARKING_CONSTANTS.default_max_frames  # reuses default_max_frames
+_MIN_LOOKAHEAD_DIST = _DEFAULT_PARKING_CONSTANTS.min_lookahead_dist_m
+_WALL_STANDOFF = _DEFAULT_PARKING_CONSTANTS.wall_standoff_m
+_MARKER_STANDOFF = _DEFAULT_PARKING_CONSTANTS.marker_standoff_m
 
 
 @dataclass(frozen=True)
@@ -192,8 +184,12 @@ class ParkController:
         start_section: Section,
         direction: Direction,
         speed: float = 0.12,
-        max_frames: int = _DEFAULT_MAX_FRAMES,
+        max_frames: int | None = None,
+        tuning: NavigationTuning | None = None,
     ) -> None:
+        if max_frames is None:
+            max_frames = _DEFAULT_MAX_FRAMES
+        self._tuning = tuning or NavigationTuning()
         self._section = start_section
         self._direction = direction
         self._speed = speed
@@ -547,7 +543,7 @@ def _bearing_error(
     return _normalise_angle(desired_yaw - robot_yaw)
 
 
-_MIN_LOOKAHEAD_DIST = _parking_tuning.MIN_LOOKAHEAD_DIST_M  # floor to avoid a near-zero-distance curvature blow-up
+# Already defined above via _DEFAULT_PARKING_CONSTANTS
 
 
 def _pure_pursuit_steer(x_local: float, y_local: float) -> float:
@@ -574,7 +570,7 @@ def _chassis_corners(
     ]
 
 
-_WALL_STANDOFF = _parking_tuning.WALL_STANDOFF_M
+# Already defined above via _DEFAULT_PARKING_CONSTANTS
 """Closest the chassis footprint may come to the field wall backing the parking lot.
 
 The lot's far edge *is* the wall, so "drive to the lot centre" and "don't touch the wall"
@@ -607,7 +603,7 @@ def _footprint_breaches_wall(
     return False
 
 
-_MARKER_STANDOFF = _parking_tuning.MARKER_STANDOFF_M
+# Already defined above via _DEFAULT_PARKING_CONSTANTS
 """Closest the chassis footprint may come to either marker fin's inner face.
 
 Much smaller than ``_WALL_STANDOFF`` because the budget is smaller: the mouth between the

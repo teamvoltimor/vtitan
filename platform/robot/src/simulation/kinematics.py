@@ -91,12 +91,15 @@ class AckermannKinematics:
         self,
         wheelbase: float = RobotSpecs.WHEELBASE,
         max_steer: float = RobotSpecs.MAX_STEERING_ANGLE,
-        max_steer_rate: float = _DEFAULT_MAX_STEER_RATE,
+        max_steer_rate: float | None = None,
         max_accel: float = _DEFAULT_MAX_ACCEL,
         substeps: int = 5,
         rear_steer_ratio: float = _DEFAULT_REAR_STEER_RATIO,
         max_speed_mps: float = _DEFAULT_MAX_SPEED_MPS,
+        tuning: NavigationTuning | None = None,
     ) -> None:
+        if max_steer_rate is None:
+            max_steer_rate = tuning.pursuit.MAX_STEERING_RATE if tuning else _DEFAULT_MAX_STEER_RATE
         self._max_speed = max_speed_mps
         self._wheelbase = wheelbase
         self._max_steer = max_steer
