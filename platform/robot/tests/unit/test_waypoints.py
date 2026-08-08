@@ -6,6 +6,7 @@ import math
 
 import pytest
 from shared.config.enums import Direction, Section
+from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
@@ -16,6 +17,11 @@ from src.navigation.planning.waypoints import (
     calculate_waypoints,
     corridor_for_position,
 )
+
+
+@pytest.fixture
+def tuning():
+    return NavigationTuning.load_default()
 
 
 class TestOrderSectionsForLaps:
@@ -87,24 +93,24 @@ class TestGenerateCornerArc:
 class TestGenerateAllWaypoints:
     """Test full waypoint generation pipeline."""
 
-    def test_open_challenge_waypoints(self, sample_metadata_open) -> None:
-        waypoints = calculate_waypoints(sample_metadata_open, num_laps=1)
+    def test_open_challenge_waypoints(self, sample_metadata_open, tuning) -> None:
+        waypoints = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
         assert len(waypoints) > 20
 
-    def test_obstacles_challenge_waypoints(self, sample_metadata_obstacles) -> None:
-        waypoints = calculate_waypoints(sample_metadata_obstacles, num_laps=1)
+    def test_obstacles_challenge_waypoints(self, sample_metadata_obstacles, tuning) -> None:
+        waypoints = calculate_waypoints(sample_metadata_obstacles, num_laps=1, tuning=tuning)
         assert len(waypoints) > 20
 
-    def test_waypoints_within_track_bounds(self, sample_metadata_open) -> None:
-        waypoints = calculate_waypoints(sample_metadata_open, num_laps=1)
+    def test_waypoints_within_track_bounds(self, sample_metadata_open, tuning) -> None:
+        waypoints = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
 
         for x, y in waypoints:
             assert -0.2 < x < 3.2
             assert -0.2 < y < 3.2
 
-    def test_multi_lap_extends_waypoints(self, sample_metadata_open) -> None:
-        waypoints_1_lap = calculate_waypoints(sample_metadata_open, num_laps=1)
-        waypoints_2_laps = calculate_waypoints(sample_metadata_open, num_laps=2)
+    def test_multi_lap_extends_waypoints(self, sample_metadata_open, tuning) -> None:
+        waypoints_1_lap = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+        waypoints_2_laps = calculate_waypoints(sample_metadata_open, num_laps=2, tuning=tuning)
 
         assert len(waypoints_2_laps) > len(waypoints_1_lap)
 

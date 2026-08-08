@@ -7,6 +7,7 @@ read as already finished.
 
 from __future__ import annotations
 
+import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Detection, IMUReading, Pose
 
@@ -15,10 +16,15 @@ from src.navigation.ports import DriveCommand, LidarScan
 from tests.fixtures import FakeGateway
 
 
-def test_reset_clears_lap_and_waypoint_state():
+@pytest.fixture
+def tuning():
+    return NavigationTuning()
+
+
+def test_reset_clears_lap_and_waypoint_state(tuning):
     gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0))
     waypoints = [(5.0, 0.0), (10.0, 0.0)]
-    nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=NavigationTuning())
+    nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
     # Simulate race 1 finishing: no park controller, so a finished lap holds forever.
     nav._laps_completed = 1  # noqa: SLF001 - simulating end-of-race state directly
