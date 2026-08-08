@@ -32,6 +32,8 @@ nav_debug = "/nav_debug"
 scan = "/scan"
 # IMU data from the BNO085.
 imu = "/imu/data"
+# Hailo inference FPS, published by the vision/detector stack.
+hailo_fps = "/hailo/fps"
 # Vision detections (std_msgs/String, JSON), published by vision_node.
 vision_detections = "/vision/detections"
 # Hailo vision detections. NOTE: as of 2026-08-08, nothing publishes
@@ -61,3 +63,11 @@ jumper_inserted = "/challenge_mode/jumper_inserted"
 [button]
 # Button events from button_node on the Pi Zero.
 event = "/button/event"
+# JSON hold-progress feedback from button_node, so the OLED can count down.
+hold = "/button/hold"
+
+[ui]
+# Low-rate lidar/yaw/detection summary from telemetry_bridge_node for the OLED.
+telemetry_summary = "/ui/telemetry_summary"
+# Live mirror of the OLED panel, published by oled_display_node.
+oled_mirror = "/ui/oled_mirror"

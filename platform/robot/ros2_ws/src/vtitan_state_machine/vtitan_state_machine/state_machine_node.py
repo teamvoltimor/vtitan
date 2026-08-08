@@ -215,7 +215,7 @@ class StateMachineNode(Node, ResettableNode):
         )
         self.hailo_fps_sub: Subscription[Float32] = self.create_subscription(
             Float32,
-            "/hailo/fps",
+            self._topics.sensors.hailo_fps,
             self._hailo_fps_callback,
             qos_profile_sensor_data,
         )
