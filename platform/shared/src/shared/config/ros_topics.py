@@ -62,6 +62,9 @@ class SensorTopics(BaseModel):
     imu: str
     """IMU data from the BNO085."""
 
+    hailo_fps: str
+    """Hailo inference FPS, published by the vision/detector stack."""
+
     vision_detections: str
     """Vision detections (std_msgs/String, JSON), published by vision_node."""
 
@@ -119,6 +122,21 @@ class ButtonTopics(BaseModel):
     event: str
     """Button events from button_node on the Pi Zero."""
 
+    hold: str
+    """JSON hold-progress feedback from button_node, so the OLED can count down."""
+
+
+class UiTopics(BaseModel):
+    """Display/remote-viewing topics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    telemetry_summary: str
+    """Low-rate lidar/yaw/detection summary from telemetry_bridge_node for the OLED."""
+
+    oled_mirror: str
+    """Live mirror of the OLED panel, published by oled_display_node."""
+
 
 class RosTopicConfig(BaseModel):
     """ROS2 topic names configuration."""
@@ -132,6 +150,7 @@ class RosTopicConfig(BaseModel):
     actuators: ActuatorTopics
     challenge_mode: ChallengeModeTopics
     button: ButtonTopics
+    ui: UiTopics
 
     _default_config_path: ClassVar[Path] = (
         Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"

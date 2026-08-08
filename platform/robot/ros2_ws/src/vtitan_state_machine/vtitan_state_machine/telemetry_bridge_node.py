@@ -334,7 +334,7 @@ class TelemetryBridgeNode(Node):
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
         # the only sensor telemetry it needs, so it doesn't have to
         # subscribe to /scan, /imu/data and /hailo/detections directly.
-        self._ui_summary_pub = self.create_publisher(String, "/ui/telemetry_summary", _QOS_UI_SUMMARY)
+        self._ui_summary_pub = self.create_publisher(String, self._topics.ui.telemetry_summary, _QOS_UI_SUMMARY)
 
         # TEMP DIAGNOSTIC (2026-07-28): see _publish_ui_summary.
         self._last_ui_summary_publish_time: float | None = None

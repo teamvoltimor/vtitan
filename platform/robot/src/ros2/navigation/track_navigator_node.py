@@ -348,7 +348,7 @@ class TrackNavigator(Node, ResettableNode):
         self._racing = False
         self.create_subscription(
             String,
-            "/robot_state",
+            self._topics.state_machine.state,
             self._on_robot_state,
             QoSProfile(
                 depth=1,
@@ -814,12 +814,12 @@ class TrackNavigator(Node, ResettableNode):
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
         metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
-        # The enum itself, NOT str(self._direction): model_copy() does not
-        # validate, so a plain string survives into the field un-coerced and
+        # replanned_at takes the enum as a typed kwarg, not a raw dict: a past
+        # str(self._direction) here type-checked and passed silently while
         # every `direction is Direction.CLOCKWISE` test downstream
         # (calculate_waypoints, _build_corridor_order, start_measurement,
-        # parking, collision avoidance) silently reads False. A clockwise round
-        # was therefore planned counterclockwise -- the path ran the opposite way
+        # parking, collision avoidance) read False. A clockwise round was
+        # therefore planned counterclockwise -- the path ran the opposite way
         # around the mat, so every waypoint "ahead" in path order sat behind the
         # chassis, the lookahead search skipped most of a lap to the first
         # barely-forward point ~2.5 m away, and pure pursuit's 1/distance^2
@@ -827,11 +827,16 @@ class TrackNavigator(Node, ResettableNode):
         # Measured on 2026-08-08 runs 140300/140513: 0 laps, speed pinned at the
         # 0.05 m/s creep floor for 100% of ticks. Counterclockwise rounds were
         # unaffected, which is why this survived: the wrong branch is the CCW one.
-        new_starting = metadata.starting_conditions.model_copy(
-            update={"direction": self._direction},
+        starting = metadata.starting_conditions
+        new_starting = starting.replanned_at(
+            direction=self._direction,
+            section=starting.section,
+            position=starting.position,
+            yaw=starting.yaw,
         )
-        planning_metadata = metadata.model_copy(
-            update={"starting_conditions": new_starting},
+        planning_metadata = metadata.replanned_with(
+            corridor_widths=new_widths,
+            starting_conditions=new_starting,
         )
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 

@@ -42,7 +42,6 @@ if TYPE_CHECKING:
     from src.hardware.button.state import ButtonState
 
 NODE_NAME = "button_node"
-BUTTON_HOLD_TOPIC = "/button/hold"
 DEFAULT_QUEUE_DEPTH = 10
 BUTTON_POLL_HZ = 20.0
 BUTTON_POLL_PERIOD_S = 1.0 / BUTTON_POLL_HZ
@@ -80,7 +79,7 @@ class ButtonNode(LifecycleNode):
         self.pub = self.create_lifecycle_publisher(String, topics.button.event, DEFAULT_QUEUE_DEPTH)
         # Depth 1: this is a liveness readout at 20Hz, and a subscriber that
         # fell behind wants the current hold time, never a backlog of old ones.
-        self.pub_hold = self.create_lifecycle_publisher(String, BUTTON_HOLD_TOPIC, 1)
+        self.pub_hold = self.create_lifecycle_publisher(String, topics.button.hold, 1)
 
         try:
             self.driver = ButtonDriver()

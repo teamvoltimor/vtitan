@@ -357,6 +357,27 @@ class StartingConditions(BaseModel):
     position: Position2D = Position2D()
     yaw: float = 0.0
 
+    def replanned_at(
+        self,
+        *,
+        direction: Direction | None,
+        section: Section,
+        position: Position2D,
+        yaw: float,
+    ) -> StartingConditions:
+        """Typed replacement for a believed pose, for replanning mid-round.
+
+        ``model_copy(update={...})`` skips validation, so a raw dict with
+        ``"direction": str(some_direction)`` type-checks and passes silently
+        while leaving every ``is Direction.CLOCKWISE`` test downstream reading
+        False -- confirmed on hardware 2026-08-08 (a CW round planned CCW,
+        0 laps). Typed keyword args make that class of mistake a type error
+        at the call site instead of a runtime bug at the track.
+        """
+        return self.model_copy(
+            update={"direction": direction, "section": section, "position": position, "yaw": yaw},
+        )
+
     @field_validator("direction", "section", mode="before")
     @classmethod
     def _lowercase_strings(cls, value: object) -> object:
@@ -422,6 +443,21 @@ class ScenarioMetadata(BaseModel):
     sign_positions: list[SignPosition] = []
     corridor_widths: CorridorWidths
     starting_conditions: StartingConditions
+
+    def replanned_with(
+        self,
+        *,
+        corridor_widths: CorridorWidths,
+        starting_conditions: StartingConditions,
+    ) -> ScenarioMetadata:
+        """Typed replacement of the two fields a believed-layout replan changes.
+
+        See ``StartingConditions.replanned_at`` for why typed kwargs replace
+        ``model_copy(update={...})`` here -- the same unvalidated-dict shape.
+        """
+        return self.model_copy(
+            update={"corridor_widths": corridor_widths, "starting_conditions": starting_conditions},
+        )
 
 
 class NavigatorDebugSnapshot(BaseModel):

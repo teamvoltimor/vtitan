@@ -261,9 +261,8 @@ class OLEDDisplayNode(LifecycleNode):
 
         self.bridge = CvBridge()
 
-        self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, "/ui/oled_mirror", 10)
-
         topics = RosTopicConfig.load_default()
+        self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, topics.ui.oled_mirror, 10)
 
         # TRANSIENT_LOCAL to match state_machine_node, which publishes both of
         # these latched precisely so a late subscriber gets the current value.
@@ -299,13 +298,13 @@ class OLEDDisplayNode(LifecycleNode):
         self._button_hold: dict[str, object] = {}
         self.button_hold_sub = self.create_subscription(
             String,
-            "/button/hold",
+            topics.button.hold,
             self._button_hold_callback,
             QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
         )
         self.ui_summary_sub = self.create_subscription(
             String,
-            "/ui/telemetry_summary",
+            topics.ui.telemetry_summary,
             self._ui_summary_callback,
             _QOS_UI_SUMMARY,
         )
