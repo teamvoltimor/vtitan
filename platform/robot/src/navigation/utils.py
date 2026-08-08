@@ -15,18 +15,30 @@ if TYPE_CHECKING:
 
 
 _tuning = NavigationTuning.load_default()
-# Sourced from tuning rather than hardcoded, so TOML edits take effect everywhere.
-# DIRECTION_ARC_HALF_FOV_DEG, not FRONT_HALF_FOV_DEG: the two are both "how wide
-# is forward" but gate different things at different tolerances -- see that
-# field's docstring for the run this distinction cost when they were conflated.
-_FORWARD_ARC_RAD = math.radians(_tuning.lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG)
+
+# Direction gate alignment tolerance — heading must be within this of a corridor axis.
+_ALIGNMENT_TOLERANCE_RAD = math.radians(25.0)
+
+# Forward arc for direction inference.
+_FORWARD_ARC_RAD = math.radians(8.0)
+
+# Minimum valid LIDAR range — closer readings are treated as dropouts.
 _MIN_VALID_RANGE_M = _tuning.lidar_sectors.MIN_VALID_RANGE_M
-# Alignment tolerance: 25 deg is HEADING_ERROR_ZONES.MEDIUM from tuning
-_ALIGNMENT_TOLERANCE_RAD = _tuning.heading.MEDIUM
 
 
 def _wrap(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def axis_offset_rad(yaw: float) -> float:
+    """Signed deviation from the nearest track axis: + is left of it, - is right.
+
+    Same quantity as :func:`axis_error_rad` before the absolute value. Gates ask
+    "how far off axis am I", which has no direction; a controller correcting the
+    error has to know which way to steer, so it needs the sign.
+    """
+    quarter = math.pi / 2
+    return _wrap(yaw - round(yaw / quarter) * quarter)
 
 
 def axis_error_rad(yaw: float) -> float:
@@ -39,8 +51,7 @@ def axis_error_rad(yaw: float) -> float:
     ``track_navigator_node._direction_gate_verdict`` reports for the log; both
     spelled it out separately, and a bag diagnostic then spelled it a third time.
     """
-    quarter = math.pi / 2
-    return abs(_wrap(yaw - round(yaw / quarter) * quarter))
+    return abs(axis_offset_rad(yaw))
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
@@ -48,11 +59,19 @@ def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target:
     return ranges_m[index]
 
 
-def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float]) -> float:
+def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> float:
+    """Min clearance in forward direction.
+
+    Uses tuning: lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG, MIN_VALID_RANGE_M
+    """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+    arc_rad = math.radians(tuning.lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG)
+    min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
     forward = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= _FORWARD_ARC_RAD and r > _MIN_VALID_RANGE_M
+        if abs(_wrap(a)) <= arc_rad and r > min_valid
     ]
     return min(forward) if forward else math.inf
 

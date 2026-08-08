@@ -46,91 +46,17 @@ from shared.config.constants import CorridorDimensions
 from shared.config.enums import Direction
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.navigation.utils import _ALIGNMENT_TOLERANCE_RAD, _forward_clearance, _nearest_ray, axis_error_rad
+from src.navigation.utils import _nearest_ray, axis_error_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-# One load, reused by the module-level constants below -- see
-# direction_estimator.toml.
-_ESTIMATOR = NavigationTuning.load_default().direction_estimator
-
-_WIDE = CorridorDimensions.WIDE
-
-_MAX_PLAUSIBLE_SPAN_M = _WIDE + 0.25
-"""Beyond this, left + right is no longer two walls of one corridor.
-
-The widest legal corridor is 1.0 m and the LIDAR sits at the chassis centre, so
-the two side rays sum to the corridor width wherever the robot sits across it.
-A sum past this has to mean one ray missed the inner block and ran off down the
-next corridor. The margin absorbs scanning slightly off-axis; it is the same
-plausibility bound :mod:`src.navigation.corridor_estimator` uses to reject the
-readings this module is looking for.
-"""
-
-CORNER_CLEARANCE_M = _ESTIMATOR.CORNER_CLEARANCE_M
-"""Forward clearance below which the corridor counts as ending, for inference.
-
-Deliberately *larger* than the clearance at which
-:mod:`src.navigation.corridor_follower` starts turning. The two must not
-coincide. Turning swings the heading past the alignment gate below, which then
-refuses every reading -- so a robot that begins its turn at the same instant
-the comparison becomes decisive rotates straight through its only measurement
-window and comes out the far side with a wall on both sides again and nothing
-learned. Measured with both at 0.75 m: three fixtures never settled at all and
-two settled wrong after 20-plus seconds of wandering.
-
-The gap between this and the turn threshold is the window in which the robot is
-still square to the corridor and the way ahead is visibly closing.
-"""
-
-_MAX_IN_TRACK_RANGE_M = _ESTIMATOR.MAX_IN_TRACK_RANGE_M
-"""Above this a side ray is a dropout, not an open side.
-
-Real Slamtec drivers emit no measurement off dark or shallow-incidence
-surfaces, and both ``ROS2HardwareGateway._lidar_callback`` and the simulator
-substitute *max range* (12 m) for them. To this module that substitution is
-indistinguishable from the signal it is looking for -- a side that stopped
-returning a wall -- except by magnitude: the mat is 3 m square, so no ray that
-hits anything can exceed its 4.24 m diagonal. A genuinely open side reads down
-the next corridor at a few metres and passes; a dropout reads 12 m and is
-rejected.
-
-Without this a single 1%-probability dropout on the ±90° ray reads as "this
-side is open for twelve metres" and votes a confident wrong direction. Because
-scans arrive at half the control rate the same bad ray is then re-observed on
-consecutive ticks, so one dropout can supply every vote ``min_votes`` needs.
-Measured: 3 of 28 blind Open Challenge fixtures settled on the wrong direction
-this way, one of them into a wall.
-"""
-
-_MIN_ASYMMETRY_M = _ESTIMATOR.MIN_ASYMMETRY_M
-"""How much further the open side must see than the closed one.
-
-Guards the case where both sides read long -- at the very corner the robot can
-briefly see past the block on one side and down the finishing corridor on the
-other, and a marginal difference there is not evidence.
-
-Lowered from 0.30, which was costing whole corners. The robot is square to the
-corridor for only about eight scans on the approach -- outside that the turn
-swings the heading past the alignment gate and every reading is refused -- and
-on go_open_0000 exactly one of those eight cleared 0.30 (0.306, against 0.287,
-0.218 and 0.198 either side of it). Three ticks of one scan is not five votes,
-so the round was decided a full corridor later at the opposite corner: 35 s of
-creep and a 196 s round, over the 180 s limit. All eight readings agreed on the
-direction; the threshold was not separating signal from noise, it was
-discarding most of a window that had already made up its mind.
-
-0.30 was also carrying weight it no longer has to. The confident wrong answers
-it was guarding against came from dropouts reading 12 m, which
-:data:`_MAX_IN_TRACK_RANGE_M` now rejects outright and by a margin of metres.
-"""
 
 
 def infer_direction(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
     yaw: float,
+    tuning: NavigationTuning | None = None,
 ) -> Direction | None:
     """Which way round the loop this scan implies, or ``None`` if it cannot say.
 
@@ -139,14 +65,23 @@ def infer_direction(
         angles_rad: Matching robot-frame bearings (0 = forward).
         yaw: Current heading (radians, world frame). Only used to check the
             chassis is roughly aligned with a corridor; no map is consulted.
+        tuning: Navigation tuning instance. Defaults to the default tuning profile.
 
     Returns:
         The inferred :class:`Direction`, or ``None`` while both sides still
         look like walls -- which is the normal state until the robot nears the
         end of its corridor.
     """
+    if tuning is None:
+        tuning = NavigationTuning.load_default()
+
+    alignment_tol = tuning.heading.MEDIUM
+    max_in_track = tuning.direction_estimator.MAX_IN_TRACK_RANGE_M
+    plausible_span = tuning.direction_estimator.PLAUSIBLE_SPAN_THRESHOLD_M
+    min_asymmetry = tuning.direction_estimator.MIN_ASYMMETRY_M
+
     # Off-axis the side rays cut a diagonal and can read long for no good reason.
-    if axis_error_rad(yaw) > _ALIGNMENT_TOLERANCE_RAD:
+    if axis_error_rad(yaw) > alignment_tol:
         return None
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
@@ -155,7 +90,7 @@ def infer_direction(
     # A dropout carries no information about whether a side is open, and the
     # span test below cannot tell one from a corridor running away: both read
     # long. Reject rather than guess.
-    if left > _MAX_IN_TRACK_RANGE_M or right > _MAX_IN_TRACK_RANGE_M:
+    if left > max_in_track or right > max_in_track:
         return None
 
     # Decide on the SPAN, not on either range alone. Two walls span the
@@ -170,9 +105,9 @@ def infer_direction(
     # outer wall and returns exactly the wrong answer. That is which wall is
     # *nearer*, not which side is *open*, and it cost two fixtures a confident
     # wrong direction inside six seconds.
-    if left + right <= _MAX_PLAUSIBLE_SPAN_M:
+    if left + right <= plausible_span:
         return None
-    if abs(left - right) < _MIN_ASYMMETRY_M:
+    if abs(left - right) < min_asymmetry:
         return None
 
     # The inner block is on the side that opened, and the block's side fixes
@@ -216,11 +151,12 @@ class DirectionEstimator:
         ranges_m: Sequence[float],
         angles_rad: Sequence[float],
         yaw: float,
+        tuning: NavigationTuning | None = None,
     ) -> bool:
         """Fold one scan in; return True if this observation settled the direction."""
         if self._settled is not None:
             return False
-        inferred = infer_direction(ranges_m, angles_rad, yaw)
+        inferred = infer_direction(ranges_m, angles_rad, yaw, tuning)
         if inferred is None:
             return False
 
