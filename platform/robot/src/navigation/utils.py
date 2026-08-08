@@ -10,17 +10,10 @@ from typing import TYPE_CHECKING
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-
-_tuning = NavigationTuning.load_default()
-
-# Forward arc for direction inference.
-_FORWARD_ARC_RAD = math.radians(8.0)
-
-# Minimum valid LIDAR range — closer readings are treated as dropouts.
-_MIN_VALID_RANGE_M = _tuning.lidar_sectors.MIN_VALID_RANGE_M
 
 
 def _wrap(angle: float) -> float:
@@ -51,6 +44,10 @@ def axis_error_rad(yaw: float) -> float:
     return abs(axis_offset_rad(yaw))
 
 
+def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
     index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
     return ranges_m[index]
@@ -61,8 +58,7 @@ def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], t
 
     Uses tuning: lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG, MIN_VALID_RANGE_M
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     arc_rad = math.radians(tuning.lidar_sectors.DIRECTION_ARC_HALF_FOV_DEG)
     min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
     forward = [

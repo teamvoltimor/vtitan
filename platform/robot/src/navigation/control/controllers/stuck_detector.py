@@ -12,6 +12,8 @@ from collections import deque
 import numpy as np
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,8 +54,7 @@ class StuckDetector:
 
         Uses tuning: escape.MIN_HISTORY_FOR_DISTANCE
         """
-        if tuning is None:
-            tuning = NavigationTuning.load_default()
+        tuning = get_tuning(tuning)
         if history_size < timeout_frames:
             msg = (
                 f"history_size ({history_size}) must be >= timeout_frames ({timeout_frames}), "

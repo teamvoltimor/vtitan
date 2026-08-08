@@ -20,6 +20,7 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.localization import LidarLocalizer
 from src.navigation.planning.sign_router import SignSpec
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
@@ -72,8 +73,7 @@ class _SimulatorConstants:
 
   @classmethod
   def from_tuning(cls, tuning: NavigationTuning | None = None) -> _SimulatorConstants:
-    if tuning is None:
-      tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     control_hz = tuning.control.CONTROL_HZ
     return cls(
         control_hz=control_hz,
@@ -87,7 +87,7 @@ class SimulatorContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize simulator context from tuning."""
-    self.tuning = tuning or NavigationTuning.load_default()
+    self.tuning = get_tuning(tuning)
     self.constants = _SimulatorConstants.from_tuning(self.tuning)
 
 
@@ -517,7 +517,9 @@ class SimulatedHardwareGateway:
         """Return synthetic sign observations, or ``[]`` if none were provided."""
         if not self._signs:
             return []
-        return emulate_sign_observations(self._signs, (self._state.x, self._state.y), self._state.yaw)
+        return emulate_sign_observations(
+            self._signs, (self._state.x, self._state.y), self._state.yaw, tuning=self.tuning
+        )
 
     # Simulation stepping
 

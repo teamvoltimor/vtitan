@@ -36,13 +36,14 @@ from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.models import SignColor
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
     SignSpec,
-    _dist2d,
     detection_to_observation,
 )
 from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.utils import _dist2d
 
 if TYPE_CHECKING:
     from shared.domain.models import TrafficSignObservation
@@ -706,8 +707,7 @@ def _clamp_lateral(value: float, corridor: Section, tuning: NavigationTuning | N
     low side (must stay above ``CORNER_MAX``). Every corridor is also bounded
     on its outer side by the track wall.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     wall_clearance = _CHASSIS_HALF_DIAGONAL + tuning.sign_router.WALL_CLEARANCE_MARGIN_M
     low_side = corridor in (Section.SOUTH, Section.WEST)
     if low_side:
@@ -799,8 +799,7 @@ def _is_squarely_in_corridor(x: float, y: float, corridor: Section, tuning: Navi
       sign finally disengages by corridor mismatch — this buffer catches that
       case without reintroducing the original over-strict cutoff.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     deform_depth_buffer = tuning.sign_router.DEFORM_DEPTH_BUFFER_M
     depth_min = TrackDimensions.CORNER_MIN - deform_depth_buffer
     depth_max = TrackDimensions.CORNER_MAX + deform_depth_buffer

@@ -42,6 +42,7 @@ from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import CorridorWidthMeasurement
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.utils import _nearest_ray, _wrap
 
@@ -78,8 +79,7 @@ def measure_corridor_width(
         ``None`` when the chassis is too far off the corridor axis or the
         total is not physically plausible.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
 
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))

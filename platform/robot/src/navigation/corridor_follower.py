@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
 from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap, axis_offset_rad
 
@@ -92,8 +93,7 @@ def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning:
         lidar_sectors.MIN_VALID_RANGE_M;
         direction_estimator.MAX_IN_TRACK_RANGE_M
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     follower = tuning.corridor_follower
     turn_arc_rad = math.radians(follower.TURN_ARC_HALF_FOV_DEG)
     min_valid = tuning.lidar_sectors.MIN_VALID_RANGE_M
@@ -133,8 +133,7 @@ def follow_corridor(
         A drive command centring the chassis, or a stop if the corridor ends
         before the direction resolved.
     """
-    if tuning is None:
-        tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
 
     follower = tuning.corridor_follower
     max_centering = follower.MAX_CENTERING_STEER

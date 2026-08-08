@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import IMUReading, Pose
 
+from src.config.tuning_helpers import get_tuning
+
 
 def wrap_angle(angle: float) -> float:
     """Wrap angle to [-π, π]."""
@@ -29,8 +31,7 @@ class _EstimatorConstants:
 
   @classmethod
   def from_tuning(cls, tuning: NavigationTuning | None = None) -> _EstimatorConstants:
-    if tuning is None:
-      tuning = NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     return cls(
         yaw_correction_gain=tuning.state_estimator.YAW_CORRECTION_GAIN,
     )
@@ -41,7 +42,7 @@ class EstimatorContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize estimator context from tuning."""
-    self.tuning = tuning or NavigationTuning.load_default()
+    self.tuning = get_tuning(tuning)
     self.constants = _EstimatorConstants.from_tuning(self.tuning)
 
 
@@ -66,7 +67,7 @@ class StateEstimator:
         if context is None:
             context = _DEFAULT_ESTIMATOR_CONTEXT
         self._context = context
-        self._tuning = tuning or NavigationTuning.load_default()
+        self._tuning = get_tuning(tuning)
         self._start_yaw = start_yaw
         self._imu_yaw_offset: float | None = None
         self._relative_imu_yaw: float | None = None

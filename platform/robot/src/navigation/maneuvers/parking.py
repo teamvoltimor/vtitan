@@ -31,6 +31,7 @@ from shared.config.enums import Direction, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import BlockPosition, ParkingLot
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import (
   _local_frame,
   _pure_pursuit_steer as _shared_pure_pursuit_steer,
@@ -85,7 +86,7 @@ class ParkingContext:
 
   def __init__(self, tuning: NavigationTuning | None = None) -> None:
     """Initialize parking context from tuning."""
-    self.tuning = tuning or NavigationTuning.load_default()
+    self.tuning = get_tuning(tuning)
     self.constants = _ParkingConstants.from_tuning(self.tuning)
 
 
@@ -187,7 +188,7 @@ class ParkController:
         max_frames: int | None = None,
         tuning: NavigationTuning | None = None,
     ) -> None:
-        self._tuning = tuning or NavigationTuning.load_default()
+        self._tuning = get_tuning(tuning)
         self._context = ParkingContext(self._tuning)
         if max_frames is None:
             max_frames = self._context.constants.default_max_frames
@@ -232,7 +233,7 @@ class ParkController:
         Returns:
             ParkController with values from tuning.
         """
-        tuning = tuning or NavigationTuning.load_default()
+        tuning = get_tuning(tuning)
         return cls(
             parking_config=parking_config,
             start_section=start_section,
@@ -715,7 +716,7 @@ def park_controller_from_metadata(
         return None
     if direction is None:
         direction = Direction.from_string(metadata[DictKeys.STARTING_CONDITIONS][DictKeys.DIRECTION])
-    tuning = tuning or NavigationTuning.load_default()
+    tuning = get_tuning(tuning)
     return ParkController(
         parking_config=ParkingLot(
             block1_position=BlockPosition(
