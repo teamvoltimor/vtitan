@@ -27,6 +27,7 @@ from shared.domain.models import LidarClearances, MotorStateSnapshot
 from std_msgs.msg import String
 from vision_msgs.msg import Detection2DArray
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
@@ -79,14 +80,6 @@ _MIN_POINTS_FOR_SIDE_WINDOW = 4
 
 _MIN_POINTS_FOR_BACK_WINDOW = 16
 """Minimum LIDAR points needed to safely slice the n/8 back window."""
-
-_OLED_SECTOR_HALF_FOV_RAD = math.radians(30)
-"""Half-width of each front/left/right sector fed to the OLED summary.
-
-Matches compute_forward_clearance's own forward cone width, for consistency
-across the two sectors that both use a mean (this is a display readout, not
-a threat gate like detect_threat_direction's narrower, min-based +/-45 deg
-sectors)."""
 
 _DIAG_TELEMETRY_SLOW_S = 0.3
 """Warn when the whole _publish_telemetry synchronous body exceeds this (s)."""
@@ -214,7 +207,7 @@ the same constant.
 """
 
 
-def _lidar_clearances(ranges: list[float]) -> LidarClearances:
+def _lidar_clearances(ranges: list[float], sector_half_fov_rad: float) -> LidarClearances:
     """Directional LIDAR clearances in meters for the OLED's RACING page.
 
     Reuses CollisionAvoidanceController's real angle-based sector logic
@@ -225,6 +218,12 @@ def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     reflection) could dominate the whole sector and made the display jump to
     a nonsense 2-3cm reading. Mean-over-sector, like
     compute_forward_clearance, is far less sensitive to a single outlier.
+
+    ``sector_half_fov_rad`` comes from ``NavigationTuning.lidar_sectors.
+    FRONT_HALF_FOV_DEG`` -- that TOML's own header comment says it's "shared
+    by collision avoidance and the OLED", but this function used to read a
+    hardcoded ``radians(30)`` module constant instead, so a tuning change
+    never actually reached the display it names.
 
     Passes explicit robot-frame angles (raw sweep + _LIDAR_YAW_OFFSET_RAD)
     rather than lidar_angles=None: the naive synthesized sweep assumed
@@ -239,12 +238,12 @@ def _lidar_clearances(ranges: list[float]) -> LidarClearances:
     ranges_t = tuple(ranges)
     angles = np.linspace(-math.pi, math.pi, len(ranges), endpoint=False) + _LIDAR_YAW_OFFSET_RAD
 
-    front = CollisionAvoidanceController.sector_ranges(ranges_t, angles, 0.0, _OLED_SECTOR_HALF_FOV_RAD)
+    front = CollisionAvoidanceController.sector_ranges(ranges_t, angles, 0.0, sector_half_fov_rad)
     left = CollisionAvoidanceController.sector_ranges(
-        ranges_t, angles, math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges_t, angles, math.pi / 2, sector_half_fov_rad, filter_self_detection=True,
     )
     right = CollisionAvoidanceController.sector_ranges(
-        ranges_t, angles, -math.pi / 2, _OLED_SECTOR_HALF_FOV_RAD, filter_self_detection=True,
+        ranges_t, angles, -math.pi / 2, sector_half_fov_rad, filter_self_detection=True,
     )
 
     return LidarClearances(
@@ -305,6 +304,11 @@ class TelemetryBridgeNode(Node):
         self._ui_summary_rate = self.get_parameter("ui_summary_rate_hz").value
 
         self._topics = RosTopicConfig.load_default()
+        # Matches compute_forward_clearance's own forward cone width, for
+        # consistency across the two sectors that both use a mean (this is a
+        # display readout, not a threat gate like detect_threat_direction's
+        # narrower, min-based +/-45 deg sectors).
+        self._oled_sector_half_fov_rad = math.radians(get_tuning(None).lidar_sectors.FRONT_HALF_FOV_DEG)
 
         self._setup_subscriptions()
 
@@ -674,7 +678,7 @@ class TelemetryBridgeNode(Node):
         d0 = time.monotonic()
         front = left = right = 0.0
         if self._latest_scan is not None:
-            c = _lidar_clearances(self._latest_scan.ranges)
+            c = _lidar_clearances(self._latest_scan.ranges, self._oled_sector_half_fov_rad)
             front = c.front_m * 100
             left = c.left_m * 100
             right = c.right_m * 100

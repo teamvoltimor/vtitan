@@ -125,9 +125,6 @@ human or a monitoring dashboard, not a control loop, and building it involves
 for a value that changes on human timescales was pure waste.
 """
 
-STEERING_COMMAND_SPEED = 30
-"""Steering move speed (deg/s) commanded per update. Used by geared backends; the servo self-paces."""
-
 DRIVE_CONTROL_RATE_HZ = 50.0
 """Rate of the closed-loop drive step.
 
@@ -524,7 +521,7 @@ class AckermannMotorNode(LifecycleNode):
         # Execute motor commands
         try:
             # Set steering position
-            self.steering.move_steering_to(clamped_steering, speed=STEERING_COMMAND_SPEED)
+            self.steering.move_steering_to(clamped_steering, speed=self.config.steering.turning_speed)
 
             # The drive is NOT actuated here: the PID needs a fixed 50 Hz step
             # (see DRIVE_CONTROL_RATE_HZ) whereas commands arrive at whatever
