@@ -129,7 +129,7 @@ class MotorStateSnapshot:
     is_valid: bool = True
 
 
-# ── Phase 2: Robustness Dataclasses ─────────────────────────────────────────
+# Robustness dataclasses
 
 
 @dataclass(slots=True, frozen=True)
@@ -233,7 +233,7 @@ class CameraSize:
         return self.height_px
 
 
-# ── Phase 3: Polish Dataclasses ────────────────────────────────────────────
+# Polish dataclasses
 
 
 @dataclass(slots=True, frozen=True)
@@ -273,7 +273,7 @@ class LoopProgress:
         return (self.distance_m / self.total_distance_m) * 100
 
 
-# ── Scenario Metadata Pydantic Models ────────────────────────────────────────
+# Scenario metadata Pydantic models
 # These replace ``dict[str, Any]`` metadata objects that were passed raw across
 # the simulation/navigation boundary.  They match the schema produced by
 # ``simgen`` and ``scenario_builder.py``.

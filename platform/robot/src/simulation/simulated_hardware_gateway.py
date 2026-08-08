@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import numpy as np
 from numpy.random import SeedSequence
@@ -31,9 +31,6 @@ from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel
 from src.simulation.vision_emulator import emulate_sign_observations
 from src.state_machine.estimator import StateEstimator
-
-if TYPE_CHECKING:
-    pass
 
 LIDAR_SCAN_HZ = RobotSpecs.LIDAR_UPDATE_RATE
 """Sweep rate of the Slamtec C1, which is what the robot actually has.
