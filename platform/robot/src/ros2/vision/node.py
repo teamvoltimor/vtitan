@@ -32,7 +32,6 @@ from src.ros2.vision.detection_payload_keys import (
     Y_KEY,
 )
 from src.vision import create_detector
-from src.vision.detector import DEFAULT_YOLO_MODEL_PATH
 from src.vision.overlay import annotate
 
 if TYPE_CHECKING:
@@ -51,7 +50,7 @@ class Config(HardwareBaseSettings):
     model_config = SettingsConfigDict(env_prefix="vision_node_", toml_file=CONFIG_DIR / "vision" / "node.toml")
 
     camera_topic: str = "/camera/image_raw"
-    model_path: str = DEFAULT_YOLO_MODEL_PATH
+    model_path: str = "yolov8n.pt"  # matches config/hardware/vision/node.toml
     backend: str = "yolo"  # 'yolo' or 'hailo'
     # 'direct' opens the camera in this process and feeds frames straight to
     # the model -- no sensor_msgs/Image on the wire, which is what a race

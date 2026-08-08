@@ -124,8 +124,9 @@ class DirectionEstimator:
     one of those arriving first should not decide the round.
     """
 
-    def __init__(self, min_votes: int = 5) -> None:
-        self._min_votes = min_votes
+    def __init__(self, min_votes: int | None = None, tuning: NavigationTuning | None = None) -> None:
+        """Uses tuning: direction_estimator.MIN_VOTES (when min_votes is not given explicitly)."""
+        self._min_votes = min_votes if min_votes is not None else get_tuning(tuning).direction_estimator.MIN_VOTES
         self._votes: dict[Direction, int] = dict.fromkeys(Direction, 0)
         self._settled: Direction | None = None
 

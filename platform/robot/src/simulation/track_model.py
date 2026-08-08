@@ -42,16 +42,14 @@ from shared.config.constants import (
     WallSpecs,
 )
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.track_geometry import TrackWalls
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.models import CorridorGeometry
-
-# |cos(yaw)| below this counts as a quarter-turn, so a block's extents are
-# swapped rather than treated as axis-aligned.
-_AXIS_ALIGN_TOLERANCE = 1e-6
 
 # Wall thickness halves (metres), read from track.toml rather than restated.
 # The simulator and the world generator must agree on where a wall face is to
@@ -60,27 +58,6 @@ _AXIS_ALIGN_TOLERANCE = 1e-6
 # contacts the real track never produces.
 _WALL_VISUAL_HALF = WallSpecs.THICKNESS / 2
 _WALL_COLLISION_HALF = WallSpecs.COLLISION_THICKNESS / 2
-
-_COLLISION_MARGIN = 0.0
-"""How far past the visual face the chassis keep-out extends.
-
-Zero: the chassis may drive right up to the wall it can see, because that is
-what the real one does.
-
-This used to be ``_WALL_COLLISION_HALF - _WALL_VISUAL_HALF`` (0.04 m), copying
-the fatter collision mesh the Go generator emits. That mesh exists for Gazebo,
-and for a reason that does not apply here: the LIDAR link sits 30 mm ahead of
-the chassis front, so the wall is padded to keep the link from ending up inside
-it in the physics engine. This simulator has no link and no physics -- it
-raycasts from the chassis centre against the *visual* faces -- so the padding
-bought nothing and cost 4 cm of driveable corridor on every side, making the
-robot effectively 8 cm wider and 8 cm longer than it is.
-
-It also made a legal start impossible. A narrow corridor's middle band spans
-0.400-0.600 and the only placement of a 0.194 m chassis in it puts the edge at
-0.594, which is 34 mm inside a keep-out boundary sitting at 0.560. Every such
-start was frozen before the robot had moved: 23 failures out of 23.
-"""
 
 
 class ContactSurface(StrEnum):
@@ -136,9 +113,21 @@ class ObstacleBox:
     size_y: float
 
     @classmethod
-    def from_pose(cls, cx: float, cy: float, length: float, width: float, yaw: float = 0.0) -> ObstacleBox:
-        """Build a box from a centre pose, swapping extents for a quarter-turn ``yaw``."""
-        quarter_turned = abs(math.cos(yaw)) < _AXIS_ALIGN_TOLERANCE
+    def from_pose(
+        cls,
+        cx: float,
+        cy: float,
+        length: float,
+        width: float,
+        yaw: float = 0.0,
+        tuning: NavigationTuning | None = None,
+    ) -> ObstacleBox:
+        """Build a box from a centre pose, swapping extents for a quarter-turn ``yaw``.
+
+        Uses tuning: simulation.AXIS_ALIGN_TOLERANCE
+        """
+        tuning = get_tuning(tuning)
+        quarter_turned = abs(math.cos(yaw)) < tuning.simulation.AXIS_ALIGN_TOLERANCE
         size_x, size_y = (width, length) if quarter_turned else (length, width)
         return cls(cx=cx, cy=cy, size_x=size_x, size_y=size_y)
 
@@ -149,18 +138,22 @@ class ObstacleBox:
         return _Box(self.cx - half_x, self.cy - half_y, self.cx + half_x, self.cy + half_y)
 
 
-def obstacles_from_metadata(metadata: dict) -> list[ObstacleBox]:
+def obstacles_from_metadata(metadata: dict, tuning: NavigationTuning | None = None) -> list[ObstacleBox]:
     """Collect every physical obstacle in a scenario: traffic signs and parking blocks.
 
     Open Challenge metadata has neither, so this returns an empty list and the
     resulting :class:`TrackModel` behaves exactly as before.
+
+    Uses tuning: simulation.AXIS_ALIGN_TOLERANCE (via ObstacleBox.from_pose)
     """
+    tuning = get_tuning(tuning)
     boxes = [
         ObstacleBox.from_pose(
             cx=float(sign[DictKeys.X]),
             cy=float(sign[DictKeys.Y]),
             length=TrafficSignSpecs.WIDTH,
             width=TrafficSignSpecs.DEPTH,
+            tuning=tuning,
         )
         for sign in metadata.get(DictKeys.SIGN_POSITIONS, [])
     ]
@@ -176,6 +169,7 @@ def obstacles_from_metadata(metadata: dict) -> list[ObstacleBox]:
                     length=ParkingLotSpecs.LENGTH,
                     width=ParkingLotSpecs.WIDTH,
                     yaw=float(parking.get(yaw_key, 0.0)),
+                    tuning=tuning,
                 ),
             )
     return boxes
@@ -189,6 +183,7 @@ class TrackModel:
         geometry: CorridorGeometry,
         obstacles: Sequence[ObstacleBox] | None = None,
         lidar_sees_obstacles: bool = True,
+        tuning: NavigationTuning | None = None,
     ) -> None:
         """Build the track from corridor geometry.
 
@@ -203,7 +198,12 @@ class TrackModel:
                 visible; set False to simulate a LIDAR mounted above them, in
                 which case the camera (mounted higher and pitched down) is the
                 only sensor that perceives them.
+            tuning: Navigation tuning instance. Defaults to loaded defaults.
+
+        Uses tuning: simulation.COLLISION_MARGIN_M
         """
+        tuning = get_tuning(tuning)
+        collision_margin = tuning.simulation.COLLISION_MARGIN_M
         self._walls = TrackWalls(geometry)
         self._obstacles = list(obstacles or [])
         self._lidar_sees_obstacles = lidar_sees_obstacles
@@ -215,17 +215,17 @@ class TrackModel:
         inner = self._walls.inner_block
         self._inner_visual = _Box(inner.x_min, inner.y_min, inner.x_max, inner.y_max)
         self._inner_collision = _Box(
-            inner.x_min - _COLLISION_MARGIN,
-            inner.y_min - _COLLISION_MARGIN,
-            inner.x_max + _COLLISION_MARGIN,
-            inner.y_max + _COLLISION_MARGIN,
+            inner.x_min - collision_margin,
+            inner.y_min - collision_margin,
+            inner.x_max + collision_margin,
+            inner.y_max + collision_margin,
         )
         # Footprint must stay within this outer collision boundary.
         self._outer_collision = _Box(
-            _TRACK_MIN + _COLLISION_MARGIN,
-            _TRACK_MIN + _COLLISION_MARGIN,
-            _TRACK_MAX - _COLLISION_MARGIN,
-            _TRACK_MAX - _COLLISION_MARGIN,
+            _TRACK_MIN + collision_margin,
+            _TRACK_MIN + collision_margin,
+            _TRACK_MAX - collision_margin,
+            _TRACK_MAX - collision_margin,
         )
 
     @property

@@ -6,3 +6,5 @@ search_radius_m = 0.15   # half-width of the initial pose search window
 passes = 4                # coarse-to-fine grid-search passes
 grid_points = 5           # candidates per axis per search pass
 residual_clip_m = 0.25    # per-ray residual clipping distance (outlier rejection)
+max_speed_mps = 0.25             # implausible-jump speed bound, headroom above the measured 0.156 m/s drivetrain ceiling
+jump_confirm_tolerance_m = 0.05  # how close two consecutive rejected candidates must be to confirm a real correction

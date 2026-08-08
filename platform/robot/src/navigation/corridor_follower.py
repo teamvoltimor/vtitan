@@ -184,7 +184,7 @@ def follow_corridor(
     # corridor wall, and centring against it would steer into the other one.
     # Hold the line instead; the direction estimator is about to settle on the
     # very reading that disqualified it.
-    limit = CorridorDimensions.WIDE + 0.35
+    limit = CorridorDimensions.WIDE + follower.CORNER_LEAK_MARGIN_M
     if left > limit or right > limit:
         return DriveCommand(speed_mps=speed_mps, steering_norm=0.0)
 

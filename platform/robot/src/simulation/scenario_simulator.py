@@ -386,7 +386,11 @@ class ScenarioSimulator:
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
         # run reports success while driving straight through every sign.
-        self._track = TrackModel(true_geometry, obstacles=obstacles_from_metadata(metadata.model_dump()))
+        self._track = TrackModel(
+            true_geometry,
+            obstacles=obstacles_from_metadata(metadata.model_dump(), tuning=self._tuning),
+            tuning=self._tuning,
+        )
 
         # ``None`` restores the old all-or-nothing scoring, where any contact
         # with a pillar ends the run. Kept switchable because every figure
@@ -430,7 +434,7 @@ class ScenarioSimulator:
         # control condition for comparison.
         if infer_direction is None:
             infer_direction = blind
-        self._direction_estimator = DirectionEstimator() if infer_direction else None
+        self._direction_estimator = DirectionEstimator(tuning=self._tuning) if infer_direction else None
         self._creep_speed = self._tuning.speed.SLOW_SPEED
         self._creep_widths: list[tuple[float, float]] = []
         """(yaw, measured width) taken before the direction was known."""

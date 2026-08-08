@@ -41,10 +41,6 @@ DEFAULT_CLASS_TO_COLOR: dict[int, TrafficSignColor] = {
     class_id: TrafficSignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
 }
 
-DEFAULT_YOLO_MODEL_PATH = "yolov8n.pt"
-"""Default YOLO model path for test/debug scenarios. Production paths come from config."""
-
-
 class BBoxFormat(Enum):
     """Output bounding-box coordinate convention."""
 
@@ -90,15 +86,20 @@ class DetectorConfig(HardwareBaseSettings):
     """Configuration for detector initialization.
 
     Injects model path and class-to-color mapping, decoupling the model from
-    hardcoded color names. ``model_path`` and ``class_to_color`` are always
-    passed explicitly by callers (they're backend-specific / derived from the
-    model's class order), so only ``min_confidence``/``output_format`` are
-    sourced from config/hardware/vision/detector.toml.
+    hardcoded color names. ``class_to_color`` is always passed explicitly by
+    callers (it's derived from the model's class order). ``model_path`` is
+    normally passed explicitly too (real construction always names a
+    specific, backend-derived model), but its default is sourced from
+    config/hardware/vision/detector.toml rather than a bare literal, for the
+    test/debug callers that build a detector with no config at all (see
+    ``LocalYoloDetector.__init__`` and ``create_detector``) -- previously a
+    module constant (``DEFAULT_YOLO_MODEL_PATH = "yolov8n.pt"``) whose own
+    docstring already flagged it as a placeholder pending config sourcing.
     """
 
     model_config = SettingsConfigDict(env_prefix="detector_", toml_file=CONFIG_DIR / "vision" / "detector.toml")
 
-    model_path: str
+    model_path: str = "yolov8n.pt"
     class_to_color: dict[int, TrafficSignColor]
     min_confidence: float = 0.45
     output_format: BBoxFormat = BBoxFormat.NORMALIZED
@@ -136,10 +137,7 @@ class LocalYoloDetector(DetectorBase):
         from ultralytics import YOLO  # noqa: PLC0415
 
         if config is None:
-            config = DetectorConfig(
-                model_path=DEFAULT_YOLO_MODEL_PATH,
-                class_to_color=DEFAULT_CLASS_TO_COLOR,
-            )
+            config = DetectorConfig(class_to_color=DEFAULT_CLASS_TO_COLOR)
 
         self.config = config
         self.model = YOLO(config.model_path)

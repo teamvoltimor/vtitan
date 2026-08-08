@@ -280,7 +280,9 @@ class TrackNavigator(Node, ResettableNode):
         # chassis square to a corridor at the moment one side opens, and those
         # two coincided on 0 of 1763 scans in run 141814 (177 s of creep, zero
         # laps, on a round whose direction had in fact been supplied correctly).
-        self._direction_estimator = DirectionEstimator() if self._blind and not self._direction_known else None
+        self._direction_estimator = (
+            DirectionEstimator(tuning=self._tuning) if self._blind and not self._direction_known else None
+        )
         # One-shot: take the start measurement on the first tick that has a scan
         # when there is no inference to carry it. Sighted runs read their start
         # from metadata and need neither.
@@ -678,7 +680,9 @@ class TrackNavigator(Node, ResettableNode):
         # known. It reads the current scan, so it yields where the robot is
         # *now* -- the creep displacement this method used to discard is simply
         # never introduced.
-        measured = measure_start_pose(scan.ranges_m, scan.angles_rad, inferred, self._start_section)
+        measured = measure_start_pose(
+            scan.ranges_m, scan.angles_rad, inferred, self._start_section, tuning=self._tuning,
+        )
         seed_xy = (measured.x, measured.y) if measured is not None else self._start_xy
         if measured is None:
             # Refusing to guess. Opposite rays that do not span the mat mean
@@ -949,7 +953,9 @@ class TrackNavigator(Node, ResettableNode):
             # Mirrors construction: a told direction is still told on the next
             # round, so rebuilding an estimator here would put the creep back
             # for every race after the first.
-            self._direction_estimator = DirectionEstimator() if not self._direction_known else None
+            self._direction_estimator = (
+                DirectionEstimator(tuning=self._tuning) if not self._direction_known else None
+            )
             self._pending_known_commit = self._direction_known
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
 

@@ -117,6 +117,30 @@ class LidarSectorParams(BaseModel):
     fail identically)."""
 
 
+class StartMeasurementParams(BaseModel):
+    """LIDAR-based start-pose measurement (measure_start_pose) parameters.
+
+    Attributes:
+        RAY_HALF_WIDTH_DEG: Half-width (deg) of the wedge each cardinal
+            distance (forward/back/left/right) is taken over. Wide enough to
+            average out per-ray noise, narrow enough that the wedge still
+            sees one wall -- at 2.5 m a 4 degree half-angle spans 17 cm of
+            wall, well inside a one metre corridor. Stored in degrees, like
+            LidarSectorParams above, and converted with math.radians() at
+            point of use since TOML has no math functions.
+        CLOSING_TOLERANCE_M: How far ``forward + back`` may fall short of the
+            mat before the reading is rejected. Opposite rays along a
+            corridor must span the mat, so their sum is a free validity
+            check -- see measure_start_pose's own docstring for how this was
+            sized from real scans.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    RAY_HALF_WIDTH_DEG: float = Field(default=4.0, validation_alias=_alias("RAY_HALF_WIDTH_DEG"))
+    CLOSING_TOLERANCE_M: float = Field(default=0.15, validation_alias=_alias("CLOSING_TOLERANCE_M"))
+
+
 class WallHeadingParams(BaseModel):
     """LIDAR wall-direction estimation for the blind heading reference.
 

@@ -27,6 +27,14 @@ class SimulationParams(BaseModel):
             worth measuring from a recorded bag rather than guessed at.
         DETECTION_CONFIDENCE: Confidence stamped on emulated camera
             detections.
+        COLLISION_MARGIN_M: How far past the visual wall face the chassis
+            keep-out extends in TrackModel's collision check. Zero: the
+            chassis may drive right up to the wall it can see, matching the
+            real robot -- see TrackModel module docstring for why this is
+            deliberately NOT the Go generator's fatter Gazebo collision mesh.
+        AXIS_ALIGN_TOLERANCE: |cos(yaw)| below this counts as a quarter-turn
+            for ObstacleBox.from_pose, so a block's extents are swapped
+            rather than treated as axis-aligned.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -41,3 +49,5 @@ class SimulationParams(BaseModel):
         default=0.01, validation_alias=_alias("LIDAR_INVALID_RAY_RATE")
     )
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
+    COLLISION_MARGIN_M: float = Field(default=0.0, validation_alias=_alias("COLLISION_MARGIN_M"))
+    AXIS_ALIGN_TOLERANCE: float = Field(default=1e-6, validation_alias=_alias("AXIS_ALIGN_TOLERANCE"))

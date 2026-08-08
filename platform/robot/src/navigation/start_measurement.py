@@ -35,34 +35,20 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.enums import Direction, Section
 
+from src.config.tuning_helpers import get_tuning
+
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
+
 _MAT = TrackDimensions.MAX_COORD
 _SECTION_ROTATIONS: tuple[Section, ...] = (Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST)
 """Sections in 90-degree rotation order, starting from the frame poses are built in."""
-
-RAY_HALF_WIDTH_RAD: float = math.radians(4.0)
-"""Half-width of the wedge each cardinal distance is taken over.
-
-Wide enough to average out per-ray noise, narrow enough that the wedge still
-sees one wall: at 2.5 m a 4 degree half-angle spans 17 cm of wall, well inside
-a one metre corridor."""
-
-CLOSING_TOLERANCE_M: float = 0.15
-"""How far ``forward + back`` may fall short of the mat before the reading is rejected.
-
-Opposite rays along a corridor must span the mat, so their sum is a free
-validity check -- it needs no knowledge of where the robot is. The tolerance is
-sized from real scans, not nominally: two recorded rounds on a properly set-up
-track summed to 2.978 m and 2.971 m against a nominal 3.0, so the honest error
-on good data is already 2-3 cm before LIDAR noise, mat seams, or walls that are
-not quite square. 0.15 m is five times that, while the failure this rejects --
-a hand, a bystander, or a sign standing in one of the rays -- misses by a metre
-or more. The margin is deliberately generous: a false rejection costs a re-run,
-and a false acceptance costs the round."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +115,8 @@ def measure_start_pose(
     angles_rad: np.ndarray | tuple[float, ...] | list[float],
     direction: Direction,
     section: Section = Section.SOUTH,
-    closing_tolerance_m: float = CLOSING_TOLERANCE_M,
+    closing_tolerance_m: float | None = None,
+    tuning: NavigationTuning | None = None,
 ) -> MeasuredStart | None:
     """Read the robot's pose out of a scan, assuming only its corridor and direction.
 
@@ -141,7 +128,21 @@ def measure_start_pose(
             wall is on -- clockwise keeps the inner block on the robot's right,
             counterclockwise on its left, so the outer wall is opposite it.
         section: The corridor the robot calls its starting one.
-        closing_tolerance_m: See :data:`CLOSING_TOLERANCE_M`.
+        closing_tolerance_m: How far ``forward + back`` may fall short of the
+            mat before the reading is rejected. Opposite rays along a
+            corridor must span the mat, so their sum is a free validity
+            check -- it needs no knowledge of where the robot is. Sized from
+            real scans, not nominally: two recorded rounds on a properly
+            set-up track summed to 2.978 m and 2.971 m against a nominal
+            3.0, so the honest error on good data is already 2-3 cm before
+            LIDAR noise, mat seams, or walls that are not quite square.
+            0.15 m (the tuning default) is five times that, while the
+            failure this rejects -- a hand, a bystander, or a sign standing
+            in one of the rays -- misses by a metre or more. The margin is
+            deliberately generous: a false rejection costs a re-run, and a
+            false acceptance costs the round. Defaults to the tuning
+            profile's value.
+        tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
         The measured start, or ``None`` when the scan cannot support one --
@@ -149,14 +150,22 @@ def measure_start_pose(
         which means something is standing in one of them. ``None`` is a refusal
         to guess, and callers should treat it as "do not race", not as "use the
         old assumption".
+
+    Uses tuning: start_measurement.RAY_HALF_WIDTH_DEG, CLOSING_TOLERANCE_M
     """
+    tuning = get_tuning(tuning)
+    ray_half_width_rad = math.radians(tuning.start_measurement.RAY_HALF_WIDTH_DEG)
+    closing_tolerance_m = (
+        closing_tolerance_m if closing_tolerance_m is not None else tuning.start_measurement.CLOSING_TOLERANCE_M
+    )
+
     ranges = np.asarray(ranges_m, dtype=float)
     angles = np.asarray(angles_rad, dtype=float)
 
-    forward = _wedge_median(ranges, angles, 0.0, RAY_HALF_WIDTH_RAD)
-    back = _wedge_median(ranges, angles, math.pi, RAY_HALF_WIDTH_RAD)
-    left = _wedge_median(ranges, angles, math.pi / 2, RAY_HALF_WIDTH_RAD)
-    right = _wedge_median(ranges, angles, -math.pi / 2, RAY_HALF_WIDTH_RAD)
+    forward = _wedge_median(ranges, angles, 0.0, ray_half_width_rad)
+    back = _wedge_median(ranges, angles, math.pi, ray_half_width_rad)
+    left = _wedge_median(ranges, angles, math.pi / 2, ray_half_width_rad)
+    right = _wedge_median(ranges, angles, -math.pi / 2, ray_half_width_rad)
     if forward is None or back is None or left is None or right is None:
         return None
 

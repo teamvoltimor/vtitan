@@ -951,8 +951,12 @@ class CoreNavigator:
         """
         logger.warning("Robot stuck - triggering escape")
         stuck_diag = self._stuck_detector.get_diagnostics()
-        rear_clear = 10.0
-        forward_clear = 10.0
+        # "Not blocked" sentinel for the no-scan-yet case below, reusing
+        # lidar_sectors.NO_DATA_RANGE_M rather than a second independent
+        # magic 10.0 -- both mean the same thing: no valid reading, so
+        # assume clear rather than blocked.
+        rear_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        forward_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
         scan = self._gateway.get_lidar_scan()
         if scan:
             rear_clear = self._collision_controller.compute_rear_clearance(

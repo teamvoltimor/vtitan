@@ -32,3 +32,12 @@ lidar_invalid_ray_rate = 0.01
 # Confidence stamped on emulated camera detections. Must stay above the sign
 # router's min_confidence or no emulated detection would ever be accepted.
 detection_confidence = 0.9
+
+# How far past the visual wall face TrackModel's chassis keep-out extends.
+# Zero: the chassis may drive right up to the wall it can see, matching the
+# real robot -- NOT the Go generator's fatter Gazebo collision mesh. See
+# TrackModel's module docstring for the full reasoning.
+collision_margin_m = 0.0
+
+# |cos(yaw)| below this counts as a quarter-turn for ObstacleBox.from_pose.
+axis_align_tolerance = 1e-6

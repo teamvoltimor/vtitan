@@ -56,10 +56,6 @@ _WIDE = CorridorDimensions.WIDE
 _DECISION_BOUNDARY = (_NARROW + _WIDE) / 2.0
 """0.8 m — the only threshold needed, halfway between the two legal widths."""
 
-_MIN_PLAUSIBLE_WIDTH = _NARROW - 0.25
-_MAX_PLAUSIBLE_WIDTH = _WIDE + 0.25
-"""Outside this band the inward ray has missed the inner block (a corner)."""
-
 
 def measure_corridor_width(
     ranges_m: Sequence[float],
@@ -79,8 +75,13 @@ def measure_corridor_width(
         CorridorWidthMeasurement with plausibility and alignment flags, or
         ``None`` when the chassis is too far off the corridor axis or the
         total is not physically plausible.
+
+    Uses tuning: corridor_estimator.PLAUSIBLE_WIDTH_MARGIN_M
     """
     tuning = get_tuning(tuning)
+    margin = tuning.corridor_estimator.PLAUSIBLE_WIDTH_MARGIN_M
+    min_plausible_width = _NARROW - margin
+    max_plausible_width = _WIDE + margin
 
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
@@ -89,7 +90,7 @@ def measure_corridor_width(
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
     right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
     width = (left + right) * math.cos(axis_error) if is_aligned else 0.0
-    is_plausible = _MIN_PLAUSIBLE_WIDTH < width < _MAX_PLAUSIBLE_WIDTH
+    is_plausible = min_plausible_width < width < max_plausible_width
 
     if is_aligned and is_plausible:
         return CorridorWidthMeasurement(

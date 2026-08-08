@@ -207,6 +207,7 @@ def calculate_waypoints(
         west_cx,
         corner_radii,
         direction,
+        tuning,
     )
 
     order = _build_corridor_order(direction)
@@ -237,6 +238,7 @@ def _build_all_segments(
     west_cx: float,
     corner_radii: dict[str, float],
     direction: Direction,
+    tuning: NavigationTuning | None = None,
 ) -> dict[Section, list[tuple[float, float]]]:
     """Construct per-corridor waypoint lists (straights + corner arcs) for both directions.
 
@@ -250,10 +252,17 @@ def _build_all_segments(
             differ and each straight is trimmed by the radius of the corner at
             its own end rather than by one shared value.
         direction: Travel direction; CCW reverses each segment.
+        tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
         Per-section waypoint lists, each a straight followed by its exit arc.
+
+    Uses tuning: waypoints.NUM_INTERMEDIATE_ARC_POINTS, STRAIGHT_WAYPOINT_COUNT
     """
+    tuning = get_tuning(tuning)
+    num_intermediate = tuning.waypoints.NUM_INTERMEDIATE_ARC_POINTS
+    straight_count = tuning.waypoints.STRAIGHT_WAYPOINT_COUNT
+
     r_se, r_sw, r_nw, r_ne = (corner_radii[k] for k in ("se", "sw", "nw", "ne"))
 
     # Corner arc ICR positions and arc angle ranges (CW direction)
@@ -262,17 +271,25 @@ def _build_all_segments(
     nw_icr = (west_cx + r_nw, north_cy - r_nw)
     ne_icr = (east_cx - r_ne, north_cy - r_ne)
 
-    se_cw = _arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2)
-    sw_cw = _arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi)
-    nw_cw = _arc_with_endpoints(nw_icr, r_nw, math.pi, math.pi / 2)
-    ne_cw = _arc_with_endpoints(ne_icr, r_ne, math.pi / 2, 0.0)
+    se_cw = _arc_with_endpoints(se_icr, r_se, 0.0, -math.pi / 2, num_intermediate)
+    sw_cw = _arc_with_endpoints(sw_icr, r_sw, -math.pi / 2, -math.pi, num_intermediate)
+    nw_cw = _arc_with_endpoints(nw_icr, r_nw, math.pi, math.pi / 2, num_intermediate)
+    ne_cw = _arc_with_endpoints(ne_icr, r_ne, math.pi / 2, 0.0, num_intermediate)
 
     # CW straight segments. Each end is trimmed by the radius of the corner it
     # runs into, which is why the two bounds no longer share a value.
-    east_straight = _straight_waypoints(east_cx, is_x=True, start=north_cy - r_ne, end=south_cy + r_se)
-    south_straight = _straight_waypoints(south_cy, is_x=False, start=east_cx - r_se, end=west_cx + r_sw)
-    west_straight = _straight_waypoints(west_cx, is_x=True, start=south_cy + r_sw, end=north_cy - r_nw)
-    north_straight = _straight_waypoints(north_cy, is_x=False, start=west_cx + r_nw, end=east_cx - r_ne)
+    east_straight = _straight_waypoints(
+        east_cx, is_x=True, start=north_cy - r_ne, end=south_cy + r_se, count=straight_count,
+    )
+    south_straight = _straight_waypoints(
+        south_cy, is_x=False, start=east_cx - r_se, end=west_cx + r_sw, count=straight_count,
+    )
+    west_straight = _straight_waypoints(
+        west_cx, is_x=True, start=south_cy + r_sw, end=north_cy - r_nw, count=straight_count,
+    )
+    north_straight = _straight_waypoints(
+        north_cy, is_x=False, start=west_cx + r_nw, end=east_cx - r_ne, count=straight_count,
+    )
 
     if direction is Direction.CLOCKWISE:
         return {
