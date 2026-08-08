@@ -27,6 +27,12 @@ class StateMachineTopics(BaseModel):
     state: str
     """Robot state published by state_machine_node."""
 
+    race_metrics: str
+    """Race metrics (JSON), published by state_machine_node."""
+
+    system_status: str
+    """System diagnostics, published by both state_machine_node and telemetry_bridge_node."""
+
 
 class NavigationTopics(BaseModel):
     """Navigation related topics."""
@@ -56,8 +62,17 @@ class SensorTopics(BaseModel):
     imu: str
     """IMU data from the BNO085."""
 
+    vision_detections: str
+    """Vision detections (std_msgs/String, JSON), published by vision_node."""
+
     hailo_detections: str
-    """Hailo vision detections."""
+    """Hailo vision detections.
+
+    NOTE: as of 2026-08-08, nothing publishes vision_msgs/Detection2DArray on
+    this topic -- vision_node only ever publishes JSON on `vision_detections`
+    above. Kept for telemetry_bridge_node's still-dead Detection2DArray
+    subscription, tracked separately for a rewrite.
+    """
 
 
 class CommandTopics(BaseModel):
@@ -65,8 +80,8 @@ class CommandTopics(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    cmd_vel: str
-    """Drive command velocity (Twist) sent to the drive/steering nodes."""
+    ackermann_cmd: str
+    """Ackermann drive command sent to the drive/steering nodes."""
 
 
 class ActuatorTopics(BaseModel):
@@ -76,6 +91,33 @@ class ActuatorTopics(BaseModel):
 
     joint_states: str
     """Joint state feedback (steering angle, drive speed, encoder position)."""
+
+    steering_position: str
+    """Current steering position in degrees, published by ackermann_motor_node."""
+
+    drive_speed: str
+    """Current drive speed in degrees/s, published by ackermann_motor_node."""
+
+    status: str
+    """Motor status diagnostics, published by ackermann_motor_node."""
+
+
+class ChallengeModeTopics(BaseModel):
+    """Challenge-mode jumper topics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    jumper_inserted: str
+    """Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to)."""
+
+
+class ButtonTopics(BaseModel):
+    """Physical button topics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    event: str
+    """Button events from button_node on the Pi Zero."""
 
 
 class RosTopicConfig(BaseModel):
@@ -88,6 +130,8 @@ class RosTopicConfig(BaseModel):
     sensors: SensorTopics
     commands: CommandTopics
     actuators: ActuatorTopics
+    challenge_mode: ChallengeModeTopics
+    button: ButtonTopics
 
     _default_config_path: ClassVar[Path] = (
         Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"

@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, override
 
 import rclpy
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 from src.hardware.button.gpio import Driver as ButtonDriver
@@ -41,7 +42,6 @@ if TYPE_CHECKING:
     from src.hardware.button.state import ButtonState
 
 NODE_NAME = "button_node"
-BUTTON_EVENT_TOPIC = "/button/event"
 BUTTON_HOLD_TOPIC = "/button/hold"
 DEFAULT_QUEUE_DEPTH = 10
 BUTTON_POLL_HZ = 20.0
@@ -76,7 +76,8 @@ class ButtonNode(LifecycleNode):
         """Connect the GPIO driver and create the publisher."""
         self.get_logger().info("Configuring Button Node")
 
-        self.pub = self.create_lifecycle_publisher(String, BUTTON_EVENT_TOPIC, DEFAULT_QUEUE_DEPTH)
+        topics = RosTopicConfig.load_default()
+        self.pub = self.create_lifecycle_publisher(String, topics.button.event, DEFAULT_QUEUE_DEPTH)
         # Depth 1: this is a liveness readout at 20Hz, and a subscriber that
         # fell behind wants the current hold time, never a backlog of old ones.
         self.pub_hold = self.create_lifecycle_publisher(String, BUTTON_HOLD_TOPIC, 1)

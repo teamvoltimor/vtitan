@@ -207,12 +207,14 @@ class TrackNavigator(Node, ResettableNode):
         start_y = start_cond[DictKeys.POSITION][DictKeys.Y]
         start_yaw = start_cond[DictKeys.YAW]
 
-        # Parameters. Defaults match the topics the deployed nodes actually
-        # use (ackermann_motor_node's /ackermann_cmd, sllidar_ros2's /scan) —
-        # not the pre-Ackermann-migration /wro_robot/cmd_vel and /lidar names
-        # this node previously assumed. There is no odom_topic: no node
-        # publishes nav_msgs/Odometry on real hardware, so position comes
-        # from LIDAR localization instead (see ROS2HardwareGateway).
+        # Parameters. Defaults come from RosTopicConfig, the single source of
+        # truth for the topics the deployed nodes actually use
+        # (ackermann_motor_node's /ackermann_cmd, sllidar_ros2's /scan) — not
+        # the pre-Ackermann-migration /wro_robot/cmd_vel and /lidar names this
+        # node previously assumed. There is no odom_topic: no node publishes
+        # nav_msgs/Odometry on real hardware, so position comes from LIDAR
+        # localization instead (see ROS2HardwareGateway).
+        self._topics = RosTopicConfig.load_default()
         self._declare_parameters()
 
         if params_path is not None:
@@ -361,7 +363,6 @@ class TrackNavigator(Node, ResettableNode):
         # EFFORT, published every control tick regardless of outcome, same
         # rationale as /robot_state above: a dropped sample is corrected
         # within one tick, so nothing here can be allowed to block this loop.
-        self._topics = RosTopicConfig.load_default()
         self._laps_pub = self.create_publisher(
             Int32,
             self._topics.navigation.laps_completed,
@@ -404,11 +405,11 @@ class TrackNavigator(Node, ResettableNode):
 
     def _declare_parameters(self) -> None:
         """Declare this node's ROS2 parameters with their default values."""
-        self.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-        self.declare_parameter("lidar_topic", "/scan")
-        self.declare_parameter("vision_topic", "/vision/detections")
-        self.declare_parameter("imu_topic", "/imu/data")
-        self.declare_parameter("joint_states_topic", "/joint_states")
+        self.declare_parameter("ackermann_cmd_topic", self._topics.commands.ackermann_cmd)
+        self.declare_parameter("lidar_topic", self._topics.sensors.scan)
+        self.declare_parameter("vision_topic", self._topics.sensors.vision_detections)
+        self.declare_parameter("imu_topic", self._topics.sensors.imu)
+        self.declare_parameter("joint_states_topic", self._topics.actuators.joint_states)
         self.declare_parameter("is_simulation", value=False)
 
     def _build_core_navigator(
@@ -813,8 +814,21 @@ class TrackNavigator(Node, ResettableNode):
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
         metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
+        # The enum itself, NOT str(self._direction): model_copy() does not
+        # validate, so a plain string survives into the field un-coerced and
+        # every `direction is Direction.CLOCKWISE` test downstream
+        # (calculate_waypoints, _build_corridor_order, start_measurement,
+        # parking, collision avoidance) silently reads False. A clockwise round
+        # was therefore planned counterclockwise -- the path ran the opposite way
+        # around the mat, so every waypoint "ahead" in path order sat behind the
+        # chassis, the lookahead search skipped most of a lap to the first
+        # barely-forward point ~2.5 m away, and pure pursuit's 1/distance^2
+        # curvature answered an 86 deg bearing error with 5% of full lock.
+        # Measured on 2026-08-08 runs 140300/140513: 0 laps, speed pinned at the
+        # 0.05 m/s creep floor for 100% of ticks. Counterclockwise rounds were
+        # unaffected, which is why this survived: the wrong branch is the CCW one.
         new_starting = metadata.starting_conditions.model_copy(
-            update={"direction": str(self._direction)},
+            update={"direction": self._direction},
         )
         planning_metadata = metadata.model_copy(
             update={"starting_conditions": new_starting},

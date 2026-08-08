@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, override
 
 import numpy as np
 import rclpy
+from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import SetParametersResult
 from rcl_interfaces.srv import SetParameters
@@ -197,7 +197,7 @@ class RosMsgType:
     ODOMETRY = "nav_msgs/Odometry"
     IMU = "sensor_msgs/Imu"
     STRING = "std_msgs/String"
-    TWIST = "geometry_msgs/Twist"
+    ACKERMANN_DRIVE_STAMPED = "ackermann_msgs/AckermannDriveStamped"
     JOINT_STATE = "sensor_msgs/JointState"
     DETECTION_2D_ARRAY = "vision_msgs/Detection2DArray"
 
@@ -313,7 +313,7 @@ class TelemetryBridgeNode(Node):
         self._latest_odom: Odometry | None = None
         self._latest_imu: Imu | None = None
         self._latest_state: str = "unknown"
-        self._latest_cmd_vel: Twist | None = None
+        self._latest_ackermann_cmd: AckermannDriveStamped | None = None
         self._latest_joints: JointState | None = None
         self._latest_vision: Detection2DArray | None = None
 
@@ -327,7 +327,9 @@ class TelemetryBridgeNode(Node):
         # the telemetry gRPC channel's connect/disconnect events -- see
         # _on_telemetry_channel_state_changed.
         self._backend_down = False
-        self._system_status_pub = self.create_publisher(DiagnosticArray, "/system_status", _QOS_SYSTEM_STATUS)
+        self._system_status_pub = self.create_publisher(
+            DiagnosticArray, self._topics.state_machine.system_status, _QOS_SYSTEM_STATUS,
+        )
 
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
         # the only sensor telemetry it needs, so it doesn't have to
@@ -370,7 +372,7 @@ class TelemetryBridgeNode(Node):
         # backing implementation anywhere in this codebase yet (no paused
         # state, no reboot/shutdown handler) -- those are acked FAILED, not
         # silently dropped, so the backend/operator can see they didn't run.
-        button_pub = self.create_publisher(String, "/button/event", 10)
+        button_pub = self.create_publisher(String, self._topics.button.event, 10)
         # SET_VISION_DEBUG is applied via VisionNode's standard ROS2
         # set_parameters service (see ros2/vision/node.py's
         # add_on_set_parameters_callback) -- these are separate OS processes
@@ -425,7 +427,12 @@ class TelemetryBridgeNode(Node):
             self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, 10)
         self.create_subscription(Imu, self._topics.sensors.imu, self._imu_callback, qos_profile_sensor_data)
         self.create_subscription(String, self._topics.state_machine.state, self._state_callback, 10)
-        self.create_subscription(Twist, self._topics.commands.cmd_vel, self._cmd_vel_callback, 10)
+        self.create_subscription(
+            AckermannDriveStamped,
+            self._topics.commands.ackermann_cmd,
+            self._ackermann_cmd_callback,
+            10,
+        )
         self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
         self.create_subscription(
             Detection2DArray,
@@ -453,9 +460,9 @@ class TelemetryBridgeNode(Node):
         self._update_raw_topic(self._topics.state_machine.state, RosMsgType.STRING, msg)
         self._logs.append(f"State: {msg.data}")
 
-    def _cmd_vel_callback(self, msg: Twist) -> None:
-        self._latest_cmd_vel = msg
-        self._update_raw_topic(self._topics.commands.cmd_vel, RosMsgType.TWIST, msg)
+    def _ackermann_cmd_callback(self, msg: AckermannDriveStamped) -> None:
+        self._latest_ackermann_cmd = msg
+        self._update_raw_topic(self._topics.commands.ackermann_cmd, RosMsgType.ACKERMANN_DRIVE_STAMPED, msg)
 
     def _joint_callback(self, msg: JointState) -> None:
         self._latest_joints = msg
@@ -756,10 +763,10 @@ class TelemetryBridgeNode(Node):
 
         # Motor state
         motor_state: _MotorStatePayload | None = None
-        if self._latest_joints and self._latest_cmd_vel:
+        if self._latest_joints and self._latest_ackermann_cmd:
             motor_snapshot = MotorStateSnapshot(
                 steering_angle_deg=float(self._latest_joints.position[0]) if len(self._latest_joints.position) > 0 else 0.0,
-                drive_speed=self._latest_cmd_vel.linear.x,
+                drive_speed=self._latest_ackermann_cmd.drive.speed,
                 encoder_position=int(self._latest_joints.position[1]) if len(self._latest_joints.position) > 1 else 0,
                 timestamp=timestamp,
             )
@@ -857,8 +864,8 @@ class TelemetryBridgeNode(Node):
                     back = min(valid_b) if valid_b else None
 
         speed: float | None = None
-        if self._latest_cmd_vel:
-            speed = self._latest_cmd_vel.linear.x
+        if self._latest_ackermann_cmd:
+            speed = self._latest_ackermann_cmd.drive.speed
 
         return TelemetryMetrics(
             timestamp=timestamp,

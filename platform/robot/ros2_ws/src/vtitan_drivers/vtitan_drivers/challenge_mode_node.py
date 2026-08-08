@@ -25,13 +25,12 @@ from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool
 
 from src.hardware.challenge_mode.driver import Driver as ChallengeModeDriver
 
 NODE_NAME = "challenge_mode_node"
-
-JUMPER_TOPIC = "/challenge_mode/jumper_inserted"
 
 PUBLISH_RATE_HZ = 2.0
 """Republish rate.
@@ -60,7 +59,8 @@ class ChallengeModeNode(Node):
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
-        self._publisher = self.create_publisher(Bool, JUMPER_TOPIC, qos)
+        topics = RosTopicConfig.load_default()
+        self._publisher = self.create_publisher(Bool, topics.challenge_mode.jumper_inserted, qos)
 
         # The driver connects lazily, so constructing it touches no GPIO and
         # cannot fail here; a wiring or permissions fault surfaces on the first

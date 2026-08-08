@@ -4,7 +4,6 @@
 # only the defaults used when a node is launched with no overrides.
 
 camera_topic = "/camera/image_raw"
-detections_topic = "/vision/detections"
 model_path = "yolov8n.pt"
 backend = "yolo"
 camera_source = "topic"

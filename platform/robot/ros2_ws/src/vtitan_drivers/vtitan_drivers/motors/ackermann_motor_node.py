@@ -67,6 +67,7 @@ from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from sensor_msgs.msg import JointState
 from shared.config.constants import RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
 from src.hardware.motors.base import EncodedDriveDriver
@@ -235,6 +236,8 @@ class AckermannMotorNode(LifecycleNode):
         super().__init__(NODE_NAME)
         self.get_logger().info("Ackermann Motor Node constructed (unconfigured)")
 
+        self._topics = RosTopicConfig.load_default()
+
         self.config: Config | None = None
         self.steering_backend: SteeringBackend | None = None
         self.drive_backend: DriveBackend | None = None
@@ -334,10 +337,10 @@ class AckermannMotorNode(LifecycleNode):
             self.steering = None
             self.drive = None
 
-        self.steering_pos_pub = self.create_lifecycle_publisher(Float32, "/motor/steering_position", 10)
-        self.drive_speed_pub = self.create_lifecycle_publisher(Float32, "/motor/drive_speed", 10)
-        self.status_pub = self.create_lifecycle_publisher(DiagnosticStatus, "/motor/status", 10)
-        self.joint_state_pub = self.create_lifecycle_publisher(JointState, "/joint_states", 10)
+        self.steering_pos_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.steering_position, 10)
+        self.drive_speed_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.drive_speed, 10)
+        self.status_pub = self.create_lifecycle_publisher(DiagnosticStatus, self._topics.actuators.status, 10)
+        self.joint_state_pub = self.create_lifecycle_publisher(JointState, self._topics.actuators.joint_states, 10)
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -348,7 +351,7 @@ class AckermannMotorNode(LifecycleNode):
 
         self.ackermann_sub = self.create_subscription(
             AckermannDriveStamped,
-            "/ackermann_cmd",
+            self._topics.commands.ackermann_cmd,
             self._ackermann_callback,
             10,
         )
