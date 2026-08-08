@@ -85,7 +85,6 @@ class WallHeadingContext:
 
 _DEFAULT_WALL_HEADING_CONTEXT = WallHeadingContext()
 
-# All constants accessed via context.constants — no module-level duplicates
 
 def estimate_yaw_from_walls(
     ranges_m: Sequence[float],
