@@ -801,18 +801,23 @@ class TrackNavigator(Node, ResettableNode):
         # ScenarioMetadata. Validating it here (rather than just annotating it
         # as one) is what the .model_copy() calls below need to not crash with
         # AttributeError: 'dict' object has no attribute 'starting_conditions'.
-        metadata = ScenarioMetadata.model_validate(self._metadata)
+        #
+        # corridor_widths has no default on ScenarioMetadata (deliberately --
+        # see its docstring), and a blind run's self._metadata never carries
+        # one at all: there is no scenario file to read it from, only the
+        # live width estimate this method receives as `widths`. Validating
+        # self._metadata as-is therefore raised on every blind run before the
+        # model_copy() ever got a chance to supply the real value -- merge it
+        # in up front instead of patching it in after.
         new_widths = CorridorWidths(
             **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
         )
+        metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
         new_starting = metadata.starting_conditions.model_copy(
             update={"direction": str(self._direction)},
         )
         planning_metadata = metadata.model_copy(
-            update={
-                "corridor_widths": new_widths,
-                "starting_conditions": new_starting,
-            },
+            update={"starting_conditions": new_starting},
         )
         return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 
