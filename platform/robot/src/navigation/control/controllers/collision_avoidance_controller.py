@@ -18,6 +18,8 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, RiskLevel
 from shared.domain.models import SectorRanges
 
+from src.config.tuning_helpers import get_tuning
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -416,7 +418,7 @@ class CollisionAvoidanceController:
             return ranges
 
         if self_detection_threshold_m is None or min_valid_range_m is None or blind_wedge_left_min_rad is None:
-            tuning = NavigationTuning.load_default()
+            tuning = get_tuning(None)
             if self_detection_threshold_m is None:
                 self_detection_threshold_m = tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M
             if min_valid_range_m is None:
@@ -485,7 +487,7 @@ class CollisionAvoidanceController:
             blind_wedge_right_max_rad,
         )
         if no_data_range_m is None:
-            no_data_range_m = NavigationTuning.load_default().lidar_sectors.NO_DATA_RANGE_M
+            no_data_range_m = get_tuning(None).lidar_sectors.NO_DATA_RANGE_M
         wedge_masked = False
         if ranges.size == 0:
             # Distinguish "this bearing is a known permanent blind spot" from

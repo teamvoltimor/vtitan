@@ -24,6 +24,7 @@ from shared.config.enums import Direction, ScenarioType, Section
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import ScenarioMetadata
 
+from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.corridor_estimator import (
     CorridorWidthEstimator,
@@ -363,7 +364,7 @@ class ScenarioSimulator:
         # ``NavigationTuning`` where ``for_obstacles()`` used to be.
         #
         # Assigned before the blind branch below, which reads it.
-        self._tuning = tuning if tuning is not None else NavigationTuning.load_default()
+        self._tuning = get_tuning(tuning)
         believed_start = start
         if blind:
             # No widths passed, so it falls back to the all-narrow prior --
@@ -411,6 +412,7 @@ class ScenarioSimulator:
                 assumed_width=CorridorDimensions.NARROW
                 if is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
+                tuning=self._tuning,
             )
             if blind
             else None

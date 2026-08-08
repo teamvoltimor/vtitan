@@ -158,9 +158,14 @@ class CorridorWidthEstimator:
     where it starts, not whether it measures.
     """
 
-    def __init__(self, min_samples: int | None = None, assumed_width: float = _NARROW) -> None:
+    def __init__(
+        self,
+        min_samples: int | None = None,
+        assumed_width: float = _NARROW,
+        tuning: NavigationTuning | None = None,
+    ) -> None:
         if min_samples is None:
-            min_samples = NavigationTuning.load_default().corridor_estimator.MIN_SAMPLES
+            min_samples = get_tuning(tuning).corridor_estimator.MIN_SAMPLES
         self._min_samples = min_samples
         self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()

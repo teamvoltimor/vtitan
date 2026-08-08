@@ -260,6 +260,7 @@ class TrackNavigator(Node, ResettableNode):
                 assumed_width=CorridorDimensions.NARROW
                 if self._is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
+                tuning=self._tuning,
             )
             if self._blind
             else None
@@ -887,6 +888,7 @@ class TrackNavigator(Node, ResettableNode):
                 assumed_width=CorridorDimensions.NARROW
                 if self._is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
+                tuning=self._tuning,
             )
             # Mirrors construction: a told direction is still told on the next
             # round, so rebuilding an estimator here would put the creep back
