@@ -2,10 +2,20 @@
 #
 # See shared.config.navigation_tuning.WaypointParams.
 
-# Corner arc radius (m). Must exceed the Ackermann minimum turning radius
-# (~0.034m: WHEELBASE=0.19m / tan(MAX_STEERING_ANGLE=1.2252rad), reduced further
-# by counter-phase steering) -- enforced by a fail-fast width assertion in
-# calculate_waypoints.
+# Ceiling on the corner arc radius (m), NOT the radius itself. Each corner sizes
+# its own arc from the two corridors it joins -- max(W_entry, W_exit)/2 minus
+# center_bias_m, see waypoints._corner_arc_radius -- which returns this value for
+# every corner type except narrow-to-narrow. That one comes out at 0.25 and
+# doubles its clearance to the inner block; at a flat 0.45 the arc bulged past
+# the centreline and left 0.070 m of chassis margin where 0.153 m was available.
+#
+# Do not "fix" a clearance problem by lowering this. Clearance is flat below the
+# per-corner value, so a smaller radius buys nothing and costs lap length
+# (dP/dr = 2*pi - 8, so a WIDER arc is a SHORTER lap). Measured: dropping this to
+# 0.30 globally cost +5.8 s across 24 scenarios and changed no verdict.
+#
+# Must exceed the Ackermann minimum turning radius (~0.034m: WHEELBASE=0.19m /
+# tan(MAX_STEERING_ANGLE=1.2252rad), reduced further by counter-phase steering).
 arc_radius = 0.45
 
 # Distance below which consecutive generated waypoints are treated as duplicates.
@@ -13,11 +23,25 @@ dedupe_distance_m = 0.001
 
 # How far (m) to shift corridor centreline waypoints off centre, and toward
 # which boundary. Split so a side can be A/B'd without touching the distance.
-# Clearance is symmetric either way (0.05 off centre leaves 0.353 m to the near
-# boundary in a 1.0 m corridor, 0.153 m in a 0.6 m one), so biasing inward
-# costs nothing and shortens every lap -- the path is a loop around the inner
-# block, so each centimetre nearer it comes off all four sides.
-center_bias_m = 0.05
+#
+# The path is a loop around the inner block, so each centimetre nearer it comes
+# off all four sides: 8 cm of lap per cm of bias. Measured inward vs outward at
+# 0.05, the inward path finished 24/24 against 21/24 and was faster on all 21
+# comparable scenarios (+18.2 s mean for outward).
+#
+# Raised 0.05 -> 0.10 once the per-corner arc radius landed. Before that the
+# corner was a hidden bottleneck: at 0.10 with a flat 0.45 arc, clearance to the
+# inner block corner was exactly 0.000 m while the straight still showed 10 cm
+# spare, so the ceiling was invisible in this file. With per-corner arcs the
+# corner margin equals the straight margin at every bias -- a single budget,
+# 0.203 - center_bias_m -- and this is a plain trade of margin for lap time.
+# Measured at 0.10: 24/24 ok, -5.5 s mean over 24 scenarios, 23 of 24 faster.
+#
+# 0.103 m of margin is what remains here. Hardware crosstrack was last measured
+# at 0.16 m median, so this is NOT margin to spend freely: it is already below
+# the tracking error, and the only reason to go further would be a measurement
+# of real crosstrack against this geometry.
+center_bias_m = 0.10
 center_bias_side = "inner"
 
 # Number of intermediate sample points per corner arc.
