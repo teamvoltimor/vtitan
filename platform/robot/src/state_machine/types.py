@@ -41,7 +41,7 @@ class PathStatus(StrEnum):
     """Path is clear but narrow."""
 
 
-@dataclass
+@dataclass(slots=True)
 class SensorStatus:
     """Status of individual sensor/component."""
 
@@ -55,7 +55,7 @@ class SensorStatus:
     """Error message if component is not ready."""
 
 
-@dataclass
+@dataclass(slots=True)
 class SystemStatus:
     """Overall system status for BOOT_CHECK state."""
 
@@ -84,7 +84,7 @@ class SystemStatus:
     """Detected challenge mode once the jumper reading has stabilized, else None."""
 
 
-@dataclass
+@dataclass(slots=True)
 class RaceStatus:
     """Instantaneous race-state snapshot for telemetry display."""
 
@@ -107,7 +107,7 @@ class RaceStatus:
     """Active track corridor, or None if unknown."""
 
 
-@dataclass
+@dataclass(slots=True)
 class VisionMetrics:
     """Hailo AI vision metrics."""
 
@@ -133,7 +133,7 @@ class VisionMetrics:
     """Estimated distance to target in meters."""
 
 
-@dataclass
+@dataclass(slots=True)
 class LidarMetrics:
     """LiDAR spatial awareness metrics."""
 

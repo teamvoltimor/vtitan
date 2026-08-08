@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from src.logger.constants import DETAILS_KEY
 
 
-@dataclass
+@dataclass(slots=True)
 class LogPayload:
     """Represents a structured log entry for the logging system."""
 
@@ -29,6 +29,8 @@ class LogPayload:
         self.timestamp = datetime.now(UTC).isoformat()
         self.level = record.levelname.lower()
         self.logger = record.name
+        self.details = None
+        self.exc_info = None
 
         # getMessage() already interpolates record.args into the message string,
         # so we never put args in the payload — third-party libraries (e.g. urllib3)

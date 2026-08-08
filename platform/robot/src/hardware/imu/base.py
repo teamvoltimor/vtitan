@@ -12,7 +12,7 @@ from src.hardware.imu.readings import (
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class Data:
     """Aggregate IMU sensor reading returned by ``Driver.get_all_data()``."""
 

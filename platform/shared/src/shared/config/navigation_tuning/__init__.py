@@ -86,7 +86,7 @@ package is the one that actually knows where its own config lives -- callers
 under the same platform/ root."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NavigationTuning:
     """Complete navigation tuning configuration.
 
