@@ -80,7 +80,7 @@ dev_addr=$(cat /sys/module/g_ether/parameters/dev_addr 2>/dev/null)
 section "pi_zero role: usb0 gadget static IP"
 lsmod | grep -q '^g_ether' && ok "g_ether module loaded" || bad "g_ether module not loaded"
 nmcli -t -f NAME,DEVICE,STATE con show --active 2>/dev/null | grep -q '^usb0:usb0:activated' && ok "usb0 connection active" || bad "usb0 connection NOT active -- check for a netplan-eth0 (or similar) profile claiming the device instead"
-usb0_ip=$(nmcli -t -f ipv4.addresses con show usb0 2>/dev/null)
+usb0_ip=$(nmcli -t -f ipv4.addresses con show usb0 2>/dev/null | cut -d: -f2)
 info "usb0 ipv4.addresses: $usb0_ip"
 [ "$usb0_ip" = "192.168.250.1/24" ] && ok "usb0 static IP correct" || bad "usb0 static IP wrong or unset (got: $usb0_ip)"
 prio=$(nmcli -t -f connection.autoconnect-priority con show usb0 2>/dev/null | cut -d: -f2)
