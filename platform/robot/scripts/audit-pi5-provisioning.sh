@@ -56,6 +56,12 @@ section "common role: udev + journald"
 section "common role: linger (tmux/background survives SSH drop)"
 [ -f "/var/lib/systemd/linger/$USER_NAME" ] && ok "linger enabled for $USER_NAME" || bad "linger NOT enabled for $USER_NAME"
 
+section "common role: UDP socket buffers (DDS cross-board delivery)"
+for setting in net.core.rmem_max net.core.rmem_default net.core.wmem_max net.core.wmem_default; do
+  val=$(cat "/proc/sys/${setting//./\/}" 2>/dev/null)
+  [ "$val" = "8388608" ] && ok "$setting = 8388608" || bad "$setting not raised (got: $val) -- Pi5<->Zero DDS delivery will silently fail under load, see ansible/roles/common/tasks/main.yml"
+done
+
 section "pi5 role: raspi-config interfaces"
 command -v raspi-config >/dev/null 2>&1 && {
   grep -q '^camera_auto_detect=1' /boot/firmware/config.txt 2>/dev/null && ok "camera enabled (config.txt)" || bad "camera not confirmed enabled in config.txt"
