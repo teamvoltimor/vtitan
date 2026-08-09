@@ -23,11 +23,18 @@ the angle_error sign split, and a "target behind robot" (x_local<=0) check.
 It works from the same normal_drive rows the table presets already decode,
 so it does not duplicate any column/sampling logic.
 
+``--effectiveness`` asks the question the table presets cannot: does the
+chassis actually achieve the yaw rate its MEASURED steering angle implies?
+Pure pursuit can command correctly and the servo obey exactly while the robot
+still corners wide. A left/right split in the answer is a steering trim
+offset, which shows up on track as a direction-dependent path error.
+
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_steer.py RUN_DIR --preset steer --until 7
     pixi run -e dev python scripts/bag/diag_bag_steer.py RUN_DIR --preset coarse --every 1.0
     pixi run -e dev python scripts/bag/diag_bag_steer.py RUN_DIR --preset trace --start 0 --until 12 --cmd
     pixi run -e dev python scripts/bag/diag_bag_steer.py RUN_DIR --stats
+    pixi run -e dev python scripts/bag/diag_bag_steer.py CW_RUN --effectiveness --pool CCW_RUN
 """
 
 from __future__ import annotations
@@ -43,6 +50,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.serialization import deserialize_message
+from sensor_msgs.msg import Imu
+from shared.config.constants import RobotSpecs
+from std_msgs.msg import Float32
 
 from scripts.common.bag_io import (
     Topics,
@@ -53,6 +63,7 @@ from scripts.common.bag_io import (
     open_reader,
 )
 from scripts.common.tables import fmt_optional, print_table
+from src.navigation.utils import _wrap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -62,6 +73,24 @@ if TYPE_CHECKING:
 _DEFAULT_COARSE_INTERVAL_S = 1.0
 _TARGET_LOOKAHEAD_RATIO_ALERT = 3.0
 """tmp_compare.py's threshold for flagging a target that has drifted far past its lookahead distance."""
+
+_L_EFF = RobotSpecs.WHEELBASE / (1.0 + abs(RobotSpecs.REAR_STEER_RATIO))
+"""Counter-phase steering pivots about the chassis centre, so the turn reference
+is half the wheelbase. Whether the chassis actually does this is exactly what
+--effectiveness is testing, so this is the hypothesis under test, not a given."""
+_YAW_WINDOW_S = 0.20
+_MIN_STEER_DEG = 5.0
+"""Below this the predicted yaw rate is small enough that the ratio is noise."""
+_MIN_SPEED_MPS = 0.05
+_PAIR_TOL_S = 0.15
+_TRIM_SWEEP_DEG = 8.0
+_TRIM_STEP_DEG = 0.5
+_MIN_BUCKET = 50
+"""Fewest samples a left/right bucket needs before its median is worth printing."""
+_MIN_EFFECTIVE_STEER_DEG = 2.0
+"""Once the trim is subtracted, a near-zero effective angle predicts a near-zero
+yaw rate, and the ratio to it is meaningless. Dropping those is why the sample
+count falls off on one side as the swept trim grows."""
 
 
 def _f6(v: float | None) -> str:
@@ -235,6 +264,151 @@ def _print_stats(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> None:
         print(f"  target behind robot (x_local<=0): {behind}/{total}")
 
 
+def _quaternion_yaw(q) -> float:  # noqa: ANN001
+    """Yaw from an IMU orientation quaternion.
+
+    The gyro cannot be used: the robot runs ``bno08x_uart_rvc_node`` and BNO08x
+    UART-RVC mode provides no angular velocity at all, so ``/imu/data``
+    publishes ``angular_velocity`` as zeros with covariance -1 (the ROS
+    "unavailable" convention). Differentiating this quaternion at ~166 Hz is the
+    supported way to get a yaw rate, not a workaround.
+
+    ``pose_yaw`` is NOT a substitute -- it is localizer-fused and damped, and
+    differentiating it understates the achieved yaw rate by roughly half.
+    """
+    return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+
+
+def _nearest(series: Sequence[tuple[float, float]], t: float) -> float | None:
+    """Value in ``series`` nearest time ``t``, or None if none is within the pairing tolerance."""
+    if not series:
+        return None
+    lo, hi = 0, len(series) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if series[mid][0] < t:
+            lo = mid + 1
+        else:
+            hi = mid
+    best = min((max(lo - 1, 0), lo), key=lambda i: abs(series[i][0] - t))
+    return series[best][1] if abs(series[best][0] - t) <= _PAIR_TOL_S else None
+
+
+def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
+    """``(measured_steer_deg, speed_mps, achieved_yaw_rate)`` per IMU window.
+
+    Steering is read from ``/motor/steering_position`` -- a real Build HAT
+    encoder reading -- rather than from the command, so servo tracking is out of
+    the loop and the geometry is the only remaining variable.
+
+    Speed is the commanded value. ``/motor/drive_speed`` is motor-shaft deg/s
+    before gearing, and converting it with WHEEL_RADIUS implies 0.20 m/s, above
+    the measured 0.156 ceiling. Commanded speed is clamped to that ceiling and
+    the drivetrain reaches it; if the true speed is LOWER, predicted yaw is
+    lower too, so every ratio below is a conservative floor.
+    """
+    reader = open_reader(bag_dir)
+    imu: list[tuple[float, float]] = []
+    steer: list[tuple[float, float]] = []
+    speed: list[tuple[float, float]] = []
+    t0 = None
+    while reader.has_next():
+        topic, data, t = reader.read_next()
+        if t0 is None:
+            t0 = t
+        rel = elapsed_seconds(t, t0)
+        if topic == Topics.IMU_DATA:
+            imu.append((rel, _quaternion_yaw(deserialize_message(data, Imu).orientation)))
+        elif topic == Topics.MOTOR_STEERING_POSITION:
+            steer.append((rel, deserialize_message(data, Float32).data))
+        elif topic == Topics.ACKERMANN_CMD:
+            speed.append((rel, deserialize_message(data, AckermannDriveStamped).drive.speed))
+
+    if not imu:
+        return []
+    step = max(1, int(len(imu) * _YAW_WINDOW_S / max(imu[-1][0], 1e-6)))
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(imu) - step):
+        t_a, y_a = imu[i]
+        t_b, y_b = imu[i + step]
+        dt = t_b - t_a
+        if not 0.5 * _YAW_WINDOW_S <= dt <= 2.0 * _YAW_WINDOW_S:
+            continue
+        mid = 0.5 * (t_a + t_b)
+        sdeg = _nearest(steer, mid)
+        v = _nearest(speed, mid)
+        if sdeg is None or v is None or abs(sdeg) < _MIN_STEER_DEG or v < _MIN_SPEED_MPS:
+            continue
+        out.append((sdeg, v, _wrap(y_b - y_a) / dt))
+    return out
+
+
+def _ratios(samples: Sequence[tuple[float, float, float]], trim_deg: float) -> tuple[list[float], list[float]]:
+    """Achieved/predicted yaw ratios, split into (left, right), under a trim offset."""
+    left: list[float] = []
+    right: list[float] = []
+    for sdeg, v, achieved in samples:
+        effective = sdeg - trim_deg
+        if abs(effective) < _MIN_EFFECTIVE_STEER_DEG:
+            continue
+        predicted = v / _L_EFF * math.tan(math.radians(effective))
+        (left if sdeg > 0 else right).append(achieved / predicted)
+    return left, right
+
+
+def _print_effectiveness(bag_dirs: Sequence[Path]) -> None:
+    """Does the chassis achieve the yaw its MEASURED steering angle implies?
+
+    Pure pursuit can be commanding correctly and the servo obeying exactly while
+    the robot still corners wide -- that is what the 2026-08-09 bags showed. This
+    isolates the last link: actual wheel angle in, actual yaw rate out.
+
+    A ratio near 1.0 means the kinematic model is right. A left/right split means
+    a steering trim offset, which shows up as a direction-dependent path error
+    (and is why CCW drifted ~3x further outward than CW). A symmetric shortfall
+    means a scale error -- REAR_STEER_RATIO or linkage_ratio -- which this cannot
+    tell apart, because both scale the prediction identically. That needs a
+    protractor, not a bag.
+    """
+    samples: list[tuple[float, float, float]] = []
+    for bag_dir in bag_dirs:
+        got = _effectiveness_samples(bag_dir)
+        print(f"  {bag_dir.name}: {len(got)} samples")
+        samples += got
+    if not samples:
+        print("no usable samples (needs /imu/data, /motor/steering_position and /ackermann_cmd)")
+        return
+
+    print(f"\nL_eff = {_L_EFF:.4f} m  (wheelbase {RobotSpecs.WHEELBASE}, rear_steer_ratio {RobotSpecs.REAR_STEER_RATIO})")
+    print("ratio = achieved yaw rate / predicted from measured steering angle\n")
+
+    rows = []
+    steps = int(_TRIM_SWEEP_DEG / _TRIM_STEP_DEG)
+    best: tuple[float, float, float, float] | None = None
+    for i in range(-steps, steps + 1):
+        trim = i * _TRIM_STEP_DEG
+        left, right = _ratios(samples, trim)
+        if len(left) < _MIN_BUCKET or len(right) < _MIN_BUCKET:
+            continue
+        ml, mr = statistics.median(left), statistics.median(right)
+        gap = abs(ml - mr)
+        rows.append([f"{trim:+.1f}", len(left), f"{ml:.2f}", len(right), f"{mr:.2f}", f"{gap:.2f}"])
+        if best is None or gap < best[3]:
+            best = (trim, ml, mr, gap)
+    print_table(rows, ["trim deg", "n_left", "left", "n_right", "right", "|gap|"])
+
+    if best is None:
+        return
+    trim, ml, mr, _ = best
+    print(f"\n  left/right agree at trim = {trim:+.1f} road-wheel deg: left {ml:.2f}, right {mr:.2f}")
+    print(f"  -> steering.offset is in SERVO degrees: {trim:+.1f} / {RobotSpecs.LINKAGE_RATIO} = {trim / RobotSpecs.LINKAGE_RATIO:+.1f}")
+    print("     (sign must be confirmed by eye -- move_steering_to flips it on `reversed`)")
+    residual = 0.5 * (ml + mr)
+    print(f"  residual scale after trim: {residual:.2f}; front-only L_eff would give {2 * residual:.2f}")
+    print("     1.0 means the model is right. A symmetric shortfall is REAR_STEER_RATIO or")
+    print("     linkage_ratio -- indistinguishable here, both scale the prediction alike.")
+
+
 def main() -> None:
     """Parse CLI args, print the selected preset's table, and optionally the --stats block."""
     parser = create_bag_parser(
@@ -258,7 +432,25 @@ def main() -> None:
     )
     parser.add_argument("--cmd", action="store_true", help="also print /ackermann_cmd rows (--preset trace only)")
     parser.add_argument("--stats", action="store_true", help="print aggregate steering/target diagnostics")
+    parser.add_argument(
+        "--effectiveness",
+        action="store_true",
+        help="does the chassis achieve the yaw its measured steering angle implies, and is it "
+        "symmetric left/right (steering trim)? Needs /imu/data + /motor/steering_position.",
+    )
+    parser.add_argument(
+        "--pool",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="extra bags to pool into --effectiveness. One run is mostly one turn direction, "
+        "so a CW and a CCW bag together are what make the left/right split readable.",
+    )
     args = parser.parse_args()
+
+    if args.effectiveness:
+        _print_effectiveness([args.bag_dir, *args.pool])
+        return
 
     every = args.every if args.every is not None else (_DEFAULT_COARSE_INTERVAL_S if args.preset == "coarse" else 0.0)
 
