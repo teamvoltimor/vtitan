@@ -16,6 +16,12 @@ by an absent signal.
 (folded in from a one-off tmp_scan_min.py): where do the near-zero readings
 that get treated as "in contact with a wall" actually come from.
 
+``--centre-offset`` asks where the robot actually drove in each corridor,
+measured from ``/scan`` alone, and whether that matches where the controller
+was aiming -- the centre-bias question. Reports true corridor width beside
+the width belief, so a bias that looks wrong because the belief was wrong is
+distinguishable from a genuine sign error.
+
 ``--dropout-symmetry`` adds a 15-degree-binned, robot-frame histogram of
 no-return (dropout) and sub-0.05 m rays plus a left/right symmetry summary
 (folded in from a one-off tmp_dropout.py) -- if one side drops out more than
@@ -33,6 +39,7 @@ Usage:
 
 from __future__ import annotations
 
+import bisect
 import math
 import sys
 from collections import Counter
@@ -55,6 +62,10 @@ from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from shared.domain.models import NavigatorDebugSnapshot
+
+    from src.navigation.ports import LidarScan
+
 _MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 _MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 _NEAR_THRESHOLD_M = 0.05
@@ -66,6 +77,19 @@ _BEARING_BIN_DEG = 15.0
 _MIN_VOTES = 5
 _MAT_CENTRE_X = 1.5
 _MAT_CENTRE_Y = 1.5
+_ALIGN_TOLERANCE_RAD = math.radians(10.0)
+"""Beyond this off-axis angle the +/-90 deg rays stop being a wall measurement.
+
+Also the corner filter: the chassis is only this square to the corridor on a
+straight, so gating on it drops turns without needing to know where the
+corners are."""
+_MIN_PLAUSIBLE_WIDTH_M = 0.40
+_MAX_PLAUSIBLE_WIDTH_M = 1.30
+"""The mat's corridors are 0.60 or 1.00 m. Anything outside this bracket is a
+ray that escaped through a gap or caught the inner block end-on, not a corridor."""
+_PAIR_TOLERANCE_S = 0.10
+"""Max age difference when pairing a scan with a /nav_debug row. The scan runs
+at ~10 Hz and the control loop at 20 Hz, so a real pair is always well under this."""
 
 
 def _single(ranges: Sequence[float], angles: Sequence[float], target: float) -> float:
@@ -87,6 +111,168 @@ def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, h
     if not vals:
         return None
     return vals[len(vals) // 2]
+
+
+def _paired_snapshot(
+    rows: Sequence[tuple[float, NavigatorDebugSnapshot]],
+    row_times: Sequence[float],
+    t_scan: float,
+) -> NavigatorDebugSnapshot | None:
+    """The /nav_debug snapshot nearest ``t_scan``, or None if none is close enough."""
+    idx = bisect.bisect_left(row_times, t_scan)
+    best = min(
+        (r for r in (idx - 1, idx) if 0 <= r < len(rows)),
+        key=lambda r: abs(row_times[r] - t_scan),
+        default=None,
+    )
+    if best is None or abs(row_times[best] - t_scan) > _PAIR_TOLERANCE_S:
+        return None
+    return rows[best][1]
+
+
+def _offset_sample(
+    scan: LidarScan,
+    snap: NavigatorDebugSnapshot,
+    half_width: float,
+) -> tuple[float, float, float, float] | str:
+    """``(true_width, belief, actual, planned)`` for one scan, or why it was rejected.
+
+    Returning the rejection reason rather than None keeps every discard
+    attributable: a run that yields no samples has to say which gate ate them.
+    """
+    preconditions = (
+        (snap.active_maneuver_type is not None, "escape/park maneuver active"),
+        (snap.current_corridor is None or snap.direction is None, "corridor or direction not settled"),
+        (
+            not all(
+                isinstance(v, (int, float))
+                for v in (snap.pose_x, snap.pose_y, snap.pose_yaw, snap.steer_target_x, snap.steer_target_y)
+            ),
+            "pose or steer target missing",
+        ),
+    )
+    for failed, reason in preconditions:
+        if failed:
+            return reason
+
+    # The inward normal, taken from the mat rather than from the pose: the inner
+    # block is the mat centre, so the bearing from the robot to it points inward
+    # whichever corridor this is. Deriving it from `current_corridor` instead
+    # would trust a field a bad pose can itself set wrong.
+    to_centre = math.atan2(_MAT_CENTRE_Y - snap.pose_y, _MAT_CENTRE_X - snap.pose_x)
+    # Misalignment from the corridor axis, mod 180 deg -- the axis is a line,
+    # not an arrow, so travelling it either way counts as square.
+    misalign = abs(abs(_wrap(to_centre - snap.pose_yaw)) - math.pi / 2)
+    if misalign > _ALIGN_TOLERANCE_RAD:
+        return "chassis not square to corridor (corner/turn)"
+
+    left = _windowed(scan.ranges_m, scan.angles_rad, math.pi / 2, half_width)
+    right = _windowed(scan.ranges_m, scan.angles_rad, -math.pi / 2, half_width)
+    if left is None or right is None:
+        return "a side had no valid return"
+    # Rays at +/-90 deg are only perpendicular when square to the wall.
+    cos_m = math.cos(misalign)
+    left, right = left * cos_m, right * cos_m
+    width = left + right
+    if not _MIN_PLAUSIBLE_WIDTH_M <= width <= _MAX_PLAUSIBLE_WIDTH_M:
+        return "implausible measured width"
+
+    # Which hand points at the inner block: +pi/2 is left in the robot frame.
+    left_is_inner = abs(_wrap(to_centre - (snap.pose_yaw + math.pi / 2))) < math.pi / 2
+    d_inner, d_outer = (left, right) if left_is_inner else (right, left)
+    actual = (d_outer - d_inner) / 2.0
+
+    # Target offset relative to the robot, projected onto the inward normal.
+    dx, dy = snap.steer_target_x - snap.pose_x, snap.steer_target_y - snap.pose_y
+    planned = actual + dx * math.cos(to_centre) + dy * math.sin(to_centre)
+
+    belief = snap.corridor_width_belief_m
+    return (width, belief if belief is not None else math.nan, actual, planned)
+
+
+def _centre_offset(bag_dir: Path, window_deg: float) -> None:
+    """Where the robot actually drove in each corridor, measured from /scan alone.
+
+    Answers whether the centre bias really lands on the inner wall, and if not,
+    which layer is at fault. Hardware telemetry put the CW run inner on all four
+    corridors but the CCW run OUTER on east and west; those numbers came from
+    pose plus the corridor-width BELIEF, so a wrong belief would corrupt them --
+    including the run that looked correct.
+
+    Four quantities per corridor traversal, three of them independent of pose:
+
+    * ``true width``   -- d_left + d_right from the scan. Self-validating: it
+      should land near the mat's real 0.60/1.00 m corridors, and if it does not,
+      nothing else in the row is trustworthy either.
+    * ``belief``       -- what CorridorWidthEstimator thought at that moment.
+    * ``actual``       -- the robot's offset from the TRUE centre, + = toward
+      the inner block. Pure scan geometry.
+    * ``planned``      -- the same offset for the point the controller was
+      steering at. Taken as target-minus-pose projected onto the robot's own
+      lateral axis, so a pose error cancels: both terms carry it equally, which
+      is also exactly what the controller itself acts on.
+
+    ``planned`` is the discriminator. A sign error puts it outer regardless of
+    the belief; a belief error puts it outer only by as much as the width is
+    wrong. ``actual - planned`` is tracking error and blames neither.
+    """
+    scans, rows = read_bag(open_reader(bag_dir), _LIDAR_YAW_OFFSET_RAD)
+    if not scans or not rows:
+        print(f"{bag_dir.name}: no scans or no /nav_debug rows")
+        return
+
+    half_width = math.radians(window_deg)
+    tuning = NavigationTuning.load_default()
+    intended = tuning.waypoints.CENTER_BIAS_M
+    row_times = [t for t, _ in rows]
+    samples: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
+    rejected: Counter[str] = Counter()
+
+    for t_scan, scan in scans:
+        snap = _paired_snapshot(rows, row_times, t_scan)
+        if snap is None:
+            rejected["no paired /nav_debug within 0.1s"] += 1
+            continue
+        outcome = _offset_sample(scan, snap, half_width)
+        if isinstance(outcome, str):
+            rejected[outcome] += 1
+            continue
+        key = (snap.direction.value, snap.current_corridor.value)
+        samples.setdefault(key, []).append(outcome)
+
+    if not samples:
+        print(f"{bag_dir.name}: no usable samples")
+        for reason, n in rejected.most_common():
+            print(f"  rejected {n:6d}: {reason}")
+        return
+
+    def med(values: Sequence[float]) -> float:
+        clean = sorted(v for v in values if not math.isnan(v))
+        return clean[len(clean) // 2] if clean else math.nan
+
+    print(f"\n{bag_dir.name}  (intended bias {intended:+.3f} m toward inner, window +/-{window_deg:.0f} deg)")
+    table = []
+    for (direction, section), vals in sorted(samples.items()):
+        width, belief, actual, planned = ([v[i] for v in vals] for i in range(4))
+        table.append(
+            [
+                direction,
+                section,
+                len(vals),
+                f"{med(width):.3f}",
+                "n/a" if math.isnan(med(belief)) else f"{med(belief):.3f}",
+                f"{med(actual):+.3f}",
+                f"{med(planned):+.3f}",
+                f"{med(actual) - med(planned):+.3f}",
+            ]
+        )
+    print_table(
+        table,
+        ["dir", "corridor", "n", "true w", "belief", "actual", "planned", "track"],
+    )
+    print("  + = toward the inner block. 'planned' is where the controller aimed.")
+    for reason, n in rejected.most_common(4):
+        print(f"  rejected {n:6d}: {reason}")
 
 
 def _bearing_bin(deg: float, bin_deg: float = _BEARING_BIN_DEG) -> int:
@@ -214,6 +400,11 @@ def main() -> None:
         action="store_true",
         help="15-deg-binned robot-frame no-return/near-zero histogram + left/right symmetry summary",
     )
+    parser.add_argument(
+        "--centre-offset",
+        action="store_true",
+        help="per-corridor true width, width belief, and where the robot actually drove vs where it aimed",
+    )
     args = parser.parse_args()
     half = math.radians(args.window_deg)
 
@@ -221,6 +412,9 @@ def main() -> None:
         _near_histogram(args.bag_dir)
     if args.dropout_symmetry:
         _dropout_symmetry(args.bag_dir)
+    if args.centre_offset:
+        _centre_offset(args.bag_dir, args.window_deg)
+        return
 
     tuning = NavigationTuning.load_default()
     estimator = tuning.direction_estimator
