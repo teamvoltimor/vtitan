@@ -50,6 +50,12 @@
     enabled: true
     daemon_reload: true
 
+# autoconnect_priority matches the same field on the Zero's usb0 profile
+# (roles/pi_zero) -- see that task's comment for the netplan-eth0 conflict
+# confirmed on the Zero. Not confirmed on the Pi 5 side, but cheap insurance
+# against the same class of bug (any other autoconnect-eligible profile
+# matching a generic ethernet-class device) rather than something to
+# discover the hard way a second time.
 - name: Configure usb0 host static IP ({{ usb_gadget_pi5_ip }})
   become: true
   community.general.nmcli:
@@ -72,6 +78,7 @@
       - 224.0.0.0/4
     method6: disabled
     autoconnect: true
+    autoconnect_priority: 10
     state: present
 
 - name: Fetch LiDAR driver (sllidar_ros2) before build
