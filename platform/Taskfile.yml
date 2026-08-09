@@ -152,6 +152,7 @@ tasks:
           task robot:deploy         Ship code + detector HEF, rebuild ros2_ws, restart the service
           task robot:watch-vision   Print live detections, one line per frame (no debug video needed)
           task robot:record-vision  Record the annotated video and copy the mp4 back here
+          task robot:pull-runs      Pull recorded rosbag runs (mcaps) from the Pi 5, skipping ones already local
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -841,6 +842,20 @@ tasks:
       KEEP_DEBUG: '{{.KEEP_DEBUG | default ""}}'
     cmds:
       - '"{{.BASH}}" scripts/record-vision-from-pi5.sh'
+
+  robot:pull-runs:
+    desc: >-
+      Pull recorded rosbag runs (mcaps) from the Pi 5's ~/vtitan_runs into
+      vtitan_runs_pulled/ (usage: task robot:pull-runs [PATTERN=run_20260809]
+      [PI5_HOST=user@host]). Run FROM a dev machine. Lists runs on the Pi 5
+      and skips any that already exist locally -- only copies what's missing.
+      PATTERN defaults to every run; pass a run name or timestamp prefix to
+      narrow it.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" vtitan_runs_pulled/pull-runs-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:watch-vision:
     desc: >-
