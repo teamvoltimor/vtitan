@@ -12,6 +12,7 @@ vars:
   ZERO_WIFI_IP: 192.168.0.51
   # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see ansible/roles/pi_zero
   RPI_ZERO_GADGET_IP: 192.168.250.1
+  RPI_5_GADGET_IP: 192.168.250.2
   # scripts/ and ansible/ live on master alongside the robot runtime code, so
   # both are served from the single ~/vtitan checkout — no separate
   # dev-tooling worktree needed (the old ~/voldemorbot-platform "platform"
@@ -434,6 +435,29 @@ tasks:
     desc: Force usb0 gadget-link profile up
     cmds:
       - sudo nmcli con up 'usb0'
+
+  rpi:usb-link:status:
+    desc: "Check the Pi5<->Zero USB gadget link in both directions (run ON the Pi 5, needs SSH trust into the Zero already set up)"
+    cmds:
+      - echo "=== Pi 5 side (usb0) ==="
+      - ip -s link show usb0
+      - echo
+      - echo "=== Pi 5 -> Zero ping ==="
+      - ping -c 3 -W 2 {{.RPI_ZERO_GADGET_IP}} || true
+      - echo
+      - echo "=== Zero side (usb0) ==="
+      - ssh -o ConnectTimeout=5 {{.FLEET_USER}}@{{.RPI_ZERO_GADGET_IP}} "ip -s link show usb0" || echo "(could not reach the Zero over the gadget link to check)"
+      - echo
+      - echo "=== Zero -> Pi 5 ping ==="
+      - ssh -o ConnectTimeout=5 {{.FLEET_USER}}@{{.RPI_ZERO_GADGET_IP}} "ping -c 3 -W 2 {{.RPI_5_GADGET_IP}}" || echo "(could not reach the Zero over the gadget link to check)"
+
+  rpi:usb-link:repair:
+    desc: "Force-reload g_ether to recover a half-dead gadget link (run ON the Pi ZERO, not the Pi 5 -- see scripts/usb-link-watchdog.sh for why)"
+    cmds:
+      - sudo modprobe -r g_ether
+      - sleep 3
+      - sudo modprobe g_ether
+      - echo "Reloaded -- wait a few seconds, then check from the Pi 5 with task rpi:usb-link:status"
 
   rpi:diagnose:
     desc: Run connectivity diagnostics
