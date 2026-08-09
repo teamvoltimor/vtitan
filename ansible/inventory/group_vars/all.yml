@@ -33,6 +33,11 @@ usb_gadget_pi5_ip: 192.168.250.2
 # exists). See provision_pi_zero.yml.
 wifi_conn_name: for
 wifi_2g_bssid: "AA:D3:62:23:33:28"
+# NetworkManager's default (45s) has been observed timing out on this
+# specific BSSID's radio (confirmed 2026-08-09, ~47s to fail, 3 runs in a
+# row, Ethernet ruled out as the cause). See the retry+timeout pair around
+# "Bring Pi 5 WiFi connection up on the locked band" in provision_pi_zero.yml.
+wifi_lock_dhcp_timeout_seconds: 90
 # Fail-safe window for the WiFi lock dead-man's switch (provision_pi_zero.yml).
 # Ansible's always: block does NOT run when a host goes UNREACHABLE (only on
 # regular task failures), so a Zero-side connection drop mid-play can leave
