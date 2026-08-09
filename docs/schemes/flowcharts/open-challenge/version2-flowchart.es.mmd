@@ -1,0 +1,106 @@
+---
+config:
+    theme: redux-dark
+    layout: dagre
+---
+flowchart TD
+    START(["Inicio"])
+    START --> INIT_EVENTS["Declarar el evento para señalar que el programa está finalizando, el evento para indicar que la instancia se está eliminando de la memoria y el evento para indicar que el reto ha sido completado exitosamente"]
+    INIT_EVENTS --> INIT_FLAGS["Declarar la bandera del último cruce y de si el carro está cruzando"]
+    INIT_FLAGS --> INIT_COUNTERS["Declarar el contador de cruces detectados por el giroscopio y por diferencia de distancias como 0"]
+    INIT_COUNTERS --> CENTER_SERVO1["Centrar el servo"]
+    CENTER_SERVO1 --> STOP_MOTOR1["Detener el motor"]
+    STOP_MOTOR1 --> EVENTS_CHECK1{"¿Ha sido actualizado el evento para indicar que el programa está finalizando o que la instancia está siendo eliminada?"}
+    EVENTS_CHECK1 -- Sí --> CENTER_SERVO2["Centrar el servo"]
+    EVENTS_CHECK1 -- No --> UPDATE_INITIAL_TIME1["Obtener el tiempo inicial"]
+    CENTER_SERVO2 --> STOP_MOTOR2["Detener el motor"]
+    STOP_MOTOR2 --> SLEEP1["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+    SLEEP1 --> END(["Fin"])
+    UPDATE_INITIAL_TIME1 --> UPDATE_RPLIDAR1["Actualizar las mediciones del RPLidar"]
+    UPDATE_RPLIDAR1 --> RETRIEVE_DISTANCES1["Obtener el promedio de distancias a 0º, 22.5º, 90º, 270º y 337.5º"]
+    RETRIEVE_DISTANCES1 --> DISTANCE_ZERO1{"¿Alguno de los promedios no se ha inicializado?"}
+    DISTANCE_ZERO1 -- Sí --> SLEEP2["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto al tiempo actual"] --> EVENTS_CHECK1
+    DISTANCE_ZERO1 -- No --> SAFETY_FRONT_START{"¿Es la distancia a 0º, 22.5º o 337.5º menor a 20cm?"}
+    SAFETY_FRONT_START -- Sí --> STORE["Almacenar el valor actual del servo y del motor"]
+    SAFETY_FRONT_START -- No --> IS_TURNING1{"¿Está el carro realizando un cruce?"}
+
+    subgraph Retroceso
+        STORE --> GO_BACKWARD["Centrar el servo y ajustar la velocidad del motor a reversa"]
+        GO_BACKWARD --> SLEEP3["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+        SLEEP3 --> EVENTS_CHECK2{"¿Ha sido actualizado el evento para indicar que el programa está finalizando o que la instancia está siendo eliminada?"}
+        EVENTS_CHECK2 -- No --> UPDATE_INITIAL_TIME2["Actualizar el tiempo inicial"]
+        EVENTS_CHECK2 -- Sí -->UPDATE_INITIAL_TIME3["Actualizar el tiempo inicial"]
+        UPDATE_INITIAL_TIME2 --> UPDATE_RPLIDAR2["Actualizar las mediciones del RPLidar"]
+        UPDATE_RPLIDAR2 --> RETRIEVE_DISTANCES2["Obtener el promedio de distancias a 0º, 22.5º y 337.5º"]
+        RETRIEVE_DISTANCES2 --> SAFETY_FRONT_STOP{"¿Es alguno de los promedios menor a 35cm?"}
+        SAFETY_FRONT_STOP -- Sí --> EVENTS_CHECK2
+        SAFETY_FRONT_STOP -- No --> UPDATE_INITIAL_TIME3
+        UPDATE_INITIAL_TIME3 --> IS_TURNING2{"¿Estaba el carro realizando un cruce?"}
+        IS_TURNING2 -- Sí --> SET_SERVO_PREV["Asignar el ángulo previo al servo"]
+        IS_TURNING2 -- No --> SET_SERVO_OPPOSITE["Asignar el ángulo opuesto al previo por simetría al servo"]
+        SET_SERVO_PREV --> SET_MOTOR_PREV["Asignar la velocidad previa al motor"]
+        SET_SERVO_OPPOSITE --> SET_MOTOR_PREV
+    end
+
+    SET_MOTOR_PREV --> SLEEP4["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+    SLEEP4 --> EVENTS_CHECK1
+    IS_TURNING1 -- Sí --> IS_TURN_COMPLETED{"¿El contador de cruces por giroscopio es diferente a la bandera del último cruce?"}
+    IS_TURNING1 -- No --> IS_COMPLETED{"¿El contador de cruces por diferencia de distancias es igual a 12?"}
+
+    subgraph Verificar cruce
+        IS_TURN_COMPLETED -- No --> SLEEP5["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+        IS_TURN_COMPLETED -- Sí --> CENTER_SERVO3["Centrar el servo"]
+        CENTER_SERVO3 --> CLEAR_TURNING["Asignar a la bandera de si el carro está cruzando como 'false'"]
+        CLEAR_TURNING --> SLEEP5
+    end
+
+    SLEEP5 --> EVENTS_CHECK1
+
+    subgraph Pare
+        IS_COMPLETED -- Sí --> CENTER_SERVO4["Centrar el servo"]
+        CENTER_SERVO4 --> SET_MOTOR_NORMAL1["Asignar la velocidad 'normal' al motor"]
+        SET_MOTOR_NORMAL1 --> EVENTS_CHECK3{"¿Ha sido actualizado el evento para indicar que el programa está finalizando o que la instancia está siendo eliminada?"}
+        EVENTS_CHECK3 -- No --> UPDATE_INITIAL_TIME4["Actualizar el tiempo inicial"]
+        UPDATE_INITIAL_TIME4 --> UPDATE_RPLIDAR3["Actualizar las mediciones del RPLidar"]
+        UPDATE_RPLIDAR3 --> RETRIEVE_DISTANCES3["Obtener el promedio de distancia a 0º"]
+        RETRIEVE_DISTANCES3 --> FRONT_CHECK1{"¿Es el promedio menor a 1.5m?"}
+        FRONT_CHECK1 -- No --> SLEEP6["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+        FRONT_CHECK1 -- Sí --> SET_COMPLETE_EVENT["Asignar como 'true' al evento que indica que el reto ha sido completado exitosamente"]
+        SLEEP6 --> EVENTS_CHECK3
+    end
+
+    EVENTS_CHECK3 -- Sí --> CENTER_SERVO2
+    SET_COMPLETE_EVENT --> CENTER_SERVO2
+    IS_COMPLETED  -- No --> START_TURN_CHECK{"¿Es la distancia a 0º mayor a 60cm?"}
+    START_TURN_CHECK -- No --> SET_MOTOR_NORMAL2["Asignar la velocidad 'normal' al motor"]
+    START_TURN_CHECK -- Sí --> DIAGONALS_CHECK{"¿Es la distancia a 22.5º o 337.5º mayor a 60cm?"}
+
+    subgraph Cruce
+        SET_MOTOR_NORMAL2 --> CHECK_RIGHT_DISTANCE{"¿Es la distancia a 90º mayor a 1.5m?"}
+        CHECK_RIGHT_DISTANCE -- Sí --> SET_SERVO_RIGHT1["Mover el servo hacia la derecha con un ángulo 'grande'"]
+        CHECK_RIGHT_DISTANCE -- No --> CHECK_LEFT_DISTANCE{"¿Es la distancia a 270º mayor a 1.5m?"}
+        SET_SERVO_RIGHT1 --> SET_TURNING["Asignar a la bandera de si el carro está cruzando como 'true'"]
+        SET_TURNING --> INCREMENT_TURNS_COUNTER["Sumar 1 al contador de cruces"]
+        CHECK_LEFT_DISTANCE -- Sí --> SET_SERVO_LEFT1["Mover el servo hacia la izquierda con un ángulo 'grande'"]
+        SET_SERVO_LEFT1 --> SET_TURNING
+    end
+
+    INCREMENT_TURNS_COUNTER --> SLEEP7["Dormir la diferencia de 200ms a partir del tiempo inicial con respecto el tiempo actual"]
+    CHECK_LEFT_DISTANCE -- No --> SLEEP7
+    SLEEP7 --> EVENTS_CHECK1
+
+    subgraph Velocidad
+        DIAGONALS_CHECK -- No --> SET_MOTOR_NORMAL3["Asignar la velocidad 'normal' al motor"]
+        DIAGONALS_CHECK -- Sí --> SET_MOTOR_FAST["Asignar la velocidad 'rápida' al motor"]
+        SET_MOTOR_NORMAL3 --> CORRECT_SERVO_LEFT_CHECK{"¿Es la distancia hacia la derecha mayor que la izquierda por un porcentaje de 15%?"}
+        SET_MOTOR_FAST --> CORRECT_SERVO_LEFT_CHECK
+        CORRECT_SERVO_LEFT_CHECK -- Sí --> SET_SERVO_LEFT2["Mover el servo hacia la derecha con un ángulo 'pequeño'"]
+        CORRECT_SERVO_LEFT_CHECK -- No --> CORRECT_SERVO_RIGHT_CHECK{"¿Es la distancia hacia la izquierda mayor que la derecha por un porcentaje de 15%?"}
+        CORRECT_SERVO_RIGHT_CHECK -- Sí --> SET_SERVO_RIGHT2["Mover el servo hacia la izquierda con un ángulo 'pequeño'"]
+        CORRECT_SERVO_RIGHT_CHECK -- No --> SET_SERVO_CENTER["Centrar el servo"]
+    end
+
+    SET_SERVO_LEFT2 --> SLEEP7
+    SET_SERVO_RIGHT2 --> SLEEP7
+    SET_SERVO_CENTER --> SLEEP7
+    SLEEP7 --> EVENTS_CHECK1
