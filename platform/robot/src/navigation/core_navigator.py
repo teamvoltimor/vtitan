@@ -616,6 +616,13 @@ class CoreNavigator:
             speed = self._tuning.speed.medium_mps()
         else:
             speed = self._tuning.speed.fast_mps()
+        # Captured before the heading limiter, the envelope clamp and the risk
+        # cap all fold into `speed`. Reporting the post-min value under this
+        # name made the two debug fields satisfy final <= heading_speed by
+        # construction, so every attribution read as "clearance bound it" or
+        # "neither did" and the heading limiter looked innocent on 100% of
+        # ticks while it was in fact the binding constraint on most of them.
+        clearance_speed = speed
 
         # Never take a sharp turn at a speed the steering actuator can't keep
         # up with. The steering servo has a fixed slew rate (MAX_STEERING_RATE)
@@ -689,7 +696,7 @@ class CoreNavigator:
         debug.steer_target_x = steer_target[0]
         debug.steer_target_y = steer_target[1]
         debug.angle_error_rad = angle_error
-        debug.clearance_speed_mps = speed
+        debug.clearance_speed_mps = clearance_speed
         debug.heading_speed_mps = heading_speed
         debug.sign_deform_magnitude_m = sign_deform_magnitude
         debug.active_sign_count = active_sign_count
