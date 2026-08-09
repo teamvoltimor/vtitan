@@ -37,23 +37,32 @@ class ClearanceZones(BaseModel):
 
 
 class HeadingErrorZones(BaseModel):
-    """Heading error thresholds for speed modulation.
+    """The heading error above which speed is cut. Radians.
 
-    These thresholds define how much heading error reduces speed. Radians.
+    One threshold, not a ladder. This held four (CRAWL/SLOW/MEDIUM/NORMAL) and
+    the speed ladder stepped down through them as heading error grew. Measured
+    on hardware 2026-08-09 that cost 33% of lap time -- CW 134.9 s -> 179.3 s,
+    CCW 161.7 s -> 200.9 s, both past the 180 s round limit -- because ordinary
+    cornering sits at 23-45 deg, so the middle rungs taxed every corner on the
+    track rather than catching a dangerous case. Corner speed was 0.117 m/s
+    against a 0.156 ceiling with 0.34-0.50 m of clearance and risk reading safe.
+
+    CRAWL is the one that describes something real: past ~57 deg the steering
+    servo's fixed slew rate cannot track the demand (2026-08-03), so speed has
+    to come down. Below it, it does not.
+
+    The other three were deleted rather than left in place. Config nothing reads
+    advertises control it does not have, and these would have been read as live
+    speed tuning. Re-adding them is a two-line change if a measurement ever
+    beats the times above.
 
     Attributes:
-        CRAWL: Severe misalignment (> 1.0 rad) - crawl speed
-        SLOW: Large error (0.7-1.0 rad) - slow speed
-        MEDIUM: Moderate error (0.4-0.7 rad) - medium speed
-        NORMAL: Small error (< 0.4 rad) - normal speed
+        CRAWL: Severe misalignment (> 1.0 rad, ~57 deg) - drop to the creep floor
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     CRAWL: float = Field(default=1.0, validation_alias=_alias("CRAWL"))  # ~57° - worst case
-    SLOW: float = Field(default=0.7, validation_alias=_alias("SLOW"))  # ~40°
-    MEDIUM: float = Field(default=0.4, validation_alias=_alias("MEDIUM"))  # ~23°
-    NORMAL: float = Field(default=0.2, validation_alias=_alias("NORMAL"))  # ~11°
 
 
 class PurePursuitParams(BaseModel):
@@ -140,16 +149,20 @@ class SpeedControlParams(BaseModel):
     and it hid the fact that the only real transition was a 3x cliff at the
     bottom.
 
-    A fully graduated 0.65 / 0.75 / 0.85 / 1.0 was tried on hardware
-    2026-08-09 and reverted at the top end. It cost 33% of lap time (CW
-    134.9 s -> 179.3 s, CCW 161.7 s -> 200.9 s, both past the 180 s limit)
-    because MEDIUM is the common case, not an edge case: forward clearance
-    sits at 0.34-0.50 m for most of a lap. Four distinguishable rungs are not
-    worth having if three of them are slower than the drivetrain allows.
+    The shipped fractions 0.65 / 0.75 / 0.85 / 1.0 are four speeds the
+    drivetrain can actually tell apart: 0.101 / 0.117 / 0.133 / 0.156 m/s.
 
-    What the same run showed was worth keeping is the FLOOR. At creep 0.65
-    the heading limiter bound 0% of ticks, and CCW went from 1 escape and 4
-    stucks to none -- against 16-21% of ticks at the old 0.05 m/s crawl.
+    These are what a zone is worth, NOT which zone applies. Deployed on
+    2026-08-09 the ladder cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW
+    161.7 s -> 200.9 s, both past the 180 s limit) -- but the cause was the
+    heading ladder routing ordinary cornering through SLOW/MEDIUM, not these
+    values being wrong. That is fixed where the zone is chosen, in
+    CoreNavigator, so the tiers keep their meaning for the cases that do want
+    a lower speed.
+
+    The FLOOR is measured good: at creep 0.65 the heading limiter bound 0% of
+    ticks and CCW went from 1 escape and 4 stucks to none, against 16-21% of
+    ticks pinned at the old 0.05 m/s crawl.
 
     The usable band is narrow. MIN_FRAC is the friction floor, so the whole
     ladder lives inside a 3.1x range between "barely moves" and "flat out";
@@ -171,8 +184,8 @@ class SpeedControlParams(BaseModel):
     MIN_FRAC: float = Field(default=0.32, gt=0.0, le=1.0, validation_alias=_alias("MIN_FRAC"))
     MAX_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MAX_FRAC"))
     CREEP_FRAC: float = Field(default=0.65, gt=0.0, le=1.0, validation_alias=_alias("CREEP_FRAC"))
-    SLOW_FRAC: float = Field(default=0.96, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
-    MEDIUM_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
+    SLOW_FRAC: float = Field(default=0.75, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
+    MEDIUM_FRAC: float = Field(default=0.85, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
     FAST_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("FAST_FRAC"))
 
     @model_validator(mode="after")

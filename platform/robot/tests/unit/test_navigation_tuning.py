@@ -28,7 +28,7 @@ from shared.config.navigation_tuning import (
 # ignored section is caught by the round-trip assertion.
 _OVERRIDES: dict[str, dict[str, float]] = {
     "clearance": {"CONTACT_DIST": 0.05, "SLOW_DIST": 0.20, "MEDIUM_DIST": 0.45, "FAST_DIST": 0.90},
-    "heading": {"CRAWL": 1.2, "SLOW": 0.8, "MEDIUM": 0.5, "NORMAL": 0.25},
+    "heading": {"CRAWL": 1.2},
     "pursuit": {"LOOKAHEAD_SHORT": 0.15, "STEER_KP": 2.0},
     "speed": {"FAST_FRAC": 0.60},
     "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER": 0.4},
@@ -207,16 +207,6 @@ class TestConfiguredValuesAreActuallyRead:
         # like they bound the robot and do not.
         "SLALOM_REVERSE_FRAMES",
         "SLALOM_FORWARD_FRAMES",
-        # The rest of HeadingErrorZones: heading.toml ships, loads, MEDIUM is read
-        # (src.navigation.utils' _ALIGNMENT_TOLERANCE_RAD, wired 2026-08-02), and
-        # CRAWL/SLOW are read now too (CoreNavigator.step's heading-to-speed
-        # coupling, wired 2026-08-03 alongside the pure-pursuit steering fix --
-        # see docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
-        # NORMAL is still dead config: the speed ladder only needed three
-        # thresholds (mirroring ClearanceZones' three), so it was left unused
-        # rather than forcing a fourth rung. Delete it, or wire it to a finer
-        # "full speed" cutoff if one turns out to be needed.
-        "NORMAL",
     }
 
     @staticmethod

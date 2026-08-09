@@ -627,18 +627,29 @@ class CoreNavigator:
         # Clearance alone never catches this: a corner can have 0.50m+ of open
         # space ahead while still demanding a 90-180 deg correction.
         #
-        # Note this ladder reads the tiers in the OPPOSITE order to the
-        # clearance one above: least heading error takes the fast tier. The
-        # rungs are 1.0 / 0.85 / 0.75 / 0.65 of the ceiling, so each step is a
-        # real change on hardware. Until 2026-08-09 they were 1.0 / 1.0 / 0.96
-        # / 0.32, which is one 3x cliff at 57 deg wearing three names.
+        # Only the CRAWL threshold reduces speed. Everything below it runs at
+        # the ceiling, cornering included.
+        #
+        # This ladder briefly mirrored the clearance one, dropping through
+        # medium and slow as heading error grew. Measured on hardware
+        # 2026-08-09 that cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW
+        # 161.7 s -> 200.9 s, both past the 180 s round limit) for nothing:
+        # ordinary cornering sits at 23-45 deg of heading error, so the two
+        # middle rungs were not catching a dangerous case, they were taxing
+        # every corner on the track. Corner speed was 0.117 m/s against a
+        # 0.156 ceiling while forward clearance was 0.34-0.50 m and risk read
+        # safe.
+        #
+        # The rung that earns its place is CRAWL. Below 57 deg the steering has
+        # time to track the demand; past it the servo's fixed slew rate cannot
+        # keep up (2026-08-03), and that is a real limit rather than a tax.
+        #
+        # The three intermediate thresholds this used to read were deleted with
+        # it -- see HeadingErrorZones. Re-graduating means adding them back,
+        # which should take a measurement that beats the times above.
         abs_error = abs(angle_error)
         if abs_error >= self._tuning.heading.CRAWL:
             heading_speed = self._tuning.speed.creep_mps()
-        elif abs_error >= self._tuning.heading.SLOW:
-            heading_speed = self._tuning.speed.slow_mps()
-        elif abs_error >= self._tuning.heading.MEDIUM:
-            heading_speed = self._tuning.speed.medium_mps()
         else:
             heading_speed = self._tuning.speed.fast_mps()
         speed = min(speed, heading_speed)
