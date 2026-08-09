@@ -102,6 +102,8 @@ for unit in vtitan-pi5.service vtitan-lidar.service vtitan-backend.service vtita
   systemctl is-enabled "$unit" >/dev/null 2>&1 && ok "$unit enabled" || bad "$unit not enabled"
 done
 grep -q 'ExecStartPre=.*wait-for-gadget-link.sh' /etc/systemd/system/vtitan-pi5.service 2>/dev/null && ok "vtitan-pi5.service waits for the gadget link before starting" || bad "vtitan-pi5.service missing the gadget-link ExecStartPre -- a Pi 5 reboot power-cycles the Zero too, so ROS2 will race the link's re-enumeration on every cold boot"
+systemctl is-enabled vtitan-boot-check-watchdog.timer >/dev/null 2>&1 && ok "boot-check watchdog timer enabled" || bad "boot-check watchdog timer not enabled -- a stuck BOOT_CHECK (matched-but-silent DDS) will never self-recover"
+systemctl is-active vtitan-boot-check-watchdog.timer >/dev/null 2>&1 && ok "boot-check watchdog timer active" || bad "boot-check watchdog timer not active"
 
 section "pi5 role: old worktree cleanup"
 for d in voldemorbot-auto-annotator voldemorbot-docs voldemorbot-hailo voldemorbot-hugo-docs voldemorbot-platform voldemorbot-session-backup; do
