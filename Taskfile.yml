@@ -94,6 +94,13 @@ tasks:
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
 
+  windows:provision:tail:
+    desc: "Tail live progress of the Zero dev-env deploy step during provisioning (usage: task windows:provision:tail [SSH_HOST=alias]) -- run in a SECOND session alongside task rpi:provision:zero, not instead of it"
+    cmds:
+      - ssh {{.SSH_HOST}} "tail -f ~/vtitan-deploy-zero.log"
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+
   windows:setup-usb-gadget:
     desc: "Install rpi-usb-gadget on a Pi and enable it — run from Windows or a Linux/macOS host, e.g. another Pi (usage: task windows:setup-usb-gadget SSH_HOST=alias PING_HOST=address [DRY_RUN=true])"
     requires:
