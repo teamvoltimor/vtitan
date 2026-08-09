@@ -23,6 +23,19 @@ Wired in via FASTRTPS_DEFAULT_PROFILES_FILE in each systemd unit.
             <transport_descriptor>
                 <transport_id>udp_only_transport</transport_id>
                 <type>UDPv4</type>
+                <!-- An interfaceWhiteList pinning this to the usb0 gadget subnet
+                was tried here (2026-08-09) to rule out ambiguous locator
+                selection across this robot's two active interfaces (WiFi +
+                usb0) as the cause of a Pi5<->Zero delivery failure. CIDR
+                notation (192.168.250.0/24) is NOT valid for FastDDS's
+                whitelist -- confirmed on hardware: it filtered out every
+                interface ("All whitelist interfaces were filtered out"),
+                breaking DATA_READER creation entirely, worse than the
+                original bug. Reverted. If revisiting this, FastDDS expects
+                exact interface addresses here, not a network/CIDR pattern --
+                and since Pi 5 and Zero each have a DIFFERENT usb0 address
+                (.2 / .1), a single shared XML file can't whitelist both by
+                exact address without templating it per-board. -->
             </transport_descriptor>
         </transport_descriptors>
         <participant profile_name="udp_only_participant" is_default_profile="true">
