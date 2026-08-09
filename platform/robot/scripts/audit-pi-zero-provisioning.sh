@@ -113,7 +113,11 @@ elif [ -f /swapfile ]; then
 else
   bad "no swap configured at all (dphys-swapfile or /swapfile)"
 fi
-swapon --show 2>/dev/null | grep -q . && ok "swap is active" || bad "swap not active"
+# /proc/swaps directly, not `swapon --show` -- swapon lives in /sbin, which
+# isn't on a plain non-interactive SSH PATH, so the command silently
+# "succeeds" with no output and this reported a false "swap not active"
+# on a board where swap was genuinely on (confirmed via `free -h`).
+[ "$(tail -n +2 /proc/swaps 2>/dev/null | wc -l)" -gt 0 ] && ok "swap is active" || bad "swap not active"
 
 section "pi_zero role: SSH trust with the Pi 5"
 [ -f "$HOME/.ssh/id_ed25519.pub" ] && ok "Zero has its own SSH keypair" || bad "Zero has no SSH keypair"
