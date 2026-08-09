@@ -19,6 +19,14 @@ Environment=ROS_DOMAIN_ID=0
 # on a wedged port -- no error, no exception, the subscription just never
 # receives anything. UDP-only removes the failure mode at its source.
 Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/robot/config/fastdds_udp_only.xml
+# A Pi 5 reboot power-cycles the Zero too (it draws power over the same USB
+# gadget cable) -- there is no "just the Pi 5 rebooted" on this hardware,
+# every Pi 5 boot is a simultaneous cold boot of both boards. Without this,
+# state_machine_node's own 60s jumper-read timeout starts immediately and
+# races the gadget link's re-enumeration instead of running against an
+# already-stable link. Bounded (55s) and never fails/blocks startup on its
+# own -- see the script for the full rationale.
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/wait-for-gadget-link.sh
 # launch-rpi5 (not a raw "ros2 launch") -- the pixi task sources
 # ros2_ws/install/setup.bash first, which is required to resolve the
 # locally-built vtitan_state_machine/vtitan_vision/vtitan_drivers
@@ -28,6 +36,9 @@ Restart=on-failure
 RestartSec=5
 ExecStop=/usr/bin/kill -SIGINT $MAINPID
 TimeoutStopSec=10
+# Default TimeoutStartSec (90s) leaves too little margin once the 55s
+# ExecStartPre wait is added on top of the ROS2 stack's own startup time.
+TimeoutStartSec=150
 
 [Install]
 WantedBy=multi-user.target
