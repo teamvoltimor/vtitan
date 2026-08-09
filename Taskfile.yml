@@ -154,6 +154,17 @@ tasks:
         SCRIPT=$(mktemp)
         cat > "$SCRIPT" <<'INNER'
         export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
+        # The Zero's host key changes every reflash, and it's reachable at
+        # two different addresses (WiFi first-contact, USB gadget) that each
+        # cache their own known_hosts entry -- a stale entry on either one
+        # hard-fails ansible.cfg's host_key_checking = True with no way to
+        # answer the "yes/no/fingerprint" prompt non-interactively. Refresh
+        # both, every run: -R is a silent no-op if the entry is already
+        # correct or absent, so this costs nothing on a normal run.
+        for zero_addr in "{{.ZERO_WIFI_IP}}" "{{.RPI_ZERO_GADGET_IP}}"; do
+          ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$zero_addr" >/dev/null 2>&1 || true
+          ssh-keyscan -H "$zero_addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+        done
         GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass
         ec=$?
         echo
