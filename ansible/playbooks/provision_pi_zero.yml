@@ -41,6 +41,26 @@
         # wifi_lock_failsafe_seconds is deliberately long (see its definition)
         # -- this is a backstop for an abandoned run, not a fast recovery, so
         # it must outlast the slowest healthy provision rather than race it.
+        #
+        # Clear any stale unit first: systemd-run refuses to reuse a transient
+        # unit name that's still loaded, and that's exactly the state a prior
+        # UNREACHABLE run leaves behind (armed, never disarmed -- the same gap
+        # this failsafe exists to cover). Confirmed 2026-08-09: a leftover
+        # unit from an earlier aborted run made THIS task fail outright
+        # ("already loaded or has a fragment file"), on a run that was
+        # otherwise healthy.
+        - name: Clear any stale WiFi unlock failsafe unit before arming
+          delegate_to: pi5
+          become: true
+          ansible.builtin.shell: >
+            systemctl stop vtitan-wifi-unlock-failsafe.timer vtitan-wifi-unlock-failsafe.service;
+            systemctl reset-failed vtitan-wifi-unlock-failsafe.timer vtitan-wifi-unlock-failsafe.service
+          args:
+            executable: /bin/bash
+          changed_when: true
+          failed_when: false
+          when: wifi_lock_needed | bool
+
         - name: Arm WiFi unlock dead-man's switch on the Pi 5
           delegate_to: pi5
           become: true
