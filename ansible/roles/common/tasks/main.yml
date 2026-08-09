@@ -93,6 +93,37 @@
   args:
     creates: "/var/lib/systemd/linger/{{ ansible_user }}"
 
+# Root cause of a session-long Pi5<->Zero ROS2/DDS delivery failure, found
+# 2026-08-09 via `netstat -su`: 1018 UDP receive buffer errors out of 62075
+# packets on the Zero (342/1083746 on the Pi 5 -- same pattern, much lower
+# rate, more CPU headroom to drain the socket before it overflows). The
+# default net.core.rmem_default (~208KB) is too small to absorb a burst of
+# DDS traffic before the receiving thread drains it, especially on the
+# Zero's single weak core -- packets are dropped at the kernel UDP layer
+# before FastDDS/CycloneDDS ever sees them, which looks identical from the
+# application's side regardless of which RMW implementation is in use
+# (confirmed: swapping FastDDS for Cyclone DDS as a diagnostic did not
+# change the symptom). Small discovery/control traffic gets through fine
+# (low volume, rarely overflows the buffer); real topic data does not,
+# producing an endless retry/heartbeat loop with no error on either side --
+# raw ping stayed 0% loss throughout, which is what made this so hard to
+# find. Confirmed fixed live on hardware: after raising these, a jumper
+# reading that had timed out after 60s on every previous attempt this
+# session arrived within the state machine's normal boot-check window, and
+# /ui/telemetry_summary held a steady 10Hz on the Zero.
+- name: Raise UDP socket buffer limits (DDS cross-board delivery reliability)
+  become: true
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "8388608"
+    sysctl_file: /etc/sysctl.d/99-vtitan-udp-buffers.conf
+    reload: true
+  loop:
+    - net.core.rmem_max
+    - net.core.rmem_default
+    - net.core.wmem_max
+    - net.core.wmem_default
+
 - name: Check if pixi is already installed
   ansible.builtin.stat:
     path: "{{ pixi_bin }}"
