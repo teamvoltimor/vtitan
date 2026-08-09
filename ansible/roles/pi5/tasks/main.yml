@@ -177,6 +177,17 @@
     daemon_reload: true
   loop: "{{ pi5_systemd_units }}"
 
+# Only the timer is started immediately: enabling the oneshot .service alone
+# (the loop above) does not activate it -- it only runs when the timer fires
+# it, which is the intended behavior. Explicit here rather than depending on
+# a reboot to bring it up, matching the equivalent task in roles/pi_zero.
+- name: Start the boot-check watchdog timer
+  become: true
+  ansible.builtin.systemd_service:
+    name: vtitan-boot-check-watchdog.timer
+    state: started
+    daemon_reload: true
+
 # Sibling git-worktree checkouts (auto-annotator/docs/hailo/hugo-docs/platform
 # branches) plus a stale manual session-backup dir — verified 2026-07-30 via
 # `git log --branches --not --remotes` (empty in every one) that none carry
