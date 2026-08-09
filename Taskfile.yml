@@ -80,6 +80,20 @@ tasks:
       vars:
         - CMD
 
+  windows:audit:pi5:
+    desc: "Pull latest + run the Pi 5 provisioning audit (usage: task windows:audit:pi5 [SSH_HOST=alias])"
+    cmds:
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/audit-pi5-provisioning.sh"
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+
+  windows:audit:zero:
+    desc: "Pull latest + run the Pi Zero provisioning audit (usage: task windows:audit:zero [SSH_HOST=alias])"
+    cmds:
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/audit-pi-zero-provisioning.sh"
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
+
   windows:setup-usb-gadget:
     desc: "Install rpi-usb-gadget on a Pi and enable it — run from Windows or a Linux/macOS host, e.g. another Pi (usage: task windows:setup-usb-gadget SSH_HOST=alias PING_HOST=address [DRY_RUN=true])"
     requires:
