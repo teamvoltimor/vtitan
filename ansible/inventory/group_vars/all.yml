@@ -33,3 +33,18 @@ usb_gadget_pi5_ip: 192.168.250.2
 # exists). See provision_pi_zero.yml.
 wifi_conn_name: for
 wifi_2g_bssid: "AA:D3:62:23:33:28"
+# Fail-safe window for the WiFi lock dead-man's switch (provision_pi_zero.yml).
+# Ansible's always: block does NOT run when a host goes UNREACHABLE (only on
+# regular task failures), so a Zero-side connection drop mid-play can leave
+# the Pi 5 pinned to wifi_2g_bssid with nothing to clear it -- this is the
+# "pinned to one AP radio for an entire day" incident referenced there.
+#
+# The lock is held for the WHOLE run, not just the first-contact step -- a
+# healthy provision takes 20-40 min (task rpi:provision:zero's own estimate),
+# so this must clear the DHCP-timeout-prone "Bring Pi 5 WiFi connection up"
+# step and still stay armed well past the end of the slowest normal run, or
+# it fires mid-provision and yanks the WiFi band out from under a still-good
+# play. This is a backstop for an abandoned/dead play, not a fast-recovery
+# path -- `task rpi:wifi:unlock` is still the immediate fix if you're
+# watching it fail.
+wifi_lock_failsafe_seconds: 3600

@@ -146,21 +146,38 @@ tasks:
   # + community.general on the dev Pi 5 (task rpi:ansible:setup once).
 
   rpi:provision:zero:
-    desc: "Provision Pi Zero 2W via Ansible (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x]). Prompts for the Zero's (and Pi 5's) sudo password."
+    desc: "Provision Pi Zero 2W via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x]). Prompts for the Zero's (and Pi 5's) sudo password."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible provisioner against {{.ZERO_IP}} (Pi 5 at {{.PI5_IP}}, takes ~20-40 min)..."
-      - GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass
+      - |
+        CMD='GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass'
+        if [ -n "$TMUX" ]; then
+          eval "$CMD"
+        else
+          echo "(running inside tmux session '{{.TMUX_SESSION}}' -- reconnecting? just re-run this same command, -A reattaches instead of duplicating)"
+          tmux new-session -A -s {{.TMUX_SESSION}} "$CMD"
+        fi
     vars:
       ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
       PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
+      TMUX_SESSION: vtitan-provision-zero
 
   rpi:provision:pi5:
-    desc: "Provision Robot Pi 5 via Ansible (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x). Prompts for the Pi 5's sudo password."
+    desc: "Provision Robot Pi 5 via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x). Prompts for the Pi 5's sudo password."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible provisioner against {{.PI5_IP}}..."
-      - GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass
+      - |
+        CMD='GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass'
+        if [ -n "$TMUX" ]; then
+          eval "$CMD"
+        else
+          echo "(running inside tmux session '{{.TMUX_SESSION}}' -- reconnecting? just re-run this same command, -A reattaches instead of duplicating)"
+          tmux new-session -A -s {{.TMUX_SESSION}} "$CMD"
+        fi
+    vars:
+      TMUX_SESSION: vtitan-provision-pi5
     requires:
       vars:
         - PI5_IP
