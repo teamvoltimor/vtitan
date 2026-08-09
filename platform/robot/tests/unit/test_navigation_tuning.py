@@ -30,7 +30,7 @@ _OVERRIDES: dict[str, dict[str, float]] = {
     "clearance": {"CONTACT_DIST": 0.05, "SLOW_DIST": 0.20, "MEDIUM_DIST": 0.45, "FAST_DIST": 0.90},
     "heading": {"CRAWL": 1.2, "SLOW": 0.8, "MEDIUM": 0.5, "NORMAL": 0.25},
     "pursuit": {"LOOKAHEAD_SHORT": 0.15, "STEER_KP": 2.0},
-    "speed": {"FAST_SPEED": 0.60},
+    "speed": {"FAST_FRAC": 0.60},
     "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER": 0.4},
     "sensor": {"STALE_TIMEOUT_SEC": 0.75},
     "waypoints": {"ARC_RADIUS": 0.35},
@@ -76,7 +76,7 @@ def test_load_from_yaml_round_trip(tmp_path):
     assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.heading.CRAWL
     assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.60) == tuning.speed.FAST_SPEED
+    assert pytest.approx(0.60) == tuning.speed.FAST_FRAC
     assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
     assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
     assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
@@ -150,7 +150,7 @@ def test_load_from_toml_dir_round_trip(tmp_path):
     assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.heading.CRAWL
     assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.60) == tuning.speed.FAST_SPEED
+    assert pytest.approx(0.60) == tuning.speed.FAST_FRAC
     assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
     assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
     assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
@@ -238,6 +238,26 @@ class TestConfiguredValuesAreActuallyRead:
                     continue
         return "\n".join(chunks)
 
+    @staticmethod
+    def _reader_names(group, field: str) -> list[str]:
+        """Names that count as reading ``field``, including via an accessor.
+
+        A field is not always read under its own name. ``SpeedControlParams``
+        stores fractions of the drivetrain ceiling and exposes each one through
+        a ``*_mps()`` method, because a bare fraction is not a speed and callers
+        must never treat it as one. ``SLOW_FRAC`` is therefore read as
+        ``slow_mps()`` and a plain name grep cannot see it.
+
+        Resolving the accessor here keeps the check honest in both directions:
+        an accessor that nothing calls still fails, and a field whose accessor
+        does not exist is not quietly excused.
+        """
+        names = [field]
+        prefix = field.removesuffix("_FRAC")
+        if prefix != field and hasattr(group, f"{prefix.lower()}_mps"):
+            names.append(f"{prefix.lower()}_mps")
+        return names
+
     def test_every_configured_field_has_a_reader(self):
         import re
 
@@ -249,7 +269,8 @@ class TestConfiguredValuesAreActuallyRead:
             for field in getattr(type(group), "model_fields", {}):
                 if field in self._KNOWN_UNREAD:
                     continue
-                if not re.search(rf"\b{re.escape(field)}\b", corpus):
+                names = self._reader_names(group, field)
+                if not any(re.search(rf"\b{re.escape(name)}\b", corpus) for name in names):
                     unread.append(f"{group_name}.{field}")
         assert not unread, (
             f"configured but never read: {unread}. Either wire them up or delete them — "

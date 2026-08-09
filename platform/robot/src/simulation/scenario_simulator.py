@@ -435,7 +435,13 @@ class ScenarioSimulator:
         if infer_direction is None:
             infer_direction = blind
         self._direction_estimator = DirectionEstimator(tuning=self._tuning) if infer_direction else None
-        self._creep_speed = self._tuning.speed.SLOW_SPEED
+        # Speed for the blind corridor-follow that runs before the travel
+        # direction settles. Named _creep_speed until 2026-08-09, which was
+        # doubly misleading: it is not the creep tier, and it never was --
+        # it read the slow tier. The medium tier is the closest match to the
+        # 0.150 m/s this phase actually ran at, so keeping it here avoids
+        # slowing every race start as a side effect of grading the ladder.
+        self._blind_follow_speed = self._tuning.speed.medium_mps()
         self._creep_widths: list[tuple[float, float]] = []
         """(yaw, measured width) taken before the direction was known."""
         self._start = start
@@ -626,7 +632,7 @@ class ScenarioSimulator:
             return False
 
         self._gateway.publish_drive(
-            follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed, pose.yaw, self._tuning),
+            follow_corridor(scan.ranges_m, scan.angles_rad, self._blind_follow_speed, pose.yaw, self._tuning),
         )
         return True
 

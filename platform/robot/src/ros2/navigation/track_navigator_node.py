@@ -274,7 +274,13 @@ class TrackNavigator(Node, ResettableNode):
         # same thing to _retry_start_measurement, which also stops on the
         # first success, so the budget is only consulted while still refusing.
         self._start_measurement_ticks_left = 0
-        self._creep_speed = tuning.speed.SLOW_SPEED
+        # Speed for the blind corridor-follow that runs before the travel
+        # direction settles. Named _creep_speed until 2026-08-09, which was
+        # doubly misleading: it is not the creep tier, and it never was --
+        # it read the slow tier. The medium tier is the closest match to the
+        # 0.150 m/s this phase actually ran at, so keeping it here avoids
+        # slowing every race start as a side effect of grading the ladder.
+        self._blind_follow_speed = tuning.speed.medium_mps()
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
         # is set instead), so geometry is never actually None here -- just not
@@ -524,7 +530,7 @@ class TrackNavigator(Node, ResettableNode):
         if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
-        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._creep_speed, pose.yaw, self._tuning)
+        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._blind_follow_speed, pose.yaw, self._tuning)
         self._gateway.publish_drive(drive)
         votes = estimator.votes
         self._latest_debug = NavigatorDebugSnapshot(
@@ -730,8 +736,9 @@ class TrackNavigator(Node, ResettableNode):
             # this method's yaw correction landed -- the yaw fix alone wasn't
             # enough because it doesn't touch the position estimate the wrong
             # yaw already corrupted. Re-seeding position the same way a new
-            # race does (see reset()) is safe here: creep is capped at
-            # SLOW_SPEED and this fires within a second or two of race start
+            # race does (see reset()) is safe here: the blind corridor-follow
+            # is capped at the medium tier and this fires within a second or
+            # two of race start
             # (both real captures committed by t=1.2s), so the true
             # displacement being discarded is at most ~0.2m -- far smaller
             # than the corruption it replaces. See

@@ -1,11 +1,57 @@
-# Speed control parameters for different clearance/heading zones.
+# Speed control parameters, as fractions of the measured drivetrain ceiling
+# (RobotSpecs.MAX_SPEED_MPS = 0.156 m/s, robot.toml [drivetrain] max_speed_mps).
 #
-# Motor command range, normalized to [-1.0, 1.0].
-# See shared.config.navigation_tuning.SpeedControlParams.
+# See shared.config.navigation_tuning.SpeedControlParams. Read these through
+# the group's *_mps() accessors; the fractions themselves are not m/s.
+#
+# These were absolute m/s on a 0-0.50 scale until 2026-08-09. That scale does
+# not exist on this robot: the gateway clamps at 0.156, so the old
+# 0.05/0.15/0.30/0.50 ladder was really 0.05/0.15/0.156/0.156 -- MEDIUM and
+# FAST identical, SLOW within 4% of both, and the only real transition a 3x
+# cliff at the bottom. The fractions below resolve to 0.101 / 0.117 / 0.133 /
+# 0.156 m/s: four speeds the drivetrain can actually tell apart.
+#
+# NONE of this is hardware-validated. The simulator cannot check it -- it spends
+# 0.2% of ticks in the creep branch against hardware's 16-21%, so a sim sweep
+# measures the fixture, not the change.
 
-min_speed = 0.05      # Minimum forward speed to overcome friction
-max_speed = 0.50      # Maximum safe forward speed
-creep_speed = 0.05    # Speed in the contact zone
-slow_speed = 0.15     # Speed near obstacles
-medium_speed = 0.30   # Speed at moderate clearance
-fast_speed = 0.50     # Speed on open track
+# Least fraction that overcomes friction and actually moves the robot.
+# 0.32 = 0.050 m/s. A floor on the tiers below, not a tier itself. Measured
+# no-load and in a straight line; the true floor under full steering lock is
+# higher (tyre scrub) and has never been measured.
+min_frac = 0.32
+
+# Upper bound on any tier. 1.0 is the drivetrain ceiling; the old value of 0.50
+# was 3.2x what the robot can do, so the envelope clamp it feeds was inert.
+max_frac = 1.0
+
+# Contact zone (<0.10 m clearance), the heading limiter's floor at >=57 deg,
+# and the stuck-escape forward nudge.
+#
+# 0.65 = 0.101 m/s, raised 2026-08-09 from 0.32 (0.050 m/s). The old value was
+# exactly MIN_FRAC -- the robot was commanded its own friction threshold, and
+# commanded it precisely when the steering is near full lock and tyre scrub is
+# at its worst, i.e. least command at greatest load. Hardware spent 16% (CW)
+# and 21% (CCW) of driving ticks there, all of it from the heading limiter
+# rather than from clearance.
+#
+# The cost is open-loop travel: the steering servo slews at a fixed 2.0 rad/s,
+# so full lock from centre takes 0.61 s, during which the robot now covers
+# 6.2 cm instead of 3.1 cm, against 0.103 m of lateral margin.
+creep_frac = 0.65
+
+# Near obstacles (0.10-0.25 m clearance), the 40-57 deg heading band, and the
+# risk != SAFE cap. 0.75 = 0.117 m/s, down from an effective 0.150.
+slow_frac = 0.75
+
+# Moderate clearance (0.25-0.50 m), the 23-40 deg heading band, and the blind
+# corridor-follow before direction settles. 0.85 = 0.133 m/s.
+#
+# Note this is the common case, not an edge case: hardware forward-clearance
+# median is 0.34-0.50 m, so most normal driving is selected here. It was
+# effectively 0.156 before, so this trades ~15% of straight-line speed for a
+# ladder that actually graduates.
+medium_frac = 0.85
+
+# Open track (>0.50 m clearance, <23 deg heading error). 1.0 = the ceiling.
+fast_frac = 1.0

@@ -6,8 +6,9 @@ control loop rate they all run at.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning._shared import _alias
 
 
@@ -124,28 +125,91 @@ class PurePursuitParams(BaseModel):
 
 
 class SpeedControlParams(BaseModel):
-    """Speed control parameters for different zones.
+    """Speed control parameters for different zones, as fractions of the ceiling.
 
-    Maps clearance zones and heading errors to commanded motor speeds.
-    Values are normalized to [-1.0, 1.0] motor command range.
+    Every tier is a fraction of ``RobotSpecs.MAX_SPEED_MPS`` -- the measured
+    0.156 m/s drivetrain ceiling -- and is read through the ``*_mps()``
+    accessors, never directly.
+
+    This group used to hold absolute m/s values on a 0-0.50 scale that the
+    drivetrain does not have. Mapped onto the real ceiling, the four rungs
+    0.05 / 0.15 / 0.30 / 0.50 came out as 0.05 / 0.15 / 0.156 / 0.156: two
+    distinguishable speeds wearing four names, with MEDIUM and FAST identical
+    and SLOW within 4% of both. That made the ladder unfalsifiable -- a sweep
+    over MEDIUM_SPEED could not move the robot no matter what it was set to --
+    and it hid the fact that the only real transition was a 3x cliff at the
+    bottom.
+
+    The shipped fractions 0.65 / 0.75 / 0.85 / 1.0 are four speeds the
+    drivetrain can actually tell apart: 0.101 / 0.117 / 0.133 / 0.156 m/s.
+
+    The usable band is narrow. MIN_FRAC is the friction floor, so the whole
+    ladder lives inside a 3.1x range between "barely moves" and "flat out";
+    there is not room in it for four meaningfully distinct rungs.
 
     Attributes:
-        MIN_SPEED: Minimum forward speed to overcome friction
-        MAX_SPEED: Maximum safe forward speed
-        CREEP_SPEED: Speed in contact zone
-        SLOW_SPEED: Speed in slow zone
-        MEDIUM_SPEED: Speed in medium zone
-        FAST_SPEED: Speed in fast/open zone
+        MIN_FRAC: Least fraction that overcomes friction and actually moves
+            the robot. A floor on the others, not a tier in its own right.
+        MAX_FRAC: Upper bound on any tier. 1.0 is the drivetrain ceiling;
+            above that the gateway clamps and the number is fiction.
+        CREEP_FRAC: Contact zone, and the heading limiter's floor.
+        SLOW_FRAC: Near obstacles.
+        MEDIUM_FRAC: Moderate clearance.
+        FAST_FRAC: Open track. 1.0 is the drivetrain ceiling.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    MIN_SPEED: float = Field(default=0.05, validation_alias=_alias("MIN_SPEED"))  # Minimum to move
-    MAX_SPEED: float = Field(default=0.50, validation_alias=_alias("MAX_SPEED"))  # Maximum safe speed
-    CREEP_SPEED: float = Field(default=0.05, validation_alias=_alias("CREEP_SPEED"))  # Contact zone
-    SLOW_SPEED: float = Field(default=0.15, validation_alias=_alias("SLOW_SPEED"))  # Near obstacles
-    MEDIUM_SPEED: float = Field(default=0.30, validation_alias=_alias("MEDIUM_SPEED"))  # Moderate clearance
-    FAST_SPEED: float = Field(default=0.50, validation_alias=_alias("FAST_SPEED"))  # Open track
+    MIN_FRAC: float = Field(default=0.32, gt=0.0, le=1.0, validation_alias=_alias("MIN_FRAC"))
+    MAX_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MAX_FRAC"))
+    CREEP_FRAC: float = Field(default=0.65, gt=0.0, le=1.0, validation_alias=_alias("CREEP_FRAC"))
+    SLOW_FRAC: float = Field(default=0.75, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
+    MEDIUM_FRAC: float = Field(default=0.85, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
+    FAST_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("FAST_FRAC"))
+
+    @model_validator(mode="after")
+    def _floor_below_creep(self) -> SpeedControlParams:
+        """The friction floor must not sit above the slowest commanded tier.
+
+        ``core_navigator`` clamps the selected zone speed up to ``min_mps()``.
+        When that floor equals or exceeds ``creep_mps()`` the clamp silently
+        swallows the creep tier, and any attempt to tune the floor downward
+        produces a clean no-change result that looks like evidence and is not.
+        The shipped config had exactly this: MIN_SPEED and CREEP_SPEED were
+        both 0.05.
+        """
+        if self.MIN_FRAC > self.CREEP_FRAC:
+            msg = (
+                f"speed.MIN_FRAC ({self.MIN_FRAC}) must not exceed speed.CREEP_FRAC "
+                f"({self.CREEP_FRAC}); the envelope clamp would swallow the creep tier "
+                "and mask any change made to it"
+            )
+            raise ValueError(msg)
+        return self
+
+    def min_mps(self) -> float:
+        """Friction floor in m/s."""
+        return self.MIN_FRAC * RobotSpecs.MAX_SPEED_MPS
+
+    def max_mps(self) -> float:
+        """Upper speed bound in m/s."""
+        return self.MAX_FRAC * RobotSpecs.MAX_SPEED_MPS
+
+    def creep_mps(self) -> float:
+        """Contact-zone / heading-floor speed in m/s."""
+        return self.CREEP_FRAC * RobotSpecs.MAX_SPEED_MPS
+
+    def slow_mps(self) -> float:
+        """Slow-zone speed in m/s."""
+        return self.SLOW_FRAC * RobotSpecs.MAX_SPEED_MPS
+
+    def medium_mps(self) -> float:
+        """Medium-zone speed in m/s."""
+        return self.MEDIUM_FRAC * RobotSpecs.MAX_SPEED_MPS
+
+    def fast_mps(self) -> float:
+        """Open-track speed in m/s."""
+        return self.FAST_FRAC * RobotSpecs.MAX_SPEED_MPS
 
 
 class ControlLoopParams(BaseModel):

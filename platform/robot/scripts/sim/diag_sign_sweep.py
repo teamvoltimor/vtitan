@@ -137,7 +137,11 @@ _PASSED_DIST_FOR_BLIND_REACH = 1.20
 _OFFSET_ZERO_ROUTER_OFF = 0.0
 _ACTIVATION_FOR_PROFILE = 0.12
 _PASSED_DIST_FOR_PROFILE = 0.24
-_SPEED_FOR_PROFILE = 0.30
+# The removed for_obstacles profile asked for FAST_SPEED 0.30 m/s. Speeds are
+# fractions of the 0.156 m/s ceiling now, and 0.30 m/s was already above it --
+# which is precisely why that half of the profile was measured to be inert.
+# 1.0 is the same command the robot actually received.
+_SPEED_FOR_PROFILE = 1.0
 
 
 class CollisionKind(StrEnum):
@@ -162,7 +166,7 @@ class SweepConfig:
     label: str
     lookahead_short: float | None = None
     lookahead_long: float | None = None
-    fast_speed: float | None = None
+    fast_frac: float | None = None
     arc_radius: float | None = None
     steer_kp: float | None = None
     max_steering_rate: float | None = None
@@ -327,7 +331,7 @@ class SweepConfig:
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
         )
-        speed = _with(base.speed, FAST_SPEED=self.fast_speed)
+        speed = _with(base.speed, FAST_FRAC=self.fast_frac)
         waypoints = _with(base.waypoints, ARC_RADIUS=self.arc_radius)
         sign_router = _with(
             base.sign_router,
@@ -701,7 +705,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         lookahead_long=v * _LOOKAHEAD_MULTIPLIER,
     ),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
-    "speed": lambda v: SweepConfig(f"fast_speed {v:{_FORMAT_2F}}", fast_speed=v),
+    "speed": lambda v: SweepConfig(f"fast_frac {v:{_FORMAT_2F}}", fast_frac=v),
     "offset": lambda v: SweepConfig(f"lateral_offset {v:{_FORMAT_3F}}", lateral_offset=v),
     # The offset sweep CROSSED with lidar_blind. This was how the escape layer
     # was first identified as the gate, back when it was the only way to make
@@ -791,7 +795,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "baseline": [SweepConfig("defaults")],
     "profile": [
         SweepConfig("defaults"),
-        SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_speed=_SPEED_FOR_PROFILE),
+        SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_frac=_SPEED_FOR_PROFILE),
     ],
     # Separates "the tracker broke" from "sign avoidance failed" — run this
     # first on any change; no aggregate collision count can tell them apart.
