@@ -41,17 +41,22 @@ max_frac = 1.0
 creep_frac = 0.65
 
 # Near obstacles (0.10-0.25 m clearance), the 40-57 deg heading band, and the
-# risk != SAFE cap. 0.75 = 0.117 m/s, down from an effective 0.150.
-slow_frac = 0.75
+# risk != SAFE cap. 0.96 = 0.150 m/s.
+#
+# Was briefly 0.75 (0.117 m/s) on 2026-08-09 and reverted the same day: see
+# medium_frac below for the lap-time measurement that sent both back up.
+slow_frac = 0.96
 
 # Moderate clearance (0.25-0.50 m), the 23-40 deg heading band, and the blind
-# corridor-follow before direction settles. 0.85 = 0.133 m/s.
+# corridor-follow before direction settles. 1.0 = the ceiling.
 #
-# Note this is the common case, not an edge case: hardware forward-clearance
-# median is 0.34-0.50 m, so most normal driving is selected here. It was
-# effectively 0.156 before, so this trades ~15% of straight-line speed for a
-# ladder that actually graduates.
-medium_frac = 0.85
+# This is the COMMON CASE, not an edge case: hardware forward-clearance median
+# is 0.34-0.50 m, so most of a lap is selected here. Setting it to 0.85 for a
+# properly graduated ladder was measured on hardware 2026-08-09 and cost 33%
+# of lap time -- CW 134.9 s -> 179.3 s, CCW 161.7 s -> 200.9 s, both past the
+# 180 s round limit. Do not lower it again without a measurement that beats
+# that.
+medium_frac = 1.0
 
 # Open track (>0.50 m clearance, <23 deg heading error). 1.0 = the ceiling.
 fast_frac = 1.0

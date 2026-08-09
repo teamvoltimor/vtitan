@@ -140,8 +140,16 @@ class SpeedControlParams(BaseModel):
     and it hid the fact that the only real transition was a 3x cliff at the
     bottom.
 
-    The shipped fractions 0.65 / 0.75 / 0.85 / 1.0 are four speeds the
-    drivetrain can actually tell apart: 0.101 / 0.117 / 0.133 / 0.156 m/s.
+    A fully graduated 0.65 / 0.75 / 0.85 / 1.0 was tried on hardware
+    2026-08-09 and reverted at the top end. It cost 33% of lap time (CW
+    134.9 s -> 179.3 s, CCW 161.7 s -> 200.9 s, both past the 180 s limit)
+    because MEDIUM is the common case, not an edge case: forward clearance
+    sits at 0.34-0.50 m for most of a lap. Four distinguishable rungs are not
+    worth having if three of them are slower than the drivetrain allows.
+
+    What the same run showed was worth keeping is the FLOOR. At creep 0.65
+    the heading limiter bound 0% of ticks, and CCW went from 1 escape and 4
+    stucks to none -- against 16-21% of ticks at the old 0.05 m/s crawl.
 
     The usable band is narrow. MIN_FRAC is the friction floor, so the whole
     ladder lives inside a 3.1x range between "barely moves" and "flat out";
@@ -163,8 +171,8 @@ class SpeedControlParams(BaseModel):
     MIN_FRAC: float = Field(default=0.32, gt=0.0, le=1.0, validation_alias=_alias("MIN_FRAC"))
     MAX_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MAX_FRAC"))
     CREEP_FRAC: float = Field(default=0.65, gt=0.0, le=1.0, validation_alias=_alias("CREEP_FRAC"))
-    SLOW_FRAC: float = Field(default=0.75, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
-    MEDIUM_FRAC: float = Field(default=0.85, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
+    SLOW_FRAC: float = Field(default=0.96, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
+    MEDIUM_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
     FAST_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("FAST_FRAC"))
 
     @model_validator(mode="after")
