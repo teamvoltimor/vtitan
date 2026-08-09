@@ -40,7 +40,7 @@ def test_tuning_fields_not_none() -> None:
     # Spot-check critical fields that would break if config is incomplete
     critical_fields = {
         "lidar_sectors.MIN_VALID_RANGE_M": tuning.lidar_sectors.MIN_VALID_RANGE_M,
-        "heading.MEDIUM": tuning.heading.MEDIUM,
+        "heading.CRAWL": tuning.heading.CRAWL,
         "direction_estimator.MAX_IN_TRACK_RANGE_M": tuning.direction_estimator.MAX_IN_TRACK_RANGE_M,
         "corridor_follower.CENTERING_GAIN": tuning.corridor_follower.CENTERING_GAIN,
         "corridor_follower.HEADING_GAIN": tuning.corridor_follower.HEADING_GAIN,

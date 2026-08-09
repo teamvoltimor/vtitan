@@ -1,8 +1,7 @@
-# Heading error thresholds for speed modulation (radians).
+# The heading error above which speed is cut (radians).
 #
-# See shared.config.navigation_tuning.HeadingErrorZones.
+# See shared.config.navigation_tuning.HeadingErrorZones. One threshold, not a
+# ladder -- slow/medium/normal were deleted 2026-08-09 after the graduated
+# version cost 33% of lap time by taxing every corner.
 
-crawl = 1.0    # ~57 deg -- severe misalignment, crawl speed
-slow = 0.7     # ~40 deg -- large error, slow speed
-medium = 0.4   # ~23 deg -- moderate error, medium speed
-normal = 0.2   # ~11 deg -- small error, normal speed
+crawl = 1.0    # ~57 deg -- severe misalignment, drop to the creep floor
