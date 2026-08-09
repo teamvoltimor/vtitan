@@ -30,6 +30,28 @@
           changed_when: true
           when: wifi_lock_needed | bool
 
+        # Guards against the always: block below never running at all: Ansible
+        # skips always: when a host goes UNREACHABLE (only regular task
+        # failures trigger it), and the failure that unreachable-izes pi_zero
+        # is often the Zero's own link dropping mid-task, unrelated to the
+        # Pi 5's WiFi. Without this, that combination leaves the Pi 5 pinned
+        # to wifi_2g_bssid with no automatic recovery. Armed before the DHCP
+        # re-acquisition step below (the step most likely to hang) so the
+        # failsafe exists even if that step itself is what goes bad.
+        # wifi_lock_failsafe_seconds is deliberately long (see its definition)
+        # -- this is a backstop for an abandoned run, not a fast recovery, so
+        # it must outlast the slowest healthy provision rather than race it.
+        - name: Arm WiFi unlock dead-man's switch on the Pi 5
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: >
+            systemd-run --unit=vtitan-wifi-unlock-failsafe
+            --on-active={{ wifi_lock_failsafe_seconds }}
+            --description="vtitan: restore Pi 5 WiFi to automatic band selection if provisioning did not clear the 2.4GHz lock"
+            /bin/bash -c "nmcli connection modify {{ wifi_conn_name }} 802-11-wireless.bssid '' && nmcli connection up {{ wifi_conn_name }}"
+          changed_when: true
+          when: wifi_lock_needed | bool
+
         - name: Bring Pi 5 WiFi connection up on the locked band
           delegate_to: pi5
           become: true
@@ -110,6 +132,17 @@
         #
         # Clearing an already-clear bssid is a no-op on the profile, so making
         # this unconditional costs nothing and removes the orphan case entirely.
+        # Same reasoning applies to disarming the failsafe below: an orphaned
+        # timer from a prior aborted run (this run's wifi_lock_needed is false,
+        # so the arm task above was skipped) must still be cleared. Stopping a
+        # timer that never existed is a harmless no-op, not a real failure.
+        - name: Disarm WiFi unlock dead-man's switch on the Pi 5
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: systemctl stop vtitan-wifi-unlock-failsafe.timer
+          changed_when: true
+          failed_when: false
+
         - name: Restore Pi 5 WiFi to automatic band selection
           delegate_to: pi5
           become: true
