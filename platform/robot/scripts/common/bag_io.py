@@ -48,6 +48,11 @@ class Topics:
     SCAN = "/scan"
     ACKERMANN_CMD = "/ackermann_cmd"
     ROBOT_STATE = "/robot_state"
+    IMU_DATA = "/imu/data"
+    MOTOR_DRIVE_SPEED = "/motor/drive_speed"
+    MOTOR_STEERING_POSITION = "/motor/steering_position"
+    MOTOR_PREFIX = "/motor/"
+    """Prefix match for any /motor/* feedback topic, not just the two named above."""
 
 
 def open_reader(bag_dir: Path) -> rosbag2_py.SequentialReader:

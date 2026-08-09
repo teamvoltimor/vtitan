@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, override
+from typing import override
 
 import board
 import busio
@@ -49,7 +49,7 @@ class Config(HardwareBaseSettings):
 
     @field_validator("i2c_address", mode="before")
     @classmethod
-    def _parse_int_literal(cls, value: Any) -> Any:
+    def _parse_int_literal(cls, value: object) -> object:
         """Accept "0x4A"-style hex literals as well as plain decimal strings."""
         return int(value, 0) if isinstance(value, str) else value
 
