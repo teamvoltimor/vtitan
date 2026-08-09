@@ -51,9 +51,7 @@ from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_wid
 if TYPE_CHECKING:
     from shared.domain.models import NavigatorDebugSnapshot
 
-_LIDAR_YAW_OFFSET_RAD = math.radians(
-    (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG,
-)
+_LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
 # Real motion between LIDAR-refresh ticks tops out well under this even during
 # a K-turn; anything faster is not real motion, it is the search snapping to a
 # wrong candidate. 2x MAX_SPEED_MPS leaves margin for IMU/encoder noise in the

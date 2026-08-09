@@ -10,14 +10,15 @@ and the URDF in robot_description/wro_robot.urdf (measured 2026-07-11, see
   lidar_link  : front of chassis, centered   x=+0.1222  y=0   z=+0.12
   imu_link    : near chassis bottom          x=0        y=0   z=+0.01
 
-lidar_link's yaw comes from (180deg if RobotSpecs.LIDAR_INVERTED else 0) +
-RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG -- the mandatory rotation from an upside-down
-mount plus any independent residual miscalibration, matching
-ros2_hardware_gateway.py's _LIDAR_YAW_OFFSET_RAD. Re-verified 2026-08-02 at 0 deg
-total against a known object placed at chassis front/back (an earlier "confirmed
-empirically... 180 deg" finding no longer matched the mounting as it exists today).
-See shared/config/robot.toml's [lidar] section for the full history and why these
-two components are never set independently.
+lidar_link's yaw comes from RobotSpecs.lidar_yaw_offset_rad() -- the mandatory
+rotation from an upside-down mount plus any independent residual miscalibration,
+matching ros2_hardware_gateway.py's _LIDAR_YAW_OFFSET_RAD (same classmethod
+call). Re-verified 2026-08-02 at 0 deg total against a known object placed at
+chassis front/back (an earlier "confirmed empirically... 180 deg" finding no
+longer matched the mounting as it exists today). See shared/config/robot.toml's
+[lidar] section and RobotSpecs.lidar_yaw_offset_rad()'s docstring for the full
+history and why every consumer calls the shared classmethod instead of
+recomputing the formula locally.
 
 camera_link's x/z position is still an estimate pending a real measurement -- if it looks off
 in RViz, correct RobotSpecs.CAMERA_MOUNT_X_OFFSET/CAMERA_MOUNT_Z_OFFSET. Its pitch SIGN
@@ -71,12 +72,10 @@ def _static_tf(
 
 def generate_launch_description() -> LaunchDescription:
     """Generate launch description for static sensor-frame transforms."""
-    # Same combination as ros2_hardware_gateway.py's _LIDAR_YAW_OFFSET_RAD -- keep
-    # the two in sync; see robot.toml's [lidar] section for why they're computed
-    # from LIDAR_INVERTED + LIDAR_MOUNT_YAW_OFFSET_DEG rather than one constant.
-    lidar_yaw_rad = math.radians(
-        (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
-    )
+    # Same RobotSpecs.lidar_yaw_offset_rad() call as ros2_hardware_gateway.py's
+    # _LIDAR_YAW_OFFSET_RAD -- see that classmethod's docstring for what it
+    # combines and why it lives there instead of being recomputed per-consumer.
+    lidar_yaw_rad = RobotSpecs.lidar_yaw_offset_rad()
     camera_pitch_rad = math.radians(RobotSpecs.CAMERA_MOUNT_PITCH_DEG)
 
     return LaunchDescription(

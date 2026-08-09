@@ -86,13 +86,37 @@ class RobotSpecs:
     # why these must never be set independently again.
     LIDAR_INVERTED: Final[bool] = _robot.lidar.inverted
     # Residual yaw miscalibration NOT explained by LIDAR_INVERTED's 180deg -- added on
-    # top of it, not a replacement. Consumers wanting the full correction compute
-    # (180.0 if LIDAR_INVERTED else 0.0) + this, in degrees, themselves.
+    # top of it, not a replacement. Use lidar_yaw_offset_rad() below for the
+    # combined correction rather than reading these two fields separately.
     LIDAR_MOUNT_YAW_OFFSET_DEG: Final[float] = _robot.lidar.mount_yaw_offset_deg
     # LIDAR_SELF_DETECTION_THRESHOLD moved to NavigationTuning's LidarSectorParams
     # (platform/shared/config/navigation/sensors/lidar_sectors.toml) -- it's
     # collision-logic tuning, not physical geometry, unlike everything else in
     # this class.
+
+    @classmethod
+    def lidar_yaw_offset_rad(cls) -> float:
+        """Rotates raw /scan bearings into the robot frame (0 rad = forward).
+
+        Combines two independent facts -- LIDAR_INVERTED (mandatory 180deg
+        when the mount is upside-down, the same fact that also drives the
+        sllidar_ros2 driver's own `inverted` launch parameter) and
+        LIDAR_MOUNT_YAW_OFFSET_DEG (any additional residual miscalibration,
+        added on top of the 180deg, not a replacement for it) -- see
+        robot.toml's [lidar] section.
+
+        A classmethod rather than a stored Final constant so every consumer
+        of raw LIDAR angles calls this instead of recomputing the formula
+        locally. That duplication is exactly how telemetry_bridge_node.py's
+        own copy went stale: written 2026-07-28, before LIDAR_INVERTED
+        existed as a separate flag, it silently kept applying only the
+        residual offset while ros2_hardware_gateway.py's and
+        static_tfs.launch.py's copies got the 180deg term added 2026-08-02.
+        Confirmed live on hardware 2026-08-09: the OLED's F/L/R readout was
+        still un-inverted (front read as back, left read as right) despite
+        the driver and the navigation path both being correct.
+        """
+        return math.radians((180.0 if cls.LIDAR_INVERTED else 0.0) + cls.LIDAR_MOUNT_YAW_OFFSET_DEG)
 
     # IMU (Adafruit BNO085)
     IMU_UPDATE_RATE: Final[float] = 100.0  # 100 Hz update rate

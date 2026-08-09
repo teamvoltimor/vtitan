@@ -12,7 +12,6 @@ either.
 from __future__ import annotations
 
 import json
-import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -49,24 +48,17 @@ if TYPE_CHECKING:
     from rclpy.node import Node
     from shared.domain.enums import Section
 
-_LIDAR_YAW_OFFSET_RAD = math.radians(
-    (180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) + RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG
-)
+_LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
 """Rotates raw /scan bearings into the robot frame (0 rad = forward).
 
-Two independent components, combined here rather than read as one pre-combined
-constant: RobotSpecs.LIDAR_INVERTED (mandatory 180 deg when the mount is
-upside-down -- the same fact that also has to drive the sllidar_ros2 driver's
-own `inverted` launch parameter, see robot.toml's [lidar] section) plus
-RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG (any additional residual miscalibration,
-independent of the inversion). Getting these out of sync -- e.g. flipping the
-driver's `inverted` parameter without updating this rotation, or vice versa --
-is exactly the bug found and fixed 2026-08-02: a stale 180 deg applied on top
-of already-correctly-oriented raw data rotated the navigator's whole picture
-180 deg, front read as back and left read as right.
+See RobotSpecs.lidar_yaw_offset_rad()'s docstring for what this combines
+(LIDAR_INVERTED's mandatory 180deg + any residual LIDAR_MOUNT_YAW_OFFSET_DEG)
+and why it's a shared classmethod rather than recomputed per-consumer --
+that duplication is exactly how telemetry_bridge_node.py's own copy of this
+formula silently dropped the 180deg term for weeks.
 
 This constant already drives static_tfs.launch.py's lidar_link TF rotation
-(computed the same way there), but nothing reads that TF back -- every
+(same classmethod, called there too), but nothing reads that TF back -- every
 consumer of LidarScan.angles_rad (CollisionAvoidanceController via
 core_navigator.py, and estimate_yaw_from_walls) documents and requires 0 rad
 = forward, so the correction has to happen here, where angles_rad is actually

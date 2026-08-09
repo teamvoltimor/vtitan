@@ -203,15 +203,17 @@ class RosMsgType:
     JOINT_STATE = "sensor_msgs/JointState"
 
 
-_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+_LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
 """Rotates raw /scan bearings into the robot frame (0 rad = forward).
 
-The C1 is mounted inverted, so its raw angle-zero points opposite
-robot-front (confirmed empirically: the open-space/robot-front sector
-lands at +-180 deg in raw /scan data, not 0 deg). Matches the
-correction ros2/navigation/node.py applies when building LidarScan for
-the real collision-avoidance path -- see that module's docstring for
-the same constant.
+Previously recomputed `(180.0 if RobotSpecs.LIDAR_INVERTED else 0.0) +
+RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG` locally, and that local copy
+silently dropped the 180deg term (written 2026-07-28, before LIDAR_INVERTED
+existed as a separate flag) while ros2_hardware_gateway.py's and
+static_tfs.launch.py's copies got fixed 2026-08-02 -- confirmed live on
+hardware 2026-08-09: the OLED's F/L/R readout was still un-inverted (front
+read as back, left read as right). See RobotSpecs.lidar_yaw_offset_rad()'s
+docstring for the full history.
 """
 
 
