@@ -1,0 +1,119 @@
+"""Shared building blocks for the ``scripts/sim/diag_open_*.py`` scenario sweeps.
+
+``diag_open_exhaustive.py`` (serial baseline), ``diag_open_parallel.py`` (pooled
+across cores) and ``diag_open_ab.py`` (two pooled arms compared) all draw from
+the same 640-case Open Challenge population and must draw it identically to
+stay comparable -- same seed, same sample. That draw, the ``--laps/--sample/
+--seed/--all[/--jobs]`` flags that control it, and the ``ProcessPoolExecutor``
+dispatch two of the three scripts ran with near-identical boilerplate, are
+collected here instead of staying independently copy-pasted.
+
+Nothing here is scenario-specific: no ``Section``/``Direction``/corridor-width
+knowledge lives in this file, only the sampling and dispatch mechanics around
+whatever population and worker function a caller supplies.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import TYPE_CHECKING
+
+from shared.config.navigation_tuning import NavigationTuning
+
+if TYPE_CHECKING:
+    import argparse
+    from collections.abc import Callable, Sequence
+
+_SPARE_CORES = 2
+"""Cores left for the rest of the machine, so a sweep does not make it unusable."""
+
+
+def add_sweep_args(
+    parser: argparse.ArgumentParser,
+    *,
+    default_laps: int,
+    default_sample: int,
+    default_seed: int,
+    jobs: bool = False,
+) -> None:
+    """Add the ``--laps/--sample/--seed/--all[/--jobs]`` flags every sweep script shares."""
+    parser.add_argument("--laps", type=int, default=default_laps)
+    parser.add_argument("--sample", type=int, default=default_sample, help="How many scenarios to draw.")
+    parser.add_argument("--seed", type=int, default=default_seed, help="Draw seed; same seed, same sample.")
+    parser.add_argument("--all", action="store_true", help="Run the whole population instead of a sample.")
+    if jobs:
+        parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
+
+
+def add_tuning_arg(parser: argparse.ArgumentParser) -> None:
+    """Add ``--tuning``, the one flag the original diag scripts never wired up.
+
+    Every sweep ran the checked-in default tuning regardless of this flag's
+    presence elsewhere in the codebase (``track_navigator_node.py`` has its
+    own copy) -- a sweep script has no way to validate a candidate tuning
+    profile before it reaches hardware. Kept optional and defaulted to the
+    checked-in profile so existing invocations are unaffected.
+    """
+    parser.add_argument("--tuning", help="Optional navigation tuning YAML override; defaults to the checked-in profile.")
+
+
+def load_tuning(path: str | None) -> NavigationTuning:
+    """Resolve ``--tuning``'s value the same way ``track_navigator_node.py`` does."""
+    return NavigationTuning.load_from_yaml(path) if path else NavigationTuning.load_default()
+
+
+def draw_sample[T](population: Sequence[T], *, sample: int, seed: int, all_: bool) -> list[T]:
+    """The one sampling rule all three sweep scripts must share to stay comparable.
+
+    Cases are drawn uniformly at random rather than enumerated systematically,
+    because stepping the population's axes together (e.g. cell index alongside
+    section) correlates them -- see ``diag_open_exhaustive``'s module docstring.
+    """
+    if all_ or sample >= len(population):
+        return list(population)
+    # Suppression is justified here: the draw must be reproducible from a
+    # seed, which is the one thing a cryptographic generator will not do.
+    return random.Random(seed).sample(population, sample)  # noqa: S311
+
+
+def resolve_jobs(jobs: int) -> int:
+    """Turn ``--jobs 0`` (the default) into a real worker count."""
+    return jobs or max(1, (os.cpu_count() or 4) - _SPARE_CORES)
+
+
+def run_pool[T, R](
+    fn: Callable[[T], R],
+    payloads: Sequence[T],
+    jobs: int,
+    *,
+    on_result: Callable[[R, int, int], None] | None = None,
+) -> list[R]:
+    """Run ``fn`` over every payload in a process pool, in completion order.
+
+    ``fn`` must be a module-level function taking one picklable argument --
+    ``ProcessPoolExecutor`` requires it, which is also why every sweep
+    script's per-case worker re-derives its enums from primitive values
+    instead of receiving them directly. Results come back in completion
+    order, not submission order; callers that need a stable order sort by
+    whatever index field they put in their own result.
+    """
+    results: list[R] = []
+    with ProcessPoolExecutor(max_workers=jobs) as pool:
+        futures = [pool.submit(fn, p) for p in payloads]
+        for done in as_completed(futures):
+            row = done.result()
+            results.append(row)
+            if on_result:
+                on_result(row, len(results), len(payloads))
+    return results
+
+
+def print_pool_progress(name: str) -> Callable[[object, int, int], None]:
+    """The plain ``name: done/total`` progress line ``diag_open_ab.py``'s arms print."""
+
+    def _on_result(_row: object, done: int, total: int) -> None:
+        print(f"  {name}: {done}/{total}", end="\r", flush=True)
+
+    return _on_result

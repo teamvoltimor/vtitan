@@ -22,24 +22,32 @@ Usage (from ``platform/robot``)::
 
     pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.CENTER_BIAS_SIDE=outer
     pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --sample 12
+    pixi run -e dev python scripts/sim/diag_open_ab.py waypoints.ARC_RADIUS=0.35 --tuning custom.yaml
 """
 
 from __future__ import annotations
 
 import argparse
-import os
-import random
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.navigation_tuning import NavigationTuning
+if TYPE_CHECKING:
+    from shared.config.navigation_tuning import NavigationTuning
 
+from scripts.common.diag_base import (
+    add_sweep_args,
+    add_tuning_arg,
+    draw_sample,
+    load_tuning,
+    print_pool_progress,
+    resolve_jobs,
+    run_pool,
+)
 from scripts.common.tables import print_table
 from scripts.sim.diag_open_exhaustive import _SIDES, _all_cases, _verdict
 from src.simulation.scenario_builder import build_open_metadata
@@ -48,7 +56,6 @@ from src.simulation.scenario_simulator import ScenarioSimulator
 _DEFAULT_LAPS = 3
 _DEFAULT_SAMPLE_SIZE = 24
 _DEFAULT_SEED = 0
-_SPARE_CORES = 2
 
 
 def _apply_overrides(tuning: NavigationTuning, overrides: dict[str, str]) -> NavigationTuning:
@@ -82,17 +89,19 @@ def _apply_overrides(tuning: NavigationTuning, overrides: dict[str, str]) -> Nav
     return replace(tuning, **updated)
 
 
-def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, dict[str, str] | None]) -> dict[str, object]:
+def _run_case(
+    payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, dict[str, str] | None],
+) -> dict[str, object]:
     """Run one scenario under one arm. Primitive-valued so it pickles."""
     from shared.domain.enums import Direction, Section
 
-    index, widths, section_value, direction_value, cell, laps, overrides = payload
+    index, widths, section_value, direction_value, cell, laps, tuning_path, overrides = payload
     section = Section(section_value)
     direction = Direction(direction_value)
     widths_mm = dict(zip(_SIDES, widths, strict=True))
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
 
-    tuning = NavigationTuning.load_default()
+    tuning = load_tuning(tuning_path)
     if overrides:
         tuning = _apply_overrides(tuning, overrides)
 
@@ -109,26 +118,17 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, dict[str,
 def _run_arm(name: str, payloads: list[tuple[Any, ...]], jobs: int) -> dict[int, dict[str, object]]:
     """Run every case for one arm, returning results keyed by case index."""
     started = time.perf_counter()
-    rows: dict[int, dict[str, object]] = {}
-    with ProcessPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(_run_case, p) for p in payloads]
-        for done in as_completed(futures):
-            row = done.result()
-            rows[int(row["index"])] = row
-            print(f"  {name}: {len(rows)}/{len(payloads)}", end="\r", flush=True)
-    print(f"  {name}: {len(rows)}/{len(payloads)} in {time.perf_counter() - started:.0f}s", flush=True)
-    return rows
+    results = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress(name))
+    print(f"  {name}: {len(results)}/{len(payloads)} in {time.perf_counter() - started:.0f}s", flush=True)
+    return {int(row["index"]): row for row in results}
 
 
 def main() -> None:
     """Run both arms over the same sample and report what the override changed."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("overrides", nargs="+", help="group.FIELD=value, applied to the variant arm.")
-    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
-    parser.add_argument("--sample", type=int, default=_DEFAULT_SAMPLE_SIZE)
-    parser.add_argument("--seed", type=int, default=_DEFAULT_SEED)
-    parser.add_argument("--all", action="store_true", help="Run all 640 instead of a sample.")
-    parser.add_argument("--jobs", type=int, default=0, help="Workers; 0 picks cores minus a couple.")
+    add_sweep_args(parser, default_laps=_DEFAULT_LAPS, default_sample=_DEFAULT_SAMPLE_SIZE, default_seed=_DEFAULT_SEED, jobs=True)
+    add_tuning_arg(parser)
     args = parser.parse_args()
 
     overrides: dict[str, str] = {}
@@ -138,23 +138,20 @@ def main() -> None:
             parser.error(f"override must be group.FIELD=value, got {item!r}")
         overrides[key] = value
 
-    # Fail on a bad override here, before spending a sweep on it.
-    _apply_overrides(NavigationTuning.load_default(), overrides)
+    # Fail on a bad --tuning or a bad override here, before spending a sweep on it.
+    base_tuning = load_tuning(args.tuning)
+    _apply_overrides(base_tuning, overrides)
 
     population = _all_cases()
-    if args.all or args.sample >= len(population):
-        cases = population
-    else:
-        # Same seeded draw as diag_open_parallel, so the two are comparable.
-        cases = random.Random(args.seed).sample(population, args.sample)  # noqa: S311
+    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
 
-    jobs = args.jobs or max(1, (os.cpu_count() or 4) - _SPARE_CORES)
+    jobs = resolve_jobs(args.jobs)
     changed = ", ".join(f"{k}={v}" for k, v in overrides.items())
     print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers", flush=True)
     print(f"variant: {changed}\n", flush=True)
 
     base_payloads = [
-        (i, widths, section.value, direction.value, cell, args.laps, None)
+        (i, widths, section.value, direction.value, cell, args.laps, args.tuning, None)
         for i, (widths, section, direction, cell) in enumerate(cases)
     ]
     variant_payloads = [(*p[:-1], overrides) for p in base_payloads]
