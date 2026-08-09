@@ -362,10 +362,19 @@ class NavigationTuning:
 
         Useful for serialization or debugging.
 
+        Dumped in pydantic's ``json`` mode so enum-valued fields (e.g.
+        ``waypoints.CENTER_BIAS_SIDE``) come out as their plain string value
+        rather than as the enum member. Python mode emits the member, which
+        ``yaml.dump`` then writes as a ``python/object/apply:`` tag that
+        ``load_from_yaml``'s ``safe_load`` refuses -- so an exported profile
+        could not be read back, and ``--tuning`` is the robot's only profile
+        mechanism. The string round-trips because each group revalidates its
+        own fields on load.
+
         Returns:
             Dictionary representation of all parameters
         """
-        return {key: getattr(self, key).model_dump() for key, _, _sub in self._GROUPS}
+        return {key: getattr(self, key).model_dump(mode="json") for key, _, _sub in self._GROUPS}
 
     def to_json(self) -> str:
         """Export configuration as JSON string.
