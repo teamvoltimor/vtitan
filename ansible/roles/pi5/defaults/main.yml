@@ -7,6 +7,13 @@ pi5_systemd_units:
   # robot: it holds until /robot_state reports racing, so the physical start
   # button stays the only way to make it move.
   - vtitan-race.service
+  # Recovers a matched-but-silent DDS participant pair (state_machine_node /
+  # sllidar_node) stuck in BOOT_CHECK -- confirmed on hardware 2026-08-09,
+  # same signature as docs/dds-shm-transport-disabled.md, reproduced even
+  # with SHM disabled and on a genuinely fresh cold boot, not just a partial
+  # restart. See scripts/boot-check-watchdog.sh.
+  - vtitan-boot-check-watchdog.service
+  - vtitan-boot-check-watchdog.timer
 
 # Keep in sync with platform/backend/go.mod's `go` directive. Trixie's apt only
 # carries 1.24, which is why the backend's toolchain comes from mise rather

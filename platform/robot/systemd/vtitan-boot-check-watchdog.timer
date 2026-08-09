@@ -1,0 +1,14 @@
+[Unit]
+Description=vTitan — periodic BOOT_CHECK stuck-state check
+
+[Timer]
+# Later than the script's own MIN_UPTIME_SEC grace: state_machine_node's own
+# jumper-read timeout alone is 60s, so checking before that would fight
+# normal startup instead of repairing a genuinely stuck one.
+OnBootSec=90
+OnUnitActiveSec=20
+AccuracySec=5
+Unit=vtitan-boot-check-watchdog.service
+
+[Install]
+WantedBy=timers.target
