@@ -86,29 +86,36 @@ excludes them -- verified at 55s for 523 tests. Not fixed: `raycast()`'s per-cal
 (4 passes x 5x5 = 100 raycasts per scan) is doing more work than it needs to, independent of
 whether it's fast enough for these tests' purposes.
 
-## `telemetry_bridge_node.py`'s `_LIDAR_YAW_OFFSET_RAD` is missing the mount-inversion term
+## `telemetry_bridge_node.py`'s `_LIDAR_YAW_OFFSET_RAD` is missing the mount-inversion term -- FIXED 2026-08-09
 
 Pre-existing, confirmed present at `5378e42` (before the 2026-08-04 collision-avoidance
-work) -- not caused by that session. `telemetry_bridge_node.py:194` computes
+work) -- not caused by that session. `telemetry_bridge_node.py:194` computed
 `_LIDAR_YAW_OFFSET_RAD = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)`, but
-`ros2_hardware_gateway.py`'s equivalent constant additionally includes
+`ros2_hardware_gateway.py`'s equivalent constant additionally included
 `180.0 if RobotSpecs.LIDAR_INVERTED else 0.0` (currently `LIDAR_INVERTED=True`,
-`LIDAR_MOUNT_YAW_OFFSET_DEG=0.0`, so the real offset is 180 deg and this file's copy is
-computing 0). The module's own docstring claims it "matches the correction
-ros2/navigation/node.py applies" -- it doesn't. Surfaced by 4 failing tests in
+`LIDAR_MOUNT_YAW_OFFSET_DEG=0.0`, so the real offset is 180 deg and this file's copy was
+computing 0). The module's own docstring claimed it "matches the correction
+ros2/navigation/node.py applies" -- it didn't. Surfaced by 4 failing tests in
 `tests/ros2/test_telemetry_bridge_node.py::TestLidarClearancesCm` (front/left/right sector
-means come back reading the 10m background fill instead of the injected near-range window,
-because the sector center ends up 180 deg away from where the test places it). Likely means
-the real OLED front/left/right clearance display is rotated 180 deg from reality on hardware,
-the same class of bug the docstring says it was written to prevent.
+means came back reading the 10m background fill instead of the injected near-range window,
+because the sector center ended up 180 deg away from where the test places it). Confirmed
+live on hardware 2026-08-09: the OLED's real front/left/right clearance display was rotated
+180 deg from reality (front read as back, left read as right) -- the same class of bug the
+docstring said it was written to prevent.
 
 Two diagnostic scripts had the identical bug (same missing `LIDAR_INVERTED` term, same
 formula shape) -- both fixed 2026-08-06 alongside the tests/scripts refactor pass, see
 `docs/internal/audits/2026-08-06-robot-tests-scripts-refactor.md`:
 `scripts/hardware/diag_corridor_measure.py:30` and `scripts/hardware/diag_track_run.py`'s `_on_scan` sector
-helper. Three independent copies of the same formula, three chances to drop the term --
-worth promoting to a single shared helper (see the audit doc). The
-`telemetry_bridge_node.py` copy above is still open.
+helper.
+
+Fixed 2026-08-09 by promoting the formula to `RobotSpecs.lidar_yaw_offset_rad()` (a
+classmethod, not a stored constant, so it stays trivially correct if `robot.toml`'s
+`[lidar]` values ever change) and switching every consumer -- `telemetry_bridge_node.py`,
+`ros2_hardware_gateway.py`, `static_tfs.launch.py`, `diag_corridor_measure.py`,
+`diag_track_run.py`, `diag_localizer_guard_replay.py` -- to call it instead of
+recomputing the formula locally. Exactly the "three independent copies, three chances to
+drop the term" risk this entry originally flagged; now there is one copy.
 
 ## Vision detection payload import path -- FIXED 2026-08-04
 
