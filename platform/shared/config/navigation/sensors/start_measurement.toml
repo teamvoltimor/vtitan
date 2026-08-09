@@ -4,3 +4,5 @@
 
 ray_half_width_deg = 4.0     # wedge half-width for each cardinal ray's median (converted to radians at point of use)
 closing_tolerance_m = 0.15   # how far forward+back may fall short of the mat before a reading is rejected
+retry_window_s = 8.0             # how long after the direction commit a refused measurement keeps being retried
+retry_align_tolerance_deg = 25.0 # how far off the start corridor's bearing a retried measurement is still believed

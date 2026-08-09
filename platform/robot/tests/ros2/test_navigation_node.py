@@ -777,3 +777,127 @@ class TestMainEntryPoint:
         main(["--blind", "--direction", "ccw"])
 
         assert not rclpy.ok()
+
+
+class TestStartMeasurementRetry:
+    """A refused start measurement is retried, not settled for.
+
+    ``measure_start_pose`` refuses when a cardinal ray has no valid return or
+    the along-corridor pair does not span the mat, and its docstring says the
+    caller must treat that as "do not race" rather than "use the old
+    assumption". The node did use the old assumption, and it cost both rounds
+    that refused on 2026-08-08: replaying those bags' whole scan stream, an
+    operator stood in the rearward ray at 0.10-0.19 m and cleared it 0.6 s and
+    1.5 s after the commit, by which point the node had already reseeded its
+    position roughly 1.0 m behind the truth and was driving at a corner on it.
+    """
+
+    @staticmethod
+    def _navigator():
+        """A blind counterclockwise navigator with the retry already armed."""
+        from shared.domain.enums import Direction
+
+        navigator = TrackNavigator(num_laps=1, blind=True, direction=Direction.COUNTERCLOCKWISE)
+        navigator._start_measurement_ticks_left = 100
+        return navigator
+
+    @staticmethod
+    def _clean_scan(x: float, y: float, yaw: float):
+        """A noise-free scan of a one-metre-corridor track, taken at a known pose."""
+        from src.navigation.ports import LidarScan
+        from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
+
+        walls = TrackWalls(corridor_geometry_from_widths(_WIDTHS))
+        angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
+        return LidarScan(ranges_m=tuple(walls.raycast(x, y, yaw, angles)), angles_rad=tuple(angles))
+
+    def _drive_one_tick(self, navigator, x: float, y: float, yaw: float):
+        """Hand the retry one scan taken at ``(x, y, yaw)``, from a pose it does not know."""
+        from shared.domain.models import Pose
+
+        with (
+            mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=self._clean_scan(x, y, yaw)),
+            # Deliberately not (x, y): the whole point is that the estimate is
+            # wrong and the measurement is what corrects it.
+            mock.patch.object(navigator._gateway, "get_current_pose", return_value=Pose(x=1.25, y=0.4, yaw=yaw)),
+            mock.patch.object(navigator._gateway, "reset_position") as reset_mock,
+        ):
+            navigator._retry_start_measurement()
+        return reset_mock
+
+    def test_a_clean_scan_lands_the_measurement_and_reseeds(self, ros_context):
+        navigator = self._navigator()
+        try:
+            reset_mock = self._drive_one_tick(navigator, 2.26, 0.30, 0.0)
+
+            assert navigator._measured_start is not None
+            assert navigator._measured_start.x == pytest.approx(2.26, abs=0.03)
+            assert navigator._measured_start.y == pytest.approx(0.30, abs=0.03)
+            reset_mock.assert_called_once()
+            assert reset_mock.call_args.args[0] == pytest.approx(2.26, abs=0.03)
+        finally:
+            navigator.destroy_node()
+
+    def test_the_budget_is_spent_once_a_measurement_lands(self, ros_context):
+        """Latched: the start pose is measured once, and the localizer owns it after."""
+        navigator = self._navigator()
+        try:
+            self._drive_one_tick(navigator, 2.26, 0.30, 0.0)
+            landed = navigator._measured_start
+            reset_mock = self._drive_one_tick(navigator, 1.40, 0.60, 0.0)
+
+            assert navigator._measured_start is landed
+            reset_mock.assert_not_called()
+        finally:
+            navigator.destroy_node()
+
+    def test_a_chassis_turned_around_is_refused_though_the_rays_still_span_the_mat(self, ros_context):
+        """The gate measure_start_pose cannot apply for itself.
+
+        Facing back down the corridor, ``forward`` and ``back`` simply swap, so
+        the closing check passes exactly as well and the along-corridor
+        coordinate comes out mirrored about the mat's centre -- 2.26 read as
+        0.74. Only the heading distinguishes them.
+        """
+        navigator = self._navigator()
+        try:
+            reset_mock = self._drive_one_tick(navigator, 2.26, 0.30, math.pi)
+
+            assert navigator._measured_start is None
+            reset_mock.assert_not_called()
+        finally:
+            navigator.destroy_node()
+
+    def test_an_unarmed_navigator_never_measures(self, ros_context):
+        """A round whose commit measured cleanly must not keep re-measuring while it drives."""
+        navigator = self._navigator()
+        navigator._start_measurement_ticks_left = 0
+        try:
+            reset_mock = self._drive_one_tick(navigator, 2.26, 0.30, 0.0)
+
+            assert navigator._measured_start is None
+            reset_mock.assert_not_called()
+        finally:
+            navigator.destroy_node()
+
+    def test_the_budget_runs_out(self, ros_context):
+        """Bounded, because the pose is read in the starting section's frame.
+
+        The robot leaves that section for good at the first corner, and a
+        measurement taken after it would be filed against a corridor the robot
+        is no longer standing in.
+        """
+        navigator = self._navigator()
+        navigator._start_measurement_ticks_left = 2
+        try:
+            # Two ticks of a scan nothing can be measured from, then a clean one.
+            for _ in range(2):
+                self._drive_one_tick(navigator, 2.26, 0.30, math.pi / 2)
+            assert navigator._start_measurement_ticks_left == 0
+
+            reset_mock = self._drive_one_tick(navigator, 2.26, 0.30, 0.0)
+
+            assert navigator._measured_start is None
+            reset_mock.assert_not_called()
+        finally:
+            navigator.destroy_node()

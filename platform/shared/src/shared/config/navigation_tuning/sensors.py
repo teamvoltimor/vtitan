@@ -133,12 +133,31 @@ class StartMeasurementParams(BaseModel):
             corridor must span the mat, so their sum is a free validity
             check -- see measure_start_pose's own docstring for how this was
             sized from real scans.
+        RETRY_WINDOW_S: How long after the direction commit the node keeps
+            re-attempting a refused measurement. A refusal is transient: on
+            both 2026-08-08 rounds that refused, an operator was standing in
+            the rearward ray at 0.10-0.19 m, and the ray cleared 0.6 s and
+            1.7 s after the commit respectively -- once the robot had driven
+            out from under them. Sized to cover that with margin while still
+            expiring well inside the first lap, since a measurement taken
+            later is read in the starting section's frame and the robot is no
+            longer in it.
+        RETRY_ALIGN_TOLERANCE_DEG: How far the chassis may sit off the start
+            corridor's travel bearing for a retried measurement to be
+            believed. The closing check cannot stand in for this: a chassis
+            turned through 180 degrees still spans the mat, so ``forward`` and
+            ``back`` simply swap and the along-corridor coordinate comes out
+            mirrored about the mat's centre. At the commit itself the heading
+            is sound by construction (direction was just inferred from the
+            same scan), so this gates only the retries.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     RAY_HALF_WIDTH_DEG: float = Field(default=4.0, validation_alias=_alias("RAY_HALF_WIDTH_DEG"))
     CLOSING_TOLERANCE_M: float = Field(default=0.15, validation_alias=_alias("CLOSING_TOLERANCE_M"))
+    RETRY_WINDOW_S: float = Field(default=8.0, validation_alias=_alias("RETRY_WINDOW_S"))
+    RETRY_ALIGN_TOLERANCE_DEG: float = Field(default=25.0, validation_alias=_alias("RETRY_ALIGN_TOLERANCE_DEG"))
 
 
 class WallHeadingParams(BaseModel):
