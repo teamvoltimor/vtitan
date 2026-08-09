@@ -50,6 +50,7 @@ else
   bad "~/vtitan repo NOT present"
 fi
 [ -f "$HOME/vtitan/platform/robot/.env" ] && ok ".env present" || bad ".env missing"
+grep -q '^MOTOR_TEST_DURATION=' "$HOME/vtitan/platform/robot/.env" 2>/dev/null && ok "MOTOR_TEST_DURATION set" || bad "MOTOR_TEST_DURATION missing from .env -- ackermann_motor_node's Config() throws uncaught, node gets stuck permanently unconfigured (looks like a wiring/pin problem, isn't -- confirmed on hardware 2026-08-09)"
 
 section "common role: udev + journald"
 [ -f /etc/udev/rules.d/99-vtitan-gpio.rules ] && ok "udev GPIO rules installed" || bad "udev GPIO rules missing"
