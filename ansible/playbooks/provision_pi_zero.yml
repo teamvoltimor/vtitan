@@ -52,12 +52,41 @@
           changed_when: true
           when: wifi_lock_needed | bool
 
+        # The locked BSSID's radio has been observed taking longer than
+        # NetworkManager's default 45s DHCP timeout to hand out a lease
+        # (confirmed 2026-08-09: failed 3 runs in a row on this exact step,
+        # ~47s each, with Ethernet ruled out as the cause). Both changes
+        # below are aimed at that: more time per attempt, and more attempts
+        # before giving up on the whole 20-40 min run.
+        - name: Give the locked BSSID more time to complete DHCP
+          delegate_to: pi5
+          become: true
+          ansible.builtin.command: "nmcli connection modify {{ wifi_conn_name }} ipv4.dhcp-timeout {{ wifi_lock_dhcp_timeout_seconds }}"
+          changed_when: true
+          when: wifi_lock_needed | bool
+
         - name: Bring Pi 5 WiFi connection up on the locked band
           delegate_to: pi5
           become: true
           ansible.builtin.command: "nmcli connection up {{ wifi_conn_name }}"
-          changed_when: true
+          register: wifi_lock_up
+          changed_when: wifi_lock_up.rc == 0
+          failed_when: false
+          retries: 3
+          delay: 10
+          until: wifi_lock_up.rc == 0
           when: wifi_lock_needed | bool
+
+        - name: Fail loudly if the Pi 5 never reactivated WiFi on the locked band
+          ansible.builtin.fail:
+            msg: >-
+              nmcli connection up {{ wifi_conn_name }} kept failing on the
+              locked 2.4GHz BSSID ({{ wifi_2g_bssid }}) after repeated
+              attempts: {{ wifi_lock_up.stderr | default('(no stderr)') }}.
+              This AP radio may be overloaded, out of DHCP leases, or too
+              far away -- check signal strength for this specific BSSID
+              (not just the SSID) before retrying the whole play.
+          when: wifi_lock_needed | bool and wifi_lock_up.rc != 0
 
         - name: Give the Pi 5 WiFi radio a moment to settle on 2.4GHz
           ansible.builtin.pause:
