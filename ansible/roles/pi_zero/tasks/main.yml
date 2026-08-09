@@ -249,13 +249,24 @@
     - name: Format swapfile
       ansible.builtin.command: mkswap /swapfile
       changed_when: true
-    - name: Enable swapfile
-      ansible.builtin.command: swapon /swapfile
-      changed_when: true
     - name: Persist swapfile in fstab
       ansible.builtin.lineinfile:
         path: /etc/fstab
         line: "/swapfile none swap sw 0 0"
+
+# Deliberately OUTSIDE the block above and gated only on dphys_stat, not on
+# swapfile_stat -- confirmed on hardware 2026-08-09: nesting this inside the
+# creation-gated block meant a run that created /swapfile but got interrupted
+# before reaching this step (e.g. the play failing on a later task) left swap
+# permanently inactive, since every future run then sees the file already
+# exists and skips the whole block, including this. Matches the pattern
+# dphys-swapfile already uses above (its own "Enable" task is unconditional).
+- name: Ensure plain swapfile is active
+  become: true
+  ansible.builtin.command: swapon /swapfile
+  when: not dphys_stat.stat.exists
+  changed_when: true
+  failed_when: false  # already-on is a non-zero exit, not a real failure
 
 # Built on the Pi 5 and shipped, NOT built here. Installing a full ROS2 Kilted
 # + robostack env directly on the Zero swap-thrashes its ~415 MB of RAM hard

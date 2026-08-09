@@ -74,7 +74,7 @@ dmesg 2>/dev/null | grep -q 'find_vma.*hailo_vdma_buffer_map\|WARNING.*hailo' &&
 
 section "pi5 role: usb0 gadget link"
 nmcli -t -f NAME,DEVICE,STATE con show --active 2>/dev/null | grep -q '^usb0:usb0:activated' && ok "usb0 connection active" || bad "usb0 connection NOT active"
-usb0_ip=$(nmcli -t -f ipv4.addresses con show usb0 2>/dev/null)
+usb0_ip=$(nmcli -t -f ipv4.addresses con show usb0 2>/dev/null | cut -d: -f2)
 info "usb0 ipv4.addresses: $usb0_ip"
 prio=$(nmcli -t -f connection.autoconnect-priority con show usb0 2>/dev/null | cut -d: -f2)
 [ "$prio" = "10" ] && ok "usb0 autoconnect-priority set (10)" || bad "usb0 autoconnect-priority not 10 (got: $prio) -- re-run provisioning to apply the netplan-conflict fix"
