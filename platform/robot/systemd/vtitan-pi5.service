@@ -13,6 +13,12 @@ WorkingDirectory=__TARGET_HOME__/vtitan/platform/robot
 Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-__TARGET_HOME__/vtitan/platform/robot/.env
 Environment=ROS_DOMAIN_ID=0
+# See docs/dds-shm-transport-disabled.md: FastDDS's default SHM transport
+# accumulates stale /dev/shm/fastdds_* lock files across systemd restarts,
+# which silently blocks discovery/delivery for whichever participant lands
+# on a wedged port -- no error, no exception, the subscription just never
+# receives anything. UDP-only removes the failure mode at its source.
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/robot/config/fastdds_udp_only.xml
 # launch-rpi5 (not a raw "ros2 launch") -- the pixi task sources
 # ros2_ws/install/setup.bash first, which is required to resolve the
 # locally-built vtitan_state_machine/vtitan_vision/vtitan_drivers

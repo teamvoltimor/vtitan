@@ -10,6 +10,9 @@ Group=__TARGET_USER__
 WorkingDirectory=__TARGET_HOME__/vtitan/platform/robot
 Environment=PATH=__TARGET_HOME__/.pixi/bin:/usr/local/bin:/usr/bin:/bin
 Environment=ROS_DOMAIN_ID=0
+# See docs/dds-shm-transport-disabled.md and the matching comment in
+# vtitan-pi5.service.
+Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/robot/config/fastdds_udp_only.xml
 # run-lidar (not a raw "ros2 launch") -- the pixi task sources
 # ros2_ws/install/setup.bash first, matching the other services.
 ExecStart=__TARGET_HOME__/.pixi/bin/pixi run -e vision run-lidar
