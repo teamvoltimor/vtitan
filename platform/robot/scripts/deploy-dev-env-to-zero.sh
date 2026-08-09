@@ -29,6 +29,15 @@
 
 set -euo pipefail
 
+# Ansible's command/shell modules buffer all output until the task finishes
+# -- ansible-playbook shows nothing for this step until it's fully done or
+# fully failed, which is unhelpful for the slowest step in provisioning
+# (colcon build + an ~859MB transfer). Mirroring everything to a log file
+# lets a second session `tail -f` real progress independent of however this
+# script is invoked (Ansible, or standalone by hand).
+LOG_FILE="${LOG_FILE:-$HOME/vtitan-deploy-zero.log}"
+exec > >(tee "$LOG_FILE") 2>&1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
