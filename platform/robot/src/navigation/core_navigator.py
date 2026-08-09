@@ -609,13 +609,13 @@ class CoreNavigator:
 
         # Determine speed
         if forward_clearance < self._tuning.clearance.CONTACT_DIST:
-            speed = self._tuning.speed.CREEP_SPEED
+            speed = self._tuning.speed.creep_mps()
         elif forward_clearance < self._tuning.clearance.SLOW_DIST:
-            speed = self._tuning.speed.SLOW_SPEED
+            speed = self._tuning.speed.slow_mps()
         elif forward_clearance < self._tuning.clearance.MEDIUM_DIST:
-            speed = self._tuning.speed.MEDIUM_SPEED
+            speed = self._tuning.speed.medium_mps()
         else:
-            speed = self._tuning.speed.FAST_SPEED
+            speed = self._tuning.speed.fast_mps()
 
         # Never take a sharp turn at a speed the steering actuator can't keep
         # up with. The steering servo has a fixed slew rate (MAX_STEERING_RATE)
@@ -626,34 +626,43 @@ class CoreNavigator:
         # docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md).
         # Clearance alone never catches this: a corner can have 0.50m+ of open
         # space ahead while still demanding a 90-180 deg correction.
+        #
+        # Note this ladder reads the tiers in the OPPOSITE order to the
+        # clearance one above: least heading error takes the fast tier. The
+        # rungs are 1.0 / 0.85 / 0.75 / 0.65 of the ceiling, so each step is a
+        # real change on hardware. Until 2026-08-09 they were 1.0 / 1.0 / 0.96
+        # / 0.32, which is one 3x cliff at 57 deg wearing three names.
         abs_error = abs(angle_error)
         if abs_error >= self._tuning.heading.CRAWL:
-            heading_speed = self._tuning.speed.CREEP_SPEED
+            heading_speed = self._tuning.speed.creep_mps()
         elif abs_error >= self._tuning.heading.SLOW:
-            heading_speed = self._tuning.speed.SLOW_SPEED
+            heading_speed = self._tuning.speed.slow_mps()
         elif abs_error >= self._tuning.heading.MEDIUM:
-            heading_speed = self._tuning.speed.MEDIUM_SPEED
+            heading_speed = self._tuning.speed.medium_mps()
         else:
-            heading_speed = self._tuning.speed.FAST_SPEED
+            heading_speed = self._tuning.speed.fast_mps()
         speed = min(speed, heading_speed)
 
-        # Bound the selected cruise speed by the configured envelope. MIN_SPEED
-        # and MAX_SPEED read like hard limits on the robot and were enforced
-        # nowhere: a profile setting FAST_SPEED above MAX_SPEED was simply
-        # obeyed. A no-op at the shipped values (CREEP == MIN_SPEED, FAST ==
-        # MAX_SPEED), which is the point -- it constrains mis-tuned profiles
-        # without changing this one.
+        # Bound the selected cruise speed by the configured envelope. MIN_FRAC
+        # and MAX_FRAC read like hard limits on the robot and were enforced
+        # nowhere: a profile setting FAST above MAX was simply obeyed.
+        #
+        # This used to be a no-op in the direction that mattered, because the
+        # floor and the creep tier were the same number (both 0.05 m/s): the
+        # clamp swallowed the creep tier whole, so lowering it changed nothing
+        # and read as evidence that the tier did not matter. A validator on
+        # SpeedControlParams now rejects that configuration outright.
         #
         # Deliberately applied HERE, to a zone speed that is always positive,
-        # and not to the final command: clamping that up to MIN_SPEED would turn
+        # and not to the final command: clamping that up to the floor would turn
         # every legitimate stop (escape hand-off, park complete, blocked at both
         # ends) into a 0.05 m/s crawl the robot cannot be commanded out of.
-        speed = min(max(speed, self._tuning.speed.MIN_SPEED), self._tuning.speed.MAX_SPEED)
+        speed = min(max(speed, self._tuning.speed.min_mps()), self._tuning.speed.max_mps())
 
         # Never blast past a non-forward obstacle (e.g. a sign alongside the
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:
-            speed = min(speed, self._tuning.speed.SLOW_SPEED)
+            speed = min(speed, self._tuning.speed.slow_mps())
 
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only
@@ -987,7 +996,7 @@ class CoreNavigator:
                     EscapeManeuver(
                         maneuver_type=ManeuverType.STUCK_FORWARD,
                         steering=steering,
-                        speed=self._tuning.speed.CREEP_SPEED,
+                        speed=self._tuning.speed.creep_mps(),
                         duration_frames=frames,
                     ),
                 )

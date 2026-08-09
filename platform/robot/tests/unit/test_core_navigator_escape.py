@@ -148,7 +148,7 @@ class TestMappedObstacleEscapeSplit:
         sign — it just no longer panics at one.
 
         Specifically the raw ``risk != SAFE`` cap still applies, which is what
-        holds this to SLOW_SPEED rather than FAST_SPEED. Losing it would mean
+        holds this to the slow tier rather than the fast one. Losing it would mean
         taking every sign pass at full speed, which is not what the split is
         for: the split removes the escape maneuver, not the caution.
         """
@@ -157,7 +157,7 @@ class TestMappedObstacleEscapeSplit:
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].speed_mps <= nav._tuning.speed.SLOW_SPEED
+        assert gateway.commands[-1].speed_mps <= nav._tuning.speed.slow_mps()
 
     def test_passed_sign_gets_its_guard_back(self, waypoints, tuning):
         """Once the router retires a sign it stops owning it, so the reactive
@@ -287,7 +287,7 @@ class TestMissingSensorsDegradeSafely:
         nav.step()
 
         assert gateway.commands
-        assert gateway.commands[-1].speed_mps <= tuning.speed.SLOW_SPEED
+        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps()
 
 
 class TestEscapeEscalation:
