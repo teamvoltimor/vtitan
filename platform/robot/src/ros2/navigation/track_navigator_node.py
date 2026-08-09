@@ -269,6 +269,11 @@ class TrackNavigator(Node, ResettableNode):
         # Set once direction inference settles; None until then, and left
         # None for a scan the measurement refused (see _commit_direction).
         self._measured_start: MeasuredStart | None = None
+        # Ticks of retry budget left for a measurement that refused at the
+        # commit. Zero means either "not armed" or "spent" -- both are the
+        # same thing to _retry_start_measurement, which also stops on the
+        # first success, so the budget is only consulted while still refusing.
+        self._start_measurement_ticks_left = 0
         self._creep_speed = tuning.speed.SLOW_SPEED
         self._told_geometry = corridor_widths_from_metadata(self._metadata) if not self._blind else None
         # _told_geometry is None exactly when blind (and then _width_estimator
@@ -665,11 +670,29 @@ class TrackNavigator(Node, ResettableNode):
             # Refusing to guess. Opposite rays that do not span the mat mean
             # something is standing in one of them -- an operator still over
             # the robot is the ordinary case -- and a measurement taken through
-            # an obstruction is worse than none. Falling back to the assumption
-            # keeps the previous behaviour rather than adding a new failure.
+            # an obstruction is worse than none.
+            #
+            # The assumption is not a substitute, and racing on it is what cost
+            # both refused rounds on 2026-08-08: it names the middle of the
+            # mat's side, so committing after four seconds of creep reseeds the
+            # position estimate roughly 0.8 m behind where the robot actually
+            # is, and the round then drives into the corner. So arm a retry
+            # rather than settle for it. The obstruction is transient by
+            # nature -- replaying both bags' whole scan stream, the rearward
+            # ray was pinned at 0.10-0.19 m by someone standing behind the
+            # robot and cleared 0.6 s and 1.5 s after the commit.
+            #
+            # The robot keeps driving meanwhile, which is not a compromise but
+            # the point: what clears the ray is the robot leaving from under
+            # the operator, so holding still would preserve the very
+            # obstruction being waited out.
+            self._start_measurement_ticks_left = round(
+                self._tuning.start_measurement.RETRY_WINDOW_S * self._tuning.control.CONTROL_HZ,
+            )
             self.get_logger().warning(
                 "Start pose could not be measured from the scan (blocked ray, or not on the track) - "
-                "falling back to the assumed start, which is only ever approximately right",
+                "driving on the assumed start, which is only ever approximately right, and retrying "
+                f"the measurement for {self._tuning.start_measurement.RETRY_WINDOW_S:.0f} s",
             )
         else:
             self.get_logger().info(
@@ -769,6 +792,67 @@ class TrackNavigator(Node, ResettableNode):
         # past it, and it would resume by chasing a waypoint behind itself.
         self._core_navigator.replace_path(self._plan(self._to_widths_dict()), (pose.x, pose.y), pose.yaw)
         self.get_logger().info(f"Travel direction inferred from LIDAR: {inferred}")
+
+    def _retry_start_measurement(self) -> None:
+        """Re-attempt a start measurement the commit refused, once per tick.
+
+        A refusal at the commit is a statement about that one scan, not about
+        the round: what blocks a cardinal ray is a person standing in it, and
+        they stop blocking it as soon as the robot has driven clear. Both
+        rounds that refused on 2026-08-08 had a valid measurement available
+        within 1.5 s of the commit, and raced the whole round on the assumed
+        start regardless -- roughly 0.8 m out, which is the error that put them
+        into the corner. So the measurement is retried until one lands rather
+        than abandoned after one look.
+
+        Latched on the first success: this corrects the *starting* pose, and
+        once it is corrected the LIDAR localizer owns the position estimate.
+        The budget bounds it to the first seconds after the commit, because
+        the pose it computes is expressed in the starting section's frame and
+        the robot leaves that section for good at the first corner.
+        """
+        if self._measured_start is not None or self._start_measurement_ticks_left <= 0:
+            return
+        self._start_measurement_ticks_left -= 1
+        scan = self._gateway.get_lidar_scan()
+        pose = self._gateway.get_current_pose()
+        if scan is None or pose is None:
+            return
+
+        # Unlike the commit, which measures a scan the direction was just
+        # inferred from, a retry happens while driving and has to establish for
+        # itself that the chassis is still square to the starting corridor.
+        # measure_start_pose cannot: its closing check asks only that forward
+        # and back span the mat, which a chassis turned through 180 degrees
+        # does just as well, and then ``along`` comes out mirrored about the
+        # mat's centre. Comparing against the corridor's travel bearing is what
+        # tells the two apart.
+        travel = TRAVEL_DIRS[(self._start_section, self._direction)]
+        misalignment = abs(_wrap(pose.yaw - math.atan2(travel[1], travel[0])))
+        if misalignment > math.radians(self._tuning.start_measurement.RETRY_ALIGN_TOLERANCE_DEG):
+            return
+
+        measured = measure_start_pose(
+            scan.ranges_m, scan.angles_rad, self._direction, self._start_section, tuning=self._tuning,
+        )
+        if measured is None:
+            return
+
+        self._measured_start = measured
+        self._start_measurement_ticks_left = 0
+        self._gateway.reset_position(measured.x, measured.y)
+        # Same resync the commit does, and for the same reason: the path was
+        # built around a position that has just been replaced, so the waypoint
+        # index has to be re-sought against the corrected pose rather than
+        # carried over.
+        self._core_navigator.replace_path(
+            self._plan(self._to_widths_dict()), (measured.x, measured.y), pose.yaw,
+        )
+        self.get_logger().info(
+            f"Start pose measured on retry: ({measured.x:.2f}, {measured.y:.2f}), "
+            f"{measured.distance_ahead_m:.2f} m of track ahead - "
+            f"position estimate corrected from ({pose.x:.2f}, {pose.y:.2f})",
+        )
 
     def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
         """Build a one-lap path for the layout the robot believes it is on.
@@ -916,8 +1000,11 @@ class TrackNavigator(Node, ResettableNode):
         # and "the heading those readings were taken at" are the same.
         self._creep_widths = [(0.0, width) for _, width in self._creep_widths]
         # Belongs to the round that just ended: the robot is picked up and put
-        # down between rounds, so the next one measures its own.
+        # down between rounds, so the next one measures its own. The retry
+        # budget goes with it -- a round that never refused leaves it at zero,
+        # and one that spent it must not start the next round already spent.
         self._measured_start = None
+        self._start_measurement_ticks_left = 0
 
         self._direction = self._initial_direction
         if self._blind:
@@ -981,6 +1068,10 @@ class TrackNavigator(Node, ResettableNode):
                 # there is no usable plan to step yet. _resolve_direction already
                 # set self._latest_debug.
                 return
+            # Before the belief update and the step, so a landed measurement
+            # replans from the corrected position rather than letting this
+            # tick's step chase waypoints laid out around the wrong one.
+            self._retry_start_measurement()
             if self._blind:
                 self._update_layout_belief()
             self._core_navigator.step()
