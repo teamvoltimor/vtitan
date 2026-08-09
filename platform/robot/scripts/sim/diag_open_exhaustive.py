@@ -19,14 +19,13 @@ in the other.
 
 Usage (from ``platform/robot``, with PYTHONPATH=".;../shared/src")::
 
-    python scripts/sim/diag_open_exhaustive.py [--sample 128] [--seed 0] [--all]
+    python scripts/sim/diag_open_exhaustive.py [--sample 128] [--seed 0] [--all] [--tuning custom.yaml]
 """
 
 from __future__ import annotations
 
 import argparse
 import itertools
-import random
 import sys
 from collections import Counter
 from pathlib import Path
@@ -37,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CorridorDimensions
 from shared.domain.enums import Direction, Section
 
+from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning
 from src.simulation.scenario_builder import build_open_metadata, start_cells
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -83,19 +83,13 @@ def _summarise(title: str, counts: Counter[tuple[str, str]]) -> None:
 def main() -> None:
     """Run a seeded sample of the scenario space and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
-    parser.add_argument("--sample", type=int, default=_DEFAULT_SAMPLE_SIZE, help="How many scenarios to draw.")
-    parser.add_argument("--seed", type=int, default=_DEFAULT_SEED, help="Draw seed; same seed, same sample.")
-    parser.add_argument("--all", action="store_true", help="Run all 640 instead of a sample.")
+    add_sweep_args(parser, default_laps=_DEFAULT_LAPS, default_sample=_DEFAULT_SAMPLE_SIZE, default_seed=_DEFAULT_SEED)
+    add_tuning_arg(parser)
     args = parser.parse_args()
 
+    tuning = load_tuning(args.tuning)
     population = _all_cases()
-    if args.all or args.sample >= len(population):
-        cases = population
-    else:
-        # Suppression is justified here: the draw must be reproducible from a
-        # seed, which is the one thing a cryptographic generator will not do.
-        cases = random.Random(args.seed).sample(population, args.sample)  # noqa: S311
+    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
 
     print(f"{len(cases)} de {len(population)} escenarios ({len(cases) / len(population):.1%}), seed={args.seed}\n", flush=True)
 
@@ -112,7 +106,7 @@ def main() -> None:
         widths_mm = dict(zip(_SIDES, widths, strict=True))
         meta = build_open_metadata(widths_mm, section, direction, scenario_id=i, start_cell=cell)
         # Seed by case index so a rerun of the same sample behaves identically.
-        result = ScenarioSimulator(meta, num_laps=args.laps, seed=i, blind=True).run()
+        result = ScenarioSimulator(meta, num_laps=args.laps, tuning=tuning, seed=i, blind=True).run()
 
         verdict = _verdict(result)
         by_verdict[verdict] += 1

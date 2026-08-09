@@ -8,7 +8,6 @@ runtime when the override could be applied.
 from __future__ import annotations
 
 import math
-from dataclasses import replace
 
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
@@ -41,19 +40,7 @@ def _corridor_scan(left_m: float, right_m: float) -> list[float]:
     return ranges_m
 
 
-def _with_centering_gain(tuning: NavigationTuning, gain: float) -> NavigationTuning:
-    """A copy of ``tuning`` with CENTERING_GAIN replaced.
-
-    Both the tuning dataclass and its parameter groups are frozen, so this is
-    the only way to build an override -- assigning to the field raises.
-    """
-    return replace(
-        tuning,
-        corridor_follower=tuning.corridor_follower.model_copy(update={"CENTERING_GAIN": gain}),
-    )
-
-
-def test_corridor_follower_respects_tuning_override() -> None:
+def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
     """Doubling CENTERING_GAIN must double the steering follow_corridor commands."""
     default_tuning = NavigationTuning.load_default()
     base_gain = default_tuning.corridor_follower.CENTERING_GAIN
@@ -70,14 +57,14 @@ def test_corridor_follower_respects_tuning_override() -> None:
         ranges_m=ranges_m,
         angles_rad=_ANGLES_RAD,
         speed_mps=0.1,
-        tuning=_with_centering_gain(default_tuning, base_gain * 2.0),
+        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN": base_gain * 2.0}),
     )
 
     assert default_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
     assert doubled_cmd.steering_norm == pytest.approx(default_cmd.steering_norm * 2.0)
 
 
-def test_centred_corridor_steers_straight_at_any_gain() -> None:
+def test_centred_corridor_steers_straight_at_any_gain(override_tuning) -> None:
     """The centred case cannot detect an override -- pinned so it is not used as one."""
     default_tuning = NavigationTuning.load_default()
     ranges_m = _corridor_scan(left_m=0.5, right_m=0.5)
@@ -87,41 +74,36 @@ def test_centred_corridor_steers_straight_at_any_gain() -> None:
             ranges_m=ranges_m,
             angles_rad=_ANGLES_RAD,
             speed_mps=0.1,
-            tuning=_with_centering_gain(default_tuning, gain),
+            tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN": gain}),
         )
         assert cmd.steering_norm == pytest.approx(0.0)
 
 
-def test_corridor_estimator_respects_tuning_override() -> None:
-    """Verify that CorridorWidthEstimator uses passed tuning."""
+def test_corridor_estimator_respects_tuning_override(override_tuning) -> None:
+    """CorridorWidthEstimator reads MIN_SAMPLES from the tuning it's given, not a frozen default."""
     default_tuning = NavigationTuning.load_default()
+    lower_min_samples = max(1, default_tuning.corridor_estimator.MIN_SAMPLES - 2)
+    aggressive = override_tuning(default_tuning, corridor_estimator={"MIN_SAMPLES": lower_min_samples})
 
-    # Create two estimators with different tuning
     estimator_default = CorridorWidthEstimator(tuning=default_tuning)
-
-    aggressive = NavigationTuning.load_default()
-    aggressive.corridor_estimator.MIN_SAMPLES = max(1, default_tuning.corridor_estimator.MIN_SAMPLES - 2)
     estimator_aggressive = CorridorWidthEstimator(tuning=aggressive)
 
-    # Both should work without error (verifies tuning is passed through)
-    assert estimator_default is not None
-    assert estimator_aggressive is not None
+    assert estimator_default._min_samples == default_tuning.corridor_estimator.MIN_SAMPLES
+    assert estimator_aggressive._min_samples == lower_min_samples
 
 
-def test_direction_estimator_respects_tuning_override() -> None:
-    """Verify that infer_direction uses passed tuning, not frozen defaults."""
+def test_direction_estimator_respects_tuning_override(override_tuning) -> None:
+    """infer_direction reads MIN_ASYMMETRY_M from the tuning it's given, not a frozen default."""
     default_tuning = NavigationTuning.load_default()
 
-    # Create a scan that shows corridor opening to the right
+    # Right side open, left side a near wall: a real but modest asymmetry,
+    # well above the default MIN_ASYMMETRY_M but not enough to survive a
+    # much stricter threshold.
     ranges_m = [0.6] * 360
     angles_rad = [math.radians(i - 180) for i in range(360)]
+    for i in range(270, 360):
+        ranges_m[i] = 2.5
 
-    # Make the right side open (simulating a corner)
-    for i in range(270, 360):  # Right side (90° to 180° in robot frame)
-        angles_rad[i] = math.radians(i - 180)
-        ranges_m[i] = 2.5  # Far away (open side)
-
-    # Call with default tuning
     direction_default = infer_direction(
         ranges_m=ranges_m,
         angles_rad=angles_rad,
@@ -129,17 +111,16 @@ def test_direction_estimator_respects_tuning_override() -> None:
         tuning=default_tuning,
     )
 
-    # Call with override tuning (should still work)
-    direction_aggressive = infer_direction(
+    strict = override_tuning(default_tuning, direction_estimator={"MIN_ASYMMETRY_M": 100.0})
+    direction_strict = infer_direction(
         ranges_m=ranges_m,
         angles_rad=angles_rad,
         yaw=0.0,
-        tuning=default_tuning,
+        tuning=strict,
     )
 
-    # Both should return the same direction (same tuning for this test)
-    assert direction_default == direction_aggressive, \
-        "Same tuning should produce same direction inference"
+    assert direction_default is not None, "the crafted asymmetry should be enough under the default threshold"
+    assert direction_strict is None, "an unreachable MIN_ASYMMETRY_M override should suppress the same call"
 
 
 def test_tuning_parameter_none_loads_default() -> None:

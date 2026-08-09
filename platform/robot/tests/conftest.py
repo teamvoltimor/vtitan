@@ -2,6 +2,7 @@
 Pytest configuration and fixtures for robot tests.
 """
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -91,6 +92,29 @@ def tuning():
 def tuning_constants(tuning):
     """Tuning-derived test constants computed from fixture instead of frozen at module level."""
     return TuningDerivedConstants.from_tuning(tuning)
+
+
+@pytest.fixture()
+def override_tuning():
+    """A ``NavigationTuning`` variant builder, one call site instead of hand-rolled nesting.
+
+    ``NavigationTuning`` and its parameter groups are both frozen (the
+    dataclass via ``dataclasses.replace``, each pydantic group via
+    ``model_copy``), so building a variant needs both layers touched
+    together. Several tests were duplicating that exact nesting inline;
+    this collects it in one place.
+
+    Usage: ``override_tuning(base, corridor_follower={"CENTERING_GAIN": 1.0})``
+    replaces one or more fields in one or more groups at once.
+    """
+
+    def _override(base: NavigationTuning, **group_updates: dict[str, Any]) -> NavigationTuning:
+        replacements = {
+            group: getattr(base, group).model_copy(update=updates) for group, updates in group_updates.items()
+        }
+        return dataclasses.replace(base, **replacements)
+
+    return _override
 
 
 @pytest.fixture()

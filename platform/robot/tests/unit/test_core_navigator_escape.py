@@ -8,7 +8,6 @@ dead behind must never produce a reversing command.
 
 from __future__ import annotations
 
-import dataclasses
 import math
 
 import numpy as np
@@ -87,7 +86,7 @@ class TestMappedObstacleEscapeSplit:
     """Inside CONTACT_DIST (0.10), so the raw scan reads CRITICAL."""
 
     @staticmethod
-    def _navigator(waypoints, sign_xy, tuning, mask_radius=None):
+    def _navigator(waypoints, sign_xy, tuning, mask_radius=None, override_tuning=None):
         """A navigator facing a close front return, with a sign mapped at ``sign_xy``.
 
         The robot sits at the origin facing east, so the front return lands at
@@ -96,10 +95,7 @@ class TestMappedObstacleEscapeSplit:
         ranges = create_scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         if mask_radius is not None:
-            tuning = dataclasses.replace(
-                tuning,
-                sign_router=tuning.sign_router.model_copy(update={"ESCAPE_MASK_RADIUS_M": mask_radius}),
-            )
+            tuning = override_tuning(tuning, sign_router={"ESCAPE_MASK_RADIUS_M": mask_radius})
         router = SignRouter(
             [SignSpec(x=sign_xy[0], y=sign_xy[1], color=SignColor.RED)],
             config=SignRouterConfig.from_tuning(tuning.sign_router),
@@ -136,9 +132,11 @@ class TestMappedObstacleEscapeSplit:
         assert gateway.commands
         assert gateway.commands[-1].speed_mps < 0, "an obstacle nothing owns must still trigger the escape"
 
-    def test_zero_mask_radius_restores_the_escape(self, waypoints, tuning):
+    def test_zero_mask_radius_restores_the_escape(self, waypoints, tuning, override_tuning):
         """The documented off-switch really is off."""
-        gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning, mask_radius=0.0)
+        gateway, nav = self._navigator(
+            waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning, mask_radius=0.0, override_tuning=override_tuning
+        )
 
         nav.step()
 
