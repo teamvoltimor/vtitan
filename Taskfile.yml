@@ -151,12 +151,21 @@ tasks:
     cmds:
       - echo "Running Ansible provisioner against {{.ZERO_IP}} (Pi 5 at {{.PI5_IP}}, takes ~20-40 min)..."
       - |
-        CMD='GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass'
+        SCRIPT=$(mktemp)
+        cat > "$SCRIPT" <<'INNER'
+        export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
+        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass
+        ec=$?
+        echo
+        echo [exit $ec] press Enter to close this tmux pane
+        read _
+        exit $ec
+        INNER
         if [ -n "$TMUX" ]; then
-          eval "$CMD"
+          bash "$SCRIPT"
         else
           echo "(running inside tmux session '{{.TMUX_SESSION}}' -- reconnecting? just re-run this same command, -A reattaches instead of duplicating)"
-          tmux new-session -A -s {{.TMUX_SESSION}} "$CMD"
+          tmux new-session -A -s {{.TMUX_SESSION}} "bash '$SCRIPT'"
         fi
     vars:
       ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
@@ -169,12 +178,21 @@ tasks:
     cmds:
       - echo "Running Ansible provisioner against {{.PI5_IP}}..."
       - |
-        CMD='GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass'
+        SCRIPT=$(mktemp)
+        cat > "$SCRIPT" <<'INNER'
+        export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
+        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass
+        ec=$?
+        echo
+        echo [exit $ec] press Enter to close this tmux pane
+        read _
+        exit $ec
+        INNER
         if [ -n "$TMUX" ]; then
-          eval "$CMD"
+          bash "$SCRIPT"
         else
           echo "(running inside tmux session '{{.TMUX_SESSION}}' -- reconnecting? just re-run this same command, -A reattaches instead of duplicating)"
-          tmux new-session -A -s {{.TMUX_SESSION}} "$CMD"
+          tmux new-session -A -s {{.TMUX_SESSION}} "bash '$SCRIPT'"
         fi
     vars:
       TMUX_SESSION: vtitan-provision-pi5

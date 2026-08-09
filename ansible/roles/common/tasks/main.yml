@@ -80,6 +80,19 @@
       - tmux
     state: present
 
+# tmux alone is not enough: a detached tmux server is still owned by the
+# user's login session and dies with it on an abrupt disconnect (confirmed
+# 2026-08-09 -- `client_loop: send disconnect` during provision_pi_zero.yml
+# took the whole tmux server down, not just the SSH session, and
+# `tmux attach` afterwards found no sessions at all). Linger keeps the
+# user's systemd instance -- and anything it owns, including a detached
+# tmux server -- running independent of whether they're logged in.
+- name: Enable linger for {{ ansible_user }} (tmux/background jobs survive a dropped SSH session)
+  become: true
+  ansible.builtin.command: "loginctl enable-linger {{ ansible_user }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ ansible_user }}"
+
 - name: Check if pixi is already installed
   ansible.builtin.stat:
     path: "{{ pixi_bin }}"
