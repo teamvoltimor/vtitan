@@ -796,7 +796,7 @@ def _match_detection_to_sign(
     return best_color
 
 
-def signs_from_metadata(metadata: dict | Any) -> list[SignSpec]:
+def signs_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> list[SignSpec]:
     """Extract sign specs from scenario metadata.
 
     Args:

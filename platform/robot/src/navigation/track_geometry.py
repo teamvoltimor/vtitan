@@ -53,7 +53,7 @@ def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeome
     )
 
 
-def corridor_widths_from_metadata(metadata: dict[str, Any] | Any) -> CorridorGeometry:
+def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -> CorridorGeometry:
     """Extract corridor geometry (widths + inner block) from scenario metadata.
 
     Shared by every consumer that needs to build a :class:`TrackWalls` from a

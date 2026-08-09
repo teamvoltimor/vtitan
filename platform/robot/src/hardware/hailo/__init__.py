@@ -7,7 +7,7 @@ decoding in :mod:`~src.hardware.hailo.inferences` that has no hardware
 dependency at all and needs to be unit-testable anywhere.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from src.hardware.hailo.base import Driver, InferenceResult
 from src.hardware.hailo.config import Config, StreamingConfig
@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     """Import the camera-dependent exports only when they are asked for."""
     if name == "StreamingDriver":
         from src.hardware.hailo.streaming import StreamingDriver  # noqa: PLC0415

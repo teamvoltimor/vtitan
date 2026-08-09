@@ -12,9 +12,23 @@ of +/-90 deg). If the windowed reading recovers in-track distances where the
 single ray reads max range, the gate was starved by beam-level noise rather than
 by an absent signal.
 
+``--near-histogram`` adds a full-scan bearing histogram of sub-0.05 m returns
+(folded in from a one-off tmp_scan_min.py): where do the near-zero readings
+that get treated as "in contact with a wall" actually come from.
+
+``--dropout-symmetry`` adds a 15-degree-binned, robot-frame histogram of
+no-return (dropout) and sub-0.05 m rays plus a left/right symmetry summary
+(folded in from a one-off tmp_dropout.py) -- if one side drops out more than
+the other, the direction-inference asymmetry test is being fed garbage. The
+original tmp_dropout.py binned bearings with ``round(deg/15)*15``, which does
+not wrap at +/-180 deg: a ray at +179 deg and one at -179 deg -- 2 degrees
+apart on the actual sensor -- landed in different bins (+180 and -180)
+instead of merging into one. Fixed here by wrapping the bin centre back into
+(-180, 180] before using it as a key.
+
 Usage:
     pixi run -e dev python scripts/bag/diag_bag_side_ray_robustness.py \
-        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX [--window-deg 5]
+        vtitan_runs_pulled/run_XXXXXXXX_XXXXXX [--window-deg 5] [--near-histogram] [--dropout-symmetry]
 """
 
 from __future__ import annotations
@@ -28,10 +42,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from typing import TYPE_CHECKING
 
+from rclpy.serialization import deserialize_message
+from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
-from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
+from scripts.common.bag_io import Topics, create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
 from src.navigation.utils import _wrap
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
@@ -41,6 +57,12 @@ if TYPE_CHECKING:
 
 _MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 _MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
+_NEAR_THRESHOLD_M = 0.05
+"""Investigation threshold for --near-histogram/--dropout-symmetry: how close a return has
+to be before it looks like the LIDAR is reading its own mount rather than a wall (see
+memory/lidar_min_range_self_detection.md). Distinct from RobotSpecs.LIDAR_MIN_RANGE, which
+is the sensor's own spec floor and is used above to bound the windowed-median calculation."""
+_BEARING_BIN_DEG = 15.0
 _MIN_VOTES = 5
 _MAT_CENTRE_X = 1.5
 _MAT_CENTRE_Y = 1.5
@@ -67,11 +89,138 @@ def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, h
     return vals[len(vals) // 2]
 
 
+def _bearing_bin(deg: float, bin_deg: float = _BEARING_BIN_DEG) -> int:
+    """Bin a bearing (deg) to the nearest ``bin_deg`` multiple, wrapped into (-180, 180].
+
+    A plain ``round(deg / bin_deg) * bin_deg`` puts +179 deg and -179 deg -- 2
+    degrees apart on the sensor -- into different bins (+180 and -180). Wrapping the
+    bin centre back into (-180, 180] merges them into the one bin that straddles the seam.
+    """
+    center = round(deg / bin_deg) * bin_deg
+    return int(((center + 180) % 360) - 180)
+
+
+def _near_histogram(bag_dir: Path) -> None:
+    """Full-scan bearing histogram of sub-_NEAR_THRESHOLD_M returns (tmp_scan_min.py)."""
+    reader = open_reader(bag_dir)
+    n_msgs = 0
+    hdr: tuple[float, float, float, float, int] | None = None
+    tiny_counts: list[int] = []
+    bearing_hist: Counter[int] = Counter()
+    val_hist: Counter[float] = Counter()
+    zero_exact = 0
+    tiny_total = 0
+    ray_total = 0
+
+    while reader.has_next():
+        topic, data, _t = reader.read_next()
+        if topic != Topics.SCAN:
+            continue
+        msg = deserialize_message(data, LaserScan)
+        n_msgs += 1
+        if hdr is None:
+            hdr = (msg.range_min, msg.range_max, msg.angle_min, msg.angle_max, len(msg.ranges))
+        tiny = 0
+        n = len(msg.ranges)
+        for i, r in enumerate(msg.ranges):
+            ray_total += 1
+            if not math.isfinite(r) or r >= _NEAR_THRESHOLD_M:
+                continue
+            tiny += 1
+            tiny_total += 1
+            if r == 0.0:
+                zero_exact += 1
+            else:
+                val_hist[round(r, 3)] += 1
+                deg = math.degrees(msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1))
+                bearing_hist[round(deg / 10) * 10] += 1
+        tiny_counts.append(tiny)
+
+    print(f"\n--- near histogram (sub-{_NEAR_THRESHOLD_M:.2f} m returns, raw sensor frame) ---")
+    print(f"/scan messages: {n_msgs}")
+    if hdr is None:
+        print("no /scan messages")
+        return
+    print(f"declared range_min={hdr[0]:.3f} range_max={hdr[1]:.3f} rays/scan={hdr[4]}")
+    print(f"rays below {_NEAR_THRESHOLD_M:.2f} m: {tiny_total} of {ray_total} ({100 * tiny_total / max(ray_total, 1):.3f}%)")
+    print(f"  exactly 0.0: {zero_exact}")
+    print(f"  nonzero sub-{_NEAR_THRESHOLD_M:.2f}: {tiny_total - zero_exact}")
+    if tiny_counts:
+        sorted_counts = sorted(tiny_counts)
+        print(f"per-scan count: min={sorted_counts[0]} med={sorted_counts[len(sorted_counts) // 2]} max={sorted_counts[-1]}")
+        print(f"scans with at least one: {sum(1 for c in tiny_counts if c)} / {len(tiny_counts)}")
+    if val_hist:
+        print(f"most common nonzero sub-{_NEAR_THRESHOLD_M:.2f} values (m): {val_hist.most_common(10)}")
+    if bearing_hist:
+        rows = list(sorted(bearing_hist.items(), key=lambda kv: -kv[1])[:12])
+        print_table(rows, ["bearing_deg", "count"])
+
+
+def _dropout_symmetry(bag_dir: Path) -> None:
+    """No-return/near-zero symmetry by 15-deg-binned robot-frame bearing (tmp_dropout.py)."""
+    reader = open_reader(bag_dir)
+    bad: Counter[int] = Counter()
+    tot: Counter[int] = Counter()
+    near: Counter[int] = Counter()
+
+    while reader.has_next():
+        topic, data, _t = reader.read_next()
+        if topic != Topics.SCAN:
+            continue
+        msg = deserialize_message(data, LaserScan)
+        n = len(msg.ranges)
+        for i, r in enumerate(msg.ranges):
+            raw_deg = math.degrees(msg.angle_min + i * (msg.angle_max - msg.angle_min) / max(n - 1, 1))
+            # Robot frame = sensor frame + mount offset -- see decode_scan's docstring.
+            deg = (raw_deg + math.degrees(_LIDAR_YAW_OFFSET_RAD) + 180) % 360 - 180
+            b = _bearing_bin(deg)
+            tot[b] += 1
+            if not math.isfinite(r):
+                bad[b] += 1
+            elif r < _NEAR_THRESHOLD_M:
+                near[b] += 1
+
+    print(f"\n--- dropout symmetry (robot frame, {_BEARING_BIN_DEG:.0f}-deg bins) ---")
+    print(f"LIDAR yaw offset applied: {math.degrees(_LIDAR_YAW_OFFSET_RAD):.1f} deg")
+    rows = [
+        (b, tot[b], bad[b], f"{100 * bad[b] / tot[b]:.1f}%", near[b], f"{100 * near[b] / tot[b]:.1f}%")
+        for b in sorted(tot)
+    ]
+    print_table(rows, ["bearing_deg", "rays", "no_return", "no_return_%", f"sub_{_NEAR_THRESHOLD_M:.2f}", "sub_%"])
+
+    def side(lo: int, hi: int) -> tuple[int, int, int]:
+        keys = [b for b in tot if lo <= b <= hi]
+        return sum(tot[b] for b in keys), sum(bad[b] for b in keys), sum(near[b] for b in keys)
+
+    print("\nleft/right symmetry (robot frame: +90=left, -90=right):")
+    for label, lo, hi in (("LEFT  (+75..+105)", 75, 105), ("RIGHT (-105..-75)", -105, -75)):
+        total, no_return, sub = side(lo, hi)
+        print(
+            f"  {label}: rays={total} no_return={no_return} ({100 * no_return / max(total, 1):.1f}%) "
+            f"sub_{_NEAR_THRESHOLD_M:.2f}={sub} ({100 * sub / max(total, 1):.1f}%)",
+        )
+
+
 def main() -> None:
-    parser = create_bag_parser("TODO: add description")
+    """Replay a bag's /scan and /nav_debug, print the side-ray recovery report, and any opt-in sections."""
+    parser = create_bag_parser(
+        "Compare a single side-facing LIDAR ray against a windowed median, to test whether "
+        "the direction gate is starved by beam-level noise rather than an absent signal.",
+    )
     parser.add_argument("--window-deg", type=float, default=5.0)
+    parser.add_argument("--near-histogram", action="store_true", help="full-scan bearing histogram of sub-0.05m returns")
+    parser.add_argument(
+        "--dropout-symmetry",
+        action="store_true",
+        help="15-deg-binned robot-frame no-return/near-zero histogram + left/right symmetry summary",
+    )
     args = parser.parse_args()
     half = math.radians(args.window_deg)
+
+    if args.near_histogram:
+        _near_histogram(args.bag_dir)
+    if args.dropout_symmetry:
+        _dropout_symmetry(args.bag_dir)
 
     tuning = NavigationTuning.load_default()
     estimator = tuning.direction_estimator
