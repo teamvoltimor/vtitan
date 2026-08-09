@@ -20,6 +20,17 @@
   ansible.builtin.set_fact:
     boot_dir: "{{ '/boot/firmware' if boot_firmware_stat.stat.exists else '/boot' }}"
 
+# Gadget-link setup (dwc2/g_ether/usb0) is deliberately FIRST in this role,
+# ahead of I2C/PWM/swap/everything else, with its own early reboot below
+# rather than waiting for the role's usual end-of-play flush_handlers. Every
+# task after this point in the role runs over the same flaky WiFi first-
+# contact link that this whole play exists to get off of (confirmed
+# 2026-08-09: repeated UNREACHABLE drops mid-role on a stock Zero, at
+# different tasks each time -- apt upgrade, a lightweight config.txt edit,
+# even loginctl). Getting the wire up in the very first successful pass
+# means every retry after a drop can target the gadget IP directly instead
+# of re-fighting WiFi for the full 20-40 min run.
+#
 # Strip any prior dwc2 overlay first (e.g. a stock dr_mode=host image
 # default) — otherwise it survives alongside the one ensured below.
 #
@@ -35,60 +46,21 @@
     state: absent
   notify: Reboot pi zero
 
-- name: Ensure required config.txt overlays are present
+# dr_mode is explicit rather than left to the overlay's default of otg.
+# This is hardening, NOT a fix for the half-dead-link failure -- that was
+# traced to a cdc_ether transmit-queue timeout and reproduced with this
+# exact line in place, so do not read it as the cure (see
+# scripts/usb-link-watchdog.sh). It is here to remove USB role negotiation
+# as a variable: the Zero is only ever the peripheral in this build, and
+# letting it negotiate that on every boot is one more nondeterministic step
+# in the path that is already nondeterministic.
+- name: Ensure dwc2 peripheral overlay is present in config.txt
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
-    line: "{{ item }}"
-    state: present
-  loop:
-    - dtparam=i2c_arm=on
-    # dr_mode is explicit rather than left to the overlay's default of otg.
-    # This is hardening, NOT a fix for the half-dead-link failure -- that was
-    # traced to a cdc_ether transmit-queue timeout and reproduced with this
-    # exact line in place, so do not read it as the cure (see
-    # scripts/usb-link-watchdog.sh). It is here to remove USB role negotiation
-    # as a variable: the Zero is only ever the peripheral in this build, and
-    # letting it negotiate that on every boot is one more nondeterministic step
-    # in the path that is already nondeterministic.
-    - dtoverlay=dwc2,dr_mode=peripheral
-    - enable_uart=1
-  notify: Reboot pi zero
-
-# Explicit pin=/func= mapping, not a bare "dtoverlay=pwm-2chan" — see
-# servo_pwm_pin/motor_pwm_pin in defaults/main.yml for why this matters.
-- name: Remove any existing dtoverlay=pwm-2chan lines from config.txt
-  become: true
-  ansible.builtin.lineinfile:
-    path: "{{ boot_dir }}/config.txt"
-    regexp: '^dtoverlay=pwm(-2chan)?(,|$)'
-    state: absent
-  notify: Reboot pi zero
-
-- name: Map hardware PWM overlay onto servo + drive motor pins
-  become: true
-  ansible.builtin.lineinfile:
-    path: "{{ boot_dir }}/config.txt"
-    line: "dtoverlay=pwm-2chan,pin={{ servo_pwm_pin }},func=4,pin2={{ motor_pwm_pin }},func2=4"
+    line: dtoverlay=dwc2,dr_mode=peripheral
     state: present
   notify: Reboot pi zero
-
-# dtparam=i2c_arm=on only loads the i2c_bcm2835 bus driver — it does NOT
-# create /dev/i2c-1 on its own. raspi-config's "Enable I2C" also loads
-# i2c-dev for the userspace device node; do that explicitly since we're
-# bypassing raspi-config.
-- name: Ensure i2c-dev module loads at boot
-  become: true
-  ansible.builtin.copy:
-    content: "i2c-dev\n"
-    dest: /etc/modules-load.d/i2c-dev.conf
-    mode: "0644"
-
-- name: Load i2c-dev module now
-  become: true
-  community.general.modprobe:
-    name: i2c-dev
-    state: present
 
 - name: Check if g_ether modules-load already present in cmdline.txt
   become: true
@@ -114,7 +86,10 @@
     mode: "0644"
   notify: Reboot pi zero
 
-# usb0 owned solely by NetworkManager (one manager per interface).
+# usb0 owned solely by NetworkManager (one manager per interface). Created
+# now even though the interface doesn't exist until the reboot below --
+# NetworkManager applies a matching autoconnect profile to an interface as
+# soon as it appears, so this doesn't need to wait for the reboot either.
 - name: Configure usb0 gadget static IP ({{ usb_gadget_zero_ip }})
   become: true
   community.general.nmcli:
@@ -130,6 +105,58 @@
       - 224.0.0.0/4
     method6: disabled
     autoconnect: true
+    state: present
+
+# Reboot NOW instead of deferring to the play's end-of-role flush_handlers --
+# that's the entire point of moving this block to the front of the role. See
+# the comment at the top of this block.
+- name: Reboot the Zero now so the gadget link comes up before the rest of this role runs
+  ansible.builtin.meta: flush_handlers
+
+# Explicit pin=/func= mapping, not a bare "dtoverlay=pwm-2chan" — see
+# servo_pwm_pin/motor_pwm_pin in defaults/main.yml for why this matters.
+- name: Remove any existing dtoverlay=pwm-2chan lines from config.txt
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    regexp: '^dtoverlay=pwm(-2chan)?(,|$)'
+    state: absent
+  notify: Reboot pi zero
+
+- name: Map hardware PWM overlay onto servo + drive motor pins
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    line: "dtoverlay=pwm-2chan,pin={{ servo_pwm_pin }},func=4,pin2={{ motor_pwm_pin }},func2=4"
+    state: present
+  notify: Reboot pi zero
+
+- name: Ensure remaining config.txt overlays are present
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ boot_dir }}/config.txt"
+    line: "{{ item }}"
+    state: present
+  loop:
+    - dtparam=i2c_arm=on
+    - enable_uart=1
+  notify: Reboot pi zero
+
+# dtparam=i2c_arm=on only loads the i2c_bcm2835 bus driver — it does NOT
+# create /dev/i2c-1 on its own. raspi-config's "Enable I2C" also loads
+# i2c-dev for the userspace device node; do that explicitly since we're
+# bypassing raspi-config.
+- name: Ensure i2c-dev module loads at boot
+  become: true
+  ansible.builtin.copy:
+    content: "i2c-dev\n"
+    dest: /etc/modules-load.d/i2c-dev.conf
+    mode: "0644"
+
+- name: Load i2c-dev module now
+  become: true
+  community.general.modprobe:
+    name: i2c-dev
     state: present
 
 # More swap so pixi/the ROS2 colcon build survives on 512MB RAM.
