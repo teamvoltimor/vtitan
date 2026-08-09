@@ -86,10 +86,40 @@
     mode: "0644"
   notify: Reboot pi zero
 
+# The Zero has no real Ethernet hardware, but its first-boot netplan config
+# (from Raspberry Pi Imager's cloud-init customization) renders a generic
+# "netplan-eth0" NetworkManager profile that matches ANY ethernet-class
+# device -- which usb0/cdc_ether is, once the gadget enumerates. Confirmed on
+# hardware 2026-08-09: netplan-eth0 and this role's usb0 profile were both
+# valid candidates for the device, NetworkManager picked netplan-eth0, and it
+# sat forever in "connecting (getting IP configuration)" waiting on a DHCP
+# server that doesn't exist on this point-to-point link -- usb0 never got its
+# static address, so the gadget link looked fully healthy at the USB/kernel
+# level (carrier up, correct MAC, clean enumeration) while being completely
+# unreachable at the IP level. Neither `ip -s link show` nor dmesg show any
+# of this; only `nmcli device status` does.
+- name: Check for netplan's auto-generated ethernet profile
+  become: true
+  ansible.builtin.command: nmcli -t -f NAME connection show
+  register: nm_connections
+  changed_when: false
+
+- name: Stop netplan's ethernet profile from claiming usb0
+  become: true
+  community.general.nmcli:
+    type: ethernet
+    conn_name: netplan-eth0
+    autoconnect: false
+    state: present
+  when: "'netplan-eth0' in nm_connections.stdout_lines"
+
 # usb0 owned solely by NetworkManager (one manager per interface). Created
 # now even though the interface doesn't exist until the reboot below --
 # NetworkManager applies a matching autoconnect profile to an interface as
 # soon as it appears, so this doesn't need to wait for the reboot either.
+# autoconnect_priority is belt-and-suspenders on top of disabling
+# netplan-eth0 above: it's what actually decides the winner on hardware
+# where the conflicting profile has some OTHER name we haven't seen yet.
 - name: Configure usb0 gadget static IP ({{ usb_gadget_zero_ip }})
   become: true
   community.general.nmcli:
@@ -105,7 +135,15 @@
       - 224.0.0.0/4
     method6: disabled
     autoconnect: true
+    autoconnect_priority: 10
     state: present
+
+- name: Re-activate usb0 in case netplan-eth0 already claimed the device this boot
+  become: true
+  ansible.builtin.command: nmcli con up usb0
+  register: usb0_reactivate
+  changed_when: usb0_reactivate.rc == 0
+  failed_when: false
 
 # Reboot NOW instead of deferring to the play's end-of-role flush_handlers --
 # that's the entire point of moving this block to the front of the role. See
