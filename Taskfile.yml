@@ -601,9 +601,18 @@ tasks:
       CONNECTION: '{{.CONNECTION | default "Wired connection 1"}}'
 
   rpi:update:
-    desc: Update and upgrade all packages
+    desc: "Update everything on this Pi: apt packages + firmware/EEPROM. Stages the EEPROM update if one's available -- does not reboot automatically (run task rpi:reboot after, to apply it)."
     cmds:
       - sudo apt update && sudo apt full-upgrade -y
+      - echo "--- Checking firmware/EEPROM ---"
+      - cmd: |
+          if sudo rpi-eeprom-update | grep -q "UPDATE AVAILABLE"; then
+            echo "Staging EEPROM update (takes effect on next reboot)..."
+            sudo rpi-eeprom-update -a
+            echo "EEPROM update staged -- run 'task rpi:reboot' to apply it."
+          else
+            echo "EEPROM firmware already up to date."
+          fi
 
   rpi:set-wifi:
     desc: "Set WiFi credentials (usage: task rpi:set-wifi SSID=name PASSWORD=pass)"
