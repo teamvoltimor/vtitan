@@ -112,6 +112,7 @@
     executable: /bin/bash
     chdir: "{{ robot_dir }}"
   changed_when: true
+  notify: Restart pi5 services
 
 # The telemetry backend runs on the Pi 5 itself rather than on a dev laptop:
 # a laptop behind a VPN whose LAN filter drops inbound connections is simply
@@ -151,6 +152,7 @@
   args:
     chdir: "{{ backend_dir }}"
   changed_when: true
+  notify: Restart pi5 services
 
 - name: Install Pi 5 systemd units
   tags: [services]
@@ -191,6 +193,28 @@
     enabled: true
     daemon_reload: true
   loop: "{{ pi5_systemd_units }}"
+
+# state: started (not just enabled: true above) matters on a genuinely fresh
+# box: enabled alone only arms a unit for the NEXT boot, it does not start it
+# now -- without this, provisioning would finish "successfully" with the
+# robot's own services not actually running until someone reboots or starts
+# them by hand. A no-op on an already-running service, so safe on a re-run.
+# Deliberately its own list, not a loop over pi5_systemd_units: that list
+# also holds the boot-check watchdog's oneshot .service and .timer, which
+# the next task below starts differently on purpose (see its own comment) --
+# starting the oneshot .service here too would run boot-check-watchdog.sh
+# once immediately, ahead of and independent of its timer schedule.
+- name: Start Pi 5 services
+  tags: [services]
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+  loop:
+    - vtitan-pi5.service
+    - vtitan-lidar.service
+    - vtitan-backend.service
+    - vtitan-race.service
 
 # Only the timer is started immediately: enabling the oneshot .service alone
 # (the loop above) does not activate it -- it only runs when the timer fires
