@@ -114,11 +114,11 @@
           when: wifi_lock_needed | bool
 
         - name: Run common provisioning
-          ansible.builtin.include_role:
+          ansible.builtin.import_role:
             name: common
 
         - name: Run Pi Zero provisioning
-          ansible.builtin.include_role:
+          ansible.builtin.import_role:
             name: pi_zero
 
         # The usb0 gadget link is how the two boards talk during a race;
