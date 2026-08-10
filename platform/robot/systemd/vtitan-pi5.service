@@ -1,7 +1,16 @@
 [Unit]
 Description=vTitan Pi 5 — State Machine, Vision, IMU, LiDAR, Bridge
-Wants=network-online.target hailort.service vtitan-lidar.service
-After=network-online.target hailort.service vtitan-lidar.service
+# No network-online.target: same reasoning as vtitan-pi-zero.service's own
+# comment on this -- NetworkManager-wait-online measured 6-60s on this
+# hardware, and nothing this unit drives actually needs WiFi to start.
+# hailort/LiDAR are local hardware; telemetry to the backend is already
+# best-effort and must never gate the robot; the OLED's IP-address line
+# already has its own fetch-with-timeout fallback ("FETCHING..."/"OFFLINE").
+# This unit runs state_machine_node, whose 60s jumper-read timeout races the
+# gadget-link settle time (see wait-for-gadget-link.sh) -- gating boot on a
+# WiFi wait that can itself run 6-60s was directly eating into that race.
+Wants=hailort.service vtitan-lidar.service
+After=hailort.service vtitan-lidar.service
 StartLimitBurst=3
 StartLimitIntervalSec=60
 

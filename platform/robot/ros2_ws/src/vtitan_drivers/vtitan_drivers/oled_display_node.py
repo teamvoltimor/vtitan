@@ -171,6 +171,17 @@ _DIAG_SHOW_IMAGE_SLOW_S = 0.3
 """Warn when show_image() exceeds this wall-time. TEMP DIAGNOSTIC
 (2026-07-28): see _update_display. Remove once root-caused."""
 
+_CHALLENGE_MODE_UNSTABLE_GRACE_SEC = 5.0
+"""How long the jumper reading can sit unstable before the display escalates
+from a neutral "detecting" page to the "reseat the jumper" warning.
+
+state_machine_node's own 3-sample debounce settles in under 2s on a healthy
+board, so a few seconds unready is the normal case on every single boot, not
+a fault -- showing the reseat warning immediately made a completely routine
+startup look broken. Past this grace period, still-unstable is unusual
+enough to be worth flagging before the 60s timeout silently defaults to Open.
+"""
+
 _DISPLAY_DRIVER_BY_BACKEND = {
     DisplayBackend.BLINKA: BlinkaDriver,
     DisplayBackend.RAW_I2C: RawI2CDriver,
@@ -244,6 +255,10 @@ class OLEDDisplayNode(LifecycleNode):
         (a static page, or telemetry that hasn't moved between ticks) skips
         the I2C write and mirror publish instead of paying their cost every
         tick regardless of whether anything visible changed."""
+
+        self._challenge_mode_unstable_since: float | None = None
+        """monotonic() timestamp of the first tick this boot where the jumper
+        reading was seen not-yet-stable, or None while it hasn't been (yet)."""
 
     @override
     def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -590,19 +605,40 @@ class OLEDDisplayNode(LifecycleNode):
                     ip = status["values"]["ip_address"]
                     text = f"{symbol} IP:{ip}"
 
-                # ChallengeMode's message is the detected mode (or a fault) once known --
-                # a distinct "CHECK JUMPER" page while unstable so it stands out.
+                # ChallengeMode's message is the detected mode once known. Unstable
+                # is the normal case for the first few seconds of every boot (see
+                # _CHALLENGE_MODE_UNSTABLE_GRACE_SEC) -- only escalate to the
+                # reseat-jumper warning once it's been unstable longer than that.
                 if component == "ChallengeMode":
                     if status["level"] == 0:
+                        self._challenge_mode_unstable_since = None
                         text = f"MODE: {status['message']}"
                     else:
-                        return self._render_challenge_mode_fault()
+                        if self._challenge_mode_unstable_since is None:
+                            self._challenge_mode_unstable_since = time.monotonic()
+                        unstable_sec = time.monotonic() - self._challenge_mode_unstable_since
+                        if unstable_sec >= _CHALLENGE_MODE_UNSTABLE_GRACE_SEC:
+                            return self._render_challenge_mode_fault()
+                        return self._render_detecting_mode()
 
                 draw.text((_MARGIN_X, y), text, fill=_ON)
             else:
                 draw.text((_MARGIN_X, y), f"? {component}", fill=_ON)
 
             y += 10
+
+        return image
+
+    def _render_detecting_mode(self) -> Image.Image:
+        """Render a neutral loading page for the normal, brief jumper-stabilization window."""
+        assert self.display_driver is not None
+        image = self.display_driver.get_blank_image()
+        draw = ImageDraw.Draw(image)
+
+        draw.text((_MARGIN_X, _TITLE_Y), "BOOT CHECK", fill=_ON)
+        draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H), "Detecting challenge", fill=_ON)
+        draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), "mode...", fill=_ON)
 
         return image
 
