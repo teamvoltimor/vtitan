@@ -8,3 +8,21 @@
   become: true
   ansible.builtin.reboot:
     reboot_timeout: 300
+
+# Notified by the workspace/backend build tasks, which is deliberate: those
+# report changed unconditionally (colcon/go build have no idempotency ansible
+# can see), so this fires on every full provisioning run -- matching
+# scripts/provisioning/deploy-to-pi5.sh's own default (always restart, unless
+# SKIP_RESTART). Without this, "Enable Pi 5 services" only sets the units to
+# start on the NEXT boot; a re-provision that pulls new code and rebuilds
+# would otherwise leave the OLD build running until someone restarts it by
+# hand -- exactly the gap deploy-to-pi5.sh's manual final step exists to
+# cover, now closed on the provisioning path too.
+- name: Restart pi5 services
+  become: true
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - vtitan-pi5.service
+    - vtitan-backend.service
