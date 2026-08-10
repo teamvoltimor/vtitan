@@ -1,0 +1,15 @@
+model: gmr
+version: v1
+promoted_at: "2026-08-10"
+source: auto-annotator/ml-service/models/gmr (initial import)
+compiled_at: "2026-07-26"
+notes: >-
+  Initial tracked version. Migrated from the ml-service working directory,
+  which was gitignored and had no version history of its own -- this is the
+  model that was actually deployed to the Pi 5 (/usr/local/hailo/models/gmr.hef)
+  as of 2026-08-10.
+files:
+  - gmr.hef        # compiled model, deployed to the robot
+  - best.onnx       # exported ONNX, input to the Hailo compiler
+  - best.pt         # best-checkpoint PyTorch weights
+  - last.pt         # final-epoch PyTorch weights

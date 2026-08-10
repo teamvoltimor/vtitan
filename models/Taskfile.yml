@@ -1,0 +1,25 @@
+version: "3"
+
+tasks:
+  promote:
+    desc: "Promote a compiled model from hailo/shared_with_docker/ into a new tracked models/<name>/vN/ (usage: task models:promote NAME=gmr HEF=gmr_cpu_opt0.hef [ONNX=gmr.onnx])"
+    dir: "{{.ROOT_DIR}}"
+    requires:
+      vars:
+        - NAME
+        - HEF
+    vars:
+      ONNX: '{{.ONNX | default ""}}'
+    cmds:
+      - bash models/scripts/promote-from-hailo.sh {{.NAME}} {{.HEF}} {{.ONNX}}
+
+  deploy:
+    desc: "Deploy a tracked model version into auto-annotator/ml-service/models/<name>/ (usage: task models:deploy NAME=gmr [VERSION=v1], defaults to LATEST)"
+    dir: "{{.ROOT_DIR}}"
+    requires:
+      vars:
+        - NAME
+    vars:
+      VERSION: '{{.VERSION | default ""}}'
+    cmds:
+      - bash models/scripts/deploy-to-ml-service.sh {{.NAME}} {{.VERSION}}
