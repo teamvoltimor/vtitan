@@ -27,16 +27,23 @@ class RobotSpecs:
     WHEELBASE: Final[float] = _robot.ackermann.wheelbase  # 190mm axle-to-axle distance
     TRACK_WIDTH: Final[float] = _robot.ackermann.track_width  # 167.5mm wheel-to-wheel distance
     WHEEL_RADIUS: Final[float] = _robot.wheel.radius  # 35mm (measured 70mm wheel diameter / 2)
-    MAX_STEERING_ANGLE: Final[float] = _robot.steering.max_steering_angle  # ~70.2 deg road-wheel angle at full lock
+    MAX_STEERING_ANGLE: Final[float] = _robot.steering.max_steering_angle  # ~55 deg road-wheel angle at full lock
     """Road-wheel angle at full lock (radians).
 
-    Derived as SERVO_MAX_ANGLE_DEG * LINKAGE_RATIO, not declared: it is not a
-    free parameter, it is whatever the steering hardware produces. Everything
-    upstream of the servo speaks wheel angles."""
+    Just MAX_WHEEL_ANGLE_DEG in radians -- not declared as a free parameter,
+    it is whatever the steering hardware produces. Everything upstream of the
+    servo speaks wheel angles."""
 
     # Steering hardware. The servo speaks servo degrees; the linkage converts.
     SERVO_MAX_ANGLE_DEG: Final[float] = _robot.steering.servo_max_angle_deg
+    MAX_WHEEL_ANGLE_DEG: Final[float] = _robot.steering.max_wheel_angle_deg
+    """Road-wheel angle (deg) measured on the bench at full servo lock. See
+    robot.toml's [steering] comment -- re-measure and update this after any
+    linkage/servo change rather than hand-computing a ratio."""
     LINKAGE_RATIO: Final[float] = _robot.steering.linkage_ratio
+    """Road-wheel degrees per servo degree, derived from MAX_WHEEL_ANGLE_DEG /
+    SERVO_MAX_ANGLE_DEG. Not the source of truth -- kept for consumers that
+    convert an arbitrary wheel angle to a servo angle."""
 
     # Wheel details (measured 2026-07-11)
     WHEEL_WIDTH: Final[float] = _robot.wheel.width  # 25mm

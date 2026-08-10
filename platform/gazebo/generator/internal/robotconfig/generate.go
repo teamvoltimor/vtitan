@@ -44,8 +44,10 @@ func GenerateGo(cfg *Config) (string, error) {
 	fmt.Fprintf(&sb, "\tRobotMaxSteering    = %s\n", f(cfg.Steering.MaxSteeringAngle()))
 	fmt.Fprintf(&sb, "\tRobotServoMaxAngleDeg = %s // SERVO degrees at full travel\n",
 		f(cfg.Steering.ServoMaxAngleDeg))
-	fmt.Fprintf(&sb, "\tRobotLinkageRatio     = %s // road-wheel degrees per servo degree\n",
-		f(cfg.Steering.LinkageRatio))
+	fmt.Fprintf(&sb, "\tRobotMaxWheelAngleDeg = %s // bench-measured road-wheel degrees at full servo lock\n",
+		f(cfg.Steering.MaxWheelAngleDeg))
+	fmt.Fprintf(&sb, "\tRobotLinkageRatio     = %s // road-wheel degrees per servo degree, derived from the two above\n",
+		f(cfg.Steering.LinkageRatio()))
 	fmt.Fprintf(&sb, "\tRobotChassisMass = %s // kg, body alone\n", f(cfg.Chassis.Mass))
 	fmt.Fprintf(&sb, "\tRobotWheelMass   = %s // kg per wheel\n", f(cfg.Wheel.Mass))
 	sb.WriteString("\n")

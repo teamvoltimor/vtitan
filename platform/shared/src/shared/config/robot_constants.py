@@ -44,22 +44,36 @@ class Ackermann(BaseModel):
 
 
 class Steering(BaseModel):
-    """Servo travel and the linkage that converts it into road-wheel angle."""
+    """Servo travel and the bench-measured road-wheel angle it produces."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     servo_max_angle_deg: float
-    linkage_ratio: float
+    max_wheel_angle_deg: float
+    """Road-wheel angle (deg) measured on the bench at full servo lock.
+
+    See robot.toml's ``[steering]`` comment: this is what gets measured with a
+    protractor and declared, not a ratio -- the ratio is derived from it.
+    """
+
+    @property
+    def linkage_ratio(self) -> float:
+        """Road-wheel degrees produced per servo degree.
+
+        Derived from the bench-measured ``max_wheel_angle_deg``, not declared
+        directly -- kept for consumers that convert an arbitrary wheel angle
+        to a servo angle (e.g. ``ackermann_motor_node``).
+        """
+        return self.max_wheel_angle_deg / self.servo_max_angle_deg
 
     @property
     def max_steering_angle(self) -> float:
         """Road-wheel angle at full lock (radians).
 
-        Not a TOML field: it is whatever the steering hardware produces
-        through the linkage, not a free parameter -- see robot.toml's
-        ``[ackermann]`` comment.
+        Not a free parameter: it is whatever the steering hardware produces
+        through the linkage -- see robot.toml's ``[ackermann]`` comment.
         """
-        return math.radians(self.servo_max_angle_deg * self.linkage_ratio)
+        return math.radians(self.max_wheel_angle_deg)
 
 
 class Wheel(BaseModel):

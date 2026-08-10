@@ -29,8 +29,8 @@ wheelbase = 0.19
 track_width = 0.1675
 #
 # The road-wheel angle at full lock is NOT declared here. It is derived from
-# the [steering] section below as servo_max_angle_deg * linkage_ratio, because
-# it is not a free parameter -- it is whatever the steering hardware produces.
+# the [steering] section below (max_wheel_angle_deg), because it is not a free
+# parameter -- it is whatever the steering hardware produces.
 # It used to sit here as a hand-computed 1.2253 rad whose comment pointed at
 # platform/robot/.env.example, which by then pointed at motors.toml, which is
 # where the two factors actually lived. Three files, one number, and only prose
@@ -49,15 +49,25 @@ track_width = 0.1675
 # 2026-07-25.
 servo_max_angle_deg = 90.0
 
-# Road-wheel degrees produced per servo degree. Measured 0.78 on this chassis:
-# the servo at 90 deg puts the wheels at ~70 deg.
+# Road-wheel angle (deg) measured on the bench at full servo lock (servo
+# commanded to servo_max_angle_deg, protractor on the front wheel). This is
+# the number to re-measure and update after any linkage/servo change -- the
+# linkage ratio itself (road-wheel deg per servo deg) is derived from this and
+# servo_max_angle_deg, not the other way around.
+#
+# Was declared as a bare ratio (linkage_ratio = 0.78, implying 90 deg servo ->
+# ~70 deg wheel) until a 2026-08-10 bench measurement with a protractor found
+# the real chassis only reaches ~55 deg at full 90 deg servo lock -- the 0.78
+# figure was never re-measured after the linkage geometry changed and had
+# drifted. Bench max-angle is a much easier thing to verify on the robot than
+# a ratio, hence this field instead of a recomputed fraction.
 #
 # Everything upstream -- /ackermann_cmd, the navigator, the simulator -- speaks
 # WHEEL angles, per the ROS convention; only the servo speaks servo angles.
-# Without this conversion the node fed a wheel angle straight to the servo and
-# the wheels under-turned by ~22%, so the robot cornered wider than the path it
-# was following.
-linkage_ratio = 0.78
+# Feeding a wheel angle straight to the servo without this conversion is what
+# originally made the wheels under-turn and the robot corner wider than the
+# path it was following.
+max_wheel_angle_deg = 55.0
 
 [wheel]
 radius = 0.035
