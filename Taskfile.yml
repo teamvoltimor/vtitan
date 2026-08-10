@@ -29,8 +29,6 @@ includes:
     dir: ./platform
   infra:
     taskfile: ./infra/Taskfile.yml
-  fleet:
-    taskfile: ./fleet/Taskfile.yml
   auto-annotator:
     taskfile: ./auto-annotator/Taskfile.yml
     dir: ./auto-annotator
