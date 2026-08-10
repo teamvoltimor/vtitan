@@ -202,3 +202,19 @@
     state: absent
   loop: "{{ old_worktree_dirs }}"
   when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists
+
+# Optional (see install_extra_tools in roles/common/defaults/main.yml).
+# hailo-ai/hailo-apps -- the official Hailo Applications Infrastructure, ready-
+# to-run GStreamer demo pipelines (pose/detection/segmentation/GenAI) that
+# target the Pi 5 + Hailo-8 directly (found already cloned by hand,
+# 2026-08-10 audit -- distinct from this repo's own hailo/ model-compilation
+# tool, which is x86-only and belongs on a dev machine, never on the Pi 5).
+# Cloned only -- its own setup_env.sh (separate venv, further downloads) is
+# heavy enough (900MB+) to run by hand once, not on every provisioning pass.
+- name: Clone hailo-apps (optional extra tooling)
+  ansible.builtin.git:
+    repo: https://github.com/hailo-ai/hailo-apps.git
+    dest: "{{ ansible_env.HOME }}/hailo-apps"
+    depth: 1
+  when: install_extra_tools | bool
+  tags: [extras]
