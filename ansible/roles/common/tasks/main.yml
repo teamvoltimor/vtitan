@@ -154,17 +154,23 @@
 # work at all. Installed via go-task's own official installer script, not
 # the Cloudsmith apt repo the live boards happened to get it from -- same
 # reasoning as pixi/mise above it.
+# PATH-based, not a stat on task_bin specifically: a board provisioned before
+# this was added may already have `task` from elsewhere (e.g. an apt repo),
+# and a hardcoded-path stat would miss that, installing a redundant second
+# copy under task_bin instead of recognizing the one already on PATH.
 - name: Check if task is already installed
   tags: [repo]
-  ansible.builtin.stat:
-    path: "{{ task_bin }}"
-  register: task_stat
+  ansible.builtin.command: which task
+  register: task_check
+  changed_when: false
+  failed_when: false
 
 - name: Install task
   tags: [repo]
   ansible.builtin.shell: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "{{ task_bin | dirname }}"
   args:
     executable: /bin/bash
+  when: task_check.rc != 0
   when: not task_stat.stat.exists
 
 # Pre-rename deployment migration (teamvoldemor/voldemorbot ->
