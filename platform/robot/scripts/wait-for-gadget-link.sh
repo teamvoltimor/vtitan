@@ -25,13 +25,16 @@ set -uo pipefail
 PEER="${PEER:-192.168.250.1}"
 IFACE="${IFACE:-usb0}"
 MAX_WAIT_SEC="${MAX_WAIT_SEC:-55}"
-CHECK_INTERVAL_SEC="${CHECK_INTERVAL_SEC:-2}"
+# 1s, not 2s: this is pure detection latency once the link is actually up --
+# each tick past that point is wasted boot time, and a 1s ping timeout (-W1)
+# keeps a still-down link from adding any extra wait per tick either.
+CHECK_INTERVAL_SEC="${CHECK_INTERVAL_SEC:-1}"
 
 log() { echo "[wait-for-gadget-link] $*"; }
 
 start=$(awk '{print int($1)}' /proc/uptime)
 while true; do
-  if ping -c1 -W2 -I "$IFACE" "$PEER" >/dev/null 2>&1; then
+  if ping -c1 -W1 -I "$IFACE" "$PEER" >/dev/null 2>&1; then
     log "$PEER reachable over $IFACE, continuing"
     exit 0
   fi

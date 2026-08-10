@@ -46,13 +46,15 @@ class NodeConfig(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "challenge_mode_node.toml")
 
-    publish_rate_hz: float = Field(default=2.0, validation_alias=AliasChoices("PUBLISH_RATE_HZ", "publish_rate_hz"))
+    publish_rate_hz: float = Field(default=5.0, validation_alias=AliasChoices("PUBLISH_RATE_HZ", "publish_rate_hz"))
     """Republish rate.
 
     The jumper is a boot-time setting, not a live control input, so this only
     has to be frequent enough that the state machine's 3-sample consistency
-    check settles quickly at startup. TRANSIENT_LOCAL covers late
-    subscribers, so this is really just a liveness heartbeat.
+    check settles quickly at startup -- 5Hz gets 3 agreeing samples in 0.6s
+    instead of 1.5s at the previous 2Hz, with no cost since the jumper never
+    actually changes mid-sampling. TRANSIENT_LOCAL covers late subscribers,
+    so this is really just a liveness heartbeat.
     """
 
 

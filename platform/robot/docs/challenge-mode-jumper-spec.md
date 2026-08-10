@@ -67,7 +67,10 @@ CHALLENGE_MODE_GPIO_PIN=23
 
 - A "MODE: OBSTACLES" / "MODE: OPEN" line once detection succeeds, so the team has a visual
   pre-race check.
-- A distinct "CHECK JUMPER" fault page if the reading is unstable.
+- A neutral "Detecting challenge mode..." page while the reading is unstable, escalating to a
+  distinct "CHECK JUMPER" fault page only past `_CHALLENGE_MODE_UNSTABLE_GRACE_SEC` (5s) --
+  every boot is unstable for the first second or two while the 3-sample debounce settles, so
+  showing the fault page immediately made a normal boot look broken.
 
 ## Out of scope
 
