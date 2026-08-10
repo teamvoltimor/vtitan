@@ -7,6 +7,7 @@
 # underlying config.txt edits are (raspi-config won't duplicate a line it's
 # already written) — always reporting "changed" here is a known simplification.
 - name: Enable camera/i2c/spi/serial interfaces via raspi-config
+  tags: [hardware]
   become: true
   ansible.builtin.command: "raspi-config nonint {{ item }}"
   loop:
@@ -25,16 +26,18 @@
   notify: Reboot pi5
 
 - name: Install Hailo AI HAT+ runtime (hailo-all)
+  tags: [hardware]
   become: true
   ansible.builtin.apt:
     name: hailo-all
     state: present
     update_cache: true
 
-# Model files themselves are a day-2 concern (scripts/deploy-to-pi5.sh pushes
+# Model files themselves are a day-2 concern (scripts/provisioning/deploy-to-pi5.sh pushes
 # the .hef built by `task gmr:workflow`) — just make sure the target
 # directory HAILO_MODEL_PATH expects exists so that first deploy doesn't fail.
 - name: Ensure Hailo models directory exists
+  tags: [hardware]
   become: true
   ansible.builtin.file:
     path: /usr/local/hailo/models
@@ -44,6 +47,7 @@
     mode: "0755"
 
 - name: Enable hailort service
+  tags: [hardware]
   become: true
   ansible.builtin.systemd_service:
     name: hailort
@@ -57,6 +61,7 @@
 # matching a generic ethernet-class device) rather than something to
 # discover the hard way a second time.
 - name: Configure usb0 host static IP ({{ usb_gadget_pi5_ip }})
+  tags: [network]
   become: true
   community.general.nmcli:
     type: ethernet
@@ -82,6 +87,7 @@
     state: present
 
 - name: Fetch LiDAR driver (sllidar_ros2) before build
+  tags: [hardware]
   ansible.builtin.command: "{{ pixi_bin }} run fetch-lidar-driver"
   args:
     chdir: "{{ robot_dir }}"
@@ -100,6 +106,7 @@
 # features ["dev", "vision"]), so this single step also installs
 # ultralytics + hailort -- no separate vision-env install step needed.
 - name: Install pixi vision env and build ROS2 workspace
+  tags: [apps]
   ansible.builtin.shell: "{{ pixi_bin }} install -e vision && {{ pixi_bin }} run -e vision build-ws"
   args:
     executable: /bin/bash
@@ -113,6 +120,7 @@
 # was dropped). Keeping the backend on the robot also means the robot's own
 # localhost defaults just work, with no per-host address wiring.
 - name: Install mise (Go toolchain manager)
+  tags: [apps]
   ansible.builtin.shell: |
     set -euo pipefail
     curl -fsSL https://mise.run | sh
@@ -124,10 +132,12 @@
 # repo's root mise.toml while resolving the build below -- which would hang a
 # non-interactive provisioning run.
 - name: Trust the repo's mise config
+  tags: [apps]
   ansible.builtin.command: "{{ mise_bin }} trust {{ repo_dir }}"
   changed_when: false
 
 - name: Install Go via mise
+  tags: [apps]
   ansible.builtin.command: "{{ mise_bin }} install go@{{ go_version }}"
   register: mise_go_install
   changed_when: "'installing' in (mise_go_install.stderr | lower)"
@@ -136,12 +146,14 @@
 # rather than at service start -- `go run` would recompile on every restart
 # (over a minute on this hardware) and turn a crash-loop into a CPU sink.
 - name: Build the telemetry backend binary
+  tags: [apps]
   ansible.builtin.command: "{{ mise_bin }} exec go@{{ go_version }} -- go build -o bin/server ./cmd/server"
   args:
     chdir: "{{ backend_dir }}"
   changed_when: true
 
 - name: Install Pi 5 systemd units
+  tags: [services]
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/systemd/{{ item }}"
@@ -152,6 +164,7 @@
   notify: Reload systemd
 
 - name: Substitute __TARGET_USER__ placeholder in unit files
+  tags: [services]
   become: true
   ansible.builtin.replace:
     path: "/etc/systemd/system/{{ item }}"
@@ -161,6 +174,7 @@
   notify: Reload systemd
 
 - name: Substitute __TARGET_HOME__ placeholder in unit files
+  tags: [services]
   become: true
   ansible.builtin.replace:
     path: "/etc/systemd/system/{{ item }}"
@@ -170,6 +184,7 @@
   notify: Reload systemd
 
 - name: Enable Pi 5 services
+  tags: [services]
   become: true
   ansible.builtin.systemd_service:
     name: "{{ item }}"
@@ -182,6 +197,7 @@
 # it, which is the intended behavior. Explicit here rather than depending on
 # a reboot to bring it up, matching the equivalent task in roles/pi_zero.
 - name: Start the boot-check watchdog timer
+  tags: [services]
   become: true
   ansible.builtin.systemd_service:
     name: vtitan-boot-check-watchdog.timer
@@ -197,6 +213,7 @@
 # final_env_stat) having actually run, so a fresh Pi 5 with none of these
 # directories present doesn't need special-casing.
 - name: Remove old sibling worktree / backup directories
+  tags: [cleanup]
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent

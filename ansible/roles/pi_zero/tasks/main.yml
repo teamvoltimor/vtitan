@@ -4,6 +4,7 @@
 # clone, .env, and udev rules by this point.
 
 - name: Install Pi-Zero-specific dependencies
+  tags: [os]
   become: true
   ansible.builtin.apt:
     name:
@@ -12,11 +13,13 @@
 
 # RPi OS Bookworm/Trixie keep boot config under /boot/firmware.
 - name: Detect boot config directory
+  tags: [network]
   ansible.builtin.stat:
     path: /boot/firmware
   register: boot_firmware_stat
 
 - name: Set boot_dir fact
+  tags: [network]
   ansible.builtin.set_fact:
     boot_dir: "{{ '/boot/firmware' if boot_firmware_stat.stat.exists else '/boot' }}"
 
@@ -39,6 +42,7 @@
 # reported changed both times and rebooted the Zero for no reason — an
 # expensive no-op on a board that takes minutes to come back.
 - name: Remove any other dtoverlay=dwc2 lines from config.txt
+  tags: [network]
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
@@ -50,11 +54,12 @@
 # This is hardening, NOT a fix for the half-dead-link failure -- that was
 # traced to a cdc_ether transmit-queue timeout and reproduced with this
 # exact line in place, so do not read it as the cure (see
-# scripts/usb-link-watchdog.sh). It is here to remove USB role negotiation
+# scripts/provisioning/usb-link-watchdog.sh). It is here to remove USB role negotiation
 # as a variable: the Zero is only ever the peripheral in this build, and
 # letting it negotiate that on every boot is one more nondeterministic step
 # in the path that is already nondeterministic.
 - name: Ensure dwc2 peripheral overlay is present in config.txt
+  tags: [network]
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
@@ -63,6 +68,7 @@
   notify: Reboot pi zero
 
 - name: Check if g_ether modules-load already present in cmdline.txt
+  tags: [network]
   become: true
   ansible.builtin.command: "grep -q modules-load=dwc2,g_ether {{ boot_dir }}/cmdline.txt"
   register: cmdline_check
@@ -70,6 +76,7 @@
   failed_when: false
 
 - name: Append g_ether modules-load to cmdline.txt
+  tags: [network]
   become: true
   ansible.builtin.shell: "sed -i 's/[[:space:]]*$/ modules-load=dwc2,g_ether/' {{ boot_dir }}/cmdline.txt"
   args:
@@ -79,6 +86,7 @@
 
 # Stable, locally-administered MACs so the host side sees a consistent link.
 - name: Configure g_ether stable MACs
+  tags: [network]
   become: true
   ansible.builtin.copy:
     content: "options g_ether dev_addr={{ gadget_dev_mac }} host_addr={{ gadget_host_mac }}\n"
@@ -99,12 +107,14 @@
 # unreachable at the IP level. Neither `ip -s link show` nor dmesg show any
 # of this; only `nmcli device status` does.
 - name: Check for netplan's auto-generated ethernet profile
+  tags: [network]
   become: true
   ansible.builtin.command: nmcli -t -f NAME connection show
   register: nm_connections
   changed_when: false
 
 - name: Stop netplan's ethernet profile from claiming usb0
+  tags: [network]
   become: true
   community.general.nmcli:
     type: ethernet
@@ -121,6 +131,7 @@
 # netplan-eth0 above: it's what actually decides the winner on hardware
 # where the conflicting profile has some OTHER name we haven't seen yet.
 - name: Configure usb0 gadget static IP ({{ usb_gadget_zero_ip }})
+  tags: [network]
   become: true
   community.general.nmcli:
     type: ethernet
@@ -139,6 +150,7 @@
     state: present
 
 - name: Re-activate usb0 in case netplan-eth0 already claimed the device this boot
+  tags: [network]
   become: true
   ansible.builtin.command: nmcli con up usb0
   register: usb0_reactivate
@@ -149,11 +161,13 @@
 # that's the entire point of moving this block to the front of the role. See
 # the comment at the top of this block.
 - name: Reboot the Zero now so the gadget link comes up before the rest of this role runs
+  tags: [network]
   ansible.builtin.meta: flush_handlers
 
 # Explicit pin=/func= mapping, not a bare "dtoverlay=pwm-2chan" — see
 # servo_pwm_pin/motor_pwm_pin in defaults/main.yml for why this matters.
 - name: Remove any existing dtoverlay=pwm-2chan lines from config.txt
+  tags: [hardware]
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
@@ -162,6 +176,7 @@
   notify: Reboot pi zero
 
 - name: Map hardware PWM overlay onto servo + drive motor pins
+  tags: [hardware]
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
@@ -170,6 +185,7 @@
   notify: Reboot pi zero
 
 - name: Ensure remaining config.txt overlays are present
+  tags: [hardware]
   become: true
   ansible.builtin.lineinfile:
     path: "{{ boot_dir }}/config.txt"
@@ -185,6 +201,7 @@
 # i2c-dev for the userspace device node; do that explicitly since we're
 # bypassing raspi-config.
 - name: Ensure i2c-dev module loads at boot
+  tags: [hardware]
   become: true
   ansible.builtin.copy:
     content: "i2c-dev\n"
@@ -192,6 +209,7 @@
     mode: "0644"
 
 - name: Load i2c-dev module now
+  tags: [hardware]
   become: true
   community.general.modprobe:
     name: i2c-dev
@@ -199,11 +217,13 @@
 
 # More swap so pixi/the ROS2 colcon build survives on 512MB RAM.
 - name: Check for dphys-swapfile config
+  tags: [os]
   ansible.builtin.stat:
     path: /etc/dphys-swapfile
   register: dphys_stat
 
 - name: Increase swap via dphys-swapfile
+  tags: [os]
   become: true
   when: dphys_stat.stat.exists
   block:
@@ -226,6 +246,7 @@
       failed_when: false  # already-on is a non-zero exit, not a real failure
 
 - name: Check for plain swapfile
+  tags: [os]
   ansible.builtin.stat:
     path: /swapfile
   register: swapfile_stat
@@ -236,6 +257,7 @@
 # (hours), so it doesn't help a short memory-intensive burst like `pixi
 # install`/colcon — a plain always-active swapfile is simpler and reliable.
 - name: Create plain 2GB swapfile
+  tags: [os]
   become: true
   when: not dphys_stat.stat.exists and not swapfile_stat.stat.exists
   block:
@@ -262,6 +284,7 @@
 # exists and skips the whole block, including this. Matches the pattern
 # dphys-swapfile already uses above (its own "Enable" task is unconditional).
 - name: Ensure plain swapfile is active
+  tags: [os]
   become: true
   ansible.builtin.command: swapon /swapfile
   when: not dphys_stat.stat.exists
@@ -282,12 +305,14 @@
 # path, so an un-dereferenced symlink extracted on the Zero silently resolves
 # to the Zero's own stale src instead of what was just built).
 - name: Verify PWM availability
+  tags: [hardware]
   ansible.builtin.command: ls /sys/class/pwm/pwmchip0/
   register: pwm_check
   changed_when: false
   failed_when: false
 
 - name: Warn if PWM chip not yet present
+  tags: [hardware]
   ansible.builtin.debug:
     msg: "PWM chip not present yet — it appears after the reboot below."
   when: pwm_check.rc != 0
@@ -297,23 +322,27 @@
 # verify-zero-integration.sh, safe-shutdown-zero.sh) work without a separate
 # manual bootstrap-fresh-zero.sh run — mirrors that script's step 1.
 - name: Check for existing Pi 5 SSH key
+  tags: [auth]
   delegate_to: pi5
   ansible.builtin.stat:
     path: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
   register: pi5_ssh_key_stat
 
 - name: Generate Pi 5 SSH key
+  tags: [auth]
   delegate_to: pi5
   ansible.builtin.command: "ssh-keygen -t ed25519 -N '' -f /home/{{ ansible_user }}/.ssh/id_ed25519"
   when: not pi5_ssh_key_stat.stat.exists
 
 - name: Read Pi 5's public key
+  tags: [auth]
   delegate_to: pi5
   ansible.builtin.slurp:
     src: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
   register: pi5_pubkey_slurp
 
 - name: Trust Pi 5's SSH key into the Zero's authorized_keys
+  tags: [auth]
   ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
     key: "{{ pi5_pubkey_slurp.content | b64decode }}"
@@ -324,20 +353,24 @@
 # minutes after a reboot, where the gadget link was the only route to it and
 # the Zero — reachable the whole time — could not be used to get in.
 - name: Check for existing Zero SSH key
+  tags: [auth]
   ansible.builtin.stat:
     path: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
   register: zero_ssh_key_stat
 
 - name: Generate Zero SSH key
+  tags: [auth]
   ansible.builtin.command: "ssh-keygen -t ed25519 -N '' -f /home/{{ ansible_user }}/.ssh/id_ed25519"
   when: not zero_ssh_key_stat.stat.exists
 
 - name: Read the Zero's public key
+  tags: [auth]
   ansible.builtin.slurp:
     src: "/home/{{ ansible_user }}/.ssh/id_ed25519.pub"
   register: zero_pubkey_slurp
 
 - name: Trust the Zero's SSH key into the Pi 5's authorized_keys
+  tags: [auth]
   delegate_to: pi5
   ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
@@ -348,8 +381,9 @@
 # script SSHes from the Pi 5 into the Zero and runs non-interactively, so
 # without that trust already in place it fails outright on a fresh board.
 - name: Build the Zero's pixi env and ROS2 workspace on the Pi 5, then ship it
+  tags: [apps]
   delegate_to: pi5
-  ansible.builtin.command: "bash scripts/deploy-dev-env-to-zero.sh"
+  ansible.builtin.command: "bash scripts/provisioning/deploy-dev-env-to-zero.sh"
   args:
     chdir: "{{ robot_dir }}"
   environment:
@@ -365,6 +399,7 @@
 # rather than the Pi 5 because the link it repairs may be the robot's only
 # path, so the repair cannot depend on having another one.
 - name: Install usb-link watchdog units
+  tags: [services]
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/systemd/{{ item }}"
@@ -375,6 +410,7 @@
   notify: Reload systemd zero
 
 - name: Substitute __TARGET_HOME__ placeholder in watchdog units
+  tags: [services]
   become: true
   ansible.builtin.replace:
     path: "/etc/systemd/system/{{ item }}"
@@ -387,6 +423,7 @@
 # the service itself would additionally run it once at boot, inside the very
 # window its own uptime grace exists to skip.
 - name: Enable usb-link watchdog timer
+  tags: [services]
   become: true
   ansible.builtin.systemd_service:
     name: vtitan-usb-link-watchdog.timer
@@ -395,6 +432,7 @@
     daemon_reload: true
 
 - name: Install vtitan-pi-zero systemd unit
+  tags: [services]
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/systemd/vtitan-pi-zero.service"
@@ -404,6 +442,7 @@
   notify: Reload systemd zero
 
 - name: Substitute __TARGET_USER__ placeholder in unit file
+  tags: [services]
   become: true
   ansible.builtin.replace:
     path: /etc/systemd/system/vtitan-pi-zero.service
@@ -412,6 +451,7 @@
   notify: Reload systemd zero
 
 - name: Substitute __TARGET_HOME__ placeholder in unit file
+  tags: [services]
   become: true
   ansible.builtin.replace:
     path: /etc/systemd/system/vtitan-pi-zero.service

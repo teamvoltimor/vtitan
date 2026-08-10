@@ -81,17 +81,39 @@ tasks:
       vars:
         - CMD
 
+  windows:set-wifi:pi5:
+    desc: "Set the Pi 5's WiFi credentials from Windows -- works even with no WiFi yet, since rpi-5-direct is a direct link independent of it (usage: task windows:set-wifi:pi5 SSID=name PASSWORD=pass [SSH_HOST=alias])"
+    requires:
+      vars:
+        - SSID
+        - PASSWORD
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+    cmds:
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && task rpi:set-wifi SSID='{{.SSID}}' PASSWORD='{{.PASSWORD}}'"
+
+  windows:set-wifi:zero:
+    desc: "Set the Pi Zero's WiFi credentials from Windows, hopping through the Pi 5 over the USB gadget link -- works even with no WiFi on the Zero at all (usage: task windows:set-wifi:zero SSID=name PASSWORD=pass [SSH_HOST=alias])"
+    requires:
+      vars:
+        - SSID
+        - PASSWORD
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+    cmds:
+      - ssh {{.SSH_HOST}} "ssh ralvarezdev@{{.RPI_ZERO_GADGET_IP}} \"cd ~/vtitan && task rpi:set-wifi SSID='{{.SSID}}' PASSWORD='{{.PASSWORD}}'\""
+
   windows:audit:pi5:
     desc: "Pull latest + run the Pi 5 provisioning audit (usage: task windows:audit:pi5 [SSH_HOST=alias])"
     cmds:
-      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/audit-pi5-provisioning.sh"
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/provisioning/audit-pi5-provisioning.sh"
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
 
   windows:audit:zero:
     desc: "Pull latest + run the Pi Zero provisioning audit (usage: task windows:audit:zero [SSH_HOST=alias])"
     cmds:
-      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/audit-pi-zero-provisioning.sh"
+      - ssh {{.SSH_HOST}} "cd ~/vtitan && git pull && bash ~/vtitan/platform/robot/scripts/provisioning/audit-pi-zero-provisioning.sh"
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
 
@@ -421,7 +443,7 @@ tasks:
       - ssh -o ConnectTimeout=5 {{.FLEET_USER}}@{{.RPI_ZERO_GADGET_IP}} "ping -c 3 -W 2 {{.RPI_5_GADGET_IP}}" || echo "(could not reach the Zero over the gadget link to check)"
 
   rpi:usb-link:repair:
-    desc: "Force-reload g_ether to recover a half-dead gadget link (run ON the Pi ZERO, not the Pi 5 -- see scripts/usb-link-watchdog.sh for why)"
+    desc: "Force-reload g_ether to recover a half-dead gadget link (run ON the Pi ZERO, not the Pi 5 -- see scripts/provisioning/usb-link-watchdog.sh for why)"
     cmds:
       - sudo modprobe -r g_ether
       - sleep 3

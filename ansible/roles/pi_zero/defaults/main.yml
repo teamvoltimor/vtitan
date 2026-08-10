@@ -14,6 +14,6 @@ zero_watchdog_units:
 # required, not cosmetic: under LGPIOFactory a plain `dtoverlay=pwm-2chan`
 # (no pin=/func=) leaves gpiozero driving PWM in software, which showed up on
 # hardware as visible servo twitching and a continuous background CPU cost on
-# the drive motor (see platform/robot/scripts/bootstrap-fresh-zero.sh, step 6b).
+# the drive motor (see platform/robot/scripts/provisioning/bootstrap-fresh-zero.sh, step 6b).
 servo_pwm_pin: 12
 motor_pwm_pin: 13

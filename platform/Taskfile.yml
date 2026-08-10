@@ -825,7 +825,7 @@ tasks:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
       SKIP_RESTART: '{{.SKIP_RESTART | default ""}}'
     cmds:
-      - '"{{.BASH}}" scripts/deploy-to-pi5.sh'
+      - '"{{.BASH}}" scripts/provisioning/deploy-to-pi5.sh'
 
   robot:record-vision:
     desc: >-

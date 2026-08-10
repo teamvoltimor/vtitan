@@ -23,8 +23,8 @@
 # Requires a one-time SSH key from Pi 5's user into the Pi Zero's
 # authorized_keys (the pi_zero Ansible role sets this up).
 #
-# Usage: bash scripts/deploy-dev-env-to-zero.sh
-# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/deploy-dev-env-to-zero.sh
+# Usage: bash scripts/provisioning/deploy-dev-env-to-zero.sh
+# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/provisioning/deploy-dev-env-to-zero.sh
 # Force a redeploy even if fingerprints match: DEPLOY_FORCE=1 bash scripts/...
 
 set -euo pipefail
@@ -40,7 +40,7 @@ exec > >(tee "$LOG_FILE") 2>&1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROBOT_DIR"
 
 ZERO_HOST="${ZERO_HOST:-ralvarezdev@192.168.250.1}"
@@ -57,7 +57,7 @@ STAMP_WS="\$HOME/.vtitan-deploy-stamp-ws"
 log() { echo "[deploy-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-# shellcheck source=scripts/_ssh_preflight.sh
+# shellcheck source=_ssh_preflight.sh
 . "$SCRIPT_DIR/_ssh_preflight.sh"
 # No interactive fallback: this runs on the Pi 5, sometimes unattended, where a
 # password prompt would hang rather than fail. The retries cover the USB-gadget

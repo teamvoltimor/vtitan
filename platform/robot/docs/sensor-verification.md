@@ -317,7 +317,7 @@ filesystem, not just an inconvenience).
 ### Setting up a freshly-flashed Pi Zero
 
 Automated via `pixi run -e dev bootstrap-fresh-zero`, run **on Pi 5** (see
-`scripts/bootstrap-fresh-zero.sh`). Idempotent — safe to re-run on a Zero
+`scripts/provisioning/bootstrap-fresh-zero.sh`). Idempotent — safe to re-run on a Zero
 that's already set up. Covers, in order:
 
 1. Trusting Pi 5's SSH key into the Zero's `~/.ssh/authorized_keys` (needs
@@ -369,7 +369,7 @@ of `.pixi/envs/dev` and a `ros2_ws` build produced with `-e dev` works without
 any conda/mamba resolution happening on the Zero at all.
 
 Automated via `pixi run -e dev deploy-dev-env-to-zero`, run **on Pi 5**
-(see `scripts/deploy-dev-env-to-zero.sh`). One-time prerequisite: Pi 5's own
+(see `scripts/provisioning/deploy-dev-env-to-zero.sh`). One-time prerequisite: Pi 5's own
 SSH key needs to be in the Zero's `~/.ssh/authorized_keys` (they don't trust
 each other by default) — generate one with `ssh-keygen -t ed25519` on Pi 5 if
 `~/.ssh/id_ed25519.pub` doesn't already exist, then append it on the Zero.
@@ -394,12 +394,12 @@ mismatches and a stale orphan-file flag (`e2fsck -f` fixed it), and the board wo
 up on its own because boot was hung waiting on an interactive fsck prompt with no display
 attached. Repeat occurrences risk worse (real ext4 data-structure corruption, not just accounting).
 
-Run `bash scripts/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero — it
+Run `bash scripts/provisioning/safe-shutdown-zero.sh` **on Pi 5** before ever removing power from the Zero — it
 stops `vtitan-pi-zero.service`, syncs, issues a clean `shutdown -h now`, and polls until the
 Zero is actually offline before telling you it's safe to unplug it.
 
 To power both boards down in one command (e.g. before switching the robot from wall/USB power to
-battery), run `bash scripts/safe-shutdown-both.sh` **on Pi 5** instead — it runs the same Zero
+battery), run `bash scripts/provisioning/safe-shutdown-both.sh` **on Pi 5** instead — it runs the same Zero
 shutdown first, then syncs and shuts Pi 5 itself down last, once the Zero is confirmed offline. Also
 available as `task robot:zero ACTION=shutdown-both` from the repo root.
 
@@ -435,7 +435,7 @@ holding steady state), sampled ~19 minutes after boot on the Pi Zero 2 W's
 
 ### USB-gadget link: end-to-end verification (`verify-zero-integration.sh`)
 
-Run **on Pi 5** via `bash scripts/verify-zero-integration.sh` (or `pixi run -e dev
+Run **on Pi 5** via `bash scripts/provisioning/verify-zero-integration.sh` (or `pixi run -e dev
 verify-zero-integration`), after bootstrap + deploy have shipped code to the Zero and its service is
 running. Checks, in order: SSH reachability over both the USB-gadget IP (`192.168.250.1`) and WiFi;
 `usb0` carrier state, ping, and `dmesg` for `cdc_ether` TX-watchdog faults; the systemd service's
@@ -699,7 +699,7 @@ stays `INCOMPLETE`/`FAILED`). A full power-cycle recovered it every time.
 Practical rule: **after any Zero reboot, run `verify-zero-integration.sh`. If the USB link is dead,
 power-cycle the Zero rather than rebooting it again.** Note the Zero is currently powered *through*
 the Pi 5's USB port, so "power-cycle" means unplugging that cable -- which is a hard power cut, so
-shut the Zero down cleanly first (`ZERO_HOST=<wifi-ip> bash scripts/safe-shutdown-zero.sh`, since
+shut the Zero down cleanly first (`ZERO_HOST=<wifi-ip> bash scripts/provisioning/safe-shutdown-zero.sh`, since
 the USB path is by definition unusable at that point).
 
 Things tried that did **not** help, so don't burn time on them again: `ethtool -K usb0 tx off rx off

@@ -11,7 +11,7 @@ pi5_systemd_units:
   # sllidar_node) stuck in BOOT_CHECK -- confirmed on hardware 2026-08-09,
   # same signature as docs/dds-shm-transport-disabled.md, reproduced even
   # with SHM disabled and on a genuinely fresh cold boot, not just a partial
-  # restart. See scripts/boot-check-watchdog.sh.
+  # restart. See scripts/provisioning/boot-check-watchdog.sh.
   - vtitan-boot-check-watchdog.service
   - vtitan-boot-check-watchdog.timer
 

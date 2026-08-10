@@ -13,7 +13,7 @@ User=root
 # path would make this unit depend on an executable bit that a plain `git pull`
 # silently reverts, which would leave the watchdog dead exactly when the link it
 # guards is the robot's only route.
-ExecStart=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/usb-link-watchdog.sh
+ExecStart=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/usb-link-watchdog.sh
 # Bounded so a wedged reload can never pin the timer indefinitely; the reload
 # path itself sleeps ~11s, so this leaves generous headroom.
 TimeoutStartSec=60

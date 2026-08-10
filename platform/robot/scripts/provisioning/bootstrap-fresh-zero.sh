@@ -35,14 +35,14 @@
 # once (e.g. the SSH keys Raspberry Pi Imager's OS customization pre-installs)
 # -- this script cannot bootstrap first contact from nothing.
 #
-# Usage: bash scripts/bootstrap-fresh-zero.sh
-# Override target: ZERO_HOST=ralvarezdev@192.168.0.51 bash scripts/bootstrap-fresh-zero.sh
+# Usage: bash scripts/provisioning/bootstrap-fresh-zero.sh
+# Override target: ZERO_HOST=ralvarezdev@192.168.0.51 bash scripts/provisioning/bootstrap-fresh-zero.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROBOT_DIR"
 
 ZERO_HOST="${ZERO_HOST:-ralvarezdev@192.168.250.1}"
@@ -62,7 +62,7 @@ PI5_USB_MAC="${PI5_USB_MAC:-02:00:00:00:ce:02}"
 log() { echo "[bootstrap-fresh-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-# shellcheck source=scripts/_ssh_preflight.sh
+# shellcheck source=_ssh_preflight.sh
 . "$SCRIPT_DIR/_ssh_preflight.sh"
 SSH_PREFLIGHT_INTERACTIVE=0 SSH_PREFLIGHT_HINT="This script trusts Pi 5's key INTO the Zero, but needs some existing
 trusted path in first (e.g. Raspberry Pi Imager's own SSH key customization)."   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
@@ -159,5 +159,5 @@ ssh "${SSH_OPTS[@]}" "$ZERO_HOST" "
 "
 
 log "Done. A reboot is needed for the I2C and PWM overlay changes to take effect (use safe-shutdown-zero.sh, don't pull power)."
-log "Next: bash scripts/deploy-dev-env-to-zero.sh, then after reboot:"
+log "Next: bash scripts/provisioning/deploy-dev-env-to-zero.sh, then after reboot:"
 log "  ssh $ZERO_HOST 'sudo systemctl start vtitan-pi-zero.service'"

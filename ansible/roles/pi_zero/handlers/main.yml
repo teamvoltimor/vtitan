@@ -11,5 +11,5 @@
     # Zero took 314s to answer again. It is a 2W, it comes back slowly, and
     # Ansible waits on it over the usb0 gadget address — which can itself take
     # extra time to start passing traffic after a reboot (see
-    # scripts/usb-link-watchdog.sh for the failure mode that delays it).
+    # scripts/provisioning/usb-link-watchdog.sh for the failure mode that delays it).
     reboot_timeout: 900

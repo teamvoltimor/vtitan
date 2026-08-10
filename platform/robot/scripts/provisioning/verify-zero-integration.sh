@@ -9,12 +9,12 @@
 # Safe to run with motors unpowered -- the round-trip check only verifies the
 # software position-tracking value updates correctly, not physical motion.
 #
-# Usage: bash scripts/verify-zero-integration.sh
-# Override targets: ZERO_HOST_USB=ralvarezdev@192.168.250.1 ZERO_HOST_WIFI=ralvarezdev@192.168.0.51 bash scripts/verify-zero-integration.sh
+# Usage: bash scripts/provisioning/verify-zero-integration.sh
+# Override targets: ZERO_HOST_USB=ralvarezdev@192.168.250.1 ZERO_HOST_WIFI=ralvarezdev@192.168.0.51 bash scripts/provisioning/verify-zero-integration.sh
 
 set -uo pipefail
 
-ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROBOT_DIR"
 
 ZERO_HOST_USB="${ZERO_HOST_USB:-ralvarezdev@192.168.250.1}"

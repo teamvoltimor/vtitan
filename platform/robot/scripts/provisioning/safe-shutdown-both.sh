@@ -10,17 +10,17 @@
 # Run this ON Pi 5 (same SSH setup as safe-shutdown-zero.sh /
 # deploy-dev-env-to-zero.sh).
 #
-# Usage: bash scripts/safe-shutdown-both.sh
-# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/safe-shutdown-both.sh
+# Usage: bash scripts/provisioning/safe-shutdown-both.sh
+# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/provisioning/safe-shutdown-both.sh
 
 set -euo pipefail
 
-ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 log() { echo "[safe-shutdown-both] $*"; }
 
 log "1/2 Shutting down the Pi Zero"
-bash "$ROBOT_DIR/scripts/safe-shutdown-zero.sh"
+bash "$ROBOT_DIR/scripts/provisioning/safe-shutdown-zero.sh"
 
 log "2/2 Zero confirmed offline -- shutting down Pi 5 (this machine) now"
 sync
