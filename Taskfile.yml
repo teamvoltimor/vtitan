@@ -203,6 +203,42 @@ tasks:
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
 
+  rpi:provision:all:
+    desc: "Provision both boards via Ansible's site.yml (Pi 5 first, then the Zero), inside tmux (usage: task rpi:provision:all [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x] [TAGS=network,hardware] [SKIP_TAGS=extras]). Prompts once for sudo, covering both plays."
+    dir: "{{.ANSIBLE_DIR}}"
+    cmds:
+      - echo "Running Ansible site.yml against Pi 5 ({{.PI5_IP}}) then the Zero ({{.ZERO_IP}}), takes ~30-60 min total..."
+      - |
+        SCRIPT=$(mktemp)
+        cat > "$SCRIPT" <<'INNER'
+        export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
+        # Same known_hosts refresh as rpi:provision:zero -- site.yml's second
+        # play is the Zero playbook, subject to the exact same stale-entry
+        # failure on a reflashed board.
+        for zero_addr in "{{.ZERO_WIFI_IP}}" "{{.RPI_ZERO_GADGET_IP}}"; do
+          ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$zero_addr" >/dev/null 2>&1 || true
+          ssh-keyscan -H "$zero_addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+        done
+        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/site.yml -e pi5_ip={{.PI5_IP}} -e zero_ip={{.ZERO_IP}} {{if .TAGS}}--tags {{.TAGS}}{{end}} {{if .SKIP_TAGS}}--skip-tags {{.SKIP_TAGS}}{{end}} --ask-become-pass
+        ec=$?
+        echo
+        echo [exit $ec] press Enter to close this tmux pane
+        read _
+        exit $ec
+        INNER
+        if [ -n "$TMUX" ]; then
+          bash "$SCRIPT"
+        else
+          echo "(running inside tmux session '{{.TMUX_SESSION}}' -- reconnecting? just re-run this same command, -A reattaches instead of duplicating)"
+          tmux new-session -A -s {{.TMUX_SESSION}} "bash '$SCRIPT'"
+        fi
+    vars:
+      PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
+      ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
+      TAGS: '{{.TAGS | default ""}}'
+      SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
+      TMUX_SESSION: vtitan-provision-all
+
   rpi:provision:pi5:
     desc: "Provision Robot Pi 5 via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x [TAGS=network,hardware] [SKIP_TAGS=extras]). Prompts for the Pi 5's sudo password. Tags: auth,os,repo,network,hardware,apps,services,cleanup,extras -- see `task rpi:ansible:tags`."
     dir: "{{.ANSIBLE_DIR}}"
