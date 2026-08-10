@@ -43,11 +43,11 @@ type (
 		TrackWidth float64 `toml:"track_width"`
 	}
 
-	// Steering holds the servo's travel and the linkage that converts it into
-	// road-wheel angle.
+	// Steering holds the servo's travel and the bench-measured road-wheel
+	// angle it produces at full lock through the linkage.
 	Steering struct {
 		ServoMaxAngleDeg float64 `toml:"servo_max_angle_deg"`
-		LinkageRatio     float64 `toml:"linkage_ratio"`
+		MaxWheelAngleDeg float64 `toml:"max_wheel_angle_deg"`
 	}
 
 	// Drivetrain holds the drive motor's measured limits and the steering
@@ -87,15 +87,20 @@ type (
 	}
 )
 
-// MaxSteeringAngle is the road-wheel angle at full lock, in radians.
-//
-// Derived rather than declared: it is not a free parameter, it is whatever the
-// servo's travel produces through the linkage. Declaring it invites the two
-// from drifting apart, which is exactly what happened -- the checked-in value
-// was a hand-computed product whose comment pointed at a file that pointed at
-// another file.
+// MaxSteeringAngle is the road-wheel angle at full lock, in radians. Just the
+// bench-measured MaxWheelAngleDeg converted to radians -- see robot.toml's
+// [steering] comment for why that is the field that gets measured and
+// declared, rather than a ratio.
 func (s Steering) MaxSteeringAngle() float64 {
-	return s.ServoMaxAngleDeg * s.LinkageRatio * math.Pi / 180
+	return s.MaxWheelAngleDeg * math.Pi / 180
+}
+
+// LinkageRatio is road-wheel degrees produced per servo degree, derived from
+// the bench-measured MaxWheelAngleDeg rather than declared directly -- kept
+// only for consumers that still want the ratio form (e.g. converting an
+// arbitrary wheel angle to a servo angle), not as the source of truth.
+func (s Steering) LinkageRatio() float64 {
+	return s.MaxWheelAngleDeg / s.ServoMaxAngleDeg
 }
 
 // TotalYawOffsetDeg combines the mandatory 180deg from an inverted (upside-down)
