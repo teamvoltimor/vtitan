@@ -118,12 +118,14 @@ tasks:
       SSH_HOST: '{{.SSH_HOST | default "rpi-zero-local"}}'
 
   windows:provision:pi5:
-    desc: "Kick off Pi 5 provisioning from Windows -- runs task rpi:provision:pi5 ON the Pi 5 itself over SSH, since Ansible's control node needs a POSIX shell and can't run directly on Windows (usage: task windows:provision:pi5 [SSH_HOST=alias] [PI5_IP=x.x.x.x])"
+    desc: "Kick off Pi 5 provisioning from Windows -- runs task rpi:provision:pi5 ON the Pi 5 itself over SSH, since Ansible's control node needs a POSIX shell and can't run directly on Windows (usage: task windows:provision:pi5 [SSH_HOST=alias] [PI5_IP=x.x.x.x] [TAGS=network,hardware] [SKIP_TAGS=extras])"
     cmds:
-      - ssh -t {{.SSH_HOST}} "cd ~/vtitan && git pull && task rpi:provision:pi5 PI5_IP={{.PI5_IP}}"
+      - ssh -t {{.SSH_HOST}} "cd ~/vtitan && git pull && task rpi:provision:pi5 PI5_IP={{.PI5_IP}} {{if .TAGS}}TAGS={{.TAGS}}{{end}} {{if .SKIP_TAGS}}SKIP_TAGS={{.SKIP_TAGS}}{{end}}"
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
       PI5_IP: '{{.PI5_IP | default .RPI_DIRECT_IP}}'
+      TAGS: '{{.TAGS | default ""}}'
+      SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
 
   # WiFi band management (Pi Zero is 2.4 GHz only; lock Pi 5 to same band to provision)
 
@@ -152,7 +154,7 @@ tasks:
   # + community.general on the dev Pi 5 (task rpi:ansible:setup once).
 
   rpi:provision:zero:
-    desc: "Provision Pi Zero 2W via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x]). Prompts for the Zero's (and Pi 5's) sudo password."
+    desc: "Provision Pi Zero 2W via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x] [TAGS=os,network] [SKIP_TAGS=extras]). Prompts for the Zero's (and Pi 5's) sudo password. Tags: auth,os,repo,network,hardware,apps,services,extras -- see `task rpi:ansible:tags`."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible provisioner against {{.ZERO_IP}} (Pi 5 at {{.PI5_IP}}, takes ~20-40 min)..."
@@ -171,7 +173,7 @@ tasks:
           ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$zero_addr" >/dev/null 2>&1 || true
           ssh-keyscan -H "$zero_addr" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
         done
-        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} --ask-become-pass
+        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi_zero.yml -e zero_ip={{.ZERO_IP}} -e pi5_ip={{.PI5_IP}} {{if .TAGS}}--tags {{.TAGS}}{{end}} {{if .SKIP_TAGS}}--skip-tags {{.SKIP_TAGS}}{{end}} --ask-become-pass
         ec=$?
         echo
         echo [exit $ec] press Enter to close this tmux pane
@@ -187,6 +189,8 @@ tasks:
     vars:
       ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
       PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
+      TAGS: '{{.TAGS | default ""}}'
+      SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
       TMUX_SESSION: vtitan-provision-zero
 
   rpi:provision:zero:tail:
@@ -197,7 +201,7 @@ tasks:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
 
   rpi:provision:pi5:
-    desc: "Provision Robot Pi 5 via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x). Prompts for the Pi 5's sudo password."
+    desc: "Provision Robot Pi 5 via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:pi5 PI5_IP=x.x.x.x [TAGS=network,hardware] [SKIP_TAGS=extras]). Prompts for the Pi 5's sudo password. Tags: auth,os,repo,network,hardware,apps,services,cleanup,extras -- see `task rpi:ansible:tags`."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible provisioner against {{.PI5_IP}}..."
@@ -205,7 +209,7 @@ tasks:
         SCRIPT=$(mktemp)
         cat > "$SCRIPT" <<'INNER'
         export PATH="$HOME/.pixi/bin:$HOME/.local/bin:$PATH"
-        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} --ask-become-pass
+        GH_TOKEN=$(gh auth token) ansible-playbook playbooks/provision_pi5.yml -e pi5_ip={{.PI5_IP}} {{if .TAGS}}--tags {{.TAGS}}{{end}} {{if .SKIP_TAGS}}--skip-tags {{.SKIP_TAGS}}{{end}} --ask-become-pass
         ec=$?
         echo
         echo [exit $ec] press Enter to close this tmux pane
@@ -220,6 +224,8 @@ tasks:
         fi
     vars:
       TMUX_SESSION: vtitan-provision-pi5
+      TAGS: '{{.TAGS | default ""}}'
+      SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
     requires:
       vars:
         - PI5_IP
@@ -249,6 +255,18 @@ tasks:
           [ "{{.TARGET}}" = "zero" ] && extra="-e zero_ip={{.IP}}" || extra="-e pi5_ip={{.IP}}"
         fi
         GH_TOKEN=$(gh auth token) ansible-playbook "playbooks/$playbook" $extra --check --diff --ask-become-pass
+
+  rpi:ansible:tags:
+    desc: "List the phase tags available on a provisioning playbook, for use with rpi:provision:*'s TAGS/SKIP_TAGS (usage: task rpi:ansible:tags TARGET=pi5|zero)"
+    dir: "{{.ANSIBLE_DIR}}"
+    requires:
+      vars:
+        - TARGET
+    cmds:
+      - |
+        playbook="provision_{{.TARGET}}.yml"
+        [ "{{.TARGET}}" = "zero" ] && playbook="provision_pi_zero.yml"
+        ansible-playbook "playbooks/$playbook" --list-tags
 
   rpi:cleanup:old-services:
     desc: "Remove the pre-rename voldemorbot-*.service units on both boards — run manually, only after confirming the renamed vtitan-*.service units work (usage: task rpi:cleanup:old-services [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x])"
