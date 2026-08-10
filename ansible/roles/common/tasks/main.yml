@@ -171,7 +171,6 @@
   args:
     executable: /bin/bash
   when: task_check.rc != 0
-  when: not task_stat.stat.exists
 
 # Pre-rename deployment migration (teamvoldemor/voldemorbot ->
 # teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
