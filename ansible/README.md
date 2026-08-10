@@ -63,7 +63,7 @@ The `common` role always does a **fresh `gh repo clone`** into `~/vtitan`
 (`old_repo_dir` in `inventory/group_vars/all.yml` names the old location), regardless
 of whether that old location is a git checkout (Pi 5) or a tarball-deployed
 directory with no git history at all (Pi Zero, via
-`scripts/deploy-dev-env-to-zero.sh`). The only thing carried over from the
+`scripts/provisioning/deploy-dev-env-to-zero.sh`). The only thing carried over from the
 old deployment is the real gitignored `.env` (steering offsets, LiDAR yaw,
 Hailo model path) — a fresh clone can't reproduce that, so it's copied
 across explicitly before the `.env.example` fallback could otherwise stomp

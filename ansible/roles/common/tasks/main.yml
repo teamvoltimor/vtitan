@@ -6,6 +6,7 @@
 # Verify GitHub access up front (private repo) before any heavy work — same
 # fail-fast rationale as require_github_auth() in setup_common.sh.
 - name: Install GitHub CLI apt key + repo
+  tags: [auth]
   become: true
   ansible.builtin.shell: |
     set -euo pipefail
@@ -18,12 +19,14 @@
     creates: /etc/apt/sources.list.d/github-cli.list
 
 - name: Install gh package
+  tags: [auth]
   become: true
   ansible.builtin.apt:
     name: gh
     update_cache: true
 
 - name: Authenticate gh via GH_TOKEN
+  tags: [auth]
   # gh refuses to persist credentials via `auth login` when GH_TOKEN is set
   # in its own environment ("use the env var, don't store it"), so the token
   # must reach stdin without also being exported for this shell.
@@ -37,12 +40,14 @@
   no_log: true
 
 - name: Check gh auth status
+  tags: [auth]
   ansible.builtin.command: gh auth status
   register: gh_auth_status
   changed_when: false
   failed_when: false
 
 - name: Fail fast if gh is not authenticated
+  tags: [auth]
   ansible.builtin.fail:
     msg: >-
       gh is not authenticated for {{ ansible_user }} (private repo teamvoltimor/vtitan).
@@ -50,16 +55,19 @@
   when: gh_auth_status.rc != 0
 
 - name: Configure gh as git credential helper
+  tags: [auth]
   ansible.builtin.command: gh auth setup-git
   changed_when: false
 
 - name: Update apt cache and full-upgrade
+  tags: [os]
   become: true
   ansible.builtin.apt:
     update_cache: true
     upgrade: full
 
 - name: Add {{ ansible_user }} to hardware groups
+  tags: [os]
   become: true
   ansible.builtin.user:
     name: "{{ ansible_user }}"
@@ -67,6 +75,7 @@
     append: true
 
 - name: Install common dependencies
+  tags: [os]
   become: true
   ansible.builtin.apt:
     name:
@@ -88,6 +97,7 @@
 # user's systemd instance -- and anything it owns, including a detached
 # tmux server -- running independent of whether they're logged in.
 - name: Enable linger for {{ ansible_user }} (tmux/background jobs survive a dropped SSH session)
+  tags: [os]
   become: true
   ansible.builtin.command: "loginctl enable-linger {{ ansible_user }}"
   args:
@@ -112,6 +122,7 @@
 # session arrived within the state machine's normal boot-check window, and
 # /ui/telemetry_summary held a steady 10Hz on the Zero.
 - name: Raise UDP socket buffer limits (DDS cross-board delivery reliability)
+  tags: [os]
   become: true
   ansible.posix.sysctl:
     name: "{{ item }}"
@@ -125,11 +136,13 @@
     - net.core.wmem_default
 
 - name: Check if pixi is already installed
+  tags: [repo]
   ansible.builtin.stat:
     path: "{{ pixi_bin }}"
   register: pixi_stat
 
 - name: Install pixi
+  tags: [repo]
   ansible.builtin.shell: curl -fsSL https://pixi.sh/install.sh | bash
   args:
     executable: /bin/bash
@@ -138,18 +151,20 @@
 # Pre-rename deployment migration (teamvoldemor/voldemorbot ->
 # teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
 # ~/voldemorbot and its sibling git-worktree checkouts) or tarball-deployed
-# (Pi Zero, via scripts/deploy-dev-env-to-zero.sh) alike -- verified
+# (Pi Zero, via scripts/provisioning/deploy-dev-env-to-zero.sh) alike -- verified
 # 2026-07-30 that no worktree/branch on the Pi 5 had commits missing from
 # GitHub (`git log --branches --not --remotes` empty everywhere), so nothing
 # is lost by discarding the old checkout(s) outright. Only the real
 # gitignored .env (steering offsets, LiDAR yaw, Hailo model path) is carried
 # over, since a fresh clone can't reproduce it.
 - name: Check for pre-rename deployment ({{ old_repo_dir }})
+  tags: [repo]
   ansible.builtin.stat:
     path: "{{ old_repo_dir }}"
   register: old_repo_dir_stat
 
 - name: Clone vtitan repo
+  tags: [repo]
   ansible.builtin.command: "gh repo clone {{ github_repo }} {{ repo_dir }}"
   args:
     creates: "{{ repo_dir }}/.git"
@@ -160,6 +175,7 @@
 # was months behind and still pointing at the pre-rename URL), and every deploy
 # quietly shipped stale source unless someone remembered to pull by hand.
 - name: Read the checkout's current origin URL
+  tags: [repo]
   ansible.builtin.command: "git remote get-url origin"
   args:
     chdir: "{{ repo_dir }}"
@@ -167,6 +183,7 @@
   changed_when: false
 
 - name: Point origin at the canonical repo URL
+  tags: [repo]
   ansible.builtin.command: "git remote set-url origin https://github.com/{{ github_repo }}.git"
   args:
     chdir: "{{ repo_dir }}"
@@ -174,12 +191,14 @@
   changed_when: true
 
 - name: Fetch latest refs
+  tags: [repo]
   ansible.builtin.command: "git fetch --prune origin"
   args:
     chdir: "{{ repo_dir }}"
   changed_when: false
 
 - name: Check out {{ repo_ref }}
+  tags: [repo]
   ansible.builtin.command: "git checkout {{ repo_ref }}"
   args:
     chdir: "{{ repo_dir }}"
@@ -189,23 +208,27 @@
 # something to look at by hand -- provisioning should not paper over local work
 # by discarding it, and a failure here is more useful than a silent overwrite.
 - name: Fast-forward {{ repo_ref }} to origin
+  tags: [repo]
   ansible.builtin.command: "git merge --ff-only origin/{{ repo_ref }}"
   args:
     chdir: "{{ repo_dir }}"
   changed_when: true
 
 - name: Check for real .env in the pre-rename deployment
+  tags: [repo]
   ansible.builtin.stat:
     path: "{{ old_repo_dir }}/platform/robot/.env"
   register: old_env_stat
   when: old_repo_dir_stat.stat.exists
 
 - name: Check for existing .env in the fresh clone
+  tags: [repo]
   ansible.builtin.stat:
     path: "{{ robot_dir }}/.env"
   register: env_stat
 
 - name: Copy real .env from the pre-rename deployment into the fresh clone
+  tags: [repo]
   ansible.builtin.copy:
     src: "{{ old_repo_dir }}/platform/robot/.env"
     dest: "{{ robot_dir }}/.env"
@@ -215,6 +238,7 @@
   when: old_repo_dir_stat.stat.exists and old_env_stat.stat.exists and not env_stat.stat.exists
 
 - name: Copy .env.example to .env
+  tags: [repo]
   ansible.builtin.copy:
     src: "{{ robot_dir }}/.env.example"
     dest: "{{ robot_dir }}/.env"
@@ -224,18 +248,21 @@
   when: not env_stat.stat.exists and not (old_repo_dir_stat.stat.exists and old_env_stat.stat.exists)
 
 - name: Confirm .env landed before removing the pre-rename deployment
+  tags: [repo]
   ansible.builtin.stat:
     path: "{{ robot_dir }}/.env"
   register: final_env_stat
   when: old_repo_dir_stat.stat.exists
 
 - name: Remove pre-rename deployment ({{ old_repo_dir }})
+  tags: [repo]
   ansible.builtin.file:
     path: "{{ old_repo_dir }}"
     state: absent
   when: old_repo_dir_stat.stat.exists and final_env_stat.stat.exists
 
 - name: Install udev rules
+  tags: [os]
   become: true
   ansible.builtin.copy:
     src: "{{ robot_dir }}/udev/99-vtitan-gpio.rules"
@@ -247,6 +274,7 @@
 # Was a manual `task rpi:setup-journal-persist` step — folds in here so logs
 # survive reboots on both boards without a separate manual pass.
 - name: Ensure journald.conf.d exists
+  tags: [os]
   become: true
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d
@@ -254,6 +282,7 @@
     mode: "0755"
 
 - name: Enable persistent systemd journal (50M cap)
+  tags: [os]
   become: true
   ansible.builtin.copy:
     content: |

@@ -35,7 +35,7 @@ Environment=FASTRTPS_DEFAULT_PROFILES_FILE=__TARGET_HOME__/vtitan/platform/robot
 # races the gadget link's re-enumeration instead of running against an
 # already-stable link. Bounded (55s) and never fails/blocks startup on its
 # own -- see the script for the full rationale.
-ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/wait-for-gadget-link.sh
+ExecStartPre=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/wait-for-gadget-link.sh
 # Restart vtitan-lidar.service fresh right before launching, rather than
 # reusing the instance that's been running since early boot (~30s before
 # this point). Confirmed on hardware 2026-08-10 via a standalone `ros2 topic

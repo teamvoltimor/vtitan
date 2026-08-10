@@ -271,31 +271,31 @@ run-lidar = "bash -c '. ros2_ws/install/setup.bash && INVERTED=$(python3 -c \"fr
 # .env, pixi CLI, I2C, systemd unit). Idempotent, safe to re-run. See
 # docs/sensor-verification.md's "Setting up a freshly-flashed Pi Zero" section.
 # Run this BEFORE deploy-dev-env-to-zero for a Zero that's never been set up.
-bootstrap-fresh-zero = "bash scripts/bootstrap-fresh-zero.sh"
+bootstrap-fresh-zero = "bash scripts/provisioning/bootstrap-fresh-zero.sh"
 
 # Run ON Pi 5 -- builds the dev env + ros2_ws there and ships it to the Pi
 # Zero as tarballs instead of running pixi/colcon directly on the Zero's
-# ~415MB RAM (see scripts/deploy-dev-env-to-zero.sh's header and
+# ~415MB RAM (see scripts/provisioning/deploy-dev-env-to-zero.sh's header and
 # docs/sensor-verification.md's Pi Zero deployment section for why).
-deploy-dev-env-to-zero = "bash scripts/deploy-dev-env-to-zero.sh"
+deploy-dev-env-to-zero = "bash scripts/provisioning/deploy-dev-env-to-zero.sh"
 
 # Run ON Pi 5 -- cleanly shuts the Zero down (stop service, sync, shutdown -h
 # now) before you cut its power. See docs/sensor-verification.md's "Always
 # shut the Zero down cleanly before cutting power" section for why: pulling
 # power on a running Zero leaves the ext4 journal uncommitted and has
 # corrupted the filesystem before.
-safe-shutdown-zero = "bash scripts/safe-shutdown-zero.sh"
+safe-shutdown-zero = "bash scripts/provisioning/safe-shutdown-zero.sh"
 
 # Run ON Pi 5 -- shuts the Zero down first (via safe-shutdown-zero, above),
 # then shuts Pi 5 itself down last, once the Zero is confirmed offline. Use
 # this before switching the robot's power source (e.g. wall/USB -> battery)
 # so both boards go down cleanly in the right order with one command.
-safe-shutdown-both = "bash scripts/safe-shutdown-both.sh"
+safe-shutdown-both = "bash scripts/provisioning/safe-shutdown-both.sh"
 
 # Run ON Pi 5 -- end-to-end health check: USB-gadget link, systemd service
 # state, ROS2 cross-board topic discovery, and a real AckermannDriveStamped
 # publish -> motor driver -> feedback round-trip. Safe with motors unpowered.
-verify-zero-integration = "bash scripts/verify-zero-integration.sh"
+verify-zero-integration = "bash scripts/provisioning/verify-zero-integration.sh"
 
 # Run ON Pi 5 -- one-shot Bluetooth pairing for a joystick used with
 # joy_teleop_node (e.g. 8BitDo Ultimate 2). Idempotent, safe to re-run. Put

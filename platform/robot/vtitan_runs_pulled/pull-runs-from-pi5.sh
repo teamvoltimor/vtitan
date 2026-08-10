@@ -23,8 +23,8 @@ SSH_OPTS=(-o ConnectTimeout=15)
 log() { echo "[pull-runs] $*"; }
 die() { echo "[pull-runs] ERROR: $*" >&2; exit 1; }
 
-# shellcheck source=platform/robot/scripts/_ssh_preflight.sh
-. "$ROBOT_DIR/scripts/_ssh_preflight.sh"
+# shellcheck source=../scripts/provisioning/_ssh_preflight.sh
+. "$ROBOT_DIR/scripts/provisioning/_ssh_preflight.sh"
 pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 
 PATTERN="${1:-run_*}"

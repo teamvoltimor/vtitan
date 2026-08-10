@@ -26,7 +26,7 @@ robot (servo on GPIO 12) that is::
 
     dtoverlay=pwm,pin=12,func=4      # func=4 is ALT0, GPIO 12's PWM function
 
-in ``/boot/firmware/config.txt`` (applied by ``scripts/bootstrap-fresh-zero.sh``),
+in ``/boot/firmware/config.txt`` (applied by ``scripts/provisioning/bootstrap-fresh-zero.sh``),
 followed by a reboot. Without it there is no ``pwmchip`` to open and
 :meth:`connect` fails with a message saying so -- deliberately, rather than
 silently falling back to jittery software PWM.

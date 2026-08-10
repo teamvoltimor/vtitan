@@ -12,7 +12,7 @@ User=root
 # other script in this repo is called -- they are all mode 644 in git.
 # Executing by path would make this unit depend on an executable bit that a
 # plain `git pull` silently reverts.
-ExecStart=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/boot-check-watchdog.sh __TARGET_HOME__/vtitan/platform/robot __TARGET_USER__
+ExecStart=/bin/bash __TARGET_HOME__/vtitan/platform/robot/scripts/provisioning/boot-check-watchdog.sh __TARGET_HOME__/vtitan/platform/robot __TARGET_USER__
 # Bounded so a wedged check can never pin the timer indefinitely.
 TimeoutStartSec=60
 

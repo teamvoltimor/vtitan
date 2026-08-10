@@ -21,10 +21,10 @@
 #     HAILO_OPEN_FILE_FAILURE.
 #
 # Usage:
-#   bash scripts/deploy-to-pi5.sh                 # code + model + rebuild + restart
-#   HEF= bash scripts/deploy-to-pi5.sh            # skip the model, code only
-#   PI5_HOST=user@host bash scripts/deploy-to-pi5.sh
-#   SKIP_RESTART=1 bash scripts/deploy-to-pi5.sh  # leave the service down
+#   bash scripts/provisioning/deploy-to-pi5.sh                 # code + model + rebuild + restart
+#   HEF= bash scripts/provisioning/deploy-to-pi5.sh            # skip the model, code only
+#   PI5_HOST=user@host bash scripts/provisioning/deploy-to-pi5.sh
+#   SKIP_RESTART=1 bash scripts/provisioning/deploy-to-pi5.sh  # leave the service down
 #
 # Verify afterwards (on the Pi, with the stack running):
 #   pixi run -e vision python scripts/hardware/diag_hailo_detector.py IMAGE...
@@ -32,7 +32,7 @@
 
 set -euo pipefail
 
-ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROBOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_DIR="$(cd "$ROBOT_DIR/../.." && pwd)"
 cd "$REPO_DIR"
 
@@ -47,8 +47,8 @@ SSH_OPTS=(-o ConnectTimeout=15)
 log() { echo "[deploy-pi5] $*"; }
 die() { echo "[deploy-pi5] ERROR: $*" >&2; exit 1; }
 
-# shellcheck source=scripts/_ssh_preflight.sh
-. "$ROBOT_DIR/scripts/_ssh_preflight.sh"
+# shellcheck source=_ssh_preflight.sh
+. "$ROBOT_DIR/scripts/provisioning/_ssh_preflight.sh"
 pi5_preflight "$PI5_HOST" "${SSH_OPTS[@]}" || exit 1
 log "Target: $PI5_HOST  branch: $BRANCH"
 

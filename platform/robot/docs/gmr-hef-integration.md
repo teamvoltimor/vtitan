@@ -7,7 +7,7 @@ itself.
 
 **Deployed and verified on the Pi 5, 2026-07-26.** The detector runs on the
 Hailo-8 and publishes correct colours on `/vision/detections`. Deploy with
-`bash scripts/deploy-to-pi5.sh`; verify with `scripts/hardware/diag_hailo_detector.py`
+`bash scripts/provisioning/deploy-to-pi5.sh`; verify with `scripts/hardware/diag_hailo_detector.py`
 (direct, needs the NPU free) or `scripts/hardware/diag_vision_topic.py` (through the
 running stack).
 

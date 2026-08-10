@@ -11,8 +11,8 @@
 #
 # Run this ON Pi 5 (same SSH setup as deploy-dev-env-to-zero.sh).
 #
-# Usage: bash scripts/safe-shutdown-zero.sh
-# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/safe-shutdown-zero.sh
+# Usage: bash scripts/provisioning/safe-shutdown-zero.sh
+# Override target: ZERO_HOST=ralvarezdev@192.168.250.1 bash scripts/provisioning/safe-shutdown-zero.sh
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ SSH_OPTS=(-o ConnectTimeout=10)
 log() { echo "[safe-shutdown-zero] $*"; }
 
 log "Target: $ZERO_HOST"
-# shellcheck source=scripts/_ssh_preflight.sh
+# shellcheck source=_ssh_preflight.sh
 . "$SCRIPT_DIR/_ssh_preflight.sh"
 SSH_PREFLIGHT_INTERACTIVE=0   ssh_preflight "$ZERO_HOST" "${SSH_OPTS[@]}" || exit 1
 
