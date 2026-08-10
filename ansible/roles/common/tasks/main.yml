@@ -148,6 +148,25 @@
     executable: /bin/bash
   when: not pixi_stat.stat.exists
 
+# Every rpi:provision:*/rpi:ansible:* wrapper in Taskfile.yml runs `task` on
+# whichever box it targets -- this play itself is normally invoked via one of
+# those wrappers, so a genuinely fresh Pi 5 needs `task` before any of them
+# work at all. Installed via go-task's own official installer script, not
+# the Cloudsmith apt repo the live boards happened to get it from -- same
+# reasoning as pixi/mise above it.
+- name: Check if task is already installed
+  tags: [repo]
+  ansible.builtin.stat:
+    path: "{{ task_bin }}"
+  register: task_stat
+
+- name: Install task
+  tags: [repo]
+  ansible.builtin.shell: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b "{{ task_bin | dirname }}"
+  args:
+    executable: /bin/bash
+  when: not task_stat.stat.exists
+
 # Pre-rename deployment migration (teamvoldemor/voldemorbot ->
 # teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
 # ~/voldemorbot and its sibling git-worktree checkouts) or tarball-deployed

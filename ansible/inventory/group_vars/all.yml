@@ -15,6 +15,9 @@ pixi_bin: "/home/{{ ansible_user }}/.pixi/bin/pixi"
 # (which manages the ROS2/Python side) because the repo already pins its Go
 # tooling with mise -- see the root mise.toml.
 mise_bin: "/home/{{ ansible_user }}/.local/bin/mise"
+# go-task CLI, needed to run any of the Taskfile.yml wrappers (including the
+# rpi:provision:* ones this playbook is invoked from) on the Pi itself.
+task_bin: "/home/{{ ansible_user }}/.local/bin/task"
 
 # Pre-rename checkout name, still live on real hardware as of 2026-07-29
 # (org teamvoldemor/repo voldemorbot -> teamvoltimor/vtitan). common role
