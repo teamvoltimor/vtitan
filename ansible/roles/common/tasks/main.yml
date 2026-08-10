@@ -263,3 +263,31 @@
     dest: /etc/systemd/journald.conf.d/persistent.conf
     mode: "0644"
   notify: Restart journald
+
+# Optional dev tooling, off by default (see install_extra_tools in
+# defaults/main.yml). windscribe-cli ships no apt repo -- it's a standalone
+# per-arch .deb, so windscribe_deb_url has to be supplied (its real download
+# page/version), not guessed here.
+- name: Fail fast if windscribe_deb_url is missing
+  ansible.builtin.fail:
+    msg: >-
+      install_extra_tools is true but windscribe_deb_url is empty -- pass
+      -e windscribe_deb_url=<arm64 .deb URL from https://windscribe.com/guides/linux>
+  when: install_extra_tools | bool and not windscribe_deb_url
+  tags: [extras]
+
+- name: Download windscribe-cli .deb (optional extra tooling)
+  become: true
+  ansible.builtin.get_url:
+    url: "{{ windscribe_deb_url }}"
+    dest: /tmp/windscribe-cli.deb
+    mode: "0644"
+  when: install_extra_tools | bool
+  tags: [extras]
+
+- name: Install windscribe-cli (optional extra tooling)
+  become: true
+  ansible.builtin.apt:
+    deb: /tmp/windscribe-cli.deb
+  when: install_extra_tools | bool
+  tags: [extras]

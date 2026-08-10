@@ -5,3 +5,17 @@ hardware_groups:
   - spi
   - dialout
   - video  # camera access on the Pi 5; harmless no-op on the Zero
+
+# Opt-in dev-convenience tooling found already installed by hand on the
+# fleet during earlier sessions (2026-08-10 audit) but never provisioned --
+# off by default so a normal `provision_pi5.yml`/`provision_pi_zero.yml` run
+# doesn't pay for tooling most re-provisions (a fresh SD card, CI, etc.) don't
+# want. Turn on with `-e install_extra_tools=true` or `--tags extras`.
+install_extra_tools: false
+
+# windscribe-cli ships no apt repo -- get the real URL from
+# https://windscribe.com/guides/linux (arm64 .deb) and pass it with
+# `-e windscribe_deb_url=...`; left empty so a missing value fails loudly
+# (see "Fail fast if windscribe_deb_url is missing" below) instead of
+# get_url attempting a request against an empty/guessed URL.
+windscribe_deb_url: ""
