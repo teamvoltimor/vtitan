@@ -130,16 +130,13 @@ tasks:
       TAGS: '{{.TAGS | default ""}}'
       SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
 
-  # WiFi band management (Pi Zero is 2.4 GHz only; lock Pi 5 to same band to provision)
-
-  rpi:wifi:lock-2g:
-    desc: "Lock Pi 5 WiFi to 2.4 GHz BSSID so it can reach the Pi Zero (run before provisioning)"
-    cmds:
-      - echo "Locking {{.WIFI_CONN}} to 2.4 GHz BSSID {{.WIFI_2G_BSSID}}..."
-      - sudo nmcli connection modify {{.WIFI_CONN}} 802-11-wireless.bssid {{.WIFI_2G_BSSID}}
-      - sudo nmcli connection up {{.WIFI_CONN}}
-      - sleep 3
-      - echo "Now on 2.4 GHz — $(iwconfig wlan0 | grep Frequency)"
+  # WiFi band management (Pi Zero is 2.4 GHz only; provision_pi_zero.yml
+  # locks Pi 5 to the same band automatically, with a dead-man's-switch
+  # failsafe -- rpi:wifi:lock-2g was the old manual equivalent, removed
+  # 2026-08-10 as redundant and less safe. rpi:wifi:unlock stays: it's the
+  # documented immediate-fix path if you're watching a lock get stuck mid-run
+  # and don't want to wait for the failsafe (see wifi_lock_failsafe_seconds
+  # in ansible/inventory/group_vars/all.yml).
 
   rpi:wifi:unlock:
     desc: "Restore Pi 5 WiFi to automatic band selection (run after provisioning)"
@@ -590,18 +587,13 @@ tasks:
     vars:
       IP: '{{.IP | default .RPI_DIRECT_IP}}'
 
-  rpi:set-static-ip:gadget:
-    desc: "Set static IP on usb0 for the Pi Zero USB gadget link (Zero=.1, Pi 5 host=.2)"
-    cmds:
-      - task: rpi:set-static-ip
-        vars:
-          IP: '{{.IP}}'
-          CONNECTION: 'usb0'
-          GATEWAY: '192.168.250.1'
-      - echo "Setting usb0 to never-default (keep WiFi as primary route)..."
-      - sudo nmcli con modify 'usb0' ipv4.never-default yes connection.autoconnect-priority -10
-    vars:
-      IP: '{{.IP | default "192.168.250.2"}}'
+# rpi:set-static-ip:gadget removed 2026-08-10: duplicated the usb0 static-IP
+# setup ansible/roles/pi5 and roles/pi_zero now configure automatically, but
+# was missing the routes4: [224.0.0.0/4] multicast route those roles added
+# to fix a real bug (DDS discovery following the default route instead of
+# the gadget link, so both boards ran healthy ROS2 graphs that couldn't see
+# each other). Using this task instead of ansible would have silently
+# reintroduced that bug.
 
   rpi:set-dhcp:
     desc: Revert Ethernet to DHCP
