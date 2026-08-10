@@ -37,6 +37,9 @@ includes:
   hailo:
     taskfile: ./hailo/Taskfile.yml
     dir: ./hailo
+  models:
+    taskfile: ./models/Taskfile.yml
+    dir: ./models
   hugo-docs:
     taskfile: ./hugo-docs/Taskfile.yml
     dir: ./hugo-docs
