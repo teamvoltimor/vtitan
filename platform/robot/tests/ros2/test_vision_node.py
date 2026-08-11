@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 import rclpy
 from rclpy.parameter import Parameter
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, LaserScan
 from std_msgs.msg import String
 
 from src.vision.detector import SignDetection, TrafficSignColor
@@ -376,22 +376,27 @@ def direct_node_class(mock_detector, monkeypatch):
 
 
 class TestVideoRecordingGating:
-    """Per-run annotated video: RACING + Obstacles Challenge + a known run
-    path from bag_recorder_node, all three independently arriving in any
-    order -- see docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
+    """Per-run annotated video: RACING + a known run path from bag_recorder_node,
+    arriving in any order -- see
+    docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
+    Runs on both challenges (Obstacles already carries strictly more load on
+    the same pipeline than Open Challenge ever will) -- see
+    docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
     """
 
-    def test_direct_mode_subscribes_to_the_three_gating_topics(self, ros_context, direct_node_class):
+    def test_direct_mode_subscribes_to_every_gating_and_hud_topic(self, ros_context, direct_node_class):
         VisionNode, _ = direct_node_class
         node = VisionNode()
 
         assert len(node.get_subscriptions_info_by_topic("/robot_state")) == 1
         assert len(node.get_subscriptions_info_by_topic("/challenge_mode/active")) == 1
         assert len(node.get_subscriptions_info_by_topic("/bag_recorder/run_path")) == 1
+        assert len(node.get_subscriptions_info_by_topic("/nav_debug")) == 1
+        assert len(node.get_subscriptions_info_by_topic("/scan")) == 1
 
         node.destroy_node()
 
-    def test_topic_mode_never_subscribes_to_gating_topics(self, ros_context, vision_node_class):
+    def test_topic_mode_never_subscribes_to_gating_or_hud_topics(self, ros_context, vision_node_class):
         """camera_source='topic' (sim/test) has no race concept -- must not wire up
         state it will never act on."""
         VisionNode, _ = vision_node_class
@@ -400,18 +405,17 @@ class TestVideoRecordingGating:
         assert node.get_subscriptions_info_by_topic("/robot_state") == []
         assert node.get_subscriptions_info_by_topic("/challenge_mode/active") == []
         assert node.get_subscriptions_info_by_topic("/bag_recorder/run_path") == []
+        assert node.get_subscriptions_info_by_topic("/nav_debug") == []
+        assert node.get_subscriptions_info_by_topic("/scan") == []
 
         node.destroy_node()
 
-    def test_starts_recording_once_racing_obstacles_and_run_path_all_known(
-        self, ros_context, direct_node_class, tmp_path,
-    ):
+    def test_starts_recording_once_racing_and_run_path_known(self, ros_context, direct_node_class, tmp_path):
         VisionNode, recorder_cls = direct_node_class
         node = VisionNode()
         recorder = recorder_cls.return_value
         recorder.is_recording = False
 
-        node._on_challenge_mode_active(String(data="obstacles"))
         node._on_run_path(String(data=str(tmp_path)))
         node._on_robot_state(String(data="racing"))
         node._poll_for_run_path_dir()  # directory already exists -- simulate the timer's first tick
@@ -420,7 +424,8 @@ class TestVideoRecordingGating:
 
         node.destroy_node()
 
-    def test_open_challenge_never_starts_recording(self, ros_context, direct_node_class, tmp_path):
+    def test_open_challenge_also_starts_recording(self, ros_context, direct_node_class, tmp_path):
+        """No longer Obstacles-only -- see the class docstring."""
         VisionNode, recorder_cls = direct_node_class
         node = VisionNode()
         recorder = recorder_cls.return_value
@@ -429,8 +434,9 @@ class TestVideoRecordingGating:
         node._on_challenge_mode_active(String(data="open"))
         node._on_run_path(String(data=str(tmp_path)))
         node._on_robot_state(String(data="racing"))
+        node._poll_for_run_path_dir()
 
-        recorder.start.assert_not_called()
+        recorder.start.assert_called_once_with(tmp_path / "video.mp4")
 
         node.destroy_node()
 
@@ -448,7 +454,6 @@ class TestVideoRecordingGating:
         recorder = recorder_cls.return_value
         recorder.is_recording = False
 
-        node._on_challenge_mode_active(String(data="obstacles"))
         node._on_run_path(String(data="/some/path"))
         node._on_robot_state(String(data="racing"))
 
@@ -463,7 +468,6 @@ class TestVideoRecordingGating:
         recorder.is_recording = False
 
         missing = tmp_path / "never_created"
-        node._on_challenge_mode_active(String(data="obstacles"))
         node._on_run_path(String(data=str(missing)))
         node._on_robot_state(String(data="racing"))
         # Force the timeout branch on the very first poll instead of waiting
@@ -489,9 +493,8 @@ class TestVideoRecordingGating:
 
         node.destroy_node()
 
-    def test_challenge_flipping_away_from_obstacles_mid_race_stops_recording(
-        self, ros_context, direct_node_class,
-    ):
+    def test_challenge_flipping_mid_race_does_not_stop_recording(self, ros_context, direct_node_class):
+        """Challenge is a HUD label now, not a gate -- see the class docstring."""
         VisionNode, recorder_cls = direct_node_class
         node = VisionNode()
         recorder = recorder_cls.return_value
@@ -500,7 +503,7 @@ class TestVideoRecordingGating:
 
         node._on_challenge_mode_active(String(data="open"))
 
-        recorder.stop.assert_called_once()
+        recorder.stop.assert_not_called()
 
         node.destroy_node()
 
@@ -546,5 +549,71 @@ class TestVideoRecordingGating:
 
         annotate_mock.assert_not_called()
         recorder.submit.assert_not_called()
+
+        node.destroy_node()
+
+
+class TestHudTelemetryCaching:
+    """/nav_debug and /scan feed the recorded video's HUD (src/vision/hud.py) --
+    see docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
+    Neither is a recording gate; both may still be None when a snapshot is built.
+    """
+
+    def test_nav_debug_is_cached_as_parsed_json(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+
+        node._on_nav_debug(String(data=json.dumps({"phase": "normal_drive", "laps_completed": 1})))
+
+        assert node._nav_debug == {"phase": "normal_drive", "laps_completed": 1}
+
+        node.destroy_node()
+
+    def test_scan_is_cached(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+        scan = LaserScan(angle_min=-1.0, angle_increment=0.5, ranges=[1.0, 2.0, 3.0])
+
+        node._on_scan(scan)
+
+        assert node._scan is scan
+
+        node.destroy_node()
+
+    def test_snapshot_has_none_telemetry_before_either_topic_arrives(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+
+        snapshot = node._build_frame_snapshot(np.zeros((2, 2, 3), dtype=np.uint8))
+
+        assert snapshot.nav_debug is None
+        assert snapshot.scan_ranges is None
+        assert snapshot.scan_angles is None
+        assert snapshot.active_challenge is None
+
+        node.destroy_node()
+
+    def test_snapshot_carries_cached_nav_debug_and_challenge(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+        node._on_nav_debug(String(data=json.dumps({"phase": "normal_drive"})))
+        node._on_challenge_mode_active(String(data="obstacles"))
+
+        snapshot = node._build_frame_snapshot(np.zeros((2, 2, 3), dtype=np.uint8))
+
+        assert snapshot.nav_debug == {"phase": "normal_drive"}
+        assert snapshot.active_challenge == "obstacles"
+
+        node.destroy_node()
+
+    def test_snapshot_derives_scan_angles_from_angle_min_and_increment(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+        node._on_scan(LaserScan(angle_min=-1.0, angle_increment=0.5, ranges=[1.0, 2.0, 3.0]))
+
+        snapshot = node._build_frame_snapshot(np.zeros((2, 2, 3), dtype=np.uint8))
+
+        assert snapshot.scan_ranges == [1.0, 2.0, 3.0]
+        assert snapshot.scan_angles == pytest.approx([-1.0, -0.5, 0.0])
 
         node.destroy_node()

@@ -3,7 +3,8 @@
 Runs the actual encode on a dedicated thread so a slow or stalled encoder can
 never stall whatever feeds it frames -- for VisionNode, that's the same tick
 Hailo inference runs on. See
-docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
+docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md and
+docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
 """
 
 from __future__ import annotations
@@ -11,14 +12,20 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import cv2
 
+from src.vision.hud import draw_radar, draw_stats
+
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
     import numpy as np
+
+    from src.vision.hud import HudConfig
 
 logger = logging.getLogger(__name__)
 
@@ -30,20 +37,40 @@ frames in memory hoping the encoder catches up."""
 _JOIN_TIMEOUT_SEC = 5.0
 
 
-class VideoRecorder:
-    """Encodes RGB frames to an mp4 file on a dedicated thread.
+@dataclass(frozen=True, slots=True)
+class FrameSnapshot:
+    """One frame plus whatever telemetry was cached at submit() time.
 
-    ``submit()`` never blocks the caller: if the encoder thread is behind, the
-    frame is dropped rather than stalling whatever called submit(). Frames are
-    resized to ``video_width`` (height derived from the first submitted
-    frame's own aspect ratio, not hardcoded) on the encoder thread, so the
-    resize cost never lands on the caller either.
+    Built on the caller's thread (VisionNode's capture/inference tick) from
+    the already-annotated (detection boxes drawn) frame and the latest
+    values VisionNode's own /nav_debug and /scan subscriptions have cached --
+    both may still be None early in a race, before the first message on
+    either topic arrives. Immutable and self-contained so the encoder thread
+    never reaches back into VisionNode's mutable state.
     """
 
-    def __init__(self, video_width: int, fps: float) -> None:
+    frame: np.ndarray
+    nav_debug: dict | None = None
+    scan_ranges: Sequence[float] | None = None
+    scan_angles: Sequence[float] | None = None
+    active_challenge: str | None = None
+
+
+class VideoRecorder:
+    """Encodes annotated frames, with the navigation HUD composited on top, to an mp4 file.
+
+    ``submit()`` never blocks the caller: if the encoder thread is behind, the
+    frame is dropped rather than stalling whatever called submit(). Both the
+    resize (to ``video_width``, height derived from the first submitted
+    frame's own aspect ratio) and the HUD compositing happen on the encoder
+    thread, so neither cost lands on the caller.
+    """
+
+    def __init__(self, video_width: int, fps: float, hud_config: HudConfig | None = None) -> None:
         self._video_width = video_width
         self._fps = fps
-        self._queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._hud_config = hud_config
+        self._queue: queue.Queue[FrameSnapshot | None] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._thread: threading.Thread | None = None
         self._dropped = 0
 
@@ -60,8 +87,8 @@ class VideoRecorder:
         self._thread = threading.Thread(target=self._run, args=(path,), name="video-recorder", daemon=True)
         self._thread.start()
 
-    def submit(self, frame_rgb: np.ndarray) -> None:
-        """Hand a frame to the encoder thread. Drops it if the queue is full.
+    def submit(self, snapshot: FrameSnapshot) -> None:
+        """Hand a frame snapshot to the encoder thread. Drops it if the queue is full.
 
         Never blocks -- a queue.Full means the encoder is behind, and the
         caller (the capture/inference tick) must never wait on it.
@@ -69,7 +96,7 @@ class VideoRecorder:
         if self._thread is None:
             return
         try:
-            self._queue.put_nowait(frame_rgb)
+            self._queue.put_nowait(snapshot)
         except queue.Full:
             self._dropped += 1
             if self._dropped % 30 == 1:
@@ -92,9 +119,10 @@ class VideoRecorder:
         writer: cv2.VideoWriter | None = None
         try:
             while True:
-                frame = self._queue.get()
-                if frame is None:
+                snapshot = self._queue.get()
+                if snapshot is None:
                     break
+                frame = snapshot.frame
                 if writer is None:
                     height, width = frame.shape[:2]
                     out_height = round(self._video_width * height / width)
@@ -105,7 +133,15 @@ class VideoRecorder:
                         (self._video_width, out_height),
                     )
                 resized = cv2.resize(frame, (self._video_width, out_height))
-                writer.write(resized[:, :, ::-1])  # RGB -> BGR, OpenCV's expected order
+                # HUD drawn post-resize, unlike the detection boxes already on
+                # `frame` -- its geometry is independent of detection
+                # coordinates, and drawing it on the small output frame keeps
+                # text a fixed, readable size regardless of capture resolution.
+                hud_frame = draw_stats(resized, snapshot.nav_debug, snapshot.active_challenge, config=self._hud_config)
+                hud_frame = draw_radar(
+                    hud_frame, snapshot.scan_ranges, snapshot.scan_angles, config=self._hud_config,
+                )
+                writer.write(hud_frame[:, :, ::-1])  # RGB -> BGR, OpenCV's expected order
         finally:
             if writer is not None:
                 writer.release()
