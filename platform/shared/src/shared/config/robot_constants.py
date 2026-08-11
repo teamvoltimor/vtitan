@@ -17,6 +17,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
+from shared.config._merge import deep_merge
+from shared.config.hardware_profile import profile_dirs
+
 DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "robot.toml"
 """platform/shared/config/robot.toml -- resolved relative to this module's own
 location rather than the caller's, same rationale as NavigationTuning's
@@ -141,7 +144,18 @@ class RobotConstants(BaseModel):
 
     @classmethod
     def load_default(cls) -> RobotConstants:
-        """Load from the checked-in ``platform/shared/config/robot.toml``."""
+        """Load ``platform/shared/config/robot.toml``, with any active hardware profile overlaid.
+
+        A hardware profile (``VTITAN_HARDWARE_PROFILE``, see
+        :mod:`shared.config.hardware_profile`) only needs to declare the
+        keys it changes -- e.g. a ``[steering]`` block for a different
+        servo. Every other field still comes from this base file.
+        """
         with DEFAULT_CONFIG_PATH.open("rb") as f:
             data: dict[str, object] = tomllib.load(f)
+        for directory in profile_dirs():
+            overlay_path = directory / "robot.toml"
+            if overlay_path.exists():
+                with overlay_path.open("rb") as f:
+                    data = deep_merge(data, tomllib.load(f))
         return cls.model_validate(data)

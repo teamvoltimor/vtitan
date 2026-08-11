@@ -166,6 +166,7 @@ func generateTrackCmd() *cobra.Command {
 func generateRobotConstantsCmd() *cobra.Command {
 	var (
 		config      string
+		profile     string
 		goOutput    string
 		xacroOutput string
 	)
@@ -174,7 +175,7 @@ func generateRobotConstantsCmd() *cobra.Command {
 		Use:   "generate-robot-constants",
 		Short: "Regenerate robot physical constants from robot.toml",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			cfg, err := robotconfig.Load(config)
+			cfg, err := robotconfig.Load(config, robotconfig.ParseProfileNames(profile)...)
 			if err != nil {
 				return fmt.Errorf("load robot config: %w", err)
 			}
@@ -202,7 +203,9 @@ func generateRobotConstantsCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&config, "config", "./shared/config/robot.toml", "Path to robot.toml source of truth")
+	cmd.Flags().StringVar(&config, "config", "./shared/config/robot.toml", "Path to robot.toml source of truth (base)")
+	cmd.Flags().StringVar(&profile, "profile", "",
+		"Comma-separated hardware profile names to overlay onto --config, in order (e.g. servo270)")
 	cmd.Flags().StringVar(&goOutput, "go-output",
 		"./gazebo/generator/internal/simconfig/robot_constants.gen.go", "Go const block output path")
 	cmd.Flags().StringVar(&xacroOutput, "xacro-output",

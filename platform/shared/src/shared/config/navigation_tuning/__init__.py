@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -38,6 +39,8 @@ try:
 except ImportError:  # pragma: no cover - PyYAML is an optional extra
     yaml = None
 
+from shared.config._merge import deep_merge
+from shared.config.hardware_profile import profile_dirs
 from shared.config.navigation_tuning.blind_nav import (
     CorridorEstimatorParams,
     CorridorFollowerParams,
@@ -176,7 +179,7 @@ class NavigationTuning:
 
     # (group key, dataclass, TOML subfolder) triples — the single source of
     # truth for which sections load_from_yaml/load_from_json/to_dict/
-    # load_from_toml_dir handle, so adding a new tuning group never requires
+    # load_from_toml_dir/load_from_toml_dirs handle, so adding a new tuning group never requires
     # touching more than this tuple. The subfolder mirrors this package's own
     # module grouping (motion.py, blind_nav.py, etc.) under
     # platform/shared/config/navigation/, so a TOML file's location and its
@@ -304,27 +307,51 @@ class NavigationTuning:
         Returns:
             NavigationTuning instance with loaded parameters.
         """
-        directory = Path(directory)
+        return cls.load_from_toml_dirs([directory])
+
+    @classmethod
+    def load_from_toml_dirs(cls, directories: Sequence[Path | str]) -> NavigationTuning:
+        """Load and merge per-group TOML from multiple directories, in order.
+
+        Each later directory's files are deep-merged onto the accumulated
+        result of the earlier ones -- see :meth:`load_from_toml_dir` for the
+        per-file layout each directory shares. This is how
+        :meth:`load_default` layers a hardware profile's overlay
+        (:mod:`shared.config.hardware_profile`) on top of the checked-in
+        ``DEFAULT_CONFIG_DIR`` tree: a profile only needs a
+        ``<subfolder>/<group>.toml`` for the specific keys it retunes.
+
+        Args:
+            directories: Directories to merge, in increasing priority (a
+                later directory's values win on any key both set).
+
+        Returns:
+            NavigationTuning instance with loaded parameters.
+        """
         data: dict[str, object] = {}
-        if directory.is_dir():
+        for directory in directories:
+            directory = Path(directory)
+            if not directory.is_dir():
+                continue
             for key, _, subfolder in cls._GROUPS:
                 toml_path = directory / subfolder / f"{key}.toml"
                 if toml_path.exists():
                     with toml_path.open("rb") as f:
-                        data[key] = tomllib.load(f)
+                        group_data = tomllib.load(f)
+                    data[key] = deep_merge(data[key], group_data) if key in data else group_data
 
         return cls._from_mapping(data)
 
     @classmethod
     def load_default(cls) -> NavigationTuning:
-        """Load from the checked-in DEFAULT_CONFIG_DIR TOML tree.
+        """Load the checked-in DEFAULT_CONFIG_DIR TOML tree, with any active hardware profile overlaid.
 
         The normal way to construct a NavigationTuning in production code --
         falls back to hardcoded per-group defaults for any file (or the
         whole directory) that isn't present, so it's also safe to call from
         a test/sim context that doesn't have the full repo checked out.
         """
-        return cls.load_from_toml_dir(DEFAULT_CONFIG_DIR)
+        return cls.load_from_toml_dirs([DEFAULT_CONFIG_DIR, *profile_dirs()])
 
     @classmethod
     def load_from_json(cls, path: Path | str) -> NavigationTuning:

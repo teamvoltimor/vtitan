@@ -6,8 +6,11 @@ package robotconfig
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -115,17 +118,95 @@ func (l Lidar) TotalYawOffsetDeg() float64 {
 	return l.MountYawOffsetDeg
 }
 
-// Load reads and parses the robot.toml config at path.
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+// Load reads and parses the robot.toml config at basePath, then deep-merges
+// each named hardware profile's overlay on top, in order (a later profile
+// wins any key both it and an earlier one set). profileNames is typically
+// parsed from a comma-separated CLI flag via ParseProfileNames.
+//
+// A profile only needs to declare the keys it changes -- e.g. a [steering]
+// block for a different servo -- so the merge happens on the raw parsed
+// maps before decoding into Config, the same way
+// shared.config.robot_constants.RobotConstants.load_default does on the
+// Python side. See docs/internal/plans/2026-08-11-servo-hardware-profiles.md.
+func Load(basePath string, profileNames ...string) (*Config, error) {
+	merged, err := readTOMLMap(basePath)
 	if err != nil {
-		return nil, fmt.Errorf("read robot config: %w", err)
+		return nil, fmt.Errorf("read base robot config: %w", err)
+	}
+
+	profilesRoot := filepath.Join(filepath.Dir(basePath), "profiles")
+	for _, name := range profileNames {
+		overlayDir := filepath.Join(profilesRoot, name)
+		if info, statErr := os.Stat(overlayDir); statErr != nil || !info.IsDir() {
+			return nil, fmt.Errorf("unknown hardware profile %q: expected a directory at %s", name, overlayDir)
+		}
+
+		overlayPath := filepath.Join(overlayDir, "robot.toml")
+		if _, statErr := os.Stat(overlayPath); statErr != nil {
+			continue // profile dir exists but has no robot.toml overlay -- nothing to merge
+		}
+
+		overlay, readErr := readTOMLMap(overlayPath)
+		if readErr != nil {
+			return nil, fmt.Errorf("read profile %q robot config: %w", name, readErr)
+		}
+		merged = deepMergeMaps(merged, overlay)
+	}
+
+	remarshaled, err := toml.Marshal(merged)
+	if err != nil {
+		return nil, fmt.Errorf("remarshal merged robot config: %w", err)
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse robot config: %w", err)
+	if err := toml.Unmarshal(remarshaled, &cfg); err != nil {
+		return nil, fmt.Errorf("parse merged robot config: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+// ParseProfileNames splits a comma-separated profile-list flag value (e.g.
+// "servo270" or "servo270,other") into ordered, trimmed, non-empty names.
+// Mirrors shared.config.hardware_profile.active_profiles on the Python side.
+func ParseProfileNames(raw string) []string {
+	var names []string
+	for name := range strings.SplitSeq(raw, ",") {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func readTOMLMap(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]any
+	if err := toml.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// deepMergeMaps merges override onto base, recursing into nested tables so
+// override only needs to declare the keys it changes -- a plain map merge
+// would drop sibling keys inside any table override also touches.
+func deepMergeMaps(base, override map[string]any) map[string]any {
+	result := make(map[string]any, len(base))
+	maps.Copy(result, base)
+	for k, v := range override {
+		if overrideTable, ok := v.(map[string]any); ok {
+			if baseTable, ok := result[k].(map[string]any); ok {
+				result[k] = deepMergeMaps(baseTable, overrideTable)
+				continue
+			}
+		}
+		result[k] = v
+	}
+	return result
 }
