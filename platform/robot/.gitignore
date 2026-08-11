@@ -47,6 +47,13 @@ vtitan_runs_pulled/*
 !vtitan_runs_pulled/*.py
 !vtitan_runs_pulled/*.sh
 
+# Per-run videos pulled from the robot -- same rationale as vtitan_runs_pulled/
+# above, deliberately a separate tree (see pull-videos-from-pi5.sh's own
+# comment for why).
+vtitan_videos_pulled/*
+!vtitan_videos_pulled/.gitkeep
+!vtitan_videos_pulled/*.sh
+
 # Rendered output from local preview/diagnostic scripts (e.g.
 # scripts/vision/preview_hud.py) -- generated on demand, never committed.
 scripts/*/output/

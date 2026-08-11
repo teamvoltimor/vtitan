@@ -154,6 +154,8 @@ tasks:
           task robot:record-vision  Record the annotated video and copy the mp4 back here
           task robot:pull-runs      Pull recorded rosbag runs (mcaps) from the Pi 5, skipping ones already local
           task robot:push-runs      Push local rosbag runs (mcaps) back up to the Pi 5, skipping ones already there
+          task robot:pull-videos    Pull per-run videos (mp4 only, no bag) from the Pi 5, skipping ones already local
+          task robot:push-videos    Push local per-run videos back up to the Pi 5, skipping ones already there
 
         RECORD (video + frame pipeline — requires Gazebo + ROS2)
           task record:run           Record scenario videos from Gazebo
@@ -871,6 +873,33 @@ tasks:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
     cmds:
       - '"{{.BASH}}" vtitan_runs_pulled/push-runs-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:pull-videos:
+    desc: >-
+      Pull per-run videos (mp4 only, no bag -- see src/vision/video_recorder.py)
+      from the Pi 5's ~/vtitan_runs into vtitan_videos_pulled/ (usage: task
+      robot:pull-videos [PATTERN=run_20260809] [PI5_HOST=user@host]). Run FROM
+      a dev machine. A separate tree from vtitan_runs_pulled/ on purpose -- see
+      pull-videos-from-pi5.sh's own comment. Skips any run whose video is
+      already local; only lists runs that actually recorded one.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" vtitan_videos_pulled/pull-videos-from-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:push-videos:
+    desc: >-
+      Push locally-held per-run videos from vtitan_videos_pulled/ back up into
+      their matching run directory under the Pi 5's ~/vtitan_runs (usage: task
+      robot:push-videos [PATTERN=run_20260809] [PI5_HOST=user@host]). Run FROM
+      a dev machine. Skips a run with no matching remote run directory (push
+      the bag first) and any video already present on the Pi 5.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" vtitan_videos_pulled/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
 
   robot:watch-vision:
     desc: >-
