@@ -128,6 +128,17 @@ tasks:
       TAGS: '{{.TAGS | default ""}}'
       SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
 
+  windows:stage-windscribe-deb:
+    desc: "Stage the windscribe-cli arm64 .deb (browser-downloaded, no stable direct URL) onto the Pi 5 for the extras ansible tag to pick up (usage: task windows:stage-windscribe-deb DEB=\"C:\\Users\\you\\Downloads\\windscribe-cli_2.23.11_arm64.deb\" [SSH_HOST=alias])"
+    requires:
+      vars:
+        - DEB
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+    cmds:
+      - ssh {{.SSH_HOST}} "mkdir -p ~/vtitan-provisioning-cache"
+      - scp "{{.DEB}}" {{.SSH_HOST}}:~/vtitan-provisioning-cache/windscribe-cli_arm64.deb
+
   # WiFi band management (Pi Zero is 2.4 GHz only; provision_pi_zero.yml
   # locks Pi 5 to the same band automatically, with a dead-man's-switch
   # failsafe -- rpi:wifi:lock-2g was the old manual equivalent, removed
