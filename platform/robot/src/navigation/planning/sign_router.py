@@ -715,15 +715,24 @@ def _apply_deformation(
 
     wx, wy = waypoint
     if axis == Axis.Y:
-        return _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None), _clamp_lateral(
-            sign.y + mult * lateral_offset, corridor, context
+        return (
+            _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context),
+            _clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
         )
-    return _clamp_lateral(sign.x + mult * lateral_offset, corridor, context), _pin_depth(
-        wy, sign.y, robot_pos[1] if robot_pos else None
+    return (
+        _clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
+        _pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context),
     )
 
 
-def _pin_depth(waypoint_depth: float, sign_depth: float, robot_depth: float | None) -> float:
+def _pin_depth(
+    waypoint_depth: float,
+    sign_depth: float,
+    robot_depth: float | None,
+    robot_pos: tuple[float, float] | None,
+    corridor: Section,
+    context: SignRouterContext | None = None,
+) -> float:
     """Hold the commanded point abeam the sign instead of letting it recede.
 
     Applies only while the sign is genuinely between the chassis and the
@@ -731,8 +740,21 @@ def _pin_depth(waypoint_depth: float, sign_depth: float, robot_depth: float | No
     corridor. Once the robot is level with the sign the condition lapses on its
     own and the ordinary lookahead resumes -- there is no separate "release"
     to get wrong, and a sign already behind never pulls the target backwards.
+
+    ``deform_waypoint`` only checks ``_is_squarely_in_corridor`` once, upstream,
+    against the raw (pre-deformation) WAYPOINT -- not against where the robot
+    itself actually is. The lookahead target runs 0.2-0.4 m ahead of the robot,
+    so the robot can already have curved out of the straight-corridor
+    assumption this pin depends on (e.g. mid corner-arc) while the waypoint
+    still reads as squarely in the corridor. Pinning to the sign's depth in
+    that state drove the commanded point into a wall -- measured as 11 wall
+    collisions with the pin on against 0 with it off, all corner-adjacent.
+    Re-checking squareness here, against the robot's own real (x, y), closes
+    that gap: the pin only fires when both ends of its own logic actually hold.
     """
-    if robot_depth is None:
+    if robot_depth is None or robot_pos is None:
+        return waypoint_depth
+    if not _is_squarely_in_corridor(robot_pos[0], robot_pos[1], corridor, context):
         return waypoint_depth
     if min(robot_depth, waypoint_depth) < sign_depth < max(robot_depth, waypoint_depth):
         return sign_depth

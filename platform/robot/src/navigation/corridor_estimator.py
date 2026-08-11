@@ -157,7 +157,19 @@ class CorridorWidthEstimator:
     is nothing in the corridor to hit.
 
     The estimator still runs and can still override the prior: this changes
-    where it starts, not whether it measures.
+    where it starts, not whether it measures -- unless constructed with
+    ``fixed=True``, for a challenge whose width is a *known constant* rather
+    than a prior. The Obstacles Challenge is exactly that case: every corridor
+    is 1.0 m by rule, not by discovery, so a corridor with a sign or pillar
+    hugging one wall can feed the vote a run of falsely-narrow readings (a
+    LIDAR ray clipping the obstacle instead of the real wall) with nothing to
+    correct it back -- and unlike the Open Challenge, where believing narrow
+    is deliberately the safe direction to be wrong in, an Obstacles corridor
+    wrongly believed narrow re-plans with *less* room than actually exists,
+    right where an obstacle already eats into the true 1.0 m. ``fixed=True``
+    keeps every other behaviour (creep-width buffering, direction-inference
+    replay) identical -- it only stops ``observe_measurement`` from ever
+    changing ``widths`` away from ``assumed_width``.
     """
 
     def __init__(
@@ -165,10 +177,13 @@ class CorridorWidthEstimator:
         min_samples: int | None = None,
         assumed_width: float = _NARROW,
         tuning: NavigationTuning | None = None,
+        *,
+        fixed: bool = False,
     ) -> None:
         if min_samples is None:
             min_samples = get_tuning(tuning).corridor_estimator.MIN_SAMPLES
         self._min_samples = min_samples
+        self._fixed = fixed
         self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()
         self._votes: dict[Section, list[int]] = {s: [0, 0] for s in Section}
@@ -219,6 +234,9 @@ class CorridorWidthEstimator:
         the *next* corridor. Buffer the measurements, replay them here once the
         direction is known.
         """
+        if self._fixed:
+            return False
+
         votes = self._votes[section]
         votes[1 if measured >= _DECISION_BOUNDARY else 0] += 1
         if sum(votes) < self._min_samples:

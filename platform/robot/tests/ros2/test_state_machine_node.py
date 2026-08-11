@@ -169,6 +169,54 @@ class TestChallengeModeDetection:
         assert node._challenge_mode_error is not None
         node.destroy_node()
 
+    def test_latched_challenge_mode_is_published_for_track_navigator_node(self, ros_context, state_machine_node_class):
+        """track_navigator_node has no other way to learn the jumper's resolved value --
+        without this publish a real blind run always drove as Open regardless of the jumper.
+        """
+        node = state_machine_node_class()
+        published: list[String] = []
+        node.challenge_mode_pub.publish = published.append
+        _publish_jumper(node, inserted=True)  # shorted to GND
+
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        assert [msg.data for msg in published] == ["obstacles"]
+        node.destroy_node()
+
+    def test_post_reset_re_resolution_republishes_challenge_mode(self, ros_context, state_machine_node_class):
+        """SYSTEM_RESET clears challenge_mode and BOOT_CHECK re-samples the jumper -- the
+        operator may have moved it between rounds. The republish is what lets
+        track_navigator_node pick up a challenge switch purely from the button.
+        """
+        node = state_machine_node_class()
+        published: list[String] = []
+        node.challenge_mode_pub.publish = published.append
+        _publish_jumper(node, inserted=True)
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        node.reset()
+        _publish_jumper(node, inserted=False)
+        for _ in range(3):
+            node._sample_challenge_mode()
+
+        assert [msg.data for msg in published] == ["obstacles", "open"]
+        node.destroy_node()
+
+    def test_timed_out_fallback_is_also_published(self, ros_context, state_machine_node_class, monkeypatch):
+        node = state_machine_node_class()
+        published: list[String] = []
+        node.challenge_mode_pub.publish = published.append
+        monkeypatch.setattr(node, "_challenge_mode_timed_out", lambda: True)
+
+        for inserted in (True, False, True):
+            _publish_jumper(node, inserted=inserted)
+            node._sample_challenge_mode()
+
+        assert [msg.data for msg in published] == ["open"]
+        node.destroy_node()
+
     def test_explicit_target_laps_param_is_not_overridden_by_detection(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
         node.target_laps = 5  # simulates an explicit launch-time override

@@ -104,6 +104,25 @@ class ChallengeModeTopics(BaseModel):
     jumper_inserted: str
     """Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to)."""
 
+    active: str
+    """Resolved ScenarioType ("open"/"obstacles"), published by state_machine_node once
+    the jumper reading is debounced/latched (or timed out to Open). Latched (TRANSIENT_LOCAL)
+    so a late-subscribing track_navigator_node still gets the current value immediately.
+    Republished on every BOOT_CHECK resolution, including the one after a SYSTEM_RESET, so
+    the robot can switch challenges purely from the button without a process restart."""
+
+
+class BagRecorderTopics(BaseModel):
+    """mcap bag recorder topics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    run_path: str
+    """The run directory bag_recorder_node just started writing to, published once
+    per RACING entry (latched). Lets a separate process -- e.g. vision_node's
+    per-run video recorder -- write into the exact same directory as the mcap
+    without the two nodes sharing any other state."""
+
 
 class ButtonTopics(BaseModel):
     """Physical button topics."""
@@ -142,6 +161,7 @@ class RosTopicConfig(BaseModel):
     challenge_mode: ChallengeModeTopics
     button: ButtonTopics
     ui: UiTopics
+    bag_recorder: BagRecorderTopics
 
     _default_config_path: ClassVar[Path] = (
         Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"

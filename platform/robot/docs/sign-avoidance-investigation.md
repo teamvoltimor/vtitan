@@ -1280,6 +1280,26 @@ guarded by `is not None`. `ScenarioSimulator` wires these up the same way the
 real ROS2 `TrackNavigator` node does, so **findings here reproduce on the
 physical robot** — these are not simulation artifacts.
 
+## Tuning scope
+
+Any future arc_radius/lookahead retune from this document routes through
+`NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES)` and the
+`platform/shared/config/navigation-challenges/obstacles/` overlay, never
+through `platform/shared/config/navigation/` (the base config Open Challenge
+also reads). The old `for_obstacles()` classmethod this document refers to no
+longer exists as such — the mechanism it would have used is the challenge
+overlay, and `navigation-challenges/open/` stays empty by construction (see
+`test_load_default_open_challenge_is_byte_identical_to_no_challenge` in
+`test_navigation_tuning.py`). Do not add a value to either overlay without a
+measurement backing it — see "Next steps" below for what that measurement is.
+
+On real hardware the active challenge is resolved at runtime from the
+GPIO23 jumper (`state_machine_node`, `/challenge_mode/active`), not fixed at
+process start — `track_navigator_node` loads both challenge profiles eagerly
+and picks the active one, along with a fresh `SignRouter`/`ParkController`,
+every time `RACING` is entered (including after a long-press `SYSTEM_RESET`).
+See `TrackNavigator.reset()` and `CoreNavigator.replace_sign_router`.
+
 ## Next steps
 
 Superseded by "The escape layer is the gate" at the top of this document. The

@@ -270,6 +270,21 @@ class CoreNavigator:
         if self._waypoint_index - previous_index > len(waypoints) // 2:
             self._suppress_next_wrap = True
 
+    def replace_sign_router(self, sign_router: SignRouter | None) -> None:
+        """Swap in a sign router built for a new race.
+
+        Exists for the same reason as ``replace_park_controller``: the state
+        machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING purely
+        from the button, and a real (blind) run's active challenge is only
+        known once the jumper is resolved -- which can differ from the
+        previous race. A process built once as Open (``sign_router=None``)
+        must be able to pick up a switch to Obstacles, and vice versa,
+        without a restart. The previous router's own committed/discovered
+        state does not carry over, same as ``ParkController`` above -- the
+        caller builds a fresh one from the current section/direction/tuning.
+        """
+        self._sign_router = sign_router
+
     def replace_park_controller(self, park_controller: ParkController | None) -> None:
         """Swap in a fresh ParkController ahead of a new race.
 

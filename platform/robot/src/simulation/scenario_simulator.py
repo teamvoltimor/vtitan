@@ -419,6 +419,11 @@ class ScenarioSimulator:
                 if is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
                 tuning=self._tuning,
+                # Obstacles corridors are 1.0 m by rule, not by discovery -- a
+                # sign/pillar hugging a wall can otherwise feed the voting a
+                # run of falsely-narrow readings with nothing to correct it
+                # back. See CorridorWidthEstimator's own docstring.
+                fixed=not is_open_challenge,
             )
             if blind
             else None

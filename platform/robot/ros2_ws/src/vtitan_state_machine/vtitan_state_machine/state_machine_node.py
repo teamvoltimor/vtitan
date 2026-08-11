@@ -210,6 +210,17 @@ class StateMachineNode(Node, ResettableNode):
             _QOS_TRANSIENT,
         )
         self.metrics_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.race_metrics, 10)
+        # track_navigator_node has no other way to learn which challenge the
+        # jumper resolved to -- it never subscribed to anything from this node
+        # before, so a real blind run silently defaulted to Open regardless of
+        # the jumper. Latched so a late-joining/restarted navigator still gets
+        # the current value immediately; republished by _latch_challenge_mode
+        # on every BOOT_CHECK resolution, including the one after a
+        # SYSTEM_RESET, which is what lets the robot switch challenges purely
+        # from the button.
+        self.challenge_mode_pub: Publisher[String] = self.create_publisher(
+            String, self._topics.challenge_mode.active, _QOS_TRANSIENT,
+        )
 
         # /race_metrics' current_velocity/current_steering used to only ever be set
         # by this node's own _publish_stop_command (always to 0.0) -- nothing updated
@@ -616,6 +627,12 @@ class StateMachineNode(Node, ResettableNode):
     def _latch_challenge_mode(self, *, inserted: bool, reason: str | None = None) -> None:
         """Fix the challenge mode for this run and derive the lap count."""
         self.challenge_mode = ScenarioType.OBSTACLES if inserted else ScenarioType.OPEN
+        # Latched (TRANSIENT_LOCAL): track_navigator_node may subscribe before
+        # or after this fires and either way must see the current value. Fires
+        # on every resolution, detected or defaulted, and again after each
+        # SYSTEM_RESET re-sample -- that's what lets the navigator pick up a
+        # challenge switch made purely from the button/jumper.
+        self.challenge_mode_pub.publish(String(data=self.challenge_mode.value))
         if not self._target_laps_explicit:
             self.target_laps = (
                 CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS

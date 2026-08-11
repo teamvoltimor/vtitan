@@ -20,7 +20,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
-from shared.domain.enums import Section
+from shared.domain.enums import ScenarioType, Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -742,6 +742,83 @@ class TestReset:
                 navigator.reset()
             (built,), _ = replace_mock.call_args
             assert built is not None
+        finally:
+            navigator.destroy_node()
+
+
+class TestBlindChallengeSwitch:
+    """A real blind run only learns its challenge from the jumper, forwarded by
+    state_machine_node over /challenge_mode/active well after this node is
+    constructed -- and the state machine can cycle FINISHED -> BOOT_CHECK ->
+    READY -> RACING purely from the button, with no process restart, so the
+    robot must be able to go from an Open round to an Obstacles round (or the
+    reverse) without ever knowing direction, obstacle, or parking layout ahead
+    of time. These exercise that path end to end: no metadata file, no
+    foreknowledge, driven purely by the same topic/state transitions the real
+    hardware uses.
+    """
+
+    @staticmethod
+    def _blind_navigator():
+        from shared.domain.enums import Direction
+
+        return TrackNavigator(num_laps=1, blind=True, direction=Direction.CLOCKWISE)
+
+    def test_defaults_to_open_before_any_jumper_reading_arrives(self, ros_context):
+        navigator = self._blind_navigator()
+        try:
+            navigator._on_robot_state(String(data="racing"))
+            assert navigator._is_open_challenge is True
+            assert navigator._core_navigator.sign_router is None
+            assert navigator._core_navigator._park_controller is None
+            assert navigator._tuning is navigator._tuning_by_challenge[ScenarioType.OPEN]
+        finally:
+            navigator.destroy_node()
+
+    def test_switches_to_obstacles_purely_from_the_button_no_restart(self, ros_context):
+        navigator = self._blind_navigator()
+        try:
+            navigator._on_challenge_mode_active(String(data="obstacles"))
+            navigator._on_robot_state(String(data="racing"))
+
+            assert navigator._is_open_challenge is False
+            assert navigator._core_navigator.sign_router is not None
+            assert navigator._tuning is navigator._tuning_by_challenge[ScenarioType.OBSTACLES]
+        finally:
+            navigator.destroy_node()
+
+    def test_round_trip_open_to_obstacles_and_back_in_one_process(self, ros_context):
+        """Mirrors FINISHED -> BOOT_CHECK -> READY -> RACING cycled twice with the
+        jumper moved in between -- the long-press reset re-arms challenge
+        selection on state_machine_node; this pins the other half, that
+        track_navigator_node actually picks up what it re-arms to.
+        """
+        navigator = self._blind_navigator()
+        try:
+            navigator._on_challenge_mode_active(String(data="open"))
+            navigator._on_robot_state(String(data="racing"))
+            assert navigator._core_navigator.sign_router is None
+            navigator._on_robot_state(String(data="finished"))
+
+            navigator._on_challenge_mode_active(String(data="obstacles"))
+            navigator._on_robot_state(String(data="racing"))
+            assert navigator._core_navigator.sign_router is not None
+
+            navigator._on_robot_state(String(data="finished"))
+            navigator._on_challenge_mode_active(String(data="open"))
+            navigator._on_robot_state(String(data="racing"))
+            assert navigator._core_navigator.sign_router is None
+        finally:
+            navigator.destroy_node()
+
+    def test_metadata_driven_run_never_subscribes_to_the_jumper_topic(self, tmp_path, sample_metadata_open, ros_context):
+        """A sim/test run with a metadata file must keep its pre-existing,
+        deterministic behaviour -- the challenge is fixed for the whole
+        process, exactly as before this change.
+        """
+        navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
+        try:
+            assert navigator._tuning_by_challenge is None
         finally:
             navigator.destroy_node()
 
