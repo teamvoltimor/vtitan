@@ -163,7 +163,7 @@ tasks:
   # + community.general on the dev Pi 5 (task rpi:ansible:setup once).
 
   rpi:provision:zero:
-    desc: "Provision Pi Zero 2W via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:zero [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x] [TAGS=os,network] [SKIP_TAGS=extras]). Prompts for the Zero's (and Pi 5's) sudo password. Tags: auth,os,repo,network,hardware,apps,services,extras -- see `task rpi:ansible:tags`."
+    desc: "Provision Pi Zero 2W via Ansible, inside tmux so a dropped SSH session doesn't kill the run (usage: task rpi:provision:zero [ZERO_LINK=wifi|wired] [ZERO_IP=x.x.x.x] [PI5_IP=x.x.x.x] [TAGS=os,network] [SKIP_TAGS=extras]). ZERO_LINK picks the default address (wifi -> ZERO_WIFI_IP, wired -> the usb0 gadget IP) when you don't remember the exact IP; ZERO_IP overrides both. Prompts for the Zero's (and Pi 5's) sudo password. Tags: auth,os,repo,network,hardware,apps,services,extras -- see `task rpi:ansible:tags`."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible provisioner against {{.ZERO_IP}} (Pi 5 at {{.PI5_IP}}, takes ~20-40 min)..."
@@ -196,7 +196,8 @@ tasks:
           tmux new-session -A -s {{.TMUX_SESSION}} "bash '$SCRIPT'"
         fi
     vars:
-      ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
+      ZERO_LINK: '{{.ZERO_LINK | default "wifi"}}'
+      ZERO_IP: '{{if .ZERO_IP}}{{.ZERO_IP}}{{else if eq .ZERO_LINK "wired"}}{{.RPI_ZERO_GADGET_IP}}{{else}}{{.ZERO_WIFI_IP}}{{end}}'
       PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
       TAGS: '{{.TAGS | default ""}}'
       SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
@@ -210,7 +211,7 @@ tasks:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
 
   rpi:provision:all:
-    desc: "Provision both boards via Ansible's site.yml (Pi 5 first, then the Zero), inside tmux (usage: task rpi:provision:all [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x] [TAGS=network,hardware] [SKIP_TAGS=extras]). Prompts once for sudo, covering both plays."
+    desc: "Provision both boards via Ansible's site.yml (Pi 5 first, then the Zero), inside tmux (usage: task rpi:provision:all [PI5_IP=x.x.x.x] [ZERO_LINK=wifi|wired] [ZERO_IP=x.x.x.x] [TAGS=network,hardware] [SKIP_TAGS=extras]). ZERO_LINK picks the default Zero address (wifi -> ZERO_WIFI_IP, wired -> the usb0 gadget IP) when you don't remember the exact IP; ZERO_IP overrides it. Prompts once for sudo, covering both plays."
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - echo "Running Ansible site.yml against Pi 5 ({{.PI5_IP}}) then the Zero ({{.ZERO_IP}}), takes ~30-60 min total..."
@@ -240,7 +241,8 @@ tasks:
         fi
     vars:
       PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
-      ZERO_IP: '{{.ZERO_IP | default .ZERO_WIFI_IP}}'
+      ZERO_LINK: '{{.ZERO_LINK | default "wifi"}}'
+      ZERO_IP: '{{if .ZERO_IP}}{{.ZERO_IP}}{{else if eq .ZERO_LINK "wired"}}{{.RPI_ZERO_GADGET_IP}}{{else}}{{.ZERO_WIFI_IP}}{{end}}'
       TAGS: '{{.TAGS | default ""}}'
       SKIP_TAGS: '{{.SKIP_TAGS | default ""}}'
       TMUX_SESSION: vtitan-provision-all
