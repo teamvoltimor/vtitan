@@ -23,6 +23,7 @@ from shared.config.navigation_tuning import (
     SpeedControlParams,
     WaypointParams,
 )
+from shared.domain.enums import ScenarioType
 
 # One overridden value per group, distinct from the default, so a silently
 # ignored section is caught by the round-trip assertion.
@@ -179,6 +180,39 @@ def test_load_default_finds_the_checked_in_config_tree():
     assert pytest.approx(0.10) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.pursuit.STEER_KP
     assert pytest.approx(1.00) == tuning.clearance.FAST_DIST
+
+
+def test_load_default_open_challenge_is_byte_identical_to_no_challenge():
+    """Standing regression guard: Open Challenge tuning must never change as a
+    side effect of Obstacles Challenge work. The checked-in
+    navigation-challenges/open/ overlay is expected to stay empty forever --
+    this assertion is the enforcement, not the overlay directory being empty.
+    """
+    assert NavigationTuning.load_default(challenge=ScenarioType.OPEN) == NavigationTuning.load_default()
+
+
+def test_load_default_challenge_none_matches_no_challenge_argument():
+    """Omitting ``challenge`` entirely must reproduce pre-existing behaviour."""
+    assert NavigationTuning.load_default(challenge=None) == NavigationTuning.load_default()
+
+
+def test_load_from_toml_dirs_merges_a_challenge_overlay_last(tmp_path):
+    """A later directory's values win -- this is what lets a challenge overlay
+    retune a key without touching the base config or any other challenge.
+    """
+    base = _write_toml_dir(tmp_path, {"waypoints": {"ARC_RADIUS": 0.45}})
+    overlay = tmp_path / "obstacles_overlay"
+    overlay.mkdir()
+    (overlay / "waypoint").mkdir()
+    (overlay / "waypoint" / "waypoints.toml").write_text("ARC_RADIUS = 0.30", encoding="utf-8")
+
+    merged = NavigationTuning.load_from_toml_dirs([base, overlay])
+    base_only = NavigationTuning.load_from_toml_dirs([base])
+
+    assert pytest.approx(0.30) == merged.waypoints.ARC_RADIUS
+    assert pytest.approx(0.45) == base_only.waypoints.ARC_RADIUS
+    # Untouched fields still fall back through the base directory, not the default.
+    assert merged.clearance == base_only.clearance
 
 
 class TestConfiguredValuesAreActuallyRead:

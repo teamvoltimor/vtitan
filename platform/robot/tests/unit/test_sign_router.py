@@ -636,6 +636,59 @@ class TestEngagementGating:
         assert approached != (2.0, 0.4)
 
 
+class TestDepthPinCornerGuard:
+    """The depth pin must not fire once the robot itself has curved out of the
+    straight-corridor assumption it depends on, even if the (receding) waypoint
+    it's evaluated against still reads as squarely in the corridor -- this is
+    the fix for the 11-collision regression (pin off: 0 wall hits, pin on: 11).
+    """
+
+    def test_pin_does_not_fire_once_the_robot_is_past_the_corner_buffer(self, router_config):
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        waypoint_depth = depth_max - 0.15
+        sign_depth = depth_max - 0.05
+        robot_depth = depth_max + 0.05  # past the buffered corner window
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05  # still reads as SOUTH laterally
+        sign = _sign_at(sign_depth, lateral_y, "red")
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+        )
+
+        assert result_x == pytest.approx(waypoint_depth)
+
+    def test_pin_still_fires_when_the_robot_is_squarely_in_corridor(self, router_config):
+        """Regression guard for the fix itself: the guard must not also kill
+        legitimate pinning when the robot genuinely is square to the corridor.
+        """
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        robot_depth = depth_max - 0.20  # inside the buffered corner window
+        sign_depth = depth_max - 0.10  # between robot_depth and waypoint_depth
+        waypoint_depth = depth_max - 0.05
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05
+        sign = _sign_at(sign_depth, lateral_y, "red")
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+        )
+
+        assert result_x == pytest.approx(sign_depth)
+
+
 # Camera-detection confirmation (pinhole projection)
 
 # All direct _detection_to_world / _match_detection_to_sign cases below use a

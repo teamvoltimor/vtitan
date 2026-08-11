@@ -197,8 +197,29 @@ class TrackNavigator(Node, ResettableNode):
         if params_path is not None:
             self._apply_param_overrides(params_path)
 
-        # Setup Tuning
-        tuning = NavigationTuning.load_from_yaml(tuning_path) if tuning_path else NavigationTuning.load_default()
+        # Setup Tuning. Both challenge profiles are loaded eagerly when blind
+        # (no metadata file): the real robot only learns which challenge it is
+        # running from the jumper, resolved by state_machine_node and forwarded
+        # over /challenge_mode/active well after this constructor runs (at the
+        # BOOT_CHECK -> READY transition), so the active one can't be chosen
+        # yet here -- only picked, in reset(), once it is known. A metadata- or
+        # tuning-file-driven run (sim/test) already knows its challenge for the
+        # whole process, so it loads once and never needs the dict.
+        self._tuning_by_challenge: dict[ScenarioType, NavigationTuning] | None = None
+        if tuning_path:
+            tuning = NavigationTuning.load_from_yaml(tuning_path)
+        elif self._blind:
+            self._tuning_by_challenge = {
+                ScenarioType.OPEN: NavigationTuning.load_default(challenge=ScenarioType.OPEN),
+                ScenarioType.OBSTACLES: NavigationTuning.load_default(challenge=ScenarioType.OBSTACLES),
+            }
+            tuning = self._tuning_by_challenge[
+                ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES
+            ]
+        else:
+            tuning = NavigationTuning.load_default(
+                challenge=ScenarioType.OPEN if self._is_open_challenge else ScenarioType.OBSTACLES,
+            )
 
         raw_section = start_cond[DictKeys.SECTION]
         raw_direction = start_cond[DictKeys.DIRECTION]
@@ -243,6 +264,11 @@ class TrackNavigator(Node, ResettableNode):
                 if self._is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
                 tuning=self._tuning,
+                # Obstacles corridors are 1.0 m by rule, not by discovery -- a
+                # sign/pillar hugging a wall can otherwise feed the voting a
+                # run of falsely-narrow readings with nothing to correct it
+                # back. See CorridorWidthEstimator's own docstring.
+                fixed=not self._is_open_challenge,
             )
             if self._blind
             else None
@@ -347,6 +373,26 @@ class TrackNavigator(Node, ResettableNode):
             ),
         )
 
+        # Jumper-resolved challenge, forwarded by state_machine_node once
+        # BOOT_CHECK latches it (see the tuning setup above). Only meaningful
+        # when blind -- a metadata/tuning-file run already knows its challenge
+        # for the whole process and never subscribes to this. None until the
+        # first value arrives; reset() falls back to Open if it never does,
+        # matching state_machine_node's own timeout-to-Open fallback so both
+        # sides always agree on what "unresolved" means.
+        self._active_challenge: ScenarioType | None = None
+        if self._blind:
+            self.create_subscription(
+                String,
+                self._topics.challenge_mode.active,
+                self._on_challenge_mode_active,
+                QoSProfile(
+                    depth=1,
+                    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+                    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                ),
+            )
+
         # state_machine_node owns /race_metrics (what the OLED and FINISHED
         # transition read) but has no way to count laps itself -- only this
         # node's CoreNavigator/LapDetector actually detects a crossing. BEST_
@@ -402,6 +448,32 @@ class TrackNavigator(Node, ResettableNode):
         self.declare_parameter("joint_states_topic", self._topics.actuators.joint_states)
         self.declare_parameter("is_simulation", value=False)
 
+    def _build_sign_router(self, *, direction: Direction, tuning: NavigationTuning) -> SignRouter | None:
+        """Obstacles-only collaborator; ``None`` for Open.
+
+        Shared by ``_build_core_navigator`` and ``reset()`` so a challenge
+        switch mid-process (purely from the button, no restart -- see
+        ``CoreNavigator.replace_sign_router``) rebuilds it exactly the way the
+        first one was built, rather than a second, drifted construction path.
+        """
+        if self._is_open_challenge:
+            return None
+        # A blind run has no metadata file, so ``signs_from_metadata`` comes
+        # back empty and the router used to be left as None — which meant
+        # blind operation shipped with no sign avoidance whatsoever, the one
+        # thing the Obstacles Challenge is scored on. Build it regardless and
+        # let it discover the layout from ``/vision/detections``, the same
+        # way ``CorridorWidthEstimator`` recovers the corridor widths.
+        signs = [] if self._blind else signs_from_metadata(self._metadata)
+        return SignRouter(
+            signs,
+            config=SignRouterConfig.from_tuning(tuning.sign_router),
+            direction=direction,
+            discover=self._blind,
+            discovery_config=tuning.sign_discovery,
+            tuning=tuning,
+        )
+
     def _build_core_navigator(
         self,
         *,
@@ -413,23 +485,7 @@ class TrackNavigator(Node, ResettableNode):
         waypoints: list[tuple[float, float]],
     ) -> CoreNavigator:
         """Build the waypoints, sign router, lap detector, park controller and navigator."""
-        sign_router: SignRouter | None = None
-        if not self._is_open_challenge:
-            # A blind run has no metadata file, so ``signs_from_metadata`` comes
-            # back empty and the router used to be left as None — which meant
-            # blind operation shipped with no sign avoidance whatsoever, the one
-            # thing the Obstacles Challenge is scored on. Build it regardless and
-            # let it discover the layout from ``/vision/detections``, the same
-            # way ``CorridorWidthEstimator`` recovers the corridor widths.
-            signs = [] if self._blind else signs_from_metadata(self._metadata)
-            sign_router = SignRouter(
-                signs,
-                config=SignRouterConfig.from_tuning(tuning.sign_router),
-                direction=start_direction,
-                discover=self._blind,
-                discovery_config=tuning.sign_discovery,
-                tuning=tuning,
-            )
+        sign_router = self._build_sign_router(direction=start_direction, tuning=tuning)
 
         lap_detector = LapDetector(
             start_pos=start_xy,
@@ -944,6 +1000,10 @@ class TrackNavigator(Node, ResettableNode):
         )
         return True
 
+    def _on_challenge_mode_active(self, msg: String) -> None:
+        """Cache the jumper-resolved challenge; reset() applies it at the next RACING entry."""
+        self._active_challenge = ScenarioType.from_string(msg.data)
+
     def _on_robot_state(self, msg: String) -> None:
         """Track whether the state machine says we are racing."""
         was_racing = self._racing
@@ -1013,6 +1073,20 @@ class TrackNavigator(Node, ResettableNode):
         self._measured_start = None
         self._start_measurement_ticks_left = 0
 
+        # A blind round may be running a different challenge than the last one
+        # -- the operator can move the jumper and long-press reset between
+        # rounds with no process restart (see CoreNavigator.replace_sign_router
+        # below). Re-resolve which challenge is active before anything past
+        # this point reads self._is_open_challenge/self._tuning/self._arc_radius.
+        # Falls back to Open -- matching state_machine_node's own
+        # timeout-to-Open fallback -- if no value has arrived yet, e.g. this is
+        # the very first race and BOOT_CHECK hasn't published.
+        if self._tuning_by_challenge is not None:
+            active = self._active_challenge or ScenarioType.OPEN
+            self._is_open_challenge = active == ScenarioType.OPEN
+            self._tuning = self._tuning_by_challenge[active]
+            self._arc_radius = self._tuning.waypoints.ARC_RADIUS
+
         self._direction = self._initial_direction
         if self._blind:
             self._width_estimator = CorridorWidthEstimator(
@@ -1020,6 +1094,7 @@ class TrackNavigator(Node, ResettableNode):
                 if self._is_open_challenge
                 else CorridorDimensions.OBSTACLES_WIDTH,
                 tuning=self._tuning,
+                fixed=not self._is_open_challenge,
             )
             # Mirrors construction: a told direction is still told on the next
             # round, so rebuilding an estimator here would put the creep back
@@ -1039,6 +1114,15 @@ class TrackNavigator(Node, ResettableNode):
                 tuning=self._tuning,
             )
         self._core_navigator.replace_park_controller(park_controller)
+        # Same reasoning as the park controller above: SignRouter is built
+        # once at __init__ time (when the challenge may still be a guess) and
+        # never rebuilt on its own, so a challenge switch resolved just above
+        # has to be threaded through here too, or a round that switches
+        # Open<->Obstacles mid-process would keep running the previous
+        # round's sign-avoidance behaviour (or lack of it).
+        self._core_navigator.replace_sign_router(
+            self._build_sign_router(direction=self._direction, tuning=self._tuning),
+        )
         # The previous race's lap detector counts crossings against whatever
         # direction it resolved to, and carries a pending-waypoint flag from
         # wherever the robot last was on the loop -- neither belongs to a

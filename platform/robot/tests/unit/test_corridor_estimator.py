@@ -158,6 +158,28 @@ class TestCorridorWidthEstimator:
         assert estimator.widths[Section.EAST] == pytest.approx(_NARROW)
         assert Section.EAST in estimator.observed_sections
 
+    def test_fixed_prior_is_never_overridden_by_measurement(self) -> None:
+        """The Obstacles Challenge case: 1.0 m is a rule, not a prior to refine.
+
+        A sign/pillar hugging a wall can otherwise feed the voting a run of
+        falsely-narrow readings (a LIDAR ray clipping the obstacle instead of
+        the real wall) with nothing to correct it back -- unlike the Open
+        Challenge, where believing narrow is deliberately the safe direction
+        to be wrong in, a wrongly-narrow Obstacles belief re-plans with less
+        room than actually exists, right where an obstacle already eats into
+        the true 1.0 m.
+        """
+        estimator = CorridorWidthEstimator(assumed_width=_WIDE, fixed=True)
+        self._feed(estimator, Section.EAST, _NARROW, times=40)
+        assert estimator.widths[Section.EAST] == pytest.approx(_WIDE)
+        assert Section.EAST not in estimator.observed_sections
+
+    def test_fixed_prior_never_reports_a_change(self) -> None:
+        estimator = CorridorWidthEstimator(assumed_width=_WIDE, fixed=True, min_samples=4)
+        ranges, angles = _scan(_NARROW / 2, _NARROW / 2)
+        changes = [estimator.observe(Section.NORTH, ranges, angles, yaw=0.0) for _ in range(8)]
+        assert not any(changes)
+
     def test_learns_a_wide_corridor(self) -> None:
         estimator = CorridorWidthEstimator()
         self._feed(estimator, Section.EAST, _WIDE, times=20)

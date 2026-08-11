@@ -41,6 +41,7 @@ except ImportError:  # pragma: no cover - PyYAML is an optional extra
 
 from shared.config._merge import deep_merge
 from shared.config.hardware_profile import profile_dirs
+from shared.domain.enums import ScenarioType
 from shared.config.navigation_tuning.blind_nav import (
     CorridorEstimatorParams,
     CorridorFollowerParams,
@@ -100,6 +101,18 @@ config/navigation_tuning/__init__.py) rather than the caller's, since this
 package is the one that actually knows where its own config lives -- callers
 (e.g. CoreNavigator) shouldn't have to know or assume the two are siblings
 under the same platform/ root."""
+
+CHALLENGES_ROOT: Path = Path(__file__).resolve().parents[4] / "config" / "navigation-challenges"
+"""platform/shared/config/navigation-challenges -- per-challenge overlay tree.
+
+One ``<challenge>/<subfolder>/<group>.toml`` directory per :class:`ScenarioType`
+value (``open``, ``obstacles``), same per-group layout as ``DEFAULT_CONFIG_DIR``
+and the hardware-profile tree (:mod:`shared.config.hardware_profile`). Kept as
+a sibling of ``navigation/`` rather than nested inside it, mirroring how
+hardware profiles stay external to the checked-in base tree -- an overlay
+should never be ambiguous with the default it overlays. A challenge overlay
+only needs a file for the specific keys it retunes; everything else falls
+back through ``DEFAULT_CONFIG_DIR``. See :meth:`NavigationTuning.load_default`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,23 +220,20 @@ class NavigationTuning:
         ("simulation", SimulationParams, "simulation"),
     )
 
-    # No ``for_obstacles()`` profile. One existed (lookahead 0.12/0.24 +
-    # FAST_SPEED 0.30) and was removed after re-measurement against the
-    # corrected four-wheel-steer kinematics (8eb3c38) and the closed drive loop
-    # (668e40a) showed both halves of it were inert:
-    #
-    # * The speed cap cannot do anything. ``AckermannKinematics`` clamps to the
-    #   measured 0.156 m/s drivetrain ceiling, so FAST_SPEED 0.30 and 0.50 both
-    #   saturate to the same 0.156 m/s. The profile's own justification — that a
-    #   lower top speed buys steering travel per metre — never applied.
-    # * The lookahead change does not help. Swept over the 16 obstacles
-    #   fixtures, collisions are 16/16 at every value from 0.10 to 0.40. It is
-    #   not inert — 0.12/0.24 cuts cross-track error from p90 12.9 cm to
-    #   5.1 cm — but that is a path-quality result, not the sign-avoidance one
-    #   the profile claimed, and buying that accuracy changes no outcome.
-    #
-    # See ``platform/robot/docs/sign-avoidance-investigation.md``. Re-add a
-    # profile here only with a measurement that survives the current model.
+    # Per-challenge tuning lives in CHALLENGES_ROOT (load_default(challenge=...)),
+    # not as a hardcoded for_obstacles()-style classmethod. An earlier
+    # for_obstacles() profile (lookahead 0.12/0.24 + FAST_SPEED 0.30) was
+    # removed after re-measurement against the corrected four-wheel-steer
+    # kinematics (8eb3c38) and the closed drive loop (668e40a) showed both
+    # halves were inert -- the speed cap cannot do anything since
+    # AckermannKinematics clamps to the measured 0.156 m/s drivetrain ceiling
+    # regardless of the configured cap, and the lookahead change genuinely
+    # improved path-tracking accuracy (p90 cross-track 12.9->5.1 cm) without
+    # moving the sign-collision rate at all (16/16 at every value 0.10-0.40).
+    # See ``platform/robot/docs/sign-avoidance-investigation.md``. That
+    # history still applies to whatever gets written under CHALLENGES_ROOT:
+    # populate an overlay file only with a measurement that survives the
+    # current model, not a guess.
 
     @classmethod
     def _from_mapping(cls, data: dict[str, object]) -> NavigationTuning:
@@ -343,15 +353,25 @@ class NavigationTuning:
         return cls._from_mapping(data)
 
     @classmethod
-    def load_default(cls) -> NavigationTuning:
-        """Load the checked-in DEFAULT_CONFIG_DIR TOML tree, with any active hardware profile overlaid.
+    def load_default(cls, challenge: ScenarioType | None = None) -> NavigationTuning:
+        """Load the checked-in DEFAULT_CONFIG_DIR TOML tree, with any active hardware profile
+        and (if given) a challenge-scoped overlay from CHALLENGES_ROOT layered on top.
 
         The normal way to construct a NavigationTuning in production code --
         falls back to hardcoded per-group defaults for any file (or the
         whole directory) that isn't present, so it's also safe to call from
         a test/sim context that doesn't have the full repo checked out.
+
+        ``challenge`` is optional and additive: omitting it (the default)
+        reproduces the pre-existing behaviour exactly. When given, the
+        challenge overlay merges last -- after the hardware profile -- since
+        challenge-scoped navigation tuning is more specific to the immediate
+        run than a hardware profile's own navigation defaults.
         """
-        return cls.load_from_toml_dirs([DEFAULT_CONFIG_DIR, *profile_dirs()])
+        dirs = [DEFAULT_CONFIG_DIR, *profile_dirs()]
+        if challenge is not None:
+            dirs.append(CHALLENGES_ROOT / challenge.value)
+        return cls.load_from_toml_dirs(dirs)
 
     @classmethod
     def load_from_json(cls, path: Path | str) -> NavigationTuning:

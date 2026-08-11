@@ -54,6 +54,8 @@ status = "/motor/status"
 [challenge_mode]
 # Challenge-mode jumper state, published by the Pi Zero (which the wire is attached to).
 jumper_inserted = "/challenge_mode/jumper_inserted"
+# Resolved ScenarioType ("open"/"obstacles"), published by state_machine_node once latched.
+active = "/challenge_mode/active"
 
 [button]
 # Button events from button_node on the Pi Zero.
@@ -66,3 +68,9 @@ hold = "/button/hold"
 telemetry_summary = "/ui/telemetry_summary"
 # Live mirror of the OLED panel, published by oled_display_node.
 oled_mirror = "/ui/oled_mirror"
+
+[bag_recorder]
+# The run directory bag_recorder_node just started writing to (latched), so a
+# separate process (vision_node's per-run video recorder) can write into the
+# same directory as the mcap.
+run_path = "/bag_recorder/run_path"
