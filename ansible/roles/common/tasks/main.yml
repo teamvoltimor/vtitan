@@ -318,21 +318,33 @@
   notify: Restart journald
 
 # Optional dev tooling, off by default (see install_extra_tools in
-# defaults/main.yml). windscribe-cli ships no apt repo -- it's a standalone
-# per-arch .deb, so windscribe_deb_url has to be supplied (its real download
-# page/version), not guessed here.
-- name: Fail fast if windscribe_deb_url is missing
-  ansible.builtin.fail:
-    msg: >-
-      install_extra_tools is true but windscribe_deb_url is empty -- pass
-      -e windscribe_deb_url=<arm64 .deb URL from https://windscribe.com/guides/linux>
-  when: install_extra_tools | bool and not windscribe_deb_url
+# defaults/main.yml). windscribe-cli ships no apt repo and windscribe.com's
+# download page is JS-gated with no stable direct URL, so the arm64 .deb has
+# to be browser-downloaded by hand and staged onto the control node (the
+# Pi 5) via `task windows:stage-windscribe-deb DEB=<path>` before this runs.
+- name: Check whether the windscribe .deb is staged on the control node
+  ansible.builtin.stat:
+    path: "{{ windscribe_deb_path }}"
+  delegate_to: localhost
+  become: false
+  register: windscribe_deb_stat
+  when: install_extra_tools | bool
   tags: [extras]
 
-- name: Download windscribe-cli .deb (optional extra tooling)
+- name: Fail fast if the windscribe .deb isn't staged
+  ansible.builtin.fail:
+    msg: >-
+      install_extra_tools is true but {{ windscribe_deb_path }} doesn't
+      exist on the control node -- download the arm64 .deb from
+      https://windscribe.com/download and run
+      `task windows:stage-windscribe-deb DEB=<downloaded path>` first.
+  when: install_extra_tools | bool and not windscribe_deb_stat.stat.exists
+  tags: [extras]
+
+- name: Copy windscribe-cli .deb to the target (optional extra tooling)
   become: true
-  ansible.builtin.get_url:
-    url: "{{ windscribe_deb_url }}"
+  ansible.builtin.copy:
+    src: "{{ windscribe_deb_path }}"
     dest: /tmp/windscribe-cli.deb
     mode: "0644"
   when: install_extra_tools | bool

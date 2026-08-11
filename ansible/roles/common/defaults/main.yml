@@ -13,9 +13,10 @@ hardware_groups:
 # want. Turn on with `-e install_extra_tools=true` or `--tags extras`.
 install_extra_tools: false
 
-# windscribe-cli ships no apt repo -- get the real URL from
-# https://windscribe.com/guides/linux (arm64 .deb) and pass it with
-# `-e windscribe_deb_url=...`; left empty so a missing value fails loudly
-# (see "Fail fast if windscribe_deb_url is missing" below) instead of
-# get_url attempting a request against an empty/guessed URL.
-windscribe_deb_url: ""
+# windscribe-cli ships no apt repo, and windscribe.com/download is a
+# JS-gated button with no stable direct-download URL -- so the arm64 .deb
+# has to be browser-downloaded by hand and staged onto the control node
+# (the Pi 5) first, via `task windows:stage-windscribe-deb DEB=<path>`.
+# This just points at where that lands; see "Fail fast if the windscribe
+# .deb isn't staged" below for what happens if it's missing.
+windscribe_deb_path: "/home/{{ ansible_user }}/vtitan-provisioning-cache/windscribe-cli_arm64.deb"
