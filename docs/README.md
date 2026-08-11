@@ -1,6 +1,6 @@
 ﻿# Team Voldemor
 <p align="center">
-    <img src="assets/images/logo/teamsteelbot.png" alt="" width="400">
+    <img src="../assets/voltimor-logo-square.png" alt="" width="400">
     <br>
     <i>Logo del Equipo</i>
 </p>
@@ -36,7 +36,6 @@ Ahora bien, la estructura de los archivos es la siguiente:
 	1. [Lista de Componentes](README.md#lista-de-componentes)
 
          1. [Raspberry Pi 5](README.md#raspberry-pi-5-16gb-ram)
-
          2. [Raspberry Pi Camera Module 3 Wide](README.md#raspberry-pi-camera-module-3-wide)
          3. [Raspberry Pi AI HAT+ (26 TOPS)](README.md#raspberry-pi-ai-hat-26-tops)
          4. [Raspberry Pi Zero W](README.md#raspberry-pi-zero-w)
@@ -48,7 +47,7 @@ Ahora bien, la estructura de los archivos es la siguiente:
          10. [SSD1306 OLED Display](README.md#raspberry-pi-camera-module-3-wide)
          11. [KL89576 DC to USB-C Converter](README.md#raspberry-pi-camera-module-3-wide)
          12. [Ovonic Air 11.1V Li-Po Battery](README.md#raspberry-pi-camera-module-3-wide)
-	2. [Diagramas de Conexiones](README.md#Diagramas-de-conexiones) 
+	2. [Diagrama de Conexiones](README.md#Diagrama-de-conexiones) 
         
          1.[Consumo energético](README.md#consumo-energético)
          
@@ -412,3 +411,15 @@ width="350">
 WIP
 
 ### Consumo Energético
+
+| **Componente**                    | **Cantidad** | **Voltaje** | **Coriente sin Carga** | **Corriente Nominal** | **Corriente Pico** |
+|-----------------------------------|--------------|-------------|------------------------|-----------------------|--------------------|
+| Raspberry Pi 5                    |      1       | 5.0V        | ~0.50A                 | ~1.50A - 2.50A        | 5.00A              |
+| Raspberry Pi Zero 2W              |      1       | 5.0V        | ~0.10A                 | ~0.35A - 0.50A        | 0.70A              |
+| Raspberry Pi Camera Module 3 Wide |      1       | 3.3V        | ~0.05A                 | ~0.25A                | 0.30A              |
+| Raspberry Pi AI HAT+ (26 TOPS)    |      1       | 5.0V        | ~0.10A                 | ~1.00A - 1.50A        | 2.50A              |
+| RPLiDAR C1                        |      1       | 5.0V        | ~0.20A                 | ~0.40A                | 0.60A              |
+| INJORA 14KG INJS014 Micro Servo   |      1       | 4.8V - 8.4V | ~0.02A                 | ~0.30A - 0.50A        | 1.80A (Stall)      |
+| 9-Axis IMU Gyroscope GY-BNO085    |      1       | 3.3V - 5.0V | ~0.003A                | ~0.015A               | 0.03A              |
+| Puente H L298N                    |      1       | 5V / 5-35V  | ~0.036A (Lógica)       | Según motor           | 2.00A por canal    |
+| **TOTAL**                         |    **8**     | **3.3V-5V** | **~1.009A**            | **~3.815A - 5.165A**  | **12.93A**         |
