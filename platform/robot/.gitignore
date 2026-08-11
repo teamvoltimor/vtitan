@@ -46,3 +46,7 @@ vtitan_runs_pulled/*
 !vtitan_runs_pulled/.gitkeep
 !vtitan_runs_pulled/*.py
 !vtitan_runs_pulled/*.sh
+
+# Rendered output from local preview/diagnostic scripts (e.g.
+# scripts/vision/preview_hud.py) -- generated on demand, never committed.
+scripts/*/output/

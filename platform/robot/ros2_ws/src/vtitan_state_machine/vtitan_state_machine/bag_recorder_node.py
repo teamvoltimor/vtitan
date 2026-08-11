@@ -99,6 +99,11 @@ class BagRecorderNode(Node):
 
         topics = RosTopicConfig.load_default()
         self.create_subscription(String, topics.state_machine.state, self._on_robot_state, _QOS_ROBOT_STATE)
+        # Lets a separate process (vision_node's per-run video recorder) write
+        # into the exact same run directory as the mcap, without the two nodes
+        # sharing any other state. Latched: a late-subscribing node still gets
+        # the current run's path immediately rather than waiting for the next one.
+        self._run_path_pub = self.create_publisher(String, topics.bag_recorder.run_path, _QOS_ROBOT_STATE)
 
         if self._enabled:
             self.get_logger().info(
@@ -145,6 +150,10 @@ class BagRecorderNode(Node):
             self._recorder = None
             return
 
+        # Published only once the recorder process actually launched -- a
+        # failed Popen above must not point a subscriber (e.g. vision_node's
+        # video recorder) at a directory that will never be created.
+        self._run_path_pub.publish(String(data=str(run_path)))
         self.get_logger().info(f"Race started - recording to {run_path}")
 
     def _stop_recording(self, reason: str) -> None:

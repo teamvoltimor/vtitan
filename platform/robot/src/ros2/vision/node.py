@@ -4,6 +4,7 @@ Subscribes to camera images and publishes JSON detections using LocalYoloDetecto
 """
 
 import json
+import time
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,6 +19,7 @@ from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from shared.config.ros_topics import RosTopicConfig
+from shared.domain.enums import RobotState, ScenarioType
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -33,6 +35,7 @@ from src.ros2.vision.detection_payload_keys import (
 )
 from src.vision import create_detector
 from src.vision.overlay import annotate
+from src.vision.video_recorder import VideoRecorder
 
 if TYPE_CHECKING:
     from src.hardware.camera.base import Driver as CameraDriver
@@ -65,6 +68,15 @@ class Config(HardwareBaseSettings):
     # Caps the annotated stream's publish rate independent of capture_fps, so a
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
+    # Per-run annotated video, written next to that run's mcap bag -- see
+    # docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
+    # Only ever active in camera_source='direct' mode, gated on RACING and the
+    # Obstacles Challenge (see _maybe_start_recording): Open Challenge never
+    # has anything worth boxing, and this must never touch Open's behaviour.
+    record_video: bool = True
+    # Width of the recorded artifact; height is derived at runtime from the
+    # actual captured frame's aspect ratio, never hardcoded.
+    video_width: int = 640
 
 
 # Matches state_machine_node's/telemetry_bridge_node's _QOS_TRANSIENT-style
@@ -80,11 +92,32 @@ _QOS_SYSTEM_STATUS = QoSProfile(
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
 )
 
+# Matches state_machine_node's /robot_state and /challenge_mode/active
+# publishers, and bag_recorder_node's /bag_recorder/run_path -- all
+# TRANSIENT_LOCAL + BEST_EFFORT, same rationale as _QOS_SYSTEM_STATUS above.
+# A RELIABLE reader against any of these BEST_EFFORT writers is an
+# incompatible QoS pair that DDS resolves by delivering nothing at all.
+_QOS_LATCHED_STATE = QoSProfile(
+    depth=1,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+)
+
+# How long to poll for bag_recorder_node's run directory to actually appear
+# on disk before giving up on video for this run. ros2 bag record creates its
+# output directory itself, asynchronously, sometime after its subprocess
+# starts -- rclpy init + discovery can take real wall-clock time. This node
+# must never create that directory itself: doing so would make the bag
+# process's own `-o <path>` call refuse to start, since rosbag2 requires the
+# output directory not to already exist.
+_RUN_PATH_POLL_INTERVAL_SEC = 0.1
+_RUN_PATH_POLL_TIMEOUT_SEC = 3.0
+
 
 class VisionNode(Node):
     """ROS2 node that runs YOLO detection on camera images."""
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # noqa: PLR0915 - constructor wires every subsystem together by design
         super().__init__("vision_detector")
 
         defaults = Config()
@@ -99,12 +132,14 @@ class VisionNode(Node):
         self.declare_parameter("annotated_topic", defaults.annotated_topic)
         self.declare_parameter("publish_raw", value=defaults.publish_raw)
         self.declare_parameter("debug_stream_fps", defaults.debug_stream_fps)
+        self.declare_parameter("record_video", value=defaults.record_video)
+        self.declare_parameter("video_width", defaults.video_width)
 
         camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
         detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
         model_path = self.get_parameter("model_path").get_parameter_value().string_value
         backend = self.get_parameter("backend").get_parameter_value().string_value
-        camera_source = self.get_parameter("camera_source").get_parameter_value().string_value
+        self._camera_source = self.get_parameter("camera_source").get_parameter_value().string_value
         capture_fps = self.get_parameter("capture_fps").get_parameter_value().double_value
         self._publish_annotated = self.get_parameter("publish_annotated").get_parameter_value().bool_value
         self._annotated_topic = self.get_parameter("annotated_topic").get_parameter_value().string_value
@@ -112,6 +147,8 @@ class VisionNode(Node):
         debug_stream_fps = self.get_parameter("debug_stream_fps").get_parameter_value().double_value
         self._annotated_min_interval = 1.0 / debug_stream_fps if debug_stream_fps > 0 else 0.0
         self._last_annotated_pub_time = 0.0
+        self._record_video = self.get_parameter("record_video").get_parameter_value().bool_value
+        video_width = self.get_parameter("video_width").get_parameter_value().integer_value
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
@@ -141,9 +178,28 @@ class VisionNode(Node):
         self._raw_publisher = self.create_publisher(Image, camera_topic, 1) if self._publish_raw else None
         self.add_on_set_parameters_callback(self._on_set_parameters)
 
+        # Per-run annotated video, colocated with that run's mcap bag -- only
+        # meaningful in direct-capture mode, since that's the only mode a real
+        # race actually runs in. Cheap to construct even when never started.
+        self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps)
+        self._racing = False
+        self._active_challenge: ScenarioType | None = None
+        self._run_path: str | None = None
+        self._run_path_poll_timer = None
+        self._run_path_poll_deadline = 0.0
+        if self._camera_source == "direct":
+            topics_state = topics.state_machine.state
+            self.create_subscription(String, topics_state, self._on_robot_state, _QOS_LATCHED_STATE)
+            self.create_subscription(
+                String, topics.challenge_mode.active, self._on_challenge_mode_active, _QOS_LATCHED_STATE,
+            )
+            self.create_subscription(
+                String, topics.bag_recorder.run_path, self._on_run_path, _QOS_LATCHED_STATE,
+            )
+
         self._camera: CameraDriver | None = None
         self._subscription = None
-        if camera_source == "direct":
+        if self._camera_source == "direct":
             self._start_direct_capture(capture_fps)
             self.get_logger().info(
                 f"Vision Node ready. Capturing directly at {capture_fps:g} fps, publishing to {detections_topic}"
@@ -255,6 +311,93 @@ class VisionNode(Node):
             return
         self._process(self._camera.to_rgb(frame))
 
+    def _on_robot_state(self, msg: String) -> None:
+        """Start/stop the per-run video recording.
+
+        Same RACING transition track_navigator_node and bag_recorder_node
+        already gate on.
+        """
+        was_racing = self._racing
+        self._racing = msg.data.strip().lower() == RobotState.RACING.value
+        if self._racing and not was_racing:
+            self._maybe_start_recording()
+        elif was_racing and not self._racing:
+            self._stop_recording()
+
+    def _on_challenge_mode_active(self, msg: String) -> None:
+        """Cache the jumper-resolved challenge; video is Obstacles-only.
+
+        Also the mid-race stop path: if the state machine cycles to a new
+        round with a different challenge without this node restarting (the
+        button alone can do that), a recording that's no longer valid for the
+        new challenge must not keep running.
+        """
+        self._active_challenge = ScenarioType.from_string(msg.data)
+        if not self._racing:
+            return
+        if self._active_challenge is ScenarioType.OBSTACLES:
+            self._maybe_start_recording()
+        else:
+            self._stop_recording()
+
+    def _on_run_path(self, msg: String) -> None:
+        """Cache bag_recorder_node's chosen run directory for this race."""
+        self._run_path = msg.data
+        if self._racing:
+            self._maybe_start_recording()
+
+    def _maybe_start_recording(self) -> None:
+        """Arm a poll for the bag run directory, if every gate is satisfied.
+
+        Gates: direct capture (recording is meaningless against a topic-fed
+        image stream), the operator's record_video toggle, the Obstacles
+        Challenge specifically (see the Config docstring), and a run path
+        having actually arrived from bag_recorder_node -- any of these can
+        still be pending when RACING fires, since this node, bag_recorder_node
+        and the challenge-mode resolution are three independent processes with
+        no ordering guarantee between their /robot_state deliveries.
+        """
+        if not self._record_video or self._camera_source != "direct":
+            return
+        if self._recorder.is_recording or self._run_path_poll_timer is not None:
+            return
+        if self._active_challenge is not ScenarioType.OBSTACLES:
+            return
+        if self._run_path is None:
+            return
+
+        self._run_path_poll_deadline = time.monotonic() + _RUN_PATH_POLL_TIMEOUT_SEC
+        self._run_path_poll_timer = self.create_timer(_RUN_PATH_POLL_INTERVAL_SEC, self._poll_for_run_path_dir)
+
+    def _poll_for_run_path_dir(self) -> None:
+        """Wait for bag_recorder_node's `ros2 bag record` to create its output directory.
+
+        See _RUN_PATH_POLL_TIMEOUT_SEC's docstring for why this node must
+        never create that directory itself.
+        """
+        assert self._run_path is not None  # noqa: S101 - only armed by _maybe_start_recording with a run path set
+        path = Path(self._run_path)
+        if path.is_dir():
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+            video_path = path / "video.mp4"
+            self._recorder.start(video_path)
+            self.get_logger().info(f"Recording annotated video to {video_path}")
+            return
+        if time.monotonic() >= self._run_path_poll_deadline:
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+            self.get_logger().warning(
+                f"Bag run directory {path} never appeared within {_RUN_PATH_POLL_TIMEOUT_SEC}s "
+                "- skipping video for this run",
+            )
+
+    def _stop_recording(self) -> None:
+        if self._run_path_poll_timer is not None:
+            self._run_path_poll_timer.cancel()
+            self._run_path_poll_timer = None
+        self._recorder.stop()
+
     def _image_callback(self, msg: Image) -> None:
         """Process incoming image and publish detections."""
         try:
@@ -307,12 +450,23 @@ class VisionNode(Node):
 
             if self._raw_publisher is not None:
                 self._raw_publisher.publish(self._to_image_msg(rgb))
-            if self._annotated_publisher is not None:
-                now = self.get_clock().now().nanoseconds / 1e9
-                due = now - self._last_annotated_pub_time >= self._annotated_min_interval
-                if self._annotated_min_interval <= 0 or due:
-                    self._annotated_publisher.publish(self._to_image_msg(annotate(rgb, detections)))
-                    self._last_annotated_pub_time = now
+            # Computed once, shared by the live debug topic and the recorder --
+            # neither is on during a race by default, so this costs nothing on
+            # a normal Open Challenge round.
+            if self._annotated_publisher is not None or self._recorder.is_recording:
+                annotated = annotate(rgb, detections)
+                if self._recorder.is_recording:
+                    # Every frame, unthrottled -- the debug topic's rate cap
+                    # below is for live bandwidth, not for what gets recorded.
+                    # submit() never blocks: a slow encoder drops frames
+                    # instead of stalling this (the Hailo inference) tick.
+                    self._recorder.submit(annotated)
+                if self._annotated_publisher is not None:
+                    now = self.get_clock().now().nanoseconds / 1e9
+                    due = now - self._last_annotated_pub_time >= self._annotated_min_interval
+                    if self._annotated_min_interval <= 0 or due:
+                        self._annotated_publisher.publish(self._to_image_msg(annotated))
+                        self._last_annotated_pub_time = now
 
         except (RuntimeError, ValueError, TypeError) as e:
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
@@ -354,6 +508,7 @@ class VisionNode(Node):
 
     def destroy_node(self) -> None:
         """Release the camera and detector, then tear down the node."""
+        self._stop_recording()  # closes an in-flight video the same way _camera.close() below does the camera
         if self._camera is not None:
             with suppress(Exception):
                 self._camera.close()

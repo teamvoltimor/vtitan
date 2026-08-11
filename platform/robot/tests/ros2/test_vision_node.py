@@ -5,27 +5,28 @@ No real YOLO/Hailo model or camera is touched: create_detector is mocked so
 these tests exercise the node's actual wiring, callback, and parameter-toggle
 logic against a fake detector.
 
-camera_source='direct' (Picamera2/rpicam-cli frame-grabbing) is out of scope
-here: it requires real camera hardware bindings that are legitimately absent
-on a dev machine, the same reason the direct-capture path is untested on
-sibling hardware nodes.
+camera_source='direct' *capture* (actually opening Picamera2/rpicam-cli) is
+out of scope here: it requires real camera hardware bindings that are
+legitimately absent on a dev machine, the same reason the direct-capture path
+is untested on sibling hardware nodes. The per-run video recording gating
+(TestVideoRecordingGating below) IS covered, though -- it only depends on
+camera_source='direct' being selected, not on a live capture; _start_direct_capture
+itself is mocked out so no real camera is ever touched.
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
 from unittest import mock
 
+import numpy as np
 import pytest
 import rclpy
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 from src.vision.detector import SignDetection, TrafficSignColor
-
-if TYPE_CHECKING:
-    import numpy as np
 
 
 @pytest.fixture()
@@ -352,3 +353,198 @@ class TestVisionNodeDestroy:
         node = VisionNode()
 
         node.destroy_node()  # must not raise
+
+
+@pytest.fixture()
+def direct_node_class(mock_detector, monkeypatch):
+    """VisionNode built for camera_source='direct' -- the only mode the per-run
+    video recorder is ever active in -- with the real camera connection and the
+    real VideoRecorder both mocked out. Real camera hardware bindings are
+    legitimately absent on a dev machine (see the module docstring); the real
+    VideoRecorder would spin up a genuine thread + cv2.VideoWriter per test,
+    which the wiring tests below don't need and shouldn't pay for.
+    """
+    monkeypatch.setenv("VISION_NODE_CAMERA_SOURCE", "direct")
+    with (
+        mock.patch("src.ros2.vision.node.create_detector", return_value=mock_detector),
+        mock.patch("src.ros2.vision.node.VisionNode._start_direct_capture"),
+        mock.patch("src.ros2.vision.node.VideoRecorder") as recorder_cls,
+    ):
+        from src.ros2.vision.node import VisionNode
+
+        yield VisionNode, recorder_cls
+
+
+class TestVideoRecordingGating:
+    """Per-run annotated video: RACING + Obstacles Challenge + a known run
+    path from bag_recorder_node, all three independently arriving in any
+    order -- see docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
+    """
+
+    def test_direct_mode_subscribes_to_the_three_gating_topics(self, ros_context, direct_node_class):
+        VisionNode, _ = direct_node_class
+        node = VisionNode()
+
+        assert len(node.get_subscriptions_info_by_topic("/robot_state")) == 1
+        assert len(node.get_subscriptions_info_by_topic("/challenge_mode/active")) == 1
+        assert len(node.get_subscriptions_info_by_topic("/bag_recorder/run_path")) == 1
+
+        node.destroy_node()
+
+    def test_topic_mode_never_subscribes_to_gating_topics(self, ros_context, vision_node_class):
+        """camera_source='topic' (sim/test) has no race concept -- must not wire up
+        state it will never act on."""
+        VisionNode, _ = vision_node_class
+        node = VisionNode()
+
+        assert node.get_subscriptions_info_by_topic("/robot_state") == []
+        assert node.get_subscriptions_info_by_topic("/challenge_mode/active") == []
+        assert node.get_subscriptions_info_by_topic("/bag_recorder/run_path") == []
+
+        node.destroy_node()
+
+    def test_starts_recording_once_racing_obstacles_and_run_path_all_known(
+        self, ros_context, direct_node_class, tmp_path,
+    ):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = False
+
+        node._on_challenge_mode_active(String(data="obstacles"))
+        node._on_run_path(String(data=str(tmp_path)))
+        node._on_robot_state(String(data="racing"))
+        node._poll_for_run_path_dir()  # directory already exists -- simulate the timer's first tick
+
+        recorder.start.assert_called_once_with(tmp_path / "video.mp4")
+
+        node.destroy_node()
+
+    def test_open_challenge_never_starts_recording(self, ros_context, direct_node_class, tmp_path):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = False
+
+        node._on_challenge_mode_active(String(data="open"))
+        node._on_run_path(String(data=str(tmp_path)))
+        node._on_robot_state(String(data="racing"))
+
+        recorder.start.assert_not_called()
+
+        node.destroy_node()
+
+    def test_record_video_false_never_starts_recording(self, ros_context, mock_detector, monkeypatch):
+        monkeypatch.setenv("VISION_NODE_CAMERA_SOURCE", "direct")
+        monkeypatch.setenv("VISION_NODE_RECORD_VIDEO", "false")
+        with (
+            mock.patch("src.ros2.vision.node.create_detector", return_value=mock_detector),
+            mock.patch("src.ros2.vision.node.VisionNode._start_direct_capture"),
+            mock.patch("src.ros2.vision.node.VideoRecorder") as recorder_cls,
+        ):
+            from src.ros2.vision.node import VisionNode
+
+            node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = False
+
+        node._on_challenge_mode_active(String(data="obstacles"))
+        node._on_run_path(String(data="/some/path"))
+        node._on_robot_state(String(data="racing"))
+
+        recorder.start.assert_not_called()
+
+        node.destroy_node()
+
+    def test_directory_never_appearing_gives_up_without_starting(self, ros_context, direct_node_class, tmp_path):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = False
+
+        missing = tmp_path / "never_created"
+        node._on_challenge_mode_active(String(data="obstacles"))
+        node._on_run_path(String(data=str(missing)))
+        node._on_robot_state(String(data="racing"))
+        # Force the timeout branch on the very first poll instead of waiting
+        # out the real _RUN_PATH_POLL_TIMEOUT_SEC.
+        node._run_path_poll_deadline = 0.0
+        node._poll_for_run_path_dir()
+
+        recorder.start.assert_not_called()
+        assert node._run_path_poll_timer is None  # gave up, not left armed forever
+
+        node.destroy_node()
+
+    def test_leaving_racing_stops_an_active_recording(self, ros_context, direct_node_class):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = True
+        node._racing = True
+
+        node._on_robot_state(String(data="finished"))
+
+        recorder.stop.assert_called_once()
+
+        node.destroy_node()
+
+    def test_challenge_flipping_away_from_obstacles_mid_race_stops_recording(
+        self, ros_context, direct_node_class,
+    ):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = True
+        node._racing = True
+
+        node._on_challenge_mode_active(String(data="open"))
+
+        recorder.stop.assert_called_once()
+
+        node.destroy_node()
+
+    def test_destroy_node_stops_an_active_recording(self, ros_context, direct_node_class):
+        VisionNode, recorder_cls = direct_node_class
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = True
+
+        node.destroy_node()
+
+        recorder.stop.assert_called_once()
+
+    def test_annotate_runs_for_recording_even_when_publish_annotated_is_off(
+        self, ros_context, direct_node_class, mock_detector,
+    ):
+        VisionNode, recorder_cls = direct_node_class
+        mock_detector.detect.return_value = [_sign_detection()]
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = True
+
+        with mock.patch("src.ros2.vision.node.annotate") as annotate_mock:
+            annotate_mock.return_value = np.zeros((2, 2, 3), dtype=np.uint8)
+            node._process(np.zeros((2, 2, 3), dtype=np.uint8))
+
+        annotate_mock.assert_called_once()
+        recorder.submit.assert_called_once()
+
+        node.destroy_node()
+
+    def test_neither_annotate_nor_submit_run_when_nothing_wants_annotated_frames(
+        self, ros_context, direct_node_class, mock_detector,
+    ):
+        VisionNode, recorder_cls = direct_node_class
+        mock_detector.detect.return_value = []
+        node = VisionNode()
+        recorder = recorder_cls.return_value
+        recorder.is_recording = False
+
+        with mock.patch("src.ros2.vision.node.annotate") as annotate_mock:
+            node._process(np.zeros((2, 2, 3), dtype=np.uint8))
+
+        annotate_mock.assert_not_called()
+        recorder.submit.assert_not_called()
+
+        node.destroy_node()
