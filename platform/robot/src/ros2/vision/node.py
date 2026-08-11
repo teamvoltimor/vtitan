@@ -17,7 +17,7 @@ from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, LaserScan
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState, ScenarioType
 from std_msgs.msg import String
@@ -35,7 +35,7 @@ from src.ros2.vision.detection_payload_keys import (
 )
 from src.vision import create_detector
 from src.vision.overlay import annotate
-from src.vision.video_recorder import VideoRecorder
+from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
 if TYPE_CHECKING:
     from src.hardware.camera.base import Driver as CameraDriver
@@ -68,11 +68,15 @@ class Config(HardwareBaseSettings):
     # Caps the annotated stream's publish rate independent of capture_fps, so a
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
-    # Per-run annotated video, written next to that run's mcap bag -- see
-    # docs/internal/plans/2026-08-11-run-video-recording-colocated-with-mcap.md.
-    # Only ever active in camera_source='direct' mode, gated on RACING and the
-    # Obstacles Challenge (see _maybe_start_recording): Open Challenge never
-    # has anything worth boxing, and this must never touch Open's behaviour.
+    # Per-run annotated video (detection boxes + navigation HUD), written next
+    # to that run's mcap bag -- see docs/internal/plans/2026-08-11-run-video-
+    # recording-colocated-with-mcap.md and docs/internal/plans/2026-08-11-
+    # navigation-hud-overlay-and-open-challenge-recording.md. Only ever active
+    # in camera_source='direct' mode, gated on RACING (see
+    # _maybe_start_recording) -- runs on both challenges, since Obstacles
+    # Challenge already carries strictly more load (SignRouter, sign
+    # discovery, parking) than Open Challenge ever will, on the same
+    # recording pipeline.
     record_video: bool = True
     # Width of the recorded artifact; height is derived at runtime from the
     # actual captured frame's aspect ratio, never hardcoded.
@@ -187,6 +191,12 @@ class VisionNode(Node):
         self._run_path: str | None = None
         self._run_path_poll_timer = None
         self._run_path_poll_deadline = 0.0
+        # HUD telemetry, cached from /nav_debug and /scan -- both None until
+        # each topic's first message arrives, which the HUD must render as
+        # "--"/no radar points rather than crash or block recording from
+        # starting (see draw_stats/draw_radar's own None-handling).
+        self._nav_debug: dict | None = None
+        self._scan: LaserScan | None = None
         if self._camera_source == "direct":
             topics_state = topics.state_machine.state
             self.create_subscription(String, topics_state, self._on_robot_state, _QOS_LATCHED_STATE)
@@ -196,6 +206,12 @@ class VisionNode(Node):
             self.create_subscription(
                 String, topics.bag_recorder.run_path, self._on_run_path, _QOS_LATCHED_STATE,
             )
+            # Plain depth-10 QoS, matching track_navigator_node's
+            # /nav_debug publisher exactly (create_publisher(String, ..., 10),
+            # rclpy's default RELIABLE/VOLATILE) -- NOT the TRANSIENT_LOCAL/
+            # BEST_EFFORT profile the three subscriptions above use.
+            self.create_subscription(String, topics.navigation.nav_debug, self._on_nav_debug, 10)
+            self.create_subscription(LaserScan, topics.sensors.scan, self._on_scan, qos_profile_sensor_data)
 
         self._camera: CameraDriver | None = None
         self._subscription = None
@@ -325,20 +341,13 @@ class VisionNode(Node):
             self._stop_recording()
 
     def _on_challenge_mode_active(self, msg: String) -> None:
-        """Cache the jumper-resolved challenge; video is Obstacles-only.
+        """Cache the jumper-resolved challenge for the HUD's CHALLENGE line.
 
-        Also the mid-race stop path: if the state machine cycles to a new
-        round with a different challenge without this node restarting (the
-        button alone can do that), a recording that's no longer valid for the
-        new challenge must not keep running.
+        No longer a recording gate -- Obstacles Challenge already carries
+        strictly more load than Open Challenge on the same pipeline (see
+        Config.record_video's docstring), so recording runs on both.
         """
         self._active_challenge = ScenarioType.from_string(msg.data)
-        if not self._racing:
-            return
-        if self._active_challenge is ScenarioType.OBSTACLES:
-            self._maybe_start_recording()
-        else:
-            self._stop_recording()
 
     def _on_run_path(self, msg: String) -> None:
         """Cache bag_recorder_node's chosen run directory for this race."""
@@ -346,22 +355,27 @@ class VisionNode(Node):
         if self._racing:
             self._maybe_start_recording()
 
+    def _on_nav_debug(self, msg: String) -> None:
+        """Cache the latest NavigatorDebugSnapshot JSON for the HUD's stats panels."""
+        self._nav_debug = json.loads(msg.data)
+
+    def _on_scan(self, msg: LaserScan) -> None:
+        """Cache the latest LIDAR scan for the HUD's mini radar."""
+        self._scan = msg
+
     def _maybe_start_recording(self) -> None:
         """Arm a poll for the bag run directory, if every gate is satisfied.
 
         Gates: direct capture (recording is meaningless against a topic-fed
-        image stream), the operator's record_video toggle, the Obstacles
-        Challenge specifically (see the Config docstring), and a run path
-        having actually arrived from bag_recorder_node -- any of these can
-        still be pending when RACING fires, since this node, bag_recorder_node
-        and the challenge-mode resolution are three independent processes with
-        no ordering guarantee between their /robot_state deliveries.
+        image stream), the operator's record_video toggle, and a run path
+        having actually arrived from bag_recorder_node -- the latter can
+        still be pending when RACING fires, since this node and
+        bag_recorder_node are independent processes with no ordering
+        guarantee between their /robot_state deliveries.
         """
         if not self._record_video or self._camera_source != "direct":
             return
         if self._recorder.is_recording or self._run_path_poll_timer is not None:
-            return
-        if self._active_challenge is not ScenarioType.OBSTACLES:
             return
         if self._run_path is None:
             return
@@ -460,7 +474,7 @@ class VisionNode(Node):
                     # below is for live bandwidth, not for what gets recorded.
                     # submit() never blocks: a slow encoder drops frames
                     # instead of stalling this (the Hailo inference) tick.
-                    self._recorder.submit(annotated)
+                    self._recorder.submit(self._build_frame_snapshot(annotated))
                 if self._annotated_publisher is not None:
                     now = self.get_clock().now().nanoseconds / 1e9
                     due = now - self._last_annotated_pub_time >= self._annotated_min_interval
@@ -472,6 +486,28 @@ class VisionNode(Node):
             self.get_logger().error(f"Error processing image: {type(e).__name__}: {e}")
         except Exception as e:  # noqa: BLE001
             self.get_logger().error(f"Unexpected error processing image: {e}")
+
+    def _build_frame_snapshot(self, annotated: np.ndarray) -> FrameSnapshot:
+        """Pair the just-annotated frame with whatever HUD telemetry is cached right now.
+
+        Cheap (no copying beyond what building the tuple/angle list needs) --
+        this runs on the same tick as inference, so it must stay that way.
+        Scan angles aren't carried on LaserScan directly; computed here from
+        angle_min/angle_increment, the same derivation every other LaserScan
+        consumer in this codebase uses.
+        """
+        scan = self._scan
+        scan_ranges = list(scan.ranges) if scan is not None else None
+        scan_angles = (
+            [scan.angle_min + i * scan.angle_increment for i in range(len(scan.ranges))] if scan is not None else None
+        )
+        return FrameSnapshot(
+            frame=annotated,
+            nav_debug=self._nav_debug,
+            scan_ranges=scan_ranges,
+            scan_angles=scan_angles,
+            active_challenge=self._active_challenge.value if self._active_challenge is not None else None,
+        )
 
     def _on_set_parameters(self, params: list[Parameter]) -> SetParametersResult:
         """Apply publish_annotated/debug_stream_fps changes without a restart.
