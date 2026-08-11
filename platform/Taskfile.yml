@@ -934,7 +934,13 @@ tasks:
       - pixi run run-{{.NODE}}
 
   robot:launch:
-    desc: "Launch a robot node set (usage: task robot:launch SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop) — requires build-ws first"
+    desc: >-
+      Launch a robot node set (usage: task robot:launch
+      SET=rpi5|rpi5-bench|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
+      — requires build-ws first. rpi5-bench bypasses state_machine_node's IMU/
+      LiDAR/Hailo/jumper readiness checks for bench testing on partial hardware
+      (e.g. camera+Hailo only) — stop the vtitan-pi5 systemd service first, it
+      launches the same node set and will collide otherwise.
     dir: robot
     requires:
       vars:

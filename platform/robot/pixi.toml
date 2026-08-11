@@ -181,6 +181,14 @@ run-navigator      = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 run 
 
 # ROS2 launch files (compose multiple nodes — requires build-ws first)
 launch-rpi5            = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py'", env = { PYTHONPATH = "." } }
+# Bench-testing variant: bypasses state_machine_node's IMU/LiDAR/Hailo/jumper
+# readiness checks (see rpi5_nodes.launch.py's is_simulation argument), for
+# hardware that isn't fully assembled yet. Never used by the boot-time
+# systemd service. Run `sudo systemctl stop vtitan-pi5.service` first --
+# this launches the same node set (state_machine/imu/vision/telemetry) and
+# will collide with the systemd-managed instance otherwise. Restart the
+# service when done (`sudo systemctl start vtitan-pi5.service`).
+launch-rpi5-bench       = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi5_nodes.launch.py is_simulation:=true'", env = { PYTHONPATH = "." } }
 launch-rpi-zero        = { cmd = "bash -c '. ros2_ws/install/setup.bash && ros2 launch vtitan_bringup rpi_zero_nodes.launch.py'", env = { PYTHONPATH = "." } }
 # No metadata argument: that is competition mode, where the navigator estimates
 # the layout from LIDAR instead of reading a scenario file. Pass metadata:=...
