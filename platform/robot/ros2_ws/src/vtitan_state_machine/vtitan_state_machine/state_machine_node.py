@@ -771,10 +771,16 @@ class StateMachineNode(Node, ResettableNode):
         # waiting anyway, so treating vision as required until then is safe.
         hailo_required = self.challenge_mode != ScenarioType.OPEN
 
+        # .is_ready off each status object, not the raw imu_ready/lidar_ready/
+        # hailo_ready locals -- those are only assigned in the non-simulation
+        # branch above, so referencing them here raised UnboundLocalError on
+        # every is_simulation=True boot, and always had (nothing previously
+        # exercised that path -- see rpi5_nodes.launch.py's is_simulation
+        # bench-test argument, added specifically to exercise it).
         all_ready = (
-            imu_ready
-            and lidar_ready
-            and (hailo_ready or not hailo_required)
+            imu_status.is_ready
+            and lidar_status.is_ready
+            and (hailo_status.is_ready or not hailo_required)
             and drive_status.is_ready
             and challenge_mode_status.is_ready
             and self.ip_fetch_complete

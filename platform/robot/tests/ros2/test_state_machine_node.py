@@ -116,6 +116,23 @@ class TestBootCheckTransition:
         assert node.state_machine.current_state == RobotState.BOOT_CHECK
         node.destroy_node()
 
+    def test_is_simulation_bypasses_hardware_checks_and_reaches_ready(self, ros_context, state_machine_node_class):
+        """Regression test: is_simulation=True used to raise UnboundLocalError
+        unconditionally in _check_system_status (all_ready referenced the raw
+        imu_ready/lidar_ready/hailo_ready locals, only assigned in the
+        non-simulation branch) -- nothing exercised this path until
+        rpi5_nodes.launch.py's bench-test argument was added. No sensor state
+        is marked ready here on purpose: is_simulation must not need any of it.
+        """
+        node = state_machine_node_class()
+        node.is_simulation = True
+        node.ip_fetch_complete = True  # required outside is_simulation's own bypass
+
+        node._handle_boot_check()  # must not raise
+
+        assert node.state_machine.current_state == RobotState.READY
+        node.destroy_node()
+
 
 class TestChallengeModeDetection:
     """Pin the fail-closed sampling behavior from the jumper spec (no blocking sleeps)."""
