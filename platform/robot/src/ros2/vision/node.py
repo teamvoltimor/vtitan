@@ -335,6 +335,7 @@ class VisionNode(Node):
         """
         was_racing = self._racing
         self._racing = msg.data.strip().lower() == RobotState.RACING.value
+        self.get_logger().info(f"_on_robot_state: {msg.data!r} -> racing={self._racing} (was {was_racing})")
         if self._racing and not was_racing:
             self._maybe_start_recording()
         elif was_racing and not self._racing:
@@ -352,6 +353,7 @@ class VisionNode(Node):
     def _on_run_path(self, msg: String) -> None:
         """Cache bag_recorder_node's chosen run directory for this race."""
         self._run_path = msg.data
+        self.get_logger().info(f"_on_run_path: {msg.data!r} (racing={self._racing})")
         if self._racing:
             self._maybe_start_recording()
 
@@ -373,6 +375,11 @@ class VisionNode(Node):
         bag_recorder_node are independent processes with no ordering
         guarantee between their /robot_state deliveries.
         """
+        self.get_logger().info(
+            f"_maybe_start_recording: record_video={self._record_video} "
+            f"camera_source={self._camera_source!r} is_recording={self._recorder.is_recording} "
+            f"poll_timer_armed={self._run_path_poll_timer is not None} run_path={self._run_path!r}",
+        )
         if not self._record_video or self._camera_source != "direct":
             return
         if self._recorder.is_recording or self._run_path_poll_timer is not None:
