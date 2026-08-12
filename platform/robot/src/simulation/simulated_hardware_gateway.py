@@ -19,7 +19,7 @@ from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import make_localizer
-from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
+from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry, sanitize_lidar_ranges
 from src.navigation.utils import wrap_angle as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
@@ -94,20 +94,6 @@ _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
 # Backward-compatible exports for existing imports.
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
 LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
-
-
-def _sanitize_ranges(ranges: np.ndarray) -> list[float]:
-    """Replace no-return rays with max range, exactly as the ROS2 node does.
-
-    Mirrors ``ROS2HardwareGateway._lidar_callback``: NaN silently drops out of
-    every downstream mask and inf reads as "far away", so both become max range
-    before the scan is handed to navigation. Duplicated here deliberately --
-    the point of emitting invalid returns in simulation is that navigation
-    receives the same *sanitised* scan it would on the robot, so the two paths
-    have to agree on what sanitised means.
-    """
-    cleaned = np.where(np.isfinite(ranges), ranges, RobotSpecs.LIDAR_MAX_RANGE)
-    return [float(v) for v in np.clip(cleaned, 0.0, RobotSpecs.LIDAR_MAX_RANGE)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,6 +410,26 @@ class SimulatedHardwareGateway:
             loc = self.tuning.localization
             self._localizer = make_localizer(walls, loc)
 
+    def reset_position(self, x: float, y: float) -> None:
+        """Re-seed the estimator's position, mirroring ``ROS2HardwareGateway``.
+
+        No scenario currently exercises a mid-run reset (the sim harness runs
+        one race per instance), but ``CoreNavigator`` is typed against
+        ``HardwareGateway`` and constructed with this gateway, so it has to
+        satisfy the same protocol the real one does.
+        """
+        self._estimator.reset_position(x, y)
+        if self._localizer is not None:
+            self._localizer.reset_tracking()
+
+    def reset_heading_reference(self) -> None:
+        """Re-zero the estimator's heading against the next IMU reading."""
+        self._estimator.reset_heading_reference()
+
+    def correct_heading_for_direction_change(self, delta_rad: float) -> None:
+        """Shift the estimator's heading by a known amount, applied in full."""
+        self._estimator.apply_yaw_correction(delta_rad)
+
     @property
     def position_error_m(self) -> float:
         """How far the pose the navigator sees is from ground truth (metres).
@@ -650,7 +656,7 @@ class SimulatedHardwareGateway:
             # simulator produced only finite ranges.
             invalid = self._rng.random(ranges.shape) < self._lidar_invalid_rate
             ranges = np.where(invalid, np.inf, ranges)
-        self._scan_ranges = _sanitize_ranges(ranges)
+        self._scan_ranges = sanitize_lidar_ranges(ranges)
         self._last_min_range = min(self._scan_ranges)
 
         if self._localizer is None:

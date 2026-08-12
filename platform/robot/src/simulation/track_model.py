@@ -370,14 +370,7 @@ class TrackModel:
         Used to validate that planned waypoints sit inside the corridor with at
         least ``clearance`` metres to the nearest *visual* wall.
         """
-        if not (
-            _TRACK_MIN + clearance <= x <= _TRACK_MAX - clearance
-            and _TRACK_MIN + clearance <= y <= _TRACK_MAX - clearance
-        ):
-            return False
-        iv = self._inner_visual
-        # Inside the inner block (with clearance shrinking the safe corridor) -> blocked.
-        return not (iv.x_min + clearance < x < iv.x_max - clearance and iv.y_min + clearance < y < iv.y_max - clearance)
+        return self._walls.point_in_free_space(x, y, clearance)
 
     @property
     def inner_block_visual(self) -> tuple[float, float, float, float]:

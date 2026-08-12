@@ -32,10 +32,7 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "imu" / "bno08x_mcp2221_uart_rvc.toml",
     )
 
-    # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory
-    # only succeeds when the nested QUATERNION__* env vars are set; mypy
-    # can't see that env resolution, hence the ignore.
-    quaternion: QuaternionConfig = Field(default_factory=lambda: QuaternionConfig())  # type: ignore[call-arg]
+    quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)
 
     port: str
     """Serial port for UART connection. If empty, the driver will attempt to auto-detect the port based on VID/PID."""

@@ -4,15 +4,15 @@ from pydantic import BaseModel, field_validator
 class QuaternionConfig(BaseModel):
     """Configuration for quaternion calculation from Euler angles."""
 
-    negate_yaw: bool
+    negate_yaw: bool = True
     """
     Whether to negate the yaw angle for ROS 2 CCW-positive Yaw. Depending on how the IMU is mounted, you may need to negate yaw to ensure that counterclockwise rotation corresponds to positive yaw angles in ROS 2.
     """
 
-    negate_pitch: bool
+    negate_pitch: bool = False
     """Whether to negate the pitch angle if it is inverted due to mounting orientation. Depending on how the IMU is mounted, you may need to negate pitch to ensure that nose-up corresponds to positive pitch angles in ROS 2."""
 
-    negate_roll: bool
+    negate_roll: bool = True
     """Whether to negate the roll angle if it is inverted due to mounting orientation. Depending on how the IMU is mounted, you may need to negate roll to ensure that banking right corresponds to positive roll angles in ROS 2."""
 
     euler_sequence: str = "xyz"

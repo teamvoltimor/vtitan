@@ -18,8 +18,13 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+import numpy as np
+from shared.config.constants import RobotSpecs
+
 if TYPE_CHECKING:
     from shared.domain.models import IMUReading, Pose, TrafficSignObservation
+
+    from src.navigation.track_geometry import TrackWalls
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -73,6 +78,21 @@ class WheelOdometry:
     stamp_s: float
 
 
+def sanitize_lidar_ranges(ranges: np.ndarray) -> list[float]:
+    """Replace non-finite LIDAR returns with max range, then clip to the sensor's valid span.
+
+    Slamtec drivers (and the simulator's synthetic dropout model) emit no-return
+    rays as NaN/inf: NaN silently drops out of every downstream mask and inf
+    reads as "far away", so both must become max range before anything else
+    touches the scan. Shared by :class:`~src.ros2.navigation.ros2_hardware_gateway.ROS2HardwareGateway`
+    and :class:`~src.simulation.simulated_hardware_gateway.SimulatedHardwareGateway`
+    so navigation is guaranteed to see the same sanitised scan on hardware and
+    in simulation.
+    """
+    cleaned = np.where(np.isfinite(ranges), ranges, RobotSpecs.LIDAR_MAX_RANGE)
+    return [float(v) for v in np.clip(cleaned, 0.0, RobotSpecs.LIDAR_MAX_RANGE)]
+
+
 class HardwareGateway(Protocol):
     """Interface for robot hardware interaction (ROS2 or simulation)."""
 
@@ -106,4 +126,25 @@ class HardwareGateway(Protocol):
         ``None`` is a normal state, not an error: a drive backend without an
         encoder has nothing to report, and on the real robot nothing has
         arrived until the first ``/joint_states`` message.
+        """
+
+    def set_believed_walls(self, walls: TrackWalls) -> None:
+        """Re-point the localizer at the layout the robot currently believes in.
+
+        Blind operation estimates corridor widths as it drives, so the wall
+        model scans are matched against changes mid-round; without this the
+        localizer keeps matching the layout assumed at startup.
+        """
+
+    def reset_position(self, x: float, y: float) -> None:
+        """Re-seed the estimator's position, e.g. at the start of a new race."""
+
+    def reset_heading_reference(self) -> None:
+        """Re-zero the estimator's heading against the next IMU reading."""
+
+    def correct_heading_for_direction_change(self, delta_rad: float) -> None:
+        """Shift the estimator's heading by a known amount, applied in full.
+
+        Used when blind direction inference overturns the direction assumed at
+        construction.
         """

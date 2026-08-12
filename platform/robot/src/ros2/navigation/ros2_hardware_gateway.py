@@ -29,7 +29,7 @@ from std_msgs.msg import String
 from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import make_localizer
 from src.navigation.planning.sign_discovery import detection_to_observation
-from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
+from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry, sanitize_lidar_ranges
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
@@ -212,10 +212,9 @@ class ROS2HardwareGateway(HardwareGateway):
         # and inf reads as "far away", so replace both with the max range before
         # clamping. Zero/near-zero (also emitted for invalid) is filtered later by
         # the collision controller's ``> 0.01`` guard.
-        raw[~np.isfinite(raw)] = RobotSpecs.LIDAR_MAX_RANGE
-        raw = np.clip(raw, 0.0, RobotSpecs.LIDAR_MAX_RANGE)
-        angles = (np.linspace(msg.angle_min, msg.angle_max, len(raw)) + _LIDAR_YAW_OFFSET_RAD).tolist()
-        self._latest_lidar = LidarScan(ranges_m=tuple(raw.tolist()), angles_rad=tuple(angles))
+        sanitized = sanitize_lidar_ranges(raw)
+        angles = (np.linspace(msg.angle_min, msg.angle_max, len(sanitized)) + _LIDAR_YAW_OFFSET_RAD).tolist()
+        self._latest_lidar = LidarScan(ranges_m=tuple(sanitized), angles_rad=tuple(angles))
         self._lidar_stamp = self._now()
 
         # Correct heading against the walls before solving for position. The
@@ -253,7 +252,7 @@ class ROS2HardwareGateway(HardwareGateway):
         est_x, est_y = self._localizer.estimate_position(
             (prior_pose.x, prior_pose.y),
             prior_pose.yaw,
-            raw.tolist(),
+            sanitized,
             angles,
             now_s=self._now(),
         )
