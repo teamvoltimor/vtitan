@@ -1,5 +1,5 @@
 ---
 # Confirmed live via `ssh rpi-zero-local` on 2026-07-30: the running unit is
-# named exactly voldemorbot-pi-zero.service.
+# named exactly vtitan-pi-zero.service.
 old_systemd_units:
-  - voldemorbot-pi-zero.service
+  - vtitan-pi-zero.service

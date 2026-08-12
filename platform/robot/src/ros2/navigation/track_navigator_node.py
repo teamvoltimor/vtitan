@@ -1228,7 +1228,7 @@ class TrackNavigator(Node, ResettableNode):
 
 
 def main(args: list[str] | None = None) -> None:
-    """Run the ROS2 track navigator node (``ros2 run voldemorbot_navigation track_navigator_node``)."""
+    """Run the ROS2 track navigator node (``ros2 run vtitan_navigation track_navigator_node``)."""
     parser = argparse.ArgumentParser(description="WRO 2026 track navigator ROS2 node.")
     parser.add_argument(
         "--metadata",

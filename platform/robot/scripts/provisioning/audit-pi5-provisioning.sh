@@ -106,7 +106,7 @@ systemctl is-enabled vtitan-boot-check-watchdog.timer >/dev/null 2>&1 && ok "boo
 systemctl is-active vtitan-boot-check-watchdog.timer >/dev/null 2>&1 && ok "boot-check watchdog timer active" || bad "boot-check watchdog timer not active"
 
 section "pi5 role: old worktree cleanup"
-for d in voldemorbot-auto-annotator voldemorbot-docs voldemorbot-hailo voldemorbot-hugo-docs voldemorbot-platform voldemorbot-session-backup; do
+for d in vtitan-auto-annotator vtitan-docs vtitan-hailo vtitan-hugo-docs vtitan-platform vtitan-session-backup; do
   [ -d "$HOME/$d" ] && bad "stale worktree ~/$d still present" || ok "no stale ~/$d"
 done
 

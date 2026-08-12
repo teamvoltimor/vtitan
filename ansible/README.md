@@ -55,8 +55,8 @@ tasks: WiFi band lock, SSH-trust bootstrap).
 ## Pre-rename checkout migration
 
 Real hardware as of 2026-07-29 still has the pre-rename checkout(s)
-(`~/voldemorbot`, remote `teamvoldemor/voldemorbot`, systemd units named
-`voldemorbot-pi5.service`/`voldemorbot-lidar.service`/`voldemorbot-pi-zero.service`)
+(`~/vtitan`, remote `teamvoldemor/vtitan`, systemd units named
+`vtitan-pi5.service`/`vtitan-lidar.service`/`vtitan-pi-zero.service`)
 — the org/repo rename to `teamvoltimor/vtitan` never landed on the robots.
 
 The `common` role always does a **fresh `gh repo clone`** into `~/vtitan`
@@ -76,8 +76,8 @@ fresh clone on 2026-07-30 after confirming (`git log --branches --not
 unpushed, so there was no history worth the extra complexity of preserving.
 
 The Pi 5 also had 5 sibling `git worktree` checkouts of other branches
-(`voldemorbot-auto-annotator`, `-docs`, `-hailo`, `-hugo-docs`, `-platform`)
-plus a stale manual `voldemorbot-session-backup` dir from an older rename.
+(`vtitan-auto-annotator`, `-docs`, `-hailo`, `-hugo-docs`, `-platform`)
+plus a stale manual `vtitan-session-backup` dir from an older rename.
 All confirmed clean the same way — the `pi5` role removes them
 (`old_worktree_dirs` in `inventory/group_vars/robot_pi5.yml`) once the main migration
 succeeds, leaving a single `~/vtitan` checkout. `ansible/` and `scripts/`
@@ -85,7 +85,7 @@ both live on `master` now, so nothing else needs that separate worktree —
 `ANSIBLE_DIR`/`PLATFORM_SCRIPTS` in the root `Taskfile.yml` point straight
 at `~/vtitan`.
 
-The old `voldemorbot-*.service` units are **not** touched by provisioning —
+The old `vtitan-*.service` units are **not** touched by provisioning —
 they keep running side by side with the new `vtitan-*.service` ones until
 you explicitly run `task rpi:cleanup:old-services` after confirming the new
 services work. Don't skip this step: two services fighting over the same

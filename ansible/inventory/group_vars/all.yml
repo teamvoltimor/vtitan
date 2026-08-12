@@ -20,12 +20,12 @@ mise_bin: "/home/{{ ansible_user }}/.local/bin/mise"
 task_bin: "/home/{{ ansible_user }}/.local/bin/task"
 
 # Pre-rename checkout name, still live on real hardware as of 2026-07-29
-# (org teamvoldemor/repo voldemorbot -> teamvoltimor/vtitan). common role
+# (org teamvoldemor/repo vtitan -> teamvoltimor/vtitan). common role
 # always clones fresh into repo_dir, then copies just the calibrated .env
 # (gitignored, untouched by git) across from here before removing this
 # directory. Safe to leave set after the migration is done fleet-wide — the
 # check is a no-op once this directory no longer exists.
-old_repo_dir: "/home/{{ ansible_user }}/voldemorbot"
+old_repo_dir: "/home/{{ ansible_user }}/vtitan"
 
 usb_gadget_subnet_prefix: 24
 usb_gadget_zero_ip: 192.168.250.1

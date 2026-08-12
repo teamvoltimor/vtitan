@@ -253,7 +253,7 @@ class NavigationTuning:
         Enables runtime configuration without code recompilation.
         Supports multiple tuning profiles for experimentation.
 
-        Requires the ``yaml`` extra: ``uv add "voldemorbot-shared[yaml]"``.
+        Requires the ``yaml`` extra: ``uv add "vtitan-shared[yaml]"``.
 
         Args:
             path: Path to YAML file with tuning parameters
@@ -434,7 +434,7 @@ class NavigationTuning:
     def to_yaml(self) -> str:
         """Export configuration as YAML string.
 
-        Requires the ``yaml`` extra: ``uv add "voldemorbot-shared[yaml]"``.
+        Requires the ``yaml`` extra: ``uv add "vtitan-shared[yaml]"``.
 
         Returns:
             YAML string representation of all parameters

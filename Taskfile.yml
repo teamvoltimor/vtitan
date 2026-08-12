@@ -15,7 +15,7 @@ vars:
   RPI_5_GADGET_IP: 192.168.250.2
   # scripts/ and ansible/ live on master alongside the robot runtime code, so
   # both are served from the single ~/vtitan checkout — no separate
-  # dev-tooling worktree needed (the old ~/voldemorbot-platform "platform"
+  # dev-tooling worktree needed (the old ~/vtitan-platform "platform"
   # branch worktree this used to point at is being retired, see roles/pi5).
   PLATFORM_SCRIPTS: "{{.HOME}}/vtitan/scripts"
   ANSIBLE_DIR: "{{.HOME}}/vtitan/ansible"
@@ -316,10 +316,10 @@ tasks:
         ansible-playbook "playbooks/$playbook" --list-tags
 
   rpi:cleanup:old-services:
-    desc: "Remove the pre-rename voldemorbot-*.service units on both boards — run manually, only after confirming the renamed vtitan-*.service units work (usage: task rpi:cleanup:old-services [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x])"
+    desc: "Remove the pre-rename vtitan-*.service units on both boards — run manually, only after confirming the renamed vtitan-*.service units work (usage: task rpi:cleanup:old-services [PI5_IP=x.x.x.x] [ZERO_IP=x.x.x.x])"
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - echo "Removing old voldemorbot-*.service units from Pi 5 ({{.PI5_IP}}) and Pi Zero ({{.ZERO_IP}})..."
+      - echo "Removing old vtitan-*.service units from Pi 5 ({{.PI5_IP}}) and Pi Zero ({{.ZERO_IP}})..."
       - ansible-playbook playbooks/cleanup_old_services.yml -e pi5_ip={{.PI5_IP}} -e zero_ip={{.ZERO_IP}} --ask-become-pass
     vars:
       PI5_IP: '{{.PI5_IP | default .RPI_LOCAL_IP}}'
