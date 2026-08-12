@@ -47,7 +47,7 @@ tasks:
     cmds:
       - |
         echo "
-        VOLDEMORBOT PLATFORM — Taskfile Commands
+        vTitan PLATFORM — Taskfile Commands
 
         Convention: module:verb (e.g. backend:test, sim:gazebo).
         Cross-cutting umbrellas stay bare verbs (install, test, lint, clean).
@@ -900,6 +900,49 @@ tasks:
       PI5_HOST: '{{.PI5_HOST | default ""}}'
     cmds:
       - '"{{.BASH}}" vtitan_videos_pulled/push-videos-to-pi5.sh{{if .PATTERN}} {{.PATTERN}}{{end}}'
+
+  robot:bench-hud:start:
+    desc: >-
+      Start a bench-mode vision/HUD recording test session (usage: task
+      robot:bench-hud:start [PI5_HOST=user@host]). Run FROM a dev machine.
+      Stops vtitan-pi5.service, launches SET=rpi5-bench, and simulates a
+      short_press to enter RACING so the per-run recorder starts. Pairs with
+      robot:bench-hud:stop -- do not leave this running unattended, it
+      leaves the production service down. See robot:bench-hud:record for a
+      one-shot timed version.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-start.sh'
+
+  robot:bench-hud:stop:
+    desc: >-
+      Stop a bench-mode vision/HUD test session started by
+      robot:bench-hud:start (usage: task robot:bench-hud:stop
+      [PI5_HOST=user@host]). Run FROM a dev machine. Simulates long_press to
+      enter FINISHED (finalizing the video), tears down the bench launch,
+      restores vtitan-pi5.service if it was running before, and pulls the
+      recorded video into vtitan_videos_pulled/.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-stop.sh'
+
+  robot:bench-hud:record:
+    desc: >-
+      One-shot bench-mode vision/HUD recording test: start, record for
+      SECONDS_TO_RECORD, stop, and pull the video (usage: task
+      robot:bench-hud:record [SECONDS_TO_RECORD=20] [PI5_HOST=user@host]).
+      Run FROM a dev machine. Equivalent to robot:bench-hud:start, sleep,
+      robot:bench-hud:stop.
+    dir: robot
+    env:
+      PI5_HOST: '{{.PI5_HOST | default ""}}'
+      SECONDS_TO_RECORD: '{{.SECONDS_TO_RECORD | default ""}}'
+    cmds:
+      - '"{{.BASH}}" scripts/bench-hud-record.sh'
 
   robot:watch-vision:
     desc: >-
