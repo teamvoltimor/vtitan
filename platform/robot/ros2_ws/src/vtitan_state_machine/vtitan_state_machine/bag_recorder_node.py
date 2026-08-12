@@ -32,27 +32,18 @@ from typing import override
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState
 from std_msgs.msg import String
 
 from src.config.launch_settings import RaceLaunchDefaults
-
-# Must match state_machine_node's _QOS_TRANSIENT publisher on both policies, or
-# this subscription receives nothing at all -- a RELIABLE reader against that
-# BEST_EFFORT writer is an incompatible pair, and DDS resolves it by never
-# delivering (observed on hardware: "offering incompatible QoS. No messages will
-# be received").
-#
-# TRANSIENT_LOCAL matters for the same reason it does in track_navigator_node:
-# without it, a recorder started mid-race would sit idle until the state next
-# changed, so the round it was meant to capture would go unrecorded.
-_QOS_ROBOT_STATE = QoSProfile(
-    depth=1,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+from src.ros2.params import (
+    declare_and_get_bool_param,
+    declare_and_get_float_param,
+    declare_and_get_int_param,
+    declare_and_get_str_param,
 )
+from src.ros2.qos import QOS_LATCHED_STATE
 
 # Fallback only -- race.launch.py always passes "topics" explicitly, sourced
 # from RaceLaunchDefaults.bag_topics (platform/robot/src/config/launch_settings.py)
@@ -82,28 +73,24 @@ class BagRecorderNode(Node):
     def __init__(self) -> None:
         super().__init__("bag_recorder")
 
-        self.declare_parameter("bag_dir", "~/vtitan_runs")
-        self.declare_parameter("topics", _DEFAULT_TOPICS)
-        self.declare_parameter("max_runs", 20)
-        self.declare_parameter("max_total_gb", 4.0)
-        self.declare_parameter("enabled", True)  # noqa: FBT003 - rclpy API requires the value positionally
+        self.declare_parameter("topics", _DEFAULT_TOPICS)  # list param -- no scalar params.py getter fits
 
-        self._bag_dir = Path(self.get_parameter("bag_dir").value).expanduser()
+        self._bag_dir = Path(declare_and_get_str_param(self, "bag_dir", "~/vtitan_runs")).expanduser()
         self._topics = list(self.get_parameter("topics").value)
-        self._max_runs = int(self.get_parameter("max_runs").value)
-        self._max_total_bytes = int(float(self.get_parameter("max_total_gb").value) * _BYTES_PER_GB)
-        self._enabled = bool(self.get_parameter("enabled").value)
+        self._max_runs = declare_and_get_int_param(self, "max_runs", 20)
+        self._max_total_bytes = int(declare_and_get_float_param(self, "max_total_gb", 4.0) * _BYTES_PER_GB)
+        self._enabled = declare_and_get_bool_param(self, "enabled", default=True)
 
         self._recorder: subprocess.Popen[bytes] | None = None
         self._racing = False
 
         topics = RosTopicConfig.load_default()
-        self.create_subscription(String, topics.state_machine.state, self._on_robot_state, _QOS_ROBOT_STATE)
+        self.create_subscription(String, topics.state_machine.state, self._on_robot_state, QOS_LATCHED_STATE)
         # Lets a separate process (vision_node's per-run video recorder) write
         # into the exact same run directory as the mcap, without the two nodes
         # sharing any other state. Latched: a late-subscribing node still gets
         # the current run's path immediately rather than waiting for the next one.
-        self._run_path_pub = self.create_publisher(String, topics.bag_recorder.run_path, _QOS_ROBOT_STATE)
+        self._run_path_pub = self.create_publisher(String, topics.bag_recorder.run_path, QOS_LATCHED_STATE)
 
         if self._enabled:
             self.get_logger().info(

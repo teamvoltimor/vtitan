@@ -23,3 +23,20 @@ QOS_LATCHED_STATE = QoSProfile(
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
 )
+
+# RELIABLE variant of the above, for the one pair (challenge_mode_node's
+# jumper_inserted publisher <-> state_machine_node's subscriber) that must not
+# silently drop a reading: unlike the BEST_EFFORT profiles above, nothing else
+# republishes the jumper state on a tick loop to paper over a dropped sample.
+QOS_LATCHED_STATE_RELIABLE = QoSProfile(
+    depth=1,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+)
+
+# Depth=1, BEST_EFFORT, default (VOLATILE) durability -- a late subscriber
+# gets nothing until the next publish, unlike QOS_LATCHED_STATE. For live
+# per-tick readouts (lap count, UI summary, button hold-progress) where a
+# late subscriber catching the next tick is fine and latching the stale value
+# from before it existed would be wrong.
+QOS_LIVE_READOUT = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)

@@ -21,6 +21,8 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 
+from src.ros2.params import declare_and_get_str_param
+
 logger = logging.getLogger(__name__)
 
 # Duration of each timed phase (seconds).
@@ -56,9 +58,8 @@ class SimpleRobotDriver(Node):
         self._duration = duration
         self._start_time = time.time()
 
-        self.declare_parameter("cmd_vel_topic", "/wro_robot/cmd_vel")
         self.shutdown_requested = False
-        cmd_vel_topic = self.get_parameter("cmd_vel_topic").get_parameter_value().string_value
+        cmd_vel_topic = declare_and_get_str_param(self, "cmd_vel_topic", "/wro_robot/cmd_vel")
 
         self._vel_publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
 

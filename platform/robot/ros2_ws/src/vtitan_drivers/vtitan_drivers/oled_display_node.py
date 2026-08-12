@@ -35,7 +35,6 @@ from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import Image as ImageMsg
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32, String
@@ -46,6 +45,7 @@ from src.hardware.display.ssd1306 import (
     RawI2CDriver,
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
 from src.state_machine import RobotState, ScenarioType
 
 if TYPE_CHECKING:
@@ -125,37 +125,17 @@ Treated as "no IP" rather than printed: at competition there is no network, so
 these are the normal case, not a fault worth a line on a 128x64 display.
 """
 
-_QOS_LATCHED = QoSProfile(
-    depth=1,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-)
-"""Matches state_machine_node's latched publishers.
-
-The display is a late subscriber by nature -- it lives on the Pi Zero and is
-restarted independently of the Pi 5 -- so it has to request the latched value
-rather than wait for the next transition, which may be minutes away or may
-already have happened. TRANSIENT_LOCAL durability covers that.
-
-Reliability is BEST_EFFORT, not RELIABLE, on purpose (as of 2026-07-28): a
-RELIABLE publisher blocks its own publish() call until this reader acks, and
-this board was measured stalling for 30+ seconds under its own CPU/memory
-contention -- which was blocking state_machine_node's /robot_state publish()
-on the Pi 5 right along with it, the direct cause of the OLED being seen
-stuck on a stale BOOT_CHECK page well after the robot had actually reached
-READY. A RELIABLE publisher is required to match a RELIABLE subscriber
-exactly (durability may only be offered >=, reliability must match), so this
-side has to drop to BEST_EFFORT too, not just tolerate it.
-"""
-
-_QOS_UI_SUMMARY = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
-"""Matches telemetry_bridge_node's publisher: BEST_EFFORT so a slow frame on
-this board (I2C write stalls under CPU/memory contention -- see
-telemetry_bridge_node.py's _QOS_UI_SUMMARY for the full story) can never
-make that publisher's own .publish() call block and stall its whole
-pipeline. A RELIABLE subscriber cannot receive from a BEST_EFFORT
-publisher at all, so this side has to match, not just be compatible.
-"""
+# QOS_LATCHED_STATE (src/ros2/qos.py) matches state_machine_node's latched
+# publishers. The display is a late subscriber by nature -- it lives on the
+# Pi Zero and is restarted independently of the Pi 5 -- so it has to request
+# the latched value rather than wait for the next transition, which may be
+# minutes away or may already have happened.
+#
+# QOS_LIVE_READOUT (src/ros2/qos.py) matches telemetry_bridge_node's
+# publisher: BEST_EFFORT so a slow frame on this board (I2C write stalls
+# under CPU/memory contention -- see telemetry_bridge_node.py's
+# QOS_LIVE_READOUT for the full story) can never make that publisher's own
+# .publish() call block and stall its whole pipeline.
 
 _DEG_PER_REV = 360.0
 """/motor/drive_speed reports the wheel's angular speed in degrees/s (from real
@@ -291,7 +271,7 @@ class OLEDDisplayNode(LifecycleNode):
         # silently reporting a state the robot had left, which is worse than
         # showing nothing -- the button and state machine were both working and
         # the display was the only thing saying otherwise.
-        self.state_sub = self.create_subscription(String, topics.state_machine.state, self._state_callback, _QOS_LATCHED)
+        self.state_sub = self.create_subscription(String, topics.state_machine.state, self._state_callback, QOS_LATCHED_STATE)
         # Now safe to request latched here too: telemetry_bridge_node's
         # /system_status publisher was TRANSIENT_LOCAL-only VOLATILE, which is
         # exactly the same stale-display bug /robot_state hit above -- fixed
@@ -302,7 +282,7 @@ class OLEDDisplayNode(LifecycleNode):
             DiagnosticArray,
             topics.state_machine.system_status,
             self._diagnostics_callback,
-            _QOS_LATCHED,
+            QOS_LATCHED_STATE,
         )
         self.metrics_sub = self.create_subscription(
             String, topics.state_machine.race_metrics, self._metrics_callback, 10,
@@ -315,13 +295,13 @@ class OLEDDisplayNode(LifecycleNode):
             String,
             topics.button.hold,
             self._button_hold_callback,
-            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
+            QOS_LIVE_READOUT,
         )
         self.ui_summary_sub = self.create_subscription(
             String,
             topics.ui.telemetry_summary,
             self._ui_summary_callback,
-            _QOS_UI_SUMMARY,
+            QOS_LIVE_READOUT,
         )
         # ackermann_motor_node runs on this same board -- default (reliable,
         # volatile) QoS matches its create_lifecycle_publisher(..., 10) calls.

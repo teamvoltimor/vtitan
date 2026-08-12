@@ -8,10 +8,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
-from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
 from shared.domain.enums import GMR_CLASS_NAMES
-from shared.domain.models import Detection
+from shared.domain.models import Detection, SignColor
 
 from src.hardware.hailo.inferences import iter_nms_by_class
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
@@ -22,24 +21,13 @@ if TYPE_CHECKING:
     from src.hardware.hailo.base import Driver as HailoDriver
 
 
-class TrafficSignColor(Enum):
-    """Enumerated traffic sign colors for type-safe detection."""
-
-    RED = "red"
-    GREEN = "green"
-    MAGENTA = "magenta"
-
-    def __str__(self) -> str:
-        """Return the string value of the color."""
-        return self.value
-
-
 # Derived from the one declaration of the detector's class order, rather than
 # restated here -- this map and the driver's id-to-name map drifted apart from
 # it once already, and a mismatch swaps red for green silently.
-DEFAULT_CLASS_TO_COLOR: dict[int, TrafficSignColor] = {
-    class_id: TrafficSignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
+DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {
+    class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()
 }
+
 
 class BBoxFormat(Enum):
     """Output bounding-box coordinate convention."""
@@ -48,38 +36,25 @@ class BBoxFormat(Enum):
     ABSOLUTE = "absolute"
 
 
-class SignDetection(BaseModel):
-    """A detected traffic sign or parking block."""
+def _detection_from_bbox(color: SignColor, bbox: tuple[float, float, float, float], confidence: float) -> Detection:
+    """Build a Detection from a raw (x1, y1, x2, y2) bbox and its detected color.
 
-    color: TrafficSignColor
-    bbox: tuple[float, float, float, float]  # (x1, y1, x2, y2)
-    confidence: float
-    position_estimate: tuple[float, float] | None = None
-
-    def to_dict(self) -> dict:
-        """Convert detection to a dictionary for JSON serialization.
-
-        ``mode="json"`` is what makes this JSON-serializable: a plain
-        ``model_dump()`` leaves ``color`` as a ``TrafficSignColor`` member, and
-        the vision node's ``json.dumps`` then raises on every frame.
-        """
-        return self.model_dump(mode="json", include={"color", "bbox", "confidence"})
-
-    def to_detection(self) -> Detection:
-        """Convert to the shared domain Detection for interop with non-vision modules."""
-        x1, y1, x2, y2 = self.bbox
-        w = x2 - x1
-        h = y2 - y1
-        return Detection(
-            class_name=str(self.color),
-            confidence=self.confidence,
-            bbox=self.bbox,
-            x=(x1 + x2) / 2,
-            y=(y1 + y2) / 2,
-            width=w,
-            height=h,
-            area=w * h,
-        )
+    Shared by both detector backends so the bbox-center/width/height/area
+    derivation exists in exactly one place.
+    """
+    x1, y1, x2, y2 = bbox
+    w = x2 - x1
+    h = y2 - y1
+    return Detection(
+        class_name=color,
+        confidence=confidence,
+        bbox=bbox,
+        x=(x1 + x2) / 2,
+        y=(y1 + y2) / 2,
+        width=w,
+        height=h,
+        area=w * h,
+    )
 
 
 class DetectorConfig(HardwareBaseSettings):
@@ -100,18 +75,18 @@ class DetectorConfig(HardwareBaseSettings):
     model_config = SettingsConfigDict(env_prefix="detector_", toml_file=CONFIG_DIR / "vision" / "detector.toml")
 
     model_path: str = "yolov8n.pt"
-    class_to_color: dict[int, TrafficSignColor]
+    class_to_color: dict[int, SignColor]
     min_confidence: float = 0.45
     output_format: BBoxFormat = BBoxFormat.NORMALIZED
 
-    def get_color(self, class_id: int) -> TrafficSignColor | None:
+    def get_color(self, class_id: int) -> SignColor | None:
         """Get color for a class ID.
 
         Args:
             class_id: Model output class ID.
 
         Returns:
-            TrafficSignColor if mapping exists, None otherwise.
+            SignColor if mapping exists, None otherwise.
         """
         return self.class_to_color.get(class_id)
 
@@ -120,7 +95,7 @@ class DetectorBase(ABC):
     """Base class for vision detectors."""
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> list[SignDetection]:
+    def detect(self, image: np.ndarray) -> list[Detection]:
         """Detect objects in an RGB image."""
 
 
@@ -142,12 +117,12 @@ class LocalYoloDetector(DetectorBase):
         self.config = config
         self.model = YOLO(config.model_path)
 
-    def detect(self, image: np.ndarray) -> list[SignDetection]:
+    def detect(self, image: np.ndarray) -> list[Detection]:
         """Detect objects using Ultralytics YOLO."""
         # Perform inference
         results = self.model.predict(source=image, verbose=False)
 
-        detections: list[SignDetection] = []
+        detections: list[Detection] = []
         if not results:
             return detections
 
@@ -158,7 +133,7 @@ class LocalYoloDetector(DetectorBase):
 
             color = self.config.get_color(class_id)
             if color is not None:
-                detections.append(SignDetection(color=color, bbox=(x1, y1, x2, y2), confidence=conf))
+                detections.append(_detection_from_bbox(color, (x1, y1, x2, y2), conf))
 
         return detections
 
@@ -185,7 +160,7 @@ class HailoDetector(DetectorBase):
         with contextlib.suppress(Exception):
             self._driver.close()
 
-    def detect(self, image: np.ndarray) -> list[SignDetection]:
+    def detect(self, image: np.ndarray) -> list[Detection]:
         """Detect objects using Hailo 8 NPU."""
         shape = self._driver.get_input_shape()  # (H, W, C)
         h, w = shape[0], shape[1]
@@ -211,6 +186,6 @@ class HailoDetector(DetectorBase):
                 y1, x1 = ymin * scale_y, xmin * scale_x
                 y2, x2 = ymax * scale_y, xmax * scale_x
 
-            detections.append(SignDetection(color=color, bbox=(x1, y1, x2, y2), confidence=conf))
+            detections.append(_detection_from_bbox(color, (x1, y1, x2, y2), conf))
 
         return detections

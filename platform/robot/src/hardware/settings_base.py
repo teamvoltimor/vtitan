@@ -22,7 +22,6 @@ from typing import Annotated
 
 from pydantic import BeforeValidator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
-
 from shared.config.hardware_profile import active_profiles
 
 # settings_base.py -> hardware -> src -> robot

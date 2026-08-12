@@ -153,7 +153,7 @@ class TestVisionCallbackParsesDetections:
             msg.data = json.dumps(
                 [
                     {
-                        "class_name": "red_sign",
+                        "class_name": "red",
                         "confidence": 0.9,
                         "bbox": [10.0, 10.0, 20.0, 20.0],
                         "x": 15.0,
@@ -168,7 +168,7 @@ class TestVisionCallbackParsesDetections:
             gateway._vision_callback(msg)
 
             assert len(gateway._latest_detections) == 1
-            assert gateway._latest_detections[0].class_name == "red_sign"
+            assert gateway._latest_detections[0].class_name == "red"
             assert gateway._latest_detections[0].confidence == pytest.approx(0.9)
         finally:
             node.destroy_node()

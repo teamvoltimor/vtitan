@@ -61,7 +61,7 @@ class Waypoint:
 class Detection:
     """Computer vision object detection."""
 
-    class_name: str
+    class_name: SignColor
     confidence: float
     bbox: tuple[float, float, float, float]  # x_min, y_min, x_max, y_max
     x: float
@@ -193,10 +193,20 @@ class CorridorWidthMeasurement:
 
 
 class SignColor(StrEnum):
-    """Traffic sign color (per WRO rules)."""
+    """Detected object color/class from the vision pipeline.
+
+    RED/GREEN are traffic sign colors (per WRO rules); MAGENTA is the
+    parking-block class the same GMR detector emits (see
+    ``shared.domain.enums.GMR_CLASS_NAMES``). Kept as one enum -- rather than
+    a sign-only enum plus a separate vision-only one -- since both are the
+    same underlying detector output; :class:`TrafficSignObservation` only
+    ever gets built from RED/GREEN (see
+    ``src.navigation.planning.sign_discovery.detection_to_observation``).
+    """
 
     RED = "red"
     GREEN = "green"
+    MAGENTA = "magenta"
 
 
 @dataclass(slots=True, frozen=True)

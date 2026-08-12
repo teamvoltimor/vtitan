@@ -41,19 +41,15 @@ from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import (
-    QoSDurabilityPolicy,
-    QoSProfile,
-    QoSReliabilityPolicy,
-    qos_profile_sensor_data,
-)
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool, Float32, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
-from src.ros2.params import declare_and_get_float_param, declare_and_get_int_param
+from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LATCHED_STATE_RELIABLE, QOS_LIVE_READOUT
 from src.ros2.resettable_node import ResettableNode
 from src.state_machine import (
     RaceStatus,
@@ -66,25 +62,20 @@ from src.state_machine import (
     SystemStatus,
 )
 
-# Latched QoS for state/diagnostics — late-joining nodes see the last value
-# immediately (TRANSIENT_LOCAL durability). Reliability is BEST_EFFORT, not
-# RELIABLE, on purpose: RELIABLE's flow control holds a writer's publish()
-# call until the matched reader acks, and the Pi Zero's oled_display_node --
-# the only subscriber to either of these topics -- was measured stalling for
-# 30+ seconds under its own CPU/memory contention (see
-# telemetry_bridge_node.py's _QOS_UI_SUMMARY for the full story). A RELIABLE
-# /robot_state publisher would block this node's publish() for the same
-# duration, which is exactly why the OLED was seen stuck on a stale
-# BOOT_CHECK page well after the real state had moved on to READY. This is
-# safe to drop reliability on: _publish_state runs every tick of
-# _state_machine_loop (publisher_rate_hz, not just on transitions), so a
+# State/diagnostics use the shared QOS_LATCHED_STATE (see src/ros2/qos.py):
+# late-joining nodes see the last value immediately (TRANSIENT_LOCAL), and
+# reliability is BEST_EFFORT, not RELIABLE, on purpose -- RELIABLE's flow
+# control holds a writer's publish() call until the matched reader acks, and
+# the Pi Zero's oled_display_node -- the only subscriber to either of these
+# topics -- was measured stalling for 30+ seconds under its own CPU/memory
+# contention (see telemetry_bridge_node.py's QOS_LIVE_READOUT for the full
+# story). A RELIABLE /robot_state publisher would block this node's
+# publish() for the same duration, which is exactly why the OLED was seen
+# stuck on a stale BOOT_CHECK page well after the real state had moved on to
+# READY. This is safe to drop reliability on: _publish_state runs every tick
+# of _state_machine_loop (publisher_rate_hz, not just on transitions), so a
 # single dropped sample is corrected within one tick, not lost until the
 # next real transition.
-_QOS_TRANSIENT = QoSProfile(
-    depth=1,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-)
 
 # Reliable + 200 ms deadline for motor commands — missed deadlines surface as warnings.
 _QOS_ACKERMANN = QoSProfile(
@@ -179,8 +170,7 @@ class StateMachineNode(Node, ResettableNode):
         # simulator.launch.py doesn't launch the IMU/vision/LiDAR nodes, so those
         # sensor topics never publish under Gazebo -- BOOT_CHECK must not block
         # forever waiting for messages that will never arrive.
-        self.declare_parameter("is_simulation", value=False)
-        self.is_simulation: bool = self.get_parameter("is_simulation").get_parameter_value().bool_value
+        self.is_simulation: bool = declare_and_get_bool_param(self, "is_simulation", default=False)
         if self.is_simulation:
             self.get_logger().info("Running in SIMULATION mode -- hardware readiness checks bypassed")
 
@@ -198,7 +188,7 @@ class StateMachineNode(Node, ResettableNode):
 
         # Publishers — robot_state and system_status are TRANSIENT_LOCAL so late
         # subscribers (RViz, dashboard) receive the last value without waiting.
-        self.state_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.state, _QOS_TRANSIENT)
+        self.state_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.state, QOS_LATCHED_STATE)
         self.ackermann_pub: Publisher[AckermannDriveStamped] = self.create_publisher(
             AckermannDriveStamped,
             self._topics.commands.ackermann_cmd,
@@ -207,7 +197,7 @@ class StateMachineNode(Node, ResettableNode):
         self.diagnostics_pub: Publisher[DiagnosticArray] = self.create_publisher(
             DiagnosticArray,
             self._topics.state_machine.system_status,
-            _QOS_TRANSIENT,
+            QOS_LATCHED_STATE,
         )
         self.metrics_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.race_metrics, 10)
         # track_navigator_node has no other way to learn which challenge the
@@ -219,7 +209,7 @@ class StateMachineNode(Node, ResettableNode):
         # SYSTEM_RESET, which is what lets the robot switch challenges purely
         # from the button.
         self.challenge_mode_pub: Publisher[String] = self.create_publisher(
-            String, self._topics.challenge_mode.active, _QOS_TRANSIENT,
+            String, self._topics.challenge_mode.active, QOS_LATCHED_STATE,
         )
 
         # /race_metrics' current_velocity/current_steering used to only ever be set
@@ -274,7 +264,7 @@ class StateMachineNode(Node, ResettableNode):
             Int32,
             self._topics.navigation.laps_completed,
             self._on_laps_completed,
-            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
+            QOS_LIVE_READOUT,
         )
 
         # Sensor status tracking
@@ -289,18 +279,14 @@ class StateMachineNode(Node, ResettableNode):
         # topic rather than a local GPIO read (see _sample_challenge_mode).
         self._jumper_inserted: bool | None = None
         self._challenge_mode_wait_started = self.get_clock().now().nanoseconds / 1e9
+        # QOS_LATCHED_STATE_RELIABLE must match the publisher (challenge_mode_node):
+        # the mode is latched once at setup, so a late-joining subscriber has to
+        # receive the last value rather than wait for the next periodic publish.
         self.create_subscription(
             Bool,
             self._topics.challenge_mode.jumper_inserted,
             self._on_jumper_state,
-            QoSProfile(
-                depth=1,
-                reliability=QoSReliabilityPolicy.RELIABLE,
-                # Must match the publisher: the mode is latched once at setup,
-                # so a late-joining subscriber has to receive the last value
-                # rather than wait for the next periodic publish.
-                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            ),
+            QOS_LATCHED_STATE_RELIABLE,
         )
         self._challenge_mode_samples: deque[bool] = deque(maxlen=_CHALLENGE_MODE_SAMPLES_REQUIRED)
         self._challenge_mode_error: str | None = None

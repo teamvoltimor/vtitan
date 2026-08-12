@@ -26,12 +26,12 @@ import rclpy
 from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool
 
 from src.hardware.challenge_mode.driver import Driver as ChallengeModeDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.qos import QOS_LATCHED_STATE_RELIABLE
 
 NODE_NAME = "challenge_mode_node"
 
@@ -74,13 +74,10 @@ class ChallengeModeNode(Node):
     def __init__(self) -> None:
         super().__init__(NODE_NAME)
 
-        qos = QoSProfile(
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        )
         topics = RosTopicConfig.load_default()
-        self._publisher = self.create_publisher(Bool, topics.challenge_mode.jumper_inserted, qos)
+        self._publisher = self.create_publisher(
+            Bool, topics.challenge_mode.jumper_inserted, QOS_LATCHED_STATE_RELIABLE
+        )
 
         # The driver connects lazily, so constructing it touches no GPIO and
         # cannot fail here; a wiring or permissions fault surfaces on the first

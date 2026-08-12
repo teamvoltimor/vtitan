@@ -77,8 +77,14 @@ def detection_to_observation(
     """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
 
     This is the bridge between the ROS wire format (Detection) and the
-    internal world-coordinate observation used by ObservedSignMap.
+    internal world-coordinate observation used by ObservedSignMap. Returns
+    None for a non-sign detection (e.g. a MAGENTA parking-block class) --
+    previously this fell through an ``else GREEN`` default that silently
+    misclassified anything that wasn't literally "red", including a genuine
+    magenta detection, as a green sign.
     """
+    if det.class_name not in (SignColor.RED, SignColor.GREEN):
+        return None
     tuning = get_tuning(tuning)
     world = _detection_to_world(det, robot_pos, robot_yaw, tuning)
     if world is None:
@@ -87,7 +93,7 @@ def detection_to_observation(
     return TrafficSignObservation(
         world_x_m=world[0],
         world_y_m=world[1],
-        color=SignColor.RED if det.class_name == SignColor.RED else SignColor.GREEN,
+        color=det.class_name,
         confidence=det.confidence,
         detected_at_timestamp=0.0,
         bbox_xmin=int(x1),

@@ -19,7 +19,6 @@ from typing import Any, cast, override
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
@@ -46,7 +45,8 @@ from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
-from src.ros2.qos import QOS_LATCHED_STATE
+from src.ros2.params import declare_param
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
@@ -395,7 +395,7 @@ class TrackNavigator(Node, ResettableNode):
         self._laps_pub = self.create_publisher(
             Int32,
             self._topics.navigation.laps_completed,
-            QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT),
+            QOS_LIVE_READOUT,
         )
 
         # Full internal navigation state, every tick, regardless of phase --
@@ -434,12 +434,12 @@ class TrackNavigator(Node, ResettableNode):
 
     def _declare_parameters(self) -> None:
         """Declare this node's ROS2 parameters with their default values."""
-        self.declare_parameter("ackermann_cmd_topic", self._topics.commands.ackermann_cmd)
-        self.declare_parameter("lidar_topic", self._topics.sensors.scan)
-        self.declare_parameter("vision_topic", self._topics.sensors.vision_detections)
-        self.declare_parameter("imu_topic", self._topics.sensors.imu)
-        self.declare_parameter("joint_states_topic", self._topics.actuators.joint_states)
-        self.declare_parameter("is_simulation", value=False)
+        declare_param(self, "ackermann_cmd_topic", self._topics.commands.ackermann_cmd)
+        declare_param(self, "lidar_topic", self._topics.sensors.scan)
+        declare_param(self, "vision_topic", self._topics.sensors.vision_detections)
+        declare_param(self, "imu_topic", self._topics.sensors.imu)
+        declare_param(self, "joint_states_topic", self._topics.actuators.joint_states)
+        declare_param(self, "is_simulation", default=False)
 
     def _build_sign_router(self, *, direction: Direction, tuning: NavigationTuning) -> SignRouter | None:
         """Obstacles-only collaborator; ``None`` for Open.
