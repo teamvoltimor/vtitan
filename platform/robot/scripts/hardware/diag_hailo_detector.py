@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.hardware.hailo.base import Config as HailoConfig
 from src.hardware.hailo.hailo_8.driver import Driver
 from src.hardware.hailo.inferences import NmsFormatError, iter_nms_by_class
-from src.vision.detector import DEFAULT_CLASS_TO_COLOR
+from src.vision.detector import DEFAULT_CLASS_TO_COLOR, letterbox
 
 COLOURS = ("red", "green", "magenta")
 _SAMPLE_LIMIT = 4
@@ -110,7 +110,9 @@ def _probe(driver: Driver, config: HailoConfig, images: list[Path]) -> int:
         if bgr is None:
             print(f"!! unreadable: {path}")
             continue
-        resized_bgr = cv2.resize(bgr, (width, height))
+        # Letterbox, not a plain resize: matches HailoDetector.detect() and
+        # what the HEF's mAP was actually measured against.
+        resized_bgr = letterbox(bgr, height, width).image
         resized_rgb = cv2.cvtColor(resized_bgr, cv2.COLOR_BGR2RGB)
 
         results = {}

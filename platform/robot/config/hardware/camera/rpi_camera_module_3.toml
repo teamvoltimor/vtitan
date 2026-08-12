@@ -12,3 +12,28 @@ camera_inverted = false
 camera_rotation = 0
 camera_hflip = false
 camera_vflip = false
+
+# Focus, exposure, colour and noise controls that feed the Hailo detector.
+# See Config's field docstrings in driver.py for what each does and why.
+#
+# Defaults below are tuned for the WRO venue: an indoor room under
+# controlled artificial white light (fluorescent/cool-white LED panels),
+# not natural/daylight. Re-tune camera_awb_mode (and re-check the red/green
+# sign colour thresholds downstream) if testing near windows or outdoors --
+# daylight/cloudy colour temperature is not what these values assume.
+camera_af_mode = "continuous"          # "manual" | "auto" | "continuous"
+# camera_lens_position = 2.0           # dioptres (1/distance_m); switch af_mode to "manual" once bench-tested
+camera_af_speed = "fast"               # "normal" | "fast" -- shortens AF hunting/settle time while in auto/continuous
+
+camera_ae_exposure_mode = "short"      # "normal" | "short" | "long" -- venue is well-lit, bias toward less motion blur
+# camera_exposure_time_us = 8000       # set together with camera_analogue_gain to disable AE entirely
+camera_analogue_gain = 1.0
+
+camera_awb_mode = "fluorescent"        # "auto" | "tungsten" | "fluorescent" | "indoor" | "daylight" | "cloudy"
+# Closest built-in preset to typical WRO "white" artificial lighting. Bench-
+# validate on-site -- try "indoor" too if the venue's fixtures read cooler/
+# warmer than plain fluorescent tubes; a wrong fixed preset is worse than
+# "auto" for red/green sign classification, so confirm before competition.
+
+camera_noise_reduction_mode = "fast"   # "off" | "fast" | "high_quality" | "minimal"
+camera_sharpness = 1.2

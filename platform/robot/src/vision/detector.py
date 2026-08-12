@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import contextlib
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Self
 
 import cv2
+import numpy as np
 from pydantic_settings import SettingsConfigDict
 from shared.domain.enums import GMR_CLASS_NAMES
 from shared.domain.models import Detection, SignColor
@@ -16,9 +18,12 @@ from src.hardware.hailo.inferences import iter_nms_by_class
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 if TYPE_CHECKING:
-    import numpy as np
-
     from src.hardware.hailo.base import Driver as HailoDriver
+
+# Grey fill for letterbox padding -- matches hailo/src/constants.py's
+# LETTERBOX_PAD_COLOR and hailo/eval/metrics.py's LETTERBOX_PAD_COLOR, which
+# is what the HEF was calibrated, quantized and its mAP measured against.
+_LETTERBOX_PAD_VALUE = 114
 
 
 # Derived from the one declaration of the detector's class order, rather than
@@ -34,6 +39,48 @@ class BBoxFormat(Enum):
 
     NORMALIZED = "normalized"
     ABSOLUTE = "absolute"
+
+
+@dataclass(frozen=True, slots=True)
+class LetterboxTransform:
+    """A letterboxed frame plus what's needed to map its detections back to the source frame."""
+
+    image: np.ndarray
+    scale: float
+    pad_x: float
+    pad_y: float
+
+
+def letterbox(image: np.ndarray, target_h: int, target_w: int) -> LetterboxTransform:
+    """Resize onto a ``target_h`` x ``target_w`` grey canvas without distorting aspect ratio.
+
+    A plain ``cv2.resize`` to a square input stretches a 16:9 camera frame
+    non-uniformly, distorting every sign's proportions relative to what the
+    HEF was trained, quantized and mAP-measured against -- both
+    ``hailo/src/image.py``'s ``letterbox()`` (used to build the calibration/
+    eval sets) and Ultralytics' own preprocessing (used by
+    :class:`LocalYoloDetector`) letterbox instead. This mirrors that
+    transform for the Hailo runtime path.
+
+    Args:
+        image: Source frame, any resolution.
+        target_h: Model input height.
+        target_w: Model input width.
+
+    Returns:
+        The padded canvas plus the scale and pixel padding needed to map a
+        detection in canvas space back to *image*'s space.
+    """
+    h, w = image.shape[:2]
+    scale = min(target_h / h, target_w / w)
+    new_h, new_w = round(h * scale), round(w * scale)
+    resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    pad_x, pad_y = (target_w - new_w) / 2, (target_h - new_h) / 2
+    top, left = int(pad_y), int(pad_x)  # pad_x/pad_y are >= 0, so truncation is floor
+    canvas = np.full((target_h, target_w, image.shape[2]), _LETTERBOX_PAD_VALUE, dtype=image.dtype)
+    canvas[top : top + new_h, left : left + new_w] = resized
+    return LetterboxTransform(image=canvas, scale=scale, pad_x=pad_x, pad_y=pad_y)
 
 
 def _detection_from_bbox(color: SignColor, bbox: tuple[float, float, float, float], confidence: float) -> Detection:
@@ -163,12 +210,15 @@ class HailoDetector(DetectorBase):
     def detect(self, image: np.ndarray) -> list[Detection]:
         """Detect objects using Hailo 8 NPU."""
         shape = self._driver.get_input_shape()  # (H, W, C)
-        h, w = shape[0], shape[1]
-        # The HEF's input is UINT8 and the graph carries its own normalization,
-        # so the resized frame is fed through unscaled.
-        img_resized = cv2.resize(image, (w, h))
+        target_h, target_w = shape[0], shape[1]
+        # Letterbox rather than stretch: the HEF was calibrated, quantized and
+        # its mAP measured against aspect-ratio-preserving, padded input (see
+        # letterbox()'s docstring), not a distorted square. The HEF's input is
+        # UINT8 and the graph carries its own normalization, so the canvas is
+        # fed through unscaled.
+        transform = letterbox(image, target_h, target_w)
         # HailoRT takes the frame as HWC; a batch axis is rejected.
-        output = self._driver.infer(img_resized)
+        output = self._driver.infer(transform.image)
 
         detections = []
         for class_id, conf, (ymin, xmin, ymax, xmax) in iter_nms_by_class(output):
@@ -179,13 +229,19 @@ class HailoDetector(DetectorBase):
                 continue
 
             if self._config.output_format is BBoxFormat.NORMALIZED:
-                y1, x1 = ymin * image.shape[0], xmin * image.shape[1]
-                y2, x2 = ymax * image.shape[0], xmax * image.shape[1]
+                y1_px, x1_px = ymin * target_h, xmin * target_w
+                y2_px, x2_px = ymax * target_h, xmax * target_w
             else:
-                scale_y, scale_x = image.shape[0] / h, image.shape[1] / w
-                y1, x1 = ymin * scale_y, xmin * scale_x
-                y2, x2 = ymax * scale_y, xmax * scale_x
+                y1_px, x1_px = ymin, xmin
+                y2_px, x2_px = ymax, xmax
 
-            detections.append(_detection_from_bbox(color, (x1, y1, x2, y2), conf))
+            x1 = (x1_px - transform.pad_x) / transform.scale
+            y1 = (y1_px - transform.pad_y) / transform.scale
+            x2 = (x2_px - transform.pad_x) / transform.scale
+            y2 = (y2_px - transform.pad_y) / transform.scale
+            x1, x2 = np.clip((x1, x2), 0, image.shape[1])
+            y1, y2 = np.clip((y1, y2), 0, image.shape[0])
+
+            detections.append(_detection_from_bbox(color, (float(x1), float(y1), float(x2), float(y2)), conf))
 
         return detections
