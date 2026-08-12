@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
-from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata
+from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata, Waypoint
 
 from src.navigation.utils import wrap_angle
 
@@ -88,7 +88,7 @@ def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -
     )
 
 
-def cross_track_error(waypoints: list[tuple[float, float]], x: float, y: float) -> float:
+def cross_track_error(waypoints: list[Waypoint], x: float, y: float) -> float:
     """Perpendicular distance (metres) from ``(x, y)`` to the waypoint polyline.
 
     The minimum point-to-segment distance over every consecutive waypoint
@@ -96,7 +96,9 @@ def cross_track_error(waypoints: list[tuple[float, float]], x: float, y: float) 
     an injected pose disturbance.
     """
     best = math.inf
-    for (ax, ay), (bx, by) in pairwise(waypoints):
+    for a, b in pairwise(waypoints):
+        ax, ay = a.x, a.y
+        bx, by = b.x, b.y
         abx, aby = bx - ax, by - ay
         seg_len_sq = abx * abx + aby * aby
         if seg_len_sq == 0.0:
@@ -115,7 +117,7 @@ _MIN_WAYPOINTS_FOR_TURN = 3
 
 
 def path_turn_ahead(
-    waypoints: list[tuple[float, float]],
+    waypoints: list[Waypoint],
     waypoint_index: int,
     preview_distance_m: float,
 ) -> float:
@@ -148,8 +150,10 @@ def path_turn_ahead(
     travelled = 0.0
 
     for offset in range(count):
-        ax, ay = waypoints[(start + offset) % count]
-        bx, by = waypoints[(start + offset + 1) % count]
+        a = waypoints[(start + offset) % count]
+        b = waypoints[(start + offset + 1) % count]
+        ax, ay = a.x, a.y
+        bx, by = b.x, b.y
         seg_len = math.hypot(bx - ax, by - ay)
         if seg_len == 0.0:
             continue

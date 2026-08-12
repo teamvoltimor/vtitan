@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Pose
+from shared.domain.models import Pose, Waypoint
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.race_tracker import LapDetector
@@ -58,11 +58,11 @@ def _navigator(waypoints: list[tuple[float, float]], pose: Pose, tuning: Navigat
     gateway = FakeGateway(pose)
     nav = CoreNavigator(
         gateway=gateway,
-        waypoints=waypoints,
+        waypoints=[Waypoint(*wp) for wp in waypoints],
         num_laps=3,
         tuning=tuning,
         lap_detector=LapDetector(
-            start_pos=waypoints[0],
+            start_pos=Waypoint(*waypoints[0]),
             start_section=Section.SOUTH,
             direction=Direction.COUNTERCLOCKWISE,
         ),

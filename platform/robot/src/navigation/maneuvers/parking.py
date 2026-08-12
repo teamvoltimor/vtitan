@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import DictKeys, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Direction, ParkPhase, Section
-from shared.domain.models import BlockPosition, ParkingLot
+from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
@@ -279,20 +279,18 @@ class ParkController:
         return self._zone
 
     @property
-    def staging(self) -> tuple[float, float]:
+    def staging(self) -> Waypoint:
         """Staging position in front of the gap opening (world x, y)."""
         return self._staging
 
     def update(
         self,
-        robot_pos: tuple[float, float],
-        robot_yaw: float,
+        robot_pose: Pose,
     ) -> ParkCommand:
         """Compute next motor command.
 
         Args:
-            robot_pos: Current (x, y) world position of robot centre.
-            robot_yaw: Current heading (radians, 0=east, π/2=north).
+            robot_pose: Current world pose of robot centre (heading 0=east, π/2=north).
 
         Returns:
             ParkCommand with speed, normalised steering, and done flag.
@@ -311,23 +309,22 @@ class ParkController:
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         # Early exit: if already inside the zone at any phase, we're done.
-        pos_inside, yaw_ok = _inside_zone(robot_pos[0], robot_pos[1], robot_yaw, self._zone, self._context)
+        pos_inside, yaw_ok = _inside_zone(robot_pose.x, robot_pose.y, robot_pose.yaw, self._zone, self._context)
         if pos_inside and yaw_ok:
             logger.info("ParkController: DONE — already inside zone")
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
         if self._phase is ParkPhase.STAGE:
-            return self._handle_stage(robot_pos, robot_yaw)
-        return self._handle_enter(robot_pos, robot_yaw)
+            return self._handle_stage(robot_pose)
+        return self._handle_enter(robot_pose)
 
     # Phase handlers
 
     def _pursue_with_reposition(
         self,
-        robot_pos: tuple[float, float],
-        robot_yaw: float,
-        target: tuple[float, float],
+        robot_pose: Pose,
+        target: Waypoint,
         phase_name: ParkPhase,
     ) -> ParkCommand:
         """Curvature-based pure pursuit of ``target``, with reverse-and-reorient recovery.
@@ -350,14 +347,14 @@ class ParkController:
             self._reposition_frames_left -= 1
             return ParkCommand(linear=self._reposition_speed, steering=self._reposition_steer, phase=phase_name)
 
-        x_local, y_local = _local_frame(robot_pos, robot_yaw, target)
+        x_local, y_local = _local_frame(Waypoint(robot_pose.x, robot_pose.y), robot_pose.yaw, target)
 
         if x_local < 0:
             # Target is behind the robot: pure pursuit's curvature formula is only valid
             # for a roughly-forward target -- for a rearward one it can produce a
             # plausible-looking (non-saturated) steering command that actually drives away
             # from the target instead of toward it. Reverse immediately rather than trust it.
-            return self._start_reposition(robot_pos, robot_yaw, target, phase_name, "target behind")
+            return self._start_reposition(robot_pose, target, phase_name, "target behind")
 
         steer = _pure_pursuit_steer(x_local, y_local, self._context)
 
@@ -372,20 +369,19 @@ class ParkController:
             # (see the module-level comment). Reverse to open room instead of continuing to
             # orbit.
             reason = f"{self._saturated_ticks} saturated ticks"
-            return self._start_reposition(robot_pos, robot_yaw, target, phase_name, reason)
+            return self._start_reposition(robot_pose, target, phase_name, reason)
 
         return ParkCommand(linear=self._speed, steering=steer, phase=phase_name)
 
     def _start_reposition(
         self,
-        robot_pos: tuple[float, float],
-        robot_yaw: float,
-        target: tuple[float, float],
+        robot_pose: Pose,
+        target: Waypoint,
         phase_name: ParkPhase,
         reason: str,
     ) -> ParkCommand:
         """Latch a reverse-and-reorient recovery burst. See _pursue_with_reposition."""
-        bearing_err = _bearing_error(robot_pos, robot_yaw, target)
+        bearing_err = _bearing_error(robot_pose, target)
         logger.debug(
             "ParkController: %s reposition (%s, bearing_err=%.1f deg)",
             phase_name,
@@ -407,27 +403,23 @@ class ParkController:
 
     def _handle_stage(
         self,
-        robot_pos: tuple[float, float],
-        robot_yaw: float,
+        robot_pose: Pose,
     ) -> ParkCommand:
-        tx, ty = self._staging
-        rx, ry = robot_pos
-        dist = math.sqrt((tx - rx) ** 2 + (ty - ry) ** 2)
+        dist = math.sqrt((self._staging.x - robot_pose.x) ** 2 + (self._staging.y - robot_pose.y) ** 2)
 
         if self._reposition_frames_left <= 0 and dist < self._context.constants.pos_reach_dist_m:
             logger.debug("ParkController: STAGE → ENTER")
             self._phase = ParkPhase.ENTER
-            return self._handle_enter(robot_pos, robot_yaw)
+            return self._handle_enter(robot_pose)
 
-        return self._pursue_with_reposition(robot_pos, robot_yaw, (tx, ty), ParkPhase.STAGE)
+        return self._pursue_with_reposition(robot_pose, self._staging, ParkPhase.STAGE)
 
     def _handle_enter(
         self,
-        robot_pos: tuple[float, float],
-        robot_yaw: float,
+        robot_pose: Pose,
     ) -> ParkCommand:
         z = self._zone
-        rx, ry = robot_pos
+        rx, ry, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
 
         pos_inside, yaw_ok = _inside_zone(rx, ry, robot_yaw, z, self._context)
         if pos_inside and yaw_ok:
@@ -447,7 +439,7 @@ class ParkController:
             self._phase = ParkPhase.DONE
             return ParkCommand(linear=0.0, steering=0.0, done=True, phase=ParkPhase.DONE)
 
-        return self._pursue_with_reposition(robot_pos, robot_yaw, (z.gap_cx, z.gap_cy), ParkPhase.ENTER)
+        return self._pursue_with_reposition(robot_pose, Waypoint(z.gap_cx, z.gap_cy), ParkPhase.ENTER)
 
 
 # Pure helpers
@@ -515,28 +507,27 @@ def _build_zone(
     )
 
 
-def _staging_pos(zone: ParkZone, section: Section, context: ParkingContext) -> tuple[float, float]:
+def _staging_pos(zone: ParkZone, section: Section, context: ParkingContext) -> Waypoint:
     """Position directly in front of the gap opening, on the track side."""
     clearance = context.constants.approach_clearance
     if section is Section.SOUTH:
-        return zone.gap_cx, zone.y_max + clearance
+        return Waypoint(zone.gap_cx, zone.y_max + clearance)
     if section is Section.NORTH:
-        return zone.gap_cx, zone.y_min - clearance
+        return Waypoint(zone.gap_cx, zone.y_min - clearance)
     if section is Section.EAST:
-        return zone.x_min - clearance, zone.gap_cy
-    return zone.x_max + clearance, zone.gap_cy  # WEST
+        return Waypoint(zone.x_min - clearance, zone.gap_cy)
+    return Waypoint(zone.x_max + clearance, zone.gap_cy)  # WEST
 
 
 def _bearing_error(
-    robot_pos: tuple[float, float],
-    robot_yaw: float,
-    target: tuple[float, float],
+    robot_pose: Pose,
+    target: Waypoint,
 ) -> float:
     """Signed angle (radians) from the robot's heading to the bearing toward ``target``."""
-    dx = target[0] - robot_pos[0]
-    dy = target[1] - robot_pos[1]
+    dx = target.x - robot_pose.x
+    dy = target.y - robot_pose.y
     desired_yaw = math.atan2(dy, dx)
-    return _normalise_angle(desired_yaw - robot_yaw)
+    return _normalise_angle(desired_yaw - robot_pose.yaw)
 
 
 # Already defined above via _DEFAULT_PARKING_CONSTANTS

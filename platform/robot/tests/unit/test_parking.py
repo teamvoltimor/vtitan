@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import pytest
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.domain.enums import Direction, Section
-from shared.domain.models import BlockPosition, ParkingLot
+from shared.domain.models import BlockPosition, ParkingLot, Pose
 
 from src.navigation.maneuvers.parking import (
     ParkController,
@@ -283,7 +283,7 @@ def _simulate_park(
         )
 
     for step in range(max_steps):
-        cmd = ctrl.update((state.x, state.y), state.yaw)
+        cmd = ctrl.update(Pose(state.x, state.y, state.yaw))
         if cmd.done:
             return _finish(stopped=True, steps=step)
         state = kin.step(state, target_speed=cmd.linear, target_steer_norm=cmd.steering, dt=dt)
@@ -367,10 +367,10 @@ for _section, _cfg in (
     _staging = _staging_pos(_zone, _section, _PARKING_CONTEXT)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0
-        _pos = (_staging[0] + 0.15, _staging[1] + _sign * -0.02)
+        _pos = (_staging.x + 0.15, _staging.y + _sign * -0.02)
         _yaw = 0.0
     else:
-        _pos = (_staging[0] + (0.02 if _section is Section.EAST else -0.02), _staging[1] + 0.15)
+        _pos = (_staging.x + (0.02 if _section is Section.EAST else -0.02), _staging.y + 0.15)
         _yaw = math.pi / 2
     _DEGENERATE_CFGS[_section] = (_cfg, _pos, _yaw)
 
@@ -434,19 +434,19 @@ class TestParkControllerBasics:
         # Hold the robot at a genuinely parked pose: the lot centre, wall-parallel. Taken
         # from the zone rather than hardcoded, so it stays a parked pose if the geometry
         # moves (the old literal was a perpendicular pose that no longer qualifies).
-        parked_pose = ((ctrl.zone.gap_cx, ctrl.zone.gap_cy), ctrl.zone.target_yaw)
+        parked_pose = Pose(ctrl.zone.gap_cx, ctrl.zone.gap_cy, ctrl.zone.target_yaw)
         for _ in range(800):
-            cmd = ctrl.update(*parked_pose)
+            cmd = ctrl.update(parked_pose)
             if cmd.done:
                 break
         assert ctrl.is_done
-        cmd2 = ctrl.update(*parked_pose)
+        cmd2 = ctrl.update(parked_pose)
         assert cmd2.linear == 0.0
         assert cmd2.done
 
     def test_far_robot_drives_nonzero_speed(self):
         ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
-        cmd = ctrl.update((1.15, 2.5), 0.0)
+        cmd = ctrl.update(Pose(1.15, 2.5, 0.0))
         assert cmd.linear > 0
         assert not cmd.done
 
@@ -462,7 +462,7 @@ class TestParkControllerTimeout:
         ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=50)
 
         for _ in range(51):
-            cmd = ctrl.update((2.9, 2.9), 0.0)
+            cmd = ctrl.update(Pose(2.9, 2.9, 0.0))
         assert cmd.done
         assert ctrl.is_done
         assert ctrl.is_timed_out
@@ -471,9 +471,9 @@ class TestParkControllerTimeout:
 
     def test_successful_park_is_not_flagged_as_timed_out(self):
         ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=400)
-        parked_pose = ((ctrl.zone.gap_cx, ctrl.zone.gap_cy), ctrl.zone.target_yaw)
+        parked_pose = Pose(ctrl.zone.gap_cx, ctrl.zone.gap_cy, ctrl.zone.target_yaw)
         for _ in range(400):
-            cmd = ctrl.update(*parked_pose)
+            cmd = ctrl.update(parked_pose)
             if cmd.done:
                 break
         assert ctrl.is_done

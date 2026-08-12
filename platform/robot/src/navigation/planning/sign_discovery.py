@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
-from shared.domain.models import SignColor, TrafficSignObservation
+from shared.domain.models import Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _dist2d
@@ -70,8 +70,7 @@ class SignSpec:
 
 def detection_to_observation(
     det: Detection,
-    robot_pos: tuple[float, float],
-    robot_yaw: float,
+    robot_pose: Pose,
     tuning: NavigationTuning | None = None,
 ) -> TrafficSignObservation | None:
     """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
@@ -86,7 +85,7 @@ def detection_to_observation(
     if det.class_name not in (SignColor.RED, SignColor.GREEN):
         return None
     tuning = get_tuning(tuning)
-    world = _detection_to_world(det, robot_pos, robot_yaw, tuning)
+    world = _detection_to_world(det, (robot_pose.x, robot_pose.y), robot_pose.yaw, tuning)
     if world is None:
         return None
     x1, y1, x2, y2 = det.bbox
@@ -213,13 +212,13 @@ class ObservedSignMap:
     def observe(
         self,
         observations: list[TrafficSignObservation] | None,
-        robot_pos: tuple[float, float],
+        robot_pos: Waypoint,
     ) -> None:
         """Fold one frame of world-coordinate observations into the map.
 
         Args:
             observations: World-coordinate traffic sign observations.
-            robot_pos: Robot (x, y) position, used for range gating.
+            robot_pos: Robot position, used for range gating.
         """
         if not observations:
             return
@@ -230,18 +229,18 @@ class ObservedSignMap:
             if obs.color not in (SignColor.RED, SignColor.GREEN):
                 continue
 
-            world = (obs.world_x_m, obs.world_y_m)
+            world = Waypoint(obs.world_x_m, obs.world_y_m)
             observed_range = _dist2d(world, robot_pos)
             if observed_range > self._max_ingest_range_m:
                 continue
 
             self._fold(world, observed_range, obs)
 
-    def _fold(self, world: tuple[float, float], observed_range: float, obs: TrafficSignObservation) -> None:
+    def _fold(self, world: Waypoint, observed_range: float, obs: TrafficSignObservation) -> None:
         """Merge one projected observation into the nearest track, or start one."""
         track = self._nearest_track(world)
         if track is None:
-            track = _SignTrack(x=world[0], y=world[1], best_range=observed_range)
+            track = _SignTrack(x=world.x, y=world.y, best_range=observed_range)
             self._tracks.append(track)
 
         track.hits += 1
@@ -252,14 +251,14 @@ class ObservedSignMap:
         # running estimate, and averaging would only let worse readings back in.
         if observed_range <= track.best_range:
             track.best_range = observed_range
-            track.x, track.y = world
+            track.x, track.y = world.x, world.y
 
-    def _nearest_track(self, world: tuple[float, float]) -> _SignTrack | None:
+    def _nearest_track(self, world: Waypoint) -> _SignTrack | None:
         """The closest existing track within ``self._association_dist_m``, if any."""
         best: _SignTrack | None = None
         best_dist = self._association_dist_m
         for track in self._tracks:
-            d = _dist2d((track.x, track.y), world)
+            d = _dist2d(Waypoint(track.x, track.y), world)
             if d < best_dist:
                 best_dist = d
                 best = track

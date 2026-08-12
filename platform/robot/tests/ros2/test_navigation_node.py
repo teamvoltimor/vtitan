@@ -695,7 +695,7 @@ class TestReset:
             ):
                 navigator.reset()
             reset_heading_mock.assert_called_once()
-            reset_position_mock.assert_called_once_with(*navigator._start_xy)
+            reset_position_mock.assert_called_once_with(navigator._start_xy.x, navigator._start_xy.y)
             core_reset_mock.assert_called_once()
         finally:
             navigator.destroy_node()
@@ -718,8 +718,8 @@ class TestReset:
             navigator.reset()
 
             pose = navigator._gateway.get_current_pose()
-            assert pose.x == pytest.approx(navigator._start_xy[0])
-            assert pose.y == pytest.approx(navigator._start_xy[1])
+            assert pose.x == pytest.approx(navigator._start_xy.x)
+            assert pose.y == pytest.approx(navigator._start_xy.y)
         finally:
             navigator.destroy_node()
 

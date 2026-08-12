@@ -25,7 +25,13 @@ from shared.domain.enums import (
 
 @dataclass(slots=True, frozen=True)
 class Pose:
-    """Robot position and orientation in world space."""
+    """Robot position and orientation in world space.
+
+    Use for anything that carries or could carry a heading (robot state,
+    localizer priors, escape/collision points needing orientation). For a
+    pure XY point with no orientation, use `Waypoint` or `Position2D`
+    instead.
+    """
 
     x: float
     y: float
@@ -51,7 +57,13 @@ class IMUReading:
 
 @dataclass(slots=True, frozen=True)
 class Waypoint:
-    """A point to navigate towards."""
+    """A pure XY point to navigate towards, with no orientation.
+
+    Use for waypoints, targets, and geometry points within plain Python
+    code (dataclass, not pydantic). If the point needs a heading, use
+    `Pose`. If it crosses a JSON/YAML/scenario boundary, use `Position2D`
+    instead.
+    """
 
     x: float
     y: float
@@ -340,7 +352,13 @@ class CorridorWidths(BaseModel):
 
 
 class Position2D(BaseModel):
-    """A 2D world position."""
+    """A pure XY world position with no orientation, for pydantic boundaries.
+
+    Use where the point crosses a JSON/YAML/scenario-config boundary
+    (needs pydantic validation/serialization). For plain in-process XY
+    points, prefer the lighter `Waypoint` dataclass; for anything with a
+    heading, use `Pose`.
+    """
 
     x: float = 0.0
     y: float = 0.0

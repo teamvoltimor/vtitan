@@ -14,6 +14,7 @@ import math
 import numpy as np
 import pytest
 from shared.domain.enums import RiskLevel
+from shared.domain.models import Pose
 
 from src.navigation.control.controllers.collision_avoidance_controller import (
     CollisionAvoidanceController,
@@ -351,7 +352,7 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i - 4 : i + 4] = 0.08  # inside contact_dist
 
-        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
 
         assert np.isinf(masked[i]), "a return landing on a mapped sign must be withheld"
 
@@ -362,7 +363,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         # Mapped sign is off to the side; the forward return belongs to nothing.
-        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.0, 0.9)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.0, 0.9)], self._MASK_RADIUS)
 
         assert masked[i] == pytest.approx(0.08)
 
@@ -373,7 +374,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
 
         assert controller.assess_risk(ranges, ANGLES) == RiskLevel.CRITICAL
-        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
         assert controller.assess_risk(masked, ANGLES) == RiskLevel.SAFE
 
     def test_mapped_positions_are_world_frame_not_robot_frame(self):
@@ -389,7 +390,7 @@ class TestMaskMappedObstacles:
         ranges[i - 4 : i + 4] = 0.08
         # Robot at (1.0, 2.0) facing north: the forward return lands at
         # (1.0, 2.08), NOT at (0.08, 0).
-        pose = (1.0, 2.0, math.pi / 2)
+        pose = Pose(1.0, 2.0, math.pi / 2)
 
         masked_world = mask_mapped_obstacles(ranges, ANGLES, pose, [(1.0, 2.08)], self._MASK_RADIUS)
         masked_body = mask_mapped_obstacles(ranges, ANGLES, pose, [(0.08, 0.0)], self._MASK_RADIUS)
@@ -407,8 +408,8 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[angle_to_index(0.0)] = 0.08
 
-        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], 0.0), ranges)
-        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [], self._MASK_RADIUS), ranges)
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.08, 0.0)], 0.0), ranges)
+        assert np.array_equal(mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [], self._MASK_RADIUS), ranges)
 
     def test_no_return_rays_stay_infinite_and_never_become_nan(self):
         """``inf`` ranges have no endpoint to attribute.
@@ -421,7 +422,7 @@ class TestMaskMappedObstacles:
         ranges = create_numpy_scan()
         ranges[:] = np.inf
 
-        masked = mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+        masked = mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
 
         assert np.all(np.isinf(masked))
         assert not np.any(np.isnan(masked))
@@ -434,6 +435,6 @@ class TestMaskMappedObstacles:
         i = angle_to_index(0.0)
         ranges[i] = 0.08
 
-        mask_mapped_obstacles(ranges, ANGLES, (0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
+        mask_mapped_obstacles(ranges, ANGLES, Pose(0.0, 0.0, 0.0), [(0.08, 0.0)], self._MASK_RADIUS)
 
         assert ranges[i] == pytest.approx(0.08)

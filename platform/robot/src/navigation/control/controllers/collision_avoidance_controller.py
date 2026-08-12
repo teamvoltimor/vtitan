@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.models import Pose
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 def mask_mapped_obstacles(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,
-    robot_pose: tuple[float, float, float],
+    robot_pose: Pose,
     mapped_xy: Sequence[tuple[float, float]],
     radius_m: float,
 ) -> np.ndarray:
@@ -67,8 +68,8 @@ def mask_mapped_obstacles(
         lidar_angles: Per-ray bearings (radians, 0 = forward). Synthesised from
             a full ``[-pi, pi)`` sweep when omitted, matching the rest of this
             module.
-        robot_pose: Robot ``(x, y, yaw)`` in world frame, needed to place each
-            ray's endpoint on the map.
+        robot_pose: Robot pose in world frame, needed to place each ray's
+            endpoint on the map.
         mapped_xy: World positions of the mapped obstacles to withhold.
         radius_m: How close a ray endpoint must be to a mapped position to count
             as that obstacle. Must cover the obstacle's own half-diagonal plus
@@ -89,7 +90,7 @@ def mask_mapped_obstacles(
     else:
         angles = np.asarray(lidar_angles, dtype=float)
 
-    robot_x, robot_y, robot_yaw = robot_pose
+    robot_x, robot_y, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
     # Only finite returns have an endpoint to attribute; inf rays are already
     # no-returns and feeding them through cos/sin yields inf-inf = nan.
     finite = np.isfinite(ranges)

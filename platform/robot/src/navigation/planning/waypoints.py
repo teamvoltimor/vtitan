@@ -1,6 +1,6 @@
 """Waypoint generation for WRO 2026 track navigation.
 
-Computes a list of (x, y) waypoints that the TrackNavigator follows.
+Computes a list of Waypoints that the TrackNavigator follows.
 Uses circular arc waypoints at corners to stay within the Ackermann robot's
 minimum turning radius (~0.034 m, from WHEELBASE/tan(MAX_STEERING_ANGLE) with
 counter-phase steering).
@@ -16,7 +16,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.domain.enums import CorridorSide, Direction, Section
-from shared.domain.models import PathPlannability, ScenarioMetadata
+from shared.domain.models import (
+    CorridorWidthEntry,
+    CorridorWidths,
+    PathPlannability,
+    Position2D,
+    ScenarioMetadata,
+    Waypoint,
+)
 
 from src.config.tuning_helpers import get_tuning
 
@@ -112,7 +119,7 @@ def calculate_waypoints(
     num_laps: int,
     arc_radius: float | None = None,
     tuning: NavigationTuning | None = None,
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Build the full multi-lap waypoint sequence for a scenario.
 
     Reads corridor widths and starting conditions from the scenario metadata
@@ -133,7 +140,7 @@ def calculate_waypoints(
         tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:
-        Ordered list of (x, y) world-frame waypoints starting near the robot's
+        Ordered list of world-frame Waypoints starting near the robot's
         spawn position, covering num_laps full loops.
 
     Raises:
@@ -230,6 +237,68 @@ def calculate_waypoints(
     return waypoints
 
 
+def corridor_widths_dict_to_model(widths: dict[Section, float]) -> CorridorWidths:
+    """Convert a per-section width belief (metres) into the on-model mm representation."""
+    return CorridorWidths(
+        **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
+    )
+
+
+def plan_believed_path(
+    metadata: ScenarioMetadata,
+    widths: dict[Section, float],
+    *,
+    direction: Direction,
+    believed_section: Section,
+    believed_position: Position2D,
+    believed_yaw: float,
+    arc_radius: float | None,
+    tuning: NavigationTuning | None = None,
+) -> list[Waypoint]:
+    """Build a one-lap path for the layout the robot currently believes it is on.
+
+    Shared by ``ScenarioSimulator._plan`` and ``TrackNavigator._plan``: both
+    replan from a *believed* corridor-width estimate and a believed start pose
+    that can differ from ``metadata.starting_conditions`` (the ground-truth /
+    on-file record), which is why the believed section/position/yaw/direction
+    are threaded in separately rather than read off ``metadata`` itself.
+
+    ``num_laps=1`` is deliberate: :func:`calculate_waypoints` bakes the lap
+    count into the returned list, but ``CoreNavigator`` already cycles one
+    canonical lap the real lap count times (see its waypoint-wrap in
+    ``step()``). Passing the real count here would multiply laps
+    (e.g. 3 -> 9).
+
+    Args:
+        metadata: Validated scenario metadata; only its ``starting_conditions``
+            and structure are used, both re-derived below with the believed
+            widths/pose swapped in.
+        widths: Believed corridor width per section (m).
+        direction: Believed travel direction.
+        believed_section: Section the robot believes it is standing in.
+        believed_position: Position the robot believes it is standing at.
+        believed_yaw: Heading the robot believes it is facing.
+        arc_radius: Ceiling on the corner arc radius (m), forwarded to
+            :func:`calculate_waypoints`.
+        tuning: Navigation tuning instance. Defaults to loaded defaults.
+
+    Returns:
+        Single-lap ordered list of world-frame Waypoints.
+    """
+    new_widths = corridor_widths_dict_to_model(widths)
+    new_starting = metadata.starting_conditions.replanned_at(
+        direction=direction,
+        section=believed_section,
+        position=believed_position,
+        yaw=believed_yaw,
+    )
+    planning_metadata = metadata.replanned_with(
+        corridor_widths=new_widths,
+        starting_conditions=new_starting,
+    )
+    return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=arc_radius, tuning=tuning)
+
+
 # Segment builders
 def _build_all_segments(
     north_cy: float,
@@ -239,7 +308,7 @@ def _build_all_segments(
     corner_radii: dict[str, float],
     direction: Direction,
     tuning: NavigationTuning | None = None,
-) -> dict[Section, list[tuple[float, float]]]:
+) -> dict[Section, list[Waypoint]]:
     """Construct per-corridor waypoint lists (straights + corner arcs) for both directions.
 
     Args:
@@ -323,23 +392,23 @@ def _rotate_to_start(order: list[Section], start_section: Section) -> list[Secti
 
 def _assemble_loop(
     order: list[Section],
-    segments: dict[Section, list[tuple[float, float]]],
-) -> list[tuple[float, float]]:
-    loop: list[tuple[float, float]] = []
+    segments: dict[Section, list[Waypoint]],
+) -> list[Waypoint]:
+    loop: list[Waypoint] = []
     for section in order:
         loop.extend(segments[section])
     return loop
 
 
 def _build_waypoint_sequence(
-    full_loop: list[tuple[float, float]],
-    segments: dict[Section, list[tuple[float, float]]],
+    full_loop: list[Waypoint],
+    segments: dict[Section, list[Waypoint]],
     order: list[Section],
     start_x: float,
     start_y: float,
     num_laps: int,
     tuning: NavigationTuning | None = None,
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Build multi-lap waypoints starting from the closest point in the first segment.
 
     Uses tuning: waypoints.DEDUPE_DISTANCE_M
@@ -363,23 +432,24 @@ def _build_waypoint_sequence(
 
 
 def _nearest_waypoint_index(
-    waypoints: list[tuple[float, float]],
+    waypoints: list[Waypoint],
     x: float,
     y: float,
 ) -> int:
-    pts = np.array(waypoints)
+    pts = np.array([(wp.x, wp.y) for wp in waypoints])
     deltas = pts - np.array([x, y])
     return int(np.argmin((deltas**2).sum(axis=1)))
 
 
-def _validate_bounds(waypoints: list[tuple[float, float]]) -> None:
+def _validate_bounds(waypoints: list[Waypoint]) -> None:
     """Raise ValueError if generation produced an out-of-bounds waypoint.
 
     Malformed metadata (e.g. mm-vs-m width) can otherwise silently produce
     wall-crossing waypoints. Every waypoint must stay on the track and clear
     of the restricted inner square.
     """
-    for x, y in waypoints:
+    for wp in waypoints:
+        x, y = wp.x, wp.y
         if not (TrackDimensions.MIN_COORD <= x <= TrackDimensions.MAX_COORD) or not (
             TrackDimensions.MIN_COORD <= y <= TrackDimensions.MAX_COORD
         ):
@@ -391,9 +461,9 @@ def _validate_bounds(waypoints: list[tuple[float, float]]) -> None:
 
 
 def _deduplicate_consecutive(
-    waypoints: list[tuple[float, float]],
+    waypoints: list[Waypoint],
     tuning: NavigationTuning | None = None,
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Remove consecutive duplicate waypoints (within dedupe distance).
 
     Uses tuning: waypoints.DEDUPE_DISTANCE_M
@@ -405,7 +475,7 @@ def _deduplicate_consecutive(
     deduped = [waypoints[0]]
     for point in waypoints[1:]:
         prev = deduped[-1]
-        if abs(point[0] - prev[0]) > dedupe_distance_m or abs(point[1] - prev[1]) > dedupe_distance_m:
+        if abs(point.x - prev.x) > dedupe_distance_m or abs(point.y - prev.y) > dedupe_distance_m:
             deduped.append(point)
     return deduped
 
@@ -417,14 +487,14 @@ def _arc_with_endpoints(
     theta_start: float,
     theta_end: float,
     num_intermediate: int = 3,  # see NavigationTuning.waypoints.NUM_INTERMEDIATE_ARC_POINTS
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Generate arc points including entry and exit, with intermediate samples."""
     cx, cy = center
-    entry = (
+    entry = Waypoint(
         round(cx + radius * math.cos(theta_start), 3),
         round(cy + radius * math.sin(theta_start), 3),
     )
-    exit_pt = (
+    exit_pt = Waypoint(
         round(cx + radius * math.cos(theta_end), 3),
         round(cy + radius * math.sin(theta_end), 3),
     )
@@ -439,14 +509,14 @@ def _arc_intermediate_points(
     theta_start: float,
     theta_end: float,
     count: int,
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Sample count evenly-spaced interior arc points (excluding endpoints)."""
-    points: list[tuple[float, float]] = []
+    points: list[Waypoint] = []
     for step in range(1, count + 1):
         fraction = step / (count + 1)
         theta = theta_start + fraction * (theta_end - theta_start)
         points.append(
-            (
+            Waypoint(
                 round(cx + radius * math.cos(theta), 3),
                 round(cy + radius * math.sin(theta), 3),
             ),
@@ -460,7 +530,7 @@ def _straight_waypoints(
     start: float,
     end: float,
     count: int = 8,  # see NavigationTuning.waypoints.STRAIGHT_WAYPOINT_COUNT
-) -> list[tuple[float, float]]:
+) -> list[Waypoint]:
     """Generate evenly-spaced waypoints along a corridor centerline.
 
     Args:
@@ -471,16 +541,16 @@ def _straight_waypoints(
         count: Number of waypoints to generate.
 
     Returns:
-        List of (x, y) waypoints.
+        List of Waypoints.
     """
-    points: list[tuple[float, float]] = []
+    points: list[Waypoint] = []
     for step in range(count):
         fraction = step / (count - 1) if count > 1 else 0.5
         varying = start + fraction * (end - start)
         if is_x:
-            points.append((round(fixed_coord, 3), round(varying, 3)))
+            points.append(Waypoint(round(fixed_coord, 3), round(varying, 3)))
         else:
-            points.append((round(varying, 3), round(fixed_coord, 3)))
+            points.append(Waypoint(round(varying, 3), round(fixed_coord, 3)))
     return points
 
 

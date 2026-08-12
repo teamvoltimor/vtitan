@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 from shared.domain.enums import Direction, Section
-from shared.domain.models import LoopProgress
+from shared.domain.models import LoopProgress, Waypoint
 
 from src.logger.constants import DETAILS_KEY
 
@@ -48,18 +48,18 @@ class LapDetector:
     skips near the finish line.
 
     Args:
-        start_pos: (x, y) world position of the starting zone centre.
+        start_pos: World position of the starting zone centre.
         start_section: Which corridor the starting zone is in.
         direction: CW or CCW traversal direction.
     """
 
     def __init__(
         self,
-        start_pos: tuple[float, float],
+        start_pos: Waypoint,
         start_section: Section,
         direction: Direction,
     ) -> None:
-        self._origin: tuple[float, float] = start_pos
+        self._origin: Waypoint = start_pos
         self._normal: tuple[float, float] = TRAVEL_DIRS[(start_section, direction)]
         self._start_section = start_section
         self._prev_dot: float | None = None
@@ -71,22 +71,20 @@ class LapDetector:
 
     def update(
         self,
-        robot_pos: tuple[float, float],
+        robot_pos: Waypoint,
         current_section: Section,
     ) -> bool:
         """Check whether a valid lap crossing occurred at this position.
 
         Args:
-            robot_pos: Current robot (x, y) in world frame.
+            robot_pos: Current robot position in world frame.
             current_section: Corridor section determined from robot position.
 
         Returns:
             True if a confirmed lap was just completed; False otherwise.
         """
-        ox, oy = self._origin
         nx, ny = self._normal
-        rx, ry = robot_pos
-        dot = (rx - ox) * nx + (ry - oy) * ny
+        dot = (robot_pos.x - self._origin.x) * nx + (robot_pos.y - self._origin.y) * ny
 
         geometric_cross = (
             self._prev_dot is not None
@@ -142,20 +140,20 @@ class RaceTracker:
         self.num_laps = num_laps
         self.metrics = RaceMetrics()
         self._start_time = time.time()
-        self._last_pos: tuple[float, float] | None = None
+        self._last_pos: Waypoint | None = None
         self._speed_samples: list[float] = []
         self._lap_start_distance: float = 0.0
 
     def update_position(
         self,
-        current_pos: tuple[float, float],
+        current_pos: Waypoint,
         current_speed: float,
         waypoint_index: int,
     ) -> None:
         """Update tracker with current robot state.
 
         Args:
-            current_pos: Current (x, y) position.
+            current_pos: Current position.
             current_speed: Current linear speed (m/s).
             waypoint_index: Current waypoint index.
         """
@@ -167,8 +165,8 @@ class RaceTracker:
 
         # Track distance traveled
         if self._last_pos is not None:
-            dx = current_pos[0] - self._last_pos[0]
-            dy = current_pos[1] - self._last_pos[1]
+            dx = current_pos.x - self._last_pos.x
+            dy = current_pos.y - self._last_pos.y
             distance_increment = (dx**2 + dy**2) ** 0.5
             self.metrics.total_distance += distance_increment
 

@@ -329,7 +329,7 @@ class ROS2HardwareGateway(HardwareGateway):
 
         result: list[TrafficSignObservation] = []
         for det in self._latest_detections:
-            obs = detection_to_observation(det, (pose.x, pose.y), pose.yaw)
+            obs = detection_to_observation(det, pose)
             if obs is not None:
                 result.append(obs)
         return result

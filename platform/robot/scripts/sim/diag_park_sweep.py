@@ -19,6 +19,7 @@ import sys
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
 from shared.domain.enums import Section
+from shared.domain.models import Pose
 
 from scripts.common.tables import print_table
 from src.navigation.maneuvers.parking import park_controller_from_metadata
@@ -149,7 +150,7 @@ def _run_one(
     if ctrl is None:
         msg = f"scenario has no parking lot: {metadata.get('scenario_id')}"
         raise ValueError(msg)
-    sx, sy = ctrl.staging
+    sx, sy = ctrl.staging.x, ctrl.staging.y
     yaw = _travel_yaw(section, direction) + yaw_err
     centre = CorridorDimensions.OBSTACLES_WIDTH / 2
     lat_centre = centre if _low_side(section) else 3.0 - centre
@@ -166,7 +167,7 @@ def _run_one(
     done = False
     phase = "stage"
     for _ in range(_MAX_STEPS):
-        cmd = ctrl.update((state.x, state.y), state.yaw)
+        cmd = ctrl.update(Pose(state.x, state.y, state.yaw))
         phase = cmd.phase
         if cmd.done:
             done = not ctrl.is_timed_out

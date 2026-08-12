@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import Detection, IMUReading, Pose, Waypoint
 
 from src.navigation.core_navigator import CoreNavigator
 from src.navigation.ports import DriveCommand, LidarScan
@@ -23,7 +23,7 @@ def tuning():
 
 def test_reset_clears_lap_and_waypoint_state(tuning):
     gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0))
-    waypoints = [(5.0, 0.0), (10.0, 0.0)]
+    waypoints = [Waypoint(5.0, 0.0), Waypoint(10.0, 0.0)]
     nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
 
     # Simulate race 1 finishing: no park controller, so a finished lap holds forever.

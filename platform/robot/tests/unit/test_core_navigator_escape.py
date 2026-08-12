@@ -13,7 +13,7 @@ import math
 import numpy as np
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose, SignColor
+from shared.domain.models import Detection, IMUReading, Pose, SignColor, Waypoint
 
 from src.navigation.control.controllers import EscapeManeuver, ManeuverType
 from src.navigation.core_navigator import CoreNavigator
@@ -36,8 +36,8 @@ def tuning():
 
 
 @pytest.fixture()
-def waypoints() -> list[tuple[float, float]]:
-    return [(5.0, 0.0), (10.0, 0.0)]  # far ahead — never reached in these tests
+def waypoints() -> list[Waypoint]:
+    return [Waypoint(5.0, 0.0), Waypoint(10.0, 0.0)]  # far ahead — never reached in these tests
 
 
 class TestCriticalEscapeRearGate:
@@ -261,9 +261,9 @@ class _StubParkController:
         self.is_done = done
         self.is_repositioning = False
         self.section = None
-        self.staging = (0.0, 0.0)
+        self.staging = Waypoint(0.0, 0.0)
 
-    def update(self, robot_pos, robot_yaw):
+    def update(self, robot_pose):
         from src.navigation.maneuvers.parking import ParkCommand
 
         if self.is_done:
