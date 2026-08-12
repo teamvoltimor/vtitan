@@ -38,10 +38,7 @@ class Config(HardwareBaseSettings):
     gpio_pin: int = Field(validation_alias=AliasChoices("BUTTON_GPIO_PIN", "button_gpio_pin"))
     """GPIO pin number for the button."""
 
-    # ButtonConfig has no defaults for pull_up/debounce_ms/long_press_threshold_sec
-    # -- this factory only succeeds when the nested BUTTON__* env vars are
-    # set; mypy can't see that env resolution, hence the ignore.
-    button: ButtonConfig = Field(default_factory=lambda: ButtonConfig())  # type: ignore[call-arg]
+    button: ButtonConfig = Field(default_factory=ButtonConfig)
 
 
 class Driver(ABC_Driver):

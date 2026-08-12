@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from src.hardware.hailo.config import StreamingConfig
     from src.hardware.hailo.inferences import InferenceResult
 
-from src.hardware.camera.config import Config as CameraConfig
 from src.hardware.camera.streaming import StreamingDriver as CameraStreamingDriver
 from src.hardware.hailo.hailo_8.driver import Driver as HailoDriver
 from src.logger import configure_json_logging
@@ -79,17 +78,7 @@ class StreamingDriver:
             },
         )
 
-        camera_config = CameraConfig(
-            device=self.config.device,
-            width=self.config.width,
-            height=self.config.height,
-            fps=self.config.fps,
-            rotation=self.config.rotation,
-            hflip=self.config.hflip,
-            vflip=self.config.vflip,
-        )
-
-        self._camera_streaming_driver = CameraStreamingDriver(camera_config)
+        self._camera_streaming_driver = CameraStreamingDriver(self.config)
         self._camera_streaming_driver.start_streaming()
         self._logger.info("Camera started")
 

@@ -4,16 +4,16 @@ from pydantic import BaseModel
 class Config(BaseModel):
     """Configuration for button driver."""
 
-    pull_up: bool
+    pull_up: bool = True
     """Whether to use internal pull-up resistor."""
 
-    debounce_ms: int
+    debounce_ms: int = 50
     """Debounce delay in milliseconds."""
 
-    long_press_threshold_sec: float
+    long_press_threshold_sec: float = 3.0
     """Duration threshold for long press detection in seconds."""
 
-    shutdown_press_threshold_sec: float
+    shutdown_press_threshold_sec: float = 10.0
     """Duration threshold for the clean-shutdown hold, in seconds.
 
     Must sit well above long_press_threshold_sec. The gap is the margin an

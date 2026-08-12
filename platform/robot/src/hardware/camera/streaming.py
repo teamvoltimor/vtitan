@@ -25,6 +25,19 @@ from src.logger import configure_json_logging
 configure_json_logging()
 
 
+def build_rpi_camera_config(config: CameraConfig) -> RPiCameraConfig:
+    """Translate the generic camera Config into the Picamera2 driver's Config."""
+    return RPiCameraConfig(
+        device=config.device,
+        width=config.width,
+        height=config.height,
+        fps=config.fps,
+        rotation=config.rotation,
+        hflip=config.hflip,
+        vflip=config.vflip,
+    )
+
+
 class StreamingDriver:
     """Generic streaming driver that wraps camera-specific drivers."""
 
@@ -38,16 +51,7 @@ class StreamingDriver:
 
     def _create_driver(self) -> CameraDriver:
         """Create the appropriate camera driver based on config or device detection."""
-        camera_config = RPiCameraConfig(
-            device=self.config.device,
-            width=self.config.width,
-            height=self.config.height,
-            fps=self.config.fps,
-            rotation=self.config.rotation,
-            hflip=self.config.hflip,
-            vflip=self.config.vflip,
-        )
-        return CameraDriver(camera_config)
+        return CameraDriver(build_rpi_camera_config(self.config))
 
     def connect(self) -> None:
         """Connect to camera."""

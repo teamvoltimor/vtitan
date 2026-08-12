@@ -50,12 +50,7 @@ class Config(HardwareBaseSettings):
         toml_file=CONFIG_DIR / "imu" / "bno08x_i2c.toml",
     )
 
-    # QuaternionConfig's negate_yaw/pitch/roll have no defaults -- this factory
-    # only succeeds when the nested QUATERNION__* env vars are set; mypy
-    # can't see that env resolution, hence the ignore.
-    quaternion: QuaternionConfig = Field(
-        default_factory=lambda: QuaternionConfig(),  # type: ignore[call-arg]
-    )
+    quaternion: QuaternionConfig = Field(default_factory=QuaternionConfig)
 
     address: HexInt
     """I2C address of the BNO08x IMU (0x4A or 0x4B depending on ADR pin)"""

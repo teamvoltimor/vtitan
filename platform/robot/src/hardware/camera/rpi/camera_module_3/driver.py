@@ -11,7 +11,7 @@ import numpy as np
 from picamera2 import Picamera2
 from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
-from shared.domain.models import CameraSize, ImageRotation
+from shared.domain.models import CameraSize
 
 from src.hardware.camera.base import (
     Driver as CameraDriver,
@@ -163,12 +163,7 @@ class Driver(CameraDriver):
         )
         self._picamera2.configure(config)
 
-        # An upside-down mount is a 180 degree rotation, which is exactly both
-        # mirrors at once. Expressing it that way rather than as "Rotation"
-        # keeps it composable with an explicit rotation and works on sensors
-        # whose driver exposes the flips but not arbitrary rotation.
-        hflip = self.config.hflip != self.config.inverted
-        vflip = self.config.vflip != self.config.inverted
+        hflip, vflip = self.config.resolved_flips()
         if self.config.rotation:
             self._picamera2.set_controls({"Rotation": self.config.rotation})
         if hflip:
@@ -244,13 +239,7 @@ class Driver(CameraDriver):
 
     def get_resolution(self) -> CameraSize:
         """Get current resolution and orientation metadata."""
-        return CameraSize(
-            width_px=self.config.width,
-            height_px=self.config.height,
-            rotation_deg=ImageRotation.CW_180 if self.config.inverted else ImageRotation.NONE,
-            hflip=self.config.hflip,
-            vflip=self.config.vflip,
-        )
+        return self.config.get_resolution()
 
     def _capture_loop(self) -> None:
         """Continuous capture loop for streaming."""

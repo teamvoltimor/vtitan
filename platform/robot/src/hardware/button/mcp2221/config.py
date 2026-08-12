@@ -23,8 +23,5 @@ class Config(HardwareBaseSettings):
     gpio_pin: int = Field(validation_alias="MCP2221_BUTTON_GPIO_PIN")
     """MCP2221A GPIO channel the button is wired to (0-3, i.e. GP0-GP3)."""
 
-    # ButtonBaseConfig has no defaults for pull_up/debounce_ms/long_press_threshold_sec
-    # -- this factory only succeeds when the nested BUTTON__* env vars are
-    # set; mypy can't see that env resolution, hence the ignore.
-    button: ButtonBaseConfig = Field(default_factory=lambda: ButtonBaseConfig())  # type: ignore[call-arg]
+    button: ButtonBaseConfig = Field(default_factory=ButtonBaseConfig)
     """Button-specific configuration."""
