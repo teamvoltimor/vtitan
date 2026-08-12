@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from src.config.tuning_helpers import TuningContext
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -160,4 +160,4 @@ def estimate_yaw_from_walls(
 
 def heading_error(measured_yaw: float, prior_yaw: float) -> float:
     """Signed difference between a wall-derived yaw and the current estimate."""
-    return _wrap(measured_yaw - prior_yaw)
+    return wrap_angle(measured_yaw - prior_yaw)

@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
 
-def _wrap(angle: float) -> float:
+def wrap_angle(angle: float) -> float:
+    """Wrap an angle to [-pi, pi]."""
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
@@ -35,7 +36,7 @@ def axis_offset_rad(yaw: float) -> float:
     error has to know which way to steer, so it needs the sign.
     """
     quarter = math.pi / 2
-    return _wrap(yaw - round(yaw / quarter) * quarter)
+    return wrap_angle(yaw - round(yaw / quarter) * quarter)
 
 
 def axis_error_rad(yaw: float) -> float:
@@ -56,7 +57,7 @@ def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
-    index = min(range(len(angles_rad)), key=lambda i: abs(_wrap(angles_rad[i] - target)))
+    index = min(range(len(angles_rad)), key=lambda i: abs(wrap_angle(angles_rad[i] - target)))
     return ranges_m[index]
 
 
@@ -71,7 +72,7 @@ def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], t
     forward = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= arc_rad and r > min_valid
+        if abs(wrap_angle(a)) <= arc_rad and r > min_valid
     ]
     return min(forward) if forward else math.inf
 

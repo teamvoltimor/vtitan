@@ -43,7 +43,7 @@ from shared.config.constants import RobotSpecs
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
     _clamp,
-    _wrap as _wrap_angle,
+    wrap_angle as _wrap_angle,
 )
 
 if TYPE_CHECKING:

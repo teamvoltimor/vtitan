@@ -27,7 +27,7 @@ from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
 from src.hardware.motors.enums import DRIVE_JOINT
-from src.navigation.localization import LidarLocalizer
+from src.navigation.localization import make_localizer
 from src.navigation.planning.sign_discovery import detection_to_observation
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
@@ -105,15 +105,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._localization_params = localization or LocalizationParams()
         # Accept dict for backward compat (test callers).
         geom = corridor_geometry_from_widths(geometry) if isinstance(geometry, dict) else geometry
-        self._localizer = LidarLocalizer(
-            TrackWalls(geom),
-            search_radius_m=self._localization_params.SEARCH_RADIUS_M,
-            passes=self._localization_params.PASSES,
-            grid_points=self._localization_params.GRID_POINTS,
-            residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
-            max_speed_mps=self._localization_params.MAX_SPEED_MPS,
-            jump_confirm_tolerance_m=self._localization_params.JUMP_CONFIRM_TOLERANCE_M,
-        )
+        self._localizer = make_localizer(TrackWalls(geom), self._localization_params)
         self._latest_lidar: LidarScan | None = None
         self._latest_detections: list[Detection] = []
         self._latest_imu: IMUReading | None = None
@@ -168,15 +160,7 @@ class ROS2HardwareGateway(HardwareGateway):
         localizer keeps matching against the layout assumed at startup, and a
         corrected belief never reaches the position fix.
         """
-        self._localizer = LidarLocalizer(
-            walls,
-            search_radius_m=self._localization_params.SEARCH_RADIUS_M,
-            passes=self._localization_params.PASSES,
-            grid_points=self._localization_params.GRID_POINTS,
-            residual_clip_m=self._localization_params.RESIDUAL_CLIP_M,
-            max_speed_mps=self._localization_params.MAX_SPEED_MPS,
-            jump_confirm_tolerance_m=self._localization_params.JUMP_CONFIRM_TOLERANCE_M,
-        )
+        self._localizer = make_localizer(walls, self._localization_params)
 
     def reset_heading_reference(self) -> None:
         """Re-zero the estimator's heading against the next IMU reading."""

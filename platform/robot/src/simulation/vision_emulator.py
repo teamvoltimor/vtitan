@@ -20,7 +20,7 @@ from shared.config.constants import RobotSpecs
 from shared.domain.models import SignColor, TrafficSignObservation
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import _wrap as _wrap_angle
+from src.navigation.utils import wrap_angle as _wrap_angle
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning

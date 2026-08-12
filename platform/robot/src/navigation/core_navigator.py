@@ -28,7 +28,7 @@ from src.navigation.control.controllers import (
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -249,7 +249,7 @@ class CoreNavigator:
             candidates = [i for i, d in enumerate(distances) if d <= margin]
             nearest_index = min(
                 candidates,
-                key=lambda i: abs(_wrap(_outgoing_bearing(waypoints, i) - robot_yaw)),
+                key=lambda i: abs(wrap_angle(_outgoing_bearing(waypoints, i) - robot_yaw)),
             )
 
         self._waypoint_index = nearest_index

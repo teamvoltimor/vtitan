@@ -44,7 +44,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
-from src.navigation.utils import _nearest_ray, _wrap, axis_error_rad
+from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.resettable_node import ResettableNode
 
@@ -699,11 +699,11 @@ class TrackNavigator(Node, ResettableNode):
         if changed:
             old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
             new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
-            heading_delta = _wrap(new_yaw - old_yaw)
+            heading_delta = wrap_angle(new_yaw - old_yaw)
         if self._width_estimator is not None:
             for buffered_yaw, buffered_width in self._creep_widths:
                 self._width_estimator.observe_measurement(
-                    section_from_heading(_wrap(buffered_yaw + heading_delta), inferred),
+                    section_from_heading(wrap_angle(buffered_yaw + heading_delta), inferred),
                     buffered_width,
                 )
             self._creep_widths.clear()
@@ -805,7 +805,7 @@ class TrackNavigator(Node, ResettableNode):
             # -- replan below with the corrected values or the heading-aware
             # reseek in replace_path would use the wrong heading, and resync
             # against a position replace_path won't have caught up to yet.
-            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=_wrap(pose.yaw + heading_delta))
+            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=wrap_angle(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted. Only the
             # direction is rebuilt: the origin stays the ASSUMED start, not
@@ -891,7 +891,7 @@ class TrackNavigator(Node, ResettableNode):
         # mat's centre. Comparing against the corridor's travel bearing is what
         # tells the two apart.
         travel = TRAVEL_DIRS[(self._start_section, self._direction)]
-        misalignment = abs(_wrap(pose.yaw - math.atan2(travel[1], travel[0])))
+        misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel[1], travel[0])))
         if misalignment > math.radians(self._tuning.start_measurement.RETRY_ALIGN_TOLERANCE_DEG):
             return
 

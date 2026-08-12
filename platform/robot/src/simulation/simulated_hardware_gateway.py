@@ -18,9 +18,9 @@ from shared.config.constants import RobotSpecs
 from shared.domain.models import IMUReading, Pose, TrafficSignObservation
 
 from src.config.tuning_helpers import TuningContext, get_tuning
-from src.navigation.localization import LidarLocalizer
+from src.navigation.localization import make_localizer
 from src.navigation.ports import DriveCommand, LidarScan, WheelOdometry
-from src.navigation.utils import _wrap as _wrap_angle
+from src.navigation.utils import wrap_angle as _wrap_angle
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ContactSurface, TrackModel
@@ -286,19 +286,7 @@ class SimulatedHardwareGateway:
         # fields) -- previously used LidarLocalizer's own hardcoded defaults
         # even though this __init__ already accepts and stores `tuning`.
         loc = self.tuning.localization
-        self._localizer = (
-            LidarLocalizer(
-                track.walls,
-                search_radius_m=loc.SEARCH_RADIUS_M,
-                passes=loc.PASSES,
-                grid_points=loc.GRID_POINTS,
-                residual_clip_m=loc.RESIDUAL_CLIP_M,
-                max_speed_mps=loc.MAX_SPEED_MPS,
-                jump_confirm_tolerance_m=loc.JUMP_CONFIRM_TOLERANCE_M,
-            )
-            if localize
-            else None
-        )
+        self._localizer = make_localizer(track.walls, loc) if localize else None
         self._believed_walls: TrackWalls | None = None
 
         self._wall_heading = wall_heading
@@ -434,15 +422,7 @@ class SimulatedHardwareGateway:
         self._believed_walls = walls
         if self._localize:
             loc = self.tuning.localization
-            self._localizer = LidarLocalizer(
-                walls,
-                search_radius_m=loc.SEARCH_RADIUS_M,
-                passes=loc.PASSES,
-                grid_points=loc.GRID_POINTS,
-                residual_clip_m=loc.RESIDUAL_CLIP_M,
-                max_speed_mps=loc.MAX_SPEED_MPS,
-                jump_confirm_tolerance_m=loc.JUMP_CONFIRM_TOLERANCE_M,
-            )
+            self._localizer = make_localizer(walls, loc)
 
     @property
     def position_error_m(self) -> float:

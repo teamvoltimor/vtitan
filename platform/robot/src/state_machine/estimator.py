@@ -10,21 +10,16 @@ input would resurrect the same silent-drift risk that motivated the LIDAR fix.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from shared.domain.models import IMUReading, Pose
 
 from src.config.tuning_helpers import TuningContext, get_tuning
+from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
-
-
-def wrap_angle(angle: float) -> float:
-    """Wrap angle to [-π, π]."""
-    return math.remainder(angle, 2 * math.pi)
 
 
 @dataclass(frozen=True, slots=True)

@@ -42,7 +42,7 @@ from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, _wrap, axis_offset_rad
+from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -102,7 +102,7 @@ def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning:
     open_ranges = [
         r
         for r, a in zip(ranges_m, angles_rad, strict=False)
-        if abs(_wrap(a)) <= turn_arc_rad and min_valid < r < max_in_track
+        if abs(wrap_angle(a)) <= turn_arc_rad and min_valid < r < max_in_track
     ]
     if not open_ranges:
         return False
