@@ -43,7 +43,7 @@ from shared.domain.models import CorridorWidthMeasurement
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
-from src.navigation.utils import _nearest_ray, _wrap
+from src.navigation.utils import _nearest_ray, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -84,7 +84,7 @@ def measure_corridor_width(
     max_plausible_width = _WIDE + margin
 
     # Heading error against the nearest track axis; corridors always run along one.
-    axis_error = _wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
+    axis_error = wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
     is_aligned = abs(axis_error) <= tuning.direction_estimator.ALIGNMENT_TOLERANCE_RAD
 
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)

@@ -26,6 +26,8 @@ from shared.config.constants import DictKeys, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata
 
+from src.navigation.utils import wrap_angle
+
 _TRACK_MIN = TrackDimensions.MIN_COORD
 _TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
 
@@ -161,12 +163,7 @@ def path_turn_ahead(
 
     if first_heading is None or last_heading is None:
         return 0.0
-    return abs(_wrap_angle(last_heading - first_heading))
-
-
-def _wrap_angle(angle: float) -> float:
-    """Wrap to [-pi, pi] so a turn through the +/-pi branch reads as small."""
-    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+    return abs(wrap_angle(last_heading - first_heading))
 
 
 @dataclass(frozen=True, slots=True)

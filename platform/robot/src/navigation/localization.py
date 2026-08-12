@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from shared.config.navigation_tuning.blind_nav import LocalizationParams
+
     from src.navigation.track_geometry import TrackWalls
 
 
@@ -223,3 +225,23 @@ class LidarLocalizer:
             return False
         self._pending_jump_xy = best_xy
         return True
+
+
+def make_localizer(walls: TrackWalls, params: LocalizationParams) -> LidarLocalizer:
+    """Build a :class:`LidarLocalizer` from tuning-config :class:`LocalizationParams`.
+
+    Both hardware gateways (sim and ROS2) construct a localizer twice each --
+    once at startup and once in ``set_believed_walls`` when blind navigation
+    revises its corridor-width belief mid-round -- and every call site was
+    hand-spelling the same 6-field mapping, risking one of the four silently
+    drifting from the other three.
+    """
+    return LidarLocalizer(
+        walls,
+        search_radius_m=params.SEARCH_RADIUS_M,
+        passes=params.PASSES,
+        grid_points=params.GRID_POINTS,
+        residual_clip_m=params.RESIDUAL_CLIP_M,
+        max_speed_mps=params.MAX_SPEED_MPS,
+        jump_confirm_tolerance_m=params.JUMP_CONFIRM_TOLERANCE_M,
+    )

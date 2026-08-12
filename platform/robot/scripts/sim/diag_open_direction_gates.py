@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.navigation_tuning import NavigationTuning
 
 from src.navigation import direction_estimator as de
-from src.navigation.utils import _nearest_ray, _wrap
+from src.navigation.utils import _nearest_ray, wrap_angle
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -66,7 +66,7 @@ class _GateTracer:
             yaw: float,
         ) -> Direction | None:
             result = tracer._real(ranges_m, angles_rad, yaw)
-            axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+            axis_error = abs(wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
             left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
             right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
             tracer.rows.append(
