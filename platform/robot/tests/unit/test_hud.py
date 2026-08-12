@@ -13,7 +13,7 @@ import math
 
 import numpy as np
 
-from src.vision.hud import HudConfig, _fmt_heading_deg, draw_radar, draw_stats
+from src.vision.hud import HudConfig, _fmt_heading_deg, draw_logo, draw_radar, draw_stats
 
 
 def _blank(width: int = 640, height: int = 360) -> np.ndarray:
@@ -117,3 +117,38 @@ class TestDrawRadar:
     def test_too_small_a_frame_skips_the_radar_instead_of_raising(self) -> None:
         out = draw_radar(_blank(width=20, height=20), [1.0], [0.0])
         assert out is not None  # must not raise; drawing nothing is the correct behaviour here
+
+
+class TestDrawLogo:
+    """Purely cosmetic branding, unlike the telemetry panels/radar -- these pin
+    the "never crash the recording over a missing/tiny asset" contract, not
+    exact pixel placement (that's judged visually via preview_hud.py)."""
+
+    def test_draws_something_in_the_bottom_left(self) -> None:
+        frame = _blank(width=640, height=360)
+        out = draw_logo(frame)
+        bottom_left = out[300:, :60]
+        assert bottom_left.any()
+
+    def test_leaves_the_input_untouched(self) -> None:
+        frame = _blank()
+        draw_logo(frame)
+        assert not frame.any()
+
+    def test_does_not_land_in_the_other_three_corners(self) -> None:
+        frame = _blank(width=640, height=360)
+        out = draw_logo(frame)
+        assert not out[:60, :150].any(), "top-left is the status panel's territory"
+        assert not out[:60, -150:].any(), "top-right is the control panel's territory"
+        assert not out[200:, -200:].any(), "bottom-right is the radar's territory"
+
+    def test_too_small_a_frame_skips_the_logo_instead_of_raising(self) -> None:
+        out = draw_logo(_blank(width=10, height=10))
+        assert out is not None  # must not raise; drawing nothing is the correct behaviour here
+
+    def test_missing_asset_skips_the_logo_instead_of_raising(self, monkeypatch) -> None:
+        """A fresh checkout that hasn't pulled the binary asset yet must still record."""
+        monkeypatch.setattr("src.vision.hud._LOGO_RGBA", None)
+        out = draw_logo(_blank())
+        assert out is not None
+        assert not out.any()

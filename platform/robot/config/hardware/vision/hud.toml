@@ -3,8 +3,8 @@
 
 font_scale = 0.42
 line_height_px = 18
-text_rgb = [232, 236, 240]
-label_rgb = [118, 128, 140]
+text_rgb = [248, 250, 252]
+label_rgb = [168, 178, 190]
 accent_rgb = [0, 194, 255]
 border_rgb = [58, 64, 72]
 panel_rgb = [12, 14, 18]
@@ -18,6 +18,10 @@ radar_bg_rgb = [12, 14, 18]
 radar_bg_alpha = 0.55
 radar_ring_rgb = [58, 64, 72]
 radar_crosshair_rgb = [36, 40, 46]
-radar_point_rgb = [0, 194, 255]
+radar_point_rgb = [30, 136, 229]
 radar_robot_rgb = [255, 255, 255]
 max_radar_range_m = 3.0
+
+logo_size_px = 64
+logo_margin_px = 8
+logo_alpha = 0.85

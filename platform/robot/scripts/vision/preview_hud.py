@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import cv2
 import numpy as np
 
-from src.vision.hud import HudConfig, draw_radar, draw_stats
+from src.vision.hud import HudConfig, draw_logo, draw_radar, draw_stats
 
 _WIDTH = 640
 _HEIGHT = 360
@@ -96,6 +96,7 @@ def _render(name: str, nav_debug: dict | None, active_challenge: str | None, out
     ranges, angles = _synthetic_corridor_scan()
     frame = draw_stats(frame, nav_debug, active_challenge)
     frame = draw_radar(frame, ranges, angles)
+    frame = draw_logo(frame)
     path = out_dir / f"{name}.png"
     cv2.imwrite(str(path), frame[:, :, ::-1])  # RGB -> BGR for cv2.imwrite
     print(f"wrote {path}")
