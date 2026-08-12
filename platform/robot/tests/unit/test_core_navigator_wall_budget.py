@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import Detection, IMUReading, Pose
+from shared.domain.models import Detection, IMUReading, Pose, Waypoint
 
 from src.navigation.core_navigator import CoreNavigator
 from tests.fixtures import FakeGateway
@@ -40,7 +40,7 @@ def tuning():
 def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | None = None) -> CoreNavigator:
     return CoreNavigator(
         gateway=FakeGateway(Pose(x=waypoints[0][0], y=waypoints[0][1], yaw=0.0)),
-        waypoints=waypoints,
+        waypoints=[Waypoint(*wp) for wp in waypoints],
         num_laps=1,
         tuning=tuning or NavigationTuning(),
     )
@@ -98,7 +98,7 @@ class TestBudgetFollowsThePath:
         nav = _navigator(_straight_path_at(0.25), tuning)
         assert nav._waypoint_controller.effective_transition < tuning.pursuit.LOOKAHEAD_TRANSITION
 
-        nav.replace_path(_straight_path_at(0.50), (1.0, 0.30))
+        nav.replace_path([Waypoint(*wp) for wp in _straight_path_at(0.50)], (1.0, 0.30))
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(
             tuning.pursuit.LOOKAHEAD_TRANSITION,

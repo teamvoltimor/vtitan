@@ -19,7 +19,7 @@ import math
 from dataclasses import replace
 
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.models import SignColor, TrafficSignObservation
+from shared.domain.models import SignColor, TrafficSignObservation, Waypoint
 
 from src.navigation.planning.sign_discovery import (
     ObservedSignMap,
@@ -42,7 +42,7 @@ _CONFIDENCE = 0.25
 def _observe(sign_map: ObservedSignMap, signs: list[SignSpec], robot_pos, robot_yaw, times: int = 1) -> None:
     """Feed ``times`` identical frames of emulated observations into the map."""
     for _ in range(times):
-        sign_map.observe(emulate_sign_observations(signs, robot_pos, robot_yaw), robot_pos)
+        sign_map.observe(emulate_sign_observations(signs, robot_pos, robot_yaw), Waypoint(*robot_pos))
 
 
 def _publish(sign_map: ObservedSignMap) -> list[SignSpec]:
@@ -156,8 +156,8 @@ class TestColorVote:
         flipped = [replace(o, color=SignColor.GREEN) for o in truthful]
 
         for _ in range(4):
-            sign_map.observe(truthful, pose)
-        sign_map.observe(flipped, pose)
+            sign_map.observe(truthful, Waypoint(*pose))
+        sign_map.observe(flipped, Waypoint(*pose))
 
         assert _publish(sign_map)[0].color == "red"
 

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.models import Waypoint
 
 
 def wrap_angle(angle: float) -> float:
@@ -53,8 +54,8 @@ def axis_error_rad(yaw: float) -> float:
     return abs(axis_offset_rad(yaw))
 
 
-def _dist2d(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return math.hypot(a[0] - b[0], a[1] - b[1])
+def _dist2d(a: Waypoint, b: Waypoint) -> float:
+    return math.hypot(a.x - b.x, a.y - b.y)
 
 
 def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target: float) -> float:
@@ -78,12 +79,10 @@ def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], t
     return min(forward) if forward else math.inf
 
 
-def _local_frame(
-    robot_pos: tuple[float, float], robot_yaw: float, target: tuple[float, float]
-) -> tuple[float, float]:
+def _local_frame(robot_pos: Waypoint, robot_yaw: float, target: Waypoint) -> tuple[float, float]:
     """Rotate ``target`` into the robot's local frame (x forward, y left)."""
-    dx = target[0] - robot_pos[0]
-    dy = target[1] - robot_pos[1]
+    dx = target.x - robot_pos.x
+    dy = target.y - robot_pos.y
     cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
     x_local = dx * cos_yaw + dy * sin_yaw
     y_local = -dx * sin_yaw + dy * cos_yaw

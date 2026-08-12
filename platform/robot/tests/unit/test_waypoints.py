@@ -8,6 +8,7 @@ import pytest
 from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
+from shared.domain.models import Waypoint
 
 from src.navigation.planning.waypoints import (
     _arc_with_endpoints,
@@ -50,12 +51,12 @@ class TestGenerateCorridorWaypoints:
     def test_straight_waypoints_x(self) -> None:
         pts = _straight_waypoints(1.5, is_x=True, start=0.0, end=1.0, count=3)
         assert len(pts) == 3
-        assert pts == [(1.5, 0.0), (1.5, 0.5), (1.5, 1.0)]
+        assert pts == [Waypoint(1.5, 0.0), Waypoint(1.5, 0.5), Waypoint(1.5, 1.0)]
 
     def test_straight_waypoints_y(self) -> None:
         pts = _straight_waypoints(0.5, is_x=False, start=1.0, end=2.0, count=2)
         assert len(pts) == 2
-        assert pts == [(1.0, 0.5), (2.0, 0.5)]
+        assert pts == [Waypoint(1.0, 0.5), Waypoint(2.0, 0.5)]
 
 
 class TestGenerateCornerArc:
@@ -71,8 +72,8 @@ class TestGenerateCornerArc:
         )
 
         assert len(arc) == 5
-        for x, y in arc:
-            dist = math.sqrt((x - 1.0) ** 2 + (y - 1.0) ** 2)
+        for wp in arc:
+            dist = math.sqrt((wp.x - 1.0) ** 2 + (wp.y - 1.0) ** 2)
             assert dist == pytest.approx(0.45, abs=0.01)
 
     def test_corner_arc_endpoints(self) -> None:
@@ -86,11 +87,11 @@ class TestGenerateCornerArc:
 
         assert len(arc) == 3
         # Start should be around (1.05, 1.5)
-        assert arc[0][0] == pytest.approx(1.05, abs=0.01)
-        assert arc[0][1] == pytest.approx(1.5, abs=0.01)
+        assert arc[0].x == pytest.approx(1.05, abs=0.01)
+        assert arc[0].y == pytest.approx(1.5, abs=0.01)
         # End should be around (1.5, 1.05)
-        assert arc[-1][0] == pytest.approx(1.5, abs=0.01)
-        assert arc[-1][1] == pytest.approx(1.05, abs=0.01)
+        assert arc[-1].x == pytest.approx(1.5, abs=0.01)
+        assert arc[-1].y == pytest.approx(1.05, abs=0.01)
 
 
 class TestCornerArcRadius:
@@ -188,9 +189,9 @@ class TestGenerateAllWaypoints:
     def test_waypoints_within_track_bounds(self, sample_metadata_open, tuning) -> None:
         waypoints = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
 
-        for x, y in waypoints:
-            assert -0.2 < x < 3.2
-            assert -0.2 < y < 3.2
+        for wp in waypoints:
+            assert -0.2 < wp.x < 3.2
+            assert -0.2 < wp.y < 3.2
 
     def test_multi_lap_extends_waypoints(self, sample_metadata_open, tuning) -> None:
         waypoints_1_lap = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
@@ -204,10 +205,10 @@ class TestWaypointDeduplication:
 
     def test_close_points_removed(self) -> None:
         waypoints = [
-            (0.0, 0.0),
-            (0.0001, 0.0),
-            (0.0002, 0.0),
-            (0.5, 0.0),
+            Waypoint(0.0, 0.0),
+            Waypoint(0.0001, 0.0),
+            Waypoint(0.0002, 0.0),
+            Waypoint(0.5, 0.0),
         ]
 
         deduped = _deduplicate_consecutive(waypoints)

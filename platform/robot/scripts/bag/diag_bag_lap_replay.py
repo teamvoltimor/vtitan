@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Direction, Section
+from shared.domain.models import Waypoint
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows, measured_start, posed_rows, settled_direction
 from scripts.common.tables import print_table
@@ -68,7 +69,7 @@ def main() -> None:
     print("\nreplaying the real LapDetector per candidate start section:")
     rows = []
     for section in Section:
-        detector = LapDetector(start_pos=origin, start_section=section, direction=direction)
+        detector = LapDetector(start_pos=Waypoint(*origin), start_section=section, direction=direction)
         normal = TRAVEL_DIRS[(section, direction)]
         laps: list[float] = []
         geo_only = 0
@@ -83,7 +84,7 @@ def main() -> None:
             if corridor is None:
                 continue
             before = detector._prev_dot  # noqa: SLF001 - diagnosing the gate, not using it
-            if detector.update((snap.pose_x, snap.pose_y), corridor):
+            if detector.update(Waypoint(snap.pose_x, snap.pose_y), corridor):
                 laps.append(t)
             elif before is not None and before < 0.0:
                 ox, oy = origin

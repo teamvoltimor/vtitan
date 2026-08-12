@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.enums import Direction, Section
-from shared.domain.models import ScenarioMetadata, SignColor
+from shared.domain.models import ScenarioMetadata, SignColor, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.geometry import behind_tolerance_m, chassis_half_diagonal_m
@@ -310,7 +310,7 @@ class SignRouter:
     def _ingest_observations(
         self,
         observations: list[TrafficSignObservation] | None,
-        robot_pos: tuple[float, float],
+        robot_pos: Waypoint,
     ) -> None:
         """Fold a frame of observations into the discovered sign list.
 
@@ -407,9 +407,10 @@ class SignRouter:
         # Discovery first: in blind mode this frame may be what reveals the
         # sign about to be routed around, so it has to land before candidate
         # selection rather than after it.
-        self._ingest_observations(observations, robot_pos)
+        robot_wp = Waypoint(*robot_pos)
+        self._ingest_observations(observations, robot_wp)
 
-        candidates = self._prefer_committed(self._active_sign_candidates(robot_pos, robot_yaw, corridor))
+        candidates = self._prefer_committed(self._active_sign_candidates(robot_wp, robot_yaw, corridor))
 
         # Walk candidates nearest-first and use the first whose deformation is
         # actually applicable, rather than giving up entirely if the closest one
@@ -487,8 +488,8 @@ class SignRouter:
         # taper exists for. Waypoint-at-sign callers still see taper == 1.0, so
         # single-point behaviour is unchanged.
         influence_dist = min(
-            _dist2d(waypoint, (sign.x, sign.y)),
-            _dist2d(robot_pos, (sign.x, sign.y)),
+            _dist2d(Waypoint(*waypoint), Waypoint(sign.x, sign.y)),
+            _dist2d(robot_wp, Waypoint(sign.x, sign.y)),
         )
         # This shape peaks the commanded offset AT the sign: at activation_dist
         # 1.40 against passed_dist 1.60 the taper opens at 0.125, so avoidance
@@ -565,7 +566,7 @@ class SignRouter:
 
     def _active_sign_candidates(
         self,
-        robot_pos: tuple[float, float],
+        robot_pos: Waypoint,
         robot_yaw: float,
         corridor: Section,
     ) -> list[tuple[int, float]]:
@@ -617,7 +618,7 @@ class SignRouter:
         for i, sign in enumerate(self._signs):
             if i in self._passed:
                 continue
-            d = _dist2d(robot_pos, (sign.x, sign.y))
+            d = _dist2d(robot_pos, Waypoint(sign.x, sign.y))
             if settled and d < self._config.activation_dist:
                 self._engaged.add(i)
             if d > self._config.passed_dist:
@@ -633,7 +634,7 @@ class SignRouter:
             # Measure along the robot's own heading and keep signs still
             # alongside the chassis (they must go on holding the line out until
             # fully cleared).
-            dx, dy = sign.x - robot_pos[0], sign.y - robot_pos[1]
+            dx, dy = sign.x - robot_pos.x, sign.y - robot_pos.y
             along_track = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
             if along_track < -_BEHIND_TOLERANCE:
                 continue
@@ -810,7 +811,7 @@ def _match_detection_to_sign(
             continue
 
         world = (obs.world_x_m, obs.world_y_m)
-        d = _dist2d(world, expected_world_pos)
+        d = _dist2d(Waypoint(*world), Waypoint(*expected_world_pos))
         if d < config.detection_match_dist and d < best_match_dist:
             best_match_dist = d
             best_color = obs.color

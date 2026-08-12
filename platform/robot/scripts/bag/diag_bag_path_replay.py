@@ -73,7 +73,11 @@ def _build_path(width_m: float, direction: str, section: str, laps: int, arc_rad
     meta = ScenarioMetadata.model_validate(
         {"corridor_widths": widths, "starting_conditions": {"direction": direction, "section": section}},
     )
-    return calculate_waypoints(meta, num_laps=laps, arc_radius=arc_radius, tuning=tuning)
+    # calculate_waypoints returns list[Waypoint]; the rest of this script is
+    # tuple-based (WaypointController.select_target_point et al.), so convert
+    # at this one boundary rather than threading Waypoint through it.
+    waypoints = calculate_waypoints(meta, num_laps=laps, arc_radius=arc_radius, tuning=tuning)
+    return [(wp.x, wp.y) for wp in waypoints]
 
 
 def _usable_rows(bag_dir: Path) -> list[tuple[float, NavigatorDebugSnapshot]]:

@@ -23,7 +23,12 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKe
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import Direction, NavigatorPhase, RobotState, ScenarioType, Section
-from shared.domain.models import CorridorWidthEntry, CorridorWidths, NavigatorDebugSnapshot, Pose, ScenarioMetadata
+from shared.domain.models import (
+    NavigatorDebugSnapshot,
+    Pose,
+    ScenarioMetadata,
+    Waypoint,
+)
 from std_msgs.msg import Int32, String
 
 from src.config.tuning_helpers import get_tuning
@@ -37,7 +42,7 @@ from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
-from src.navigation.planning.waypoints import calculate_waypoints
+from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
@@ -253,7 +258,7 @@ class TrackNavigator(Node, ResettableNode):
         # provisional value to restart from, not whatever direction the
         # previous race happened to resolve to. See reset().
         self._initial_direction = start_direction
-        self._start_xy = (start_x, start_y)
+        self._start_xy = Waypoint(start_x, start_y)
         self._start_section = start_section
         # The Obstacles Challenge fixes every corridor at 1.0 m, so a blind run
         # there starts from that rather than from the Open Challenge's
@@ -331,7 +336,7 @@ class TrackNavigator(Node, ResettableNode):
         waypoints = self._plan(self._to_widths_dict())
 
         self._core_navigator = self._build_core_navigator(
-            start_xy=(start_x, start_y),
+            start_xy=Waypoint(start_x, start_y),
             start_section=start_section,
             start_direction=start_direction,
             tuning=tuning,
@@ -470,12 +475,12 @@ class TrackNavigator(Node, ResettableNode):
     def _build_core_navigator(
         self,
         *,
-        start_xy: tuple[float, float],
+        start_xy: Waypoint,
         start_section: Section,
         start_direction: Direction,
         tuning: NavigationTuning,
         num_laps: int,
-        waypoints: list[tuple[float, float]],
+        waypoints: list[Waypoint],
     ) -> CoreNavigator:
         """Build the waypoints, sign router, lap detector, park controller and navigator."""
         sign_router = self._build_sign_router(direction=start_direction, tuning=tuning)
@@ -720,7 +725,7 @@ class TrackNavigator(Node, ResettableNode):
         measured = measure_start_pose(
             scan.ranges_m, scan.angles_rad, inferred, self._start_section, tuning=self._tuning,
         )
-        seed_xy = (measured.x, measured.y) if measured is not None else self._start_xy
+        seed_xy = Waypoint(measured.x, measured.y) if measured is not None else self._start_xy
         if measured is None:
             # Refusing to guess. Opposite rays that do not span the mat mean
             # something is standing in one of them -- an operator still over
@@ -753,7 +758,7 @@ class TrackNavigator(Node, ResettableNode):
             self.get_logger().info(
                 f"Start pose measured: ({measured.x:.2f}, {measured.y:.2f}), "
                 f"{measured.distance_ahead_m:.2f} m of track ahead, "
-                f"assumed was ({self._start_xy[0]:.2f}, {self._start_xy[1]:.2f})",
+                f"assumed was ({self._start_xy.x:.2f}, {self._start_xy.y:.2f})",
             )
         self._measured_start = measured
 
@@ -792,13 +797,13 @@ class TrackNavigator(Node, ResettableNode):
             # displacement being discarded is at most ~0.2m -- far smaller
             # than the corruption it replaces. See
             # docs/known-issues-backlog.md.
-            self._gateway.reset_position(*seed_xy)
+            self._gateway.reset_position(seed_xy.x, seed_xy.y)
             # ``pose`` was read from the gateway before the corrections above
             # landed, so it still carries the old, now-stale yaw and position
             # -- replan below with the corrected values or the heading-aware
             # reseek in replace_path would use the wrong heading, and resync
             # against a position replace_path won't have caught up to yet.
-            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=wrap_angle(pose.yaw + heading_delta))
+            pose = Pose(x=seed_xy.x, y=seed_xy.y, yaw=wrap_angle(pose.yaw + heading_delta))
             # The finish line's normal is the travel direction, so a detector
             # built for the provisional one counts crossings inverted. Only the
             # direction is rebuilt: the origin stays the ASSUMED start, not
@@ -841,8 +846,8 @@ class TrackNavigator(Node, ResettableNode):
             # standing 0.35 m error that the localizer's local search can never
             # remove. That round finished, so the error was invisible; it is
             # the same error that ends a counterclockwise round against a wall.
-            self._gateway.reset_position(*seed_xy)
-            pose = Pose(x=seed_xy[0], y=seed_xy[1], yaw=pose.yaw)
+            self._gateway.reset_position(seed_xy.x, seed_xy.y)
+            pose = Pose(x=seed_xy.x, y=seed_xy.y, yaw=pose.yaw)
         # Resync unconditionally: the navigator did not step during the creep,
         # so its waypoint index is still 0 while the robot has driven a metre
         # past it, and it would resume by chasing a waypoint behind itself.
@@ -910,33 +915,26 @@ class TrackNavigator(Node, ResettableNode):
             f"position estimate corrected from ({pose.x:.2f}, {pose.y:.2f})",
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
-        """Build a one-lap path for the layout the robot believes it is on.
-
-        num_laps=1 is intentional: calculate_waypoints bakes the lap count into
-        the list, but CoreNavigator already cycles one canonical lap `num_laps`
-        times (see step() waypoint-wrap). Passing the real count would multiply
-        laps (e.g. 3 -> 9). Keep this at 1.
-        """
+    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+        """Build a one-lap path for the layout the robot believes it is on."""
         # self._metadata is a plain dict (from _load_json, or the assumed-start
         # fallback literal) everywhere else in this class -- never actually a
         # ScenarioMetadata. Validating it here (rather than just annotating it
-        # as one) is what the .model_copy() calls below need to not crash with
-        # AttributeError: 'dict' object has no attribute 'starting_conditions'.
+        # as one) is what plan_believed_path's .replanned_at()/.replanned_with()
+        # calls need to not crash with AttributeError: 'dict' object has no
+        # attribute 'starting_conditions'.
         #
         # corridor_widths has no default on ScenarioMetadata (deliberately --
         # see its docstring), and a blind run's self._metadata never carries
         # one at all: there is no scenario file to read it from, only the
         # live width estimate this method receives as `widths`. Validating
-        # self._metadata as-is therefore raised on every blind run before the
-        # model_copy() ever got a chance to supply the real value -- merge it
-        # in up front instead of patching it in after.
-        new_widths = CorridorWidths(
-            **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
-        )
+        # self._metadata as-is therefore raised on every blind run before
+        # plan_believed_path ever got a chance to supply the real value --
+        # merge it in up front instead of patching it in after.
+        new_widths = corridor_widths_dict_to_model(widths)
         metadata = ScenarioMetadata.model_validate({**self._metadata, DictKeys.CORRIDOR_WIDTHS: new_widths})
-        # replanned_at takes the enum as a typed kwarg, not a raw dict: a past
-        # str(self._direction) here type-checked and passed silently while
+        # direction is a typed kwarg on plan_believed_path, not a raw dict: a
+        # past str(self._direction) here type-checked and passed silently while
         # every `direction is Direction.CLOCKWISE` test downstream
         # (calculate_waypoints, _build_corridor_order, start_measurement,
         # parking, collision avoidance) read False. A clockwise round was
@@ -949,17 +947,16 @@ class TrackNavigator(Node, ResettableNode):
         # 0.05 m/s creep floor for 100% of ticks. Counterclockwise rounds were
         # unaffected, which is why this survived: the wrong branch is the CCW one.
         starting = metadata.starting_conditions
-        new_starting = starting.replanned_at(
+        return plan_believed_path(
+            metadata,
+            widths,
             direction=self._direction,
-            section=starting.section,
-            position=starting.position,
-            yaw=starting.yaw,
+            believed_section=starting.section,
+            believed_position=starting.position,
+            believed_yaw=starting.yaw,
+            arc_radius=self._arc_radius,
+            tuning=self._tuning,
         )
-        planning_metadata = metadata.replanned_with(
-            corridor_widths=new_widths,
-            starting_conditions=new_starting,
-        )
-        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.
@@ -1050,7 +1047,7 @@ class TrackNavigator(Node, ResettableNode):
         direction, as steering the wrong way from the first waypoint.
         """
         self._gateway.reset_heading_reference()
-        self._gateway.reset_position(*self._start_xy)
+        self._gateway.reset_position(self._start_xy.x, self._start_xy.y)
         # Re-stamp anything measured before the start to the heading frame that
         # reset just established. The yaws recorded against the old reference
         # would otherwise file those readings under the wrong section, since
@@ -1128,7 +1125,10 @@ class TrackNavigator(Node, ResettableNode):
             ),
         )
         self._core_navigator.set_travel_direction(self._direction)
-        self._core_navigator.replace_path(self._plan(self._to_widths_dict()), self._start_xy)
+        self._core_navigator.replace_path(
+            self._plan(self._to_widths_dict()),
+            (self._start_xy.x, self._start_xy.y),
+        )
         self._core_navigator.reset()
 
     def _control_loop(self) -> None:

@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
-from shared.domain.models import NavigatorDebugSnapshot
+from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers import (
@@ -42,15 +42,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _outgoing_bearing(waypoints: list[tuple[float, float]], index: int) -> float:
+def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
     """Direction the path points at ``index``, toward its next waypoint.
 
     Wraps to waypoint 0 past the end -- the planned path is one canonical lap
     of a closed loop (see ``replace_path``), not an open segment.
     """
-    x0, y0 = waypoints[index]
-    x1, y1 = waypoints[(index + 1) % len(waypoints)]
-    return math.atan2(y1 - y0, x1 - x0)
+    wp0 = waypoints[index]
+    wp1 = waypoints[(index + 1) % len(waypoints)]
+    return math.atan2(wp1.y - wp0.y, wp1.x - wp0.x)
 
 
 class CoreNavigator:
@@ -59,7 +59,7 @@ class CoreNavigator:
     def __init__(
         self,
         gateway: HardwareGateway,
-        waypoints: list[tuple[float, float]],
+        waypoints: list[Waypoint],
         num_laps: int = CompetitionSpecs.OPEN_CHALLENGE_LAPS,
         tuning: NavigationTuning | None = None,
         sign_router: SignRouter | None = None,
@@ -68,7 +68,7 @@ class CoreNavigator:
         direction: Direction | None = None,
     ) -> None:
         self._gateway = gateway
-        self._waypoints = waypoints
+        self._waypoints = list(waypoints)
         self._num_laps = num_laps
         self._tuning = get_tuning(tuning)
         self._sign_router = sign_router
@@ -186,7 +186,7 @@ class CoreNavigator:
         if not self._waypoints:
             return
         mat = TrackDimensions.MAX_COORD
-        clearance = min(min(x, mat - x, y, mat - y) for x, y in self._waypoints)
+        clearance = min(min(wp.x, mat - wp.x, wp.y, mat - wp.y) for wp in self._waypoints)
         budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.WALL_MARGIN_SAFETY_M
         self._waypoint_controller.set_crosstrack_budget(
             max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),
@@ -194,7 +194,7 @@ class CoreNavigator:
 
     def replace_path(
         self,
-        waypoints: list[tuple[float, float]],
+        waypoints: list[Waypoint],
         robot_xy: tuple[float, float],
         robot_yaw: float | None = None,
     ) -> None:
@@ -238,10 +238,10 @@ class CoreNavigator:
                 is already safe.
         """
         previous_index = self._waypoint_index
-        self._waypoints = waypoints
+        self._waypoints = list(waypoints)
         self._apply_path_wall_budget()
         robot_x, robot_y = robot_xy
-        distances = [math.hypot(wx - robot_x, wy - robot_y) for wx, wy in waypoints]
+        distances = [math.hypot(wp.x - robot_x, wp.y - robot_y) for wp in waypoints]
         nearest_index = min(range(len(waypoints)), key=lambda i: distances[i])
 
         if robot_yaw is not None:
@@ -414,7 +414,7 @@ class CoreNavigator:
         if pc is not None and pc.is_repositioning:
             self._stuck_detector.reset()
         elif not self._is_holding():
-            self._stuck_detector.update((robot_x, robot_y))
+            self._stuck_detector.update(Waypoint(robot_x, robot_y))
             if self._stuck_detector.is_stuck:
                 self._handle_stuck_escape(robot_x, robot_y, robot_yaw)
                 return
@@ -452,7 +452,7 @@ class CoreNavigator:
         if (
             self._lap_detector is not None
             and self._current_corridor is not None
-            and self._lap_detector.update((robot_x, robot_y), self._current_corridor)
+            and self._lap_detector.update(Waypoint(robot_x, robot_y), self._current_corridor)
         ):
             self._laps_completed += 1
             logger.info("Lap %d complete (geometric + waypoint confirmed)", self._laps_completed)
@@ -489,8 +489,8 @@ class CoreNavigator:
         for _ in range(count):
             next_index = self._waypoint_index + 1
             next_wp = self._waypoints[next_index % count]
-            if math.hypot(next_wp[0] - robot_x, next_wp[1] - robot_y) >= math.hypot(
-                raw_wp[0] - robot_x, raw_wp[1] - robot_y
+            if math.hypot(next_wp.x - robot_x, next_wp.y - robot_y) >= math.hypot(
+                raw_wp.x - robot_x, raw_wp.y - robot_y
             ):
                 break
             self._waypoint_index = next_index
@@ -534,7 +534,7 @@ class CoreNavigator:
             escape_ranges = mask_mapped_obstacles(
                 scan.ranges_m,
                 scan.angles_rad,
-                (robot_x, robot_y, robot_yaw),
+                pose,
                 self._sign_router.routed_sign_positions,
                 self._tuning.sign_router.ESCAPE_MASK_RADIUS_M,
             )
@@ -548,7 +548,7 @@ class CoreNavigator:
         # point — checking that point would freeze waypoint_index indefinitely
         # while the sign stays engaged, corrupting every later tick's lookahead
         # search with a stale target.
-        dist_to_wp = math.hypot(raw_wp[0] - robot_x, raw_wp[1] - robot_y)
+        dist_to_wp = math.hypot(raw_wp.x - robot_x, raw_wp.y - robot_y)
         if dist_to_wp < self._waypoint_threshold:
             self._waypoint_index += 1
             self._debug = self._base_debug(robot_x, robot_y, robot_yaw)
@@ -581,10 +581,14 @@ class CoreNavigator:
         # Full waypoint list, not a slice from _waypoint_index -- select_target_point
         # wraps the search around the lap itself now (see its docstring); slicing here
         # would cut that wraparound off right back out again.
+        # select_target_point stays tuple-based -- scripts/bag/diag_bag_path_replay.py
+        # replays it directly against a tuple-based path end to end, so retyping it
+        # would ripple into that script's own internals rather than stopping at a
+        # boundary -- so convert only at this call.
         steer_target = self._waypoint_controller.select_target_point(
             current_pos=(robot_x, robot_y),
             current_yaw=robot_yaw,
-            waypoints=self._waypoints,
+            waypoints=[(wp.x, wp.y) for wp in self._waypoints],
             waypoint_index=self._waypoint_index,
             lookahead_distance=lookahead_distance,
         )
@@ -906,7 +910,7 @@ class CoreNavigator:
             self._debug = debug
             return True
 
-        cmd = pc.update((robot_x, robot_y), robot_yaw)
+        cmd = pc.update(Pose(robot_x, robot_y, robot_yaw))
         linear = cmd.linear
         scan = self._gateway.get_lidar_scan()
         if scan:
@@ -964,7 +968,7 @@ class CoreNavigator:
             return False
         if self._current_corridor is not None and self._current_corridor != pc.section:
             return False
-        sx, sy = pc.staging
+        sx, sy = pc.staging.x, pc.staging.y
         return math.hypot(sx - robot_x, sy - robot_y) < self._park_engage_dist
 
     def _handle_stuck_escape(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:

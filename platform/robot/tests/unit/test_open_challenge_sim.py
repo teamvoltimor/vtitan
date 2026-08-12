@@ -133,7 +133,7 @@ class TestPlannedWaypointsClearCorridor:
         sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
         # Chassis half-width clearance to the nearest visual wall.
         clearance = RobotSpecs.WIDTH / 2
-        offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp[0], wp[1], clearance)]
+        offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp.x, wp.y, clearance)]
         assert not offenders, f"{len(offenders)} waypoints too close to a wall: {offenders[:3]}"
 
 

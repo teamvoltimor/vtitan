@@ -10,19 +10,20 @@ from __future__ import annotations
 import math
 
 import pytest
+from shared.domain.models import Waypoint
 
 from src.navigation.track_geometry import path_turn_ahead
 
 
-def _straight(n: int = 20, spacing: float = 0.05) -> list[tuple[float, float]]:
-    return [(i * spacing, 0.0) for i in range(n)]
+def _straight(n: int = 20, spacing: float = 0.05) -> list[Waypoint]:
+    return [Waypoint(i * spacing, 0.0) for i in range(n)]
 
 
-def _right_angle(per_leg: int = 20, spacing: float = 0.05) -> list[tuple[float, float]]:
+def _right_angle(per_leg: int = 20, spacing: float = 0.05) -> list[Waypoint]:
     """An L: east along y=0, then north at the corner. Closed by the caller's
     own wraparound, which is what the ring walk relies on."""
-    east = [(i * spacing, 0.0) for i in range(per_leg)]
-    north = [((per_leg - 1) * spacing, i * spacing) for i in range(1, per_leg)]
+    east = [Waypoint(i * spacing, 0.0) for i in range(per_leg)]
+    north = [Waypoint((per_leg - 1) * spacing, i * spacing) for i in range(1, per_leg)]
     return east + north
 
 
@@ -34,7 +35,7 @@ class TestStraightsReadFlat:
         assert path_turn_ahead(_right_angle(), 18, 0.0) == pytest.approx(0.0)
 
     def test_a_degenerate_path_reads_zero(self):
-        assert path_turn_ahead([(0.0, 0.0), (1.0, 0.0)], 0, 0.40) == pytest.approx(0.0)
+        assert path_turn_ahead([Waypoint(0.0, 0.0), Waypoint(1.0, 0.0)], 0, 0.40) == pytest.approx(0.0)
 
 
 class TestCornersReadAhead:
@@ -65,13 +66,13 @@ class TestRingWalk:
         straight just because the list ended -- the loop continues at index 0."""
         # A closed square: the final leg runs west, wrapping into the north-up
         # first leg, so a turn is present only if the walk wraps.
-        square: list[tuple[float, float]] = []
+        square: list[Waypoint] = []
         corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         for i, (ax, ay) in enumerate(corners):
             bx, by = corners[(i + 1) % 4]
             for step in range(20):
                 t = step / 20
-                square.append((ax + (bx - ax) * t, ay + (by - ay) * t))
+                square.append(Waypoint(ax + (bx - ax) * t, ay + (by - ay) * t))
 
         last = len(square) - 1
         assert path_turn_ahead(square, last, 0.30) == pytest.approx(math.pi / 2, abs=1e-6)
@@ -79,7 +80,7 @@ class TestRingWalk:
     def test_turn_is_unsigned(self):
         """Left and right corners must both raise the signal, not cancel."""
         right = _right_angle()
-        left = [(x, -y) for x, y in right]
+        left = [Waypoint(wp.x, -wp.y) for wp in right]
         assert path_turn_ahead(left, 18, 0.40) == pytest.approx(
             path_turn_ahead(right, 18, 0.40),
         )

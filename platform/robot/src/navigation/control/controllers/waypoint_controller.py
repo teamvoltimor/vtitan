@@ -13,6 +13,7 @@ import math
 from typing import TYPE_CHECKING
 
 from shared.config.constants import RobotSpecs
+from shared.domain.models import Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import _local_frame, _pure_pursuit_steer
@@ -337,7 +338,7 @@ class WaypointController:
 
         lookahead = self.select_lookahead(crosstrack_error)
 
-        x_local, y_local = _local_frame(current_pos, current_yaw, target_waypoint)
+        x_local, y_local = _local_frame(Waypoint(*current_pos), current_yaw, Waypoint(*target_waypoint))
         distance = math.hypot(x_local, y_local)
 
         if distance < self.waypoint_reached_distance_m:

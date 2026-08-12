@@ -16,6 +16,7 @@ from src.config.tuning_helpers import get_tuning
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.models import Waypoint
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class StuckDetector:
         self._min_history_for_distance = min_history_for_distance if min_history_for_distance is not None else tuning.escape.MIN_HISTORY_FOR_DISTANCE
 
         # Position history
-        self.position_history: deque[tuple[float, float]] = deque(maxlen=history_size)
+        self.position_history: deque[Waypoint] = deque(maxlen=history_size)
         self.frame_count = 0
         self.stuck_count = 0
         self.is_stuck = False
@@ -96,11 +97,11 @@ class StuckDetector:
             tuning=tuning,
         )
 
-    def update(self, current_pos: tuple[float, float]) -> bool:
+    def update(self, current_pos: Waypoint) -> bool:
         """Update detector with current position.
 
         Args:
-            current_pos: Current robot position (x, y)
+            current_pos: Current robot position
 
         Returns:
             True if robot is stuck, False otherwise
@@ -117,7 +118,7 @@ class StuckDetector:
         old_pos = next(iter(self.position_history))
         curr_pos = self.position_history[-1]
 
-        distance_moved = np.sqrt((curr_pos[0] - old_pos[0]) ** 2 + (curr_pos[1] - old_pos[1]) ** 2)
+        distance_moved = np.sqrt((curr_pos.x - old_pos.x) ** 2 + (curr_pos.y - old_pos.y) ** 2)
 
         if distance_moved < self.move_threshold:
             self.stuck_count += 1
@@ -145,8 +146,8 @@ class StuckDetector:
         """
         if len(self.position_history) >= self._min_history_for_distance:
             distance = np.sqrt(
-                (self.position_history[-1][0] - self.position_history[0][0]) ** 2
-                + (self.position_history[-1][1] - self.position_history[0][1]) ** 2,
+                (self.position_history[-1].x - self.position_history[0].x) ** 2
+                + (self.position_history[-1].y - self.position_history[0].y) ** 2,
             )
         else:
             distance = 0.0

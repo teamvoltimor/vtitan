@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import CorridorWidthEntry, CorridorWidths, Position2D, ScenarioMetadata
+from shared.domain.models import Position2D, ScenarioMetadata, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -34,7 +34,7 @@ from src.navigation.corridor_follower import follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
-from src.navigation.planning.waypoints import calculate_waypoints
+from src.navigation.planning.waypoints import plan_believed_path
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
@@ -400,7 +400,7 @@ class ScenarioSimulator:
             TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
         )
         self._sign_push: dict[int, float] = {}
-        self._prev_contact_xy: tuple[float, float] = (start.x, start.y)
+        self._prev_contact_xy: Waypoint = Waypoint(start.x, start.y)
         self._true_geometry = true_geometry
 
         # What the robot is allowed to believe about the layout. Sighted runs
@@ -506,7 +506,7 @@ class ScenarioSimulator:
         # believed_start, not start: the lap line is part of the robot's plan,
         # so it belongs in the frame the robot thinks it is driving in.
         lap_detector = LapDetector(
-            start_pos=(believed_start.x, believed_start.y),
+            start_pos=Waypoint(believed_start.x, believed_start.y),
             start_section=believed_start.section,
             direction=believed_start.direction,
         )
@@ -546,27 +546,25 @@ class ScenarioSimulator:
             direction=self._direction,
         )
 
-    def _plan(self, widths: dict[Section, float]) -> list[tuple[float, float]]:
-        """Build a one-lap path for the layout the robot believes it is on."""
-        new_widths = CorridorWidths(
-            **{s.value: CorridorWidthEntry(width_mm=round(width * 1000)) for s, width in widths.items()},
-        )
-        # The believed start, not the true one: a path is built from where the
-        # robot thinks it is, and on hardware that is the assumed pose. Planning
-        # from the true start while the estimator runs in the believed frame
-        # would hand the robot a route to a place it does not think it is.
+    def _plan(self, widths: dict[Section, float]) -> list[Waypoint]:
+        """Build a one-lap path for the layout the robot believes it is on.
+
+        The believed start, not the true one: a path is built from where the
+        robot thinks it is, and on hardware that is the assumed pose. Planning
+        from the true start while the estimator runs in the believed frame
+        would hand the robot a route to a place it does not think it is.
+        """
         believed = self._believed_start
-        new_starting = self._metadata.starting_conditions.replanned_at(
+        return plan_believed_path(
+            self._metadata,
+            widths,
             direction=self._direction,
-            section=believed.section,
-            position=Position2D(x=believed.x, y=believed.y),
-            yaw=believed.yaw,
+            believed_section=believed.section,
+            believed_position=Position2D(x=believed.x, y=believed.y),
+            believed_yaw=believed.yaw,
+            arc_radius=self._arc_radius,
+            tuning=self._tuning,
         )
-        planning_metadata = self._metadata.replanned_with(
-            corridor_widths=new_widths,
-            starting_conditions=new_starting,
-        )
-        return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=self._arc_radius, tuning=self._tuning)
 
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
@@ -610,7 +608,7 @@ class ScenarioSimulator:
                         # Believed, not true: the real node has no ground truth to
                         # leak here at all, only its belief, and the finish line
                         # lives in whatever frame the rest of the plan is in.
-                        start_pos=(self._believed_start.x, self._believed_start.y),
+                        start_pos=Waypoint(self._believed_start.x, self._believed_start.y),
                         start_section=self._believed_start.section,
                         direction=inferred,
                     ),
@@ -643,7 +641,7 @@ class ScenarioSimulator:
 
     def _creep_telemetry(
         self,
-        prev_xy: tuple[float, float],
+        prev_xy: Waypoint,
         on_step: Callable[[AckermannState, LidarScan], None] | None,
     ) -> float:
         """Publish and measure a creep tick; return the distance it covered."""
@@ -651,7 +649,7 @@ class ScenarioSimulator:
         if on_step is not None and scan is not None:
             on_step(self._gateway.state, scan)
         state = self._gateway.state
-        return math.hypot(state.x - prev_xy[0], state.y - prev_xy[1])
+        return math.hypot(state.x - prev_xy.x, state.y - prev_xy.y)
 
     def _update_layout_belief(self) -> bool:
         """Fold the latest scan into the width estimate; replan if it moved.
@@ -709,7 +707,7 @@ class ScenarioSimulator:
         return self._gateway
 
     @property
-    def waypoints(self) -> list[tuple[float, float]]:
+    def waypoints(self) -> list[Waypoint]:
         """The single-lap canonical waypoint path fed to the navigator."""
         return self._waypoints
 
@@ -784,7 +782,7 @@ class ScenarioSimulator:
         if start_collision_grace_s is None:
             start_collision_grace_s = self._tuning.simulation.START_COLLISION_GRACE_S
 
-        prev_xy = (gw.state.x, gw.state.y)
+        prev_xy = Waypoint(gw.state.x, gw.state.y)
         metrics = _RunMetrics()
         prev_laps = 0
         lap_steps: list[int] = []
@@ -808,7 +806,7 @@ class ScenarioSimulator:
                 gw.advance(dt)
                 step += 1
                 metrics.observe(gw, self._creep_telemetry(prev_xy, on_step))
-                prev_xy = (gw.state.x, gw.state.y)
+                prev_xy = Waypoint(gw.state.x, gw.state.y)
                 if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
                     terminal_collision = True
                     break
@@ -827,8 +825,8 @@ class ScenarioSimulator:
                 on_step(gw.state, scan)
 
             sx, sy = gw.state.x, gw.state.y
-            metrics.observe(gw, math.hypot(sx - prev_xy[0], sy - prev_xy[1]))
-            prev_xy = (sx, sy)
+            metrics.observe(gw, math.hypot(sx - prev_xy.x, sy - prev_xy.y))
+            prev_xy = Waypoint(sx, sy)
 
             if nav.laps_completed > prev_laps:
                 lap_steps.append(step)
@@ -877,9 +875,9 @@ class ScenarioSimulator:
         # only during contact makes ``moved`` the distance since the last touch,
         # so a pillar brushed twice a metre apart accumulates that whole metre
         # of driving as if it had been pushed through it.
-        dx = state.x - self._prev_contact_xy[0]
-        dy = state.y - self._prev_contact_xy[1]
-        self._prev_contact_xy = (state.x, state.y)
+        dx = state.x - self._prev_contact_xy.x
+        dy = state.y - self._prev_contact_xy.y
+        self._prev_contact_xy = Waypoint(state.x, state.y)
         if surface is not ContactSurface.OBSTACLE or self._max_sign_push is None:
             return surface
         for index in self._track.obstacle_displacements(state.x, state.y, state.yaw):

@@ -16,6 +16,7 @@ import math
 
 import pytest
 from shared.domain.enums import Direction, Section
+from shared.domain.models import Waypoint
 
 from src.navigation.race_tracker import LapDetector
 
@@ -27,7 +28,7 @@ def _make(
     direction: Direction = Direction.CLOCKWISE,
     start: tuple[float, float] = (1.5, 0.2),
 ) -> LapDetector:
-    return LapDetector(start_pos=start, start_section=section, direction=direction)
+    return LapDetector(start_pos=Waypoint(*start), start_section=section, direction=direction)
 
 
 def _feed(
@@ -44,7 +45,7 @@ def _feed(
     for i, pos in enumerate(positions):
         if wrap_at and i in wrap_at:
             det.notify_waypoint_wrapped()
-        if det.update(pos, section):
+        if det.update(Waypoint(*pos), section):
             laps += 1
     return laps
 
@@ -124,7 +125,7 @@ class TestNoDoubleCounting:
         det.notify_waypoint_wrapped()
         # Robot goes behind and then crosses
         for pos, sec in [((2.0, 0.2), Section.SOUTH), ((1.2, 0.2), Section.SOUTH)]:
-            if det.update(pos, sec):
+            if det.update(Waypoint(*pos), sec):
                 laps += 1
         assert laps == 1
 
@@ -135,7 +136,7 @@ class TestNoDoubleCounting:
             ((2.0, 0.2), Section.SOUTH),  # behind
             ((1.2, 0.2), Section.SOUTH),  # cross
         ]:
-            if det.update(pos, sec):
+            if det.update(Waypoint(*pos), sec):
                 laps += 1
         assert laps == 2
 
@@ -191,7 +192,7 @@ class TestSectionGuard:
 )
 def test_all_sections_and_directions(section, direction, start, before, after):
     """Forward crossing counts a lap for every section × direction combination."""
-    det = LapDetector(start_pos=start, start_section=section, direction=direction)
+    det = LapDetector(start_pos=Waypoint(*start), start_section=section, direction=direction)
     det.notify_waypoint_wrapped()
     laps = _feed(det, [before, after], section=section)
     assert laps == 1
@@ -205,8 +206,8 @@ def _simulate_laps(n_laps: int, det: LapDetector, section: Section) -> int:
     counted = 0
     for _ in range(n_laps):
         det.notify_waypoint_wrapped()
-        det.update((2.0, 0.2), section)  # behind
-        if det.update((1.2, 0.2), section):  # cross
+        det.update(Waypoint(2.0, 0.2), section)  # behind
+        if det.update(Waypoint(1.2, 0.2), section):  # cross
             counted += 1
     return counted
 
@@ -231,6 +232,6 @@ def test_overshoot_on_every_lap_still_counts_exactly_three():
             (1.6, 0.2),  # return backward through line (should not count)
         ]
         for pos in steps:
-            if det.update(pos, Section.SOUTH):
+            if det.update(Waypoint(*pos), Section.SOUTH):
                 counted += 1
     assert counted == 3
