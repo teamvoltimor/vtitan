@@ -17,6 +17,13 @@ from src.hardware.camera.base import (
     Driver as CameraDriver,
     Frame,
 )
+from src.hardware.camera.rpi.camera_module_3.enums import (
+    AeExposureMode,
+    AfMode,
+    AfSpeed,
+    AwbMode,
+    NoiseReductionMode,
+)
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
@@ -66,6 +73,59 @@ class Config(HardwareBaseSettings):
     Mirror vertically. Prefer `inverted` for an upside-down mount: a 180 degree rotation is hflip and vflip together, and setting only one of them mirrors the scene rather than righting it.
     """
 
+    af_mode: AfMode = Field(
+        default=AfMode.CONTINUOUS, validation_alias=AliasChoices("CAMERA_AF_MODE", "camera_af_mode")
+    )
+    """
+    Continuous AF can hunt (and blur) mid-detection; switch to MANUAL with `lens_position` set once the working distance to signs/obstacles is known.
+    """
+
+    lens_position: float | None = Field(
+        default=None, validation_alias=AliasChoices("CAMERA_LENS_POSITION", "camera_lens_position")
+    )
+    """
+    Dioptres (1/distance_m) used when `af_mode = MANUAL`. Ignored otherwise.
+    """
+
+    af_speed: AfSpeed = Field(
+        default=AfSpeed.NORMAL, validation_alias=AliasChoices("CAMERA_AF_SPEED", "camera_af_speed")
+    )
+    """Only applies when `af_mode` is AUTO or CONTINUOUS."""
+
+    ae_exposure_mode: AeExposureMode = Field(
+        default=AeExposureMode.NORMAL,
+        validation_alias=AliasChoices("CAMERA_AE_EXPOSURE_MODE", "camera_ae_exposure_mode"),
+    )
+    """SHORT biases auto-exposure toward shorter exposure times (less motion blur, more noise)."""
+
+    exposure_time_us: int | None = Field(
+        default=None, validation_alias=AliasChoices("CAMERA_EXPOSURE_TIME_US", "camera_exposure_time_us")
+    )
+    """
+    Manual exposure time in microseconds. Set together with `analogue_gain` to disable auto-exposure entirely; leave unset to keep AE enabled.
+    """
+
+    analogue_gain: float = Field(
+        default=1.0, validation_alias=AliasChoices("CAMERA_ANALOGUE_GAIN", "camera_analogue_gain")
+    )
+    """Sensor gain. Only fixed when `exposure_time_us` is also set; otherwise AE is free to adjust it."""
+
+    awb_mode: AwbMode = Field(
+        default=AwbMode.AUTO, validation_alias=AliasChoices("CAMERA_AWB_MODE", "camera_awb_mode")
+    )
+    """
+    Sign colour classification (red vs green) is threshold-based, so a fixed mode avoids AWB drift shifting hue readings under changing venue lighting.
+    """
+
+    noise_reduction_mode: NoiseReductionMode = Field(
+        default=NoiseReductionMode.FAST,
+        validation_alias=AliasChoices("CAMERA_NOISE_REDUCTION_MODE", "camera_noise_reduction_mode"),
+    )
+    """HIGH_QUALITY adds latency the control loop can't afford."""
+
+    sharpness: float = Field(default=1.0, validation_alias=AliasChoices("CAMERA_SHARPNESS", "camera_sharpness"))
+    """libcamera sharpness multiplier; 1.0 is the sensor default."""
+
 
 class Driver(CameraDriver):
     """Driver for RPi Camera Module 3 Wide using Picamera2."""
@@ -99,10 +159,7 @@ class Driver(CameraDriver):
         # Picamera2's "RGB888" hands back B,G,R in numpy order -- see to_rgb().
         config = self._picamera2.create_video_configuration(
             main={"size": (self.config.width, self.config.height), "format": "RGB888"},
-            controls={
-                "AnalogueGain": 1.0,
-                "FrameRate": self.config.fps,
-            },
+            controls={"FrameRate": self.config.fps, **self._build_detection_controls()},
         )
         self._picamera2.configure(config)
 
@@ -121,6 +178,32 @@ class Driver(CameraDriver):
 
         self._picamera2.start()
         self.logger.info("Camera opened")
+
+    def _build_detection_controls(self) -> dict[str, object]:
+        """Build the libcamera controls dict driving focus/exposure/colour/noise for detection.
+
+        Split out of connect() so it's obvious this, and only this, is where
+        Config's typed enum fields turn into libcamera control values.
+        """
+        cfg = self.config
+        controls: dict[str, object] = {
+            "AfMode": cfg.af_mode.libcamera_value,
+            "AfSpeed": cfg.af_speed.libcamera_value,
+            "AeExposureMode": cfg.ae_exposure_mode.libcamera_value,
+            "AwbMode": cfg.awb_mode.libcamera_value,
+            "NoiseReductionMode": cfg.noise_reduction_mode.libcamera_value,
+            "Sharpness": cfg.sharpness,
+        }
+
+        if cfg.af_mode == AfMode.MANUAL and cfg.lens_position is not None:
+            controls["LensPosition"] = cfg.lens_position
+
+        if cfg.exposure_time_us is not None:
+            controls["AeEnable"] = False
+            controls["ExposureTime"] = cfg.exposure_time_us
+            controls["AnalogueGain"] = cfg.analogue_gain
+
+        return controls
 
     @property
     def picamera2(self) -> Picamera2:
