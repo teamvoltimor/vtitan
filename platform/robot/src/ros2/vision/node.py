@@ -23,6 +23,12 @@ from shared.domain.enums import RobotState, ScenarioType
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.params import (
+    declare_and_get_bool_param,
+    declare_and_get_float_param,
+    declare_and_get_int_param,
+    declare_and_get_str_param,
+)
 from src.ros2.qos import QOS_LATCHED_STATE
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
@@ -103,33 +109,20 @@ class VisionNode(Node):
 
         defaults = Config()
         topics = RosTopicConfig.load_default()
-        self.declare_parameter("camera_topic", defaults.camera_topic)
-        self.declare_parameter("detections_topic", topics.sensors.vision_detections)
-        self.declare_parameter("model_path", defaults.model_path)
-        self.declare_parameter("backend", defaults.backend)
-        self.declare_parameter("camera_source", defaults.camera_source)
-        self.declare_parameter("capture_fps", defaults.capture_fps)
-        self.declare_parameter("publish_annotated", value=defaults.publish_annotated)
-        self.declare_parameter("annotated_topic", defaults.annotated_topic)
-        self.declare_parameter("publish_raw", value=defaults.publish_raw)
-        self.declare_parameter("debug_stream_fps", defaults.debug_stream_fps)
-        self.declare_parameter("record_video", value=defaults.record_video)
-        self.declare_parameter("video_width", defaults.video_width)
-
-        camera_topic = self.get_parameter("camera_topic").get_parameter_value().string_value
-        detections_topic = self.get_parameter("detections_topic").get_parameter_value().string_value
-        model_path = self.get_parameter("model_path").get_parameter_value().string_value
-        backend = self.get_parameter("backend").get_parameter_value().string_value
-        self._camera_source = self.get_parameter("camera_source").get_parameter_value().string_value
-        capture_fps = self.get_parameter("capture_fps").get_parameter_value().double_value
-        self._publish_annotated = self.get_parameter("publish_annotated").get_parameter_value().bool_value
-        self._annotated_topic = self.get_parameter("annotated_topic").get_parameter_value().string_value
-        self._publish_raw = self.get_parameter("publish_raw").get_parameter_value().bool_value
-        debug_stream_fps = self.get_parameter("debug_stream_fps").get_parameter_value().double_value
+        camera_topic = declare_and_get_str_param(self, "camera_topic", defaults.camera_topic)
+        detections_topic = declare_and_get_str_param(self, "detections_topic", topics.sensors.vision_detections)
+        model_path = declare_and_get_str_param(self, "model_path", defaults.model_path)
+        backend = declare_and_get_str_param(self, "backend", defaults.backend)
+        self._camera_source = declare_and_get_str_param(self, "camera_source", defaults.camera_source)
+        capture_fps = declare_and_get_float_param(self, "capture_fps", defaults.capture_fps)
+        self._publish_annotated = declare_and_get_bool_param(self, "publish_annotated", defaults.publish_annotated)
+        self._annotated_topic = declare_and_get_str_param(self, "annotated_topic", defaults.annotated_topic)
+        self._publish_raw = declare_and_get_bool_param(self, "publish_raw", defaults.publish_raw)
+        debug_stream_fps = declare_and_get_float_param(self, "debug_stream_fps", defaults.debug_stream_fps)
         self._annotated_min_interval = 1.0 / debug_stream_fps if debug_stream_fps > 0 else 0.0
         self._last_annotated_pub_time = 0.0
-        self._record_video = self.get_parameter("record_video").get_parameter_value().bool_value
-        video_width = self.get_parameter("video_width").get_parameter_value().integer_value
+        self._record_video = declare_and_get_bool_param(self, "record_video", defaults.record_video)
+        video_width = declare_and_get_int_param(self, "video_width", defaults.video_width)
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
@@ -428,10 +421,8 @@ class VisionNode(Node):
         try:
             detections = self.detector.detect(rgb)
 
-            data = []
-            for d in detections:
-                det = d.to_detection()
-                data.append({
+            data = [
+                {
                     CLASS_NAME_KEY: det.class_name,
                     CONFIDENCE_KEY: det.confidence,
                     BBOX_KEY: det.bbox,
@@ -440,7 +431,9 @@ class VisionNode(Node):
                     WIDTH_KEY: det.width,
                     HEIGHT_KEY: det.height,
                     AREA_KEY: det.area,
-                })
+                }
+                for det in detections
+            ]
 
             out_msg = String()
             out_msg.data = json.dumps(data)

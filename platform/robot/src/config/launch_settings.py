@@ -25,8 +25,43 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared.config.constants import CompetitionSpecs
+from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.settings_base import ROBOT_ROOT, HardwareBaseSettings
+
+
+def _default_bag_topics() -> list[str]:
+    """Topics worth keeping for post-run analysis: sensor input, the vision and
+    navigation decisions derived from it, the resulting drive command, the
+    state machine/telemetry view of what the robot thought was happening,
+    and the motor node's own measured speed/steering (the only ground truth
+    for what the robot actually did, as opposed to what it was commanded).
+
+    Sourced from ros_topics.toml (via RosTopicConfig) rather than restated as
+    literals, so this list can't drift from what actually publishes. /tf and
+    /tf_static are the two exceptions -- standard ROS2 TF topics with no
+    RosTopicConfig entry of their own.
+
+    /camera/image_raw is deliberately absent: it was measured at 63 MB/s,
+    which dwarfs everything else here combined and is what turns a race bag
+    into a full SD card. The detections it produces are recorded instead,
+    which is what replaying a run's decisions actually needs.
+    """
+    topics = RosTopicConfig.load_default()
+    return [
+        topics.sensors.scan,
+        topics.sensors.imu,
+        topics.sensors.vision_detections,
+        topics.commands.ackermann_cmd,
+        topics.state_machine.state,
+        topics.state_machine.race_metrics,
+        topics.navigation.nav_debug,
+        topics.state_machine.system_status,
+        topics.actuators.drive_speed,
+        topics.actuators.steering_position,
+        "/tf",
+        "/tf_static",
+    ]
 
 # Separate from config/hardware/ (driver calibration) -- these are
 # launch-time session/routing defaults, a different concern.
@@ -126,29 +161,4 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # runs are pruned oldest-first once either cap is exceeded.
     bag_max_runs: int = 20
     bag_max_total_gb: float = 4.0
-    # Topics worth keeping for post-run analysis: sensor input, the vision and
-    # navigation decisions derived from it, the resulting drive command, the
-    # state machine/telemetry view of what the robot thought was happening,
-    # and the motor node's own measured speed/steering (the only ground truth
-    # for what the robot actually did, as opposed to what it was commanded).
-    #
-    # /camera/image_raw is deliberately absent: it was measured at 63 MB/s,
-    # which dwarfs everything else here combined and is what turns a race bag
-    # into a full SD card. The detections it produces are recorded instead,
-    # which is what replaying a run's decisions actually needs.
-    bag_topics: list[str] = Field(
-        default_factory=lambda: [
-            "/scan",
-            "/imu/data",
-            "/vision/detections",
-            "/ackermann_cmd",
-            "/robot_state",
-            "/race_metrics",
-            "/nav_debug",
-            "/system_status",
-            "/motor/drive_speed",
-            "/motor/steering_position",
-            "/tf",
-            "/tf_static",
-        ]
-    )
+    bag_topics: list[str] = Field(default_factory=_default_bag_topics)

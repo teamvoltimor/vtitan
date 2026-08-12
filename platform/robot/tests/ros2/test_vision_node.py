@@ -24,9 +24,8 @@ import pytest
 import rclpy
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image, LaserScan
+from shared.domain.models import Detection, SignColor
 from std_msgs.msg import String
-
-from src.vision.detector import SignDetection, TrafficSignColor
 
 
 @pytest.fixture()
@@ -52,8 +51,19 @@ def _image_msg(*, height: int = 2, width: int = 2, encoding: str = "rgb8") -> Im
     return msg
 
 
-def _sign_detection(color: TrafficSignColor = TrafficSignColor.RED, confidence: float = 0.9) -> SignDetection:
-    return SignDetection(color=color, bbox=(1.0, 2.0, 5.0, 6.0), confidence=confidence)
+def _sign_detection(color: SignColor = SignColor.RED, confidence: float = 0.9) -> Detection:
+    x1, y1, x2, y2 = 1.0, 2.0, 5.0, 6.0
+    w, h = x2 - x1, y2 - y1
+    return Detection(
+        class_name=color,
+        confidence=confidence,
+        bbox=(x1, y1, x2, y2),
+        x=(x1 + x2) / 2,
+        y=(y1 + y2) / 2,
+        width=w,
+        height=h,
+        area=w * h,
+    )
 
 
 class TestVisionNodeInit:
@@ -163,7 +173,7 @@ class TestVisionNodeImageCallback:
         assert len(published) == 1
         payload = json.loads(published[0].data)
         assert len(payload) == 1
-        assert payload[0]["class_name"] == str(TrafficSignColor.RED)
+        assert payload[0]["class_name"] == str(SignColor.RED)
         assert payload[0]["confidence"] == pytest.approx(0.9)
         assert payload[0]["bbox"] == [1.0, 2.0, 5.0, 6.0]
 

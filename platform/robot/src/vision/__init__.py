@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 
-from shared.domain.models import Detection
+from shared.domain.models import Detection, SignColor
 
 from src.vision.detector import (
     DEFAULT_CLASS_TO_COLOR,
@@ -11,8 +11,6 @@ from src.vision.detector import (
     DetectorConfig,
     HailoDetector,
     LocalYoloDetector,
-    SignDetection,
-    TrafficSignColor,
 )
 
 
@@ -33,8 +31,7 @@ __all__ = [
     "DetectorConfig",
     "HailoDetector",
     "LocalYoloDetector",
-    "SignDetection",
-    "TrafficSignColor",
+    "SignColor",
     "VisionBackend",
     "create_detector",
 ]

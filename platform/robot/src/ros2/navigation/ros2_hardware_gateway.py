@@ -33,16 +33,8 @@ from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, Wheel
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
-from src.ros2.vision.detection_payload_keys import (
-    AREA_KEY,
-    BBOX_KEY,
-    CLASS_NAME_KEY,
-    CONFIDENCE_KEY,
-    HEIGHT_KEY,
-    WIDTH_KEY,
-    X_KEY,
-    Y_KEY,
-)
+from src.ros2.params import declare_and_get_str_param
+from src.ros2.vision.detection_payload_keys import parse_detection
 from src.state_machine.estimator import StateEstimator
 
 if TYPE_CHECKING:
@@ -66,22 +58,6 @@ core_navigator.py, and estimate_yaw_from_walls) documents and requires 0 rad
 built. Invisible in simulation, which synthesizes scan angles already in the
 correct robot frame and never models a raw LIDAR mounting frame at all.
 """
-
-
-def _topic(node: Node, name: str, default: str) -> str:
-    """Resolve a topic parameter, declaring it if the host node has not.
-
-    ROS2HardwareGateway is constructed against a host node that is expected to
-    have declared its topic parameters, which TrackNavigator does. Anything
-    else building a gateway -- the contract tests, in two separate files -- has
-    to replicate that list exactly, and adding a topic here broke both of them
-    with ParameterNotDeclaredException at construction. Declaring on demand
-    makes the gateway responsible for its own inputs, so a new topic cannot
-    silently become a required ritual for every caller.
-    """
-    if not node.has_parameter(name):
-        node.declare_parameter(name, default)
-    return str(node.get_parameter(name).get_parameter_value().string_value)
 
 
 class ROS2HardwareGateway(HardwareGateway):
@@ -123,32 +99,32 @@ class ROS2HardwareGateway(HardwareGateway):
         # Publishers
         self._drive_publisher = node.create_publisher(
             AckermannDriveStamped,
-            _topic(node, "ackermann_cmd_topic", topics.commands.ackermann_cmd),
+            declare_and_get_str_param(node, "ackermann_cmd_topic", topics.commands.ackermann_cmd),
             10,
         )
 
         # Subscribers
         node.create_subscription(
             LaserScan,
-            _topic(node, "lidar_topic", topics.sensors.scan),
+            declare_and_get_str_param(node, "lidar_topic", topics.sensors.scan),
             self._lidar_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             String,
-            _topic(node, "vision_topic", topics.sensors.vision_detections),
+            declare_and_get_str_param(node, "vision_topic", topics.sensors.vision_detections),
             self._vision_callback,
             10,
         )
         node.create_subscription(
             Imu,
-            _topic(node, "imu_topic", topics.sensors.imu),
+            declare_and_get_str_param(node, "imu_topic", topics.sensors.imu),
             self._imu_callback,
             qos_profile_sensor_data,
         )
         node.create_subscription(
             JointState,
-            _topic(node, "joint_states_topic", topics.actuators.joint_states),
+            declare_and_get_str_param(node, "joint_states_topic", topics.actuators.joint_states),
             self._joint_state_callback,
             qos_profile_sensor_data,
         )
@@ -290,20 +266,7 @@ class ROS2HardwareGateway(HardwareGateway):
     def _vision_callback(self, msg: String) -> None:
         try:
             raw_data = json.loads(msg.data)
-            self._latest_detections = []
-            for d in raw_data:
-                self._latest_detections.append(
-                    Detection(
-                        class_name=d.get(CLASS_NAME_KEY, ""),
-                        confidence=d.get(CONFIDENCE_KEY, 0.0),
-                        bbox=d.get(BBOX_KEY, (0.0, 0.0, 0.0, 0.0)),
-                        x=d.get(X_KEY, 0.0),
-                        y=d.get(Y_KEY, 0.0),
-                        width=d.get(WIDTH_KEY, 0.0),
-                        height=d.get(HEIGHT_KEY, 0.0),
-                        area=d.get(AREA_KEY, 0.0),
-                    ),
-                )
+            self._latest_detections = [det for d in raw_data if (det := parse_detection(d)) is not None]
         except (json.JSONDecodeError, TypeError):
             self._latest_detections = []
 

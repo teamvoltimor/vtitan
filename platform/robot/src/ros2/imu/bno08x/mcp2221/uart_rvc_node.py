@@ -15,7 +15,7 @@ from sensor_msgs.msg import Imu
 
 from src.hardware.exceptions import IMUConnectionError
 from src.hardware.imu.bno08x.mcp2221.uart_rvc import Driver as IMU_UART_RVCDriver
-from src.ros2.params import declare_and_get_float_param, declare_and_get_str_param
+from src.ros2.params import declare_param, get_float_param, get_str_param
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -31,9 +31,9 @@ class IMU_UART_RVCNode(LifecycleNode):
         super().__init__("bno08x_uart_rvc_node")
         self.get_logger().info("IMU UART RVC Node constructed (unconfigured)")
 
-        declare_and_get_float_param(self, "publish_rate", 100.0)
-        declare_and_get_str_param(self, "frame_id", "imu_link")
-        declare_and_get_str_param(self, "topic", "imu/data")
+        declare_param(self, "publish_rate", 100.0)
+        declare_param(self, "frame_id", "imu_link")
+        declare_param(self, "topic", "imu/data")
 
         self.driver: IMU_UART_RVCDriver | None = None
         self.publisher_: Publisher | None = None
@@ -46,8 +46,8 @@ class IMU_UART_RVCNode(LifecycleNode):
         """Connect the IMU driver and create the publisher."""
         self.get_logger().info("Configuring IMU UART RVC Node")
 
-        self.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
-        topic = self.get_parameter("topic").get_parameter_value().string_value
+        self.frame_id = get_str_param(self, "frame_id")
+        topic = get_str_param(self, "topic")
         self.publisher_ = self.create_lifecycle_publisher(Imu, topic, 10)
 
         self.driver = IMU_UART_RVCDriver()
@@ -74,7 +74,7 @@ class IMU_UART_RVCNode(LifecycleNode):
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Start the publish timer."""
         self.get_logger().info("Activating IMU UART RVC Node")
-        publish_rate = self.get_parameter("publish_rate").get_parameter_value().double_value
+        publish_rate = get_float_param(self, "publish_rate")
         self.timer = self.create_timer(1.0 / publish_rate, self.publish_imu)
         return super().on_activate(state)
 

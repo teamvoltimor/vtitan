@@ -14,6 +14,7 @@ from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from sensor_msgs.msg import Imu
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
+from src.ros2.params import declare_param, get_float_param, get_str_param
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -29,9 +30,9 @@ class IMU_I2CNode(LifecycleNode):
         super().__init__("bno08x_i2c_node")
         self.get_logger().info("IMU I2C Node constructed (unconfigured)")
 
-        self.declare_parameter("publish_rate", 50.0)  # Hz
-        self.declare_parameter("frame_id", "imu_link")
-        self.declare_parameter("topic", "imu/data")
+        declare_param(self, "publish_rate", 50.0)  # Hz
+        declare_param(self, "frame_id", "imu_link")
+        declare_param(self, "topic", "imu/data")
 
         self.driver: IMU_I2CDriver | None = None
         self.publisher_: Publisher | None = None
@@ -43,8 +44,8 @@ class IMU_I2CNode(LifecycleNode):
         """Connect the IMU driver and create the publisher."""
         self.get_logger().info("Configuring IMU I2C Node")
 
-        self.frame_id = self.get_parameter("frame_id").get_parameter_value().string_value
-        topic = self.get_parameter("topic").get_parameter_value().string_value
+        self.frame_id = get_str_param(self, "frame_id")
+        topic = get_str_param(self, "topic")
         self.publisher_ = self.create_lifecycle_publisher(Imu, topic, 10)
 
         self.driver = IMU_I2CDriver()
@@ -62,7 +63,7 @@ class IMU_I2CNode(LifecycleNode):
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
         """Start the publish timer."""
         self.get_logger().info("Activating IMU I2C Node")
-        publish_rate = self.get_parameter("publish_rate").get_parameter_value().double_value
+        publish_rate = get_float_param(self, "publish_rate")
         self.timer = self.create_timer(1.0 / publish_rate, self.publish_imu)
         return super().on_activate(state)
 

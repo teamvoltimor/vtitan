@@ -10,18 +10,17 @@ from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
-
-from src.vision.detector import TrafficSignColor
+from shared.domain.models import SignColor
 
 if TYPE_CHECKING:
-    from src.vision.detector import SignDetection
+    from shared.domain.models import Detection
 
 # Box colours in RGB, chosen to read against the prism they outline rather than
 # to match it: an exactly-matching outline is invisible on the object.
-_BOX_RGB: dict[TrafficSignColor, tuple[int, int, int]] = {
-    TrafficSignColor.RED: (255, 80, 80),
-    TrafficSignColor.GREEN: (80, 255, 80),
-    TrafficSignColor.MAGENTA: (255, 80, 255),
+_BOX_RGB: dict[SignColor, tuple[int, int, int]] = {
+    SignColor.RED: (255, 80, 80),
+    SignColor.GREEN: (80, 255, 80),
+    SignColor.MAGENTA: (255, 80, 255),
 }
 _FALLBACK_RGB = (255, 255, 0)
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -29,7 +28,7 @@ _FONT_SCALE = 0.5
 _THICKNESS = 2
 
 
-def annotate(rgb: np.ndarray, detections: list[SignDetection]) -> np.ndarray:
+def annotate(rgb: np.ndarray, detections: list[Detection]) -> np.ndarray:
     """Return a copy of *rgb* with each detection boxed and labelled.
 
     Args:
@@ -52,10 +51,10 @@ def annotate(rgb: np.ndarray, detections: list[SignDetection]) -> np.ndarray:
         if x2 <= x1 or y2 <= y1:
             continue
 
-        colour = _BOX_RGB.get(detection.color, _FALLBACK_RGB)
+        colour = _BOX_RGB.get(detection.class_name, _FALLBACK_RGB)
         cv2.rectangle(canvas, (x1, y1), (x2, y2), colour, _THICKNESS)
 
-        label = f"{detection.color} {detection.confidence:.2f}"
+        label = f"{detection.class_name} {detection.confidence:.2f}"
         (text_w, text_h), baseline = cv2.getTextSize(label, _FONT, _FONT_SCALE, 1)
         # Put the label inside the box when there is no room above it, so it
         # never lands off-frame for a detection touching the top edge.

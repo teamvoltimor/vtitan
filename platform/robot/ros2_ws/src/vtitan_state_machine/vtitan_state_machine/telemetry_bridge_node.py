@@ -18,7 +18,7 @@ from rcl_interfaces.msg import SetParametersResult
 from rcl_interfaces.srv import SetParameters
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
@@ -28,16 +28,14 @@ from std_msgs.msg import String
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.control.controllers.collision_avoidance_controller import CollisionAvoidanceController
-from src.ros2.vision.detection_payload_keys import (
-    AREA_KEY,
-    BBOX_KEY,
-    CLASS_NAME_KEY,
-    CONFIDENCE_KEY,
-    HEIGHT_KEY,
-    WIDTH_KEY,
-    X_KEY,
-    Y_KEY,
+from src.ros2.params import (
+    declare_and_get_float_param,
+    declare_and_get_int_param,
+    declare_and_get_str_param,
+    declare_param,
 )
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
+from src.ros2.vision.detection_payload_keys import parse_detection
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
 
@@ -47,39 +45,28 @@ if TYPE_CHECKING:
 _MIN_TIMESTAMPS_FOR_RATE = 2
 """Minimum tracked timestamps needed to compute a topic update rate."""
 
-# Matches state_machine_node's _QOS_TRANSIENT: both nodes publish to
-# /system_status, so a subscriber (the OLED) needs both durability-compatible
-# to receive from either -- a VOLATILE publisher on this side previously
-# forced the subscriber to also stay VOLATILE, which meant it could never get
-# the latched current value from a fresh state_machine_node instance after a
-# Pi 5 restart until the next periodic publish (if the restarted node's
-# instance even re-matched the long-running subscriber at all).
-#
-# BEST_EFFORT (not RELIABLE), same reasoning as state_machine_node's
-# _QOS_TRANSIENT: a RELIABLE publish() blocks on a slow/overloaded reader,
-# which the Pi Zero's oled_display_node was measured doing for 30+ seconds
-# at a time. This publisher's own update (backend connect/disconnect) isn't
-# periodic like state_machine_node's diagnostics, so a dropped sample here
-# persists until the next connect/disconnect event -- acceptable for a
-# secondary status field, and the subscriber has to match this publisher's
-# reliability regardless since both write to the same topic.
-_QOS_SYSTEM_STATUS = QoSProfile(
-    depth=1,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-)
+# QOS_LATCHED_STATE (src/ros2/qos.py) -- both this node and state_machine_node
+# publish to /system_status, so a subscriber (the OLED) needs both
+# durability-compatible to receive from either -- a VOLATILE publisher on this
+# side previously forced the subscriber to also stay VOLATILE, which meant it
+# could never get the latched current value from a fresh state_machine_node
+# instance after a Pi 5 restart until the next periodic publish (if the
+# restarted node's instance even re-matched the long-running subscriber at
+# all). BEST_EFFORT (not RELIABLE): a RELIABLE publish() blocks on a
+# slow/overloaded reader, which the Pi Zero's oled_display_node was measured
+# doing for 30+ seconds at a time.
 
-# BEST_EFFORT so a slow/overloaded subscriber (the Pi Zero) can never make
-# this publisher's own .publish() call block. RELIABLE's flow control will
-# hold a writer's publish() until the reader acks or drops out -- confirmed
-# on hardware: with the Pi Zero's oled_display_node occasionally taking
-# 30+ seconds to keep up (I2C write stalls under CPU/memory contention on
-# that board), this node's own publish() blocked for the same duration,
-# stalling its entire single-threaded executor (every sensor callback and
-# the backend-telemetry timer) right along with it. A dropped summary
-# frame just means the OLED holds its last value one tick longer -- far
-# better than dragging this node's whole pipeline down with it.
-_QOS_UI_SUMMARY = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
+# QOS_LIVE_READOUT (src/ros2/qos.py) -- BEST_EFFORT so a slow/overloaded
+# subscriber (the Pi Zero) can never make this publisher's own .publish() call
+# block. RELIABLE's flow control will hold a writer's publish() until the
+# reader acks or drops out -- confirmed on hardware: with the Pi Zero's
+# oled_display_node occasionally taking 30+ seconds to keep up (I2C write
+# stalls under CPU/memory contention on that board), this node's own
+# publish() blocked for the same duration, stalling its entire
+# single-threaded executor (every sensor callback and the backend-telemetry
+# timer) right along with it. A dropped summary frame just means the OLED
+# holds its last value one tick longer -- far better than dragging this
+# node's whole pipeline down with it.
 
 _MIN_POINTS_FOR_FORWARD_WINDOW = 20
 """Minimum LIDAR points needed to safely slice the +/-10-index forward window."""
@@ -271,26 +258,15 @@ def _parse_detections(raw: str) -> list[Detection]:
     on any topic. This node used to subscribe Detection2DArray on
     /hailo/detections, which nothing publishes, so visionDetections telemetry
     and the OLED's best-detection readout were both silently dead the entire
-    time. Mirrors ROS2HardwareGateway._vision_callback's parsing exactly (the
-    real, working consumer of this same topic).
+    time. Uses the same parse_detection ROS2HardwareGateway._vision_callback
+    does (the real, working consumer of this same topic) -- this used to be
+    an independent, hand-copied duplicate of that parsing.
     """
     try:
         raw_data = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return []
-    return [
-        Detection(
-            class_name=d.get(CLASS_NAME_KEY, ""),
-            confidence=d.get(CONFIDENCE_KEY, 0.0),
-            bbox=tuple(d.get(BBOX_KEY, (0.0, 0.0, 0.0, 0.0))),
-            x=d.get(X_KEY, 0.0),
-            y=d.get(Y_KEY, 0.0),
-            width=d.get(WIDTH_KEY, 0.0),
-            height=d.get(HEIGHT_KEY, 0.0),
-            area=d.get(AREA_KEY, 0.0),
-        )
-        for d in raw_data
-    ]
+    return [det for d in raw_data if (det := parse_detection(d)) is not None]
 
 
 def _best_detection(detections: list[Detection]) -> tuple[str, float] | None:
@@ -317,9 +293,9 @@ class TelemetryBridgeNode(Node):
         super().__init__("telemetry_bridge")
 
         # Configuration
-        self.declare_parameter("backend_url", "http://localhost:8010")
-        self.declare_parameter("publish_rate_hz", 10.0)
-        self.declare_parameter("max_path_history", 120)
+        self._backend_url = declare_and_get_str_param(self, "backend_url", "http://localhost:8010")
+        self._rate = declare_and_get_float_param(self, "publish_rate_hz", 10.0)
+        self._max_history = declare_and_get_int_param(self, "max_path_history", 120)
         # Independent from publish_rate_hz above: that one drives the HTTP
         # POST to the backend over WiFi/LAN. This one drives a small JSON
         # blob to the Pi Zero over the USB-gadget link, kept decoupled so
@@ -327,12 +303,7 @@ class TelemetryBridgeNode(Node):
         # own 10Hz redraw rate -- the USB-gadget link and message size (a few
         # hundred bytes) have plenty of headroom at 10Hz; a lower rate here
         # was just making every other redraw show stale numbers.
-        self.declare_parameter("ui_summary_rate_hz", 10.0)
-
-        self._backend_url = self.get_parameter("backend_url").value
-        self._rate = self.get_parameter("publish_rate_hz").value
-        self._max_history = self.get_parameter("max_path_history").value
-        self._ui_summary_rate = self.get_parameter("ui_summary_rate_hz").value
+        self._ui_summary_rate = declare_and_get_float_param(self, "ui_summary_rate_hz", 10.0)
 
         self._topics = RosTopicConfig.load_default()
         # Matches compute_forward_clearance's own forward cone width, for
@@ -363,13 +334,13 @@ class TelemetryBridgeNode(Node):
         # _on_telemetry_channel_state_changed.
         self._backend_down = False
         self._system_status_pub = self.create_publisher(
-            DiagnosticArray, self._topics.state_machine.system_status, _QOS_SYSTEM_STATUS,
+            DiagnosticArray, self._topics.state_machine.system_status, QOS_LATCHED_STATE,
         )
 
         # Low-rate lidar/yaw/detection summary for the Pi Zero's OLED --
         # the only sensor telemetry it needs, so it doesn't have to
         # subscribe to /scan, /imu/data and /hailo/detections directly.
-        self._ui_summary_pub = self.create_publisher(String, self._topics.ui.telemetry_summary, _QOS_UI_SUMMARY)
+        self._ui_summary_pub = self.create_publisher(String, self._topics.ui.telemetry_summary, QOS_LIVE_READOUT)
 
         # TEMP DIAGNOSTIC (2026-07-28): see _publish_ui_summary.
         self._last_ui_summary_publish_time: float | None = None
@@ -383,21 +354,21 @@ class TelemetryBridgeNode(Node):
         # changed below), so `ros2 param get` always reflects reality even
         # after a remote-triggered stop/restart.
         default_channel_enabled = True
-        self.declare_parameter("command_channel_enabled", default_channel_enabled)
-        self.declare_parameter("telemetry_channel_enabled", default_channel_enabled)
+        declare_param(self, "command_channel_enabled", default_channel_enabled)
+        declare_param(self, "telemetry_channel_enabled", default_channel_enabled)
         self._syncing_channel_param = False
         self.add_on_set_parameters_callback(self._on_set_parameters)
 
         # Backend<->robot gRPC channels. host:port, not a URL -- gRPC
         # channels don't take a scheme, unlike backend_url.
-        self.declare_parameter("command_channel_target", "localhost:9010")
-        command_channel_target = self.get_parameter("command_channel_target").value
+        command_channel_target = declare_and_get_str_param(self, "command_channel_target", "localhost:9010")
         # Same backend process, same grpcSrv (see cmd/server/main.go), so the
         # ingest service listens on the same port as the command channel --
         # reusing command_channel_target's default rather than inventing a
         # second port.
-        self.declare_parameter("telemetry_channel_target", command_channel_target)
-        telemetry_channel_target = self.get_parameter("telemetry_channel_target").value
+        telemetry_channel_target = declare_and_get_str_param(
+            self, "telemetry_channel_target", command_channel_target
+        )
 
         # START_RACE/STOP_RACE/EMERGENCY_STOP are applied by publishing the
         # same synthetic /button/event the physical button already produces
@@ -424,8 +395,7 @@ class TelemetryBridgeNode(Node):
         # could never take effect. Launch files that rename the node must
         # pass the same name here; rpi5_nodes.launch.py derives both from
         # one constant.
-        self.declare_parameter("vision_node_name", "vision")
-        vision_node_name = self.get_parameter("vision_node_name").get_parameter_value().string_value
+        vision_node_name = declare_and_get_str_param(self, "vision_node_name", "vision")
         vision_params_client: Client = self.create_client(SetParameters, f"/{vision_node_name}/set_parameters")
 
         self._telemetry_channel = TelemetryIngestChannel(

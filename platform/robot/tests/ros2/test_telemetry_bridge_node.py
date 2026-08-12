@@ -204,19 +204,20 @@ class TestParseDetections:
     """
 
     def test_parses_a_valid_detections_list(self, bridge_module):
-        msg = _vision_msg(_detection("red_sign", 0.9, 10.0, 10.0))
+        msg = _vision_msg(_detection("red", 0.9, 10.0, 10.0))
 
         parsed = bridge_module._parse_detections(msg.data)
 
-        assert parsed == [_detection("red_sign", 0.9, 10.0, 10.0)]
+        assert parsed == [_detection("red", 0.9, 10.0, 10.0)]
 
     def test_malformed_json_returns_empty_list(self, bridge_module):
         assert bridge_module._parse_detections("not json") == []
 
-    def test_missing_keys_default_gracefully(self, bridge_module):
+    def test_missing_class_name_is_dropped(self, bridge_module):
+        """A detection with no valid class_name is dropped, not defaulted to some other color."""
         parsed = bridge_module._parse_detections(json.dumps([{}]))
 
-        assert parsed == [Detection(class_name="", confidence=0.0, bbox=(0.0, 0.0, 0.0, 0.0), x=0.0, y=0.0, width=0.0, height=0.0, area=0.0)]
+        assert parsed == []
 
 
 class TestPublishUiSummary:
@@ -253,7 +254,7 @@ class TestPublishUiSummary:
         imu.orientation.w = 0.707
         bridge_node._imu_callback(imu)
 
-        bridge_node._vision_callback(_vision_msg(_detection("red_sign", 0.9, 10.0, 10.0)))
+        bridge_node._vision_callback(_vision_msg(_detection("red", 0.9, 10.0, 10.0)))
 
         published = []
         bridge_node._ui_summary_pub.publish = published.append
@@ -262,7 +263,7 @@ class TestPublishUiSummary:
         data = json.loads(published[0].data)
         assert data["lidar_front_cm"] == pytest.approx(18.6, abs=0.1)
         assert data["gyro_yaw_deg"] == pytest.approx(90.0, abs=1.0)
-        assert data["best_detection_class_id"] == "red_sign"
+        assert data["best_detection_class_id"] == "red"
         assert data["best_detection_confidence"] == pytest.approx(0.9)
 
 
@@ -366,7 +367,7 @@ class TestUiSummaryRoundTripsWithOledNode:
         scan.ranges = ranges
         bridge_node._scan_callback(scan)
 
-        bridge_node._vision_callback(_vision_msg(_detection("red_sign", 0.9, 10.0, 10.0)))
+        bridge_node._vision_callback(_vision_msg(_detection("red", 0.9, 10.0, 10.0)))
 
         published = []
         bridge_node._ui_summary_pub.publish = published.append
@@ -378,6 +379,6 @@ class TestUiSummaryRoundTripsWithOledNode:
             oled_node._ui_summary_callback(summary_msg)
 
             assert oled_node.lidar_front == pytest.approx(18.6, abs=0.1)
-            assert oled_node.best_detection == ("red_sign", pytest.approx(0.9))
+            assert oled_node.best_detection == ("red", pytest.approx(0.9))
         finally:
             oled_node.destroy_node()
