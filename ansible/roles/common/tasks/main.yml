@@ -172,9 +172,9 @@
     executable: /bin/bash
   when: task_check.rc != 0
 
-# Pre-rename deployment migration (teamvoldemor/voldemorbot ->
+# Pre-rename deployment migration (teamvoldemor/vtitan ->
 # teamvoltimor/vtitan). Always a fresh clone now, git-based (Pi 5's
-# ~/voldemorbot and its sibling git-worktree checkouts) or tarball-deployed
+# ~/vtitan and its sibling git-worktree checkouts) or tarball-deployed
 # (Pi Zero, via scripts/provisioning/deploy-dev-env-to-zero.sh) alike -- verified
 # 2026-07-30 that no worktree/branch on the Pi 5 had commits missing from
 # GitHub (`git log --branches --not --remotes` empty everywhere), so nothing
