@@ -18,6 +18,7 @@ from src.hardware.motors.base import (
 from src.hardware.motors.config import Config
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
+from src.navigation.utils import clamp
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -188,14 +189,11 @@ class Driver(MotorDriver):
     def _clamp_speed(self, speed: int) -> int:
         """Clamp speed to configured limits."""
         speed = abs(speed)
-        return max(min(speed, self.config.drive.max_speed), self.config.drive.min_speed)
+        return int(clamp(speed, self.config.drive.min_speed, self.config.drive.max_speed))
 
     def _clamp_position(self, position: float) -> float:
         """Clamp steering position to configured limits."""
-        return max(
-            min(position, self.config.steering.right_limit_angle),
-            self.config.steering.left_limit_angle,
-        )
+        return clamp(position, self.config.steering.left_limit_angle, self.config.steering.right_limit_angle)
 
     @override
     def run_drive_forward(self, speed: int | None = None) -> None:

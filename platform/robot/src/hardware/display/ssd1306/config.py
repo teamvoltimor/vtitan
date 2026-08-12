@@ -1,16 +1,6 @@
-from typing import Annotated
-
-from pydantic import BeforeValidator
 from pydantic_settings import SettingsConfigDict
 
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
-
-
-def _parse_int(value: object) -> object:
-    """Parse ints given as hex/octal/binary strings (e.g. env var "0x3C")."""
-    if isinstance(value, str):
-        return int(value, 0)
-    return value
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings, HexInt
 
 
 class Config(HardwareBaseSettings):
@@ -27,7 +17,7 @@ class Config(HardwareBaseSettings):
     height: int = 64
     """Display height in pixels. Default is 64 for SSD1306."""
 
-    i2c_address: Annotated[int, BeforeValidator(_parse_int)] = 0x3C
+    i2c_address: HexInt = 0x3C
     """I2C address of the display. Default is 0x3C."""
 
     i2c_bus: int = 1

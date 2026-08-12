@@ -31,6 +31,7 @@ from src.navigation.localization import make_localizer
 from src.navigation.planning.sign_discovery import detection_to_observation
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
+from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
@@ -328,7 +329,7 @@ class ROS2HardwareGateway(HardwareGateway):
         """
         msg = AckermannDriveStamped()
         msg.header.stamp = self._node.get_clock().now().to_msg()
-        speed = max(-RobotSpecs.MAX_SPEED_MPS, min(RobotSpecs.MAX_SPEED_MPS, command.speed_mps))
+        speed = clamp(command.speed_mps, -RobotSpecs.MAX_SPEED_MPS, RobotSpecs.MAX_SPEED_MPS)
         msg.drive.speed = float(speed)
         msg.drive.steering_angle = steering_norm_to_angle_rad(
             command.steering_norm,

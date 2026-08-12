@@ -42,7 +42,7 @@ from shared.config.constants import RobotSpecs
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
-    _clamp,
+    clamp as _clamp,
     wrap_angle as _wrap_angle,
 )
 

@@ -40,6 +40,7 @@ from src.hardware.motors.dc_encoder.control import (
     counts_to_revolutions,
 )
 from src.hardware.motors.pwm_sysfs import EXPORT_TIMEOUT_S, SYSFS_PWM_ROOT, wait_for_pwm_channel_writable
+from src.navigation.utils import clamp
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -122,7 +123,7 @@ class SimulatedEncoderDriver(EncodedDriveDriver):
     def _set_rpm(self, rpm: float) -> None:
         """Latch a new target RPM after settling outstanding counts."""
         self._advance()
-        self._target_rpm = self._sign * max(-self._max_rpm, min(self._max_rpm, rpm))
+        self._target_rpm = self._sign * clamp(rpm, -self._max_rpm, self._max_rpm)
 
     def connect(self) -> None:
         """Reset the integration clock; there is no hardware to open."""
@@ -350,7 +351,7 @@ class Driver(EncodedDriveDriver):
 
     def _set_output(self, duty: float) -> None:
         """Drive the H-bridge from a signed duty in [-1, 1]."""
-        signed = self._sign * max(-1.0, min(1.0, duty))
+        signed = self._sign * clamp(duty, -1.0, 1.0)
         if self._ain1 is None or self._ain2 is None or self._channel_dir is None:
             raise MotorConnectionError([str(p) for p in self._pins], "driver not connected")
         if signed >= 0:
