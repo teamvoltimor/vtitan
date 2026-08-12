@@ -18,7 +18,9 @@ driver's TOML tree is untouched and behaves exactly as before.
 """
 
 from pathlib import Path
+from typing import Annotated
 
+from pydantic import BeforeValidator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
 from shared.config.hardware_profile import active_profiles
@@ -26,6 +28,17 @@ from shared.config.hardware_profile import active_profiles
 # settings_base.py -> hardware -> src -> robot
 ROBOT_ROOT: Path = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Path = ROBOT_ROOT / "config" / "hardware"
+
+
+def _parse_hex_int(value: object) -> object:
+    """Coerce hex/octal/decimal strings (e.g. "0x04D8") to int; pass through ints."""
+    if isinstance(value, str):
+        return int(value, 0)
+    return value
+
+
+HexInt = Annotated[int, BeforeValidator(_parse_hex_int)]
+"""An int field that also accepts hex/octal/decimal string literals (e.g. an I2C address as "0x3C")."""
 
 
 def _profile_overlay_paths(base_toml: Path) -> list[Path]:

@@ -19,7 +19,7 @@ from typing import Any, cast, override
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from shared.config.constants import CompetitionSpecs, CorridorDimensions, DictKeys
 from shared.config.navigation_tuning import NavigationTuning
 from shared.config.ros_topics import RosTopicConfig
@@ -46,6 +46,7 @@ from src.navigation.start_measurement import MeasuredStart, measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
+from src.ros2.qos import QOS_LATCHED_STATE
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
@@ -366,11 +367,7 @@ class TrackNavigator(Node, ResettableNode):
             String,
             self._topics.state_machine.state,
             self._on_robot_state,
-            QoSProfile(
-                depth=1,
-                reliability=QoSReliabilityPolicy.BEST_EFFORT,
-                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            ),
+            QOS_LATCHED_STATE,
         )
 
         # Jumper-resolved challenge, forwarded by state_machine_node once
@@ -386,11 +383,7 @@ class TrackNavigator(Node, ResettableNode):
                 String,
                 self._topics.challenge_mode.active,
                 self._on_challenge_mode_active,
-                QoSProfile(
-                    depth=1,
-                    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-                    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-                ),
+                QOS_LATCHED_STATE,
             )
 
         # state_machine_node owns /race_metrics (what the OLED and FINISHED

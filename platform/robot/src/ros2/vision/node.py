@@ -16,13 +16,14 @@ from pydantic_settings import SettingsConfigDict
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, LaserScan
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState, ScenarioType
 from std_msgs.msg import String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.qos import QOS_LATCHED_STATE
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
@@ -82,30 +83,6 @@ class Config(HardwareBaseSettings):
     # actual captured frame's aspect ratio, never hardcoded.
     video_width: int = 640
 
-
-# Matches state_machine_node's/telemetry_bridge_node's _QOS_TRANSIENT-style
-# /system_status publishers: TRANSIENT_LOCAL so a late subscriber (the OLED,
-# which restarts independently on the Pi Zero) gets this node's one startup
-# publish instead of waiting for a periodic re-publish that never comes.
-# BEST_EFFORT for the same reason those publishers are -- a RELIABLE writer
-# blocks on a slow reader, which the OLED's own board has been measured doing
-# for 30+ seconds under contention.
-_QOS_SYSTEM_STATUS = QoSProfile(
-    depth=1,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-)
-
-# Matches state_machine_node's /robot_state and /challenge_mode/active
-# publishers, and bag_recorder_node's /bag_recorder/run_path -- all
-# TRANSIENT_LOCAL + BEST_EFFORT, same rationale as _QOS_SYSTEM_STATUS above.
-# A RELIABLE reader against any of these BEST_EFFORT writers is an
-# incompatible QoS pair that DDS resolves by delivering nothing at all.
-_QOS_LATCHED_STATE = QoSProfile(
-    depth=1,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-)
 
 # How long to poll for bag_recorder_node's run directory to actually appear
 # on disk before giving up on video for this run. ros2 bag record creates its
@@ -199,12 +176,12 @@ class VisionNode(Node):
         self._scan: LaserScan | None = None
         if self._camera_source == "direct":
             topics_state = topics.state_machine.state
-            self.create_subscription(String, topics_state, self._on_robot_state, _QOS_LATCHED_STATE)
+            self.create_subscription(String, topics_state, self._on_robot_state, QOS_LATCHED_STATE)
             self.create_subscription(
-                String, topics.challenge_mode.active, self._on_challenge_mode_active, _QOS_LATCHED_STATE,
+                String, topics.challenge_mode.active, self._on_challenge_mode_active, QOS_LATCHED_STATE,
             )
             self.create_subscription(
-                String, topics.bag_recorder.run_path, self._on_run_path, _QOS_LATCHED_STATE,
+                String, topics.bag_recorder.run_path, self._on_run_path, QOS_LATCHED_STATE,
             )
             # Plain depth-10 QoS, matching track_navigator_node's
             # /nav_debug publisher exactly (create_publisher(String, ..., 10),
@@ -246,7 +223,7 @@ class VisionNode(Node):
         sets.
         """
         topics = RosTopicConfig.load_default()
-        pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, _QOS_SYSTEM_STATUS)
+        pub = self.create_publisher(DiagnosticArray, topics.state_machine.system_status, QOS_LATCHED_STATE)
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
         status = DiagnosticStatus()

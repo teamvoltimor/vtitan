@@ -24,7 +24,8 @@ def wrap_angle(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
+def clamp(value: float, lo: float, hi: float) -> float:
+    """Clamp ``value`` to the closed interval ``[lo, hi]``."""
     return max(lo, min(hi, value))
 
 

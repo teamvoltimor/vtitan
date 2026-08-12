@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.navigation.utils import clamp
+
 if TYPE_CHECKING:
     from src.teleop.config import Config
-
-
-def _clamp(value: float, limit: float) -> float:
-    return max(-limit, min(limit, value))
 
 
 def compute_command(
@@ -37,7 +35,7 @@ def compute_command(
     steering_raw = axes[config.steering_axis_index]
     if config.steering_invert:
         steering_raw = -steering_raw
-    steering_deg = _clamp(steering_raw * config.max_steering_deg, config.max_steering_deg)
+    steering_deg = clamp(steering_raw * config.max_steering_deg, -config.max_steering_deg, config.max_steering_deg)
 
     deadman_held = joy_is_fresh and bool(buttons[config.deadman_button_index])
     if not deadman_held:
@@ -46,6 +44,6 @@ def compute_command(
     throttle_raw = axes[config.throttle_axis_index]
     if config.throttle_invert:
         throttle_raw = -throttle_raw
-    speed_mps = _clamp(throttle_raw * config.max_speed_mps, config.max_speed_mps)
+    speed_mps = clamp(throttle_raw * config.max_speed_mps, -config.max_speed_mps, config.max_speed_mps)
 
     return speed_mps, steering_deg

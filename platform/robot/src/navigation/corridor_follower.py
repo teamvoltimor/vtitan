@@ -42,7 +42,7 @@ from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad, wrap_angle
+from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad, clamp, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -202,5 +202,5 @@ def follow_corridor(
     # the nose is left of the axis, and +1 steering is full left, hence minus.
     if yaw is not None:
         demand -= heading_gain * axis_offset_rad(yaw)
-    steering = max(-max_centering, min(max_centering, demand))
+    steering = clamp(demand, -max_centering, max_centering)
     return DriveCommand(speed_mps=speed_mps, steering_norm=steering)

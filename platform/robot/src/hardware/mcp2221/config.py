@@ -1,16 +1,6 @@
-from typing import Annotated
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, BeforeValidator, Field
-
-
-def _parse_int(value: object) -> object:
-    """Coerce hex/octal/decimal strings (e.g. "0x04D8") to int; pass through ints."""
-    if isinstance(value, str):
-        return int(value, 0)
-    return value
-
-
-HexInt = Annotated[int, BeforeValidator(_parse_int)]
+from src.hardware.settings_base import HexInt
 
 
 class MCP2221Config(BaseModel):

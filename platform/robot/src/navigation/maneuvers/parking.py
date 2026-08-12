@@ -32,9 +32,9 @@ from shared.domain.models import BlockPosition, ParkingLot
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
-  _clamp,
   _local_frame,
   _pure_pursuit_steer as _shared_pure_pursuit_steer,
+  clamp as _clamp,
 )
 
 if TYPE_CHECKING:

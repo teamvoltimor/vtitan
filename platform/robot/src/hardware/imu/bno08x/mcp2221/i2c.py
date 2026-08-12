@@ -16,7 +16,7 @@ from adafruit_bno08x import (
     BNO_REPORT_ROTATION_VECTOR,
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 
 from src.hardware.imu.base import (
@@ -31,7 +31,7 @@ from src.hardware.imu.readings import (
     MagnetometerReading,
     QuaternionReading,
 )
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings, HexInt
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
 
@@ -43,15 +43,9 @@ class Config(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", toml_file=CONFIG_DIR / "imu" / "bno08x_mcp2221_i2c.toml")
 
-    i2c_address: int = Field(default=0x4A, validation_alias=AliasChoices("IMU_I2C_ADDRESS", "imu_i2c_address"))
+    i2c_address: HexInt = Field(default=0x4A, validation_alias=AliasChoices("IMU_I2C_ADDRESS", "imu_i2c_address"))
     """I2C address for the BNO08x IMU. The default address is 0x4A when the ADR pin is high, and 0x4B when
     the ADR pin is low. Ensure that the ADR pin on your BNO08x board is set accordingly to match this address."""
-
-    @field_validator("i2c_address", mode="before")
-    @classmethod
-    def _parse_int_literal(cls, value: object) -> object:
-        """Accept "0x4A"-style hex literals as well as plain decimal strings."""
-        return int(value, 0) if isinstance(value, str) else value
 
 
 class Driver(ABC_Driver):
