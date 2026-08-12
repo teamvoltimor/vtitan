@@ -41,7 +41,11 @@ from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_FONT = cv2.FONT_HERSHEY_SIMPLEX
+_FONT = cv2.FONT_HERSHEY_DUPLEX
+"""Duplex, not Simplex -- a cleaner double-stroke face that reads as a modern
+geometric sans at this size, instead of Simplex's single-stroke "typewriter"
+look. cv2 can't load real TTF fonts without extra system libs, so this is the
+built-in ceiling for "professional" rather than a placeholder choice."""
 _RGB = tuple[int, int, int]
 
 
@@ -57,13 +61,28 @@ class HudConfig(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="vision_hud_", toml_file=CONFIG_DIR / "vision" / "hud.toml")
 
-    font_scale: float = 0.45
+    font_scale: float = 0.42
     line_height_px: int = 18
-    text_rgb: _RGB = (255, 255, 255)
-    panel_rgb: _RGB = (0, 0, 0)
+    text_rgb: _RGB = (232, 236, 240)
+    """Value-column colour. Deliberately a soft off-white, not pure (255,255,255)
+    -- pure white against the dim slate panel reads harsh; the slightly muted
+    tone plus the dimmer label_rgb is what gives the two columns a legible
+    visual hierarchy at a glance."""
+    label_rgb: _RGB = (118, 128, 140)
+    """Label-column colour -- dimmer than text_rgb on purpose, so the eye
+    lands on values (what the robot is doing) before labels (what they mean),
+    the same label/value dimming convention as a flight HUD or telemetry
+    dashboard."""
+    accent_rgb: _RGB = (0, 194, 255)
+    """Single accent colour reused everywhere something should read as
+    "live"/"foreground": the panel's inner-edge bar and the radar points --
+    one accent, not a colour per element, is what keeps the overlay reading
+    as minimalist rather than a rainbow of debug colours."""
+    border_rgb: _RGB = (58, 64, 72)
+    panel_rgb: _RGB = (12, 14, 18)
     panel_alpha: float = 0.55
-    margin_px: int = 8
-    column_gap_px: int = 10
+    margin_px: int = 10
+    column_gap_px: int = 14
     """Gap between a panel's label column and its value column. cv2's font
     isn't monospace, so this is real pixel spacing measured per-panel from
     each label's actual rendered width (see _draw_panel), not padding baked
@@ -73,11 +92,12 @@ class HudConfig(HardwareBaseSettings):
 
     radar_radius_px: int = 70
     radar_margin_px: int = 12
-    radar_bg_rgb: _RGB = (0, 0, 0)
+    radar_bg_rgb: _RGB = (12, 14, 18)
     radar_bg_alpha: float = 0.55
-    radar_ring_rgb: _RGB = (90, 90, 90)
-    radar_point_rgb: _RGB = (80, 255, 80)
-    radar_robot_rgb: _RGB = (255, 220, 80)
+    radar_ring_rgb: _RGB = (58, 64, 72)
+    radar_crosshair_rgb: _RGB = (36, 40, 46)
+    radar_point_rgb: _RGB = (0, 194, 255)
+    radar_robot_rgb: _RGB = (255, 255, 255)
     max_radar_range_m: float = 3.0
 
 
@@ -158,25 +178,33 @@ def _panel_size(rows: list[tuple[str, str]], config: HudConfig) -> tuple[int, in
 
 
 def _draw_panel(canvas: np.ndarray, rows: list[tuple[str, str]], *, top: bool, left: bool, config: HudConfig) -> None:
-    """Draw one shaded, column-aligned text panel anchored to a corner of *canvas*, in place."""
+    """Draw one shaded, column-aligned text panel anchored to a corner of *canvas*, in place.
+
+    Styled as a minimalist glass panel: a dim slate fill, a hairline border,
+    and a single accent-coloured bar on the panel's inner edge (the edge
+    facing the centre of the frame) instead of a full accent outline -- a
+    quieter "this is live telemetry" cue than a bright box around every panel.
+    """
     height, width = canvas.shape[:2]
     panel_w, panel_h, value_col_x = _panel_size(rows, config)
     panel_w = min(width, panel_w)
     panel_h = min(height, panel_h)
     x0 = 0 if left else max(0, width - panel_w)
     y0 = 0 if top else max(0, height - panel_h)
+    x1, y1 = x0 + panel_w, y0 + panel_h
 
-    region = canvas[y0 : y0 + panel_h, x0 : x0 + panel_w]
+    region = canvas[y0:y1, x0:x1]
     shaded = np.full_like(region, config.panel_rgb)
-    canvas[y0 : y0 + panel_h, x0 : x0 + panel_w] = cv2.addWeighted(
-        shaded, config.panel_alpha, region, 1 - config.panel_alpha, 0,
-    )
+    canvas[y0:y1, x0:x1] = cv2.addWeighted(shaded, config.panel_alpha, region, 1 - config.panel_alpha, 0)
+    cv2.rectangle(canvas, (x0, y0), (x1 - 1, y1 - 1), config.border_rgb, 1, cv2.LINE_AA)
+    accent_x = (x1 - 1) if left else x0
+    cv2.line(canvas, (accent_x, y0), (accent_x, y1 - 1), config.accent_rgb, 2, cv2.LINE_AA)
 
     for i, (label, value) in enumerate(rows):
         y = y0 + config.margin_px + config.line_height_px * (i + 1) - 4
-        if y >= y0 + panel_h:
+        if y >= y1:
             break  # panel ran out of room (tiny frame) -- draw what fits, never raise
-        cv2.putText(canvas, label, (x0 + config.margin_px, y), _FONT, config.font_scale, config.text_rgb, 1, cv2.LINE_AA)
+        cv2.putText(canvas, label, (x0 + config.margin_px, y), _FONT, config.font_scale, config.label_rgb, 1, cv2.LINE_AA)
         cv2.putText(canvas, value, (x0 + value_col_x, y), _FONT, config.font_scale, config.text_rgb, 1, cv2.LINE_AA)
 
 
@@ -247,11 +275,17 @@ def draw_radar(
     if cx - box_extent < 0 or cy - box_extent < 0:
         return out  # frame too small for the radar to fit -- skip rather than draw garbage
 
-    bg_box = out[cy - box_extent : height, cx - box_extent : width]
+    box_x0, box_y0 = cx - box_extent, cy - box_extent
+    bg_box = out[box_y0:height, box_x0:width]
     shaded = np.full_like(bg_box, config.radar_bg_rgb)
-    out[cy - box_extent : height, cx - box_extent : width] = cv2.addWeighted(
-        shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0,
-    )
+    out[box_y0:height, box_x0:width] = cv2.addWeighted(shaded, config.radar_bg_alpha, bg_box, 1 - config.radar_bg_alpha, 0)
+    cv2.rectangle(out, (box_x0, box_y0), (width - 1, height - 1), config.border_rgb, 1, cv2.LINE_AA)
+
+    # Faint crosshair through the centre, clipped to the ring -- a quiet
+    # "this is a plot, not a decoration" cue, dimmer than the ring itself so
+    # it reads as structure rather than another line competing for attention.
+    cv2.line(out, (cx - radius, cy), (cx + radius, cy), config.radar_crosshair_rgb, 1, cv2.LINE_AA)
+    cv2.line(out, (cx, cy - radius), (cx, cy + radius), config.radar_crosshair_rgb, 1, cv2.LINE_AA)
     cv2.circle(out, (cx, cy), radius, config.radar_ring_rgb, 1, cv2.LINE_AA)
     cv2.circle(out, (cx, cy), radius // 2, config.radar_ring_rgb, 1, cv2.LINE_AA)
 
