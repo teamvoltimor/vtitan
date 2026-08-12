@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from src.vision.hud import draw_radar, draw_stats
+from src.vision.hud import draw_logo, draw_radar, draw_stats
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -141,6 +141,7 @@ class VideoRecorder:
                 hud_frame = draw_radar(
                     hud_frame, snapshot.scan_ranges, snapshot.scan_angles, config=self._hud_config,
                 )
+                hud_frame = draw_logo(hud_frame, config=self._hud_config)
                 writer.write(hud_frame[:, :, ::-1])  # RGB -> BGR, OpenCV's expected order
         finally:
             if writer is not None:

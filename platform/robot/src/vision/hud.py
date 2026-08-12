@@ -16,8 +16,11 @@ never a stale prior value and never a crash.
 Layout: a status panel top-left (challenge/phase/direction/corridor/lap/
 heading -- "where things stand"), a control panel top-right (speed/steer/
 crosstrack/risk/maneuver/signs -- "what the robot is doing about it right
-now"), and the LIDAR radar bottom-right. All pixel sizes, colours and the
-radar's display range are tuning constants, not literals -- see HudConfig /
+now"), the LIDAR radar bottom-right, and the team mark watermarked bottom-left
+(assets/vision/voltimor-mark.png -- see scripts/vision/_make_hud_logo.py
+for how it was derived from the brand asset) -- purely cosmetic, unlike
+the other three. All pixel sizes, colours and the radar's display
+range are tuning constants, not literals -- see HudConfig /
 config/hardware/vision/hud.toml, same pattern every other hardware/vision
 config in this repo follows (VisionNode's own Config, NavigationTuning, etc.).
 
@@ -36,7 +39,7 @@ import cv2
 import numpy as np
 from pydantic_settings import SettingsConfigDict
 
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSettings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -63,16 +66,14 @@ class HudConfig(HardwareBaseSettings):
 
     font_scale: float = 0.42
     line_height_px: int = 18
-    text_rgb: _RGB = (232, 236, 240)
-    """Value-column colour. Deliberately a soft off-white, not pure (255,255,255)
-    -- pure white against the dim slate panel reads harsh; the slightly muted
-    tone plus the dimmer label_rgb is what gives the two columns a legible
-    visual hierarchy at a glance."""
-    label_rgb: _RGB = (118, 128, 140)
-    """Label-column colour -- dimmer than text_rgb on purpose, so the eye
-    lands on values (what the robot is doing) before labels (what they mean),
-    the same label/value dimming convention as a flight HUD or telemetry
-    dashboard."""
+    text_rgb: _RGB = (248, 250, 252)
+    """Value-column colour -- near-white for maximum contrast against the
+    dim slate panel."""
+    label_rgb: _RGB = (168, 178, 190)
+    """Label-column colour -- still dimmer than text_rgb so the eye lands on
+    values (what the robot is doing) before labels (what they mean), the
+    same label/value convention a flight HUD or telemetry dashboard uses,
+    but light enough to stay legible on its own against the dark panel."""
     accent_rgb: _RGB = (0, 194, 255)
     """Single accent colour reused everywhere something should read as
     "live"/"foreground": the panel's inner-edge bar and the radar points --
@@ -96,12 +97,41 @@ class HudConfig(HardwareBaseSettings):
     radar_bg_alpha: float = 0.55
     radar_ring_rgb: _RGB = (58, 64, 72)
     radar_crosshair_rgb: _RGB = (36, 40, 46)
-    radar_point_rgb: _RGB = (0, 194, 255)
+    radar_point_rgb: _RGB = (30, 136, 229)
+    """Sampled from the team mark's body/circuit blue (assets/vision/
+    voltimor-mark.png), not the panel's cyan accent_rgb -- distinct from the
+    accent bars so the radar points read as "the logo's blue," not just
+    another use of the same UI accent colour."""
     radar_robot_rgb: _RGB = (255, 255, 255)
     max_radar_range_m: float = 3.0
 
+    logo_size_px: int = 64
+    logo_margin_px: int = 8
+    logo_alpha: float = 0.85
+    """Multiplies the mark PNG's own per-pixel alpha -- a light watermark, not
+    a solid sticker, so it doesn't compete with the radar for attention."""
+
 
 _DEFAULT_HUD_CONFIG = HudConfig()
+_LOGO_PATH = ROBOT_ROOT / "assets" / "vision" / "voltimor-mark.png"
+
+
+def _load_logo_rgba(path: object) -> np.ndarray | None:
+    """Load the team mark as RGBA, or None if the asset is missing/unreadable.
+
+    Never raises -- draw_logo falls back to drawing nothing, the same
+    never-crash-the-recording contract the rest of this module holds for
+    missing telemetry. Loaded once at import time since it's a small, static
+    asset re-read on every frame otherwise.
+    """
+    bgra = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    if bgra is None or bgra.ndim != 3 or bgra.shape[2] != 4:
+        return None
+    b, g, r, a = cv2.split(bgra)
+    return cv2.merge([r, g, b, a])
+
+
+_LOGO_RGBA = _load_logo_rgba(_LOGO_PATH)
 
 
 def _fmt(value: Any, unit: str = "") -> str:
@@ -300,5 +330,40 @@ def draw_radar(
                 cv2.circle(out, (px, py), 1, config.radar_point_rgb, -1, cv2.LINE_AA)
 
     cv2.drawMarker(out, (cx, cy), config.radar_robot_rgb, cv2.MARKER_TRIANGLE_UP, 8, 2, cv2.LINE_AA)
+
+    return out
+
+
+def draw_logo(canvas: np.ndarray, config: HudConfig | None = None) -> np.ndarray:
+    """Return a copy of *canvas* with the team mark watermarked into the bottom-left corner.
+
+    Purely cosmetic branding, unlike draw_stats/draw_radar's telemetry -- so a
+    missing or unreadable assets/vision/voltimor-mark.png (e.g. a fresh
+    checkout that hasn't pulled LFS/binary assets yet) skips the logo
+    entirely rather than raising, same never-crash-the-recording contract as
+    a missing NavigatorDebugSnapshot field.
+
+    Args:
+        canvas: Frame in RGB order.
+        config: Tuning constants; defaults to the checked-in config/hardware/vision/hud.toml.
+
+    Returns:
+        A new array; the input is left untouched.
+    """
+    config = config or _DEFAULT_HUD_CONFIG
+    out = np.ascontiguousarray(canvas).copy()
+    if _LOGO_RGBA is None:
+        return out
+    height, width = out.shape[:2]
+    size = config.logo_size_px
+    x0, y0 = config.logo_margin_px, height - config.logo_margin_px - size
+    if size <= 0 or x0 < 0 or y0 < 0 or x0 + size > width:
+        return out  # frame too small for the mark to fit -- skip rather than draw garbage
+
+    mark = cv2.resize(_LOGO_RGBA, (size, size), interpolation=cv2.INTER_AREA)
+    region = out[y0 : y0 + size, x0 : x0 + size].astype(np.float32)
+    mark_rgb = mark[:, :, :3].astype(np.float32)
+    alpha = (mark[:, :, 3:4].astype(np.float32) / 255.0) * config.logo_alpha
+    out[y0 : y0 + size, x0 : x0 + size] = (mark_rgb * alpha + region * (1 - alpha)).astype(np.uint8)
 
     return out
