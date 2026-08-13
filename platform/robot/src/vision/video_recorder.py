@@ -34,7 +34,11 @@ _QUEUE_MAXSIZE = 3
 the point is to notice and start dropping quickly, not to buffer minutes of
 frames in memory hoping the encoder catches up."""
 
-_JOIN_TIMEOUT_SEC = 5.0
+_JOIN_TIMEOUT_SEC = 30.0
+"""mp4 finalization (writer.release()) time scales with total frames written,
+not per-frame write time -- a multi-minute recording can take well past 5s to
+finalize on SD-card-class I/O, especially with ros2 bag record writing to the
+same directory concurrently."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +117,12 @@ class VideoRecorder:
             return
         self._queue.put(None)  # sentinel; a blocking put is fine here, this is not the hot path
         self._thread.join(timeout=_JOIN_TIMEOUT_SEC)
+        if self._thread.is_alive():
+            logger.error(
+                "Video recorder thread did not finish finalizing within %.0fs -- "
+                "the output file may be missing or unplayable",
+                _JOIN_TIMEOUT_SEC,
+            )
         self._thread = None
 
     def _run(self, path: Path) -> None:
