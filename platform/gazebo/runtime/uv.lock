@@ -381,5 +381,6 @@ dependencies = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyyaml", marker = "extra == 'yaml'", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15" },
 ]
-provides-extras = ["yaml"]
+provides-extras = ["yaml", "dev"]
