@@ -165,3 +165,6 @@ platform/robot/vision-*.mp4
 
 # Pinned-seed sweep corpus (task gen:corpus) — regenerated, never committed.
 platform/robot/.corpus/
+
+# Landing page
+landing/
