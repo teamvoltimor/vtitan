@@ -105,11 +105,15 @@ class TestDrawRadar:
         assert out.any()
 
     def test_radar_lands_in_the_bottom_right(self) -> None:
-        frame = _blank(width=640, height=360)
+        # 1536x864: the real recorded resolution (native camera width x
+        # height, see rpi_camera_module_3.toml/node.toml's video_width) --
+        # not an arbitrary small canvas, since radar_radius_px is tuned for
+        # this scale.
+        frame = _blank(width=1536, height=864)
         out = draw_radar(frame, [1.0] * 8, [i * math.pi / 4 for i in range(8)], max_range_m=3.0)
-        top_half = out[:180, :]
-        bottom_left = out[180:, :400]
-        bottom_right = out[180:, 400:]
+        top_half = out[:432, :]
+        bottom_left = out[432:, :768]
+        bottom_right = out[432:, 768:]
         assert not top_half.any()
         assert not bottom_left.any()
         assert bottom_right.any()

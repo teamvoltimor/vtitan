@@ -1,8 +1,9 @@
 # Navigation HUD overlay (per-run recorded video) -- src/vision/hud.py
 # See docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md
 
-font_scale = 0.42
-line_height_px = 18
+font_scale = 0.55
+text_thickness = 1
+line_height_px = 22
 text_rgb = [248, 250, 252]
 label_rgb = [168, 178, 190]
 accent_rgb = [0, 194, 255]
@@ -12,7 +13,7 @@ panel_alpha = 0.55
 margin_px = 10
 column_gap_px = 14
 
-radar_radius_px = 70
+radar_radius_px = 90
 radar_margin_px = 12
 radar_bg_rgb = [12, 14, 18]
 radar_bg_alpha = 0.55
@@ -22,6 +23,6 @@ radar_point_rgb = [30, 136, 229]
 radar_robot_rgb = [255, 255, 255]
 max_radar_range_m = 3.0
 
-logo_size_px = 64
+logo_size_px = 128
 logo_margin_px = 8
 logo_alpha = 0.85
