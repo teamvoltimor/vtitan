@@ -64,8 +64,9 @@ class HudConfig(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="vision_hud_", toml_file=CONFIG_DIR / "vision" / "hud.toml")
 
-    font_scale: float = 0.42
-    line_height_px: int = 18
+    font_scale: float = 0.55
+    text_thickness: int = 1
+    line_height_px: int = 22
     text_rgb: _RGB = (248, 250, 252)
     """Value-column colour -- near-white for maximum contrast against the
     dim slate panel."""
@@ -91,7 +92,7 @@ class HudConfig(HardwareBaseSettings):
     width, which produces a ragged, unaligned value column in a proportional
     font."""
 
-    radar_radius_px: int = 70
+    radar_radius_px: int = 90
     radar_margin_px: int = 12
     radar_bg_rgb: _RGB = (12, 14, 18)
     radar_bg_alpha: float = 0.55
@@ -105,7 +106,7 @@ class HudConfig(HardwareBaseSettings):
     radar_robot_rgb: _RGB = (255, 255, 255)
     max_radar_range_m: float = 3.0
 
-    logo_size_px: int = 64
+    logo_size_px: int = 128
     logo_margin_px: int = 8
     logo_alpha: float = 0.85
     """Multiplies the mark PNG's own per-pixel alpha -- a light watermark, not
@@ -187,7 +188,7 @@ def _control_lines(nav_debug: dict | None) -> list[tuple[str, str]]:
 
 
 def _text_width(text: str, config: HudConfig) -> int:
-    (w, _), _ = cv2.getTextSize(text, _FONT, config.font_scale, 1)
+    (w, _), _ = cv2.getTextSize(text, _FONT, config.font_scale, config.text_thickness)
     return w
 
 
@@ -234,8 +235,14 @@ def _draw_panel(canvas: np.ndarray, rows: list[tuple[str, str]], *, top: bool, l
         y = y0 + config.margin_px + config.line_height_px * (i + 1) - 4
         if y >= y1:
             break  # panel ran out of room (tiny frame) -- draw what fits, never raise
-        cv2.putText(canvas, label, (x0 + config.margin_px, y), _FONT, config.font_scale, config.label_rgb, 1, cv2.LINE_AA)
-        cv2.putText(canvas, value, (x0 + value_col_x, y), _FONT, config.font_scale, config.text_rgb, 1, cv2.LINE_AA)
+        cv2.putText(
+            canvas, label, (x0 + config.margin_px, y), _FONT, config.font_scale, config.label_rgb,
+            config.text_thickness, cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas, value, (x0 + value_col_x, y), _FONT, config.font_scale, config.text_rgb,
+            config.text_thickness, cv2.LINE_AA,
+        )
 
 
 def draw_stats(

@@ -4,6 +4,11 @@ Lets its layout/legibility be judged and iterated on without a running node,
 real hardware, or even a real video -- see
 docs/internal/plans/2026-08-11-navigation-hud-overlay-and-open-challenge-recording.md.
 
+The synthetic frame is sized to match what VideoRecorder actually writes
+(video_width from config/hardware/vision/node.toml, height derived from
+config/hardware/camera/rpi_camera_module_3.toml's native aspect ratio), not
+an arbitrary size -- so this preview reflects real recorded footage.
+
 Usage:
     pixi run -e dev python scripts/vision/preview_hud.py [--out DIR]
 
@@ -17,6 +22,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -26,8 +32,31 @@ import numpy as np
 
 from src.vision.hud import HudConfig, draw_logo, draw_radar, draw_stats
 
-_WIDTH = 640
-_HEIGHT = 360
+_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config" / "hardware"
+
+
+def _output_frame_size() -> tuple[int, int]:
+    """(width, height) of what VideoRecorder actually writes, from the checked-in configs.
+
+    Mirrors VideoRecorder._run's own resize math (video_recorder.py) so this
+    preview matches real recorded footage instead of an arbitrary synthetic
+    size. video_width comes from vision/node.toml; the source frame's aspect
+    ratio comes from rpi_camera_module_3.toml -- the Picamera2 driver VisionNode
+    actually instantiates for direct capture (node.py's _start_direct_capture).
+    camera/config.toml's width/height (640x640) is a separate, unrelated
+    StreamingDriver config that the direct-capture vision pipeline never
+    reads -- using it here would silently mismatch real recorded footage,
+    which is the camera's native 1536x864 (16:9), not square.
+    """
+    node_toml = tomllib.loads((_CONFIG_DIR / "vision" / "node.toml").read_text())
+    camera_toml = tomllib.loads((_CONFIG_DIR / "camera" / "rpi_camera_module_3.toml").read_text())
+    video_width = node_toml.get("video_width", 640)
+    cam_width = camera_toml.get("camera_width", 1536)
+    cam_height = camera_toml.get("camera_height", 864)
+    return video_width, round(video_width * cam_height / cam_width)
+
+
+_WIDTH, _HEIGHT = _output_frame_size()
 _BACKGROUND_RGB = (40, 180, 40)  # a visible green, not the camera -- see the docstring
 _HUD_CONFIG = HudConfig()  # config/hardware/vision/hud.toml -- same config draw_stats/draw_radar default to
 _DEAD_AHEAD_COS_THRESHOLD = 0.99  # "basically dead ahead/astern" for this synthetic preview only
