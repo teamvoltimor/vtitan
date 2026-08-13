@@ -227,7 +227,7 @@ class _DriverFactory:
         """Build the drive driver for ``backend``."""
         if backend is DriveBackend.BUILD_HAT:
             return self._shared_build_hat()  # combined object also satisfies DriveDriver
-        from src.hardware.motors.dc_encoder.driver import Driver  # noqa: PLC0415 - lazy: only when selected
+        from src.hardware.motors.dc_encoder import Driver  # noqa: PLC0415 - lazy: only when selected
 
         pins = self._dc_encoder_pins
         return Driver(

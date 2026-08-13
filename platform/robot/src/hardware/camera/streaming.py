@@ -3,11 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
-from collections.abc import Generator
-from contextlib import suppress
-from queue import Empty, Queue
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -16,6 +11,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 from src.hardware.camera.config import Config as CameraConfig
+from src.hardware.camera.frame_streamer import FrameStreamer
 from src.hardware.camera.rpi.camera_module_3.driver import (
     Config as RPiCameraConfig,
     Driver as CameraDriver,
@@ -44,10 +40,14 @@ class StreamingDriver:
     def __init__(self, config: CameraConfig | None = None):
         self.config = config or CameraConfig()
         self._camera_driver: CameraDriver = self._create_driver()
-        self._running = False
-        self._capture_thread: threading.Thread | None = None
-        self._frame_queue: Queue[np.ndarray] = Queue(maxsize=2)
         self._logger = logging.getLogger(__name__)
+        self._streamer: FrameStreamer[np.ndarray] = FrameStreamer(
+            self._camera_driver.get_latest_frame,
+            maxsize=2,
+            idle_sleep=0.001,
+            error_message="Capture error",
+            logger=self._logger,
+        )
 
     def _create_driver(self) -> CameraDriver:
         """Create the appropriate camera driver based on config or device detection."""
@@ -68,60 +68,30 @@ class StreamingDriver:
         self._camera_driver.connect()
         self._logger.info("Camera connected")
 
-    def _capture_loop(self) -> None:
-        """Continuous capture loop."""
-        while self._running:
-            try:
-                frame = self._camera_driver.get_latest_frame()
-
-                if frame is None:
-                    time.sleep(0.001)
-                    continue
-
-                if self._frame_queue.full():
-                    with suppress(Empty):
-                        self._frame_queue.get_nowait()
-
-                self._frame_queue.put(frame)
-            except Exception as e:
-                self._logger.exception("Capture error: %s", e)  # noqa: TRY401
-                time.sleep(0.1)
-
     def start_streaming(self) -> None:
         """Start continuous frame capture in background thread."""
-        if self._running:
+        if self._streamer.running:
             return
 
         self.connect()
-
-        self._running = True
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._capture_thread.start()
+        self._streamer.start()
         self._logger.info("Streaming started")
 
     def stop_streaming(self) -> None:
         """Stop continuous frame capture."""
-        self._running = False
-
-        if self._capture_thread:
-            self._capture_thread.join(timeout=2.0)
-
+        self._streamer.stop()
         self._logger.info("Streaming stopped")
 
     def get_latest_frame(self) -> np.ndarray | None:
         """Get latest frame without blocking."""
-        try:
-            return self._frame_queue.get_nowait()
-        except Empty:
-            return None
+        return self._streamer.get_nowait()
 
     def stream(self) -> Generator[np.ndarray, None, None]:
         """Generator that yields continuous frames."""
         self.start_streaming()
         try:
-            while self._running:
-                frame = self._frame_queue.get()
-                yield frame
+            while self._streamer.running:
+                yield self._streamer.get()
         finally:
             self.stop_streaming()
 

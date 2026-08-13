@@ -7,120 +7,45 @@ package (see button_node.py for the reference implementation).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, override
+from typing import override
 
 import rclpy
-from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
-from src.ros2.params import declare_param, get_float_param, get_str_param
-
-if TYPE_CHECKING:
-    from rclpy.lifecycle.node import LifecycleState
-    from rclpy.lifecycle.publisher import Publisher
-    from rclpy.timer import Timer
+from src.ros2.hardware_node import LifecycleHardwareNode
 
 
-class IMU_I2CNode(LifecycleNode):
+class IMU_I2CNode(LifecycleHardwareNode):
     """ROS2 lifecycle node publishing IMU data from BNO08x over I2C."""
 
     def __init__(self) -> None:
         """Construct the node (unconfigured -- no hardware I/O yet)."""
-        super().__init__("bno08x_i2c_node")
-        self.get_logger().info("IMU I2C Node constructed (unconfigured)")
-
-        declare_param(self, "publish_rate", 50.0)  # Hz
-        declare_param(self, "frame_id", "imu_link")
-        declare_param(self, "topic", "imu/data")
-
-        self.driver: IMU_I2CDriver | None = None
-        self.publisher_: Publisher | None = None
-        self.timer: Timer | None = None
-        self.frame_id: str = ""
+        super().__init__(
+            "bno08x_i2c_node",
+            Imu,
+            publish_rate_default=50.0,  # Hz
+            topic_default="imu/data",
+            frame_id_default="imu_link",
+        )
 
     @override
-    def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Connect the IMU driver and create the publisher."""
-        self.get_logger().info("Configuring IMU I2C Node")
+    def _create_driver(self) -> IMU_I2CDriver:
+        return IMU_I2CDriver()
 
-        self.frame_id = get_str_param(self, "frame_id")
-        topic = get_str_param(self, "topic")
-        self.publisher_ = self.create_lifecycle_publisher(Imu, topic, 10)
-
-        self.driver = IMU_I2CDriver()
+    @override
+    def _configure_driver(self, driver: IMU_I2CDriver) -> TransitionCallbackReturn:
         try:
-            self.driver.connect()
-            self.driver.enable_sensors()
+            driver.connect()
+            driver.enable_sensors()
             self.get_logger().info("IMU driver connected and sensors enabled.")
         except (RuntimeError, OSError) as e:
             self.get_logger().error(f"Failed to initialize IMU driver: {type(e).__name__}: {e}")
             self.driver = None
-
         return TransitionCallbackReturn.SUCCESS
 
     @override
-    def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Start the publish timer."""
-        self.get_logger().info("Activating IMU I2C Node")
-        publish_rate = get_float_param(self, "publish_rate")
-        self.timer = self.create_timer(1.0 / publish_rate, self.publish_imu)
-        return super().on_activate(state)
-
-    @override
-    def on_deactivate(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Stop the publish timer."""
-        self.get_logger().info("Deactivating IMU I2C Node")
-        self._destroy_timer()
-        return super().on_deactivate(state)
-
-    @override
-    def on_cleanup(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Disconnect the driver and tear down the publisher."""
-        self.get_logger().info("Cleaning up IMU I2C Node")
-        self._disconnect_driver()
-        if self.publisher_ is not None:
-            self.destroy_publisher(self.publisher_)
-            self.publisher_ = None
-        return TransitionCallbackReturn.SUCCESS
-
-    @override
-    def on_shutdown(self, state: LifecycleState) -> TransitionCallbackReturn:
-        """Tear down whatever exists, regardless of which state shutdown was triggered from."""
-        self.get_logger().info("Shutting down IMU I2C Node")
-        self._destroy_timer()
-        self._disconnect_driver()
-        if self.publisher_ is not None:
-            self.destroy_publisher(self.publisher_)
-            self.publisher_ = None
-        return TransitionCallbackReturn.SUCCESS
-
-    def _destroy_timer(self) -> None:
-        if self.timer is not None:
-            self.timer.cancel()
-            self.destroy_timer(self.timer)
-            self.timer = None
-
-    def _disconnect_driver(self) -> None:
-        if self.driver is not None:
-            try:
-                self.driver.close()
-            except Exception as e:  # noqa: BLE001 - cleanup must never fail node teardown
-                self.get_logger().error(f"Error closing IMU driver: {e}")
-            self.driver = None
-
-    @override
-    def destroy_node(self) -> None:
-        """Release hardware directly rather than trigger an on_shutdown transition.
-
-        Handles a node destroyed without a clean lifecycle shutdown (e.g.
-        process killed mid-active, or a test that never triggers shutdown).
-        """
-        self._destroy_timer()
-        self._disconnect_driver()
-        self.publisher_ = None
-        return super().destroy_node()
-
     def publish_imu(self) -> None:
         """Read data from driver and publish as sensor_msgs/Imu."""
         if self.driver is None or self.publisher_ is None:

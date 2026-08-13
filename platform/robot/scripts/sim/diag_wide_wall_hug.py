@@ -38,9 +38,9 @@ from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.domain.enums import Direction, Section
 
 from scripts.common.tables import print_table
+from src.simulation.imu_error_model import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
-from src.simulation.simulated_hardware_gateway import SensorErrors
 
 _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _STARTS = list(product(Section, Direction))

@@ -53,10 +53,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from shared.config.constants import CorridorDimensions
 from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.simulation.imu_error_model import SensorErrors
 from src.simulation.live_visualizer import (
     LiveScenarioVisualizer,
     RealTimePacer,
@@ -69,17 +69,17 @@ from src.simulation.scenario_catalog import (
     all_test_scenarios,
     find_scenario,
 )
-from src.simulation.scenario_simulator import ScenarioSimulator, SimResult
-from src.simulation.simulated_hardware_gateway import CONTROL_DT, SensorErrors
+from src.simulation.scenario_constants import WIDE_MM
+from src.simulation.scenario_simulator import ScenarioSimulator
+from src.simulation.simulated_hardware_gateway import CONTROL_DT
 from src.simulation.track_model import TrackModel
 
 if TYPE_CHECKING:
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
+    from src.simulation.scenario_result import SimResult
 
 logger = logging.getLogger(__name__)
-
-_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -87,10 +87,10 @@ def _parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--south", type=int, default=_WIDE_MM, help="South corridor width (mm).")
-    parser.add_argument("--north", type=int, default=_WIDE_MM, help="North corridor width (mm).")
-    parser.add_argument("--east", type=int, default=_WIDE_MM, help="East corridor width (mm).")
-    parser.add_argument("--west", type=int, default=_WIDE_MM, help="West corridor width (mm).")
+    parser.add_argument("--south", type=int, default=WIDE_MM, help="South corridor width (mm).")
+    parser.add_argument("--north", type=int, default=WIDE_MM, help="North corridor width (mm).")
+    parser.add_argument("--east", type=int, default=WIDE_MM, help="East corridor width (mm).")
+    parser.add_argument("--west", type=int, default=WIDE_MM, help="West corridor width (mm).")
     parser.add_argument(
         "--section",
         choices=["south", "north", "east", "west"],
@@ -375,7 +375,7 @@ def main() -> None:
         _run_and_visualize(scenario, opts)
         return
 
-    widths = uniform_widths(_WIDE_MM)
+    widths = uniform_widths(WIDE_MM)
     widths.update(south=args.south, north=args.north, east=args.east, west=args.west)
     section = Section.from_string(args.section)
     direction = Direction.CLOCKWISE if args.direction == "cw" else Direction.COUNTERCLOCKWISE

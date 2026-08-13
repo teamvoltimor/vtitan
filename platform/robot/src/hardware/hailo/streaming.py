@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
-from collections.abc import Generator
-from contextlib import suppress
-from queue import Empty, Queue
+from queue import Empty
 from typing import TYPE_CHECKING, Self
 
 import cv2
@@ -20,6 +16,7 @@ if TYPE_CHECKING:
     from src.hardware.hailo.config import StreamingConfig
     from src.hardware.hailo.inferences import InferenceResult
 
+from src.hardware.camera.frame_streamer import FrameStreamer
 from src.hardware.camera.streaming import StreamingDriver as CameraStreamingDriver
 from src.hardware.hailo.hailo_8.driver import Driver as HailoDriver
 from src.logger import configure_json_logging
@@ -49,12 +46,20 @@ class StreamingDriver:
         self.config = config
         self._hailo_driver = HailoDriver(hailo_config)
         self._camera_streaming_driver: CameraStreamingDriver | None = None
-        self._running = False
-        self._input_queue: Queue[np.ndarray] = Queue(maxsize=config.queue_size)
-        self._result_queue: Queue[InferenceResult] = Queue(maxsize=config.queue_size)
-        self._capture_thread: threading.Thread | None = None
-        self._inference_thread: threading.Thread | None = None
         self._logger = logging.getLogger(__name__)
+        self._capture_streamer: FrameStreamer[np.ndarray] = FrameStreamer(
+            self._get_latest_camera_frame,
+            maxsize=config.queue_size,
+            idle_sleep=0.001,
+            error_message="Capture error",
+            logger=self._logger,
+        )
+        self._inference_streamer: FrameStreamer[InferenceResult] = FrameStreamer(
+            self._run_inference,
+            maxsize=config.queue_size,
+            error_message="Inference error",
+            logger=self._logger,
+        )
 
     def connect(self) -> None:
         """Connect to camera and Hailo device."""
@@ -82,82 +87,49 @@ class StreamingDriver:
         self._camera_streaming_driver.start_streaming()
         self._logger.info("Camera started")
 
-    def _capture_loop(self) -> None:
-        """Continuous capture loop."""
-        # Only started (see start_capture()) after the camera driver is set.
+    def _get_latest_camera_frame(self) -> np.ndarray | None:
+        """Pull the newest frame off the camera driver's own stream."""
+        # Only started (see start()) after the camera driver is set.
         assert self._camera_streaming_driver is not None
-        while self._running:
-            try:
-                frame = self._camera_streaming_driver.get_latest_frame()
+        return self._camera_streaming_driver.get_latest_frame()
 
-                if frame is None:
-                    time.sleep(0.001)
-                    continue
+    def _run_inference(self) -> InferenceResult | None:
+        """Block for the next captured frame and run inference on it."""
+        try:
+            frame = self._capture_streamer.get(timeout=1.0)
+        except Empty:
+            return None
 
-                if self._input_queue.full():
-                    with suppress(Empty):
-                        self._input_queue.get_nowait()
+        input_data = preprocess(
+            frame,
+            self.config.model_input_width,
+            self.config.model_input_height,
+        )
 
-                self._input_queue.put(frame)
-            except Exception:
-                self._logger.exception("Capture error")
-                time.sleep(0.1)
-
-    def _inference_loop(self) -> None:
-        """Continuous inference loop."""
-        while self._running:
-            try:
-                frame = self._input_queue.get(timeout=1.0)
-            except Empty:
-                continue
-
-            try:
-                input_data = preprocess(
-                    frame,
-                    self.config.model_input_width,
-                    self.config.model_input_height,
-                )
-
-                result = self._hailo_driver.infer_with_image_size(
-                    input_data,
-                    original_width=frame.shape[1],
-                    original_height=frame.shape[0],
-                    image=frame,
-                )
-
-                if self._result_queue.full():
-                    with suppress(Empty):
-                        self._result_queue.get_nowait()
-
-                self._result_queue.put(result)
-            except Exception:
-                self._logger.exception("Inference error")
+        return self._hailo_driver.infer_with_image_size(
+            input_data,
+            original_width=frame.shape[1],
+            original_height=frame.shape[0],
+            image=frame,
+        )
 
     def start(self) -> None:
         """Start continuous inference."""
-        if self._running:
+        if self._inference_streamer.running:
             return
 
         self.connect()
         self._start_camera()
 
-        self._running = True
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._inference_thread = threading.Thread(target=self._inference_loop, daemon=True)
-
-        self._capture_thread.start()
-        self._inference_thread.start()
+        self._capture_streamer.start()
+        self._inference_streamer.start()
 
         self._logger.info("Streaming started")
 
     def stop(self) -> None:
         """Stop continuous inference."""
-        self._running = False
-
-        if self._capture_thread:
-            self._capture_thread.join(timeout=2.0)
-        if self._inference_thread:
-            self._inference_thread.join(timeout=2.0)
+        self._capture_streamer.stop()
+        self._inference_streamer.stop()
 
         if self._camera_streaming_driver:
             self._camera_streaming_driver.close()
@@ -167,10 +139,7 @@ class StreamingDriver:
 
     def get_latest(self) -> InferenceResult | None:
         """Get latest inference result without blocking."""
-        try:
-            return self._result_queue.get_nowait()
-        except Empty:
-            return None
+        return self._inference_streamer.get_nowait()
 
     @property
     def camera_driver(self) -> CameraStreamingDriver | None:
@@ -186,9 +155,8 @@ class StreamingDriver:
         """Generator that yields continuous inference results."""
         self.start()
         try:
-            while self._running:
-                result = self._result_queue.get()
-                yield result
+            while self._inference_streamer.running:
+                yield self._inference_streamer.get()
         finally:
             self.stop()
 

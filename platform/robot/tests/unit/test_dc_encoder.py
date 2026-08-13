@@ -18,7 +18,7 @@ from src.hardware.motors.dc_encoder.control import (
     counts_to_revolutions,
     revolutions_to_distance,
 )
-from src.hardware.motors.dc_encoder.driver import SimulatedEncoderDriver
+from src.hardware.motors.dc_encoder.simulated import SimulatedEncoderDriver
 
 
 class FakeClock:

@@ -1,37 +1,17 @@
 """Hardware driver for BNO08x IMU via I2C."""
 
-import logging
 import threading
-import time
 from typing import override
 
 import board
 import busio
-from adafruit_bno08x import (
-    BNO08X,
-    BNO_REPORT_ACCELEROMETER,
-    BNO_REPORT_GAME_ROTATION_VECTOR,
-    BNO_REPORT_GYROSCOPE,
-    BNO_REPORT_LINEAR_ACCELERATION,
-    BNO_REPORT_MAGNETOMETER,
-    BNO_REPORT_ROTATION_VECTOR,
-)
 from adafruit_bno08x.i2c import BNO08X_I2C
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 from src.hardware.exceptions import IMUConnectionError
-from src.hardware.imu.base import (
-    Driver as ABC_Driver,
-)
+from src.hardware.imu.bno08x.i2c_base import BNO08xI2CDriver
 from src.hardware.imu.config import QuaternionConfig
-from src.hardware.imu.readings import (
-    AccelerometerReading,
-    EulerReading,
-    GyroscopeReading,
-    MagnetometerReading,
-    QuaternionReading,
-)
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings, HexInt
 from src.logger import configure_json_logging
 from src.logger.constants import DETAILS_KEY
@@ -59,7 +39,7 @@ class Config(HardwareBaseSettings):
     """Delay in seconds after enabling sensors to allow them to stabilize"""
 
 
-class Driver(ABC_Driver):
+class Driver(BNO08xI2CDriver):
     """Driver for BNO08x IMU via I2C bridge."""
 
     def __init__(self, config: Config | None = None):
@@ -67,16 +47,14 @@ class Driver(ABC_Driver):
         Initialize driver with optional configuration.
 
         Args:
-            config (I2CConfig | None): Configuration for I2C connection and sensor settings.
+            config (Config | None): Configuration for I2C connection and sensor settings.
                 If None, resolved from env vars (address is required, no default).
         """
         # address is required with no default -- resolved from an env var
         # when config isn't passed explicitly; mypy can't see that.
         self.config: Config = config or Config()  # type: ignore[call-arg]
-        self._imu: BNO08X | None = None
-        self._i2c: busio.I2C | None = None
+        super().__init__(enable_sensors_delay=self.config.enable_sensors_delay)
         self._conn_lock: threading.Lock = threading.Lock()
-        self.logger = logging.getLogger(__name__)
 
     def connect(self) -> None:
         """Connect to IMU via I2C."""
@@ -114,134 +92,6 @@ class Driver(ABC_Driver):
         finally:
             # Release lock regardless of success or failure to allow retries
             self._conn_lock.release()
-
-    @property
-    def imu(self) -> BNO08X | None:
-        """Get IMU instance."""
-        if self._imu is None:
-            self.connect()
-
-        return self._imu
-
-    def enable_sensors(self) -> None:
-        """Enable all sensors."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot enable sensors")
-            return
-
-        self.imu.enable_feature(BNO_REPORT_ACCELEROMETER)
-        self.imu.enable_feature(BNO_REPORT_GYROSCOPE)
-        self.imu.enable_feature(BNO_REPORT_MAGNETOMETER)
-        self.imu.enable_feature(BNO_REPORT_ROTATION_VECTOR)  # Standard Quaternion
-        self.imu.enable_feature(BNO_REPORT_GAME_ROTATION_VECTOR)  # Z-axis gravity removed
-        self.imu.enable_feature(BNO_REPORT_LINEAR_ACCELERATION)
-
-        # Allow sensors to stabilize after enabling
-        time.sleep(self.config.enable_sensors_delay)
-        self.logger.info("Sensors enabled")
-
-    @override
-    def get_accelerometer(self) -> AccelerometerReading:
-        """Get accelerometer data (m/s²)."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read accelerometer")
-            return AccelerometerReading(0.0, 0.0, 0.0)
-
-        accel = self.imu.acceleration
-        self.logger.debug(
-            "Accelerometer read",
-            extra={DETAILS_KEY: {"x": accel[0], "y": accel[1], "z": accel[2]}},
-        )
-        return AccelerometerReading(x=accel[0], y=accel[1], z=accel[2])
-
-    @override
-    def get_gyroscope(self) -> GyroscopeReading:
-        """Get gyroscope data (rad/s)."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read gyroscope")
-            return GyroscopeReading(0.0, 0.0, 0.0)
-
-        gyro = self.imu.gyro
-        self.logger.debug(
-            "Gyroscope read",
-            extra={DETAILS_KEY: {"x": gyro[0], "y": gyro[1], "z": gyro[2]}},
-        )
-        return GyroscopeReading(x=gyro[0], y=gyro[1], z=gyro[2])
-
-    @override
-    def get_magnetometer(self) -> MagnetometerReading:
-        """Get magnetometer data (µT)."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read magnetometer")
-            return MagnetometerReading(0.0, 0.0, 0.0)
-
-        mag = self.imu.magnetic
-        self.logger.debug(
-            "Magnetometer read",
-            extra={DETAILS_KEY: {"x": mag[0], "y": mag[1], "z": mag[2]}},
-        )
-        return MagnetometerReading(x=mag[0], y=mag[1], z=mag[2])
-
-    @override
-    def get_quaternion(self) -> QuaternionReading:
-        """Get fused quaternion (w, x, y, z)."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read quaternion")
-            return QuaternionReading(w=1.0, x=0.0, y=0.0, z=0.0)  # Identity quaternion as default
-
-        # Adafruit's BNO08x .quaternion property returns (x, y, z, w).
-        x, y, z, w = self.imu.quaternion
-
-        self.logger.debug(
-            "Quaternion read",
-            extra={DETAILS_KEY: {"x": x, "y": y, "z": z, "w": w}},
-        )
-        # QuaternionReading is (w, x, y, z) -- keyword args so the fields
-        # line up correctly regardless of Adafruit's (x, y, z, w) order.
-        return QuaternionReading(w=w, x=x, y=y, z=z)
-
-    @override
-    def get_euler(self) -> EulerReading:
-        """Get fused Euler angles (pitch, roll, yaw) in degrees."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read Euler angles")
-            return EulerReading(0.0, 0.0, 0.0)
-
-        euler = self.imu.euler
-        self.logger.debug(
-            "Euler read",
-            extra={DETAILS_KEY: {"pitch": euler[0], "roll": euler[1], "yaw": euler[2]}},
-        )
-        return EulerReading(pitch=euler[0], roll=euler[1], yaw=euler[2])
-
-    @override
-    def get_linear_acceleration(self) -> AccelerometerReading:
-        """Get linear acceleration (m/s², gravity removed)."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read linear acceleration")
-            return AccelerometerReading(0.0, 0.0, 0.0)
-
-        linear = self.imu.linear_acceleration
-        self.logger.debug(
-            "Linear accel read",
-            extra={DETAILS_KEY: {"x": linear[0], "y": linear[1], "z": linear[2]}},
-        )
-        return AccelerometerReading(x=linear[0], y=linear[1], z=linear[2])
-
-    def get_calibration_status(self) -> dict | None:
-        """Get calibration status."""
-        if self.imu is None:
-            self.logger.warning("IMU not connected, cannot read calibration status")
-            return None
-
-        try:
-            cal = self.imu.calibration_status
-            self.logger.info("Calibration status read", extra={DETAILS_KEY: {"calibration": cal}})
-        except AttributeError:
-            return None
-        else:
-            # cal is an untyped Adafruit attribute.
-            return cal  # type: ignore[no-any-return]
 
     @override
     def close(self) -> None:
