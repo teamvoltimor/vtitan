@@ -19,7 +19,7 @@ from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.kinematics import AckermannState
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
-from src.simulation.scenario_simulator import TERMINAL_SURFACES
+from src.simulation.scenario_result import TERMINAL_SURFACES
 from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import ContactSurface, TrackModel
 

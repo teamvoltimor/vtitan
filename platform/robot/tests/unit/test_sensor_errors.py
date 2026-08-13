@@ -15,9 +15,9 @@ import pytest
 from shared.config.constants import CorridorDimensions
 from shared.domain.enums import Direction, Section
 
+from src.simulation.imu_error_model import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
-from src.simulation.simulated_hardware_gateway import SensorErrors
 
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _DT = 0.05

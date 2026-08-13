@@ -1,11 +1,8 @@
 """RPi Camera Module 3 Wide driver implementation with Picamera2."""
 
 import logging
-import threading
 import time
 from collections.abc import Generator
-from contextlib import suppress
-from queue import Empty, Queue
 
 import numpy as np
 from picamera2 import Picamera2
@@ -17,6 +14,7 @@ from src.hardware.camera.base import (
     Driver as CameraDriver,
     Frame,
 )
+from src.hardware.camera.frame_streamer import FrameStreamer
 from src.hardware.camera.rpi.camera_module_3.enums import (
     AeExposureMode,
     AfMode,
@@ -133,10 +131,13 @@ class Driver(CameraDriver):
     def __init__(self, config: Config | None = None):
         self.config = config or Config()
         self._picamera2: Picamera2 | None = None
-        self._running = False
-        self._capture_thread: threading.Thread | None = None
-        self._frame_queue: Queue[np.ndarray] = Queue(maxsize=2)
         self.logger = logging.getLogger(__name__)
+        self._streamer: FrameStreamer[np.ndarray] = FrameStreamer(
+            self._capture_array,
+            maxsize=2,
+            error_message="Capture error",
+            logger=self.logger,
+        )
 
     def connect(self) -> None:
         """Open camera device."""
@@ -207,6 +208,10 @@ class Driver(CameraDriver):
             self.connect()
         return self._picamera2
 
+    def _capture_array(self) -> np.ndarray:
+        """Raw array capture used as the streamer's producer callback."""
+        return self.picamera2.capture_array()
+
     def capture_frame(self) -> Frame:
         """Capture a single frame."""
         frame = self.picamera2.capture_array()
@@ -241,57 +246,29 @@ class Driver(CameraDriver):
         """Get current resolution and orientation metadata."""
         return self.config.get_resolution()
 
-    def _capture_loop(self) -> None:
-        """Continuous capture loop for streaming."""
-        while self._running:
-            try:
-                frame = self.picamera2.capture_array()
-
-                if self._frame_queue.full():
-                    with suppress(Empty):
-                        self._frame_queue.get_nowait()
-
-                self._frame_queue.put(frame)
-            except Exception:
-                self.logger.exception("Capture error")
-                time.sleep(0.1)
-
     def start_streaming(self) -> None:
         """Start continuous frame capture in background thread."""
-        if self._running:
-            return
-
         if self._picamera2 is None:
             self.connect()
 
-        self._running = True
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._capture_thread.start()
+        self._streamer.start()
         self.logger.info("Streaming started")
 
     def stop_streaming(self) -> None:
         """Stop continuous frame capture."""
-        self._running = False
-
-        if self._capture_thread:
-            self._capture_thread.join(timeout=2.0)
-
+        self._streamer.stop()
         self.logger.info("Streaming stopped")
 
     def get_latest_frame(self) -> np.ndarray | None:
         """Get latest frame without blocking."""
-        try:
-            return self._frame_queue.get_nowait()
-        except Empty:
-            return None
+        return self._streamer.get_nowait()
 
     def stream(self) -> Generator[np.ndarray, None, None]:
         """Generator that yields continuous frames."""
         self.start_streaming()
         try:
-            while self._running:
-                frame = self._frame_queue.get()
-                yield frame
+            while self._streamer.running:
+                yield self._streamer.get()
         finally:
             self.stop_streaming()
 

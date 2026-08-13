@@ -1,9 +1,4 @@
-"""DC-encoder drive drivers: a simulated reference and a hardware adapter.
-
-``SimulatedEncoderDriver`` is pure Python (no GPIO) and is the reference
-implementation of ``EncodedDriveDriver`` — it integrates commanded RPM over a
-pluggable clock to produce believable counts, so the navigation/ROS2 stack and
-tests can exercise the encoder path on any machine.
+"""Hardware DC-encoder drive driver (TB6612FNG- or L298N-class H-bridge + quadrature encoder).
 
 ``Driver`` targets a TB6612FNG- or L298N-class H-bridge + quadrature encoder on
 a Raspberry Pi. GPIO libraries are imported lazily inside ``connect`` so this
@@ -28,10 +23,13 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs
-
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors.base import DriveOdometry, EncodedDriveDriver
+from src.hardware.motors.dc_encoder.calibration import (
+    DEFAULT_COUNTS_PER_REV,
+    DEFAULT_MAX_RPM,
+    DEFAULT_WHEEL_DIAMETER_M,
+)
 from src.hardware.motors.dc_encoder.config import NS_PER_S, DcMotorPwmConfig
 from src.hardware.motors.dc_encoder.control import (
     PIDController,
@@ -43,143 +41,16 @@ from src.hardware.motors.pwm_sysfs import EXPORT_TIMEOUT_S, SYSFS_PWM_ROOT, wait
 from src.navigation.utils import clamp
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# JGB37-520 1590 RPM variant defaults — confirm the printed gear ratio per unit.
-# MEASURED on hardware 2026-07-25, not derived from the datasheet: the previous
-# 194.0 (11 PPR x4 quadrature x an assumed ~4.4 gear ratio) made
-# counts_to_distance() over-report by ~3.5x. Calibrated from raw quadrature
-# counts against tape-measured travel, at two duty levels:
-#     1650 counts / 54 cm  -> 672 counts per wheel revolution
-#     2447 counts / 79 cm  -> 681 counts per wheel revolution
-# The two agree to 1.3%, which is the point: wheel slip only ever inflates the
-# count for a given distance, so agreement across speeds means slip is
-# negligible and this is the true geometric ratio. Back-predicts both runs to
-# within 1%. Implies ~15.4:1 gearing (676/44 counts per motor revolution).
-#
-# Measure with scripts/hardware/calibrate_encoder.py if the drivetrain changes. Do NOT
-# derive it by integrating /motor/drive_speed -- that feedback is exponentially
-# smoothed and rate-derived, and doing so gave answers ~2x wrong.
-_DEFAULT_COUNTS_PER_REV = 676.0
-# Previously an independent hardcoded 0.056m, drifted from RobotSpecs.WHEEL_RADIUS (a
-# placeholder pending hardware bring-up, per the module docstring). Derived from the same
-# measured wheel radius the rest of the stack uses instead of a second independent guess.
-_DEFAULT_WHEEL_DIAMETER_M = RobotSpecs.WHEEL_RADIUS * 2
 _NOMINAL_DT_S = 0.02
 """Assumed step on the first call, before a real interval can be measured."""
 
 _MIN_DT_S = 0.001
 _MAX_DT_S = 0.5
 """Bounds on a measured step, so a duplicate call or a stall can't blow up the loop."""
-
-_DEFAULT_MAX_RPM = 42.5
-"""Maximum achievable WHEEL rpm, measured 2026-07-25 (2447 counts / 5.11 s).
-
-Was 1590.0 -- the motor's free-running rpm from the datasheet, which is the
-wrong quantity twice over: it is the motor shaft rather than the wheel (~15.4:1
-apart), and it is the unloaded figure. Since counts_per_rev counts WHEEL
-revolutions, get_drive_rpm() reports wheel rpm, so the PID's feedforward term
-(1/max_rpm) was scaled ~37x too small -- it would contribute ~3% duty where
-~70% is needed to overcome stiction, leaving the integrator to crawl there
-alone.
-
-Corresponds to ~0.156 m/s. Note the achievable maximum sags with battery
-charge (0.129 m/s measured on a tired pack), so commanded speeds should stay
-below this for the loop to have headroom to correct.
-"""
-
-
-class SimulatedEncoderDriver(EncodedDriveDriver):
-    """No-hardware ``EncodedDriveDriver`` that fakes counts from commanded RPM."""
-
-    def __init__(
-        self,
-        counts_per_rev: float = _DEFAULT_COUNTS_PER_REV,
-        wheel_diameter_m: float = _DEFAULT_WHEEL_DIAMETER_M,
-        max_rpm: float = _DEFAULT_MAX_RPM,
-        invert: bool = False,
-        time_source: Callable[[], float] = time.monotonic,
-    ) -> None:
-        self._counts_per_rev = counts_per_rev
-        self._wheel_diameter_m = wheel_diameter_m
-        self._max_rpm = max_rpm
-        self._sign = -1.0 if invert else 1.0
-        self._now = time_source
-        self._target_rpm = 0.0
-        self._counts = 0.0
-        self._last_t = time_source()
-
-    def _advance(self) -> None:
-        """Integrate counts for the time elapsed since the last update."""
-        now = self._now()
-        dt = now - self._last_t
-        self._last_t = now
-        if dt > 0:
-            self._counts += self._target_rpm / 60.0 * dt * self._counts_per_rev
-
-    def _set_rpm(self, rpm: float) -> None:
-        """Latch a new target RPM after settling outstanding counts."""
-        self._advance()
-        self._target_rpm = self._sign * clamp(rpm, -self._max_rpm, self._max_rpm)
-
-    def connect(self) -> None:
-        """Reset the integration clock; there is no hardware to open."""
-        self._last_t = self._now()
-        logger.info("SimulatedEncoderDriver connected (counts/rev=%.1f)", self._counts_per_rev)
-
-    def run_drive_forward(self, speed: int | None = None) -> None:
-        """Open-loop forward at ``speed`` percent of max RPM (default 50%)."""
-        pct = 50 if speed is None else speed
-        self._set_rpm(self._max_rpm * pct / 100.0)
-
-    def run_drive_reverse(self, speed: int | None = None) -> None:
-        """Open-loop reverse at ``speed`` percent of max RPM (default 50%)."""
-        pct = 50 if speed is None else speed
-        self._set_rpm(-self._max_rpm * pct / 100.0)
-
-    def run_drive_at_rpm(self, rpm: float) -> None:
-        """Set the simulated closed-loop target output-shaft RPM."""
-        self._set_rpm(rpm)
-
-    def stop_drive(self) -> None:
-        """Stop the drive (target RPM = 0)."""
-        self._advance()
-        self._target_rpm = 0.0
-
-    def reset_drive_encoder(self) -> None:
-        """Zero the simulated encoder counts."""
-        self._advance()
-        self._counts = 0.0
-
-    def get_drive_counts(self) -> int:
-        """Integrated quadrature counts since the last reset."""
-        self._advance()
-        return int(self._counts)
-
-    def get_drive_rpm(self) -> float:
-        """Current (ideal) output-shaft RPM."""
-        return self._target_rpm
-
-    def get_drive_odometry(self) -> DriveOdometry:
-        """Full odometry sample (counts, revolutions, RPM, distance)."""
-        counts = self.get_drive_counts()
-        return DriveOdometry(
-            counts=counts,
-            revolutions=counts_to_revolutions(counts, self._counts_per_rev),
-            rpm=self._target_rpm,
-            distance_m=counts_to_distance(counts, self._counts_per_rev, self._wheel_diameter_m),
-        )
-
-    def get_drive_position(self) -> float:
-        """Output-shaft angle in degrees."""
-        return counts_to_revolutions(self.get_drive_counts(), self._counts_per_rev) * 360.0
-
-    def get_drive_speed(self) -> float:
-        """Output-shaft speed in degrees/s."""
-        return self._target_rpm / 60.0 * 360.0
 
 
 class Driver(EncodedDriveDriver):
@@ -202,9 +73,9 @@ class Driver(EncodedDriveDriver):
         encoder_a_pin: int,
         encoder_b_pin: int,
         standby_pin: int | None = None,
-        counts_per_rev: float = _DEFAULT_COUNTS_PER_REV,
-        wheel_diameter_m: float = _DEFAULT_WHEEL_DIAMETER_M,
-        max_rpm: float = _DEFAULT_MAX_RPM,
+        counts_per_rev: float = DEFAULT_COUNTS_PER_REV,
+        wheel_diameter_m: float = DEFAULT_WHEEL_DIAMETER_M,
+        max_rpm: float = DEFAULT_MAX_RPM,
         pid: PIDController | None = None,
         invert: bool = False,
         invert_encoder: bool = False,

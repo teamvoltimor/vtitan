@@ -6,7 +6,8 @@ validated end-to-end without Gazebo or ROS2.
 """
 
 from src.simulation.kinematics import AckermannKinematics, AckermannState
-from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator, SimResult
+from src.simulation.scenario_result import PoseDisturbance, SimResult
+from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import TrackModel
 

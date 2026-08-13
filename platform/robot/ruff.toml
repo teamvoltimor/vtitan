@@ -175,7 +175,6 @@ extend = "../ruff.toml"
 # connect()) so mypy can see it too -- not a bypassable security check.
 "src/hardware/display/ssd1306/driver_raw_i2c.py" = ["S101"]
 "src/hardware/hailo/streaming.py" = ["S101"]
-"src/hardware/imu/bno08x/mcp2221/i2c.py" = ["S101"]
 "ros2_ws/src/vtitan_drivers/vtitan_drivers/oled_display_node.py" = ["S101"]
 
 # `Field(default_factory=lambda: X())` (not the bare class) is required so

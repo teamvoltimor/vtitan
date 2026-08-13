@@ -18,21 +18,19 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CompetitionSpecs, CorridorDimensions
+from shared.config.constants import CorridorDimensions
 from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import cross_track_error
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
-from src.simulation.scenario_simulator import PoseDisturbance, ScenarioSimulator
+from src.simulation.scenario_constants import N_LAPS, NARROW_MM, WIDE_MM
+from src.simulation.scenario_result import PoseDisturbance
+from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
     from src.simulation.kinematics import AckermannState
 
 logger = logging.getLogger(__name__)
-
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
-_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
-_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
 _DISTURB_AT_STEP = 150
 _RECOVERY_WINDOW_STEPS = 150
@@ -55,16 +53,16 @@ class _Scenario:
 
 
 _SCENARIOS = [
-    _Scenario("wide/cw", uniform_widths(_WIDE_MM), Section.SOUTH, Direction.CLOCKWISE),
-    _Scenario("wide/ccw", uniform_widths(_WIDE_MM), Section.SOUTH, Direction.COUNTERCLOCKWISE),
-    _Scenario("narrow/cw", uniform_widths(_NARROW_MM), Section.SOUTH, Direction.CLOCKWISE),
-    _Scenario("narrow/ccw", uniform_widths(_NARROW_MM), Section.SOUTH, Direction.COUNTERCLOCKWISE),
+    _Scenario("wide/cw", uniform_widths(WIDE_MM), Section.SOUTH, Direction.CLOCKWISE),
+    _Scenario("wide/ccw", uniform_widths(WIDE_MM), Section.SOUTH, Direction.COUNTERCLOCKWISE),
+    _Scenario("narrow/cw", uniform_widths(NARROW_MM), Section.SOUTH, Direction.CLOCKWISE),
+    _Scenario("narrow/ccw", uniform_widths(NARROW_MM), Section.SOUTH, Direction.COUNTERCLOCKWISE),
 ]
 
 
 def _recovers(scenario: _Scenario, disturbance: PoseDisturbance) -> bool:
     meta = build_open_metadata(scenario.widths_mm, scenario.section, scenario.direction)
-    sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
+    sim = ScenarioSimulator(meta, num_laps=N_LAPS)
     trace: list[float] = []
 
     def on_step(state: AckermannState, _scan: object) -> None:
