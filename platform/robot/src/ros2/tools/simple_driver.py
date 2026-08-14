@@ -20,8 +20,10 @@ from typing import Literal
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from shared.config.ros_topics import RosTopicConfig
 
 from src.ros2.params import declare_and_get_str_param
+from src.ros2.qos import QOS_STREAM
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +61,16 @@ class SimpleRobotDriver(Node):
         self._start_time = time.time()
 
         self.shutdown_requested = False
-        cmd_vel_topic = declare_and_get_str_param(self, "cmd_vel_topic", "/wro_robot/cmd_vel")
+        # Single source of truth for the drive command topic: Ackermann, not the
+        # pre-Ackermann cmd_vel name that used to dead-end commands at a topic
+        # nothing subscribes to.
+        cmd_vel_topic = declare_and_get_str_param(
+            self,
+            "cmd_vel_topic",
+            RosTopicConfig.load_default().commands.ackermann_cmd,
+        )
 
-        self._vel_publisher = self.create_publisher(Twist, cmd_vel_topic, 10)
+        self._vel_publisher = self.create_publisher(Twist, cmd_vel_topic, QOS_STREAM)
 
         self._forward_speed: float = 0.3  # m/s
         self._state: Literal["forward", "turning"] = "forward"

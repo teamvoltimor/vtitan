@@ -40,3 +40,11 @@ QOS_LATCHED_STATE_RELIABLE = QoSProfile(
 # late subscriber catching the next tick is fine and latching the stale value
 # from before it existed would be wrong.
 QOS_LIVE_READOUT = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.BEST_EFFORT)
+
+# Depth=10, default (VOLATILE) durability and reliability -- the generic
+# profile for ordinary high-rate string/metric streams (race metrics, nav
+# debug, detections) that used to be spelled "..., 10" inline at every call
+# site. Deliberately distinct from QOS_LATCHED_STATE/QOS_LIVE_READOUT (both
+# depth=1): those are latched/low-rate, this is for a plain stream where a
+# dropped sample under backpressure is acceptable.
+QOS_STREAM = QoSProfile(depth=10)

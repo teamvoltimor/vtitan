@@ -16,6 +16,22 @@ class FilePaths:
     METADATA_SUFFIX = "_metadata.json"
 
 
+class TfFrames:
+    """TF frame names shared across launch files and nodes.
+
+    These are structural frames tied to the URDF/Gazebo model, not
+    user-tunable config -- but they ARE a cross-file contract: lidar_launch's
+    ``frame_id`` must match static_tfs.launch.py's ``lidar_link`` child frame,
+    and both must match the URDF. Keep them here so the launch files can't
+    drift apart (the drift that a comment in lidar_launch.py used to warn about).
+    """
+
+    BASE_LINK = "base_link"
+    LIDAR_LINK = "lidar_link"
+    CAMERA_LINK = "camera_link"
+    IMU_LINK = "imu_link"
+
+
 class DictKeys:
     """Dictionary keys used throughout the codebase for type safety."""
 

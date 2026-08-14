@@ -12,6 +12,7 @@ from typing import override
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
 from sensor_msgs.msg import Imu
+from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.imu.bno08x.mcp2221.i2c import Driver as IMU_I2CDriver
 from src.ros2.hardware_node import LifecycleHardwareNode
@@ -26,7 +27,7 @@ class IMU_I2CNode(LifecycleHardwareNode):
             "bno08x_i2c_node",
             Imu,
             publish_rate_default=50.0,  # Hz
-            topic_default="imu/data",
+            topic_default=RosTopicConfig.load_default().sensors.imu,
             frame_id_default="imu_link",
         )
 

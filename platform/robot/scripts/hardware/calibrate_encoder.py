@@ -46,6 +46,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.node import Node
 from shared.config.constants import RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
 from scripts.common.motor_hold import publish_hold
@@ -58,10 +59,11 @@ class _Probe(Node):
         super().__init__("encoder_calibration_probe")
         self.counts: int | None = None
         self.speed_samples: list[float] = []
-        self.pub = self.create_publisher(AckermannDriveStamped, "/ackermann_cmd", 10)
+        topics = RosTopicConfig.load_default()
+        self.pub = self.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
         # Raw counts ride on /motor/status rather than a topic of their own.
-        self.create_subscription(DiagnosticStatus, "/motor/status", self._on_status, 10)
-        self.create_subscription(Float32, "/motor/drive_speed", self._on_speed, 10)
+        self.create_subscription(DiagnosticStatus, topics.actuators.status, self._on_status, 10)
+        self.create_subscription(Float32, topics.actuators.drive_speed, self._on_speed, 10)
 
     def _on_status(self, msg: DiagnosticStatus) -> None:
         for kv in msg.values:

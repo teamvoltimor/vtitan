@@ -8,6 +8,10 @@ All PWM magic numbers live here as named constants and feed the
 
 from pydantic_settings import SettingsConfigDict
 
+from src.hardware.motors.dc_encoder.calibration import (
+    DEFAULT_COUNTS_PER_REV,
+    DEFAULT_MAX_RPM,
+)
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 
 DEFAULT_PWMCHIP = 0
@@ -50,3 +54,23 @@ class DcMotorPwmConfig(HardwareBaseSettings):
 
     frequency_hz: int = DEFAULT_PWM_FREQUENCY_HZ
     """H-bridge PWM carrier frequency."""
+
+    counts_per_rev: float = DEFAULT_COUNTS_PER_REV
+    """Quadrature counts per wheel revolution -- bench-calibrated odometry
+    calibration (measured 2026-07-25), see calibration.py for the derivation.
+    Used to turn raw counts into revolutions/distance."""
+
+    max_rpm: float = DEFAULT_MAX_RPM
+    """Maximum achievable wheel rpm (measured 2026-07-25). A hard physical
+    ceiling, not a tuning knob: the speed PID's feedforward (1/max_rpm) and the
+    rpm clamp both scale from it, so it must track a re-measurement rather than
+    a datasheet figure."""
+
+    pid_kp: float = 0.010
+    """Closed-loop speed PID proportional gain, tuned on hardware 2026-07-25."""
+
+    pid_ki: float = 0.020
+    """Closed-loop speed PID integral gain, tuned on hardware 2026-07-25."""
+
+    pid_kd: float = 0.0
+    """Closed-loop speed PID derivative gain (unused)."""

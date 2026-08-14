@@ -54,7 +54,6 @@ from src.hardware.motors.pwm_sysfs import (
 )
 from src.hardware.motors.servo.config import (
     NS_PER_US,
-    PWM_FREQUENCY_HZ,
     US_PER_SECOND,
     ServoConfig,
 )
@@ -63,9 +62,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-_PERIOD_NS = int(US_PER_SECOND / PWM_FREQUENCY_HZ) * NS_PER_US
-"""One PWM frame in nanoseconds (20 ms at 50 Hz)."""
 
 _PULSE_EPSILON_US = 1.0
 """Smallest pulse-width change worth writing.
@@ -88,6 +84,9 @@ class Driver(SteeringDriver):
             config: Servo configuration; defaults to env-derived ``ServoConfig``.
         """
         self._config = config or ServoConfig()
+        # One PWM frame in nanoseconds (20 ms at 50 Hz), from the configured
+        # carrier frequency rather than a module literal.
+        self._period_ns = int(US_PER_SECOND / self._config.pwm_frequency_hz) * NS_PER_US
         self._position = STEERING_CENTER_DEG
         self._channel_dir: Path | None = None
         self._pulse_us: float | None = None
@@ -148,7 +147,7 @@ class Driver(SteeringDriver):
             # larger duty from a previous run would make the period write
             # fail. Zero the duty first, then set the frame, then enable.
             (channel_dir / "duty_cycle").write_text("0")
-            (channel_dir / "period").write_text(str(_PERIOD_NS))
+            (channel_dir / "period").write_text(str(self._period_ns))
             (channel_dir / "enable").write_text("1")
         except OSError as err:
             msg = f"PWM init failed: {err}"

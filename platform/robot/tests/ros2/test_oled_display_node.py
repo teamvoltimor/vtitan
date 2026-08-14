@@ -42,6 +42,7 @@ for _optional in ("board", "busio", "adafruit_ssd1306", "fcntl"):
             sys.modules[_optional] = mock.MagicMock()
 
 from src.hardware.display.enums import DisplayBackend
+from src.ros2.wire_models import RaceMetricsWire
 
 
 @pytest.fixture()
@@ -212,20 +213,20 @@ class TestOLEDDisplayNodeCallbacks:
         msg.data = '{"laps_completed": 2, "current_velocity": 0.5}'
         node._metrics_callback(msg)
 
-        assert node.race_metrics["laps_completed"] == 2
+        assert node.race_metrics.laps_completed == 2
         node.destroy_node()
 
     def test_metrics_callback_ignores_invalid_json(self, ros_context, oled_node_class):
         OLEDDisplayNode, _ = oled_node_class
         node = OLEDDisplayNode()
         node.trigger_configure()
-        node.race_metrics = {"laps_completed": 1}
+        node.race_metrics = RaceMetricsWire(laps_completed=1)
 
         msg = String()
         msg.data = "not valid json"
         node._metrics_callback(msg)  # must not raise
 
-        assert node.race_metrics == {"laps_completed": 1}
+        assert node.race_metrics == RaceMetricsWire(laps_completed=1)
         node.destroy_node()
 
     def test_ui_summary_callback_parses_json(self, ros_context, oled_node_class):
@@ -447,7 +448,7 @@ class TestEveryStateRenders:
         OLEDDisplayNode, _ = oled_node_class
         node = self._active(OLEDDisplayNode, "finished")
         try:
-            node.race_metrics = {"laps_completed": 2, "target_laps": 2}
+            node.race_metrics = RaceMetricsWire(laps_completed=2, target_laps=2)
             node._update_display()
         finally:
             node.destroy_node()

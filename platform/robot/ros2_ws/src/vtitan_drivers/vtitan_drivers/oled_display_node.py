@@ -21,7 +21,6 @@ Topics:
 
 from __future__ import annotations
 
-import json
 import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, override
@@ -31,7 +30,7 @@ import rclpy
 from cv_bridge import CvBridge
 from diagnostic_msgs.msg import DiagnosticArray
 from PIL import Image, ImageDraw
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, ValidationError
 from pydantic_settings import SettingsConfigDict
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
@@ -45,7 +44,8 @@ from src.hardware.display.ssd1306 import (
     RawI2CDriver,
 )
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
-from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
+from src.ros2.wire_models import ButtonHoldWire, RaceMetricsWire, TelemetrySummaryWire
 from src.state_machine import RobotState, ScenarioType
 
 if TYPE_CHECKING:
@@ -214,7 +214,7 @@ class OLEDDisplayNode(LifecycleNode):
         # State tracking
         self.current_state: str = RobotState.BOOT_CHECK.value
         self.system_status: dict[str, dict] = {}
-        self.race_metrics: dict = {}
+        self.race_metrics: RaceMetricsWire = RaceMetricsWire()
 
         # Sensor data
         self.gyro_yaw: float = 0.0
@@ -257,7 +257,7 @@ class OLEDDisplayNode(LifecycleNode):
         self.bridge = CvBridge()
 
         topics = RosTopicConfig.load_default()
-        self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, topics.ui.oled_mirror, 10)
+        self.oled_mirror_pub = self.create_lifecycle_publisher(ImageMsg, topics.ui.oled_mirror, QOS_STREAM)
 
         # TRANSIENT_LOCAL to match state_machine_node, which publishes both of
         # these latched precisely so a late subscriber gets the current value.
@@ -285,12 +285,12 @@ class OLEDDisplayNode(LifecycleNode):
             QOS_LATCHED_STATE,
         )
         self.metrics_sub = self.create_subscription(
-            String, topics.state_machine.race_metrics, self._metrics_callback, 10,
+            String, topics.state_machine.race_metrics, self._metrics_callback, QOS_STREAM,
         )
 
         # Hold feedback. BEST_EFFORT depth 1 to match button_node: this is a
         # live readout, so a late frame is worthless and a queue of them worse.
-        self._button_hold: dict[str, object] = {}
+        self._button_hold: ButtonHoldWire = ButtonHoldWire()
         self.button_hold_sub = self.create_subscription(
             String,
             topics.button.hold,
@@ -309,13 +309,13 @@ class OLEDDisplayNode(LifecycleNode):
             Float32,
             topics.actuators.drive_speed,
             self._drive_speed_callback,
-            10,
+            QOS_STREAM,
         )
         self.steering_position_sub = self.create_subscription(
             Float32,
             topics.actuators.steering_position,
             self._steering_position_callback,
-            10,
+            QOS_STREAM,
         )
 
         return TransitionCallbackReturn.SUCCESS
@@ -414,8 +414,8 @@ class OLEDDisplayNode(LifecycleNode):
 
     def _metrics_callback(self, msg: String) -> None:
         """Handle race metrics updates."""
-        with suppress(json.JSONDecodeError):
-            self.race_metrics = json.loads(msg.data)
+        with suppress(ValidationError):
+            self.race_metrics = RaceMetricsWire.model_validate_json(msg.data)
 
     def _ui_summary_callback(self, msg: String) -> None:
         """Handle aggregated lidar/yaw/detection telemetry from telemetry_bridge_node.
@@ -438,15 +438,15 @@ class OLEDDisplayNode(LifecycleNode):
                 self.get_logger().warning(f"[DIAG] ui_summary receive gap: {gap:.2f}s (expected ~0.1s)")
         self._last_ui_summary_receive_time = now_monotonic
 
-        with suppress(json.JSONDecodeError):
-            data = json.loads(msg.data)
-            self.lidar_front = data.get("lidar_front_cm", self.lidar_front)
-            self.lidar_left = data.get("lidar_left_cm", self.lidar_left)
-            self.lidar_right = data.get("lidar_right_cm", self.lidar_right)
-            self.gyro_yaw = data.get("gyro_yaw_deg", self.gyro_yaw)
-            class_id = data.get("best_detection_class_id")
+        with suppress(ValidationError):
+            data = TelemetrySummaryWire.model_validate_json(msg.data)
+            self.lidar_front = data.lidar_front_cm if data.lidar_front_cm is not None else self.lidar_front
+            self.lidar_left = data.lidar_left_cm if data.lidar_left_cm is not None else self.lidar_left
+            self.lidar_right = data.lidar_right_cm if data.lidar_right_cm is not None else self.lidar_right
+            self.gyro_yaw = data.gyro_yaw_deg if data.gyro_yaw_deg is not None else self.gyro_yaw
+            class_id = data.best_detection_class_id
             self.best_detection = (
-                (class_id, data["best_detection_confidence"]) if class_id is not None else None
+                (class_id, data.best_detection_confidence) if class_id is not None else None
             )
 
     def _drive_speed_callback(self, msg: Float32) -> None:
@@ -466,7 +466,7 @@ class OLEDDisplayNode(LifecycleNode):
         # actively holding the one control they have and needs to know what it
         # is about to do -- ten seconds with no feedback is long enough to doubt
         # the press registered and let go a second early.
-        held_sec = float(self._button_hold.get("held_sec", 0.0) or 0.0)
+        held_sec = self._button_hold.held_sec
         if held_sec > 0.0:
             image = self._render_button_hold(held_sec)
         elif self.current_state == RobotState.BOOT_CHECK.value:
@@ -502,8 +502,8 @@ class OLEDDisplayNode(LifecycleNode):
     def _button_hold_callback(self, msg: String) -> None:
         """Track how long the button has been held, and what that will trigger."""
         try:
-            self._button_hold = json.loads(msg.data)
-        except (ValueError, TypeError):
+            self._button_hold = ButtonHoldWire.model_validate_json(msg.data)
+        except ValidationError:
             # A malformed frame must not blank the display mid-hold; keep the
             # last good one and let the next 50ms frame correct it.
             self.get_logger().warning("Ignoring malformed /button/hold payload", throttle_duration_sec=5.0)
@@ -538,13 +538,13 @@ class OLEDDisplayNode(LifecycleNode):
 
         draw.text((_MARGIN_X, 20), f"{held_sec:.1f}s", fill=_ON)
 
-        thresholds = self._button_hold.get("thresholds") or []
+        thresholds = self._button_hold.thresholds or []
         upcoming: tuple[str, float] | None = None
-        for entry in thresholds:  # type: ignore[union-attr]
-            at = float(entry["at"])
+        for entry in thresholds:
+            at = float(entry.at)
             if held_sec >= at:
                 continue
-            label = self._hold_action_label(str(entry["kind"]))
+            label = self._hold_action_label(str(entry.kind))
             if label is not None:
                 upcoming = (label, at)
                 break
@@ -710,8 +710,12 @@ class OLEDDisplayNode(LifecycleNode):
         draw.line([(_MARGIN_X, _SEPARATOR_Y), (width, _SEPARATOR_Y)], fill=_ON, width=1)
 
         rev_per_s = self.drive_speed_dps / _DEG_PER_REV
-        laps = self.race_metrics.get("laps_completed", 0)
-        target_laps = self.race_metrics.get("target_laps", _DEFAULT_TARGET_LAPS)
+        laps = self.race_metrics.laps_completed
+        target_laps = (
+            self.race_metrics.target_laps
+            if self.race_metrics.target_laps is not None
+            else _DEFAULT_TARGET_LAPS
+        )
         cells = (
             (f"F:{self.lidar_front:.0f}cm", f"V:{rev_per_s:.1f}"),
             (f"L:{self.lidar_left:.0f}cm", f"St:{self.steering_position_deg:+.0f}"),
@@ -759,16 +763,20 @@ class OLEDDisplayNode(LifecycleNode):
         draw.line([(_MARGIN_X, _SEPARATOR_Y), (self.display_driver.get_width(), _SEPARATOR_Y)], fill=_ON, width=1)
 
         # Laps completed
-        laps = self.race_metrics.get("laps_completed", 0)
+        laps = self.race_metrics.laps_completed
         # Target comes from /race_metrics, not CompetitionSpecs.OPEN_CHALLENGE_LAPS:
         # the state machine picks the count from the challenge jumper, so
         # naming the Open Challenge constant here reports the wrong target for
         # an Obstacles run the moment the two figures differ.
-        target = self.race_metrics.get("target_laps", _DEFAULT_TARGET_LAPS)
+        target = (
+            self.race_metrics.target_laps
+            if self.race_metrics.target_laps is not None
+            else _DEFAULT_TARGET_LAPS
+        )
         draw.text((_MARGIN_X, _BODY_TOP_Y + _ROW_H // 2), f"Laps: {laps}/{target}", fill=_ON)
 
         # Total time
-        race_time = self.race_metrics.get("total_race_time", 0.0)
+        race_time = self.race_metrics.total_race_time
         minutes = int(race_time // 60)
         seconds = race_time % 60
         draw.text((_MARGIN_X, _BODY_TOP_Y + 2 * _ROW_H), f"Time: {minutes}:{seconds:05.2f}", fill=_ON)

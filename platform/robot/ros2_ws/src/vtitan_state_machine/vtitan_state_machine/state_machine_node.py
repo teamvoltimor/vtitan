@@ -23,7 +23,7 @@ Topics:
         - /race_metrics (std_msgs/String) - Race metrics (JSON)
 """
 
-import json
+
 import math
 import os
 import socket
@@ -49,8 +49,9 @@ from std_msgs.msg import Bool, Float32, Int32, String
 
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
-from src.ros2.qos import QOS_LATCHED_STATE, QOS_LATCHED_STATE_RELIABLE, QOS_LIVE_READOUT
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LATCHED_STATE_RELIABLE, QOS_LIVE_READOUT, QOS_STREAM
 from src.ros2.resettable_node import ResettableNode
+from src.ros2.wire_models import RaceMetricsWire
 from src.state_machine import (
     RaceStatus,
     RobotState,
@@ -199,7 +200,7 @@ class StateMachineNode(Node, ResettableNode):
             self._topics.state_machine.system_status,
             QOS_LATCHED_STATE,
         )
-        self.metrics_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.race_metrics, 10)
+        self.metrics_pub: Publisher[String] = self.create_publisher(String, self._topics.state_machine.race_metrics, QOS_STREAM)
         # track_navigator_node has no other way to learn which challenge the
         # jumper resolved to -- it never subscribed to anything from this node
         # before, so a real blind run silently defaulted to Open regardless of
@@ -250,7 +251,7 @@ class StateMachineNode(Node, ResettableNode):
             String,
             self._topics.button.event,
             self._button_event_callback,
-            10,
+            QOS_STREAM,
         )
         # track_navigator_node's CoreNavigator/LapDetector is the only thing
         # that actually detects a lap crossing -- this node used to track its
@@ -837,20 +838,18 @@ class StateMachineNode(Node, ResettableNode):
         )
 
         msg = String()
-        msg.data = json.dumps(
-            {
-                "laps_completed": metrics.laps_completed,
-                # Published so consumers do not have to assume it. The OLED
-                # rendered "Laps: n/3" as a literal, which is right only for as
-                # long as both challenges require three laps.
-                "target_laps": self.target_laps,
-                "total_race_time": round(metrics.total_race_time, 2),
-                "current_velocity": round(metrics.current_velocity, 2),
-                "current_steering": round(metrics.current_steering, 2),
-                "gyro_yaw": round(metrics.gyro_yaw, 2),
-                "current_corridor": metrics.current_corridor,
-            },
-        )
+        msg.data = RaceMetricsWire(
+            laps_completed=metrics.laps_completed,
+            # Published so consumers do not have to assume it. The OLED
+            # rendered "Laps: n/3" as a literal, which is right only for as
+            # long as both challenges require three laps.
+            target_laps=self.target_laps,
+            total_race_time=round(metrics.total_race_time, 2),
+            current_velocity=round(metrics.current_velocity, 2),
+            current_steering=round(metrics.current_steering, 2),
+            gyro_yaw=round(metrics.gyro_yaw, 2),
+            current_corridor=metrics.current_corridor,
+        ).model_dump_json()
         self.metrics_pub.publish(msg)
 
     def _publish_stop_command(self) -> None:

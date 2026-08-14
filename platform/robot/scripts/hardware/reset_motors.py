@@ -20,6 +20,7 @@ from __future__ import annotations
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
+from shared.config.ros_topics import RosTopicConfig
 
 from scripts.common.motor_hold import publish_hold
 
@@ -34,7 +35,7 @@ def main() -> None:
     """Publish a zero-speed, zero-steering command for a short hold, then exit."""
     rclpy.init()
     node = Node("reset_motors")
-    pub = node.create_publisher(AckermannDriveStamped, "/ackermann_cmd", 10)
+    pub = node.create_publisher(AckermannDriveStamped, RosTopicConfig.load_default().commands.ackermann_cmd, 10)
 
     stop_msg = AckermannDriveStamped()
     stop_msg.drive.speed = 0.0

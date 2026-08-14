@@ -1,0 +1,7 @@
+# Defaults for rpi5_nodes.launch.py (respawn delays + vision wiring).
+# See src.config.launch_settings.Rpi5LaunchDefaults.
+
+respawn_delay = 3.0
+telemetry_respawn_delay = 5.0
+vision_backend = "hailo"
+camera_source = "direct"

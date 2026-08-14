@@ -28,6 +28,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 from scripts.common.tables import print_table
@@ -64,10 +65,11 @@ class TrackRunProbe(Node):
         self.clearances: list[tuple[float, float, float, float]] = []
         """(t, front, left, right) in metres, from the raw scan."""
 
-        self.button = self.create_publisher(String, "/button/event", 10)
-        self.create_subscription(AckermannDriveStamped, "/ackermann_cmd", self._on_cmd, 10)
-        self.create_subscription(String, "/robot_state", self._on_state, _QOS_STATE)
-        self.create_subscription(LaserScan, "/scan", self._on_scan, qos_profile_sensor_data)
+        topics = RosTopicConfig.load_default()
+        self.button = self.create_publisher(String, topics.button.event, 10)
+        self.create_subscription(AckermannDriveStamped, topics.commands.ackermann_cmd, self._on_cmd, 10)
+        self.create_subscription(String, topics.state_machine.state, self._on_state, _QOS_STATE)
+        self.create_subscription(LaserScan, topics.sensors.scan, self._on_scan, qos_profile_sensor_data)
         self.t0 = time.monotonic()
 
     def _on_cmd(self, msg: AckermannDriveStamped) -> None:

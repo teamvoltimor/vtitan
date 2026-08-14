@@ -22,6 +22,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -37,9 +38,10 @@ class Injector(Node):
 
     def __init__(self) -> None:
         super().__init__("diag_vision_topic")
-        self._publisher = self.create_publisher(Image, "/camera/image_raw", qos_profile_sensor_data)
+        topics = RosTopicConfig.load_default()
+        self._publisher = self.create_publisher(Image, topics.sensors.camera_image_raw, qos_profile_sensor_data)
         self._replies: list[str] = []
-        self.create_subscription(String, "/vision/detections", self._on_detections, _SUBSCRIPTION_QUEUE_DEPTH)
+        self.create_subscription(String, topics.sensors.vision_detections, self._on_detections, _SUBSCRIPTION_QUEUE_DEPTH)
 
     def _on_detections(self, msg: String) -> None:
         self._replies.append(msg.data)

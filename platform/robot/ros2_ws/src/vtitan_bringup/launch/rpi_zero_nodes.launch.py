@@ -15,8 +15,9 @@ from launch import LaunchDescription
 from launch.actions import OpaqueFunction
 from launch_ros.actions import Node
 
-# Seconds to wait before restarting a crashed node.
-_RESPAWN_DELAY_SEC = 2.0
+from src.config.launch_settings import RpiZeroLaunchDefaults
+
+_rpi_zero_defaults = RpiZeroLaunchDefaults()
 
 
 def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
@@ -26,7 +27,7 @@ def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
         name="ackermann_motor_node",
         output="screen",
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_rpi_zero_defaults.respawn_delay,
     )
     pi_zero_peripherals_node = Node(
         package="vtitan_drivers",
@@ -41,7 +42,7 @@ def _launch_setup(_context, *_args, **_kwargs) -> list[Node]:
         # /robot_state subscription was the one that lost.
         output="screen",
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_rpi_zero_defaults.respawn_delay,
     )
     return [ackermann_motor_node, pi_zero_peripherals_node]
 

@@ -7,6 +7,11 @@ default_port = "/dev/ttyACM0"
 baudrate = 115200
 poll_rate_hz = 100.0
 
+# Driver-internal timing (see src/hardware/imu/bno08x/uart_rvc.py): a raw
+# pyserial read/thread-join timeout, and how long to wait for new data.
+serial_timeout = 1.0
+data_lock_timeout = 2.0
+
 [quaternion]
 euler_sequence = "xyz"
 negate_yaw = true

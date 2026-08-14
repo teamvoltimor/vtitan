@@ -32,6 +32,7 @@ import time
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32
 
 from scripts.common.motor_hold import publish_hold
@@ -227,9 +228,10 @@ def main() -> None:
         latest["drive"] = msg.data
         drive_samples.append((time.monotonic(), msg.data))
 
-    node.create_subscription(Float32, "/motor/steering_position", lambda m: latest.__setitem__("steering", m.data), 10)
-    node.create_subscription(Float32, "/motor/drive_speed", _on_drive, 10)
-    pub = node.create_publisher(AckermannDriveStamped, "/ackermann_cmd", 10)
+    topics = RosTopicConfig.load_default()
+    node.create_subscription(Float32, topics.actuators.steering_position, lambda m: latest.__setitem__("steering", m.data), 10)
+    node.create_subscription(Float32, topics.actuators.drive_speed, _on_drive, 10)
+    pub = node.create_publisher(AckermannDriveStamped, topics.commands.ackermann_cmd, 10)
     time.sleep(0.5)  # let discovery/matching settle before the first publish
 
     steering_passed = run_steering_test(node, pub, latest, args.steering_angle_deg)

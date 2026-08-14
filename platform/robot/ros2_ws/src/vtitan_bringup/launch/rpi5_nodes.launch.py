@@ -5,10 +5,11 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from src.config.launch_settings import TelemetryBridgeLaunchSettings, VisionLaunchSettings
+from src.config.launch_settings import Rpi5LaunchDefaults, TelemetryBridgeLaunchSettings, VisionLaunchSettings
 
 _vision_settings = VisionLaunchSettings()
 _telemetry_settings = TelemetryBridgeLaunchSettings()
+_rpi5_defaults = Rpi5LaunchDefaults()
 
 # Single source of truth for the vision node's deployed name. It overrides
 # VisionNode's own default ("vision_detector"), and telemetry_bridge_node
@@ -16,11 +17,6 @@ _telemetry_settings = TelemetryBridgeLaunchSettings()
 # SET_VISION_DEBUG -- so both are derived from here rather than each
 # hardcoding a name that can silently drift apart.
 _VISION_NODE_NAME = "vision"
-
-# Seconds to wait before restarting a crashed node.
-_RESPAWN_DELAY_SEC = 3.0
-# telemetry_bridge_node gets a longer respawn delay than the other Pi 5 nodes.
-_TELEMETRY_RESPAWN_DELAY_SEC = 5.0
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -50,7 +46,7 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
                 parameters=[{"is_simulation": LaunchConfiguration("is_simulation")}],
                 respawn=True,
-                respawn_delay=_RESPAWN_DELAY_SEC,
+                respawn_delay=_rpi5_defaults.respawn_delay,
             ),
             Node(
                 package="vtitan_drivers",
@@ -58,7 +54,7 @@ def generate_launch_description() -> LaunchDescription:
                 name="imu",
                 output="screen",
                 respawn=True,
-                respawn_delay=_RESPAWN_DELAY_SEC,
+                respawn_delay=_rpi5_defaults.respawn_delay,
             ),
             Node(
                 package="vtitan_vision",
@@ -67,15 +63,15 @@ def generate_launch_description() -> LaunchDescription:
                 output="screen",
                 parameters=[
                     {
-                        "backend": "hailo",
+                        "backend": _rpi5_defaults.vision_backend,
                         "model_path": _vision_settings.hailo_model_path,
-                        "camera_source": "direct",
+                        "camera_source": _rpi5_defaults.camera_source,
                         "publish_annotated": _vision_settings.vision_debug_video,
                         "publish_raw": _vision_settings.vision_debug_video,
                     },
                 ],
                 respawn=True,
-                respawn_delay=_RESPAWN_DELAY_SEC,
+                respawn_delay=_rpi5_defaults.respawn_delay,
             ),
             Node(
                 package="vtitan_state_machine",
@@ -87,7 +83,7 @@ def generate_launch_description() -> LaunchDescription:
                     | {"vision_node_name": _VISION_NODE_NAME},
                 ],
                 respawn=True,
-                respawn_delay=_TELEMETRY_RESPAWN_DELAY_SEC,
+                respawn_delay=_rpi5_defaults.telemetry_respawn_delay,
             ),
         ],
     )

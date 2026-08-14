@@ -83,6 +83,7 @@ from src.hardware.motors.enums import (
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
 from src.logger import configure_json_logging
 from src.ros2.params import declare_and_get_int_param, declare_and_get_str_param
+from src.ros2.qos import QOS_STREAM
 
 # .env loading is a side effect of importing src.logger.config -- the
 # servo/dc_encoder backends (this node's defaults) never import src.logger
@@ -364,10 +365,10 @@ class AckermannMotorNode(LifecycleNode):
             self.steering = None
             self.drive = None
 
-        self.steering_pos_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.steering_position, 10)
-        self.drive_speed_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.drive_speed, 10)
-        self.status_pub = self.create_lifecycle_publisher(DiagnosticStatus, self._topics.actuators.status, 10)
-        self.joint_state_pub = self.create_lifecycle_publisher(JointState, self._topics.actuators.joint_states, 10)
+        self.steering_pos_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.steering_position, QOS_STREAM)
+        self.drive_speed_pub = self.create_lifecycle_publisher(Float32, self._topics.actuators.drive_speed, QOS_STREAM)
+        self.status_pub = self.create_lifecycle_publisher(DiagnosticStatus, self._topics.actuators.status, QOS_STREAM)
+        self.joint_state_pub = self.create_lifecycle_publisher(JointState, self._topics.actuators.joint_states, QOS_STREAM)
 
         return TransitionCallbackReturn.SUCCESS
 
@@ -380,7 +381,7 @@ class AckermannMotorNode(LifecycleNode):
             AckermannDriveStamped,
             self._topics.commands.ackermann_cmd,
             self._ackermann_callback,
-            10,
+            QOS_STREAM,
         )
         self.feedback_timer = self.create_timer(1.0 / PUBLISHER_RATE_HZ, self._publish_feedback)
         self.control_timer = self.create_timer(1.0 / DRIVE_CONTROL_RATE_HZ, self._drive_control_step)
