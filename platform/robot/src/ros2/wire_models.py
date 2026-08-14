@@ -37,7 +37,7 @@ class RaceMetricsWire(BaseModel):
     current_velocity: float = 0.0
     current_steering: float = 0.0
     gyro_yaw: float = 0.0
-    current_corridor: int = 0
+    current_corridor: str = ""
 
 
 class TelemetrySummaryWire(BaseModel):
