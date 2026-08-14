@@ -14,7 +14,7 @@ import pytest
 from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
-from src.navigation.corridor_follower import follow_corridor
+from src.navigation.corridor_follower import TurnSide, follow_corridor
 from tests.fixtures import LidarScanBuilder
 from tests.test_constants import CREEP_SPEED_MPS, TURN_ENTRY_MARGIN_M
 
@@ -106,6 +106,40 @@ class TestSafety:
         boxed = [RobotSpecs.LENGTH - 0.05] * len(angles)
         cmd = follow_corridor(boxed, angles, CREEP_SPEED_MPS, tuning=tuning)
         assert cmd.speed_mps == pytest.approx(0.0)
+
+
+class TestForcedTurnSide:
+    """A sign's WRO pass-side rule must be able to override the plain
+    clearance heuristic in both branches that pick a turn side -- see
+    [[sign_router_blind_creep_gap_2026_08_13]]. Without ``forced_turn_side``
+    both branches turn toward whichever side has more LIDAR room, which is
+    the generic-obstacle behaviour a sign must not get.
+    """
+
+    def test_corner_branch_honours_the_forced_side_over_clearance(self, tuning) -> None:
+        # More room on the right (0.9 m) than the left (0.3 m): unforced, the
+        # corner branch would turn right (negative steering).
+        scan = LidarScanBuilder().corridor(left_m=0.3, right_m=0.9, ahead_m=_just_inside_turn_m(tuning)).build()
+        cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.LEFT)
+        assert cmd.steering_norm > 0
+
+    def test_back_off_branch_honours_the_forced_side_over_clearance(self, tuning) -> None:
+        # More room on the right (0.9 m) than the left (0.3 m), close enough
+        # ahead to trigger the reversing back-off branch. Unforced, and
+        # forcing "right" (matching clearance), both back off with the same
+        # (mirrored, since reversing) steering sign; forcing "left" against
+        # clearance must flip it.
+        close = RobotSpecs.LENGTH - 0.05
+        scan = LidarScanBuilder().corridor(left_m=0.3, right_m=0.9, ahead_m=close).build()
+
+        unforced = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
+        assert unforced.speed_mps < 0.0
+        matching = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.RIGHT)
+        assert matching.steering_norm == pytest.approx(unforced.steering_norm)
+
+        forced = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.LEFT)
+        assert forced.speed_mps < 0.0, "forcing the side must not disable the back-off itself"
+        assert forced.steering_norm == pytest.approx(-unforced.steering_norm)
 
 
 class TestCentring:
