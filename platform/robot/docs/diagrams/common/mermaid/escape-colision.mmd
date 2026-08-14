@@ -1,0 +1,20 @@
+%% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Fuente: platform/robot/src/navigation/core_navigator.py
+%%   CoreNavigator.step() -- evalúa el riesgo en cada tick
+%%   _handle_stuck_escape() -- maniobra de desatasco
+%%   control/controllers/collision_avoidance_controller.py -- nivel de riesgo (RiskLevel)
+%%   control/controllers/stuck_detector.py -- StuckDetector
+%% Común a Open Challenge y Obstacle Challenge -- en Obstacle Challenge, el
+%% LIDAR ya llega con el eco de las señales enmascarado (ver regla-senales.mmd),
+%% así que esta vigilancia opera igual en ambas pistas.
+%% Esquiva genérica ante obstáculo -- detalle común en:
+%%   docs/diagrams/common/mermaid/esquiva-generica.mmd
+
+flowchart TD
+    Risk{"¿El LIDAR detecta<br/>un peligro inminente<br/>adelante?"}
+    Risk -- "Sí" --> Escape[["Esquiva ante obstáculo"]]
+    Risk -- "No" --> Stuck{"¿Lleva un rato<br/>sin avanzar?"}
+    Stuck -- "Sí" --> StuckEscape["Ejecuta una maniobra<br/>para desatascarse"]
+    Stuck -- "No" --> Continue(["Sigue conduciendo<br/>con normalidad"])
+    Escape --> Continue
+    StuckEscape --> Continue

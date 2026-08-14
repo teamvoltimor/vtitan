@@ -1,0 +1,33 @@
+%% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Fuente: platform/robot/src/navigation/direction_estimator.py
+%%   DirectionEstimator.observe() -- registra un voto por lectura
+%%   DirectionEstimator.infer_direction() -- right > left => CLOCKWISE, si no => COUNTERCLOCKWISE
+%%   DirectionEstimator.is_settled -- se cumple cuando el mismo lado gana MIN_VOTES veces seguidas
+%% Constante: MIN_VOTES = 5 -- platform/shared/config/navigation/blind_nav/direction_estimator.toml
+%% Avance ciego previo: platform/robot/src/navigation/corridor_follower.py (follow_corridor)
+%% Esquiva ante obstáculo (incluye la regla de color) -- detalle común en:
+%%   docs/diagrams/common/mermaid/esquiva-generica.mmd
+%% Común a Open Challenge y Obstacle Challenge -- ambos arrancan en modo ciego
+%% y usan exactamente esta misma lógica para decidir el sentido de la vuelta.
+
+flowchart TD
+    A["El robot avanza despacio,<br/>centrado entre las paredes"] --> Block{"¿Hay un obstáculo<br/>físico muy cerca,<br/>justo adelante?"}
+
+    Block -- "No" --> B
+    Block -- "Sí" --> Avoid[["Esquiva ante obstáculo"]]
+    Avoid --> A
+
+    B["El LIDAR mide el espacio libre<br/>a la izquierda y a la derecha"] --> C{"¿Qué lado tiene<br/>más espacio libre<br/>en esta lectura?"}
+
+    C -- "La derecha es más ancha" --> D["Anota un voto a favor<br/>del sentido HORARIO"]
+    C -- "La izquierda es más ancha" --> E["Anota un voto a favor<br/>del sentido ANTIHORARIO"]
+
+    D --> F{"¿El mismo sentido<br/>ganó 5 lecturas<br/>seguidas?"}
+    E --> F
+
+    F -- "Todavía no" --> A
+    F -- "Sí" --> G["Dirección de la pista<br/>asentada (is_settled)"]
+
+    G --> H{"¿Cuál sentido<br/>ganó?"}
+    H -- "Horario" --> I(["Sentido de carrera:<br/>HORARIO (CW)"])
+    H -- "Antihorario" --> J(["Sentido de carrera:<br/>ANTIHORARIO (CCW)"])

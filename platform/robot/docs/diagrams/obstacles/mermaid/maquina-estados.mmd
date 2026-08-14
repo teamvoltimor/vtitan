@@ -1,0 +1,14 @@
+%% Referencias de código (no se renderizan en el PNG, solo para mantenimiento futuro)
+%% Fuente: platform/robot/src/state_machine/core.py, types.py (máquina compartida con Open Challenge)
+%% PARKING / ParkController: platform/robot/src/navigation/maneuvers/parking.py
+%% Activación del estacionamiento: core_navigator.py (_should_engage_parking)
+
+stateDiagram-v2
+    [*] --> BOOT_CHECK
+    BOOT_CHECK --> READY: autodiagnóstico correcto
+    READY --> RACING: se pulsa el botón de inicio
+    RACING --> RACING: aún faltan vueltas por completar
+    RACING --> PARKING: se completó la última vuelta y el robot llegó al corredor de estacionamiento
+    PARKING --> FINISHED: maniobra de estacionamiento terminada
+    RACING --> FINISHED: se completan las vueltas sin llegar a activar el estacionamiento (caso de respaldo)
+    FINISHED --> [*]
