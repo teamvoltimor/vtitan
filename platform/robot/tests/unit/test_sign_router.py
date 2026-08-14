@@ -32,6 +32,7 @@ from src.navigation.planning.sign_router import (
     SignSpec,
     _apply_deformation,
     _match_detection_to_sign,
+    outward_lateral_axis,
 )
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
@@ -144,6 +145,23 @@ class TestDeformationDirections:
         else:
             assert rx == pytest.approx(_expected_lateral(sx + expected, low_side=low_side))
             assert ry == pytest.approx(sy)
+
+
+class TestOutwardLateralAxis:
+    """Direction-agnostic lookup that lets BLIND_CREEP apply the pass-side
+    rule before the travel direction is inferred -- see
+    [[sign_router_blind_creep_gap_2026_08_13]]. Must agree with
+    ``_ROUTING_TABLE`` under either direction, since that table's CW/CCW rows
+    are identical by design (see ``TestDeformationDirections``).
+    """
+
+    @pytest.mark.parametrize("section", list(Section))
+    @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
+    @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
+    def test_matches_routing_table_regardless_of_direction(self, section, color, direction):
+        axis, red_mult, green_mult = _ROUTING_TABLE[(section, direction)]
+        expected_mult = red_mult if color == SignColor.RED else green_mult
+        assert outward_lateral_axis(section, color) == (axis, expected_mult)
 
 
 # 2. 36-scenario routing

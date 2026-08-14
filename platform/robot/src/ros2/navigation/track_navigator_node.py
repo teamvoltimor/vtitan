@@ -27,6 +27,8 @@ from shared.domain.models import (
     NavigatorDebugSnapshot,
     Pose,
     ScenarioMetadata,
+    SignColor,
+    TrafficSignObservation,
     Waypoint,
 )
 from std_msgs.msg import Int32, String
@@ -38,11 +40,17 @@ from src.navigation.corridor_estimator import (
     measure_corridor_width,
     section_from_heading,
 )
-from src.navigation.corridor_follower import follow_corridor
+from src.navigation.corridor_follower import TurnSide, follow_corridor
 from src.navigation.direction_estimator import DirectionEstimator
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, signs_from_metadata
-from src.navigation.planning.waypoints import corridor_widths_dict_to_model, plan_believed_path
+from src.navigation.planning.sign_router import (
+    Axis,
+    SignRouter,
+    SignRouterConfig,
+    outward_lateral_axis,
+    signs_from_metadata,
+)
+from src.navigation.planning.waypoints import corridor_for_position, corridor_widths_dict_to_model, plan_believed_path
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.race_tracker import TRAVEL_DIRS, LapDetector
 from src.navigation.start_conditions import assumed_start_conditions
@@ -539,6 +547,47 @@ class TrackNavigator(Node, ResettableNode):
         self._commit_direction(self._direction, pose, scan)
         return False
 
+    def _sign_dodge_side(self, pose: Pose) -> TurnSide | None:
+        """Which side BLIND_CREEP should turn toward to honour the WRO pass-side rule.
+
+        follow_corridor() treats every close obstacle the same way -- turn
+        toward whichever side has more LIDAR clearance -- because it never
+        sees vision detections and has no notion of sign color. That is
+        correct for a plain wall but wrong for a red/green traffic sign,
+        which has a fixed pass-side rule (red outward, green inward) instead.
+        This resolves that rule from the nearest active sign detection using
+        ``outward_lateral_axis`` -- direction-agnostic, so it works even
+        though BLIND_CREEP's whole reason for existing is that the travel
+        direction is not known yet.
+
+        Returns:
+            A :class:`TurnSide` to override follow_corridor's clearance
+            heuristic, or ``None`` to defer to it (Open Challenge has no
+            signs; no sign is close enough to matter otherwise).
+        """
+        if self._is_open_challenge:
+            return None
+        sign_cfg = self._tuning.sign_router
+        nearest: TrafficSignObservation | None = None
+        nearest_dist = math.inf
+        for obs in self._gateway.get_vision_detections():
+            if obs.color not in (SignColor.RED, SignColor.GREEN):
+                continue
+            if obs.confidence < sign_cfg.MIN_CONFIDENCE:
+                continue
+            dist = math.hypot(obs.world_x_m - pose.x, obs.world_y_m - pose.y)
+            if dist < nearest_dist:
+                nearest, nearest_dist = obs, dist
+        if nearest is None or nearest_dist > sign_cfg.ACTIVATION_DIST_M:
+            return None
+        routing = outward_lateral_axis(corridor_for_position(nearest.world_x_m, nearest.world_y_m), nearest.color)
+        if routing is None:
+            return None
+        axis, mult = routing
+        outward_x, outward_y = (mult, 0.0) if axis is Axis.X else (0.0, mult)
+        left_x, left_y = -math.sin(pose.yaw), math.cos(pose.yaw)
+        return TurnSide.LEFT if (outward_x * left_x + outward_y * left_y) > 0 else TurnSide.RIGHT
+
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
 
@@ -584,7 +633,14 @@ class TrackNavigator(Node, ResettableNode):
         if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
-        drive = follow_corridor(scan.ranges_m, scan.angles_rad, self._blind_follow_speed, pose.yaw, self._tuning)
+        drive = follow_corridor(
+            scan.ranges_m,
+            scan.angles_rad,
+            self._blind_follow_speed,
+            pose.yaw,
+            self._tuning,
+            forced_turn_side=self._sign_dodge_side(pose),
+        )
         self._gateway.publish_drive(drive)
         votes = estimator.votes
         self._latest_debug = NavigatorDebugSnapshot(

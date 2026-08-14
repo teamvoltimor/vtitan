@@ -58,6 +58,7 @@ __all__ = [
     "SignRouter",
     "SignRouterConfig",
     "SignSpec",
+    "outward_lateral_axis",
     "signs_from_metadata",
 ]
 
@@ -100,6 +101,28 @@ _ROUTING_TABLE: dict[tuple[Section, Direction], tuple[Axis, int, int]] = {
     (Section.EAST, Direction.CLOCKWISE): (Axis.X, +1, -1),
     (Section.WEST, Direction.CLOCKWISE): (Axis.X, -1, +1),
 }
+
+
+def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int] | None:
+    """World-frame axis and sign of the pass-side rule for ``corridor``, direction-agnostic.
+
+    The CLOCKWISE and COUNTERCLOCKWISE rows of ``_ROUTING_TABLE`` are
+    identical for every section (see module docstring), so looking the rule
+    up under a fixed direction is exactly as correct as knowing the real one.
+    This lets a caller that hasn't inferred the travel direction yet -- e.g.
+    ``corridor_follower`` during BLIND_CREEP -- still apply "red outward,
+    green inward" instead of falling back to generic obstacle avoidance.
+
+    Returns:
+        ``(axis, multiplier)`` where a positive multiplier along ``axis``
+        points OUTWARD (away from the inner square) for red, INWARD for
+        green. ``None`` if ``corridor`` has no routing entry.
+    """
+    entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
+    if entry is None:
+        return None
+    axis, red_mult, green_mult = entry
+    return axis, red_mult if color == SignColor.RED else green_mult
 
 
 @dataclass(frozen=True, slots=True)

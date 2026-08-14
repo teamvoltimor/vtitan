@@ -36,6 +36,7 @@ Challenge sim battery, not just the fixture that motivated it.
 from __future__ import annotations
 
 import math
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
@@ -48,6 +49,13 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+
+
+class TurnSide(StrEnum):
+    """Which side to turn toward, overriding the clearance-based heuristic."""
+
+    LEFT = "left"
+    RIGHT = "right"
 
 _MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
 """Back off when the wall ahead is this close.
@@ -115,6 +123,7 @@ def follow_corridor(
     speed_mps: float,
     yaw: float | None = None,
     tuning: NavigationTuning | None = None,
+    forced_turn_side: TurnSide | None = None,
 ) -> DriveCommand:
     """Creep along the corridor, centred between whatever walls are visible.
 
@@ -129,6 +138,16 @@ def follow_corridor(
             consults no plan. Omitted, centring falls back to
             offset-proportional, which oscillates; see :data:`_HEADING_GAIN`.
         tuning: Navigation tuning instance. Defaults to the default tuning profile.
+        forced_turn_side: Override which side the "back off" and "corner"
+            branches below turn toward. Both branches otherwise pick the side
+            with more LIDAR clearance, which is correct for a plain wall but
+            not for a red/green traffic sign -- those have a fixed WRO
+            pass-side rule (red outward, green inward) that has nothing to do
+            with which side looks more open. The caller resolves that rule
+            (see ``planning.sign_router.outward_lateral_axis``) from a world-
+            frame sign observation, something this function has no access to
+            since it only ever sees robot-frame LIDAR. ``None`` preserves the
+            plain clearance-based behaviour.
 
     Returns:
         A drive command centring the chassis, or a stop if the corridor ends
@@ -158,7 +177,8 @@ def follow_corridor(
         # the turn: reversing swings the nose away from the steer direction, so
         # the inverted sign walks the nose toward the open side instead of
         # further into the wall it is against.
-        steering = max_centering if left > right else -max_centering
+        turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
+        steering = max_centering if turn_left else -max_centering
         rear = _nearest_ray(ranges_m, angles_rad, math.pi)
         if rear > _MIN_REVERSE_CLEARANCE_M:
             return DriveCommand(
@@ -177,7 +197,8 @@ def follow_corridor(
         # Stopping here instead is a deadlock: with no direction there is no
         # plan to hand over to, so the robot would sit at the corner until the
         # round expired. That was every closed-loop failure of this feature.
-        steering = max_centering if left > right else -max_centering
+        turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
+        steering = max_centering if turn_left else -max_centering
         return DriveCommand(speed_mps=speed_mps * corner_scale, steering_norm=steering)
 
     # Once a side has opened past the end of the inner block it is no longer a
