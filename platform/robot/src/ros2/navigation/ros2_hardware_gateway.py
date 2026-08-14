@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.qos import qos_profile_sensor_data
+from src.ros2.qos import QOS_STREAM
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
@@ -100,7 +101,7 @@ class ROS2HardwareGateway(HardwareGateway):
         self._drive_publisher = node.create_publisher(
             AckermannDriveStamped,
             declare_and_get_str_param(node, "ackermann_cmd_topic", topics.commands.ackermann_cmd),
-            10,
+            QOS_STREAM,
         )
 
         # Subscribers
@@ -114,7 +115,7 @@ class ROS2HardwareGateway(HardwareGateway):
             String,
             declare_and_get_str_param(node, "vision_topic", topics.sensors.vision_detections),
             self._vision_callback,
-            10,
+            QOS_STREAM,
         )
         node.create_subscription(
             Imu,

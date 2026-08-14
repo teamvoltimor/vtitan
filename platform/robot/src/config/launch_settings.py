@@ -117,15 +117,23 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
 
 
 class LidarLaunchDefaults(HardwareBaseSettings):
-    """Default for lidar_launch.py's ``serial_port`` DeclareLaunchArgument."""
+    """Defaults for lidar_launch.py's LIDAR driver parameters.
+
+    ``serial_port`` is a DeclareLaunchArgument (override at runtime with
+    ``serial_port:=...``); the rest are fixed driver parameters passed straight
+    to the sllidar_ros2 node.
+    """
 
     model_config = SettingsConfigDict(env_prefix="lidar_launch_", toml_file=LAUNCH_CONFIG_DIR / "lidar.toml")
 
     serial_port: str = "/dev/ttyUSB0"
+    serial_baudrate: int = 460800
+    scan_mode: str = "Standard"
+    angle_compensate: bool = True
 
 
 class StateMachineLaunchDefaults(HardwareBaseSettings):
-    """Default for wro_state_machine_launch.py's ``use_sim_time`` DeclareLaunchArgument."""
+    """Default for wro_state_machine_launch.py's DeclareLaunchArguments."""
 
     model_config = SettingsConfigDict(
         env_prefix="state_machine_launch_",
@@ -133,6 +141,34 @@ class StateMachineLaunchDefaults(HardwareBaseSettings):
     )
 
     use_sim_time: bool = False
+    respawn_delay: float = 2.0
+
+
+class Rpi5LaunchDefaults(HardwareBaseSettings):
+    """Defaults for rpi5_nodes.launch.py: respawn delays and vision wiring."""
+
+    model_config = SettingsConfigDict(env_prefix="rpi5_launch_", toml_file=LAUNCH_CONFIG_DIR / "rpi5.toml")
+
+    respawn_delay: float = 3.0
+    """Seconds to wait before restarting a crashed Pi 5 node."""
+
+    telemetry_respawn_delay: float = 5.0
+    """telemetry_bridge_node gets a longer respawn delay than the other Pi 5 nodes."""
+
+    vision_backend: str = "hailo"
+    """Vision backend the Pi 5 vision_node runs (``hailo`` vs the sim's ultralytics)."""
+
+    camera_source: str = "direct"
+    """Camera source the vision_node opens on real hardware."""
+
+
+class RpiZeroLaunchDefaults(HardwareBaseSettings):
+    """Default for rpi_zero_nodes.launch.py: respawn delay."""
+
+    model_config = SettingsConfigDict(env_prefix="rpi_zero_launch_", toml_file=LAUNCH_CONFIG_DIR / "rpi_zero.toml")
+
+    respawn_delay: float = 2.0
+    """Seconds to wait before restarting a crashed Pi Zero node."""
 
 
 class RaceLaunchDefaults(HardwareBaseSettings):

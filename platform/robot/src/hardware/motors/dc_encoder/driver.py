@@ -26,8 +26,6 @@ from typing import TYPE_CHECKING
 from src.hardware.exceptions import MotorConnectionError
 from src.hardware.motors.base import DriveOdometry, EncodedDriveDriver
 from src.hardware.motors.dc_encoder.calibration import (
-    DEFAULT_COUNTS_PER_REV,
-    DEFAULT_MAX_RPM,
     DEFAULT_WHEEL_DIAMETER_M,
 )
 from src.hardware.motors.dc_encoder.config import NS_PER_S, DcMotorPwmConfig
@@ -73,9 +71,9 @@ class Driver(EncodedDriveDriver):
         encoder_a_pin: int,
         encoder_b_pin: int,
         standby_pin: int | None = None,
-        counts_per_rev: float = DEFAULT_COUNTS_PER_REV,
+        counts_per_rev: float | None = None,
         wheel_diameter_m: float = DEFAULT_WHEEL_DIAMETER_M,
-        max_rpm: float = DEFAULT_MAX_RPM,
+        max_rpm: float | None = None,
         pid: PIDController | None = None,
         invert: bool = False,
         invert_encoder: bool = False,
@@ -86,9 +84,12 @@ class Driver(EncodedDriveDriver):
         self._pwm_config = pwm_config or DcMotorPwmConfig()
         self._period_ns = int(NS_PER_S / self._pwm_config.frequency_hz)
         self._channel_dir: Path | None = None
-        self._counts_per_rev = counts_per_rev
+        # Calibration values default from the driver's config file
+        # (dc_encoder.toml) rather than module literals; an explicit arg still
+        # wins for callers that override (e.g. tests).
+        self._counts_per_rev = counts_per_rev if counts_per_rev is not None else self._pwm_config.counts_per_rev
         self._wheel_diameter_m = wheel_diameter_m
-        self._max_rpm = max_rpm
+        self._max_rpm = max_rpm if max_rpm is not None else self._pwm_config.max_rpm
         self._sign = -1.0 if invert else 1.0
         # Deliberately independent of ``invert``: the motor leads and the
         # encoder's A/B channels are separate connections, so swapping one does
@@ -106,7 +107,12 @@ class Driver(EncodedDriveDriver):
         # closing the gap at ~0.11 duty/s, so a 0.10 m/s step took ~3.5 s to
         # settle. Feedforward (1/max_rpm) now lands near the stiction duty on
         # its own, and these gains close the remainder without overshoot.
-        self._pid = pid or PIDController(kp=0.010, ki=0.020, kd=0.0, feedforward=1.0 / max_rpm)
+        self._pid = pid or PIDController(
+            kp=self._pwm_config.pid_kp,
+            ki=self._pwm_config.pid_ki,
+            kd=self._pwm_config.pid_kd,
+            feedforward=1.0 / self._max_rpm,
+        )
         self._estimator = SpeedEstimator(counts_per_rev)
         self._encoder = None
         self._ain1 = None

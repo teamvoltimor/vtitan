@@ -31,7 +31,7 @@ import math
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TfFrames
 
 
 def _static_tf(
@@ -86,8 +86,8 @@ def generate_launch_description() -> LaunchDescription:
                 0,
                 RobotSpecs.CAMERA_MOUNT_Z_OFFSET,
                 0.0,
-                "base_link",
-                "camera_link",
+                TfFrames.BASE_LINK,
+                TfFrames.CAMERA_LINK,
                 pitch_rad=camera_pitch_rad,
             ),
             _static_tf(
@@ -96,8 +96,8 @@ def generate_launch_description() -> LaunchDescription:
                 0,
                 RobotSpecs.HEIGHT + RobotSpecs.LIDAR_MOUNT_Z_OFFSET,
                 lidar_yaw_rad,
-                "base_link",
-                "lidar_link",
+                TfFrames.BASE_LINK,
+                TfFrames.LIDAR_LINK,
             ),
             _static_tf(
                 "tf_base_to_imu",
@@ -105,8 +105,8 @@ def generate_launch_description() -> LaunchDescription:
                 0,
                 RobotSpecs.IMU_MOUNT_Z_OFFSET,
                 0.0,
-                "base_link",
-                "imu_link",
+                TfFrames.BASE_LINK,
+                TfFrames.IMU_LINK,
             ),
         ],
     )

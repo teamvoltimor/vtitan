@@ -1,0 +1,8 @@
+# Defaults for lidar_launch.py's sllidar_ros2 node parameters.
+# See src.config.launch_settings.LidarLaunchDefaults.
+# serial_port is a DeclareLaunchArgument (runtime override with serial_port:=...).
+
+serial_port = "/dev/ttyUSB0"
+serial_baudrate = 460800
+scan_mode = "Standard"
+angle_compensate = true

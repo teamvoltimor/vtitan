@@ -75,3 +75,7 @@ class EscapeManeuverParams(BaseModel):
     MIN_HISTORY_FOR_DISTANCE: int = Field(
         default=2, validation_alias=_alias("MIN_HISTORY_FOR_DISTANCE")
     )  # Poses needed before StuckDetector can measure distance travelled
+    STUCK_HISTORY_FLOOR: int = Field(
+        default=60, validation_alias=_alias("STUCK_HISTORY_FLOOR")
+    )  # Minimum position history (frames) the StuckDetector keeps, even when
+    # STUCK_TIMEOUT_FRAMES * 2 would be smaller

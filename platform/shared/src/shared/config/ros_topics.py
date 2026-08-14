@@ -68,6 +68,12 @@ class SensorTopics(BaseModel):
     vision_detections: str
     """Vision detections (std_msgs/String, JSON), published by vision_node."""
 
+    camera_image_raw: str
+    """Raw camera image, published by the vision stack (for diagnostics/monitoring)."""
+
+    joy: str
+    """Joystick input (sensor_msgs/Joy), consumed by joy_teleop_node."""
+
 
 class CommandTopics(BaseModel):
     """Command topics."""
@@ -124,6 +130,18 @@ class BagRecorderTopics(BaseModel):
     without the two nodes sharing any other state."""
 
 
+class SimulationTopics(BaseModel):
+    """Simulation-only topics, published by live_visualizer."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    odom: str
+    """Simulated robot pose (Odometry)."""
+
+    track: str
+    """Simulated track markers (MarkerArray)."""
+
+
 class ButtonTopics(BaseModel):
     """Physical button topics."""
 
@@ -162,6 +180,7 @@ class RosTopicConfig(BaseModel):
     button: ButtonTopics
     ui: UiTopics
     bag_recorder: BagRecorderTopics
+    simulation: SimulationTopics
 
     _default_config_path: ClassVar[Path] = (
         Path(__file__).resolve().parents[3] / "config" / "ros_topics.toml"

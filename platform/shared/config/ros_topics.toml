@@ -36,6 +36,10 @@ imu = "/imu/data"
 hailo_fps = "/hailo/fps"
 # Vision detections (std_msgs/String, JSON), published by vision_node.
 vision_detections = "/vision/detections"
+# Raw camera image, published by the vision stack (for diagnostics/monitoring).
+camera_image_raw = "/camera/image_raw"
+# Joystick input (sensor_msgs/Joy), consumed by joy_teleop_node.
+joy = "/joy"
 
 [commands]
 # Ackermann drive command sent to the drive/steering nodes.
@@ -74,3 +78,8 @@ oled_mirror = "/ui/oled_mirror"
 # separate process (vision_node's per-run video recorder) can write into the
 # same directory as the mcap.
 run_path = "/bag_recorder/run_path"
+
+[simulation]
+# Simulated pose + track marker topics, published by live_visualizer only.
+odom = "/sim/odom"
+track = "/sim/track"

@@ -51,7 +51,7 @@ from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_wid
 from src.navigation.utils import _nearest_ray, axis_error_rad, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import ROS2HardwareGateway
 from src.ros2.params import declare_param
-from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
 from src.ros2.resettable_node import ResettableNode
 
 logger = logging.getLogger(__name__)
@@ -409,7 +409,7 @@ class TrackNavigator(Node, ResettableNode):
         # crosstrack error, chosen lookahead/target, risk state, direction-gate
         # verdict etc. never again have to be reconstructed by hand from raw
         # /motor/* and /imu/data topics after the fact.
-        self._debug_pub = self.create_publisher(String, self._topics.navigation.nav_debug, 10)
+        self._debug_pub = self.create_publisher(String, self._topics.navigation.nav_debug, QOS_STREAM)
         self._latest_debug = NavigatorDebugSnapshot()
 
         # Control Loop

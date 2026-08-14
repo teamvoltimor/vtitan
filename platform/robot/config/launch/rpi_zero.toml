@@ -1,0 +1,4 @@
+# Defaults for rpi_zero_nodes.launch.py.
+# See src.config.launch_settings.RpiZeroLaunchDefaults.
+
+respawn_delay = 2.0

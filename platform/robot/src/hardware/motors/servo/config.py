@@ -81,3 +81,10 @@ class ServoConfig(HardwareBaseSettings):
 
     reversed: bool = False
     """Invert steering direction if the servo is mounted so left commands turn right."""
+
+    pwm_frequency_hz: int = PWM_FREQUENCY_HZ
+    """Servo PWM carrier frequency (Hz). The servo's frame period derives from
+    this -- the sole servo timing constant that previously lived only as a
+    module literal. ``move_steering_to`` maps a pulse-width in us to a duty
+    cycle against this frame, so it must match the servo's expected 50 Hz
+    signalling."""

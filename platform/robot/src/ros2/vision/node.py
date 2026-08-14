@@ -29,7 +29,7 @@ from src.ros2.params import (
     declare_and_get_int_param,
     declare_and_get_str_param,
 )
-from src.ros2.qos import QOS_LATCHED_STATE
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_STREAM
 from src.ros2.vision.detection_payload_keys import (
     AREA_KEY,
     BBOX_KEY,
@@ -145,7 +145,7 @@ class VisionNode(Node):
         self.detector = detector
         self._publish_model_status(Path(model_path).name)
 
-        self._publisher = self.create_publisher(String, detections_topic, 10)
+        self._publisher = self.create_publisher(String, detections_topic, QOS_STREAM)
         self._annotated_publisher = (
             self.create_publisher(Image, self._annotated_topic, 1) if self._publish_annotated else None
         )
@@ -180,7 +180,7 @@ class VisionNode(Node):
             # /nav_debug publisher exactly (create_publisher(String, ..., 10),
             # rclpy's default RELIABLE/VOLATILE) -- NOT the TRANSIENT_LOCAL/
             # BEST_EFFORT profile the three subscriptions above use.
-            self.create_subscription(String, topics.navigation.nav_debug, self._on_nav_debug, 10)
+            self.create_subscription(String, topics.navigation.nav_debug, self._on_nav_debug, QOS_STREAM)
             self.create_subscription(LaserScan, topics.sensors.scan, self._on_scan, qos_profile_sensor_data)
 
         self._camera: CameraDriver | None = None

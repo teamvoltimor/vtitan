@@ -6,3 +6,16 @@ pwm_channel = 1
 # overlay; GPIO 12 (the servo) is channel 0. See dc_encoder/config.py.
 
 frequency_hz = 1000
+
+# Bench-calibrated odometry + drive-motor limits (measured 2026-07-25). See
+# src/hardware/motors/dc_encoder/calibration.py for the derivation; re-measure
+# with scripts/hardware/calibrate_encoder.py if the drivetrain changes.
+counts_per_rev = 676.0
+max_rpm = 42.5
+
+# Closed-loop speed PID gains, tuned on hardware 2026-07-25 against true wheel
+# rpm. Feedforward (1/max_rpm) lands near stiction duty; these gains close the
+# remainder without overshoot.
+pid_kp = 0.010
+pid_ki = 0.020
+pid_kd = 0.0

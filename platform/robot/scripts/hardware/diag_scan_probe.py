@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
+from shared.config.ros_topics import RosTopicConfig
 
 _MIN_LIDAR_RANGE_M = 0.05
 _SAMPLE_SIZE = 8
@@ -14,7 +15,7 @@ class Probe(Node):
     def __init__(self):
         super().__init__("scan_probe")
         self.got = False
-        self.sub = self.create_subscription(LaserScan, "/scan", self.cb, qos_profile_sensor_data)
+        self.sub = self.create_subscription(LaserScan, RosTopicConfig.load_default().sensors.scan, self.cb, qos_profile_sensor_data)
 
     def cb(self, msg):
         if self.got:

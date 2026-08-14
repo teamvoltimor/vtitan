@@ -34,7 +34,8 @@ from src.ros2.params import (
     declare_and_get_str_param,
     declare_param,
 )
-from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT
+from src.ros2.qos import QOS_LATCHED_STATE, QOS_LIVE_READOUT, QOS_STREAM
+from src.ros2.wire_models import TelemetrySummaryWire
 from src.ros2.vision.detection_payload_keys import parse_detection
 from vtitan_state_machine.command_channel import CommandChannel
 from vtitan_state_machine.telemetry_ingest_channel import TelemetryIngestChannel
@@ -378,7 +379,7 @@ class TelemetryBridgeNode(Node):
         # backing implementation anywhere in this codebase yet (no paused
         # state, no reboot/shutdown handler) -- those are acked FAILED, not
         # silently dropped, so the backend/operator can see they didn't run.
-        button_pub = self.create_publisher(String, self._topics.button.event, 10)
+        button_pub = self.create_publisher(String, self._topics.button.event, QOS_STREAM)
         # SET_VISION_DEBUG is applied via VisionNode's standard ROS2
         # set_parameters service (see ros2/vision/node.py's
         # add_on_set_parameters_callback) -- these are separate OS processes
@@ -429,16 +430,16 @@ class TelemetryBridgeNode(Node):
         """
         self.create_subscription(LaserScan, self._topics.sensors.scan, self._scan_callback, qos_profile_sensor_data)
         if self._topics.navigation.odometry:
-            self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, 10)
+            self.create_subscription(Odometry, self._topics.navigation.odometry, self._odom_callback, QOS_STREAM)
         self.create_subscription(Imu, self._topics.sensors.imu, self._imu_callback, qos_profile_sensor_data)
-        self.create_subscription(String, self._topics.state_machine.state, self._state_callback, 10)
+        self.create_subscription(String, self._topics.state_machine.state, self._state_callback, QOS_STREAM)
         self.create_subscription(
             AckermannDriveStamped,
             self._topics.commands.ackermann_cmd,
             self._ackermann_cmd_callback,
-            10,
+            QOS_STREAM,
         )
-        self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, 10)
+        self.create_subscription(JointState, self._topics.actuators.joint_states, self._joint_callback, QOS_STREAM)
         # Default (reliable, depth 10) QoS to match vision_node's own
         # create_publisher(String, detections_topic, 10) -- not
         # qos_profile_sensor_data, which is BEST_EFFORT and would be
@@ -447,7 +448,7 @@ class TelemetryBridgeNode(Node):
             String,
             self._topics.sensors.vision_detections,
             self._vision_callback,
-            10,
+            QOS_STREAM,
         )
 
     def _scan_callback(self, msg: LaserScan) -> None:
@@ -700,16 +701,14 @@ class TelemetryBridgeNode(Node):
         d3 = time.monotonic()
 
         msg = String()
-        msg.data = json.dumps(
-            {
-                "lidar_front_cm": front,
-                "lidar_left_cm": left,
-                "lidar_right_cm": right,
-                "gyro_yaw_deg": yaw,
-                "best_detection_class_id": class_id,
-                "best_detection_confidence": confidence,
-            },
-        )
+        msg.data = TelemetrySummaryWire(
+            lidar_front_cm=front,
+            lidar_left_cm=left,
+            lidar_right_cm=right,
+            gyro_yaw_deg=yaw,
+            best_detection_class_id=class_id,
+            best_detection_confidence=confidence,
+        ).model_dump_json()
         self._ui_summary_pub.publish(msg)
         d4 = time.monotonic()
 

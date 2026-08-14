@@ -24,6 +24,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Imu, LaserScan
 from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 
 from src.navigation.corridor_estimator import measure_corridor_width
 
@@ -45,8 +46,9 @@ class Probe(Node):
         super().__init__("corridor_measure_probe")
         self.scan: LaserScan | None = None
         self.yaw: float | None = None
-        self.create_subscription(LaserScan, "/scan", self._on_scan, qos_profile_sensor_data)
-        self.create_subscription(Imu, "/imu/data", self._on_imu, qos_profile_sensor_data)
+        topics = RosTopicConfig.load_default()
+        self.create_subscription(LaserScan, topics.sensors.scan, self._on_scan, qos_profile_sensor_data)
+        self.create_subscription(Imu, topics.sensors.imu, self._on_imu, qos_profile_sensor_data)
 
     def _on_scan(self, msg: LaserScan) -> None:
         self.scan = msg

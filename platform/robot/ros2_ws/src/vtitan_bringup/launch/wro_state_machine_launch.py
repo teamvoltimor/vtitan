@@ -28,8 +28,6 @@ from launch_ros.actions import Node
 
 from src.config.launch_settings import StateMachineLaunchDefaults
 
-# Seconds to wait before restarting a crashed node.
-_RESPAWN_DELAY_SEC = 2.0
 _state_machine_defaults = StateMachineLaunchDefaults()
 
 
@@ -63,7 +61,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_state_machine_defaults.respawn_delay,
     )
 
     # OLED display node with live mirroring
@@ -74,7 +72,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_state_machine_defaults.respawn_delay,
     )
 
     # IMU node (BNO08x via UART RVC mode)
@@ -85,7 +83,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_state_machine_defaults.respawn_delay,
     )
 
     # Ackermann motor controller node. This node subscribes to /ackermann_cmd
@@ -97,7 +95,7 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         respawn=True,
-        respawn_delay=_RESPAWN_DELAY_SEC,
+        respawn_delay=_state_machine_defaults.respawn_delay,
     )
 
     return LaunchDescription(

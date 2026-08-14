@@ -160,7 +160,7 @@ class InferenceResult(NamedTuple):
         img_height: int,
         class_map: dict[int, str],
         latency_ms: float,
-        conf_threshold: float = 0.5,
+        conf_threshold: float | None = None,
         image: np.ndarray | None = None,
     ) -> InferenceResult:
         """
@@ -173,11 +173,18 @@ class InferenceResult(NamedTuple):
             class_map: Mapping of class IDs to human-readable class names.
             latency_ms: Inference latency in milliseconds to include in the result.
             conf_threshold: Minimum confidence threshold to filter detections.
+                Defaults to the configured value (hailo.toml ``min_confidence``) when
+                not passed -- the caller that owns a config always passes it
+                explicitly, so this only fires for standalone/fallback callers.
             image: Optional original image for streaming/visualization.
 
         Returns:
             InferenceResult containing a list of YoloDetections and the latency.
         """
+        if conf_threshold is None:
+            from src.hardware.hailo.config import Config as HailoConfig
+
+            conf_threshold = HailoConfig().min_confidence
         detections = []
         for class_id, confidence, (ymin, xmin, ymax, xmax) in iter_nms_by_class(raw_tensor):
             if confidence < conf_threshold:

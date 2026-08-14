@@ -870,7 +870,9 @@ class CollisionAvoidanceController:
             # Matches _k_turn_steer_sign's fallback: no lidar data means no
             # basis to claim the chassis is already touching a wall, so treat
             # it as clear rather than crashing _sector_to_model on None.
-            return 10.0
+            # Use the configured no-data sentinel (lidar_sectors.NO_DATA_RANGE_M),
+            # not a second hardcoded 10.0.
+            return self.no_data_range_m
         sr = self._sector_to_model(
             lidar_ranges,
             lidar_angles,

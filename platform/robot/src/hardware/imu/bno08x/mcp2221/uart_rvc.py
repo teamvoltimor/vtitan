@@ -46,6 +46,12 @@ class Config(HardwareBaseSettings):
     poll_rate_hz: float = 100.0
     """Polling rate in Hz for reading data from the IMU. Higher rates may increase CPU usage."""
 
+    serial_timeout: float = 1.0
+    """Timeout in seconds for serial communication (raw pyserial read/thread-join)."""
+
+    data_lock_timeout: float = 2.0
+    """Timeout in seconds for waiting on new data to be available."""
+
     mcp2221: MCP2221Config = Field(default_factory=MCP2221Config)
     """MCP2221 USB bridge configuration."""
 
@@ -63,6 +69,8 @@ class Driver(UARTRVCDriver):
                 port=config.port,
                 baudrate=config.baudrate,
                 poll_rate_hz=config.poll_rate_hz,
+                serial_timeout=config.serial_timeout,
+                data_lock_timeout=config.data_lock_timeout,
             ),
         )
         # Kept separate from self.config (typed UARTRVCConfig by the base class)

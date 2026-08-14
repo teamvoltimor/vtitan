@@ -1,0 +1,5 @@
+# Defaults for wro_state_machine_launch.py.
+# See src.config.launch_settings.StateMachineLaunchDefaults.
+
+use_sim_time = false
+respawn_delay = 2.0

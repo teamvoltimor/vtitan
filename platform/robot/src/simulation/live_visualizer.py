@@ -30,7 +30,9 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import SignColor
+from src.ros2.qos import QOS_STREAM
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -63,9 +65,14 @@ class LiveScenarioVisualizer(Node):
 
     def __init__(self, track: TrackModel, node_name: str = "sim_live_visualizer") -> None:
         super().__init__(node_name)
-        self._odom_pub = self.create_publisher(Odometry, "/sim/odom", 10)
-        self._scan_pub = self.create_publisher(LaserScan, "/scan", 10)
-        self._track_pub = self.create_publisher(MarkerArray, "/sim/track", 1)
+        topics = RosTopicConfig.load_default()
+        self._odom_pub = self.create_publisher(Odometry, topics.simulation.odom, QOS_STREAM)
+        self._scan_pub = self.create_publisher(
+            LaserScan,
+            topics.sensors.scan,
+            QOS_STREAM,
+        )
+        self._track_pub = self.create_publisher(MarkerArray, topics.simulation.track, 1)
         self._tf_broadcaster = TransformBroadcaster(self)
         self._cached_track_markers: MarkerArray | None = None
         self._tick_count = 0

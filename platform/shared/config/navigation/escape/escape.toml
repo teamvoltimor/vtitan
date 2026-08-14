@@ -19,3 +19,4 @@ escape_side_commit_attempts = 2  # Attempts spent on one side before trying the 
 max_escape_frames = 20        # Hard cap on any single escalated escape duration
 stuck_confirmation_checks = 3            # Consecutive below-threshold checks before declaring "stuck"
 stuck_escalation_frames_per_attempt = 2  # Frames added to a stuck-reverse duration per repeated attempt
+stuck_history_floor = 60                 # Minimum position history (frames), even when timeout*2 < 60

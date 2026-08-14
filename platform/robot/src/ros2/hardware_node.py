@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, override
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 
 from src.ros2.params import declare_param, get_float_param, get_str_param
+from src.ros2.qos import QOS_STREAM
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -71,7 +72,7 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
 
         self.frame_id = get_str_param(self, "frame_id")
         topic = get_str_param(self, "topic")
-        self.publisher_ = self.create_lifecycle_publisher(self._message_type, topic, 10)
+        self.publisher_ = self.create_lifecycle_publisher(self._message_type, topic, QOS_STREAM)
 
         self.driver = self._create_driver()
         return self._configure_driver(self.driver)

@@ -24,7 +24,7 @@ Topics:
 
 from __future__ import annotations
 
-import json
+
 from typing import TYPE_CHECKING, override
 
 import rclpy
@@ -36,6 +36,7 @@ from std_msgs.msg import String
 
 from src.hardware.button.gpio import Driver as ButtonDriver
 from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.ros2.wire_models import ButtonHoldThreshold, ButtonHoldWire
 
 if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
@@ -209,7 +210,7 @@ class ButtonNode(LifecycleNode):
             if self._was_pressed:
                 self._was_pressed = False
                 msg = String()
-                msg.data = json.dumps({"held_sec": 0.0})
+                msg.data = ButtonHoldWire().model_dump_json()
                 self.pub_hold.publish(msg)
             return
 
@@ -219,18 +220,16 @@ class ButtonNode(LifecycleNode):
             self.driver.config.button.shutdown_press_threshold_sec,
         )
         msg = String()
-        msg.data = json.dumps(
-            {
-                "held_sec": round(state.press_duration, 1),
-                # All of them, not just the next one: the display skips any
-                # whose action is meaningless in the current state (holding
-                # from READY does nothing at the long threshold), and it can
-                # only do that if it can see past the first.
-                "thresholds": [
-                    {"at": at, "kind": kind} for at, kind in zip(thresholds, _HOLD_KINDS, strict=True)
-                ],
-            },
-        )
+        msg.data = ButtonHoldWire(
+            held_sec=round(state.press_duration, 1),
+            # All of them, not just the next one: the display skips any
+            # whose action is meaningless in the current state (holding
+            # from READY does nothing at the long threshold), and it can
+            # only do that if it can see past the first.
+            thresholds=[
+                ButtonHoldThreshold(at=at, kind=kind) for at, kind in zip(thresholds, _HOLD_KINDS, strict=True)
+            ],
+        ).model_dump_json()
         self.pub_hold.publish(msg)
 
     @override
