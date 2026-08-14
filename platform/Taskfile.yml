@@ -147,6 +147,7 @@ tasks:
           task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
           task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
           task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
+          task robot:diagrams       Render docs/diagrams/{common,open,obstacles}/mermaid/*.mmd to matching png/ folders (requires mermaid-cli)
 
         ROBOT REMOTE (run FROM a dev machine, target the Pi 5 over SSH)
           task robot:deploy         Ship code + detector HEF, rebuild ros2_ws, restart the service
@@ -1030,6 +1031,44 @@ tasks:
     dir: robot
     cmds:
       - pixi run setup-joystick
+
+  robot:diagrams:
+    desc: >-
+      Render every docs/diagrams/{common,open,obstacles}/mermaid/*.mmd file
+      to a PNG in the matching .../png/ folder (usage: task robot:diagrams).
+      common/ holds logic shared by both challenges (direction inference,
+      collision/stuck escape, lap counting) — open/ and obstacles/ reference
+      it instead of redrawing it, to avoid duplication. Requires the Mermaid
+      CLI (npx @mermaid-js/mermaid-cli, aka mmdc) — no local install needed,
+      npx fetches it on first run. Re-run after editing or adding a .mmd
+      file; output filenames mirror the source (foo.mmd -> foo.png). %%
+      comment lines inside a .mmd are code/constant references for
+      maintainers and are never rendered.
+    dir: robot
+    vars:
+      DIAGRAMS_DIR: docs/diagrams
+    cmds:
+      - cmd: mkdir -p "{{.DIAGRAMS_DIR}}/common/png" "{{.DIAGRAMS_DIR}}/open/png" "{{.DIAGRAMS_DIR}}/obstacles/png"
+      - cmd: |
+          for challenge in common open obstacles; do
+            for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
+              name="${f##*\\}"
+              name="${name%.mmd}"
+              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
+              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
+            done
+          done
+        platforms: [windows]
+      - cmd: |
+          for challenge in common open obstacles; do
+            for f in "{{.DIAGRAMS_DIR}}/$challenge/mermaid"/*.mmd; do
+              name="${f##*/}"
+              name="${name%.mmd}"
+              echo "Rendering $challenge/mermaid/$name.mmd -> $challenge/png/$name.png"
+              npx --yes @mermaid-js/mermaid-cli -i "$f" -o "{{.DIAGRAMS_DIR}}/$challenge/png/$name.png" -b white -s 3
+            done
+          done
+        platforms: [linux, darwin]
 
   # RECORD (video + frame pipeline)
 
