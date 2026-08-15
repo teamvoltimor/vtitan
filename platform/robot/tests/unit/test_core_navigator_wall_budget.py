@@ -34,7 +34,7 @@ _MAT = TrackDimensions.MAX_COORD
 
 @pytest.fixture()
 def tuning():
-    return NavigationTuning()
+    return NavigationTuning.load_default()
 
 
 def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | None = None) -> CoreNavigator:
@@ -42,7 +42,7 @@ def _navigator(waypoints: list[tuple[float, float]], tuning: NavigationTuning | 
         gateway=FakeGateway(Pose(x=waypoints[0][0], y=waypoints[0][1], yaw=0.0)),
         waypoints=[Waypoint(*wp) for wp in waypoints],
         num_laps=1,
-        tuning=tuning or NavigationTuning(),
+        tuning=tuning or NavigationTuning.load_default(),
     )
 
 

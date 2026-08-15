@@ -85,7 +85,7 @@ from tests.test_constants import (
 @pytest.fixture()
 def tuning():
     """NavigationTuning fixture for tests that need to pass tuning to constructors."""
-    return NavigationTuning()
+    return NavigationTuning.load_default()
 
 
 @pytest.fixture()

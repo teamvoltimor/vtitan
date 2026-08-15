@@ -356,7 +356,7 @@ def _approach(
     dropouts = sum(1 for prev, cur in itertools.pairwise(engaged) if prev and not cur)
     first = engaged.index(True)
     first_pos = history[first][2]
-    activation = NavigationTuning().sign_router.ACTIVATION_DIST_M
+    activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
     in_range = sum(1 for _, _, pos in history if math.hypot(pos[0] - sign_xy[0], pos[1] - sign_xy[1]) <= activation)
     return Approach(
         ticks_in_range=in_range,
@@ -465,7 +465,7 @@ def _report_approach(tracked: list[Verdict]) -> None:
 
     runs = [v.approach for v in tracked if v.approach]
     engage = _median([a.engage_distance_m for a in runs])
-    activation = NavigationTuning().sign_router.ACTIVATION_DIST_M
+    activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
     print(f"  first committed at:                median {engage:.2f} m  (activation radius {activation:.2f} m)")
     print(f"  ticks IN RANGE of the sign:        median {_median([float(a.ticks_in_range) for a in runs]):.0f}")
     print(f"  ticks committed IN TOTAL:          median {_median([float(a.committed_ticks_total) for a in runs]):.0f}")
