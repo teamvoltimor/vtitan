@@ -45,8 +45,8 @@ _DEFAULT_RADIUS_M = 0.9
 _MAX_TRACE_ROWS = 200
 
 
-def main() -> None:
-    """Trace one scenario and print the ticks near the chosen sign."""
+def _parse_args() -> argparse.Namespace:
+    """CLI for the trace."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("scenario", type=int, help="index into all_obstacles_demo_scenarios()")
     parser.add_argument("--around-sign", type=int, default=None, help="only print ticks near this sign")
@@ -55,16 +55,40 @@ def main() -> None:
         "--activation",
         type=float,
         default=None,
-        help="override ACTIVATION_DIST_M (default 0.80); 1.00-1.20 is the measured plateau, 1.30 the cliff",
+        help="override SignRouterParams.ACTIVATION_DIST_M (default 1.40)",
     )
     parser.add_argument("--corpus", action="store_true", help="trace a corpus scenario instead of the committed 16")
     parser.add_argument(
         "--buffer",
         type=float,
         default=None,
-        help="override sign_router._DEFORM_DEPTH_BUFFER (default 0.30); patched on the module that resolves it",
+        help="override SignRouterParams.DEFORM_DEPTH_BUFFER_M (default 0.5)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def _tuning_for(args: argparse.Namespace) -> NavigationTuning | None:
+    """Build the overridden tuning, or ``None`` to run the shipped values.
+
+    Both overrides are tuning FIELDS, not module attributes. The depth buffer
+    moved into ``SignRouterParams`` when the constants were centralised, and
+    this script went on patching the old module global — which silently did
+    nothing long before it started raising ``AttributeError``.
+    """
+    overrides = {}
+    if args.activation is not None:
+        overrides["ACTIVATION_DIST_M"] = args.activation
+    if args.buffer is not None:
+        overrides["DEFORM_DEPTH_BUFFER_M"] = args.buffer
+    if not overrides:
+        return None
+    base = NavigationTuning()
+    return replace(base, sign_router=base.sign_router.model_copy(update=overrides))
+
+
+def main() -> None:
+    """Trace one scenario and print the ticks near the chosen sign."""
+    args = _parse_args()
 
     fixtures = CORPUS_DIR if args.corpus else None
     scenario = all_obstacles_demo_scenarios(fixtures)[args.scenario]
@@ -100,21 +124,24 @@ def main() -> None:
         last["raw"] = waypoint
         last["deformed"] = result
         last["corridor"] = corridor
-        last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
+        committed = router._committed  # noqa: SLF001 - a probe, by design
+        last["committed"] = committed
+        # The committed sign's OWN corridor and estimated position, which is what
+        # picks the deformation's lateral axis. In blind mode both are re-derived
+        # every tick from a discovery estimate that keeps moving, so a sign near a
+        # corner boundary can change corridor — and therefore axis — tick to tick.
+        if committed is not None:
+            last["sign_corridor"] = router._sign_corridors[committed]  # noqa: SLF001
+            spec = router._signs[committed]  # noqa: SLF001
+            last["sign_pos"] = (spec.x, spec.y)
+        else:
+            last.pop("sign_corridor", None)
+            last.pop("sign_pos", None)
         return result
 
     sign_router_module.SignRouter.deform_waypoint = capturing_deform
-    original_buffer = sign_router_module._DEFORM_DEPTH_BUFFER  # noqa: SLF001
-    if args.buffer is not None:
-        sign_router_module._DEFORM_DEPTH_BUFFER = args.buffer  # noqa: SLF001
     try:
-        tuning = None
-        if args.activation is not None:
-            base = NavigationTuning()
-            tuning = replace(
-                base,
-                sign_router=base.sign_router.model_copy(update={"ACTIVATION_DIST_M": args.activation}),
-            )
+        tuning = _tuning_for(args)
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=tuning)
         gw = sim.gateway
         step = [0]
@@ -124,27 +151,45 @@ def main() -> None:
             if focus is not None and math.hypot(focus.x - state.x, focus.y - state.y) > args.radius:
                 last.clear()
                 return
-            raw = last.get("raw")
-            deformed = last.get("deformed")
-            deformed_by = "" if raw == deformed else "DEFORM"
-            cmd = gw.last_command
-            dist = "" if focus is None else f" d_sign={math.hypot(focus.x - state.x, focus.y - state.y):.3f}"
-            rows.append(
-                f"t={step[0]:>4} pos=({state.x:.3f},{state.y:.3f}) yaw={math.degrees(state.yaw):7.1f} "
-                f"raw={_fmt(raw)} def={_fmt(deformed)} {deformed_by:<6} "
-                f"sign={last.get('committed')} "
-                f"steer={cmd.steering_norm:+.3f} v={cmd.speed_mps:.3f}{dist}"
-            )
+            dist = "" if focus is None else math.hypot(focus.x - state.x, focus.y - state.y)
+            rows.append(_trace_row(step[0], state, gw.last_command, last, dist))
 
         result = sim.run(max_steps=MAX_STEPS, on_step=record)
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform
-        sign_router_module._DEFORM_DEPTH_BUFFER = original_buffer  # noqa: SLF001
 
     print("\n".join(rows[-args_limit(rows) :]))
     print(
         f"\ncollided={result.collided} laps={result.laps_completed} "
         f"steps={result.steps} final={tuple(round(v, 3) for v in result.final_pose)}"
+    )
+
+
+def _trace_row(
+    step: int,
+    state: AckermannState,
+    cmd: object,
+    last: dict[str, object],
+    dist: float | str,
+) -> str:
+    """Format one tick: what the planner asked for, and what the chassis did.
+
+    ``sign=`` reads ``index@(x,y)/CORRIDOR`` — the committed sign's index, the
+    estimate currently held for it, and the corridor that estimate resolves to.
+    The corridor is on the row because it, not the sign's identity, selects
+    which world axis the deformation treats as lateral: two consecutive rows
+    naming the same sign under different corridors are commanding orthogonal
+    directions.
+    """
+    raw, deformed = last.get("raw"), last.get("deformed")
+    sign_corridor = last.get("sign_corridor")
+    d_sign = "" if isinstance(dist, str) else f" d_sign={dist:.3f}"
+    return (
+        f"t={step:>4} pos=({state.x:.3f},{state.y:.3f}) yaw={math.degrees(state.yaw):7.1f} "
+        f"raw={_fmt(raw)} def={_fmt(deformed)} {'' if raw == deformed else 'DEFORM':<6} "
+        f"sign={last.get('committed')}@{_fmt(last.get('sign_pos'))}"
+        f"/{getattr(sign_corridor, 'name', '-'):<5} "
+        f"steer={cmd.steering_norm:+.3f} v={cmd.speed_mps:.3f}{d_sign}"
     )
 
 
