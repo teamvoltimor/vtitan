@@ -85,12 +85,13 @@ class TestObstaclesDemoScenariosRun:
             seed=scenario.seed,
         ).run(max_steps=_MAX_STEPS)
         logger.info(
-            "%s | laps=%d/%d collided=%s timeout=%s parked=%s",
+            "%s | laps=%d/%d collided=%s timeout=%s stuck=%s parked=%s",
             scenario.label,
             result.laps_completed,
             result.target_laps,
             result.collided,
             result.timed_out,
+            result.stuck,
             result.parked,
         )
         failed = result.collided or result.laps_completed < scenario.laps or result.parked is None
@@ -189,12 +190,13 @@ class TestVisionConfirmedSignRouting:
             emit_vision_detections=True,
         ).run(max_steps=_MAX_STEPS)
         logger.info(
-            "%s | laps=%d/%d collided=%s timeout=%s",
+            "%s | laps=%d/%d collided=%s timeout=%s stuck=%s",
             scenario.label,
             result.laps_completed,
             result.target_laps,
             result.collided,
             result.timed_out,
+            result.stuck,
         )
         failed = result.collided or result.laps_completed < scenario.laps
         assert not failed, (scenario.label, result.collision_xy or result.final_pose)

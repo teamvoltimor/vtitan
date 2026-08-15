@@ -35,6 +35,15 @@ class SimulationParams(BaseModel):
         AXIS_ALIGN_TOLERANCE: |cos(yaw)| below this counts as a quarter-turn
             for ObstacleBox.from_pose, so a block's extents are swapped
             rather than treated as axis-aligned.
+        NO_PROGRESS_WINDOW_S: A run ends early, scored as ``stuck`` rather
+            than run out to ``max_steps``, if the chassis never nets this
+            many metres of straight-line displacement (``NO_PROGRESS_DISPLACEMENT_M``)
+            within this many seconds. Sized well beyond any single escape
+            maneuver (a few seconds) so a car that is actively recovering is
+            never mistaken for one that never will.
+        NO_PROGRESS_DISPLACEMENT_M: See ``NO_PROGRESS_WINDOW_S``. Small
+            enough that ordinary sensor/steering noise while parked or
+            creeping cannot itself satisfy it.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -51,3 +60,7 @@ class SimulationParams(BaseModel):
     DETECTION_CONFIDENCE: float = Field(default=0.9, validation_alias=_alias("DETECTION_CONFIDENCE"))
     COLLISION_MARGIN_M: float = Field(default=0.0, validation_alias=_alias("COLLISION_MARGIN_M"))
     AXIS_ALIGN_TOLERANCE: float = Field(default=1e-6, validation_alias=_alias("AXIS_ALIGN_TOLERANCE"))
+    NO_PROGRESS_WINDOW_S: float = Field(default=30.0, validation_alias=_alias("NO_PROGRESS_WINDOW_S"))
+    NO_PROGRESS_DISPLACEMENT_M: float = Field(
+        default=0.08, validation_alias=_alias("NO_PROGRESS_DISPLACEMENT_M")
+    )

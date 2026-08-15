@@ -72,6 +72,15 @@ class SimResult:
     """``None`` when the scenario has no parking lot; else whether parking finished cleanly
     (as opposed to giving up on its frame budget — see ``ParkController.is_timed_out``)."""
 
+    stuck: bool = False
+    """The run ended early because the chassis made no net headway for
+    ``ScenarioSimulator``'s no-progress window, rather than running out the
+    full ``max_steps`` budget. Distinct from ``timed_out`` (which means the
+    loop actually reached ``max_steps``) so a log/diagnostic can tell "gave up
+    early, clearly never going to finish" apart from "used its full budget."
+    Always implies the run did not succeed; never true at the same time as
+    ``collided``, since a run ends on the first terminal contact."""
+
     @property
     def over_time(self) -> bool:
         """Exceeded the official 3-minute round limit.
