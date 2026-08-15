@@ -661,6 +661,56 @@ bandwidth, so a 20 Hz axis flip costs it almost nothing, where a real servo has
 to physically slew between the two commands every tick. This is a candidate for
 re-testing on hardware rather than in another sweep.
 
+### The tracking half: the chassis moves AWAY from the line (2026-08-15)
+
+Chasing the 46% whose commanded line was adequate. `diag_failure_split.py
+--corpus --approach` reconstructs the final unbroken run of ticks committed to
+the fatal sign and asks what happened over it. 147 collisions resolve:
+
+```
+first committed at                 median 1.40 m   (= the full activation radius)
+deforming for                             98% of the in-range approach
+dropouts (let go and re-took)      median 0
+commanded line MOVED by            median   57 mm
+cross-track error at engage        median  191 mm
+cross-track error at impact        median  123 mm
+error actually CLOSED              median   56 mm    35% of runs it GREW
+
+on the 66 with an ADEQUATE line at the held yaw:
+    line travel 63 mm   vs   error closed -75 mm
+```
+
+Two hypotheses die here, both of which looked strong:
+
+* **Discovery latency is not starving the runway.** Signs are first committed at
+  the full 1.40 m activation radius, not late.
+* **Avoidance is not dropping out mid-approach.** It deforms for 98% of the
+  in-range approach with a median of zero dropouts, so the corner guard is not
+  switching itself off during these passes the way Mode B describes.
+
+What is left is the sharp part: **on the subset where the line had room, the
+cross-track error GREW by 75 mm over the approach, while the line itself moved
+only 63 mm.** The chassis diverges by more than the target moves, so this is not
+merely chasing a receding line — something is steering the robot away from a
+line that was reachable and held for the whole approach.
+
+That matters for Next item 3. Lookahead, arc radius and speed govern how *fast*
+cross-track error closes; here it is not closing at all, and on a third of runs
+it runs backwards. A knob that scales a convergence rate cannot fix a sign
+error. **Find what is fighting the deformed target before sweeping any of them.**
+The old "Re-measured under 4WS" section's *measurement* — that the commanded
+offset never reaches the chassis — looks right after all, even though this
+document has twice rejected its diagnosis.
+
+> **Caveat on the tick counts, not on the offsets.** `ticks_in_range` and
+> `committed_ticks_total` are counted in `deform_waypoint` CALLS, and the
+> navigator does not step on every sim tick (measured: 213 calls over 340 steps
+> on `go_obstacles_0000`, with every `NORMAL_DRIVE` tick calling it). The 52/49
+> medians are therefore not directly convertible to metres, and 49 calls does
+> not obviously cover 1.22 m of approach — that gap is unexplained and worth
+> resolving before anyone quotes a runway *distance* from this. The offsets
+> above are per-tick positions and are unaffected.
+
 #### Harness bug: the sweep reported every sign strike as `park`
 
 `_classify_collision` paired its probes with the wrong labels. Both are built

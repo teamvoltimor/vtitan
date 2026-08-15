@@ -42,6 +42,7 @@ Usage (from ``platform/robot``, PYTHONPATH=.)::
 from __future__ import annotations
 
 import argparse
+import itertools
 import math
 import sys
 from collections import Counter
@@ -53,6 +54,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.config.navigation_tuning import NavigationTuning
 
 import src.navigation.planning.sign_router as sign_router_module
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -86,6 +88,88 @@ _YAW_BUCKETS_DEG = (10.0, 20.0, 28.0, 40.0)
 """Histogram edges. 28 deg is the measured budget at the clamp's 0.181 m."""
 
 
+_MIN_APPROACH_TICKS = 10
+"""Below this there is no convergence to speak of, only the impact itself."""
+
+
+@dataclass(frozen=True, slots=True)
+class Approach:
+    """The final unbroken run of ticks spent committed to the fatal sign.
+
+    Both series are lateral offsets from the sign on its own corridor axis, so
+    they are directly comparable: ``target`` is the line the router commanded,
+    ``robot`` is where the chassis actually was.
+    """
+
+    target_offsets: list[float]
+    robot_offsets: list[float]
+    committed_ticks_total: int = 0
+    """Ticks committed to this sign across the WHOLE run, gaps included."""
+
+    dropouts: int = 0
+    """Times the router let go of this sign and later re-took it.
+
+    Pure pursuit closes cross-track error over distance, so what matters is not
+    how long the sign was engaged in total but how much UNBROKEN runway the
+    chassis had to converge on one line. Every dropout restarts that.
+    """
+
+    engage_distance_m: float = 0.0
+    """Robot-to-sign distance the FIRST time this sign was ever committed.
+
+    Read against ``ACTIVATION_DIST_M`` (1.40 m). The activation radius is an
+    upper bound on the runway, not the runway itself: a sign the router has not
+    discovered yet cannot be committed however close it is, so in blind mode
+    this is the number that actually decides how much distance pure pursuit has
+    to work with.
+    """
+
+    ticks_in_range: int = 0
+    """Ticks the robot spent inside ``ACTIVATION_DIST_M`` of the fatal sign.
+
+    The denominator for ``committed_ticks_total``. The gap between the two is
+    approach distance during which the sign was in range and eligible but the
+    router was NOT deforming for it -- runway the pursuit controller never got
+    offered, and which no pursuit-side knob can recover.
+    """
+
+    @property
+    def ticks(self) -> int:
+        """Length of the final unbroken committed run."""
+        return len(self.target_offsets)
+
+    @property
+    def engaged_fraction(self) -> float:
+        """Share of the in-range approach actually spent deforming."""
+        return self.committed_ticks_total / self.ticks_in_range if self.ticks_in_range else 0.0
+
+    @property
+    def line_travel_m(self) -> float:
+        """How far the commanded line itself moved during the approach.
+
+        The question this diagnostic exists for. Pure-pursuit convergence
+        assumes something to converge TO; if the line is travelling as fast as
+        the chassis can close on it, no amount of lookahead or gain tuning
+        helps, and the fix is upstream in what the router commands.
+        """
+        return max(self.target_offsets) - min(self.target_offsets)
+
+    @property
+    def error_start_m(self) -> float:
+        """Cross-track error to the commanded line when the approach began."""
+        return abs(self.target_offsets[0] - self.robot_offsets[0])
+
+    @property
+    def error_end_m(self) -> float:
+        """Cross-track error to the commanded line at impact."""
+        return abs(self.target_offsets[-1] - self.robot_offsets[-1])
+
+    @property
+    def closed_m(self) -> float:
+        """Cross-track error actually removed over the approach. Negative = grew."""
+        return self.error_start_m - self.error_end_m
+
+
 @dataclass(frozen=True, slots=True)
 class Verdict:
     """One scenario's outcome, plus the geometry behind an ``A-clamped`` label.
@@ -102,6 +186,7 @@ class Verdict:
     target_offset_m: float | None = None
     robot_offset_m: float | None = None
     needed_at_yaw_m: float | None = None
+    approach: Approach | None = None
 
     @property
     def clearance_m(self) -> float | None:
@@ -175,12 +260,18 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
 
     original_deform = sign_router_module.SignRouter.deform_waypoint
     last: dict[str, Any] = {}
+    history: list[tuple[int | None, Any, Any]] = []
 
     def capturing(router: Any, waypoint: Any, robot_pos: Any, robot_yaw: float, *args: Any, **kwargs: Any) -> Any:
         result = original_deform(router, waypoint, robot_pos, robot_yaw, *args, **kwargs)
         last["raw"] = waypoint
         last["deformed"] = result
         last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
+        # Per-tick history of the approach, for --approach. Recorded raw and
+        # resolved to lateral offsets afterwards: the axis is only known once
+        # the fatal sign is, and resolving it per tick would bake in whichever
+        # corridor happened to be current on that tick.
+        history.append((router._committed, result, robot_pos))  # noqa: SLF001
         last["signs"] = router._signs  # noqa: SLF001
         last["corridors"] = router._sign_corridors  # noqa: SLF001
         last["direction"] = router._direction  # noqa: SLF001
@@ -203,10 +294,10 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
 
     if not result.collided:
         return Verdict("no collision", scenario.label)
-    return _verdict(last, scenario.label)
+    return _verdict(last, scenario.label, history)
 
 
-def _verdict(last: dict[str, Any], label: str) -> Verdict:
+def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, Any, Any]] | None = None) -> Verdict:
     """Name the failure mode, and for Mode A attach the yaw geometry.
 
     Geometry is attached to the whole of Mode A, not just ``A-clamped``: the two
@@ -222,7 +313,9 @@ def _verdict(last: dict[str, Any], label: str) -> Verdict:
     if routing is None:
         return Verdict(kind, label)
     axis = 1 if routing[0] == "y" else 0
-    sign_lat = (last["signs"][last["committed"]].x, last["signs"][last["committed"]].y)[axis]
+    sign = last["signs"][last["committed"]]
+    sign_xy = (sign.x, sign.y)
+    sign_lat = sign_xy[axis]
     yaw_deg = _yaw_off_axis(last["yaw"], routing[0])
     return Verdict(
         kind,
@@ -231,6 +324,47 @@ def _verdict(last: dict[str, Any], label: str) -> Verdict:
         target_offset_m=last["deformed"][axis] - sign_lat,
         robot_offset_m=last["pos"][axis] - sign_lat,
         needed_at_yaw_m=_needed_clearance(yaw_deg),
+        approach=_approach(history, last["committed"], axis, sign_lat, sign_xy),
+    )
+
+
+def _approach(
+    history: list[tuple[int | None, Any, Any]] | None,
+    committed: int,
+    axis: int,
+    sign_lat: float,
+    sign_xy: tuple[float, float],
+) -> Approach | None:
+    """Resolve the run of ticks spent committed to the fatal sign.
+
+    Only the FINAL unbroken run counts. A sign can be engaged, dropped and
+    re-engaged, and the earlier spells were not the approach that ended the run
+    — splicing them together would invent convergence that never happened.
+    """
+    if not history:
+        return None
+    run: list[tuple[float, float]] = []
+    for idx, deformed, pos in reversed(history):
+        if idx != committed:
+            break
+        run.append((deformed[axis] - sign_lat, pos[axis] - sign_lat))
+    if len(run) < _MIN_APPROACH_TICKS:
+        return None
+    run.reverse()
+
+    engaged = [idx == committed for idx, _, _ in history]
+    dropouts = sum(1 for prev, cur in itertools.pairwise(engaged) if prev and not cur)
+    first = engaged.index(True)
+    first_pos = history[first][2]
+    activation = NavigationTuning().sign_router.ACTIVATION_DIST_M
+    in_range = sum(1 for _, _, pos in history if math.hypot(pos[0] - sign_xy[0], pos[1] - sign_xy[1]) <= activation)
+    return Approach(
+        ticks_in_range=in_range,
+        target_offsets=[t for t, _ in run],
+        robot_offsets=[r for _, r in run],
+        committed_ticks_total=sum(engaged),
+        dropouts=dropouts,
+        engage_distance_m=math.hypot(first_pos[0] - sign_xy[0], first_pos[1] - sign_xy[1]),
     )
 
 
@@ -288,6 +422,7 @@ def main() -> None:
     parser.add_argument("--corpus", action="store_true", help="use the pinned-seed 256 corpus")
     parser.add_argument("--sighted", action="store_true", help="run sighted instead of the blind competition config")
     parser.add_argument("--yaw", action="store_true", help="also break A-clamped down by chassis yaw at the fatal tick")
+    parser.add_argument("--approach", action="store_true", help="also report how the approach to the fatal sign went")
     parser.add_argument("--workers", type=int, default=_DEFAULT_WORKERS)
     args = parser.parse_args()
 
@@ -314,6 +449,46 @@ def main() -> None:
 
     if args.yaw:
         _report_yaw([v for v in verdicts if v.yaw_off_axis_deg is not None])
+    if args.approach:
+        _report_approach([v for v in verdicts if v.approach is not None])
+
+
+def _median(values: list[float]) -> float:
+    return sorted(values)[len(values) // 2]
+
+
+def _report_approach(tracked: list[Verdict]) -> None:
+    """Report whether the commanded line held still long enough to be followed."""
+    print(f"\nTHE APPROACH -- {len(tracked)} collisions with a resolvable committed run")
+    if not tracked:
+        return
+
+    runs = [v.approach for v in tracked if v.approach]
+    engage = _median([a.engage_distance_m for a in runs])
+    activation = NavigationTuning().sign_router.ACTIVATION_DIST_M
+    print(f"  first committed at:                median {engage:.2f} m  (activation radius {activation:.2f} m)")
+    print(f"  ticks IN RANGE of the sign:        median {_median([float(a.ticks_in_range) for a in runs]):.0f}")
+    print(f"  ticks committed IN TOTAL:          median {_median([float(a.committed_ticks_total) for a in runs]):.0f}")
+    print(f"    i.e. deforming for {100 * _median([a.engaged_fraction for a in runs]):.0f}% of the approach")
+    print(f"  ticks in the final UNBROKEN run:   median {_median([float(a.ticks) for a in runs]):.0f}")
+    print(f"  dropouts (engaged, let go, re-took): median {_median([float(a.dropouts) for a in runs]):.0f}")
+    print(f"  commanded line MOVED by:           median {1000 * _median([a.line_travel_m for a in runs]):.0f} mm")
+    print(f"  cross-track error at engage:       median {1000 * _median([a.error_start_m for a in runs]):.0f} mm")
+    print(f"  cross-track error at impact:       median {1000 * _median([a.error_end_m for a in runs]):.0f} mm")
+    closed = [a.closed_m for a in runs]
+    print(f"  error actually CLOSED:             median {1000 * _median(closed):.0f} mm")
+    diverged = sum(1 for c in closed if c < 0)
+    print(f"    runs where the error GREW: {diverged}/{len(runs)} ({100 * diverged / len(runs):.0f}%)")
+
+    # The discriminator. If the line moves about as far as the chassis manages to
+    # close, the chassis is chasing a moving target and no pursuit-side knob
+    # (lookahead, gain, arc radius, speed) can be expected to fix it.
+    adequate = [v for v in tracked if v.line_was_adequate and v.approach]
+    if adequate:
+        travel = _median([v.approach.line_travel_m for v in adequate if v.approach])
+        closed_ok = _median([v.approach.closed_m for v in adequate if v.approach])
+        print(f"\n  on the {len(adequate)} with an ADEQUATE line at the held yaw:")
+        print(f"    line travel {1000 * travel:.0f} mm vs error closed {1000 * closed_ok:.0f} mm")
 
 
 def _report_yaw(mode_a: list[Verdict]) -> None:
