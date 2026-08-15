@@ -52,6 +52,31 @@ class CorridorFollowerParams(BaseModel):
             begins. Must stay strictly below
             DirectionEstimatorParams.CORNER_CLEARANCE_M -- see the
             cross-group check on NavigationTuning.
+        NARROW_TURN_CLEARANCE_M: Forward clearance (m) at which the corner
+            turn begins instead of TURN_CLEARANCE_M, once the corridor
+            currently being creep-followed reads as NARROW
+            (CorridorWidthEstimator.classify_width). Must stay strictly below
+            TURN_CLEARANCE_M -- see the cross-group check on NavigationTuning.
+
+            The corner-opening signal direction inference hunts for becomes
+            visible only once the chassis is close enough that the inner
+            block's near edge -- set by the *cross* corridor's own width --
+            is behind it. In a 1.0 m corridor that happens with ~0.4 m of
+            forward clearance still in hand, well before TURN_CLEARANCE_M
+            (0.60 m) commits the turn, so the direction gate gets a fair
+            window while the chassis is still square. In a uniform 0.6 m
+            corridor the near edge sits exactly at TURN_CLEARANCE_M's own
+            value (both equal CorridorDimensions.NARROW), so the window is
+            zero: the turn always commits at the same instant the opening
+            would become visible, direction never settles, and the round
+            spends its entire budget in blind creep. Confirmed by sweeping
+            TURN_CLEARANCE_M down against the live sim/navigator: 0.60 never
+            settles, 0.50 settles but only completes 1 of 3 laps, 0.40
+            settles and completes 2 of 3 laps -- see
+            open_challenge_narrow_corridor_root_cause_2026_08_15 for the full
+            trace. 0.40 keeps a 0.10 m margin above _MIN_FORWARD_CLEARANCE_M
+            (RobotSpecs.LENGTH, 0.30 m) so the corner-turn branch still fires
+            cleanly instead of folding into the emergency back-off branch.
         CENTERING_GAIN: Steering per metre of lateral offset from the
             corridor centreline.
         HEADING_GAIN: Steering per radian of heading error against the
@@ -90,6 +115,7 @@ class CorridorFollowerParams(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     TURN_CLEARANCE_M: float = Field(default=0.60, validation_alias=_alias("TURN_CLEARANCE_M"))
+    NARROW_TURN_CLEARANCE_M: float = Field(default=0.40, validation_alias=_alias("NARROW_TURN_CLEARANCE_M"))
     CENTERING_GAIN: float = Field(default=0.8, validation_alias=_alias("CENTERING_GAIN"))
     HEADING_GAIN: float = Field(default=0.8, validation_alias=_alias("HEADING_GAIN"))
     MAX_CENTERING_STEER: float = Field(default=0.25, validation_alias=_alias("MAX_CENTERING_STEER"))

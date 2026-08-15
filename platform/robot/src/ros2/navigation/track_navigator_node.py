@@ -633,6 +633,7 @@ class TrackNavigator(Node, ResettableNode):
         if self._direction_gate_log_counter % self._tuning.direction_estimator.GATE_LOG_PERIOD_TICKS == 0:
             logger.info("direction not yet settled: %s (pose=(%.2f, %.2f))", verdict, pose.x, pose.y)
 
+        corridor_width_belief_m = statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None
         drive = follow_corridor(
             scan.ranges_m,
             scan.angles_rad,
@@ -640,6 +641,7 @@ class TrackNavigator(Node, ResettableNode):
             pose.yaw,
             self._tuning,
             forced_turn_side=self._sign_dodge_side(pose),
+            believed_width_m=corridor_width_belief_m,
         )
         self._gateway.publish_drive(drive)
         votes = estimator.votes
@@ -653,7 +655,7 @@ class TrackNavigator(Node, ResettableNode):
             direction_right_range_m=_nearest_ray(scan.ranges_m, scan.angles_rad, -math.pi / 2),
             direction_votes_clockwise=votes.get(Direction.CLOCKWISE),
             direction_votes_counterclockwise=votes.get(Direction.COUNTERCLOCKWISE),
-            corridor_width_belief_m=statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None,
+            corridor_width_belief_m=corridor_width_belief_m,
             commanded_speed_mps=drive.speed_mps,
             commanded_steering_norm=drive.steering_norm,
         )

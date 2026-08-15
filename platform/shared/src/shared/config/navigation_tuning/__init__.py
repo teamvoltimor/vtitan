@@ -224,6 +224,20 @@ class NavigationTuning:
             )
             raise ValueError(msg)
 
+        # Same reasoning, narrow-corridor variant: NARROW_TURN_CLEARANCE_M only
+        # helps if it actually moves the turn-commit point earlier than
+        # TURN_CLEARANCE_M would. Equal or later reproduces the zero-window bug
+        # this field exists to fix -- see
+        # open_challenge_narrow_corridor_root_cause_2026_08_15.
+        narrow_turn = self.corridor_follower.NARROW_TURN_CLEARANCE_M
+        if narrow_turn >= turn:
+            msg = (
+                f"corridor_follower.NARROW_TURN_CLEARANCE_M ({narrow_turn}) must be strictly below "
+                f"corridor_follower.TURN_CLEARANCE_M ({turn}); otherwise a narrow corridor gets no more "
+                "of a direction-settling window than a wide one does"
+            )
+            raise ValueError(msg)
+
     # (group key, dataclass, TOML subfolder) triples — the single source of
     # truth for which sections load_from_yaml/load_from_json/to_dict/
     # load_from_toml_dir/load_from_toml_dirs handle, so adding a new tuning group never requires
