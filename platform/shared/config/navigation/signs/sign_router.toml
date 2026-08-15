@@ -55,3 +55,44 @@ escape_mask_radius_m = 0.12
 # corpus approaches switch mid-approach) but is evidently not what decides
 # those runs.
 commit_hysteresis = false
+
+
+# A discovered sign's corridor decides which world axis its avoidance
+# deformation treats as "lateral", and it is re-derived every tick from an
+# estimate that keeps moving. Two-thirds of legal WRO grid positions sit ON a
+# corner boundary, where millimetres of jitter swing corridor_for_position()
+# between two corridors whose lateral axes are ORTHOGONAL -- so the commanded
+# waypoint alternates between two unrelated targets at 20 Hz and the chassis
+# tracks neither. Measured on go_obstacles_0000: an estimate wobbling +-5 mm
+# around (2.40, 2.00) flipped EAST/NORTH on every single tick for the whole
+# approach, swinging the steering command between -0.068 and -0.172.
+#
+# Requiring N consecutive agreeing ticks before moving the label costs a genuine
+# corridor change 0.25 s at 20 Hz -- irrelevant against the 1.40 m activation
+# distance -- and makes the dither a no-op. Deliberately temporal rather than a
+# geometric dead-band: the corner tie-break picks the NEAREST inner face, so a
+# point 0.40 m deep in the east band but 0.003 m past the north one classifies
+# NORTH, and nudging the position toward the label you want to keep can make
+# that label LESS likely. Distance to the decision surface is not usable as a
+# margin here; consecutive agreement does not care about the surface's shape.
+#
+# DEFAULT 1 (mechanism inert), measured 2026-08-15 over the 256-scenario corpus,
+# blind, laps-only, all three arms in ONE invocation
+# (diag_sign_sweep.py corridor-flip 1 5 10 --corpus):
+#
+#   ticks  collisions            laps>=1  laps>=3
+#   1      252/256 (0 wall)      11/256   4/256
+#   5      254/256 (5 wall)      17/256   2/256
+#   10     252/256 (3 wall)      15/256   4/256
+#
+# Flat on collisions and on laps>=3, and both damped arms trade sign strikes for
+# a handful of NEW wall strikes -- holding a stale corridor keeps deforming on
+# the wrong axis for longer. Same verdict, and for the same reason, as
+# commit_hysteresis above: a real mechanism that does not earn its place in a
+# safety path on the evidence. The code and the sweep arm stay so it can be
+# re-tested once the dominant failure is understood.
+#
+# Worth re-testing on HARDWARE before dismissing entirely: the sim commands
+# steering with infinite bandwidth, so a 20Hz axis flip costs it almost nothing,
+# where a real servo has to physically slew between the two commands.
+corridor_flip_ticks = 1

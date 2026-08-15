@@ -13,6 +13,13 @@ Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 > figure in the section immediately following predates the pin and is the
 > `pin off` arm (182 collisions, 74 in time).
 
+> **Read "Item 2b re-measured (2026-08-15)" before acting on the Next list.**
+> The `A-clamped`/`A-lag` split is judged against the WORST-CASE yaw, which
+> over-assigns to `A-clamped`; re-measured against the yaw actually held, only
+> about half the Mode A collisions have a commanded line that was genuinely
+> short, and the other half were 126 mm off a line that was already adequate.
+> "Arrive square" is a real lever for at most half of them, and worth ~19 mm.
+
 ## Current state (2026-08-01) — the gate is open, three fixes landed
 
 **Shipped defaults now: 14/16 collisions (14 sign, 0 wall, 0 parking), 2/16
@@ -566,6 +573,111 @@ Both produced confident, wrong answers that looked reasonable.
 4. `ESCAPE_MASK_RADIUS_M` has not been swept — 0.12 is derived (sign
    half-diagonal 0.035 + ~0.085 pose/mapping error), not tuned.
    `diag_sign_sweep.py mask-radius ...` exists for it.
+
+### Item 2b re-measured (2026-08-15) — half the premise does not hold
+
+Item 2b said to measure the yaw at the fatal tick before spending anything on
+"arrive square". Done, over the 256 corpus, blind, `park=False`
+(`diag_failure_split.py --corpus --yaw`, which now carries the geometry):
+
+```
+Mode A collisions                        218 / 248
+  yaw off corridor axis   median 23.7 deg, max 83.8
+    0-10 deg  44 (20%)   20-28 deg  77 (35%)   40-90 deg  50 (23%)
+   10-20 deg  14  (6%)   28-40 deg  33 (15%)
+
+  line ADEQUATE at the held yaw   100 (46%)  <- median 126 mm OFF that line
+                                                 20 of them on the wrong side
+  line SHORT at the held yaw      118 (54%)  <- median shortfall 19 mm
+    of which squaring would fix   118/118
+```
+
+Two corrections to the Next list fall out:
+
+* **`A-clamped` is not what it reads as.** It compares the commanded line
+  against the chassis half-DIAGONAL — the worst yaw the chassis could present,
+  not the one it held. Judged against the actual heading, **46% of Mode A had a
+  line with room to spare and simply was not on it**, by a median 126 mm in a
+  1.0 m corridor. The doc's "the pin eliminated lag as a failure mode entirely,
+  108 of 108 `A-clamped`, zero `A-lag`" is an artefact of that threshold. Lag
+  never went away; it stopped being *labelled*.
+* **"Arrive square" is worth having but is not the dominant lever.** It applies
+  to the 54% whose line was genuinely short, and every one of those would clear
+  a square chassis — but the median shortfall is **19 mm**. Sizeable next to the
+  clamp, small next to the 126 mm the other half is off by. And 20% of fatal
+  ticks are already inside 10 deg of the corridor axis, so a fifth of them have
+  no yaw left to recover.
+
+The yaw histogram is bimodal, which is the part worth carrying forward: a
+cluster at 20-28 deg (the corner-boundary passes item 2b predicted) and a
+second at 40-90 deg that is not a sign-clearance problem at all — a chassis
+more than 40 deg off the corridor axis while abreast of a sign is not passing
+it, it is still cornering, or lost.
+
+### The 20 Hz axis flip — found, fixed, measured flat, left OFF
+
+Tracing `go_obstacles_0000` blind showed the commanded waypoint alternating
+between **two orthogonal targets on every single tick** for the whole approach:
+
+```
+t=326 def=(2.645,1.999) sign=0@(2.393,1.999)/EAST   steer=-0.088
+t=327 def=(2.370,2.256) sign=0@(2.395,2.003)/NORTH  steer=-0.068
+t=328 def=(2.649,1.998) sign=0@(2.398,1.998)/EAST   steer=-0.172
+t=329 def=(2.370,2.255) sign=0@(2.400,2.003)/NORTH  steer=-0.068
+```
+
+Same committed sign throughout. A sign's corridor selects which world axis its
+deformation treats as lateral, `_sign_corridors` is re-derived every tick from
+a discovery estimate that keeps moving, and this estimate was wobbling ±5 mm
+across **y = 2.00 at x = 2.40** — a corridor boundary. `corridor_for_position`
+is a hard partition, so the label flipped EAST/NORTH every tick and the
+deformation swapped axes with it. Two-thirds of legal WRO grid positions sit on
+a corner boundary, so this is not an exotic case.
+
+Worth noting how the corner tie-break behaves here: it picks the NEAREST inner
+face, so (2.40, 2.003) — 400 mm deep in the east band, 3 mm past the north one
+— classifies **NORTH**. Moving a point further into the corridor you want can
+make that corridor *less* likely, which is why the fix is temporal
+(`CORRIDOR_FLIP_TICKS`, N consecutive agreeing ticks) rather than a geometric
+dead-band. There is no usable distance-to-decision-surface to threshold on.
+
+The oscillation is real, the fix removes it (traced, and five unit tests in
+`TestSignCorridorHysteresis`), and **it does not move the corpus**:
+
+| `corridor_flip_ticks` | collisions | laps>=1 | laps>=3 |
+|---|---|---|---|
+| 1 (inert, shipped) | 252/256 (0 wall) | 11 | 4 |
+| 5 | 254/256 (**5 wall**) | 17 | 2 |
+| 10 | 252/256 (3 wall) | 15 | 4 |
+
+Flat on collisions and `laps>=3`, and both damped arms trade sign strikes for
+new *wall* strikes — holding a stale corridor keeps deforming on the wrong axis
+for longer. **Defaulted to 1 (inert)**, same verdict and same reasoning as
+`commit_hysteresis`: a real mechanism that does not earn its place in a safety
+path on the evidence. The code and the `corridor-flip` sweep arm stay.
+
+One caveat before writing it off: the sim commands steering with infinite
+bandwidth, so a 20 Hz axis flip costs it almost nothing, where a real servo has
+to physically slew between the two commands every tick. This is a candidate for
+re-testing on hardware rather than in another sweep.
+
+#### Harness bug: the sweep reported every sign strike as `park`
+
+`_classify_collision` paired its probes with the wrong labels. Both are built
+by REMOVAL — `_without_signs` leaves the *parking* blocks standing — so testing
+the sign-strike case against `_without_signs` and the parking case against
+`_without_parking` **inverted the split**. Every `sign N / park M` this harness
+has printed is the two numbers swapped. It is why a first pass at the arm above
+read `park 16/16` on a pure sign-collision corpus, and it disagreed with
+`diag_failure_split.py`, which was right. Fixed. This is the fourth harness
+error this document records; the split now agrees across both harnesses.
+
+`diag_sign_trace.py` had also gone stale in a quieter way: it patched
+`sign_router._DEFORM_DEPTH_BUFFER`, a module global that moved into
+`SignRouterParams` during the constants centralisation. It raised
+`AttributeError` when finally used — but before the name disappeared entirely
+it would have silently patched nothing, and `--buffer` would have read flat.
+Both overrides now go through `NavigationTuning`.
 
 ---
 

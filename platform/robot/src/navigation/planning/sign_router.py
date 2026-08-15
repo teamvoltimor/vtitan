@@ -188,6 +188,17 @@ class SignRouterConfig:
     silently re-enabled hysteresis the config file disables.
     """
 
+    corridor_flip_ticks: int = 1
+    """Consecutive ticks a refined sign estimate must agree on a NEW corridor
+    before its label moves there. A sign's corridor picks which world axis its
+    deformation treats as lateral, so on a corner boundary — where two-thirds
+    of legal WRO grid positions sit — millimetres of estimate jitter otherwise
+    swing the commanded waypoint between two orthogonal axes every tick.
+
+    Matches signs/sign_router.toml's default of 1, which leaves the mechanism
+    inert: the oscillation is real and traced, but damping it measured flat over
+    the corpus and cost a few new wall strikes. See that file for the numbers."""
+
     settle_ticks: int = 150
     """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
     before a sign may be engaged/passed at all. Right after spawn (or a lap
@@ -255,6 +266,7 @@ class SignRouterConfig:
             min_confidence=params.MIN_CONFIDENCE,
             settle_ticks=params.SETTLE_TICKS,
             commit_hysteresis=params.COMMIT_HYSTERESIS,
+            corridor_flip_ticks=params.CORRIDOR_FLIP_TICKS,
         )
 
 
@@ -310,6 +322,9 @@ class SignRouter:
         # once up front, since discovery can both append signs and move an
         # existing one across a corridor boundary as its estimate improves.
         self._sign_corridors = [corridor_for_position(s.x, s.y) for s in self._signs]
+        # Per-sign "how many ticks running has the estimate wanted to move to a
+        # different corridor", keyed by sign index. See _settled_corridor.
+        self._corridor_flip_streak: dict[int, tuple[Section, int]] = {}
         # Discovery mode: the sign layout is randomised every round and no
         # scenario file exists on the mat, so a blind robot has to find the
         # signs with its camera rather than be handed them. See sign_discovery.
@@ -367,7 +382,51 @@ class SignRouter:
             spec = track.as_spec()
             if spec != self._signs[index]:
                 self._signs[index] = spec
-                self._sign_corridors[index] = corridor_for_position(spec.x, spec.y)
+                self._sign_corridors[index] = self._settled_corridor(index, spec)
+
+    def _settled_corridor(self, index: int, spec: SignSpec) -> Section:
+        """Corridor for a refined sign estimate, held steady against jitter.
+
+        A sign's corridor is what selects the world axis its deformation treats
+        as lateral, and ``corridor_for_position`` is a hard partition with no
+        dead zone. On a corner boundary — where two-thirds of legal WRO grid
+        positions sit — a discovery estimate wobbling by millimetres therefore
+        alternates between two corridors whose lateral axes are ORTHOGONAL, and
+        the commanded waypoint jumps between two unrelated targets on every
+        tick. The chassis converges on neither.
+
+        A genuine corridor change (the estimate really was in the wrong place
+        early on) still lands, just ``corridor_flip_ticks`` later — 0.25 s at
+        20 Hz, against a 1.40 m activation distance.
+
+        Temporal rather than a geometric dead-band deliberately: the corner
+        tie-break picks the nearest inner face, so moving a point further into
+        the corridor you want to keep can make that corridor *less* likely, and
+        there is no usable distance-to-decision-surface to threshold on.
+        """
+        fresh = corridor_for_position(spec.x, spec.y)
+        current = self._sign_corridors[index]
+        if fresh == current:
+            self._corridor_flip_streak.pop(index, None)
+            return current
+
+        candidate, streak = self._corridor_flip_streak.get(index, (fresh, 0))
+        streak = streak + 1 if candidate == fresh else 1
+        if streak < self._config.corridor_flip_ticks:
+            self._corridor_flip_streak[index] = (fresh, streak)
+            return current
+
+        self._corridor_flip_streak.pop(index, None)
+        logger.info(
+            "Sign %d moved %s -> %s after %d consistent ticks at (%.2f, %.2f)",
+            index,
+            current.name,
+            fresh.name,
+            streak,
+            spec.x,
+            spec.y,
+        )
+        return fresh
 
     @property
     def active_sign_count(self) -> int:

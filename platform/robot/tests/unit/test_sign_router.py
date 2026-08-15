@@ -34,6 +34,7 @@ from src.navigation.planning.sign_router import (
     _match_detection_to_sign,
     outward_lateral_axis,
 )
+from src.navigation.planning.waypoints import corridor_for_position
 from tests.test_constants import (
     CORRIDOR_DEPTH_MAX,
     CORRIDOR_DEPTH_MIDPOINT,
@@ -1075,6 +1076,92 @@ class TestPassSideRule:
 # lateral_offset can pass every TestPassSideRule case above (correct side)
 # while still leaving the chassis grazing the sign in practice.
 _MIN_SIGN_EDGE_CLEARANCE_M = 0.05
+
+
+class TestSignCorridorHysteresis:
+    """A discovered sign's corridor picks which world axis its deformation
+    treats as lateral, and it is re-derived every tick from an estimate that
+    keeps moving. On a corner boundary -- where two-thirds of legal WRO grid
+    positions sit -- millimetres of jitter otherwise swing the label between two
+    corridors whose lateral axes are ORTHOGONAL.
+
+    The coordinates here are the ones traced on ``go_obstacles_0000``: an
+    estimate wobbling either side of y=2.00 at x=2.40 flipped EAST/NORTH on
+    every tick for the whole approach.
+    """
+
+    _EAST_SIDE = (2.40, 1.997)
+    _NORTH_SIDE = (2.40, 2.003)
+
+    _FLIP_TICKS = 5
+    """Set explicitly: the shipped default is 1, which leaves the mechanism
+    inert, so a fixture-default config would exercise none of this."""
+
+    @pytest.fixture()
+    def damped_config(self, tuning_constants):
+        return SignRouterConfig(
+            lateral_offset=SIGN_LATERAL_OFFSET,
+            activation_dist=tuning_constants.sign_activation_dist,
+            passed_dist=tuning_constants.sign_passed_dist,
+            settle_ticks=0,
+            corridor_flip_ticks=self._FLIP_TICKS,
+        )
+
+    def _router_with_sign(self, config, x, y):
+        return _router([_sign_at(x, y, "red")], config)
+
+    def test_boundary_jitter_never_moves_the_corridor(self, damped_config):
+        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
+        assert router._sign_corridors[0] == Section.EAST
+
+        # Twenty ticks of dither -- a full second at 20Hz, far longer than any
+        # real approach spends abeam a sign.
+        for tick in range(20):
+            x, y = self._NORTH_SIDE if tick % 2 == 0 else self._EAST_SIDE
+            settled = router._settled_corridor(0, _sign_at(x, y, "red"))
+            assert settled == Section.EAST, f"corridor flipped on tick {tick}"
+
+    def test_a_sustained_move_still_lands(self, damped_config):
+        """The label must still follow an estimate that genuinely improves --
+        holding it forever would be its own bug, just a quieter one.
+        """
+        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
+
+        moved = _sign_at(*self._NORTH_SIDE, "red")
+        for _ in range(self._FLIP_TICKS - 1):
+            assert router._settled_corridor(0, moved) == Section.EAST
+        assert router._settled_corridor(0, moved) == Section.NORTH
+
+    def test_agreement_must_be_consecutive(self, damped_config):
+        """One dissenting tick restarts the count, so dither that happens to
+        favour the new corridor overall still never accumulates a flip.
+        """
+        router = self._router_with_sign(damped_config, *self._EAST_SIDE)
+        north = _sign_at(*self._NORTH_SIDE, "red")
+        east = _sign_at(*self._EAST_SIDE, "red")
+
+        for _ in range(self._FLIP_TICKS * 3):
+            for _ in range(self._FLIP_TICKS - 1):
+                assert router._settled_corridor(0, north) == Section.EAST
+            assert router._settled_corridor(0, east) == Section.EAST
+
+    def test_one_tick_restores_immediate_reassignment(self, router_config):
+        """The SHIPPED default: 1 leaves the mechanism inert, and the sweep's
+        baseline arm depends on that staying true.
+        """
+        assert router_config.corridor_flip_ticks == 1
+        router = self._router_with_sign(router_config, *self._EAST_SIDE)
+        assert router._settled_corridor(0, _sign_at(*self._NORTH_SIDE, "red")) == Section.NORTH
+
+    def test_the_traced_positions_really_do_straddle_a_corridor_boundary(self):
+        """Guard the premise, not just the fix.
+
+        If the track geometry ever moves and these two points stop landing in
+        different corridors, every assertion above would still pass while
+        testing nothing at all.
+        """
+        assert corridor_for_position(*self._EAST_SIDE) == Section.EAST
+        assert corridor_for_position(*self._NORTH_SIDE) == Section.NORTH
 
 
 class TestMinimumClearance:

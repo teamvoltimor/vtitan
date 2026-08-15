@@ -20,8 +20,8 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
     python scripts/sim/diag_sign_sweep.py crosstrack 0.12 0.20
 
 Swept modes (``lookahead`` ``arc`` ``speed`` ``offset`` ``unsplit-offset``
-``masked-offset`` ``buffer`` ``wall`` ``mask-radius`` ``crosstrack``) take the
-values to sweep as positional arguments. Fixed comparison modes (``baseline``
+``masked-offset`` ``buffer`` ``wall`` ``mask-radius`` ``corridor-flip``
+``crosstrack``) take the values to sweep as positional arguments. Fixed comparison modes (``baseline``
 ``profile`` ``diagnose`` ``ghost`` ``lidar``) ignore them.
 
 A flat sweep here has twice turned out to be a disconnected knob rather than a
@@ -70,6 +70,7 @@ class SweepMode(StrEnum):
     BUFFER = "buffer"
     UNSPLIT_OFFSET = "unsplit-offset"
     MASK_RADIUS = "mask-radius"
+    CORRIDOR_FLIP = "corridor-flip"
     WALL = "wall"
     ACTIVATION = "activation"
     WALL_TUNED = "wall-tuned"
@@ -309,6 +310,15 @@ class SweepConfig:
     split has to be read against.
     """
 
+    corridor_flip_ticks: int | None = None
+    """Override ``SignRouterParams.CORRIDOR_FLIP_TICKS`` (default 5).
+
+    ``1`` is the pre-fix arm: a discovered sign's corridor — and therefore the
+    world axis its deformation treats as lateral — was reassigned on every tick
+    from an estimate that keeps moving, so a sign on a corner boundary flipped
+    between two orthogonal axes at 20 Hz.
+    """
+
     def tuning(self) -> NavigationTuning:
         """Materialise the ``NavigationTuning`` this config asks for.
 
@@ -340,6 +350,7 @@ class SweepConfig:
             ACTIVATION_DIST_M=self.activation_dist,
             PASSED_DIST_M=self.passed_dist,
             DEPTH_PIN=self.depth_pin,
+            CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
         )
         return replace(base, pursuit=pursuit, speed=speed, waypoints=waypoints, sign_router=sign_router)
 
@@ -387,15 +398,22 @@ def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, floa
     wall, inner keep-out block, and an actual sign or parking block. Sweeping a
     sign-avoidance parameter against a number dominated by wall contacts
     measures the wrong thing, so every sweep reports the split.
+
+    The two obstacle probes are built by REMOVAL, so each one tests the class it
+    is not named after: ``_without_signs`` leaves the parking blocks standing.
+    Pairing them the other way round — which this did — reported every sign
+    strike as ``park`` and every parking strike as ``sign``, i.e. it inverted
+    the split it exists to provide, and made a sign-avoidance sweep look like it
+    was moving nothing but parking outcomes.
     """
     x, y, yaw = pose
     widths = corridor_widths_from_metadata(metadata)
     if TrackModel(widths).footprint_collides(x, y, yaw):
         return CollisionKind.WALL
-    signs_only = _without_signs(metadata)
+    signs_only = _without_parking(metadata)
     if TrackModel(widths, obstacles=obstacles_from_metadata(signs_only)).footprint_collides(x, y, yaw):
         return CollisionKind.SIGN
-    parking_only = _without_parking(metadata)
+    parking_only = _without_signs(metadata)
     if TrackModel(widths, obstacles=obstacles_from_metadata(parking_only)).footprint_collides(x, y, yaw):
         return CollisionKind.PARKING
     return CollisionKind.NONE
@@ -734,6 +752,26 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         escape_mask_radius=_OFFSET_ZERO_ROUTER_OFF,
     ),
     "mask-radius": lambda v: SweepConfig(f"escape_mask_radius {v:{_FORMAT_3F}}", escape_mask_radius=v),
+    # Sweep 1 (per-tick reassignment, the pre-fix arm) against 5+ to read what
+    # holding a sign's corridor steady is worth. Both arms in ONE invocation:
+    # the axis flip this targets is a property of the router's own state, so
+    # comparing two separately-launched runs would mix process pools warmed
+    # against different code.
+    #
+    # BLIND deliberately, and this knob is meaningless without it: a sighted
+    # run takes its signs from scenario metadata and never revises them, so no
+    # corridor is ever reassigned and every value reads identical. Sweeping it
+    # sighted would report a flat knob and mean nothing by it.
+    # park=False for the same reason the doc keeps laps>=3 as the headline:
+    # with parking on, every one of the 16 ends its run on the parking block and
+    # the collision kind reads "park 16/16" whatever the router did, which hides
+    # exactly the sign-pass difference this arm exists to measure.
+    "corridor-flip": lambda v: SweepConfig(
+        f"BLIND corridor_flip_ticks {int(v)}",
+        corridor_flip_ticks=int(v),
+        blind=True,
+        park=False,
+    ),
     "wall": lambda v: SweepConfig(f"wall_clearance {v:{_FORMAT_3F}}", wall_clearance=v),
     "activation": lambda v: SweepConfig(f"activation_dist {v:{_FORMAT_2F}}", activation_dist=v),
     # Wall clearance measured at the TUNED activation distance, not the stock

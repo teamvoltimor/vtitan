@@ -43,6 +43,13 @@ class SignRouterParams(BaseModel):
             trigger. Zero disables the mapped/unmapped split entirely, which
             restores the pre-fix behaviour where the escape maneuver fires on
             every sign pass.
+        CORRIDOR_FLIP_TICKS: Consecutive ticks a refined sign estimate must
+            agree on a NEW corridor before its label is moved there. A sign
+            sitting on a corner boundary otherwise flips corridor — and with
+            it the deformation's lateral axis — on millimetre-scale estimate
+            jitter. Defaults to 1 (immediate reassignment, mechanism inert):
+            the oscillation is real and confirmed, but suppressing it measured
+            flat over the corpus. See sign_router.toml.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -58,6 +65,7 @@ class SignRouterParams(BaseModel):
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
     COMMIT_HYSTERESIS: bool = Field(default=False, validation_alias=_alias("COMMIT_HYSTERESIS"))
+    CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))
 
 
 class SignDiscoveryParams(BaseModel):
