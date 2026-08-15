@@ -47,9 +47,11 @@ from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.models import Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import _dist2d
+from src.navigation.utils import _dist2d, _nearest_ray
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.models import Detection
 
@@ -72,6 +74,8 @@ def detection_to_observation(
     det: Detection,
     robot_pose: Pose,
     tuning: NavigationTuning | None = None,
+    lidar_ranges_m: Sequence[float] | None = None,
+    lidar_angles_rad: Sequence[float] | None = None,
 ) -> TrafficSignObservation | None:
     """Convert a Detection (pixel bbox) to a TrafficSignObservation (world coords).
 
@@ -81,11 +85,22 @@ def detection_to_observation(
     previously this fell through an ``else GREEN`` default that silently
     misclassified anything that wasn't literally "red", including a genuine
     magenta detection, as a green sign.
+
+    Args:
+        det: Single camera detection with bbox (x1, y1, x2, y2).
+        robot_pose: Robot's current pose estimate.
+        tuning: Navigation tuning instance. Defaults to the default tuning profile.
+        lidar_ranges_m: The same tick's LIDAR sweep, robot-frame, for range
+            fusion -- see :func:`_detection_to_world`. ``None`` (the default)
+            uses the pinhole-only distance estimate.
+        lidar_angles_rad: Matching robot-frame bearings for ``lidar_ranges_m``.
     """
     if det.class_name not in (SignColor.RED, SignColor.GREEN):
         return None
     tuning = get_tuning(tuning)
-    world = _detection_to_world(det, (robot_pose.x, robot_pose.y), robot_pose.yaw, tuning)
+    world = _detection_to_world(
+        det, (robot_pose.x, robot_pose.y), robot_pose.yaw, tuning, lidar_ranges_m, lidar_angles_rad,
+    )
     if world is None:
         return None
     x1, y1, x2, y2 = det.bbox
@@ -107,17 +122,34 @@ def _detection_to_world(
     robot_pos: tuple[float, float],
     robot_yaw: float,
     tuning: NavigationTuning | None = None,
+    lidar_ranges_m: Sequence[float] | None = None,
+    lidar_angles_rad: Sequence[float] | None = None,
 ) -> tuple[float, float] | None:
     """Project a bbox detection to an approximate world position.
 
-    Uses known sign height (TrafficSignSpecs.HEIGHT) as the reference to
-    estimate distance from the pixel-space bounding-box height.
+    The camera alone gives bearing (accurate -- horizontal position in frame
+    doesn't depend on depth) and colour (LIDAR has no notion of colour, so a
+    detection is required regardless). Distance from bbox height alone grows
+    less accurate with range -- ~3.6 cm error at 1.5 m, ~14 cm by 3 m, enough
+    to misjudge which WRO sign lane a sign sits in (see
+    docs/sign-avoidance-investigation.md). The LIDAR sees the same signs
+    (confirmed on hardware) and measures range far more precisely at any
+    distance, so when a scan is available this looks up the ray nearest the
+    camera's own bearing and trusts ITS range instead of the pinhole
+    estimate -- falling back to pinhole-only when that ray is not a
+    plausible return (dropout, self-detection, or implausibly far to be the
+    same object the camera is looking at).
 
     Args:
         det: Single camera detection with bbox (x1, y1, x2, y2).
         robot_pos: Robot (x, y) position (metres).
         robot_yaw: Robot heading (radians, 0 = east).
         tuning: Navigation tuning instance. Defaults to the default tuning profile.
+        lidar_ranges_m: The same tick's LIDAR sweep, robot-frame, for range
+            fusion. ``None`` skips fusion and uses the pinhole estimate alone
+            -- the only behaviour available before this fusion existed, and
+            still correct when no scan is available that tick.
+        lidar_angles_rad: Matching robot-frame bearings for ``lidar_ranges_m``.
 
     Returns:
         Estimated world (x, y) of the sign, or None if bbox is too small.
@@ -134,6 +166,11 @@ def _detection_to_world(
     # Horizontal angle from image centre.
     cx = (x1 + x2) / 2.0
     theta_h = (cx / RobotSpecs.CAMERA_WIDTH - 0.5) * RobotSpecs.CAMERA_HFOV
+
+    if lidar_ranges_m and lidar_angles_rad:
+        lidar_range = _nearest_ray(lidar_ranges_m, lidar_angles_rad, theta_h)
+        if tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP:
+            distance = lidar_range
 
     bearing = robot_yaw + theta_h
     wx = robot_pos[0] + distance * math.cos(bearing)
