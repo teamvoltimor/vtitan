@@ -702,6 +702,34 @@ The old "Re-measured under 4WS" section's *measurement* — that the commanded
 offset never reaches the chassis — looks right after all, even though this
 document has twice rejected its diagnosis.
 
+#### Refuted: the depth pin leaving the target abeam
+
+The obvious mechanism for "error will not close" was that ``_pin_depth`` holds
+the commanded point level with the sign, so pure pursuit would end up aiming
+sideways — lateral error with no forward component to convert it. Measured
+(``--approach``, along-track lead in the chassis frame):
+
+```
+target LEAD at engage    median 325 mm
+target LEAD at impact    median 421 mm   <- GROWS, does not collapse
+approach spent abeam (<10 cm ahead)   median 0%,  0/10 runs abeam for >50%
+```
+
+The target leads the chassis by a comfortable margin throughout and the lead
+*grows* into the impact. **Pure pursuit always had something ahead to aim at**,
+so the pin is not starving it. Do not re-try this one.
+
+> **Confound in the 46% attribution, found while refuting the above.** These
+> cross-track figures measure the chassis against the SIGN'S straight-corridor
+> axis, and two-thirds of legal sign positions sit on a corner. A robot
+> correctly tracking its turning arc through a corner *will* show a growing
+> offset from that straight axis with nothing wrong in the controller. So the
+> "line was adequate and the chassis was 126 mm off it" bucket conflates real
+> tracking error with ordinary cornering, and the 46% is an upper bound rather
+> than a measurement. Splitting the approach by whether the robot is on a
+> straight segment or mid-corner is the next thing to do, and it must happen
+> before anyone tunes a pursuit knob on the strength of that number.
+
 > **Caveat on the tick counts, not on the offsets.** `ticks_in_range` and
 > `committed_ticks_total` are counted in `deform_waypoint` CALLS, and the
 > navigator does not step on every sim tick (measured: 213 calls over 340 steps
