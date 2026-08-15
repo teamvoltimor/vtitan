@@ -50,6 +50,7 @@ from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
+from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -105,13 +106,7 @@ diagnoses (see docs/sign-avoidance-investigation.md).
 _TARGET_LAPS = 3
 """Laps a scenario must finish to count as a driving success."""
 
-_DEPTH_BUFFER_ATTR = "_DEFORM_DEPTH_BUFFER"
-"""Module-level knob in ``sign_router`` with no public seam, swept via setattr."""
 
-_WALL_CLEARANCE_ATTR = "_WALL_CLEARANCE"
-"""Ditto. How far a deformed waypoint must stay off the inner square and outer
-wall; it is what stops a larger ``lateral_offset`` producing any further lateral
-movement, so it is the suspected second ceiling behind the escape-split one."""
 
 _RESULT_LABEL_WIDTH = 32
 _RESULT_METRIC_WIDTH = 2
@@ -206,21 +201,29 @@ class SweepConfig:
     """
 
     deform_depth_buffer: float | None = None
-    """Override ``sign_router._DEFORM_DEPTH_BUFFER`` (default 0.30 m).
+    """Override ``SignRouterParams.DEFORM_DEPTH_BUFFER_M`` (shipped 0.5 m).
 
     How far past the inner square's own [CORNER_MIN, CORNER_MAX] span the
     lookahead target may sit and still be deformed. Since the target leads the
     robot by up to ``LOOKAHEAD_LONG``, too small a buffer switches avoidance off
     during the final approach to any sign at grid depth 1.0 or 2.0.
+
+    Applied through tuning. It used to be set with ``setattr`` on a
+    ``sign_router`` module global that the constants centralisation removed, so
+    every arm using it raised ``AttributeError`` before running a scenario.
     """
 
     wall_clearance: float | None = None
-    """Override ``sign_router._WALL_CLEARANCE`` (default 0.220 m).
+    """Override the deformation's TOTAL wall clearance (shipped ~0.220 m).
 
-    Chassis half-diagonal + 0.04. Lowering it lets a deformation push further
-    toward the wall (more sign clearance, less wall clearance); raising it does
-    the reverse. Read the wall/sign split, never the total — this knob trades
-    directly between the two.
+    Chassis half-diagonal + ``WALL_CLEARANCE_MARGIN_M``. Lowering it lets a
+    deformation push further toward the wall (more sign clearance, less wall
+    clearance); raising it does the reverse. Read the wall/sign split, never the
+    total — this knob trades directly between the two.
+
+    Expressed as the TOTAL because that is the quantity the geometry arguments
+    in the investigation doc are written in, but the tunable is the MARGIN, so
+    :meth:`tuning` subtracts the chassis half-diagonal before applying it.
     """
 
     blind: bool = False
@@ -333,7 +336,7 @@ class SweepConfig:
         ``arc``, ``speed``) raised before running a single fixture. Groups are
         therefore updated with ``model_copy``.
         """
-        base = NavigationTuning()
+        base = NavigationTuning.load_default()
         pursuit = _with(
             base.pursuit,
             LOOKAHEAD_SHORT=self.lookahead_short,
@@ -351,6 +354,13 @@ class SweepConfig:
             PASSED_DIST_M=self.passed_dist,
             DEPTH_PIN=self.depth_pin,
             CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
+            DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
+            # The field is the margin BEYOND the chassis half-diagonal; the knob
+            # is the total. Converted here rather than at every call site so the
+            # sweep values stay comparable with the doc's geometry tables.
+            WALL_CLEARANCE_MARGIN_M=(
+                None if self.wall_clearance is None else self.wall_clearance - chassis_half_diagonal_m()
+            ),
         )
         return replace(base, pursuit=pursuit, speed=speed, waypoints=waypoints, sign_router=sign_router)
 
@@ -489,12 +499,10 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
             obstacles=obstacles,
             lidar_sees_obstacles=False,
         )
-    if config.deform_depth_buffer is not None:
-        restore.append((sign_router_module, _DEPTH_BUFFER_ATTR, getattr(sign_router_module, _DEPTH_BUFFER_ATTR)))
-        setattr(sign_router_module, _DEPTH_BUFFER_ATTR, config.deform_depth_buffer)
-    if config.wall_clearance is not None:
-        restore.append((sign_router_module, _WALL_CLEARANCE_ATTR, getattr(sign_router_module, _WALL_CLEARANCE_ATTR)))
-        setattr(sign_router_module, _WALL_CLEARANCE_ATTR, config.wall_clearance)
+    # deform_depth_buffer and wall_clearance used to be patched onto sign_router
+    # module globals here. Both moved into SignRouterParams and the globals were
+    # deleted, so this block raised AttributeError on every arm that set them.
+    # They now go through SweepConfig.tuning() like every other tunable.
     return restore
 
 

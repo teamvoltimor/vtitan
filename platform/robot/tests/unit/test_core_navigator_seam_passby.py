@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture()
 def tuning():
-    return NavigationTuning()
+    return NavigationTuning.load_default()
 
 
 def _square_loop(side: float = 2.0, per_side: int = 12, origin: float = 0.5) -> list[tuple[float, float]]:

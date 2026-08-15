@@ -18,7 +18,7 @@ from tests.fixtures import FakeGateway
 
 @pytest.fixture()
 def tuning():
-    return NavigationTuning()
+    return NavigationTuning.load_default()
 
 
 def test_reset_clears_lap_and_waypoint_state(tuning):

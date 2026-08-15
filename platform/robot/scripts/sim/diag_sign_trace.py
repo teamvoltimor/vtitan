@@ -82,7 +82,7 @@ def _tuning_for(args: argparse.Namespace) -> NavigationTuning | None:
         overrides["DEFORM_DEPTH_BUFFER_M"] = args.buffer
     if not overrides:
         return None
-    base = NavigationTuning()
+    base = NavigationTuning.load_default()
     return replace(base, sign_router=base.sign_router.model_copy(update=overrides))
 
 

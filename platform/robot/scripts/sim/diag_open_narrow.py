@@ -1,24 +1,11 @@
-"""Why the Open Challenge narrow-corridor runs started colliding.
+"""Can the Open Challenge narrow corridors be driven inside the round limit?
 
-Bisected to ``668e40a``, whose only simulation-side change was clamping the
-integrated speed to the measured 0.156 m/s drivetrain ceiling. That is
-counterintuitive — driving slower should make control easier — so this isolates
-the interaction rather than assuming one.
+Runs the 8 symmetric-narrow starts the test battery uses and scores each on the
+only thing that counts: 3 laps within ``ROUND_TIME_LIMIT_S``.
 
-The suspicion is a speed-dependent steering law. ``WaypointController`` is a
-P-controller on bearing error with a rate limit (``MAX_STEERING_RATE`` rad/s).
-The rate limit is per *second*, so at lower speed the steering winds up further
-per metre travelled, and the same gain carves a tighter arc. Combined with
-counter-phase 4WS (``8eb3c38``, half the effective wheelbase) and the raised
-steering limit (``9ce0514``, 0.5236 -> 1.2253 rad), the commanded curvature at a
-given bearing error is far higher than the gain was ever fitted to.
-
-Sweeps the two knobs that would confirm it — the speed ceiling and
-``STEER_KP`` — over the 8 symmetric-narrow starts the test battery uses.
-
-2026-08-15 update: repurposed. The narrow-corridor NAVIGATION bug is fixed
-(``5c0e16f``), and what remains is a pure time budget, which this now measures
-per hardware profile. Default run overrides nothing, so
+The narrow-corridor NAVIGATION bug this script was written for is fixed
+(``5c0e16f``); what remains is a pure time budget, so this now measures that per
+hardware profile. The default run overrides nothing, so
 ``VTITAN_HARDWARE_PROFILE`` decides the speed ceiling and steering limit:
 
     python scripts/sim/diag_open_narrow.py                          # base
@@ -42,17 +29,20 @@ finish this course in time at any control quality**, and steering range does not
 enter into it: the ``wideonly`` profile (85 deg wheels, base speed) is
 indistinguishable from base at 0/8 and 200.0 s.
 
-2026-08-03 update: root-caused and fixed structurally --
-``WaypointController.compute_steering`` no longer uses ``steer_kp`` at all
-(replaced with curvature-based pure pursuit off the real chassis geometry, see
+History worth keeping, because it explains what this script does NOT measure:
+the original suspicion was a speed-dependent steering law, since
+``MAX_STEERING_RATE`` is per *second*, so a slower car winds the steering
+further per metre and carves a tighter arc. That was root-caused and fixed
+structurally in ``2026-08-03`` -- ``WaypointController.compute_steering`` no
+longer reads ``steer_kp`` at all, having moved to curvature-based pure pursuit
+off the real chassis geometry (see
 ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
-The ``steer_kp`` arm of this sweep is now inert -- every case in it behaves
-identically regardless of the value swept, since nothing reads it anymore.
-Kept for the speed-ceiling arm, which is still a live question.
+Any ``steer_kp`` value passed here is therefore inert.
 
-Usage (from ``platform/robot``, with PYTHONPATH=.)::
-
-    python scripts/sim/diag_open_narrow.py
+That per-second rate limit is still live in the other direction, and is the
+thing to check first if a FASTER profile ever starts clipping walls: the same
+commanded curvature carves a wider arc the quicker you go, and none of the
+absolute-unit tuning (arc radius, lookahead) rescales with the profile.
 """
 
 from __future__ import annotations
@@ -80,13 +70,15 @@ _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _STARTS = list(product(Section, Direction))
 
-# Sweep parameters
-_SPEED_SWEEP_MPS = (0.156, 0.25, 0.35, 0.50)
-_SHIPPED_STEER_KP = 1.5
-_SHIPPED_MAX_STEER_RATE = 2.0
-_REAL_MAX_SPEED_MPS = 0.156
-_STEER_KP_SWEEP = (1.2, 1.0, 0.8, 0.6, 0.4)
-_STEER_RATE_SWEEP = (1.0, 4.0)
+# Sweep parameters. Read from the config rather than restated: _SHIPPED_STEER_KP
+# was a hardcoded 1.5 against a shipped 1.2, and _REAL_MAX_SPEED_MPS a hardcoded
+# 0.156 that would have gone on reading 0.156 under a hardware profile that
+# raises the ceiling -- i.e. the sweep would have silently mislabelled which car
+# it measured.
+_SHIPPED = NavigationTuning.load_default()
+_SHIPPED_STEER_KP = _SHIPPED.pursuit.STEER_KP
+_SHIPPED_MAX_STEER_RATE = _SHIPPED.pursuit.MAX_STEERING_RATE
+_SPEED_SWEEP_MPS = (RobotSpecs.MAX_SPEED_MPS, 0.25, 0.35, 0.50)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +113,7 @@ def _run(args: tuple[Case | None, int]) -> tuple[bool, int, float]:
     tuning = None
     kinematics = None
     if case is not None:
-        base = NavigationTuning()
+        base = NavigationTuning.load_default()
         # model_copy, not dataclasses.replace: NavigationTuning is a dataclass
         # but its GROUPS are frozen pydantic models, so replace() raises
         # TypeError on them. This script did exactly that and failed on every

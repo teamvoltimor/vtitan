@@ -32,7 +32,7 @@ ANGLES = ANGLES_FULL_ROTATION.tolist()
 
 @pytest.fixture()
 def tuning():
-    return NavigationTuning()
+    return NavigationTuning.load_default()
 
 
 @pytest.fixture()
