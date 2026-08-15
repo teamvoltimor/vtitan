@@ -182,6 +182,69 @@ def _band_cell(band: int) -> int:
     return band * 2
 
 
+_NARROW_BAND1_CW_XFAIL_REASON = (
+    "Narrow middle band, clockwise. Split cleanly by direction: all four "
+    "counterclockwise starts pass, but at 176.8-178.5 s against a 180 s "
+    "limit, and all four clockwise ones fail. South and East clockwise "
+    "complete three laps at 185.9 s; North and West clockwise still stick "
+    "at 0.62 m. (South==East and North==West here -- the symmetric layout "
+    "makes them the same case rotated.) This band is the only placement of "
+    "a 0.194 m chassis in a 0.20 m band, so it starts 6 mm from the inner "
+    "block and may yaw 2.3 degrees before a corner reaches it. It used to "
+    "fail 8 of 8, frozen at 0.00 m, until the simulator stopped treating "
+    "contact as absorbing; what remains is how long the navigator spends "
+    "extracting itself, which is navigator behaviour rather than physics."
+)
+
+
+def _section_direction_id(value: Any) -> str:
+    return value.name
+
+
+def _narrow_band_cases() -> list[Any]:
+    """(band, section, direction) cases for the narrow-corridor sweep.
+
+    Band 1 (the only placement of a 0.194 m chassis in a 0.20 m band) is
+    xfail on clockwise starts only -- see ``_NARROW_BAND1_CW_XFAIL_REASON``.
+    Counterclockwise starts in that same band pass and are asserted normally.
+    """
+    cases = []
+    for band in (0, 1):
+        for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
+            marks = (
+                pytest.mark.xfail(reason=_NARROW_BAND1_CW_XFAIL_REASON)
+                if band == 1 and direction == Direction.CLOCKWISE
+                else ()
+            )
+            cases.append(
+                pytest.param(band, section, direction, id=f"b{band}-{section.name}-{direction.name}", marks=marks),
+            )
+    return cases
+
+
+def _random_scenario_cases() -> list[Any]:
+    """Pre-draw the 8 random scenarios from one stateful RNG at collection time.
+
+    Splitting ``test_random_scenarios`` into 8 parametrized cases (for xdist
+    to distribute) must not change which scenario each index draws -- the
+    original sequential ``for i in range(8): rng.choice(...)`` loop makes each
+    draw depend on every draw before it, so the sequence is computed once here
+    with the same seed and order, then handed to pytest as fixed data.
+    """
+    rng = np.random.default_rng(2026)
+    cases = []
+    for i in range(8):
+        widths = {s: int(rng.choice([_NARROW_MM, _WIDE_MM])) for s in ("north", "south", "east", "west")}
+        section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
+        direction = _ALL_DIRECTIONS[int(rng.integers(len(_ALL_DIRECTIONS)))]
+        # Draw the starting cell too: it is as much a part of a random
+        # scenario as the widths, and every legal one is a different first
+        # LIDAR sweep.
+        cell = int(rng.integers(len(start_cells(section, {k: v / 1000.0 for k, v in widths.items()}))))
+        cases.append(pytest.param(i, widths, section, direction, cell, id=f"rand{i}"))
+    return cases
+
+
 class TestThreeLapSolvability:
     """The real car must complete 3 laps, inside the round time limit, on
     every Open Challenge layout.
@@ -191,64 +254,39 @@ class TestThreeLapSolvability:
     and, in a wide corridor, is not even reachable from any band -- so the
     battery could pass while every start the robot will actually be given went
     untested. See ``shared.config.starting_zone``.
+
+    Each (band, section, direction) combination is its own parametrized case
+    rather than an inner loop accumulating failures -- xdist's worksteal
+    scheduler can then spread the ~50 independent closed-loop runs across
+    every core instead of one core working through a loop serially.
     """
 
     @pytest.mark.parametrize("band", [0, 1, 2])
-    def test_symmetric_wide_all_starts(self, band: int) -> None:
-        failures = []
-        for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
-            meta = build_open_metadata(
-                uniform_widths(_WIDE_MM),
-                section,
-                direction,
-                start_cell=_band_cell(band),
-            )
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
-            _log_result(f"WIDE  b{band} {section.capitalized:<5} {direction}", result)
-            if not _within_round_limit(result):
-                failures.append((section, direction, result))
-        assert not failures, _describe(failures)
+    @pytest.mark.parametrize(("section", "direction"), list(product(_ALL_SECTIONS, _ALL_DIRECTIONS)), ids=_section_direction_id)
+    def test_symmetric_wide_all_starts(self, band: int, section: Section, direction: Direction) -> None:
+        meta = build_open_metadata(
+            uniform_widths(_WIDE_MM),
+            section,
+            direction,
+            start_cell=_band_cell(band),
+        )
+        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        _log_result(f"WIDE  b{band} {section.capitalized:<5} {direction}", result)
+        assert _within_round_limit(result), _describe([(section, direction, result)])
 
-    @pytest.mark.parametrize(
-        "band",
-        [
-            0,
-            pytest.param(
-                1,
-                marks=pytest.mark.xfail(
-                    reason=(
-                        "Narrow middle band, clockwise. Split cleanly by direction: all four "
-                        "counterclockwise starts pass, but at 176.8-178.5 s against a 180 s "
-                        "limit, and all four clockwise ones fail. South and East clockwise "
-                        "complete three laps at 185.9 s; North and West clockwise still stick "
-                        "at 0.62 m. (South==East and North==West here -- the symmetric layout "
-                        "makes them the same case rotated.) This band is the only placement of "
-                        "a 0.194 m chassis in a 0.20 m band, so it starts 6 mm from the inner "
-                        "block and may yaw 2.3 degrees before a corner reaches it. It used to "
-                        "fail 8 of 8, frozen at 0.00 m, until the simulator stopped treating "
-                        "contact as absorbing; what remains is how long the navigator spends "
-                        "extracting itself, which is navigator behaviour rather than physics."
-                    ),
-                ),
-            ),
-        ],
-    )
-    def test_symmetric_narrow_all_starts(self, band: int) -> None:
+    @pytest.mark.parametrize(("band", "section", "direction"), _narrow_band_cases())
+    def test_symmetric_narrow_all_starts(self, band: int, section: Section, direction: Direction) -> None:
         """A narrow corridor holds only two bands: 0.40 + 0.20 fills it exactly,
         so the third lies under the centre square where it cannot be a start."""
-        failures = []
-        for section, direction in product(_ALL_SECTIONS, _ALL_DIRECTIONS):
-            meta = build_open_metadata(
-                uniform_widths(_NARROW_MM),
-                section,
-                direction,
-                start_cell=_band_cell(band),
-            )
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
-            _log_result(f"NARROW b{band} {section.capitalized:<5} {direction}", result)
-            if not _within_round_limit(result):
-                failures.append((section, direction, result))
-        assert not failures, _describe(failures)
+        meta = build_open_metadata(
+            uniform_widths(_NARROW_MM),
+            section,
+            direction,
+            start_cell=_band_cell(band),
+        )
+        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        _log_result(f"NARROW b{band} {section.capitalized:<5} {direction}", result)
+        assert _within_round_limit(result), _describe([(section, direction, result)])
 
     @pytest.mark.parametrize(
         ("south", "north", "east", "west"),
@@ -281,27 +319,23 @@ class TestThreeLapSolvability:
             f"at {result.collision_xy or result.final_pose}"
         )
 
-    def test_random_scenarios(self) -> None:
-        rng = np.random.default_rng(2026)
-        failures = []
-        for i in range(8):
-            widths = {s: int(rng.choice([_NARROW_MM, _WIDE_MM])) for s in ("north", "south", "east", "west")}
-            section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
-            direction = _ALL_DIRECTIONS[int(rng.integers(len(_ALL_DIRECTIONS)))]
-            # Draw the starting cell too: it is as much a part of a random
-            # scenario as the widths, and every legal one is a different first
-            # LIDAR sweep.
-            cell = int(rng.integers(len(start_cells(section, {k: v / 1000.0 for k, v in widths.items()}))))
-            meta = build_open_metadata(widths, section, direction, scenario_id=i, start_cell=cell)
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS, seed=i).run()
-            _log_result(
-                f"RAND#{i} {section.capitalized:<5} {direction} "
-                f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
-                result,
-            )
-            if not _within_round_limit(result):
-                failures.append((section, direction, result))
-        assert not failures, _describe(failures)
+    @pytest.mark.parametrize(("i", "widths", "section", "direction", "cell"), _random_scenario_cases())
+    def test_random_scenarios(
+        self,
+        i: int,
+        widths: dict[str, int],
+        section: Section,
+        direction: Direction,
+        cell: int,
+    ) -> None:
+        meta = build_open_metadata(widths, section, direction, scenario_id=i, start_cell=cell)
+        result = ScenarioSimulator(meta, num_laps=_N_LAPS, seed=i).run()
+        _log_result(
+            f"RAND#{i} {section.capitalized:<5} {direction} "
+            f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
+            result,
+        )
+        assert _within_round_limit(result), _describe([(section, direction, result)])
 
 
 def _describe(failures: list[tuple[Section, Direction, Any]]) -> str:
