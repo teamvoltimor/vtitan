@@ -131,30 +131,29 @@ class LidarLocalizer:
 
         for _ in range(self._passes):
             offsets = np.linspace(-radius, radius, n)
-            best_cost = np.inf
-            cand_x, cand_y = best_x, best_y
-            for dx in offsets:
-                x = best_x + dx
-                for dy in offsets:
-                    y = best_y + dy
-                    predicted = self._walls.raycast(x, y, yaw, angles)
-                    # Clip each ray's contribution instead of summing raw
-                    # squares. A plain least-squares fit is dominated by its
-                    # worst rays, and the worst rays are exactly the ones whose
-                    # geometry isn't in ``walls``: a traffic sign or parking
-                    # block standing in the beam, or — when the corridor widths
-                    # are still being estimated rather than known — a whole
-                    # stretch of far wall in the wrong place. Those rays then
-                    # drag the fit toward a pose that "explains" geometry that
-                    # does not exist. Clipping bounds how far any single ray can
-                    # pull, so the majority of correctly-modelled rays win.
-                    residual = np.abs(predicted - ranges)
-                    np.minimum(residual, self._residual_clip, out=residual)
-                    cost = float(np.sum(residual**2))
-                    if cost < best_cost:
-                        best_cost = cost
-                        cand_x, cand_y = x, y
-            best_x, best_y = cand_x, cand_y
+            # Candidate grid flattened in the same (dx outer, dy inner) order
+            # the old nested Python loop visited, purely so a tie (equal
+            # cost, picked by whichever came "first") resolves identically.
+            grid_dx, grid_dy = np.meshgrid(offsets, offsets, indexing="ij")
+            xs = best_x + grid_dx.ravel()
+            ys = best_y + grid_dy.ravel()
+
+            predicted = self._walls.raycast_grid(xs, ys, yaw, angles)
+            # Clip each ray's contribution instead of summing raw squares. A
+            # plain least-squares fit is dominated by its worst rays, and the
+            # worst rays are exactly the ones whose geometry isn't in
+            # ``walls``: a traffic sign or parking block standing in the
+            # beam, or — when the corridor widths are still being estimated
+            # rather than known — a whole stretch of far wall in the wrong
+            # place. Those rays then drag the fit toward a pose that
+            # "explains" geometry that does not exist. Clipping bounds how
+            # far any single ray can pull, so the majority of
+            # correctly-modelled rays win.
+            residual = np.abs(predicted - ranges[None, :])
+            np.minimum(residual, self._residual_clip, out=residual)
+            costs = np.sum(residual**2, axis=1)
+            best_idx = int(np.argmin(costs))
+            best_x, best_y = float(xs[best_idx]), float(ys[best_idx])
             # Refine at the resolution just found, for the next pass.
             radius = 2.0 * radius / (n - 1)
 

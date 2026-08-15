@@ -264,6 +264,63 @@ class TrackWalls:
 
         return np.clip(best, RobotSpecs.LIDAR_MIN_RANGE, max_range)
 
+    def raycast_grid(
+        self,
+        xs: np.ndarray,
+        ys: np.ndarray,
+        yaw: float,
+        angles_robot: np.ndarray,
+        max_range: float = RobotSpecs.LIDAR_MAX_RANGE,
+    ) -> np.ndarray:
+        """``raycast`` batched over many candidate positions at one shared yaw.
+
+        Same formula as :meth:`raycast`, just broadcast over ``xs``/``ys``
+        instead of looped in Python -- built for :class:`~src.navigation.localization.LidarLocalizer`'s
+        grid-search pose estimate, which used to call ``raycast`` once per
+        candidate in a nested Python loop (``passes * grid_points**2`` calls
+        per :meth:`~src.navigation.localization.LidarLocalizer.estimate_position`).
+        Each per-segment ``denom``/``safe`` term depends only on ray
+        direction and the segment, never on candidate position, so it is
+        computed once per segment here instead of once per (segment,
+        candidate) pair -- the only per-candidate work left is the vectorised
+        ``rx``/``ry`` broadcast, which numpy does in one shot.
+
+        Args:
+            xs: Candidate sensor world X positions, shape ``(n_candidates,)``.
+            ys: Candidate sensor world Y positions, shape ``(n_candidates,)``.
+            yaw: Robot heading (radians), shared by every candidate.
+            angles_robot: Ray bearings in the robot frame (radians, 0 = forward).
+            max_range: Sensor ceiling; rays that hit nothing return this.
+
+        Returns:
+            Range (metres), shape ``(n_candidates, n_rays)``, clamped to
+            ``[LIDAR_MIN_RANGE, max_range]``.
+        """
+        world_ang = yaw + angles_robot
+        dx = np.cos(world_ang)
+        dy = np.sin(world_ang)
+        n_candidates = xs.shape[0]
+        n_rays = angles_robot.shape[0]
+        best = np.full((n_candidates, n_rays), np.inf)
+
+        for ax, ay, ex, ey in zip(
+            self._seg_ax,
+            self._seg_ay,
+            self._seg_ex,
+            self._seg_ey,
+            strict=True,
+        ):
+            denom = dx * ey - dy * ex
+            safe = np.where(denom == 0.0, np.nan, denom)
+            rx = ax - xs[:, None]
+            ry = ay - ys[:, None]
+            t = (rx * ey - ry * ex) / safe[None, :]
+            u = (rx * dy[None, :] - ry * dx[None, :]) / safe[None, :]
+            hit = (t >= 0.0) & (u >= 0.0) & (u <= 1.0)
+            best = np.minimum(best, np.where(hit, t, np.inf))
+
+        return np.clip(best, RobotSpecs.LIDAR_MIN_RANGE, max_range)
+
     def point_in_free_space(self, x: float, y: float, clearance: float = 0.0) -> bool:
         """Return ``True`` if (x, y) is in the navigable ring with ``clearance`` margin."""
         if not (
