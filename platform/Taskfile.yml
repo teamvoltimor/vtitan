@@ -747,20 +747,28 @@ tasks:
           elif [ "{{.WORKERS}}" != "auto" ] && [ "{{.WORKERS}}" != "" ]; then
             worker_args="-n {{.WORKERS}}"  # Override default auto with specific count
           fi
-          # Note: -n auto and --dist loadscope are already in pytest.ini
+          # Note: -n auto and --dist loadscope are already in pytest.ini.
+          # loadscope pins each whole test module to a single worker, which is
+          # needed for tests/ros2 (shared per-file rclpy fixtures) but starves
+          # tests/unit-only scopes: the two @slow sim modules are single files,
+          # so loadscope caps them at 1 worker each no matter the core count.
+          # Those sim scenarios are fully independent (fresh ScenarioSimulator
+          # per test, no shared fixtures), so scopes that never touch
+          # tests/ros2 can override to worksteal and use every core.
+          dist_args="--dist worksteal"
 
           if [ -n "{{.TEST}}" ]; then
             pixi run -e dev pytest "{{.TEST}}" -v $worker_args
           else
             case "{{.SCOPE}}" in
               all) pixi run -e dev pytest tests/ -m "not hardware" -v $worker_args ;;
-              unit) pixi run -e dev pytest tests/unit -q $worker_args ;;
-              fast) pixi run -e dev pytest tests/unit -q -m "not slow" $worker_args ;;
+              unit) pixi run -e dev pytest tests/unit -q $worker_args $dist_args ;;
+              fast) pixi run -e dev pytest tests/unit -q -m "not slow" $worker_args $dist_args ;;
               hardware) pixi run -e dev pytest tests/hardware -m hardware -v $worker_args ;;
-              slow) pixi run -e dev pytest tests/unit -q -m slow -v $worker_args ;;
-              navigation) pixi run -e dev pytest tests/unit -q -m "not slow" -k "collision_avoidance or core_navigator or contact_rules or corridor_estimator or deviation_recovery or lap_detector or lidar_localizer or race_tracker or sign_router or parking or stuck_detector or steering_contract or wall_heading or waypoint or open_challenge_sim or obstacles_challenge_sim or scenario_catalog or sensor_errors or live_visualizer_markers or navigation_tuning or track_constants" $worker_args ;;
-              vision) pixi run -e dev pytest tests/unit -q -m "not slow" -k "vision_overlay or nms_by_class or sign_discovery" $worker_args ;;
-              drivers) pixi run -e dev pytest tests/unit -q -m "not slow" -k "dc_encoder or wheel_odometry or resiliency or joy_teleop or heading_reference" $worker_args ;;
+              slow) pixi run -e dev pytest tests/unit -q -m slow -v $worker_args $dist_args ;;
+              navigation) pixi run -e dev pytest tests/unit -q -m "not slow" -k "collision_avoidance or core_navigator or contact_rules or corridor_estimator or deviation_recovery or lap_detector or lidar_localizer or race_tracker or sign_router or parking or stuck_detector or steering_contract or wall_heading or waypoint or open_challenge_sim or obstacles_challenge_sim or scenario_catalog or sensor_errors or live_visualizer_markers or navigation_tuning or track_constants" $worker_args $dist_args ;;
+              vision) pixi run -e dev pytest tests/unit -q -m "not slow" -k "vision_overlay or nms_by_class or sign_discovery" $worker_args $dist_args ;;
+              drivers) pixi run -e dev pytest tests/unit -q -m "not slow" -k "dc_encoder or wheel_odometry or resiliency or joy_teleop or heading_reference" $worker_args $dist_args ;;
               *) echo "Unknown SCOPE: {{.SCOPE}}. Use all|unit|fast|hardware|navigation|vision|drivers|slow" && exit 1 ;;
             esac
           fi
