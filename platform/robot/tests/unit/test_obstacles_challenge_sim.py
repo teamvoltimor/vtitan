@@ -66,32 +66,38 @@ pytestmark = pytest.mark.slow
 _MAX_STEPS = 6000
 """Every scenario now includes a parking maneuver, which needs more budget than a bare lap."""
 
+# Loaded once at collection time (deterministic, file-backed fixtures) so each
+# scenario can be its own @pytest.mark.parametrize case -- that lets xdist's
+# worksteal scheduler spread the closed-loop runs across every core instead of
+# one core working through a loop of ~16 scenarios serially.
+_ALL_OBSTACLES_SCENARIOS = all_obstacles_demo_scenarios()
+_SCENARIO_IDS = [s.label for s in _ALL_OBSTACLES_SCENARIOS]
+
 
 class TestObstaclesDemoScenariosRun:
     """Every demo scenario must complete 3 laps, not collide, and park cleanly."""
 
-    def test_scenarios_complete_and_park(self) -> None:
-        failures = []
-        for scenario in all_obstacles_demo_scenarios():
-            result = ScenarioSimulator(
-                scenario.metadata,
-                num_laps=scenario.laps,
-                seed=scenario.seed,
-            ).run(max_steps=_MAX_STEPS)
-            logger.info(
-                "%s | laps=%d/%d collided=%s timeout=%s parked=%s",
-                scenario.label,
-                result.laps_completed,
-                result.target_laps,
-                result.collided,
-                result.timed_out,
-                result.parked,
-            )
-            if result.collided or result.laps_completed < scenario.laps or result.parked is None:
-                failures.append((scenario.label, result))
-        assert not failures, [(label, r.collision_xy or r.final_pose) for label, r in failures]
+    @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
+    def test_scenarios_complete_and_park(self, scenario: Any) -> None:
+        result = ScenarioSimulator(
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+        ).run(max_steps=_MAX_STEPS)
+        logger.info(
+            "%s | laps=%d/%d collided=%s timeout=%s parked=%s",
+            scenario.label,
+            result.laps_completed,
+            result.target_laps,
+            result.collided,
+            result.timed_out,
+            result.parked,
+        )
+        failed = result.collided or result.laps_completed < scenario.laps or result.parked is None
+        assert not failed, (scenario.label, result.collision_xy or result.final_pose)
 
-    def test_signs_actually_deform_the_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
+    def test_signs_actually_deform_the_path(self, scenario: Any, monkeypatch: pytest.MonkeyPatch) -> None:
         """Every scenario must trigger at least one real deformation.
 
         A scenario that "runs clean" only because its signs never actually
@@ -99,14 +105,14 @@ class TestObstaclesDemoScenariosRun:
         would pass ``test_scenarios_complete_and_park`` for the wrong reason —
         this catches that silently-disabled-routing failure mode directly.
         """
-        deform_counts: dict[str, int] = {}
-        current_label = [""]
         orig = sign_router_module.SignRouter.deform_waypoint
+        deform_count = 0
 
         def counting_deform_waypoint(self, waypoint, robot_pos, robot_yaw, corridor, observations=None):
+            nonlocal deform_count
             result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations)
             if result != waypoint:
-                deform_counts[current_label[0]] = deform_counts.get(current_label[0], 0) + 1
+                deform_count += 1
             return result
 
         monkeypatch.setattr(
@@ -115,22 +121,16 @@ class TestObstaclesDemoScenariosRun:
             counting_deform_waypoint,
         )
 
-        never_engaged = []
-        for scenario in all_obstacles_demo_scenarios():
-            current_label[0] = scenario.label
-            ScenarioSimulator(
-                scenario.metadata,
-                num_laps=scenario.laps,
-                seed=scenario.seed,
-            ).run(max_steps=_MAX_STEPS)
-            count = deform_counts.get(scenario.label, 0)
-            logger.info("%s | deformations=%d", scenario.label, count)
-            if count == 0:
-                never_engaged.append(scenario.label)
+        ScenarioSimulator(
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+        ).run(max_steps=_MAX_STEPS)
+        logger.info("%s | deformations=%d", scenario.label, deform_count)
+        assert deform_count > 0, f"signs never engaged in {scenario.label}"
 
-        assert not never_engaged, f"signs never engaged in: {never_engaged}"
-
-    def test_signs_engage_on_every_lap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
+    def test_signs_engage_on_every_lap(self, scenario: Any, monkeypatch: pytest.MonkeyPatch) -> None:
         """A sign avoided on lap 1 must be avoided again on laps 2 and 3.
 
         Regression guard for a real bug: ``SignRouter._passed`` never cleared
@@ -157,18 +157,15 @@ class TestObstaclesDemoScenariosRun:
             recording_deform_waypoint,
         )
 
-        under_engaged = []
-        for scenario in all_obstacles_demo_scenarios():
-            laps_seen_per_sign.clear()
-            sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
-            navigator_ref[0] = sim._navigator
-            sim.run(max_steps=_MAX_STEPS)
-            for i in range(len(scenario.metadata["sign_positions"])):
-                laps = laps_seen_per_sign.get(i, set())
-                if len(laps) < scenario.laps:
-                    under_engaged.append((scenario.label, i, sorted(laps)))
-
-        assert not under_engaged, f"sign engaged on fewer than {scenario.laps} laps: {under_engaged}"
+        sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
+        navigator_ref[0] = sim._navigator
+        sim.run(max_steps=_MAX_STEPS)
+        under_engaged = [
+            (i, sorted(laps_seen_per_sign.get(i, set())))
+            for i in range(len(scenario.metadata["sign_positions"]))
+            if len(laps_seen_per_sign.get(i, set())) < scenario.laps
+        ]
+        assert not under_engaged, f"{scenario.label}: sign engaged on fewer than {scenario.laps} laps: {under_engaged}"
 
 
 class TestVisionConfirmedSignRouting:
@@ -183,26 +180,24 @@ class TestVisionConfirmedSignRouting:
     instead of bypassing vision entirely.
     """
 
-    def test_vision_confirmed_sign_scenarios_complete_without_collision(self) -> None:
-        failures = []
-        for scenario in all_obstacles_demo_scenarios():
-            result = ScenarioSimulator(
-                scenario.metadata,
-                num_laps=scenario.laps,
-                seed=scenario.seed,
-                emit_vision_detections=True,
-            ).run(max_steps=_MAX_STEPS)
-            logger.info(
-                "%s | laps=%d/%d collided=%s timeout=%s",
-                scenario.label,
-                result.laps_completed,
-                result.target_laps,
-                result.collided,
-                result.timed_out,
-            )
-            if result.collided or result.laps_completed < scenario.laps:
-                failures.append((scenario.label, result))
-        assert not failures, [(label, r.collision_xy or r.final_pose) for label, r in failures]
+    @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
+    def test_vision_confirmed_sign_scenarios_complete_without_collision(self, scenario: Any) -> None:
+        result = ScenarioSimulator(
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+            emit_vision_detections=True,
+        ).run(max_steps=_MAX_STEPS)
+        logger.info(
+            "%s | laps=%d/%d collided=%s timeout=%s",
+            scenario.label,
+            result.laps_completed,
+            result.target_laps,
+            result.collided,
+            result.timed_out,
+        )
+        failed = result.collided or result.laps_completed < scenario.laps
+        assert not failed, (scenario.label, result.collision_xy or result.final_pose)
 
     def test_wrong_camera_color_overrides_ground_truth_mid_run(
         self,
@@ -218,7 +213,7 @@ class TestVisionConfirmedSignRouting:
         drove steering. Closes the review's "no scenario where a wrong/late
         camera confirmation changes sign-avoidance direction" gap.
         """
-        scenario = all_obstacles_demo_scenarios()[0]
+        scenario = _ALL_OBSTACLES_SCENARIOS[0]
 
         original_emulate = gateway_module.emulate_sign_observations
 
@@ -277,12 +272,13 @@ class TestBlindSignDiscovery:
 
     def test_blind_router_starts_with_no_signs(self) -> None:
         """Nothing is handed over: the router is empty before the robot moves."""
-        scenario = all_obstacles_demo_scenarios()[0]
+        scenario = _ALL_OBSTACLES_SCENARIOS[0]
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
 
         assert sim.routed_signs == []
 
-    def test_blind_run_discovers_signs_the_robot_drives_past(self) -> None:
+    @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
+    def test_blind_run_discovers_signs_the_robot_drives_past(self, scenario: Any) -> None:
         """Discovery finds real signs, in the right place and the right colour.
 
         Only signs the robot actually reaches can be discovered, so this
@@ -290,28 +286,25 @@ class TestBlindSignDiscovery:
         them — the runs still end early on a sign collision, which caps how
         much of the layout is ever seen.
         """
+        metadata = scenario.metadata
+        truth = signs_from_metadata(metadata if isinstance(metadata, dict) else metadata.model_dump())
+
+        sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
+        sim.run(max_steps=_MAX_STEPS)
+        discovered = sim.routed_signs
+
+        assert discovered, f"{scenario.label}: discovered nothing"
+
         failures = []
-        for scenario in all_obstacles_demo_scenarios():
-            metadata = scenario.metadata
-            truth = signs_from_metadata(metadata if isinstance(metadata, dict) else metadata.model_dump())
+        for spec in discovered:
+            nearest = min(truth, key=lambda t: math.dist((t.x, t.y), (spec.x, spec.y)))
+            error = math.dist((nearest.x, nearest.y), (spec.x, spec.y))
+            # A sign sits on a grid whose lanes are ~0.20 m apart, so an
+            # error near that would put it in the wrong lane and route the
+            # robot to the wrong side of it. 10 cm keeps a clear margin.
+            if error > 0.10:
+                failures.append(f"{spec} is {error * 100:.0f} cm from any real sign")
+            elif nearest.color != spec.color:
+                failures.append(f"{spec} mis-coloured (truth {nearest.color})")
 
-            sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, blind=True)
-            sim.run(max_steps=_MAX_STEPS)
-            discovered = sim.routed_signs
-
-            if not discovered:
-                failures.append((scenario.label, "discovered nothing"))
-                continue
-
-            for spec in discovered:
-                nearest = min(truth, key=lambda t: math.dist((t.x, t.y), (spec.x, spec.y)))
-                error = math.dist((nearest.x, nearest.y), (spec.x, spec.y))
-                # A sign sits on a grid whose lanes are ~0.20 m apart, so an
-                # error near that would put it in the wrong lane and route the
-                # robot to the wrong side of it. 10 cm keeps a clear margin.
-                if error > 0.10:
-                    failures.append((scenario.label, f"{spec} is {error * 100:.0f} cm from any real sign"))
-                elif nearest.color != spec.color:
-                    failures.append((scenario.label, f"{spec} mis-coloured (truth {nearest.color})"))
-
-        assert not failures, failures
+        assert not failures, f"{scenario.label}: {failures}"
