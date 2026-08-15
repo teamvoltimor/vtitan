@@ -802,6 +802,74 @@ class TestDetectionToWorld:
         assert _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0) is None
 
 
+def _single_ray_scan(theta_h: float, range_m: float, filler_range_m: float = 3.0) -> tuple[list[float], list[float]]:
+    """A synthetic LIDAR sweep with one ray at ``theta_h`` reading ``range_m``.
+
+    The other rays are far enough off ``theta_h`` (at least 0.2 rad away)
+    that ``_nearest_ray`` always resolves to the intended one, and hold a
+    plausible in-track range so they can never be mistaken for it.
+    """
+    angles = [theta_h, theta_h + 0.5, theta_h - 0.5, theta_h + math.pi]
+    ranges = [range_m, filler_range_m, filler_range_m, filler_range_m]
+    return ranges, angles
+
+
+class TestDetectionToWorldLidarFusion:
+    """The camera alone gives bearing + colour; LIDAR range at that bearing
+    is trusted over the pinhole (bbox-height) distance estimate whenever the
+    ray is a plausible return -- see ``_detection_to_world``'s docstring.
+    """
+
+    def test_lidar_range_preferred_over_wrong_pinhole_distance(self, router_config):
+        true_distance, theta_h = 0.6, 0.15
+        # Bbox built for a WRONG pinhole distance (0.9 m); if the pinhole
+        # estimate alone were used, the recovered world position would be
+        # off by the same 0.3 m the bbox lies about.
+        det = _detection_at_distance_bearing(0.9, theta_h)
+        ranges, angles = _single_ray_scan(theta_h, true_distance)
+
+        world = _detection_to_world(
+            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+        )
+
+        expected = (true_distance * math.cos(theta_h), true_distance * math.sin(theta_h))
+        assert world == pytest.approx(expected, abs=1e-6)
+
+    def test_falls_back_to_pinhole_when_lidar_ray_is_a_dropout(self, router_config):
+        distance, theta_h = 0.6, 0.15
+        det = _detection_at_distance_bearing(distance, theta_h)
+        ranges, angles = _single_ray_scan(theta_h, RobotSpecs.CAMERA_FAR_CLIP + 1.0)
+
+        world = _detection_to_world(
+            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+        )
+
+        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        assert world == pytest.approx(expected, abs=1e-6)
+
+    def test_falls_back_to_pinhole_when_lidar_ray_is_self_detection(self, router_config):
+        distance, theta_h = 0.6, 0.15
+        det = _detection_at_distance_bearing(distance, theta_h)
+        tiny = NavigationTuning.load_default().lidar_sectors.MIN_VALID_RANGE_M / 2
+        ranges, angles = _single_ray_scan(theta_h, tiny)
+
+        world = _detection_to_world(
+            det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
+        )
+
+        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        assert world == pytest.approx(expected, abs=1e-6)
+
+    def test_no_lidar_data_keeps_pinhole_only_behaviour(self, router_config):
+        distance, theta_h = 0.6, 0.15
+        det = _detection_at_distance_bearing(distance, theta_h)
+
+        world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=None, lidar_angles_rad=None)
+
+        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        assert world == pytest.approx(expected, abs=1e-6)
+
+
 class TestMatchDetectionToSign:
     """Pins the confidence/match-distance/class gating in ``_match_detection_to_sign``."""
 

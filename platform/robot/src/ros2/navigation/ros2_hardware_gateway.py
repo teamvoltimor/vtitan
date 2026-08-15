@@ -322,14 +322,24 @@ class ROS2HardwareGateway(HardwareGateway):
         return self._latest_imu
 
     def get_vision_detections(self) -> list[TrafficSignObservation]:
-        """Convert latest pixel detections to world-coordinate observations."""
+        """Convert latest pixel detections to world-coordinate observations.
+
+        Fuses in the same tick's LIDAR sweep for range -- the camera alone
+        is required for colour, but the LIDAR measures range at any distance
+        far more precisely than depth-from-bbox-height does. See
+        ``_detection_to_world``'s docstring.
+        """
         pose = self.get_current_pose()
         if pose is None or not self._latest_detections:
             return []
 
+        scan = self.get_lidar_scan()
+        lidar_ranges = scan.ranges_m if scan is not None else None
+        lidar_angles = scan.angles_rad if scan is not None else None
+
         result: list[TrafficSignObservation] = []
         for det in self._latest_detections:
-            obs = detection_to_observation(det, pose)
+            obs = detection_to_observation(det, pose, lidar_ranges_m=lidar_ranges, lidar_angles_rad=lidar_angles)
             if obs is not None:
                 result.append(obs)
         return result

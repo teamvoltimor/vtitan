@@ -349,11 +349,28 @@ class SimulatedHardwareGateway:
         )
 
     def get_vision_detections(self) -> list[TrafficSignObservation]:
-        """Return synthetic sign observations, or ``[]`` if none were provided."""
+        """Return synthetic sign observations, or ``[]`` if none were provided.
+
+        Visibility (is a sign in frame, how far away) is judged from the TRUE
+        pose -- that is what a real camera actually sees from. The reported
+        world position is reprojected through the BELIEVED pose instead: a
+        real perception pipeline has no access to ground truth, only the
+        robot's own (possibly diverged) pose estimate, to place a detection
+        in world coordinates. Falls back to the true pose when there is no
+        separate estimate yet (``get_current_pose()`` returns ``None`` before
+        the first scan), which reproduces zero belief error rather than
+        silently dropping every sign that tick.
+        """
         if not self._signs:
             return []
+        believed = self.get_current_pose()
         return emulate_sign_observations(
-            self._signs, (self._state.x, self._state.y), self._state.yaw, tuning=self.tuning
+            self._signs,
+            (self._state.x, self._state.y),
+            self._state.yaw,
+            tuning=self.tuning,
+            believed_pos=(believed.x, believed.y) if believed is not None else None,
+            believed_yaw=believed.yaw if believed is not None else None,
         )
 
     # Simulation stepping
