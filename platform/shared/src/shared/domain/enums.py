@@ -88,11 +88,15 @@ class CorridorSide(FromStringEnum):
 
 
 class CorridorWidthType(FromStringEnum):
-    """Which of the two legal widths a corridor is built to.
+    """Which width a corridor is built to.
 
-    The rules allow exactly two, so a corridor's width is a classification
-    rather than a measurement -- the estimator's job is to decide which of the
-    two it is seeing, not to measure a continuous value.
+    Open Challenge corridors are randomised to one of exactly two legal
+    widths, so there the estimator's job is to classify which of the two it
+    is seeing, not to measure a continuous value. Obstacles Challenge
+    corridors are never randomised or estimated at all -- the Go generator
+    (``simconfig.WidthTypeFixed``) always builds them at one fixed width, so
+    ``FIXED`` exists only to label scenario metadata and is never a target
+    the corridor-width estimator classifies towards.
 
     The metres are deliberately not here. They belong to the mat, are generated
     into ``shared.config.constants.CorridorDimensions`` from ``track.toml``, and
@@ -102,6 +106,7 @@ class CorridorWidthType(FromStringEnum):
 
     NARROW = "narrow"
     WIDE = "wide"
+    FIXED = "fixed"
 
     @classmethod
     def blind_default(cls) -> CorridorWidthType:
