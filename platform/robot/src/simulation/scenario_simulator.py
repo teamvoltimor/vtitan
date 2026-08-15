@@ -606,6 +606,7 @@ class ScenarioSimulator:
         prev_laps = 0
         lap_steps: list[int] = []
         terminal_collision = False
+        stuck = False
         contacts = ContactTracker(
             dt=dt,
             start_window_s=start_collision_window_s,
@@ -613,6 +614,25 @@ class ScenarioSimulator:
             grace_s=contact_grace_s,
             forbidden=self._terminal_surfaces,
         )
+
+        # No-progress bailout: a run that has netted less than
+        # NO_PROGRESS_DISPLACEMENT_M of straight-line travel from this anchor
+        # for NO_PROGRESS_WINDOW_S is never going to finish either, so there
+        # is nothing left for the remaining budget to prove. The anchor
+        # resets on any real net travel, so an active (even if slow) escape
+        # maneuver is never mistaken for a permanently wedged chassis.
+        progress_anchor_xy = prev_xy
+        progress_anchor_step = 0
+        no_progress_window_steps = round(self._tuning.simulation.NO_PROGRESS_WINDOW_S / dt)
+        no_progress_displacement_m = self._tuning.simulation.NO_PROGRESS_DISPLACEMENT_M
+
+        def _no_progress(current_step: int, x: float, y: float) -> bool:
+            nonlocal progress_anchor_xy, progress_anchor_step
+            if math.hypot(x - progress_anchor_xy.x, y - progress_anchor_xy.y) >= no_progress_displacement_m:
+                progress_anchor_xy = Waypoint(x, y)
+                progress_anchor_step = current_step
+                return False
+            return (current_step - progress_anchor_step) >= no_progress_window_steps
 
         step = 0
         while step < max_steps:
@@ -628,6 +648,9 @@ class ScenarioSimulator:
                 prev_xy = Waypoint(gw.state.x, gw.state.y)
                 if contacts.update(step, gw.contact_surface if (gw.collided or gw.blocked) else ContactSurface.NONE):
                     terminal_collision = True
+                    break
+                if _no_progress(step, gw.state.x, gw.state.y):
+                    stuck = True
                     break
                 continue
             if self._blind:
@@ -662,11 +685,16 @@ class ScenarioSimulator:
             ):
                 break
 
+            if _no_progress(step, sx, sy):
+                stuck = True
+                break
+
         return self._build_result(
             step=step,
             dt=dt,
             max_steps=max_steps,
             collided=terminal_collision,
+            stuck=stuck,
             contacts=contacts,
             metrics=metrics,
             lap_steps=lap_steps,
@@ -728,6 +756,7 @@ class ScenarioSimulator:
         dt: float,
         max_steps: int,
         collided: bool,
+        stuck: bool,
         contacts: ContactTracker,
         metrics: RunMetrics,
         lap_steps: list[int],
@@ -756,6 +785,7 @@ class ScenarioSimulator:
             parked=parked,
             final_pose=(gw.state.x, gw.state.y, gw.state.yaw),
             lap_step_indices=lap_steps,
+            stuck=stuck,
         )
 
 

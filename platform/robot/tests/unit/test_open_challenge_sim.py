@@ -143,13 +143,14 @@ class TestPlannedWaypointsClearCorridor:
 def _log_result(label: str, result: Any) -> None:
     status = "OK " if result.success else "FAIL"
     logger.info(
-        "%s | %s laps=%d/%d collided=%s timeout=%s | dist=%.2fm t=%.1fs vmax=%.2f vavg=%.2f minLIDAR=%.2fm",
+        "%s | %s laps=%d/%d collided=%s timeout=%s stuck=%s | dist=%.2fm t=%.1fs vmax=%.2f vavg=%.2f minLIDAR=%.2fm",
         status,
         label,
         result.laps_completed,
         result.target_laps,
         result.collided,
         result.timed_out,
+        result.stuck,
         result.distance_m,
         result.sim_time_s,
         result.max_speed_mps,
