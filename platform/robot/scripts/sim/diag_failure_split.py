@@ -47,7 +47,7 @@ import math
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +88,12 @@ _YAW_BUCKETS_DEG = (10.0, 20.0, 28.0, 40.0)
 """Histogram edges. 28 deg is the measured budget at the clamp's 0.181 m."""
 
 
+_MOSTLY = 0.5
+"""Threshold for calling an approach abeam-dominated rather than incidental."""
+
+_ABEAM_LEAD_M = 0.10
+"""Below this along-track lead, pure pursuit has no useful forward component."""
+
 _MIN_APPROACH_TICKS = 10
 """Below this there is no convergence to speak of, only the impact itself."""
 
@@ -103,6 +109,17 @@ class Approach:
 
     target_offsets: list[float]
     robot_offsets: list[float]
+    target_leads: list[float] = field(default_factory=list)
+    """Along-track distance from chassis to commanded target, per tick.
+
+    Pure pursuit converts lateral error into heading change by aiming at a point
+    AHEAD; the conversion weakens as that lead shrinks and is meaningless once
+    the target is abeam. ``_pin_depth`` deliberately holds the commanded point
+    level with the sign, so this is where to look for a target that stopped
+    leading -- a chassis chasing sideways cannot close cross-track error however
+    much runway is left.
+    """
+
     committed_ticks_total: int = 0
     """Ticks committed to this sign across the WHOLE run, gaps included."""
 
@@ -168,6 +185,29 @@ class Approach:
     def closed_m(self) -> float:
         """Cross-track error actually removed over the approach. Negative = grew."""
         return self.error_start_m - self.error_end_m
+
+    @property
+    def lead_start_m(self) -> float:
+        """Along-track lead at the start of the approach."""
+        return self.target_leads[0] if self.target_leads else 0.0
+
+    @property
+    def lead_end_m(self) -> float:
+        """Along-track lead at impact."""
+        return self.target_leads[-1] if self.target_leads else 0.0
+
+    @property
+    def abeam_fraction(self) -> float:
+        """Share of the approach with the target effectively abeam or behind.
+
+        Judged against a tenth of a metre rather than zero: the conversion from
+        lateral error to heading is already negligible well before the lead
+        reaches zero, and a strict sign test would call a target 2 cm ahead
+        "leading".
+        """
+        if not self.target_leads:
+            return 0.0
+        return sum(1 for a in self.target_leads if a < _ABEAM_LEAD_M) / len(self.target_leads)
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,23 +300,32 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
 
     original_deform = sign_router_module.SignRouter.deform_waypoint
     last: dict[str, Any] = {}
-    history: list[tuple[int | None, Any, Any]] = []
+    history: list[tuple[int | None, Any, Any, float]] = []
 
     def capturing(router: Any, waypoint: Any, robot_pos: Any, robot_yaw: float, *args: Any, **kwargs: Any) -> Any:
         result = original_deform(router, waypoint, robot_pos, robot_yaw, *args, **kwargs)
         last["raw"] = waypoint
         last["deformed"] = result
         last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
-        # Per-tick history of the approach, for --approach. Recorded raw and
-        # resolved to lateral offsets afterwards: the axis is only known once
-        # the fatal sign is, and resolving it per tick would bake in whichever
-        # corridor happened to be current on that tick.
-        history.append((router._committed, result, robot_pos))  # noqa: SLF001
         last["signs"] = router._signs  # noqa: SLF001
         last["corridors"] = router._sign_corridors  # noqa: SLF001
         last["direction"] = router._direction  # noqa: SLF001
         last["pos"] = robot_pos
         last["yaw"] = robot_yaw
+        # Per-tick history of the approach, for --approach. Recorded raw and
+        # resolved to lateral offsets afterwards: the axis is only known once
+        # the fatal sign is, and resolving it per tick would bake in whichever
+        # corridor happened to be current on that tick.
+        #
+        # Along-track lead of the commanded target, in the chassis frame. Pure
+        # pursuit converts lateral error into heading change only while it has
+        # something AHEAD to aim at; a target gone abeam (lead -> 0) leaves the
+        # controller chasing sideways, which is what _pin_depth risks by holding
+        # the commanded point level with the sign.
+        dx = result[0] - robot_pos[0]
+        dy = result[1] - robot_pos[1]
+        lead = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
+        history.append((router._committed, result, robot_pos, lead))  # noqa: SLF001
         return result
 
     sign_router_module.SignRouter.deform_waypoint = capturing  # type: ignore[method-assign]
@@ -297,7 +346,7 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
     return _verdict(last, scenario.label, history)
 
 
-def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, Any, Any]] | None = None) -> Verdict:
+def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, Any, Any, float]] | None = None) -> Verdict:
     """Name the failure mode, and for Mode A attach the yaw geometry.
 
     Geometry is attached to the whole of Mode A, not just ``A-clamped``: the two
@@ -329,7 +378,7 @@ def _verdict(last: dict[str, Any], label: str, history: list[tuple[int | None, A
 
 
 def _approach(
-    history: list[tuple[int | None, Any, Any]] | None,
+    history: list[tuple[int | None, Any, Any, float]] | None,
     committed: int,
     axis: int,
     sign_lat: float,
@@ -344,24 +393,25 @@ def _approach(
     if not history:
         return None
     run: list[tuple[float, float]] = []
-    for idx, deformed, pos in reversed(history):
+    for idx, deformed, pos, lead in reversed(history):
         if idx != committed:
             break
-        run.append((deformed[axis] - sign_lat, pos[axis] - sign_lat))
+        run.append((deformed[axis] - sign_lat, pos[axis] - sign_lat, lead))
     if len(run) < _MIN_APPROACH_TICKS:
         return None
     run.reverse()
 
-    engaged = [idx == committed for idx, _, _ in history]
+    engaged = [idx == committed for idx, _, _, _ in history]
     dropouts = sum(1 for prev, cur in itertools.pairwise(engaged) if prev and not cur)
     first = engaged.index(True)
     first_pos = history[first][2]
     activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
-    in_range = sum(1 for _, _, pos in history if math.hypot(pos[0] - sign_xy[0], pos[1] - sign_xy[1]) <= activation)
+    in_range = sum(1 for _, _, pos, _ in history if math.hypot(pos[0] - sign_xy[0], pos[1] - sign_xy[1]) <= activation)
     return Approach(
         ticks_in_range=in_range,
-        target_offsets=[t for t, _ in run],
-        robot_offsets=[r for _, r in run],
+        target_offsets=[t for t, _, _ in run],
+        robot_offsets=[r for _, r, _ in run],
+        target_leads=[a for _, _, a in run],
         committed_ticks_total=sum(engaged),
         dropouts=dropouts,
         engage_distance_m=math.hypot(first_pos[0] - sign_xy[0], first_pos[1] - sign_xy[1]),
@@ -479,6 +529,15 @@ def _report_approach(tracked: list[Verdict]) -> None:
     print(f"  error actually CLOSED:             median {1000 * _median(closed):.0f} mm")
     diverged = sum(1 for c in closed if c < 0)
     print(f"    runs where the error GREW: {diverged}/{len(runs)} ({100 * diverged / len(runs):.0f}%)")
+
+    # Can pure pursuit act at all? It needs a target AHEAD to turn lateral error
+    # into heading; _pin_depth holds the commanded point level with the sign.
+    print(f"\n  target LEAD at engage:             median {1000 * _median([a.lead_start_m for a in runs]):.0f} mm")
+    print(f"  target LEAD at impact:             median {1000 * _median([a.lead_end_m for a in runs]):.0f} mm")
+    abeam = [a.abeam_fraction for a in runs]
+    print(f"  share of approach with target ABEAM (<{100 * _ABEAM_LEAD_M:.0f} cm ahead): median {100 * _median(abeam):.0f}%")
+    mostly_abeam = sum(1 for a in abeam if a > _MOSTLY)
+    print(f"    runs abeam for >{100 * _MOSTLY:.0f}% of the approach: {mostly_abeam}/{len(runs)}")
 
     # The discriminator. If the line moves about as far as the chassis manages to
     # close, the chassis is chasing a moving target and no pursuit-side knob
