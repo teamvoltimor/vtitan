@@ -15,6 +15,7 @@ No Gazebo, no ROS2, no physics engine -- pure Python, runs anywhere.
 from __future__ import annotations
 
 import math
+import statistics
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -454,7 +455,14 @@ class ScenarioSimulator:
             return False
 
         self._gateway.publish_drive(
-            follow_corridor(scan.ranges_m, scan.angles_rad, self._blind_follow_speed, pose.yaw, self._tuning),
+            follow_corridor(
+                scan.ranges_m,
+                scan.angles_rad,
+                self._blind_follow_speed,
+                pose.yaw,
+                self._tuning,
+                believed_width_m=statistics.fmean(w for _, w in self._creep_widths) if self._creep_widths else None,
+            ),
         )
         return True
 

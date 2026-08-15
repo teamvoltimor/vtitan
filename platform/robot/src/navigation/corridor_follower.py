@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING
 from shared.config.constants import CorridorDimensions, RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.corridor_estimator import classify_width
 from src.navigation.ports import DriveCommand
 from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad, clamp, wrap_angle
 
@@ -124,6 +125,7 @@ def follow_corridor(
     yaw: float | None = None,
     tuning: NavigationTuning | None = None,
     forced_turn_side: TurnSide | None = None,
+    believed_width_m: float | None = None,
 ) -> DriveCommand:
     """Creep along the corridor, centred between whatever walls are visible.
 
@@ -148,6 +150,16 @@ def follow_corridor(
             frame sign observation, something this function has no access to
             since it only ever sees robot-frame LIDAR. ``None`` preserves the
             plain clearance-based behaviour.
+        believed_width_m: The corridor currently being creep-followed, from
+            the caller's own running average of :func:`~src.navigation.corridor_estimator.measure_corridor_width`
+            readings taken this same creep phase (no direction or section
+            attribution needed -- see that module). When this classifies as
+            NARROW, the corner turn commits at
+            ``tuning.corridor_follower.NARROW_TURN_CLEARANCE_M`` instead of
+            ``TURN_CLEARANCE_M`` -- see that field's docstring for why the
+            wide-corridor threshold leaves no direction-settling window in a
+            narrow one. ``None`` (no readings yet) keeps the plain
+            ``TURN_CLEARANCE_M`` behaviour.
 
     Returns:
         A drive command centring the chassis, or a stop if the corridor ends
@@ -162,6 +174,8 @@ def follow_corridor(
     centering_gain = follower.CENTERING_GAIN
     heading_gain = follower.HEADING_GAIN
     turn_clearance = follower.TURN_CLEARANCE_M
+    if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
+        turn_clearance = follower.NARROW_TURN_CLEARANCE_M
 
     forward = _forward_clearance(ranges_m, angles_rad, tuning)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)

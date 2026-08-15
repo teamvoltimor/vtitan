@@ -9,6 +9,30 @@
 # the only chance it gets to read which side is open.
 turn_clearance_m = 0.60
 
+# Forward clearance at which the corner turn begins instead of
+# turn_clearance_m, once the corridor currently being creep-followed reads as
+# NARROW. Must stay strictly below turn_clearance_m -- NavigationTuning
+# refuses to load otherwise.
+#
+# The direction gate's opening signal becomes visible once the chassis is
+# close enough that the inner block's near edge -- set by the *cross*
+# corridor's own width -- is behind it. In a 1.0 m corridor that happens with
+# ~0.4 m of clearance still in hand, well before turn_clearance_m (0.60 m)
+# commits the turn, so the gate gets a fair window while the chassis is still
+# square. In a uniform 0.6 m corridor the near edge sits exactly at
+# turn_clearance_m's own value (both equal CorridorDimensions.NARROW), so
+# that window is zero -- the turn always commits at the same instant the
+# opening would become visible. Direction never settles, and the whole round
+# is spent in blind creep with no plan, no lap counting, nothing. Confirmed by
+# sweeping turn_clearance_m against the live sim/navigator: 0.60 never
+# settles, 0.50 settles but only completes 1 of 3 laps, 0.40 settles and
+# completes 2 of 3 -- see open_challenge_narrow_corridor_root_cause_2026_08_15.
+# 0.40 keeps a 0.10 m margin above corridor_follower.py's
+# _MIN_FORWARD_CLEARANCE_M (RobotSpecs.LENGTH, 0.30 m) so the corner-turn
+# branch still fires cleanly instead of folding into the emergency back-off
+# branch.
+narrow_turn_clearance_m = 0.40
+
 # Steering per metre of lateral offset from the centreline, and a hard cap on
 # the result.
 #
