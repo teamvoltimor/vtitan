@@ -27,6 +27,8 @@ Example usage:
 
 from __future__ import annotations
 
+import copy
+import functools
 import json
 import tomllib
 from collections.abc import Sequence
@@ -113,6 +115,38 @@ hardware profiles stay external to the checked-in base tree -- an overlay
 should never be ambiguous with the default it overlays. A challenge overlay
 only needs a file for the specific keys it retunes; everything else falls
 back through ``DEFAULT_CONFIG_DIR``. See :meth:`NavigationTuning.load_default`."""
+
+
+@functools.lru_cache(maxsize=512)
+def _read_toml_file_cached(path: Path) -> dict[str, object]:
+    """Parse one per-group TOML file, memoized for the life of the process.
+
+    Internal to ``_read_toml_cached`` -- callers should use that, not this,
+    since ``lru_cache`` returns the exact same dict object on every hit and
+    this file's caller (``deep_merge``) can end up holding that object by
+    reference in its output, so returning it directly would let one caller's
+    mutation corrupt every other caller's config.
+    """
+    with path.open("rb") as f:
+        return tomllib.load(f)
+
+
+def _read_toml_cached(path: Path) -> dict[str, object]:
+    """Parse one per-group TOML file, cached for the life of the process.
+
+    ``load_from_toml_dirs`` is called once per navigation/simulation
+    component construction -- every ``TuningContext`` subclass resolves
+    tuning in ``__init__`` -- so a closed-loop sim run or a real control loop
+    re-reads and re-parses the same checked-in files thousands of times.
+    Profiling one 130s sim scenario found this the single largest cost:
+    ~55s of 113s total, almost all disk I/O and TOML parsing of files whose
+    content cannot change mid-process (they're read from the checked-in repo
+    tree, a resolved hardware-profile directory, or a challenge overlay --
+    none of which are ever edited while a process runs). Returns a fresh
+    copy every call so downstream mutation (``deep_merge``) never touches
+    the memoized value.
+    """
+    return copy.deepcopy(_read_toml_file_cached(path))
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,8 +380,7 @@ class NavigationTuning:
             for key, _, subfolder in cls._GROUPS:
                 toml_path = directory / subfolder / f"{key}.toml"
                 if toml_path.exists():
-                    with toml_path.open("rb") as f:
-                        group_data = tomllib.load(f)
+                    group_data = _read_toml_cached(toml_path)
                     data[key] = deep_merge(data[key], group_data) if key in data else group_data
 
         return cls._from_mapping(data)
