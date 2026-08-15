@@ -308,3 +308,37 @@ class TestConfiguredValuesAreActuallyRead:
         corpus = self._corpus()
         now_read = [f for f in self._KNOWN_UNREAD if re.search(rf"\b{re.escape(f)}\b", corpus)]
         assert not now_read, f"now read, remove from _KNOWN_UNREAD: {now_read}"
+
+
+class TestFieldDefaultsMatchShippedToml:
+    """The pydantic field defaults are a SECOND copy of the shipped TOML values.
+
+    Nothing keeps them in step, and nothing fails when they part: a bare
+    ``NavigationTuning()`` simply plans a different car than the checked-in
+    config does. ``CENTER_BIAS_M`` had drifted to 0.05 against the TOML's 0.10 --
+    half the commanded offset from the corridor centreline -- and every
+    diagnostic that builds tuning bare (``diag_sign_sweep.tuning()`` among them)
+    measured at the drifted value without any signal that it had.
+    """
+
+    def test_field_defaults_match_shipped_toml(self):
+        bare = NavigationTuning()
+        shipped = NavigationTuning.load_default()
+
+        drifted = {}
+        for group_name in type(bare).__dataclass_fields__:
+            bare_group = getattr(bare, group_name)
+            shipped_group = getattr(shipped, group_name)
+            if not hasattr(bare_group, "model_dump"):
+                continue
+            shipped_values = shipped_group.model_dump()
+            for field, bare_value in bare_group.model_dump().items():
+                if bare_value != shipped_values[field]:
+                    drifted[f"{group_name}.{field}"] = (bare_value, shipped_values[field])
+
+        assert not drifted, (
+            f"field default(s) out of step with the shipped TOML: {drifted}. "
+            f"Each pair is (bare default, shipped). Update the Field(default=...) "
+            f"to match the config file -- code that constructs tuning bare is "
+            f"otherwise silently running values nobody chose."
+        )
