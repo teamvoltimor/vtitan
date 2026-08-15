@@ -148,6 +148,13 @@ def test_corridor_width_model_default_matches_the_mat() -> None:
 
 
 def test_only_two_corridor_widths_are_legal() -> None:
-    """The width is a classification, not a measurement -- there are exactly two."""
-    assert set(CorridorWidthType) == {CorridorWidthType.NARROW, CorridorWidthType.WIDE}
+    """Open Challenge's randomised/estimated width is a classification with exactly two values.
+
+    CorridorWidthType also has FIXED, for Obstacles Challenge corridors, which
+    are never randomised or estimated -- see CorridorWidthType's own
+    docstring. blind_default() (what the estimator settles between) must
+    still only ever choose one of the two Open Challenge values.
+    """
+    assert {CorridorWidthType.NARROW, CorridorWidthType.WIDE, CorridorWidthType.FIXED} == set(CorridorWidthType)
+    assert CorridorWidthType.blind_default() in {CorridorWidthType.NARROW, CorridorWidthType.WIDE}
     assert CorridorDimensions.NARROW < CorridorDimensions.WIDE
