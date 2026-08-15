@@ -63,7 +63,14 @@ class WaypointParams(BaseModel):
 
     ARC_RADIUS: float = Field(default=0.45, validation_alias=_alias("ARC_RADIUS"))
     DEDUPE_DISTANCE_M: float = Field(default=0.001, validation_alias=_alias("DEDUPE_DISTANCE_M"))
-    CENTER_BIAS_M: float = Field(default=0.05, validation_alias=_alias("CENTER_BIAS_M"))
+    # 0.10 to match waypoint/waypoints.toml. These field defaults are a second,
+    # independent copy of the shipped values and had drifted to half of it: a
+    # bare NavigationTuning() planned a line 5 cm off where the checked-in
+    # config puts it, which is 5% of an Obstacles corridor. Nothing failed --
+    # every diagnostic that builds tuning bare (diag_sign_sweep.tuning() among
+    # them) just quietly measured a different car. Keep in step with the TOML;
+    # test_navigation_tuning.py::test_field_defaults_match_shipped_toml enforces it.
+    CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("CENTER_BIAS_M"))
     CENTER_BIAS_SIDE: CorridorSide = Field(
         default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE")
     )
