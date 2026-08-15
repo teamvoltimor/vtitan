@@ -1,0 +1,12 @@
+# Attribution arm for the `fastwide` exploration: the steering change ALONE,
+# speed left at the base file's measured 0.156 m/s ceiling.
+#
+# Exists so `fastwide`'s result can be split between its two changes. A
+# combined knob change with no attribution is how this project has twice
+# credited a gain to the wrong mechanism.
+#
+# STATUS: EXPLORATORY, sim-only. See profiles/fastwide/robot.toml.
+
+[steering]
+servo_max_angle_deg = 135.0
+max_wheel_angle_deg = 85.0

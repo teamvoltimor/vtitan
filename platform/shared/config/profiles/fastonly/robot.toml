@@ -1,0 +1,11 @@
+# Attribution arm for the `fastwide` exploration: the speed change ALONE,
+# steering left at the base file's bench-measured 55 deg.
+#
+# Exists so `fastwide`'s result can be split between its two changes. A
+# combined knob change with no attribution is how this project has twice
+# credited a gain to the wrong mechanism.
+#
+# STATUS: EXPLORATORY, sim-only. See profiles/fastwide/robot.toml.
+
+[drivetrain]
+max_speed_mps = 0.234
