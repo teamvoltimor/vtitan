@@ -730,6 +730,109 @@ so the pin is not starving it. Do not re-try this one.
 > straight segment or mid-corner is the next thing to do, and it must happen
 > before anyone tunes a pursuit knob on the strength of that number.
 
+#### The confound, measured: the convergence was the artifact, not the 46% (2026-08-15)
+
+`project_onto_path` (`src/navigation/track_geometry.py`) gives a point's signed
+offset from the planned path itself, so `diag_failure_split.py` now reports
+every lateral figure in two frames — **axis**, the sign's straight corridor axis
+as published, and **path**, the line the robot was actually asked to follow.
+The axis column is kept beside the new one so the size of the correction is
+visible; it reproduces the previous numbers to the digit, which is the check
+that only the frame changed.
+
+The 46% survives the correction largely intact. What does not survive is the
+convergence story built on top of it. Corpus, blind, park=False; 218 Mode A,
+147 resolvable approaches, 115 of them mid-corner:
+
+```
+                            axis (published)   path (corrected)
+line ADEQUATE at held yaw        100 (46%)          85 (39%)
+  median offset from that line      126 mm            151 mm
+line SHORT at held yaw           118 (54%)         133 (61%)
+  squaring would fix              118/118           123/133
+
+approach, ALL 147
+  cross-track at engage             191 mm             132 mm
+  cross-track at impact             123 mm             112 mm
+  error CLOSED                      +56 mm              -1 mm
+  runs where it GREW                    35%                50%
+
+approach, MID-CORNER 115
+  error CLOSED                     +125 mm              -1 mm
+  runs where it GREW                    30%                51%
+```
+
+Read the mid-corner row first: **the axis frame invented 125 mm of
+convergence**. It measures a robot rounding a corner as travelling toward the
+sign's straight axis, which it is, and scores that as closing on the commanded
+line, which it is not. Corrected, the chassis closes essentially nothing over
+the whole approach and the error grows in half of all runs.
+
+So the previous section's two conclusions swap places:
+
+* **"cross-track closes 56 mm" was too generous, not too harsh.** It closes
+  ~0 mm. Every convergence-rate knob is now *less* likely to be the answer, not
+  more — there is no evidence pure pursuit is converging at all here.
+* **"the chassis diverges by more than the target moves" does not survive.** On
+  the runs with an adequate line, the corrected figures are line travel 63 mm
+  against error closed **+19 mm** — converging, slowly — where the axis frame
+  had the error *growing* 75 mm. That specific "something is steering away from
+  a reachable line" finding was cornering, and should not be chased.
+
+The 46% -> 39% shift is the smaller correction and goes the way the confound
+note predicted, but not far: the tracking bucket is real. Its median offset
+*rises* to 151 mm once cornering is removed from the comparison. Two smaller
+consequences: the worst-case yaw drops (83.8 -> 80.1 deg, and the 40-90 deg
+bucket loses 10 runs to cornering), and "squaring would fix it" stops being
+unanimous — 10 of the 133 short lines are short even square.
+
+#### A third defect, found by asking why the straight subset disagreed
+
+The 32 approaches the robot drove dead straight are the wiring check: the two
+frames differ there only by a constant origin, so they should agree. 14 of 32
+did not, so the disagreement was chased rather than assumed. Per-run, sorted by
+size of disagreement:
+
+```
+disagree by >5 mm at impact   14/32
+  chatter >50 mm               2/14
+  frame skew >20 deg           7/14   <- and 0/18 of the agreeing runs
+```
+
+Two causes, and neither is the cornering one:
+
+* **The 20 Hz sign-corridor axis flip** accounts for 2. Those runs command a
+  line that JUMPS ~215 mm per tick, so the axis frame resolves alternate ticks
+  against a different global coordinate. Worth noting on its own terms: a
+  commanded line alternating between two positions at 20 Hz is not one line the
+  chassis failed to reach, and no convergence figure over such a run means
+  anything. `diag_failure_split --approach` now prints this per-tick jump ahead
+  of every other figure for that reason.
+* **Frame skew accounts for 7, and they are the 7 largest**, from 95 mm to
+  359 mm. The sign's corridor label yields a lateral axis up to 78 deg away
+  from the path the robot is actually on, so the axis frame's "lateral" offset
+  is largely an along-track distance. This is the *same* inflation that once
+  made `A-clamped` unreachable when this diagnostic compared Euclidean gaps —
+  it never went away, it just re-entered through the corridor label.
+
+The worst case states the problem: `go_obstacles_0118` ends **15 mm** off its
+commanded line in the path frame and **374 mm** in the axis frame, with the
+chassis 2.0 deg off the path and 76.9 deg off the corridor axis. A chassis
+essentially *on* its line, scored a third of a metre away from it — and at a
+yaw that pushes `needed_at_yaw` to nearly the chassis half-diagonal, which is
+how a skewed run gets labelled `A-clamped` on geometry that was fine.
+
+`--yaw` now reports the skew directly, so this is measurable from the shipped
+tool rather than a one-off probe. Corpus-wide it is **narrow**: median 0.0 deg,
+max 77.6 deg, and only **14 of 218** Mode A collisions exceed 20 deg. So skew
+does not undermine the 46% -> 39% correction above — that one is cornering,
+which touches 115 of 147 approaches. Skew is a small, severe contaminant rather
+than a broad one, and it matters mainly because the runs it hits are the ones
+where the axis frame is most confidently wrong.
+
+The remaining 7 disagreements are all under 50 mm with zero skew and low
+chatter, i.e. ordinary residue.
+
 > **Caveat on the tick counts, not on the offsets.** `ticks_in_range` and
 > `committed_ticks_total` are counted in `deform_waypoint` CALLS, and the
 > navigator does not step on every sim tick (measured: 213 calls over 340 steps

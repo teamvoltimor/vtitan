@@ -88,28 +88,114 @@ def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -
     )
 
 
-def cross_track_error(waypoints: list[Waypoint], x: float, y: float) -> float:
-    """Perpendicular distance (metres) from ``(x, y)`` to the waypoint polyline.
+@dataclass(frozen=True, slots=True)
+class PathProjection:
+    """Where a point sits relative to the planned path, in the path's own frame.
 
-    The minimum point-to-segment distance over every consecutive waypoint
-    pair — used to measure how far off-path the robot has drifted, e.g. after
-    an injected pose disturbance.
+    The frame rotates with the path, which is the whole point: a global-axis
+    lateral component is only a cross-track error while the path runs along
+    that axis. Measured against a corner it also picks up the arc, so a robot
+    tracking its turn perfectly reads as drifting. Anything comparing two
+    points on a curving path — commanded target against chassis, sign against
+    the line that was meant to clear it — has to difference them in this frame.
     """
-    best = math.inf
-    for a, b in pairwise(waypoints):
+
+    x: float
+    """Closest point on the polyline."""
+
+    y: float
+
+    distance_m: float
+    """Distance to the polyline itself, always non-negative.
+
+    Clamped at the ends, so a point off the end of an open path is correctly
+    far away rather than merely off to one side of the last segment's heading.
+    This is the "how far off-path am I" number.
+    """
+
+    signed_offset_m: float
+    """Lateral offset from the nearest segment's LINE, positive to the LEFT.
+
+    Deliberately the infinite line and not the segment, which makes this differ
+    from ``distance_m`` in exactly one place: a point outside a convex vertex,
+    where the nearest point on the polyline is the vertex itself. Measured to
+    the vertex, such a point picks up an along-track term and a target sweeping
+    past a corner shows a spurious bulge in its offset — which is the very
+    artifact this frame exists to avoid.
+
+    Signed rather than absolute so two offsets can be differenced: unsigned
+    would collapse points straddling the path onto the same value, and
+    straddling is the larger error of the two.
+    """
+
+    tangent_rad: float
+    """Heading of the path at the closest point."""
+
+    segment_index: int
+    """Index of the polyline segment the point projected onto.
+
+    The handle for :func:`path_turn_ahead`, i.e. for asking whether this
+    projection landed on a straight or mid-corner.
+    """
+
+
+def project_onto_path(waypoints: list[Waypoint], x: float, y: float) -> PathProjection:
+    """Project ``(x, y)`` onto the waypoint polyline and return the path frame.
+
+    The nearest point over every consecutive waypoint pair. Distance to the
+    nearest *waypoint* would overstate the offset by up to half the waypoint
+    spacing — enough to matter against a ±6.7 cm sign-pass budget.
+    """
+    best: PathProjection | None = None
+    best_dist = math.inf
+    for index, (a, b) in enumerate(pairwise(waypoints)):
         ax, ay = a.x, a.y
         bx, by = b.x, b.y
         abx, aby = bx - ax, by - ay
         seg_len_sq = abx * abx + aby * aby
         if seg_len_sq == 0.0:
-            t = 0.0
-        else:
-            t = ((x - ax) * abx + (y - ay) * aby) / seg_len_sq
-            t = min(1.0, max(0.0, t))
+            continue
+        t = ((x - ax) * abx + (y - ay) * aby) / seg_len_sq
+        t = min(1.0, max(0.0, t))
         px, py = ax + t * abx, ay + t * aby
         dist = math.hypot(x - px, y - py)
-        best = min(best, dist)
+        if dist >= best_dist:
+            continue
+        best_dist = dist
+        best = PathProjection(
+            x=px,
+            y=py,
+            distance_m=dist,
+            # Left-normal component about the segment's infinite line: rotate
+            # the tangent +90 deg and dot. Taken from the segment start, not
+            # from the clamped projection, which would read zero for any point
+            # that projected past an end.
+            signed_offset_m=(-aby * (x - ax) + abx * (y - ay)) / math.sqrt(seg_len_sq),
+            tangent_rad=math.atan2(aby, abx),
+            segment_index=index,
+        )
+    if best is None:
+        # Fewer than two distinct waypoints: there is no tangent to define a
+        # frame, so fall back to the nearest waypoint and leave the offset
+        # unsigned. Keeps ``cross_track_error`` meaningful on a degenerate path
+        # rather than reporting a confident zero.
+        nearest = min(waypoints, key=lambda w: math.hypot(x - w.x, y - w.y), default=None)
+        if nearest is None:
+            return PathProjection(x=x, y=y, distance_m=math.inf, signed_offset_m=math.inf, tangent_rad=0.0, segment_index=0)
+        away = math.hypot(x - nearest.x, y - nearest.y)
+        return PathProjection(x=nearest.x, y=nearest.y, distance_m=away, signed_offset_m=away, tangent_rad=0.0, segment_index=0)
     return best
+
+
+def cross_track_error(waypoints: list[Waypoint], x: float, y: float) -> float:
+    """Perpendicular distance (metres) from ``(x, y)`` to the waypoint polyline.
+
+    The minimum point-to-segment distance over every consecutive waypoint
+    pair — used to measure how far off-path the robot has drifted, e.g. after
+    an injected pose disturbance. Unsigned; use :func:`project_onto_path` when
+    the offsets are going to be differenced against each other.
+    """
+    return project_onto_path(waypoints, x, y).distance_m
 
 
 _MIN_WAYPOINTS_FOR_TURN = 3
