@@ -475,9 +475,17 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
     if config.ghost_signs:
         original = gateway_module.obstacles_from_metadata
         restore.append((gateway_module, "obstacles_from_metadata", original))
-        gateway_module.obstacles_from_metadata = lambda md: original(
-            {k: v for k, v in md.items() if k != DictKeys.SIGN_POSITIONS},
-        )
+
+        # Forward *args/**kwargs rather than restating the signature. Both this
+        # patch and the lidar_blind one below pinned the exact parameter list
+        # they were written against, so when the real functions gained a
+        # ``tuning`` argument every arm that used them started dying with
+        # TypeError inside a worker process -- which surfaces as a bare
+        # traceback from ProcessPoolExecutor, not as "this knob is stale".
+        def _obstacles_without_signs(md: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+            return original({k: v for k, v in md.items() if k != DictKeys.SIGN_POSITIONS}, *args, **kwargs)
+
+        gateway_module.obstacles_from_metadata = _obstacles_without_signs
     if config.lateral_offset is not None:
         # Patch the name ``scenario_simulator`` itself resolves, and patch the
         # constructor it actually calls.
@@ -513,11 +521,10 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
     if config.lidar_blind:
         original_track = gateway_module.TrackModel
         restore.append((gateway_module, "TrackModel", original_track))
-        gateway_module.TrackModel = lambda widths, obstacles=None: original_track(
-            widths,
-            obstacles=obstacles,
-            lidar_sees_obstacles=False,
-        )
+        def _track_blind_to_obstacles(*args: Any, **kwargs: Any) -> Any:
+            return original_track(*args, **{**kwargs, "lidar_sees_obstacles": False})
+
+        gateway_module.TrackModel = _track_blind_to_obstacles
     # deform_depth_buffer and wall_clearance used to be patched onto sign_router
     # module globals here. Both moved into SignRouterParams and the globals were
     # deleted, so this block raised AttributeError on every arm that set them.
