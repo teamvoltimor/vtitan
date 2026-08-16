@@ -6,12 +6,14 @@ tried and rejected, and the geometric limits that constrain any future fix.
 Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 `fd33fd5` (obstacle physics).
 
-> **Start here.** The current headline is **137/256 rounds in time (54%),
-> 119/256 collisions**, blind, `park=False`, scored under the real push rule.
-> It is set by the depth pin and the geometric ceiling behind it — see "The
-> depth pin" and "What the remaining 108 sign collisions are" below. Every
-> figure in the section immediately following predates the pin and is the
-> `pin off` arm (182 collisions, 74 in time).
+> **Start here.** The headline below (137/256 in time, 119/256 collisions) is
+> **STALE — do not quote it.** Re-measured 2026-08-16 on the same untouched
+> corpus, the current simulator gives **8/256 in time, 248/256 collisions**
+> blind with `park=False`. The simulator has since become considerably less
+> permissive (collision model, fixed Obstacles corridor widths, LIDAR seeing
+> obstacles), so the two are not comparable and the older, easier sim is not a
+> target to restore. **Every number in this document predating 2026-08-16 was
+> taken on that easier sim.** See "Where the failure actually is (2026-08-16)".
 
 > **Read "Item 2b re-measured (2026-08-15)" before acting on the Next list.**
 > The `A-clamped`/`A-lag` split is judged against the WORST-CASE yaw, which
@@ -19,6 +21,69 @@ Written 2026-07-25. Baseline commits: `01ca617` (SignRouter fixes),
 > about half the Mode A collisions have a commanded line that was genuinely
 > short, and the other half were 126 mm off a line that was already adequate.
 > "Arrive square" is a real lever for at most half of them, and worth ~19 mm.
+
+## Where the failure actually is (2026-08-16)
+
+Everything below this section was measured on an easier simulator. Rather than
+re-derive the old numbers, this re-measures the current one from scratch.
+
+**The tracker is not the problem. Signs are the whole problem.**
+`diag_sign_sweep.py diagnose`, 64-scenario subset of the corpus, sighted:
+
+| arm | collisions | in time |
+|---|---|---|
+| nothing physical | **0/64** | **64/64** |
+| no signs, parking physical | **0/64** | **64/64** |
+| signs physical, no parking | 60/64 | 4/64 |
+| everything physical | 59/64 | 5/64 |
+
+An empty track is driven perfectly — 64 of 64 clean three-lap runs. Parking
+blocks standing on the mat cost exactly nothing. Making signs collidable takes
+it to 4/64. There is no tracking residue left to chase here and no parking
+problem; the entire deficit is the sign pass.
+
+This also means **any sign-avoidance knob will now read flat**. At 94%
+collisions the metric is saturated, so a sweep that reports "no effect" is
+reporting the saturation, not the knob. That applies to the queued corridor-flip
+A/B and to re-running any older sweep in this document. Fix the dominant failure
+first, then sweep.
+
+### Item 2a — CLOSED by measurement, the corner guard is flat
+
+Item 2a asked for `_is_squarely_in_corridor` to be applied to the depth pin, to
+recover the 11 wall collisions the pin introduced. **That guard has been in
+`_pin_depth` since `6666c21d` (2026-08-11)** — it rode in on a commit titled
+"resolve challenge mode at runtime", ten days after the 11 was measured, and was
+never attributed. It now has its own toggle (`SignRouterParams.PIN_CORNER_GUARD`)
+so it is an arm rather than an edit between runs.
+
+`diag_sign_sweep.py pin-guard --corpus`, 256 scenarios, blind, `park=False`:
+
+| arm | collisions | wall | sign | in time |
+|---|---|---|---|---|
+| pin off | 250/256 | 3 | 247 | 6/256 |
+| pin on, guard OFF | 248/256 | 4 | 244 | 8/256 |
+| pin on, guard ON (shipped) | 248/256 | 4 | 244 | 8/256 |
+
+The guard is **flat — byte-identical outcomes on and off**. The 11 wall
+collisions are not there to prevent: on the current simulator the pin costs one
+wall collision, not eleven. And the pin itself is worth **+2 runs, not +63**.
+Nothing here is a regression to hunt — the older figures came from a more
+permissive sim (see the note at the top).
+
+### Harness staleness found while doing this
+
+`_apply_patches` pinned the exact parameter lists of the two functions it
+monkeypatches. Both since gained a `tuning` argument, so **every `ghost` arm and
+every `lidar_blind` arm died** with `TypeError` inside a worker process —
+surfacing as a bare `ProcessPoolExecutor` traceback rather than as "this knob is
+stale". Now forwards `*args`/`**kwargs`. This is the third distinct stale-patch
+defect recorded in this document; the pattern is always the same, and it always
+presents as an inert or exploding knob rather than an error at the seam.
+
+**Not yet re-run after the fix** — the `ghost` and `lidar` arms are the next
+measurement, and they are the ones that separate "the router aims badly" from
+"the reactive escape layer fights it".
 
 ## Current state (2026-08-01) — the gate is open, three fixes landed
 
@@ -551,11 +616,10 @@ Both produced confident, wrong answers that looked reasonable.
    `A-clamped` with zero `A-lag`. See the two sections above. What replaces
    this item:
 
-   * **2a. The 11 new wall collisions the pin introduced** (0 -> 11). Cheapest
-     open item, and a pure regression: `_pin_depth` pulls the commanded point
-     back to the sign's depth, which near a corner can put the line into a
-     wall. Likely wants the same corner guard `_is_squarely_in_corridor`
-     already applies to the lateral deformation.
+   * **2a. CLOSED 2026-08-16 — the guard exists and is flat.** The corner guard
+     this item asks for has been in `_pin_depth` since `6666c21d`, and toggling
+     it changes nothing; the pin costs 1 wall collision on the current sim, not
+     11. See "Item 2a — CLOSED by measurement" near the top. Do not reopen.
    * **2b. Arrive square, do not aim wider.** The 108 are capped at 0.181 m of
      achievable clearance against 0.204 m needed while yawed, but a square pass
      needs only 0.122 m — a **28 deg yaw budget**. Measure the actual yaw at
