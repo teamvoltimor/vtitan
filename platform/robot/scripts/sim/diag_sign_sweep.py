@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -45,7 +46,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CompetitionSpecs, DictKeys
+from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Waypoint
 
@@ -53,6 +54,7 @@ import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error
+from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.track_model import TrackModel, obstacles_from_metadata
@@ -407,6 +409,18 @@ class SweepConfig:
     clearance arithmetic. Only meaningful with ``sign_lane_planner=True``.
     """
 
+    obstacles_center_bias: float | None = None
+    """Override ``WaypointParams.OBSTACLES_CENTER_BIAS_M`` (default 0.0, centred).
+
+    How far the planned centreline sits toward the INNER block on Obstacles.
+    Open keeps its own ``CENTER_BIAS_M`` regardless. Centred is the right
+    answer geometrically -- all Obstacles corridors are 1.0 m and signs sit
+    0.10 m either side of centre, so 0.0 leaves symmetric room -- but the
+    chassis is documented to drift OUTWARD while tracking
+    (centre_bias_is_tracking_not_sign), which makes a nonzero inner bias
+    compensation rather than preference. Sweep it rather than assuming either.
+    """
+
     sign_lane_corner_entry: float | None = None
     """Override ``SignRouterParams.SIGN_LANE_CORNER_ENTRY_M`` (default 0.0).
 
@@ -466,7 +480,11 @@ class SweepConfig:
             MAX_STEERING_RATE=self.max_steering_rate,
         )
         speed = _with(base.speed, FAST_FRAC=self.fast_frac, CREEP_FRAC=self.creep_frac)
-        waypoints = _with(base.waypoints, ARC_RADIUS=self.arc_radius)
+        waypoints = _with(
+            base.waypoints,
+            ARC_RADIUS=self.arc_radius,
+            OBSTACLES_CENTER_BIAS_M=self.obstacles_center_bias,
+        )
         sign_router = _with(
             base.sign_router,
             ESCAPE_MASK_RADIUS_M=self.escape_mask_radius,
@@ -511,6 +529,12 @@ class ScenarioOutcome:
     collision_kind: CollisionKind
     collision_step: int
     steps: int
+    uturns: int = 0
+    """Heading reversals detected during the run — see ``_UTurnDetector``."""
+
+    corner_uturns: int = 0
+    """How many of ``uturns`` happened in a corner zone rather than a straight."""
+
     sim_time_s: float = 0.0
     """Simulated seconds the run took.
 
@@ -523,6 +547,65 @@ class ScenarioOutcome:
     ~130 s, leaving 50 s of margin instead of the ~140 s it had at the speed
     profile's unreachable 0.5 m/s.
     """
+
+
+_UTURN_WINDOW_TICKS = 60
+"""~3 s at 20 Hz. Long enough to contain a whole reversal, short enough that
+two legitimate consecutive corners (90 deg each, and never that close together
+on this track) cannot sum past the threshold below."""
+
+_UTURN_THRESHOLD_RAD = math.radians(150.0)
+"""How much net heading change counts as a reversal rather than a corner.
+
+A planned corner is 90 deg. 150 deg is comfortably past that and comfortably
+short of 180, so it catches a genuine turn-around without flagging a corner
+taken wide, which is the distinction the whole metric exists to make."""
+
+_UTURN_DEBOUNCE_TICKS = 40
+"""Ticks to wait before another reversal may be counted, so one long spin is
+reported as one event rather than as however many windows it spans."""
+
+
+class _UTurnDetector:
+    """Counts heading reversals from the per-tick pose stream.
+
+    Deliberately measured against the chassis's OWN recent heading rather than
+    against the planned path: a robot that has turned around is a failure
+    whether or not the path agrees, and keying on path bearing would make the
+    metric silent in exactly the case where the path itself is the problem.
+    """
+
+    def __init__(self) -> None:
+        self._deltas: deque[float] = deque(maxlen=_UTURN_WINDOW_TICKS)
+        self._prev_yaw: float | None = None
+        self._cooldown = 0
+        self.events: list[tuple[float, float]] = []
+
+    def update(self, x: float, y: float, yaw: float) -> None:
+        """Fold one tick's pose in, recording an event if a reversal completed."""
+        if self._prev_yaw is not None:
+            self._deltas.append(wrap_angle(yaw - self._prev_yaw))
+        self._prev_yaw = yaw
+        if self._cooldown > 0:
+            self._cooldown -= 1
+            return
+        # Net, not absolute: a corner entered and exited cleanly nets ~90 deg,
+        # while weaving back and forth cancels toward zero. Only a sustained
+        # turn in ONE direction accumulates past the threshold.
+        if abs(sum(self._deltas)) > _UTURN_THRESHOLD_RAD:
+            self.events.append((x, y))
+            self._deltas.clear()
+            self._cooldown = _UTURN_DEBOUNCE_TICKS
+
+    @property
+    def corner_events(self) -> int:
+        """Events that happened in a corner zone (outside the inner square's span on BOTH axes)."""
+        return sum(
+            1
+            for x, y in self.events
+            if not (TrackDimensions.CORNER_MIN <= x <= TrackDimensions.CORNER_MAX)
+            and not (TrackDimensions.CORNER_MIN <= y <= TrackDimensions.CORNER_MAX)
+        )
 
 
 def _without_parking(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -675,7 +758,8 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             blind=config.blind,
             park=config.park,
         )
-        result = sim.run(max_steps=MAX_STEPS)
+        uturns = _UTurnDetector()
+        result = sim.run(max_steps=MAX_STEPS, on_step=lambda state, _scan: uturns.update(state.x, state.y, state.yaw))
     finally:
         for module, name, value in restore:
             setattr(module, name, value)
@@ -694,6 +778,8 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_kind=kind,
         collision_step=result.steps,
         steps=result.steps,
+        uturns=len(uturns.events),
+        corner_uturns=uturns.corner_events,
         sim_time_s=result.sim_time_s,
     )
 
@@ -719,6 +805,21 @@ class SweepResult:
     def laps_ge_3(self) -> int:
         """Scenarios that completed the full three laps — the driving-success metric."""
         return sum(1 for o in self.outcomes if o.laps >= _TARGET_LAPS)
+
+    @property
+    def uturns(self) -> int:
+        """Total heading reversals across every scenario in this arm."""
+        return sum(o.uturns for o in self.outcomes)
+
+    @property
+    def corner_uturns(self) -> int:
+        """How many of those happened in a corner zone."""
+        return sum(o.corner_uturns for o in self.outcomes)
+
+    @property
+    def scenarios_with_uturn(self) -> int:
+        """Scenarios that reversed at least once — the breadth, against the total's depth."""
+        return sum(1 for o in self.outcomes if o.uturns)
 
     @property
     def laps_ge_3_in_time(self) -> int:
@@ -754,7 +855,8 @@ class SweepResult:
             f"laps>=1 {self.laps_ge_1:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
-            f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}"
+            f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
+            f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)"
         )
 
     def detail(self) -> str:
@@ -875,6 +977,16 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # a whole straight (wall 3 -> 23 over the corpus). Read the SIGN column
     # against the WALL column here -- the whole question is where the two
     # curves cross, not whether either moves.
+    # Where the Obstacles centreline sits, toward the inner block. Run WITH the
+    # lane on, since that is the configuration it has to hold up in. Geometry
+    # says 0.0 (signs sit 0.10 m either side of a 1.0 m corridor's centre, so
+    # centred is symmetric); the tracker's documented outward drift says
+    # otherwise. This is the arbitration.
+    "lane-bias": lambda v: SweepConfig(
+        f"obstacles centre bias {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        obstacles_center_bias=v,
+    ),
     "lane-frac": lambda v: SweepConfig(
         f"lane offset frac {v:{_FORMAT_2F}}",
         sign_lane_planner=True,
@@ -1069,6 +1181,42 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("sighted (everything known)"),
         SweepConfig("blind track+direction, signs known", blind=True, known_signs=True),
         SweepConfig("fully blind (signs discovered)", blind=True),
+    ],
+    # blind-source, re-run with the lane planner ON -- the attribution that
+    # decides whether any further blind work belongs in the localizer or in
+    # sign discovery. Same three arms, so the middle row is the informative
+    # one: it withholds the track layout and travel direction (believed pose
+    # comes from the assumed start + LIDAR matching) but HANDS OVER the sign
+    # positions.
+    #   middle ~= fully blind  -> knowing the signs does not help, so the
+    #                             believed POSE is the binding constraint
+    #   middle ~= sighted      -> the pose is fine and DISCOVERY is what fails
+    # Worth running before attempting either fix: it says which one is worth a
+    # session, and bounds what fixing it can possibly buy.
+    "lane-blind-source": [
+        SweepConfig("lane, sighted (everything known)", sign_lane_planner=True),
+        SweepConfig("lane, blind track+direction, signs known", sign_lane_planner=True, blind=True, known_signs=True),
+        SweepConfig("lane, fully blind (signs discovered)", sign_lane_planner=True, blind=True),
+    ],
+    # Are the observed heading reversals the PARKING maneuver or the driving?
+    # Traced on go_obstacles_0000 (subset64, lane on): all 9 reversals landed
+    # after the third lap was already counted, at (1.7-1.8, 2.4-2.6) beside the
+    # north parking bay, spinning ~186 deg every ~2 s; the laps themselves were
+    # clean. Parking is a known-blocked problem (chassis-vs-pocket geometry),
+    # so if the reversals vanish with park=False they are its failure mode and
+    # not a cornering defect -- and the in-time shortfall is then mostly clock
+    # burnt after the driving is already done, which is a different fix.
+    # Blind arms included because parking is only ever attempted AFTER three
+    # laps, so a park=False arm isolates the DRIVING phase exactly: any
+    # reversal it still reports happened while the robot was lapping. Sighted
+    # park=False measured 0/64 -- if blind park=False is also 0, there is no
+    # cornering defect anywhere and every reversal ever seen is the parking
+    # maneuver.
+    "lane-park": [
+        SweepConfig("lane, sighted, parking ON", sign_lane_planner=True),
+        SweepConfig("lane, sighted, parking OFF", sign_lane_planner=True, park=False),
+        SweepConfig("lane, blind, parking ON", sign_lane_planner=True, blind=True),
+        SweepConfig("lane, blind, parking OFF", sign_lane_planner=True, blind=True, park=False),
     ],
     # Sign avoidance on its own, with parking deferred until it is solved.
     # Blocks stay on the mat and stay collidable; only the maneuver is skipped.

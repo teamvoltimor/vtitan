@@ -202,6 +202,13 @@ class ScenarioSimulator:
             )
         challenge = metadata.challenge_type
         is_open_challenge = challenge == ScenarioType.OPEN
+        # Obstacles carries its own centreline bias, tuned separately from
+        # Open's -- and measured HIGHER, not lower, than the geometry argues
+        # for. See WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and
+        # why it is compensating for the tracker's outward drift.
+        self._center_bias_m = (
+            None if is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
+        )
         self._terminal_surfaces = TERMINAL_SURFACES[ScenarioType.OPEN if is_open_challenge else ScenarioType.OBSTACLES]
         # Traffic signs and parking blocks are real objects: the chassis can hit
         # them and the LIDAR can see them. Without them in the track model the
@@ -384,6 +391,7 @@ class ScenarioSimulator:
             believed_yaw=believed.yaw,
             arc_radius=self._arc_radius,
             tuning=self._tuning,
+            center_bias_m=self._center_bias_m,
         )
 
     def _resolve_direction(self) -> bool:
