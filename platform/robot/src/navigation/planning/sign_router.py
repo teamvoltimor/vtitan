@@ -131,6 +131,7 @@ class _SignRouterConstants:
 
     wall_clearance_margin_m: float
     deform_depth_buffer_m: float
+    pin_corner_guard: bool
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning) -> _SignRouterConstants:
@@ -138,6 +139,7 @@ class _SignRouterConstants:
         return cls(
             wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
             deform_depth_buffer_m=sr.DEFORM_DEPTH_BUFFER_M,
+            pin_corner_guard=sr.PIN_CORNER_GUARD,
         )
 
 
@@ -834,10 +836,17 @@ def _pin_depth(
     collisions with the pin on against 0 with it off, all corner-adjacent.
     Re-checking squareness here, against the robot's own real (x, y), closes
     that gap: the pin only fires when both ends of its own logic actually hold.
+
+    That re-check rode in on an unrelated commit ten days after the 11 was
+    measured and was never attributed on its own, so it carries its own toggle
+    (``PIN_CORNER_GUARD``) -- both arms belong in one harness invocation.
     """
+    context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
     if robot_depth is None or robot_pos is None:
         return waypoint_depth
-    if not _is_squarely_in_corridor(robot_pos[0], robot_pos[1], corridor, context):
+    if context.constants.pin_corner_guard and not _is_squarely_in_corridor(
+        robot_pos[0], robot_pos[1], corridor, context
+    ):
         return waypoint_depth
     if min(robot_depth, waypoint_depth) < sign_depth < max(robot_depth, waypoint_depth):
         return sign_depth
