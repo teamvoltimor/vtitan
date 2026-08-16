@@ -19,9 +19,10 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
     python scripts/sim/diag_sign_sweep.py arc 0.25 0.30 0.35 0.40 0.45
     python scripts/sim/diag_sign_sweep.py crosstrack 0.12 0.20
 
-Swept modes (``lookahead`` ``arc`` ``speed`` ``offset`` ``unsplit-offset``
-``masked-offset`` ``buffer`` ``wall`` ``mask-radius`` ``corridor-flip``
-``crosstrack``) take the values to sweep as positional arguments. Fixed comparison modes (``baseline``
+Swept modes (``lookahead`` ``arc`` ``speed`` ``steer-rate`` ``creep`` ``offset``
+``unsplit-offset`` ``masked-offset`` ``buffer`` ``wall`` ``mask-radius``
+``corridor-flip`` ``crosstrack``) take the values to sweep as positional
+arguments. Fixed comparison modes (``baseline``
 ``profile`` ``diagnose`` ``ghost`` ``lidar``) ignore them.
 
 A flat sweep here has twice turned out to be a disconnected knob rather than a
@@ -162,6 +163,16 @@ class SweepConfig:
     lookahead_short: float | None = None
     lookahead_long: float | None = None
     fast_frac: float | None = None
+    creep_frac: float | None = None
+    """Override ``SpeedParams.CREEP_FRAC``.
+
+    The tier the heading limiter drops to past ``HeadingErrorZones.CRAWL``,
+    which exists because the steering actuator's slew rate is fixed and cannot
+    track a sharp demand at speed. Being a FRACTION of ``MAX_SPEED_MPS``, it is
+    rescaled by any hardware speed profile -- so the guard speeds up in lockstep
+    with the thing it guards against, while the actuator does not. Sweep this to
+    hold the rung at an absolute speed across profiles.
+    """
     arc_radius: float | None = None
     steer_kp: float | None = None
     max_steering_rate: float | None = None
@@ -343,7 +354,7 @@ class SweepConfig:
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
         )
-        speed = _with(base.speed, FAST_FRAC=self.fast_frac)
+        speed = _with(base.speed, FAST_FRAC=self.fast_frac, CREEP_FRAC=self.creep_frac)
         waypoints = _with(base.waypoints, ARC_RADIUS=self.arc_radius)
         sign_router = _with(
             base.sign_router,
@@ -713,6 +724,17 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     ),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
     "speed": lambda v: SweepConfig(f"fast_frac {v:{_FORMAT_2F}}", fast_frac=v),
+    # The one knob mechanically coupled to a hardware speed profile. It is in
+    # rad/SECOND while every speed tier is a fraction of MAX_SPEED_MPS, so a
+    # faster profile leaves the steering actuator exactly as quick while giving
+    # it less distance to act over. Sweep it alongside VTITAN_HARDWARE_PROFILE,
+    # not on its own -- at the base speed the shipped 2.0 is already tuned.
+    "steer-rate": lambda v: SweepConfig(f"max_steering_rate {v:{_FORMAT_2F}}", max_steering_rate=v),
+    # The other half of the same coupling, and the half that is not a fraction
+    # problem but becomes one: pass the fraction that holds the CRAWL rung at
+    # the absolute speed it was tuned at. Under fastwide that is 0.1014/0.234 =
+    # 0.43, against the shipped 0.65.
+    "creep": lambda v: SweepConfig(f"creep_frac {v:{_FORMAT_2F}}", creep_frac=v),
     "offset": lambda v: SweepConfig(f"lateral_offset {v:{_FORMAT_3F}}", lateral_offset=v),
     # The offset sweep CROSSED with lidar_blind. This was how the escape layer
     # was first identified as the gate, back when it was the only way to make

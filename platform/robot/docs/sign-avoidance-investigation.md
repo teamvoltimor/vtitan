@@ -870,6 +870,63 @@ Both overrides now go through `NavigationTuning`.
 > immediately below, measured 2026-07-27. Its *measurements* still stand; its
 > diagnosis does not.
 
+### The `fastwide` profile is bad for Obstacles, and not for a fixable reason (2026-08-16)
+
+`fastwide` (0.234 m/s, 85 deg wheels) takes the Open Challenge from 0/8 to 8/8
+and is the profile that challenge wants adopted. Asking the same of Obstacles,
+256 corpus, sighted, via `VTITAN_HARDWARE_PROFILE`:
+
+| profile | collisions | wall | sign | laps>=3 | in-time |
+|---|---|---|---|---|---|
+| base | 242 | 49 | 193 | 14 | **13** |
+| `wideonly` (85 deg only) | 244 | 82 | 162 | 12 | **10** |
+| `fastonly` (0.234 only) | 251 | 87 | 164 | 5 | **5** |
+| `fastwide` (both) | 252 | 116 | 135 | 4 | **4** |
+
+**In-time runs fall 13 -> 4.** Read the WALL column, not the sign one: sign
+collisions *fall* monotonically as things get worse, because runs die on a wall
+before ever reaching a sign. Wall collisions are the signal, and both knobs
+raise them roughly additively (+33 wide, +38 fast, +67 together).
+
+**This is the opposite of the Open Challenge attribution.** There the 85 deg
+steering contributed nothing and speed was everything. Here the wide steering
+costs 3 in-time runs on its own. The two challenges do not want the same car,
+which is a decision to be made rather than a bug to be fixed.
+
+Two mechanical explanations were proposed and **both are refuted**:
+
+* **`MAX_STEERING_RATE` not rescaled.** It is in rad/SECOND while every speed
+  tier is a fraction of `MAX_SPEED_MPS`, so a 1.5x profile leaves the actuator
+  as quick while giving it less distance to act over. Sweeping it under
+  `fastwide` at 2.0 / 3.0 / 4.0 rad/s moves in-time not at all (4 / 4 / 4);
+  wall collisions drift only 116 / 110 / 106. The 2.0 control arm reproduces
+  `fastwide` exactly, and the override was traced to
+  `WaypointController.max_steering_rate` by hand — this harness has shipped
+  disconnected knobs twice, so a flat sweep is not evidence on its own here.
+  Independently corroborated by the much older "Lower speed alone" result
+  below: at the default lookahead the steering-rate limit never binds.
+* **The CRAWL guard rescaled away.** The heading limiter drops to `creep` past
+  57 deg specifically because the servo's fixed slew rate cannot track a sharp
+  demand at speed — but `creep` is a FRACTION, so under `fastwide` it becomes
+  **0.152 m/s, within 3% of the base car's FLAT-OUT speed**. That is a real
+  design smell in the profile mechanism regardless. It is not this failure,
+  though: holding the rung at its base absolute speed (`creep` 0.4333) gives
+  in-time **3**, no better than the shipped 0.65's 4. Slowing it further to
+  0.30 reaches 7 — still half of base's 13, and since the *principled* value is
+  not the optimum this is ordinary "slower is better", not a restored
+  calibration.
+
+What is left is the unglamorous reading, and it joins up with the cross-track
+correction above: at base speed the chassis closes **~0 mm** of cross-track
+error over an entire sign approach. Convergence is already at zero, so cutting
+the time available to converge by a third makes it strictly worse, and no
+actuator-rate knob can help because the actuator was never the limit.
+
+> Adopting `fastwide` for the Open Challenge does not commit Obstacles to it —
+> the profile is selected per run by env var. But nothing here should be read
+> as "the fast car is fine once tuned": two tunings were tried and neither
+> recovered even half the loss.
+
 ## The escape layer is the gate (2026-07-27)
 
 Baseline unchanged from the section below: **16/16 collisions (15 sign, 1 inner
