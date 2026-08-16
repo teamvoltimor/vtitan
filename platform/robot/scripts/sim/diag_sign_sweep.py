@@ -33,7 +33,6 @@ override actually reaches the navigator before concluding anything — see
 from __future__ import annotations
 
 import argparse
-import itertools
 import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -51,7 +50,7 @@ from shared.domain.models import Waypoint
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
 from src.navigation.geometry import chassis_half_diagonal_m
-from src.navigation.track_geometry import corridor_widths_from_metadata
+from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 from src.simulation.track_model import TrackModel, obstacles_from_metadata
@@ -665,31 +664,13 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     )
     sim = ScenarioSimulator(metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=config.tuning())
     path = [Waypoint(*w) if isinstance(w, tuple) else w for w in sim.waypoints]
-    segments = list(itertools.pairwise(path))
     errors: list[float] = []
 
     def record(state: Any, _scan: Any) -> None:
-        errors.append(min(_point_segment_dist(state.x, state.y, a, b) for a, b in segments))
+        errors.append(cross_track_error(path, state.x, state.y))
 
     sim.run(max_steps=MAX_STEPS, on_step=record)
     return errors
-
-
-def _point_segment_dist(px: float, py: float, a: Waypoint, b: Waypoint) -> float:
-    """Perpendicular distance from a point to the segment ``a``-``b``.
-
-    Distance to the nearest *waypoint* would overstate cross-track error by up
-    to half the waypoint spacing — enough to matter for a number being compared
-    against a +-6.7 cm budget.
-    """
-    ax, ay = a.x, a.y
-    bx, by = b.x, b.y
-    dx, dy = bx - ax, by - ay
-    span = dx * dx + dy * dy
-    if span == 0.0:
-        return math.hypot(px - ax, py - ay)
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / span))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 
 
 def _percentile(values: list[float], q: float) -> float:
