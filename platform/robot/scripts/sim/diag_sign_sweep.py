@@ -23,7 +23,8 @@ Swept modes (``lookahead`` ``arc`` ``speed`` ``steer-rate`` ``creep`` ``offset``
 ``unsplit-offset`` ``masked-offset`` ``buffer`` ``wall`` ``mask-radius``
 ``corridor-flip`` ``crosstrack``) take the values to sweep as positional
 arguments. Fixed comparison modes (``baseline``
-``profile`` ``diagnose`` ``ghost`` ``lidar``) ignore them.
+``profile`` ``diagnose`` ``ghost`` ``lidar`` ``pin-guard`` ``pin-heading-guard``)
+ignore them.
 
 A flat sweep here has twice turned out to be a disconnected knob rather than a
 real result. If a mode reads byte-identical across a wide range, confirm the
@@ -321,6 +322,108 @@ class SweepConfig:
     ``depth_pin=True``.
     """
 
+    stale_target_rescue: bool | None = None
+    """Override ``SignRouterParams.STALE_TARGET_RESCUE`` (default False).
+
+    Advances the waypoint index past a waypoint reading as behind the
+    chassis in local frame, fixing the stale-target/wall-clip mechanism
+    root-caused under `wideonly`. Obstacles-only by construction (gated on
+    sign_router presence) regardless of this override.
+    """
+
+    sign_aware_speed: bool | None = None
+    """Override ``SignRouterParams.SIGN_AWARE_SPEED`` (default False).
+
+    Caps speed at the slow tier whenever the router actually deformed the
+    target this tick by more than sign_deform_speed_threshold, giving the
+    pursuit controller more time to close the ~6.5cm asymptotic shortfall.
+    """
+
+    sign_deform_speed_threshold: float | None = None
+    """Override ``SignRouterParams.SIGN_DEFORM_SPEED_THRESHOLD_M`` (default 0.02).
+
+    Only meaningful with ``sign_aware_speed=True``.
+    """
+
+    sign_aware_lookahead: bool | None = None
+    """Override ``SignRouterParams.SIGN_AWARE_LOOKAHEAD`` (default False).
+
+    Arms the short pursuit lookahead whenever a routed sign is within
+    activation distance, since crosstrack (measured against the raw path)
+    never rises during a sign pass to arm it on its own. Traced as the likely
+    cause of a consistent ~6.5cm shortfall between the commanded avoidance
+    line and the chassis when it draws level with a sign.
+    """
+
+    pin_heading_guard: bool | None = None
+    """Override ``SignRouterParams.PIN_HEADING_GUARD`` (default False).
+
+    Releases the depth pin once the robot's heading has rotated more than
+    ``pin_heading_guard_deg`` since the pin engaged on the current sign, even
+    if ``pin_corner_guard``'s position check still reads squarely-in-corridor.
+    Traced on go_obstacles_0049 (subset64, sighted): the pin held a commanded
+    point frozen for 46 ticks while the robot's yaw rotated 67 deg mid-corner,
+    because the position-only guard never tripped. Only meaningful with
+    ``depth_pin=True``.
+    """
+
+    pin_heading_guard_deg: float | None = None
+    """Override ``SignRouterParams.PIN_HEADING_GUARD_DEG`` (default 35.0).
+
+    Only meaningful with ``pin_heading_guard=True``.
+    """
+
+    sign_lane_planner: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_PLANNER`` (default False).
+
+    Shifts the PLANNED PATH onto a pass-side lane through each signed
+    corridor, instead of only overriding the pursuit target within
+    ``activation_dist``. Structurally different from every other knob in this
+    dataclass: the rest change when or how hard the existing carrot-chase
+    fires, and all of them have measured flat or worse against the ~6.5cm
+    shortfall. See ``navigation.planning.sign_lane``.
+    """
+
+    sign_lane_ramp: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_RAMP_M`` (default 0.70 m).
+
+    Along-corridor distance the lane takes to transition on and off the
+    centreline. Only meaningful with ``sign_lane_planner=True``.
+    """
+
+    sign_lane_hold: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_HOLD_M`` (default 0.25 m).
+
+    Half-width of the full-offset plateau either side of a sign's own depth.
+    Only meaningful with ``sign_lane_planner=True``.
+    """
+
+    sign_lane_offset_frac: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_OFFSET_FRAC`` (default 1.0).
+
+    Fraction of the avoidance offset the LANE carries; the carrot override
+    still commands the full value at the pass. The lever against the wall
+    collisions the lane costs -- see the field's own docstring for the
+    clearance arithmetic. Only meaningful with ``sign_lane_planner=True``.
+    """
+
+    sign_lane_corner_entry: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_CORNER_ENTRY_M`` (default 0.0).
+
+    Corner-arc runway the lane may borrow to transition over. The lever
+    against the lane's inner-square collisions: 1211 of the corpus's 1282
+    signs sit at a section boundary, where the straight has no near-side
+    runway at all. Only meaningful with ``sign_lane_planner=True``.
+    """
+
+    sign_lane_suppress_deform: bool | None = None
+    """Override ``SignRouterParams.SIGN_LANE_SUPPRESS_DEFORM`` (default True).
+
+    ``False`` keeps the carrot-level deformation running on top of the laned
+    path, which asks for the offset twice. Both arms belong in one harness
+    invocation. Only meaningful with ``sign_lane_planner=True``.
+    """
+
     escape_mask_radius: float | None = None
     """Override ``SignRouterParams.ESCAPE_MASK_RADIUS_M`` (default 0.12 m).
 
@@ -372,6 +475,18 @@ class SweepConfig:
             PASSED_DIST_M=self.passed_dist,
             DEPTH_PIN=self.depth_pin,
             PIN_CORNER_GUARD=self.pin_corner_guard,
+            PIN_HEADING_GUARD=self.pin_heading_guard,
+            PIN_HEADING_GUARD_DEG=self.pin_heading_guard_deg,
+            SIGN_AWARE_LOOKAHEAD=self.sign_aware_lookahead,
+            SIGN_AWARE_SPEED=self.sign_aware_speed,
+            STALE_TARGET_RESCUE=self.stale_target_rescue,
+            SIGN_LANE_PLANNER=self.sign_lane_planner,
+            SIGN_LANE_RAMP_M=self.sign_lane_ramp,
+            SIGN_LANE_HOLD_M=self.sign_lane_hold,
+            SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
+            SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
+            SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
+            SIGN_DEFORM_SPEED_THRESHOLD_M=self.sign_deform_speed_threshold,
             CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
             DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
             # The field is the margin BEYOND the chassis half-diagonal; the knob
@@ -646,7 +761,7 @@ class SweepResult:
         """Per-scenario rows, for when an aggregate needs breaking down."""
         return "\n".join(
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
-            f"at={None if o.collision_xy is None else (round(o.collision_xy[0], _COLLISION_PRECISION), round(o.collision_xy[1], _COLLISION_PRECISION))}"
+            f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))}"
             for o in self.outcomes
         )
 
@@ -739,6 +854,58 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         lookahead_long=v * _LOOKAHEAD_MULTIPLIER,
     ),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
+    # Runway the lane takes to move on and off the centreline. The trade is
+    # legible from the geometry: too short and the lane reproduces the very
+    # late correction it replaces, too long and the corridor's straight is
+    # spent off-centre for its whole length. Run `lane` first -- this only
+    # means anything once the mechanism itself is worth tuning.
+    "lane-ramp": lambda v: SweepConfig(
+        f"lane ramp {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        sign_lane_ramp=v,
+    ),
+    "lane-hold": lambda v: SweepConfig(
+        f"lane hold {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        sign_lane_hold=v,
+    ),
+    # How much of the avoidance offset the LANE carries, the carrot override
+    # still commanding the full value at the pass. This is the wall-collision
+    # lever: at 1.0 a centred sign pins the lane on clamp_lateral's floor for
+    # a whole straight (wall 3 -> 23 over the corpus). Read the SIGN column
+    # against the WALL column here -- the whole question is where the two
+    # curves cross, not whether either moves.
+    "lane-frac": lambda v: SweepConfig(
+        f"lane offset frac {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        sign_lane_offset_frac=v,
+    ),
+    # clamp_lateral's total clearance (chassis half-diagonal + margin),
+    # crossed with the lane. Named "wall" throughout, but every wall collision
+    # traced under the lane on subset64 was against the INNER SQUARE, not the
+    # outer wall -- go_obstacles_0020/0032/0042/0044/0061/0063 all died within
+    # ~0.17 m of the block, i.e. about one chassis half-diagonal, and 4 cm
+    # PAST the clamped lane rather than on it. Green signs route inward, so
+    # the lane parks the chassis beside the block for a whole straight and any
+    # tracking overshoot clips its corner. clamp_lateral applies this margin to
+    # both sides, so this is the direct lever on that. Shipped total is
+    # 0.179 + 0.04 = 0.219.
+    # Corner-arc runway the lane may borrow. The targeted lever at the traced
+    # mechanism: 1211 of 1282 corpus signs sit at a section boundary, so for
+    # ~94% of them the straight has NO near-side runway and the lane starts at
+    # full offset against a centred arc. Corners are provably empty (0 of 1282
+    # signs), so the arc is free to transition through. Read the wall column
+    # first here -- this exists to buy back the 3 -> 23 the lane cost.
+    "lane-entry": lambda v: SweepConfig(
+        f"lane corner entry {v:{_FORMAT_2F}}",
+        sign_lane_planner=True,
+        sign_lane_corner_entry=v,
+    ),
+    "lane-wall": lambda v: SweepConfig(
+        f"lane wall clearance {v:{_FORMAT_3F}}",
+        sign_lane_planner=True,
+        wall_clearance=v,
+    ),
     "speed": lambda v: SweepConfig(f"fast_frac {v:{_FORMAT_2F}}", fast_frac=v),
     # The one knob mechanically coupled to a hardware speed profile. It is in
     # rad/SECOND while every speed tier is a fraction of MAX_SPEED_MPS, so a
@@ -946,6 +1113,79 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, pin off", blind=True, park=False, depth_pin=False),
         SweepConfig("blind, pin on, corner guard OFF", blind=True, park=False, depth_pin=True, pin_corner_guard=False),
         SweepConfig("blind, pin on, corner guard ON (shipped)", blind=True, park=False, depth_pin=True, pin_corner_guard=True),
+    ],
+    # SIGHTED, unlike pin-guard above -- the freeze this targets was traced on
+    # go_obstacles_0049 sighted (subset64), not blind: the depth pin froze the
+    # commanded point for 46 ticks while the robot's yaw rotated 67 deg mid-
+    # corner, because PIN_CORNER_GUARD's position-only check never tripped.
+    "pin-heading-guard": [
+        SweepConfig("sighted, pin on, heading guard OFF (pre-fix)", pin_heading_guard=False),
+        SweepConfig("sighted, pin on, heading guard ON 25deg", pin_heading_guard=True, pin_heading_guard_deg=25.0),
+        SweepConfig("sighted, pin on, heading guard ON 30deg", pin_heading_guard=True, pin_heading_guard_deg=30.0),
+        SweepConfig("sighted, pin on, heading guard ON 35deg (shipped)", pin_heading_guard=True, pin_heading_guard_deg=35.0),
+        SweepConfig("sighted, pin on, heading guard ON 40deg", pin_heading_guard=True, pin_heading_guard_deg=40.0),
+        SweepConfig("sighted, pin on, heading guard ON 45deg", pin_heading_guard=True, pin_heading_guard_deg=45.0),
+    ],
+    "sign-aware-lookahead": [
+        SweepConfig("sighted, sign-aware lookahead OFF (shipped)", sign_aware_lookahead=False),
+        SweepConfig("sighted, sign-aware lookahead ON", sign_aware_lookahead=True),
+    ],
+    "stale-target-rescue": [
+        SweepConfig("sighted, stale-target rescue OFF (shipped)", stale_target_rescue=False),
+        SweepConfig("sighted, stale-target rescue ON", stale_target_rescue=True),
+    ],
+    "sign-aware-speed": [
+        SweepConfig("sighted, sign-aware speed OFF (shipped)", sign_aware_speed=False),
+        SweepConfig("sighted, sign-aware speed ON, threshold 0.02", sign_aware_speed=True, sign_deform_speed_threshold=0.02),
+        SweepConfig("sighted, sign-aware speed ON, threshold 0.05", sign_aware_speed=True, sign_deform_speed_threshold=0.05),
+        SweepConfig("sighted, sign-aware speed ON, threshold 0.10", sign_aware_speed=True, sign_deform_speed_threshold=0.10),
+    ],
+    # The lane planner moves the PATH instead of the carrot, so unlike every
+    # other sign mode here the arms differ in mechanism, not magnitude. Read
+    # the wall column as carefully as the sign one: a lane is a deliberately
+    # off-centre line through a 1.0 m corridor, which is the trade the offset
+    # sweep already lost once (raising lateral_offset to 0.33 bought sign hits
+    # back at the price of 12 new wall hits).
+    #
+    # Measured on the FULL 256 corpus, sighted, with SIGN_LANE_CORNER_ENTRY_M
+    # at its 0.50 default (the parameter that dominates everything else here
+    # -- see its docstring; without it the whole feature is worth ~2%):
+    #   OFF (baseline)     234 collisions (wall 3 sign 231)  laps>=3  22  in-time  19
+    #   lane, no override   70            (wall 5 sign  65)  laps>=3 186  in-time 128
+    #   lane + override     64            (wall 7 sign  57)  laps>=3 192  in-time  82
+    # Read the in-time column, not the collision column: the override buys 6
+    # more three-lap finishes and loses 46 inside the round limit, because its
+    # depth pin holds the commanded point abeam a sign rather than letting it
+    # advance. That answer REVERSES without corner runway, where the lane
+    # cannot reach its own line unaided and the override is what rescues it
+    # (subset64: lane alone 61/64, lane + override 55/64, baseline 56/64) --
+    # so never read these two arms without checking which runway they ran at.
+    "lane": [
+        SweepConfig("sighted, lane planner OFF (shipped)", sign_lane_planner=False),
+        SweepConfig("sighted, lane ON, override suppressed (default)", sign_lane_planner=True),
+        SweepConfig("sighted, lane ON + override", sign_lane_planner=True, sign_lane_suppress_deform=False),
+    ],
+    # The lane under the REAL competition condition: no scenario file on the
+    # mat, so signs come from camera discovery through the believed pose. The
+    # lane is rebuilt whenever the discovered layout changes
+    # (SignRouter.lane_fingerprint), so unlike sighted mode it is being
+    # replanned mid-run off estimates that move -- and, per
+    # obstacles_blind_localizer_rotational_lock, off a believed pose that can
+    # be confidently rotated. Read this against the sighted `lane` numbers:
+    # a gain that survives sighted but vanishes blind is a localizer result,
+    # not a lane result.
+    # Measured subset64: OFF 64/64 collisions, laps>=3 1, in-time 0; lane ON
+    # 59/64, laps>=3 5, in-time 3. Real but small -- and the contrast with
+    # sighted (234 -> 70 over the corpus) is the finding, not the 5. The lane
+    # is aimed through the believed pose, so a pose locked onto a rotated
+    # solution puts a correct maneuver in the wrong place. Blind is bounded by
+    # the localizer, not by the avoidance maneuver; measured, not inferred.
+    # Before corner runway existed this arm was 64/64 either way, i.e. exactly
+    # zero -- so the lane does now reach blind, it just cannot outrun a wrong
+    # pose.
+    "lane-blind": [
+        SweepConfig("blind, lane planner OFF (shipped)", blind=True, sign_lane_planner=False),
+        SweepConfig("blind, lane ON (default, override suppressed)", blind=True, sign_lane_planner=True),
     ],
     "blind-split": [
         SweepConfig("blind, pre-fix (offset 0.20, split off)", blind=True, lateral_offset=0.20, escape_mask_radius=0.0),

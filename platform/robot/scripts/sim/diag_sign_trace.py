@@ -59,10 +59,26 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--corpus", action="store_true", help="trace a corpus scenario instead of the committed 16")
     parser.add_argument(
+        "--sighted",
+        action="store_true",
+        help="hand the robot the track layout (ScenarioSimulator blind=False) instead of the default blind run",
+    )
+    parser.add_argument(
+        "--scenarios-dir",
+        default=None,
+        help="explicit fixtures dir (e.g. .corpus/obstacles/subset64), overrides --corpus",
+    )
+    parser.add_argument(
         "--buffer",
         type=float,
         default=None,
         help="override SignRouterParams.DEFORM_DEPTH_BUFFER_M (default 0.5)",
+    )
+    parser.add_argument(
+        "--pin-heading-guard-deg",
+        type=float,
+        default=None,
+        help="enable PIN_HEADING_GUARD at this threshold (default off)",
     )
     return parser.parse_args()
 
@@ -80,6 +96,9 @@ def _tuning_for(args: argparse.Namespace) -> NavigationTuning | None:
         overrides["ACTIVATION_DIST_M"] = args.activation
     if args.buffer is not None:
         overrides["DEFORM_DEPTH_BUFFER_M"] = args.buffer
+    if args.pin_heading_guard_deg is not None:
+        overrides["PIN_HEADING_GUARD"] = True
+        overrides["PIN_HEADING_GUARD_DEG"] = args.pin_heading_guard_deg
     if not overrides:
         return None
     base = NavigationTuning.load_default()
@@ -90,7 +109,7 @@ def main() -> None:
     """Trace one scenario and print the ticks near the chosen sign."""
     args = _parse_args()
 
-    fixtures = CORPUS_DIR if args.corpus else None
+    fixtures = Path(args.scenarios_dir) if args.scenarios_dir else (CORPUS_DIR if args.corpus else None)
     scenario = all_obstacles_demo_scenarios(fixtures)[args.scenario]
     signs = signs_from_metadata(scenario.metadata)
     print(f"{scenario.label}")
@@ -142,7 +161,13 @@ def main() -> None:
     sign_router_module.SignRouter.deform_waypoint = capturing_deform
     try:
         tuning = _tuning_for(args)
-        sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed, tuning=tuning)
+        sim = ScenarioSimulator(
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+            tuning=tuning,
+            blind=not args.sighted,
+        )
         gw = sim.gateway
         step = [0]
 

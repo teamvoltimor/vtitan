@@ -115,7 +115,12 @@ class WaypointController:
             corner_turn_threshold_rad=tuning.pursuit.CORNER_TURN_THRESHOLD_RAD,
         )
 
-    def select_lookahead(self, crosstrack_error: float, turn_ahead_rad: float = 0.0) -> float:
+    def select_lookahead(
+        self,
+        crosstrack_error: float,
+        turn_ahead_rad: float = 0.0,
+        sign_ahead: bool = False,
+    ) -> float:
         """Select lookahead distance from off-path distance and upcoming turn.
 
         Was gated on forward LIDAR clearance instead, despite
@@ -158,12 +163,33 @@ class WaypointController:
         without touching a gain -- which is why this is the lever rather than
         ``STEER_KP``, whose removal fixed the 2026-08-03 oscillation.
 
+        A third signal, ``sign_ahead``, exists for the same reason: a sign
+        deformation biases ``select_target_point``'s OUTPUT sideways, but
+        ``crosstrack_error`` is measured against the raw, undeformed path
+        BEFORE that bias is applied -- by design the robot is still close to
+        the raw centerline during a sign pass, so crosstrack reads near-zero
+        and never arms the short lookahead the deformation actually needs.
+        The long lookahead then hands the router a point 0.4m down-path to
+        bias, and the same quadratic-curvature relationship that makes
+        crosstrack/turn_ahead effective here makes a long lookahead
+        undershoot the lateral offset it's asked to add -- traced as a
+        consistent ~6.5cm shortfall between the commanded line and the
+        chassis at the moment it draws level with the sign (subset64,
+        go_obstacles_0009/0011/0020/0046). Unlike crosstrack and turn_ahead,
+        this is a boolean rather than a magnitude: whether a routed sign
+        exists within activation distance, not how far off the deformation
+        would move.
+
         Args:
             crosstrack_error: Perpendicular distance from the planned path (metres)
             turn_ahead_rad: Heading change the planned path makes within the
                 preview distance (see ``track_geometry.path_turn_ahead``).
                 Defaults to 0.0, i.e. "no corner known", which preserves the
                 pure crosstrack behaviour for callers that cannot supply it.
+            sign_ahead: Whether a routed (not-yet-passed) sign sits within
+                activation distance of the chassis. Defaults to ``False``,
+                preserving prior behaviour for callers that cannot supply it
+                (e.g. Open Challenge, which never has a sign router).
 
         Returns:
             Lookahead distance in meters
@@ -171,6 +197,8 @@ class WaypointController:
         if crosstrack_error > self.effective_transition:
             return self.lookahead_short
         if turn_ahead_rad > self.corner_turn_threshold_rad:
+            return self.lookahead_short
+        if sign_ahead:
             return self.lookahead_short
         return self.lookahead_long
 

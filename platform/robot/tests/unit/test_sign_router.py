@@ -742,6 +742,109 @@ class TestDepthPinCornerGuard:
         assert result_x == pytest.approx(sign_depth)
 
 
+class TestDepthPinHeadingGuard:
+    """The depth pin must also release once the ROBOT's heading has drifted
+    away from where it stood when the pin engaged, not just once its position
+    leaves the corridor -- traced on go_obstacles_0049 (subset64, sighted):
+    the pin held a commanded point frozen for 46 ticks while the robot's yaw
+    rotated 67 deg mid-corner, because PIN_CORNER_GUARD's position-only check
+    never tripped (the raw waypoint stayed squarely in its corridor the whole
+    time even though the chassis had already curved into the turn).
+    """
+
+    def _tuning_with_heading_guard(self, degrees: float) -> NavigationTuning:
+        return replace(
+            _TUNING,
+            sign_router=_TUNING.sign_router.model_copy(
+                update={"PIN_HEADING_GUARD": True, "PIN_HEADING_GUARD_DEG": degrees}
+            ),
+        )
+
+    def test_pin_releases_once_yaw_has_drifted_past_the_threshold(self, router_config):
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        robot_depth = depth_max - 0.20  # inside the buffered corner window
+        sign_depth = depth_max - 0.10  # between robot_depth and waypoint_depth
+        waypoint_depth = depth_max - 0.05
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05
+        sign = _sign_at(sign_depth, lateral_y, "red")
+        tuning = self._tuning_with_heading_guard(35.0)
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+            context=SignRouterContext(tuning),
+            yaw_drift=math.radians(40.0),
+        )
+
+        assert result_x == pytest.approx(waypoint_depth)
+
+    def test_pin_still_fires_under_the_yaw_drift_threshold(self, router_config):
+        """Regression guard for the fix itself: small heading drift must not
+        also kill legitimate pinning."""
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        robot_depth = depth_max - 0.20
+        sign_depth = depth_max - 0.10
+        waypoint_depth = depth_max - 0.05
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05
+        sign = _sign_at(sign_depth, lateral_y, "red")
+        tuning = self._tuning_with_heading_guard(35.0)
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+            context=SignRouterContext(tuning),
+            yaw_drift=math.radians(10.0),
+        )
+
+        assert result_x == pytest.approx(sign_depth)
+
+    def test_guard_off_ignores_yaw_drift(self, router_config):
+        """``PIN_HEADING_GUARD=False`` must actually reach ``_pin_depth`` --
+        a large yaw_drift must not suppress the pin unless the guard is on.
+
+        Explicitly disables the guard rather than relying on the module
+        default: ``PIN_HEADING_GUARD`` ships ``True`` (measured over the full
+        256-scenario corpus, see ``SignRouterParams``), so the default arm no
+        longer exercises the off path.
+        """
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        robot_depth = depth_max - 0.20
+        sign_depth = depth_max - 0.10
+        waypoint_depth = depth_max - 0.05
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05
+        sign = _sign_at(sign_depth, lateral_y, "red")
+        tuning = replace(
+            _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_HEADING_GUARD": False})
+        )
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+            context=SignRouterContext(tuning),
+            yaw_drift=math.radians(90.0),
+        )
+
+        assert result_x == pytest.approx(sign_depth)
+
+
 # Camera-detection confirmation (pinhole projection)
 
 # All direct _detection_to_world / _match_detection_to_sign cases below use a
