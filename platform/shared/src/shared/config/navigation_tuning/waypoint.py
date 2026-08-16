@@ -22,6 +22,36 @@ class WaypointParams(BaseModel):
             centre. Magnitude only -- which side it shifts toward is
             CENTER_BIAS_SIDE, so the two can be tuned independently and a
             side can be A/B'd without touching the distance.
+        OBSTACLES_CENTER_BIAS_M: The same shift, for the Obstacles Challenge.
+            Defaults 0.15 -- MORE inner bias than Open's 0.10, which is the
+            opposite of what the geometry argues for. Read the measurement
+            before changing it, because the geometric case is seductive and
+            wrong.
+            The geometric case: every Obstacles corridor is 1.0 m by rule and
+            signs sit only 0.10 m either side of its centre, so a centred path
+            leaves symmetric room and an inner bias spends clearance against
+            the inner block -- the chassis was measured passing within
+            0.005-0.116 m of that block while cornering, which correctly fires
+            the reactive escape mid-corner, and that reverse-and-swing recovery
+            is what reads as a U-turn on screen.
+            The measurement says otherwise. Swept on subset64 (sighted, lane
+            on) at 0.00/0.05/0.10/0.15/0.20/0.25/0.30: collisions
+            25/18/18/**16**/17/17/33, laps>=3 39/46/46/**48**/47/47/31,
+            in-time 18/31/30/**35**/33/21/12. Centred is the WORST arm tried;
+            0.30 collapses on inner-block strikes, giving a clean peak at 0.15.
+            Why: the chassis drifts OUTWARD while tracking (see
+            centre_bias_is_tracking_not_sign_2026_08_09 -- a tracking defect,
+            not a routing preference), so the DRIVEN line only lands near
+            centre when the PLANNED line is pulled inward. Centring the plan
+            puts the driven line ~0.10 m outward, i.e. onto the outer sign row
+            at 0.40, and sign collisions rose 16 -> 25 accordingly.
+            So this value is compensation, and it should be re-derived (likely
+            downward, toward the geometric answer) if the outward drift is ever
+            fixed. It is not evidence the drift is acceptable.
+            Kept as its own field rather than a challenge branch on
+            ``CENTER_BIAS_M`` so Open's value can still be tuned without
+            touching Obstacles, matching how ``CorridorDimensions``
+            already carries a separate ``OBSTACLES_WIDTH``.
         CENTER_BIAS_SIDE: Which boundary CENTER_BIAS_M shifts the path toward.
             Was fixed at OUTER and spelled into the constant's own name
             (OUTER_WALL_BIAS), which made the preference an assumption of the
@@ -71,6 +101,7 @@ class WaypointParams(BaseModel):
     # them) just quietly measured a different car. Keep in step with the TOML;
     # test_navigation_tuning.py::test_field_defaults_match_shipped_toml enforces it.
     CENTER_BIAS_M: float = Field(default=0.10, validation_alias=_alias("CENTER_BIAS_M"))
+    OBSTACLES_CENTER_BIAS_M: float = Field(default=0.15, validation_alias=_alias("OBSTACLES_CENTER_BIAS_M"))
     CENTER_BIAS_SIDE: CorridorSide = Field(
         default=CorridorSide.INNER, validation_alias=_alias("CENTER_BIAS_SIDE")
     )

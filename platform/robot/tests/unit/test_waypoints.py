@@ -301,3 +301,48 @@ class TestCorridorForPosition:
             corridor_for_position(0.3, 1.5),
         }
         assert results == {Section.SOUTH, Section.NORTH, Section.EAST, Section.WEST}
+
+
+class TestCenterBiasOverride:
+    """``center_bias_m`` must be inert unless a caller asks for it.
+
+    The Obstacles Challenge plans on its own centreline bias
+    (``OBSTACLES_CENTER_BIAS_M``), threaded through as an explicit override.
+    The Open Challenge passes ``None`` and must therefore be affected in no
+    way at all -- this pins that as a property rather than leaving it to the
+    call sites to keep getting right.
+    """
+
+    def test_none_is_identical_to_the_tuning_default(self, sample_metadata_open, tuning) -> None:
+        implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+        explicit_none = calculate_waypoints(
+            sample_metadata_open, num_laps=1, tuning=tuning, center_bias_m=None
+        )
+        assert explicit_none == implicit
+
+    def test_passing_the_tuning_value_reproduces_the_default(self, sample_metadata_open, tuning) -> None:
+        """The override path and the default path must agree on the same number.
+
+        Guards the derivation itself: if the override were applied with the
+        wrong sign or skipped ``CENTER_BIAS_SIDE``, this is where it shows,
+        rather than as a silently shifted path in one challenge only.
+        """
+        implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+        explicit = calculate_waypoints(
+            sample_metadata_open,
+            num_laps=1,
+            tuning=tuning,
+            center_bias_m=tuning.waypoints.CENTER_BIAS_M,
+        )
+        assert explicit == implicit
+
+    def test_a_different_value_actually_moves_the_path(self, sample_metadata_open, tuning) -> None:
+        """Regression guard for the override: without this the tests above pass on a no-op."""
+        implicit = calculate_waypoints(sample_metadata_open, num_laps=1, tuning=tuning)
+        shifted = calculate_waypoints(
+            sample_metadata_open,
+            num_laps=1,
+            tuning=tuning,
+            center_bias_m=tuning.waypoints.CENTER_BIAS_M + 0.05,
+        )
+        assert shifted != implicit

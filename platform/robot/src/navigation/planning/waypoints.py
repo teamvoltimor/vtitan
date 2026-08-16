@@ -119,6 +119,7 @@ def calculate_waypoints(
     num_laps: int,
     arc_radius: float | None = None,
     tuning: NavigationTuning | None = None,
+    center_bias_m: float | None = None,
 ) -> list[Waypoint]:
     """Build the full multi-lap waypoint sequence for a scenario.
 
@@ -138,6 +139,11 @@ def calculate_waypoints(
             Defaults to the tuning profile's value so a loaded profile actually
             takes effect instead of a value frozen at import time.
         tuning: Navigation tuning instance. Defaults to loaded defaults.
+        center_bias_m: Centreline shift MAGNITUDE (m), overriding
+            ``waypoints.CENTER_BIAS_M``. ``None`` keeps the tuning value, so
+            every existing caller is unchanged. The Obstacles Challenge passes
+            ``waypoints.OBSTACLES_CENTER_BIAS_M`` (0.0, centred) -- see that
+            field for why the inner bias is an Open-Challenge-only argument.
 
     Returns:
         Ordered list of world-frame Waypoints starting near the robot's
@@ -171,8 +177,14 @@ def calculate_waypoints(
         Section.EAST: corridor_widths.east,
         Section.WEST: corridor_widths.west,
     }
-    # Derive center bias from tuning (positive toward inner block)
-    center_bias_m = tuning.waypoints.CENTER_BIAS_M * (
+    # Derive center bias from tuning (positive toward inner block). An explicit
+    # magnitude overrides the tuning default so the Obstacles Challenge can
+    # plan down the middle without changing Open's value -- see
+    # WaypointParams.OBSTACLES_CENTER_BIAS_M. The SIDE still comes from tuning:
+    # only the distance differs between the challenges, and a zero magnitude
+    # makes the side moot anyway.
+    bias_magnitude = tuning.waypoints.CENTER_BIAS_M if center_bias_m is None else center_bias_m
+    center_bias_m = bias_magnitude * (
         1.0 if tuning.waypoints.CENTER_BIAS_SIDE is CorridorSide.INNER else -1.0
     )
 
@@ -254,6 +266,7 @@ def plan_believed_path(
     believed_yaw: float,
     arc_radius: float | None,
     tuning: NavigationTuning | None = None,
+    center_bias_m: float | None = None,
 ) -> list[Waypoint]:
     """Build a one-lap path for the layout the robot currently believes it is on.
 
@@ -281,6 +294,8 @@ def plan_believed_path(
         arc_radius: Ceiling on the corner arc radius (m), forwarded to
             :func:`calculate_waypoints`.
         tuning: Navigation tuning instance. Defaults to loaded defaults.
+        center_bias_m: Centreline shift magnitude (m); forwarded to
+            :func:`calculate_waypoints`. ``None`` keeps the tuning value.
 
     Returns:
         Single-lap ordered list of world-frame Waypoints.
@@ -296,7 +311,13 @@ def plan_believed_path(
         corridor_widths=new_widths,
         starting_conditions=new_starting,
     )
-    return calculate_waypoints(planning_metadata, num_laps=1, arc_radius=arc_radius, tuning=tuning)
+    return calculate_waypoints(
+        planning_metadata,
+        num_laps=1,
+        arc_radius=arc_radius,
+        tuning=tuning,
+        center_bias_m=center_bias_m,
+    )
 
 
 # Segment builders

@@ -1014,6 +1014,13 @@ class TrackNavigator(Node, ResettableNode):
             believed_yaw=starting.yaw,
             arc_radius=self._arc_radius,
             tuning=self._tuning,
+            # Obstacles carries its own centreline bias, tuned separately from
+            # Open's and measured HIGHER than the geometry argues for. See
+            # WaypointParams.OBSTACLES_CENTER_BIAS_M for the sweep and why it
+            # is compensating for the tracker's outward drift.
+            center_bias_m=(
+                None if self._is_open_challenge else self._tuning.waypoints.OBSTACLES_CENTER_BIAS_M
+            ),
         )
 
     def _update_layout_belief(self) -> bool:
