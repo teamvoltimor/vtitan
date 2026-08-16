@@ -44,7 +44,7 @@ from src.navigation.planning.sign_discovery import (
     SignSpec,
 )
 from src.navigation.planning.waypoints import corridor_for_position
-from src.navigation.utils import _dist2d
+from src.navigation.utils import _dist2d, wrap_angle
 
 if TYPE_CHECKING:
     from shared.domain.models import TrafficSignObservation
@@ -55,9 +55,11 @@ logger = logging.getLogger(__name__)
 # module routes on top of. Kept importable from here because that is where
 # every caller and test already reaches for them.
 __all__ = [
+    "Axis",
     "SignRouter",
     "SignRouterConfig",
     "SignSpec",
+    "clamp_lateral",
     "outward_lateral_axis",
     "signs_from_metadata",
 ]
@@ -132,6 +134,8 @@ class _SignRouterConstants:
     wall_clearance_margin_m: float
     deform_depth_buffer_m: float
     pin_corner_guard: bool
+    pin_heading_guard: bool
+    pin_heading_guard_rad: float
 
     @classmethod
     def from_tuning(cls, tuning: NavigationTuning) -> _SignRouterConstants:
@@ -140,6 +144,8 @@ class _SignRouterConstants:
             wall_clearance_margin_m=sr.WALL_CLEARANCE_MARGIN_M,
             deform_depth_buffer_m=sr.DEFORM_DEPTH_BUFFER_M,
             pin_corner_guard=sr.PIN_CORNER_GUARD,
+            pin_heading_guard=sr.PIN_HEADING_GUARD,
+            pin_heading_guard_rad=math.radians(sr.PIN_HEADING_GUARD_DEG),
         )
 
 
@@ -318,6 +324,11 @@ class SignRouter:
         # commanded line does not jump between two legal ones mid-pass. See
         # _prefer_committed.
         self._committed: int | None = None
+        # Robot yaw at the tick each sign was first committed to, keyed by sign
+        # index. Lets the depth pin (see _pin_depth) release on heading drift
+        # even when the position-only PIN_CORNER_GUARD still reads squarely in
+        # the corridor -- see PIN_HEADING_GUARD.
+        self._commit_yaw: dict[int, float] = {}
         # Each sign's own corridor, kept in step with _signs — deform_waypoint()
         # must never apply a sign's (x, y) through a different corridor's axis
         # convention (see _nearest_active_sign). Recomputed per sign rather than
@@ -431,6 +442,36 @@ class SignRouter:
         return fresh
 
     @property
+    def lane_specs(self) -> list[tuple[SignSpec, Section]]:
+        """Every routed sign paired with the corridor label the router uses for it.
+
+        Pairs rather than positions alone because a sign's corridor is what
+        selects the world axis its avoidance treats as lateral, and the
+        router's own label is the settled one (see ``_settled_corridor``) --
+        recomputing it in the consumer would reintroduce the corner jitter that
+        damping exists to suppress.
+
+        Passed signs are INCLUDED, unlike ``routed_sign_positions``: the lane
+        is planned geometry, so retiring a sign mid-lap would rewrite the path
+        under a chassis that is still on it. The signs come back every lap
+        anyway (``reset_for_new_lap``), so the lane is a property of the layout,
+        not of this lap's bookkeeping.
+        """
+        return list(zip(self._signs, self._sign_corridors, strict=True))
+
+    @property
+    def lane_fingerprint(self) -> tuple[tuple[float, float, str], ...]:
+        """Identity of the current sign layout, for cheap change detection.
+
+        Blind discovery both appends signs and refines existing positions every
+        tick, and rebuilding the planned path on a tick where nothing moved
+        would re-seek the waypoint index for no reason. Rounded to the
+        centimetre so sub-millimetre estimate jitter -- which cannot move a
+        waypoint visibly -- does not count as a change.
+        """
+        return tuple((round(s.x, 2), round(s.y, 2), str(s.color)) for s in self._signs)
+
+    @property
     def active_sign_count(self) -> int:
         """Number of signs not yet marked as passed (this lap)."""
         return len(self._signs) - len(self._passed)
@@ -463,6 +504,7 @@ class SignRouter:
         self._engaged.clear()
         self._lap_tick = 0
         self._committed = None
+        self._commit_yaw.clear()
 
     def deform_waypoint(
         self,
@@ -540,7 +582,10 @@ class SignRouter:
 
         # Stay with this sign until it is genuinely cleared, rather than
         # re-running the nearest-wins race from scratch next tick.
+        if self._committed != nearest_idx:
+            self._commit_yaw[nearest_idx] = robot_yaw
         self._committed = nearest_idx
+        yaw_drift = abs(wrap_angle(robot_yaw - self._commit_yaw[nearest_idx]))
         sign = self._signs[nearest_idx]
         color = sign.color
 
@@ -597,6 +642,7 @@ class SignRouter:
             effective_offset,
             robot_pos if self._config.depth_pin else None,
             self._context,
+            yaw_drift,
         )
 
         if deformed != waypoint:
@@ -752,6 +798,7 @@ def _apply_deformation(
     lateral_offset: float,
     robot_pos: tuple[float, float] | None = None,
     context: SignRouterContext | None = None,
+    yaw_drift: float | None = None,
 ) -> tuple[float, float]:
     """Compute the laterally deformed waypoint for a given sign and corridor.
 
@@ -788,6 +835,9 @@ def _apply_deformation(
         robot_pos: Current robot position (x, y); enables the depth pin.
         context: Tuning-derived constants for the wall-clearance clamp.
             Defaults to the checked-in tuning.
+        yaw_drift: Absolute heading change (rad) since the pin engaged on this
+            sign; releases the pin past ``PIN_HEADING_GUARD_DEG`` when
+            ``PIN_HEADING_GUARD`` is set. See ``_pin_depth``.
 
     Returns:
         Deformed waypoint (x, y).
@@ -801,12 +851,12 @@ def _apply_deformation(
     wx, wy = waypoint
     if axis == Axis.Y:
         return (
-            _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context),
-            _clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
+            _pin_depth(wx, sign.x, robot_pos[0] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
+            clamp_lateral(sign.y + mult * lateral_offset, corridor, context),
         )
     return (
-        _clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
-        _pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context),
+        clamp_lateral(sign.x + mult * lateral_offset, corridor, context),
+        _pin_depth(wy, sign.y, robot_pos[1] if robot_pos else None, robot_pos, corridor, context, yaw_drift),
     )
 
 
@@ -817,6 +867,7 @@ def _pin_depth(
     robot_pos: tuple[float, float] | None,
     corridor: Section,
     context: SignRouterContext | None = None,
+    yaw_drift: float | None = None,
 ) -> float:
     """Hold the commanded point abeam the sign instead of letting it recede.
 
@@ -840,6 +891,17 @@ def _pin_depth(
     That re-check rode in on an unrelated commit ten days after the 11 was
     measured and was never attributed on its own, so it carries its own toggle
     (``PIN_CORNER_GUARD``) -- both arms belong in one harness invocation.
+
+    ``PIN_CORNER_GUARD`` re-checks the robot's POSITION but not its HEADING.
+    Traced on go_obstacles_0049 (subset64, sighted): the robot entered a
+    corner turn -- yaw rotating 67 deg to 127 deg over 46 ticks -- while its
+    raw waypoint position still read squarely in the corridor the whole time,
+    so the position guard never released the pin. The commanded point stayed
+    frozen abeam a sign for 2.3 s while the chassis was actually mid-turn,
+    steering saturated chasing it, and the chassis crashed into a wall.
+    ``PIN_HEADING_GUARD`` releases the pin once the robot's heading has
+    drifted more than ``PIN_HEADING_GUARD_DEG`` from where it stood when the
+    pin first engaged on this sign, which is what the position check misses.
     """
     context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
     if robot_depth is None or robot_pos is None:
@@ -848,12 +910,18 @@ def _pin_depth(
         robot_pos[0], robot_pos[1], corridor, context
     ):
         return waypoint_depth
+    if (
+        context.constants.pin_heading_guard
+        and yaw_drift is not None
+        and yaw_drift > context.constants.pin_heading_guard_rad
+    ):
+        return waypoint_depth
     if min(robot_depth, waypoint_depth) < sign_depth < max(robot_depth, waypoint_depth):
         return sign_depth
     return waypoint_depth
 
 
-def _clamp_lateral(value: float, corridor: Section, context: SignRouterContext | None = None) -> float:
+def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | None = None) -> float:
     """Clamp a deformed lateral coordinate clear of the inner square and outer wall.
 
     SOUTH/WEST corridors border the inner square on their high side (the

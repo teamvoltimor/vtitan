@@ -12,7 +12,7 @@ import math
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions
+from shared.config.constants import CompetitionSpecs, RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.domain.enums import Direction, NavigatorPhase, RiskLevel
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
 
@@ -25,6 +25,8 @@ from src.navigation.control.controllers import (
     WaypointController,
     mask_mapped_obstacles,
 )
+from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
@@ -69,6 +71,11 @@ class CoreNavigator:
     ) -> None:
         self._gateway = gateway
         self._waypoints = list(waypoints)
+        # The path as PLANNED, before any sign-lane transform. Kept separately
+        # so each lane rebuild starts from the centreline instead of stacking
+        # onto the previous lane -- see _refresh_sign_lanes.
+        self._lane_base_waypoints = list(waypoints)
+        self._lane_fingerprint: tuple[tuple[float, float, str], ...] | None = None
         self._num_laps = num_laps
         self._tuning = get_tuning(tuning)
         self._sign_router = sign_router
@@ -239,6 +246,11 @@ class CoreNavigator:
         """
         previous_index = self._waypoint_index
         self._waypoints = list(waypoints)
+        # A replanned path is a new centreline, so the lanes have to be laid
+        # over it again -- and the fingerprint cleared, or the unchanged sign
+        # layout would read as "already applied" and leave the new path bare.
+        self._lane_base_waypoints = list(waypoints)
+        self._lane_fingerprint = None
         self._apply_path_wall_budget()
         robot_x, robot_y = robot_xy
         distances = [math.hypot(wp.x - robot_x, wp.y - robot_y) for wp in waypoints]
@@ -270,6 +282,48 @@ class CoreNavigator:
         if self._waypoint_index - previous_index > len(waypoints) // 2:
             self._suppress_next_wrap = True
 
+    def _refresh_sign_lanes(self) -> None:
+        """Rebuild the planned path onto its pass-side lanes when the sign layout changes.
+
+        No-op unless a ``SignRouter`` exists and ``SIGN_LANE_PLANNER`` is set,
+        so the Open Challenge's path is never rewritten -- it has no router at
+        all, and the early return here is what makes that structural rather
+        than a matter of the flag's value.
+
+        Lanes are always recomputed from ``_lane_base_waypoints`` (the path as
+        planned) rather than from ``_waypoints``: re-laning an already-laned
+        path would stack one offset on the next every time discovery refined a
+        sign by a centimetre.
+
+        ``_waypoint_index`` is deliberately NOT re-seeked the way
+        ``replace_path`` does. This transform is 1:1 and order-preserving --
+        waypoint *i* of the lane path is waypoint *i* of the base path moved
+        sideways by at most ``lateral_offset`` -- so the index still denotes
+        the same point on the same lap, and re-seeking could only move it.
+        """
+        router = self._sign_router
+        if router is None or not self._tuning.sign_router.SIGN_LANE_PLANNER:
+            return
+        fingerprint = router.lane_fingerprint
+        if fingerprint == self._lane_fingerprint:
+            return
+        self._lane_fingerprint = fingerprint
+
+        sr = self._tuning.sign_router
+        self._waypoints = apply_sign_lanes(
+            self._lane_base_waypoints,
+            router.lane_specs,
+            SignLaneParams(
+                lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M)
+                * sr.SIGN_LANE_OFFSET_FRAC,
+                ramp_m=sr.SIGN_LANE_RAMP_M,
+                hold_m=sr.SIGN_LANE_HOLD_M,
+                corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+            ),
+        )
+        self._apply_path_wall_budget()
+        logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
+
     def replace_sign_router(self, sign_router: SignRouter | None) -> None:
         """Swap in a sign router built for a new race.
 
@@ -284,6 +338,11 @@ class CoreNavigator:
         caller builds a fresh one from the current section/direction/tuning.
         """
         self._sign_router = sign_router
+        # Whatever lanes the previous router's layout produced belong to that
+        # race. Drop back to the planned centreline and let the next tick
+        # re-lane from the new router, if there is one.
+        self._waypoints = list(self._lane_base_waypoints)
+        self._lane_fingerprint = None
 
     def replace_park_controller(self, park_controller: ParkController | None) -> None:
         """Swap in a fresh ParkController ahead of a new race.
@@ -459,6 +518,17 @@ class CoreNavigator:
             if self._sign_router is not None:
                 self._sign_router.reset_for_new_lap()
 
+        # Re-plan the path onto its pass-side lanes if the routed sign layout
+        # has changed since the last rebuild. Sighted rounds settle this on the
+        # first tick (the layout comes from metadata and never moves); blind
+        # ones re-enter it as discovery confirms and refines signs. Deliberately
+        # at the top of the driving tick rather than inside the router: the
+        # rebuilt path has to be in place before crosstrack, the lookahead gate
+        # and the target search all read it, and the router only runs after
+        # those. Blind discovery lands one tick later as a result, which is
+        # 50 ms against a corridor-length lane transition.
+        self._refresh_sign_lanes()
+
         raw_wp = self._waypoints[self._waypoint_index]
 
         # Advance past any waypoint the robot has already gone by — not just
@@ -485,13 +555,36 @@ class CoreNavigator:
         # lap count stuck at zero. Advancing to ``len(waypoints)`` here is the
         # same state reaching the last waypoint produces, and the wrap branch
         # at the top of the next tick is what turns it into a counted lap.
+        # Obstacles-only extension: also advance past a waypoint that reads as
+        # BEHIND the chassis in its own local frame (the same ahead/behind
+        # test select_target_point uses), not just one where the next
+        # waypoint tests strictly closer. A robot cutting a corner sharply
+        # enough -- more steering authority than the polyline's spacing
+        # assumed when it was generated -- can leave BOTH the current and the
+        # next waypoint reading as farther away every tick (neither test
+        # closes), even though local-frame ahead/behind already correctly
+        # shows the chassis has swept past them. Left unrescued the index
+        # freezes, select_target_point's own forward search starts from that
+        # stale point and returns a distant "ahead" candidate the actual
+        # (chord-cutting) trajectory never converges toward, and the chassis
+        # clips the wall still chasing it -- root-caused on go_obstacles_0042
+        # under the `wideonly` (85 deg steering) hardware profile, subset64.
+        # Gated on sign_router presence (None for Open Challenge -- see
+        # STALE_TARGET_RESCUE's docstring) and its own toggle, so Open
+        # Challenge's waypoint-advance pipeline is untouched byte-for-byte.
+        rescue_behind = self._sign_router is not None and self._tuning.sign_router.STALE_TARGET_RESCUE
+        cos_yaw, sin_yaw = (math.cos(robot_yaw), math.sin(robot_yaw)) if rescue_behind else (0.0, 0.0)
         count = len(self._waypoints)
         for _ in range(count):
             next_index = self._waypoint_index + 1
             next_wp = self._waypoints[next_index % count]
-            if math.hypot(next_wp.x - robot_x, next_wp.y - robot_y) >= math.hypot(
+            next_closer = math.hypot(next_wp.x - robot_x, next_wp.y - robot_y) < math.hypot(
                 raw_wp.x - robot_x, raw_wp.y - robot_y
-            ):
+            )
+            raw_behind = rescue_behind and (
+                (raw_wp.x - robot_x) * cos_yaw + (raw_wp.y - robot_y) * sin_yaw <= 0
+            )
+            if not next_closer and not raw_behind:
                 break
             self._waypoint_index = next_index
             if next_index >= count:
@@ -577,7 +670,29 @@ class CoreNavigator:
             self._waypoint_index,
             self._tuning.pursuit.CORNER_PREVIEW_DISTANCE_M,
         )
-        lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack, turn_ahead)
+        # A third preview signal alongside crosstrack/turn_ahead: crosstrack
+        # is measured against the raw path, so it never rises during a sign
+        # pass (the deformation biases the SEARCH's output, not the path the
+        # search itself is judged against) -- see select_lookahead's
+        # docstring. routed_sign_positions is read-only (no engage/pass
+        # bookkeeping side effects, unlike _active_sign_candidates), so this
+        # is safe to query before deform_waypoint runs later this tick.
+        # Also restricted to signs actually AHEAD of the chassis along its own
+        # heading -- routed_sign_positions has no direction filter, so
+        # without this a not-yet-passed sign still alongside or just behind
+        # the chassis (common right after a corridor label flips) forces the
+        # short lookahead just as readily as a genuinely upcoming one,
+        # disturbing tracking well past the sign pass this exists to fix.
+        # Mirrors SignRouter._active_sign_candidates' own along-track check.
+        sign_ahead = False
+        if self._tuning.sign_router.SIGN_AWARE_LOOKAHEAD and self._sign_router is not None:
+            cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+            sign_ahead = any(
+                math.hypot(sx - robot_x, sy - robot_y) < self._tuning.sign_router.ACTIVATION_DIST_M
+                and (sx - robot_x) * cos_yaw + (sy - robot_y) * sin_yaw > 0
+                for sx, sy in self._sign_router.routed_sign_positions
+            )
+        lookahead_distance = self._waypoint_controller.select_lookahead(crosstrack, turn_ahead, sign_ahead)
         # Full waypoint list, not a slice from _waypoint_index -- select_target_point
         # wraps the search around the lap itself now (see its docstring); slicing here
         # would cut that wraparound off right back out again.
@@ -602,19 +717,36 @@ class CoreNavigator:
         # one). Deforming the search's own output guarantees the bias is
         # exactly what gets steered toward, at full tapered strength whenever
         # that point is close to the sign.
+        #
+        # SIGN_LANE_PLANNER does not make this redundant, and the two do not
+        # fight: the override REPLACES the target's lateral coordinate with an
+        # absolute value derived from the sign, so with a lane in place it
+        # re-commands the same line the lane already describes instead of
+        # adding a second offset to it. The lane carries the chassis onto that
+        # line over the corridor's straight; this holds it there through the
+        # pass. SIGN_LANE_SUPPRESS_DEFORM exists to measure that claim rather
+        # than assume it -- see its docstring for the numbers. The router is
+        # CALLED either way regardless: it owns engage/pass bookkeeping, the
+        # blind discovery ingest and routed_sign_positions (which the escape
+        # mask reads), none of which the lane transform replaces.
         sign_deform_magnitude: float | None = None
         active_sign_count: int | None = None
+        suppress_deform = (
+            self._tuning.sign_router.SIGN_LANE_PLANNER and self._tuning.sign_router.SIGN_LANE_SUPPRESS_DEFORM
+        )
         if self._sign_router is not None and self._current_corridor is not None:
             observations = self._gateway.get_vision_detections()
             raw_target = steer_target
-            steer_target = self._sign_router.deform_waypoint(
+            deformed = self._sign_router.deform_waypoint(
                 waypoint=steer_target,
                 robot_pos=(robot_x, robot_y),
                 robot_yaw=robot_yaw,
                 corridor=self._current_corridor,
                 observations=observations,
             )
-            sign_deform_magnitude = math.hypot(steer_target[0] - raw_target[0], steer_target[1] - raw_target[1])
+            if not suppress_deform:
+                steer_target = deformed
+            sign_deform_magnitude = math.hypot(deformed[0] - raw_target[0], deformed[1] - raw_target[1])
             active_sign_count = self._sign_router.active_sign_count
 
         # Get steering from waypoint controller
@@ -699,6 +831,24 @@ class CoreNavigator:
         # Never blast past a non-forward obstacle (e.g. a sign alongside the
         # robot) just because the path ahead is clear.
         if risk != RiskLevel.SAFE:
+            speed = min(speed, self._tuning.speed.slow_mps())
+
+        # Give the pursuit controller more time to close a sign-avoidance
+        # offset. Neither clearance nor heading-error speed reacts to one:
+        # a sign deformation biases the STEERING TARGET sideways without
+        # necessarily shrinking forward LIDAR clearance or growing heading
+        # error, so the ordinary ladders can leave the chassis at full speed
+        # while it's still asymptotically closing a lateral offset -- traced
+        # as a consistent ~6.5cm shortfall between the commanded line and the
+        # chassis at the moment it draws level with the sign (subset64,
+        # go_obstacles_0009/0011/0020/0046). Gated on the deformation the
+        # router actually applied THIS tick, not proximity to a sign, so it
+        # only fires while a correction is genuinely in flight.
+        if (
+            self._tuning.sign_router.SIGN_AWARE_SPEED
+            and sign_deform_magnitude is not None
+            and sign_deform_magnitude > self._tuning.sign_router.SIGN_DEFORM_SPEED_THRESHOLD_M
+        ):
             speed = min(speed, self._tuning.speed.slow_mps())
 
         # Snapshot everything decided so far -- both the escape-trigger branch
