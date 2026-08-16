@@ -313,6 +313,14 @@ class SweepConfig:
     than 2026-08-01 was measured against.
     """
 
+    pin_corner_guard: bool | None = None
+    """Override ``SignRouterParams.PIN_CORNER_GUARD`` (default True).
+
+    ``False`` restores the depth pin exactly as it was measured on 2026-08-01,
+    before the robot-position squareness re-check landed. Only meaningful with
+    ``depth_pin=True``.
+    """
+
     escape_mask_radius: float | None = None
     """Override ``SignRouterParams.ESCAPE_MASK_RADIUS_M`` (default 0.12 m).
 
@@ -363,6 +371,7 @@ class SweepConfig:
             ACTIVATION_DIST_M=self.activation_dist,
             PASSED_DIST_M=self.passed_dist,
             DEPTH_PIN=self.depth_pin,
+            PIN_CORNER_GUARD=self.pin_corner_guard,
             CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
             DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
             # The field is the margin BEYOND the chassis half-diagonal; the knob
@@ -914,6 +923,22 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, pin on", blind=True, park=False, depth_pin=True),
         SweepConfig("sighted, pin off", park=False, depth_pin=False),
         SweepConfig("sighted, pin on", park=False, depth_pin=True),
+    ],
+    # Item 2a: the 11 wall collisions the depth pin introduced (0 -> 11), and
+    # whether the robot-position squareness re-check in `_pin_depth` closes them.
+    # That re-check landed 2026-08-11 inside an unrelated commit, ten days after
+    # the 11 was measured, so nothing here has ever been read against it.
+    #
+    # Three arms, ONE invocation, in the same configuration the pin was
+    # attributed in (blind, park=False): pin off reproduces the 182/0-wall
+    # baseline, guard off must reproduce 11 wall / 108 sign / 137 in-time or the
+    # knob is not wired to the thing being toggled, and guard on is what ships.
+    # The guard can only cost sign collisions -- it suppresses the pin on a
+    # subset of ticks -- so read the wall AND sign columns together.
+    "pin-guard": [
+        SweepConfig("blind, pin off", blind=True, park=False, depth_pin=False),
+        SweepConfig("blind, pin on, corner guard OFF", blind=True, park=False, depth_pin=True, pin_corner_guard=False),
+        SweepConfig("blind, pin on, corner guard ON (shipped)", blind=True, park=False, depth_pin=True, pin_corner_guard=True),
     ],
     "blind-split": [
         SweepConfig("blind, pre-fix (offset 0.20, split off)", blind=True, lateral_offset=0.20, escape_mask_radius=0.0),

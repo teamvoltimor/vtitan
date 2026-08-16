@@ -24,6 +24,11 @@ class SignRouterParams(BaseModel):
             between the chassis and the lookahead point, instead of letting the
             commanded point recede a lookahead per tick. ``False`` restores the
             plain lookahead depth.
+        PIN_CORNER_GUARD: Require the ROBOT's own position to still read as
+            squarely in the corridor before the depth pin may fire, not just
+            the (0.2-0.4 m ahead) lookahead waypoint. ``False`` restores the
+            pin as first measured, which cost 11 corner-adjacent wall
+            collisions. Only meaningful with ``DEPTH_PIN``.
         PASSED_DIST_M: Distance (m) beyond which a sign is marked "passed"
             and its deformation taper reaches zero.
         DETECTION_MATCH_DIST_M: Max distance (m) to associate a camera
@@ -60,6 +65,7 @@ class SignRouterParams(BaseModel):
     ACTIVATION_DIST_M: float = Field(default=1.40, validation_alias=_alias("ACTIVATION_DIST_M"))
     PASSED_DIST_M: float = Field(default=1.60, validation_alias=_alias("PASSED_DIST_M"))
     DEPTH_PIN: bool = Field(default=True, validation_alias=_alias("DEPTH_PIN"))
+    PIN_CORNER_GUARD: bool = Field(default=True, validation_alias=_alias("PIN_CORNER_GUARD"))
     DETECTION_MATCH_DIST_M: float = Field(default=0.30, validation_alias=_alias("DETECTION_MATCH_DIST_M"))
     MIN_CONFIDENCE: float = Field(default=0.25, validation_alias=_alias("MIN_CONFIDENCE"))
     SETTLE_TICKS: int = Field(default=150, validation_alias=_alias("SETTLE_TICKS"))

@@ -13,6 +13,7 @@ Verifies:
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
@@ -29,6 +30,7 @@ from src.navigation.planning.sign_router import (
     _ROUTING_TABLE,
     SignRouter,
     SignRouterConfig,
+    SignRouterContext,
     SignSpec,
     _apply_deformation,
     _match_detection_to_sign,
@@ -703,6 +705,38 @@ class TestDepthPinCornerGuard:
             Direction.CLOCKWISE,
             SIGN_LATERAL_OFFSET,
             robot_pos=(robot_depth, lateral_y),
+        )
+
+        assert result_x == pytest.approx(sign_depth)
+
+    def test_guard_off_restores_the_pin_that_cost_11_wall_collisions(self, router_config):
+        """``PIN_CORNER_GUARD=False`` must actually reach ``_pin_depth``.
+
+        The pre-guard arm is what the 2026-08-01 attribution was measured
+        against, so a sweep that toggles this knob is only worth reading if the
+        knob moves the geometry. Same setup as the first case in this class,
+        which the guard suppresses: with the guard off the pin fires again.
+        """
+        buffer = _TUNING.sign_router.DEFORM_DEPTH_BUFFER_M
+        depth_max = TrackDimensions.CORNER_MAX + buffer
+        waypoint_depth = depth_max - 0.15
+        sign_depth = depth_max - 0.05
+        robot_depth = depth_max + 0.05  # past the buffered corner window
+        lateral_y = TrackDimensions.CORNER_MIN - 0.05
+        sign = _sign_at(sign_depth, lateral_y, "red")
+        tuning = replace(
+            _TUNING, sign_router=_TUNING.sign_router.model_copy(update={"PIN_CORNER_GUARD": False})
+        )
+
+        result_x, _ = _apply_deformation(
+            (waypoint_depth, lateral_y),
+            sign,
+            "red",
+            Section.SOUTH,
+            Direction.CLOCKWISE,
+            SIGN_LATERAL_OFFSET,
+            robot_pos=(robot_depth, lateral_y),
+            context=SignRouterContext(tuning),
         )
 
         assert result_x == pytest.approx(sign_depth)
