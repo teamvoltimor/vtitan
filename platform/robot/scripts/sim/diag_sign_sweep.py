@@ -48,6 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import NavigatorPhase
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
@@ -61,6 +62,10 @@ from src.simulation.track_model import TrackModel, obstacles_from_metadata
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from src.navigation.core_navigator import CoreNavigator
+    from src.navigation.ports import LidarScan
+    from src.simulation.kinematics import AckermannState
 
 
 class SweepMode(StrEnum):
@@ -612,6 +617,24 @@ class ScenarioOutcome:
     corner_uturns: int = 0
     """How many of ``uturns`` happened in a corner zone rather than a straight."""
 
+    escape_starts: int = 0
+    """How many times the escape machinery engaged during the run.
+
+    Counted per ENGAGEMENT, not per tick: a latched maneuver holds its phase
+    for its whole duration, so ticking would report duration, not frequency.
+    Normalise by laps driven before comparing arms -- an arm that survives
+    longer gets more escapes for free (see the corner-escape rate mistake in
+    the 2026-08-16 notes)."""
+
+    steps_since_escape: int | None = None
+    """Ticks between the last escape engagement and the run ending.
+
+    The attribution signal for the reverse arc: an escape that fires and is
+    followed within ``_ESCAPE_ATTRIBUTION_STEPS`` by a collision is evidence
+    the escape drove into something, as opposed to a collision the escape
+    never had a chance to prevent. ``None`` when no escape ever ran, which is
+    itself the answer for those scenarios."""
+
     sim_time_s: float = 0.0
     """Simulated seconds the run took.
 
@@ -683,6 +706,55 @@ class _UTurnDetector:
             if not (TrackDimensions.CORNER_MIN <= x <= TrackDimensions.CORNER_MAX)
             and not (TrackDimensions.CORNER_MIN <= y <= TrackDimensions.CORNER_MAX)
         )
+
+
+_ESCAPE_PHASES = frozenset(
+    {
+        NavigatorPhase.ESCAPE_TRIGGERED,
+        NavigatorPhase.ACTIVE_MANEUVER,
+        NavigatorPhase.STUCK_ESCAPE_MANEUVER,
+        NavigatorPhase.STUCK_ESCAPE_HOLDING,
+    },
+)
+"""Phases that mean the escape machinery, not pure pursuit, is driving."""
+
+_ESCAPE_ATTRIBUTION_STEPS = 40
+"""~2 s at 20 Hz: how recently an escape must have run for a collision to be
+attributable to it. Long enough to cover a latched maneuver plus the tick or
+two of re-acquisition after it, short enough that an escape a whole corridor
+ago does not get the blame."""
+
+
+class _EscapeTracker:
+    """When the escape machinery last engaged, so a collision can be attributed.
+
+    Reads the navigator's own phase rather than re-deriving "is it escaping"
+    from the pose stream: the phase is what the navigator actually decided,
+    and a reverse arc that drives into a wall looks, from outside, exactly
+    like ordinary bad tracking.
+    """
+
+    def __init__(self, navigator: CoreNavigator) -> None:
+        self._navigator = navigator
+        self._engaged = False
+        self.step = 0
+        self.starts = 0
+        self.last_step: int | None = None
+
+    def update(self) -> None:
+        """Fold one tick of navigator phase in."""
+        self.step += 1
+        engaged = self._navigator.debug_snapshot.phase in _ESCAPE_PHASES
+        if engaged:
+            if not self._engaged:
+                self.starts += 1
+            self.last_step = self.step
+        self._engaged = engaged
+
+    @property
+    def steps_since_escape(self) -> int | None:
+        """Ticks from the last engagement to now, or None if none ever ran."""
+        return None if self.last_step is None else self.step - self.last_step
 
 
 def _without_parking(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -836,7 +908,13 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             park=config.park,
         )
         uturns = _UTurnDetector()
-        result = sim.run(max_steps=MAX_STEPS, on_step=lambda state, _scan: uturns.update(state.x, state.y, state.yaw))
+        escapes = _EscapeTracker(sim.navigator)
+
+        def _on_step(state: AckermannState, _scan: LidarScan) -> None:
+            uturns.update(state.x, state.y, state.yaw)
+            escapes.update()
+
+        result = sim.run(max_steps=MAX_STEPS, on_step=_on_step)
     finally:
         for module, name, value in restore:
             setattr(module, name, value)
@@ -857,6 +935,8 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         steps=result.steps,
         uturns=len(uturns.events),
         corner_uturns=uturns.corner_events,
+        escape_starts=escapes.starts,
+        steps_since_escape=escapes.steps_since_escape,
         sim_time_s=result.sim_time_s,
     )
 
@@ -918,6 +998,35 @@ class SweepResult:
         """Scenarios that ran out of step budget."""
         return sum(1 for o in self.outcomes if o.timed_out)
 
+    @property
+    def escape_starts(self) -> int:
+        """Escape engagements across every scenario in this arm."""
+        return sum(o.escape_starts for o in self.outcomes)
+
+    @property
+    def escape_linked_collisions(self) -> int:
+        """Collisions that happened within ``_ESCAPE_ATTRIBUTION_STEPS`` of an escape.
+
+        Separates "the escape drove into something" from "the escape never got
+        a chance": both land in the same collision counter, and they want
+        opposite fixes -- one says make the maneuver safer, the other says
+        make it fire earlier or at all.
+        """
+        return sum(
+            1
+            for o in self.outcomes
+            if o.collided and o.steps_since_escape is not None and o.steps_since_escape <= _ESCAPE_ATTRIBUTION_STEPS
+        )
+
+    @property
+    def laps_driven(self) -> int:
+        """Total laps completed across the arm, the denominator for escape rate.
+
+        Escape totals are not comparable across arms without it: an arm that
+        survives longer earns more escapes for free.
+        """
+        return sum(o.laps for o in self.outcomes)
+
     def kind(self, name: CollisionKind) -> int:
         """Scenarios whose collision was of the given kind (wall/sign/parking)."""
         return sum(1 for o in self.outcomes if o.collision_kind == name)
@@ -933,14 +1042,22 @@ class SweepResult:
             f"laps>=3 {self.laps_ge_3:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"in-time {self.laps_ge_3_in_time:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
-            f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)"
+            f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "
+            f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
+            f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)"
         )
+
+    @property
+    def _escapes_per_lap(self) -> float:
+        """Escape engagements per lap actually driven, 0.0 when nothing drove."""
+        return self.escape_starts / self.laps_driven if self.laps_driven else 0.0
 
     def detail(self) -> str:
         """Per-scenario rows, for when an aggregate needs breaking down."""
         return "\n".join(
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
-            f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))}"
+            f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
+            f"escapes={o.escape_starts} since_escape={o.steps_since_escape}"
             for o in self.outcomes
         )
 
@@ -1462,6 +1579,16 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # cannot reach its own line unaided and the override is what rescues it
     # (subset64: lane alone 61/64, lane + override 55/64, baseline 56/64) --
     # so never read these two arms without checking which runway they ran at.
+    # One arm, the shipped blind default, run for its ATTRIBUTION rather than
+    # for a comparison: with the lane shipped on, blind's remaining failure is
+    # 230/256 sign collisions, and the open question is how many of those the
+    # escape drove into versus how many it never got a chance to prevent. Read
+    # `escapes N/lap` and `collisions within 40 ticks` from the RESULT row, and
+    # `since_escape` per scenario with --verbose. Normalise by laps driven --
+    # raw escape totals are not comparable across arms.
+    "blind-arc": [
+        SweepConfig("blind, shipped defaults (lane ON)", blind=True),
+    ],
     "lane": [
         SweepConfig("sighted, lane planner OFF (pre-2026-08-17 shipped)", sign_lane_planner=False),
         SweepConfig("sighted, lane ON, override suppressed (default)", sign_lane_planner=True),
