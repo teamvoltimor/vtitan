@@ -48,8 +48,9 @@ from scripts.common.diag_base import (
     resolve_jobs,
     run_pool,
 )
+from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
-from scripts.sim.diag_open_exhaustive import _SIDES, _all_cases, _verdict
+from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -98,7 +99,7 @@ def _run_case(
     index, widths, section_value, direction_value, cell, laps, tuning_path, overrides = payload
     section = Section(section_value)
     direction = Direction(direction_value)
-    widths_mm = dict(zip(_SIDES, widths, strict=True))
+    widths_mm = dict(zip(SIDES, widths, strict=True))
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
 
     tuning = load_tuning(tuning_path)
@@ -142,7 +143,7 @@ def main() -> None:
     base_tuning = load_tuning(args.tuning)
     _apply_overrides(base_tuning, overrides)
 
-    population = _all_cases()
+    population = case_space()
     cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
 
     jobs = resolve_jobs(args.jobs)

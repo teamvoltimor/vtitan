@@ -16,45 +16,19 @@ prints the two pass rates side by side.
 from __future__ import annotations
 
 import argparse
-import itertools
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions
-from shared.domain.enums import Direction, Section
-
-from src.simulation.scenario_builder import build_open_metadata, start_cells
+from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_SIDES = ("south", "north", "east", "west")
-_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
-_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
-
-# Cell indices of the middle band: two cells per band, ordered outer wall
-# inward, so band 1 is indices 2 and 3.
-_MIDDLE_BAND_CELLS = (2, 3)
+from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
 
 _DEFAULT_LAPS = 3
 _DEFAULT_GRACE_S = 5.0
 _DEFAULT_LIMIT = 0
-
-
-def _middle_band_cases() -> list[tuple[tuple[int, ...], Section, Direction, int]]:
-    """Every layout whose starting corridor is narrow, starting in band 1."""
-    cases = []
-    for widths in itertools.product((_NARROW_MM, _WIDE_MM), repeat=len(_SIDES)):
-        widths_m = {k: v / 1000.0 for k, v in zip(_SIDES, widths, strict=True)}
-        for section in Section:
-            if widths_m[section.value.lower()] != CorridorDimensions.NARROW:
-                continue
-            n_cells = len(start_cells(section, widths_m))
-            for direction in Direction:
-                cases.extend(
-                    (widths, section, direction, cell) for cell in _MIDDLE_BAND_CELLS if cell < n_cells
-                )
-    return cases
 
 
 def _run(meta: object, laps: int, seed: int, *, recover: bool, grace_s: float) -> object:
@@ -70,14 +44,14 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=_DEFAULT_LIMIT, help="Cap the case count (0 = all).")
     args = parser.parse_args()
 
-    cases = _middle_band_cases()
+    cases = case_space(narrow_only=True, cells=MIDDLE_BAND_CELLS)
     if args.limit:
         cases = cases[: args.limit]
     print(f"{len(cases)} casos de banda media en pasillo estrecho\n", flush=True)
 
     strict_ok = recover_ok = 0
     for i, (widths, section, direction, cell) in enumerate(cases):
-        widths_mm = dict(zip(_SIDES, widths, strict=True))
+        widths_mm = dict(zip(SIDES, widths, strict=True))
         meta = build_open_metadata(widths_mm, section, direction, scenario_id=i, start_cell=cell)
 
         strict = _run(meta, args.laps, i, recover=False, grace_s=args.grace)

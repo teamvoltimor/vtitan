@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.navigation import direction_estimator as de
+from src.navigation import direction_estimator
 from src.navigation.utils import _nearest_ray
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -47,7 +47,7 @@ class _VoteTracer:
 
     def patch(self) -> None:
         """Wrap ``infer_direction`` where the estimator resolves it."""
-        self._real = de.infer_direction
+        self._real = direction_estimator.infer_direction
         tracer = self
 
         def traced(
@@ -65,14 +65,14 @@ class _VoteTracer:
                 )
             return result
 
-        de.infer_direction = traced
+        direction_estimator.infer_direction = traced
         # DirectionEstimator.observe resolved the name at import time.
-        de.DirectionEstimator.observe.__globals__["infer_direction"] = traced
+        direction_estimator.DirectionEstimator.observe.__globals__["infer_direction"] = traced
 
     def unpatch(self) -> None:
         """Restore the real ``infer_direction``."""
-        de.infer_direction = self._real
-        de.DirectionEstimator.observe.__globals__["infer_direction"] = self._real
+        direction_estimator.infer_direction = self._real
+        direction_estimator.DirectionEstimator.observe.__globals__["infer_direction"] = self._real
 
 
 def _report(scenario: Any, max_steps: int) -> None:

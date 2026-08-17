@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import NavigatorPhase
@@ -100,15 +100,6 @@ class SweepMode(StrEnum):
     HYSTERESIS = "hysteresis"
     CROSSTRACK = "crosstrack"
 
-
-CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
-"""Pinned-seed sweep corpus, built by ``task gen:corpus CHALLENGE=obstacles``.
-
-Gitignored and regenerated rather than committed -- same generator, same seed,
-identical output. Pass ``--corpus`` to use it instead of the committed 16.
-Attributions must come from here: the 16 gave the right aggregate but two wrong
-diagnoses (see docs/sign-avoidance-investigation.md).
-"""
 
 _TARGET_LAPS = 3
 """Laps a scenario must finish to count as a driving success."""

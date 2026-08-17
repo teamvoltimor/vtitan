@@ -20,23 +20,20 @@ This runs the affected starts under both margins and reports the difference.
 from __future__ import annotations
 
 import argparse
-import itertools
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions
-from shared.domain.enums import Direction, Section
-
 from src.simulation import track_model
-from src.simulation.scenario_builder import build_open_metadata, start_cells
+from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_SIDES = ("south", "north", "east", "west")
-_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
-_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
-_MIDDLE_BAND_CELLS = (2, 3)
+from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
+
+if TYPE_CHECKING:
+    from shared.domain.enums import Direction, Section
 
 _DEFAULT_LAPS = 3
 _DEFAULT_LIMIT = 8
@@ -44,15 +41,7 @@ _DEFAULT_LIMIT = 8
 
 def _cases(limit: int) -> list[tuple[tuple[int, ...], Section, Direction, int]]:
     """Narrow-corridor middle-band starts, which is the whole failing set."""
-    out = []
-    for widths in itertools.product((_NARROW_MM, _WIDE_MM), repeat=len(_SIDES)):
-        widths_m = {k: v / 1000.0 for k, v in zip(_SIDES, widths, strict=True)}
-        for section in Section:
-            if widths_m[section.value.lower()] != CorridorDimensions.NARROW:
-                continue
-            n = len(start_cells(section, widths_m))
-            for direction in Direction:
-                out.extend((widths, section, direction, c) for c in _MIDDLE_BAND_CELLS if c < n)
+    out = case_space(narrow_only=True, cells=MIDDLE_BAND_CELLS)
     return out[:limit] if limit else out
 
 
@@ -70,7 +59,7 @@ def main() -> None:
 
     with_margin = without = 0
     for i, (widths, section, direction, cell) in enumerate(cases):
-        widths_mm = dict(zip(_SIDES, widths, strict=True))
+        widths_mm = dict(zip(SIDES, widths, strict=True))
         meta = build_open_metadata(widths_mm, section, direction, scenario_id=i, start_cell=cell)
 
         results = {}

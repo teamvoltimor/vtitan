@@ -85,13 +85,12 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
-from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from scripts.common.sign_router_capture import patched_deform_waypoint
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from src.navigation.track_geometry import project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
 
 _CHASSIS_HALF_DIAGONAL = math.hypot(RobotSpecs.LENGTH / 2, RobotSpecs.WIDTH / 2)
 _PASS_CLEARANCE = _CHASSIS_HALF_DIAGONAL + TrafficSignSpecs.WIDTH / 2
@@ -453,37 +452,38 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
     """Run one scenario and name the failure mode at the tick it ended."""
     scenario = all_obstacles_demo_scenarios(fixtures)[index]
 
-    original_deform = sign_router_module.SignRouter.deform_waypoint
     last: dict[str, Any] = {}
     history: list[Tick] = []
     live: dict[str, Any] = {}
 
-    def capturing(router: Any, waypoint: Any, robot_pos: Any, robot_yaw: float, *args: Any, **kwargs: Any) -> Any:
-        result = original_deform(router, waypoint, robot_pos, robot_yaw, *args, **kwargs)
-        last["raw"] = waypoint
-        last["deformed"] = result
-        last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
-        last["signs"] = router._signs  # noqa: SLF001
-        last["corridors"] = router._sign_corridors  # noqa: SLF001
-        last["direction"] = router._direction  # noqa: SLF001
-        last["pos"] = robot_pos
-        last["yaw"] = robot_yaw
-        last["waypoints"] = _live_waypoints(live)
-        # Per-tick history of the approach, for --approach.
-        #
-        # Along-track lead of the commanded target, in the chassis frame. Pure
-        # pursuit converts lateral error into heading change only while it has
-        # something AHEAD to aim at; a target gone abeam (lead -> 0) leaves the
-        # controller chasing sideways, which is what _pin_depth risks by holding
-        # the commanded point level with the sign.
-        dx = result[0] - robot_pos[0]
-        dy = result[1] - robot_pos[1]
-        lead = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
-        history.append(Tick(router._committed, waypoint, result, robot_pos, lead, last["waypoints"]))  # noqa: SLF001
-        return result
+    def make_capturing(original_deform: Any) -> Any:
+        def capturing(router: Any, waypoint: Any, robot_pos: Any, robot_yaw: float, *args: Any, **kwargs: Any) -> Any:
+            result = original_deform(router, waypoint, robot_pos, robot_yaw, *args, **kwargs)
+            last["raw"] = waypoint
+            last["deformed"] = result
+            last["committed"] = router._committed  # noqa: SLF001 - a probe, by design
+            last["signs"] = router._signs  # noqa: SLF001
+            last["corridors"] = router._sign_corridors  # noqa: SLF001
+            last["direction"] = router._direction  # noqa: SLF001
+            last["pos"] = robot_pos
+            last["yaw"] = robot_yaw
+            last["waypoints"] = _live_waypoints(live)
+            # Per-tick history of the approach, for --approach.
+            #
+            # Along-track lead of the commanded target, in the chassis frame. Pure
+            # pursuit converts lateral error into heading change only while it has
+            # something AHEAD to aim at; a target gone abeam (lead -> 0) leaves the
+            # controller chasing sideways, which is what _pin_depth risks by holding
+            # the commanded point level with the sign.
+            dx = result[0] - robot_pos[0]
+            dy = result[1] - robot_pos[1]
+            lead = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
+            history.append(Tick(router._committed, waypoint, result, robot_pos, lead, last["waypoints"]))  # noqa: SLF001
+            return result
 
-    sign_router_module.SignRouter.deform_waypoint = capturing  # type: ignore[method-assign]
-    try:
+        return capturing
+
+    with patched_deform_waypoint(make_capturing):
         sim = ScenarioSimulator(
             scenario.metadata,
             num_laps=scenario.laps,
@@ -493,8 +493,6 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
         )
         live["sim"] = sim
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS)
-    finally:
-        sign_router_module.SignRouter.deform_waypoint = original_deform  # type: ignore[method-assign]
 
     if not result.collided:
         return Verdict("no collision", scenario.label)

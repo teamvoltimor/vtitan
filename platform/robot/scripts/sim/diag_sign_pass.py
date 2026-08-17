@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.domain.enums import Section
 from shared.domain.models import Waypoint
 
-import src.navigation.planning.sign_router as sign_router_module
+from scripts.common.sign_router_capture import patched_deform_waypoint
 from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.common.tables import print_table
 from src.navigation.planning.sign_router import SignRouter, corridor_for_position, signs_from_metadata
@@ -45,7 +45,7 @@ from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
-    from shared.domain.models import Detection
+    from collections.abc import Callable
 
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
@@ -103,23 +103,34 @@ def _analyse(index: int) -> PassAnalysisResult:
     ]
 
     latest_target: list[Waypoint | None] = [None]
-    original_deform = sign_router_module.SignRouter.deform_waypoint
 
-    def capturing_deform(
-        router: SignRouter,
-        waypoint: Waypoint,
-        robot_pos: Waypoint,
-        robot_yaw: float,
-        corridor: Section,
-        detections: list[Detection] | None = None,
-    ) -> Waypoint:
-        """Stand-in for ``SignRouter.deform_waypoint`` that records its output."""
-        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, detections)
-        latest_target[0] = result
-        return result
+    def make_capturing_deform(original_deform: Callable) -> Callable:
+        def capturing_deform(
+            router: SignRouter,
+            waypoint: Waypoint,
+            robot_pos: Waypoint,
+            robot_yaw: float,
+            corridor: Section,
+            *args: object,
+            **kwargs: object,
+        ) -> tuple[float, float]:
+            """Stand-in for ``SignRouter.deform_waypoint`` that records its output.
 
-    sign_router_module.SignRouter.deform_waypoint = capturing_deform
-    try:
+            Passes trailing arguments straight through rather than pinning
+            ``detections`` positionally: that pinned name broke the moment
+            ``deform_waypoint`` grew an ``observations`` keyword (see
+            ``diag_sign_trace.py``'s identical wrapper for the same reason).
+            The real method returns a plain ``(x, y)`` tuple, not a
+            ``Waypoint`` -- wrap it before storing, since ``record()`` below
+            reads ``.x``/``.y`` off the captured value.
+            """
+            result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, *args, **kwargs)
+            latest_target[0] = Waypoint(*result)
+            return result
+
+        return capturing_deform
+
+    with patched_deform_waypoint(make_capturing_deform):
         sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
 
         def record(state: AckermannState, _scan: LidarScan) -> None:
@@ -144,8 +155,6 @@ def _analyse(index: int) -> PassAnalysisResult:
                 rec.commanded_lat = math.nan if target_lat is None else target_lat
 
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=record)
-    finally:
-        sign_router_module.SignRouter.deform_waypoint = original_deform
 
     return PassAnalysisResult(
         label=scenario.label,
