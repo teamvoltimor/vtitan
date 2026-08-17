@@ -44,7 +44,7 @@ from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
 from shared.domain.enums import Section
 
-from scripts.common.bag_io import Topics, decode_nav_debug, open_reader
+from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
@@ -214,8 +214,7 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("bag_dirs", nargs="+", type=Path)
+    parser = create_bags_parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--min-distinctiveness", type=float, default=_DEFAULT_MIN_DISTINCTIVENESS)
     parser.add_argument("--cost-floor", type=float, default=_DEFAULT_COST_FLOOR)
     args = parser.parse_args()
