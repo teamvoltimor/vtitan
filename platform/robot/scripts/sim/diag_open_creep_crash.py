@@ -18,7 +18,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.formats import POSITION_FORMAT as _POSITION_FORMAT
+from scripts.common.formats import POSITION_FORMAT
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -48,7 +48,7 @@ class _CreepTracer:
             self.settled_at = self.step
         nearest = min((r for r in scan.ranges_m if r > _MIN_RANGE_THRESHOLD), default=_MIN_RANGE_THRESHOLD)
         self.trace.append(
-            f"  step{self.step:>{_STEP_WIDTH}} pos=({state.x:{_POSITION_FORMAT}},{state.y:{_POSITION_FORMAT}}) yaw={state.yaw:{_YAW_FORMAT}} "
+            f"  step{self.step:>{_STEP_WIDTH}} pos=({state.x:{POSITION_FORMAT}},{state.y:{POSITION_FORMAT}}) yaw={state.yaw:{_YAW_FORMAT}} "
             f"v={state.v:{_VELOCITY_FORMAT}} steer={state.steer:{_STEER_FORMAT}} minLIDAR={nearest:{_LIDAR_FORMAT}}"
         )
 

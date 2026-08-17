@@ -85,12 +85,11 @@ from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation.track_geometry import project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-MAX_STEPS = 6000
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
 
@@ -493,7 +492,7 @@ def _classify(index: int, fixtures: Path | None, blind: bool) -> Verdict:
             park=False,
         )
         live["sim"] = sim
-        result = sim.run(max_steps=MAX_STEPS)
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS)
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform  # type: ignore[method-assign]
 

@@ -24,8 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.formats import DISTANCE_FORMAT as _DISTANCE_FORMAT
-from scripts.common.formats import TIME_FORMAT as _TIME_FORMAT
+from scripts.common.formats import DISTANCE_FORMAT, TIME_FORMAT
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -62,9 +61,9 @@ def main() -> None:
             f"{'OK ' if ok else 'FAIL'} | {scenario.label} {widths_str} "
             f"laps={result.laps_completed}/{result.target_laps} "
             f"collided={result.collided} timeout={result.timed_out} | "
-            f"dist={result.distance_m:{_DISTANCE_FORMAT}}m t={result.sim_time_s:{_TIME_FORMAT}}s "
+            f"dist={result.distance_m:{DISTANCE_FORMAT}}m t={result.sim_time_s:{TIME_FORMAT}}s "
             f"vmax={result.max_speed_mps:{_SPEED_FORMAT}} vavg={result.avg_speed_mps:{_SPEED_FORMAT}} "
-            f"minLIDAR={result.min_lidar_range_m:{_DISTANCE_FORMAT}}m contacts={result.contact_count}"
+            f"minLIDAR={result.min_lidar_range_m:{DISTANCE_FORMAT}}m contacts={result.contact_count}"
         )
 
     total = len(all_test_scenarios())
