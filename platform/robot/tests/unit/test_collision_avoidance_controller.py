@@ -98,6 +98,27 @@ class TestClearance:
         assert controller.compute_rear_clearance(ranges, ANGLES) > MIN_REAR_CLEARANCE
 
 
+class TestRearSectorVisibility:
+    """A reverse gate must be able to tell "nothing behind" from "cannot see"."""
+
+    def test_normal_scan_is_measured(self, controller):
+        assert controller.rear_sector(create_numpy_scan(), ANGLES).measured is True
+
+    def test_no_valid_rear_rays_is_not_measured(self, controller):
+        # Every ray in the rear half is a no-return -- the case a chassis whose
+        # mount occludes the last ~25 deg slot would see on every scan.
+        ranges = create_numpy_scan()
+        ranges[np.abs(ANGLES) >= math.pi / 2] = 0.0
+
+        # The clearance number cannot express this: it reads as wide-open road,
+        # which is what made the reverse guard fail open.
+        assert controller.compute_rear_clearance(ranges, ANGLES) == pytest.approx(controller.no_data_range_m)
+        assert controller.rear_sector(ranges, ANGLES).measured is False
+
+    def test_empty_scan_is_not_measured(self, controller):
+        assert controller.rear_sector(np.array([]), None).measured is False
+
+
 class TestEscapeDoesNotReverseIntoRearWall:
     def test_rear_threat_yields_no_kturn(self, controller):
         # A rear wall classifies as "back"; the escape table only reverses for

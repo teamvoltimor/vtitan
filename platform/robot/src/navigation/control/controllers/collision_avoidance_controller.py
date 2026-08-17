@@ -515,6 +515,62 @@ class CollisionAvoidanceController:
             wedge_masked=wedge_masked,
         )
 
+    def sector(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+        center_rad: float = 0.0,
+        half_fov_rad: float | None = None,
+        *,
+        filter_self_detection: bool = False,
+    ) -> SectorRanges:
+        """This controller's configured view of one angular sector.
+
+        The single place the instance's sector parameters (self-detection
+        threshold, minimum valid range, no-data sentinel, blind wedges) are
+        wired to ``_sector_to_model``. Every clearance helper below goes
+        through here, so a change to the mount geometry or the wedge angles
+        lands in one place instead of four near-identical argument lists.
+
+        Prefer this over the ``compute_*_clearance`` shorthands when the answer
+        gates an action: the returned model carries ``measured`` and
+        ``wedge_masked`` alongside the distance, and a bare distance cannot
+        tell "clear" from "blind" (see ``SectorRanges.measured``).
+        """
+        return self._sector_to_model(
+            lidar_ranges,
+            lidar_angles,
+            center_rad,
+            self.threat_half_fov_rad if half_fov_rad is None else half_fov_rad,
+            filter_self_detection=filter_self_detection,
+            self_detection_threshold_m=self.self_detection_threshold_m,
+            min_valid_range_m=self.min_valid_range_m,
+            no_data_range_m=self.no_data_range_m,
+            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
+            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
+            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
+            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
+        )
+
+    def rear_sector(
+        self,
+        lidar_ranges: np.ndarray | tuple[float, ...],
+        lidar_angles: np.ndarray | tuple[float, ...] | None = None,
+    ) -> SectorRanges:
+        """The rear +/-``threat_half_fov`` sector, self-detection filtered.
+
+        Filtered because a chassis/cable reflection directly behind the robot
+        must not permanently read as "wall right there" and block every reverse
+        escape for the rest of the run.
+
+        Callers gating a reverse want this rather than ``compute_rear_clearance``:
+        on this mount the occlusion wedges leave only a ~25 deg slot straight
+        back, and if that slot goes (a different mount, a cable, a smaller scan)
+        the distance alone still reads as open road. ``measured`` is what tells
+        them apart.
+        """
+        return self.sector(lidar_ranges, lidar_angles, math.pi, filter_self_detection=True)
+
     def compute_forward_clearance(
         self,
         lidar_ranges: np.ndarray | tuple[float, ...],
@@ -549,20 +605,8 @@ class CollisionAvoidanceController:
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return self.no_data_range_m
 
-        sr = self._sector_to_model(
-            lidar_ranges,
-            lidar_angles,
-            0.0,
-            self.front_half_fov_rad,
-            self_detection_threshold_m=self.self_detection_threshold_m,
-            min_valid_range_m=self.min_valid_range_m,
-            no_data_range_m=self.no_data_range_m,
-            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
-            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
-            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
-            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
-        )
-        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
+        sr = self.sector(lidar_ranges, lidar_angles, 0.0, self.front_half_fov_rad)
+        return sr.min_range_m if sr.measured else self.no_data_range_m
 
     def compute_rear_clearance(
         self,
@@ -571,29 +615,17 @@ class CollisionAvoidanceController:
     ) -> float:
         """Minimum clearance in the rear +/-45 deg sector (+/-pi rad = rear).
 
-        Used to gate reverse / K-turn escapes so the robot never backs into a
-        wall it cannot see. Self-detection filtered: a chassis/cable reflection
-        directly behind the robot must not permanently read as "wall right
-        there" and block every reverse escape for the rest of the run.
+        Reports ``no_data_range_m`` when the rear sector saw nothing, which
+        reads identically to open road -- a gate that acts on this number alone
+        fails open. Use ``rear_sector`` and check ``measured`` when the answer
+        authorises a reverse; this shorthand is for display and for callers
+        that only want a number.
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return self.no_data_range_m
 
-        sr = self._sector_to_model(
-            lidar_ranges,
-            lidar_angles,
-            math.pi,
-            self.threat_half_fov_rad,
-            filter_self_detection=True,
-            self_detection_threshold_m=self.self_detection_threshold_m,
-            min_valid_range_m=self.min_valid_range_m,
-            no_data_range_m=self.no_data_range_m,
-            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
-            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
-            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
-            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
-        )
-        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
+        sr = self.rear_sector(lidar_ranges, lidar_angles)
+        return sr.min_range_m if sr.measured else self.no_data_range_m
 
     def compute_min_clearance(
         self,
@@ -613,19 +645,8 @@ class CollisionAvoidanceController:
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return self.no_data_range_m
 
-        sr = self._sector_to_model(
-            lidar_ranges,
-            lidar_angles,
-            center_rad,
-            half_fov_rad,
-            min_valid_range_m=self.min_valid_range_m,
-            no_data_range_m=self.no_data_range_m,
-            blind_wedge_left_min_rad=self.blind_wedge_left_min_rad,
-            blind_wedge_left_max_rad=self.blind_wedge_left_max_rad,
-            blind_wedge_right_min_rad=self.blind_wedge_right_min_rad,
-            blind_wedge_right_max_rad=self.blind_wedge_right_max_rad,
-        )
-        return sr.min_range_m if sr.valid_count > 0 else self.no_data_range_m
+        sr = self.sector(lidar_ranges, lidar_angles, center_rad, half_fov_rad)
+        return sr.min_range_m if sr.measured else self.no_data_range_m
 
     def detect_threat_direction(
         self,
