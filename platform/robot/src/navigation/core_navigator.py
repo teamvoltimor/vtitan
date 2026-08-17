@@ -310,6 +310,7 @@ class CoreNavigator:
         self._lane_fingerprint = fingerprint
 
         sr = self._tuning.sign_router
+        previous = self._waypoints
         self._waypoints = apply_sign_lanes(
             self._lane_base_waypoints,
             router.lane_specs,
@@ -321,8 +322,45 @@ class CoreNavigator:
                 corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
             ),
         )
+        self._hold_committed_path(previous, sr.SIGN_LANE_COMMIT_AHEAD_M)
         self._apply_path_wall_budget()
         logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
+
+    def _hold_committed_path(self, previous: list[Waypoint], commit_ahead_m: float) -> None:
+        """Keep a lane rebuild from moving the path the chassis is already on.
+
+        A lane ramps onto its offset over the approach, which assumes the
+        rebuild happens before the robot reaches that stretch. Sighted runs
+        satisfy that trivially -- the layout is known at t=0 and the path is
+        built once. A discovering run does not: a sign first observed 1.5 m
+        into a corridor triggers a rebuild whose ramp lies BEHIND the chassis,
+        so the robot is instantly off a path it has no runway to rejoin.
+        Measured on subset64 blind, 10% of rebuilds moved the path away from
+        the chassis by up to 0.301 m -- essentially a whole lane offset.
+
+        So the near field is pinned to what it already was. New information
+        still bends the path, just ahead of the robot rather than underneath
+        it. The near field catches up naturally on the next lap, when the same
+        signs are already in the map and the rebuild happens far in advance.
+
+        No-op at ``commit_ahead_m`` 0.0, and no-op for a sighted run either
+        way, since nothing rebuilds after the first tick there.
+        """
+        if commit_ahead_m <= 0.0 or not previous or len(previous) != len(self._waypoints):
+            return
+        pose = self._gateway.get_current_pose()
+        if pose is None:
+            return
+        cos_yaw, sin_yaw = math.cos(pose.yaw), math.sin(pose.yaw)
+        held = list(self._waypoints)
+        for i, (old, new) in enumerate(zip(previous, self._waypoints, strict=True)):
+            if old == new:
+                continue
+            # Along-track distance in the chassis frame: negative is behind.
+            ahead = (new.x - pose.x) * cos_yaw + (new.y - pose.y) * sin_yaw
+            if ahead < commit_ahead_m:
+                held[i] = old
+        self._waypoints = held
 
     def replace_sign_router(self, sign_router: SignRouter | None) -> None:
         """Swap in a sign router built for a new race.
@@ -850,6 +888,27 @@ class CoreNavigator:
             and sign_deform_magnitude > self._tuning.sign_router.SIGN_DEFORM_SPEED_THRESHOLD_M
         ):
             speed = min(speed, self._tuning.speed.slow_mps())
+
+        # Treat a discovering run's first lap as reconnaissance. The robot
+        # cannot see a corridor's signs until it is inside that corridor (they
+        # sit within corridors, and the next one is outside a 102 deg FOV until
+        # the corner is turned), so on lap 1 avoidance is planned against
+        # information that arrives ~1.5 m out -- while on later laps the same
+        # signs are already mapped and the full runway is available. Measured
+        # on subset64: 78% of blind failures happen during lap 1, 9% in lap 2,
+        # none in lap 3. Slowing only that lap buys runway in TIME where runway
+        # in DISTANCE cannot be had.
+        #
+        # Gated on is_discovering (never a sighted run) and on no lap having
+        # been completed, so this costs nothing once the map exists.
+        explore_frac = self._tuning.sign_router.EXPLORE_LAP_SPEED_FRAC
+        if (
+            explore_frac < 1.0
+            and self._sign_router is not None
+            and self._sign_router.is_discovering
+            and self._laps_completed == 0
+        ):
+            speed = min(speed, self._tuning.speed.max_mps() * explore_frac)
 
         # Snapshot everything decided so far -- both the escape-trigger branch
         # below and the normal publish at the end of this method share it, only

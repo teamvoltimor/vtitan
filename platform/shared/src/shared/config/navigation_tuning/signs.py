@@ -90,6 +90,41 @@ class SignRouterParams(BaseModel):
             moment it draws level with a sign (subset64,
             go_obstacles_0009/0011/0020/0046). Defaults ``False``: unmeasured
             over the corpus, ships off until it is.
+        SIGN_LANE_COMMIT_AHEAD_M: Distance ahead of the chassis within which a
+            lane rebuild may NOT move the path (m). ``0.0`` disables it, which
+            is the behaviour that shipped first.
+            Only matters when the sign layout changes mid-run, i.e. blind
+            discovery. There the layout changes constantly -- measured ~260
+            rebuilds per run -- and the lane's ramp is designed to start
+            BEFORE the corridor is entered, which is impossible once the sign
+            that triggered it was only discovered 1.5 m into that corridor.
+            The rebuilt path then has its ramp behind the chassis: measured,
+            10% of rebuilds (614 of 6234) moved the path AWAY from the robot,
+            by up to 0.301 m -- about a full lane offset -- stranding it
+            off-path with no runway to rejoin.
+            Holding the near field fixed keeps a rebuild from rewriting what
+            the chassis is already committed to, so a newly discovered sign
+            bends the path ahead of the robot instead of underneath it.
+        EXPLORE_LAP_SPEED_FRAC: Speed ceiling for the FIRST lap of a
+            discovering (blind) Obstacles run, as a fraction of the normal
+            ceiling. ``1.0`` disables it. Applies only while
+            ``SignRouter.is_discovering`` and no lap has been completed, so a
+            sighted run and every later lap are untouched.
+            Measured (subset64, blind, lane on, parking off): **78% of blind
+            failures happen during lap 1**, 9% in lap 2, 0% in lap 3, and of
+            the runs that survive lap 1 more than half finish all three. Blind
+            is a reconnaissance problem, not a uniformly broken one: signs sit
+            inside corridors and the next corridor is outside a 102 deg FOV
+            until the corner is turned, so observations top out at ~2.3 m no
+            matter how discovery is tuned -- but discovered signs PERSIST
+            across laps, so laps 2-3 run against a full map.
+            Note this is not the refuted ``SIGN_AWARE_SPEED`` lever wearing a
+            different hat. That one failed in SIGHTED mode, where the shortfall
+            is curvature-limited and extra time cannot buy turning radius. A
+            blind first lap is INFORMATION-limited: a sign that only exists
+            once it is 1.5 m away gives twice the runway at half the speed.
+            Different constraint, so the same knob can legitimately behave
+            differently.
         SIGN_LANE_PLANNER: Shift the PLANNED PATH onto a pass-side lane
             through each signed corridor, instead of only overriding the
             pursuit target near the sign. Every other lever tried against the
@@ -220,6 +255,12 @@ class SignRouterParams(BaseModel):
     SIGN_AWARE_SPEED: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_SPEED"))
     STALE_TARGET_RESCUE: bool = Field(default=False, validation_alias=_alias("STALE_TARGET_RESCUE"))
     SIGN_LANE_PLANNER: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_PLANNER"))
+    SIGN_LANE_COMMIT_AHEAD_M: float = Field(
+        default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_COMMIT_AHEAD_M")
+    )
+    EXPLORE_LAP_SPEED_FRAC: float = Field(
+        default=1.0, gt=0.0, le=1.0, validation_alias=_alias("EXPLORE_LAP_SPEED_FRAC")
+    )
     SIGN_LANE_SUPPRESS_DEFORM: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_SUPPRESS_DEFORM"))
     SIGN_LANE_RAMP_M: float = Field(default=0.90, validation_alias=_alias("SIGN_LANE_RAMP_M"))
     SIGN_LANE_HOLD_M: float = Field(default=0.25, validation_alias=_alias("SIGN_LANE_HOLD_M"))
