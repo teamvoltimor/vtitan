@@ -24,21 +24,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.navigation_tuning import NavigationTuning
 
-import src.navigation.planning.sign_router as sign_router_module
-from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from scripts.common.sign_router_capture import patched_deform_waypoint
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from shared.domain.enums import Section
     from shared.domain.models import Waypoint
 
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
 
-CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
-"""Pinned-seed sweep corpus — see ``diag_sign_sweep.SweepConfig.scenarios_dir``."""
 
 _DEFAULT_RADIUS_M = 0.9
 _MAX_TRACE_ROWS = 200
@@ -120,45 +120,46 @@ def main() -> None:
     # Capture the router's input and output for the tick being traced.
     rows: list[str] = []
     last: dict[str, object] = {}
-    original_deform = sign_router_module.SignRouter.deform_waypoint
 
-    def capturing_deform(
-        router: SignRouter,
-        waypoint: Waypoint,
-        robot_pos: Waypoint,
-        robot_yaw: float,
-        corridor: Section,
-        *args: object,
-        **kwargs: object,
-    ) -> Waypoint:
-        """Stand-in for ``SignRouter.deform_waypoint`` that records its output.
+    def make_capturing_deform(original_deform: Callable) -> Callable:
+        def capturing_deform(
+            router: SignRouter,
+            waypoint: Waypoint,
+            robot_pos: Waypoint,
+            robot_yaw: float,
+            corridor: Section,
+            *args: object,
+            **kwargs: object,
+        ) -> Waypoint:
+            """Stand-in for ``SignRouter.deform_waypoint`` that records its output.
 
-        The trailing arguments are passed straight through rather than named:
-        this wrapper pinned ``detections`` positionally and broke the moment
-        ``deform_waypoint`` grew an ``observations`` keyword, which is how a
-        diagnostic goes stale without anything failing until you need it.
-        """
-        result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, *args, **kwargs)
-        last["raw"] = waypoint
-        last["deformed"] = result
-        last["corridor"] = corridor
-        committed = router._committed  # noqa: SLF001 - a probe, by design
-        last["committed"] = committed
-        # The committed sign's OWN corridor and estimated position, which is what
-        # picks the deformation's lateral axis. In blind mode both are re-derived
-        # every tick from a discovery estimate that keeps moving, so a sign near a
-        # corner boundary can change corridor — and therefore axis — tick to tick.
-        if committed is not None:
-            last["sign_corridor"] = router._sign_corridors[committed]  # noqa: SLF001
-            spec = router._signs[committed]  # noqa: SLF001
-            last["sign_pos"] = (spec.x, spec.y)
-        else:
-            last.pop("sign_corridor", None)
-            last.pop("sign_pos", None)
-        return result
+            The trailing arguments are passed straight through rather than named:
+            this wrapper pinned ``detections`` positionally and broke the moment
+            ``deform_waypoint`` grew an ``observations`` keyword, which is how a
+            diagnostic goes stale without anything failing until you need it.
+            """
+            result = original_deform(router, waypoint, robot_pos, robot_yaw, corridor, *args, **kwargs)
+            last["raw"] = waypoint
+            last["deformed"] = result
+            last["corridor"] = corridor
+            committed = router._committed  # noqa: SLF001 - a probe, by design
+            last["committed"] = committed
+            # The committed sign's OWN corridor and estimated position, which is what
+            # picks the deformation's lateral axis. In blind mode both are re-derived
+            # every tick from a discovery estimate that keeps moving, so a sign near a
+            # corner boundary can change corridor — and therefore axis — tick to tick.
+            if committed is not None:
+                last["sign_corridor"] = router._sign_corridors[committed]  # noqa: SLF001
+                spec = router._signs[committed]  # noqa: SLF001
+                last["sign_pos"] = (spec.x, spec.y)
+            else:
+                last.pop("sign_corridor", None)
+                last.pop("sign_pos", None)
+            return result
 
-    sign_router_module.SignRouter.deform_waypoint = capturing_deform
-    try:
+        return capturing_deform
+
+    with patched_deform_waypoint(make_capturing_deform):
         tuning = _tuning_for(args)
         sim = ScenarioSimulator(
             scenario.metadata,
@@ -179,8 +180,6 @@ def main() -> None:
             rows.append(_trace_row(step[0], state, gw.last_command, last, dist))
 
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=record)
-    finally:
-        sign_router_module.SignRouter.deform_waypoint = original_deform
 
     print("\n".join(rows[-args_limit(rows) :]))
     print(

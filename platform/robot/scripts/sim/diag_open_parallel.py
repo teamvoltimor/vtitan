@@ -27,8 +27,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning, resolve_jobs, run_pool
+from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
-from scripts.sim.diag_open_exhaustive import _SIDES, _all_cases, _summarise, _verdict
+from scripts.sim.diag_open_exhaustive import _summarise, _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -51,7 +52,7 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
     index, widths, section_value, direction_value, cell, laps, tuning_path = payload
     section = Section(section_value)
     direction = Direction(direction_value)
-    widths_mm = dict(zip(_SIDES, widths, strict=True))
+    widths_mm = dict(zip(SIDES, widths, strict=True))
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
     tuning = load_tuning(tuning_path)
     result = ScenarioSimulator(meta, num_laps=laps, tuning=tuning, seed=index, blind=True).run()
@@ -79,7 +80,7 @@ def main() -> None:
     # Fail on a bad --tuning here, before spending a sweep on it.
     load_tuning(args.tuning)
 
-    population = _all_cases()
+    population = case_space()
     cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
 
     jobs = resolve_jobs(args.jobs)

@@ -25,7 +25,6 @@ Usage (from ``platform/robot``, with PYTHONPATH=".;../shared/src")::
 from __future__ import annotations
 
 import argparse
-import itertools
 import sys
 from collections import Counter
 from pathlib import Path
@@ -33,31 +32,14 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions
-from shared.domain.enums import Direction, Section
-
 from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning
-from src.simulation.scenario_builder import build_open_metadata, start_cells
+from scripts.common.open_cases import SIDES, case_space
+from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-_SIDES = ("south", "north", "east", "west")
-_WIDTHS_MM = (int(CorridorDimensions.NARROW * 1000), int(CorridorDimensions.WIDE * 1000))
 
 _DEFAULT_LAPS = 3
 _DEFAULT_SAMPLE_SIZE = 128
 _DEFAULT_SEED = 0
-
-
-def _all_cases() -> list[tuple[tuple[int, ...], Section, Direction, int]]:
-    """Every (layout, section, direction, start cell) the track can present."""
-    cases = []
-    for widths in itertools.product(_WIDTHS_MM, repeat=len(_SIDES)):
-        widths_m = {k: v / 1000.0 for k, v in zip(_SIDES, widths, strict=True)}
-        for section in Section:
-            n_cells = len(start_cells(section, widths_m))
-            for direction in Direction:
-                cases.extend((widths, section, direction, cell) for cell in range(n_cells))
-    return cases
 
 
 def _verdict(result: Any) -> str:
@@ -88,7 +70,7 @@ def main() -> None:
     args = parser.parse_args()
 
     tuning = load_tuning(args.tuning)
-    population = _all_cases()
+    population = case_space()
     cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
 
     print(f"{len(cases)} de {len(population)} escenarios ({len(cases) / len(population):.1%}), seed={args.seed}\n", flush=True)
@@ -103,7 +85,7 @@ def main() -> None:
     failures: list[str] = []
 
     for i, (widths, section, direction, cell) in enumerate(cases):
-        widths_mm = dict(zip(_SIDES, widths, strict=True))
+        widths_mm = dict(zip(SIDES, widths, strict=True))
         meta = build_open_metadata(widths_mm, section, direction, scenario_id=i, start_cell=cell)
         # Seed by case index so a rerun of the same sample behaves identically.
         result = ScenarioSimulator(meta, num_laps=args.laps, tuning=tuning, seed=i, blind=True).run()

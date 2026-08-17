@@ -51,20 +51,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Section
 
-from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.sim.diag_sign_sweep import SweepConfig
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
-"""Pinned-seed sweep corpus, built by ``task gen:corpus CHALLENGE=obstacles``.
-
-Gitignored and regenerated rather than committed -- same generator, same seed,
-identical output. Pass ``--corpus`` to use it instead of the committed 16.
-Attributions must come from here: the 16 gave the right aggregate but two wrong
-diagnoses (see docs/sign-avoidance-investigation.md).
-"""
 
 _APPROACH_TICKS = 60
 """Ticks before the collision to treat as "the fatal approach" (~3 s at 20 Hz)."""
