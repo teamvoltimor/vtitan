@@ -409,6 +409,18 @@ class SweepConfig:
     clearance arithmetic. Only meaningful with ``sign_lane_planner=True``.
     """
 
+    retrace_escape: bool | None = None
+    """Override ``SignRouterParams.RETRACE_ESCAPE`` (default False).
+
+    Reverse along ground the chassis just occupied instead of along an arc.
+    Aimed at keeping mask-off's sign gain (57 -> 41) without its wall cost
+    (0 -> 13), and at removing the reverse guard's dependence on a rear sector
+    the next chassis may not have.
+    """
+
+    retrace_dist: float | None = None
+    """Override ``SignRouterParams.RETRACE_DIST_M`` (default 0.25 m)."""
+
     sign_contact_evade: bool | None = None
     """Override ``SignRouterParams.SIGN_CONTACT_EVADE`` (default False).
 
@@ -548,6 +560,8 @@ class SweepConfig:
             SIGN_LANE_PLANNER=self.sign_lane_planner,
             EXPLORE_LAP_SPEED_FRAC=self.explore_lap_speed_frac,
             SIGN_LANE_COMMIT_AHEAD_M=self.sign_lane_commit_ahead,
+            RETRACE_ESCAPE=self.retrace_escape,
+            RETRACE_DIST_M=self.retrace_dist,
             SIGN_CONTACT_EVADE=self.sign_contact_evade,
             SIGN_CONTACT_STEER=self.sign_contact_steer,
             SIGN_LANE_RAMP_M=self.sign_lane_ramp,
@@ -1073,6 +1087,18 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # aims to keep mask-off's sign gain (57 -> 41) WITHOUT its wall cost
     # (0 -> 13), so a result that just moves collisions between the two
     # columns has not achieved anything.
+    # How far back a retrace runs before the robot drives forward again. Too
+    # short and it has not cleared the sign it backed away from; too long and
+    # it is spending clock and re-approaching from further out. Run with the
+    # mask off, i.e. the configuration retracing exists to make safe.
+    "blind-retrace-dist": lambda v: SweepConfig(
+        f"blind, retrace dist {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        escape_mask_radius=0.0,
+        retrace_escape=True,
+        retrace_dist=v,
+    ),
     "blind-evade": lambda v: SweepConfig(
         f"blind, evade steer {v:{_FORMAT_2F}}",
         blind=True,
@@ -1437,7 +1463,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # (subset64: lane alone 61/64, lane + override 55/64, baseline 56/64) --
     # so never read these two arms without checking which runway they ran at.
     "lane": [
-        SweepConfig("sighted, lane planner OFF (shipped)", sign_lane_planner=False),
+        SweepConfig("sighted, lane planner OFF (pre-2026-08-17 shipped)", sign_lane_planner=False),
         SweepConfig("sighted, lane ON, override suppressed (default)", sign_lane_planner=True),
         SweepConfig("sighted, lane ON + override", sign_lane_planner=True, sign_lane_suppress_deform=False),
     ],
@@ -1464,8 +1490,24 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # only a time tax. Blind has no such runway -- a sign discovered 1.5 m into
     # a corridor cannot be planned around, only reacted to -- so the sighted
     # answer should not be assumed to carry over.
+    # The point of the exercise: mask OFF so the escape may fire on a sign
+    # (the only measured blind gain, sign 57 -> 41), with the reverse RETRACED
+    # rather than swung, to avoid the 13 wall collisions that gain cost. Read
+    # the WALL column against the middle arm, not against the shipped default
+    # -- the comparison that matters is "same sign gain, less wall damage".
+    "blind-retrace": [
+        SweepConfig("blind, mask ON (shipped)", blind=True, sign_lane_planner=True),
+        SweepConfig("blind, mask OFF, arc reverse", blind=True, sign_lane_planner=True, escape_mask_radius=0.0),
+        SweepConfig(
+            "blind, mask OFF, retrace reverse",
+            blind=True,
+            sign_lane_planner=True,
+            escape_mask_radius=0.0,
+            retrace_escape=True,
+        ),
+    ],
     "lane-blind": [
-        SweepConfig("blind, lane planner OFF (shipped)", blind=True, sign_lane_planner=False),
+        SweepConfig("blind, lane planner OFF (pre-2026-08-17 shipped)", blind=True, sign_lane_planner=False),
         SweepConfig("blind, lane ON, override suppressed", blind=True, sign_lane_planner=True),
         SweepConfig(
             "blind, lane ON + override",

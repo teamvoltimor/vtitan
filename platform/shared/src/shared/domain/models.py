@@ -174,6 +174,24 @@ class SectorRanges:
     clear" for callers that care (e.g. telemetry); the numeric fields still
     fall back to the same no-data sentinel either way."""
 
+    @property
+    def measured(self) -> bool:
+        """Whether anything in this sector was actually measured.
+
+        The numeric fields cannot answer this. ``min_range_m`` /``mean_range_m``
+        /``max_range_m`` all fall back to the no-data sentinel (a large range),
+        so a sector nothing returned from is indistinguishable by distance
+        alone from wide-open road. Any gate that reads a range as permission --
+        reverse, accelerate, commit to a maneuver -- has to check this first, or
+        it grants that permission exactly when the robot is blind.
+
+        Lives on the model rather than as a per-bearing helper so it stays
+        correct when the sector angles, FOVs, or blind wedges change: whatever
+        the geometry becomes, the sector still reports whether it saw anything.
+        ``wedge_masked`` says *why* it saw nothing when it did not.
+        """
+        return self.valid_count > 0
+
 
 @dataclass(slots=True, frozen=True)
 class PathPlannability:

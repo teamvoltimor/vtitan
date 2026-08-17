@@ -90,6 +90,50 @@ class SignRouterParams(BaseModel):
             moment it draws level with a sign (subset64,
             go_obstacles_0009/0011/0020/0046). Defaults ``False``: unmeasured
             over the corpus, ships off until it is.
+        RETRACE_ESCAPE: Make a reversing escape follow the ground the chassis
+            just occupied, instead of backing along an arc into space it has
+            never been. Obstacles-only by construction (gated on
+            ``sign_router`` presence, ``None`` for Open), like
+            ``STALE_TARGET_RESCUE``.
+            Two independent reasons, one measured and one structural:
+            - The arc is what produces wall strikes. Blind with the escape
+              mask off, sign collisions fall 57 -> 41 but wall collisions rise
+              0 -> 13, in a corridor 1.0 m wide. Letting the escape fire on a
+              sign is the only change that has moved blind sign collisions;
+              the arc is the part that costs.
+            - It removes the dependence on rear sensing. The rear sector is
+              already mostly masked by mount occlusion (-160..-115 and
+              115..175 deg), leaving a ~25 deg slot straight back. If that
+              slot is absent on a future chassis, the sector has no valid rays
+              and ``compute_rear_clearance`` reports the same 10 m it reports
+              for open road. The reverse guard now refuses on that case
+              (``SectorRanges.measured``) rather than reading it as clear,
+              but refusing is still a stop, not a way through.
+              Retraced ground is known free because the chassis was standing
+              on it, so no rear sensor is consulted at all.
+            **MEASURED AND REJECTED as a replacement for the arc. Ships
+            False.** Blind, subset64, lane on, mask off:
+            arc reverse 54 collisions (wall 13, sign 41, laps>=1 24);
+            retrace 60 (wall **7**, sign 53, laps>=1 10). Retracing does
+            halve the wall strikes -- the safety half of the idea works -- but
+            it gives back most of the sign gain, and the reason is structural:
+            backing straight out does not REPOSITION the chassis, so the
+            forward re-approach repeats the line that just failed. The arc's
+            lateral displacement was doing real work, not just causing damage.
+            Not a tuning gap: retrace distance 0.12/0.25/0.40/0.60 measures
+            61/60/59/60.
+            What this does establish is that the two halves are separable --
+            the repositioning has to happen, but it does not have to happen
+            while reversing blind. The next shape to try is a reverse ARC
+            validated against the KNOWN track geometry rather than against
+            rear LIDAR: the track is 3x3 m with 1.0 m corridors and a fixed
+            inner block, all of it known before the robot is placed, so a
+            swept-path check needs no rear sensing either.
+        RETRACE_DIST_M: How far back along the trail to aim while retracing (m).
+            Only meaningful with ``RETRACE_ESCAPE``.
+        RETRACE_STEER_GAIN: Proportional gain on the retrace's lateral error.
+            Reverse pure pursuit, so the sign is inverted relative to the
+            forward case. Only meaningful with ``RETRACE_ESCAPE``.
         SIGN_CONTACT_EVADE: React to an imminent SIGN contact by steering away
             and creeping, instead of either ignoring it or reversing.
             Fills a gap between the two responses that exist today. A LIDAR
@@ -180,8 +224,21 @@ class SignRouterParams(BaseModel):
             in the last ``ACTIVATION_DIST_M``. Obstacles-only by construction:
             the transform is driven by the routed sign list, and Open
             Challenge has no ``SignRouter``, so its path is returned
-            unmodified. See ``navigation.planning.sign_lane``. Defaults
-            ``False``: unmeasured over the corpus, ships off until it is.
+            unmodified. See ``navigation.planning.sign_lane``.
+            **Defaults ``True``, validated on the full 256 corpus
+            2026-08-17**, both modes measured against an OFF arm in the same
+            run rather than a remembered baseline:
+            sighted 242 -> 62 collisions (sign 231 -> 55), laps>=3 14 -> 194,
+            in-time 13 -> 139;
+            blind 248 -> 231 collisions (wall 6 -> 1), laps>=3 8 -> 27,
+            in-time 4 -> 13.
+            Blind gains far less because the lane's whole advantage is approach
+            runway and lap 1 has none -- 78% of blind failures are lap 1, where
+            a corridor's signs stay invisible until the robot is inside it
+            (detection is FOV-capped at ~2.3 m by geometry). Its timeouts rise
+            4 -> 10, which is survival, not a new failure: laps>=1 rises
+            22 -> 39 in the same arm, so runs that used to crash out early now
+            last long enough to run out of clock.
         SIGN_LANE_RAMP_M: Along-corridor distance (m) over which the lane
             transitions on and off the corridor centreline. Ramp endpoints are
             clamped into the corridor's straight span (see
@@ -297,7 +354,12 @@ class SignRouterParams(BaseModel):
     SIGN_AWARE_LOOKAHEAD: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_LOOKAHEAD"))
     SIGN_AWARE_SPEED: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_SPEED"))
     STALE_TARGET_RESCUE: bool = Field(default=False, validation_alias=_alias("STALE_TARGET_RESCUE"))
-    SIGN_LANE_PLANNER: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_PLANNER"))
+    SIGN_LANE_PLANNER: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_PLANNER"))
+    RETRACE_ESCAPE: bool = Field(default=False, validation_alias=_alias("RETRACE_ESCAPE"))
+    RETRACE_DIST_M: float = Field(default=0.25, gt=0.0, validation_alias=_alias("RETRACE_DIST_M"))
+    RETRACE_STEER_GAIN: float = Field(
+        default=1.0, ge=0.0, validation_alias=_alias("RETRACE_STEER_GAIN")
+    )
     SIGN_CONTACT_EVADE: bool = Field(default=False, validation_alias=_alias("SIGN_CONTACT_EVADE"))
     SIGN_CONTACT_DIST_M: float = Field(
         default=0.60, gt=0.0, validation_alias=_alias("SIGN_CONTACT_DIST_M")

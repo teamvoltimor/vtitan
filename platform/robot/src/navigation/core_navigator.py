@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -42,6 +43,17 @@ if TYPE_CHECKING:
     from src.navigation.race_tracker import LapDetector
 
 logger = logging.getLogger(__name__)
+
+
+_POSE_TRAIL_MIN_STEP_M = 0.01
+"""Spacing between recorded breadcrumbs. At 0.156 m/s and 20 Hz the chassis
+advances ~0.008 m per tick, so this thins a stationary or creeping robot's
+trail (which would otherwise fill the buffer with one position) without
+dropping resolution on a moving one."""
+
+_POSE_TRAIL_LEN = 128
+"""Breadcrumbs kept: ~1.3 m of travel at the spacing above, comfortably more
+than any retrace distance worth driving."""
 
 
 def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
@@ -117,6 +129,11 @@ class CoreNavigator:
         # attempt actually uses is derived in _escape_steer_sign_for_attempt.
         self._escape_steer_sign = 1.0
         self._escape_sequence_start_xy: tuple[float, float] | None = None
+        # Where the chassis has physically been, newest last. The basis for a
+        # retrace-reverse: ground the robot occupied a moment ago is known
+        # free without any rear-facing sensor. See _retrace_steer.
+        self._pose_trail: deque[tuple[float, float, float]] = deque(maxlen=_POSE_TRAIL_LEN)
+        self._retracing = False
 
         # Controllers
         self._waypoint_controller = WaypointController(
@@ -537,6 +554,15 @@ class CoreNavigator:
         robot_yaw = pose.yaw
 
         self._current_corridor = corridor_for_position(robot_x, robot_y)
+
+        # Breadcrumbs for a retrace-reverse. Recorded on every tick including
+        # mid-maneuver, so the trail is a true record of where the chassis has
+        # physically been -- which is the entire basis for reversing along it
+        # without rear sensing. See _retrace_steer.
+        if not self._pose_trail or math.hypot(
+            robot_x - self._pose_trail[-1][0], robot_y - self._pose_trail[-1][1]
+        ) >= _POSE_TRAIL_MIN_STEP_M:
+            self._pose_trail.append((robot_x, robot_y, robot_yaw))
 
         # Continue an in-progress escape maneuver until its latched duration
         # elapses, so escapes are real motions rather than single-tick pulses that
@@ -1013,6 +1039,17 @@ class CoreNavigator:
             )
             # Rear clearance is checked against the RAW scan: a sign behind the
             # robot is still something to not reverse into, whoever owns it.
+            # Retrace instead of swinging, when asked and when there is enough
+            # trail to aim at. Obstacles-only by construction: gated on
+            # sign_router presence, which is None for Open Challenge, so its
+            # escape behaviour is untouched regardless of the flag.
+            self._retracing = bool(
+                maneuver is not None
+                and maneuver.speed < 0
+                and self._tuning.sign_router.RETRACE_ESCAPE
+                and self._sign_router is not None
+                and self._retrace_steer(robot_x, robot_y, robot_yaw) is not None
+            )
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
                 # Blocked at both ends: fall through to the capped creep-speed
                 # publish below rather than backing into an unseen wall. The
@@ -1051,12 +1088,84 @@ class CoreNavigator:
         debug.escape_count = self._escape_count
         self._debug = debug
 
+    def _retrace_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
+        """Steering that reverses the chassis back along ground it just occupied.
+
+        A generic reverse escape backs along an ARC into space the robot has
+        never been and, on this chassis, largely cannot see: the rear sector is
+        already masked from -160..-115 deg and +115..+175 deg by mount
+        occlusion, leaving a ~25 deg slot straight back as the only rear vision
+        there is. Two consequences, and both argue for retracing instead:
+
+        * That slot may not exist on the next chassis at all. If it goes, the
+          rear sector has no valid rays and ``compute_rear_clearance`` reports
+          the same ``NO_DATA_RANGE_M`` (10 m) it reports for open road;
+          ``_reversing_into_unseen_wall`` now refuses that case outright, so
+          the gate fails closed -- but a refused reverse is a robot that isn't
+          escaping, not a robot that escaped safely.
+        * The arc is what produces the wall strikes. Measured blind with the
+          escape mask off, sign collisions fall 57 -> 41 but wall collisions
+          rise 0 -> 13, in a corridor only 1.0 m wide.
+
+        Retracing needs no rear sensor by construction: the chassis was
+        physically standing on this ground seconds ago, so it is free unless
+        something moved into it, and nothing on this track does. It also cannot
+        swing into a wall, because it follows a path already driven rather than
+        an arc into the unknown.
+
+        Reverse pure pursuit: curvature is the NEGATIVE of the forward case,
+        since the vehicle rotates the other way for a given steer angle when
+        travelling backwards. Returns ``None`` when the trail is too short to
+        aim at, leaving the caller on its ordinary reverse.
+        """
+        target = self._trail_point_behind(robot_x, robot_y)
+        if target is None:
+            return None
+        cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+        dx, dy = target[0] - robot_x, target[1] - robot_y
+        along = dx * cos_yaw + dy * sin_yaw
+        lateral = -dx * sin_yaw + dy * cos_yaw
+        distance = math.hypot(dx, dy)
+        if distance < _POSE_TRAIL_MIN_STEP_M or along > 0.0:
+            # Target is not actually behind the chassis -- nothing to retrace.
+            return None
+        steer = -self._tuning.sign_router.RETRACE_STEER_GAIN * lateral / distance
+        return max(-1.0, min(1.0, steer))
+
+    def _trail_point_behind(self, robot_x: float, robot_y: float) -> tuple[float, float, float] | None:
+        """The breadcrumb roughly ``RETRACE_DIST_M`` back along the trail."""
+        want = self._tuning.sign_router.RETRACE_DIST_M
+        travelled = 0.0
+        previous = (robot_x, robot_y)
+        for point in reversed(self._pose_trail):
+            travelled += math.hypot(point[0] - previous[0], point[1] - previous[1])
+            previous = (point[0], point[1])
+            if travelled >= want:
+                return point
+        return None
+
     def _reversing_into_unseen_wall(self, maneuver: EscapeManeuver, scan: LidarScan) -> bool:
-        """True if executing ``maneuver`` would back into a wall behind the robot."""
-        if maneuver.speed >= 0:
+        """True if executing ``maneuver`` would back into a wall behind the robot.
+
+        Skipped while retracing: that maneuver reverses along ground the
+        chassis just occupied, so it is known free without consulting a rear
+        sector this hardware barely covers (and may not cover at all on the
+        next chassis -- see ``_retrace_steer``).
+
+        A rear sector with no valid rays counts as blocked, not clear. Reading
+        the clearance alone fails open there, because ``compute_rear_clearance``
+        reports the same 10 m for "nothing behind me" and "I cannot see behind
+        me" -- the gate would wave the reverse through exactly when it is
+        blindest. Refusing costs little: the caller falls through to a capped
+        forward creep, with the stuck detector as the backstop.
+        """
+        if maneuver.speed >= 0 or self._retracing:
             return False
-        rear_clear = self._collision_controller.compute_rear_clearance(scan.ranges_m, scan.angles_rad)
-        return rear_clear < self._tuning.clearance.CONTACT_DIST
+        rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
+        if not rear.measured:
+            logger.warning("Reverse escape refused: rear sector measured nothing")
+            return True
+        return rear.min_range_m < self._tuning.clearance.CONTACT_DIST
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -1081,6 +1190,18 @@ class CoreNavigator:
         self._maneuver_frames_left -= 1
         if self._maneuver_frames_left <= 0:
             self._active_maneuver = None
+            self._retracing = False
+        # A retrace is re-aimed every tick, unlike a latched arc: the whole
+        # point is to follow a path, and a single steering value fixed at
+        # trigger time would describe an arc again after the first few
+        # centimetres. Falls back to the latched steering the moment the trail
+        # runs out, so this can only ever be as bad as the ordinary reverse.
+        steering = maneuver.steering
+        if self._retracing:
+            retrace = self._retrace_steer(robot_x, robot_y, robot_yaw)
+            if retrace is not None:
+                steering = retrace
+        maneuver = replace(maneuver, steering=steering)
         self._gateway.publish_drive(DriveCommand(speed_mps=maneuver.speed, steering_norm=maneuver.steering))
         debug = self._base_debug(robot_x, robot_y, robot_yaw)
         debug.phase = phase
@@ -1282,20 +1403,32 @@ class CoreNavigator:
         # assume clear rather than blocked.
         rear_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
         forward_clear = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        rear_blind = False
         scan = self._gateway.get_lidar_scan()
         if scan:
-            rear_clear = self._collision_controller.compute_rear_clearance(
-                scan.ranges_m,
-                scan.angles_rad,
-            )
+            # A rear sector that measured nothing reports the same 10 m as a
+            # genuinely empty one, so the distance alone cannot tell them
+            # apart. Tracked separately rather than folded into rear_clear so
+            # the two stay distinguishable below (and in the log line).
+            rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
+            rear_blind = not rear.measured
+            rear_clear = rear.min_range_m
             forward_clear = self._collision_controller.compute_forward_clearance(
                 scan.ranges_m,
                 scan.angles_rad,
             )
-        if rear_clear < self._tuning.clearance.CONTACT_DIST:
+        # Blind behind is a reason to prefer forward, but only when forward is
+        # actually open. Treating it as flatly "blocked" would leave a chassis
+        # with no rear vision at all frozen in every corner where both ends
+        # read blocked; there, an unseen reverse is still the better of two
+        # bad options and is what the fall-through below commands.
+        if rear_clear < self._tuning.clearance.CONTACT_DIST or (
+            rear_blind and forward_clear >= self._tuning.clearance.CONTACT_DIST
+        ):
             if forward_clear >= self._tuning.clearance.CONTACT_DIST:
                 logger.warning(
-                    "Stuck escape: rear blocked (%.2f m), forward clear (%.2f m) - forcing forward escape",
+                    "Stuck escape: rear %s (%.2f m), forward clear (%.2f m) - forcing forward escape",
+                    "unseen" if rear_blind else "blocked",
                     rear_clear,
                     forward_clear,
                 )
