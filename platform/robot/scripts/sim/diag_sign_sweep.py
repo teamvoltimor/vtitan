@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import NavigatorPhase
@@ -99,8 +100,6 @@ class SweepMode(StrEnum):
     HYSTERESIS = "hysteresis"
     CROSSTRACK = "crosstrack"
 
-MAX_STEPS = 6000
-"""Matches ``tests/unit/test_obstacles_challenge_sim.py``."""
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
 """Pinned-seed sweep corpus, built by ``task gen:corpus CHALLENGE=obstacles``.
@@ -640,7 +639,7 @@ class ScenarioOutcome:
 
     Needed because ``laps >= 3`` is not the same as passing: the official round
     limit is ``CompetitionSpecs.ROUND_TIME_LIMIT_S`` (180 s) while this
-    harness's own budget is ``MAX_STEPS * CONTROL_DT`` = 300 s, so a run could
+    harness's own budget is ``OBSTACLES_MAX_STEPS * CONTROL_DT`` = 300 s, so a run could
     take 250 s, be counted a three-lap success here, and be stopped by the
     judges. The gap only became reachable once the kinematics started clamping
     to the measured 0.156 m/s drivetrain: a clean three-lap run now takes
@@ -914,7 +913,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
             uturns.update(state.x, state.y, state.yaw)
             escapes.update()
 
-        result = sim.run(max_steps=MAX_STEPS, on_step=_on_step)
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
     finally:
         for module, name, value in restore:
             setattr(module, name, value)
@@ -1107,7 +1106,7 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     def record(state: Any, _scan: Any) -> None:
         errors.append(cross_track_error(path, state.x, state.y))
 
-    sim.run(max_steps=MAX_STEPS, on_step=record)
+    sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=record)
     return errors
 
 

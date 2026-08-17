@@ -51,12 +51,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Section
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.sim.diag_sign_sweep import SweepConfig
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-MAX_STEPS = 6000
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
 """Pinned-seed sweep corpus, built by ``task gen:corpus CHALLENGE=obstacles``.
@@ -135,7 +134,7 @@ def probe(
             ticks.append({**pending, "xy": (state.x, state.y), "winner": chosen})
             pending.clear()
 
-    result = sim.run(max_steps=MAX_STEPS, on_step=on_step)
+    result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=on_step)
 
     approach = [t for t in ticks if t["in_play"]][-_APPROACH_TICKS:]
     winners = [t["winner"] for t in approach]

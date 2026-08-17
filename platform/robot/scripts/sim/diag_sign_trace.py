@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.navigation_tuning import NavigationTuning
 
 import src.navigation.planning.sign_router as sign_router_module
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation.planning.sign_router import SignRouter, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -35,8 +36,6 @@ if TYPE_CHECKING:
 
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
-
-MAX_STEPS = 6000
 
 CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "scenarios"
 """Pinned-seed sweep corpus — see ``diag_sign_sweep.SweepConfig.scenarios_dir``."""
@@ -179,7 +178,7 @@ def main() -> None:
             dist = "" if focus is None else math.hypot(focus.x - state.x, focus.y - state.y)
             rows.append(_trace_row(step[0], state, gw.last_command, last, dist))
 
-        result = sim.run(max_steps=MAX_STEPS, on_step=record)
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=record)
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform
 

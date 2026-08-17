@@ -24,11 +24,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import Section
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation.planning.sign_router import corridor_for_position, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-MAX_STEPS = 6000
 _DEFAULT_WORKERS = 8
 
 
@@ -55,7 +55,7 @@ class HitReport:
 def _analyse(index: int) -> HitReport:
     scenario = all_obstacles_demo_scenarios()[index]
     sim = ScenarioSimulator(scenario.metadata, num_laps=scenario.laps, seed=scenario.seed)
-    result = sim.run(max_steps=MAX_STEPS)
+    result = sim.run(max_steps=OBSTACLES_MAX_STEPS)
 
     signs = signs_from_metadata(scenario.metadata)
     x, y, _yaw = result.final_pose

@@ -33,11 +33,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.domain.enums import RiskLevel
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.common.tables import print_table
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-MAX_STEPS = 6000
 
 _EXPECTED_ASSESS_CALLS = 2
 """``CoreNavigator.step`` assesses risk twice per tick with a sign router
@@ -86,7 +85,7 @@ def probe(index: int, show_ticks: bool = False) -> Counter:
             counts[f"unexpected_assess_calls_{len(pending)}"] += 1
         pending.clear()
 
-    result = sim.run(max_steps=MAX_STEPS, on_step=on_step)
+    result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=on_step)
     counts["laps"] = result.laps_completed
     counts["collided"] = int(result.collided)
     return counts

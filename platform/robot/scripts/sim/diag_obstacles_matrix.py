@@ -20,11 +20,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.formats import TIME_FORMAT as _TIME_FORMAT
+from scripts.common.formats import TIME_FORMAT
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-MAX_STEPS = 6000
 _LABEL_WIDTH = 12
 _SCENARIO_WIDTH = 40
 _OUTCOME_WIDTH = 9
@@ -54,13 +54,13 @@ def main() -> None:
                 seed=scenario.seed,
                 park=park,
                 emit_vision_detections=vision,
-            ).run(max_steps=MAX_STEPS)
+            ).run(max_steps=OBSTACLES_MAX_STEPS)
             ok = not result.collided and result.laps_completed >= laps
             outcomes.append(ok)
             why = "ok" if ok else ("collided" if result.collided else "short")
             print(
                 f"{label:<{_LABEL_WIDTH}} {scenario.label:<{_SCENARIO_WIDTH}} {why:<{_OUTCOME_WIDTH}} "
-                f"laps={result.laps_completed}/{laps} t={result.sim_time_s:{_TIME_FORMAT}}s "
+                f"laps={result.laps_completed}/{laps} t={result.sim_time_s:{TIME_FORMAT}}s "
                 f"surface={result.terminal_surface.value}",
                 flush=True,
             )

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.formats import POSITION_FORMAT as _POSITION_FORMAT
+from scripts.common.formats import POSITION_FORMAT
 from src.navigation.core_navigator import CoreNavigator
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -58,7 +58,7 @@ class _IndexTracer:
             tracer.events.append(
                 f"  step{tracer.step:>{_STEP_WIDTH}} replace_path idx {before}/{before_len} "
                 f"-> {self._waypoint_index}/{len(waypoints)} "
-                f"at ({robot_xy.x:{_POSITION_FORMAT}},{robot_xy.y:{_POSITION_FORMAT}})"
+                f"at ({robot_xy.x:{POSITION_FORMAT}},{robot_xy.y:{POSITION_FORMAT}})"
             )
 
         def replace_lap_detector(self: CoreNavigator, lap_detector: LapDetector) -> None:

@@ -33,12 +33,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation import corridor_estimator
 from src.navigation.corridor_estimator import section_from_heading
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
-
-MAX_STEPS = 6000
 
 _WIDTH_MATCH_TOL_M = 0.01
 """Belief matches truth within this. The two legal widths are 0.40 m apart, so
@@ -92,7 +91,7 @@ def probe(index: int) -> dict[str, Any]:
     sim._update_layout_belief = tracked  # type: ignore[method-assign]  # noqa: SLF001
 
     try:
-        result = sim.run(max_steps=MAX_STEPS)
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS)
     finally:
         corridor_estimator.measure_corridor_width = original_measure
 

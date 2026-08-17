@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.domain.enums import Direction, Section
 
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
@@ -60,7 +61,6 @@ _N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _STARTS = list(product(Section, Direction))
-_OBSTACLES_MAX_STEPS = 6000
 _WIDTH_MATCH_TOLERANCE_M = 1e-6
 _OPEN_NAME_WIDTH = 6
 _ERROR_FORMAT = "5.1f"
@@ -137,7 +137,7 @@ def _run_obstacles(args: tuple[int, bool]) -> tuple[bool, int, float]:
     def on_step(_state: object, _scan: object) -> None:
         peak[0] = max(peak[0], sim.gateway.position_error_m)
 
-    result = sim.run(max_steps=_OBSTACLES_MAX_STEPS, on_step=on_step)
+    result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=on_step)
     return result.collided, result.laps_completed, peak[0]
 
 

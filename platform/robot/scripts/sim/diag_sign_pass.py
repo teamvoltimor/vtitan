@@ -38,6 +38,7 @@ from shared.domain.enums import Section
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
+from scripts.common.sim_defaults import OBSTACLES_MAX_STEPS
 from scripts.common.tables import print_table
 from src.navigation.planning.sign_router import SignRouter, corridor_for_position, signs_from_metadata
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -48,8 +49,6 @@ if TYPE_CHECKING:
 
     from src.navigation.ports import LidarScan
     from src.simulation.kinematics import AckermannState
-
-MAX_STEPS = 6000
 
 _CHASSIS_HALF_WIDTH = 0.10
 _CHASSIS_HALF_DIAGONAL = math.hypot(0.15, 0.10)
@@ -144,7 +143,7 @@ def _analyse(index: int) -> PassAnalysisResult:
                 rec.yaw_err = min(err, math.pi - err)
                 rec.commanded_lat = math.nan if target_lat is None else target_lat
 
-        result = sim.run(max_steps=MAX_STEPS, on_step=record)
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=record)
     finally:
         sign_router_module.SignRouter.deform_waypoint = original_deform
 
