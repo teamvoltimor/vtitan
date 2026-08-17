@@ -409,6 +409,17 @@ class SweepConfig:
     clearance arithmetic. Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_contact_evade: bool | None = None
+    """Override ``SignRouterParams.SIGN_CONTACT_EVADE`` (default False).
+
+    Steer away and creep when the RAW scan reads CRITICAL but the MASKED one
+    does not -- i.e. the imminent contact is a sign the router owns. The middle
+    rung between today's two options (ignore it, or reverse into a wall).
+    """
+
+    sign_contact_steer: float | None = None
+    """Override ``SignRouterParams.SIGN_CONTACT_STEER`` (default 0.35)."""
+
     sign_lane_commit_ahead: float | None = None
     """Override ``SignRouterParams.SIGN_LANE_COMMIT_AHEAD_M`` (default 0.0, off).
 
@@ -537,6 +548,8 @@ class SweepConfig:
             SIGN_LANE_PLANNER=self.sign_lane_planner,
             EXPLORE_LAP_SPEED_FRAC=self.explore_lap_speed_frac,
             SIGN_LANE_COMMIT_AHEAD_M=self.sign_lane_commit_ahead,
+            SIGN_CONTACT_EVADE=self.sign_contact_evade,
+            SIGN_CONTACT_STEER=self.sign_contact_steer,
             SIGN_LANE_RAMP_M=self.sign_lane_ramp,
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
@@ -1056,6 +1069,17 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # planner provably cannot handle a sign that only appeared 1.5 m away, so
     # the mask may be suppressing the last-resort reactive layer for precisely
     # the signs nothing else is covering. 0.0 disables the mask entirely.
+    # The middle rung against the mask trade. Read all three columns: this
+    # aims to keep mask-off's sign gain (57 -> 41) WITHOUT its wall cost
+    # (0 -> 13), so a result that just moves collisions between the two
+    # columns has not achieved anything.
+    "blind-evade": lambda v: SweepConfig(
+        f"blind, evade steer {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_contact_evade=v > 0.0,
+        sign_contact_steer=v,
+    ),
     "blind-mask": lambda v: SweepConfig(
         f"blind, escape mask {v:{_FORMAT_3F}}",
         blind=True,

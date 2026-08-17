@@ -90,6 +90,49 @@ class SignRouterParams(BaseModel):
             moment it draws level with a sign (subset64,
             go_obstacles_0009/0011/0020/0046). Defaults ``False``: unmeasured
             over the corpus, ships off until it is.
+        SIGN_CONTACT_EVADE: React to an imminent SIGN contact by steering away
+            and creeping, instead of either ignoring it or reversing.
+            Fills a gap between the two responses that exist today. A LIDAR
+            return close enough to read CRITICAL is either masked as belonging
+            to a routed sign -- in which case nothing happens at all, on the
+            reasoning that the planner has it handled -- or it is unmasked and
+            triggers the full escape maneuver, which reverses and swings.
+            Sighted, the first is correct: the lane is planned a corridor
+            ahead and does have it handled. Blind lap 1 satisfies neither
+            assumption, because a sign discovered 1.5 m away cannot be planned
+            around at all. Measured there (subset64, lane on): disabling the
+            mask outright cuts sign collisions 57 -> 41 and lifts laps>=1
+            14 -> 24, but buys 13 new WALL collisions, because reverse-and-
+            swing is a poor move in a 1.0 m corridor.
+            So this is the middle rung: keep the mask (no reversing at a sign)
+            but stop treating a masked threat as no threat. Fires only when the
+            RAW scan reads CRITICAL while the MASKED scan does not -- i.e. the
+            imminent contact is specifically a sign the router owns.
+            **BOTH TRIGGERS MEASURED AND REJECTED. Ships False. Do not retry
+            either shape without new information.**
+            - Gated on the LIDAR risk tier (raw CRITICAL, masked not): flat --
+              57/58/57/58 collisions across steer 0.0/0.25/0.45/0.65. A return
+              only reads CRITICAL at contact range, by which point no steering
+              command can help. That is precisely why REVERSING works there
+              and steering does not.
+            - Predicted geometrically from the router's own sign positions
+              (along-track distance and lateral clearance, the code below):
+              far WORSE -- 64/64 collisions and laps>=3 to zero at every
+              steer value. Signs sit only 0.10 m off the corridor centreline,
+              inside the ~0.122 m half-width clearance this tests against, so
+              the trigger fires almost continuously and a sustained steering
+              bias integrates into a large heading error that destroys
+              tracking outright.
+            The gap between "too late to act" and "fires constantly" is the
+            real difficulty here, and a steering nudge does not fit in it. The
+            one thing that HAS moved blind sign collisions is letting the
+            escape maneuver fire (mask 0.0), so a wall-aware escape looks more
+            promising than any further nudge tuning.
+        SIGN_CONTACT_DIST_M: Along-track distance (m) within which a routed
+            sign predicted to pass closer than the chassis and sign half-widths
+            allow triggers ``SIGN_CONTACT_EVADE``. Only meaningful with it.
+        SIGN_CONTACT_STEER: Normalized steering added away from the offending
+            sign when ``SIGN_CONTACT_EVADE`` fires. Only meaningful with it.
         SIGN_LANE_COMMIT_AHEAD_M: Distance ahead of the chassis within which a
             lane rebuild may NOT move the path (m). ``0.0`` disables it, which
             is the behaviour that shipped first.
@@ -255,6 +298,13 @@ class SignRouterParams(BaseModel):
     SIGN_AWARE_SPEED: bool = Field(default=False, validation_alias=_alias("SIGN_AWARE_SPEED"))
     STALE_TARGET_RESCUE: bool = Field(default=False, validation_alias=_alias("STALE_TARGET_RESCUE"))
     SIGN_LANE_PLANNER: bool = Field(default=False, validation_alias=_alias("SIGN_LANE_PLANNER"))
+    SIGN_CONTACT_EVADE: bool = Field(default=False, validation_alias=_alias("SIGN_CONTACT_EVADE"))
+    SIGN_CONTACT_DIST_M: float = Field(
+        default=0.60, gt=0.0, validation_alias=_alias("SIGN_CONTACT_DIST_M")
+    )
+    SIGN_CONTACT_STEER: float = Field(
+        default=0.35, ge=0.0, le=1.0, validation_alias=_alias("SIGN_CONTACT_STEER")
+    )
     SIGN_LANE_COMMIT_AHEAD_M: float = Field(
         default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_COMMIT_AHEAD_M")
     )

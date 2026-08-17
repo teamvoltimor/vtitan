@@ -326,6 +326,57 @@ class CoreNavigator:
         self._apply_path_wall_budget()
         logger.info("Sign lanes replanned for %d sign(s)", len(fingerprint))
 
+    def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
+        """Steering to swing the chassis clear of a routed sign it is about to clip.
+
+        PREDICTS the contact from geometry rather than waiting for the LIDAR to
+        call it CRITICAL. That distinction is the whole mechanism: a return
+        only reads CRITICAL at contact range, by which point the chassis is
+        essentially already touching and no steering command can help -- which
+        is exactly why reversing worked there and steering measured flat.
+        Here the trigger is the sign's own along-track distance and lateral
+        clearance, both of which are known metres in advance because the
+        router is already tracking the sign's position.
+
+        Returns ``None`` unless a routed sign is genuinely ahead, within
+        ``SIGN_CONTACT_DIST_M``, and predicted to pass closer than the chassis
+        and sign half-widths allow -- so a sign the robot is already clearing
+        cleanly is never answered with a swerve.
+
+        The direction comes from the sign's own bearing, not the router's
+        pass-side rule. By this point the rule has failed; which side the robot
+        ends up on is a scoring question, contact is a run-ending one. Choosing
+        the side the robot is ALREADY on also makes this a smaller correction
+        than forcing it back across.
+        """
+        router = self._sign_router
+        if router is None:
+            return None
+        cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+        trigger = self._tuning.sign_router.SIGN_CONTACT_DIST_M
+        # Half-widths, plus the chassis's own: how close the centres may pass.
+        needed = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2
+        worst: tuple[float, float] | None = None
+        for sx, sy in router.routed_sign_positions:
+            dx, dy = sx - robot_x, sy - robot_y
+            ahead = dx * cos_yaw + dy * sin_yaw
+            if not 0.0 < ahead <= trigger:
+                continue
+            lateral = -dx * sin_yaw + dy * cos_yaw
+            if abs(lateral) >= needed:
+                continue  # already going to clear it
+            if worst is None or ahead < worst[0]:
+                worst = (ahead, lateral)
+        if worst is None:
+            return None
+        _, lateral = worst
+        # Positive lateral puts the sign to the LEFT, so steer right. A sign
+        # dead ahead (lateral 0) still has to be resolved to a side; take the
+        # one the ordinary steering is already favouring.
+        if lateral == 0.0:
+            return None
+        return -math.copysign(self._tuning.sign_router.SIGN_CONTACT_STEER, lateral)
+
     def _hold_committed_path(self, previous: list[Waypoint], commit_ahead_m: float) -> None:
         """Keep a lane rebuild from moving the path the chassis is already on.
 
@@ -928,6 +979,25 @@ class CoreNavigator:
         debug.heading_speed_mps = heading_speed
         debug.sign_deform_magnitude_m = sign_deform_magnitude
         debug.active_sign_count = active_sign_count
+
+        # Last-resort geometric guard against clipping a routed sign. The two
+        # responses that already exist both assume the planner has the sign
+        # handled -- the escape mask suppresses any reaction to it, and without
+        # that mask the generic escape reverses and swings, which in a 1.0 m
+        # corridor trades sign strikes for wall strikes (measured, mask off:
+        # sign 57 -> 41 but wall 0 -> 13). That assumption holds sighted, where
+        # the lane is placed a corridor ahead, and fails on a blind first lap,
+        # where the sign was only discovered ~1.5 m out.
+        #
+        # Deliberately NOT gated on LIDAR risk: a return reads CRITICAL only at
+        # contact range, too late for any steering command to matter, which is
+        # why a risk-gated version of this measured flat. The router already
+        # knows where the sign is, so predict the clip instead.
+        if self._tuning.sign_router.SIGN_CONTACT_EVADE and self._sign_router is not None:
+            evade = self._sign_evade_steer(robot_x, robot_y, robot_yaw)
+            if evade is not None:
+                steering_normalized = max(-1.0, min(1.0, steering_normalized + evade))
+                speed = min(speed, self._tuning.speed.creep_mps())
 
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the
