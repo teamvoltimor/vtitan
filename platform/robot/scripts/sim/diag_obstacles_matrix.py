@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.formats import TIME_FORMAT as _TIME_FORMAT
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -27,7 +28,6 @@ MAX_STEPS = 6000
 _LABEL_WIDTH = 12
 _SCENARIO_WIDTH = 40
 _OUTCOME_WIDTH = 9
-_TIME_FORMAT = ".1f"
 
 COMBOS: tuple[tuple[str, bool, bool], ...] = (
     ("laps-only", False, False),

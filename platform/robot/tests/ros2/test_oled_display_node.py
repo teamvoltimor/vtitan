@@ -43,6 +43,10 @@ for _optional in ("board", "busio", "adafruit_ssd1306", "fcntl"):
 
 from src.hardware.display.enums import DisplayBackend
 from src.ros2.wire_models import RaceMetricsWire
+from tests.ros2.common_node_fixtures import (
+    assert_connects_driver_on_configure,
+    assert_destroy_without_configure_does_not_raise,
+)
 
 
 @pytest.fixture()
@@ -76,15 +80,7 @@ def oled_node_class():
 class TestOLEDDisplayNodeInit:
     def test_connects_driver_on_configure(self, ros_context, oled_node_class):
         OLEDDisplayNode, mock_driver = oled_node_class
-        node = OLEDDisplayNode()
-        assert node.display_driver is None  # not yet configured
-
-        node.trigger_configure()
-
-        mock_driver.connect.assert_called_once()
-        assert node.display_driver is mock_driver
-
-        node.destroy_node()
+        assert_connects_driver_on_configure(OLEDDisplayNode, mock_driver, "display_driver")
 
     def test_creates_publisher_and_subscriptions_on_configure(self, ros_context, oled_node_class):
         OLEDDisplayNode, _ = oled_node_class
@@ -154,13 +150,8 @@ class TestOLEDDisplayNodeLifecycle:
         node.destroy_node()
 
     def test_destroy_without_configure_does_not_raise(self, ros_context, oled_node_class):
-        """A node destroyed before ever being configured must not crash cleanup."""
         OLEDDisplayNode, mock_driver = oled_node_class
-        node = OLEDDisplayNode()
-
-        node.destroy_node()  # must not raise
-
-        mock_driver.close.assert_not_called()
+        assert_destroy_without_configure_does_not_raise(OLEDDisplayNode, mock_driver)
 
     def test_destroy_closes_driver_without_clean_shutdown(self, ros_context, oled_node_class):
         OLEDDisplayNode, mock_driver = oled_node_class

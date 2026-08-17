@@ -20,6 +20,10 @@ from rclpy.lifecycle import TransitionCallbackReturn
 from src.hardware.button import base as button_base
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
+from tests.ros2.common_node_fixtures import (
+    assert_connects_driver_on_configure,
+    assert_destroy_without_configure_does_not_raise,
+)
 
 
 def _mock_driver() -> mock.MagicMock:
@@ -47,15 +51,7 @@ def button_node_class():
 class TestButtonNodeInit:
     def test_connects_driver_on_configure(self, ros_context, button_node_class):
         ButtonNode, mock_driver = button_node_class
-        node = ButtonNode()
-        assert node.driver is None  # not yet configured
-
-        node.trigger_configure()
-
-        mock_driver.connect.assert_called_once()
-        assert node.driver is mock_driver
-
-        node.destroy_node()
+        assert_connects_driver_on_configure(ButtonNode, mock_driver, "driver")
 
     def test_publishes_on_button_event_topic_after_activate(self, ros_context, button_node_class):
         """The lifecycle publisher isn't advertised on the graph until the node activates."""
@@ -233,10 +229,5 @@ class TestButtonNodeCleanup:
         mock_driver.close.assert_called_once()
 
     def test_destroy_without_configure_does_not_raise(self, ros_context, button_node_class):
-        """A node destroyed before ever being configured must not crash cleanup."""
         ButtonNode, mock_driver = button_node_class
-        node = ButtonNode()
-
-        node.destroy_node()  # must not raise
-
-        mock_driver.close.assert_not_called()
+        assert_destroy_without_configure_does_not_raise(ButtonNode, mock_driver)

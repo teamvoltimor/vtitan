@@ -24,11 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.formats import DISTANCE_FORMAT as _DISTANCE_FORMAT
+from scripts.common.formats import TIME_FORMAT as _TIME_FORMAT
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_DISTANCE_FORMAT = ".2f"
-_TIME_FORMAT = ".1f"
 _SPEED_FORMAT = ".2f"
 
 

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.formats import POSITION_FORMAT as _POSITION_FORMAT
 from src.navigation.core_navigator import CoreNavigator
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -30,7 +31,6 @@ if TYPE_CHECKING:
     from src.navigation.race_tracker import LapDetector
 
 _STEP_WIDTH = 5
-_POSITION_FORMAT = ".2f"
 _DEFAULT_FIXTURES = ("go_open_0010", "go_open_0013")
 
 
