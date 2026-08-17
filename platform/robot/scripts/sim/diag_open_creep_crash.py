@@ -18,13 +18,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.common.formats import POSITION_FORMAT as _POSITION_FORMAT
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
 _TRACE_TICKS = 20
 _STEP_WIDTH = 4
 _MIN_RANGE_THRESHOLD = 0.0
-_POSITION_FORMAT = ".2f"
 _YAW_FORMAT = "+.2f"
 _VELOCITY_FORMAT = "+.2f"
 _STEER_FORMAT = "+.2f"

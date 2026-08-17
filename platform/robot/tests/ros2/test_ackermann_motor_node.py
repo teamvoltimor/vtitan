@@ -17,6 +17,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from shared.config.constants import RobotSpecs
 
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
+from tests.ros2.common_node_fixtures import assert_destroy_without_configure_does_not_raise
 
 # The mock motor config's own steering/speed parameters — module-level so
 # every fixture and assertion that depends on them shares one source instead
@@ -405,13 +406,8 @@ class TestAckermannMotorNodeSafetyLifecycle:
         mock_steering.center_steering.assert_called_once()
 
     def test_destroy_without_configure_does_not_raise(self, ros_context, ackermann_node_class):
-        """A node destroyed before ever being configured must not crash cleanup."""
-        AckermannMotorNode, mock_steering, mock_drive, _ = ackermann_node_class
-        node = AckermannMotorNode()  # never configured -- steering/drive are None
-
-        node.destroy_node()  # must not raise
-
-        mock_drive.stop_drive.assert_not_called()
+        AckermannMotorNode, _, mock_drive, _ = ackermann_node_class
+        assert_destroy_without_configure_does_not_raise(AckermannMotorNode, mock_drive, "stop_drive")
 
     def test_stop_motors_failure_does_not_prevent_destroy(self, ros_context, ackermann_node_class):
         """If the driver itself throws while stopping, destroy_node() must still
