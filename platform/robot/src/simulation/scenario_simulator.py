@@ -118,6 +118,20 @@ class ScenarioSimulator:
     estimate changes. The metadata is then used only to build the physical
     track the robot is driving on, never to tell it anything.
 
+    ``known_start`` is a DIAGNOSTIC arm, not a mode the hardware can run: it
+    keeps blind's layout and sign-discovery handicaps but seeds the believed
+    pose from the true start instead of ``assumed_start_conditions``. It exists
+    to isolate one variable, because blind bundles three (layout, direction,
+    start pose) and the middle arm of ``blind-source`` cannot separate them.
+    Measured 2026-08-16: the believed-vs-true offset in ordinary blind is a
+    STABLE rigid rotation -- exactly the section-relabelling angle (assumed
+    start is always SOUTH, so a NORTH start reads 180 deg, EAST 90, WEST -90),
+    holding to within 1.4 deg across a whole run. Since the track is
+    4-fold symmetric and the pass-side rule is rotation-invariant, that
+    rotation *should* be harmless; this arm is how to find out whether some
+    part of the pipeline is nonetheless mixing the believed frame with
+    absolute truth.
+
     ``blind`` covers what the robot knows about the *track*. ``sensor_errors``
     covers what it knows about *itself* — where it was placed and which way it
     is pointing — which the sim otherwise supplies exactly. See
@@ -136,6 +150,7 @@ class ScenarioSimulator:
         emit_vision_detections: bool = False,
         use_lidar_localization: bool = True,
         blind: bool = True,
+        known_start: bool = False,
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         infer_direction: bool | None = None,
@@ -188,7 +203,7 @@ class ScenarioSimulator:
         # Assigned before the blind branch below, which reads it.
         self._tuning = get_tuning(tuning)
         believed_start = start
-        if blind:
+        if blind and not known_start:
             # No widths passed, so it falls back to the all-narrow prior --
             # which is exactly what the hardware does at startup, before any
             # corridor has been measured.

@@ -409,6 +409,42 @@ class SweepConfig:
     clearance arithmetic. Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_lane_commit_ahead: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_COMMIT_AHEAD_M`` (default 0.0, off).
+
+    How much of the path ahead of the chassis a lane rebuild may not move.
+    Blind-only in effect: sighted runs build the path once and never rebuild.
+    """
+
+    explore_lap_speed_frac: float | None = None
+    """Override ``SignRouterParams.EXPLORE_LAP_SPEED_FRAC`` (default 1.0, off).
+
+    Speed ceiling for the first lap of a BLIND Obstacles run, as a fraction of
+    the normal ceiling. Targets the measured shape of blind failure: 78% of it
+    happens during lap 1, because a corridor's signs cannot be seen until the
+    robot is inside that corridor -- but they persist for laps 2-3.
+    """
+
+    ingest_range: float | None = None
+    """Override ``SignDiscoveryParams.MAX_INGEST_RANGE_M`` (default 2.0 m).
+
+    How far away a camera observation may be accepted into discovery at all.
+    Measured as the binding constraint on blind runs: publish distance tops
+    out at 1.99 m against this 2.0 m cap, and 11 of 44 published signs only
+    existed once the robot was ALREADY inside ``ACTIVATION_DIST_M``. The lane
+    planner's whole advantage is runway, so a sign that appears at 1.5 m has
+    already lost most of it.
+    """
+
+    min_hits: int | None = None
+    """Override ``SignDiscoveryParams.MIN_HITS`` (default 3).
+
+    Confirming observations before a track is published. Lower publishes
+    sooner (more runway) at the cost of acting on weaker evidence -- read the
+    SIGN column against any gain, since a spurious sign deforms the path
+    toward a hazard that is not there.
+    """
+
     obstacles_center_bias: float | None = None
     """Override ``WaypointParams.OBSTACLES_CENTER_BIAS_M`` (default 0.0, centred).
 
@@ -499,6 +535,8 @@ class SweepConfig:
             SIGN_AWARE_SPEED=self.sign_aware_speed,
             STALE_TARGET_RESCUE=self.stale_target_rescue,
             SIGN_LANE_PLANNER=self.sign_lane_planner,
+            EXPLORE_LAP_SPEED_FRAC=self.explore_lap_speed_frac,
+            SIGN_LANE_COMMIT_AHEAD_M=self.sign_lane_commit_ahead,
             SIGN_LANE_RAMP_M=self.sign_lane_ramp,
             SIGN_LANE_HOLD_M=self.sign_lane_hold,
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
@@ -514,7 +552,19 @@ class SweepConfig:
                 None if self.wall_clearance is None else self.wall_clearance - chassis_half_diagonal_m()
             ),
         )
-        return replace(base, pursuit=pursuit, speed=speed, waypoints=waypoints, sign_router=sign_router)
+        sign_discovery = _with(
+            base.sign_discovery,
+            MAX_INGEST_RANGE_M=self.ingest_range,
+            MIN_HITS=self.min_hits,
+        )
+        return replace(
+            base,
+            pursuit=pursuit,
+            speed=speed,
+            waypoints=waypoints,
+            sign_router=sign_router,
+            sign_discovery=sign_discovery,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -982,6 +1032,60 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # says 0.0 (signs sit 0.10 m either side of a 1.0 m corridor's centre, so
     # centred is symmetric); the tracker's documented outward drift says
     # otherwise. This is the arbitration.
+    # How far out discovery may ingest an observation, BLIND with the lane on.
+    # The measured bottleneck: publish distance is capped at the 2.0 m default
+    # and 25% of signs are published already inside ACTIVATION_DIST_M, so the
+    # lane never gets the runway that makes it work sighted. Watch the SIGN
+    # column: reaching further means acting on smaller, noisier bounding boxes
+    # (see MIN_RELIABLE_BBOX_HEIGHT_PX), so a gain here can be paid for in
+    # mis-placed signs deforming the path toward a hazard that is not there.
+    # Reconnaissance-lap speed cap, BLIND with the lane on. Read laps>=1 first:
+    # this exists to survive lap 1, and everything downstream is conditional on
+    # that. Then read in-time, because a slow first lap is paid for in clock --
+    # the round limit is 180 s and a clean three-lap run already takes ~130 s,
+    # so there is not much to spend.
+    # How much of the path ahead a lane rebuild may not move, BLIND. Targets
+    # the ramp-behind-the-chassis failure: a sign discovered 1.5 m into a
+    # corridor rebuilds a lane whose approach ramp is already behind the
+    # robot. Sighted is untouched by construction (it never rebuilds), so any
+    # movement here is genuinely a blind result.
+    # Does the escape mask cost more than it saves in BLIND? The mask withholds
+    # LIDAR returns near a ROUTED sign from the CRITICAL escape trigger, on the
+    # reasoning that the planner already has that sign handled -- true sighted,
+    # where the lane is planned a corridor in advance. In blind lap 1 the
+    # planner provably cannot handle a sign that only appeared 1.5 m away, so
+    # the mask may be suppressing the last-resort reactive layer for precisely
+    # the signs nothing else is covering. 0.0 disables the mask entirely.
+    "blind-mask": lambda v: SweepConfig(
+        f"blind, escape mask {v:{_FORMAT_3F}}",
+        blind=True,
+        sign_lane_planner=True,
+        escape_mask_radius=v,
+    ),
+    "blind-commit": lambda v: SweepConfig(
+        f"blind, commit-ahead {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        sign_lane_commit_ahead=v,
+    ),
+    "blind-explore": lambda v: SweepConfig(
+        f"blind, explore-lap speed {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        explore_lap_speed_frac=v,
+    ),
+    "blind-reach": lambda v: SweepConfig(
+        f"blind, ingest range {v:{_FORMAT_2F}}",
+        blind=True,
+        sign_lane_planner=True,
+        ingest_range=v,
+    ),
+    "blind-hits": lambda v: SweepConfig(
+        f"blind, min hits {int(v)}",
+        blind=True,
+        sign_lane_planner=True,
+        min_hits=int(v),
+    ),
     "lane-bias": lambda v: SweepConfig(
         f"obstacles centre bias {v:{_FORMAT_2F}}",
         sign_lane_planner=True,
@@ -1331,9 +1435,20 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # Before corner runway existed this arm was 64/64 either way, i.e. exactly
     # zero -- so the lane does now reach blind, it just cannot outrun a wrong
     # pose.
+    # Third arm matters: SIGN_LANE_SUPPRESS_DEFORM was decided in SIGHTED mode,
+    # where the lane has a full corridor of runway and the carrot override is
+    # only a time tax. Blind has no such runway -- a sign discovered 1.5 m into
+    # a corridor cannot be planned around, only reacted to -- so the sighted
+    # answer should not be assumed to carry over.
     "lane-blind": [
         SweepConfig("blind, lane planner OFF (shipped)", blind=True, sign_lane_planner=False),
-        SweepConfig("blind, lane ON (default, override suppressed)", blind=True, sign_lane_planner=True),
+        SweepConfig("blind, lane ON, override suppressed", blind=True, sign_lane_planner=True),
+        SweepConfig(
+            "blind, lane ON + override",
+            blind=True,
+            sign_lane_planner=True,
+            sign_lane_suppress_deform=False,
+        ),
     ],
     "blind-split": [
         SweepConfig("blind, pre-fix (offset 0.20, split off)", blind=True, lateral_offset=0.20, escape_mask_radius=0.0),

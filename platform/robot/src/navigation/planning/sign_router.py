@@ -442,6 +442,19 @@ class SignRouter:
         return fresh
 
     @property
+    def is_discovering(self) -> bool:
+        """True when the sign layout is being found by camera rather than handed over.
+
+        The distinguishing fact about a discovering run is that the robot
+        cannot know a corridor's signs until it has entered that corridor --
+        signs sit inside corridors and the next one is outside a 102 deg FOV
+        until the corner is turned, so observations top out around 2.3 m
+        regardless of discovery tuning. Callers use this to treat the first
+        lap as reconnaissance; see ``EXPLORE_LAP_SPEED_FRAC``.
+        """
+        return self._sign_map is not None
+
+    @property
     def lane_specs(self) -> list[tuple[SignSpec, Section]]:
         """Every routed sign paired with the corridor label the router uses for it.
 
