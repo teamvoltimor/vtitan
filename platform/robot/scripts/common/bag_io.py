@@ -209,11 +209,16 @@ def create_bag_parser(description: str = "") -> argparse.ArgumentParser:
     return parser
 
 
-def create_bags_parser(description: str = "") -> argparse.ArgumentParser:
+def create_bags_parser(
+    description: str = "", formatter_class: type[argparse.HelpFormatter] = argparse.HelpFormatter
+) -> argparse.ArgumentParser:
     """Standard argument parser for diagnostic scripts that analyze multiple bags.
 
     Adds a positional `bag_dirs` argument (list of Paths). Scripts can extend
-    with optional arguments via `.add_argument()`.
+    with optional arguments via `.add_argument()`. Pass
+    `formatter_class=argparse.RawDescriptionHelpFormatter` for a script whose
+    docstring is pre-formatted (multi-paragraph, code examples) rather than
+    prose argparse should rewrap.
 
     Example:
         parser = create_bags_parser("Compare two runs")
@@ -221,7 +226,7 @@ def create_bags_parser(description: str = "") -> argparse.ArgumentParser:
         for bag_dir in args.bag_dirs:
             ...
     """
-    parser = argparse.ArgumentParser(description=description)
+    parser = argparse.ArgumentParser(description=description, formatter_class=formatter_class)
     parser.add_argument("bag_dirs", type=Path, nargs="+", help="Paths to rosbag directories")
     return parser
 
