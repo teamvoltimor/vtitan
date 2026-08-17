@@ -24,6 +24,11 @@ sys.modules["busio"] = mock.MagicMock()
 sys.modules["adafruit_bno08x.i2c"] = mock.MagicMock()
 
 from src.ros2.imu.bno08x.mcp2221.i2c_node import IMU_I2CNode
+from tests.ros2.common_imu_fixtures import (
+    assert_creates_timer_on_activate,
+    assert_node_configures_correctly,
+    assert_publish_imu_noop_before_configure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +57,7 @@ class TestIMU_I2CNodeInit:
 
     def test_node_configures_correctly(self, ros_context, mock_driver):
         """Test node configures correctly."""
-        node = IMU_I2CNode()
-        node.trigger_configure()
-        assert node.get_name() == "bno08x_i2c_node"
-        assert node.publisher_ is not None
-        assert node.driver is not None
-        node.destroy_node()
+        assert_node_configures_correctly(IMU_I2CNode, "bno08x_i2c_node")
 
     def test_node_creates_publisher(self, ros_context, mock_driver):
         """Test node creates IMU publisher after activation (lifecycle publishers
@@ -86,14 +86,7 @@ class TestIMU_I2CNodeInit:
 
     def test_node_creates_timer_on_activate(self, ros_context, mock_driver):
         """Test node creates publish timer on activate, not on configure."""
-        node = IMU_I2CNode()
-        node.trigger_configure()
-        assert list(node.timers) == []
-
-        node.trigger_activate()
-
-        assert len(list(node.timers)) > 0
-        node.destroy_node()
+        assert_creates_timer_on_activate(IMU_I2CNode)
 
     def test_node_degrades_gracefully_if_driver_connect_fails(self, ros_context, mock_driver):
         """Test node stays configured (driver=None) if connect raises."""
@@ -325,11 +318,7 @@ class TestIMU_I2CNodePublishing:
 
     def test_publish_imu_noop_before_configure(self, ros_context, mock_driver):
         """publish_imu must not raise if called before configure (driver/publisher are None)."""
-        node = IMU_I2CNode()
-
-        node.publish_imu()  # must not raise
-
-        node.destroy_node()
+        assert_publish_imu_noop_before_configure(IMU_I2CNode)
 
 
 class TestIMU_I2CNodeCleanup:
