@@ -19,6 +19,7 @@ from rclpy.lifecycle import TransitionCallbackReturn
 from shared.config.ros_topics import RosMessageType, RosTopicConfig
 
 from src.hardware.button import base as button_base
+from src.hardware.button.config import Config as ButtonConfig
 from src.hardware.button.event import ButtonEvent
 from src.hardware.button.state import ButtonState
 from tests.ros2.common_node_fixtures import (
@@ -35,8 +36,16 @@ def _mock_driver() -> mock.MagicMock:
     called a method the driver does not have would still pass here and only fail
     on the robot -- exactly how the OLED node's `.width`-vs-`get_width()` slip
     survived a green suite.
+
+    `config` isn't part of the abstract interface -- every concrete driver
+    (gpio, mcp2221) sets it in `__init__` -- so spec'ing against the base class
+    alone leaves it missing. `_publish_hold_progress` reads real threshold
+    floats out of it into a strict pydantic model, so a plain MagicMock won't
+    do either; attach a real Config with default thresholds.
     """
-    return mock.MagicMock(spec=button_base.Driver)
+    driver = mock.MagicMock(spec=button_base.Driver)
+    driver.config = mock.MagicMock(button=ButtonConfig())
+    return driver
 
 
 @pytest.fixture()
