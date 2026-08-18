@@ -20,7 +20,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
-from shared.config.ros_topics import RosTopicConfig
+from shared.config.ros_topics import RosMessageType, RosTopicConfig
 from shared.domain.enums import ScenarioType, Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
@@ -117,7 +117,7 @@ class TestGatewayTopicContract:
         ackermann_cmd_topic = RosTopicConfig.load_default().commands.ackermann_cmd
         topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
         assert ackermann_cmd_topic in topics
-        assert topics[ackermann_cmd_topic] == ["ackermann_msgs/msg/AckermannDriveStamped"]
+        assert topics[ackermann_cmd_topic] == [RosMessageType.ACKERMANN_DRIVE_STAMPED]
 
         node.destroy_node()
 
@@ -298,7 +298,7 @@ class TestWheelOdometryWiring:
         )
 
         assert joint_states_topic in subs
-        assert subs[joint_states_topic] == ["sensor_msgs/msg/JointState"]
+        assert subs[joint_states_topic] == [RosMessageType.JOINT_STATE]
 
         node.destroy_node()
 

@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 import rclpy
 from rclpy.lifecycle import TransitionCallbackReturn
-from shared.config.ros_topics import RosTopicConfig
+from shared.config.ros_topics import RosMessageType, RosTopicConfig
 
 from src.hardware.button import base as button_base
 from src.hardware.button.event import ButtonEvent
@@ -69,7 +69,7 @@ class TestButtonNodeInit:
             event_topic,
         )
         assert event_topic in topics
-        assert topics[event_topic] == ["std_msgs/msg/String"]
+        assert topics[event_topic] == [RosMessageType.STRING]
 
         node.destroy_node()
 
