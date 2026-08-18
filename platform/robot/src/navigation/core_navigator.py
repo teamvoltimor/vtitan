@@ -136,36 +136,10 @@ class CoreNavigator:
         self._retracing = False
 
         # Controllers
-        self._waypoint_controller = WaypointController(
-            max_steering_angle=RobotSpecs.MAX_STEERING_ANGLE,
-            lookahead_short=self._tuning.pursuit.LOOKAHEAD_SHORT,
-            lookahead_long=self._tuning.pursuit.LOOKAHEAD_LONG,
-            lookahead_transition=self._tuning.pursuit.LOOKAHEAD_TRANSITION,
-            steer_kp=self._tuning.pursuit.STEER_KP,
-            max_steering_rate=self._tuning.pursuit.MAX_STEERING_RATE,
-            waypoint_reached_distance_m=self._tuning.waypoints.CONTROLLER_REACHED_DISTANCE_M,
-        )
+        self._waypoint_controller = WaypointController.from_tuning(self._tuning)
         self._apply_path_wall_budget()
 
-        self._collision_controller = CollisionAvoidanceController(
-            contact_dist=self._tuning.clearance.CONTACT_DIST,
-            slow_dist=self._tuning.clearance.SLOW_DIST,
-            fast_dist=self._tuning.clearance.FAST_DIST,
-            escape_rev_speed=self._tuning.escape.REV_SPEED,
-            escape_steer_scale=self._tuning.escape.REV_STEERING_SCALE,
-            stuck_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
-            path_margin=self._tuning.clearance.PATH_MARGIN,
-            k_turn_min_frames=self._tuning.escape.K_TURN_MIN_FRAMES,
-            k_turn_max_frames=self._tuning.escape.K_TURN_MAX_FRAMES,
-            side_correction_steer=self._tuning.escape.SIDE_CORRECTION_STEER,
-            side_correction_speed=self._tuning.escape.SIDE_CORRECTION_SPEED,
-            side_correction_frames=self._tuning.escape.SIDE_CORRECTION_FRAMES,
-            front_half_fov_deg=self._tuning.lidar_sectors.FRONT_HALF_FOV_DEG,
-            threat_half_fov_deg=self._tuning.lidar_sectors.THREAT_HALF_FOV_DEG,
-            self_detection_threshold_m=self._tuning.lidar_sectors.SELF_DETECTION_THRESHOLD_M,
-            min_valid_range_m=self._tuning.lidar_sectors.MIN_VALID_RANGE_M,
-            threat_no_detection_range_m=self._tuning.lidar_sectors.THREAT_NO_DETECTION_RANGE_M,
-        )
+        self._collision_controller = CollisionAvoidanceController.from_tuning(self._tuning)
 
         self._stuck_detector = StuckDetector(
             move_threshold=self._tuning.escape.STUCK_MOVE_THRESHOLD,
