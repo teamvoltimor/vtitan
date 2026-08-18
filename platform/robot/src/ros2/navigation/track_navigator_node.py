@@ -442,7 +442,7 @@ class TrackNavigator(Node, ResettableNode):
         self.get_logger().info(
             f"Assumed start: section={start_section.value} direction={start_direction.value} "
             f"pose=({start_x:.2f}, {start_y:.2f}) - first waypoints "
-            + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in head),
+            + ", ".join(f"({wp.x:.2f}, {wp.y:.2f})" for wp in head),
         )
 
     def _declare_parameters(self) -> None:

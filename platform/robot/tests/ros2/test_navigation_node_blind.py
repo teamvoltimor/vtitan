@@ -210,8 +210,8 @@ class TestRunsWithNoScenarioFile:
             waypoints = navigator._plan(dict.fromkeys(Section, _NARROW))
             assert len(waypoints) > 4
             # Closes back on itself: a lap, not an out-and-back.
-            span_x = max(p[0] for p in waypoints) - min(p[0] for p in waypoints)
-            span_y = max(p[1] for p in waypoints) - min(p[1] for p in waypoints)
+            span_x = max(p.x for p in waypoints) - min(p.x for p in waypoints)
+            span_y = max(p.y for p in waypoints) - min(p.y for p in waypoints)
             assert span_x > 1.0
             assert span_y > 1.0
         finally:
@@ -421,8 +421,9 @@ class TestBlindImpliesDirectionInference:
             assert corridor_for_position(*real_start) is not navigator._start_section
 
             origin = navigator._core_navigator._lap_detector._origin
-            assert corridor_for_position(*origin) is navigator._start_section
-            assert origin == pytest.approx(navigator._start_xy)
+            assert corridor_for_position(origin.x, origin.y) is navigator._start_section
+            assert origin.x == pytest.approx(navigator._start_xy.x)
+            assert origin.y == pytest.approx(navigator._start_xy.y)
 
             # The pose frame is still re-seeded to the measurement -- only the
             # lap line stays mid-corridor (see the two tests above).
