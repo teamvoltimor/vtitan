@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from unittest import mock
 
 import numpy as np
@@ -241,8 +242,12 @@ class TestGatewayLidarLocalization:
         # the C1's real mount offset -- so a synthetic "as if from real
         # hardware" LaserScan has to be built pre-rotated by the inverse,
         # or this fake scan would come out offset from the true geometry
-        # it's meant to represent.
-        yaw_offset_rad = math.radians(RobotSpecs.LIDAR_MOUNT_YAW_OFFSET_DEG)
+        # it's meant to represent. Must be the combined offset
+        # (lidar_yaw_offset_rad(), LIDAR_INVERTED's mandatory 180deg plus any
+        # residual), not just the residual term -- the callback applies the
+        # combined one (see its docstring for the telemetry_bridge_node.py
+        # staleness bug this exact partial-offset mistake caused before).
+        yaw_offset_rad = RobotSpecs.lidar_yaw_offset_rad()
         msg = LaserScan()
         msg.angle_min = float(angles[0]) - yaw_offset_rad
         msg.angle_max = float(angles[-1]) - yaw_offset_rad
@@ -282,7 +287,16 @@ class TestWheelOdometryWiring:
         node = _make_host_node()
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
-        subs = dict(node.get_subscriber_names_and_types_by_node(node.get_name(), ""))
+        # The local graph cache is filled in off the middleware's discovery
+        # thread, not synchronously inside create_subscription() -- querying
+        # it immediately after construction is a race that shows up as a
+        # flaky empty result under the CPU contention of a parallel test run.
+        subs: dict[str, list[str]] = {}
+        deadline = time.monotonic() + 2.0
+        while "/joint_states" not in subs and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.05)
+            subs = dict(node.get_subscriber_names_and_types_by_node(node.get_name(), ""))
+
         assert "/joint_states" in subs
         assert subs["/joint_states"] == ["sensor_msgs/msg/JointState"]
 
