@@ -23,13 +23,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Section
 
 from scripts.common.tables import print_table
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 
-_DT = 0.05
+_DT = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
 _BAY_DEPTH = ParkingLotSpecs.LENGTH
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.OBSTACLES_WIDTH)
 

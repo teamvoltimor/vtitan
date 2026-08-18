@@ -33,7 +33,6 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _DEFAULT_CELL = 2
 _DEFAULT_TICKS = 400
 _DEFAULT_DOWNSAMPLE = 10
-_CONTROL_DT_S = 0.05
 
 
 def main() -> None:
@@ -82,7 +81,7 @@ def main() -> None:
         right = _nearest_ray(ranges, angles, -math.pi / 2)
         cmd_v, cmd_s = commands[-1] if commands else (float("nan"), float("nan"))
         rows.append(
-            f"{i:4d} {i * _CONTROL_DT_S:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
+            f"{i:4d} {i / tuning.control.CONTROL_HZ:6.2f}s  pos=({state.x:5.3f},{state.y:5.3f}) yaw={math.degrees(state.yaw):7.2f} "
             f"v={state.v:6.3f} steer={math.degrees(state.steer):6.2f}  "
             f"cmd_v={cmd_v:6.3f} cmd_s={cmd_s:6.3f}  "
             f"fwd={fwd:5.2f} L={left:5.2f} R={right:5.2f}",
