@@ -31,7 +31,6 @@ Usage:
 
 from __future__ import annotations
 
-import statistics
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -45,6 +44,7 @@ from shared.config.constants import TrackDimensions
 from std_msgs.msg import String
 
 from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
+from scripts.common.stats import median, percentile
 from scripts.common.tables import fmt_optional, print_table
 
 if TYPE_CHECKING:
@@ -112,8 +112,8 @@ def _print_stats(driving: list[tuple[float, NavigatorDebugSnapshot]]) -> None:
         if open_path:
             cs = [s.clearance_speed_mps for s in open_path]
             hs = [s.heading_speed_mps for s in open_path]
-            print(f"    clearance_speed med={statistics.median(cs):.3f} min={min(cs):.3f} max={max(cs):.3f}")
-            print(f"    heading_speed   med={statistics.median(hs):.3f} min={min(hs):.3f} max={max(hs):.3f}")
+            print(f"    clearance_speed med={median(cs):.3f} min={min(cs):.3f} max={max(cs):.3f}")
+            print(f"    heading_speed   med={median(hs):.3f} min={min(hs):.3f} max={max(hs):.3f}")
             mr = [s.min_lidar_range_m for s in open_path if s.min_lidar_range_m is not None]
             if mr:
                 tiny = sum(1 for m in mr if m < _TINY_LIDAR_RANGE_M)
@@ -132,13 +132,11 @@ def _print_stats(driving: list[tuple[float, NavigatorDebugSnapshot]]) -> None:
 
     xt = [abs(s.crosstrack_error_m) for _, s in nd if s.crosstrack_error_m is not None]
     if xt:
-        x = sorted(xt)
-        print(f"  |crosstrack| med={x[len(x) // 2]:.3f} p90={x[int(len(x) * 0.9)]:.3f} max={x[-1]:.3f} m")
+        print(f"  |crosstrack| med={median(xt):.3f} p90={percentile(xt, 0.9):.3f} max={max(xt):.3f} m")
 
     ae = [abs(s.angle_error_rad) for _, s in nd if s.angle_error_rad is not None]
     if ae:
-        v = sorted(ae)
-        print(f"  |angle_error| med={v[len(v) // 2]:.3f} p90={v[int(len(v) * 0.9)]:.3f} max={v[-1]:.3f} rad")
+        print(f"  |angle_error| med={median(ae):.3f} p90={percentile(ae, 0.9):.3f} max={max(ae):.3f} rad")
 
 
 def _print_center_bias(driving: list[tuple[float, NavigatorDebugSnapshot]], widths: dict[str, float]) -> None:
@@ -163,17 +161,15 @@ def _print_center_bias(driving: list[tuple[float, NavigatorDebugSnapshot]], widt
         return
     rows = []
     for section in sorted(off):
-        values = sorted(off[section])
+        values = off[section]
         tag = "WIDE" if widths[section] >= _WIDE_CORRIDOR_THRESHOLD_M else "narrow"
-        p10 = values[max(0, int(len(values) * 0.1))]
-        p90 = values[min(len(values) - 1, int(len(values) * 0.9))]
         rows.append((
             section,
             f"{widths[section] * 100:.0f}cm {tag}",
             len(values),
-            f"{statistics.median(values):+.3f}",
-            f"{p10:+.3f}",
-            f"{p90:+.3f}",
+            f"{median(values):+.3f}",
+            f"{percentile(values, 0.1):+.3f}",
+            f"{percentile(values, 0.9):+.3f}",
         ))
     print_table(rows, ["corridor", "width", "n", "median", "p10", "p90"])
 

@@ -46,7 +46,6 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import NavigatorPhase
@@ -54,6 +53,8 @@ from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
+from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
+from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error
 from src.navigation.utils import wrap_angle
@@ -1101,17 +1102,6 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
     return errors
 
 
-def _percentile(values: list[float], q: float) -> float:
-    """Linear-interpolated percentile ``q`` (0-1) of ``values``."""
-    if not values:
-        return math.nan
-    ordered = sorted(values)
-    pos = q * (len(ordered) - 1)
-    lo = math.floor(pos)
-    hi = min(lo + 1, len(ordered) - 1)
-    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
-
-
 def report_cross_track(workers: int, lookaheads: list[float]) -> None:
     """Print pooled cross-track error, one row per lookahead setting.
 
@@ -1126,8 +1116,8 @@ def report_cross_track(workers: int, lookaheads: list[float]) -> None:
             label = f"default ({_DEFAULT_SHORT_LOOKAHEAD:{_FORMAT_2F}}/{_DEFAULT_LONG_LOOKAHEAD:{_FORMAT_2F}})" if lookahead is None else f"lookahead {lookahead:{_FORMAT_2F}}/{lookahead * _LOOKAHEAD_MULTIPLIER:{_FORMAT_2F}}"
             print(
                 f"CROSSTRACK {label:<{_CROSSTRACK_LABEL_WIDTH}} "
-                f"median {_percentile(pooled, 0.5) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
-                f"p90 {_percentile(pooled, 0.9) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
+                f"median {percentile(pooled, 0.5) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
+                f"p90 {percentile(pooled, 0.9) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm  "
                 f"max {max(pooled) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm",
                 flush=True,
             )
