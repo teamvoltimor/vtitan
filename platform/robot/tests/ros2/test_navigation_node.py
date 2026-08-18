@@ -24,7 +24,7 @@ from shared.domain.enums import ScenarioType, Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
-from src.navigation.ports import DriveCommand
+from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.track_geometry import TrackWalls
 from src.ros2.navigation.node import ROS2HardwareGateway, TrackNavigator, main
 
@@ -38,6 +38,18 @@ def _write_metadata(tmp_path, metadata: dict) -> str:
     path = tmp_path / "metadata.json"
     path.write_text(json.dumps(metadata), encoding="utf-8")
     return str(path)
+
+
+def _scan_at(x: float, y: float, yaw: float) -> LidarScan:
+    """A scan as it would be taken standing at a known pose on the believed layout."""
+    from src.navigation.track_geometry import corridor_geometry_from_widths
+
+    walls = TrackWalls(corridor_geometry_from_widths(_WIDTHS))
+    angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
+    return LidarScan(
+        ranges_m=tuple(walls.raycast(x, y, yaw, angles).tolist()),
+        angles_rad=tuple(angles.tolist()),
+    )
 
 
 def _obstacles_metadata(*, with_parking: bool) -> dict:
@@ -878,22 +890,12 @@ class TestStartMeasurementRetry:
         navigator._start_measurement_ticks_left = 100
         return navigator
 
-    @staticmethod
-    def _clean_scan(x: float, y: float, yaw: float):
-        """A noise-free scan of a one-metre-corridor track, taken at a known pose."""
-        from src.navigation.ports import LidarScan
-        from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
-
-        walls = TrackWalls(corridor_geometry_from_widths(_WIDTHS))
-        angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
-        return LidarScan(ranges_m=tuple(walls.raycast(x, y, yaw, angles)), angles_rad=tuple(angles))
-
     def _drive_one_tick(self, navigator, x: float, y: float, yaw: float):
         """Hand the retry one scan taken at ``(x, y, yaw)``, from a pose it does not know."""
         from shared.domain.models import Pose
 
         with (
-            mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=self._clean_scan(x, y, yaw)),
+            mock.patch.object(navigator._gateway, "get_lidar_scan", return_value=_scan_at(x, y, yaw)),
             # Deliberately not (x, y): the whole point is that the estimate is
             # wrong and the measurement is what corrects it.
             mock.patch.object(navigator._gateway, "get_current_pose", return_value=Pose(x=1.25, y=0.4, yaw=yaw)),

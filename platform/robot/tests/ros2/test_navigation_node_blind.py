@@ -23,26 +23,7 @@ from shared.domain.models import IMUReading, Pose
 
 from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
-from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node
-
-
-def _scan_at(x: float, y: float, yaw: float) -> LidarScan:
-    """A scan as it would be taken standing at a known pose on the believed layout.
-
-    _commit_direction now measures the start pose off the scan instead of
-    assuming it, so these tests have to hand it a scan that describes a real
-    place on the track rather than an empty one.
-    """
-    from shared.config.constants import RobotSpecs
-
-    from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
-
-    walls = TrackWalls(corridor_geometry_from_widths(_WIDTHS))
-    angles = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
-    return LidarScan(
-        ranges_m=tuple(walls.raycast(x, y, yaw, angles).tolist()),
-        angles_rad=tuple(angles.tolist()),
-    )
+from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node, _scan_at, _write_metadata
 
 _NARROW = CorridorDimensions.NARROW
 _WIDE = CorridorDimensions.WIDE
@@ -54,31 +35,6 @@ _STRAIGHT_SCAN = LidarScan(
     ranges_m=(0.5, 2.0, 0.5, 2.0),
     angles_rad=(-math.pi / 2, 0.0, math.pi / 2, math.pi),
 )
-
-
-def _write_open_metadata(tmp_path) -> str:
-    """A minimal, valid Open Challenge metadata file -- for the not-blind branches."""
-    path = tmp_path / "metadata.json"
-    path.write_text(
-        json.dumps(
-            {
-                "scenario_id": 0,
-                "challenge_type": "open",
-                "corridor_widths": {s: {"type": "wide", "width_mm": 1000} for s in ("north", "south", "east", "west")},
-                "starting_conditions": {
-                    "direction": "clockwise",
-                    "section": "South",
-                    "position": {"x": 1.5, "y": 0.3},
-                    "yaw": 3.14,
-                },
-                "num_signs": 0,
-                "sign_positions": [],
-                "parking_lot": None,
-            },
-        ),
-        encoding="utf-8",
-    )
-    return str(path)
 
 
 class TestGatewayBeliefUpdate:
@@ -519,10 +475,10 @@ class TestAssumedStartConditions:
 class TestResolveDirection:
     """The creep-until-direction-known state machine, driven directly."""
 
-    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:
+    def test_returns_false_when_not_blind(self, tmp_path, sample_metadata_open, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
-        navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
+        navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
         try:
             assert navigator._direction_estimator is None
             assert navigator._resolve_direction() is False
@@ -632,10 +588,10 @@ class TestCommitDirectionFlushesBufferedWidths:
 class TestUpdateLayoutBelief:
     """Folding LIDAR readings into the width estimate mid-run, and replanning off it."""
 
-    def test_returns_false_when_not_blind(self, tmp_path, ros_context) -> None:
+    def test_returns_false_when_not_blind(self, tmp_path, sample_metadata_open, ros_context) -> None:
         from src.ros2.navigation.node import TrackNavigator
 
-        navigator = TrackNavigator(metadata_path=_write_open_metadata(tmp_path), num_laps=1)
+        navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
         try:
             assert navigator._width_estimator is None
             assert navigator._update_layout_belief() is False
