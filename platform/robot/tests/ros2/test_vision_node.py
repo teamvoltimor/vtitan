@@ -28,6 +28,8 @@ from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import Detection, SignColor
 from std_msgs.msg import String
 
+from tests.ros2.common_node_fixtures import wait_for_graph_entry, wait_for_subscriptions_info
+
 
 @pytest.fixture()
 def mock_detector():
@@ -73,7 +75,11 @@ class TestVisionNodeInit:
         node = VisionNode()
 
         detections_topic = RosTopicConfig.load_default().sensors.vision_detections
-        topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
+        topics = wait_for_graph_entry(
+            node,
+            lambda: dict(node.get_publisher_names_and_types_by_node(node.get_name(), "")),
+            detections_topic,
+        )
         assert detections_topic in topics
         assert topics[detections_topic] == ["std_msgs/msg/String"]
 
@@ -122,7 +128,7 @@ class TestVisionNodeInit:
         VisionNode, _ = vision_node_class
         node = VisionNode()
 
-        subs = node.get_subscriptions_info_by_topic(RosTopicConfig.load_default().sensors.camera_image_raw)
+        subs = wait_for_subscriptions_info(node, RosTopicConfig.load_default().sensors.camera_image_raw)
         assert len(subs) == 1
         assert subs[0].topic_type == "sensor_msgs/msg/Image"
 
@@ -401,11 +407,11 @@ class TestVideoRecordingGating:
         node = VisionNode()
         topics = RosTopicConfig.load_default()
 
-        assert len(node.get_subscriptions_info_by_topic(topics.state_machine.state)) == 1
-        assert len(node.get_subscriptions_info_by_topic(topics.challenge_mode.active)) == 1
-        assert len(node.get_subscriptions_info_by_topic(topics.bag_recorder.run_path)) == 1
-        assert len(node.get_subscriptions_info_by_topic(topics.navigation.nav_debug)) == 1
-        assert len(node.get_subscriptions_info_by_topic(topics.sensors.scan)) == 1
+        assert len(wait_for_subscriptions_info(node, topics.state_machine.state)) == 1
+        assert len(wait_for_subscriptions_info(node, topics.challenge_mode.active)) == 1
+        assert len(wait_for_subscriptions_info(node, topics.bag_recorder.run_path)) == 1
+        assert len(wait_for_subscriptions_info(node, topics.navigation.nav_debug)) == 1
+        assert len(wait_for_subscriptions_info(node, topics.sensors.scan)) == 1
 
         node.destroy_node()
 

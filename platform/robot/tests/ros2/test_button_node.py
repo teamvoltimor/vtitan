@@ -24,6 +24,7 @@ from src.hardware.button.state import ButtonState
 from tests.ros2.common_node_fixtures import (
     assert_connects_driver_on_configure,
     assert_destroy_without_configure_does_not_raise,
+    wait_for_graph_entry,
 )
 
 
@@ -62,7 +63,11 @@ class TestButtonNodeInit:
         node.trigger_activate()
 
         event_topic = RosTopicConfig.load_default().button.event
-        topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
+        topics = wait_for_graph_entry(
+            node,
+            lambda: dict(node.get_publisher_names_and_types_by_node(node.get_name(), "")),
+            event_topic,
+        )
         assert event_topic in topics
         assert topics[event_topic] == ["std_msgs/msg/String"]
 

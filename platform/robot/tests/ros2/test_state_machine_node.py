@@ -22,6 +22,7 @@ from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.button.event import ButtonEvent
 from src.state_machine import RobotState, ScenarioType
+from tests.ros2.common_node_fixtures import wait_for_subscriptions_info
 
 
 @pytest.fixture()
@@ -72,7 +73,7 @@ class TestStateMachineNodeInit:
 
     def test_subscribes_to_button_event(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
-        subs = node.get_subscriptions_info_by_topic(RosTopicConfig.load_default().button.event)
+        subs = wait_for_subscriptions_info(node, RosTopicConfig.load_default().button.event)
         assert len(subs) == 1
         assert subs[0].topic_type == "std_msgs/msg/String"
         node.destroy_node()
