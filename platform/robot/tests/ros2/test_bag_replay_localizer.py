@@ -33,9 +33,11 @@ pytest.importorskip("rosbag2_py", reason="ROS2 bag reading is only available in 
 import rosbag2_py
 from rclpy.serialization import deserialize_message
 from shared.config.constants import RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import String
 
 _BAG_ROOT = Path(__file__).resolve().parents[2] / "vtitan_runs_pulled"
+_NAV_DEBUG_TOPIC = RosTopicConfig.load_default().navigation.nav_debug
 # The window that matters is the opening drive, before any escape maneuver has
 # had a chance to reorient the robot: escapes reverse on purpose, so "moved
 # backwards along the heading" is correct behaviour once one is running, and
@@ -77,7 +79,7 @@ def _read(bag_dir: Path) -> list[tuple[int, dict]]:
     snapshots: list[tuple[int, dict]] = []
     while reader.has_next():
         topic, data, t = reader.read_next()
-        if topic != "/nav_debug":
+        if topic != _NAV_DEBUG_TOPIC:
             continue
         payload = json.loads(deserialize_message(data, String).data)
         if payload.get("pose_x") is not None:

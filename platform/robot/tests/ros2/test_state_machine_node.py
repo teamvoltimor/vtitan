@@ -17,6 +17,7 @@ import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import Imu
 from shared.config.constants import CompetitionSpecs
+from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool, Int32, String
 
 from src.hardware.button.event import ButtonEvent
@@ -63,14 +64,15 @@ class TestStateMachineNodeInit:
 
     def test_publishes_ackermann_cmd_on_the_real_topic(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
+        ackermann_cmd_topic = RosTopicConfig.load_default().commands.ackermann_cmd
         topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
-        assert "/ackermann_cmd" in topics
-        assert topics["/ackermann_cmd"] == ["ackermann_msgs/msg/AckermannDriveStamped"]
+        assert ackermann_cmd_topic in topics
+        assert topics[ackermann_cmd_topic] == ["ackermann_msgs/msg/AckermannDriveStamped"]
         node.destroy_node()
 
     def test_subscribes_to_button_event(self, ros_context, state_machine_node_class):
         node = state_machine_node_class()
-        subs = node.get_subscriptions_info_by_topic("/button/event")
+        subs = node.get_subscriptions_info_by_topic(RosTopicConfig.load_default().button.event)
         assert len(subs) == 1
         assert subs[0].topic_type == "std_msgs/msg/String"
         node.destroy_node()
