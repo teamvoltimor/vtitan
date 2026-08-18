@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import math
-import time
 from unittest import mock
 
 import numpy as np
@@ -29,6 +28,7 @@ from std_msgs.msg import String
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.track_geometry import TrackWalls
 from src.ros2.navigation.node import ROS2HardwareGateway, TrackNavigator, main
+from tests.ros2.common_node_fixtures import wait_for_graph_entry
 
 # tests/ros2/conftest.py mocks sys.modules["buildhat"] for this whole directory.
 
@@ -291,16 +291,11 @@ class TestWheelOdometryWiring:
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
         joint_states_topic = RosTopicConfig.load_default().actuators.joint_states
-
-        # The local graph cache is filled in off the middleware's discovery
-        # thread, not synchronously inside create_subscription() -- querying
-        # it immediately after construction is a race that shows up as a
-        # flaky empty result under the CPU contention of a parallel test run.
-        subs: dict[str, list[str]] = {}
-        deadline = time.monotonic() + 2.0
-        while joint_states_topic not in subs and time.monotonic() < deadline:
-            rclpy.spin_once(node, timeout_sec=0.05)
-            subs = dict(node.get_subscriber_names_and_types_by_node(node.get_name(), ""))
+        subs = wait_for_graph_entry(
+            node,
+            lambda: dict(node.get_subscriber_names_and_types_by_node(node.get_name(), "")),
+            joint_states_topic,
+        )
 
         assert joint_states_topic in subs
         assert subs[joint_states_topic] == ["sensor_msgs/msg/JointState"]
