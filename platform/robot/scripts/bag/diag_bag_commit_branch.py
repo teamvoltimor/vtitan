@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 
 
 def main() -> None:
@@ -51,7 +51,7 @@ def main() -> None:
         if not isinstance(yaw, (int, float)):
             continue
         if prev is not None:
-            d = abs(_wrap(yaw - prev[1]))
+            d = abs(wrap_angle(yaw - prev[1]))
             if d > 1.0:
                 jumps.append((f"{prev[0]:.2f}", f"{t:.2f}", f"{prev[1]:.3f}", f"{yaw:.3f}", f"{d:.3f}"))
         prev = (t, yaw)

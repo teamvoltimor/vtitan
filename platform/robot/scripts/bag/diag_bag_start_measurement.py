@@ -47,7 +47,7 @@ from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning
 from src.navigation.race_tracker import TRAVEL_DIRS
 from src.navigation.start_measurement import _wedge_median, measure_start_pose
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 if TYPE_CHECKING:
@@ -160,7 +160,7 @@ def main() -> None:
         pose = f"({nearest.pose_x:.2f}, {nearest.pose_y:.2f})"
         if not isinstance(nearest.pose_yaw, (int, float)):
             return pose, "-"
-        return pose, f"{math.degrees(abs(_wrap(nearest.pose_yaw - travel_yaw))):.0f}"
+        return pose, f"{math.degrees(abs(wrap_angle(nearest.pose_yaw - travel_yaw))):.0f}"
 
     table = []
     first_ok: float | None = None

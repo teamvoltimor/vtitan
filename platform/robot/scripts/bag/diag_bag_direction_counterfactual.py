@@ -33,7 +33,7 @@ from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows
 from scripts.common.tables import print_table
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
     from shared.domain.models import NavigatorDebugSnapshot
@@ -65,7 +65,7 @@ def settle(
             continue
         if left > max_range or right > max_range:
             continue
-        axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+        axis_error = abs(wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
         if axis_error > align_tol:
             continue
         if left + right <= max_span:
@@ -90,7 +90,7 @@ def true_direction(rows: list[tuple[float, NavigatorDebugSnapshot]]) -> tuple[st
             continue
         ang = math.atan2(y - _MAT_CENTRE_Y, x - _MAT_CENTRE_X)
         if prev is not None:
-            total += _wrap(ang - prev)
+            total += wrap_angle(ang - prev)
         prev = ang
     laps = total / (2 * math.pi)
     return ("counterclockwise" if total > 0 else "clockwise"), laps
