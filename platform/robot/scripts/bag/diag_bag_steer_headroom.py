@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import itertools
 
 from rclpy.serialization import deserialize_message
+from shared.config.navigation_tuning import NavigationTuning
 from std_msgs.msg import String
 
 from scripts.common.bag_io import Topics, create_bag_parser, decode_nav_debug, elapsed_seconds, open_reader
@@ -32,8 +33,8 @@ _STEER_HIGH_THRESHOLD = 0.8
 _DELTA_TIME_MIN_S = 0.01
 _DELTA_TIME_MAX_S = 0.5
 _BELIEF_SAMPLE_INTERVAL_S = 20.0
-_SHORT_LOOKAHEAD_M = 0.20
-_TURN_THRESHOLD_RAD = 0.35
+_SHORT_LOOKAHEAD_M = NavigationTuning.load_default().pursuit.LOOKAHEAD_SHORT
+_TURN_THRESHOLD_RAD = NavigationTuning.load_default().pursuit.CORNER_TURN_THRESHOLD_RAD
 _SPEED_LOW_THRESHOLD_MPS = 0.10
 
 

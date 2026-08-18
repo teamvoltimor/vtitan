@@ -18,6 +18,7 @@ import math
 import sys
 
 from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Section
 from shared.domain.models import Pose
 
@@ -28,7 +29,7 @@ from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.OBSTACLES_WIDTH)
-_DT = 0.05
+_DT = 1.0 / NavigationTuning.load_default().control.CONTROL_HZ
 _MAX_STEPS = 800
 _LATERAL_ERRORS = (-0.15, -0.05, 0.0, 0.05, 0.15)
 _YAW_ERRORS = (math.radians(-15), 0.0, math.radians(15))
