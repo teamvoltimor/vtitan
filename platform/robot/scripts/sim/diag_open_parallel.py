@@ -26,6 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import CompetitionSpecs
+
 from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning, resolve_jobs, run_pool
 from scripts.common.open_cases import SIDES, case_space
 from scripts.common.tables import print_table
@@ -33,7 +35,6 @@ from scripts.sim.diag_open_exhaustive import _summarise, _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_DEFAULT_LAPS = 3
 _DEFAULT_SAMPLE_SIZE = 24
 _DEFAULT_SEED = 0
 
@@ -73,7 +74,13 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
 def main() -> None:
     """Run a seeded sample concurrently and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
-    add_sweep_args(parser, default_laps=_DEFAULT_LAPS, default_sample=_DEFAULT_SAMPLE_SIZE, default_seed=_DEFAULT_SEED, jobs=True)
+    add_sweep_args(
+        parser,
+        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+        default_sample=_DEFAULT_SAMPLE_SIZE,
+        default_seed=_DEFAULT_SEED,
+        jobs=True,
+    )
     add_tuning_arg(parser)
     args = parser.parse_args()
 

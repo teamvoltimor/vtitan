@@ -32,12 +32,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import CompetitionSpecs
+
 from scripts.common.diag_base import add_sweep_args, add_tuning_arg, draw_sample, load_tuning
 from scripts.common.open_cases import SIDES, case_space
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_DEFAULT_LAPS = 3
 _DEFAULT_SAMPLE_SIZE = 128
 _DEFAULT_SEED = 0
 
@@ -65,7 +66,12 @@ def _summarise(title: str, counts: Counter[tuple[str, str]]) -> None:
 def main() -> None:
     """Run a seeded sample of the scenario space and summarise by dimension."""
     parser = argparse.ArgumentParser(description=__doc__)
-    add_sweep_args(parser, default_laps=_DEFAULT_LAPS, default_sample=_DEFAULT_SAMPLE_SIZE, default_seed=_DEFAULT_SEED)
+    add_sweep_args(
+        parser,
+        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+        default_sample=_DEFAULT_SAMPLE_SIZE,
+        default_seed=_DEFAULT_SEED,
+    )
     add_tuning_arg(parser)
     args = parser.parse_args()
 

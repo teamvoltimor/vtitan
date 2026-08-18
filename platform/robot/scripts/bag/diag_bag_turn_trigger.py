@@ -31,12 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from typing import TYPE_CHECKING
 
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import create_bag_parser, open_reader, read_bag
 from scripts.common.tables import print_table
-from src.navigation.utils import _forward_clearance, _wrap
+from src.navigation.utils import _forward_clearance, wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 if TYPE_CHECKING:
@@ -48,7 +48,12 @@ MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 # (RobotSpecs.LIDAR_MAX_RANGE itself, used below).
 MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 # Mat corners; the loop turns at each one.
-CORNERS = ((0.0, 0.0), (3.0, 0.0), (0.0, 3.0), (3.0, 3.0))
+CORNERS = (
+    (0.0, 0.0),
+    (TrackDimensions.MAX_COORD, 0.0),
+    (0.0, TrackDimensions.MAX_COORD),
+    (TrackDimensions.MAX_COORD, TrackDimensions.MAX_COORD),
+)
 CORNER_RADIUS_M = 1.0
 
 
@@ -61,7 +66,7 @@ def _arc_max(ranges: Sequence[float], angles: Sequence[float], half_fov: float) 
     vals = [
         r
         for r, a in zip(ranges, angles, strict=False)
-        if abs(_wrap(a)) <= half_fov and MIN_VALID_M < r < MAX_RANGE_M
+        if abs(wrap_angle(a)) <= half_fov and MIN_VALID_M < r < MAX_RANGE_M
     ]
     return max(vals) if vals else 0.0
 

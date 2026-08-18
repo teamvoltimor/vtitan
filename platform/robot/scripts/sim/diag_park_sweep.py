@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 import sys
 
-from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
+from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import Pose
 
@@ -91,7 +91,7 @@ def _bay_rect(metadata: dict, section: Section) -> tuple[float, float, float, fl
     if _low_side(section):
         d_lo, d_hi = 0.0, _BAY_DEPTH
     else:
-        d_lo, d_hi = 3.0 - _BAY_DEPTH, 3.0
+        d_lo, d_hi = TrackDimensions.MAX_COORD - _BAY_DEPTH, TrackDimensions.MAX_COORD
     if _is_ns(section):
         return a_lo, d_lo, a_hi, d_hi
     return d_lo, a_lo, d_hi, a_hi
@@ -153,7 +153,7 @@ def _run_one(
     sx, sy = ctrl.staging.x, ctrl.staging.y
     yaw = _travel_yaw(section, direction) + yaw_err
     centre = CorridorDimensions.OBSTACLES_WIDTH / 2
-    lat_centre = centre if _low_side(section) else 3.0 - centre
+    lat_centre = centre if _low_side(section) else TrackDimensions.MAX_COORD - centre
     if _is_ns(section):
         start = (sx - _STAGING_APPROACH_OFFSET * math.cos(yaw), lat_centre + lat_err)
     else:
@@ -246,7 +246,7 @@ def report_straight_in() -> None:
     blocks = _blocks(meta)
     rect = _bay_rect(meta, section)
     track = TrackModel(_TRACK_WIDTHS, obstacles=[b for _, b in blocks])
-    wall = 0.0 if _low_side(section) else 3.0
+    wall = 0.0 if _low_side(section) else TrackDimensions.MAX_COORD
     bay_mid = (rect[0] + rect[2]) / 2 if _is_ns(section) else (rect[1] + rect[3]) / 2
 
     print(f"bay rect={tuple(round(v, 3) for v in rect)}  depth={_BAY_DEPTH} m  chassis width={RobotSpecs.WIDTH} m")

@@ -21,12 +21,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import CompetitionSpecs
+
+from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
-
-_DEFAULT_LAPS = 3
 _DEFAULT_GRACE_S = 5.0
 _DEFAULT_LIMIT = 0
 
@@ -39,7 +39,7 @@ def _run(meta: object, laps: int, seed: int, *, recover: bool, grace_s: float) -
 def main() -> None:
     """Run each narrow middle-band case under both contact policies."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
+    parser.add_argument("--laps", type=int, default=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
     parser.add_argument("--grace", type=float, default=_DEFAULT_GRACE_S, help="Seconds pinned before failure.")
     parser.add_argument("--limit", type=int, default=_DEFAULT_LIMIT, help="Cap the case count (0 = all).")
     args = parser.parse_args()

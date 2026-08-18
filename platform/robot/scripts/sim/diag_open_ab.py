@@ -39,6 +39,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
+from shared.config.constants import CompetitionSpecs
+
 from scripts.common.diag_base import (
     add_sweep_args,
     add_tuning_arg,
@@ -54,7 +56,6 @@ from scripts.sim.diag_open_exhaustive import _verdict
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_DEFAULT_LAPS = 3
 _DEFAULT_SAMPLE_SIZE = 24
 _DEFAULT_SEED = 0
 
@@ -128,7 +129,13 @@ def main() -> None:
     """Run both arms over the same sample and report what the override changed."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("overrides", nargs="+", help="group.FIELD=value, applied to the variant arm.")
-    add_sweep_args(parser, default_laps=_DEFAULT_LAPS, default_sample=_DEFAULT_SAMPLE_SIZE, default_seed=_DEFAULT_SEED, jobs=True)
+    add_sweep_args(
+        parser,
+        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+        default_sample=_DEFAULT_SAMPLE_SIZE,
+        default_seed=_DEFAULT_SEED,
+        jobs=True,
+    )
     add_tuning_arg(parser)
     args = parser.parse_args()
 

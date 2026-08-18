@@ -102,9 +102,6 @@ class SweepMode(StrEnum):
     CROSSTRACK = "crosstrack"
 
 
-_TARGET_LAPS = 3
-"""Laps a scenario must finish to count as a driving success."""
-
 
 
 _RESULT_LABEL_WIDTH = 32
@@ -952,7 +949,7 @@ class SweepResult:
     @property
     def laps_ge_3(self) -> int:
         """Scenarios that completed the full three laps — the driving-success metric."""
-        return sum(1 for o in self.outcomes if o.laps >= _TARGET_LAPS)
+        return sum(1 for o in self.outcomes if o.laps >= CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS)
 
     @property
     def uturns(self) -> int:
@@ -981,7 +978,7 @@ class SweepResult:
         return sum(
             1
             for o in self.outcomes
-            if o.laps >= _TARGET_LAPS and o.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
+            if o.laps >= CompetitionSpecs.OBSTACLE_CHALLENGE_LAPS and o.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
         )
 
     @property
