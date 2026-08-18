@@ -135,7 +135,13 @@ class TestNavigatorToMotorNode:
         # here tested an open-loop API the node abandoned when it moved to
         # closed-loop speed control, and direction now belongs to the driver
         # rather than being chosen by picking a forward or reverse call.
-        expected_rpm = speed_mps / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
+        #
+        # The gateway clamps to RobotSpecs.MAX_SPEED_MPS (the measured 0.156
+        # m/s hardware ceiling) before publishing, so the expected rpm must
+        # be derived from the clamped speed the motor node actually received,
+        # not the raw parametrized speed_mps.
+        clamped_speed_mps = max(-RobotSpecs.MAX_SPEED_MPS, min(RobotSpecs.MAX_SPEED_MPS, speed_mps))
+        expected_rpm = clamped_speed_mps / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
         assert motor_node.target_wheel_rpm == pytest.approx(expected_rpm)
         mock_drive.run_drive_forward.assert_not_called()
         mock_drive.run_drive_reverse.assert_not_called()
