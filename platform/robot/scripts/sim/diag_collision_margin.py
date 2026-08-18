@@ -26,16 +26,16 @@ from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from shared.config.constants import CompetitionSpecs
+
+from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
 from src.simulation import track_model
 from src.simulation.scenario_builder import build_open_metadata
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-from scripts.common.open_cases import MIDDLE_BAND_CELLS, SIDES, case_space
-
 if TYPE_CHECKING:
     from shared.domain.enums import Direction, Section
 
-_DEFAULT_LAPS = 3
 _DEFAULT_LIMIT = 8
 
 
@@ -48,7 +48,7 @@ def _cases(limit: int) -> list[tuple[tuple[int, ...], Section, Direction, int]]:
 def main() -> None:
     """Run each affected start with the margin on and off."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--laps", type=int, default=_DEFAULT_LAPS)
+    parser.add_argument("--laps", type=int, default=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
     parser.add_argument("--limit", type=int, default=_DEFAULT_LIMIT)
     args = parser.parse_args()
 

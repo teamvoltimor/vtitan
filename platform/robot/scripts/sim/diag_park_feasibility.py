@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs
+from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
 from shared.domain.enums import Section
 
 from scripts.common.tables import print_table
@@ -35,12 +35,11 @@ _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.OBSTACLES_WIDTH)
 
 # Fixture 0000 (NORTH): fins at x = 1.50 and 1.95, y = 2.90, outer wall at y = 3.0.
 _FIN_A, _FIN_B, _FIN_LAT = 1.50, 1.95, 2.90
-_WALL = 3.0
 _BAY = (
     _FIN_A + ParkingLotSpecs.WIDTH / 2,
-    _WALL - _BAY_DEPTH,
+    TrackDimensions.MAX_COORD - _BAY_DEPTH,
     _FIN_B - ParkingLotSpecs.WIDTH / 2,
-    _WALL,
+    TrackDimensions.MAX_COORD,
 )
 
 
@@ -118,7 +117,7 @@ def _simulate_two_arc(
     track = TrackModel(_TRACK_WIDTHS, obstacles=_fins())
     kin = AckermannKinematics()
     bay_mid_x = (_BAY[0] + _BAY[2]) / 2
-    state = AckermannState(x=bay_mid_x - ahead, y=_WALL - lat0, yaw=math.pi)
+    state = AckermannState(x=bay_mid_x - ahead, y=TrackDimensions.MAX_COORD - lat0, yaw=math.pi)
 
     plan = [(-speed, steer_sign, n1), (-speed, -steer_sign, n2), (speed, 0.0, n3)]
     for tgt_speed, steer, n in plan:
@@ -179,7 +178,7 @@ def _hits_fins_or_wall(x: float, y: float, yaw: float, wall_margin: float) -> bo
     physical mat, which is what the real robot actually has to clear.
     """
     corners = _rect_corners(x, y, yaw, RobotSpecs.LENGTH, RobotSpecs.WIDTH)
-    if any(cy > _WALL - wall_margin for _, cy in corners):
+    if any(cy > TrackDimensions.MAX_COORD - wall_margin for _, cy in corners):
         return True
     return any(_convex_overlap(corners, fin.to_box().corners(), yaw) for fin in _fins())
 
@@ -196,8 +195,8 @@ def report_shuffle() -> None:
     for wall_margin, label in ((0.04, "simulator collision mesh"), (0.0, "physical mat")):
         kin = AckermannKinematics()
         bay_mid_x = (_BAY[0] + _BAY[2]) / 2
-        state = AckermannState(x=bay_mid_x, y=_WALL - 0.26, yaw=math.pi)
-        best_lat = _WALL - state.y
+        state = AckermannState(x=bay_mid_x, y=TrackDimensions.MAX_COORD - 0.26, yaw=math.pi)
+        best_lat = TrackDimensions.MAX_COORD - state.y
         cycles_used = 0
         blocked = False
 
@@ -219,7 +218,7 @@ def report_shuffle() -> None:
                 blocked = True
                 break
             cycles_used = cycle + 1
-            best_lat = min(best_lat, _WALL - state.y)
+            best_lat = min(best_lat, TrackDimensions.MAX_COORD - state.y)
 
         yaw_err = abs(math.atan2(math.sin(state.yaw - math.pi), math.cos(state.yaw - math.pi)))
         prot = _protrusion(state.x, state.y, state.yaw)

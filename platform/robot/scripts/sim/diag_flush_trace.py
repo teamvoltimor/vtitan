@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions
+from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
 
@@ -33,7 +33,6 @@ _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _DEFAULT_CELL = 2
 _DEFAULT_TICKS = 400
 _DEFAULT_DOWNSAMPLE = 10
-_DEFAULT_LAPS = 3
 _CONTROL_DT_S = 0.05
 
 
@@ -51,7 +50,7 @@ def main() -> None:
     direction = Direction[args.direction.upper()]
 
     meta = build_open_metadata(uniform_widths(_NARROW_MM), section, direction, start_cell=args.cell)
-    sim = ScenarioSimulator(meta, num_laps=_DEFAULT_LAPS, seed=0, blind=True)
+    sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=0, blind=True)
     tuning = NavigationTuning.load_default()
 
     start = meta.starting_conditions.position
