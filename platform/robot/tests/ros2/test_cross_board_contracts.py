@@ -41,12 +41,14 @@ _MOCK_MAX_STEERING_DEG = 30.0
 
 def _make_navigator_host_node():
     from rclpy.node import Node
+    from shared.config.ros_topics import RosTopicConfig
 
+    topics = RosTopicConfig.load_default()
     node = Node("test_navigator_side")
-    node.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-    node.declare_parameter("lidar_topic", "/scan")
-    node.declare_parameter("vision_topic", "/vision/detections")
-    node.declare_parameter("imu_topic", "/imu/data")
+    node.declare_parameter("ackermann_cmd_topic", topics.commands.ackermann_cmd)
+    node.declare_parameter("lidar_topic", topics.sensors.scan)
+    node.declare_parameter("vision_topic", topics.sensors.vision_detections)
+    node.declare_parameter("imu_topic", topics.sensors.imu)
     return node
 
 

@@ -24,6 +24,7 @@ import pytest
 import rclpy
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image, LaserScan
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import Detection, SignColor
 from std_msgs.msg import String
 
@@ -71,9 +72,10 @@ class TestVisionNodeInit:
         VisionNode, _ = vision_node_class
         node = VisionNode()
 
+        detections_topic = RosTopicConfig.load_default().sensors.vision_detections
         topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
-        assert "/vision/detections" in topics
-        assert topics["/vision/detections"] == ["std_msgs/msg/String"]
+        assert detections_topic in topics
+        assert topics[detections_topic] == ["std_msgs/msg/String"]
 
         node.destroy_node()
 
@@ -120,7 +122,7 @@ class TestVisionNodeInit:
         VisionNode, _ = vision_node_class
         node = VisionNode()
 
-        subs = node.get_subscriptions_info_by_topic("/camera/image_raw")
+        subs = node.get_subscriptions_info_by_topic(RosTopicConfig.load_default().sensors.camera_image_raw)
         assert len(subs) == 1
         assert subs[0].topic_type == "sensor_msgs/msg/Image"
 
@@ -397,12 +399,13 @@ class TestVideoRecordingGating:
     def test_direct_mode_subscribes_to_every_gating_and_hud_topic(self, ros_context, direct_node_class):
         VisionNode, _ = direct_node_class
         node = VisionNode()
+        topics = RosTopicConfig.load_default()
 
-        assert len(node.get_subscriptions_info_by_topic("/robot_state")) == 1
-        assert len(node.get_subscriptions_info_by_topic("/challenge_mode/active")) == 1
-        assert len(node.get_subscriptions_info_by_topic("/bag_recorder/run_path")) == 1
-        assert len(node.get_subscriptions_info_by_topic("/nav_debug")) == 1
-        assert len(node.get_subscriptions_info_by_topic("/scan")) == 1
+        assert len(node.get_subscriptions_info_by_topic(topics.state_machine.state)) == 1
+        assert len(node.get_subscriptions_info_by_topic(topics.challenge_mode.active)) == 1
+        assert len(node.get_subscriptions_info_by_topic(topics.bag_recorder.run_path)) == 1
+        assert len(node.get_subscriptions_info_by_topic(topics.navigation.nav_debug)) == 1
+        assert len(node.get_subscriptions_info_by_topic(topics.sensors.scan)) == 1
 
         node.destroy_node()
 
@@ -411,12 +414,13 @@ class TestVideoRecordingGating:
         state it will never act on."""
         VisionNode, _ = vision_node_class
         node = VisionNode()
+        topics = RosTopicConfig.load_default()
 
-        assert node.get_subscriptions_info_by_topic("/robot_state") == []
-        assert node.get_subscriptions_info_by_topic("/challenge_mode/active") == []
-        assert node.get_subscriptions_info_by_topic("/bag_recorder/run_path") == []
-        assert node.get_subscriptions_info_by_topic("/nav_debug") == []
-        assert node.get_subscriptions_info_by_topic("/scan") == []
+        assert node.get_subscriptions_info_by_topic(topics.state_machine.state) == []
+        assert node.get_subscriptions_info_by_topic(topics.challenge_mode.active) == []
+        assert node.get_subscriptions_info_by_topic(topics.bag_recorder.run_path) == []
+        assert node.get_subscriptions_info_by_topic(topics.navigation.nav_debug) == []
+        assert node.get_subscriptions_info_by_topic(topics.sensors.scan) == []
 
         node.destroy_node()
 

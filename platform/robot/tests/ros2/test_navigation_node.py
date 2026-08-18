@@ -21,6 +21,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import ScenarioType, Section
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
@@ -96,12 +97,13 @@ def _obstacles_metadata(*, with_parking: bool) -> dict:
 
 def _make_host_node() -> Node:
     """A bare Node declaring the parameters ROS2HardwareGateway expects."""
+    topics = RosTopicConfig.load_default()
     node = Node("test_track_navigator")
-    node.declare_parameter("ackermann_cmd_topic", "/ackermann_cmd")
-    node.declare_parameter("lidar_topic", "/scan")
-    node.declare_parameter("vision_topic", "/vision/detections")
-    node.declare_parameter("imu_topic", "/imu/data")
-    node.declare_parameter("joint_states_topic", "/joint_states")
+    node.declare_parameter("ackermann_cmd_topic", topics.commands.ackermann_cmd)
+    node.declare_parameter("lidar_topic", topics.sensors.scan)
+    node.declare_parameter("vision_topic", topics.sensors.vision_detections)
+    node.declare_parameter("imu_topic", topics.sensors.imu)
+    node.declare_parameter("joint_states_topic", topics.actuators.joint_states)
     return node
 
 
@@ -112,9 +114,10 @@ class TestGatewayTopicContract:
         node = _make_host_node()
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
+        ackermann_cmd_topic = RosTopicConfig.load_default().commands.ackermann_cmd
         topics = dict(node.get_publisher_names_and_types_by_node(node.get_name(), ""))
-        assert "/ackermann_cmd" in topics
-        assert topics["/ackermann_cmd"] == ["ackermann_msgs/msg/AckermannDriveStamped"]
+        assert ackermann_cmd_topic in topics
+        assert topics[ackermann_cmd_topic] == ["ackermann_msgs/msg/AckermannDriveStamped"]
 
         node.destroy_node()
 
@@ -287,18 +290,20 @@ class TestWheelOdometryWiring:
         node = _make_host_node()
         gateway = ROS2HardwareGateway(node, 0.0, 0.0, 0.0, _WIDTHS)
 
+        joint_states_topic = RosTopicConfig.load_default().actuators.joint_states
+
         # The local graph cache is filled in off the middleware's discovery
         # thread, not synchronously inside create_subscription() -- querying
         # it immediately after construction is a race that shows up as a
         # flaky empty result under the CPU contention of a parallel test run.
         subs: dict[str, list[str]] = {}
         deadline = time.monotonic() + 2.0
-        while "/joint_states" not in subs and time.monotonic() < deadline:
+        while joint_states_topic not in subs and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
             subs = dict(node.get_subscriber_names_and_types_by_node(node.get_name(), ""))
 
-        assert "/joint_states" in subs
-        assert subs["/joint_states"] == ["sensor_msgs/msg/JointState"]
+        assert joint_states_topic in subs
+        assert subs[joint_states_topic] == ["sensor_msgs/msg/JointState"]
 
         node.destroy_node()
 

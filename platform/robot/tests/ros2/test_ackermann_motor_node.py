@@ -15,6 +15,7 @@ import pytest
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
 from shared.config.constants import RobotSpecs
+from shared.config.ros_topics import RosTopicConfig
 
 from src.hardware.motors.enums import DriveBackend, SteeringBackend
 from tests.ros2.common_node_fixtures import assert_destroy_without_configure_does_not_raise
@@ -99,7 +100,7 @@ class TestAckermannMotorNodeInit:
         node.trigger_configure()
         node.trigger_activate()
 
-        subs = node.get_subscriptions_info_by_topic("/ackermann_cmd")
+        subs = node.get_subscriptions_info_by_topic(RosTopicConfig.load_default().commands.ackermann_cmd)
         assert len(subs) == 1
         assert subs[0].topic_type == "ackermann_msgs/msg/AckermannDriveStamped"
 
