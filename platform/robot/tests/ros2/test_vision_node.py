@@ -24,7 +24,7 @@ import pytest
 import rclpy
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image, LaserScan
-from shared.config.ros_topics import RosTopicConfig
+from shared.config.ros_topics import RosMessageType, RosTopicConfig
 from shared.domain.models import Detection, SignColor
 from std_msgs.msg import String
 
@@ -81,7 +81,7 @@ class TestVisionNodeInit:
             detections_topic,
         )
         assert detections_topic in topics
-        assert topics[detections_topic] == ["std_msgs/msg/String"]
+        assert topics[detections_topic] == [RosMessageType.STRING]
 
         node.destroy_node()
 
@@ -130,7 +130,7 @@ class TestVisionNodeInit:
 
         subs = wait_for_subscriptions_info(node, RosTopicConfig.load_default().sensors.camera_image_raw)
         assert len(subs) == 1
-        assert subs[0].topic_type == "sensor_msgs/msg/Image"
+        assert subs[0].topic_type == RosMessageType.IMAGE
 
         node.destroy_node()
 

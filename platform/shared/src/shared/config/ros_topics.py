@@ -13,10 +13,26 @@ Example usage:
 from __future__ import annotations
 
 import tomllib
+from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
+
+
+class RosMessageType(StrEnum):
+    """ROS2 message type strings, as returned by rclpy's own graph-introspection APIs.
+
+    Covers ``get_publisher_names_and_types_by_node``, and
+    ``get_subscriptions_info_by_topic``'s ``.topic_type``. Named here so tests
+    pinning a node's message-type contract don't hand-retype the
+    ``"pkg_name/msg/TypeName"`` string.
+    """
+
+    ACKERMANN_DRIVE_STAMPED = "ackermann_msgs/msg/AckermannDriveStamped"
+    IMAGE = "sensor_msgs/msg/Image"
+    JOINT_STATE = "sensor_msgs/msg/JointState"
+    STRING = "std_msgs/msg/String"
 
 
 class StateMachineTopics(BaseModel):
