@@ -45,6 +45,7 @@ from shared.config.constants import RobotSpecs
 from shared.domain.enums import Section
 
 from scripts.common.bag_io import Topics, create_bags_parser, decode_nav_debug, open_reader
+from scripts.common.stats import nearest_by_time
 from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
@@ -83,11 +84,6 @@ def _read_bag(bag_dir: Path) -> tuple[list[tuple[int, NavigatorDebugSnapshot]], 
         elif topic == Topics.SCAN:
             scans.append((t, deserialize_message(data, LaserScan)))
     return nav_debug, scans
-
-
-def _nearest_scan(scans: list[tuple[int, LaserScan]], t: int) -> LaserScan:
-    idx = min(range(len(scans)), key=lambda i: abs(scans[i][0] - t))
-    return scans[idx][1]
 
 
 def _scan_to_ranges_angles(msg: LaserScan) -> tuple[np.ndarray, np.ndarray]:
@@ -181,6 +177,7 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
         print("  no belief widths recorded in this run, skipping replay")
         return
 
+    scan_times = [t for t, _ in scans]
     jump_count = 0
     would_reject = 0
     for i in range(1, len(nav_debug)):
@@ -195,7 +192,8 @@ def replay(bag_dir: Path, min_distinctiveness: float, cost_floor: float) -> None
             continue
 
         jump_count += 1
-        scan = _nearest_scan(scans, t1)
+        # scans was confirmed non-empty above, so this always finds a match.
+        scan: LaserScan = nearest_by_time(scans, scan_times, t1)
         ranges, angles = _scan_to_ranges_angles(scan)
         prior_xy = (prev.pose_x, prev.pose_y)
         _, _, best_cost, second_cost = _grid_search_costs(walls, prior_xy, cur.pose_yaw, ranges, angles)

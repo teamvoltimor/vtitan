@@ -39,7 +39,6 @@ Usage:
 
 from __future__ import annotations
 
-import bisect
 import math
 import sys
 from collections import Counter
@@ -55,8 +54,9 @@ from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning import NavigationTuning
 
 from scripts.common.bag_io import Topics, create_bag_parser, open_reader, read_bag
+from scripts.common.stats import median, nearest_by_time
 from scripts.common.tables import print_table
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 
 if TYPE_CHECKING:
@@ -93,7 +93,7 @@ at ~10 Hz and the control loop at 20 Hz, so a real pair is always well under thi
 
 
 def _single(ranges: Sequence[float], angles: Sequence[float], target: float) -> float:
-    idx = min(range(len(angles)), key=lambda i: abs(_wrap(angles[i] - target)))
+    idx = min(range(len(angles)), key=lambda i: abs(wrap_angle(angles[i] - target)))
     return ranges[idx]
 
 
@@ -103,14 +103,14 @@ def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, h
     Returns None when every beam in the window is a dropout -- that is a
     genuinely absent reading, not a recoverable one.
     """
-    vals = sorted(
+    vals = [
         r
         for r, a in zip(ranges, angles, strict=False)
-        if abs(_wrap(a - target)) <= half_width and _MIN_VALID_M < r < _MAX_RANGE_M
-    )
+        if abs(wrap_angle(a - target)) <= half_width and _MIN_VALID_M < r < _MAX_RANGE_M
+    ]
     if not vals:
         return None
-    return vals[len(vals) // 2]
+    return median(vals)
 
 
 def _paired_snapshot(
@@ -119,15 +119,7 @@ def _paired_snapshot(
     t_scan: float,
 ) -> NavigatorDebugSnapshot | None:
     """The /nav_debug snapshot nearest ``t_scan``, or None if none is close enough."""
-    idx = bisect.bisect_left(row_times, t_scan)
-    best = min(
-        (r for r in (idx - 1, idx) if 0 <= r < len(rows)),
-        key=lambda r: abs(row_times[r] - t_scan),
-        default=None,
-    )
-    if best is None or abs(row_times[best] - t_scan) > _PAIR_TOLERANCE_S:
-        return None
-    return rows[best][1]
+    return nearest_by_time(rows, row_times, t_scan, tolerance=_PAIR_TOLERANCE_S)
 
 
 def _offset_sample(
@@ -162,7 +154,7 @@ def _offset_sample(
     to_centre = math.atan2(_MAT_CENTRE_Y - snap.pose_y, _MAT_CENTRE_X - snap.pose_x)
     # Misalignment from the corridor axis, mod 180 deg -- the axis is a line,
     # not an arrow, so travelling it either way counts as square.
-    misalign = abs(abs(_wrap(to_centre - snap.pose_yaw)) - math.pi / 2)
+    misalign = abs(abs(wrap_angle(to_centre - snap.pose_yaw)) - math.pi / 2)
     if misalign > _ALIGN_TOLERANCE_RAD:
         return "chassis not square to corridor (corner/turn)"
 
@@ -178,7 +170,7 @@ def _offset_sample(
         return "implausible measured width"
 
     # Which hand points at the inner block: +pi/2 is left in the robot frame.
-    left_is_inner = abs(_wrap(to_centre - (snap.pose_yaw + math.pi / 2))) < math.pi / 2
+    left_is_inner = abs(wrap_angle(to_centre - (snap.pose_yaw + math.pi / 2))) < math.pi / 2
     d_inner, d_outer = (left, right) if left_is_inner else (right, left)
     actual = (d_outer - d_inner) / 2.0
 
@@ -478,7 +470,7 @@ def main() -> None:
     for _, x, y in poses:
         ang = math.atan2(y - _MAT_CENTRE_Y, x - _MAT_CENTRE_X)
         if prev is not None:
-            total_ang += _wrap(ang - prev)
+            total_ang += wrap_angle(ang - prev)
         prev = ang
     truth = "counterclockwise" if total_ang > 0 else "clockwise"
     print(f"\npose winding: {total_ang / (2 * math.pi):+.2f} turns -> travelling {truth}")
@@ -492,7 +484,7 @@ def main() -> None:
                 continue
             if left > estimator.MAX_IN_TRACK_RANGE_M or right > estimator.MAX_IN_TRACK_RANGE_M:
                 continue
-            axis_error = abs(_wrap(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
+            axis_error = abs(wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2)))
             if axis_error > estimator.ALIGNMENT_TOLERANCE_RAD:
                 continue
             if left + right <= estimator.PLAUSIBLE_SPAN_THRESHOLD_M:

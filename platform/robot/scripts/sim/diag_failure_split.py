@@ -87,6 +87,7 @@ from shared.domain.models import Waypoint
 import src.navigation.planning.sign_router as sign_router_module
 from scripts.common.sign_router_capture import patched_deform_waypoint
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
+from scripts.common.stats import median
 from src.navigation.track_geometry import project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -197,7 +198,7 @@ class OffsetSeries:
         lateral line back onto the path every other tick -- so this is not a
         hypothetical.
         """
-        return _median([abs(b - a) for a, b in itertools.pairwise(self.target)]) if len(self.target) > 1 else 0.0
+        return median([abs(b - a) for a, b in itertools.pairwise(self.target)]) if len(self.target) > 1 else 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -745,10 +746,6 @@ def main() -> None:
         _report_approach([v for v in verdicts if v.approach is not None])
 
 
-def _median(values: list[float]) -> float:
-    return sorted(values)[len(values) // 2]
-
-
 def _report_approach(tracked: list[Verdict]) -> None:
     """Report whether the commanded line held still long enough to be followed."""
     print(f"\nTHE APPROACH -- {len(tracked)} collisions with a resolvable committed run")
@@ -756,20 +753,20 @@ def _report_approach(tracked: list[Verdict]) -> None:
         return
 
     runs = [v.approach for v in tracked if v.approach]
-    engage = _median([a.engage_distance_m for a in runs])
+    engage = median([a.engage_distance_m for a in runs])
     activation = NavigationTuning.load_default().sign_router.ACTIVATION_DIST_M
     print(f"  first committed at:                median {engage:.2f} m  (activation radius {activation:.2f} m)")
-    print(f"  ticks IN RANGE of the sign:        median {_median([float(a.ticks_in_range) for a in runs]):.0f}")
-    print(f"  ticks committed IN TOTAL:          median {_median([float(a.committed_ticks_total) for a in runs]):.0f}")
-    print(f"    i.e. deforming for {100 * _median([a.engaged_fraction for a in runs]):.0f}% of the approach")
-    print(f"  ticks in the final UNBROKEN run:   median {_median([float(a.ticks) for a in runs]):.0f}")
-    print(f"  dropouts (engaged, let go, re-took): median {_median([float(a.dropouts) for a in runs]):.0f}")
+    print(f"  ticks IN RANGE of the sign:        median {median([float(a.ticks_in_range) for a in runs]):.0f}")
+    print(f"  ticks committed IN TOTAL:          median {median([float(a.committed_ticks_total) for a in runs]):.0f}")
+    print(f"    i.e. deforming for {100 * median([a.engaged_fraction for a in runs]):.0f}% of the approach")
+    print(f"  ticks in the final UNBROKEN run:   median {median([float(a.ticks) for a in runs]):.0f}")
+    print(f"  dropouts (engaged, let go, re-took): median {median([float(a.dropouts) for a in runs]):.0f}")
 
     # Both frames, because the axis one is what every earlier figure used and a
     # correction nobody can see the size of is not a correction.
     straight = [a for a in runs if a.on_a_straight]
     corner = [a for a in runs if not a.on_a_straight]
-    print(f"\n  path swept during the approach:    median {math.degrees(_median([a.approach_turn_rad for a in runs])):.0f} deg")
+    print(f"\n  path swept during the approach:    median {math.degrees(median([a.approach_turn_rad for a in runs])):.0f} deg")
     print(f"    on a STRAIGHT (<{_STRAIGHT_TURN_DEG:.0f} deg): {len(straight)}/{len(runs)}   MID-CORNER: {len(corner)}/{len(runs)}")
 
     subsets = [("all approaches", runs)]
@@ -789,10 +786,10 @@ def _report_approach(tracked: list[Verdict]) -> None:
 
     # Can pure pursuit act at all? It needs a target AHEAD to turn lateral error
     # into heading; _pin_depth holds the commanded point level with the sign.
-    print(f"\n  target LEAD at engage:             median {1000 * _median([a.lead_start_m for a in runs]):.0f} mm")
-    print(f"  target LEAD at impact:             median {1000 * _median([a.lead_end_m for a in runs]):.0f} mm")
+    print(f"\n  target LEAD at engage:             median {1000 * median([a.lead_start_m for a in runs]):.0f} mm")
+    print(f"  target LEAD at impact:             median {1000 * median([a.lead_end_m for a in runs]):.0f} mm")
     abeam = [a.abeam_fraction for a in runs]
-    print(f"  share of approach with target ABEAM (<{100 * _ABEAM_LEAD_M:.0f} cm ahead): median {100 * _median(abeam):.0f}%")
+    print(f"  share of approach with target ABEAM (<{100 * _ABEAM_LEAD_M:.0f} cm ahead): median {100 * median(abeam):.0f}%")
     mostly_abeam = sum(1 for a in abeam if a > _MOSTLY)
     print(f"    runs abeam for >{100 * _MOSTLY:.0f}% of the approach: {mostly_abeam}/{len(runs)}")
 
@@ -806,8 +803,8 @@ def _report_approach(tracked: list[Verdict]) -> None:
     adequate = [v.approach for v in tracked if v.path and v.path.line_was_adequate and v.approach]
     if adequate:
         print(f"\n  on the {len(adequate)} with an ADEQUATE line at the held yaw (path frame):")
-        travel = _median([a.path.line_travel_m for a in adequate])
-        closed_ok = _median([a.path.closed_m for a in adequate])
+        travel = median([a.path.line_travel_m for a in adequate])
+        closed_ok = median([a.path.closed_m for a in adequate])
         print(f"    line travel {1000 * travel:.0f} mm vs error closed {1000 * closed_ok:.0f} mm")
 
 
@@ -816,12 +813,12 @@ def _report_convergence(runs: list[Approach], frame: Callable[[Approach], Offset
     series = [frame(a) for a in runs]
     # First, because it bounds what the rest can mean: a line jumping tick to
     # tick is not one line the chassis failed to reach, it is two.
-    print(f"{indent}commanded line JUMPED per tick:    median {1000 * _median([s.chatter_m for s in series]):.0f} mm")
-    print(f"{indent}commanded line MOVED by:           median {1000 * _median([s.line_travel_m for s in series]):.0f} mm")
-    print(f"{indent}cross-track error at engage:       median {1000 * _median([s.error_start_m for s in series]):.0f} mm")
-    print(f"{indent}cross-track error at impact:       median {1000 * _median([s.error_end_m for s in series]):.0f} mm")
+    print(f"{indent}commanded line JUMPED per tick:    median {1000 * median([s.chatter_m for s in series]):.0f} mm")
+    print(f"{indent}commanded line MOVED by:           median {1000 * median([s.line_travel_m for s in series]):.0f} mm")
+    print(f"{indent}cross-track error at engage:       median {1000 * median([s.error_start_m for s in series]):.0f} mm")
+    print(f"{indent}cross-track error at impact:       median {1000 * median([s.error_end_m for s in series]):.0f} mm")
     closed = [s.closed_m for s in series]
-    print(f"{indent}error actually CLOSED:             median {1000 * _median(closed):.0f} mm")
+    print(f"{indent}error actually CLOSED:             median {1000 * median(closed):.0f} mm")
     diverged = sum(1 for c in closed if c < 0)
     print(f"{indent}  runs where the error GREW: {diverged}/{len(runs)} ({100 * diverged / len(runs):.0f}%)")
 
@@ -842,7 +839,7 @@ def _report_yaw(mode_a: list[Verdict]) -> None:
     skews = sorted(abs(v.path.yaw_deg - v.axis.yaw_deg) for v in mode_a if v.path and v.axis)
     if skews:
         badly = sum(1 for s in skews if s > _SKEW_DEG)
-        print(f"  frame SKEW (corridor axis vs path): median {skews[len(skews) // 2]:.1f} deg, max {skews[-1]:.1f} deg")
+        print(f"  frame SKEW (corridor axis vs path): median {median(skews):.1f} deg, max {skews[-1]:.1f} deg")
         print(f"    over {_SKEW_DEG:.0f} deg, where the axis frame measures mostly along-track: {badly}/{len(skews)}")
 
     # Reported in both frames throughout. Two-thirds of legal sign positions sit
@@ -861,7 +858,7 @@ def _report_yaw(mode_a: list[Verdict]) -> None:
 def _report_frame(frames: list[Frame]) -> None:
     """Report the yaw histogram and the line-adequacy split for one frame."""
     yaws = sorted(f.yaw_deg for f in frames)
-    print(f"    yaw at the fatal tick: median {yaws[len(yaws) // 2]:.1f} deg, max {yaws[-1]:.1f} deg")
+    print(f"    yaw at the fatal tick: median {median(yaws):.1f} deg, max {yaws[-1]:.1f} deg")
     lo = 0.0
     for edge in (*_YAW_BUCKETS_DEG, 90.0):
         n = sum(1 for y in yaws if lo <= y < edge)
@@ -875,7 +872,7 @@ def _report_frame(frames: list[Frame]) -> None:
     print("      the geometry was there and the chassis was not on it -- a tracking failure")
     if adequate:
         errs = sorted(f.tracking_error_m for f in adequate)
-        print(f"      median offset from the commanded line: {1000 * errs[len(errs) // 2]:.0f} mm")
+        print(f"      median offset from the commanded line: {1000 * median(errs):.0f} mm")
         wrong_side = sum(1 for f in adequate if (f.target_offset_m - f.sign_offset_m) * (f.robot_offset_m - f.sign_offset_m) < 0)
         print(f"      of which on the WRONG SIDE of the sign entirely: {wrong_side}/{len(adequate)}")
     print(f"    line SHORT at the held yaw:    {len(short)}/{len(frames)} ({100 * len(short) / len(frames):.0f}%)")
@@ -883,7 +880,7 @@ def _report_frame(frames: list[Frame]) -> None:
         recoverable = sum(1 for f in short if f.recoverable_by_squaring)
         print(f"      of which squaring would fix: {recoverable}/{len(short)}")
         deficits = sorted(f.needed_at_yaw_m - f.clearance_m for f in short)
-        print(f"      median shortfall: {1000 * deficits[len(deficits) // 2]:.0f} mm")
+        print(f"      median shortfall: {1000 * median(deficits):.0f} mm")
 
 
 if __name__ == "__main__":

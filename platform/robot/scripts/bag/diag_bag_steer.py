@@ -40,7 +40,6 @@ Usage:
 from __future__ import annotations
 
 import math
-import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -62,8 +61,9 @@ from scripts.common.bag_io import (
     load_nav_debug_rows,
     open_reader,
 )
+from scripts.common.stats import median, nearest_by_time, percentile
 from scripts.common.tables import fmt_optional, print_table
-from src.navigation.utils import _wrap
+from src.navigation.utils import wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -207,10 +207,6 @@ def _print_stats(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> None:
 
     dur = nd[-1][0] - nd[0][0]
 
-    def q(values: list[float], p: float) -> float:
-        s = sorted(values)
-        return s[min(int(len(s) * p), len(s) - 1)]
-
     # Target distance vs. lookahead (tmp_compare.py).
     dists = [
         math.hypot(s.steer_target_x - s.pose_x, s.steer_target_y - s.pose_y)
@@ -220,10 +216,10 @@ def _print_stats(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> None:
     looks = [s.lookahead_distance_m for _, s in nd if s.lookahead_distance_m is not None]
     if dists and looks:
         ratio = [d / look for d, look in zip(dists, looks, strict=False) if look]
-        print(f"  target distance   med={statistics.median(dists):.2f}  p90={q(dists, 0.9):.2f}  max={max(dists):.2f} m")
-        print(f"  lookahead         med={statistics.median(looks):.2f}  p90={q(looks, 0.9):.2f}  max={max(looks):.2f} m")
+        print(f"  target distance   med={median(dists):.2f}  p90={percentile(dists, 0.9):.2f}  max={max(dists):.2f} m")
+        print(f"  lookahead         med={median(looks):.2f}  p90={percentile(looks, 0.9):.2f}  max={max(looks):.2f} m")
         if ratio:
-            print(f"  dist/lookahead    med={statistics.median(ratio):.1f}x  p90={q(ratio, 0.9):.1f}x  max={max(ratio):.1f}x")
+            print(f"  dist/lookahead    med={median(ratio):.1f}x  p90={percentile(ratio, 0.9):.1f}x  max={max(ratio):.1f}x")
             over = sum(1 for r in ratio if r > _TARGET_LOOKAHEAD_RATIO_ALERT)
             print(f"  target >{_TARGET_LOOKAHEAD_RATIO_ALERT:.0f}x lookahead on {over}/{len(ratio)} ticks")
 
@@ -246,7 +242,7 @@ def _print_stats(rows: Sequence[tuple[float, NavigatorDebugSnapshot]]) -> None:
     ae_signed = [s.angle_error_rad for _, s in nd if s.angle_error_rad is not None]
     if ae_signed:
         pos = sum(1 for v in ae_signed if v > 0)
-        print(f"  angle_error sign: +{pos} / -{len(ae_signed) - pos}   median signed={statistics.median(ae_signed):.3f}")
+        print(f"  angle_error sign: +{pos} / -{len(ae_signed) - pos}   median signed={median(ae_signed):.3f}")
 
     # "Target behind robot" check (tmp_trace.py): reconstruct the target in the
     # robot's local frame and count ticks where it sits behind (x_local <= 0).
@@ -277,21 +273,6 @@ def _quaternion_yaw(q) -> float:  # noqa: ANN001
     differentiating it understates the achieved yaw rate by roughly half.
     """
     return math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-
-
-def _nearest(series: Sequence[tuple[float, float]], t: float) -> float | None:
-    """Value in ``series`` nearest time ``t``, or None if none is within the pairing tolerance."""
-    if not series:
-        return None
-    lo, hi = 0, len(series) - 1
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if series[mid][0] < t:
-            lo = mid + 1
-        else:
-            hi = mid
-    best = min((max(lo - 1, 0), lo), key=lambda i: abs(series[i][0] - t))
-    return series[best][1] if abs(series[best][0] - t) <= _PAIR_TOL_S else None
 
 
 def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
@@ -327,6 +308,8 @@ def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
     if not imu:
         return []
     step = max(1, int(len(imu) * _YAW_WINDOW_S / max(imu[-1][0], 1e-6)))
+    steer_times = [t for t, _ in steer]
+    speed_times = [t for t, _ in speed]
     out: list[tuple[float, float, float]] = []
     for i in range(len(imu) - step):
         t_a, y_a = imu[i]
@@ -335,11 +318,11 @@ def _effectiveness_samples(bag_dir: Path) -> list[tuple[float, float, float]]:
         if not 0.5 * _YAW_WINDOW_S <= dt <= 2.0 * _YAW_WINDOW_S:
             continue
         mid = 0.5 * (t_a + t_b)
-        sdeg = _nearest(steer, mid)
-        v = _nearest(speed, mid)
+        sdeg = nearest_by_time(steer, steer_times, mid, tolerance=_PAIR_TOL_S)
+        v = nearest_by_time(speed, speed_times, mid, tolerance=_PAIR_TOL_S)
         if sdeg is None or v is None or abs(sdeg) < _MIN_STEER_DEG or v < _MIN_SPEED_MPS:
             continue
-        out.append((sdeg, v, _wrap(y_b - y_a) / dt))
+        out.append((sdeg, v, wrap_angle(y_b - y_a) / dt))
     return out
 
 
@@ -390,7 +373,7 @@ def _print_effectiveness(bag_dirs: Sequence[Path]) -> None:
         left, right = _ratios(samples, trim)
         if len(left) < _MIN_BUCKET or len(right) < _MIN_BUCKET:
             continue
-        ml, mr = statistics.median(left), statistics.median(right)
+        ml, mr = median(left), median(right)
         gap = abs(ml - mr)
         rows.append([f"{trim:+.1f}", len(left), f"{ml:.2f}", len(right), f"{mr:.2f}", f"{gap:.2f}"])
         if best is None or gap < best[3]:
