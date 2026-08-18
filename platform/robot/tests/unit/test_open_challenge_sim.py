@@ -21,9 +21,10 @@ from typing import Any
 
 import numpy as np
 import pytest
-from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
+from shared.config.constants import CompetitionSpecs, RobotSpecs
 from shared.domain.enums import Direction, Section
 
+from scripts.common.open_cases import NARROW_MM, WIDE_MM
 from src.simulation import ScenarioSimulator, TrackModel
 from src.simulation.scenario_builder import build_open_metadata, start_cells, uniform_widths
 from tests.test_constants import (
@@ -49,10 +50,6 @@ logger = logging.getLogger(__name__)
 # combinations -- slow enough to skip from the default fast test loop (see
 # task robot:test SCOPE=fast).
 pytestmark = pytest.mark.slow
-
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
-_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
-_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
 _ALL_SECTIONS = list(Section)
 _ALL_DIRECTIONS = list(Direction)
@@ -112,10 +109,10 @@ class TestPlannedWaypointsClearCorridor:
     @pytest.mark.parametrize(
         ("south", "north", "east", "west"),
         [
-            (_WIDE_MM, _WIDE_MM, _WIDE_MM, _WIDE_MM),
-            (_NARROW_MM, _NARROW_MM, _NARROW_MM, _NARROW_MM),
-            (_NARROW_MM, _WIDE_MM, _NARROW_MM, _WIDE_MM),
-            (_WIDE_MM, _NARROW_MM, _WIDE_MM, _NARROW_MM),
+            (WIDE_MM, WIDE_MM, WIDE_MM, WIDE_MM),
+            (NARROW_MM, NARROW_MM, NARROW_MM, NARROW_MM),
+            (NARROW_MM, WIDE_MM, NARROW_MM, WIDE_MM),
+            (WIDE_MM, NARROW_MM, WIDE_MM, NARROW_MM),
         ],
     )
     def test_waypoints_in_free_space(
@@ -130,7 +127,7 @@ class TestPlannedWaypointsClearCorridor:
             Section.SOUTH,
             Direction.CLOCKWISE,
         )
-        sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
+        sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
         # Chassis half-width clearance to the nearest visual wall.
         clearance = RobotSpecs.WIDTH / 2
         offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp.x, wp.y, clearance)]
@@ -235,7 +232,7 @@ def _random_scenario_cases() -> list[Any]:
     rng = np.random.default_rng(2026)
     cases = []
     for i in range(8):
-        widths = {s: int(rng.choice([_NARROW_MM, _WIDE_MM])) for s in ("north", "south", "east", "west")}
+        widths = {s: int(rng.choice([NARROW_MM, WIDE_MM])) for s in ("north", "south", "east", "west")}
         section = _ALL_SECTIONS[int(rng.integers(len(_ALL_SECTIONS)))]
         direction = _ALL_DIRECTIONS[int(rng.integers(len(_ALL_DIRECTIONS)))]
         # Draw the starting cell too: it is as much a part of a random
@@ -266,12 +263,12 @@ class TestThreeLapSolvability:
     @pytest.mark.parametrize(("section", "direction"), list(product(_ALL_SECTIONS, _ALL_DIRECTIONS)), ids=_section_direction_id)
     def test_symmetric_wide_all_starts(self, band: int, section: Section, direction: Direction) -> None:
         meta = build_open_metadata(
-            uniform_widths(_WIDE_MM),
+            uniform_widths(WIDE_MM),
             section,
             direction,
             start_cell=_band_cell(band),
         )
-        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
         _log_result(f"WIDE  b{band} {section.capitalized:<5} {direction}", result)
         assert _within_round_limit(result), _describe([(section, direction, result)])
 
@@ -280,22 +277,22 @@ class TestThreeLapSolvability:
         """A narrow corridor holds only two bands: 0.40 + 0.20 fills it exactly,
         so the third lies under the centre square where it cannot be a start."""
         meta = build_open_metadata(
-            uniform_widths(_NARROW_MM),
+            uniform_widths(NARROW_MM),
             section,
             direction,
             start_cell=_band_cell(band),
         )
-        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
         _log_result(f"NARROW b{band} {section.capitalized:<5} {direction}", result)
         assert _within_round_limit(result), _describe([(section, direction, result)])
 
     @pytest.mark.parametrize(
         ("south", "north", "east", "west"),
         [
-            (_NARROW_MM, _WIDE_MM, _NARROW_MM, _WIDE_MM),
-            (_WIDE_MM, _NARROW_MM, _WIDE_MM, _NARROW_MM),
-            (_NARROW_MM, _NARROW_MM, _WIDE_MM, _WIDE_MM),
-            (_WIDE_MM, _WIDE_MM, _NARROW_MM, _NARROW_MM),
+            (NARROW_MM, WIDE_MM, NARROW_MM, WIDE_MM),
+            (WIDE_MM, NARROW_MM, WIDE_MM, NARROW_MM),
+            (NARROW_MM, NARROW_MM, WIDE_MM, WIDE_MM),
+            (WIDE_MM, WIDE_MM, NARROW_MM, NARROW_MM),
         ],
     )
     def test_mixed_width_combos(
@@ -311,10 +308,10 @@ class TestThreeLapSolvability:
             Direction.CLOCKWISE,
             start_cell=_band_cell(0),
         )
-        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
         _log_result(f"MIX S{south} N{north} E{east} W{west}", result)
         assert _within_round_limit(result), (
-            f"laps={result.laps_completed}/{_N_LAPS} collided={result.collided} "
+            f"laps={result.laps_completed}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS} collided={result.collided} "
             f"timeout={result.timed_out} t={result.sim_time_s:.1f}s "
             f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
             f"at {result.collision_xy or result.final_pose}"
@@ -330,7 +327,7 @@ class TestThreeLapSolvability:
         cell: int,
     ) -> None:
         meta = build_open_metadata(widths, section, direction, scenario_id=i, start_cell=cell)
-        result = ScenarioSimulator(meta, num_laps=_N_LAPS, seed=i).run()
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=i).run()
         _log_result(
             f"RAND#{i} {section.capitalized:<5} {direction} "
             f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
