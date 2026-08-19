@@ -649,6 +649,14 @@ class ScenarioOutcome:
     the same way as ``_sign_evade_steer``'s ``lateral``. ``None`` for a
     non-sign collision."""
 
+    sign_color_match: bool | None = None
+    """When ``sign_masked``, whether the discovered track's voted colour
+    agrees with the struck sign's true colour. ``False`` means the pass-side
+    plan itself was wrong (steered to the wrong side of a sign it otherwise
+    knew about correctly), not that the plan wasn't executed in time --
+    two different bugs the mask-vs-unmasked split alone cannot tell apart.
+    ``None`` when not masked or not a sign collision."""
+
     sim_time_s: float = 0.0
     """Simulated seconds the run took.
 
@@ -821,7 +829,7 @@ def _sign_mask_attribution(
     metadata: dict[str, Any],
     collision_xy: tuple[float, float],
     final_pose: tuple[float, float, float],
-) -> tuple[bool | None, float | None, float | None]:
+) -> tuple[bool | None, float | None, float | None, bool | None]:
     """Was the sign the chassis struck already masked from the escape trigger?
 
     Finds the true sign nearest the collision point, then checks whether the
@@ -831,10 +839,19 @@ def _sign_mask_attribution(
     it from the escape-never-fired correlation alone: a collision the escape
     never reacted to could be a masked sign (the mask hypothesis), or a sign
     never routed at all (a discovery-timing problem the mask can't fix).
+
+    Also reports ``color_match`` when masked: whether the discovered track's
+    voted colour agrees with the true sign's. A masked-but-still-collided run
+    can mean the pass-side plan was correct and simply not executed in time
+    (no runway), or that the plan itself was wrong because discovery's colour
+    vote landed on the wrong side -- two different bugs with the same
+    symptom, so the split matters. ``lane_specs`` is used rather than
+    ``routed_sign_positions`` because it includes passed signs too, and a
+    struck sign could in principle have just been marked passed.
     """
     signs = sign_router_module.signs_from_metadata(metadata)
     if not signs:
-        return None, None, None
+        return None, None, None, None
     cx, cy = collision_xy
     struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
 
@@ -842,12 +859,19 @@ def _sign_mask_attribution(
     routed = router.routed_sign_positions if router is not None else []
     masked = any(math.hypot(rx - struck.x, ry - struck.y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
 
+    color_match = None
+    if masked and router is not None:
+        for spec, _corridor in router.lane_specs:
+            if math.hypot(spec.x - struck.x, spec.y - struck.y) < _SIGN_MATCH_DIST_M:
+                color_match = spec.color == struck.color
+                break
+
     robot_x, robot_y, robot_yaw = final_pose
     cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
     dx, dy = struck.x - robot_x, struck.y - robot_y
     ahead = dx * cos_yaw + dy * sin_yaw
     lateral = -dx * sin_yaw + dy * cos_yaw
-    return masked, ahead, lateral
+    return masked, ahead, lateral, color_match
 
 
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
@@ -979,10 +1003,10 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         classify_meta = _without_signs(classify_meta)
     kind = _classify_collision(classify_meta, result.final_pose) if result.collided else CollisionKind.NONE
     collision_xy = None if result.collision_xy is None else Waypoint(*result.collision_xy)
-    sign_masked, sign_ahead_m, sign_lateral_m = (
+    sign_masked, sign_ahead_m, sign_lateral_m, sign_color_match = (
         _sign_mask_attribution(sim, metadata, result.collision_xy, result.final_pose)
         if kind == CollisionKind.SIGN and result.collision_xy is not None
-        else (None, None, None)
+        else (None, None, None, None)
     )
     return ScenarioOutcome(
         label=scenario.label,
@@ -1000,6 +1024,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         sign_masked=sign_masked,
         sign_ahead_m=sign_ahead_m,
         sign_lateral_m=sign_lateral_m,
+        sign_color_match=sign_color_match,
         sim_time_s=result.sim_time_s,
     )
 
@@ -1113,6 +1138,22 @@ class SweepResult:
         """
         return sum(1 for o in self.outcomes if o.sign_masked is False)
 
+    @property
+    def sign_collisions_wrong_color(self) -> int:
+        """Masked sign collisions where the discovered colour vote was wrong.
+
+        The plan sent the robot to the wrong side of a sign it otherwise knew
+        about correctly -- a discovery/voting bug, not an execution-timing one.
+        """
+        return sum(1 for o in self.outcomes if o.sign_color_match is False)
+
+    @property
+    def sign_collisions_right_color(self) -> int:
+        """Masked sign collisions where the colour vote was correct but the
+        robot still hit it -- consistent with not enough runway to execute
+        the avoidance in time, not a wrong plan."""
+        return sum(1 for o in self.outcomes if o.sign_color_match is True)
+
     def row(self) -> str:
         """The one-line summary: all four metrics plus the collision-kind split."""
         n = len(self.outcomes)
@@ -1127,7 +1168,8 @@ class SweepResult:
             f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "
             f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
             f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
-            f"sign-mask (masked {self.sign_collisions_masked:>{_RESULT_METRIC_WIDTH}} unmasked {self.sign_collisions_unmasked:>{_RESULT_METRIC_WIDTH}})"
+            f"sign-mask (masked {self.sign_collisions_masked:>{_RESULT_METRIC_WIDTH}} unmasked {self.sign_collisions_unmasked:>{_RESULT_METRIC_WIDTH}})  "
+            f"masked-color (wrong {self.sign_collisions_wrong_color:>{_RESULT_METRIC_WIDTH}} right {self.sign_collisions_right_color:>{_RESULT_METRIC_WIDTH}})"
         )
 
     @property
@@ -1141,7 +1183,8 @@ class SweepResult:
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
-            f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)}"
+            f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
+            f"color_match={o.sign_color_match}"
             for o in self.outcomes
         )
 

@@ -6,3 +6,4 @@ min_reliable_bbox_height_px = 5   # minimum bbox height for a reliable distance 
 max_ingest_range_m = 2.0          # max distance to accept a sign observation
 association_dist_m = 0.25         # max distance between two observations of the same sign
 min_hits = 3                      # confirming observations before a sign is published
+robot_corridor_flip_ticks = 5     # ticks the robot's own corridor must settle before discovery accepts the change

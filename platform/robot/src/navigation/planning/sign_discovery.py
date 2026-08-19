@@ -195,22 +195,24 @@ class _SignTrack:
     the sign's) at the moment this track was created. Fixed for the track's
     lifetime -- a sign does not change corridor.
 
-    Association is gated on this matching the robot's corridor at each new
-    observation (see ``ObservedSignMap._nearest_track``), not on the
-    observation's own reprojected XY, for two reasons. First, it is what
-    prevents a believed pose that is a wrong-but-consistent rigid rotation of
-    the truth (the blind-mode rotational-lock failure) from folding one
-    corridor's sign into a different corridor's track just because the
-    rotation happens to land their reprojected positions close together --
-    ``corridor_for_position`` partitions on the same centre that rotation
-    pivots about, so the partition itself stays consistent even when every
-    position in it is wrong. Second, and why it keys on the ROBOT's position
-    rather than the (possibly boundary-adjacent, LIDAR-quantised) observation
-    position: a sign's own reprojected XY can jitter across a hard corridor
-    boundary between ticks even when it is the same physical sign seen from
-    the same robot position, which would make the gate flap. The robot itself
-    is normally well inside a corridor (not standing on its 1.0/2.0 boundary)
-    whenever it is close enough to observe anything worth gating."""
+    Association is gated on this matching the robot's settled corridor at
+    each new observation (see ``ObservedSignMap._nearest_track`` and
+    ``_settle_robot_corridor``), not on the observation's own reprojected XY.
+    This is what prevents a believed pose that is a wrong-but-consistent
+    rigid rotation of the truth (the blind-mode rotational-lock failure) from
+    folding one corridor's sign into a different corridor's track just
+    because the rotation happens to land their reprojected positions close
+    together: the two signs' own reprojected XY coincide by construction of
+    that bug, so a gate keyed on the SIGN's position (including a corridor
+    label derived from it) cannot tell them apart -- but the ROBOT's own true
+    position when it observed each one still classifies to a different
+    corridor, since it was standing in a genuinely different place.
+
+    A continuous distance on the robot's own position (rather than this
+    discrete corridor) was tried and measured WORSE across the whole range of
+    reasonable thresholds -- see the sign_discovery.py module notes -- so
+    corridor identity, imperfect as it is for a sign visible from two
+    adjacent corridors near a corner, is what's shipped."""
 
     hits: int = 0
     votes: dict[str, float] = field(default_factory=dict)
@@ -245,6 +247,7 @@ class ObservedSignMap:
         max_ingest_range_m: float | None = None,
         association_dist_m: float | None = None,
         min_hits: int | None = None,
+        robot_corridor_flip_ticks: int | None = None,
         tuning: NavigationTuning | None = None,
     ) -> None:
         """Start an empty map.
@@ -260,6 +263,10 @@ class ObservedSignMap:
                 Defaults to NavigationTuning.sign_discovery.ASSOCIATION_DIST_M.
             min_hits: Observations required before a track is published as
                 a real sign. Defaults to NavigationTuning.sign_discovery.MIN_HITS.
+            robot_corridor_flip_ticks: Consecutive ticks the robot's own
+                corridor must disagree with the settled value before the
+                association gate accepts the change. Defaults to
+                NavigationTuning.sign_discovery.ROBOT_CORRIDOR_FLIP_TICKS.
             tuning: Navigation tuning instance. Defaults to the default tuning profile.
         """
         tuning = get_tuning(tuning)
@@ -268,7 +275,31 @@ class ObservedSignMap:
         self._max_ingest_range_m = max_ingest_range_m if max_ingest_range_m is not None else sd.MAX_INGEST_RANGE_M
         self._association_dist_m = association_dist_m if association_dist_m is not None else sd.ASSOCIATION_DIST_M
         self._min_hits = min_hits if min_hits is not None else sd.MIN_HITS
+        self._robot_corridor_flip_ticks = (
+            robot_corridor_flip_ticks if robot_corridor_flip_ticks is not None else sd.ROBOT_CORRIDOR_FLIP_TICKS
+        )
         self._tracks: list[_SignTrack] = []
+        self._robot_corridor: Section | None = None
+        """Settled robot corridor -- see ``_settle_robot_corridor``."""
+        self._robot_corridor_flip_streak: tuple[Section, int] | None = None
+
+    def _settle_robot_corridor(self, raw: Section) -> Section:
+        """Debounce the robot's own corridor the same way ``SignRouter._settled_corridor``
+        debounces a sign's -- see ``ROBOT_CORRIDOR_FLIP_TICKS``'s docstring for why the
+        robot's own per-tick classification needs it even though a sign's does not.
+        """
+        if self._robot_corridor is None or raw == self._robot_corridor:
+            self._robot_corridor_flip_streak = None
+            self._robot_corridor = raw
+            return raw
+        candidate, streak = self._robot_corridor_flip_streak or (raw, 0)
+        streak = streak + 1 if candidate == raw else 1
+        if streak < self._robot_corridor_flip_ticks:
+            self._robot_corridor_flip_streak = (raw, streak)
+            return self._robot_corridor
+        self._robot_corridor_flip_streak = None
+        self._robot_corridor = raw
+        return raw
 
     def observe(
         self,
@@ -284,7 +315,7 @@ class ObservedSignMap:
         if not observations:
             return
 
-        robot_corridor = corridor_for_position(robot_pos.x, robot_pos.y)
+        robot_corridor = self._settle_robot_corridor(corridor_for_position(robot_pos.x, robot_pos.y))
         for obs in observations:
             if obs.confidence < self._min_confidence:
                 continue

@@ -136,6 +136,21 @@ class TestAssociation:
 
         assert len(_publish(sign_map)) == 2
 
+    def test_observations_from_the_same_robot_corridor_still_merge(self) -> None:
+        """The corridor gate must not be so strict that revisiting the same
+        sign from a slightly different but still-same-corridor vantage (a
+        different lap, a wider pass) starts a second track -- only a
+        genuinely different robot corridor should.
+        """
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        sign = [TrafficSignObservation(1.5, 0.4, SignColor.RED, 1.0, 0.0)]
+        for _ in range(_MIN_HITS):
+            sign_map.observe(sign, Waypoint(1.5, 0.5))
+        for _ in range(_MIN_HITS):
+            sign_map.observe(sign, Waypoint(1.6, 0.6))  # ~0.14 m away, well under the gate
+
+        assert len(_publish(sign_map)) == 1
+
 
 class TestPositionEstimate:
     """The closest look wins, because pinhole error is monotone in range."""
