@@ -20,3 +20,12 @@ publish_raw = false
 # draws them on the full-resolution frame before this resize, so they scale
 # with the image instead of needing separate coordinate transforms.
 video_width = 1536
+
+# Periodic raw (un-annotated) frame capture for later dataset accumulation /
+# fine-tuning -- see src/vision/dataset_capture.py. Saved to
+# <run_dir>/<capture_subdir>/, next to that run's mcap bag and debug video.
+# Obstacles Challenge only ever saves a frame once it actually contains a
+# detection; Open Challenge saves every capture_interval_s unconditionally.
+capture_dataset_frames = true
+capture_interval_s = 10.0
+capture_subdir = "captures"
