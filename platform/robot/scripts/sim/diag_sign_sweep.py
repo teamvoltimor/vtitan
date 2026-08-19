@@ -109,6 +109,13 @@ _RESULT_METRIC_WIDTH = 2
 _DETAIL_LABEL_WIDTH = 34
 _DETAIL_COLLISION_WIDTH = 9
 _COLLISION_PRECISION = 2
+
+
+def _round_or_none(value: float | None) -> float | None:
+    """``round`` that passes ``None`` through, for optional per-scenario fields."""
+    return None if value is None else round(value, _COLLISION_PRECISION)
+
+
 _FORMAT_2F = ".2f"
 _FORMAT_3F = ".3f"
 _FORMAT_1F = ".1f"
@@ -623,6 +630,25 @@ class ScenarioOutcome:
     never had a chance to prevent. ``None`` when no escape ever ran, which is
     itself the answer for those scenarios."""
 
+    sign_masked: bool | None = None
+    """For a SIGN collision, whether the struck sign was already in the
+    router's ``routed_sign_positions`` at the moment of collision -- i.e.
+    whether ``ESCAPE_MASK_RADIUS_M`` would have withheld its returns from the
+    escape trigger. ``None`` for a non-sign collision or a run with no
+    router. Answers the open question behind the proximity-gated unmask idea:
+    do blind's escape-never-fired collisions actually involve a MASKED sign,
+    or is the escape silent for some other reason entirely?"""
+
+    sign_ahead_m: float | None = None
+    """Along-track distance from the final pose to the struck sign, in the
+    chassis's own heading frame at the moment of collision. Same geometry as
+    ``_sign_evade_steer``'s trigger test. ``None`` for a non-sign collision."""
+
+    sign_lateral_m: float | None = None
+    """Cross-track distance from the final pose to the struck sign, signed
+    the same way as ``_sign_evade_steer``'s ``lateral``. ``None`` for a
+    non-sign collision."""
+
     sim_time_s: float = 0.0
     """Simulated seconds the run took.
 
@@ -783,6 +809,47 @@ def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, floa
     return CollisionKind.NONE
 
 
+_SIGN_MATCH_DIST_M = 0.30
+"""How close a routed position must land to the struck sign's true position
+to count as the same sign. Matches ``SignDiscoveryParams.DETECTION_MATCH_DIST_M``
+-- generous enough to cover discovery estimate error in blind mode, tight
+enough that it can't accidentally match a different, nearby sign."""
+
+
+def _sign_mask_attribution(
+    sim: ScenarioSimulator,
+    metadata: dict[str, Any],
+    collision_xy: tuple[float, float],
+    final_pose: tuple[float, float, float],
+) -> tuple[bool | None, float | None, float | None]:
+    """Was the sign the chassis struck already masked from the escape trigger?
+
+    Finds the true sign nearest the collision point, then checks whether the
+    router had it in ``routed_sign_positions`` (masked) at run end, plus the
+    along-track/lateral geometry ``_sign_evade_steer`` would have seen. Exists
+    to test the proximity-gated-unmask premise directly, instead of assuming
+    it from the escape-never-fired correlation alone: a collision the escape
+    never reacted to could be a masked sign (the mask hypothesis), or a sign
+    never routed at all (a discovery-timing problem the mask can't fix).
+    """
+    signs = sign_router_module.signs_from_metadata(metadata)
+    if not signs:
+        return None, None, None
+    cx, cy = collision_xy
+    struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
+
+    router = sim.navigator.sign_router
+    routed = router.routed_sign_positions if router is not None else []
+    masked = any(math.hypot(rx - struck.x, ry - struck.y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
+
+    robot_x, robot_y, robot_yaw = final_pose
+    cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+    dx, dy = struck.x - robot_x, struck.y - robot_y
+    ahead = dx * cos_yaw + dy * sin_yaw
+    lateral = -dx * sin_yaw + dy * cos_yaw
+    return masked, ahead, lateral
+
+
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
     """Monkeypatch the knobs with no public seam; return the restore list.
 
@@ -912,6 +979,11 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         classify_meta = _without_signs(classify_meta)
     kind = _classify_collision(classify_meta, result.final_pose) if result.collided else CollisionKind.NONE
     collision_xy = None if result.collision_xy is None else Waypoint(*result.collision_xy)
+    sign_masked, sign_ahead_m, sign_lateral_m = (
+        _sign_mask_attribution(sim, metadata, result.collision_xy, result.final_pose)
+        if kind == CollisionKind.SIGN and result.collision_xy is not None
+        else (None, None, None)
+    )
     return ScenarioOutcome(
         label=scenario.label,
         collided=result.collided,
@@ -925,6 +997,9 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         corner_uturns=uturns.corner_events,
         escape_starts=escapes.starts,
         steps_since_escape=escapes.steps_since_escape,
+        sign_masked=sign_masked,
+        sign_ahead_m=sign_ahead_m,
+        sign_lateral_m=sign_lateral_m,
         sim_time_s=result.sim_time_s,
     )
 
@@ -1019,6 +1094,25 @@ class SweepResult:
         """Scenarios whose collision was of the given kind (wall/sign/parking)."""
         return sum(1 for o in self.outcomes if o.collision_kind == name)
 
+    @property
+    def sign_collisions_masked(self) -> int:
+        """Sign collisions where the struck sign was already routed (masked from escape).
+
+        The direct test of the proximity-gated-unmask premise: a collision
+        here means the escape trigger's silence is attributable to the mask,
+        not to the sign never having been routed at all.
+        """
+        return sum(1 for o in self.outcomes if o.sign_masked is True)
+
+    @property
+    def sign_collisions_unmasked(self) -> int:
+        """Sign collisions where the struck sign was never routed at all.
+
+        Not a masking problem -- the router never had this sign, so no mask
+        change can fix these; the gap is upstream, in discovery/routing.
+        """
+        return sum(1 for o in self.outcomes if o.sign_masked is False)
+
     def row(self) -> str:
         """The one-line summary: all four metrics plus the collision-kind split."""
         n = len(self.outcomes)
@@ -1032,7 +1126,8 @@ class SweepResult:
             f"timeouts {self.timeouts:>{_RESULT_METRIC_WIDTH}}/{n}  "
             f"uturns {self.uturns:>3} ({self.corner_uturns:>3} at corners, {self.scenarios_with_uturn:>{_RESULT_METRIC_WIDTH}}/{n} runs)  "
             f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
-            f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)"
+            f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
+            f"sign-mask (masked {self.sign_collisions_masked:>{_RESULT_METRIC_WIDTH}} unmasked {self.sign_collisions_unmasked:>{_RESULT_METRIC_WIDTH}})"
         )
 
     @property
@@ -1045,7 +1140,8 @@ class SweepResult:
         return "\n".join(
             f"DETAIL   {o.label:<{_DETAIL_LABEL_WIDTH}} {o.collision_kind:<{_DETAIL_COLLISION_WIDTH}} laps={o.laps} steps={o.steps} "
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
-            f"escapes={o.escape_starts} since_escape={o.steps_since_escape}"
+            f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
+            f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)}"
             for o in self.outcomes
         )
 
@@ -1563,6 +1659,17 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # `escapes N/lap` and `collisions within 40 ticks` from the RESULT row, and
     # `since_escape` per scenario with --verbose. Normalise by laps driven --
     # raw escape totals are not comparable across arms.
+    #
+    # Measured on the FULL 256 corpus: only 20/230 sign collisions land within
+    # 40 ticks of an escape (0.78 escapes/lap) -- the escape is silent for the
+    # other 210, matching the 2026-08-16 finding that blind collisions mostly
+    # happen with the escape never firing at all. The `sign-mask` split in the
+    # same RESULT row answers WHY: 108/230 struck signs were already in
+    # `routed_sign_positions` (masked from the CRITICAL trigger, so the
+    # proximity-gated-unmask idea can plausibly reach them) but 122/230 were
+    # never routed at all (a discovery/routing gap upstream of the mask --
+    # unmasking changes nothing for these). Roughly even split: the mask is a
+    # real, sizeable lever, but not the majority of the remaining failure.
     "blind-arc": [
         SweepConfig("blind, shipped defaults (lane ON)", blind=True),
     ],
