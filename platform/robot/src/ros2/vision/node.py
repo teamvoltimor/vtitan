@@ -41,6 +41,7 @@ from src.ros2.vision.detection_payload_keys import (
     Y_KEY,
 )
 from src.vision import create_detector
+from src.vision.dataset_capture import DatasetFrameCapture
 from src.vision.overlay import annotate
 from src.vision.video_recorder import FrameSnapshot, VideoRecorder
 
@@ -88,6 +89,15 @@ class Config(HardwareBaseSettings):
     # Width of the recorded artifact; height is derived at runtime from the
     # actual captured frame's aspect ratio, never hardcoded.
     video_width: int = 640
+    # Periodic raw (un-annotated) frame capture for later dataset
+    # accumulation / fine-tuning -- see src/vision/dataset_capture.py. Saved
+    # next to the run's mcap bag/video, under capture_subdir. On Obstacles
+    # Challenge this only ever saves frames that actually contain a
+    # detection (see DatasetFrameCapture); Open Challenge saves every
+    # capture_interval_s unconditionally, since there's nothing to wait for.
+    capture_dataset_frames: bool = True
+    capture_interval_s: float = 10.0
+    capture_subdir: str = "captures"
 
 
 # How long to poll for bag_recorder_node's run directory to actually appear
@@ -123,6 +133,11 @@ class VisionNode(Node):
         self._last_annotated_pub_time = 0.0
         self._record_video = declare_and_get_bool_param(self, "record_video", defaults.record_video)
         video_width = declare_and_get_int_param(self, "video_width", defaults.video_width)
+        capture_dataset_frames = declare_and_get_bool_param(
+            self, "capture_dataset_frames", defaults.capture_dataset_frames,
+        )
+        capture_interval_s = declare_and_get_float_param(self, "capture_interval_s", defaults.capture_interval_s)
+        capture_subdir = declare_and_get_str_param(self, "capture_subdir", defaults.capture_subdir)
 
         self.get_logger().info(f"Loading {backend.upper()} vision model from {model_path}...")
 
@@ -156,6 +171,11 @@ class VisionNode(Node):
         # meaningful in direct-capture mode, since that's the only mode a real
         # race actually runs in. Cheap to construct even when never started.
         self._recorder = VideoRecorder(video_width=video_width, fps=capture_fps)
+        self._dataset_capture = (
+            DatasetFrameCapture(interval_s=capture_interval_s, subdir=capture_subdir)
+            if capture_dataset_frames
+            else None
+        )
         self._racing = False
         self._active_challenge: ScenarioType | None = None
         self._run_path: str | None = None
@@ -308,6 +328,8 @@ class VisionNode(Node):
         self.get_logger().info(f"_on_robot_state: {msg.data!r} -> racing={self._racing} (was {was_racing})")
         if self._racing and not was_racing:
             self._maybe_start_recording()
+            if self._dataset_capture is not None:
+                self._dataset_capture.reset()
         elif was_racing and not self._racing:
             self._stop_recording()
 
@@ -420,6 +442,15 @@ class VisionNode(Node):
         """Detect on one RGB frame, publish detections and any debug video."""
         try:
             detections = self.detector.detect(rgb)
+
+            if self._dataset_capture is not None and self._racing:
+                self._dataset_capture.maybe_capture(
+                    self.get_clock().now().nanoseconds / 1e9,
+                    rgb,
+                    run_path=self._run_path,
+                    require_detection=self._active_challenge == ScenarioType.OBSTACLES,
+                    has_detection=bool(detections),
+                )
 
             data = [
                 {
