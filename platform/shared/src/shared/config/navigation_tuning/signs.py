@@ -400,6 +400,30 @@ class SignDiscoveryParams(BaseModel):
             considered the same sign.
         MIN_HITS: Number of confirming observations before a discovered
             sign is published.
+        ROBOT_CORRIDOR_FLIP_TICKS: Consecutive ticks the robot's OWN
+            corridor classification must disagree with the settled value
+            before ``ObservedSignMap`` accepts the change. Association is
+            gated on this settled corridor matching a track's (see
+            ``_SignTrack.corridor``), specifically to survive a
+            wrong-but-consistent rigid rotation of the believed pose without
+            folding one corridor's sign into another's track -- a gate keyed
+            on the sign's own (reprojected) position cannot do this, since
+            the rotational-lock bug reprojects two DIFFERENT signs'
+            positions to coincide by construction. But the robot's own
+            per-tick corridor, read raw, flips far more than a clean
+            rotation alone would predict -- ordinary localizer jitter near a
+            boundary is enough -- and every flip started a brand-new track
+            before this existed.
+
+            A continuous distance on the robot's own position was tried as a
+            replacement (avoiding the discrete-partition problem entirely)
+            and measured WORSE across its whole reasonable threshold range --
+            202/256 corpus collisions here vs 227-267/256 there -- so this
+            imperfect-but-empirically-better corridor gate is what's shipped.
+            Deliberately NOT reusing ``SignRouterParams.CORRIDOR_FLIP_TICKS``
+            (shipped at 1, i.e. no hysteresis) -- that value settles a
+            SIGN's converged position estimate, which is already fairly
+            stable; the robot's own tick-to-tick believed position is not.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -408,3 +432,4 @@ class SignDiscoveryParams(BaseModel):
     MAX_INGEST_RANGE_M: float = Field(default=2.0, validation_alias=_alias("MAX_INGEST_RANGE_M"))
     ASSOCIATION_DIST_M: float = Field(default=0.25, validation_alias=_alias("ASSOCIATION_DIST_M"))
     MIN_HITS: int = Field(default=3, validation_alias=_alias("MIN_HITS"))
+    ROBOT_CORRIDOR_FLIP_TICKS: int = Field(default=5, ge=1, validation_alias=_alias("ROBOT_CORRIDOR_FLIP_TICKS"))

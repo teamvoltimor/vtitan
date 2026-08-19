@@ -349,6 +349,7 @@ class SignRouter:
                 max_ingest_range_m=discovery_config.MAX_INGEST_RANGE_M,
                 association_dist_m=discovery_config.ASSOCIATION_DIST_M,
                 min_hits=discovery_config.MIN_HITS,
+                robot_corridor_flip_ticks=discovery_config.ROBOT_CORRIDOR_FLIP_TICKS,
             )
         else:
             self._sign_map = None
