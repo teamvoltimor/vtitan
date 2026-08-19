@@ -717,7 +717,7 @@ class CoreNavigator:
                 scan.ranges_m,
                 scan.angles_rad,
                 pose,
-                self._sign_router.routed_sign_positions,
+                self._sign_router.routed_sign_positions_by_corridor,
                 self._tuning.sign_router.ESCAPE_MASK_RADIUS_M,
             )
             escape_risk = self._collision_controller.assess_risk(escape_ranges, scan.angles_rad)

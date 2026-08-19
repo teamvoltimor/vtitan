@@ -85,19 +85,34 @@ class TestMappedObstacleEscapeSplit:
     _FRONT_RANGE = 0.06
     """Inside CONTACT_DIST (0.10), so the raw scan reads CRITICAL."""
 
+    _BASE_X, _BASE_Y = 1.5, 0.5
+    """Robot anchor, squarely inside the SOUTH corridor's interior (well clear
+    of the 1.0/2.0 inner-square boundary corridor_for_position partitions on)
+    rather than the world origin. The escape mask now gates on the ROBOT's
+    own corridor matching a routed sign's (see mask_mapped_obstacles), and
+    the origin sits in the corner tie-break zone where a few centimetres can
+    flip the classification -- exactly the coordinates ``sign_xy`` moves
+    the sign by in these tests. Anchoring inside a real corridor keeps that
+    flip out of scope for tests that aren't about corridor boundaries."""
+
     @staticmethod
     def _navigator(waypoints, sign_xy, tuning, mask_radius=None, override_tuning=None):
         """A navigator facing a close front return, with a sign mapped at ``sign_xy``.
 
-        The robot sits at the origin facing east, so the front return lands at
-        ``(_FRONT_RANGE, 0)`` in world coordinates.
+        The robot sits at ``(_BASE_X, _BASE_Y)`` facing east, so the front
+        return lands at ``(_BASE_X + _FRONT_RANGE, _BASE_Y)`` in world
+        coordinates. ``sign_xy`` is relative to that same anchor, matching
+        the front return's own offset when a caller wants them co-located.
         """
         ranges = create_scan_with_sectors(front=TestMappedObstacleEscapeSplit._FRONT_RANGE)
-        gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
+        base_x, base_y = TestMappedObstacleEscapeSplit._BASE_X, TestMappedObstacleEscapeSplit._BASE_Y
+        gateway = FakeGateway(
+            Pose(x=base_x, y=base_y, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)),
+        )
         if mask_radius is not None:
             tuning = override_tuning(tuning, sign_router={"ESCAPE_MASK_RADIUS_M": mask_radius})
         router = SignRouter(
-            [SignSpec(x=sign_xy[0], y=sign_xy[1], color=SignColor.RED)],
+            [SignSpec(x=base_x + sign_xy[0], y=base_y + sign_xy[1], color=SignColor.RED)],
             config=SignRouterConfig.from_tuning(tuning.sign_router),
         )
         nav = CoreNavigator(
