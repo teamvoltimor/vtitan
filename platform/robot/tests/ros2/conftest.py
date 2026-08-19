@@ -2,12 +2,27 @@
 ROS2 test fixtures and configuration.
 """
 
+import os
+import re
 import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
 import rclpy
+
+# Every ros_context fixture use calls rclpy.init()/shutdown() with no domain
+# isolation, so under pytest-xdist all worker processes' DDS participants
+# share ROS_DOMAIN_ID 0 and discover each other's dozens-of-nodes-per-test
+# churn over multicast -- the actual cause behind the "graph discovery race"
+# flakiness in test_button_node.py/test_state_machine_node.py/etc (wider
+# retry timeouts didn't fix it because the bottleneck is the shared discovery
+# domain, not any one node's discovery latency). Give each xdist worker its
+# own domain so its participants are only ever visible to itself. Falls back
+# to domain 0 outside xdist (a plain `pytest` run has only one process).
+_worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
+_worker_num = int(m.group()) if (m := re.search(r"\d+", _worker_id)) else 0
+os.environ["ROS_DOMAIN_ID"] = str(1 + _worker_num % 200)
 
 # Mock buildhat to avoid import errors when testing ROS2 nodes.
 #
