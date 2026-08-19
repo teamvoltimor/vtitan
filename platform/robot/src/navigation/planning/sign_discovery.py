@@ -47,12 +47,14 @@ from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.domain.models import Pose, SignColor, TrafficSignObservation, Waypoint
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.utils import _dist2d, _nearest_ray
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.enums import Section
     from shared.domain.models import Detection
 
 logger = logging.getLogger(__name__)
@@ -188,6 +190,28 @@ class _SignTrack:
     best_range: float
     """Range of the closest observation so far — the one (x, y) is taken from."""
 
+    corridor: Section
+    """The ROBOT's own corridor (``corridor_for_position`` on its position, not
+    the sign's) at the moment this track was created. Fixed for the track's
+    lifetime -- a sign does not change corridor.
+
+    Association is gated on this matching the robot's corridor at each new
+    observation (see ``ObservedSignMap._nearest_track``), not on the
+    observation's own reprojected XY, for two reasons. First, it is what
+    prevents a believed pose that is a wrong-but-consistent rigid rotation of
+    the truth (the blind-mode rotational-lock failure) from folding one
+    corridor's sign into a different corridor's track just because the
+    rotation happens to land their reprojected positions close together --
+    ``corridor_for_position`` partitions on the same centre that rotation
+    pivots about, so the partition itself stays consistent even when every
+    position in it is wrong. Second, and why it keys on the ROBOT's position
+    rather than the (possibly boundary-adjacent, LIDAR-quantised) observation
+    position: a sign's own reprojected XY can jitter across a hard corridor
+    boundary between ticks even when it is the same physical sign seen from
+    the same robot position, which would make the gate flap. The robot itself
+    is normally well inside a corridor (not standing on its 1.0/2.0 boundary)
+    whenever it is close enough to observe anything worth gating."""
+
     hits: int = 0
     votes: dict[str, float] = field(default_factory=dict)
     """Confidence-weighted colour votes. A sign's colour decides which side the
@@ -260,6 +284,7 @@ class ObservedSignMap:
         if not observations:
             return
 
+        robot_corridor = corridor_for_position(robot_pos.x, robot_pos.y)
         for obs in observations:
             if obs.confidence < self._min_confidence:
                 continue
@@ -271,13 +296,15 @@ class ObservedSignMap:
             if observed_range > self._max_ingest_range_m:
                 continue
 
-            self._fold(world, observed_range, obs)
+            self._fold(world, observed_range, obs, robot_corridor)
 
-    def _fold(self, world: Waypoint, observed_range: float, obs: TrafficSignObservation) -> None:
+    def _fold(
+        self, world: Waypoint, observed_range: float, obs: TrafficSignObservation, robot_corridor: Section,
+    ) -> None:
         """Merge one projected observation into the nearest track, or start one."""
-        track = self._nearest_track(world)
+        track = self._nearest_track(world, robot_corridor)
         if track is None:
-            track = _SignTrack(x=world.x, y=world.y, best_range=observed_range)
+            track = _SignTrack(x=world.x, y=world.y, best_range=observed_range, corridor=robot_corridor)
             self._tracks.append(track)
 
         track.hits += 1
@@ -290,11 +317,21 @@ class ObservedSignMap:
             track.best_range = observed_range
             track.x, track.y = world.x, world.y
 
-    def _nearest_track(self, world: Waypoint) -> _SignTrack | None:
-        """The closest existing track within ``self._association_dist_m``, if any."""
+    def _nearest_track(self, world: Waypoint, robot_corridor: Section) -> _SignTrack | None:
+        """The closest existing track within ``self._association_dist_m``, if any.
+
+        Also requires the track to have been created from the same ROBOT
+        corridor -- see ``_SignTrack.corridor``'s docstring. Distance alone is
+        not enough under a wrong-but-consistent rigid rotation of the
+        believed pose, which can reproject one corridor's sign close enough
+        to another corridor's true position to fall inside
+        ``association_dist_m``.
+        """
         best: _SignTrack | None = None
         best_dist = self._association_dist_m
         for track in self._tracks:
+            if track.corridor != robot_corridor:
+                continue
             d = _dist2d(Waypoint(track.x, track.y), world)
             if d < best_dist:
                 best_dist = d

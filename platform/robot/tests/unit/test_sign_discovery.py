@@ -116,6 +116,26 @@ class TestAssociation:
 
         assert len(_publish(sign_map)) == 2
 
+    def test_observations_from_different_robot_corridors_never_merge(self) -> None:
+        """A believed pose that is a wrong-but-consistent rigid rotation of the
+        truth (the blind-mode rotational-lock failure) can reproject two
+        different corridors' signs to nearby, even identical, world XY.
+        Distance-only association would wrongly fold them into one track;
+        the corridor gate on ``_SignTrack.corridor`` must keep them apart
+        whenever the robot itself was in a different corridor for each.
+        """
+        sign_map = ObservedSignMap(_CONFIDENCE)
+        # Same reprojected world XY both times -- well inside association_dist
+        # -- but the robot itself was standing in a different corridor
+        # (SOUTH, then NORTH) when it made each observation.
+        aliased = [TrafficSignObservation(1.5, 0.4, SignColor.RED, 1.0, 0.0)]
+        for _ in range(_MIN_HITS):
+            sign_map.observe(aliased, Waypoint(1.5, 0.5))
+        for _ in range(_MIN_HITS):
+            sign_map.observe(aliased, Waypoint(1.5, 2.5))
+
+        assert len(_publish(sign_map)) == 2
+
 
 class TestPositionEstimate:
     """The closest look wins, because pinhole error is monotone in range."""

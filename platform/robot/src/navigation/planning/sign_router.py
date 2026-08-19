@@ -505,6 +505,21 @@ class SignRouter:
         """
         return [(s.x, s.y) for i, s in enumerate(self._signs) if i not in self._passed]
 
+    @property
+    def routed_sign_positions_by_corridor(self) -> list[tuple[float, float, Section]]:
+        """``routed_sign_positions``, each paired with the sign's own corridor.
+
+        For ``mask_mapped_obstacles``'s escape-mask attribution: proximity
+        alone is not enough to trust a LIDAR ray's endpoint as "this routed
+        sign" under a wrong-but-consistent rigid rotation of the believed
+        pose, which can reproject a genuinely unmapped obstacle's ray onto a
+        routed sign's coordinates by coincidence (the same rotational-lock
+        failure ``_SignTrack.corridor`` exists to guard discovery against).
+        Requiring the ray's own corridor to match this sign's closes that
+        gap without needing to know the rotation is even present.
+        """
+        return [(s.x, s.y, c) for i, (s, c) in enumerate(self.lane_specs) if i not in self._passed]
+
     def reset_for_new_lap(self) -> None:
         """Re-arm every sign so it's routed again on the next lap.
 

@@ -18,11 +18,13 @@ from shared.domain.enums import Direction, ManeuverType, RiskLevel
 from shared.domain.models import SectorRanges
 
 from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.waypoints import corridor_for_position
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
+    from shared.domain.enums import Section
     from shared.domain.models import Pose
 
 logger = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ def mask_mapped_obstacles(
     lidar_ranges: np.ndarray | tuple[float, ...],
     lidar_angles: np.ndarray | tuple[float, ...] | None,
     robot_pose: Pose,
-    mapped_xy: Sequence[tuple[float, float]],
+    mapped_xy: Sequence[tuple[float, float, Section]],
     radius_m: float,
 ) -> np.ndarray:
     """Blank the LIDAR returns that land on an obstacle the planner already owns.
@@ -70,7 +72,23 @@ def mask_mapped_obstacles(
             module.
         robot_pose: Robot pose in world frame, needed to place each ray's
             endpoint on the map.
-        mapped_xy: World positions of the mapped obstacles to withhold.
+        mapped_xy: World positions of the mapped obstacles to withhold, each
+            paired with its own corridor (``SignRouter.routed_sign_positions_by_corridor``).
+            A ray is only attributed to a sign if its endpoint is within
+            ``radius_m`` AND ``robot_pose`` itself is currently in that sign's
+            corridor -- proximity alone is not trustworthy under a believed
+            pose that is a wrong-but-consistent rigid rotation of the truth
+            (the blind-mode rotational-lock failure), which can reproject a
+            genuinely unmapped obstacle's ray onto a routed sign's
+            coordinates purely by coincidence. Gated on the ROBOT's own
+            corridor rather than the ray endpoint's: a ray endpoint can jitter
+            across a hard corridor boundary between ticks from ordinary LIDAR
+            angle quantisation even when it is legitimately close to a sign
+            just inside that boundary, which would make an endpoint-keyed
+            gate flap; the robot itself is normally well inside a corridor,
+            not standing on its 1.0/2.0 boundary, whenever anything is close
+            enough to mask. See ``_SignTrack.corridor`` for the matching
+            guard on the discovery side.
         radius_m: How close a ray endpoint must be to a mapped position to count
             as that obstacle. Must cover the obstacle's own half-diagonal plus
             localisation and mapping error, but stay well under the distance to
@@ -91,6 +109,7 @@ def mask_mapped_obstacles(
         angles = np.asarray(lidar_angles, dtype=float)
 
     robot_x, robot_y, robot_yaw = robot_pose.x, robot_pose.y, robot_pose.yaw
+    robot_corridor = corridor_for_position(robot_x, robot_y)
     # Only finite returns have an endpoint to attribute; inf rays are already
     # no-returns and feeding them through cos/sin yields inf-inf = nan.
     finite = np.isfinite(ranges)
@@ -99,7 +118,9 @@ def mask_mapped_obstacles(
     end_y = robot_y + ranges * np.sin(bearings)
 
     attributed = np.zeros(ranges.shape, dtype=bool)
-    for mapped_x, mapped_y in mapped_xy:
+    for mapped_x, mapped_y, mapped_corridor in mapped_xy:
+        if mapped_corridor != robot_corridor:
+            continue
         attributed |= np.hypot(end_x - mapped_x, end_y - mapped_y) < radius_m
 
     masked = ranges.copy()
