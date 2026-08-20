@@ -208,11 +208,29 @@ class _SignTrack:
     position when it observed each one still classifies to a different
     corridor, since it was standing in a genuinely different place.
 
-    A continuous distance on the robot's own position (rather than this
-    discrete corridor) was tried and measured WORSE across the whole range of
-    reasonable thresholds -- see the sign_discovery.py module notes -- so
-    corridor identity, imperfect as it is for a sign visible from two
-    adjacent corridors near a corner, is what's shipped."""
+    A continuous distance on the robot's own RAW WORLD-XY position (rather
+    than this discrete corridor) was tried and measured WORSE across the
+    whole range of reasonable thresholds -- see the sign_discovery.py module
+    notes -- because it is not rotation-equivariant: it can alias two
+    different real corridors' signs together exactly like the bug this gate
+    exists to survive.
+
+    A second attempt, still rotation-equivariant, widened this gate near a
+    corner boundary to also accept the adjacent corridor within a
+    ``corner_blend_m`` face-distance slack (via a since-reverted
+    ``corridor_candidates_for_position``), on the theory that a sign visible
+    from either of two adjacent corridors was being arbitrarily split into
+    two tracks. Measured on the full 256-scenario blind corpus: EVERY
+    nonzero threshold tried (0.03-0.20 m) was worse than 0.0 on collisions,
+    laps>=3, and in-time -- 190 (0.0) vs 195-207 across the range, non-
+    monotonic, with escape-maneuver rate moving in step -- so it was
+    reverted rather than shipped. (All seven arms came from a single sweep
+    invocation, so that internal comparison is fair, but do NOT read the
+    190 as the corpus baseline: a standalone run reproduces 202/256
+    twice, byte-identical, and the 190 was never cross-checked.) Read as: the corner-boundary ambiguity
+    this targeted is not, in practice, the dominant remaining failure mode,
+    and blending in a second corridor's tracks costs more (via bad merges)
+    than the boundary misses it recovers."""
 
     hits: int = 0
     votes: dict[str, float] = field(default_factory=dict)
@@ -374,6 +392,45 @@ class ObservedSignMap:
 
         The caller is responsible for assigning ``published_index`` once it has
         appended the returned specs to its own sign list.
+
+        Two variants of a cross-corridor, position-proximity dedup were tried
+        here, both targeting the SAME physical sign forking a brand-new track
+        on a later lap (traced on go_obstacles_0003: 18 tracks published for
+        6 physical signs over 3 laps, corrupting sign_lane.py's per-corridor
+        plateau geometry at the collision tick) -- and both measured WORSE on
+        the full 256-scenario blind corpus, so neither is shipped:
+
+        1. Skip publishing a track within a small distance of an already-
+           published one: 209/256 collisions against a 202/256 baseline,
+           laps>=3 45 vs 70, escapes more than doubled. Discarding the duplicate also discarded
+           whatever position/colour refinement IT was accumulating, freezing
+           the original (often less mature, lap-1) estimate forever.
+        2. FOLDING the duplicate into the target instead (hits/votes summed,
+           closest-range position/colour evidence wins) rather than dropping
+           it, specifically to keep that refinement: measured WORSE STILL --
+           231/256 collisions against that same 202/256 baseline, laps>=3
+           24 vs 70, in-time 7 vs 31, i.e. worse than variant 1 it was
+           meant to improve on. Folding can
+           suddenly move an already-published, already-converged sign's
+           position or flip its colour vote mid-run the moment ANY
+           position-proximate track merges in, even one that is not a clean
+           re-detection of the same physical sign (estimate noise, a
+           genuinely different nearby feature) -- yanking a stable, correctly
+           routed sign into a discontinuous change is evidently more
+           disruptive than either leaving it alone or silently dropping the
+           duplicate.
+
+        Both variants share the same underlying issue: from position alone,
+        "same physical sign re-discovered under a different corridor label"
+        and "a different observation that happens to land nearby" cannot
+        always be told apart, and neither variant's failure mode was fixed by
+        changing what happens to the duplicate's DATA -- it's the very act of
+        letting a cross-corridor position match influence the published
+        record at all that costs more than the duplication it targets. Any
+        further attempt at this go_obstacles_0003 mechanism should look
+        upstream of publication (e.g. resolving WHY the robot's settled
+        corridor is unstable at a re-detection, not what to do once it
+        already forked a track) rather than a third downstream dedup variant.
         """
         return [t for t in self._tracks if t.published_index is None and t.hits >= self._min_hits]
 

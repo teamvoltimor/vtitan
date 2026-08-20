@@ -332,6 +332,31 @@ class SignRouterParams(BaseModel):
             trigger. Zero disables the mapped/unmapped split entirely, which
             restores the pre-fix behaviour where the escape maneuver fires on
             every sign pass.
+
+            A persistence-gated override was tried (a MASK_OVERRIDE_TICKS
+            field, since removed): once the raw scan read CRITICAL while the
+            masked scan did not for N consecutive ticks, trust the raw scan
+            instead of the mask, on the theory that a genuine collision
+            course stays critical while a normal successful pass's masked-
+            critical dip recovers within a tick or two (traced on
+            go_obstacles_0009: discovery correctly identifies and routes the
+            struck sign, in the same rigid-transform-related frame as its
+            believed pose, and the router's plan still produces near-zero
+            real clearance -- the mask has no way to distinguish that from a
+            plan that IS working). REFUTED on the full 256-scenario blind
+            corpus at every threshold tried (1/2/3/5/8/12 ticks): 206-216/256
+            collisions vs the 202/256 baseline, every single value worse, with
+            wall collisions and escape rate both far above baseline at low
+            tick counts (e.g. 1 tick: wall 3->45, escapes/lap 6.3->45.4) and
+            only asymptoting back TOWARD baseline (never past it) as the
+            threshold grew large enough to rarely trigger at all. Read as:
+            persistence does not actually distinguish the two cases well
+            enough in practice -- a normal pass apparently sustains a masked-
+            critical dip for long enough, often enough, that any threshold
+            short enough to still react before contact also fires on normal
+            passes and destabilises otherwise-fine runs into wall strikes.
+            Do not re-try a provenance-mask override of this shape without a
+            genuinely different distinguishing signal (not raw persistence).
         CORRIDOR_FLIP_TICKS: Consecutive ticks a refined sign estimate must
             agree on a NEW corridor before its label is moved there. A sign
             sitting on a corner boundary otherwise flips corridor — and with
@@ -424,6 +449,33 @@ class SignDiscoveryParams(BaseModel):
             (shipped at 1, i.e. no hysteresis) -- that value settles a
             SIGN's converged position estimate, which is already fairly
             stable; the robot's own tick-to-tick believed position is not.
+
+            A second, still rotation-equivariant refinement was also tried: at
+            a corner, widen the gate to accept the adjacent corridor too
+            within a small face-distance slack (a corner-blend), on the
+            theory that a sign visible from either of two adjacent corridors
+            was being arbitrarily split into two tracks. Measured on the full
+            256-scenario blind corpus: EVERY nonzero slack tried (0.03-0.20 m)
+            was worse than off (190 collisions in that same sweep -- an
+            internally fair comparison, but not the corpus baseline, which
+            reproduces at 202/256 standalone) on collisions, laps>=3, and
+            in-time -- 195-207/256, non-monotonic. Reverted; not shipped as a
+            field here. The corner-boundary case is evidently not the
+            dominant remaining failure mode, and blending in a second
+            corridor's tracks costs more via bad merges than it recovers.
+
+            Two further attempts dropped this exact-match requirement
+            entirely at PUBLICATION time instead of at per-observation
+            association time, both targeting the SAME physical sign forking
+            a new track every lap (traced on go_obstacles_0003: 18 tracks for
+            6 physical signs) and both measured WORSE on the full corpus, so
+            neither is shipped as a field here -- see
+            ``ObservedSignMap.newly_confirmed``'s docstring for the numbers
+            and the mechanism (skip-publish: 209/256, discards the
+            duplicate's refinement; fold-into-target: 231/256, worse still --
+            letting a cross-corridor position match influence the published
+            record at all is evidently the problem, not what happens to the
+            duplicate's data once matched).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
