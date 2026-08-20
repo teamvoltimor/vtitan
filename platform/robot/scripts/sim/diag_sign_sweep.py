@@ -489,6 +489,16 @@ class SweepConfig:
     runway at all. Only meaningful with ``sign_lane_planner=True``.
     """
 
+    sign_lane_gap_centre_frac: float | None = None
+    """Override ``SignRouterParams.SIGN_LANE_GAP_CENTRE_FRAC`` (default 0.0).
+
+    How far a squeezed plateau moves off the boundary-clearance limit toward
+    its free gap's midpoint. Read the WALL and SIGN columns separately here:
+    at 1.0 they move hard in opposite directions (sign 199->168, wall 3->61),
+    so the headline collision total hides the effect. Only meaningful with
+    ``sign_lane_planner=True``.
+    """
+
     sign_lane_suppress_deform: bool | None = None
     """Override ``SignRouterParams.SIGN_LANE_SUPPRESS_DEFORM`` (default True).
 
@@ -569,6 +579,7 @@ class SweepConfig:
             SIGN_LANE_SUPPRESS_DEFORM=self.sign_lane_suppress_deform,
             SIGN_LANE_OFFSET_FRAC=self.sign_lane_offset_frac,
             SIGN_LANE_CORNER_ENTRY_M=self.sign_lane_corner_entry,
+            SIGN_LANE_GAP_CENTRE_FRAC=self.sign_lane_gap_centre_frac,
             SIGN_DEFORM_SPEED_THRESHOLD_M=self.sign_deform_speed_threshold,
             CORRIDOR_FLIP_TICKS=self.corridor_flip_ticks,
             DEFORM_DEPTH_BUFFER_M=self.deform_depth_buffer,
@@ -1673,6 +1684,25 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # knob is not wired to the thing being toggled, and guard on is what ships.
     # The guard can only cost sign collisions -- it suppresses the pin on a
     # subset of ticks -- so read the wall AND sign columns together.
+    # The clamped placement is yaw-limited (+/-28.2 deg) on 646 of 1282 corpus
+    # signs; the gap midpoint clears at any yaw but leaves only 0.9 cm of wall
+    # margin against a 6.3-6.6 cm crosstrack shortfall. 0.0 and 1.0 are the
+    # measured endpoints (202/256 with sign 199 wall 3; 229/256 with sign 168
+    # wall 61) -- this looks for whether any interior value keeps part of the
+    # sign gain without buying the wall collisions. Blind, where the baseline
+    # lives. Read the WALL and SIGN columns, not just the total.
+    "gap-centre": [
+        SweepConfig("blind, clamped plateau (shipped)", blind=True, sign_lane_planner=True),
+        *(
+            SweepConfig(
+                f"blind, gap-centre frac {frac:{_FORMAT_2F}}",
+                blind=True,
+                sign_lane_planner=True,
+                sign_lane_gap_centre_frac=frac,
+            )
+            for frac in (0.25, 0.40, 0.55, 0.70)
+        ),
+    ],
     "pin-guard": [
         SweepConfig("blind, pin off", blind=True, park=False, depth_pin=False),
         SweepConfig("blind, pin on, corner guard OFF", blind=True, park=False, depth_pin=True, pin_corner_guard=False),

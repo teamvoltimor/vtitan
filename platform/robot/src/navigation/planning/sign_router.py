@@ -61,6 +61,7 @@ __all__ = [
     "SignSpec",
     "clamp_lateral",
     "outward_lateral_axis",
+    "pass_lateral",
     "signs_from_metadata",
 ]
 
@@ -968,6 +969,108 @@ def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | 
         value = max(value, TrackDimensions.CORNER_MAX + wall_clearance)
         value = min(value, TrackDimensions.MAX_COORD - wall_clearance)
     return value
+
+
+def pass_lateral(
+    sign_lateral: float,
+    mult: int,
+    corridor: Section,
+    lateral_offset: float,
+    frac: float = 1.0,
+) -> float:
+    """Lateral coordinate of the pass-side lane for one sign, gap-centred when squeezed.
+
+    ``clamp_lateral`` answers "is this waypoint clear of the boundary?" and
+    knows nothing about the sign. That is the right question for a deformed
+    carrot, but the wrong one for a lane: when the full ``lateral_offset``
+    would put the lane past the boundary-clearance limit, clamping parks it
+    hard against that limit and hands every remaining metre of the squeeze to
+    the SIGN side. The result is a plan that is over-margined at the wall and
+    under-margined at the pillar.
+
+    The corpus geometry makes that the common case rather than an edge one:
+    signs sit 0.10 m off the centreline while the pass offset is 0.279 m, so
+    the clamp binds on 646 of 1282 signs (50.4%), in 248 of 256 scenarios.
+    Measured against the simulator's own collision test -- an exact SAT
+    between the oriented 0.30 x 0.194 m chassis and the 0.05 m sign box, so
+    the required lateral gap is yaw-dependent, ``0.15*|sin| + 0.097*|cos|``
+    plus the sign's half-extent -- the three candidate placements for the
+    worst squeeze (a red SOUTH sign at y=0.40, passed outward against the
+    wall) are:
+
+    * clamped to the boundary limit (shipped): 0.156 m of pillar margin,
+      which holds only while the chassis is within +/-28.2 deg of the
+      corridor axis;
+    * the unclamped full offset: 0.121 m of WALL margin, +/-9.9 deg -- worse,
+      which is why the clamp exists at all;
+    * the midpoint of the free gap: 0.1875 m on both sides, against a
+      0.1786 m chassis half-diagonal -- clear at EVERY yaw, by 0.9 cm.
+
+    Centring is the maximin placement, so the third row is the best any
+    planner can do with this gap FOR A CHASSIS EXACTLY ON THE LANE. That
+    caveat is the whole reason ``frac`` exists. Measured on the full corpus,
+    full centring does what the geometry predicts to the sign column -- 199
+    sign collisions down to 168 -- and then loses far more to the wall, 3 up
+    to 61, for 229/256 against a 202/256 baseline.
+
+    The miss is that 0.9 cm of planned margin is not 0.9 cm of real margin:
+    this tracker carries a documented 6.3-6.6 cm crosstrack shortfall (see
+    ``sign_lane``'s module docstring), which swallows the maximin slack
+    whole. Nor are the two sides symmetric once tracking error is admitted --
+    the wall is a continuous surface the chassis runs beside for an entire
+    corridor, while the sign is a 0.05 m pillar it is beside for a moment, so
+    equal geometric clearance is not equal risk. The optimum therefore sits
+    biased AWAY from the wall relative to the midpoint, which is what ``frac``
+    interpolates toward.
+
+    Nothing here is loosened: the returned value is never further from the
+    sign than ``lateral_offset`` asked for, and never outside the corridor.
+    Where the offset already fits (the other 49.6%) this returns exactly what
+    ``clamp_lateral`` did, so only the squeezed signs move.
+
+    Purely relative geometry -- the sign estimate, the corridor and its
+    boundaries are all in whatever frame discovery is working in -- so this
+    is rotation-equivariant and behaves identically under the blind-mode
+    rotational lock, in the frame the robot actually drives in.
+
+    Args:
+        sign_lateral: The sign's own lateral coordinate.
+        mult: Pass-side multiplier from ``outward_lateral_axis``.
+        corridor: Section whose lane is being planned.
+        lateral_offset: Full avoidance offset the router would like.
+        frac: How far to travel from the clamped placement toward the gap
+            midpoint. ``0.0`` reproduces ``clamp_lateral`` exactly, ``1.0``
+            is full centring. Only the squeeze is interpolated -- a sign
+            whose offset already fits is untouched at every value.
+
+    Returns:
+        The lane's lateral coordinate.
+    """
+    desired = sign_lateral + mult * lateral_offset
+    clamped = clamp_lateral(desired, corridor)
+    if frac <= 0.0:
+        return clamped
+
+    if corridor in (Section.SOUTH, Section.WEST):
+        low, high = TrackDimensions.MIN_COORD, TrackDimensions.CORNER_MIN
+    else:
+        low, high = TrackDimensions.CORNER_MAX, TrackDimensions.MAX_COORD
+
+    sign_half = TrafficSignSpecs.WIDTH / 2
+    if mult < 0:
+        # Passing toward `low`: the usable gap runs from that boundary to the
+        # sign's near face, and its midpoint splits the two clearances evenly.
+        # `max` keeps the full offset whenever it already sits short of the
+        # midpoint, so an unsqueezed sign is untouched.
+        centred = max(desired, (low + sign_lateral - sign_half) / 2)
+    else:
+        centred = min(desired, (sign_lateral + sign_half + high) / 2)
+
+    # Deliberately NOT re-clamped: clamp_lateral's margin is the very thing
+    # being rebalanced, and re-applying it would push the result back against
+    # the boundary limit it was moved off. The corridor's hard bounds stand.
+    blended = clamped + (centred - clamped) * min(frac, 1.0)
+    return min(max(blended, low), high)
 
 
 def _match_detection_to_sign(

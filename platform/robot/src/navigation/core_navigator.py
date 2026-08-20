@@ -311,6 +311,7 @@ class CoreNavigator:
                 ramp_m=sr.SIGN_LANE_RAMP_M,
                 hold_m=sr.SIGN_LANE_HOLD_M,
                 corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+                gap_centre_frac=sr.SIGN_LANE_GAP_CENTRE_FRAC,
             ),
         )
         self._hold_committed_path(previous, sr.SIGN_LANE_COMMIT_AHEAD_M)
