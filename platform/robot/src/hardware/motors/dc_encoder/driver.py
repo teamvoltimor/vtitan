@@ -113,7 +113,7 @@ class Driver(EncodedDriveDriver):
             kd=self._pwm_config.pid_kd,
             feedforward=1.0 / self._max_rpm,
         )
-        self._estimator = SpeedEstimator(counts_per_rev)
+        self._estimator = SpeedEstimator(self._counts_per_rev)
         self._encoder = None
         self._ain1 = None
         self._ain2 = None
