@@ -55,7 +55,29 @@ Measured over all 256 corpus scenarios (1282 signs), not assumed:
 * Signs sit only 0.10 m off the corridor centreline (lateral 0.4/0.6 against
   a 0.5 centre). Since the pass offset is 0.28 m, ``clamp_lateral`` binds on
   essentially every sign -- the lane runs at its clearance limit by
-  construction, not by mis-tuning.
+  construction, not by mis-tuning. Counted exactly: 646 of the 1282 signs,
+  in 248 of the 256 scenarios.
+
+  Do not read that as an available lever; it has been measured and it is
+  not. The simulator collides via exact SAT on the ORIENTED chassis, so a
+  squeezed lane's clearance is yaw-dependent: the clamped placement clears
+  its sign only within +/-28.2 deg of the corridor axis, while the midpoint
+  of the free gap clears at any yaw. Moving the plateau from one to the
+  other (``SIGN_LANE_GAP_CENTRE_FRAC``, since reverted -- see ``66fa5f2e``
+  for the implementation) does exactly what that geometry predicts to the
+  SIGN column, 199 collisions down to 168, and loses far more to the wall,
+  3 up to 61: 229/256 against a 202/256 baseline. Swept at 0.25/0.40/0.55/
+  0.70 it is worse at every value (213/211/217/220), the sign column is not
+  even monotonic (WORSE than baseline at 0.25 and 0.40), and laps>=3 falls
+  monotonically 56 -> 32.
+
+  The reason is the number in the second bullet at the top of this
+  docstring: every one of those arms is geometrically wall-immune at any
+  yaw, so the wall strikes are not the plan reaching the wall -- they are
+  the chassis failing to be on the plan. The entire adjustable range is
+  3.1 cm (0.2186 -> 0.1875) against a 6.3-6.6 cm crosstrack shortfall. The
+  lever is half the size of the error it is fighting, so no placement can
+  win. Reduce the tracking error before revisiting the geometry.
 
 The third and fourth points together drive ``corner_entry_m``: 1211 of the
 1282 signs sit at a section BOUNDARY, where the straight offers no runway on
@@ -74,13 +96,7 @@ from shared.config.constants import TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import Waypoint
 
-from src.navigation.planning.sign_router import (
-    Axis,
-    SignSpec,
-    clamp_lateral,
-    outward_lateral_axis,
-    pass_lateral,
-)
+from src.navigation.planning.sign_router import Axis, SignSpec, clamp_lateral, outward_lateral_axis
 
 __all__ = ["SignLaneParams", "apply_sign_lanes"]
 
@@ -120,17 +136,6 @@ class SignLaneParams:
     next corridor, and delivering it already on the lane is strictly closer to
     what the robot must end up doing. ``clamp_lateral`` still bounds every
     point it moves.
-    """
-
-    gap_centre_frac: float = 0.0
-    """How far a squeezed plateau moves off the boundary-clearance limit
-    toward the midpoint of its free gap. ``0.0`` is the clamped placement.
-
-    Only affects signs where the full ``lateral_offset`` does not fit -- 646
-    of the corpus's 1282, in 248 of its 256 scenarios. Full centring (1.0)
-    trades 31 sign collisions for 58 wall collisions; see
-    ``sign_router.pass_lateral`` for the geometry, the measured yaw margins
-    and why the optimum is not the midpoint.
     """
 
 
@@ -227,7 +232,7 @@ def _control_points(
             continue
         _, mult = rule
         sign_lateral, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), axis)
-        target = pass_lateral(sign_lateral, mult, corridor, params.lateral_offset, params.gap_centre_frac)
+        target = clamp_lateral(sign_lateral + mult * params.lateral_offset, corridor)
         points.append((sign_depth - params.hold_m, target))
         points.append((sign_depth + params.hold_m, target))
 
@@ -260,35 +265,6 @@ def _control_points(
     entry = min(max(points[0][0] - params.ramp_m, low), points[0][0])
     exit_ = max(min(points[-1][0] + params.ramp_m, high), points[-1][0])
     return [(entry, base_lateral), *points, (exit_, base_lateral)]
-
-
-def _clamp_shift(value: float, corridor: Section, lane: float, gap_centre_frac: float) -> float:
-    """Bound a shifted waypoint, without undoing a deliberately gap-centred lane.
-
-    ``clamp_lateral`` is doing two jobs here. For a borrowed CORNER ARC point
-    it is real protection: the shift translates the whole arc, and an arc that
-    already curves toward the boundary can be pushed through it. For the
-    PLATEAU it is redundant -- ``pass_lateral`` has already placed that value
-    and bounded it -- and worse than redundant under ``gap_centre``, because
-    its margin is precisely what gap-centring rebalances. Applied blindly it
-    pulls the plateau straight back to the boundary-clearance limit, silently
-    reducing the whole change to a different ramp shape.
-
-    So the clamp is relaxed exactly as far as ``lane``, the profile value for
-    this depth, and no further: a point may reach the lane the planner chose,
-    while anything overshooting BEYOND it -- which is only ever arc curvature,
-    never the plateau -- is still caught. At ``gap_centre_frac`` 0 this is
-    ``clamp_lateral`` unchanged, since ``lane`` is then the clamped value
-    itself and the relaxation has nothing to give.
-    """
-    clamped = clamp_lateral(value, corridor)
-    if gap_centre_frac <= 0.0:
-        return clamped
-    if value < clamped:
-        return max(value, min(clamped, lane))
-    if value > clamped:
-        return min(value, max(clamped, lane))
-    return clamped
 
 
 def _interpolate(profile: list[tuple[float, float]], depth: float) -> float | None:
@@ -371,7 +347,7 @@ def apply_sign_lanes(
             # the turn instead of offsetting it. Shifting translates the arc
             # while leaving its shape intact, which is exactly the "exit the
             # corner already on the lane" behaviour this borrows runway for.
-            shifted = _clamp_shift(lateral + (lane - base_lateral), corridor, lane, params.gap_centre_frac)
+            shifted = clamp_lateral(lateral + (lane - base_lateral), corridor)
             if shifted == lateral:
                 continue
             result[i] = _rebuild(result[i], axis, shifted)

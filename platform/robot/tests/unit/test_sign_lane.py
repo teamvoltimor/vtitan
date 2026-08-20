@@ -13,22 +13,14 @@ from __future__ import annotations
 from itertools import pairwise
 
 import pytest
-from shared.config.constants import TrackDimensions, TrafficSignSpecs
-from shared.config.navigation_tuning import NavigationTuning
+from shared.config.constants import TrackDimensions
 from shared.domain.enums import Section
 from shared.domain.models import SignColor, Waypoint
 
 from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
-from src.navigation.planning.sign_router import SignRouterConfig, SignSpec
+from src.navigation.planning.sign_router import SignSpec
 
 _OFFSET = 0.28
-
-_SHIPPED_OFFSET = SignRouterConfig.from_tuning(NavigationTuning.load_default().sign_router).lateral_offset
-"""The real offset, unlike the round ``_OFFSET`` fixture above.
-
-Whether the clamp binds is a comparison between this and the corridor's own
-geometry, so the gap-centring tests are only meaningful at the shipped value.
-"""
 _PARAMS = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25)
 
 # SOUTH corridor: depth is x, lateral is y, and the inner square is above, so
@@ -211,65 +203,3 @@ class TestTwoSigns:
         )
         assert _lateral_at(laned, 1.3) == pytest.approx(red.y - _OFFSET, abs=0.03)
         assert _lateral_at(laned, 2.0) == pytest.approx(green.y + _OFFSET, abs=0.03)
-
-
-class TestGapCentre:
-    """Squeezed plateaux placed at the gap midpoint rather than the clamp limit.
-
-    See ``sign_router.pass_lateral`` for the geometry. These pin the two ways
-    the change can silently degrade: the relaxed clamp failing to reach the
-    centred lane (leaving only a different ramp shape, which is what the first
-    implementation actually did), and the same relaxation letting a borrowed
-    corner arc through the boundary it is there to guard.
-    """
-
-    # RED in SOUTH must pass OUTWARD, and at y=0.40 the sign is already on
-    # that side -- the narrow gap, so the clamp binds. This is 646 of the
-    # corpus's 1282 signs.
-    _SQUEEZED = SignSpec(x=1.5, y=0.40, color=SignColor.RED)
-    _ROOMY = SignSpec(x=1.5, y=0.60, color=SignColor.RED)
-
-    def _plateau(self, sign: SignSpec, *, gap_centre_frac: float, path: list[Waypoint] | None = None) -> float:
-        params = SignLaneParams(
-            lateral_offset=_SHIPPED_OFFSET, ramp_m=0.70, hold_m=0.25, gap_centre_frac=gap_centre_frac
-        )
-        laned = apply_sign_lanes(path or _south_straight(), [(sign, Section.SOUTH)], params)
-        return min(wp.y for wp in laned)
-
-    def test_centred_plateau_survives_the_shift_clamp(self) -> None:
-        """The plateau must actually REACH the gap midpoint on the applied path.
-
-        ``_control_points`` choosing a centred target is not enough: the
-        profile is applied as a shift and re-bounded afterwards, and bounding
-        it with the very margin being rebalanced pulls the plateau back to the
-        clamp limit -- reducing the whole change to a different ramp shape
-        while every direct test of ``pass_lateral`` still passes.
-        """
-        expected = (TrackDimensions.MIN_COORD + self._SQUEEZED.y - TrafficSignSpecs.WIDTH / 2) / 2
-        assert self._plateau(self._SQUEEZED, gap_centre_frac=1.0) == pytest.approx(expected)
-        assert self._plateau(self._SQUEEZED, gap_centre_frac=0.0) > expected
-
-    def test_unsqueezed_sign_is_byte_identical(self) -> None:
-        """Where the offset already fits, the flag must change nothing at all."""
-        params = {"lateral_offset": _SHIPPED_OFFSET, "ramp_m": 0.70, "hold_m": 0.25}
-        path = _south_straight()
-        off = apply_sign_lanes(path, [(self._ROOMY, Section.SOUTH)], SignLaneParams(**params, gap_centre_frac=0.0))
-        on = apply_sign_lanes(path, [(self._ROOMY, Section.SOUTH)], SignLaneParams(**params, gap_centre_frac=1.0))
-        assert on == off
-
-    def test_borrowed_arc_is_still_bounded(self) -> None:
-        """Relaxing the clamp must not let corner curvature through the wall.
-
-        The relaxation is allowed to reach the profile's own value and no
-        further, so an arc point whose translated position overshoots BEYOND
-        the lane is still caught. Uses an arc bent hard toward the outer wall,
-        which is the shape that overshoots.
-        """
-        arc = [Waypoint(0.70, 0.30), Waypoint(0.80, 0.22), Waypoint(0.90, 0.16)]
-        path = [*arc, *_south_straight()]
-        params = SignLaneParams(
-            lateral_offset=_SHIPPED_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.45, gap_centre_frac=1.0
-        )
-        laned = apply_sign_lanes(path, [(self._SQUEEZED, Section.SOUTH)], params)
-        floor = (TrackDimensions.MIN_COORD + self._SQUEEZED.y - TrafficSignSpecs.WIDTH / 2) / 2
-        assert all(wp.y >= floor - 1e-9 for wp in laned)
