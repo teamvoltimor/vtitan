@@ -56,7 +56,7 @@ import src.simulation.scenario_simulator as gateway_module
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
-from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error
+from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error, project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
@@ -817,6 +817,32 @@ def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, floa
     return CollisionKind.NONE
 
 
+def _into_believed_frame(
+    sim: ScenarioSimulator, true_xy: tuple[float, float], final_pose: tuple[float, float, float]
+) -> tuple[float, float]:
+    """Map a TRUE world position into the frame the navigator believes it is in.
+
+    Everything the router produces -- routed positions, lane specs -- is
+    reprojected through the robot's own pose estimate, never ground truth.
+    Comparing any of it against a true position mixes two frames, which is
+    incoherent regardless of which one is "right", and under the blind
+    rotational lock the gap is 1-2+ m. Rotating the true position by the
+    believed-vs-true pose offset puts both sides of such a comparison in the
+    same frame.
+
+    Falls back to the identity when the localizer has no estimate yet, which
+    is the only case where the two frames are not meaningfully different.
+    """
+    believed = sim.gateway.get_current_pose()
+    if believed is None:
+        return true_xy
+    true_x, true_y, true_yaw = final_pose
+    dyaw = wrap_angle(believed.yaw - true_yaw)
+    cos_d, sin_d = math.cos(dyaw), math.sin(dyaw)
+    dx, dy = true_xy[0] - true_x, true_xy[1] - true_y
+    return (believed.x + dx * cos_d - dy * sin_d, believed.y + dx * sin_d + dy * cos_d)
+
+
 _SIGN_MATCH_DIST_M = 0.30
 """How close a routed position must land to the struck sign's true position
 to count as the same sign. Matches ``SignDiscoveryParams.DETECTION_MATCH_DIST_M``
@@ -872,17 +898,7 @@ def _sign_mask_attribution(
         return None, None, None, None
     cx, cy = collision_xy
     struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
-
-    believed = sim.gateway.get_current_pose()
-    if believed is None:
-        struck_x, struck_y = struck.x, struck.y
-    else:
-        true_x, true_y, true_yaw = final_pose
-        dyaw = wrap_angle(believed.yaw - true_yaw)
-        cos_d, sin_d = math.cos(dyaw), math.sin(dyaw)
-        dx, dy = struck.x - true_x, struck.y - true_y
-        struck_x = believed.x + dx * cos_d - dy * sin_d
-        struck_y = believed.y + dx * sin_d + dy * cos_d
+    struck_x, struck_y = _into_believed_frame(sim, (struck.x, struck.y), final_pose)
 
     router = sim.navigator.sign_router
     routed = router.routed_sign_positions if router is not None else []
@@ -1286,6 +1302,303 @@ def report_cross_track(workers: int, lookaheads: list[float]) -> None:
                 f"max {max(pooled) * 100:{_CROSSTRACK_PERCENTILE_PRECISION}}cm",
                 flush=True,
             )
+
+
+_SIGN_PASS_WINDOW_M = 0.30
+"""How close to a routed sign a tick must be to count as "during a pass".
+
+Loose enough to span the whole abeam moment at the sim's step size, tight
+enough that the ramp on and off the lane -- where the chassis is SUPPOSED to
+be moving laterally -- does not dominate the sample.
+"""
+
+
+def _corridor_yaw_deg(yaw_rad: float) -> float:
+    """Chassis angle to the nearest corridor axis, in [0, 45] degrees.
+
+    This is the angle the simulator's collision test actually responds to.
+    Signs are axis-aligned 0.05 m boxes and corridors run along the world
+    axes, so the chassis half-extent facing a sign is
+    ``0.15*|sin| + 0.097*|cos|`` of THIS angle -- folded modulo 90 deg
+    because all four corridors are equivalent under the track's own symmetry,
+    which also makes it immune to the blind rotational lock.
+
+    Distinct from the path-relative heading below: on a lane ramp the path
+    deliberately runs at an angle to the corridor, so a chassis tracking that
+    ramp perfectly still presents a widened profile to the sign.
+    """
+    folded = math.degrees(yaw_rad) % 90.0
+    return abs(folded - 90.0 if folded > 45.0 else folded)
+
+
+def _outward_offset(path: list[Waypoint], px: float, py: float) -> float | None:
+    """Signed distance from the path, positive when the chassis sits OUTSIDE it.
+
+    "Outward" is taken radially from the track centre rather than from the
+    path's left-normal, so it needs no travel direction and cannot be flipped
+    by a mis-inferred one -- which matters here because these runs are blind.
+
+    The whole quantity is computed in the BELIEVED frame: the path is the one
+    the navigator is tracking and the pose is the one it is tracking with, so
+    this is "did the chassis go where it meant to", independent of where that
+    frame sits relative to truth. Under the rotational lock the believed frame
+    is a 90 deg rotation of the true one, which maps corridors onto corridors,
+    so the answer is the same in both.
+    """
+    proj = project_onto_path(path, px, py)
+    centre = TrackDimensions.MAX_COORD / 2
+    radial_x, radial_y = proj.x - centre, proj.y - centre
+    norm = math.hypot(radial_x, radial_y)
+    if norm == 0.0:
+        return None
+    return ((px - proj.x) * radial_x + (py - proj.y) * radial_y) / norm
+
+
+@dataclass(frozen=True, slots=True)
+class _SignPassSample:
+    """One scenario's tracking error, at sign passes and overall."""
+
+    near_abs: list[float]
+    """|crosstrack| on ticks within ``_SIGN_PASS_WINDOW_M`` of a routed sign."""
+
+    near_outward: list[float]
+    """Signed radial offset on those same ticks, positive = outside the path."""
+
+    all_abs: list[float]
+    """|crosstrack| on every driving tick, as the contrast."""
+
+    near_yaw_deg: list[float]
+    """Chassis angle to the corridor axis on those same ticks.
+
+    The variable crosstrack cannot see: a chassis can sit dead on its lane and
+    still be angled across it, and the clamped plan clears a squeezed sign
+    only within +/-28.2 deg.
+    """
+
+    collided_with_sign: bool
+
+    at_collision: float | None
+
+    yaw_at_collision: float | None
+    """Corridor-relative chassis angle on the last tick before contact."""
+
+    estimate_err_m: float | None
+    """Distance from the struck sign to the routed position the lane was built
+    around, both in the believed frame.
+
+    The lane is planned around the DISCOVERY ESTIMATE, not the sign, and it
+    carries only ~3.4 cm of slack at zero yaw. Any lateral estimate error eats
+    that directly, and it is invisible to every other measure here: in its own
+    frame the chassis tracks its plan perfectly and passes the sign it thinks
+    is there. ``_SIGN_MATCH_DIST_M`` tolerates 0.30 m of this before it stops
+    calling the collision "correctly routed" at all.
+    """
+    """|crosstrack| on the last tick before a sign collision ended the run.
+
+    The pooled per-run figures dilute the thing being asked: a run that hits
+    one sign on lap 3 still contributes every clean pass that preceded it, so
+    a real difference at the moment of contact averages away. This is the
+    single tick that actually went wrong.
+    """
+
+
+def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
+    """Measure tracking error DURING sign passes, blind, at shipped tuning.
+
+    Distinct from ``_cross_track_errors`` above, which deliberately strips the
+    signs: that answers "how well does the chassis hold a clean line", and it
+    has to strip them because under the carrot-deformation regime the router
+    biases the target away from the path on purpose, so distance-to-path
+    measures intended avoidance rather than error.
+
+    Under ``SIGN_LANE_PLANNER`` that is no longer true -- the lane IS the
+    planned polyline -- so with signs present, distance to the navigator's own
+    current path is honest tracking error, and it can finally be measured at
+    the moment it matters instead of inferred from a sign-free run.
+    """
+    index, scenarios_dir = args
+    config = SweepConfig("sign-crosstrack", blind=True, sign_lane_planner=True, scenarios_dir=scenarios_dir)
+    scenario = _scenarios(config)[index]
+    restore = _apply_patches(config, scenario.metadata)
+    near_abs: list[float] = []
+    near_outward: list[float] = []
+    near_yaw: list[float] = []
+    all_abs: list[float] = []
+    last: list[float | None] = [None]
+    last_yaw: list[float | None] = [None]
+
+    try:
+        sim = ScenarioSimulator(
+            scenario.metadata,
+            num_laps=scenario.laps,
+            seed=scenario.seed,
+            tuning=config.tuning(),
+            blind=config.blind,
+            park=config.park,
+        )
+
+        def _on_step(state: AckermannState, _scan: LidarScan) -> None:
+            # The controller's OWN error signal, not a re-derivation of it --
+            # None whenever the navigator is not in a tracking phase at all
+            # (escape, creep), which is exactly when it has no path to be off.
+            crosstrack = sim.navigator.debug_snapshot.crosstrack_error_m
+            if crosstrack is None:
+                return
+            all_abs.append(crosstrack)
+            last[0] = crosstrack
+            # TRUE yaw, not the believed one: the collision is resolved against
+            # the real sign box. Under the rotational lock the two differ by a
+            # multiple of 90 deg, which _corridor_yaw_deg folds away anyway --
+            # taking truth just removes the assumption that the lock is exact.
+            last_yaw[0] = _corridor_yaw_deg(state.yaw)
+
+            router = sim.navigator.sign_router
+            pose = sim.gateway.get_current_pose()
+            if router is None or pose is None:
+                return
+            routed = router.routed_sign_positions
+            if not routed:
+                return
+            if min(math.hypot(sx - pose.x, sy - pose.y) for sx, sy in routed) > _SIGN_PASS_WINDOW_M:
+                return
+
+            near_abs.append(crosstrack)
+            near_yaw.append(_corridor_yaw_deg(state.yaw))
+            # Reaching past the public snapshot for the path: it carries the
+            # magnitude but not the projection, and the inward/outward split is
+            # the entire question -- a systematic outward bias is a fixable
+            # aim error, symmetric scatter is not.
+            outward = _outward_offset(sim.navigator._waypoints, pose.x, pose.y)  # noqa: SLF001
+            if outward is not None:
+                near_outward.append(outward)
+
+        result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
+    finally:
+        for module, name, value in restore:
+            setattr(module, name, value)
+
+    struck_sign = result.collided and _classify_collision(scenario.metadata, result.final_pose) == CollisionKind.SIGN
+    estimate_err: float | None = None
+    if struck_sign and result.collision_xy is not None:
+        signs = sign_router_module.signs_from_metadata(scenario.metadata)
+        router = sim.navigator.sign_router
+        routed = router.routed_sign_positions if router is not None else []
+        if signs and routed:
+            cx, cy = result.collision_xy
+            struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
+            bx, by = _into_believed_frame(sim, (struck.x, struck.y), result.final_pose)
+            estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
+
+    return _SignPassSample(
+        near_abs=near_abs,
+        near_outward=near_outward,
+        all_abs=all_abs,
+        near_yaw_deg=near_yaw,
+        collided_with_sign=struck_sign,
+        at_collision=last[0] if struck_sign else None,
+        yaw_at_collision=last_yaw[0] if struck_sign else None,
+        estimate_err_m=estimate_err,
+    )
+
+
+def report_sign_pass_crosstrack(workers: int, scenarios_dir: str | None) -> None:
+    """Print tracking error at sign passes, split by outcome.
+
+    Three questions, in order, because each one only matters if the previous
+    answered yes: is the error big relative to the ~3.1 cm of lateral room the
+    planner has to give; is it a systematic outward bias (fixable aim) or
+    symmetric scatter (not); and do the runs that hit a sign carry more of it
+    than the runs that do not.
+    """
+    config = SweepConfig("sign-crosstrack", scenarios_dir=scenarios_dir)
+    count = len(_scenarios(config))
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        samples = list(pool.map(_sign_pass_crosstrack, [(i, scenarios_dir) for i in range(count)]))
+
+    near = [e for s in samples for e in s.near_abs]
+    everywhere = [e for s in samples for e in s.all_abs]
+    outward = [e for s in samples for e in s.near_outward]
+    if not near:
+        print("SIGN-CROSSTRACK no sign-pass ticks recorded", flush=True)
+        return
+
+    def _row(label: str, values: list[float]) -> None:
+        print(
+            f"SIGN-CROSSTRACK {label:<26} n {len(values):>7}  "
+            f"median {percentile(values, 0.5) * 100:6.2f}cm  "
+            f"p90 {percentile(values, 0.9) * 100:6.2f}cm  "
+            f"max {max(values) * 100:6.2f}cm",
+            flush=True,
+        )
+
+    _row("|error| at sign passes", near)
+    _row("|error| everywhere", everywhere)
+
+    outward_share = sum(1 for e in outward if e > 0) / len(outward) if outward else 0.0
+    print(
+        f"SIGN-CROSSTRACK {'signed radial at passes':<26} n {len(outward):>7}  "
+        f"mean {sum(outward) / len(outward) * 100:+6.2f}cm  "
+        f"median {percentile(outward, 0.5) * 100:+6.2f}cm  "
+        f"outward {outward_share * 100:5.1f}%  (+ = outside its own path)",
+        flush=True,
+    )
+
+    struck = [e for s in samples if s.collided_with_sign for e in s.near_abs]
+    clean = [e for s in samples if not s.collided_with_sign for e in s.near_abs]
+    if struck and clean:
+        _row("|error|, runs that hit", struck)
+        _row("|error|, runs that did not", clean)
+
+    # The decisive comparison: the tick contact happened on, against every
+    # pass that did not end in contact. If tracking error is what puts the
+    # chassis into a sign, these two must separate. If they do not, the
+    # collisions are being caused by something the chassis's distance from
+    # its own path does not capture, and tuning the tracker cannot fix them.
+    at_collision = [s.at_collision for s in samples if s.at_collision is not None]
+    if at_collision:
+        _row("|error| AT the collision tick", at_collision)
+        _row("|error| at clean passes", clean)
+
+    # The variable crosstrack is blind to. A squeezed plateau clears its sign
+    # only within +/-28.2 deg of the corridor axis, so if collisions sit above
+    # that band while clean passes sit below it, the lever is the approach
+    # ANGLE -- speed, steering rate, ramp shape -- and neither lateral
+    # placement nor tracking accuracy can reach it.
+    yaw_near = [y for s in samples for y in s.near_yaw_deg]
+    yaw_hit = [s.yaw_at_collision for s in samples if s.yaw_at_collision is not None]
+    yaw_clean = [y for s in samples if not s.collided_with_sign for y in s.near_yaw_deg]
+    if yaw_near:
+        _YAW_LIMIT_DEG = 28.2
+
+        def _yaw_row(label: str, values: list[float]) -> None:
+            over = sum(1 for v in values if v > _YAW_LIMIT_DEG) / len(values)
+            print(
+                f"SIGN-CROSSTRACK {label:<26} n {len(values):>7}  "
+                f"median {percentile(values, 0.5):6.2f}deg  "
+                f"p90 {percentile(values, 0.9):6.2f}deg  "
+                f"over {_YAW_LIMIT_DEG}deg {over * 100:5.1f}%",
+                flush=True,
+            )
+
+        _yaw_row("yaw at sign passes", yaw_near)
+        _yaw_row("yaw at clean passes", yaw_clean)
+        if yaw_hit:
+            _yaw_row("yaw AT the collision tick", yaw_hit)
+
+    # How far the lane was planned from the sign it was meant to clear. The
+    # plan's own slack is ~3.4cm, so anything approaching that is enough on
+    # its own -- and unlike yaw or crosstrack it is invisible from inside the
+    # robot's frame, where the pass looks correct.
+    err = [s.estimate_err_m for s in samples if s.estimate_err_m is not None]
+    if err:
+        over = sum(1 for e in err if e > 0.034) / len(err)
+        print(
+            f"SIGN-CROSSTRACK {'sign estimate error':<26} n {len(err):>7}  "
+            f"median {percentile(err, 0.5) * 100:6.2f}cm  "
+            f"p90 {percentile(err, 0.9) * 100:6.2f}cm  "
+            f"max {max(err) * 100:6.2f}cm  over 3.4cm {over * 100:5.1f}%",
+            flush=True,
+        )
 
 
 _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
@@ -1808,7 +2121,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
 }
 """Modes with a fixed comparison set, ignoring any CLI values."""
 
-MODES = ("crosstrack", *_FIXED_MODES, *_SWEPT_MODES)
+MODES = ("crosstrack", "sign-crosstrack", *_FIXED_MODES, *_SWEPT_MODES)
 
 
 def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
@@ -1843,8 +2156,12 @@ def main() -> None:
         report_cross_track(args.workers, args.values)
         return
 
-    configs = _build_configs(args.mode, args.values)
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
+    if args.mode == "sign-crosstrack":
+        report_sign_pass_crosstrack(args.workers, scenarios_dir)
+        return
+
+    configs = _build_configs(args.mode, args.values)
     if scenarios_dir:
         configs = [replace(c, scenarios_dir=scenarios_dir) for c in configs]
     run_sweep(configs, args.workers, verbose=args.verbose)
