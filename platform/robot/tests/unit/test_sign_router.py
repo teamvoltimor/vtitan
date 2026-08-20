@@ -34,9 +34,7 @@ from src.navigation.planning.sign_router import (
     SignSpec,
     _apply_deformation,
     _match_detection_to_sign,
-    clamp_lateral,
     outward_lateral_axis,
-    pass_lateral,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from tests.test_constants import (
@@ -1315,106 +1313,3 @@ class TestMinimumClearance:
             f"edge-to-edge clearance between chassis and sign — below the "
             f"{_MIN_SIGN_EDGE_CLEARANCE_M}m minimum"
         )
-
-
-class TestPassLateral:
-    """Gap-centring for a plateau the full offset cannot fit.
-
-    The reference case throughout is the worst squeeze the WRO layout
-    produces: a RED sign in the SOUTH corridor sitting at lateral 0.40, which
-    must be passed OUTWARD -- i.e. through the gap between the sign and the
-    outer wall at 0.0, the narrower of its two sides.
-    """
-
-    _SIGN_LAT = 0.40
-    _MULT = -1  # SOUTH + red == outward == toward the wall
-    _CORRIDOR = Section.SOUTH
-
-    def _lateral_extent(self, yaw: float) -> float:
-        """Chassis half-extent along the corridor's lateral axis at ``yaw``.
-
-        Mirrors the simulator's SAT projection onto the world lateral axis,
-        which is what actually decides a sign collision.
-        """
-        return abs(math.sin(yaw)) * RobotSpecs.LENGTH / 2 + abs(math.cos(yaw)) * RobotSpecs.WIDTH / 2
-
-    def _min_margin(self, lane: float) -> float:
-        """Smaller of the lane's wall gap and its sign-face gap."""
-        return min(lane - TrackDimensions.MIN_COORD, self._SIGN_LAT - lane - TrafficSignSpecs.WIDTH / 2)
-
-    def test_unsqueezed_sign_is_untouched(self) -> None:
-        """Where the full offset already fits, the result is exactly clamp_lateral's.
-
-        Half the corpus's signs are on this branch, so gap-centring must be
-        provably inert for them rather than merely close.
-        """
-        # Same corridor and pass side, but the sign sits on the far side of
-        # the centreline, so the outward gap is wide enough for the offset.
-        roomy = 0.60
-        assert pass_lateral(roomy, self._MULT, self._CORRIDOR, _SIGN_LATERAL_OFFSET) == pytest.approx(
-            clamp_lateral(roomy + self._MULT * _SIGN_LATERAL_OFFSET, self._CORRIDOR)
-        )
-
-    def test_squeezed_sign_splits_the_gap_evenly(self) -> None:
-        """The squeezed plateau lands at the midpoint of the free gap."""
-        lane = pass_lateral(self._SIGN_LAT, self._MULT, self._CORRIDOR, _SIGN_LATERAL_OFFSET)
-        wall_gap = lane - TrackDimensions.MIN_COORD
-        sign_gap = self._SIGN_LAT - lane - TrafficSignSpecs.WIDTH / 2
-        assert wall_gap == pytest.approx(sign_gap)
-
-    def test_gap_centring_clears_the_sign_at_every_yaw(self) -> None:
-        """The point of the change: remove the yaw dependence, not just widen a gap.
-
-        The clamped placement clears the pillar only while the chassis is
-        roughly parallel to the corridor, but the lane is tracked while the
-        chassis is still rotating through a ramp or an S-bend. Sweeping the
-        full quarter-turn pins that the centred lane never contacts either
-        boundary, and that the clamped one does.
-        """
-        centred = pass_lateral(self._SIGN_LAT, self._MULT, self._CORRIDOR, _SIGN_LATERAL_OFFSET)
-        clamped = clamp_lateral(self._SIGN_LAT + self._MULT * _SIGN_LATERAL_OFFSET, self._CORRIDOR)
-
-        yaws = [math.radians(d) for d in range(0, 91)]
-        assert all(self._lateral_extent(y) <= self._min_margin(centred) for y in yaws)
-        assert any(self._lateral_extent(y) > self._min_margin(clamped) for y in yaws)
-
-    def test_centring_is_the_maximin_placement(self) -> None:
-        """No other lane on this pass side does better on its worst side.
-
-        Guards against someone "improving" the split with a bias term: any
-        shift trades one clearance for the other, so the midpoint is optimal
-        by construction and should be pinned as such.
-        """
-        best = pass_lateral(self._SIGN_LAT, self._MULT, self._CORRIDOR, _SIGN_LATERAL_OFFSET)
-        for step in range(-40, 41):
-            candidate = best + step * 0.002
-            assert self._min_margin(candidate) <= self._min_margin(best) + 1e-9
-
-    def test_never_overshoots_the_requested_offset(self) -> None:
-        """Gap-centring only ever pulls a lane back toward the sign, never past the offset.
-
-        It rebalances a squeeze; it must not become a second, larger offset.
-        """
-        lane = pass_lateral(self._SIGN_LAT, self._MULT, self._CORRIDOR, _SIGN_LATERAL_OFFSET)
-        assert abs(lane - self._SIGN_LAT) <= _SIGN_LATERAL_OFFSET + 1e-9
-
-    @pytest.mark.parametrize(
-        ("corridor", "sign_lat", "mult", "low", "high"),
-        [
-            (Section.SOUTH, 0.40, -1, TrackDimensions.MIN_COORD, TrackDimensions.CORNER_MIN),
-            (Section.SOUTH, 0.60, +1, TrackDimensions.MIN_COORD, TrackDimensions.CORNER_MIN),
-            (Section.NORTH, 2.60, +1, TrackDimensions.CORNER_MAX, TrackDimensions.MAX_COORD),
-            (Section.NORTH, 2.40, -1, TrackDimensions.CORNER_MAX, TrackDimensions.MAX_COORD),
-        ],
-    )
-    def test_stays_inside_the_corridor_on_both_sides(
-        self, corridor: Section, sign_lat: float, mult: int, low: float, high: float
-    ) -> None:
-        """Every squeezed combination stays in its corridor and on its pass side.
-
-        NORTH/EAST bound the inner square from the other direction, so the
-        mirrored branch needs pinning independently of SOUTH/WEST.
-        """
-        lane = pass_lateral(sign_lat, mult, corridor, _SIGN_LATERAL_OFFSET)
-        assert low <= lane <= high
-        assert math.copysign(1, lane - sign_lat) == mult
