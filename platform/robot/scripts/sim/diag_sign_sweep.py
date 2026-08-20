@@ -48,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import NavigatorPhase
+from shared.domain.enums import NavigatorPhase, Section
 from shared.domain.models import Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
@@ -56,6 +56,7 @@ import src.simulation.scenario_simulator as gateway_module
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error, project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -1313,6 +1314,34 @@ be moving laterally -- does not dominate the sample.
 """
 
 
+_MIDDLE_DEPTH_TOLERANCE_M = 0.25
+"""Half-window around depth 1.50 that counts as a MIDDLE sign.
+
+Corpus depths take exactly three values -- 1.00, 1.50, 2.00 -- so anything
+short of 0.25 separates them cleanly, and the estimate error these are
+classified from is 0.5 cm (see this module's sign-crosstrack results).
+"""
+
+
+def _is_middle_sign(x: float, y: float) -> bool:
+    """True if this sign sits mid-section rather than on a section BOUNDARY.
+
+    The split that separates the two candidate causes of pass yaw. 1211 of the
+    corpus's 1282 signs sit at a boundary, immediately beside a corner, where
+    the chassis may still be rotating out of the turn; a middle sign is the
+    only case with a corner-free approach on both sides. If the yaw is
+    concentrated at boundaries it is corner-driven, and the lever is corner
+    exit; if it is flat across both, the lane ramp itself is doing it and the
+    lever is ramp length and approach speed.
+
+    Depth is the along-corridor coordinate: x for the SOUTH/NORTH corridors,
+    y for EAST/WEST, matching ``sign_lane._axis_coords``.
+    """
+    corridor = corridor_for_position(x, y)
+    depth = x if corridor in (Section.SOUTH, Section.NORTH) else y
+    return abs(depth - 1.5) < _MIDDLE_DEPTH_TOLERANCE_M
+
+
 def _corridor_yaw_deg(yaw_rad: float) -> float:
     """Chassis angle to the nearest corridor axis, in [0, 45] degrees.
 
@@ -1331,7 +1360,7 @@ def _corridor_yaw_deg(yaw_rad: float) -> float:
     return abs(folded - 90.0 if folded > 45.0 else folded)
 
 
-def _outward_offset(path: list[Waypoint], px: float, py: float) -> float | None:
+def _radial_offset(proj: Any, px: float, py: float) -> float | None:
     """Signed distance from the path, positive when the chassis sits OUTSIDE it.
 
     "Outward" is taken radially from the track centre rather than from the
@@ -1345,7 +1374,6 @@ def _outward_offset(path: list[Waypoint], px: float, py: float) -> float | None:
     is a 90 deg rotation of the true one, which maps corridors onto corridors,
     so the answer is the same in both.
     """
-    proj = project_onto_path(path, px, py)
     centre = TrackDimensions.MAX_COORD / 2
     radial_x, radial_y = proj.x - centre, proj.y - centre
     norm = math.hypot(radial_x, radial_y)
@@ -1366,6 +1394,27 @@ class _SignPassSample:
 
     all_abs: list[float]
     """|crosstrack| on every driving tick, as the contrast."""
+
+    yaw_boundary: list[float]
+    """Corridor-relative yaw on ticks passing a section-BOUNDARY sign."""
+
+    yaw_middle: list[float]
+    """Corridor-relative yaw on ticks passing a MID-SECTION sign."""
+
+    head_boundary: list[float]
+    """Heading error against the PATH at a boundary sign.
+
+    Read together with ``yaw_boundary``: a large corridor-yaw beside a small
+    path-heading error means the chassis is correctly driving a curve, and the
+    angle is geometry rather than a tracking fault.
+    """
+
+    head_middle: list[float]
+    """Heading error against the PATH at a mid-section sign."""
+
+    struck_middle: bool | None
+    """Whether the sign that ended the run was mid-section. ``None`` if no sign
+    collision. Read against the 1211/71 boundary/middle exposure, not raw."""
 
     near_yaw_deg: list[float]
     """Chassis angle to the corridor axis on those same ticks.
@@ -1423,6 +1472,10 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
     near_abs: list[float] = []
     near_outward: list[float] = []
     near_yaw: list[float] = []
+    yaw_boundary: list[float] = []
+    yaw_middle: list[float] = []
+    head_boundary: list[float] = []
+    head_middle: list[float] = []
     all_abs: list[float] = []
     last: list[float | None] = [None]
     last_yaw: list[float | None] = [None]
@@ -1459,18 +1512,38 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
             routed = router.routed_sign_positions
             if not routed:
                 return
-            if min(math.hypot(sx - pose.x, sy - pose.y) for sx, sy in routed) > _SIGN_PASS_WINDOW_M:
+            nearest = min(routed, key=lambda p: math.hypot(p[0] - pose.x, p[1] - pose.y))
+            if math.hypot(nearest[0] - pose.x, nearest[1] - pose.y) > _SIGN_PASS_WINDOW_M:
                 return
 
             near_abs.append(crosstrack)
-            near_yaw.append(_corridor_yaw_deg(state.yaw))
+            yaw_deg = _corridor_yaw_deg(state.yaw)
+            near_yaw.append(yaw_deg)
+            # Classified from the BELIEVED position, which is the frame this
+            # whole callback works in -- and at 0.5 cm of estimate error the
+            # depth it lands on is the true one anyway.
+            (yaw_middle if _is_middle_sign(*nearest) else yaw_boundary).append(yaw_deg)
             # Reaching past the public snapshot for the path: it carries the
-            # magnitude but not the projection, and the inward/outward split is
-            # the entire question -- a systematic outward bias is a fixable
-            # aim error, symmetric scatter is not.
-            outward = _outward_offset(sim.navigator._waypoints, pose.x, pose.y)  # noqa: SLF001
+            # magnitude but not the projection, and both remaining questions
+            # need the projection -- which side of the path the chassis sits
+            # on, and whether its heading agrees with the path's own.
+            path = sim.navigator._waypoints  # noqa: SLF001
+            if len(path) < 2:
+                return
+            proj = project_onto_path(path, pose.x, pose.y)
+            outward = _radial_offset(proj, pose.x, pose.y)
             if outward is not None:
                 near_outward.append(outward)
+
+            # Heading error against the PATH, not the corridor. The pair that
+            # decides the fix: a chassis angled to the corridor but aligned
+            # with its own path is correctly driving a curve, and no amount of
+            # slowing down or extra steering authority will straighten it --
+            # only asking for more clearance where it is known to be angled.
+            # A chassis angled to its own path is lagging the turn, which
+            # speed and steering rate CAN fix.
+            heading = abs(math.degrees(wrap_angle(pose.yaw - proj.tangent_rad)))
+            (head_middle if _is_middle_sign(*nearest) else head_boundary).append(heading)
 
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
     finally:
@@ -1479,6 +1552,7 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
 
     struck_sign = result.collided and _classify_collision(scenario.metadata, result.final_pose) == CollisionKind.SIGN
     estimate_err: float | None = None
+    struck_middle: bool | None = None
     if struck_sign and result.collision_xy is not None:
         signs = sign_router_module.signs_from_metadata(scenario.metadata)
         router = sim.navigator.sign_router
@@ -1486,6 +1560,9 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
         if signs and routed:
             cx, cy = result.collision_xy
             struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
+            # TRUE position here: the struck sign's own depth is a fact about
+            # the layout, so take it from metadata rather than an estimate.
+            struck_middle = _is_middle_sign(struck.x, struck.y)
             bx, by = _into_believed_frame(sim, (struck.x, struck.y), result.final_pose)
             estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
 
@@ -1494,6 +1571,11 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
         near_outward=near_outward,
         all_abs=all_abs,
         near_yaw_deg=near_yaw,
+        yaw_boundary=yaw_boundary,
+        yaw_middle=yaw_middle,
+        head_boundary=head_boundary,
+        head_middle=head_middle,
+        struck_middle=struck_middle,
         collided_with_sign=struck_sign,
         at_collision=last[0] if struck_sign else None,
         yaw_at_collision=last_yaw[0] if struck_sign else None,
@@ -1584,6 +1666,34 @@ def report_sign_pass_crosstrack(workers: int, scenarios_dir: str | None) -> None
         _yaw_row("yaw at clean passes", yaw_clean)
         if yaw_hit:
             _yaw_row("yaw AT the collision tick", yaw_hit)
+
+        # THE SPLIT: is the pass yaw corner-driven or lane-driven? A boundary
+        # sign sits beside a corner the chassis may still be rotating out of;
+        # a middle sign has a corner-free approach on both sides. Same lane
+        # ramp in both cases, so a large gap is the corner and a small one is
+        # the ramp.
+        boundary = [y for s in samples for y in s.yaw_boundary]
+        middle = [y for s in samples for y in s.yaw_middle]
+        if boundary and middle:
+            _yaw_row("yaw at BOUNDARY signs", boundary)
+            _yaw_row("yaw at MIDDLE signs", middle)
+            head_b = [h for s in samples for h in s.head_boundary]
+            head_m = [h for s in samples for h in s.head_middle]
+            if head_b and head_m:
+                _yaw_row("path-heading err, BOUNDARY", head_b)
+                _yaw_row("path-heading err, MIDDLE", head_m)
+            # Collisions per pass-tick, since boundary signs outnumber middle
+            # ones ~17:1 in the corpus and raw counts would say nothing.
+            hits_mid = sum(1 for s in samples if s.struck_middle is True)
+            hits_bnd = sum(1 for s in samples if s.struck_middle is False)
+            print(
+                f"SIGN-CROSSTRACK {'collisions by sign depth':<26} "
+                f"boundary {hits_bnd:>4} over {len(boundary):>6} ticks "
+                f"({hits_bnd / len(boundary) * 1e4:5.2f} per 10k)   "
+                f"middle {hits_mid:>4} over {len(middle):>6} ticks "
+                f"({hits_mid / len(middle) * 1e4:5.2f} per 10k)",
+                flush=True,
+            )
 
     # How far the lane was planned from the sign it was meant to clear. The
     # plan's own slack is ~3.4cm, so anything approaching that is enough on
