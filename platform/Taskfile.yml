@@ -140,7 +140,7 @@ tasks:
           task robot:lint           Lint robot code
           task robot:lint:fix       Auto-fix robot lint issues
           task robot:build-ws       Build ROS2 workspace via colcon (Linux only)
-          task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify)
+          task robot:zero           Pi Zero lifecycle ops — run on Pi 5 (ACTION=bootstrap|deploy|shutdown|verify|recover-sd)
           task robot:fetch-lidar-driver  Clone Slamtec sllidar_ros2 driver (run before build-ws for LIDAR)
           task robot:run            Run a single node (NODE=motor|lidar|imu-i2c|imu-rvc|state-machine|oled|telemetry|vision|navigator|joy-teleop)
           task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
@@ -794,9 +794,9 @@ tasks:
   robot:zero:
     desc: >-
       Pi Zero lifecycle ops — run ON Pi 5 (usage: task robot:zero
-      ACTION=bootstrap|deploy|shutdown|shutdown-both|verify
+      ACTION=bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd
       [ZERO_HOST=user@host] [ZERO_HOST_USB=user@host]
-      [ZERO_HOST_WIFI=user@host]). bootstrap: one-shot setup for a
+      [ZERO_HOST_WIFI=user@host] [DEVICE=/dev/sdX]). bootstrap: one-shot setup for a
       freshly-flashed Pi Zero (SSH trust, .env, pixi CLI, I2C, systemd
       unit), idempotent, run before deploy. deploy: build the dev pixi env +
       ros2_ws on Pi 5 and ship to the Pi Zero as tarballs. shutdown: cleanly
@@ -805,7 +805,9 @@ tasks:
       confirmed offline — use before switching the robot's power source
       (e.g. wall/USB -> battery). verify: end-to-end health check
       (USB-gadget link, service state, ROS2 discovery, a real motor command
-      round-trip).
+      round-trip). recover-sd: repair ext4/FAT corruption on the Zero's SD
+      card after an unclean power-off, without a reformat — run with the
+      Zero powered off and its card plugged into the Pi 5 via a USB adapter.
     dir: robot
     requires:
       vars:
@@ -814,6 +816,7 @@ tasks:
       ZERO_HOST: '{{.ZERO_HOST | default ""}}'
       ZERO_HOST_USB: '{{.ZERO_HOST_USB | default ""}}'
       ZERO_HOST_WIFI: '{{.ZERO_HOST_WIFI | default ""}}'
+      DEVICE: '{{.DEVICE | default ""}}'
     cmds:
       - cmd: |
           case "{{.ACTION}}" in
@@ -822,7 +825,8 @@ tasks:
             shutdown) pixi run -e dev safe-shutdown-zero ;;
             shutdown-both) pixi run -e dev safe-shutdown-both ;;
             verify) pixi run -e dev verify-zero-integration ;;
-            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify" && exit 1 ;;
+            recover-sd) pixi run -e dev recover-zero-sd ;;
+            *) echo "Unknown ACTION: {{.ACTION}}. Use bootstrap|deploy|shutdown|shutdown-both|verify|recover-sd" && exit 1 ;;
           esac
 
   robot:deploy:
