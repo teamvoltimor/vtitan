@@ -848,6 +848,24 @@ def _sign_mask_attribution(
     symptom, so the split matters. ``lane_specs`` is used rather than
     ``routed_sign_positions`` because it includes passed signs too, and a
     struck sign could in principle have just been marked passed.
+
+    ``routed_sign_positions``/``lane_specs`` are BELIEVED-frame -- discovery
+    reprojects every observation through the robot's own pose estimate (see
+    ``vision_emulator.emulate_sign_observations``'s docstring), never ground
+    truth. Comparing them directly against ``struck``'s TRUE position mixes
+    two different reference frames, which is incoherent regardless of which
+    frame is "right" -- the same anti-pattern that docstring calls out and
+    was fixed for the navigation stack itself. Under the blind-mode
+    rotational-lock bug the believed pose can be 1-2+ m off true, which made
+    this read "never routed" for a sign that WAS genuinely routed and being
+    avoided inside the robot's own self-consistent frame (traced directly on
+    go_obstacles_0009: the routed track and the struck sign are the same
+    physical sign, related by the exact same rigid transform as the
+    believed/true pose gap). Transform ``struck`` into the believed frame
+    first -- using the offset between ``final_pose`` (true) and the
+    localizer's own current estimate, a stable rigid rotation for the whole
+    run -- before comparing, so both sides of every comparison below are in
+    the same frame.
     """
     signs = sign_router_module.signs_from_metadata(metadata)
     if not signs:
@@ -855,14 +873,25 @@ def _sign_mask_attribution(
     cx, cy = collision_xy
     struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
 
+    believed = sim.gateway.get_current_pose()
+    if believed is None:
+        struck_x, struck_y = struck.x, struck.y
+    else:
+        true_x, true_y, true_yaw = final_pose
+        dyaw = wrap_angle(believed.yaw - true_yaw)
+        cos_d, sin_d = math.cos(dyaw), math.sin(dyaw)
+        dx, dy = struck.x - true_x, struck.y - true_y
+        struck_x = believed.x + dx * cos_d - dy * sin_d
+        struck_y = believed.y + dx * sin_d + dy * cos_d
+
     router = sim.navigator.sign_router
     routed = router.routed_sign_positions if router is not None else []
-    masked = any(math.hypot(rx - struck.x, ry - struck.y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
+    masked = any(math.hypot(rx - struck_x, ry - struck_y) < _SIGN_MATCH_DIST_M for rx, ry in routed)
 
     color_match = None
     if masked and router is not None:
         for spec, _corridor in router.lane_specs:
-            if math.hypot(spec.x - struck.x, spec.y - struck.y) < _SIGN_MATCH_DIST_M:
+            if math.hypot(spec.x - struck_x, spec.y - struck_y) < _SIGN_MATCH_DIST_M:
                 color_match = spec.color == struck.color
                 break
 

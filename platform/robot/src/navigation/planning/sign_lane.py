@@ -146,6 +146,26 @@ def _in_lane_span(wp: Waypoint, corridor: Section, axis: Axis, corner_entry_m: f
     their own -- the borrowed region self-limits to the part of the arc still
     geometrically belonging to this corridor, rather than running away around
     the whole turn.
+
+    A variant that widened the lateral test too (out to the far edge of the
+    corner square, gated to only apply at a sign's own plateau depth) was
+    tried, to rescue a waypoint the corner arc's own curvature had already
+    swept past the near edge before its depth exited the borrowed window
+    (traced as the mechanism behind go_obstacles_0004's collision). It
+    measured catastrophically WORSE on the full 256-scenario corpus (249/256
+    collisions vs the 202/256 baseline, laps>=3 6 vs 70) and was reverted: the
+    shipped ``corner_entry_m`` default is 0.50 (not 0.90 -- an earlier version
+    of this note cited the wrong value, never having checked the shipped
+    ``SignRouterParams.SIGN_LANE_CORNER_ENTRY_M``/TOML directly), which still
+    doubles the depth window (0.5 m either side of the straight, `_lane_span`
+    spanning 2.0 m against the corridor's own 1.0 m). A widened lateral bound
+    at that depth pulls in swaths of the NEIGHBOURING corridor's own arc
+    points too, corrupting geometry across corridors with a boundary sign
+    rather than rescuing the one intended waypoint. Do not re-try without
+    bounding the widened window far more tightly than "the far edge of the
+    corner square" -- and verify any cited default against the actual shipped
+    Field/TOML value before writing it down, not from memory of an earlier
+    investigation.
     """
     lateral, depth = _axis_coords(wp, axis)
     low, high = _lane_span(corner_entry_m)

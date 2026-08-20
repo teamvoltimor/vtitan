@@ -124,15 +124,21 @@ class TestAssociation:
         the corridor gate on ``_SignTrack.corridor`` must keep them apart
         whenever the robot itself was in a different corridor for each.
         """
-        sign_map = ObservedSignMap(_CONFIDENCE)
+        # robot_corridor_flip_ticks=1: this test is about the corridor GATE,
+        # not the debounce that settles it.
+        sign_map = ObservedSignMap(_CONFIDENCE, robot_corridor_flip_ticks=1)
         # Same reprojected world XY both times -- well inside association_dist
         # -- but the robot itself was standing in a different corridor
-        # (SOUTH, then NORTH) when it made each observation.
+        # (SOUTH, then NORTH) when it made each observation. NORTH position is
+        # 1.7 m from the sign, not 2.1 m (e.g. y=2.5) -- the latter silently
+        # drops every phase-2 observation at MAX_INGEST_RANGE_M's 2.0 m gate
+        # before association ever runs, which let this assertion pass for the
+        # wrong reason (only phase 1's track ever existed) until traced here.
         aliased = [TrafficSignObservation(1.5, 0.4, SignColor.RED, 1.0, 0.0)]
         for _ in range(_MIN_HITS):
             sign_map.observe(aliased, Waypoint(1.5, 0.5))
         for _ in range(_MIN_HITS):
-            sign_map.observe(aliased, Waypoint(1.5, 2.5))
+            sign_map.observe(aliased, Waypoint(1.5, 2.1))
 
         assert len(_publish(sign_map)) == 2
 
