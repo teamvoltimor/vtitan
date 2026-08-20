@@ -305,6 +305,14 @@ safe-shutdown-both = "bash scripts/provisioning/safe-shutdown-both.sh"
 # publish -> motor driver -> feedback round-trip. Safe with motors unpowered.
 verify-zero-integration = "bash scripts/provisioning/verify-zero-integration.sh"
 
+# Run ON Pi 5, with the Zero powered off and its SD card pulled and plugged
+# into the Pi 5 via a USB microSD adapter. Repairs ext4/FAT corruption left by
+# an unclean power-off (battery died, power cut without safe-shutdown-zero,
+# or a Zero crash-looping on its own hardware watchdog) without a full
+# reformat -- see the script header for the hardware incident this was
+# built from. DEVICE=/dev/sdX overrides auto-detection.
+recover-zero-sd = "bash scripts/provisioning/recover-zero-sd.sh"
+
 # Run ON Pi 5 -- one-shot Bluetooth pairing for a joystick used with
 # joy_teleop_node (e.g. 8BitDo Ultimate 2). Idempotent, safe to re-run. Put
 # the controller in pairing mode first. See docs/joystick-teleop.md.
