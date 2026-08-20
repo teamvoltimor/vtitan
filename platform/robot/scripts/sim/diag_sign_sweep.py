@@ -1451,8 +1451,8 @@ class _SignPassSample:
     """
 
 
-def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
-    """Measure tracking error DURING sign passes, blind, at shipped tuning.
+def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
+    """Measure tracking error DURING sign passes, blind, under ``config``.
 
     Distinct from ``_cross_track_errors`` above, which deliberately strips the
     signs: that answers "how well does the chassis hold a clean line", and it
@@ -1465,8 +1465,7 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
     current path is honest tracking error, and it can finally be measured at
     the moment it matters instead of inferred from a sign-free run.
     """
-    index, scenarios_dir = args
-    config = SweepConfig("sign-crosstrack", blind=True, sign_lane_planner=True, scenarios_dir=scenarios_dir)
+    index, config = args
     scenario = _scenarios(config)[index]
     restore = _apply_patches(config, scenario.metadata)
     near_abs: list[float] = []
@@ -1583,7 +1582,7 @@ def _sign_pass_crosstrack(args: tuple[int, str | None]) -> _SignPassSample:
     )
 
 
-def report_sign_pass_crosstrack(workers: int, scenarios_dir: str | None) -> None:
+def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> None:
     """Print tracking error at sign passes, split by outcome.
 
     Three questions, in order, because each one only matters if the previous
@@ -1592,10 +1591,28 @@ def report_sign_pass_crosstrack(workers: int, scenarios_dir: str | None) -> None
     symmetric scatter (not); and do the runs that hit a sign carry more of it
     than the runs that do not.
     """
-    config = SweepConfig("sign-crosstrack", scenarios_dir=scenarios_dir)
-    count = len(_scenarios(config))
+    count = len(_scenarios(configs[0]))
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        samples = list(pool.map(_sign_pass_crosstrack, [(i, scenarios_dir) for i in range(count)]))
+        if len(configs) > 1:
+            # Screening several knobs: the per-arm detail blocks below would
+            # bury the comparison, so print one row each. Boundary path-heading
+            # error is the mechanism being targeted and collisions are the
+            # outcome -- a knob that moves the second without the first did it
+            # by some other route and should be treated with suspicion.
+            for arm in configs:
+                got = list(pool.map(_sign_pass_crosstrack, [(i, arm) for i in range(count)]))
+                head_b = [h for smp in got for h in smp.head_boundary]
+                yaw_b = [y for smp in got for y in smp.yaw_boundary]
+                hits = sum(1 for smp in got if smp.collided_with_sign)
+                print(
+                    f"YAW-SCREEN {arm.label:<38} sign-collisions {hits:>3}/{count}  "
+                    f"boundary path-heading {percentile(head_b, 0.5):5.2f}deg "
+                    f"(p90 {percentile(head_b, 0.9):5.2f})  "
+                    f"boundary yaw {percentile(yaw_b, 0.5):5.2f}deg",
+                    flush=True,
+                )
+            return
+        samples = list(pool.map(_sign_pass_crosstrack, [(i, configs[0]) for i in range(count)]))
 
     near = [e for s in samples for e in s.near_abs]
     everywhere = [e for s in samples for e in s.all_abs]
@@ -2096,6 +2113,27 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # knob is not wired to the thing being toggled, and guard on is what ships.
     # The guard can only cost sign collisions -- it suppresses the pin on a
     # subset of ticks -- so read the wall AND sign columns together.
+    # Lookahead is the only one of seven knobs screened (`yaw-screen`) that
+    # reduces the boundary-sign tracker lag, which is ~2/3 of the pass yaw and
+    # the larger half of a 5.94 cm clearance budget. But the screen reports
+    # SIGN collisions only, and the relationship is non-monotonic there --
+    # 0.16 gives 195/256 against a 199 baseline while the shorter 0.12, which
+    # cuts the lag furthest, gives 202. Shortening the lookahead changes
+    # cornering everywhere, so the wall column and laps>=3 are what decide
+    # whether 0.16 is an improvement or another sign-for-wall trade.
+    "blind-lookahead": [
+        SweepConfig("blind, lookahead 0.20/0.40 (shipped)", blind=True, sign_lane_planner=True),
+        *(
+            SweepConfig(
+                f"blind, lookahead {v:{_FORMAT_2F}}/{v * _LOOKAHEAD_MULTIPLIER:{_FORMAT_2F}}",
+                blind=True,
+                sign_lane_planner=True,
+                lookahead_short=v,
+                lookahead_long=v * _LOOKAHEAD_MULTIPLIER,
+            )
+            for v in (0.14, 0.16, 0.18)
+        ),
+    ],
     "pin-guard": [
         SweepConfig("blind, pin off", blind=True, park=False, depth_pin=False),
         SweepConfig("blind, pin on, corner guard OFF", blind=True, park=False, depth_pin=True, pin_corner_guard=False),
@@ -2231,7 +2269,48 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
 }
 """Modes with a fixed comparison set, ignoring any CLI values."""
 
-MODES = ("crosstrack", "sign-crosstrack", *_FIXED_MODES, *_SWEPT_MODES)
+# Candidate levers against the boundary-sign tracker lag, which is ~2/3 of the
+# pass yaw (11.33 deg path-heading error at a boundary sign against 5.82 at a
+# mid-section one) and the larger half of a 5.94 cm clearance budget. Screened
+# on whether they move that angle, not just the collision count: the angle is
+# the mechanism, and a knob that moves collisions WITHOUT it did so some other
+# way and needs explaining before it is trusted.
+_YAW_SCREEN_ARMS = [
+    SweepConfig("shipped", blind=True, sign_lane_planner=True),
+    SweepConfig("lookahead 0.12/0.24", blind=True, sign_lane_planner=True, lookahead_short=0.12, lookahead_long=0.24),
+    SweepConfig("lookahead 0.16/0.32", blind=True, sign_lane_planner=True, lookahead_short=0.16, lookahead_long=0.32),
+    # Purpose-built and never measured on the corpus. Caps to slow_mps while
+    # the router has a correction in flight -- more time to rotate through the
+    # corner-adjacent pass. Watch in-time: it slows within 1.40 m of EVERY
+    # sign and in-time is only 27/256 to begin with.
+    SweepConfig("sign-aware speed", blind=True, sign_lane_planner=True, sign_aware_speed=True),
+    # A longer ramp spreads the same lateral travel over more distance, so the
+    # path itself bends less where the chassis is already busy with a corner.
+    SweepConfig("ramp 1.20", blind=True, sign_lane_planner=True, sign_lane_ramp=1.20),
+    SweepConfig("ramp 1.50", blind=True, sign_lane_planner=True, sign_lane_ramp=1.50),
+    # Directly raises how fast the chassis MAY rotate, which is the actuator
+    # limit a lag runs into. Note the standing warning against raising the
+    # corridor follower's gain/cap -- this is the steering rate, not that gain,
+    # but treat an improvement here sceptically until oscillation is ruled out.
+    SweepConfig(
+        "steer-rate 1.5x",
+        blind=True,
+        sign_lane_planner=True,
+        max_steering_rate=NavigationTuning.load_default().pursuit.MAX_STEERING_RATE * 1.5,
+    ),
+    # The classic cause of heading lag in pure pursuit, and the one absent
+    # from the first screen: a long lookahead aims at a point beyond the turn,
+    # so the chassis cuts the corner and its heading trails the path's. If
+    # anything here reduces the boundary lag it should be this. Swept both
+    # ways -- the pair is gated together by `_LOOKAHEAD_MULTIPLIER`.
+    # Sets the heading RATE the corner demands. A wider arc asks for less
+    # rotation per metre, which is the demand side of the same lag the
+    # steering-rate arm attacked from the supply side.
+    SweepConfig("arc 0.35", blind=True, sign_lane_planner=True, arc_radius=0.35),
+    SweepConfig("arc 0.45", blind=True, sign_lane_planner=True, arc_radius=0.45),
+]
+
+MODES = ("crosstrack", "sign-crosstrack", "yaw-screen", *_FIXED_MODES, *_SWEPT_MODES)
 
 
 def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
@@ -2267,8 +2346,19 @@ def main() -> None:
         return
 
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
-    if args.mode == "sign-crosstrack":
-        report_sign_pass_crosstrack(args.workers, scenarios_dir)
+    if args.mode in ("sign-crosstrack", "yaw-screen"):
+        arms = (
+            _YAW_SCREEN_ARMS
+            if args.mode == "yaw-screen"
+            else [SweepConfig("sign-crosstrack", blind=True, sign_lane_planner=True)]
+        )
+        # `yaw-screen N` runs only the first N arms. Each arm is a full pass
+        # over the scenario set, so screening nine of them against the corpus
+        # costs over an hour -- once the fixtures have narrowed the field,
+        # re-running the refuted arms buys nothing.
+        if args.values:
+            arms = arms[: int(args.values[0])]
+        report_sign_pass_crosstrack(args.workers, [replace(a, scenarios_dir=scenarios_dir) for a in arms])
         return
 
     configs = _build_configs(args.mode, args.values)
