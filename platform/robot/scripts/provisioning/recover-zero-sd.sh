@@ -13,6 +13,19 @@
 # "Orphan file ... is not clean"), and `e2fsck -f -y` cleared them without
 # needing to reflash. This script automates that recovery.
 #
+# The same incident also cost the Zero its /etc/NetworkManager/system-
+# connections/<ssid>.nmconnection profile despite ~100 prior successful
+# boots on this exact image -- not a first-boot issue, the same corruption
+# claimed that file too. Recovered it by regenerating it from
+# /boot/firmware/network-config, which Raspberry Pi Imager's first-boot
+# customization writes and leaves in place permanently (unlike the
+# nmconnection file, which is themselves runtime state, not the source of
+# truth). This script now does that regeneration automatically so a future
+# occurrence does not need doing it by hand again. Deliberately does NOT
+# hardcode the SSID/PSK anywhere in this script or the repo -- it re-derives
+# the profile from network-config on the card itself every time, so no WiFi
+# credential material ever lands in git history.
+#
 # Run this ON Pi 5, with the Zero powered off and its SD card removed and
 # plugged into the Pi 5 via a USB microSD adapter (not over SSH to the Zero --
 # the whole point is the Zero may not be able to boot far enough to reach).
@@ -87,5 +100,117 @@ if [ $((root_status & 4)) -ne 0 ] || [ $((boot_status & 4)) -ne 0 ]; then
   exit 1
 fi
 
-log "Filesystem is consistent. Safe to unmount this adapter and put the card back in the Pi Zero."
+log "Filesystem is consistent."
+
+# Restore any WiFi connection profile(s) missing from system-connections/ --
+# regenerated from network-config, never from a value stored in this repo.
+BOOT_MNT="/mnt/vtitan-zero-boot-recover"
+ROOT_MNT="/mnt/vtitan-zero-root-recover"
+sudo mkdir -p "$BOOT_MNT" "$ROOT_MNT"
+sudo mount -o ro "$boot_part" "$BOOT_MNT"
+sudo mount -o rw "$root_part" "$ROOT_MNT"
+
+network_config="$BOOT_MNT/network-config"
+conn_dir="$ROOT_MNT/etc/NetworkManager/system-connections"
+
+if [ -f "$network_config" ] && [ -d "$conn_dir" ]; then
+  log "Checking for missing WiFi connection profiles against $network_config"
+  sudo python3 - "$network_config" "$conn_dir" <<'PYEOF'
+import re
+import sys
+import uuid
+
+network_config_path, conn_dir = sys.argv[1], sys.argv[2]
+text = open(network_config_path, encoding="utf-8").read()
+
+# Deliberately a small hand-rolled parser, not PyYAML (not guaranteed present
+# on a bare Pi image) -- matches the fixed shape Raspberry Pi Imager writes:
+# wifis: <ifname>: access-points: "<ssid>": password: "<psk-or-passphrase>"
+ssid_re = re.compile(r'^\s+"([^"]+)":\s*$')
+password_re = re.compile(r'^\s+password:\s*"([^"]*)"\s*$')
+
+pairs = []
+in_access_points = False
+pending_ssid = None
+for line in text.splitlines():
+    if re.match(r"^\s*access-points:\s*$", line):
+        in_access_points = True
+        continue
+    if not in_access_points:
+        continue
+    m = ssid_re.match(line)
+    if m:
+        pending_ssid = m.group(1)
+        continue
+    m = password_re.match(line)
+    if m and pending_ssid is not None:
+        pairs.append((pending_ssid, m.group(1)))
+        pending_ssid = None
+        continue
+    # Any less-indented line ends the access-points block.
+    if line and not line[0].isspace():
+        in_access_points = False
+
+if not pairs:
+    print("No wifis/access-points found in network-config -- nothing to restore.")
+    sys.exit(0)
+
+for ssid, psk in pairs:
+    existing = None
+    try:
+        import os
+        for fname in os.listdir(conn_dir):
+            if not fname.endswith(".nmconnection"):
+                continue
+            contents = open(os.path.join(conn_dir, fname), encoding="utf-8").read()
+            if f"ssid={ssid}" in contents:
+                existing = fname
+                break
+    except FileNotFoundError:
+        pass
+
+    if existing:
+        print(f"SSID '{ssid}' already has a profile ({existing}) -- leaving it alone.")
+        continue
+
+    profile_path = f"{conn_dir}/{ssid}.nmconnection"
+    profile = f"""[connection]
+id={ssid}
+uuid={uuid.uuid4()}
+type=wifi
+autoconnect=true
+interface-name=wlan0
+
+[wifi]
+mode=infrastructure
+ssid={ssid}
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk={psk}
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto
+
+[proxy]
+"""
+    with open(profile_path, "w", encoding="utf-8") as f:
+        f.write(profile)
+    import os
+    os.chmod(profile_path, 0o600)
+    print(f"Restored missing profile for SSID '{ssid}' -> {profile_path}")
+PYEOF
+else
+  log "No network-config or system-connections dir found -- skipping WiFi profile check"
+fi
+
+sync
+sudo umount "$BOOT_MNT" "$ROOT_MNT"
+sudo rmdir "$BOOT_MNT" "$ROOT_MNT"
+
+log "Done. Safe to unmount this adapter and put the card back in the Pi Zero."
 exit 0
