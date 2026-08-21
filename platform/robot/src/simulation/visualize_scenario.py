@@ -30,10 +30,14 @@ need this env, only this script does):
     pixi run -e dev visualize-scenario -- --interactive
     pixi run -e dev visualize-scenario -- --challenge obstacles --interactive
 
-    # Blind: the robot is not handed the corridor widths and estimates them
-    # from LIDAR. Implies --localize, so it also steers on its own position
-    # estimate. RViz still draws the true track.
-    pixi run -e dev visualize-scenario -- --challenge open --interactive --blind --rate 5
+    # Blind (the default): the robot is not handed the corridor widths and
+    # estimates them from LIDAR. RViz still draws the true track, so a corridor
+    # it has mis-learned shows up as a path hugging the wrong wall.
+    #
+    # Position is ground truth here unless you ask otherwise -- add --localize
+    # to make it steer on its own estimate too, which is what the real robot
+    # does and what the headless battery scores:
+    pixi run -e dev visualize-scenario -- --challenge open --interactive --localize --rate 5
 
     # Real official-scenario metadata from the Go generator (the actual WRO
     # 2026 36-scenario sign table), visualized live instead of the demo layout
@@ -135,12 +139,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--localize",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="Navigate on the LidarLocalizer position estimate instead of ground-truth "
-        "pose, matching what the real robot does. On by default; --no-localize gives "
-        "perfect odometry as a deliberate control. The published pose stays ground "
-        "truth, so RViz shows where the robot actually is while it steers on the "
-        "estimate — any wandering you see is state-estimation error reaching control.",
+        "pose, matching what the real robot does. OFF by default HERE, unlike the "
+        "headless battery: this script exists to watch the planner, and localization "
+        "error lands on the same picture as the manoeuvre being studied, so it is opt-in "
+        "rather than baked in. The published pose stays ground truth either way, so with "
+        "--localize any wandering you see is state-estimation error reaching control. "
+        "Turn it on before drawing any conclusion about whether a run would pass.",
     )
     parser.add_argument(
         "--blind",
@@ -148,7 +154,9 @@ def _parse_args() -> argparse.Namespace:
         default=True,
         help="Withhold the corridor layout too, so the robot estimates the widths from "
         "LIDAR instead of being handed them. On by default, since a round is never "
-        "driven knowing the widths; --no-blind hands them over. Implies --localize. "
+        "driven knowing the widths; --no-blind hands them over. Does NOT imply "
+        "--localize (an earlier version of this help said it did, and nothing ever "
+        "enforced it): the layout and the robot's own pose are withheld separately. "
         "RViz shows the true track, so a corridor the robot has mis-learned shows up "
         "as a path hugging the wrong wall.",
     )
@@ -159,7 +167,7 @@ def _parse_args() -> argparse.Namespace:
         metavar="CM",
         help="Withhold the exact starting pose: seed the estimator this far (cm, random "
         "bearing) from where the chassis actually is, as a hand placement in the "
-        "starting zone would. Implies --localize.",
+        "starting zone would. Turns --localize on, since it perturbs that estimate.",
     )
     parser.add_argument(
         "--yaw-bias",
@@ -167,14 +175,14 @@ def _parse_args() -> argparse.Namespace:
         default=0.0,
         metavar="DEG",
         help="Constant offset between the IMU's yaw zero and the world frame. Never "
-        "corrected — nothing else observes absolute heading. Implies --localize.",
+        "corrected — nothing else observes absolute heading. Turns --localize on.",
     )
     parser.add_argument(
         "--imu-drift",
         type=float,
         default=0.0,
         metavar="DEG_PER_S",
-        help="IMU yaw drift rate, accumulated over the run. Implies --localize.",
+        help="IMU yaw drift rate, accumulated over the run. Turns --localize on.",
     )
     parser.add_argument(
         "--gyro-scale",
@@ -182,7 +190,7 @@ def _parse_args() -> argparse.Namespace:
         default=0.0,
         metavar="PCT",
         help="Gyro scale-factor error as a percentage (e.g. 0.5). Accumulates per degree "
-        "turned rather than per second, so it grows with corners driven. Implies --localize.",
+        "turned rather than per second, so it grows with corners driven. Turns --localize on.",
     )
     parser.add_argument(
         "--imu-noise",
@@ -190,7 +198,7 @@ def _parse_args() -> argparse.Namespace:
         default=0.0,
         metavar="DEG",
         help="Per-reading Gaussian yaw noise (standard deviation, degrees). Bounded and "
-        "self-cancelling, unlike drift and scale. Implies --localize.",
+        "self-cancelling, unlike drift and scale. Turns --localize on.",
     )
     parser.add_argument(
         "--recover",
@@ -244,10 +252,19 @@ class _RunOptions:
     """Everything the CLI can vary about how a scenario is driven."""
 
     rate: float = 1.0
-    # Both default on so the CLI drives the scenario the way the robot will
-    # meet it, rather than the easiest version of it. Pass --no-localize /
-    # --no-blind to relax that on purpose.
-    localize: bool = True
+    # `blind` defaults on so the CLI drives the layout the robot will actually
+    # meet, rather than the easiest version of it -- pass --no-blind to relax
+    # that on purpose.
+    #
+    # `localize` does NOT, and only in this script. The headless battery keeps
+    # it on because it is scoring runs, where ground-truth pose flatters every
+    # number (see ScenarioSimulator's 2026-08-01 note). This one is a
+    # microscope: it draws the plan and the pose in the same frame, so with
+    # localization on, state-estimation error is superimposed on the manoeuvre
+    # being read, and the two are indistinguishable by eye. Off by default
+    # isolates the planner; --localize puts the error back when the question is
+    # whether the run survives rather than what the planner did.
+    localize: bool = False
     blind: bool = True
     errors: SensorErrors | None = None
     recover: bool = False
@@ -255,17 +272,22 @@ class _RunOptions:
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> _RunOptions:
+        errors = SensorErrors(
+            start_pos_error_m=args.place_error / 100.0,
+            yaw_bias_rad=math.radians(args.yaw_bias),
+            imu_drift_rad_per_s=math.radians(args.imu_drift),
+            gyro_scale_error=args.gyro_scale / 100.0,
+            imu_noise_rad=math.radians(args.imu_noise),
+        )
+        # Every sensor error perturbs the ESTIMATE, so with ground-truth pose
+        # they are all no-ops. Since `localize` now defaults off, asking for one
+        # has to switch it back on -- otherwise `--place-error 5` runs clean and
+        # silently answers a question nobody asked.
         return cls(
             rate=args.rate,
-            localize=args.localize,
+            localize=args.localize or errors.any_error,
             blind=args.blind,
-            errors=SensorErrors(
-                start_pos_error_m=args.place_error / 100.0,
-                yaw_bias_rad=math.radians(args.yaw_bias),
-                imu_drift_rad_per_s=math.radians(args.imu_drift),
-                gyro_scale_error=args.gyro_scale / 100.0,
-                imu_noise_rad=math.radians(args.imu_noise),
-            ),
+            errors=errors,
             recover=args.recover,
             contact_grace_s=args.contact_grace,
         )
