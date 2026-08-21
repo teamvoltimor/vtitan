@@ -111,11 +111,22 @@ _RESULT_METRIC_WIDTH = 2
 _DETAIL_LABEL_WIDTH = 34
 _DETAIL_COLLISION_WIDTH = 9
 _COLLISION_PRECISION = 2
+_CLEARANCE_PRECISION = 3
 
 
 def _round_or_none(value: float | None) -> float | None:
     """``round`` that passes ``None`` through, for optional per-scenario fields."""
     return None if value is None else round(value, _COLLISION_PRECISION)
+
+
+def _round_mm(value: float | None) -> float | None:
+    """``round`` to millimetres, for the sub-centimetre lane clearances.
+
+    The shared ``_round_or_none`` quantises to 1 cm, which is coarser than the
+    quantities the lane analysis turns on -- a 5 mm and a 14 mm planned gap are
+    different findings but round to the same 0.01.
+    """
+    return None if value is None else round(value, _CLEARANCE_PRECISION)
 
 
 _FORMAT_2F = ".2f"
@@ -706,6 +717,15 @@ class ScenarioOutcome:
     from 4.62 cm (centreline, untouched) to 0.75 cm, i.e. the lane steering
     INTO the sign it was meant to avoid."""
 
+    planned_outward_m: float | None = None
+    """Signed lateral offset of the planned path from the struck sign, positive
+    OUTWARD -- see ``_outward_pass_offset``.
+
+    The disambiguator for a small ``planned_gap_m``. Positive-but-short means
+    the lane fell short or never applied and the path sat near the centreline;
+    NEGATIVE means the plan crossed to the sign's inward side, which extra
+    clearance on the intended side cannot fix."""
+
     collision_phase: Any = None
     """Navigator phase on the last tick before a collision.
 
@@ -992,8 +1012,8 @@ _CLAMP_BIND_EPS_M = 1e-9
 """Tolerance for "``clamp_lateral`` moved the requested lane at all"."""
 
 
-def _point_to_polyline_m(px: float, py: float, path: list[Any] | None) -> float | None:
-    """Shortest distance from ``(px, py)`` to the polyline ``path``.
+def _closest_on_polyline(px: float, py: float, path: list[Any] | None) -> tuple[float, float, float] | None:
+    """Closest point on ``path`` to ``(px, py)`` as ``(distance, x, y)``.
 
     Measured against SEGMENTS rather than vertices: waypoint spacing is coarse
     relative to the clearances in play here, so a nearest-vertex distance would
@@ -1002,13 +1022,15 @@ def _point_to_polyline_m(px: float, py: float, path: list[Any] | None) -> float 
     """
     if not path or len(path) < _MIN_POLYLINE_VERTICES:
         return None
-    best = float("inf")
+    best: tuple[float, float, float] = (float("inf"), 0.0, 0.0)
     for a, b in pairwise(path):
         vx, vy = b.x - a.x, b.y - a.y
         wx, wy = px - a.x, py - a.y
         seg_sq = vx * vx + vy * vy
         t = 0.0 if seg_sq == 0.0 else max(0.0, min(1.0, (wx * vx + wy * vy) / seg_sq))
-        best = min(best, math.hypot(wx - t * vx, wy - t * vy))
+        dist = math.hypot(wx - t * vx, wy - t * vy)
+        if dist < best[0]:
+            best = (dist, a.x + t * vx, a.y + t * vy)
     return best
 
 
@@ -1051,8 +1073,8 @@ def _planned_lane_attribution(
     collision_xy: tuple[float, float],
     final_pose: Any,
     planned_path: list[Any] | None,
-) -> tuple[bool | None, bool | None, float | None, int | None]:
-    """Describe the struck sign's lane: ``(clamped, boundary, gap, corridors)``.
+) -> tuple[bool | None, bool | None, float | None, int | None, float | None]:
+    """Describe the struck sign's lane: ``(clamped, boundary, gap, corridors, outward)``.
 
     The struck sign is identified from its TRUE position, deliberately: unlike
     the mask attribution (a question about what the ROUTER believed, hence
@@ -1062,7 +1084,7 @@ def _planned_lane_attribution(
     """
     true_signs = sign_router_module.signs_from_metadata(metadata)
     if not true_signs:
-        return None, None, None, None
+        return None, None, None, None, None
     cx, cy = collision_xy
     hit = min(true_signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
     # BELIEVED frame on both sides of the gap measurement. `_waypoints` is the
@@ -1084,12 +1106,50 @@ def _planned_lane_attribution(
             }
         )
     )
+    closest = _closest_on_polyline(hit_bx, hit_by, planned_path)
     return (
         _lane_is_clamped(hit),
         not _is_middle_sign(hit.x, hit.y),
-        _point_to_polyline_m(hit_bx, hit_by, planned_path),
+        None if closest is None else closest[0],
         corridors,
+        _outward_pass_offset(hit, (hit_bx, hit_by), closest),
     )
+
+
+def _outward_pass_offset(
+    spec: Any,
+    believed_xy: tuple[float, float],
+    closest: tuple[float, float, float] | None,
+) -> float | None:
+    """Signed lateral offset of the plan from the sign, positive = OUTWARD.
+
+    Separates the two ways a small ``planned_gap_m`` can arise, which the
+    unsigned gap cannot tell apart and which need opposite fixes. A lane that
+    never materialised leaves the path near the centreline on the sign's
+    outward side, so this reads positive but short of the plateau; a lane that
+    composed wrongly puts the path on the INWARD side, and this goes negative
+    -- the plan crossing to the wrong side of the sign entirely, which no
+    amount of extra clearance on the intended side would fix.
+
+    Measured along the corridor's lateral axis (``outward_lateral_axis``'s
+    ``mult`` carries the outward direction), so it is directly comparable to
+    the 18.14 / 27.86 cm plateaux ``_lane_is_clamped`` splits on. The corridor
+    and its outward rule come from the TRUE position (planner geometry), but
+    the difference itself is taken in the BELIEVED frame on both sides, since
+    that is the frame the path lives in.
+    """
+    if closest is None:
+        return None
+    corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+    rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    if rule is None:
+        return None
+    axis, mult = rule
+    _, path_x, path_y = closest
+    believed_x, believed_y = believed_xy
+    if axis is sign_router_module.Axis.Y:
+        return mult * (path_y - believed_y)
+    return mult * (path_x - believed_x)
 
 
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
@@ -1241,10 +1301,16 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         if kind == CollisionKind.SIGN and result.collision_xy is not None
         else (None, None, None, None)
     )
-    sign_lane_clamped, sign_lane_boundary, planned_gap_m, struck_corridor_count = (
+    (
+        sign_lane_clamped,
+        sign_lane_boundary,
+        planned_gap_m,
+        struck_corridor_count,
+        planned_outward_m,
+    ) = (
         _planned_lane_attribution(sim, metadata, result.collision_xy, result.final_pose, last_path[0])
         if kind == CollisionKind.SIGN and result.collision_xy is not None
-        else (None, None, None, None)
+        else (None, None, None, None, None)
     )
     return ScenarioOutcome(
         label=scenario.label,
@@ -1269,6 +1335,7 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         collision_phase=last_phase[0] if result.collided else None,
         planned_gap_m=planned_gap_m,
         struck_corridor_count=struck_corridor_count,
+        planned_outward_m=planned_outward_m,
         sim_time_s=result.sim_time_s,
     )
 
@@ -1496,7 +1563,10 @@ class SweepResult:
             f"at={None if o.collision_xy is None else (round(o.collision_xy.x, _COLLISION_PRECISION), round(o.collision_xy.y, _COLLISION_PRECISION))} "
             f"escapes={o.escape_starts} since_escape={o.steps_since_escape} "
             f"sign_masked={o.sign_masked} ahead={_round_or_none(o.sign_ahead_m)} lateral={_round_or_none(o.sign_lateral_m)} "
-            f"color_match={o.sign_color_match}"
+            f"color_match={o.sign_color_match} "
+            f"clamped={o.sign_lane_clamped} corridors={o.struck_corridor_count} "
+            f"gap={_round_mm(o.planned_gap_m)} outward={_round_mm(o.planned_outward_m)} "
+            f"xt={_round_or_none(o.collision_crosstrack_m)} phase={o.collision_phase}"
             for o in self.outcomes
         )
 
