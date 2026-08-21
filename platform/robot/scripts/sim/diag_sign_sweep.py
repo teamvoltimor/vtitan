@@ -1880,11 +1880,10 @@ class _SignPassSample:
     struck_compose: float | None
     """The composition gap at the sign that ended the run."""
 
-    pass_approach: list[tuple[float, bool]]
-    """Per PASSED sign, the along-path gap to the closest approach and whether
-    that point is in a corner."""
+    pass_approach: list[_Approach]
+    """Per PASSED sign, everything the closest approach says about where it sits."""
 
-    struck_approach: tuple[float, bool] | None
+    struck_approach: _Approach | None
     """The same, for the sign that ended the run."""
 
     pass_stale: list[float]
@@ -2035,12 +2034,9 @@ class _LaneSample:
     pulling the path back toward the sign. See ``_composition_gap_m``.
     """
 
-    approach_m: float | None
-    """Along-path metres between the laned waypoint and the polyline's actual
-    closest point to this sign. See ``_approach_offset``."""
-
-    approach_in_corner: bool | None
-    """Whether that closest point lies in a corner rather than on a straight."""
+    approach: _Approach | None
+    """Where the polyline actually runs nearest this sign, relative to the
+    waypoint the lane was laid on. See ``_approach_offset``."""
 
     stale_m: float | None
     """How far the plan the tracker holds sits from the one the planner would
@@ -2215,6 +2211,93 @@ class _BranchResult:
     runs nearest the sign. ``None`` when no lane was built."""
 
 
+_BEND_CROSS_EPS = 1e-9
+"""Cross-product magnitude above which a waypoint counts as bending.
+
+Waypoints are rounded to millimetres at generation, so a straight run's cross
+product is exactly zero rather than merely small; this only has to clear
+floating-point noise.
+"""
+
+
+@dataclass(frozen=True)
+class _Approach:
+    """Where the polyline runs nearest a sign, relative to the lane's own waypoint.
+
+    Read in the frame the navigator holds its plan in, deliberately. A blind run
+    can be rotationally locked, so anything compared against a metadata section
+    label carries that lock as a confound; every field here is derived from the
+    held plan's own geometry and none of them needs to know which corridor the
+    robot thinks it is in.
+    """
+
+    gap_m: float
+    """Along-path metres from the laned waypoint to the closest approach."""
+
+    in_corner_box: bool
+    """``_in_corner_zone``: both coordinates outside the inner square.
+
+    A COORDINATE test, not a turn test -- kept only so the earlier corner
+    contrast stays comparable. On the sighted plan it disagrees with ``on_arc``
+    on 291 of 1282 signs, and unlike ``on_arc`` it moves with the believed
+    corridor width. Read ``on_arc`` instead. See ``report_lane_geometry``.
+    """
+
+    on_arc: bool
+    """Whether the plan is actually TURNING at the closest point."""
+
+    bend_gap_m: float | None
+    """Along-path metres from the laned waypoint to the nearest bend vertex.
+
+    How far the sign sits from a corner as the held plan believes it, which is
+    the quantity ``gap_m`` was suspected of being a constant multiple of.
+    """
+
+    arc_radius_m: float | None
+    """Radius of the arc the closest point sits on, when it sits on one.
+
+    A frame-free readout of the believed corridor width: ``_corner_arc_radius``
+    returns ``width/2 - center_bias`` until the ``ARC_RADIUS`` cap binds, so the
+    radius inverts to the belief without ever naming a section. Taken from the
+    UNLANED base path, whose arc vertices lie exactly on their circle -- the
+    lane shift varies with depth and would bend them off it.
+
+    A value ABOVE the ``ARC_RADIUS`` cap is not a corner arc at all: no corner
+    can plan one, so the bend is the lap-seam splice, where ``_rotate_to_start``
+    joins the partial first segment to the rest of the lap at a shallow angle.
+    The report separates those rather than bucketing them as a wide corner.
+    """
+
+
+def _circumradius(a: Any, b: Any, c: Any) -> float | None:
+    """Radius of the circle through three points, or ``None`` if collinear."""
+    ax, ay = b.x - a.x, b.y - a.y
+    bx, by = c.x - b.x, c.y - b.y
+    cross = ax * by - ay * bx
+    if abs(cross) < _BEND_CROSS_EPS:
+        return None
+    return (
+        math.hypot(ax, ay)
+        * math.hypot(bx, by)
+        * math.hypot(c.x - a.x, c.y - a.y)
+        / (2 * abs(cross))
+    )
+
+
+def _bend_flags(path: list[Any]) -> list[bool]:
+    """Per vertex, whether the polyline changes direction there.
+
+    Waypoints are rounded to millimetres at generation, so a straight run's
+    cross product is exactly zero and this only has to clear float noise.
+    """
+    bend = [False] * len(path)
+    for i in range(1, len(path) - 1):
+        ax, ay = path[i].x - path[i - 1].x, path[i].y - path[i - 1].y
+        bx, by = path[i + 1].x - path[i].x, path[i + 1].y - path[i].y
+        bend[i] = abs(ax * by - ay * bx) > _BEND_CROSS_EPS
+    return bend
+
+
 def _path_station_m(plan: list[Any], index: int) -> float:
     """Arc length along ``plan`` from its start to vertex ``index``.
 
@@ -2226,11 +2309,20 @@ def _path_station_m(plan: list[Any], index: int) -> float:
     return sum(math.hypot(b.x - a.x, b.y - a.y) for a, b in pairwise(plan[: index + 1]))
 
 
+def _path_stations_m(plan: list[Any]) -> list[float]:
+    """``_path_station_m`` for every vertex at once, on the same ruler."""
+    stations = [0.0]
+    for a, b in pairwise(plan):
+        stations.append(stations[-1] + math.hypot(b.x - a.x, b.y - a.y))
+    return stations
+
+
 def _approach_offset(
     plan: list[Any],
     waypoint_index: int | None,
     closest: tuple[float, float, float, int] | None,
-) -> tuple[float, bool] | None:
+    base: list[Any] | None = None,
+) -> _Approach | None:
     """How far along the path the closest approach sits from the laned waypoint.
 
     The measurement the last three refuted hypotheses were missing. Branch,
@@ -2239,18 +2331,48 @@ def _approach_offset(
     reads zero. Both hold if the path runs nearest the sign somewhere other than
     that waypoint, and this is the distance between the two.
 
-    Returns ``(along-path metres, closest point is in a corner)``. Near zero
-    means the two agree and the contradiction is elsewhere after all. A large
-    value in a corner means the lane is laid on the straight while the unlaned
-    turn is what grazes the sign.
+    Near zero means the two agree and the contradiction is elsewhere after all.
+    A large value in a turn means the lane is laid on the straight while the
+    unlaned arc is what grazes the sign.
+
+    ``base`` is the UNLANED path the transform ran on. Given it, the reading
+    also carries the turn test and the arc radius, which is what decomposes the
+    gap against the width belief -- see ``_Approach``. Without it the two
+    structural fields come back ``None`` and only the gap is measured.
     """
     if closest is None or waypoint_index is None or not plan or waypoint_index >= len(plan):
         return None
     _, hit_x, hit_y, segment = closest
     if segment >= len(plan):
         return None
-    station_hit = _path_station_m(plan, segment) + math.hypot(hit_x - plan[segment].x, hit_y - plan[segment].y)
-    return abs(station_hit - _path_station_m(plan, waypoint_index)), _in_corner_zone(hit_x, hit_y)
+    # Cumulative once rather than `_path_station_m` per lookup: the bend scan
+    # below asks for a station per bend vertex, and this runs inside the sweep's
+    # per-tick loop.
+    stations = _path_stations_m(plan)
+    station_hit = stations[segment] + math.hypot(hit_x - plan[segment].x, hit_y - plan[segment].y)
+    gap = abs(station_hit - stations[waypoint_index])
+
+    on_arc = False
+    bend_gap: float | None = None
+    radius: float | None = None
+    # The 1:1 length guard `_lane_staleness_m` needs for the same reason: across
+    # a `replace_path` the two lists index different paths, and every structural
+    # reading below is an index lookup into `base` keyed off `plan`.
+    if base is not None and len(base) == len(plan) and segment + 1 < len(base):
+        bend = _bend_flags(base)
+        on_arc = bend[segment] and bend[segment + 1]
+        here = stations[waypoint_index]
+        bend_gaps = [abs(stations[i] - here) for i, flag in enumerate(bend) if flag]
+        bend_gap = min(bend_gaps) if bend_gaps else None
+        if on_arc and 0 < segment < len(base) - 1:
+            radius = _circumradius(base[segment - 1], base[segment], base[segment + 1])
+    return _Approach(
+        gap_m=gap,
+        in_corner_box=_in_corner_zone(hit_x, hit_y),
+        on_arc=on_arc,
+        bend_gap_m=bend_gap,
+        arc_radius_m=radius,
+    )
 
 
 def _lane_group_target(
@@ -2405,7 +2527,7 @@ def _sample_lane_delivery(
         # drove.
         branch: LaneBranch | None = None
         compose: float | None = None
-        approach: tuple[float, bool] | None = None
+        approach: _Approach | None = None
         if lane_base is not None and params is not None:
             # Built BEFORE the branch call, not after: the composition diff
             # inside it reads this exact rebuild, and the caching only exists to
@@ -2414,14 +2536,13 @@ def _sample_lane_delivery(
                 fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
             verdict = _lane_branch(index, lane_base, specs, params, fresh)
             branch, compose = verdict.branch, verdict.compose_m
-            approach = _approach_offset(plan, verdict.waypoint_index, closest)
+            approach = _approach_offset(plan, verdict.waypoint_index, closest, lane_base)
         per_sign[index] = _LaneSample(
             gap_m=gap,
             delivered_frac=outward / plateau,
             branch=branch,
             compose_m=compose,
-            approach_m=None if approach is None else approach[0],
-            approach_in_corner=None if approach is None else approach[1],
+            approach=approach,
             stale_m=_lane_staleness_m(spec, plan, fresh),
             fingerprint_stale=router.lane_fingerprint != navigator._lane_fingerprint,  # noqa: SLF001
         )
@@ -2560,7 +2681,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     struck_branch: LaneBranch | None = None
     struck_delivered: float | None = None
     struck_compose: float | None = None
-    struck_approach: tuple[float, bool] | None = None
+    struck_approach: _Approach | None = None
     struck_stale: float | None = None
     struck_fp_stale: bool | None = None
     if struck_sign and result.collision_xy is not None:
@@ -2596,8 +2717,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
                     struck_branch = sample.branch
                     struck_delivered = sample.delivered_frac
                     struck_compose = sample.compose_m
-                    if sample.approach_m is not None and sample.approach_in_corner is not None:
-                        struck_approach = (sample.approach_m, sample.approach_in_corner)
+                    struck_approach = sample.approach
                     struck_stale = sample.stale_m
                     struck_fp_stale = sample.fingerprint_stale
 
@@ -2614,11 +2734,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             (s.branch, s.compose_m) for s in per_sign.values() if s.branch is not None and s.compose_m is not None
         ],
         struck_compose=struck_compose,
-        pass_approach=[
-            (s.approach_m, s.approach_in_corner)
-            for s in per_sign.values()
-            if s.approach_m is not None and s.approach_in_corner is not None
-        ],
+        pass_approach=[s.approach for s in per_sign.values() if s.approach is not None],
         struck_approach=struck_approach,
         pass_stale=[s.stale_m for s in per_sign.values() if s.stale_m is not None],
         pass_fp_stale=[s.fingerprint_stale for s in per_sign.values() if s.branch is not None],
@@ -2691,13 +2807,15 @@ def _report_approach(samples: list[_SignPassSample]) -> None:
     since a large gap at passes too would make it normal geometry rather than a
     fault.
     """
-    pass_gaps = [g for s in samples for g, _ in s.pass_approach]
-    struck_gaps = [s.struck_approach[0] for s in samples if s.struck_approach is not None]
-    if not pass_gaps and not struck_gaps:
+    passes = [a for s in samples for a in s.pass_approach]
+    struck = [s.struck_approach for s in samples if s.struck_approach is not None]
+    if not passes and not struck:
         return
-    for label, gaps in (("passes", pass_gaps), ("collisions", struck_gaps)):
-        if not gaps:
+    columns = (("passes", passes), ("collisions", struck))
+    for label, group in columns:
+        if not group:
             continue
+        gaps = [a.gap_m for a in group]
         print(
             f"LANE-APPROACH {label:<11} n={len(gaps):>5}  "
             f"median {percentile(gaps, 0.5) * 100:6.2f}cm  "
@@ -2705,26 +2823,77 @@ def _report_approach(samples: list[_SignPassSample]) -> None:
             f"max {max(gaps) * 100:6.2f}cm",
             flush=True,
         )
-    pass_corner = [c for s in samples for _, c in s.pass_approach]
-    struck_corner = [s.struck_approach[1] for s in samples if s.struck_approach is not None]
-    for label, flags in (("passes", pass_corner), ("collisions", struck_corner)):
-        if not flags:
+    for label, group in columns:
+        if not group:
             continue
-        n_corner = sum(1 for f in flags if f)
+        n_box = sum(1 for a in group if a.in_corner_box)
+        n_arc = sum(1 for a in group if a.on_arc)
         print(
-            f"LANE-APPROACH {label:<11} closest point in CORNER {n_corner:>5}/{len(flags)} "
-            f"({n_corner / len(flags) * 100:5.1f}%)",
+            f"LANE-APPROACH {label:<11} in corner BOX {n_box:>5}/{len(group)} "
+            f"({n_box / len(group) * 100:5.1f}%)   ON ARC {n_arc:>5}/{len(group)} "
+            f"({n_arc / len(group) * 100:5.1f}%)",
             flush=True,
         )
+    _report_approach_decomposition(columns)
 
 
-_BEND_CROSS_EPS = 1e-9
-"""Cross-product magnitude above which a waypoint counts as bending.
+def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], ...]) -> None:
+    """Split the approach gap against the two things that can set it.
 
-Waypoints are rounded to millimetres at generation, so a straight run's cross
-product is exactly zero rather than merely small; this only has to clear
-floating-point noise.
-"""
+    The gap is NOT a planner constant -- on the sighted plan, with true widths
+    and true sign positions, it reads 2.22 cm median across all 1282 corpus
+    signs and never clusters at 21 (see ``report_lane_geometry``). So the tight
+    collision band has to be produced at run time, and there are only two
+    candidates in a blind run: where the sign sits relative to a corner as the
+    held plan believes it, and how wide the plan believes the corridor is.
+
+    ``bend gap`` is the first: along-path distance from the laned waypoint to
+    the nearest turn. If the 21 cm band is "the closest approach is one bend
+    away", it shows up here and the pass column will not share it.
+
+    ``arc radius`` is the second, and it is the width belief without the frame
+    risk of reading a section label under a rotational lock:
+    ``_corner_arc_radius`` returns ``width/2 - center_bias`` until the
+    ``ARC_RADIUS`` cap binds, so bucketing by radius buckets by belief. A band
+    that survives inside every radius bucket is not the width; one that
+    disappears is.
+    """
+    for label, group in columns:
+        bend_gaps = [a.bend_gap_m for a in group if a.bend_gap_m is not None]
+        if bend_gaps:
+            print(
+                f"LANE-APPROACH {label:<11} bend gap  n={len(bend_gaps):>5}  "
+                f"median {percentile(bend_gaps, 0.5) * 100:6.2f}cm  "
+                f"p90 {percentile(bend_gaps, 0.9) * 100:6.2f}cm",
+                flush=True,
+            )
+    cap = NavigationTuning.load_default().waypoints.ARC_RADIUS
+    buckets: dict[float, dict[str, list[float]]] = {}
+    seam = 0
+    for label, group in columns:
+        for approach in group:
+            if approach.arc_radius_m is None:
+                continue
+            if approach.arc_radius_m > cap + _LANE_BRANCH_EPS_M:
+                seam += 1
+                continue
+            buckets.setdefault(round(approach.arc_radius_m, 2), {}).setdefault(label, []).append(approach.gap_m)
+    if seam:
+        print(
+            f"LANE-APPROACH dropped {seam} reading(s) whose bend radius exceeds the "
+            f"{cap:.2f}m ARC_RADIUS cap -- the lap-seam splice, not a corner",
+            flush=True,
+        )
+    for radius in sorted(buckets):
+        parts = []
+        for label, _ in columns:
+            gaps = buckets[radius].get(label)
+            parts.append(
+                f"{label} n={len(gaps):>4} median {percentile(gaps, 0.5) * 100:6.2f}cm"
+                if gaps
+                else f"{label} n=   0"
+            )
+        print(f"LANE-APPROACH arc r={radius:.2f}m  " + "   ".join(parts), flush=True)
 
 
 def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -> None:
@@ -2806,11 +2975,7 @@ def _lane_geometry_for(
         return []
     # A segment is on an arc when BOTH its end vertices bend. Either-end would
     # also catch the last straight segment, whose far end is the arc entry.
-    bend = [False] * len(base)
-    for i in range(1, len(base) - 1):
-        ax, ay = base[i].x - base[i - 1].x, base[i].y - base[i - 1].y
-        bx, by = base[i + 1].x - base[i].x, base[i + 1].y - base[i].y
-        bend[i] = abs(ax * by - ay * bx) > _BEND_CROSS_EPS
+    bend = _bend_flags(base)
     arc_seg = [bend[i] and bend[i + 1] for i in range(len(base) - 1)]
 
     specs = [
