@@ -208,6 +208,33 @@ else
   log "No network-config or system-connections dir found -- skipping WiFi profile check"
 fi
 
+# Restore the udev override that keeps usb0 out of NetworkManager's default
+# "unmanage every USB gadget device" rule (/usr/lib/udev/rules.d/85-nm-
+# unmanaged.rules). Confirmed on hardware 2026-08-20: without this override,
+# usb0 sits permanently unmanaged/down -- dwc2/g_ether enumerate cleanly on
+# both boards, there is no USB-level fault, but NetworkManager never
+# activates the usb0 connection profile, so the link looks completely dead
+# from either side. Same corruption pattern as the WiFi profile above: this
+# override existed once (see ansible/roles/pi_zero/tasks/main.yml, which now
+# also provisions it on a fresh flash) and was lost the same way.
+udev_rules_dir="$ROOT_MNT/etc/udev/rules.d"
+udev_override="$udev_rules_dir/99-usb0-managed.rules"
+if [ -d "$udev_rules_dir" ] && [ ! -f "$udev_override" ]; then
+  log "Restoring missing usb0 NetworkManager-managed udev override"
+  sudo tee "$udev_override" > /dev/null <<'EOF'
+# Override 85-nm-unmanaged.rules' blanket USB-gadget rule (ENV{DEVTYPE}=="gadget"
+# -> NM_UNMANAGED=1) for this specific interface, so NetworkManager actually
+# activates the usb0 connection profile instead of leaving the device
+# permanently unmanaged/down.
+SUBSYSTEM=="net", ACTION=="add|change|move", ENV{INTERFACE}=="usb0", ENV{NM_UNMANAGED}="0"
+EOF
+  sudo chmod 644 "$udev_override"
+elif [ -f "$udev_override" ]; then
+  log "usb0 udev override already present -- leaving it alone"
+else
+  log "No /etc/udev/rules.d found -- skipping usb0 udev override check"
+fi
+
 sync
 sudo umount "$BOOT_MNT" "$ROOT_MNT"
 sudo rmdir "$BOOT_MNT" "$ROOT_MNT"

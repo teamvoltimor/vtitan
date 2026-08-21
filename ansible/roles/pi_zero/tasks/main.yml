@@ -94,6 +94,33 @@
     mode: "0644"
   notify: Reboot pi zero
 
+# NetworkManager's own stock udev rule (/usr/lib/udev/rules.d/85-nm-unmanaged.rules)
+# marks EVERY USB gadget-type network device unmanaged by default (comment
+# there: "whatever created it might want to set it up itself"). Without this
+# override, usb0 sits permanently unmanaged -- `ip addr` shows it DOWN with
+# no config, NetworkManager never activates the usb0 profile below no matter
+# how it's configured, and the interface only looks "broken" because nothing
+# ever brings it up. Confirmed on hardware 2026-08-20: a Zero stuck at
+# BOOT_CHECK forever, with clean dwc2/g_ether enumeration on both boards and
+# no USB-level fault of any kind, traced entirely to this override having
+# been lost (never captured in this role until now, so a manual fix applied
+# once and then wiped by unclean-shutdown corruption left no trace to recover
+# from except redoing it here). File must sort after 85- alphabetically for
+# its ENV{NM_UNMANAGED}=0 to win over the stock rule's =1 for the same device.
+- name: Override NetworkManager's default unmanaged-USB-gadget udev rule for usb0
+  tags: [network]
+  become: true
+  ansible.builtin.copy:
+    content: |
+      # Override 85-nm-unmanaged.rules' blanket USB-gadget rule (ENV{DEVTYPE}=="gadget"
+      # -> NM_UNMANAGED=1) for this specific interface, so NetworkManager actually
+      # activates the usb0 connection profile instead of leaving the device
+      # permanently unmanaged/down.
+      SUBSYSTEM=="net", ACTION=="add|change|move", ENV{INTERFACE}=="usb0", ENV{NM_UNMANAGED}="0"
+    dest: /etc/udev/rules.d/99-usb0-managed.rules
+    mode: "0644"
+  notify: Reboot pi zero
+
 # The Zero has no real Ethernet hardware, but its first-boot netplan config
 # (from Raspberry Pi Imager's cloud-init customization) renders a generic
 # "netplan-eth0" NetworkManager profile that matches ANY ethernet-class
