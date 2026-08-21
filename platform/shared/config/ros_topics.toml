@@ -83,3 +83,10 @@ run_path = "/bag_recorder/run_path"
 # Simulated pose + track marker topics, published by live_visualizer only.
 odom = "/sim/odom"
 track = "/sim/track"
+# The planned polyline the navigator is tracking RIGHT NOW, and the sign
+# estimates it built that plan from. Both are beliefs, not ground truth, and
+# under the Obstacles Challenge the plan IS the avoidance manoeuvre -- the sign
+# lane is a rewrite of these waypoints -- so watching a blind run without them
+# shows the chassis moving but not the algorithm moving it.
+plan = "/sim/plan"
+sign_estimates = "/sim/sign_estimates"

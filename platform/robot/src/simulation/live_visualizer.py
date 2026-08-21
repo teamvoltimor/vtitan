@@ -19,8 +19,8 @@ import time
 from typing import TYPE_CHECKING
 
 import rclpy
-from geometry_msgs.msg import Point, Quaternion, TransformStamped
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
+from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import (
@@ -32,9 +32,10 @@ from shared.config.constants import (
 )
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import SignColor
-from src.ros2.qos import QOS_STREAM
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
+
+from src.ros2.qos import QOS_STREAM
 
 if TYPE_CHECKING:
     from src.navigation.ports import LidarScan
@@ -73,6 +74,8 @@ class LiveScenarioVisualizer(Node):
             QOS_STREAM,
         )
         self._track_pub = self.create_publisher(MarkerArray, topics.simulation.track, 1)
+        self._plan_pub = self.create_publisher(Path, topics.simulation.plan, 1)
+        self._sign_estimate_pub = self.create_publisher(MarkerArray, topics.simulation.sign_estimates, 1)
         self._tf_broadcaster = TransformBroadcaster(self)
         self._cached_track_markers: MarkerArray | None = None
         self._tick_count = 0
@@ -138,6 +141,78 @@ class LiveScenarioVisualizer(Node):
 
         if scan is not None and scan.ranges_m:
             self._scan_pub.publish(self._build_laserscan(scan, stamp))
+
+    def publish_belief(self, navigator: object) -> None:
+        """Publish the plan the navigator holds and the sign estimates behind it.
+
+        Separate from :meth:`publish`, which takes simulator ground truth. These
+        two are beliefs, and in a blind Obstacles run they are the algorithm
+        itself: the planned polyline IS the avoidance manoeuvre, since
+        ``apply_sign_lanes`` rewrites the corridor's waypoints onto a pass-side
+        lane rather than steering off a fixed path. Watching a run without them
+        shows the chassis moving and the true signs standing still, with the
+        decision that connects the two invisible.
+
+        Republished every tick rather than cached like the track markers: the
+        plan is rebuilt whenever discovery refines a sign estimate, so a stale
+        one would show a lane the robot is no longer driving.
+
+        Typed loosely because ``live_visualizer`` is importable only from the
+        ROS2 pixi env while ``CoreNavigator`` is not, and a hard import here
+        would drag the whole navigation package into that env's import graph.
+        """
+        stamp = self.get_clock().now().to_msg()
+        waypoints = getattr(navigator, "_waypoints", None)
+        if waypoints:
+            path = Path()
+            path.header.stamp = stamp
+            path.header.frame_id = _MAP_FRAME
+            for waypoint in waypoints:
+                pose = PoseStamped()
+                pose.header.stamp = stamp
+                pose.header.frame_id = _MAP_FRAME
+                pose.pose.position.x = float(waypoint.x)
+                pose.pose.position.y = float(waypoint.y)
+                path.poses.append(pose)
+            self._plan_pub.publish(path)
+
+        router = getattr(navigator, "sign_router", None)
+        specs = getattr(router, "lane_specs", None) if router is not None else None
+        if specs is None:
+            return
+        markers = MarkerArray()
+        markers.markers.append(Marker(action=Marker.DELETEALL))
+        for index, entry in enumerate(specs):
+            markers.markers.append(self._sign_estimate_marker(index, entry[0]))
+        self._sign_estimate_pub.publish(markers)
+
+    def _sign_estimate_marker(self, index: int, spec: object) -> Marker:
+        """One believed sign, drawn so it cannot be mistaken for the real one.
+
+        Deliberately taller and translucent rather than a different colour: the
+        colour carries the pass side, which is the whole reason the estimate
+        matters, so overriding it to mean "estimate" would hide the field being
+        checked. Height and alpha are free to carry that instead.
+        """
+        marker = Marker()
+        marker.header.frame_id = _MAP_FRAME
+        marker.ns = "sign_estimates"
+        marker.id = index
+        marker.type = Marker.CYLINDER
+        marker.action = Marker.ADD
+        # float() for the same reason `_sign_marker` needs it: an int assigned to
+        # a Point field survives in memory and is reinterpreted bit-for-bit as a
+        # float64 on the wire, dropping the marker to ~0.0.
+        marker.pose.position.x = float(spec.x)
+        marker.pose.position.y = float(spec.y)
+        marker.pose.position.z = TrafficSignSpecs.Z_POSITION + TrafficSignSpecs.HEIGHT
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = TrafficSignSpecs.WIDTH
+        marker.scale.y = TrafficSignSpecs.DEPTH
+        marker.scale.z = TrafficSignSpecs.HEIGHT
+        color = TrafficSignSpecs.RED_COLOR if spec.color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
+        marker.color.r, marker.color.g, marker.color.b, marker.color.a = *color, 0.35
+        return marker
 
     def _build_laserscan(self, scan: LidarScan, stamp: object) -> LaserScan:
         msg = LaserScan()

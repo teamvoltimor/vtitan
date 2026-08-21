@@ -291,6 +291,11 @@ def _run_one(
 
     def on_step(state: AckermannState, scan: LidarScan | None) -> None:
         visualizer.publish(state, scan)
+        # The believed half, published from the live navigator rather than the
+        # metadata: under Obstacles the planned polyline IS the avoidance
+        # manoeuvre, and blind runs route around discovery estimates that can
+        # sit somewhere other than the true signs already on /sim/track.
+        visualizer.publish_belief(sim.navigator)
         pacer.wait()
 
     return sim.run(
@@ -321,7 +326,8 @@ def _run_and_visualize(scenario: NamedScenario, opts: _RunOptions) -> None:
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
-        "Publishing /sim/odom, /scan, /sim/track — run `task sim:navigate:rviz` in another terminal to watch.",
+        "Publishing /sim/odom, /scan, /sim/track, /sim/plan, /sim/sign_estimates — "
+        "run `pixi run -e sim viz` in another terminal to watch.",
     )
     result = _run_one(scenario, visualizer, opts)
     _log_result(scenario.label, result)
