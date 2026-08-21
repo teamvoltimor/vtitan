@@ -1,0 +1,288 @@
+"""Is the FIRST turn harder than the ones after it, on the blind Open Challenge?
+
+Every other ``diag_open_*`` sweep scores a run as a whole -- verdict, laps, sim
+time -- so a run that fought its way through one corner and cruised the other
+eleven is indistinguishable from one that was uniformly mediocre. This localises
+the difficulty to a turn *ordinal*, which is the only way to ask whether the
+opening corner is special or whether it just happens to be the first one you
+watch.
+
+Segmentation is by yaw, not by position, so it needs no track geometry and works
+identically for either direction. Unwrapped yaw is turned into signed progress
+``s`` (positive in the run's own travel direction) and then made monotone with a
+running max, so an escape oscillation cannot un-complete a turn it already made.
+``leg k`` is every tick between completing turn ``k-1`` and completing turn
+``k``: the straight approach plus the corner arc. Legs tile the run with no gaps,
+so a struggle cannot fall between two windows and go unattributed.
+
+Note what a leg is NOT: it is not the corner arc alone. A long leg 1 could be a
+long straight -- the start cell sits somewhere along its side, so leg 1's
+straight is a random fraction of a full side while later legs are always a whole
+one. That makes raw leg *duration* the wrong headline; read the reverse and
+stall tick counts, which no amount of straight-line driving inflates.
+
+Usage (from ``platform/robot``, with PYTHONPATH=".")::
+
+    python scripts/sim/diag_open_first_turn.py [--sample 64] [--seed 0] [--all]
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+if TYPE_CHECKING:
+    from src.simulation.kinematics import AckermannState
+
+from shared.config.constants import CompetitionSpecs, RobotSpecs
+from shared.config.hardware_profile import active_profiles
+
+from scripts.common.diag_base import (
+    add_sweep_args,
+    add_tuning_arg,
+    draw_sample,
+    load_tuning,
+    print_pool_progress,
+    resolve_jobs,
+    run_pool,
+)
+from scripts.common.open_cases import SIDES, case_space
+from scripts.common.tables import print_table
+from scripts.sim.diag_open_exhaustive import _verdict
+from src.simulation.scenario_builder import build_open_metadata
+from src.simulation.scenario_simulator import CONTROL_DT, ScenarioSimulator
+
+_DEFAULT_SAMPLE_SIZE = 64
+_DEFAULT_SEED = 0
+
+_STALL_SPEED_MPS = 0.01
+"""Below this the chassis is not making headway, whichever way it points."""
+
+_CRAWL_FRACTION = 0.5
+"""Forward speed below this share of the ceiling counts as hesitating, not driving.
+
+A fraction of the ACTIVE profile's ceiling rather than an absolute m/s, so the
+same threshold means the same thing under ``fastonly`` as under base -- an
+absolute one would silently reclassify every corner as a crawl the moment the
+profile raised the top speed."""
+
+_STEER_DEADBAND_RAD = 0.02
+"""Steering below this is noise; a sign change across it is not a real flip."""
+
+_QUARTER_TURN_DEG = 90.0
+
+
+class _YawTracer:
+    """Per-tick pose recorder. Keeps only what leg segmentation needs.
+
+    The creep flag matters because leg 1 alone contains the blind
+    direction-inference creep, which is slow *by design*. Counting its ticks
+    against leg 1's hesitation would manufacture exactly the asymmetry this
+    script exists to test for.
+    """
+
+    def __init__(self, simulator: ScenarioSimulator) -> None:
+        self._simulator = simulator
+        self.yaw_deg: list[float] = []
+        self.speed: list[float] = []
+        self.steer: list[float] = []
+        self.creeping: list[bool] = []
+
+    def on_step(self, state: AckermannState, _scan: object) -> None:
+        """Record one tick."""
+        estimator = self._simulator.direction_estimator
+        self.yaw_deg.append(math.degrees(state.yaw))
+        self.speed.append(state.v)
+        self.steer.append(state.steer)
+        self.creeping.append(estimator is not None and not estimator.is_settled)
+
+
+def _monotone_progress(yaw_deg: list[float]) -> list[float]:
+    """Unwrapped yaw as a monotone, non-negative turn count in degrees.
+
+    Signed by the run's own net rotation so clockwise and counter-clockwise
+    scenarios share one scale, then clamped to its running max: the question is
+    which turn the robot is *on*, and a corner it fought its way around and
+    partly backed out of is still that corner.
+    """
+    if not yaw_deg:
+        return []
+    unwrapped = [yaw_deg[0]]
+    for previous, current in zip(yaw_deg, yaw_deg[1:], strict=False):
+        step = (current - previous + 180.0) % 360.0 - 180.0
+        unwrapped.append(unwrapped[-1] + step)
+    sign = 1.0 if unwrapped[-1] >= unwrapped[0] else -1.0
+    signed = [(value - unwrapped[0]) * sign for value in unwrapped]
+    running = []
+    peak = 0.0
+    for value in signed:
+        peak = max(peak, value)
+        running.append(peak)
+    return running
+
+
+def _leg_profile(index: int, ticks: list[tuple[float, float, bool]]) -> dict[str, float]:
+    """Summarise one leg's ticks of ``(speed, steer, creeping)``."""
+    driving = [(v, steer) for v, steer, creeping in ticks if not creeping]
+    flips = sum(
+        1
+        for (_, before), (_, after) in zip(driving, driving[1:], strict=False)
+        if before * after < 0 and min(abs(before), abs(after)) > _STEER_DEADBAND_RAD
+    )
+    return {
+        "leg": index + 1,
+        "ticks": len(ticks),
+        "seconds": len(ticks) * CONTROL_DT,
+        "creep": sum(1 for _, _, creeping in ticks if creeping) * CONTROL_DT,
+        "reverse": sum(1 for v, _ in driving if v < -_STALL_SPEED_MPS),
+        "stalled": sum(1 for v, _ in driving if abs(v) <= _STALL_SPEED_MPS),
+        "crawling": sum(1 for v, _ in driving if _STALL_SPEED_MPS < v < _CRAWL_FRACTION * RobotSpecs.MAX_SPEED_MPS),
+        "steer_flips": flips,
+    }
+
+
+def _legs(tracer: _YawTracer) -> list[dict[str, float]]:
+    """Split a run into legs, one per turn reached, each ending as that turn completes."""
+    progress = _monotone_progress(tracer.yaw_deg)
+    buckets: defaultdict[int, list[tuple[float, float, bool]]] = defaultdict(list)
+    for value, tick in zip(progress, zip(tracer.speed, tracer.steer, tracer.creeping, strict=True), strict=True):
+        buckets[int(value // _QUARTER_TURN_DEG)].append(tick)
+    return [_leg_profile(index, ticks) for index, ticks in sorted(buckets.items())]
+
+
+def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> dict[str, Any]:
+    """Run one scenario and return its per-leg profile. Primitive-valued so it pickles."""
+    from shared.domain.enums import Direction, Section
+
+    index, widths, section_value, direction_value, cell, laps, tuning_path = payload
+    section = Section(section_value)
+    direction = Direction(direction_value)
+    widths_mm = dict(zip(SIDES, widths, strict=True))
+    meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
+
+    sim = ScenarioSimulator(meta, num_laps=laps, tuning=load_tuning(tuning_path), seed=index, blind=True)
+    tracer = _YawTracer(sim)
+    result = sim.run(on_step=tracer.on_step)
+
+    return {
+        "index": index,
+        "verdict": _verdict(result),
+        "stuck": result.stuck,
+        "sim_time_s": result.sim_time_s,
+        "legs": _legs(tracer),
+        "label": f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
+    }
+
+
+def _leg_table(rows: list[dict[str, Any]]) -> None:
+    """Aggregate every run's legs by ordinal and print the per-ordinal profile."""
+    by_leg: defaultdict[int, list[dict[str, float]]] = defaultdict(list)
+    for row in rows:
+        for leg in row["legs"]:
+            by_leg[int(leg["leg"])].append(leg)
+
+    table = []
+    for leg_index in sorted(by_leg):
+        legs = by_leg[leg_index]
+        reversing = [leg for leg in legs if leg["reverse"] > 0]
+        table.append(
+            [
+                leg_index,
+                len(legs),
+                f"{sum(leg['seconds'] for leg in legs) / len(legs):.1f}s",
+                f"{sum(leg['creep'] for leg in legs) / len(legs):.1f}s",
+                f"{len(reversing) / len(legs):.1%}",
+                f"{sum(leg['reverse'] for leg in legs) / len(legs):.1f}",
+                f"{max((leg['reverse'] for leg in legs), default=0):.0f}",
+                f"{sum(leg['crawling'] for leg in legs) / len(legs):.1f}",
+                f"{sum(leg['steer_flips'] for leg in legs) / len(legs):.1f}",
+            ]
+        )
+    print_table(
+        table,
+        ["turn", "runs", "mean time", "of it creep", "any reverse", "mean rev", "max rev", "mean crawl", "mean flips"],
+    )
+
+
+def _worst_leg_table(rows: list[dict[str, Any]]) -> None:
+    """Which turn ordinal owns each run's worst patch of reversing."""
+    worst: Counter[int | str] = Counter()
+    for row in rows:
+        legs = [leg for leg in row["legs"] if leg["reverse"] > 0]
+        worst[int(max(legs, key=lambda leg: leg["reverse"])["leg"]) if legs else "none"] += 1
+    total = sum(worst.values())
+    print_table(
+        [[key, count, f"{count / total:.1%}"] for key, count in sorted(worst.items(), key=lambda kv: str(kv[0]))],
+        ["worst turn", "runs", "share"],
+    )
+
+
+def main() -> None:
+    """Sweep the scenario space and report where in the lap the reversing happens."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_sweep_args(
+        parser,
+        default_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+        default_sample=_DEFAULT_SAMPLE_SIZE,
+        default_seed=_DEFAULT_SEED,
+        jobs=True,
+    )
+    add_tuning_arg(parser)
+    args = parser.parse_args()
+
+    population = case_space()
+    cases = draw_sample(population, sample=args.sample, seed=args.seed, all_=args.all)
+    jobs = resolve_jobs(args.jobs)
+
+    profiles = active_profiles()
+    print(
+        f"profile {','.join(profiles) if profiles else '<base>'}: "
+        f"max_speed {RobotSpecs.MAX_SPEED_MPS:.3f} m/s, "
+        f"max wheel angle {math.degrees(RobotSpecs.MAX_STEERING_ANGLE):.1f} deg",
+        flush=True,
+    )
+    print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers\n", flush=True)
+
+    payloads = [
+        (i, widths, section.value, direction.value, cell, args.laps, args.tuning)
+        for i, (widths, section, direction, cell) in enumerate(cases)
+    ]
+    rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress("legs"))
+    rows.sort(key=lambda row: int(row["index"]))
+
+    verdicts = Counter(str(row["verdict"]) for row in rows)
+    print(f"\nverdicts: {dict(verdicts)}, stuck={sum(1 for row in rows if row['stuck'])}\n", flush=True)
+
+    print("per turn ordinal, over every run that reached it:", flush=True)
+    _leg_table(rows)
+
+    print("\nwhich turn owns each run's worst reversing:", flush=True)
+    _worst_leg_table(rows)
+
+    ended_early = [row for row in rows if row["verdict"] != "ok"]
+    if ended_early:
+        print(f"\n{len(ended_early)} runs that did not finish, and the turn they died on:", flush=True)
+        print_table(
+            [
+                [
+                    row["index"],
+                    row["label"],
+                    row["verdict"],
+                    len(row["legs"]),
+                    f"{row['legs'][-1]['reverse']:.0f}" if row["legs"] else "-",
+                    f"{row['sim_time_s']:.1f}s",
+                ]
+                for row in ended_early
+            ],
+            ["#", "scenario", "verdict", "turns reached", "rev on last", "time"],
+        )
+
+
+if __name__ == "__main__":
+    main()
