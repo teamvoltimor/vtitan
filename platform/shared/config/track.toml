@@ -33,8 +33,28 @@ corner_max = 2.0
 height = 0.10
 thickness = 0.10
 # Collision extends 40 mm per side past the visual so the LIDAR cannot see
-# through a wall. The LIDAR sits 30 mm ahead of the chassis front, so 40 mm
-# keeps it >=10 mm outside the visual face even at full contact.
+# through a wall.
+#
+# DISPUTED 2026-08-21 -- the justification below is false and this value is
+# probably wrong. It read: "The LIDAR sits 30 mm ahead of the chassis front, so
+# 40 mm keeps it >=10 mm outside the visual face even at full contact." The C1
+# is FLUSH with the bumper, not proud of it: [lidar] mount_x_offset = 0.1222 is
+# derived as chassis.length/2 - mesh radius (0.15 - 0.0278), so the puck's front
+# tangent lands exactly on the front edge and the sensor can never be inside a
+# wall the chassis has not already entered.
+#
+# What the 40 mm actually costs:
+#   * every corridor behaves 8 cm narrower than spec (13% of a 0.6 m corridor)
+#   * parking is ARITHMETICALLY IMPOSSIBLE -- a 0.194 m chassis in a 0.20 m bay
+#     needs its centre within 0.10 m of the wall, but collision stops it at
+#     0.14 m. The standing 0/16 park rate is this, not the robot.
+#
+# NOT reverted yet, deliberately. The simulator also raycasts from the chassis
+# centre rather than the sensor (see simulated_hardware_gateway._refresh_sensors),
+# which over-reports forward clearance by ~12 cm -- the opposite direction. The
+# two may be errors that partially cancel, so dropping this to 0.10 on its own
+# could degrade results before improving them. Change both together and measure
+# a before/after; every pass rate on record was taken with both active.
 collision_thickness = 0.18
 exterior_offset = 0.05
 interior_offset = 0.05
