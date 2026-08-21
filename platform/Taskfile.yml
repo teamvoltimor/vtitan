@@ -146,6 +146,7 @@ tasks:
           task robot:launch         Launch a node set (SET=rpi5|rpi-zero|state-machine|telemetry|simulator|lidar|joy-teleop)
           task robot:drive          Switch control mode (ACTION=navigation|controller) — run on Pi 5
           task robot:reset-motors   Zero drive speed + recenter steering (run after robot:drive switches)
+          task robot:test-motors    Hardware smoke test: steering range + drive pulse, checks real feedback — run on Pi 5
           task robot:joystick-setup Pair a Bluetooth joystick (e.g. 8BitDo Ultimate 2) — run on Pi 5, once
           task robot:diagrams       Render docs/diagrams/{common,open,obstacles}/mermaid/*.mmd to matching png/ folders (requires mermaid-cli)
 
@@ -1032,6 +1033,21 @@ tasks:
     dir: robot
     cmds:
       - pixi run reset-motors
+
+  robot:test-motors:
+    desc: >-
+      Hardware smoke test for ackermann_motor_node — run ON Pi 5 (usage: task
+      robot:test-motors -- [--yes] [--skip-drive] [--steering-angle-deg 15]
+      [--drive-speed 0.1] [--drive-duration-s 1.5] [--find-min-speed]). Steering
+      test moves the servo through +-angle/center (safe with the robot sitting
+      still); the drive test spins the wheels at a low speed by default and
+      asks for a typed confirmation first unless --yes is passed. Checks real
+      feedback from /motor/steering_position and /motor/drive_speed, not just
+      that a command was sent. See scripts/hardware/test_motors.py --help for
+      every option.
+    dir: robot
+    cmds:
+      - pixi run -e dev test-motors -- {{.CLI_ARGS}}
 
   robot:joystick-setup:
     desc: >-
