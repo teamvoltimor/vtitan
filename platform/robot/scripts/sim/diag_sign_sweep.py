@@ -816,12 +816,7 @@ class _UTurnDetector:
     @property
     def corner_events(self) -> int:
         """Events that happened in a corner zone (outside the inner square's span on BOTH axes)."""
-        return sum(
-            1
-            for x, y in self.events
-            if not (TrackDimensions.CORNER_MIN <= x <= TrackDimensions.CORNER_MAX)
-            and not (TrackDimensions.CORNER_MIN <= y <= TrackDimensions.CORNER_MAX)
-        )
+        return sum(1 for x, y in self.events if _in_corner_zone(x, y))
 
 
 _ESCAPE_PHASES = frozenset(
@@ -1029,25 +1024,43 @@ _CLAMP_BIND_EPS_M = 1e-9
 """Tolerance for "``clamp_lateral`` moved the requested lane at all"."""
 
 
-def _closest_on_polyline(px: float, py: float, path: list[Any] | None) -> tuple[float, float, float] | None:
-    """Closest point on ``path`` to ``(px, py)`` as ``(distance, x, y)``.
+def _in_corner_zone(x: float, y: float) -> bool:
+    """Whether ``(x, y)`` lies in a corner, i.e. outside the inner square on BOTH axes.
+
+    The track's four corridors are the faces of a square annulus, so a point
+    inside the span on one axis is on a straight; outside on both puts it in the
+    turn. ``corridor_for_position`` cannot answer this -- it folds corners into
+    whichever face is nearest and never reports the turn itself.
+    """
+    return not (TrackDimensions.CORNER_MIN <= x <= TrackDimensions.CORNER_MAX) and not (
+        TrackDimensions.CORNER_MIN <= y <= TrackDimensions.CORNER_MAX
+    )
+
+
+def _closest_on_polyline(px: float, py: float, path: list[Any] | None) -> tuple[float, float, float, int] | None:
+    """Closest point on ``path`` to ``(px, py)`` as ``(distance, x, y, segment)``.
 
     Measured against SEGMENTS rather than vertices: waypoint spacing is coarse
     relative to the clearances in play here, so a nearest-vertex distance would
     overstate the gap by most of a segment length and manufacture margin that
     the chassis never actually has.
+
+    ``segment`` is the index of the segment's FIRST vertex, carried so callers
+    can place the point along the path rather than only in the plane -- the
+    difference between "the path comes within 5 cm of the sign" and "it does so
+    HERE, half a metre from where the lane was laid".
     """
     if not path or len(path) < _MIN_POLYLINE_VERTICES:
         return None
-    best: tuple[float, float, float] = (float("inf"), 0.0, 0.0)
-    for a, b in pairwise(path):
+    best: tuple[float, float, float, int] = (float("inf"), 0.0, 0.0, 0)
+    for index, (a, b) in enumerate(pairwise(path)):
         vx, vy = b.x - a.x, b.y - a.y
         wx, wy = px - a.x, py - a.y
         seg_sq = vx * vx + vy * vy
         t = 0.0 if seg_sq == 0.0 else max(0.0, min(1.0, (wx * vx + wy * vy) / seg_sq))
         dist = math.hypot(wx - t * vx, wy - t * vy)
         if dist < best[0]:
-            best = (dist, a.x + t * vx, a.y + t * vy)
+            best = (dist, a.x + t * vx, a.y + t * vy, index)
     return best
 
 
@@ -1154,7 +1167,7 @@ def _planned_lane_attribution(
 def _outward_pass_offset(
     spec: Any,
     believed_xy: tuple[float, float],
-    closest: tuple[float, float, float] | None,
+    closest: tuple[float, float, float, int] | None,
     matched: tuple[Any, Section] | None,
 ) -> float | None:
     """Signed lateral offset of the plan from the sign, positive = OUTWARD.
@@ -1197,7 +1210,7 @@ def _outward_pass_offset(
     if rule is None:
         return None
     axis, mult = rule
-    _, path_x, path_y = closest
+    _, path_x, path_y, _ = closest
     if axis is sign_router_module.Axis.Y:
         return mult * (path_y - origin_y)
     return mult * (path_x - origin_x)
@@ -1852,6 +1865,13 @@ class _SignPassSample:
     struck_compose: float | None
     """The composition gap at the sign that ended the run."""
 
+    pass_approach: list[tuple[float, bool]]
+    """Per PASSED sign, the along-path gap to the closest approach and whether
+    that point is in a corner."""
+
+    struck_approach: tuple[float, bool] | None
+    """The same, for the sign that ended the run."""
+
     pass_stale: list[float]
     """Per PASSED sign, how far the held plan sits from a fresh rebuild there.
 
@@ -2000,6 +2020,13 @@ class _LaneSample:
     pulling the path back toward the sign. See ``_composition_gap_m``.
     """
 
+    approach_m: float | None
+    """Along-path metres between the laned waypoint and the polyline's actual
+    closest point to this sign. See ``_approach_offset``."""
+
+    approach_in_corner: bool | None
+    """Whether that closest point lies in a corner rather than on a straight."""
+
     stale_m: float | None
     """How far the plan the tracker holds sits from the one the planner would
     build RIGHT NOW from the same base path and the same sign estimates,
@@ -2089,7 +2116,7 @@ def _lane_branch(
     specs: list[tuple[Any, Section]],
     params: SignLaneParams,
     fresh: list[Waypoint] | None = None,
-) -> tuple[LaneBranch, float | None]:
+) -> _BranchResult:
     """Re-run ``apply_sign_lanes``'s decisions for one sign and name the branch.
 
     Mirrors the loop rather than instrumenting it, so the production transform
@@ -2107,8 +2134,13 @@ def _lane_branch(
     if isinstance(built, LaneBranch):
         # A lane that was never built has no single-group prediction for the
         # full build to differ FROM, so composition is not a question here.
-        return built, None
-    return _lane_delivery_branch(spec, corridor, built), _composition_gap_m(spec, corridor, built, fresh)
+        return _BranchResult(branch=built, compose_m=None, waypoint_index=None)
+    target = _lane_group_target(spec, corridor, built)
+    return _BranchResult(
+        branch=_lane_delivery_branch(spec, corridor, built),
+        compose_m=_composition_gap_m(spec, corridor, built, fresh),
+        waypoint_index=None if target is None else target[0],
+    )
 
 
 def _lane_profile_for(
@@ -2154,6 +2186,56 @@ def _lane_profile_for(
         waypoints=[base_waypoints[i] for i in indices],
         indices=indices,
     )
+
+
+@dataclass(frozen=True)
+class _BranchResult:
+    """The branch verdict for one sign, with the readings taken alongside it."""
+
+    branch: LaneBranch
+    compose_m: float | None
+    waypoint_index: int | None
+    """Base-path index of the waypoint the verdict was reached on, so the
+    approach measurement can ask how far that sits from where the path actually
+    runs nearest the sign. ``None`` when no lane was built."""
+
+
+def _path_station_m(plan: list[Any], index: int) -> float:
+    """Arc length along ``plan`` from its start to vertex ``index``.
+
+    Open polyline, no closing segment, matching ``_closest_on_polyline`` so the
+    two stations are on one ruler. The lap seam is therefore not traversable
+    here, which is harmless for a sign mid-corridor and would only matter for
+    one sitting on the seam itself.
+    """
+    return sum(math.hypot(b.x - a.x, b.y - a.y) for a, b in pairwise(plan[: index + 1]))
+
+
+def _approach_offset(
+    plan: list[Any],
+    waypoint_index: int | None,
+    closest: tuple[float, float, float, int] | None,
+) -> tuple[float, bool] | None:
+    """How far along the path the closest approach sits from the laned waypoint.
+
+    The measurement the last three refuted hypotheses were missing. Branch,
+    composition and staleness all evaluate the lane AT A WAYPOINT and agree it
+    is at full plateau there; the delivered offset evaluates the POLYLINE and
+    reads zero. Both hold if the path runs nearest the sign somewhere other than
+    that waypoint, and this is the distance between the two.
+
+    Returns ``(along-path metres, closest point is in a corner)``. Near zero
+    means the two agree and the contradiction is elsewhere after all. A large
+    value in a corner means the lane is laid on the straight while the unlaned
+    turn is what grazes the sign.
+    """
+    if closest is None or waypoint_index is None or not plan or waypoint_index >= len(plan):
+        return None
+    _, hit_x, hit_y, segment = closest
+    if segment >= len(plan):
+        return None
+    station_hit = _path_station_m(plan, segment) + math.hypot(hit_x - plan[segment].x, hit_y - plan[segment].y)
+    return abs(station_hit - _path_station_m(plan, waypoint_index)), _in_corner_zone(hit_x, hit_y)
 
 
 def _lane_group_target(
@@ -2308,18 +2390,23 @@ def _sample_lane_delivery(
         # drove.
         branch: LaneBranch | None = None
         compose: float | None = None
+        approach: tuple[float, bool] | None = None
         if lane_base is not None and params is not None:
             # Built BEFORE the branch call, not after: the composition diff
             # inside it reads this exact rebuild, and the caching only exists to
             # keep a whole-path transform out of the per-sign loop.
             if not rebuilt:
                 fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
-            branch, compose = _lane_branch(index, lane_base, specs, params, fresh)
+            verdict = _lane_branch(index, lane_base, specs, params, fresh)
+            branch, compose = verdict.branch, verdict.compose_m
+            approach = _approach_offset(plan, verdict.waypoint_index, closest)
         per_sign[index] = _LaneSample(
             gap_m=gap,
             delivered_frac=outward / plateau,
             branch=branch,
             compose_m=compose,
+            approach_m=None if approach is None else approach[0],
+            approach_in_corner=None if approach is None else approach[1],
             stale_m=_lane_staleness_m(spec, plan, fresh),
             fingerprint_stale=router.lane_fingerprint != navigator._lane_fingerprint,  # noqa: SLF001
         )
@@ -2458,6 +2545,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     struck_branch: LaneBranch | None = None
     struck_delivered: float | None = None
     struck_compose: float | None = None
+    struck_approach: tuple[float, bool] | None = None
     struck_stale: float | None = None
     struck_fp_stale: bool | None = None
     if struck_sign and result.collision_xy is not None:
@@ -2493,6 +2581,8 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
                     struck_branch = sample.branch
                     struck_delivered = sample.delivered_frac
                     struck_compose = sample.compose_m
+                    if sample.approach_m is not None and sample.approach_in_corner is not None:
+                        struck_approach = (sample.approach_m, sample.approach_in_corner)
                     struck_stale = sample.stale_m
                     struck_fp_stale = sample.fingerprint_stale
 
@@ -2509,6 +2599,12 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             (s.branch, s.compose_m) for s in per_sign.values() if s.branch is not None and s.compose_m is not None
         ],
         struck_compose=struck_compose,
+        pass_approach=[
+            (s.approach_m, s.approach_in_corner)
+            for s in per_sign.values()
+            if s.approach_m is not None and s.approach_in_corner is not None
+        ],
+        struck_approach=struck_approach,
         pass_stale=[s.stale_m for s in per_sign.values() if s.stale_m is not None],
         pass_fp_stale=[s.fingerprint_stale for s in per_sign.values() if s.branch is not None],
         struck_branch=struck_branch,
@@ -2561,7 +2657,50 @@ def _report_lane_branches(samples: list[_SignPassSample]) -> None:
     )
     _report_delivery_by_branch(samples)
     _report_composition(samples)
+    _report_approach(samples)
     _report_lane_staleness(samples)
+
+
+def _report_approach(samples: list[_SignPassSample]) -> None:
+    """Print how far the closest approach sits from the waypoint the lane was laid on.
+
+    Tests the one reading that reconciles the contradiction. Branch, composition
+    and staleness all evaluate the lane at a WAYPOINT and agree it is at full
+    plateau; the delivered offset evaluates the POLYLINE and reads zero. If the
+    path runs nearest the sign well away from that waypoint, both are true and
+    the lane is simply being laid in the wrong place.
+
+    ``in corner`` is the mechanism test on top of that: the lane spans only
+    ``SIGN_LANE_CORNER_ENTRY_M`` into a turn, so if closest approach happens in
+    the corner the offset was never applied where it was needed. Paired columns,
+    since a large gap at passes too would make it normal geometry rather than a
+    fault.
+    """
+    pass_gaps = [g for s in samples for g, _ in s.pass_approach]
+    struck_gaps = [s.struck_approach[0] for s in samples if s.struck_approach is not None]
+    if not pass_gaps and not struck_gaps:
+        return
+    for label, gaps in (("passes", pass_gaps), ("collisions", struck_gaps)):
+        if not gaps:
+            continue
+        print(
+            f"LANE-APPROACH {label:<11} n={len(gaps):>5}  "
+            f"median {percentile(gaps, 0.5) * 100:6.2f}cm  "
+            f"p90 {percentile(gaps, 0.9) * 100:6.2f}cm  "
+            f"max {max(gaps) * 100:6.2f}cm",
+            flush=True,
+        )
+    pass_corner = [c for s in samples for _, c in s.pass_approach]
+    struck_corner = [s.struck_approach[1] for s in samples if s.struck_approach is not None]
+    for label, flags in (("passes", pass_corner), ("collisions", struck_corner)):
+        if not flags:
+            continue
+        n_corner = sum(1 for f in flags if f)
+        print(
+            f"LANE-APPROACH {label:<11} closest point in CORNER {n_corner:>5}/{len(flags)} "
+            f"({n_corner / len(flags) * 100:5.1f}%)",
+            flush=True,
+        )
 
 
 def _report_composition(samples: list[_SignPassSample]) -> None:
