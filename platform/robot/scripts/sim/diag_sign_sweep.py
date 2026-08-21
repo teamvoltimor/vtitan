@@ -929,6 +929,15 @@ def _into_believed_frame(
     return (believed.x + dx * cos_d - dy * sin_d, believed.y + dx * sin_d + dy * cos_d)
 
 
+_LANE_DELIVERED_FRAC = 0.9
+"""Fraction of its plateau a lane must reach to count as fully delivered.
+
+Not 1.0: the plan is a polyline sampled at coarse waypoint spacing, and the
+closest point to a sign can sit slightly off the plateau's flat top even for a
+lane that ramped correctly. Loose enough not to punish that, tight enough that
+the "half-delivered" reading under investigation falls well outside it.
+"""
+
 _SIGN_MATCH_DIST_M = 0.30
 """How close a routed position must land to the struck sign's true position
 to count as the same sign. Matches ``SignDiscoveryParams.DETECTION_MATCH_DIST_M``
@@ -1053,18 +1062,37 @@ def _lane_is_clamped(spec: Any) -> bool | None:
     collision at one cannot be explained by plan geometry.
     """
     corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+    plateau = _lane_plateau_m(spec, corridor)
+    if plateau is None:
+        return None
+    return abs(plateau - _unclamped_lane_offset_m()) > _CLAMP_BIND_EPS_M
+
+
+def _unclamped_lane_offset_m() -> float:
+    """The outward offset ``sign_lane`` asks for, before ``clamp_lateral``."""
+    return (
+        chassis_half_diagonal_m()
+        + TrafficSignSpecs.WIDTH / 2
+        + NavigationTuning.load_default().sign_router.SIGN_CLEARANCE_MARGIN_M
+    )
+
+
+def _lane_plateau_m(spec: Any, corridor: Section) -> float | None:
+    """The outward sign-to-lane offset this sign's lane should deliver.
+
+    The yardstick the measured offsets are read against, computed per sign
+    rather than quoted as the 18.14 / 27.86 cm pair: which of the two applies
+    depends on whether ``clamp_lateral`` binds, and that in turn depends on the
+    sign's own lateral, so a single literal would be wrong for half the corpus
+    and would restate config besides.
+    """
     rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
     if rule is None:
         return None
     axis, mult = rule
     sign_lateral = spec.y if axis is sign_router_module.Axis.Y else spec.x
-    offset = (
-        chassis_half_diagonal_m()
-        + TrafficSignSpecs.WIDTH / 2
-        + NavigationTuning.load_default().sign_router.SIGN_CLEARANCE_MARGIN_M
-    )
-    want = sign_lateral + mult * offset
-    return abs(sign_router_module.clamp_lateral(want, corridor) - want) > _CLAMP_BIND_EPS_M
+    want = sign_lateral + mult * _unclamped_lane_offset_m()
+    return mult * (sign_router_module.clamp_lateral(want, corridor) - sign_lateral)
 
 
 def _planned_lane_attribution(
@@ -1095,24 +1123,23 @@ def _planned_lane_attribution(
     # materialised correctly inside the robot's own self-consistent frame.
     hit_bx, hit_by = _into_believed_frame(sim, (hit.x, hit.y), final_pose)
     router = sim.navigator.sign_router
-    corridors = (
-        None
+    matches = (
+        []
         if router is None
-        else len(
-            {
-                corridor
-                for spec, corridor in router.lane_specs
-                if math.hypot(spec.x - hit_bx, spec.y - hit_by) < _SIGN_MATCH_DIST_M
-            }
-        )
+        else [
+            (spec, corridor)
+            for spec, corridor in router.lane_specs
+            if math.hypot(spec.x - hit_bx, spec.y - hit_by) < _SIGN_MATCH_DIST_M
+        ]
     )
+    corridors = None if router is None else len({corridor for _, corridor in matches})
     closest = _closest_on_polyline(hit_bx, hit_by, planned_path)
     return (
         _lane_is_clamped(hit),
         not _is_middle_sign(hit.x, hit.y),
         None if closest is None else closest[0],
         corridors,
-        _outward_pass_offset(hit, (hit_bx, hit_by), closest),
+        _outward_pass_offset(hit, (hit_bx, hit_by), closest, matches[0] if matches else None),
     )
 
 
@@ -1120,6 +1147,7 @@ def _outward_pass_offset(
     spec: Any,
     believed_xy: tuple[float, float],
     closest: tuple[float, float, float] | None,
+    matched: tuple[Any, Section] | None,
 ) -> float | None:
     """Signed lateral offset of the plan from the sign, positive = OUTWARD.
 
@@ -1133,23 +1161,38 @@ def _outward_pass_offset(
 
     Measured along the corridor's lateral axis (``outward_lateral_axis``'s
     ``mult`` carries the outward direction), so it is directly comparable to
-    the 18.14 / 27.86 cm plateaux ``_lane_is_clamped`` splits on. The corridor
-    and its outward rule come from the TRUE position (planner geometry), but
-    the difference itself is taken in the BELIEVED frame on both sides, since
-    that is the frame the path lives in.
+    the 18.14 / 27.86 cm plateaux ``_lane_is_clamped`` splits on.
+
+    The axis has to come from the ROUTER's own settled corridor for the matched
+    sign, not from the true position, and the two are not interchangeable here.
+    Both the path and the sign estimate live in the believed frame, which under
+    the rotational lock is a 90 deg rotation of the true one -- so a true-frame
+    corridor names the axis that is LATERAL in truth but ALONG-track in the
+    frame the difference is taken in. Since ``closest`` is by construction
+    perpendicular to the path, reading its along-track component returns
+    approximately zero for any lane whatsoever, well-formed or not. That is a
+    measurement that cannot fail, which makes it useless. Falls back to the
+    true-derived corridor only when the sign has no lane spec to match, where
+    there is no plan to describe anyway.
     """
     if closest is None:
         return None
-    corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
-    rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    if matched is not None:
+        matched_spec, corridor = matched
+        color = matched_spec.color
+        origin_x, origin_y = matched_spec.x, matched_spec.y
+    else:
+        corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+        color = spec.color
+        origin_x, origin_y = believed_xy
+    rule = sign_router_module.outward_lateral_axis(corridor, color)
     if rule is None:
         return None
     axis, mult = rule
     _, path_x, path_y = closest
-    believed_x, believed_y = believed_xy
     if axis is sign_router_module.Axis.Y:
-        return mult * (path_y - believed_y)
-    return mult * (path_x - believed_x)
+        return mult * (path_y - origin_y)
+    return mult * (path_x - origin_x)
 
 
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
@@ -1506,12 +1549,20 @@ class SweepResult:
                 if gaps
                 else "planned-gap n/a"
             )
+            # As a FRACTION of the same plateau the pass control reports, so
+            # the two populations can be read against each other directly --
+            # which is the only way either number means anything, since a
+            # collision-only reading is circular (the chassis hit the sign, so
+            # its plan was necessarily near it). See `_SignPassSample.
+            # pass_outward` and the `lane delivered at PASSES` row.
+            outs = sorted(o.planned_outward_m for o in group if o.planned_outward_m is not None)
+            out_txt = f"lane-delivered median={percentile(outs, 0.5) / expected:+5.2f}x" if outs else "lane-delivered n/a"
             dual = sum(1 for o in group if (o.struck_corridor_count or 0) > 1)
             lines.append(
                 f"  {label:<22} n={len(group):>3}  dual-corridor={dual:>3}  "
                 f"crosstrack median={percentile(xt, 0.5) * 100:5.2f}cm p90={percentile(xt, 0.9) * 100:5.2f}cm "
                 f"max={xt[-1] * 100:5.2f}cm  escape-linked={escape_linked:>3}\n"
-                f"  {'':<22} {gap_txt}  phases: {top}"
+                f"  {'':<22} {gap_txt}  {out_txt}  phases: {top}"
             )
         return "\n".join(lines)
 
@@ -1763,6 +1814,35 @@ class _SignPassSample:
     only within +/-28.2 deg.
     """
 
+    pass_outward: list[float]
+    """Fraction of its own lane plateau the plan delivered at each PASSED sign.
+
+    A ratio rather than a raw offset because the plateau is per-sign: 18.14 cm
+    where ``clamp_lateral`` binds and 27.86 cm where it does not, so pooling
+    raw centimetres across the corpus would mix two different targets. 1.0 is
+    the lane fully delivered; 0.0 is the plan running straight through the
+    sign's own lateral; negative is the plan on the side the pass is forbidden
+    to use. An untouched centreline is NOT 0 but roughly -0.4 to -0.6, since
+    WRO signs sit 10 cm off-centre toward that forbidden side -- so the
+    interesting threshold for "the lane did nothing" is negative, and any
+    positive reading is some amount of lane actually delivered.
+
+    The control for the collision-side reading of the same quantity, and the
+    thing that decides whether that reading means anything. Measuring only at
+    collisions is circular: the chassis hit the sign, so of course its plan
+    ran close to it. The non-circular claim is a CONTRAST -- the plan is short
+    of its 18.14 / 27.86 cm plateau specifically where it fails. If passes read
+    at the plateau and collisions read near zero, the lane under-delivers and
+    that is the bug; if passes read near zero too, then near zero is simply
+    what this planner produces everywhere, the collisions are not distinguished
+    by it, and the cause is elsewhere.
+
+    Sampled once per sign at CLOSEST APPROACH rather than per tick, so a sign
+    the chassis crawled past cannot outvote one it drove by, and taken from
+    ``lane_specs`` (which retains passed signs) rather than
+    ``routed_sign_positions`` (which drops them at the moment of interest).
+    """
+
     collided_with_sign: bool
 
     at_collision: float | None
@@ -1788,6 +1868,32 @@ class _SignPassSample:
     a real difference at the moment of contact averages away. This is the
     single tick that actually went wrong.
     """
+
+
+def _sample_lane_delivery(
+    router: Any,
+    pose_xy: tuple[float, float],
+    plan: list[Any],
+    per_sign: dict[int, tuple[float, float]],
+) -> None:
+    """Record each sign's lane-delivery fraction at its CLOSEST APPROACH.
+
+    Keeps a running best per sign rather than appending every tick: a sign the
+    chassis crawled past would otherwise contribute far more samples than one
+    it drove by, weighting the corpus figure by speed instead of by sign. The
+    closest approach is also where the plateau is supposed to be flat, so it is
+    the one tick where "did the lane deliver" has a clean answer, away from the
+    ramps on either side.
+    """
+    for index, (spec, corridor) in enumerate(router.lane_specs):
+        gap = math.hypot(spec.x - pose_xy[0], spec.y - pose_xy[1])
+        if gap > _SIGN_PASS_WINDOW_M or gap >= per_sign.get(index, (math.inf, 0.0))[0]:
+            continue
+        closest = _closest_on_polyline(spec.x, spec.y, plan)
+        outward = _outward_pass_offset(spec, (spec.x, spec.y), closest, (spec, corridor))
+        plateau = _lane_plateau_m(spec, corridor)
+        if outward is not None and plateau:
+            per_sign[index] = (gap, outward / plateau)
 
 
 def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
@@ -1817,6 +1923,10 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     all_abs: list[float] = []
     last: list[float | None] = [None]
     last_yaw: list[float | None] = [None]
+    # Keyed by the sign's index in `lane_specs`, which is append-only and
+    # survives `reset_for_new_lap`, so it identifies the same physical sign for
+    # the whole run. Value is (distance at closest approach, offset there).
+    per_sign: dict[int, tuple[float, float]] = {}
 
     try:
         sim = ScenarioSimulator(
@@ -1847,6 +1957,15 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             pose = sim.gateway.get_current_pose()
             if router is None or pose is None:
                 return
+
+            # Ahead of the `routed` guard below on purpose. `routed` drops a
+            # sign the moment it is marked passed, which is at or just after
+            # the closest approach this wants to sample -- gating on it would
+            # systematically lose the pass samples nearest the sign, which are
+            # the only ones the comparison is about.
+            plan = sim.navigator._waypoints  # noqa: SLF001
+            _sample_lane_delivery(router, (pose.x, pose.y), plan, per_sign)
+
             routed = router.routed_sign_positions
             if not routed:
                 return
@@ -1861,14 +1980,14 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # whole callback works in -- and at 0.5 cm of estimate error the
             # depth it lands on is the true one anyway.
             (yaw_middle if _is_middle_sign(*nearest) else yaw_boundary).append(yaw_deg)
-            # Reaching past the public snapshot for the path: it carries the
-            # magnitude but not the projection, and both remaining questions
-            # need the projection -- which side of the path the chassis sits
-            # on, and whether its heading agrees with the path's own.
-            path = sim.navigator._waypoints  # noqa: SLF001
-            if len(path) < 2:
+            # Reaching past the public snapshot for the path (see `plan`
+            # above): it carries the magnitude but not the projection, and both
+            # remaining questions need the projection -- which side of the path
+            # the chassis sits on, and whether its heading agrees with the
+            # path's own.
+            if len(plan) < 2:
                 return
-            proj = project_onto_path(path, pose.x, pose.y)
+            proj = project_onto_path(plan, pose.x, pose.y)
             outward = _radial_offset(proj, pose.x, pose.y)
             if outward is not None:
                 near_outward.append(outward)
@@ -1895,20 +2014,33 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         signs = sign_router_module.signs_from_metadata(scenario.metadata)
         router = sim.navigator.sign_router
         routed = router.routed_sign_positions if router is not None else []
-        if signs and routed:
+        if signs and router is not None:
             cx, cy = result.collision_xy
             struck = min(signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
             # TRUE position here: the struck sign's own depth is a fact about
             # the layout, so take it from metadata rather than an estimate.
             struck_middle = _is_middle_sign(struck.x, struck.y)
             bx, by = _into_believed_frame(sim, (struck.x, struck.y), result.final_pose)
-            estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
+            if routed:
+                estimate_err = min(math.hypot(rx - bx, ry - by) for rx, ry in routed)
+            # The sign that ended the run is not a pass, and it is the one the
+            # control exists to be compared AGAINST -- leaving it in would
+            # contaminate the control with the very population it contrasts.
+            # Its own reading is reported separately, by the sweep's
+            # `planned_outward_m`.
+            specs = router.lane_specs
+            hits = [
+                i for i, (s, _) in enumerate(specs) if math.hypot(s.x - bx, s.y - by) < _SIGN_MATCH_DIST_M
+            ]
+            for i in hits:
+                per_sign.pop(i, None)
 
     return _SignPassSample(
         near_abs=near_abs,
         near_outward=near_outward,
         all_abs=all_abs,
         near_yaw_deg=near_yaw,
+        pass_outward=[outward for _, outward in per_sign.values()],
         yaw_boundary=yaw_boundary,
         yaw_middle=yaw_middle,
         head_boundary=head_boundary,
@@ -1980,6 +2112,24 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
         f"outward {outward_share * 100:5.1f}%  (+ = outside its own path)",
         flush=True,
     )
+
+    # The control for the sweep's `planned_outward_m`. Read the two together or
+    # neither means anything: a collision-only reading is circular, because a
+    # chassis that hit a sign necessarily planned a path near it. What is not
+    # circular is the contrast against the plateau the lane is supposed to
+    # deliver -- 18.14 cm where `clamp_lateral` binds, 27.86 cm where it does
+    # not, against -10 cm for an untouched centreline, since WRO signs sit
+    # 10 cm off-centre and always on the forbidden side.
+    passes = [e for s in samples for e in s.pass_outward]
+    if passes:
+        full = sum(1 for e in passes if e >= _LANE_DELIVERED_FRAC) / len(passes)
+        print(
+            f"SIGN-CROSSTRACK {'lane delivered at PASSES':<26} n {len(passes):>7}  "
+            f"median {percentile(passes, 0.5):+6.2f}x  "
+            f"p10 {percentile(passes, 0.1):+6.2f}x  "
+            f"at-plateau {full * 100:5.1f}%  (1.0 = full lane, <0 = wrong side)",
+            flush=True,
+        )
 
     struck = [e for s in samples if s.collided_with_sign for e in s.near_abs]
     clean = [e for s in samples if not s.collided_with_sign for e in s.near_abs]
