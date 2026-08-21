@@ -63,6 +63,7 @@ from src.navigation.planning.sign_lane import (
     _control_points,
     _in_lane_span,
     _interpolate,
+    apply_sign_lanes,
 )
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error, project_onto_path
@@ -1820,6 +1821,32 @@ class _SignPassSample:
     struck_branch: LaneBranch | None
     """The same, for the sign that ended the run. ``None`` if no sign was hit."""
 
+    pass_stale: list[float]
+    """Per PASSED sign, how far the held plan sits from a fresh rebuild there.
+
+    The control for ``struck_stale``, and needed for the same reason the branch
+    columns are paired: some baseline disagreement is expected everywhere,
+    because discovery refines estimates continuously and the gate only fires
+    when they cross a threshold. Staleness only explains the collisions if it is
+    LARGER at them.
+    """
+
+    pass_fp_stale: list[bool]
+    """Per PASSED sign, whether the fingerprint gate was un-fired at that tick."""
+
+    struck_stale: float | None
+    """The same as ``pass_stale``, for the sign that ended the run."""
+
+    struck_fp_stale: bool | None
+    """Whether the fingerprint gate was un-fired when the struck sign was passed.
+
+    The discriminator. Read beside ``struck_stale``: a large stale distance with
+    the gate un-fired is an ordinary rebuild that had not happened yet, while a
+    large one with the gate FIRED means the navigator believes its plan is
+    current and it is not -- which at shipped config can only be the
+    ``lane_fingerprint`` rounding, since nothing else rewrites ``_waypoints``.
+    """
+
     struck_middle: bool | None
     """Whether the sign that ended the run was mid-section. ``None`` if no sign
     collision. Read against the 1211/71 boundary/middle exposure, not raw."""
@@ -1918,6 +1945,51 @@ _LANE_BRANCH_EPS_M = 0.01
 """Slack allowed before a lane counts as short of its plateau, or a clamp as
 having bound. Centimetre scale because the plateaux it separates are 18.14 and
 27.86 cm and the shortfall being diagnosed is the whole offset, not a trim."""
+
+
+@dataclass(frozen=True)
+class _LaneSample:
+    """Everything one sign's closest approach has to say about its lane."""
+
+    gap_m: float
+    """Distance from the chassis to the sign at this sample, the record being
+    kept: a later tick only replaces this one if it is nearer."""
+
+    delivered_frac: float
+    """Fraction of the sign's own plateau the plan delivered here."""
+
+    branch: LaneBranch | None
+    """Which ``apply_sign_lanes`` decision settled the rebuilt lane."""
+
+    stale_m: float | None
+    """How far the plan the tracker holds sits from the one the planner would
+    build RIGHT NOW from the same base path and the same sign estimates,
+    measured at the waypoint nearest this sign.
+
+    The quantity that separates the two remaining explanations for a collision
+    that classifies ``DELIVERED``. Near zero means the tracker really is holding
+    the lane the branch classification describes, and the shortfall is geometry
+    the branch already names. Plateau-sized means it is not -- the planner lays
+    a correct lane and the tracker drives a different polyline -- and no amount
+    of tuning the lane geometry can reach that.
+
+    ``None`` when the plan and the base path differ in length, which happens
+    only across a ``replace_path`` and makes an elementwise diff meaningless.
+    """
+
+    fingerprint_stale: bool
+    """Whether ``lane_fingerprint`` disagrees with the one the navigator last
+    rebuilt on.
+
+    Reads the gate directly, and it is what makes ``stale_m`` diagnostic rather
+    than merely descriptive. Both post-lane transforms are inert at shipped
+    config -- ``SIGN_LANE_COMMIT_AHEAD_M`` is 0.0 so ``_hold_committed_path``
+    returns immediately, and ``_apply_path_wall_budget`` sets a controller
+    budget without touching ``_waypoints`` -- so a stale plan has nowhere else
+    to come from. TRUE says the gate simply has not fired yet on this tick's
+    estimates; FALSE beside a large ``stale_m`` says the gate fired, believes
+    itself current, and is wrong, which is the cm-rounding signature.
+    """
 
 
 @dataclass(frozen=True)
@@ -2063,11 +2135,31 @@ def _lane_delivery_branch(
     return LaneBranch.SHORT_PROFILE
 
 
+def _lane_staleness_m(
+    spec: Any,
+    plan: list[Any],
+    fresh: list[Waypoint] | None,
+) -> float | None:
+    """Distance between the held plan and a fresh rebuild, at this sign's waypoint.
+
+    Local rather than a whole-path maximum on purpose. A rebuild that moved some
+    far corner has nothing to do with why this sign was hit; the only waypoint
+    that can put the chassis into it is the one the pass happens at. Taken as a
+    plane distance rather than along the lane axis so it stays frame-free -- any
+    disagreement at all shows up, including one on an axis the lane never
+    intended to move.
+    """
+    if fresh is None or len(fresh) != len(plan):
+        return None
+    index = min(range(len(plan)), key=lambda i: math.hypot(plan[i].x - spec.x, plan[i].y - spec.y))
+    return math.hypot(plan[index].x - fresh[index].x, plan[index].y - fresh[index].y)
+
+
 def _sample_lane_delivery(
-    router: Any,
+    navigator: Any,
     pose_xy: tuple[float, float],
     plan: list[Any],
-    per_sign: dict[int, tuple[float, float, LaneBranch | None]],
+    per_sign: dict[int, _LaneSample],
     lane_base: list[Waypoint] | None = None,
     params: SignLaneParams | None = None,
 ) -> None:
@@ -2080,22 +2172,39 @@ def _sample_lane_delivery(
     the one tick where "did the lane deliver" has a clean answer, away from the
     ramps on either side.
     """
+    router = navigator.sign_router
     specs = router.lane_specs
+    # Built at most once per tick and only if some sign actually samples, since
+    # it is a whole-path transform and this runs inside the sweep's hot loop.
+    fresh: list[Waypoint] | None = None
+    rebuilt = False
     for index, (spec, corridor) in enumerate(specs):
         gap = math.hypot(spec.x - pose_xy[0], spec.y - pose_xy[1])
-        if gap > _SIGN_PASS_WINDOW_M or gap >= per_sign.get(index, (math.inf, 0.0, None))[0]:
+        previous = per_sign.get(index)
+        if gap > _SIGN_PASS_WINDOW_M or (previous is not None and gap >= previous.gap_m):
             continue
         closest = _closest_on_polyline(spec.x, spec.y, plan)
         outward = _outward_pass_offset(spec, (spec.x, spec.y), closest, (spec, corridor))
         plateau = _lane_plateau_m(spec, corridor)
-        if outward is not None and plateau:
-            # Sampled at the same tick as the offset, not once at the end: the
-            # branch is a function of the sign estimates and the base path as
-            # they stood when this pass happened, and blind discovery moves
-            # both. Reading it later would diagnose a lane the chassis never
-            # drove.
-            branch = None if lane_base is None or params is None else _lane_branch(index, lane_base, specs, params)
-            per_sign[index] = (gap, outward / plateau, branch)
+        if outward is None or not plateau:
+            continue
+        # Sampled at the same tick as the offset, not once at the end: the
+        # branch is a function of the sign estimates and the base path as
+        # they stood when this pass happened, and blind discovery moves
+        # both. Reading it later would diagnose a lane the chassis never
+        # drove.
+        branch = None
+        if lane_base is not None and params is not None:
+            branch = _lane_branch(index, lane_base, specs, params)
+            if not rebuilt:
+                fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
+        per_sign[index] = _LaneSample(
+            gap_m=gap,
+            delivered_frac=outward / plateau,
+            branch=branch,
+            stale_m=_lane_staleness_m(spec, plan, fresh),
+            fingerprint_stale=router.lane_fingerprint != navigator._lane_fingerprint,  # noqa: SLF001
+        )
 
 
 def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
@@ -2129,7 +2238,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     # survives `reset_for_new_lap`, so it identifies the same physical sign for
     # the whole run. Value is (distance at closest approach, offset there,
     # which branch of `apply_sign_lanes` produced that offset).
-    per_sign: dict[int, tuple[float, float, LaneBranch | None]] = {}
+    per_sign: dict[int, _LaneSample] = {}
 
     try:
         sim = ScenarioSimulator(
@@ -2176,7 +2285,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # a public seam, and re-deriving the base path here would diagnose a
             # different path from the one the transform actually ran on.
             _sample_lane_delivery(
-                router,
+                sim.navigator,
                 (pose.x, pose.y),
                 plan,
                 per_sign,
@@ -2229,6 +2338,8 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     estimate_err: float | None = None
     struck_middle: bool | None = None
     struck_branch: LaneBranch | None = None
+    struck_stale: float | None = None
+    struck_fp_stale: bool | None = None
     if struck_sign and result.collision_xy is not None:
         signs = sign_router_module.signs_from_metadata(scenario.metadata)
         router = sim.navigator.sign_router
@@ -2256,17 +2367,25 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # the pass population is the control it is read against.
             for i in hits:
                 sample = per_sign.pop(i, None)
-                if sample is not None and sample[2] is not None and struck_branch is None:
-                    struck_branch = sample[2]
+                if sample is None or struck_branch is not None:
+                    continue
+                if sample.branch is not None:
+                    struck_branch = sample.branch
+                    struck_stale = sample.stale_m
+                    struck_fp_stale = sample.fingerprint_stale
 
     return _SignPassSample(
         near_abs=near_abs,
         near_outward=near_outward,
         all_abs=all_abs,
         near_yaw_deg=near_yaw,
-        pass_outward=[outward for _, outward, _ in per_sign.values()],
-        pass_branches=[branch for _, _, branch in per_sign.values() if branch is not None],
+        pass_outward=[s.delivered_frac for s in per_sign.values()],
+        pass_branches=[s.branch for s in per_sign.values() if s.branch is not None],
+        pass_stale=[s.stale_m for s in per_sign.values() if s.stale_m is not None],
+        pass_fp_stale=[s.fingerprint_stale for s in per_sign.values() if s.branch is not None],
         struck_branch=struck_branch,
+        struck_stale=struck_stale,
+        struck_fp_stale=struck_fp_stale,
         yaw_boundary=yaw_boundary,
         yaw_middle=yaw_middle,
         head_boundary=head_boundary,
@@ -2312,6 +2431,51 @@ def _report_lane_branches(samples: list[_SignPassSample]) -> None:
         f"collisions {len(struck_branches):>4}",
         flush=True,
     )
+    _report_lane_staleness(samples)
+
+
+def _report_lane_staleness(samples: list[_SignPassSample]) -> None:
+    """Print how far the held plan sits from a fresh rebuild, passes vs collisions.
+
+    Settles what the branch tally cannot. A collision classifying ``DELIVERED``
+    says the planner WOULD lay a full lane from the inputs it has, while the
+    measured offset says the plan running through that sign has none -- and only
+    one of those can describe the polyline the tracker actually drove. This
+    measures the two against each other directly, elementwise, at the waypoint
+    the pass happens on.
+
+    Paired columns for the same anti-circularity reason as the branch report: a
+    continuously-refining estimate makes some disagreement normal everywhere, so
+    the claim is a contrast, not a level.
+    """
+    pass_stale = [d for s in samples for d in s.pass_stale]
+    struck_stale = [s.struck_stale for s in samples if s.struck_stale is not None]
+    if not pass_stale and not struck_stale:
+        return
+    for label, values in (("passes", pass_stale), ("collisions", struck_stale)):
+        if not values:
+            continue
+        # Centimetres, against the 18.14 / 27.86 cm plateaux: the question is
+        # whether the disagreement is the whole lane or a rounding crumb.
+        print(
+            f"LANE-STALE {label:<11} n={len(values):>5}  "
+            f"median {percentile(values, 0.5) * 100:6.2f}cm  "
+            f"p90 {percentile(values, 0.9) * 100:6.2f}cm  "
+            f"max {max(values) * 100:6.2f}cm",
+            flush=True,
+        )
+    # The gate's own state, which decides WHICH staleness bug this is.
+    pass_fp = [f for s in samples for f in s.pass_fp_stale]
+    struck_fp = [s.struck_fp_stale for s in samples if s.struck_fp_stale is not None]
+    for label, flags in (("passes", pass_fp), ("collisions", struck_fp)):
+        if not flags:
+            continue
+        un_fired = sum(1 for f in flags if f)
+        print(
+            f"LANE-STALE {label:<11} fingerprint un-fired {un_fired:>5}/{len(flags)} "
+            f"({un_fired / len(flags) * 100:5.1f}%)",
+            flush=True,
+        )
 
 
 def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> None:
