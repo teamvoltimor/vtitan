@@ -41,12 +41,13 @@ from collections import deque
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions
+from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import NavigatorPhase, Section
 from shared.domain.models import Waypoint
@@ -650,6 +651,70 @@ class ScenarioOutcome:
     the same way as ``_sign_evade_steer``'s ``lateral``. ``None`` for a
     non-sign collision."""
 
+    sign_lane_clamped: bool | None = None
+    """For a SIGN collision, whether ``clamp_lateral`` bound on the STRUCK
+    sign's lane plateau -- see ``_lane_is_clamped``.
+
+    Decides whether the geometry thread has anything left in it. A clamped
+    plateau sits at an 18.14 cm gap and is already saturated, so it can only
+    be improved by relaxing the clamp bound itself; a free one sits at
+    27.86 cm with ~8 cm of margin, where plan geometry cannot be the cause and
+    the collision must be tracking error. ``None`` for a non-sign collision.
+    """
+
+    sign_lane_boundary: bool | None = None
+    """For a SIGN collision, whether the struck sign is at a section BOUNDARY.
+
+    Cross-tabulated with ``sign_lane_clamped`` because the two are NOT the
+    same split: boundary signs run roughly half clamped, half free, so
+    "198/199 collisions are at boundaries" does not by itself establish that
+    the collisions are at squeezed plateaux."""
+
+    collision_crosstrack_m: float | None = None
+    """|crosstrack| against the navigator's own planned path on the last tick
+    before a collision.
+
+    The test that separates the two collision populations. A FREE sign carries
+    ~10.6 cm of margin at the median collision yaw, so a collision there
+    requires an excursion far past the 6.55 cm p90 -- if these really are
+    gross excursions this reads large, and the sub-centimetre clearance-budget
+    model simply does not apply to them."""
+
+    planned_gap_m: float | None = None
+    """Distance from the struck sign to the navigator's ACTUAL planned path at
+    the collision tick.
+
+    The check on ``sign_lane_clamped``, which reports what the plateau WOULD
+    be from geometry alone. ``apply_sign_lanes`` only rewrites waypoints that
+    pass ``_in_lane_span``, so a plateau whose depth falls outside that window
+    is never applied at all and the path stays on the centreline -- roughly
+    0.10 m from a sign. Where this reads far below the theoretical 18.14 /
+    27.86 cm, the lane did not materialise, and the collision is a planner
+    coverage failure rather than a clearance-budget or tracking one."""
+
+    struck_corridor_count: int | None = None
+    """How many DISTINCT corridors the struck sign was routed into at the
+    collision tick.
+
+    Normally 1. A discovery landing near the corner diagonal gets an ambiguous
+    ``corridor_for_position``, and the same physical sign can end up as two
+    routed entries under two corridors. ``apply_sign_lanes`` groups by
+    corridor and applies each group in turn to a progressively-mutated path,
+    and the two groups shift DIFFERENT axes (a NORTH corridor's lateral is y,
+    an EAST corridor's is x), so they compose into a diagonal displacement
+    neither intended -- traced on go_obstacles_0255 as moving the planned gap
+    from 4.62 cm (centreline, untouched) to 0.75 cm, i.e. the lane steering
+    INTO the sign it was meant to avoid."""
+
+    collision_phase: Any = None
+    """Navigator phase on the last tick before a collision.
+
+    Names the excursion rather than merely sizing it: an escape or u-turn
+    driving into a sign is a controller-arbitration failure, while a plain
+    pursuit phase at 10+ cm of crosstrack is a tracking failure. Those need
+    opposite fixes, and ``collision_crosstrack_m`` alone cannot tell them
+    apart."""
+
     sign_color_match: bool | None = None
     """When ``sign_masked``, whether the discovered track's voted colour
     agrees with the struck sign's true colour. ``False`` means the pass-side
@@ -920,6 +985,113 @@ def _sign_mask_attribution(
     return masked, ahead, lateral, color_match
 
 
+_MIN_POLYLINE_VERTICES = 2
+"""A polyline needs two vertices before it has a segment to measure against."""
+
+_CLAMP_BIND_EPS_M = 1e-9
+"""Tolerance for "``clamp_lateral`` moved the requested lane at all"."""
+
+
+def _point_to_polyline_m(px: float, py: float, path: list[Any] | None) -> float | None:
+    """Shortest distance from ``(px, py)`` to the polyline ``path``.
+
+    Measured against SEGMENTS rather than vertices: waypoint spacing is coarse
+    relative to the clearances in play here, so a nearest-vertex distance would
+    overstate the gap by most of a segment length and manufacture margin that
+    the chassis never actually has.
+    """
+    if not path or len(path) < _MIN_POLYLINE_VERTICES:
+        return None
+    best = float("inf")
+    for a, b in pairwise(path):
+        vx, vy = b.x - a.x, b.y - a.y
+        wx, wy = px - a.x, py - a.y
+        seg_sq = vx * vx + vy * vy
+        t = 0.0 if seg_sq == 0.0 else max(0.0, min(1.0, (wx * vx + wy * vy) / seg_sq))
+        best = min(best, math.hypot(wx - t * vx, wy - t * vy))
+    return best
+
+
+def _lane_is_clamped(spec: Any) -> bool | None:
+    """True if ``clamp_lateral`` binds on this sign's lane plateau.
+
+    The split that decides whether any LATERAL widening is reachable at all.
+    ``sign_lane`` asks for ``sign_lateral + mult * lateral_offset`` and hands
+    the result to ``clamp_lateral``; because the clamp bound is fixed
+    (``CORNER_MIN - (half_diagonal + wall_margin)``) and WRO signs sit at
+    fixed laterals, the resulting lane-to-sign gap is binary rather than a
+    distribution -- 18.14 cm where the clamp binds, 27.86 cm where it does
+    not, with nothing in between.
+
+    That makes this the decisive attribute for a struck sign. A CLAMPED sign's
+    plateau is already saturated, so raising ``lateral_offset`` (yaw-aware or
+    otherwise) moves it by exactly zero; only the clamp bound itself is a
+    lever there. A FREE sign carries ~8 cm of margin against the ~19.96 cm
+    worst-case-yaw requirement, well beyond the 6.55 cm p90 crosstrack, so a
+    collision at one cannot be explained by plan geometry.
+    """
+    corridor = sign_router_module.corridor_for_position(spec.x, spec.y)
+    rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    if rule is None:
+        return None
+    axis, mult = rule
+    sign_lateral = spec.y if axis is sign_router_module.Axis.Y else spec.x
+    offset = (
+        chassis_half_diagonal_m()
+        + TrafficSignSpecs.WIDTH / 2
+        + NavigationTuning.load_default().sign_router.SIGN_CLEARANCE_MARGIN_M
+    )
+    want = sign_lateral + mult * offset
+    return abs(sign_router_module.clamp_lateral(want, corridor) - want) > _CLAMP_BIND_EPS_M
+
+
+def _planned_lane_attribution(
+    sim: ScenarioSimulator,
+    metadata: dict[str, Any],
+    collision_xy: tuple[float, float],
+    final_pose: Any,
+    planned_path: list[Any] | None,
+) -> tuple[bool | None, bool | None, float | None, int | None]:
+    """Describe the struck sign's lane: ``(clamped, boundary, gap, corridors)``.
+
+    The struck sign is identified from its TRUE position, deliberately: unlike
+    the mask attribution (a question about what the ROUTER believed, hence
+    believed-frame), clamped/boundary are questions about the PLANNED lane's
+    geometry, which the planner derives from the same true layout the corpus
+    defines.
+    """
+    true_signs = sign_router_module.signs_from_metadata(metadata)
+    if not true_signs:
+        return None, None, None, None
+    cx, cy = collision_xy
+    hit = min(true_signs, key=lambda s: math.hypot(s.x - cx, s.y - cy))
+    # BELIEVED frame on both sides of the gap measurement. `_waypoints` is the
+    # navigator's own plan, expressed in the pose estimate it is steering
+    # against; `hit` is ground truth. Comparing them directly is the exact
+    # frame-mixing error `_sign_mask_attribution` documents and was fixed for
+    # -- it would read "the lane never materialised" for a lane that
+    # materialised correctly inside the robot's own self-consistent frame.
+    hit_bx, hit_by = _into_believed_frame(sim, (hit.x, hit.y), final_pose)
+    router = sim.navigator.sign_router
+    corridors = (
+        None
+        if router is None
+        else len(
+            {
+                corridor
+                for spec, corridor in router.lane_specs
+                if math.hypot(spec.x - hit_bx, spec.y - hit_by) < _SIGN_MATCH_DIST_M
+            }
+        )
+    )
+    return (
+        _lane_is_clamped(hit),
+        not _is_middle_sign(hit.x, hit.y),
+        _point_to_polyline_m(hit_bx, hit_by, planned_path),
+        corridors,
+    )
+
+
 def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[Any, str, Any]]:
     """Monkeypatch the knobs with no public seam; return the restore list.
 
@@ -1034,10 +1206,25 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         )
         uturns = _UTurnDetector()
         escapes = _EscapeTracker(sim.navigator)
+        # Last tick's tracking state, kept so the COLLISION tick can be
+        # described. `sim.run` returns only the final pose, and by then the
+        # navigator has stopped, so anything about what the tracker was doing
+        # when it hit has to be latched on the way past.
+        last_crosstrack: list[float | None] = [None]
+        last_phase: list[Any] = [None]
+        # The path polyline itself, not a copy: `replace_path`/`apply_sign_lanes`
+        # both REBIND `_waypoints` to a fresh list rather than mutating in
+        # place, so holding the reference is safe and costs nothing per tick.
+        last_path: list[Any] = [None]
 
         def _on_step(state: AckermannState, _scan: LidarScan) -> None:
             uturns.update(state.x, state.y, state.yaw)
             escapes.update()
+            snapshot = sim.navigator.debug_snapshot
+            if snapshot.crosstrack_error_m is not None:
+                last_crosstrack[0] = snapshot.crosstrack_error_m
+            last_phase[0] = getattr(snapshot, "phase", None)
+            last_path[0] = sim.navigator._waypoints  # noqa: SLF001 - diagnostic needs the post-lane polyline
 
         result = sim.run(max_steps=OBSTACLES_MAX_STEPS, on_step=_on_step)
     finally:
@@ -1051,6 +1238,11 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
     collision_xy = None if result.collision_xy is None else Waypoint(*result.collision_xy)
     sign_masked, sign_ahead_m, sign_lateral_m, sign_color_match = (
         _sign_mask_attribution(sim, metadata, result.collision_xy, result.final_pose)
+        if kind == CollisionKind.SIGN and result.collision_xy is not None
+        else (None, None, None, None)
+    )
+    sign_lane_clamped, sign_lane_boundary, planned_gap_m, struck_corridor_count = (
+        _planned_lane_attribution(sim, metadata, result.collision_xy, result.final_pose, last_path[0])
         if kind == CollisionKind.SIGN and result.collision_xy is not None
         else (None, None, None, None)
     )
@@ -1071,6 +1263,12 @@ def _run_one(args: tuple[int, SweepConfig]) -> ScenarioOutcome:
         sign_ahead_m=sign_ahead_m,
         sign_lateral_m=sign_lateral_m,
         sign_color_match=sign_color_match,
+        sign_lane_clamped=sign_lane_clamped,
+        sign_lane_boundary=sign_lane_boundary,
+        collision_crosstrack_m=abs(last_crosstrack[0]) if result.collided and last_crosstrack[0] is not None else None,
+        collision_phase=last_phase[0] if result.collided else None,
+        planned_gap_m=planned_gap_m,
+        struck_corridor_count=struck_corridor_count,
         sim_time_s=result.sim_time_s,
     )
 
@@ -1185,6 +1383,72 @@ class SweepResult:
         return sum(1 for o in self.outcomes if o.sign_masked is False)
 
     @property
+    def sign_lane_clamp_split(self) -> tuple[int, int, int, int]:
+        """Sign collisions as ``(clamped_boundary, clamped_middle, free_boundary, free_middle)``.
+
+        Answers whether any LATERAL widening is reachable. A collision in a
+        CLAMPED cell sits on a saturated plateau (18.14 cm gap), so the only
+        geometric lever left there is the clamp bound itself; a collision in a
+        FREE cell sits at 27.86 cm with ~8 cm of margin, which plan geometry
+        cannot explain at all. Compare against the corpus exposure -- boundary
+        signs are roughly half clamped, half free -- rather than reading the
+        raw counts, or the layout's own skew will look like a result.
+        """
+        cells = [0, 0, 0, 0]
+        for o in self.outcomes:
+            if o.sign_lane_clamped is None or o.sign_lane_boundary is None:
+                continue
+            cells[(0 if o.sign_lane_clamped else 2) + (0 if o.sign_lane_boundary else 1)] += 1
+        return cells[0], cells[1], cells[2], cells[3]
+
+    def clamp_population_report(self) -> str:
+        """Multi-line breakdown of sign collisions by clamped/free plateau.
+
+        Reports crosstrack and phase within each, because the headline split
+        establishes only that ~39% of collisions happen where the plan had
+        ~10.6 cm of margin -- it does not say what consumed it. Escape and
+        u-turn phases are broken out separately: those are controller
+        arbitration driving into a sign, which no amount of tracking accuracy
+        or lane geometry addresses.
+        """
+        lines = []
+        for label, want_clamped in (("CLAMPED (18.14cm gap)", True), ("FREE (27.86cm gap)", False)):
+            group = [
+                o for o in self.outcomes if o.sign_lane_clamped is want_clamped and o.collision_crosstrack_m is not None
+            ]
+            if not group:
+                continue
+            xt = sorted(o.collision_crosstrack_m for o in group if o.collision_crosstrack_m is not None)
+            phases: dict[str, int] = {}
+            for o in group:
+                phases[str(o.collision_phase)] = phases.get(str(o.collision_phase), 0) + 1
+            escape_linked = sum(
+                1 for o in group if o.steps_since_escape is not None and o.steps_since_escape <= _ESCAPE_ATTRIBUTION_STEPS
+            )
+            top = ", ".join(f"{k}={v}" for k, v in sorted(phases.items(), key=lambda kv: -kv[1])[:4])
+            gaps = sorted(o.planned_gap_m for o in group if o.planned_gap_m is not None)
+            expected = 0.1814 if want_clamped else 0.2786
+            # A lane that never materialised leaves the path on the centreline,
+            # ~0.10 m out; anything at or below that is a coverage failure
+            # rather than a thin plateau, so count them rather than let the
+            # median hide them among correctly-offset passes.
+            unlaned = sum(1 for g in gaps if g < expected - 0.03)
+            gap_txt = (
+                f"planned-gap median={percentile(gaps, 0.5) * 100:5.2f}cm "
+                f"(expected {expected * 100:.2f}cm)  below-expected={unlaned:>3}/{len(gaps)}"
+                if gaps
+                else "planned-gap n/a"
+            )
+            dual = sum(1 for o in group if (o.struck_corridor_count or 0) > 1)
+            lines.append(
+                f"  {label:<22} n={len(group):>3}  dual-corridor={dual:>3}  "
+                f"crosstrack median={percentile(xt, 0.5) * 100:5.2f}cm p90={percentile(xt, 0.9) * 100:5.2f}cm "
+                f"max={xt[-1] * 100:5.2f}cm  escape-linked={escape_linked:>3}\n"
+                f"  {'':<22} {gap_txt}  phases: {top}"
+            )
+        return "\n".join(lines)
+
+    @property
     def sign_collisions_wrong_color(self) -> int:
         """Masked sign collisions where the discovered colour vote was wrong.
 
@@ -1203,6 +1467,7 @@ class SweepResult:
     def row(self) -> str:
         """The one-line summary: all four metrics plus the collision-kind split."""
         n = len(self.outcomes)
+        cb, cm, fb, fm = self.sign_lane_clamp_split
         return (
             f"RESULT {self.config.label:<{_RESULT_LABEL_WIDTH}} "
             f"collisions {self.collisions:>{_RESULT_METRIC_WIDTH}}/{n} "
@@ -1215,7 +1480,8 @@ class SweepResult:
             f"escapes {self.escape_starts:>4} ({self._escapes_per_lap:.2f}/lap, "
             f"{self.escape_linked_collisions:>{_RESULT_METRIC_WIDTH}} collisions within {_ESCAPE_ATTRIBUTION_STEPS} ticks)  "
             f"sign-mask (masked {self.sign_collisions_masked:>{_RESULT_METRIC_WIDTH}} unmasked {self.sign_collisions_unmasked:>{_RESULT_METRIC_WIDTH}})  "
-            f"masked-color (wrong {self.sign_collisions_wrong_color:>{_RESULT_METRIC_WIDTH}} right {self.sign_collisions_right_color:>{_RESULT_METRIC_WIDTH}})"
+            f"masked-color (wrong {self.sign_collisions_wrong_color:>{_RESULT_METRIC_WIDTH}} right {self.sign_collisions_right_color:>{_RESULT_METRIC_WIDTH}})  "
+            f"lane-clamp (clamped {cb:>{_RESULT_METRIC_WIDTH}}b/{cm}m free {fb:>{_RESULT_METRIC_WIDTH}}b/{fm}m)"
         )
 
     @property
@@ -1246,6 +1512,9 @@ def run_sweep(configs: list[SweepConfig], workers: int, verbose: bool = False) -
             if verbose:
                 print(result.detail(), flush=True)
             print(result.row(), flush=True)
+            population = result.clamp_population_report()
+            if population:
+                print(population, flush=True)
             results.append(result)
     return results
 
