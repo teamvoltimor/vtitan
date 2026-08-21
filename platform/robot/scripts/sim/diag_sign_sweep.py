@@ -1841,6 +1841,17 @@ class _SignPassSample:
     struck_delivered: float | None
     """The same delivery fraction, for the sign that ended the run."""
 
+    pass_branch_compose: list[tuple[LaneBranch, float]]
+    """Per PASSED sign, its branch paired with its composition gap.
+
+    Paired for the same reason the delivery cross-tab is: the claim is that
+    composition is what separates a ``DELIVERED`` pass from a ``DELIVERED``
+    collision, and that is a contrast within one branch, not a level.
+    """
+
+    struck_compose: float | None
+    """The composition gap at the sign that ended the run."""
+
     pass_stale: list[float]
     """Per PASSED sign, how far the held plan sits from a fresh rebuild there.
 
@@ -1981,6 +1992,14 @@ class _LaneSample:
     branch: LaneBranch | None
     """Which ``apply_sign_lanes`` decision settled the rebuilt lane."""
 
+    compose_m: float | None
+    """How far the full rebuild sits from what this sign's corridor group alone
+    would have built, at the waypoint the branch verdict was reached on.
+
+    Signed by the sign's own outward direction: negative is the composition
+    pulling the path back toward the sign. See ``_composition_gap_m``.
+    """
+
     stale_m: float | None
     """How far the plan the tracker holds sits from the one the planner would
     build RIGHT NOW from the same base path and the same sign estimates,
@@ -2035,6 +2054,15 @@ class _LaneProfile:
     admitted. Carried rather than re-derived so the delivery half cannot
     disagree with the structural half about which points are in play."""
 
+    indices: list[int]
+    """Those same waypoints' positions in the base path, in the same order.
+
+    Needed because the composition diff has to index the FULL rebuild at the
+    waypoint the branch verdict was reached on, and a ``Waypoint`` cannot say
+    where it came from. Kept parallel to ``waypoints`` rather than replacing it
+    so neither the branch nor the diff has to re-derive the other's view.
+    """
+
 
 def _lane_params(tuning: NavigationTuning) -> SignLaneParams:
     """The lane geometry ``CoreNavigator`` builds, rebuilt from the same tuning.
@@ -2060,7 +2088,8 @@ def _lane_branch(
     base_waypoints: list[Waypoint],
     specs: list[tuple[Any, Section]],
     params: SignLaneParams,
-) -> LaneBranch:
+    fresh: list[Waypoint] | None = None,
+) -> tuple[LaneBranch, float | None]:
     """Re-run ``apply_sign_lanes``'s decisions for one sign and name the branch.
 
     Mirrors the loop rather than instrumenting it, so the production transform
@@ -2076,8 +2105,10 @@ def _lane_branch(
     spec, corridor = specs[index]
     built = _lane_profile_for(spec, corridor, base_waypoints, specs, params)
     if isinstance(built, LaneBranch):
-        return built
-    return _lane_delivery_branch(spec, corridor, built)
+        # A lane that was never built has no single-group prediction for the
+        # full build to differ FROM, so composition is not a question here.
+        return built, None
+    return _lane_delivery_branch(spec, corridor, built), _composition_gap_m(spec, corridor, built, fresh)
 
 
 def _lane_profile_for(
@@ -2121,7 +2152,76 @@ def _lane_profile_for(
         base_lateral=base_lateral,
         profile=profile,
         waypoints=[base_waypoints[i] for i in indices],
+        indices=indices,
     )
+
+
+def _lane_group_target(
+    spec: Any,
+    corridor: Section,
+    built: _LaneProfile,
+) -> tuple[int, float, float] | None:
+    """Where this corridor group ALONE would put the path at ``spec``.
+
+    Returns ``(base-path index, unclamped lateral, clamped lateral)``, or
+    ``None`` if the sign's depth falls outside the group's own profile.
+
+    Factored out so the branch verdict and the composition diff are forced
+    through the same waypoint and the same arithmetic. They are two readings of
+    one prediction -- what this group would build if it were the only one -- and
+    letting each pick its own nearest waypoint would let them disagree about
+    which point the lane is even expressed at.
+    """
+    _, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), built.axis)
+    lane = _interpolate(built.profile, sign_depth)
+    if lane is None:
+        return None
+    # The waypoint the plateau actually lands on, not the sign's own depth: the
+    # lane is only ever expressed at waypoints, so a profile that is correct
+    # between two of them still delivers whatever the nearer one got.
+    position = min(
+        range(len(built.waypoints)),
+        key=lambda i: abs(_axis_coords(built.waypoints[i], built.axis)[1] - sign_depth),
+    )
+    lateral, _ = _axis_coords(built.waypoints[position], built.axis)
+    want = lateral + (lane - built.base_lateral)
+    return built.indices[position], want, sign_router_module.clamp_lateral(want, corridor)
+
+
+def _composition_gap_m(
+    spec: Any,
+    corridor: Section,
+    built: _LaneProfile,
+    fresh: list[Waypoint] | None,
+) -> float | None:
+    """How far the FULL rebuild sits from what this group alone would have built.
+
+    The quantity that decides whether ``DELIVERED`` collisions are explained.
+    ``_lane_profile_for`` diagnoses the target sign's corridor group in
+    isolation, but ``apply_sign_lanes`` composes every group across the whole
+    path -- and where two corridors' spans overlap, an earlier group's shift is
+    what the later one reads as its waypoint lateral. So a sign can be
+    ``DELIVERED`` on its own group's arithmetic and carry no lane at all on the
+    polyline that results.
+
+    Non-zero here IS that composition, measured rather than argued: the same
+    waypoint, the same axis, single-group prediction against full-build reality.
+    Zero would mean the two agree and the collapse at collisions is something
+    neither the branch nor composition explains.
+
+    Signed by the sign's own outward direction, so positive is the composition
+    pushing the path further out than the group asked and negative is it pulling
+    the path back toward -- and through -- the sign. Only the negative direction
+    can cause a collision, which a magnitude would hide.
+    """
+    target = _lane_group_target(spec, corridor, built)
+    if target is None or fresh is None:
+        return None
+    position, _, shifted = target
+    if position >= len(fresh):
+        return None
+    actual, _ = _axis_coords(fresh[position], built.axis)
+    return built.mult * (actual - shifted)
 
 
 def _lane_delivery_branch(
@@ -2135,18 +2235,11 @@ def _lane_delivery_branch(
     short" stay separate questions; they have nothing in common but their
     symptom, and only the second one is about geometry the tunables can move.
     """
-    sign_lateral, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), built.axis)
-    lane = _interpolate(built.profile, sign_depth)
-    if lane is None:
+    target = _lane_group_target(spec, corridor, built)
+    if target is None:
         return LaneBranch.OFF_PROFILE
-
-    # The waypoint the plateau actually lands on, not the sign's own depth: the
-    # lane is only ever expressed at waypoints, so a profile that is correct
-    # between two of them still delivers whatever the nearer one got.
-    nearest = min(built.waypoints, key=lambda wp: abs(_axis_coords(wp, built.axis)[1] - sign_depth))
-    lateral, _ = _axis_coords(nearest, built.axis)
-    want = lateral + (lane - built.base_lateral)
-    shifted = sign_router_module.clamp_lateral(want, corridor)
+    _, want, shifted = target
+    sign_lateral, _ = _axis_coords(Waypoint(spec.x, spec.y), built.axis)
     plateau = _lane_plateau_m(spec, corridor)
     if plateau and built.mult * (shifted - sign_lateral) >= plateau - _LANE_BRANCH_EPS_M:
         return LaneBranch.DELIVERED
@@ -2213,15 +2306,20 @@ def _sample_lane_delivery(
         # they stood when this pass happened, and blind discovery moves
         # both. Reading it later would diagnose a lane the chassis never
         # drove.
-        branch = None
+        branch: LaneBranch | None = None
+        compose: float | None = None
         if lane_base is not None and params is not None:
-            branch = _lane_branch(index, lane_base, specs, params)
+            # Built BEFORE the branch call, not after: the composition diff
+            # inside it reads this exact rebuild, and the caching only exists to
+            # keep a whole-path transform out of the per-sign loop.
             if not rebuilt:
                 fresh, rebuilt = apply_sign_lanes(lane_base, specs, params), True
+            branch, compose = _lane_branch(index, lane_base, specs, params, fresh)
         per_sign[index] = _LaneSample(
             gap_m=gap,
             delivered_frac=outward / plateau,
             branch=branch,
+            compose_m=compose,
             stale_m=_lane_staleness_m(spec, plan, fresh),
             fingerprint_stale=router.lane_fingerprint != navigator._lane_fingerprint,  # noqa: SLF001
         )
@@ -2359,6 +2457,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     struck_middle: bool | None = None
     struck_branch: LaneBranch | None = None
     struck_delivered: float | None = None
+    struck_compose: float | None = None
     struck_stale: float | None = None
     struck_fp_stale: bool | None = None
     if struck_sign and result.collision_xy is not None:
@@ -2393,6 +2492,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
                 if sample.branch is not None:
                     struck_branch = sample.branch
                     struck_delivered = sample.delivered_frac
+                    struck_compose = sample.compose_m
                     struck_stale = sample.stale_m
                     struck_fp_stale = sample.fingerprint_stale
 
@@ -2405,6 +2505,10 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         pass_branches=[s.branch for s in per_sign.values() if s.branch is not None],
         pass_branch_delivery=[(s.branch, s.delivered_frac) for s in per_sign.values() if s.branch is not None],
         struck_delivered=struck_delivered,
+        pass_branch_compose=[
+            (s.branch, s.compose_m) for s in per_sign.values() if s.branch is not None and s.compose_m is not None
+        ],
+        struck_compose=struck_compose,
         pass_stale=[s.stale_m for s in per_sign.values() if s.stale_m is not None],
         pass_fp_stale=[s.fingerprint_stale for s in per_sign.values() if s.branch is not None],
         struck_branch=struck_branch,
@@ -2456,7 +2560,40 @@ def _report_lane_branches(samples: list[_SignPassSample]) -> None:
         flush=True,
     )
     _report_delivery_by_branch(samples)
+    _report_composition(samples)
     _report_lane_staleness(samples)
+
+
+def _report_composition(samples: list[_SignPassSample]) -> None:
+    """Print how far the full rebuild diverges from single-group arithmetic.
+
+    The test of the one explanation left standing for the ``DELIVERED``
+    collisions. Staleness is refuted and the branch verdict is computed on the
+    target sign's corridor group alone, so if those signs carry no lane on the
+    real polyline, the composition of the other groups is what removed it.
+
+    Negative is the composition pulling the path back toward the sign, which is
+    the only direction that can cause contact. Reported in centimetres against
+    the 18.14 / 27.86 cm plateaux, split by branch, passes against collisions --
+    the claim being tested is a contrast WITHIN ``DELIVERED``, so a gap that is
+    equally large in both columns refutes it just as a zero would.
+    """
+    pairs = [p for s in samples for p in s.pass_branch_compose]
+    struck = [
+        (s.struck_branch, s.struck_compose)
+        for s in samples
+        if s.struck_branch is not None and s.struck_compose is not None
+    ]
+    if not pairs and not struck:
+        return
+    for branch in LaneBranch:
+        got_pass = [c for b, c in pairs if b is branch]
+        got_hit = [c for b, c in struck if b is branch]
+        if not got_pass and not got_hit:
+            continue
+        as_pass = f"{percentile(got_pass, 0.5) * 100:+6.2f}cm (n={len(got_pass):>4})" if got_pass else "  n/a        "
+        as_hit = f"{percentile(got_hit, 0.5) * 100:+6.2f}cm (n={len(got_hit):>3})" if got_hit else "  n/a       "
+        print(f"LANE-COMPOSE {branch:<16} passes {as_pass}   collisions {as_hit}", flush=True)
 
 
 def _report_delivery_by_branch(samples: list[_SignPassSample]) -> None:
