@@ -57,6 +57,13 @@ import src.simulation.scenario_simulator as gateway_module
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.sign_lane import (
+    SignLaneParams,
+    _axis_coords,
+    _control_points,
+    _in_lane_span,
+    _interpolate,
+)
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error, project_onto_path
 from src.navigation.utils import wrap_angle
@@ -1802,6 +1809,17 @@ class _SignPassSample:
     head_middle: list[float]
     """Heading error against the PATH at a mid-section sign."""
 
+    pass_branches: list[LaneBranch]
+    """Which ``apply_sign_lanes`` branch settled each PASSED sign's lane.
+
+    The control for ``struck_branch``. A branch that appears at collisions and
+    nowhere else is a cause; one that appears at both in the same proportion is
+    just what the planner does, and the difference has to be elsewhere.
+    """
+
+    struck_branch: LaneBranch | None
+    """The same, for the sign that ended the run. ``None`` if no sign was hit."""
+
     struck_middle: bool | None
     """Whether the sign that ended the run was mid-section. ``None`` if no sign
     collision. Read against the 1211/71 boundary/middle exposure, not raw."""
@@ -1870,11 +1888,188 @@ class _SignPassSample:
     """
 
 
+class LaneBranch(StrEnum):
+    """Which decision inside ``apply_sign_lanes`` settled one sign's lane.
+
+    The measured offset says the plan passes through the struck sign's own
+    lateral; it cannot say why. Every path from ``apply_sign_lanes``'s inputs to
+    that outcome runs through exactly one of these, and they need different
+    fixes -- ``NO_SPAN`` is a corridor/waypoint mismatch, ``OFF_PROFILE`` a
+    depth-window one, ``CLAMPED_SHIFT`` a bound that was already saturated, and
+    ``SHORT_PROFILE`` says the profile itself asked for too little, which points
+    at ``base_lateral`` rather than at any of the tunables.
+
+    ``DELIVERED`` is the interesting one to find at a collision: it would mean
+    the planner does lay a correct lane and the plan the tracker holds is not
+    the one it laid, i.e. staleness rather than geometry.
+    """
+
+    MULTI_CORRIDOR = "multi-corridor"
+    NO_RULE = "no-rule"
+    NO_SPAN = "no-span"
+    NO_PROFILE = "no-profile"
+    OFF_PROFILE = "off-profile"
+    CLAMPED_SHIFT = "clamped-shift"
+    SHORT_PROFILE = "short-profile"
+    DELIVERED = "delivered"
+
+
+_LANE_BRANCH_EPS_M = 0.01
+"""Slack allowed before a lane counts as short of its plateau, or a clamp as
+having bound. Centimetre scale because the plateaux it separates are 18.14 and
+27.86 cm and the shortfall being diagnosed is the whole offset, not a trim."""
+
+
+@dataclass(frozen=True)
+class _LaneProfile:
+    """One corridor group's rebuilt lane, enough of it to ask what it delivers."""
+
+    axis: Any
+    """The world axis this corridor treats as lateral."""
+
+    mult: int
+    """+1/-1 carrying the TARGET sign's own outward direction, which is not
+    necessarily the group's: a corridor holding two opposite-coloured signs
+    builds one profile with an S-bend through it."""
+
+    base_lateral: float
+    """The corridor centreline the profile is applied as a shift from."""
+
+    profile: list[tuple[float, float]]
+    """``(depth, lateral)`` control points, as ``_control_points`` returns them."""
+
+    waypoints: list[Waypoint]
+    """Only the waypoints the lane may move -- the ones ``_in_lane_span``
+    admitted. Carried rather than re-derived so the delivery half cannot
+    disagree with the structural half about which points are in play."""
+
+
+def _lane_params(tuning: NavigationTuning) -> SignLaneParams:
+    """The lane geometry ``CoreNavigator`` builds, rebuilt from the same tuning.
+
+    Restated rather than read off the navigator because it does not keep the
+    params it passes -- they are constructed inline at the call to
+    ``apply_sign_lanes``. Derived from the live ``NavigationTuning`` on every
+    term, so a sweep arm that overrides one of them is diagnosed under the
+    value it actually ran with rather than under the shipped default.
+    """
+    sr = tuning.sign_router
+    return SignLaneParams(
+        lateral_offset=(chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M)
+        * sr.SIGN_LANE_OFFSET_FRAC,
+        ramp_m=sr.SIGN_LANE_RAMP_M,
+        hold_m=sr.SIGN_LANE_HOLD_M,
+        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+    )
+
+
+def _lane_branch(
+    index: int,
+    base_waypoints: list[Waypoint],
+    specs: list[tuple[Any, Section]],
+    params: SignLaneParams,
+) -> LaneBranch:
+    """Re-run ``apply_sign_lanes``'s decisions for one sign and name the branch.
+
+    Mirrors the loop rather than instrumenting it, so the production transform
+    stays free of diagnostic hooks; every predicate is the real one imported
+    from ``sign_lane``, so the only thing restated here is the loop skeleton.
+
+    Deliberately diagnoses the target sign's corridor group ALONE. Signs that
+    route into two corridors compose across groups -- an earlier group's shift
+    is what the later one reads as its waypoint lateral -- and that interaction
+    is already a confirmed mechanism for part of the corpus, so it is reported
+    as its own branch instead of being modelled here and folded in twice.
+    """
+    spec, corridor = specs[index]
+    built = _lane_profile_for(spec, corridor, base_waypoints, specs, params)
+    if isinstance(built, LaneBranch):
+        return built
+    return _lane_delivery_branch(spec, corridor, built)
+
+
+def _lane_profile_for(
+    spec: Any,
+    corridor: Section,
+    base_waypoints: list[Waypoint],
+    specs: list[tuple[Any, Section]],
+    params: SignLaneParams,
+) -> LaneBranch | _LaneProfile:
+    """Rebuild this corridor group's lane profile, or name the branch that stopped it.
+
+    The half of the classification that asks whether a lane can be BUILT at
+    all, kept apart from what it then delivers: the four ways out here are
+    structural (the sign is in two groups, has no pass-side rule, or the
+    corridor matched no waypoints) and every one of them means no lane exists,
+    while the branches on the other side all describe a lane that does.
+    """
+    if any(c is not corridor and math.hypot(s.x - spec.x, s.y - spec.y) < _SIGN_MATCH_DIST_M for s, c in specs):
+        return LaneBranch.MULTI_CORRIDOR
+
+    group = [(s, c) for s, c in specs if c is corridor]
+    rule = sign_router_module.outward_lateral_axis(corridor, group[0][0].color)
+    target_rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+    if rule is None or target_rule is None:
+        return LaneBranch.NO_RULE
+    axis, _ = rule
+
+    indices = [i for i, wp in enumerate(base_waypoints) if _in_lane_span(wp, corridor, axis, params.corner_entry_m)]
+    if not indices:
+        return LaneBranch.NO_SPAN
+    straight = [i for i in indices if _in_lane_span(base_waypoints[i], corridor, axis, 0.0)]
+    laterals = sorted(_axis_coords(base_waypoints[i], axis)[0] for i in (straight or indices))
+    base_lateral = laterals[len(laterals) // 2]
+
+    profile = _control_points(group, corridor, axis, base_lateral, params)
+    if not profile:
+        return LaneBranch.NO_PROFILE
+    return _LaneProfile(
+        axis=axis,
+        mult=target_rule[1],
+        base_lateral=base_lateral,
+        profile=profile,
+        waypoints=[base_waypoints[i] for i in indices],
+    )
+
+
+def _lane_delivery_branch(
+    spec: Any,
+    corridor: Section,
+    built: _LaneProfile,
+) -> LaneBranch:
+    """Name what a successfully-built lane actually delivers at ``spec``.
+
+    Split from the structural half so that "no lane" and "a lane that falls
+    short" stay separate questions; they have nothing in common but their
+    symptom, and only the second one is about geometry the tunables can move.
+    """
+    sign_lateral, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), built.axis)
+    lane = _interpolate(built.profile, sign_depth)
+    if lane is None:
+        return LaneBranch.OFF_PROFILE
+
+    # The waypoint the plateau actually lands on, not the sign's own depth: the
+    # lane is only ever expressed at waypoints, so a profile that is correct
+    # between two of them still delivers whatever the nearer one got.
+    nearest = min(built.waypoints, key=lambda wp: abs(_axis_coords(wp, built.axis)[1] - sign_depth))
+    lateral, _ = _axis_coords(nearest, built.axis)
+    want = lateral + (lane - built.base_lateral)
+    shifted = sign_router_module.clamp_lateral(want, corridor)
+    plateau = _lane_plateau_m(spec, corridor)
+    if plateau and built.mult * (shifted - sign_lateral) >= plateau - _LANE_BRANCH_EPS_M:
+        return LaneBranch.DELIVERED
+    if abs(shifted - want) > _LANE_BRANCH_EPS_M:
+        return LaneBranch.CLAMPED_SHIFT
+    return LaneBranch.SHORT_PROFILE
+
+
 def _sample_lane_delivery(
     router: Any,
     pose_xy: tuple[float, float],
     plan: list[Any],
-    per_sign: dict[int, tuple[float, float]],
+    per_sign: dict[int, tuple[float, float, LaneBranch | None]],
+    lane_base: list[Waypoint] | None = None,
+    params: SignLaneParams | None = None,
 ) -> None:
     """Record each sign's lane-delivery fraction at its CLOSEST APPROACH.
 
@@ -1885,15 +2080,22 @@ def _sample_lane_delivery(
     the one tick where "did the lane deliver" has a clean answer, away from the
     ramps on either side.
     """
-    for index, (spec, corridor) in enumerate(router.lane_specs):
+    specs = router.lane_specs
+    for index, (spec, corridor) in enumerate(specs):
         gap = math.hypot(spec.x - pose_xy[0], spec.y - pose_xy[1])
-        if gap > _SIGN_PASS_WINDOW_M or gap >= per_sign.get(index, (math.inf, 0.0))[0]:
+        if gap > _SIGN_PASS_WINDOW_M or gap >= per_sign.get(index, (math.inf, 0.0, None))[0]:
             continue
         closest = _closest_on_polyline(spec.x, spec.y, plan)
         outward = _outward_pass_offset(spec, (spec.x, spec.y), closest, (spec, corridor))
         plateau = _lane_plateau_m(spec, corridor)
         if outward is not None and plateau:
-            per_sign[index] = (gap, outward / plateau)
+            # Sampled at the same tick as the offset, not once at the end: the
+            # branch is a function of the sign estimates and the base path as
+            # they stood when this pass happened, and blind discovery moves
+            # both. Reading it later would diagnose a lane the chassis never
+            # drove.
+            branch = None if lane_base is None or params is None else _lane_branch(index, lane_base, specs, params)
+            per_sign[index] = (gap, outward / plateau, branch)
 
 
 def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
@@ -1925,8 +2127,9 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     last_yaw: list[float | None] = [None]
     # Keyed by the sign's index in `lane_specs`, which is append-only and
     # survives `reset_for_new_lap`, so it identifies the same physical sign for
-    # the whole run. Value is (distance at closest approach, offset there).
-    per_sign: dict[int, tuple[float, float]] = {}
+    # the whole run. Value is (distance at closest approach, offset there,
+    # which branch of `apply_sign_lanes` produced that offset).
+    per_sign: dict[int, tuple[float, float, LaneBranch | None]] = {}
 
     try:
         sim = ScenarioSimulator(
@@ -1937,6 +2140,10 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             blind=config.blind,
             park=config.park,
         )
+        # Hoisted out of the callback: the params are fixed for the run, and
+        # rebuilding them per tick would put an allocation in the hot loop of a
+        # sweep that already costs an hour per arm on the corpus.
+        lane_params = _lane_params(sim.navigator._tuning)  # noqa: SLF001
 
         def _on_step(state: AckermannState, _scan: LidarScan) -> None:
             # The controller's OWN error signal, not a re-derivation of it --
@@ -1964,7 +2171,18 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             # systematically lose the pass samples nearest the sign, which are
             # the only ones the comparison is about.
             plan = sim.navigator._waypoints  # noqa: SLF001
-            _sample_lane_delivery(router, (pose.x, pose.y), plan, per_sign)
+            # The centreline the lane is laid over, and the geometry it is laid
+            # with. Both are reached for the same way the plan is: neither has
+            # a public seam, and re-deriving the base path here would diagnose a
+            # different path from the one the transform actually ran on.
+            _sample_lane_delivery(
+                router,
+                (pose.x, pose.y),
+                plan,
+                per_sign,
+                sim.navigator._lane_base_waypoints,  # noqa: SLF001
+                lane_params,
+            )
 
             routed = router.routed_sign_positions
             if not routed:
@@ -2010,6 +2228,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     struck_sign = result.collided and _classify_collision(scenario.metadata, result.final_pose) == CollisionKind.SIGN
     estimate_err: float | None = None
     struck_middle: bool | None = None
+    struck_branch: LaneBranch | None = None
     if struck_sign and result.collision_xy is not None:
         signs = sign_router_module.signs_from_metadata(scenario.metadata)
         router = sim.navigator.sign_router
@@ -2032,15 +2251,22 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
             hits = [
                 i for i, (s, _) in enumerate(specs) if math.hypot(s.x - bx, s.y - by) < _SIGN_MATCH_DIST_M
             ]
+            # Lifted before the pop, not after: this is the whole point of the
+            # split. The struck sign's branch is the one being explained, and
+            # the pass population is the control it is read against.
             for i in hits:
-                per_sign.pop(i, None)
+                sample = per_sign.pop(i, None)
+                if sample is not None and sample[2] is not None and struck_branch is None:
+                    struck_branch = sample[2]
 
     return _SignPassSample(
         near_abs=near_abs,
         near_outward=near_outward,
         all_abs=all_abs,
         near_yaw_deg=near_yaw,
-        pass_outward=[outward for _, outward in per_sign.values()],
+        pass_outward=[outward for _, outward, _ in per_sign.values()],
+        pass_branches=[branch for _, _, branch in per_sign.values() if branch is not None],
+        struck_branch=struck_branch,
         yaw_boundary=yaw_boundary,
         yaw_middle=yaw_middle,
         head_boundary=head_boundary,
@@ -2050,6 +2276,41 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         at_collision=last[0] if struck_sign else None,
         yaw_at_collision=last_yaw[0] if struck_sign else None,
         estimate_err_m=estimate_err,
+    )
+
+
+def _report_lane_branches(samples: list[_SignPassSample]) -> None:
+    """Print which ``apply_sign_lanes`` branch produced each lane, passes vs collisions.
+
+    Two columns rather than one, and that is the whole design. The offset
+    measurements establish THAT the lane is missing at collisions; a
+    collision-only branch tally would then be circular in the same way the
+    original offset measurement was, because whichever branch is commonest
+    overall will also be commonest among the failures. Only the CONTRAST
+    between the columns identifies a cause: a branch that dominates both
+    equally is just what the planner does.
+    """
+    pass_branches = [b for s in samples for b in s.pass_branches]
+    struck_branches = [s.struck_branch for s in samples if s.struck_branch is not None]
+    if not pass_branches and not struck_branches:
+        return
+    for branch in LaneBranch:
+        n_pass = sum(1 for b in pass_branches if b is branch)
+        n_hit = sum(1 for b in struck_branches if b is branch)
+        if not n_pass and not n_hit:
+            continue
+        share_pass = n_pass / len(pass_branches) * 100 if pass_branches else 0.0
+        share_hit = n_hit / len(struck_branches) * 100 if struck_branches else 0.0
+        print(
+            f"LANE-BRANCH {branch:<16} "
+            f"passes {n_pass:>5} ({share_pass:5.1f}%)   "
+            f"collisions {n_hit:>4} ({share_hit:5.1f}%)",
+            flush=True,
+        )
+    print(
+        f"LANE-BRANCH {'TOTAL':<16} passes {len(pass_branches):>5}            "
+        f"collisions {len(struck_branches):>4}",
+        flush=True,
     )
 
 
@@ -2130,6 +2391,8 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
             f"at-plateau {full * 100:5.1f}%  (1.0 = full lane, <0 = wrong side)",
             flush=True,
         )
+
+    _report_lane_branches(samples)
 
     struck = [e for s in samples if s.collided_with_sign for e in s.near_abs]
     clean = [e for s in samples if not s.collided_with_sign for e in s.near_abs]
