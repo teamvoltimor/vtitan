@@ -27,19 +27,24 @@ class RobotSpecs:
     WHEELBASE: Final[float] = _robot.ackermann.wheelbase  # 190mm axle-to-axle distance
     TRACK_WIDTH: Final[float] = _robot.ackermann.track_width  # 167.5mm wheel-to-wheel distance
     WHEEL_RADIUS: Final[float] = _robot.wheel.radius  # 35mm (measured 70mm wheel diameter / 2)
-    MAX_STEERING_ANGLE: Final[float] = _robot.steering.max_steering_angle  # ~55 deg road-wheel angle at full lock
-    """Road-wheel angle at full lock (radians).
+    MAX_STEERING_ANGLE: Final[float] = _robot.steering.max_steering_angle
+    """Largest road-wheel angle the navigator may COMMAND (radians).
 
-    Just MAX_WHEEL_ANGLE_DEG in radians -- not declared as a free parameter,
-    it is whatever the steering hardware produces. Everything upstream of the
-    servo speaks wheel angles."""
+    ``steering_limit_deg`` when the config sets one, otherwise the linkage's
+    full travel (``MAX_WHEEL_ANGLE_DEG``). This is the value planners, the
+    pursuit controller and the simulator gate on. Everything upstream of the
+    servo speaks wheel angles.
+
+    Not interchangeable with MAX_WHEEL_ANGLE_DEG any more -- see Steering's
+    class docstring for the 1.55x servo error that conflating them produces."""
 
     # Steering hardware. The servo speaks servo degrees; the linkage converts.
     SERVO_MAX_ANGLE_DEG: Final[float] = _robot.steering.servo_max_angle_deg
     MAX_WHEEL_ANGLE_DEG: Final[float] = _robot.steering.max_wheel_angle_deg
-    """Road-wheel angle (deg) measured on the bench at full servo lock. See
-    robot.toml's [steering] comment -- re-measure and update this after any
-    linkage/servo change rather than hand-computing a ratio."""
+    """Road-wheel angle (deg) the LINKAGE produces at full servo lock -- physics,
+    not policy. See robot.toml's [steering] comment: re-measure and update this
+    after any linkage/servo change rather than hand-computing a ratio, and never
+    lower it to mean 'steer more gently' (use steering_limit_deg for that)."""
     LINKAGE_RATIO: Final[float] = _robot.steering.linkage_ratio
     """Road-wheel degrees per servo degree, derived from MAX_WHEEL_ANGLE_DEG /
     SERVO_MAX_ANGLE_DEG. Not the source of truth -- kept for consumers that

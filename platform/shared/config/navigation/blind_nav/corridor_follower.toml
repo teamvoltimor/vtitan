@@ -33,30 +33,50 @@ turn_clearance_m = 0.60
 # branch.
 narrow_turn_clearance_m = 0.40
 
-# Steering per metre of lateral offset from the centreline, and a hard cap on
-# the result.
+# Degrees of ROAD-WHEEL steering per metre of lateral offset from the
+# centreline, and a hard cap on the result, also in road-wheel degrees.
+#
+# These three were normalised fractions of full lock (0.8 / 0.8 / 0.25) until
+# 2026-08-21. That made them depend on the servo: moving to a 270 deg servo
+# (55 deg -> 85 deg at the road wheel) multiplied all three by 1.55x with no
+# edit to this file, which is exactly the wrong direction given what the
+# paragraph below was measured to say. The values here are what the old
+# fractions resolved to at 55 deg, so the change of units changed no behaviour
+# on the base chassis -- it only stopped a hardware swap from retuning the
+# control loop behind your back.
 #
 # Both are deliberately timid. The chassis is counter-phase four-wheel steering
 # with a 0.034 m minimum turn radius, so it responds violently -- the same
 # reason pursuit's steer_kp came down to 1.2. A hot gain here does not merely
 # wander: the resulting oscillation swings the heading past the direction
 # estimator's alignment gate, which then refuses every reading and the
-# direction never settles at all. Measured at gain 2.0, that cost 12 of 28
-# fixtures their direction and put 9 into a wall.
+# direction never settles at all. Measured at gain 2.0 (normalised, i.e. 110
+# deg/m here), that cost 12 of 28 fixtures their direction and put 9 into a
+# wall.
 #
 # Sitting off-centre for one metre costs nothing. Oscillating costs the round.
-centering_gain = 0.8
+centering_gain_deg_per_m = 44.0
 
-# Steering per radian of heading error against the corridor axis -- the damping
-# term centering_gain alone lacks. Position error and heading error are 90 deg
-# out of phase in a steered chassis, so proportional-on-position is an
-# oscillator: measured on hardware 2026-08-07 as 112 steering sign flips in
-# 177 s, 45% of ticks pinned at max_centering_steer, heading 30 deg off axis at
-# the median. That starves the direction gate, which needs the chassis square to
-# a corridor at the moment one side opens. Raising centering_gain cannot fix it
-# and makes it worse (see max_centering_steer).
-heading_gain = 0.8
-max_centering_steer = 0.25
+# Road-wheel steering angle per unit of heading error against the corridor
+# axis -- DIMENSIONLESS, since both sides are angles, which is why this one
+# needs no unit suffix and no longer moves with the servo.
+#
+# This is the damping term centering_gain_deg_per_m alone lacks. Position error
+# and heading error are 90 deg out of phase in a steered chassis, so
+# proportional-on-position is an oscillator: measured on hardware 2026-08-07 as
+# 112 steering sign flips in 177 s, 45% of ticks pinned at
+# max_centering_steer_deg, heading 30 deg off axis at the median. That starves
+# the direction gate, which needs the chassis square to a corridor at the moment
+# one side opens. Raising centering_gain_deg_per_m cannot fix it and makes it
+# worse (see max_centering_steer_deg).
+heading_gain = 0.767945
+
+# Road-wheel degrees. Was 0.25 of full lock, which meant 13.75 deg at the
+# bench-measured 55 deg limit and would have become 21.25 deg on the 270 deg
+# servo. The corner-turn and back-off branches pin steering AT this value, and
+# the 2026-08-07 run sat on it for 45% of ticks, so it is a value the robot
+# spends real time at rather than an outer bound it rarely reaches.
+max_centering_steer_deg = 13.75
 
 # Fraction of creep speed while turning a corner blind. Slower than straight
 # running, because the turn is committed on one comparison rather than a plan.

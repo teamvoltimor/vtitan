@@ -31,8 +31,8 @@ _OVERRIDES: dict[str, dict[str, float]] = {
     "clearance": {"CONTACT_DIST": 0.05, "SLOW_DIST": 0.20, "MEDIUM_DIST": 0.45, "FAST_DIST": 0.90},
     "heading": {"CRAWL": 1.2},
     "pursuit": {"LOOKAHEAD_SHORT": 0.15, "STEER_KP": 2.0},
-    "speed": {"FAST_FRAC": 0.60},
-    "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER": 0.4},
+    "speed": {"FAST_MPS": 0.140},
+    "escape": {"REV_SPEED": -0.30, "SIDE_CORRECTION_STEER_DEG": 20.0},
     "sensor": {"STALE_TIMEOUT_SEC": 0.75},
     "waypoints": {"ARC_RADIUS": 0.35},
 }
@@ -41,7 +41,7 @@ _OVERRIDES: dict[str, dict[str, float]] = {
 def test_defaults_construct_with_no_args():
     tuning = NavigationTuning()
     assert tuning.clearance.CONTACT_DIST == 0.10
-    assert pytest.approx(0.3) == tuning.escape.SIDE_CORRECTION_STEER
+    assert pytest.approx(16.5) == tuning.escape.SIDE_CORRECTION_STEER_DEG
     assert pytest.approx(0.5) == tuning.sensor.STALE_TIMEOUT_SEC
 
 
@@ -77,7 +77,7 @@ def test_load_from_yaml_round_trip(tmp_path):
     assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.heading.CRAWL
     assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.60) == tuning.speed.FAST_FRAC
+    assert pytest.approx(0.140) == tuning.speed.FAST_MPS
     assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
     assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
     assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
@@ -90,7 +90,7 @@ def test_load_from_json_round_trip(tmp_path):
     tuning = NavigationTuning.load_from_json(path)
 
     assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
-    assert pytest.approx(0.4) == tuning.escape.SIDE_CORRECTION_STEER
+    assert pytest.approx(20.0) == tuning.escape.SIDE_CORRECTION_STEER_DEG
 
 
 def test_load_from_yaml_partial_profile_keeps_other_defaults(tmp_path):
@@ -151,7 +151,7 @@ def test_load_from_toml_dir_round_trip(tmp_path):
     assert pytest.approx(0.05) == tuning.clearance.CONTACT_DIST
     assert pytest.approx(1.2) == tuning.heading.CRAWL
     assert pytest.approx(2.0) == tuning.pursuit.STEER_KP
-    assert pytest.approx(0.60) == tuning.speed.FAST_FRAC
+    assert pytest.approx(0.140) == tuning.speed.FAST_MPS
     assert pytest.approx(-0.30) == tuning.escape.REV_SPEED
     assert pytest.approx(0.75) == tuning.sensor.STALE_TIMEOUT_SEC
     assert pytest.approx(0.35) == tuning.waypoints.ARC_RADIUS
@@ -267,9 +267,9 @@ class TestConfiguredValuesAreActuallyRead:
         """Names that count as reading ``field``, including via an accessor.
 
         A field is not always read under its own name. ``SpeedControlParams``
-        stores fractions of the drivetrain ceiling and exposes each one through
-        a ``*_mps()`` method, because a bare fraction is not a speed and callers
-        must never treat it as one. ``SLOW_FRAC`` is therefore read as
+        stores absolute m/s and exposes each tier through a ``*_mps()`` method
+        that clamps it to the drivetrain ceiling, so callers cannot command a
+        speed the motor has no way to reach. ``SLOW_MPS`` is therefore read as
         ``slow_mps()`` and a plain name grep cannot see it.
 
         Resolving the accessor here keeps the check honest in both directions:
@@ -277,9 +277,24 @@ class TestConfiguredValuesAreActuallyRead:
         does not exist is not quietly excused.
         """
         names = [field]
-        prefix = field.removesuffix("_FRAC")
-        if prefix != field and hasattr(group, f"{prefix.lower()}_mps"):
-            names.append(f"{prefix.lower()}_mps")
+        # SLOW_MPS is read as slow_mps(); the accessor is the field lowercased,
+        # so resolve by attribute rather than by rewriting a suffix. Written
+        # this way after the tiers moved from *_FRAC to *_MPS in 2026-08-21 --
+        # a suffix rule silently stopped matching and excused every field it
+        # could no longer see.
+        #
+        # A field whose stored unit differs from the unit the actuator takes
+        # gets a converting accessor instead, and the name changes with it:
+        # REV_STEER_DEG holds a physical road-wheel angle and is read as
+        # rev_steer_norm(), because the normalised command that delivers that
+        # angle depends on the servo's reach. Both spellings are resolved by
+        # attribute, so an accessor that does not exist still fails the check.
+        candidates = [field.lower()]
+        if field.endswith("_DEG"):
+            candidates.append(f"{field[: -len('_DEG')].lower()}_norm")
+        names.extend(
+            accessor for accessor in candidates if accessor != field and callable(getattr(group, accessor, None))
+        )
         return names
 
     def test_every_configured_field_has_a_reader(self):

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import math
+
 from pydantic import BaseModel, ConfigDict, Field
 
+from shared.config.constants import RobotSpecs
 from shared.config.navigation_tuning._shared import _alias
+from shared.domain.steering import angle_rad_to_steering_norm
 
 
 class SignRouterParams(BaseModel):
@@ -142,9 +146,11 @@ class SignRouterParams(BaseModel):
             swept-path check needs no rear sensing either.
         RETRACE_DIST_M: How far back along the trail to aim while retracing (m).
             Only meaningful with ``RETRACE_ESCAPE``.
-        RETRACE_STEER_GAIN: Proportional gain on the retrace's lateral error.
-            Reverse pure pursuit, so the sign is inverted relative to the
-            forward case. Only meaningful with ``RETRACE_ESCAPE``.
+        RETRACE_STEER_GAIN_DEG: Proportional gain on the retrace's lateral
+            error, as the road-wheel angle commanded when the target sits at
+            45 degrees off the chassis (``lateral / distance == 1``). Reverse
+            pure pursuit, so the sign is inverted relative to the forward
+            case. Only meaningful with ``RETRACE_ESCAPE``.
         SIGN_CONTACT_EVADE: React to an imminent SIGN contact by steering away
             and creeping, instead of either ignoring it or reversing.
             Fills a gap between the two responses that exist today. A LIDAR
@@ -186,8 +192,9 @@ class SignRouterParams(BaseModel):
         SIGN_CONTACT_DIST_M: Along-track distance (m) within which a routed
             sign predicted to pass closer than the chassis and sign half-widths
             allow triggers ``SIGN_CONTACT_EVADE``. Only meaningful with it.
-        SIGN_CONTACT_STEER: Normalized steering added away from the offending
-            sign when ``SIGN_CONTACT_EVADE`` fires. Only meaningful with it.
+        SIGN_CONTACT_STEER_DEG: Road-wheel angle steered away from the
+            offending sign when ``SIGN_CONTACT_EVADE`` fires. Only meaningful
+            with it.
         SIGN_LANE_COMMIT_AHEAD_M: Distance ahead of the chassis within which a
             lane rebuild may NOT move the path (m). ``0.0`` disables it, which
             is the behaviour that shipped first.
@@ -393,15 +400,18 @@ class SignRouterParams(BaseModel):
     SIGN_LANE_PLANNER: bool = Field(default=True, validation_alias=_alias("SIGN_LANE_PLANNER"))
     RETRACE_ESCAPE: bool = Field(default=False, validation_alias=_alias("RETRACE_ESCAPE"))
     RETRACE_DIST_M: float = Field(default=0.25, gt=0.0, validation_alias=_alias("RETRACE_DIST_M"))
-    RETRACE_STEER_GAIN: float = Field(
-        default=1.0, ge=0.0, validation_alias=_alias("RETRACE_STEER_GAIN")
+    # 55.0 deg is what the previous normalised 1.0 meant at the bench-measured
+    # 55 deg road-wheel limit, so this conversion changed no behaviour.
+    RETRACE_STEER_GAIN_DEG: float = Field(
+        default=55.0, ge=0.0, validation_alias=_alias("RETRACE_STEER_GAIN_DEG")
     )
     SIGN_CONTACT_EVADE: bool = Field(default=False, validation_alias=_alias("SIGN_CONTACT_EVADE"))
     SIGN_CONTACT_DIST_M: float = Field(
         default=0.60, gt=0.0, validation_alias=_alias("SIGN_CONTACT_DIST_M")
     )
-    SIGN_CONTACT_STEER: float = Field(
-        default=0.35, ge=0.0, le=1.0, validation_alias=_alias("SIGN_CONTACT_STEER")
+    # 19.25 deg == the previous normalised 0.35 at the 55 deg road-wheel limit.
+    SIGN_CONTACT_STEER_DEG: float = Field(
+        default=19.25, ge=0.0, validation_alias=_alias("SIGN_CONTACT_STEER_DEG")
     )
     SIGN_LANE_COMMIT_AHEAD_M: float = Field(
         default=0.0, ge=0.0, validation_alias=_alias("SIGN_LANE_COMMIT_AHEAD_M")
@@ -422,6 +432,28 @@ class SignRouterParams(BaseModel):
     ESCAPE_MASK_RADIUS_M: float = Field(default=0.12, validation_alias=_alias("ESCAPE_MASK_RADIUS_M"))
     COMMIT_HYSTERESIS: bool = Field(default=False, validation_alias=_alias("COMMIT_HYSTERESIS"))
     CORRIDOR_FLIP_TICKS: int = Field(default=1, ge=1, validation_alias=_alias("CORRIDOR_FLIP_TICKS"))
+
+    def sign_contact_steer_norm(self) -> float:
+        """Sign-evade steering as the normalised command the actuator takes.
+
+        Stored as a physical road-wheel angle, so a wider servo yields a
+        SMALLER normalised command for the same 19.25 degrees rather than the
+        same command meaning a wider swerve. Same rationale as
+        :meth:`~shared.config.navigation_tuning.escape.EscapeManeuverParams.rev_steer_norm`.
+        """
+        return angle_rad_to_steering_norm(math.radians(self.SIGN_CONTACT_STEER_DEG), RobotSpecs.MAX_STEERING_ANGLE)
+
+    def retrace_steer_gain_norm(self, lateral_over_distance: float) -> float:
+        """Reverse-pure-pursuit steering for a target ``lateral/distance`` off-axis.
+
+        The caller passes the dimensionless bearing ratio; the gain turns it
+        into a road-wheel angle, and only then does the servo's reach enter.
+        Clamping happens in normalised space, exactly as the previous inline
+        ``max(-1.0, min(1.0, ...))`` did.
+        """
+        return angle_rad_to_steering_norm(
+            math.radians(self.RETRACE_STEER_GAIN_DEG) * lateral_over_distance, RobotSpecs.MAX_STEERING_ANGLE
+        )
 
 
 class SignDiscoveryParams(BaseModel):

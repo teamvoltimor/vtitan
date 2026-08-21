@@ -28,12 +28,24 @@ def _just_inside_turn_m(tuning: NavigationTuning) -> float:
     return tuning.corridor_follower.TURN_CLEARANCE_M - TURN_ENTRY_MARGIN_M
 
 
+def _max_centering_norm(tuning: NavigationTuning) -> float:
+    """The centring cap as the normalised command the actuator receives.
+
+    The cap is configured as a physical road-wheel angle, so the normalised
+    value it produces depends on the servo's reach -- which is the entire
+    point of expressing it that way. Asserting against the converted value
+    keeps these tests true on any steering geometry, where comparing to a bare
+    0.25 only held on the 55 degree chassis.
+    """
+    return math.radians(tuning.corridor_follower.MAX_CENTERING_STEER_DEG) / RobotSpecs.MAX_STEERING_ANGLE
+
+
 class TestCornerTurn:
     def test_wall_spanning_the_track_commits_to_the_turn(self, tuning) -> None:
         """A corridor that has genuinely ended must still turn, hard over."""
         scan = LidarScanBuilder().corridor(left_m=0.5, right_m=0.5, ahead_m=_just_inside_turn_m(tuning)).build()
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert abs(cmd.steering_norm) == pytest.approx(tuning.corridor_follower.MAX_CENTERING_STEER)
+        assert abs(cmd.steering_norm) == pytest.approx(_max_centering_norm(tuning))
         assert cmd.speed_mps > 0.0
 
     def test_turns_toward_the_side_with_more_room(self, tuning) -> None:
@@ -63,7 +75,7 @@ class TestCornerTurn:
             .build()
         )
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert abs(cmd.steering_norm) < tuning.corridor_follower.MAX_CENTERING_STEER, (
+        assert abs(cmd.steering_norm) < _max_centering_norm(tuning), (
             "committed to a hard-over corner turn in an open corridor"
         )
         assert cmd.speed_mps == pytest.approx(CREEP_SPEED_MPS), "slowed to corner speed mid-corridor"
@@ -76,7 +88,7 @@ class TestCornerTurn:
         ranges_with_dropout = list(scan.ranges)
         ranges_with_dropout[len(ranges_with_dropout) // 2] = RobotSpecs.LIDAR_MAX_RANGE
         cmd = follow_corridor(ranges_with_dropout, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
-        assert abs(cmd.steering_norm) == pytest.approx(tuning.corridor_follower.MAX_CENTERING_STEER)
+        assert abs(cmd.steering_norm) == pytest.approx(_max_centering_norm(tuning))
 
 
 class TestSafety:
@@ -198,7 +210,7 @@ class TestHeadingDamping:
         """Damping adds to the demand; it must not widen the steering envelope."""
         scan = LidarScanBuilder().corridor(left_m=0.9, right_m=0.1, ahead_m=2.5).build()
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, math.radians(-40.0), tuning=tuning)
-        assert abs(cmd.steering_norm) <= tuning.corridor_follower.MAX_CENTERING_STEER + 1e-9
+        assert abs(cmd.steering_norm) <= _max_centering_norm(tuning) + 1e-9
 
 
 def _bearings(num_rays: int = 360) -> list[float]:

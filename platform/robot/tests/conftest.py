@@ -104,7 +104,7 @@ def override_tuning():
     together. Several tests were duplicating that exact nesting inline;
     this collects it in one place.
 
-    Usage: ``override_tuning(base, corridor_follower={"CENTERING_GAIN": 1.0})``
+    Usage: ``override_tuning(base, corridor_follower={"CENTERING_GAIN_DEG_PER_M": 1.0})``
     replaces one or more fields in one or more groups at once.
     """
 

@@ -112,8 +112,14 @@ class PurePursuitParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    LOOKAHEAD_SHORT: float = Field(default=0.20, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
-    LOOKAHEAD_LONG: float = Field(default=0.40, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
+    # 0.16/0.32, not the 0.20/0.40 these read until 2026-08-21: the shorter pair
+    # is what pursuit.toml ships and what was measured (corpus collisions
+    # 202 -> 196, laps>=3 -> 64). The bare defaults had been left behind, so any
+    # caller constructing NavigationTuning() without the TOML silently drove a
+    # configuration nobody chose -- which is what TestFieldDefaultsMatchShippedToml
+    # exists to catch, and had been failing on.
+    LOOKAHEAD_SHORT: float = Field(default=0.16, validation_alias=_alias("LOOKAHEAD_SHORT"))  # Close to corner
+    LOOKAHEAD_LONG: float = Field(default=0.32, validation_alias=_alias("LOOKAHEAD_LONG"))  # Normal straight
     LOOKAHEAD_TRANSITION: float = Field(
         default=0.30, validation_alias=_alias("LOOKAHEAD_TRANSITION")
     )  # Crosstrack threshold
@@ -134,59 +140,76 @@ class PurePursuitParams(BaseModel):
 
 
 class SpeedControlParams(BaseModel):
-    """Speed control parameters for different zones, as fractions of the ceiling.
+    """Speed control parameters for different zones, in ABSOLUTE m/s.
 
-    Every tier is a fraction of ``RobotSpecs.MAX_SPEED_MPS`` -- the measured
-    0.156 m/s drivetrain ceiling -- and is read through the ``*_mps()``
-    accessors, never directly.
+    Every tier is a real speed. The drivetrain ceiling
+    (``RobotSpecs.MAX_SPEED_MPS``) is applied as a CLAMP by the ``*_mps()``
+    accessors, never as a multiplier.
 
-    This group used to hold absolute m/s values on a 0-0.50 scale that the
-    drivetrain does not have. Mapped onto the real ceiling, the four rungs
-    0.05 / 0.15 / 0.30 / 0.50 came out as 0.05 / 0.15 / 0.156 / 0.156: two
-    distinguishable speeds wearing four names, with MEDIUM and FAST identical
-    and SLOW within 4% of both. That made the ladder unfalsifiable -- a sweep
-    over MEDIUM_SPEED could not move the robot no matter what it was set to --
-    and it hid the fact that the only real transition was a 3x cliff at the
-    bottom.
+    Why absolute (2026-08-21)
+    -------------------------
+    These were fractions of the ceiling from 2026-08-09 until a faster motor
+    made that representation actively wrong. A fraction ladder re-scales every
+    tier the moment the ceiling is recalibrated, so swapping the motor silently
+    edits the navigation policy instead of just the hardware description:
 
-    The shipped fractions 0.65 / 0.75 / 0.85 / 1.0 are four speeds the
-    drivetrain can actually tell apart: 0.101 / 0.117 / 0.133 / 0.156 m/s.
+    * ``MIN`` is the FRICTION FLOOR -- the least speed that overcomes stiction
+      and actually moves the robot. That is a property of the motor and tyres,
+      ~0.05 m/s, and it does not rise because the top speed did. As a fraction
+      it would have become 0.075 m/s on a 0.234 m/s drivetrain: the robot would
+      believe it cannot move slower than 7.5 cm/s when it demonstrably can.
+    * ``CREEP`` is argued in CENTIMETRES OF TRAVEL -- the servo slews at a fixed
+      2.0 rad/s, so full lock from centre takes 0.61 s, during which the chassis
+      covers 6.2 cm against 0.103 m of lateral margin. Re-scaling the speed
+      invalidates that budget without touching the sentence that justifies it.
 
-    These are what a zone is worth, NOT which zone applies. Deployed on
-    2026-08-09 the ladder cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW
-    161.7 s -> 200.9 s, both past the 180 s limit) -- but the cause was the
-    heading ladder routing ordinary cornering through SLOW/MEDIUM, not these
-    values being wrong. That is fixed where the zone is chosen, in
-    CoreNavigator, so the tiers keep their meaning for the cases that do want
-    a lower speed.
+    Absolute values make a hardware change pure calibration: edit
+    ``robot.toml``'s ceiling and nothing here moves. Raising the tiers to
+    exploit a faster motor is then a separate, deliberate, reviewable edit
+    rather than a side effect.
 
-    The FLOOR is measured good: at creep 0.65 the heading limiter bound 0% of
-    ticks and CCW went from 1 escape and 4 stucks to none, against 16-21% of
+    History
+    -------
+    Before 2026-08-09 these were absolute m/s on a 0-0.50 scale the drivetrain
+    does not have. Mapped onto the real ceiling, the rungs 0.05 / 0.15 / 0.30 /
+    0.50 came out as 0.05 / 0.15 / 0.156 / 0.156 -- two distinguishable speeds
+    wearing four names, MEDIUM and FAST identical, and a sweep over MEDIUM
+    unable to move the robot at all. The fix then was fractions; the fix now is
+    absolute values that are CLAMPED rather than free, which keeps that failure
+    from returning: a tier above the ceiling is inert, and ``mps_ceiling()``
+    reports it.
+
+    The shipped ladder is 0.0499 / 0.1014 / 0.117 / 0.1326 / 0.156 m/s -- the
+    exact values the old fractions resolved to, so this conversion changed no
+    behaviour.
+
+    These are what a zone is WORTH, not which zone applies. Deployed 2026-08-09
+    the ladder cost 33% of lap time (CW 134.9 s -> 179.3 s, CCW 161.7 s ->
+    200.9 s, both past the 180 s limit) -- but the cause was the heading ladder
+    routing ordinary cornering through SLOW/MEDIUM, not these values. Fixed
+    where the zone is chosen, in CoreNavigator.
+
+    The FLOOR is measured good: at creep 0.101 m/s the heading limiter bound 0%
+    of ticks and CCW went from 1 escape and 4 stucks to none, against 16-21% of
     ticks pinned at the old 0.05 m/s crawl.
 
-    The usable band is narrow. MIN_FRAC is the friction floor, so the whole
-    ladder lives inside a 3.1x range between "barely moves" and "flat out";
-    there is not room in it for four meaningfully distinct rungs.
-
     Attributes:
-        MIN_FRAC: Least fraction that overcomes friction and actually moves
-            the robot. A floor on the others, not a tier in its own right.
-        MAX_FRAC: Upper bound on any tier. 1.0 is the drivetrain ceiling;
-            above that the gateway clamps and the number is fiction.
-        CREEP_FRAC: Contact zone, and the heading limiter's floor.
-        SLOW_FRAC: Near obstacles.
-        MEDIUM_FRAC: Moderate clearance.
-        FAST_FRAC: Open track. 1.0 is the drivetrain ceiling.
+        MIN_MPS: Friction floor. A clamp on the others, not a tier itself.
+        MAX_MPS: Upper bound on any tier.
+        CREEP_MPS: Contact zone, and the heading limiter's floor.
+        SLOW_MPS: Near obstacles.
+        MEDIUM_MPS: Moderate clearance.
+        FAST_MPS: Open track.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    MIN_FRAC: float = Field(default=0.32, gt=0.0, le=1.0, validation_alias=_alias("MIN_FRAC"))
-    MAX_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("MAX_FRAC"))
-    CREEP_FRAC: float = Field(default=0.65, gt=0.0, le=1.0, validation_alias=_alias("CREEP_FRAC"))
-    SLOW_FRAC: float = Field(default=0.75, gt=0.0, le=1.0, validation_alias=_alias("SLOW_FRAC"))
-    MEDIUM_FRAC: float = Field(default=0.85, gt=0.0, le=1.0, validation_alias=_alias("MEDIUM_FRAC"))
-    FAST_FRAC: float = Field(default=1.0, gt=0.0, le=1.0, validation_alias=_alias("FAST_FRAC"))
+    MIN_MPS: float = Field(default=0.0499, gt=0.0, validation_alias=_alias("MIN_MPS"))
+    MAX_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("MAX_MPS"))
+    CREEP_MPS: float = Field(default=0.1014, gt=0.0, validation_alias=_alias("CREEP_MPS"))
+    SLOW_MPS: float = Field(default=0.117, gt=0.0, validation_alias=_alias("SLOW_MPS"))
+    MEDIUM_MPS: float = Field(default=0.1326, gt=0.0, validation_alias=_alias("MEDIUM_MPS"))
+    FAST_MPS: float = Field(default=0.156, gt=0.0, validation_alias=_alias("FAST_MPS"))
 
     @model_validator(mode="after")
     def _floor_below_creep(self) -> SpeedControlParams:
@@ -199,38 +222,48 @@ class SpeedControlParams(BaseModel):
         The shipped config had exactly this: MIN_SPEED and CREEP_SPEED were
         both 0.05.
         """
-        if self.MIN_FRAC > self.CREEP_FRAC:
+        if self.MIN_MPS > self.CREEP_MPS:
             msg = (
-                f"speed.MIN_FRAC ({self.MIN_FRAC}) must not exceed speed.CREEP_FRAC "
-                f"({self.CREEP_FRAC}); the envelope clamp would swallow the creep tier "
+                f"speed.MIN_MPS ({self.MIN_MPS}) must not exceed speed.CREEP_MPS "
+                f"({self.CREEP_MPS}); the envelope clamp would swallow the creep tier "
                 "and mask any change made to it"
             )
             raise ValueError(msg)
         return self
 
+    def mps_ceiling(self) -> float:
+        """The drivetrain ceiling every accessor clamps to.
+
+        Exposed so a caller can tell "this tier is inert because the drivetrain
+        cannot reach it" from "this tier was tuned to that value" -- the
+        distinction the pre-2026-08-09 ladder lost when MEDIUM and FAST both
+        silently resolved to the ceiling.
+        """
+        return RobotSpecs.MAX_SPEED_MPS
+
     def min_mps(self) -> float:
         """Friction floor in m/s."""
-        return self.MIN_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.MIN_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def max_mps(self) -> float:
         """Upper speed bound in m/s."""
-        return self.MAX_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.MAX_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def creep_mps(self) -> float:
         """Contact-zone / heading-floor speed in m/s."""
-        return self.CREEP_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.CREEP_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def slow_mps(self) -> float:
         """Slow-zone speed in m/s."""
-        return self.SLOW_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.SLOW_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def medium_mps(self) -> float:
         """Medium-zone speed in m/s."""
-        return self.MEDIUM_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.MEDIUM_MPS, RobotSpecs.MAX_SPEED_MPS)
 
     def fast_mps(self) -> float:
         """Open-track speed in m/s."""
-        return self.FAST_FRAC * RobotSpecs.MAX_SPEED_MPS
+        return min(self.FAST_MPS, RobotSpecs.MAX_SPEED_MPS)
 
 
 class ControlLoopParams(BaseModel):

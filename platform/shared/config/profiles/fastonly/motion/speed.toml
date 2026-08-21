@@ -1,0 +1,24 @@
+# Speed ladder for the faster drivetrain this profile describes, deep-merged
+# onto platform/shared/config/navigation/motion/speed.toml.
+#
+# Identical to profiles/fastwide/motion/speed.toml: the two profiles share a
+# drivetrain and differ only in steering geometry, so they must share a speed
+# ladder or the attribution arms stop being comparable -- fastonly exists
+# precisely to separate the speed effect from the steering one.
+#
+# See the fastwide copy for why min_mps is deliberately NOT scaled and why
+# creep_mps is reproduced rather than argued.
+
+# Friction floor: a property of the motor and tyres, not of the top speed.
+min_mps = 0.0499
+
+max_mps = 0.234
+
+# 0.65 x 0.234, reproduced from the pre-2026-08-21 fraction ladder. The
+# centimetres-of-travel argument in the base file supports ~0.1014; re-tuning
+# toward it is a separate, attributable change.
+creep_mps = 0.1521
+
+slow_mps = 0.1755
+medium_mps = 0.1989
+fast_mps = 0.234
