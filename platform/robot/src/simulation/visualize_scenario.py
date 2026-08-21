@@ -327,7 +327,9 @@ def _run_and_visualize(scenario: NamedScenario, opts: _RunOptions) -> None:
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
         "Publishing /sim/odom, /scan, /sim/track, /sim/plan, /sim/sign_estimates — "
-        "run `pixi run -e sim viz` in another terminal to watch.",
+        "run `task sim:navigate:rviz` in another terminal to watch "
+        "(NOT `task sim:rviz`: bare RViz in a separate ROS2 install, empty track). "
+        "`task sim:navigate:visualize:all` does both in one command.",
     )
     result = _run_one(scenario, visualizer, opts)
     _log_result(scenario.label, result)

@@ -10,6 +10,12 @@ static approximation.
 
 Requires the ``robot`` pixi environment (ROS2 Kilted / RoboStack); not
 importable from the plain ``uv`` env the headless tests run in.
+
+Watch it with ``task sim:navigate:rviz``, which loads
+``config/live_visualization.rviz`` from this same pixi install. NOT
+``task sim:rviz`` -- that is a bare RViz in ``gazebo/runtime``'s separate
+ROS2 install, with no saved config, so it comes up as an empty grid whether or
+not it discovers these topics.
 """
 
 from __future__ import annotations
