@@ -2290,7 +2290,18 @@ class _Approach:
     from a corner of radius r", for signs that collided and signs that did not.
     """
 
-    arc_radius_m: float | None
+    delivered_frac: float | None = None
+    """Fraction of the sign's plateau the plan delivered AT this closest point.
+
+    Filled in by the caller rather than computed here -- the geometry above says
+    WHERE the path runs nearest, and this says what the lane was worth there.
+    Carrying them on one object is the whole point: the population that collides
+    and the population that passes are both at a corner-entry bend, so the split
+    has to come from something measured at the same point, not from a second
+    list keyed by index.
+    """
+
+    arc_radius_m: float | None = None
     """Radius of the arc the closest point sits on, when it sits on one.
 
     A frame-free readout of the believed corridor width: ``_corner_arc_radius``
@@ -2600,6 +2611,8 @@ def _sample_lane_delivery(
             verdict = _lane_branch(index, lane_base, specs, params, fresh)
             branch, compose = verdict.branch, verdict.compose_m
             approach = _approach_offset(plan, verdict.waypoint_index, closest, lane_base)
+            if approach is not None:
+                approach = replace(approach, delivered_frac=outward / plateau)
         per_sign[index] = _LaneSample(
             gap_m=gap,
             delivered_frac=outward / plateau,
@@ -3002,6 +3015,41 @@ def _report_corner_entry_population(
             f"[{len(group) - len(known)} unmeasured]",
             flush=True,
         )
+    _report_entry_split(columns)
+
+
+def _report_entry_split(columns: tuple[tuple[str, list[_Approach]], ...]) -> None:
+    """Within the corner-entry population, split by whether the path is TURNING there.
+
+    The question left standing. Landing at a corner entry describes 99.4% of
+    collisions and 79.5% of passes alike, so it cannot be the mechanism on its
+    own -- something has to separate the ~154 that collide from the ~445 that do
+    not, and it has to be measured at the same point, which is why
+    ``delivered_frac`` rides on ``_Approach``.
+
+    ``on_arc`` is the candidate: the lane is laid across waypoints, and an arc
+    inside the borrowed corner window is shifted while an arc beyond it is not
+    touched at all. If the closest approach lands on untouched arc, the plateau
+    is simply not present where the chassis passes the sign.
+
+    Read it as a PASS->COLLISION gap, not a level. If ``delivered`` collapses on
+    arc in BOTH columns, being on an arc is chronic and the split is elsewhere
+    again -- the same trap that made clamped-shift and the 21 cm band look
+    causal. It is only the mechanism if the on-arc column separates the two.
+    """
+    for label, group in columns:
+        for on_arc in (True, False):
+            sub = [a for a in group if a.on_arc is on_arc and a.delivered_frac is not None]
+            if not sub:
+                continue
+            delivered = [a.delivered_frac for a in sub]
+            print(
+                f"LANE-SPLIT {label:<11} {'ON ARC ' if on_arc else 'straight':<9} "
+                f"n={len(sub):>5}  delivered median {percentile(delivered, 0.5):+5.2f}x  "
+                f"p10 {percentile(delivered, 0.1):+5.2f}x  "
+                f"approach median {percentile([a.gap_m for a in sub], 0.5) * 100:6.2f}cm",
+                flush=True,
+            )
 
 
 def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -> None:
