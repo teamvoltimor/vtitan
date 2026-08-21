@@ -7,6 +7,38 @@ hardware profile scaffolded in
 `platform/robot/config/hardware/motors/profiles/servo270/servo.toml` (see
 `docs/internal/plans/2026-08-11-servo-hardware-profiles.md`).
 
+## Profile activation is a runtime setting, not a config edit (2026-08-20)
+
+Editing a value inside `platform/shared/config/profiles/<name>/robot.toml`
+(or the matching `platform/robot/config/hardware/motors/profiles/<name>/servo.toml`)
+does **not** put that value into effect on its own. Every profile is an
+overlay that only applies when its name is listed in the
+`VTITAN_HARDWARE_PROFILE` env var at process start (`shared.config.
+hardware_profile.active_profiles()`, read fresh by
+`RobotConstants.load_default()` / `NavigationTuning.load_default()` — no
+separate build/codegen step on the Python side). Empty/unset means every
+node runs on the base, unmodified config, full stop.
+
+Confirmed on hardware 2026-08-20: `VTITAN_HARDWARE_PROFILE=` was blank in
+the Pi 5's `.env` the entire time a motor-speed change was being tested —
+the change lived in the `fastwide`/`fastonly` profile overlays
+(`max_speed_mps = 0.234`, vs the base `robot.toml`'s `0.156`), so every
+drive test that night ran against the **unmodified base ceiling**, not the
+intended higher one. Same applies to `servo270`: its geometry overrides
+(`servo_max_angle_deg`, `max_wheel_angle_deg`, etc. — see below) are inert
+on a robot with a blank/different `VTITAN_HARDWARE_PROFILE`, even with the
+physical 270° servo already wired in.
+
+To activate one or more profiles: set `VTITAN_HARDWARE_PROFILE=servo270`
+(or a comma-separated ordered list, e.g. `servo270,fastwide` — later names
+win on any key both set; these two don't conflict, servo270 only touches
+steering geometry and fastwide/fastonly only touch drivetrain speed) in
+`platform/robot/.env` on the Pi 5, then restart `vtitan-pi5.service` so the
+new nodes pick it up. There is no way to tell a profile is active from the
+robot's behavior alone without checking `.env` directly — a silently
+inactive profile looks identical to a robot correctly running on
+unmodified defaults.
+
 ## Datasheet specs
 
 | Spec | 180° — INJORA INJS035 | 270° — Hiwonder HPS-3527SG |
