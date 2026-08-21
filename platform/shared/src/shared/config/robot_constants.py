@@ -18,7 +18,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from shared.config._merge import deep_merge
-from shared.config.hardware_profile import profile_dirs
+from shared.config.hardware_profile import PROFILES_ROOT, active_profiles, profile_dirs
 
 DEFAULT_CONFIG_PATH: Path = Path(__file__).resolve().parents[3] / "config" / "robot.toml"
 """platform/shared/config/robot.toml -- resolved relative to this module's own
@@ -192,6 +192,55 @@ class Camera(BaseModel):
     mount_pitch: float
 
 
+_COMPONENT_FACTS: tuple[tuple[str, str, str], ...] = (
+    ("drivetrain", "max_speed_mps", "a drive motor"),
+    ("steering", "servo_max_angle_deg", "a steering servo"),
+    ("steering", "max_wheel_angle_deg", "a steering servo"),
+)
+"""Keys the base config refuses to guess, and the component that supplies each.
+
+The base ``robot.toml`` describes the chassis, which does not change when a
+motor or servo is swapped. These three do change, so requiring them from a
+named profile is what stops a run from silently modelling whichever hardware
+happened to be checked in -- the failure mode that put a night of motor tests
+on the wrong ceiling, undetectable from behaviour alone."""
+
+
+def _require_component_facts(data: dict[str, object]) -> None:
+    """Fail loudly when no hardware profile supplied the motor or servo facts.
+
+    Raised here rather than left to pydantic because pydantic's own message
+    ("field required") names the field but not the cause or the cure, and the
+    cure -- export ``VTITAN_HARDWARE_PROFILE`` -- is not guessable from it.
+
+    Args:
+        data: The merged base + profile mapping, before validation.
+
+    Raises:
+        ValueError: Naming every missing fact and the profiles that supply it.
+    """
+    missing = [
+        (section, key, component)
+        for section, key, component in _COMPONENT_FACTS
+        if not isinstance(data.get(section), dict) or key not in data[section]  # type: ignore[index]
+    ]
+    if not missing:
+        return
+
+    available = sorted(p.name for p in PROFILES_ROOT.iterdir() if p.is_dir()) if PROFILES_ROOT.is_dir() else []
+    wanted = ", ".join(f"[{section}] {key}" for section, key, _ in missing)
+    components = sorted({component for _, _, component in missing})
+    active = active_profiles()
+    msg = (
+        f"robot config is missing {wanted}, which {' and '.join(components)} profile(s) supply. "
+        f"VTITAN_HARDWARE_PROFILE is currently {','.join(active) if active else 'unset'}. "
+        f"Name one profile per component, comma-separated, e.g. "
+        f"VTITAN_HARDWARE_PROFILE=270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm. "
+        f"Available profiles: {', '.join(available) if available else '(none found)'}."
+    )
+    raise ValueError(msg)
+
+
 class RobotConstants(BaseModel):
     """Physical constants for the robot chassis, loaded from robot.toml."""
 
@@ -211,9 +260,16 @@ class RobotConstants(BaseModel):
         """Load ``platform/shared/config/robot.toml``, with any active hardware profile overlaid.
 
         A hardware profile (``VTITAN_HARDWARE_PROFILE``, see
-        :mod:`shared.config.hardware_profile`) only needs to declare the
-        keys it changes -- e.g. a ``[steering]`` block for a different
-        servo. Every other field still comes from this base file.
+        :mod:`shared.config.hardware_profile`) declares only the keys it
+        changes. Every other field still comes from this base file.
+
+        The base file deliberately does NOT declare the drive motor's ceiling
+        or the servo's geometry, so a profile supplying each is REQUIRED and
+        this raises naming what is missing when one is not. See
+        :func:`_require_component_facts`.
+
+        Raises:
+            ValueError: If no profile supplied the motor or servo facts.
         """
         with DEFAULT_CONFIG_PATH.open("rb") as f:
             data: dict[str, object] = tomllib.load(f)
@@ -222,4 +278,5 @@ class RobotConstants(BaseModel):
             if overlay_path.exists():
                 with overlay_path.open("rb") as f:
                     data = deep_merge(data, tomllib.load(f))
+        _require_component_facts(data)
         return cls.model_validate(data)

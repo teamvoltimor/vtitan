@@ -1,0 +1,18 @@
+# Drive motor: generic 1500 rpm brushed gearmotor (the original build).
+#
+# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --
+# e.g. "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm". Replaces the old
+# fastonly/wideonly/fastwide cross-product, which needed one profile per
+# COMBINATION and had to be hand-kept in step with its parents.
+#
+# Declares only what this motor changes. Chassis, ackermann, wheel, lidar, imu
+# and camera all still come from the base robot.toml.
+
+[drivetrain]
+# Measured under load, not a datasheet figure: this is the real ceiling the
+# gateway clamps to, and it is the number the Open Challenge time budget is
+# decided by (a 26.07 m three-lap path against a 180 s limit demands a
+# 0.145 m/s AVERAGE, and the car sustains ~79% of its ceiling once corners are
+# priced in -- so this motor cannot finish narrow corridors at any control
+# quality).
+max_speed_mps = 0.156

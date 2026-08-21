@@ -4,6 +4,7 @@ Pytest configuration and fixtures for robot tests.
 
 import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,25 @@ _this_dir = Path(__file__).resolve().parent
 _shared_src = (_this_dir.parent.parent / "shared" / "src").resolve()
 if str(_shared_src) not in sys.path:
     sys.path.insert(0, str(_shared_src))
+
+_TEST_HARDWARE_PROFILE = "180deg-injora-14kg,generic-motor-1500rpm"
+"""Which physical robot the suite's assertions describe.
+
+The base ``robot.toml`` no longer declares a motor or servo -- those live in
+per-component profiles and one of each must be named, so loading fails without
+this. Declaring it here rather than defaulting it in the config loader is the
+point: a test's hardware is now stated, not inherited from whatever happened to
+be checked in.
+
+Pinned to the RETIRED build (Injora 14 kg + generic 1500 rpm) because that is
+what every existing assertion and every recorded baseline was measured against.
+Moving the suite to the current build is a deliberate change that re-baselines
+those numbers, not a side effect of the config restructure.
+
+An externally set VTITAN_HARDWARE_PROFILE wins, so the whole suite can be run
+against other hardware without editing this file.
+"""
+os.environ.setdefault("VTITAN_HARDWARE_PROFILE", _TEST_HARDWARE_PROFILE)
 
 from shared.config.navigation_tuning import NavigationTuning
 

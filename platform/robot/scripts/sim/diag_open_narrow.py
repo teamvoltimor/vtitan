@@ -5,29 +5,38 @@ only thing that counts: 3 laps within ``ROUND_TIME_LIMIT_S``.
 
 The narrow-corridor NAVIGATION bug this script was written for is fixed
 (``5c0e16f``); what remains is a pure time budget, so this now measures that per
-hardware profile. The default run overrides nothing, so
-``VTITAN_HARDWARE_PROFILE`` decides the speed ceiling and steering limit:
+hardware profile. The script overrides nothing, so ``VTITAN_HARDWARE_PROFILE``
+decides the speed ceiling and steering limit -- and it is MANDATORY, since the
+base config no longer declares a motor or a servo:
 
-    python scripts/sim/diag_open_narrow.py                          # base
-    VTITAN_HARDWARE_PROFILE=fastwide python scripts/sim/diag_open_narrow.py
+    VTITAN_HARDWARE_PROFILE=180deg-injora-14kg,generic-motor-1500rpm \
+        python scripts/sim/diag_open_narrow.py
+    VTITAN_HARDWARE_PROFILE=270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm \
+        python scripts/sim/diag_open_narrow.py
 
 Measured over the 8 narrow starts, 3 laps against the 180 s limit:
 
-===============  ======  =========  =========
-speed ceiling    pass    3 laps?    slowest
-===============  ======  =========  =========
-0.156 (base)     0/8     no (2)     200.0 s
-0.170            0/8     yes        194.8 s
-0.185            8/8     yes        179.8 s
-0.234 (fastwide) 8/8     yes        140.8 s
-===============  ======  =========  =========
+==================================  ======  =========  =========
+speed ceiling                       pass    3 laps?    slowest
+==================================  ======  =========  =========
+0.156 (generic-motor-1500rpm)       0/8     no (2)     200.0 s
+0.170                               0/8     yes        194.8 s
+0.185                               8/8     yes        179.8 s
+0.234 (rev-hd-hex-motor-6000rpm)    8/8     yes        140.8 s
+==================================  ======  =========  =========
 
 The path is 26.07 m over 3 laps, so the limit demands a 0.145 m/s AVERAGE. The
-base ceiling is 0.156 -- only 7% above that average -- and the car actually
-sustains ~79% of its ceiling once corners are priced in. **The base car cannot
-finish this course in time at any control quality**, and steering range does not
-enter into it: the ``wideonly`` profile (85 deg wheels, base speed) is
-indistinguishable from base at 0/8 and 200.0 s.
+1500 rpm motor's 0.156 ceiling is only 7% above that average, and the car
+actually sustains ~79% of its ceiling once corners are priced in. **That motor
+cannot finish this course in time at any control quality**, and steering range
+does not enter into it: swapping only the servo (270deg-hiwonder-35kg on the
+slower motor) is indistinguishable from the slower build at 0/8 and 200.0 s.
+
+That last point was re-confirmed over the full 128-scenario blind sweep on
+2026-08-21, and it is stronger than it looks: the two arms are identical
+SCENARIO FOR SCENARIO, same verdicts and same times. Before the tuning moved to
+physical units the servo appeared to be a real lever -- it was only ever
+rescaling normalised steering constants by 85/55.
 
 History worth keeping, because it explains what this script does NOT measure:
 the original suspicion was a speed-dependent steering law, since

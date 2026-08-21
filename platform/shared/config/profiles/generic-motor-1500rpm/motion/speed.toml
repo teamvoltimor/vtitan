@@ -1,0 +1,37 @@
+# Speed ladder for the generic 1500 rpm motor, in ABSOLUTE m/s.
+#
+# The ladder lives with the MOTOR rather than in the generic base because the
+# spread between the tiers is chosen against what this drivetrain can actually
+# deliver: the usable band runs from the friction floor to the ceiling, and on
+# this motor that is only a 3.1x range, with barely room for four rungs a
+# controller can tell apart. A different motor has a different band and wants
+# different rungs, so these are not a generic policy.
+#
+# (Steering tuning is NOT split this way. Since 2026-08-21 it is expressed in
+# road-wheel degrees, which mean the same thing on any servo, so it stays in
+# the generic tree and no servo profile needs to restate it.)
+#
+# Values are exactly what the pre-2026-08-21 fraction ladder resolved to
+# against this motor's 0.156 m/s ceiling, so the move to component profiles
+# changed no behaviour on this hardware.
+
+# Least speed that overcomes friction and actually moves the robot. A floor on
+# the tiers below, not a tier itself. Measured no-load and in a straight line;
+# the true floor under full steering lock is higher (tyre scrub) and has never
+# been measured.
+min_mps = 0.0499
+
+max_mps = 0.156
+
+# Contact zone (<0.10 m clearance), the heading limiter's floor at >=57 deg,
+# and the stuck-escape forward nudge.
+#
+# Argued in CENTIMETRES OF TRAVEL: the steering servo slews at a fixed
+# 2.0 rad/s, so full lock from centre takes 0.61 s, during which the chassis
+# covers 6.2 cm against 0.103 m of lateral margin. That budget is why this
+# value is what it is -- read it before scaling it to a faster motor.
+creep_mps = 0.1014
+
+slow_mps = 0.117
+medium_mps = 0.1326
+fast_mps = 0.156
