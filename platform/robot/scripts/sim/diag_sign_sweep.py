@@ -1821,6 +1821,26 @@ class _SignPassSample:
     struck_branch: LaneBranch | None
     """The same, for the sign that ended the run. ``None`` if no sign was hit."""
 
+    pass_branch_delivery: list[tuple[LaneBranch, float]]
+    """Per PASSED sign, its branch PAIRED with what the plan actually delivered.
+
+    Kept as pairs rather than as the two existing parallel lists because the
+    question is a cross-tab, and ``pass_outward`` and ``pass_branches`` cannot be
+    zipped: the first holds every sample, the second only those a branch could be
+    computed for.
+
+    What it settles: the branch classifier diagnoses the target sign's corridor
+    group ALONE, while the plan is the composition of every group over the whole
+    path. So ``DELIVERED`` asserts only that this group in isolation would reach
+    its plateau -- if those signs then measure short on the actual polyline, the
+    difference is cross-group composition, which no branch here names.
+    ``CLAMPED_SHIFT`` is the control: its shortfall is predicted by the branch
+    itself, so it should read short in BOTH columns.
+    """
+
+    struck_delivered: float | None
+    """The same delivery fraction, for the sign that ended the run."""
+
     pass_stale: list[float]
     """Per PASSED sign, how far the held plan sits from a fresh rebuild there.
 
@@ -2338,6 +2358,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
     estimate_err: float | None = None
     struck_middle: bool | None = None
     struck_branch: LaneBranch | None = None
+    struck_delivered: float | None = None
     struck_stale: float | None = None
     struck_fp_stale: bool | None = None
     if struck_sign and result.collision_xy is not None:
@@ -2371,6 +2392,7 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
                     continue
                 if sample.branch is not None:
                     struck_branch = sample.branch
+                    struck_delivered = sample.delivered_frac
                     struck_stale = sample.stale_m
                     struck_fp_stale = sample.fingerprint_stale
 
@@ -2381,6 +2403,8 @@ def _sign_pass_crosstrack(args: tuple[int, SweepConfig]) -> _SignPassSample:
         near_yaw_deg=near_yaw,
         pass_outward=[s.delivered_frac for s in per_sign.values()],
         pass_branches=[s.branch for s in per_sign.values() if s.branch is not None],
+        pass_branch_delivery=[(s.branch, s.delivered_frac) for s in per_sign.values() if s.branch is not None],
+        struck_delivered=struck_delivered,
         pass_stale=[s.stale_m for s in per_sign.values() if s.stale_m is not None],
         pass_fp_stale=[s.fingerprint_stale for s in per_sign.values() if s.branch is not None],
         struck_branch=struck_branch,
@@ -2431,7 +2455,40 @@ def _report_lane_branches(samples: list[_SignPassSample]) -> None:
         f"collisions {len(struck_branches):>4}",
         flush=True,
     )
+    _report_delivery_by_branch(samples)
     _report_lane_staleness(samples)
+
+
+def _report_delivery_by_branch(samples: list[_SignPassSample]) -> None:
+    """Print what each branch actually DELIVERED on the plan, passes vs collisions.
+
+    The branch tally says which decision settled a lane; this says whether that
+    decision predicted the outcome. The two can disagree, and where they do the
+    branch is not the mechanism: ``_lane_profile_for`` rebuilds the target sign's
+    corridor group ALONE, while the plan the chassis drives is
+    ``apply_sign_lanes`` composing every group across the whole path. A
+    ``DELIVERED`` sign measuring short on the polyline is that gap, and with
+    staleness refuted at 0.22 cm p90 there is nothing else left for it to be.
+
+    Read 1.0 as the full plateau and anything below ~0 as the plan running on the
+    forbidden side. ``CLAMPED_SHIFT`` is the built-in control: it is short by its
+    own definition, so it should read short in both columns, and a branch that
+    reads at plateau for passes but near zero for collisions is the interesting
+    one.
+    """
+    pairs = [p for s in samples for p in s.pass_branch_delivery]
+    struck = [(s.struck_branch, s.struck_delivered) for s in samples if s.struck_branch is not None]
+    struck = [(b, d) for b, d in struck if d is not None]
+    if not pairs and not struck:
+        return
+    for branch in LaneBranch:
+        got_pass = [d for b, d in pairs if b is branch]
+        got_hit = [d for b, d in struck if b is branch]
+        if not got_pass and not got_hit:
+            continue
+        as_pass = f"{percentile(got_pass, 0.5):+5.2f}x (n={len(got_pass):>4})" if got_pass else "   n/a       "
+        as_hit = f"{percentile(got_hit, 0.5):+5.2f}x (n={len(got_hit):>3})" if got_hit else "   n/a      "
+        print(f"LANE-DELIVERY {branch:<16} passes {as_pass}   collisions {as_hit}", flush=True)
 
 
 def _report_lane_staleness(samples: list[_SignPassSample]) -> None:
