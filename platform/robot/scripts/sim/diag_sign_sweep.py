@@ -171,11 +171,11 @@ _PASSED_DIST_FOR_BLIND_REACH = 1.20
 _OFFSET_ZERO_ROUTER_OFF = 0.0
 _ACTIVATION_FOR_PROFILE = 0.12
 _PASSED_DIST_FOR_PROFILE = 0.24
-# The removed for_obstacles profile asked for FAST_SPEED 0.30 m/s. Speeds are
-# fractions of the 0.156 m/s ceiling now, and 0.30 m/s was already above it --
-# which is precisely why that half of the profile was measured to be inert.
-# 1.0 is the same command the robot actually received.
-_SPEED_FOR_PROFILE = 1.0
+# The removed for_obstacles profile asked for FAST_SPEED 0.30 m/s, already above
+# the 0.156 m/s drivetrain ceiling -- which is precisely why that half of the
+# profile was measured to be inert. This is the same command the robot actually
+# received, and the accessors clamp anything above the ceiling anyway.
+_SPEED_FOR_PROFILE = 0.156
 
 
 class CollisionKind(StrEnum):
@@ -200,16 +200,23 @@ class SweepConfig:
     label: str
     lookahead_short: float | None = None
     lookahead_long: float | None = None
-    fast_frac: float | None = None
-    creep_frac: float | None = None
-    """Override ``SpeedParams.CREEP_FRAC``.
+    fast_mps: float | None = None
+    """Override ``SpeedParams.FAST_MPS``, in ABSOLUTE m/s."""
+
+    creep_mps: float | None = None
+    """Override ``SpeedParams.CREEP_MPS``, in ABSOLUTE m/s.
 
     The tier the heading limiter drops to past ``HeadingErrorZones.CRAWL``,
     which exists because the steering actuator's slew rate is fixed and cannot
-    track a sharp demand at speed. Being a FRACTION of ``MAX_SPEED_MPS``, it is
-    rescaled by any hardware speed profile -- so the guard speeds up in lockstep
-    with the thing it guards against, while the actuator does not. Sweep this to
-    hold the rung at an absolute speed across profiles.
+    track a sharp demand at speed.
+
+    This used to be a fraction of ``MAX_SPEED_MPS``, so a hardware speed profile
+    rescaled it: the guard sped up in lockstep with the thing it guards against
+    while the actuator stayed exactly as quick, and holding the rung steady
+    across profiles meant hand-computing a compensating fraction
+    (0.1014/0.234 = 0.43 under fastwide, against the shipped 0.65). Since
+    2026-08-21 the tiers are absolute, so the rung holds across profiles on its
+    own and that correction is no longer needed.
     """
     arc_radius: float | None = None
     steer_kp: float | None = None
@@ -573,7 +580,7 @@ class SweepConfig:
             STEER_KP=self.steer_kp,
             MAX_STEERING_RATE=self.max_steering_rate,
         )
-        speed = _with(base.speed, FAST_FRAC=self.fast_frac, CREEP_FRAC=self.creep_frac)
+        speed = _with(base.speed, FAST_MPS=self.fast_mps, CREEP_MPS=self.creep_mps)
         waypoints = _with(
             base.waypoints,
             ARC_RADIUS=self.arc_radius,
@@ -3602,18 +3609,17 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         sign_lane_planner=True,
         wall_clearance=v,
     ),
-    "speed": lambda v: SweepConfig(f"fast_frac {v:{_FORMAT_2F}}", fast_frac=v),
+    "speed": lambda v: SweepConfig(f"fast_mps {v:{_FORMAT_3F}}", fast_mps=v),
     # The one knob mechanically coupled to a hardware speed profile. It is in
-    # rad/SECOND while every speed tier is a fraction of MAX_SPEED_MPS, so a
-    # faster profile leaves the steering actuator exactly as quick while giving
-    # it less distance to act over. Sweep it alongside VTITAN_HARDWARE_PROFILE,
-    # not on its own -- at the base speed the shipped 2.0 is already tuned.
+    # rad/SECOND, so a faster profile leaves the steering actuator exactly as
+    # quick while giving it less distance to act over. Sweep it alongside
+    # VTITAN_HARDWARE_PROFILE, not on its own -- at the base speed the shipped
+    # 2.0 is already tuned.
     "steer-rate": lambda v: SweepConfig(f"max_steering_rate {v:{_FORMAT_2F}}", max_steering_rate=v),
-    # The other half of the same coupling, and the half that is not a fraction
-    # problem but becomes one: pass the fraction that holds the CRAWL rung at
-    # the absolute speed it was tuned at. Under fastwide that is 0.1014/0.234 =
-    # 0.43, against the shipped 0.65.
-    "creep": lambda v: SweepConfig(f"creep_frac {v:{_FORMAT_2F}}", creep_frac=v),
+    # The other half of that coupling. Values are ABSOLUTE m/s, so the rung
+    # holds where you put it across every hardware profile -- before 2026-08-21
+    # this took a fraction and had to be hand-compensated per profile.
+    "creep": lambda v: SweepConfig(f"creep_mps {v:{_FORMAT_3F}}", creep_mps=v),
     "offset": lambda v: SweepConfig(f"lateral_offset {v:{_FORMAT_3F}}", lateral_offset=v),
     # The offset sweep CROSSED with lidar_blind. This was how the escape layer
     # was first identified as the gate, back when it was the only way to make
@@ -3723,7 +3729,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     "baseline": [SweepConfig("defaults")],
     "profile": [
         SweepConfig("defaults"),
-        SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_frac=_SPEED_FOR_PROFILE),
+        SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_mps=_SPEED_FOR_PROFILE),
     ],
     # Separates "the tracker broke" from "sign avoidance failed" — run this
     # first on any change; no aggregate collision count can tell them apart.

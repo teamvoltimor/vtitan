@@ -77,25 +77,41 @@ class CorridorFollowerParams(BaseModel):
             trace. 0.40 keeps a 0.10 m margin above _MIN_FORWARD_CLEARANCE_M
             (RobotSpecs.LENGTH, 0.30 m) so the corner-turn branch still fires
             cleanly instead of folding into the emergency back-off branch.
-        CENTERING_GAIN: Steering per metre of lateral offset from the
-            corridor centreline.
-        HEADING_GAIN: Steering per radian of heading error against the
-            corridor axis. Centring on offset alone is undamped -- in a
-            steered vehicle heading is the integral of steering and
-            position the integral of heading, so the two are 90 degrees
-            out of phase and proportional-on-position is an oscillator.
-            Measured on real hardware 2026-08-07: 112 steering sign flips
-            in 177 s, a 3.2 s limit cycle, 45% of ticks pinned at
-            MAX_CENTERING_STEER, heading 30 deg off axis at the median.
-            That is what starves the direction gate, which needs the
-            chassis square to a corridor at the moment one side opens.
-            Raising CENTERING_GAIN cannot fix it and makes it worse (see
-            MAX_CENTERING_STEER); the missing term is this one.
-        MAX_CENTERING_STEER: Hard cap on the steering that gain may
-            produce. Both are deliberately timid: the counter-phase
-            four-wheel chassis responds violently, and oscillation swings
-            the heading past the direction estimator's alignment gate,
-            which then refuses every reading.
+        CENTERING_GAIN_DEG_PER_M: Degrees of road-wheel steering per metre of
+            lateral offset from the corridor centreline.
+        HEADING_GAIN: Road-wheel steering angle per unit of heading error
+            against the corridor axis -- dimensionless, since both sides are
+            angles. Centring on offset alone is undamped: in a steered
+            vehicle heading is the integral of steering and position the
+            integral of heading, so the two are 90 degrees out of phase and
+            proportional-on-position is an oscillator. Measured on real
+            hardware 2026-08-07: 112 steering sign flips in 177 s, a 3.2 s
+            limit cycle, 45% of ticks pinned at MAX_CENTERING_STEER_DEG,
+            heading 30 deg off axis at the median. That is what starves the
+            direction gate, which needs the chassis square to a corridor at
+            the moment one side opens. Raising CENTERING_GAIN_DEG_PER_M
+            cannot fix it and makes it worse (see MAX_CENTERING_STEER_DEG);
+            the missing term is this one.
+        MAX_CENTERING_STEER_DEG: Hard cap, in degrees of road-wheel angle, on
+            the steering that gain may produce. Both are deliberately timid:
+            the counter-phase four-wheel chassis responds violently, and
+            oscillation swings the heading past the direction estimator's
+            alignment gate, which then refuses every reading.
+
+    All three steering values are PHYSICAL road-wheel angles, not normalised
+    commands. They were normalised ([-1, 1], i.e. fractions of full lock)
+    until 2026-08-21, which meant every one of them silently re-scaled
+    whenever the steering geometry was recalibrated: swapping to a 270 deg
+    servo (55 deg -> 85 deg at the road wheel) multiplied the blind
+    corridor-follower's authority by 1.55x without anyone editing a tuning
+    file. That is the opposite of what the numbers above argue for -- the
+    2026-08-07 measurement says this loop is already prone to oscillation,
+    and the hardware change quietly pushed it further that way.
+
+    Expressed in degrees the values mean the same thing on any chassis, and
+    ``max_wheel_angle_deg`` goes back to being what it should be: a statement
+    about the servo's reach, which changes where saturation happens and
+    nothing else.
         CORNER_SPEED_SCALE: Fraction of creep speed while turning a corner
             blind, which is committed on one comparison rather than a plan.
         REVERSE_SPEED_SCALE: Fraction of creep speed while backing off.
@@ -116,9 +132,14 @@ class CorridorFollowerParams(BaseModel):
 
     TURN_CLEARANCE_M: float = Field(default=0.60, validation_alias=_alias("TURN_CLEARANCE_M"))
     NARROW_TURN_CLEARANCE_M: float = Field(default=0.40, validation_alias=_alias("NARROW_TURN_CLEARANCE_M"))
-    CENTERING_GAIN: float = Field(default=0.8, validation_alias=_alias("CENTERING_GAIN"))
-    HEADING_GAIN: float = Field(default=0.8, validation_alias=_alias("HEADING_GAIN"))
-    MAX_CENTERING_STEER: float = Field(default=0.25, validation_alias=_alias("MAX_CENTERING_STEER"))
+    # 44.0 deg/m, 0.767945 and 13.75 deg are exactly what the previous
+    # normalised 0.8 / 0.8 / 0.25 resolved to against the 55 deg road-wheel
+    # limit they were tuned at, so the conversion changed no behaviour on the
+    # base chassis. HEADING_GAIN keeps its name because it keeps its meaning;
+    # only its units stopped depending on the servo.
+    CENTERING_GAIN_DEG_PER_M: float = Field(default=44.0, validation_alias=_alias("CENTERING_GAIN_DEG_PER_M"))
+    HEADING_GAIN: float = Field(default=0.767945, validation_alias=_alias("HEADING_GAIN"))
+    MAX_CENTERING_STEER_DEG: float = Field(default=13.75, validation_alias=_alias("MAX_CENTERING_STEER_DEG"))
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
     REVERSE_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("REVERSE_SPEED_SCALE"))
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))

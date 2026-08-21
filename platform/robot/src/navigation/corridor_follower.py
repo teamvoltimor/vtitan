@@ -40,6 +40,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.domain.steering import angle_rad_to_steering_norm
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.corridor_estimator import classify_width
@@ -168,11 +169,17 @@ def follow_corridor(
     tuning = get_tuning(tuning)
 
     follower = tuning.corridor_follower
-    max_centering = follower.MAX_CENTERING_STEER
     reverse_scale = follower.REVERSE_SPEED_SCALE
     corner_scale = follower.CORNER_SPEED_SCALE
-    centering_gain = follower.CENTERING_GAIN
+    # Steering is reasoned about here as a physical road-wheel angle and
+    # normalised exactly once, on the way out. Holding it in normalised units
+    # instead made every constant below a fraction of whatever full lock
+    # happened to be, so recalibrating the servo silently retuned the loop --
+    # see CorridorFollowerParams for the 55 -> 85 deg case that prompted this.
+    max_centering_rad = math.radians(follower.MAX_CENTERING_STEER_DEG)
+    centering_gain_rad_per_m = math.radians(follower.CENTERING_GAIN_DEG_PER_M)
     heading_gain = follower.HEADING_GAIN
+    max_centering = angle_rad_to_steering_norm(max_centering_rad, RobotSpecs.MAX_STEERING_ANGLE)
     turn_clearance = follower.TURN_CLEARANCE_M
     if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
         turn_clearance = follower.NARROW_TURN_CLEARANCE_M
@@ -227,7 +234,7 @@ def follow_corridor(
     # left to correct -- and steering_norm is +1 = full left (see
     # ``shared.domain.steering``).
     offset = (left - right) / 2.0
-    demand = centering_gain * offset
+    demand_rad = centering_gain_rad_per_m * offset
     # Damping. Offset alone is 90 degrees out of phase with the control the
     # chassis actually has -- steering sets yaw rate, yaw integrates to heading,
     # heading integrates to position -- so correcting position without regard to
@@ -236,6 +243,9 @@ def follow_corridor(
     # to steer right even while still left of centre. Positive axis offset means
     # the nose is left of the axis, and +1 steering is full left, hence minus.
     if yaw is not None:
-        demand -= heading_gain * axis_offset_rad(yaw)
-    steering = clamp(demand, -max_centering, max_centering)
-    return DriveCommand(speed_mps=speed_mps, steering_norm=steering)
+        demand_rad -= heading_gain * axis_offset_rad(yaw)
+    steer_rad = clamp(demand_rad, -max_centering_rad, max_centering_rad)
+    return DriveCommand(
+        speed_mps=speed_mps,
+        steering_norm=angle_rad_to_steering_norm(steer_rad, RobotSpecs.MAX_STEERING_ANGLE),
+    )

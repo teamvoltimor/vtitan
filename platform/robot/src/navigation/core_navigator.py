@@ -366,7 +366,7 @@ class CoreNavigator:
         # one the ordinary steering is already favouring.
         if lateral == 0.0:
             return None
-        return -math.copysign(self._tuning.sign_router.SIGN_CONTACT_STEER, lateral)
+        return -math.copysign(self._tuning.sign_router.sign_contact_steer_norm(), lateral)
 
     def _hold_committed_path(self, previous: list[Waypoint], commit_ahead_m: float) -> None:
         """Keep a lane rebuild from moving the path the chassis is already on.
@@ -901,8 +901,8 @@ class CoreNavigator:
             heading_speed = self._tuning.speed.fast_mps()
         speed = min(speed, heading_speed)
 
-        # Bound the selected cruise speed by the configured envelope. MIN_FRAC
-        # and MAX_FRAC read like hard limits on the robot and were enforced
+        # Bound the selected cruise speed by the configured envelope. MIN_MPS
+        # and MAX_MPS read like hard limits on the robot and were enforced
         # nowhere: a profile setting FAST above MAX was simply obeyed.
         #
         # This used to be a no-op in the direction that mattered, because the
@@ -1103,8 +1103,7 @@ class CoreNavigator:
         if distance < _POSE_TRAIL_MIN_STEP_M or along > 0.0:
             # Target is not actually behind the chassis -- nothing to retrace.
             return None
-        steer = -self._tuning.sign_router.RETRACE_STEER_GAIN * lateral / distance
-        return max(-1.0, min(1.0, steer))
+        return self._tuning.sign_router.retrace_steer_gain_norm(-lateral / distance)
 
     def _trail_point_behind(self, robot_x: float, robot_y: float) -> tuple[float, float, float] | None:
         """The breadcrumb roughly ``RETRACE_DIST_M`` back along the trail."""
@@ -1414,7 +1413,7 @@ class CoreNavigator:
                     + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
                     self._tuning.escape.MAX_ESCAPE_FRAMES,
                 )
-                steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign_for_attempt()
+                steering = self._tuning.escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
                 self._begin_maneuver(
                     EscapeManeuver(
                         maneuver_type=ManeuverType.STUCK_FORWARD,
@@ -1458,7 +1457,7 @@ class CoreNavigator:
             + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
             self._tuning.escape.MAX_ESCAPE_FRAMES,
         )
-        steering = self._tuning.escape.REV_STEERING_SCALE * self._escape_steer_sign_for_attempt()
+        steering = self._tuning.escape.rev_steer_norm() * self._escape_steer_sign_for_attempt()
         self._begin_maneuver(
             EscapeManeuver(
                 maneuver_type=ManeuverType.STUCK_REVERSE,

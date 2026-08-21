@@ -74,7 +74,7 @@ class _ParkingConstants:
         saturated_steer_threshold=parking_tuning.SATURATED_STEER_THRESHOLD,
         saturation_stuck_ticks=parking_tuning.SATURATION_STUCK_TICKS,
         reposition_speed=escape_tuning.REV_SPEED,
-        reposition_steer_mag=escape_tuning.REV_STEERING_SCALE,
+        reposition_steer_mag=escape_tuning.rev_steer_norm(),
         min_lookahead_dist_m=parking_tuning.MIN_LOOKAHEAD_DIST_M,
         wall_standoff_m=parking_tuning.WALL_STANDOFF_M,
         marker_standoff_m=parking_tuning.MARKER_STANDOFF_M,

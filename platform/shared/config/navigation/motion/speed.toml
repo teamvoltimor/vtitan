@@ -1,60 +1,78 @@
-# Speed control parameters, as fractions of the measured drivetrain ceiling
-# (RobotSpecs.MAX_SPEED_MPS = 0.156 m/s, robot.toml [drivetrain] max_speed_mps).
+# Speed control parameters, in ABSOLUTE m/s.
 #
-# See shared.config.navigation_tuning.SpeedControlParams. Read these through
-# the group's *_mps() accessors; the fractions themselves are not m/s.
+# See shared.config.navigation_tuning.SpeedControlParams. The drivetrain
+# ceiling (robot.toml [drivetrain] max_speed_mps) is applied by the group's
+# *_mps() accessors as a CLAMP, not as a multiplier -- so recalibrating the
+# motor does not move any tier below.
 #
-# These were absolute m/s on a 0-0.50 scale until 2026-08-09. That scale does
-# not exist on this robot: the gateway clamps at 0.156, so the old
-# 0.05/0.15/0.30/0.50 ladder was really 0.05/0.15/0.156/0.156 -- MEDIUM and
-# FAST identical, SLOW within 4% of both, and the only real transition a 3x
-# cliff at the bottom. The fractions below resolve to 0.101 / 0.117 / 0.133 /
-# 0.156 m/s: four speeds the drivetrain can actually tell apart.
+# These were fractions of that ceiling from 2026-08-09 until 2026-08-21. The
+# fraction form re-scaled the whole ladder whenever the ceiling changed, which
+# turns a hardware swap into a silent policy edit. Two tiers make that
+# concrete:
+#
+#   * min_mps is the FRICTION FLOOR -- a property of the motor and tyres, not
+#     of the top speed. On a 0.234 m/s drivetrain the old 0.32 fraction would
+#     have claimed the robot cannot move slower than 0.075 m/s, when 0.05 is
+#     measured.
+#   * creep_mps is justified in centimetres of travel (see below). Re-scaling
+#     the speed invalidates that budget without touching the argument.
+#
+# The values here are exactly what the old fractions resolved to against the
+# 0.156 m/s ceiling, so the conversion changed no behaviour. Raising them to
+# exploit a faster motor is a separate, deliberate edit.
 #
 # NONE of this is hardware-validated. The simulator cannot check it -- it spends
 # 0.2% of ticks in the creep branch against hardware's 16-21%, so a sim sweep
 # measures the fixture, not the change.
 
-# Least fraction that overcomes friction and actually moves the robot.
-# 0.32 = 0.050 m/s. A floor on the tiers below, not a tier itself. Measured
-# no-load and in a straight line; the true floor under full steering lock is
-# higher (tyre scrub) and has never been measured.
-min_frac = 0.32
+# Least speed that overcomes friction and actually moves the robot. A floor on
+# the tiers below, not a tier itself. Measured no-load and in a straight line;
+# the true floor under full steering lock is higher (tyre scrub) and has never
+# been measured.
+#
+# Was min_frac = 0.32.
+min_mps = 0.0499
 
-# Upper bound on any tier. 1.0 is the drivetrain ceiling; the old value of 0.50
-# was 3.2x what the robot can do, so the envelope clamp it feeds was inert.
-max_frac = 1.0
+# Upper bound on any tier. At or above the drivetrain ceiling means "flat out";
+# the accessors clamp, so a value the motor cannot reach is inert rather than
+# fiction. Was max_frac = 1.0.
+max_mps = 0.156
 
 # Contact zone (<0.10 m clearance), the heading limiter's floor at >=57 deg,
 # and the stuck-escape forward nudge.
 #
-# 0.65 = 0.101 m/s, raised 2026-08-09 from 0.32 (0.050 m/s). The old value was
-# exactly MIN_FRAC -- the robot was commanded its own friction threshold, and
-# commanded it precisely when the steering is near full lock and tyre scrub is
-# at its worst, i.e. least command at greatest load. Hardware spent 16% (CW)
-# and 21% (CCW) of driving ticks there, all of it from the heading limiter
-# rather than from clearance.
+# Raised 2026-08-09 from 0.050 m/s. The old value was exactly the friction
+# floor -- the robot was commanded its own stiction threshold, and commanded it
+# precisely when the steering is near full lock and tyre scrub is at its worst,
+# i.e. least command at greatest load. Hardware spent 16% (CW) and 21% (CCW) of
+# driving ticks there, all of it from the heading limiter rather than from
+# clearance.
 #
 # The cost is open-loop travel: the steering servo slews at a fixed 2.0 rad/s,
-# so full lock from centre takes 0.61 s, during which the robot now covers
-# 6.2 cm instead of 3.1 cm, against 0.103 m of lateral margin.
-creep_frac = 0.65
+# so full lock from centre takes 0.61 s, during which the robot covers 6.2 cm
+# instead of 3.1 cm, against 0.103 m of lateral margin. That budget is in
+# METRES, which is why this tier must not be re-scaled by a motor change.
+#
+# Was creep_frac = 0.65.
+creep_mps = 0.1014
 
 # Near obstacles (0.10-0.25 m clearance) and the risk != SAFE cap.
-# 0.75 = 0.117 m/s.
-slow_frac = 0.75
+# Was slow_frac = 0.75.
+slow_mps = 0.117
 
 # Moderate clearance (0.25-0.50 m) and the blind corridor-follow before
-# direction settles. 0.85 = 0.133 m/s.
+# direction settles.
 #
-# This is what the zone is WORTH, not which zone applies. The graduated
-# ladder cost 33% of lap time when it first shipped (CW 134.9 s -> 179.3 s,
-# CCW 161.7 s -> 200.9 s, both past the 180 s limit), but the cause was the
-# heading limiter routing ordinary cornering through here. That is fixed
-# where the zone is chosen, in CoreNavigator, so these keep their meaning
-# for the cases that genuinely do want a lower speed.
-medium_frac = 0.85
+# This is what the zone is WORTH, not which zone applies. The graduated ladder
+# cost 33% of lap time when it first shipped (CW 134.9 s -> 179.3 s, CCW
+# 161.7 s -> 200.9 s, both past the 180 s limit), but the cause was the heading
+# limiter routing ordinary cornering through here. That is fixed where the zone
+# is chosen, in CoreNavigator, so these keep their meaning for the cases that
+# genuinely do want a lower speed.
+#
+# Was medium_frac = 0.85.
+medium_mps = 0.1326
 
-# Open track: >0.50 m clearance, and now every heading error below the
-# 57 deg crawl threshold. 1.0 = the ceiling.
-fast_frac = 1.0
+# Open track: >0.50 m clearance, and every heading error below the 57 deg crawl
+# threshold. At the ceiling today. Was fast_frac = 1.0.
+fast_mps = 0.156

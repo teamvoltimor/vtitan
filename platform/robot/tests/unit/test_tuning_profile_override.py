@@ -41,9 +41,9 @@ def _corridor_scan(left_m: float, right_m: float) -> list[float]:
 
 
 def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
-    """Doubling CENTERING_GAIN must double the steering follow_corridor commands."""
+    """Doubling CENTERING_GAIN_DEG_PER_M must double the steering follow_corridor commands."""
     default_tuning = NavigationTuning.load_default()
-    base_gain = default_tuning.corridor_follower.CENTERING_GAIN
+    base_gain = default_tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M
 
     # Off-centre, so the centering term has an offset to act on. The doubled
     # gain must stay under STEERING_CAP or both calls saturate to the same
@@ -57,7 +57,7 @@ def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
         ranges_m=ranges_m,
         angles_rad=_ANGLES_RAD,
         speed_mps=0.1,
-        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN": base_gain * 2.0}),
+        tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": base_gain * 2.0}),
     )
 
     assert default_cmd.steering_norm != 0.0, "off-centre scan should steer back to the middle"
@@ -69,12 +69,12 @@ def test_centred_corridor_steers_straight_at_any_gain(override_tuning) -> None:
     default_tuning = NavigationTuning.load_default()
     ranges_m = _corridor_scan(left_m=0.5, right_m=0.5)
 
-    for gain in (default_tuning.corridor_follower.CENTERING_GAIN, 10.0):
+    for gain in (default_tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M, 10.0):
         cmd = follow_corridor(
             ranges_m=ranges_m,
             angles_rad=_ANGLES_RAD,
             speed_mps=0.1,
-            tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN": gain}),
+            tuning=override_tuning(default_tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": gain}),
         )
         assert cmd.steering_norm == pytest.approx(0.0)
 

@@ -15,7 +15,7 @@ import math
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from shared.config._merge import deep_merge
 from shared.config.hardware_profile import profile_dirs
@@ -47,17 +47,78 @@ class Ackermann(BaseModel):
 
 
 class Steering(BaseModel):
-    """Servo travel and the bench-measured road-wheel angle it produces."""
+    """Servo travel, the road-wheel angle it produces, and how much of it we use.
+
+    Two different numbers, deliberately separate since 2026-08-21:
+
+    * ``max_wheel_angle_deg`` is PHYSICS -- what the linkage actually delivers at
+      full servo lock, measured with a protractor. It is the only input to
+      ``linkage_ratio``, so it must never be lowered to mean "steer more gently".
+    * ``steering_limit_deg`` is POLICY -- how much of that travel the navigator
+      is allowed to command. Lower it freely.
+
+    They were one field until a 270 deg servo made the distinction load-bearing.
+    With the 180 deg servo the two coincided at 55 deg, so nothing distinguished
+    them; conflated, capping the command to 55 on an 85 deg linkage would have
+    recomputed ``linkage_ratio`` as 55/135 = 0.407 instead of the true
+    85/135 = 0.630, and ``ackermann_motor_node`` -- the one consumer that
+    converts a wheel angle back to a servo angle -- would have driven the servo
+    1.55x too far. The wheels would reach 85 deg when 55 was asked for.
+
+    The simulator would NOT have caught it: it reads ``max_steering_angle``
+    directly and never performs the servo conversion, so the error is invisible
+    in every sweep and appears only on hardware.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     servo_max_angle_deg: float
     max_wheel_angle_deg: float
-    """Road-wheel angle (deg) measured on the bench at full servo lock.
+    """Road-wheel angle (deg) the linkage produces at full servo lock.
 
     See robot.toml's ``[steering]`` comment: this is what gets measured with a
-    protractor and declared, not a ratio -- the ratio is derived from it.
+    protractor and declared, not a ratio -- the ratio is derived from it. A
+    hardware fact; change it only after re-measuring.
     """
+
+    steering_limit_deg: float | None = None
+    """Road-wheel angle (deg) the navigator may actually command.
+
+    ``None`` means "use the full linkage travel", which is what every config
+    predating the 270 deg servo intends -- so the field is optional and old
+    TOMLs keep their exact behaviour.
+
+    Set it to steer more gently than the hardware can. That is a real tuning
+    axis rather than a safety limiter: a wider wheel angle lets the chassis cut
+    corners tighter than the waypoint polyline (generated for a fixed arc shape)
+    anticipates, which is the traced cause of the ``wideonly`` wall-collision
+    regression -- ``select_target_point`` rejects the next waypoints as "behind"
+    after a sharp cut and locks onto a distant one. Until path generation is
+    turn-radius aware, the usable limit may be well below the physical maximum.
+    """
+
+    @field_validator("steering_limit_deg")
+    @classmethod
+    def _limit_within_linkage(cls, value: float | None, info: ValidationInfo) -> float | None:
+        """Reject a commanded limit the linkage cannot reach.
+
+        Silently clamping would hide a real config error: a limit above the
+        physical maximum means somebody believes the car steers harder than it
+        does, and every downstream angle would be quietly wrong.
+        """
+        physical = info.data.get("max_wheel_angle_deg")
+        if value is None or physical is None:
+            return value
+        if value <= 0:
+            msg = f"steering_limit_deg must be positive, got {value}"
+            raise ValueError(msg)
+        if value > physical:
+            msg = (
+                f"steering_limit_deg ({value}) exceeds the linkage's "
+                f"max_wheel_angle_deg ({physical}) -- the hardware cannot reach it"
+            )
+            raise ValueError(msg)
+        return value
 
     @property
     def linkage_ratio(self) -> float:
@@ -66,17 +127,20 @@ class Steering(BaseModel):
         Derived from the bench-measured ``max_wheel_angle_deg``, not declared
         directly -- kept for consumers that convert an arbitrary wheel angle
         to a servo angle (e.g. ``ackermann_motor_node``).
+
+        Deliberately independent of ``steering_limit_deg``: the gearing does not
+        change because we chose to use less of it.
         """
         return self.max_wheel_angle_deg / self.servo_max_angle_deg
 
     @property
     def max_steering_angle(self) -> float:
-        """Road-wheel angle at full lock (radians).
+        """Largest road-wheel angle the navigator may command (radians).
 
-        Not a free parameter: it is whatever the steering hardware produces
-        through the linkage -- see robot.toml's ``[ackermann]`` comment.
+        ``steering_limit_deg`` when set, otherwise the linkage's full travel.
+        This is the value the planner and simulator gate on.
         """
-        return math.radians(self.max_wheel_angle_deg)
+        return math.radians(self.steering_limit_deg or self.max_wheel_angle_deg)
 
 
 class Wheel(BaseModel):

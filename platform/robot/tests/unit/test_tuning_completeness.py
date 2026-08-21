@@ -42,7 +42,7 @@ def test_tuning_fields_not_none() -> None:
         "lidar_sectors.MIN_VALID_RANGE_M": tuning.lidar_sectors.MIN_VALID_RANGE_M,
         "heading.CRAWL": tuning.heading.CRAWL,
         "direction_estimator.MAX_IN_TRACK_RANGE_M": tuning.direction_estimator.MAX_IN_TRACK_RANGE_M,
-        "corridor_follower.CENTERING_GAIN": tuning.corridor_follower.CENTERING_GAIN,
+        "corridor_follower.CENTERING_GAIN_DEG_PER_M": tuning.corridor_follower.CENTERING_GAIN_DEG_PER_M,
         "corridor_follower.HEADING_GAIN": tuning.corridor_follower.HEADING_GAIN,
         "sign_router.ACTIVATION_DIST_M": tuning.sign_router.ACTIVATION_DIST_M,
     }
