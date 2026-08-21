@@ -18,6 +18,7 @@ Usage (from ``platform/robot``, with PYTHONPATH=.)::
     python scripts/sim/diag_sign_sweep.py lookahead 0.12 0.20 0.30 0.40
     python scripts/sim/diag_sign_sweep.py arc 0.25 0.30 0.35 0.40 0.45
     python scripts/sim/diag_sign_sweep.py crosstrack 0.12 0.20
+    python scripts/sim/diag_sign_sweep.py lane-geometry --corpus 0 -0.1 0.1  # planner only, no sim
 
 Swept modes (``lookahead`` ``arc`` ``speed`` ``steer-rate`` ``creep`` ``offset``
 ``unsplit-offset`` ``masked-offset`` ``buffer`` ``wall`` ``mask-radius``
@@ -35,6 +36,7 @@ override actually reaches the navigator before concluding anything — see
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 from collections import deque
@@ -47,16 +49,28 @@ from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CompetitionSpecs, DictKeys, TrackDimensions, TrafficSignSpecs
+from shared.config.constants import (
+    CompetitionSpecs,
+    DictKeys,
+    RobotSpecs,
+    TrackDimensions,
+    TrafficSignSpecs,
+)
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import NavigatorPhase, Section
-from shared.domain.models import Waypoint
+from shared.domain.models import (
+    CorridorWidthEntry,
+    CorridorWidths,
+    ScenarioMetadata,
+    Waypoint,
+)
 
 import src.navigation.planning.sign_router as sign_router_module
 import src.simulation.scenario_simulator as gateway_module
 from scripts.common.sim_defaults import CORPUS_DIR, OBSTACLES_MAX_STEPS
 from scripts.common.stats import percentile
 from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.planning.sign_discovery import SignSpec
 from src.navigation.planning.sign_lane import (
     SignLaneParams,
     _axis_coords,
@@ -65,7 +79,7 @@ from src.navigation.planning.sign_lane import (
     _interpolate,
     apply_sign_lanes,
 )
-from src.navigation.planning.waypoints import corridor_for_position
+from src.navigation.planning.waypoints import calculate_waypoints, corridor_for_position
 from src.navigation.track_geometry import corridor_widths_from_metadata, cross_track_error, project_onto_path
 from src.navigation.utils import wrap_angle
 from src.simulation.scenario_catalog import all_obstacles_demo_scenarios
@@ -1600,7 +1614,8 @@ class SweepResult:
     def sign_collisions_right_color(self) -> int:
         """Masked sign collisions where the colour vote was correct but the
         robot still hit it -- consistent with not enough runway to execute
-        the avoidance in time, not a wrong plan."""
+        the avoidance in time, not a wrong plan.
+        """
         return sum(1 for o in self.outcomes if o.sign_color_match is True)
 
     def row(self) -> str:
@@ -2703,6 +2718,149 @@ def _report_approach(samples: list[_SignPassSample]) -> None:
         )
 
 
+_BEND_CROSS_EPS = 1e-9
+"""Cross-product magnitude above which a waypoint counts as bending.
+
+Waypoints are rounded to millimetres at generation, so a straight run's cross
+product is exactly zero rather than merely small; this only has to clear
+floating-point noise.
+"""
+
+
+def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -> None:
+    """Census the same approach gap on the PLANNED path alone -- no simulation.
+
+    ``_report_approach`` measures the gap during a blind run, where the plan is
+    built from a believed corridor width and the sign specs are discovery
+    estimates. This strips both: ground-truth widths, ground-truth sign
+    positions, one canonical lap, ``apply_sign_lanes`` applied once. Whatever
+    survives here is planner geometry; whatever does not is produced at run time
+    by belief, and no amount of reading the planner will find it.
+
+    ``width_errors`` shifts every corridor's believed width by the given
+    metres before planning, leaving the signs where they truly are. That is the
+    one belief the geometry is most sensitive to: the width sets the centreline
+    AND the corner arc radius (``_corner_arc_radius``, ``w/2 - bias`` until the
+    ``ARC_RADIUS`` cap binds), so it decides where the waypoint grid falls
+    relative to a sign's depth.
+
+    Reports ``on arc`` next to ``in corner box``. They are not the same test --
+    ``_in_corner_zone`` asks whether both coordinates are outside the inner
+    square, which is a coordinate box, while ``on arc`` asks whether the
+    polyline is actually turning at the closest point. The box count moves with
+    the believed width while the turn count does not.
+    """
+    directory = Path(scenarios_dir) if scenarios_dir else None
+    paths = sorted((directory or CORPUS_DIR).glob("*_metadata.json"))
+    tuning = NavigationTuning.load_default()
+    sr = tuning.sign_router
+    params = SignLaneParams(
+        lateral_offset=chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 + sr.SIGN_CLEARANCE_MARGIN_M,
+        ramp_m=sr.SIGN_LANE_RAMP_M,
+        hold_m=sr.SIGN_LANE_HOLD_M,
+        corner_entry_m=sr.SIGN_LANE_CORNER_ENTRY_M,
+    )
+    for width_error in width_errors or [0.0]:
+        gaps: list[float] = []
+        in_box: list[bool] = []
+        on_arc: list[bool] = []
+        for path in paths:
+            meta = ScenarioMetadata.model_validate(json.loads(path.read_text()))
+            if not meta.sign_positions:
+                continue
+            gaps_here = _lane_geometry_for(meta, params, tuning, width_error)
+            for gap, boxed, arced in gaps_here:
+                gaps.append(gap)
+                in_box.append(boxed)
+                on_arc.append(arced)
+        if not gaps:
+            continue
+        n_box, n_arc = sum(in_box), sum(on_arc)
+        print(
+            f"LANE-GEOMETRY werr {width_error:+.2f}m  n={len(gaps):>5}  "
+            f"median {percentile(gaps, 0.5) * 100:6.2f}cm  "
+            f"p90 {percentile(gaps, 0.9) * 100:6.2f}cm  "
+            f"max {max(gaps) * 100:6.2f}cm  "
+            f"in corner box {n_box / len(gaps) * 100:5.1f}%  "
+            f"on arc {n_arc / len(gaps) * 100:5.1f}%",
+            flush=True,
+        )
+
+
+def _lane_geometry_for(
+    meta: ScenarioMetadata,
+    params: SignLaneParams,
+    tuning: NavigationTuning,
+    width_error: float,
+) -> list[tuple[float, bool, bool]]:
+    """Per sign: ``(approach gap m, closest point in corner box, on an arc)``."""
+    plan_meta = meta if not width_error else _with_width_error(meta, width_error)
+    try:
+        base = calculate_waypoints(
+            plan_meta,
+            num_laps=1,
+            tuning=tuning,
+            center_bias_m=tuning.waypoints.OBSTACLES_CENTER_BIAS_M,
+        )
+    except ValueError:
+        return []
+    # A segment is on an arc when BOTH its end vertices bend. Either-end would
+    # also catch the last straight segment, whose far end is the arc entry.
+    bend = [False] * len(base)
+    for i in range(1, len(base) - 1):
+        ax, ay = base[i].x - base[i - 1].x, base[i].y - base[i - 1].y
+        bx, by = base[i + 1].x - base[i].x, base[i + 1].y - base[i].y
+        bend[i] = abs(ax * by - ay * bx) > _BEND_CROSS_EPS
+    arc_seg = [bend[i] and bend[i + 1] for i in range(len(base) - 1)]
+
+    specs = [
+        (SignSpec(x=s.x, y=s.y, color=s.color), corridor_for_position(s.x, s.y))
+        for s in meta.sign_positions
+    ]
+    planned = apply_sign_lanes(base, specs, params)
+    out: list[tuple[float, bool, bool]] = []
+    for spec, corridor in specs:
+        rule = sign_router_module.outward_lateral_axis(corridor, spec.color)
+        closest = _closest_on_polyline(spec.x, spec.y, planned)
+        if rule is None or closest is None:
+            continue
+        axis, _ = rule
+        admitted = [
+            i for i, wp in enumerate(base) if _in_lane_span(wp, corridor, axis, params.corner_entry_m)
+        ]
+        if not admitted:
+            continue
+        _, sign_depth = _axis_coords(Waypoint(spec.x, spec.y), axis)
+        index = min(admitted, key=lambda i: abs(_axis_coords(base[i], axis)[1] - sign_depth))
+        _, hit_x, hit_y, segment = closest
+        station = _path_station_m(planned, segment) + math.hypot(
+            hit_x - planned[segment].x, hit_y - planned[segment].y
+        )
+        out.append(
+            (
+                abs(station - _path_station_m(planned, index)),
+                _in_corner_zone(hit_x, hit_y),
+                arc_seg[segment],
+            ),
+        )
+    return out
+
+
+def _with_width_error(meta: ScenarioMetadata, width_error: float) -> ScenarioMetadata:
+    """``meta`` with every corridor width shifted, signs left where they are."""
+    widths = meta.corridor_widths
+    believed = {
+        side: max(RobotSpecs.WIDTH, getattr(widths, side).width_mm / 1000.0 + width_error)
+        for side in ("north", "south", "east", "west")
+    }
+    return meta.replanned_with(
+        corridor_widths=CorridorWidths(
+            **{side: CorridorWidthEntry(width_mm=round(w * 1000)) for side, w in believed.items()},
+        ),
+        starting_conditions=meta.starting_conditions,
+    )
+
+
 def _report_composition(samples: list[_SignPassSample]) -> None:
     """Print how far the full rebuild diverges from single-group arithmetic.
 
@@ -3559,7 +3717,7 @@ _YAW_SCREEN_ARMS = [
     SweepConfig("arc 0.45", blind=True, sign_lane_planner=True, arc_radius=0.45),
 ]
 
-MODES = ("crosstrack", "sign-crosstrack", "yaw-screen", *_FIXED_MODES, *_SWEPT_MODES)
+MODES = ("crosstrack", "sign-crosstrack", "yaw-screen", "lane-geometry", *_FIXED_MODES, *_SWEPT_MODES)
 
 
 def _build_configs(mode: str, values: list[float]) -> list[SweepConfig]:
@@ -3595,6 +3753,10 @@ def main() -> None:
         return
 
     scenarios_dir = args.scenarios_dir or (str(CORPUS_DIR) if args.corpus else None)
+    if args.mode == "lane-geometry":
+        report_lane_geometry(scenarios_dir, args.values)
+        return
+
     if args.mode in ("sign-crosstrack", "yaw-screen"):
         arms = (
             _YAW_SCREEN_ARMS
