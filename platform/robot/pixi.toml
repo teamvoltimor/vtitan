@@ -324,4 +324,13 @@ setup-joystick = "bash scripts/setup-joystick.sh"
 # the robot sitting still; the drive test spins the wheels and asks for a
 # typed confirmation first (pass --yes to skip the prompt, --skip-drive to
 # omit it entirely). See scripts/hardware/test_motors.py --help for all options.
-test-motors = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/test_motors.py'"
+#
+# The trailing `"$@"` + `--` matters: a bare `bash -c 'cmd'` swallows any
+# extra args `pixi run ... -- --foo` appends as bash -c's OWN positional
+# params ($0, $1...) instead of forwarding them into the quoted script,
+# so every flag silently vanished and --yes never suppressed the drive
+# confirmation prompt (confirmed on hardware 2026-08-20 -- it hung on
+# `input()` over a non-interactive SSH session with no prompt visible).
+# The `--` gives bash -c a placeholder $0 so "$@" inside the script
+# correctly expands to everything after it.
+test-motors = { cmd = "bash -c '. ros2_ws/install/setup.bash && python3 scripts/hardware/test_motors.py \"$@\"' --", env = { PYTHONPATH = "." } }
