@@ -157,6 +157,23 @@ class SimulationTopics(BaseModel):
     track: str
     """Simulated track markers (MarkerArray)."""
 
+    plan: str
+    """Planned waypoint polyline the navigator is tracking (Path).
+
+    A belief, not ground truth. Under the Obstacles Challenge it is also the
+    avoidance manoeuvre itself -- ``apply_sign_lanes`` rewrites these waypoints
+    onto a pass-side lane -- so it is the one topic that shows what the sign
+    planner decided rather than what the chassis did about it.
+    """
+
+    sign_estimates: str
+    """Sign positions the router is routing around (MarkerArray).
+
+    Discovery estimates in a blind run, which is what the plan above was built
+    from; the ground-truth signs stay on the ``track`` topic. Publishing both
+    is the point -- the gap between them is a real failure mode.
+    """
+
 
 class ButtonTopics(BaseModel):
     """Physical button topics."""
