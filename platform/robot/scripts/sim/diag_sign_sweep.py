@@ -2211,6 +2211,32 @@ class _BranchResult:
     runs nearest the sign. ``None`` when no lane was built."""
 
 
+_CORNER_ENTRY_TOL_M = 0.01
+"""Bend gap below which the lane counts as landing ON the corner entry.
+
+A centimetre rather than zero only to absorb the millimetre rounding applied at
+waypoint generation; the distribution this splits is bimodal, with the
+collision column reading 0.00 cm at p90 and the pass column 44.79 cm, so
+nothing sits near the threshold for it to arbitrate.
+"""
+
+_WIDE_CORNER_MIN_R_M = 0.25
+"""Arc radius above which a corner counts as WIDE.
+
+``_corner_arc_radius`` returns ``width/2 - center_bias``, so with the shipped
+0.15 m obstacles bias the two WRO corridor widths plan 0.35 m (1.0 m) and
+0.15 m (0.6 m). The threshold sits between them rather than on either, so it
+survives a belief that is off by a few centimetres.
+"""
+
+_CIRCUMRADIUS_SPAN = 2
+"""Vertices past the first that a bend run needs before a circle fits it.
+
+Three points define a circle, so a run shorter than this has no radius to
+report. The shipped arc carries ``NUM_INTERMEDIATE_ARC_POINTS`` plus its two
+endpoints, well clear of the floor.
+"""
+
 _BEND_CROSS_EPS = 1e-9
 """Cross-product magnitude above which a waypoint counts as bending.
 
@@ -2253,6 +2279,17 @@ class _Approach:
     the quantity ``gap_m`` was suspected of being a constant multiple of.
     """
 
+    bend_radius_m: float | None
+    """Radius of the arc at that nearest bend, whether or not the closest
+    approach landed on it.
+
+    ``arc_radius_m`` only exists where the path already ran nearest the sign in
+    a turn, so it can only describe the population it is trying to explain.
+    This one is defined for every sign, which is what makes the cross-tab
+    possible: paired with ``bend_gap_m`` it says "this sign's lane sits N cm
+    from a corner of radius r", for signs that collided and signs that did not.
+    """
+
     arc_radius_m: float | None
     """Radius of the arc the closest point sits on, when it sits on one.
 
@@ -2282,6 +2319,27 @@ def _circumradius(a: Any, b: Any, c: Any) -> float | None:
         * math.hypot(c.x - a.x, c.y - a.y)
         / (2 * abs(cross))
     )
+
+
+def _bend_radius_at(path: list[Any], bend: list[bool], index: int) -> float | None:
+    """Radius of the arc the bend vertex ``index`` belongs to.
+
+    Takes three consecutive vertices from INSIDE the run of bending vertices,
+    never the straight point before it. A corner arc's entry vertex bends, but
+    the vertex before it sits on the straight and is not on the arc's circle, so
+    the obvious triple centred on the entry would return some other circle
+    entirely. Every vertex of the run is on the circle, so the first three of it
+    are safe wherever in the run ``index`` falls.
+    """
+    low = index
+    while low > 0 and bend[low - 1]:
+        low -= 1
+    high = index
+    while high + 1 < len(bend) and bend[high + 1]:
+        high += 1
+    if high - low < _CIRCUMRADIUS_SPAN:
+        return None
+    return _circumradius(path[low], path[low + 1], path[low + 2])
 
 
 def _bend_flags(path: list[Any]) -> list[bool]:
@@ -2354,6 +2412,7 @@ def _approach_offset(
 
     on_arc = False
     bend_gap: float | None = None
+    bend_radius: float | None = None
     radius: float | None = None
     # The 1:1 length guard `_lane_staleness_m` needs for the same reason: across
     # a `replace_path` the two lists index different paths, and every structural
@@ -2362,8 +2421,11 @@ def _approach_offset(
         bend = _bend_flags(base)
         on_arc = bend[segment] and bend[segment + 1]
         here = stations[waypoint_index]
-        bend_gaps = [abs(stations[i] - here) for i, flag in enumerate(bend) if flag]
-        bend_gap = min(bend_gaps) if bend_gaps else None
+        bends = [i for i, flag in enumerate(bend) if flag]
+        if bends:
+            nearest_bend = min(bends, key=lambda i: abs(stations[i] - here))
+            bend_gap = abs(stations[nearest_bend] - here)
+            bend_radius = _bend_radius_at(base, bend, nearest_bend)
         if on_arc and 0 < segment < len(base) - 1:
             radius = _circumradius(base[segment - 1], base[segment], base[segment + 1])
     return _Approach(
@@ -2371,6 +2433,7 @@ def _approach_offset(
         in_corner_box=_in_corner_zone(hit_x, hit_y),
         on_arc=on_arc,
         bend_gap_m=bend_gap,
+        bend_radius_m=bend_radius,
         arc_radius_m=radius,
     )
 
@@ -2894,6 +2957,51 @@ def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], .
                 else f"{label} n=   0"
             )
         print(f"LANE-APPROACH arc r={radius:.2f}m  " + "   ".join(parts), flush=True)
+    _report_corner_entry_population(columns, cap)
+
+
+def _report_corner_entry_population(
+    columns: tuple[tuple[str, list[_Approach]], ...],
+    cap: float,
+) -> None:
+    """Size the population the 21 cm band turned out to describe.
+
+    The band itself is refuted as a collision signature -- it reads 21.97 cm at
+    passes against 21.11 cm at collisions inside the one arc bucket. What
+    survives is the pair that produced that mix: collisions are the signs whose
+    lane lands ON a bend vertex (``bend gap`` p90 0.00 cm against 44.79 cm), and
+    the bends that host a closest approach are always the r=0.35 m ones a 1.0 m
+    corridor plans, never the r=0.15 m of a 0.6 m one.
+
+    Neither of those is a rate until it has a denominator, which is what this
+    adds: the same two conditions applied to passes and collisions alike, so
+    "collisions are corner-entry signs" can be read against how many
+    corner-entry signs are passed without incident. A condition that holds for
+    most passes too is not a fix target however cleanly it describes failures --
+    that is the mistake this whole line has now made twice.
+    """
+    print(
+        f"LANE-ENTRY population: lane lands within {_CORNER_ENTRY_TOL_M * 100:.0f}cm of a "
+        f"bend whose arc radius is at least {_WIDE_CORNER_MIN_R_M:.2f}m",
+        flush=True,
+    )
+    for label, group in columns:
+        known = [
+            a
+            for a in group
+            if a.bend_gap_m is not None and a.bend_radius_m is not None and a.bend_radius_m <= cap + _LANE_BRANCH_EPS_M
+        ]
+        if not known:
+            continue
+        at_entry = [a for a in known if a.bend_gap_m <= _CORNER_ENTRY_TOL_M]
+        wide = [a for a in at_entry if a.bend_radius_m >= _WIDE_CORNER_MIN_R_M]
+        print(
+            f"LANE-ENTRY {label:<11} n={len(known):>5}  "
+            f"at a bend {len(at_entry):>5} ({len(at_entry) / len(known) * 100:5.1f}%)  "
+            f"and wide {len(wide):>5} ({len(wide) / len(known) * 100:5.1f}%)  "
+            f"[{len(group) - len(known)} unmeasured]",
+            flush=True,
+        )
 
 
 def report_lane_geometry(scenarios_dir: str | None, width_errors: list[float]) -> None:
