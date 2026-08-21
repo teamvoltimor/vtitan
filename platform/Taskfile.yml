@@ -1,6 +1,22 @@
 version: '3'
 
 vars:
+  # Which physical robot a sim task models. The base robot.toml describes the
+  # chassis only and deliberately declares no motor or servo, so config loading
+  # FAILS unless one profile of each is named -- see .env.example.
+  #
+  # Defaulted here, not in the config loader, and that distinction is the whole
+  # design: a default living in a checked-in Taskfile is visible and reviewable,
+  # whereas the old base-config default was invisible and silently made every
+  # unset run model whichever hardware happened to be committed. Override per
+  # invocation, e.g. to reproduce a measurement taken on the retired build:
+  #
+  #   task sim:navigate:visualize:all PROFILE=180deg-injora-14kg,generic-motor-1500rpm -- --challenge open
+  #
+  # Deliberately NOT applied to robot:test -- tests pin their own hardware in
+  # tests/conftest.py, and setting it here would silently move the whole suite
+  # onto different hardware and re-baseline every assertion.
+  PROFILE: 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm
   PYTHON: uv
   ROS2: pixi
   SCENARIOS: 10
@@ -578,7 +594,10 @@ tasks:
       terminal first (NOT `task sim:rviz`, which is a separate pixi/ROS2
       install that may not discover these topics).
     dir: robot
+    env:
+      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
     cmds:
+      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
       - pixi run -e dev visualize-scenario -- --metadata-file ../{{.METADATA}} {{.CLI_ARGS}}
 
   gen:rviz:all:
@@ -635,6 +654,9 @@ tasks:
   sim:navigate:
     desc: Run closed-loop simulation with real navigator (runs test_open_challenge_sim)
     dir: robot
+    # No VTITAN_HARDWARE_PROFILE here on purpose: this runs the pytest suite,
+    # which pins its own hardware in tests/conftest.py. Setting it would move
+    # every assertion onto different hardware without re-baselining them.
     cmds:
       - uv run pytest tests/unit/test_open_challenge_sim.py -v -s
 
@@ -651,7 +673,10 @@ tasks:
       estimate, or `-- --blind` to also withhold the corridor layout so the robot
       estimates the widths from LIDAR (implies --localize).
     dir: robot
+    env:
+      VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
     cmds:
+      - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
       - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
 
   sim:navigate:visualize:all:
