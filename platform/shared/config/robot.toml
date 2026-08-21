@@ -43,31 +43,26 @@ track_width = 0.1675
 # the clamp never fired to say so.
 
 [steering]
-# The servo's full travel, in SERVO degrees. With range_deg = 180 and a
-# 500-2500us pulse span, 90 deg maps exactly to the maximum pulse, so larger
-# values clamp to the same pulse and do nothing. Verified on hardware
-# 2026-07-25.
-servo_max_angle_deg = 90.0
+# servo_max_angle_deg and max_wheel_angle_deg are DELIBERATELY ABSENT.
+#
+# They describe a specific servo, so they live in that servo's profile under
+# config/profiles/ -- 180deg-injora-14kg or 270deg-hiwonder-35kg -- and one
+# must be named in VTITAN_HARDWARE_PROFILE. Loading fails with a message
+# listing the candidates if none is.
+#
+# This file used to declare the Injora's 90/55, which meant a run with no
+# profile set silently modelled whichever servo happened to be checked in
+# rather than the one on the robot. That is not hypothetical: a whole night of
+# motor tests once ran on the unmodified base ceiling because the variable was
+# blank, and there is no way to tell from behaviour alone which config a run
+# used. Absent-and-required converts that silent wrong answer into a loud one.
+#
+# What stays here: everything that is true of the CHASSIS regardless of which
+# servo drives it. Everything upstream -- /ackermann_cmd, the navigator, the
+# simulator -- speaks WHEEL angles, per the ROS convention; only the servo
+# speaks servo angles, and linkage_ratio is derived from the two profile
+# fields rather than declared.
 
-# Road-wheel angle (deg) measured on the bench at full servo lock (servo
-# commanded to servo_max_angle_deg, protractor on the front wheel). This is
-# the number to re-measure and update after any linkage/servo change -- the
-# linkage ratio itself (road-wheel deg per servo deg) is derived from this and
-# servo_max_angle_deg, not the other way around.
-#
-# Was declared as a bare ratio (linkage_ratio = 0.78, implying 90 deg servo ->
-# ~70 deg wheel) until a 2026-08-10 bench measurement with a protractor found
-# the real chassis only reaches ~55 deg at full 90 deg servo lock -- the 0.78
-# figure was never re-measured after the linkage geometry changed and had
-# drifted. Bench max-angle is a much easier thing to verify on the robot than
-# a ratio, hence this field instead of a recomputed fraction.
-#
-# Everything upstream -- /ackermann_cmd, the navigator, the simulator -- speaks
-# WHEEL angles, per the ROS convention; only the servo speaks servo angles.
-# Feeding a wheel angle straight to the servo without this conversion is what
-# originally made the wheels under-turn and the robot corner wider than the
-# path it was following.
-max_wheel_angle_deg = 55.0
 
 [wheel]
 radius = 0.035
@@ -75,11 +70,17 @@ width = 0.025
 mass = 0.05
 
 [drivetrain]
-# Measured top speed of the drive motor under load. This is a hard ceiling, not
-# a tuning knob: AckermannKinematics clamps to it, which is why a speed profile
-# capping commands at 0.30 m/s once turned out to be completely inert -- both
-# 0.30 and 0.50 saturate here.
-max_speed_mps = 0.156
+# max_speed_mps is DELIBERATELY ABSENT -- it describes a specific motor, so it
+# lives in that motor's profile (generic-motor-1500rpm or
+# rev-hd-hex-motor-6000rpm) and one must be named in VTITAN_HARDWARE_PROFILE.
+# See the [steering] note above for why absent-and-required beats a default.
+#
+# It is a hard ceiling, not a tuning knob: AckermannKinematics clamps to it,
+# which is why a speed profile capping commands at 0.30 m/s once turned out to
+# be completely inert -- both 0.30 and 0.50 saturate against it. Since
+# 2026-08-21 the navigation speed ladder is absolute m/s and this value only
+# clamps, so raising it delivers nothing until the motor profile's own
+# motion/speed.toml raises the tiers too.
 # Physical acceleration limit of the drive motor (m/s^2).
 max_accel_mps2 = 2.0
 # Counter-phase four-wheel steering: the rear axle turns the full opposite of

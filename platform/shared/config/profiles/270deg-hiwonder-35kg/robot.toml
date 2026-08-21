@@ -1,0 +1,31 @@
+# Steering servo: Hiwonder 35 kg, 270 degree range (the current build).
+#
+# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --
+# e.g. "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm". Supersedes the old
+# `servo270` and `wideonly` profiles, which were byte-identical to each other
+# and named the EFFECT rather than the part.
+#
+# Carries FACTS ONLY, no tuning -- see 180deg-injora-14kg/robot.toml for why
+# that is now correct rather than an omission.
+
+[steering]
+# Half of full servo travel, same convention as the 180 deg servo's 90.0.
+# A direct geometric fact given the servo's spec, not a tuning guess.
+servo_max_angle_deg = 135.0
+
+# NOT BENCH-VERIFIED. This is the one number in this file that is estimated,
+# and it is load-bearing: MAX_STEERING_ANGLE is what every normalised steering
+# command is decoded through, so if this is wrong the robot steers by a
+# different amount than every test proved safe.
+#
+# The precedent is not reassuring. The 180 deg servo's figure was ASSUMED at
+# 70.2 deg (from linkage_ratio = 0.78) and measured at 55 -- wrong by 1.28x.
+# Measure this the same way: command full servo travel and put a protractor on
+# the road wheel, loaded against the mat rather than free-spinning, since the
+# bench figure is taken unloaded and tyre scrub can bind the linkage before it
+# reaches the same angle.
+#
+# Note the linkage may not scale linearly with servo travel: 1.5x the servo
+# range does not have to give 1.5x the wheel angle, and 85 deg assumes it
+# roughly does.
+max_wheel_angle_deg = 85.0

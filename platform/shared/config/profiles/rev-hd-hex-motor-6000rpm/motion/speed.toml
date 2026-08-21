@@ -1,0 +1,40 @@
+# Speed ladder for the REV HD Hex 6000 rpm motor, in ABSOLUTE m/s.
+#
+# The ladder lives with the MOTOR because the spread between tiers is chosen
+# against what this drivetrain can deliver -- see the generic-motor-1500rpm
+# copy for why that is motor-specific while steering tuning is not.
+#
+# Since the ceiling now only CLAMPS (it stopped being a multiplier on
+# 2026-08-21), a faster motor delivers nothing until these tiers are
+# deliberately raised. This file is that deliberate edit. Without it the whole
+# ladder would silently pin to the slower motor's numbers.
+
+# NOT scaled with the ceiling, deliberately. The friction floor is a property
+# of the motor and tyres -- the least speed that overcomes stiction -- and it
+# does not rise because the top speed did. The old fraction form would have
+# claimed this robot cannot move slower than 0.075 m/s when 0.05 is the
+# measured figure. This is the clearest single reason the fractions were the
+# wrong representation.
+#
+# Strictly this should be re-measured on THIS motor rather than inherited; a
+# different gearbox has a different stiction threshold.
+min_mps = 0.0499
+
+max_mps = 0.234
+
+# REPRODUCED, NOT ARGUED -- and the first tier to re-tune.
+#
+# The generic-motor copy justifies creep in CENTIMETRES OF TRAVEL: the servo
+# slews at a fixed 2.0 rad/s, so full lock takes 0.61 s, and the chassis must
+# cover less than its 0.103 m of lateral margin in that time. At 0.1014 m/s it
+# covers 6.2 cm. At 0.1521 it covers 9.3 cm -- 90% of the margin, on a budget
+# written for 60%.
+#
+# Left at the value the old fraction ladder produced so the component-profile
+# migration stays measurable as a no-op. Lowering it toward 0.1014 is a
+# separate, attributable change.
+creep_mps = 0.1521
+
+slow_mps = 0.1755
+medium_mps = 0.1989
+fast_mps = 0.234

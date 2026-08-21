@@ -1,0 +1,24 @@
+# Drive motor: REV HD Hex 6000 rpm (the current build).
+#
+# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --
+# e.g. "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm". Supersedes the old
+# `fastonly` profile, which described this motor as an experiment arm rather
+# than as a part.
+
+[drivetrain]
+# NOT YET BENCH-MEASURED. 0.234 is the previous motor's measured 0.156 m/s
+# scaled by the "~50% faster" this motor was described as, and it is the single
+# most load-bearing assumption in this file -- the Open Challenge time limit is
+# a distance/speed problem before it is a control problem, and every tier in
+# motion/speed.toml is chosen against this number.
+#
+# Measure it the same way 0.156 was (under load, on the mat, timed over a known
+# distance) before flying anything that depends on the margin. Two specific
+# reasons this matters more than usual:
+#   * the minimum sustainable speed is unknown, and the ladder's floor is now
+#     0.1521 m/s -- within 3% of the ENTIRE top speed of the previous motor.
+#   * localization.MAX_SPEED_MPS (0.25) is the localizer's "physically
+#     impossible" plausibility bound. Against 0.234 it has 6.8% headroom, down
+#     from 60% against 0.156. That guard is what rejects the scan-match snap
+#     that root-caused the CCW corner failures; it needs raising with this.
+max_speed_mps = 0.234

@@ -1,0 +1,27 @@
+# Steering servo: Injora 14 kg, 180 degree range (the original build).
+#
+# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE.
+# Supersedes nothing by name -- these values used to sit unlabelled in the base
+# robot.toml, where they were the only servo the config could describe.
+#
+# Carries FACTS ONLY, no tuning. That is deliberate and is the payoff of the
+# 2026-08-21 units change: steering constants are now road-wheel DEGREES, which
+# mean the same thing on any servo, so a servo profile has nothing to restate.
+# While they were normalised fractions of full lock, swapping this servo for
+# the 270 degree one multiplied the blind corridor-follower's authority by
+# 1.55x with no tuning file edited. If a sweep ever shows a servo genuinely
+# wants different angles, THAT is when a tuning file belongs here -- as a
+# measured decision, not as an artifact of the representation.
+
+[steering]
+# Half of full servo travel -- "degrees from centre to full lock", matching the
+# base file's convention. A 180 degree servo gives 90.
+servo_max_angle_deg = 90.0
+
+# BENCH-MEASURED with a protractor at full lock, which is why it is expressed
+# as an angle rather than derived from a linkage ratio. At 90 deg of commanded
+# servo travel (its true mechanical end-stop -- confirmed NOT stalling early)
+# the road wheel reaches only ~55 deg, not the 70.2 deg the old
+# linkage_ratio = 0.78 implied. That error made the navigator's math describe a
+# chassis that turned 1.28x better than the real one.
+max_wheel_angle_deg = 55.0
