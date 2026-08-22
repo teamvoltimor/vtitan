@@ -125,7 +125,7 @@ class CoreNavigator:
         # Where the chassis has physically been, newest last. The basis for a
         # retrace-reverse: ground the robot occupied a moment ago is known
         # free without any rear-facing sensor. See _retrace_steer.
-        self._pose_trail: deque[tuple[float, float, float]] = deque(maxlen=self._tuning.escape.POSE_TRAIL_LEN)
+        self._pose_trail: deque[Pose] = deque(maxlen=self._tuning.escape.POSE_TRAIL_LEN)
         self._retracing = False
 
         # Controllers
@@ -529,9 +529,9 @@ class CoreNavigator:
         # physically been -- which is the entire basis for reversing along it
         # without rear sensing. See _retrace_steer.
         if not self._pose_trail or math.hypot(
-            robot_x - self._pose_trail[-1][0], robot_y - self._pose_trail[-1][1]
+            robot_x - self._pose_trail[-1].x, robot_y - self._pose_trail[-1].y
         ) >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M:
-            self._pose_trail.append((robot_x, robot_y, robot_yaw))
+            self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
 
         # Continue an in-progress escape maneuver until its latched duration
         # elapses, so escapes are real motions rather than single-tick pulses that
@@ -1113,8 +1113,8 @@ class CoreNavigator:
         travelled = 0.0
         previous = (robot_x, robot_y)
         for point in reversed(self._pose_trail):
-            travelled += math.hypot(point[0] - previous[0], point[1] - previous[1])
-            previous = (point[0], point[1])
+            travelled += math.hypot(point.x - previous[0], point.y - previous[1])
+            previous = (point.x, point.y)
             if travelled >= want:
                 return point
         return None

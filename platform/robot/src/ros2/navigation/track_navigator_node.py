@@ -753,8 +753,10 @@ class TrackNavigator(Node, ResettableNode):
         # the only other place those yaws are consumed, did not.
         heading_delta = 0.0
         if changed:
-            old_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, previous)][::-1])
-            new_yaw = math.atan2(*TRAVEL_DIRS[(self._start_section, inferred)][::-1])
+            old_normal = TRAVEL_DIRS[(self._start_section, previous)]
+            new_normal = TRAVEL_DIRS[(self._start_section, inferred)]
+            old_yaw = math.atan2(old_normal.ny, old_normal.nx)
+            new_yaw = math.atan2(new_normal.ny, new_normal.nx)
             heading_delta = wrap_angle(new_yaw - old_yaw)
         if self._width_estimator is not None:
             for buffered_yaw, buffered_width in self._creep_widths:
@@ -947,7 +949,7 @@ class TrackNavigator(Node, ResettableNode):
         # mat's centre. Comparing against the corridor's travel bearing is what
         # tells the two apart.
         travel = TRAVEL_DIRS[(self._start_section, self._direction)]
-        misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel[1], travel[0])))
+        misalignment = abs(wrap_angle(pose.yaw - math.atan2(travel.ny, travel.nx)))
         if misalignment > math.radians(self._tuning.start_measurement.RETRY_ALIGN_TOLERANCE_DEG):
             return
 

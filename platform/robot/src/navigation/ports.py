@@ -22,7 +22,7 @@ import numpy as np
 from shared.config.constants import RobotSpecs
 
 if TYPE_CHECKING:
-    from shared.domain.models import IMUReading, Pose, TrafficSignObservation
+    from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation
 
     from src.navigation.track_geometry import TrackWalls
 
@@ -111,7 +111,7 @@ class HardwareGateway(Protocol):
     def get_vision_detections(self) -> list[TrafficSignObservation]:
         """Get the latest sign observations from the camera."""
 
-    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+    def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) last handed to the LIDAR localizer.
 
         Diagnostic only. The localizer solves for position alone and trusts

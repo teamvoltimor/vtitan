@@ -17,13 +17,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
 from rclpy.qos import qos_profile_sensor_data
-from src.ros2.qos import QOS_STREAM
 from sensor_msgs.msg import Imu, JointState, LaserScan
 from shared.config.constants import RobotSpecs
 from shared.config.coordinate_transform import quaternion_to_yaw
 from shared.config.navigation_tuning import LocalizationParams, SensorHealthParams
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.models import CorridorGeometry, Detection, IMUReading, Pose, TrafficSignObservation
+from shared.domain.models import CorridorGeometry, Detection, IMUReading, LocalizerInputs, Pose, TrafficSignObservation
 from shared.domain.steering import steering_norm_to_angle_rad
 from std_msgs.msg import String
 
@@ -35,6 +34,7 @@ from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_wid
 from src.navigation.utils import clamp
 from src.navigation.wall_heading import estimate_yaw_from_walls
 from src.ros2.params import declare_and_get_str_param
+from src.ros2.qos import QOS_STREAM
 from src.ros2.vision.detection_payload_keys import parse_detection
 from src.state_machine.estimator import StateEstimator
 
@@ -248,7 +248,7 @@ class ROS2HardwareGateway(HardwareGateway):
         # Recorded before the call, not reconstructed from the pose afterwards:
         # these are the localizer's actual inputs, and the whole point is to be
         # able to tell them apart from the corrected pose the navigator reports.
-        self._localizer_inputs = (prior_pose.yaw, prior_pose.x, prior_pose.y)
+        self._localizer_inputs = LocalizerInputs(prior_pose.yaw, prior_pose.x, prior_pose.y)
         est_x, est_y = self._localizer.estimate_position(
             (prior_pose.x, prior_pose.y),
             prior_pose.yaw,
@@ -258,7 +258,7 @@ class ROS2HardwareGateway(HardwareGateway):
         )
         self._estimator.update_position(est_x, est_y)
 
-    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+    def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
         return self._localizer_inputs
 

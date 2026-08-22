@@ -239,6 +239,25 @@ class SignColor(StrEnum):
     MAGENTA = "magenta"
 
 
+# The class ids the retrained GMR traffic-sign detector emits, in the order the
+# checkpoint itself declares them. Confirmed by running the checkpoint over the
+# per-class image folders: green_prism images predict green, red_prism predict
+# red. This is the single source of truth for that order.
+#
+# Do NOT take it from auto-annotator's data.yaml, which says (red, green,
+# magenta) and is stale -- its `path` points at an archived directory. Consuming
+# the HEF with that order swaps red and green, inverting the WRO pass-side rule
+# on every obstacle, and nothing about it fails loudly.
+#
+# Regenerate after retraining with:
+#   python -c "from shared.domain.models import SignColor; ..."
+GMR_CLASS_NAMES: dict[int, SignColor] = {
+    0: SignColor.GREEN,
+    1: SignColor.MAGENTA,
+    2: SignColor.RED,
+}
+
+
 @dataclass(slots=True, frozen=True)
 class TrafficSignObservation:
     """Single traffic sign detection with world pose and confidence."""
@@ -262,6 +281,181 @@ class ImageRotation(IntEnum):
     CW_90 = 90
     CW_180 = 180
     CW_270 = 270
+
+
+# --- Typed records replacing raw tuples / dicts / lists (audit §7) -----------
+
+
+@dataclass(slots=True, frozen=True)
+class RGB:
+    """An RGB color triple, replacing ambiguous ``tuple[float, float, float]``."""
+
+    r: float
+    g: float
+    b: float
+
+
+@dataclass(slots=True, frozen=True)
+class BBox:
+    """An axis-aligned bounding box, replacing ``tuple[float, float, float, float]``."""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+
+    @property
+    def width(self) -> float:
+        """Return the box width."""
+        return self.x_max - self.x_min
+
+    @property
+    def height(self) -> float:
+        """Return the box height."""
+        return self.y_max - self.y_min
+
+
+@dataclass(slots=True, frozen=True)
+class LineSegment:
+    """A 2D line segment between two points."""
+
+    start: Waypoint
+    end: Waypoint
+
+
+@dataclass(slots=True, frozen=True)
+class Vertex3D:
+    """A 3D vertex (meters)."""
+
+    x: float
+    y: float
+    z: float
+
+
+@dataclass(slots=True, frozen=True)
+class TravelNormal:
+    """Unit traversal normal for a (section, direction) finish-line crossing."""
+
+    nx: float
+    ny: float
+
+
+@dataclass(slots=True, frozen=True)
+class RoutingEntry:
+    """Sign-routing parameters for a (corridor, direction) pair."""
+
+    axis: object
+    red_mult: int
+    green_mult: int
+
+
+@dataclass(slots=True, frozen=True)
+class LocalizerInputs:
+    """Inputs the localizer uses to seed/refine its pose estimate."""
+
+    yaw: float
+    prior_x: float
+    prior_y: float
+
+
+@dataclass(slots=True, frozen=True)
+class LaneCoord:
+    """A (lateral, depth) coordinate within a sign lane."""
+
+    lateral: float
+    depth: float
+
+
+@dataclass(slots=True, frozen=True)
+class DepthSpan:
+    """A (low, high) depth window along a lane."""
+
+    low: float
+    high: float
+
+
+@dataclass(slots=True, frozen=True)
+class CornerRadii:
+    """Per-corner turn radii keyed by section (audit §7b)."""
+
+    south: float
+    north: float
+    east: float
+    west: float
+
+    def for_section(self, section: Section) -> float:
+        """Return the radius for the given ``section`` corner."""
+        return getattr(self, section.value)
+
+
+@dataclass(slots=True, frozen=True)
+class VoteTally:
+    """Direction-estimator vote counts (audit §7b)."""
+
+    cw: int
+    ccw: int
+
+
+@dataclass(slots=True, frozen=True)
+class CreepWidthSample:
+    """A single (yaw, width_m) creep-width measurement (audit §7c)."""
+
+    yaw: float
+    width_m: float
+
+
+@dataclass(slots=True, frozen=True)
+class SignedCorridor:
+    """A sign spec paired with the section it was observed in (audit §7c)."""
+
+    sign: object
+    section: Section
+
+
+@dataclass(slots=True, frozen=True)
+class RoutedSignPosition:
+    """A sign position resolved to world coordinates within a section (audit §7c)."""
+
+    x: float
+    y: float
+    section: Section
+
+
+@dataclass(slots=True, frozen=True)
+class Candidate:
+    """A (index, distance) candidate used in sign routing (audit §7c)."""
+
+    index: int
+    dist: float
+
+
+@dataclass(slots=True, frozen=True)
+class CellPoint:
+    """A (along, across) grid cell coordinate (audit §7c)."""
+
+    along: float
+    across: float
+
+
+@dataclass(slots=True, frozen=True)
+class GroupSpec:
+    """A navigation-tuning group descriptor (audit §9b)."""
+
+    name: str
+    model: type
+    subfolder: str
+
+
+@dataclass(slots=True, frozen=True)
+class RaceSummary:
+    """Aggregated race metrics, replacing the raw ``dict`` from ``get_race_summary``."""
+
+    total_time_s: float
+    laps_completed: int
+    best_lap_s: float | None
+    avg_lap_s: float | None
+    max_speed_mps: float
+    min_clearance_m: float
 
 
 @dataclass(slots=True, frozen=True)

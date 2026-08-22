@@ -8,7 +8,7 @@ States:
 """
 
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 # Re-export RobotState/ScenarioType from shared module (single source of truth). ScenarioType
 # is the existing open-vs-obstacles concept (already used by the navigator's scenario
@@ -149,7 +149,7 @@ class LidarMetrics:
     """Current path status."""
 
 
-class StateTransitionReason(Enum):
+class StateTransitionReason(StrEnum):
     """Reasons for state transitions."""
 
     # BOOT_CHECK → READY

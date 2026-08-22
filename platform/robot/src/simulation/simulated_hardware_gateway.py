@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from shared.config.constants import RobotSpecs
-from shared.domain.models import IMUReading, Pose, TrafficSignObservation
+from shared.domain.models import IMUReading, LocalizerInputs, Pose, TrafficSignObservation
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.localization import make_localizer
@@ -545,7 +545,7 @@ class SimulatedHardwareGateway:
                 self._estimator.correct_yaw(measured)
 
         prior = self._estimator.estimate_pose()
-        self._localizer_inputs = (prior.yaw, prior.x, prior.y)
+        self._localizer_inputs = LocalizerInputs(prior.yaw, prior.x, prior.y)
         est_x, est_y = self._localizer.estimate_position(
             (prior.x, prior.y),
             prior.yaw,
@@ -555,7 +555,7 @@ class SimulatedHardwareGateway:
         )
         self._estimator.update_position(est_x, est_y)
 
-    def get_localizer_inputs(self) -> tuple[float, float, float] | None:
+    def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""
         return self._localizer_inputs
 
