@@ -40,6 +40,19 @@ class TfFrames(StrEnum):
     for real-robot topic testing."""
 
     ODOM = "odom"
+
+    BELIEF = "belief"
+    """Where the robot THINKS the world is, as a frame.
+
+    Simulation-only. A blind run seeds the believed start from
+    ``assumed_start_conditions``, which always guesses SOUTH, while the chassis
+    is placed at the scenario's true start -- so the robot's whole plan lives in
+    a frame rotated from ``map`` by the section-relabelling angle (NORTH start
+    reads 180 deg, EAST 90, WEST -90). Publishing beliefs against this frame
+    instead of ``map``, with one transform carrying the offset, lets RViz draw
+    them over the real track without anything rewriting the robot's numbers.
+    Identity whenever the belief is correct, so sighted runs are unaffected."""
+
     BASE_FOOTPRINT = "base_footprint"
     """The URDF's ground-plane root: ``base_link`` sits one wheel radius above
     it. Note the live visualizer does NOT reproduce that offset -- it treats

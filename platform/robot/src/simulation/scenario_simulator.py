@@ -547,6 +547,25 @@ class ScenarioSimulator:
         return self._width_estimator.widths if self._width_estimator else None
 
     @property
+    def belief_offset_poses(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """``(believed_start, true_start)`` as ``(x, y, yaw)``, for visualization.
+
+        These two differ only in a blind run, where the believed start is
+        ``assumed_start_conditions``' fixed SOUTH guess and the chassis is
+        placed at the scenario's true start. Everything the navigator plans is
+        expressed against the first; the track it is actually driving is the
+        second. Exposed so a viewer can show one over the other -- see
+        ``LiveScenarioVisualizer.set_belief_frame`` -- rather than drawing the
+        plan on a track it does not correspond to.
+
+        Equal in a sighted run, which makes the offset identity.
+        """
+        return (
+            (self._believed_start.x, self._believed_start.y, self._believed_start.yaw),
+            (self._start.x, self._start.y, self._start.yaw),
+        )
+
+    @property
     def track(self) -> TrackModel:
         """The track geometry model for this scenario."""
         return self._track

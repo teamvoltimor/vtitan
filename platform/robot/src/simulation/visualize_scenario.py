@@ -318,6 +318,12 @@ def _run_one(
         solid_walls=opts.recover,
     )
     _set_track(visualizer, scenario.metadata, sim.track)
+    # Blind seeds the believed start from a fixed SOUTH guess, so on any
+    # scenario that does not actually start there the robot's whole plan lives
+    # in a frame rotated by the section-relabelling angle. Registering the
+    # offset lets RViz draw the plan over the real track; without it, a WEST
+    # start (e.g. go_obstacles_0002) shows a path square to the layout.
+    visualizer.set_belief_frame(*sim.belief_offset_poses)
     pacer = RealTimePacer(dt=CONTROL_DT, rate=opts.rate)
 
     def on_step(state: AckermannState, scan: LidarScan | None) -> None:

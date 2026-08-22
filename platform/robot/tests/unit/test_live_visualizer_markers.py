@@ -140,6 +140,59 @@ def test_frame_ids_reach_the_wire_as_plain_strings():
         visualizer.destroy_node()
 
 
+def _apply(offset, point):
+    """Put a believed-frame point into map, the way RViz composes map->belief."""
+    off_x, off_y, off_yaw = offset
+    cos_o, sin_o = math.cos(off_yaw), math.sin(off_yaw)
+    return (
+        off_x + point[0] * cos_o - point[1] * sin_o,
+        off_y + point[0] * sin_o + point[1] * cos_o,
+    )
+
+
+@pytest.mark.parametrize(
+    ("true_yaw", "expected_rotation"),
+    [(0.0, 0.0), (math.pi / 2, 90.0), (math.pi, 180.0), (-math.pi / 2, -90.0)],
+)
+def test_belief_frame_carries_the_section_relabelling_rotation(true_yaw, expected_rotation):
+    """Blind always guesses SOUTH, so a start elsewhere rotates the whole plan.
+
+    The four cases are the four sections: NORTH reads 180 deg, EAST 90, WEST
+    -90, SOUTH 0. Drawing the plan in `map` instead of through this offset is
+    what made go_obstacles_0002 (a WEST start) show a path square to the real
+    track, with the sign estimates rotated to match.
+    """
+    init_rclpy_once()
+    # abs(): rclpy rejects a node name containing '-', so -90 cannot go in as-is.
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name=f"test_belief_{abs(expected_rotation):.0f}")
+    try:
+        believed = (1.5, 0.25, 0.0)
+        true = (0.25, 1.5, true_yaw)
+        visualizer.set_belief_frame(believed, true)
+
+        assert math.degrees(visualizer._belief_offset[2]) == pytest.approx(expected_rotation)
+        # The defining property: the believed start must land on the true one.
+        landed = _apply(visualizer._belief_offset, believed[:2])
+        assert landed[0] == pytest.approx(true[0], abs=1e-9)
+        assert landed[1] == pytest.approx(true[1], abs=1e-9)
+    finally:
+        visualizer.destroy_node()
+
+
+def test_belief_frame_is_identity_for_a_sighted_run():
+    """A correct belief must not move anything -- sighted runs are unaffected."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_belief_identity")
+    try:
+        pose = (1.5, 0.25, math.pi / 3)
+        visualizer.set_belief_frame(pose, pose)
+
+        assert visualizer._belief_offset == pytest.approx((0.0, 0.0, 0.0), abs=1e-12)
+        assert _apply(visualizer._belief_offset, (2.0, 1.0)) == pytest.approx((2.0, 1.0), abs=1e-12)
+    finally:
+        visualizer.destroy_node()
+
+
 def test_sign_marker_survives_cdr_roundtrip_with_int_json_coords():
     init_rclpy_once()
     visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_sign_marker_node")
