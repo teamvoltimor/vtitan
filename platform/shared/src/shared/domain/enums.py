@@ -213,20 +213,73 @@ class ParkPhase(StrEnum):
     DONE = "done"
 
 
-# The class ids the retrained GMR traffic-sign detector emits, in the order the
-# checkpoint itself declares them. Confirmed by running the checkpoint over the
-# per-class image folders: green_prism images predict green, red_prism predict
-# red. This is the single source of truth for that order.
-#
-# Do NOT take it from auto-annotator's data.yaml, which says (red, green,
-# magenta) and is stale -- its `path` points at an archived directory. Consuming
-# the HEF with that order swaps red and green, inverting the WRO pass-side rule
-# on every obstacle, and nothing about it fails loudly.
-#
-# Regenerate after retraining with:
-#   python -c "import onnx; print(onnx.load('hailo/data/gmr.onnx').metadata_props)"
-GMR_CLASS_NAMES: dict[int, str] = {
-    0: "green",
-    1: "magenta",
-    2: "red",
-}
+class ThreatDirection(StrEnum):
+    """LIDAR threat sector a detected obstacle lies in, relative to the robot.
+
+    Used by the collision-avoidance controller and the OLED/telemetry summaries
+    to name which side is blocked. Centralised here so the raw strings
+    ``"front"/"back"/"left"/"right"/"none"`` stop being re-typed across the
+    navigation code, tests, and diag scripts.
+    """
+
+    FRONT = "front"
+    BACK = "back"
+    LEFT = "left"
+    RIGHT = "right"
+    NONE = "none"
+
+
+class NodeNames(StrEnum):
+    """Canonical ROS2 node names.
+
+    Mirrors ``TfFrames``: a single source of truth so node names stop being
+    raw strings scattered across ``src/ros2_ws/*`` node constructors.
+    """
+
+    TELEMETRY_BRIDGE = "telemetry_bridge"
+    STATE_MACHINE = "state_machine"
+    BAG_RECORDER = "bag_recorder"
+    TRACK_NAVIGATOR = "track_navigator"
+    VISION_DETECTOR = "vision_detector"
+    OLED_DISPLAY = "oled_display"
+    CHALLENGE_MODE = "challenge_mode"
+    BUTTON = "button"
+    ACKERMANN_MOTOR = "ackermann_motor"
+    JOY_TELEOP = "joy_teleop"
+    PI_ZERO_PERIPHERALS = "pi_zero_peripherals"
+    HARDWARE = "hardware"
+
+
+class CommandKind(StrEnum):
+    """Command channel message kinds received from the gRPC bridge.
+
+    The wire values come from a protobuf ``WhichOneof`` at the boundary, but the
+    mapping to internal behaviour should compare against this enum rather than
+    raw strings.
+    """
+
+    START_RACE = "start_race"
+    STOP_RACE = "stop_race"
+    EMERGENCY_STOP = "emergency_stop"
+    SET_VISION_DEBUG = "set_vision_debug"
+    DISABLE_COMMAND_CHANNEL = "disable_command_channel"
+    SET_TELEMETRY_CHANNEL = "set_telemetry_channel"
+
+
+class HoldKind(StrEnum):
+    """Button hold classification used by the OLED/telemetry wire models."""
+
+    SHORT_PRESS = "short_press"
+    LONG_PRESS = "long_press"
+    SHUTDOWN_PRESS = "shutdown_press"
+
+
+class ConnectionStatus(StrEnum):
+    """Diagnostics connection status string compared against in nodes."""
+
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+
+
+from shared.domain.models import GMR_CLASS_NAMES  # noqa: E402,F401  (defined in models.py to avoid a cycle; re-exported here)
+

@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 from shared.config.constants import DictKeys, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning, SignDiscoveryParams, SignRouterParams
 from shared.domain.enums import Direction, Section
-from shared.domain.models import ScenarioMetadata, SignColor, Waypoint
+from shared.domain.models import RoutingEntry, ScenarioMetadata, SignColor, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.geometry import behind_tolerance_m, chassis_half_diagonal_m
@@ -83,7 +83,7 @@ class Axis(StrEnum):
     Y = "y"
 
 
-# Per-(corridor, direction) routing table: (axis, red_mult, green_mult).
+# Per-(corridor, direction) routing table.
 # axis: Axis.Y means deform the y-coordinate; Axis.X deforms x.
 # red_mult / green_mult: +1 or -1 multiplier applied to the LATERAL offset,
 # chosen so red always moves the deformed waypoint OUTWARD (away from the
@@ -93,15 +93,15 @@ class Axis(StrEnum):
 # world-frame negation of the CCW rows, which instead pinned "red on the
 # robot's right" — a travel-RELATIVE rule that flips outward/inward between
 # CW and CCW. That was wrong: the official rule is the absolute one above.)
-_ROUTING_TABLE: dict[tuple[Section, Direction], tuple[Axis, int, int]] = {
-    (Section.SOUTH, Direction.COUNTERCLOCKWISE): (Axis.Y, -1, +1),
-    (Section.NORTH, Direction.COUNTERCLOCKWISE): (Axis.Y, +1, -1),
-    (Section.EAST, Direction.COUNTERCLOCKWISE): (Axis.X, +1, -1),
-    (Section.WEST, Direction.COUNTERCLOCKWISE): (Axis.X, -1, +1),
-    (Section.SOUTH, Direction.CLOCKWISE): (Axis.Y, -1, +1),
-    (Section.NORTH, Direction.CLOCKWISE): (Axis.Y, +1, -1),
-    (Section.EAST, Direction.CLOCKWISE): (Axis.X, +1, -1),
-    (Section.WEST, Direction.CLOCKWISE): (Axis.X, -1, +1),
+_ROUTING_TABLE: dict[tuple[Section, Direction], RoutingEntry] = {
+    (Section.SOUTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
+    (Section.NORTH, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
+    (Section.EAST, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.X, +1, -1),
+    (Section.WEST, Direction.COUNTERCLOCKWISE): RoutingEntry(Axis.X, -1, +1),
+    (Section.SOUTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, -1, +1),
+    (Section.NORTH, Direction.CLOCKWISE): RoutingEntry(Axis.Y, +1, -1),
+    (Section.EAST, Direction.CLOCKWISE): RoutingEntry(Axis.X, +1, -1),
+    (Section.WEST, Direction.CLOCKWISE): RoutingEntry(Axis.X, -1, +1),
 }
 
 
@@ -123,8 +123,8 @@ def outward_lateral_axis(corridor: Section, color: SignColor) -> tuple[Axis, int
     entry = _ROUTING_TABLE.get((corridor, Direction.CLOCKWISE))
     if entry is None:
         return None
-    axis, red_mult, green_mult = entry
-    return axis, red_mult if color == SignColor.RED else green_mult
+    axis = entry.axis
+    return axis, entry.red_mult if color == SignColor.RED else entry.green_mult
 
 
 @dataclass(frozen=True, slots=True)
@@ -542,6 +542,7 @@ class SignRouter:
         self._lap_tick = 0
         self._committed = None
         self._commit_yaw.clear()
+        self._wrong_side.clear()
 
     @property
     def wrong_side_violations(self) -> set[int]:
@@ -574,12 +575,12 @@ class SignRouter:
         entry = _ROUTING_TABLE.get((self._sign_corridors[index], Direction.CLOCKWISE))
         if entry is None:
             return
-        axis, red_mult, green_mult = entry
+        axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
         permitted = red_mult if sign.color == SignColor.RED else green_mult
         robot_lat = robot_pos.x if axis == Axis.X else robot_pos.y
         sign_lat = sign.x if axis == Axis.X else sign.y
         side = 0 if robot_lat == sign_lat else (1 if robot_lat > sign_lat else -1)
-        if side != 0 and side != permitted:
+        if side != 0 and side not in (0, permitted):
             self._wrong_side.add(index)
 
     def deform_waypoint(
@@ -922,7 +923,8 @@ def _apply_deformation(
     if (corridor, direction) not in _ROUTING_TABLE:
         return waypoint
 
-    axis, red_mult, green_mult = _ROUTING_TABLE[(corridor, direction)]
+    entry = _ROUTING_TABLE[(corridor, direction)]
+    axis, red_mult, green_mult = entry.axis, entry.red_mult, entry.green_mult
     mult = red_mult if color == SignColor.RED else green_mult
 
     wx, wy = waypoint

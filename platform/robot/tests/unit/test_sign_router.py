@@ -19,7 +19,7 @@ import pytest
 from shared.config.constants import RobotSpecs, TrackDimensions, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Direction, Section
-from shared.domain.models import Detection, SignColor, TrafficSignObservation
+from shared.domain.models import Detection, SignColor, TrafficSignObservation, Waypoint
 
 from src.navigation.planning.sign_discovery import (
     _CAMERA_FOCAL_PX,
@@ -160,9 +160,9 @@ class TestOutwardLateralAxis:
     @pytest.mark.parametrize("color", [SignColor.RED, SignColor.GREEN])
     @pytest.mark.parametrize("direction", [Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE])
     def test_matches_routing_table_regardless_of_direction(self, section, color, direction):
-        axis, red_mult, green_mult = _ROUTING_TABLE[(section, direction)]
-        expected_mult = red_mult if color == SignColor.RED else green_mult
-        assert outward_lateral_axis(section, color) == (axis, expected_mult)
+        entry = _ROUTING_TABLE[(section, direction)]
+        expected_mult = entry.red_mult if color == SignColor.RED else entry.green_mult
+        assert outward_lateral_axis(section, color) == (entry.axis, expected_mult)
 
 
 # 2. 36-scenario routing
@@ -1226,6 +1226,63 @@ class TestPassSideRule:
 # lateral_offset can pass every TestPassSideRule case above (correct side)
 # while still leaving the chassis grazing the sign in practice.
 _MIN_SIGN_EDGE_CLEARANCE_M = 0.05
+
+
+class TestWrongSidePassDetection:
+    """A sign retired on the forbidden side must register as a violation.
+
+    The simulator stops the run on ``wrong_side_violations`` exactly as it does
+    on a forbidden wall contact, so this pins that the router reports the miss
+    in the first place: red must be cleared OUTWARD, green INWARD, and the side
+    is judged from the robot's lateral coordinate relative to the sign's at the
+    instant it is passed. A pass on the permitted side is NOT a violation.
+    """
+
+    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize("color", ["red", "green"])
+    def test_correct_side_is_not_a_violation(self, section, direction, color, router_config):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        entry = _ROUTING_TABLE[(section, direction)]
+        permitted = entry.red_mult if color == "red" else entry.green_mult
+        # Place the robot on the permitted side: the corridor's lateral axis
+        # value offset by the permitted direction.
+        if section in (Section.SOUTH, Section.NORTH):
+            robot = (sx, sy + permitted * 0.3)
+        else:
+            robot = (sx + permitted * 0.3, sy)
+        router = _router([_sign_at(sx, sy, color)], router_config)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        router._engaged = {0}
+        router._record_pass_side(0, Waypoint(*robot))
+        assert router.wrong_side_violations == set(), "permitted side must not violate"
+
+    @pytest.mark.parametrize(("section", "direction"), list(_ROUTING_TABLE))
+    @pytest.mark.parametrize("color", ["red", "green"])
+    def test_wrong_side_is_a_violation(self, section, direction, color, router_config):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[section]
+        entry = _ROUTING_TABLE[(section, direction)]
+        permitted = entry.red_mult if color == "red" else entry.green_mult
+        forbidden = -permitted
+        if section in (Section.SOUTH, Section.NORTH):
+            robot = (sx, sy + forbidden * 0.3)
+        else:
+            robot = (sx + forbidden * 0.3, sy)
+        router = _router([_sign_at(sx, sy, color)], router_config)
+        router._sign_corridors = [corridor_for_position(sx, sy)]
+        router._engaged = {0}
+        router._record_pass_side(0, Waypoint(*robot))
+        assert router.wrong_side_violations == {0}, "forbidden side must violate"
+
+    def test_reset_for_new_lap_clears_violations(self, router_config):
+        _, (sx, sy), _ = _SECTION_GEOMETRY[Section.SOUTH]
+        # Red in SOUTH is permitted outward (-Y); pass it on the inner (+Y) side.
+        router = _router([_sign_at(sx, sy, "red")], router_config)
+        router._sign_corridors = [Section.SOUTH]
+        router._engaged = {0}
+        router._record_pass_side(0, Waypoint(sx, sy + 0.3))
+        assert router.wrong_side_violations == {0}
+        router.reset_for_new_lap()
+        assert router.wrong_side_violations == set()
 
 
 class TestSignCorridorHysteresis:

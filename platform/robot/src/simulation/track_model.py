@@ -41,6 +41,7 @@ from shared.config.constants import (
     TrafficSignSpecs,
     WallSpecs,
 )
+from shared.domain.models import Bounds
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.track_geometry import TrackWalls
@@ -370,10 +371,10 @@ class TrackModel:
         return self._walls.point_in_free_space(x, y, clearance)
 
     @property
-    def inner_block_visual(self) -> tuple[float, float, float, float]:
+    def inner_block_visual(self) -> Bounds:
         """Inner-block visual bounds ``(x_min, y_min, x_max, y_max)`` in metres."""
         iv = self._inner_visual
-        return (iv.x_min, iv.y_min, iv.x_max, iv.y_max)
+        return Bounds(iv.x_min, iv.y_min, iv.x_max, iv.y_max)
 
 
 def _raycast_box(

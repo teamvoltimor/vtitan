@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
-    from shared.domain.models import Waypoint
+    from shared.domain.models import Pose, Waypoint
 
 
 def wrap_angle(angle: float) -> float:
@@ -64,7 +64,7 @@ def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target:
 
 
 def trail_clearance_behind(
-    trail: Sequence[tuple[float, float, float]],
+    trail: Sequence[Pose],
     robot_x: float,
     robot_y: float,
     robot_yaw: float,
@@ -101,8 +101,8 @@ def trail_clearance_behind(
     """
     cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
     reachable = 0.0
-    for point_x, point_y, _ in reversed(trail):
-        delta_x, delta_y = point_x - robot_x, point_y - robot_y
+    for point in reversed(trail):
+        delta_x, delta_y = point.x - robot_x, point.y - robot_y
         along = delta_x * cos_yaw + delta_y * sin_yaw
         if along > 0.0:
             continue
