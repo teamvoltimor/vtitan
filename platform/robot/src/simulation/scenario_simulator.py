@@ -37,7 +37,7 @@ from src.navigation.maneuvers.parking import ParkController, park_controller_fro
 from src.navigation.planning.sign_router import SignRouter, SignRouterConfig, SignSpec, signs_from_metadata
 from src.navigation.planning.waypoints import plan_believed_path
 from src.navigation.race_tracker import LapDetector
-from src.navigation.start_conditions import assumed_start_conditions
+from src.navigation.start_conditions import assumed_start_conditions, start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.kinematics import AckermannKinematics, AckermannState
@@ -558,37 +558,46 @@ class ScenarioSimulator:
         ``LiveScenarioVisualizer.set_belief_frame`` -- rather than drawing the
         plan on a track it does not correspond to.
 
-        In blind mode the corridor-width estimate evolves, and the lateral
-        position of the assumed start shifts with it (a narrow corridor's
-        centreline is 20 cm closer to the outer wall than a wide one's). The
-        path is rebuilt from the new widths but stays anchored at the original
-        assumed start, so the visualization frame has to be recomputed from the
-        current belief or the plan drifts 10-20 cm away from the true track.
+        The poses used here are the **corridor-centreline** poses, not the
+        starting-zone poses stored in ``_believed_start`` / ``_start``. The
+        planned path is a centreline racing line; aligning the frame by the
+        starting-zone position instead shoves the whole drawn path into the
+        starting zone, which is why the robot looked like it was driving
+        alongside its own plan even though it was tracking the true centreline
+        accurately.
+
+        In blind mode the corridor-width estimate evolves, so the lateral
+        position of the believed centreline shifts and the frame has to be
+        recomputed from the current belief.
 
         Equal in a sighted run, which makes the offset identity.
         """
-        believed = self._believed_start
-        if self._width_estimator is not None:
-            # Recompute the assumed-section start from the current width belief.
-            # The original stored start was built with the narrow prior; as the
-            # estimator learns the real layout, the centreline it thinks it is
-            # standing on moves, and so must the frame that draws the plan.
-            assumed = assumed_start_conditions(
-                believed.direction,
-                widths_m=self._width_estimator.widths,
-                section=believed.section,
-                tuning=self._tuning,
-            )
-            believed = _StartConditions(
-                section=believed.section,
-                direction=believed.direction,
-                x=float(assumed[DictKeys.POSITION][DictKeys.X]),
-                y=float(assumed[DictKeys.POSITION][DictKeys.Y]),
-                yaw=float(assumed[DictKeys.YAW]),
-            )
+        believed_widths = (
+            self._width_estimator.widths if self._width_estimator else self._true_geometry.to_widths_dict()
+        )
+        bx, by, byaw = _centreline_pose(
+            self._believed_start.section, self._believed_start.direction, believed_widths, self._tuning
+        )
+        believed = _StartConditions(
+            section=self._believed_start.section,
+            direction=self._believed_start.direction,
+            x=bx,
+            y=by,
+            yaw=byaw,
+        )
+        tx, ty, tyaw = _centreline_pose(
+            self._start.section, self._start.direction, self._true_geometry.to_widths_dict(), self._tuning
+        )
+        true = _StartConditions(
+            section=self._start.section,
+            direction=self._start.direction,
+            x=tx,
+            y=ty,
+            yaw=tyaw,
+        )
         return (
             (believed.x, believed.y, believed.yaw),
-            (self._start.x, self._start.y, self._start.yaw),
+            (true.x, true.y, true.yaw),
         )
 
     @property
@@ -895,3 +904,20 @@ def _start_conditions(metadata: ScenarioMetadata) -> _StartConditions:
         y=float(sc.position.y),
         yaw=float(sc.yaw),
     )
+
+
+def _centreline_pose(
+    section: Section,
+    direction: Direction,
+    widths_m: dict[Section, float],
+    tuning: NavigationTuning | None,
+) -> tuple[float, float, float]:
+    """Centreline pose for a section/direction/width set.
+
+    ``start_pose`` returns the biased corridor centreline, which is what the
+    planned path is built from. Using it for the visualization frame aligns the
+    drawn plan with the track centreline rather than with the starting-zone
+    cell the robot happens to be placed in.
+    """
+    by_name = {s.value.lower(): w for s, w in widths_m.items()}
+    return start_pose(section, direction, by_name, tuning)
