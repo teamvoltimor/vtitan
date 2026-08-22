@@ -32,7 +32,6 @@ from shared.domain.models import BlockPosition, ParkingLot, Pose, Waypoint
 
 from src.config.tuning_helpers import TuningContext, get_tuning
 from src.navigation.utils import (
-  _local_frame,
   _pure_pursuit_steer as _shared_pure_pursuit_steer,
   clamp as _clamp,
 )
@@ -347,7 +346,7 @@ class ParkController:
             self._reposition_frames_left -= 1
             return ParkCommand(linear=self._reposition_speed, steering=self._reposition_steer, phase=phase_name)
 
-        x_local, y_local = _local_frame(Waypoint(robot_pose.x, robot_pose.y), robot_pose.yaw, target)
+        x_local, y_local = robot_pose.to_local_frame(target)
 
         if x_local < 0:
             # Target is behind the robot: pure pursuit's curvature formula is only valid
