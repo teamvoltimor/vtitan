@@ -155,9 +155,30 @@ class TestForcedTurnSide:
 
 
 class TestCentring:
-    def test_steers_toward_the_roomier_side(self, tuning) -> None:
+    """The centring branch, which SHIPS DISABLED (CENTERING_GAIN_DEG_PER_M = 0).
+
+    Both halves are asserted deliberately: that the shipped creep holds its lane,
+    and that the branch still works when a tuning re-enables it. A zeroed gain
+    with no second test would let the code path rot unnoticed, which is the same
+    inert-configuration trap that has already cost this project three wrong
+    conclusions.
+    """
+
+    def test_shipped_creep_holds_its_lane_instead_of_centring(self, tuning) -> None:
+        # Hard against one wall but square to the corridor. Chasing this offset
+        # is what swung the heading past the direction estimator's alignment
+        # gate, costing 11 of 32 wide outer-band starts their direction
+        # entirely -- so the shipped creep must not steer off-axis for it.
         scan = LidarScanBuilder().corridor(left_m=0.8, right_m=0.2, ahead_m=2.5).build()
-        assert follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning).steering_norm > 0
+        cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
+        assert cmd.steering_norm == pytest.approx(0.0, abs=1e-6)
+        assert cmd.speed_mps == pytest.approx(CREEP_SPEED_MPS)
+
+    def test_steers_toward_the_roomier_side_when_the_gain_is_restored(self, tuning, override_tuning) -> None:
+        # Dormant, not dead: 44.0 is the value shipped until 2026-08-22.
+        centring = override_tuning(tuning, corridor_follower={"CENTERING_GAIN_DEG_PER_M": 44.0})
+        scan = LidarScanBuilder().corridor(left_m=0.8, right_m=0.2, ahead_m=2.5).build()
+        assert follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=centring).steering_norm > 0
 
     def test_centred_chassis_drives_straight(self, tuning) -> None:
         scan = LidarScanBuilder().corridor(left_m=0.5, right_m=0.5, ahead_m=2.5).build()

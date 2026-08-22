@@ -90,7 +90,12 @@ class CorridorFollowerParams(BaseModel):
             (RobotSpecs.LENGTH, 0.30 m) so the corner-turn branch still fires
             cleanly instead of folding into the emergency back-off branch.
         CENTERING_GAIN_DEG_PER_M: Degrees of road-wheel steering per metre of
-            lateral offset from the corridor centreline.
+            lateral offset from the corridor centreline. Zero since 2026-08-22
+            -- the blind creep holds heading and does not chase the centreline,
+            because the lateral correction is what swings the chassis past
+            ALIGNMENT_TOLERANCE_RAD and starves the direction gate. Left as a
+            zeroed gain rather than deleted code so the branch survives for a
+            chassis that needs it.
         HEADING_GAIN: Road-wheel steering angle per unit of heading error
             against the corridor axis -- dimensionless, since both sides are
             angles. Centring on offset alone is undamped: in a steered
@@ -172,7 +177,11 @@ class CorridorFollowerParams(BaseModel):
     # limit they were tuned at, so the conversion changed no behaviour on the
     # base chassis. HEADING_GAIN keeps its name because it keeps its meaning;
     # only its units stopped depending on the servo.
-    CENTERING_GAIN_DEG_PER_M: float = Field(default=44.0, validation_alias=_alias("CENTERING_GAIN_DEG_PER_M"))
+    # Zero since 2026-08-22: the creep does not centre at all, because centring
+    # is what swings the heading past the direction estimator's alignment gate
+    # and stops it settling. See the corridor_follower.toml comment for the
+    # trace and the measurements. Was 44.0.
+    CENTERING_GAIN_DEG_PER_M: float = Field(default=0.0, validation_alias=_alias("CENTERING_GAIN_DEG_PER_M"))
     HEADING_GAIN: float = Field(default=0.767945, validation_alias=_alias("HEADING_GAIN"))
     MAX_CENTERING_STEER_DEG: float = Field(default=13.75, validation_alias=_alias("MAX_CENTERING_STEER_DEG"))
     CORNER_SPEED_SCALE: float = Field(default=0.6, validation_alias=_alias("CORNER_SPEED_SCALE"))
