@@ -78,6 +78,14 @@ class SimulatorContext(TuningContext[_SimulatorConstants]):
 
 _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
 
+_LIDAR_OFFSET_M = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+"""Forward distance from the chassis centre to the LIDAR (m).
+
+Same value `navigation.localization` predicts with -- the sensor model and the
+estimator that inverts it have to agree, or the localizer is matching scans
+against geometry the simulator never produced.
+"""
+
 # Backward-compatible exports for existing imports.
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
 LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
@@ -483,31 +491,25 @@ class SimulatedHardwareGateway:
         self._refresh_sensors()
 
     def _refresh_sensors(self) -> None:
-        # KNOWN DIVERGENCE FROM HARDWARE (2026-08-21). `raycast_scan` documents
-        # this parameter as the SENSOR position, and `_state.x/y` is the chassis
-        # CENTRE (see kinematics: "(x, y) tracks the chassis centre"). The real
-        # C1 sits `RobotSpecs.LIDAR_MOUNT_X_OFFSET` = 0.1222 m forward of that,
-        # flush with the front bumper -- so simulated forward ranges read ~12 cm
-        # LONGER than the hardware would report, and rear ranges shorter. Side
-        # rays against a parallel wall are unaffected, which is why blind
-        # corridor-WIDTH estimation still behaves.
+        # Rays leave the SENSOR, not the chassis centre. `_state.x/y` is the
+        # centre (kinematics: "(x, y) tracks the chassis centre") while the real
+        # C1 sits LIDAR_MOUNT_X_OFFSET = 0.1222 m forward of it, flush with the
+        # bumper. Casting from the centre made simulated forward ranges ~12 cm
+        # longer than hardware would report -- larger than the whole 0.10 m
+        # contact zone the navigator gates on. Side rays against a parallel wall
+        # were unaffected, which is why blind corridor-WIDTH estimation kept
+        # working and hid this for so long.
         #
-        # Deliberately NOT fixed here in isolation. `navigation/localization.py`
-        # carries no mount-offset term either -- it treats every range as
-        # originating at the robot pose -- so the simulator currently agrees with
-        # the navigation stack, and both disagree with the robot. Correcting only
-        # this call would desynchronise the two and make sim results worse while
-        # looking like a fidelity improvement. The offset has to be threaded
-        # through the consumer at the same time; `LIDAR_MOUNT_X_OFFSET`'s only
-        # consumers today are the static TF and a visualiser marker.
-        #
-        # Paired with the `collision_thickness` inflation in track.toml, which
-        # holds the chassis 4 cm short of every wall on the false premise that
-        # the LIDAR protrudes 30 mm. The two distortions oppose each other at the
-        # front. Change them together, with a before/after.
+        # Fixed 2026-08-21 together with the matching prediction in
+        # `navigation/localization.py`, which had the same omission. Either one
+        # alone would have desynchronised the estimator from its own sensor
+        # model: they were consistently wrong with each other, and only the
+        # hardware disagreed.
+        sensor_x = self._state.x + _LIDAR_OFFSET_M * math.cos(self._state.yaw)
+        sensor_y = self._state.y + _LIDAR_OFFSET_M * math.sin(self._state.yaw)
         ranges = self._track.raycast_scan(
-            self._state.x,
-            self._state.y,
+            sensor_x,
+            sensor_y,
             self._state.yaw,
             self._angles,
         )
