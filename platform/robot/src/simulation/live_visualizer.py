@@ -254,7 +254,7 @@ class LiveScenarioVisualizer(Node):
         markers.markers.append(Marker(action=Marker.DELETEALL))
         markers.markers.append(self._floor_marker())
         markers.markers.extend(self._outer_wall_markers())
-        markers.markers.append(self._inner_block_marker(track))
+        markers.markers.extend(self._inner_block_markers(track))
         markers.markers.extend(self._floor_marking_markers(track))
         for i, sign in enumerate(sign_positions or []):
             markers.markers.extend(self._sign_floor_markers(i, sign))
@@ -451,7 +451,11 @@ class LiveScenarioVisualizer(Node):
         outer = TrackDimensions.MAX_COORD + WallSpecs.THICKNESS / 2.0
         inner = TrackDimensions.MIN_COORD - WallSpecs.THICKNESS / 2.0
         centre = TrackDimensions.CENTER_COORD
-        span = TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS
+        # Span only the track width, not the full mat: each wall then stops at
+        # the inner face of the wall it crosses, so the corners meet as a clean
+        # 90 deg L instead of the four walls running through each other into a
+        # cross.
+        span = TrackDimensions.MAX_COORD - TrackDimensions.MIN_COORD
         placements = (
             (centre, outer, span, WallSpecs.THICKNESS),  # north
             (centre, inner, span, WallSpecs.THICKNESS),  # south
@@ -477,27 +481,30 @@ class LiveScenarioVisualizer(Node):
         m.color.r, m.color.g, m.color.b, m.color.a = *WallSpecs.COLOR, 1.0
         return m
 
-    def _inner_block_marker(self, track: TrackModel) -> Marker:
+    def _inner_block_markers(self, track: TrackModel) -> list[Marker]:
+        """The central obstacle as a hollow wall perimeter, not a solid block.
+
+        Drawn as four thin walls (same thickness/colour/height as the outer
+        walls) along the inner-block boundary, so it reads as the inner wall of
+        the track rather than a filled slab. The four sides butt at their inner
+        faces -- same corner treatment as :meth:`_outer_wall_markers` -- so the
+        corners are clean 90 deg Ls. ids 4..7 follow the outer walls' 0..3.
+        """
         x_min, y_min, x_max, y_max = track.inner_block_visual
-        m = Marker()
-        m.header.frame_id = TfFrames.MAP
-        m.ns = "track"
-        # 4, not 1: ids 0..3 are the four outer walls now.
-        m.id = 4
-        m.type = Marker.CUBE
-        m.action = Marker.ADD
-        m.pose.position.x = (x_min + x_max) / 2.0
-        m.pose.position.y = (y_min + y_max) / 2.0
-        # Same height as the outer walls, from the same constant — these were
-        # 0.05/0.10 literals, which happened to agree with WallSpecs and would
-        # not have followed it if track.toml changed.
-        m.pose.position.z = WallSpecs.HEIGHT / 2.0
-        m.pose.orientation.w = 1.0
-        m.scale.x = x_max - x_min
-        m.scale.y = y_max - y_min
-        m.scale.z = WallSpecs.HEIGHT
-        m.color.r, m.color.g, m.color.b, m.color.a = *WallSpecs.COLOR, 1.0
-        return m
+        thickness = WallSpecs.THICKNESS
+        cx = (x_min + x_max) / 2.0
+        cy = (y_min + y_max) / 2.0
+        # Each side spans only the inner dimension so it stops at the inner face
+        # of the perpendicular side -- no crossing into a cross at the corners.
+        inner_w = x_max - x_min
+        inner_h = y_max - y_min
+        placements = (
+            (4, cx, y_max, inner_w, thickness),  # north
+            (5, cx, y_min, inner_w, thickness),  # south
+            (6, x_max, cy, thickness, inner_h),  # east
+            (7, x_min, cy, thickness, inner_h),  # west
+        )
+        return [self._wall_marker(index, x, y, size_x, size_y) for index, x, y, size_x, size_y in placements]
 
     def _floor_line_thickness(self) -> float:
         """RViz floor-marking line width.
