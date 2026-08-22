@@ -9,7 +9,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 
-class FilePaths:
+class FilePaths(StrEnum):
     """Default file paths and templates."""
 
     BASE_WORLD_TEMPLATE = "worlds/wro_track_2026.sdf"
@@ -52,7 +52,7 @@ class TfFrames(StrEnum):
     OLED_DISPLAY = "oled_display"
 
 
-class DictKeys:
+class DictKeys(StrEnum):
     """Dictionary keys used throughout the codebase for type safety."""
 
     # Corridor width dictionary keys
@@ -115,7 +115,7 @@ class DictKeys:
     Z_SIGN = "z_sign"
 
 
-class ModelNames:
+class ModelNames(StrEnum):
     """Gazebo model name prefixes and identifiers."""
 
     # Wall models
@@ -140,7 +140,7 @@ class ModelNames:
     AMBIENT_LIGHT = "ambient_light"
 
 
-class FileExtensions:
+class FileExtensions(StrEnum):
     """File extensions for world and metadata files."""
 
     SDF = ".sdf"
@@ -151,7 +151,7 @@ class FileExtensions:
     JPG = ".jpg"
 
 
-class FolderNames:
+class FolderNames(StrEnum):
     """Folder names for output organization."""
 
     SCENARIOS = "scenarios"
