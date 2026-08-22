@@ -18,6 +18,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, LaserScan
+from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import RobotState, ScenarioType
 from std_msgs.msg import String
@@ -542,7 +543,7 @@ class VisionNode(Node):
         """Wrap an RGB array as a sensor_msgs/Image."""
         msg = Image()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = "camera_link"
+        msg.header.frame_id = TfFrames.CAMERA_LINK
         msg.height, msg.width = rgb.shape[:2]
         msg.encoding = "rgb8"
         msg.is_bigendian = 0

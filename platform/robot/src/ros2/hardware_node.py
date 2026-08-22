@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from rclpy.lifecycle.node import LifecycleState
     from rclpy.lifecycle.publisher import Publisher
     from rclpy.timer import Timer
+    from shared.config.constants import TfFrames
 
 
 class LifecycleHardwareNode(LifecycleNode, ABC):
@@ -34,14 +35,21 @@ class LifecycleHardwareNode(LifecycleNode, ABC):
         *,
         publish_rate_default: float,
         topic_default: str,
-        frame_id_default: str,
+        frame_id_default: TfFrames,
     ) -> None:
         """Construct the node (unconfigured -- no hardware I/O yet)."""
         super().__init__(node_name)
         self.get_logger().info(f"{node_name} constructed (unconfigured)")
 
         declare_param(self, "publish_rate", publish_rate_default)
-        declare_param(self, "frame_id", frame_id_default)
+        # str(), and only here: rclpy stores a declared parameter's default
+        # object as-is, so handing it a TfFrames member makes
+        # get_parameter_value().string_value hand back the ENUM rather than the
+        # plain str a ROS string parameter is defined to hold. Assigning a
+        # StrEnum straight to a message frame_id is fine (it serializes as its
+        # value) -- it is the parameter round trip that has to be narrowed, so
+        # the conversion lives at that one boundary instead of at every caller.
+        declare_param(self, "frame_id", str(frame_id_default))
         declare_param(self, "topic", topic_default)
 
         self._message_type = message_type

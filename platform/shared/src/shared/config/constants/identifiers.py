@@ -6,6 +6,8 @@ than a redundant string-alias class here.
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 
 class FilePaths:
     """Default file paths and templates."""
@@ -16,20 +18,38 @@ class FilePaths:
     METADATA_SUFFIX = "_metadata.json"
 
 
-class TfFrames:
-    """TF frame names shared across launch files and nodes.
+class TfFrames(StrEnum):
+    """TF frame names shared across launch files, nodes and the simulator.
 
     These are structural frames tied to the URDF/Gazebo model, not
     user-tunable config -- but they ARE a cross-file contract: lidar_launch's
     ``frame_id`` must match static_tfs.launch.py's ``lidar_link`` child frame,
     and both must match the URDF. Keep them here so the launch files can't
     drift apart (the drift that a comment in lidar_launch.py used to warn about).
+
+    A ``StrEnum`` rather than a bare class of constants so a frame can be
+    accepted in a signature as ``TfFrames`` and still be assigned straight to a
+    ``std_msgs/Header.frame_id`` or handed to a launch argument -- members are
+    real ``str`` instances and serialize over CDR as their plain value.
     """
+
+    MAP = "map"
+    """World-fixed frame. In simulation the ground-truth pose is published
+    directly against it; on hardware nothing publishes it without SLAM, which is
+    why the saved RViz config's Fixed Frame has to be changed to ``base_link``
+    for real-robot topic testing."""
+
+    ODOM = "odom"
+    BASE_FOOTPRINT = "base_footprint"
+    """The URDF's ground-plane root: ``base_link`` sits one wheel radius above
+    it. Note the live visualizer does NOT reproduce that offset -- it treats
+    ``base_link`` as the ground plane, so its chassis marker runs 0..HEIGHT."""
 
     BASE_LINK = "base_link"
     LIDAR_LINK = "lidar_link"
     CAMERA_LINK = "camera_link"
     IMU_LINK = "imu_link"
+    OLED_DISPLAY = "oled_display"
 
 
 class DictKeys:

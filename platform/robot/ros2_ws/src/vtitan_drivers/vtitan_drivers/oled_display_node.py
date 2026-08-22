@@ -35,6 +35,7 @@ from pydantic_settings import SettingsConfigDict
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 from sensor_msgs.msg import Image as ImageMsg
+from shared.config.constants import TfFrames
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Float32, String
 
@@ -809,7 +810,7 @@ class OLEDDisplayNode(LifecycleNode):
         try:
             ros_img = self.bridge.cv2_to_imgmsg(img_array, encoding="mono8")
             ros_img.header.stamp = self.get_clock().now().to_msg()
-            ros_img.header.frame_id = "oled_display"
+            ros_img.header.frame_id = TfFrames.OLED_DISPLAY
             self.oled_mirror_pub.publish(ros_img)
         except (RuntimeError, ValueError) as e:
             self.get_logger().warning(f"Failed to publish mirror image: {e}")
