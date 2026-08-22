@@ -13,7 +13,6 @@ from shared.domain.enums import Direction, Section
 from src.navigation.start_measurement import measure_start_pose
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 
-_MAT = TrackDimensions.MAX_COORD
 _WIDE = dict.fromkeys(Section, 1.0)
 
 
@@ -102,7 +101,7 @@ class TestMeasuredPose:
 
         assert south is not None
         assert east is not None
-        assert (east.x, east.y) == pytest.approx((_MAT - south.y, south.x), abs=1e-6)
+        assert (east.x, east.y) == pytest.approx((TrackDimensions.MAX_COORD - south.y, south.x), abs=1e-6)
 
 
 class TestRefusesToGuess:
@@ -130,7 +129,7 @@ class TestRefusesToGuess:
         """
         closing_tolerance_m = NavigationTuning.load_default().start_measurement.CLOSING_TOLERANCE_M
         ranges, angles = _scan(1.25, 0.497, 0.0)
-        shrunk = np.asarray(ranges, dtype=float) * (1.0 - 0.9 * closing_tolerance_m / _MAT)
+        shrunk = np.asarray(ranges, dtype=float) * (1.0 - 0.9 * closing_tolerance_m / TrackDimensions.MAX_COORD)
 
         assert measure_start_pose(shrunk, angles, Direction.COUNTERCLOCKWISE) is not None
 

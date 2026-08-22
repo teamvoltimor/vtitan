@@ -37,13 +37,11 @@ from src.navigation.planning.sign_router import corridor_for_position
 from src.simulation.scenario_catalog import all_test_scenarios
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_NARROW = CorridorDimensions.NARROW
-_WIDE = CorridorDimensions.WIDE
-_DECISION_BOUNDARY = (_NARROW + _WIDE) / 2.0
+_DECISION_BOUNDARY = (CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2.0
 """0.8 m — halfway between the only two legal widths."""
 
 _CORNER_MISS_MARGIN_M = 0.25
-_MAX_PLAUSIBLE_WIDTH = _WIDE + _CORNER_MISS_MARGIN_M
+_MAX_PLAUSIBLE_WIDTH = CorridorDimensions.WIDE + _CORNER_MISS_MARGIN_M
 """Beyond this the inward ray has missed the inner block (robot is at a corner)."""
 
 _ALIGNMENT_TOLERANCE_RAD = NavigationTuning.load_default().direction_estimator.ALIGNMENT_TOLERANCE_RAD
@@ -83,7 +81,7 @@ def measure_width(scan_ranges: list[float], scan_angles: list[float], yaw: float
     # Project back onto the corridor normal: a small heading error stretches
     # both rays by 1/cos(error).
     width = (left + right) * math.cos(axis_error)
-    if not (_NARROW - _WIDTH_VALIDITY_MARGIN_M < width < _MAX_PLAUSIBLE_WIDTH):
+    if not (CorridorDimensions.NARROW - _WIDTH_VALIDITY_MARGIN_M < width < _MAX_PLAUSIBLE_WIDTH):
         return None
     return width
 
@@ -121,7 +119,7 @@ def main() -> None:
             usable_ticks += 1
             truth = widths[corridor]
             errors.append(measured - truth)
-            guess = _NARROW if measured < _DECISION_BOUNDARY else _WIDE
+            guess = CorridorDimensions.NARROW if measured < _DECISION_BOUNDARY else CorridorDimensions.WIDE
             if math.isclose(guess, truth):
                 correct += 1
             else:
@@ -136,7 +134,11 @@ def main() -> None:
     print(f"usable ticks           : {usable_ticks}/{total_ticks} ({usable_ticks / total_ticks:.1%})")
     print(f"width classification   : {correct}/{total} correct ({correct / total:.3%})")
     print(f"raw measurement error  : mean {mean_err * 100:+.2f}cm  worst {worst * 100:.2f}cm")
-    print(f"decision margin needed : {(_WIDE - _NARROW) / 2 * 100:.0f}cm from the {_DECISION_BOUNDARY:.2f}m boundary")
+    print(
+        f"decision margin needed : "
+        f"{(CorridorDimensions.WIDE - CorridorDimensions.NARROW) / 2 * 100:.0f}cm "
+        f"from the {_DECISION_BOUNDARY:.2f}m boundary"
+    )
     if per_section_wrong:
         print(f"misclassified by section: {dict(per_section_wrong)}")
 

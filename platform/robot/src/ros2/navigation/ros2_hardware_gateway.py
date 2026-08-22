@@ -182,11 +182,10 @@ class ROS2HardwareGateway(HardwareGateway):
         if i >= len(msg.position):
             return
 
-        radius = RobotSpecs.WHEEL_RADIUS
-        speed = msg.velocity[i] * radius if i < len(msg.velocity) else 0.0
+        speed = msg.velocity[i] * RobotSpecs.WHEEL_RADIUS if i < len(msg.velocity) else 0.0
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         self._latest_wheel = WheelOdometry(
-            distance_m=msg.position[i] * radius,
+            distance_m=msg.position[i] * RobotSpecs.WHEEL_RADIUS,
             speed_mps=speed,
             stamp_s=stamp,
         )

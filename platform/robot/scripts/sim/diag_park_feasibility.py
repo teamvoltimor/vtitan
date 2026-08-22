@@ -30,7 +30,6 @@ from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.track_model import ObstacleBox, TrackModel, _convex_overlap, _rect_corners
 
 _DT = 0.05
-_BAY_DEPTH = ParkingLotSpecs.LENGTH
 _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.OBSTACLES_WIDTH)
 
 # Fixture 0000 (NORTH): fins at x = 1.50 and 1.95, y = 2.90, outer wall at y = 3.0.
@@ -38,7 +37,7 @@ _FIN_A, _FIN_B, _FIN_LAT = 1.50, 1.95, 2.90
 _WALL = 3.0
 _BAY = (
     _FIN_A + ParkingLotSpecs.WIDTH / 2,
-    _WALL - _BAY_DEPTH,
+    _WALL - ParkingLotSpecs.LENGTH,
     _FIN_B - ParkingLotSpecs.WIDTH / 2,
     _WALL,
 )
@@ -78,7 +77,7 @@ def _protrusion(x: float, y: float, yaw: float) -> float:
 def report_analytic() -> None:
     """Containment budget: swept width vs bay depth, and the depth each chassis width needs."""
     print("=== Containment budget ===\n")
-    print(f"bay: {_BAY_DEPTH:.2f} m deep x {_BAY[2] - _BAY[0]:.2f} m long")
+    print(f"bay: {ParkingLotSpecs.LENGTH:.2f} m deep x {_BAY[2] - _BAY[0]:.2f} m long")
     print(f"chassis: {RobotSpecs.LENGTH:.2f} x {RobotSpecs.WIDTH:.2f} m")
     print(f"longitudinal slack: {_BAY[2] - _BAY[0] - RobotSpecs.LENGTH:.3f} m total\n")
 
@@ -87,7 +86,7 @@ def report_analytic() -> None:
     for deg in (0, 1, 2, 3, 5, 8):
         th = math.radians(deg)
         half = RobotSpecs.WIDTH / 2 * math.cos(th) + RobotSpecs.LENGTH / 2 * math.sin(th)
-        rows.append((f"{deg}°", half, 2 * half, "yes" if 2 * half <= _BAY_DEPTH else "NO"))
+        rows.append((f"{deg}°", half, 2 * half, "yes" if 2 * half <= ParkingLotSpecs.LENGTH else "NO"))
     print_table(rows, ["theta", "half-sweep", "total", "fits?"], floatfmt=(".3f", ".3f"))
 
     print("\nBay depth needed for a given chassis width, with per-side margin (theta = 0):")
@@ -96,7 +95,7 @@ def report_analytic() -> None:
 
     print("\nSimulator's outer wall collision margin: 0.04 m (mesh 0.18 vs visual 0.10 thickness).")
     print("-> to avoid a modelled wall contact the centre must sit >= 0.14 m from the wall,")
-    print(f"   but to be contained in a {_BAY_DEPTH:.2f} m bay it must sit <= 0.10 m from it. Contradiction.")
+    print(f"   but to be contained in a {ParkingLotSpecs.LENGTH:.2f} m bay it must sit <= 0.10 m from it. Contradiction.")
 
 
 def _simulate_two_arc(

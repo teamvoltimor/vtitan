@@ -46,7 +46,6 @@ from src.config.tuning_helpers import get_tuning
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
-_MAT = TrackDimensions.MAX_COORD
 _SECTION_ROTATIONS: tuple[Section, ...] = (Section.SOUTH, Section.EAST, Section.NORTH, Section.WEST)
 """Sections in 90-degree rotation order, starting from the frame poses are built in."""
 
@@ -106,7 +105,7 @@ def _rotate_into(section: Section, x: float, y: float) -> tuple[float, float]:
     """
     turns = _SECTION_ROTATIONS.index(section)
     for _ in range(turns):
-        x, y = _MAT - y, x
+        x, y = TrackDimensions.MAX_COORD - y, x
     return x, y
 
 
@@ -169,7 +168,7 @@ def measure_start_pose(
     if forward is None or back is None or left is None or right is None:
         return None
 
-    if abs((forward + back) - _MAT) > closing_tolerance_m:
+    if abs((forward + back) - TrackDimensions.MAX_COORD) > closing_tolerance_m:
         return None
 
     # Clockwise travel keeps the inner block to the right, so the outer wall is
@@ -181,12 +180,12 @@ def measure_start_pose(
     # corridor: the robot is level with a corner, past the inner block. Only a
     # sum that falls short of the mat is a corridor width.
     span = outer + inner
-    corridor_width = span if span < _MAT - closing_tolerance_m else None
+    corridor_width = span if span < TrackDimensions.MAX_COORD - closing_tolerance_m else None
 
     # ``back`` is the distance to the wall behind, so it *is* the along-corridor
     # coordinate when travelling in the axis' positive direction, and the mat
     # less that when travelling against it.
-    along = _MAT - back if clockwise else back
+    along = TrackDimensions.MAX_COORD - back if clockwise else back
     x, y = _rotate_into(section, along, outer)
     return MeasuredStart(
         x=x,

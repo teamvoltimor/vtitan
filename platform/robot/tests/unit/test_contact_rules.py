@@ -24,7 +24,6 @@ from src.simulation.simulated_hardware_gateway import SimulatedHardwareGateway
 from src.simulation.track_model import ContactSurface, TrackModel
 
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
-_MAX = TrackDimensions.MAX_COORD
 
 
 def _track() -> TrackModel:
@@ -40,16 +39,16 @@ class TestContactSurface:
     def test_free_space_touches_nothing(self) -> None:
         track = _track()
         # Mid-corridor on the south side: clear of both the outer wall and the block.
-        assert track.contact_surface(_MAX / 2, _WIDE_MM / 1000 / 2, 0.0) is ContactSurface.NONE
+        assert track.contact_surface(TrackDimensions.MAX_COORD / 2, _WIDE_MM / 1000 / 2, 0.0) is ContactSurface.NONE
 
     def test_outside_the_track_is_the_outer_wall(self) -> None:
         track = _track()
-        assert track.contact_surface(-1.0, _MAX / 2, 0.0) is ContactSurface.OUTER_WALL
+        assert track.contact_surface(-1.0, TrackDimensions.MAX_COORD / 2, 0.0) is ContactSurface.OUTER_WALL
 
     def test_centre_of_the_track_is_the_inner_wall(self) -> None:
         """The inner block occupies the middle of the mat."""
         track = _track()
-        assert track.contact_surface(_MAX / 2, _MAX / 2, 0.0) is ContactSurface.INNER_WALL
+        assert track.contact_surface(TrackDimensions.MAX_COORD / 2, TrackDimensions.MAX_COORD / 2, 0.0) is ContactSurface.INNER_WALL
 
     def test_footprint_collides_still_agrees_with_the_surface(self) -> None:
         """The bool is now derived, so the two can never disagree."""
@@ -93,7 +92,7 @@ class TestSolidWalls:
         """A gateway with the chassis placed facing the west outer wall."""
         return SimulatedHardwareGateway(
             track=_track(),
-            initial_state=AckermannState(x=x, y=_MAX / 2, yaw=yaw),
+            initial_state=AckermannState(x=x, y=TrackDimensions.MAX_COORD / 2, yaw=yaw),
             solid_walls=solid,
         )
 
@@ -162,7 +161,7 @@ class TestPermittedSurfacesStillBlock:
 
         assert gw.blocked is True, "inner block let the chassis through"
         assert gw.contact_surface is ContactSurface.INNER_WALL
-        assert gw.state.y < _MAX / 2, "chassis reached the far side of the inner block"
+        assert gw.state.y < TrackDimensions.MAX_COORD / 2, "chassis reached the far side of the inner block"
         assert gw.state.y > start.y, "chassis never moved toward the block"
 
 

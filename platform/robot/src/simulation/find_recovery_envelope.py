@@ -18,12 +18,12 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CorridorDimensions
+from shared.config.constants import CompetitionSpecs, CorridorDimensions
 from shared.domain.enums import Direction, Section
 
 from src.navigation.track_geometry import cross_track_error
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
-from src.simulation.scenario_constants import N_LAPS, NARROW_MM, WIDE_MM
+from src.simulation.scenario_constants import NARROW_MM, WIDE_MM
 from src.simulation.scenario_result import PoseDisturbance
 from src.simulation.scenario_simulator import ScenarioSimulator
 
@@ -62,7 +62,7 @@ _SCENARIOS = [
 
 def _recovers(scenario: _Scenario, disturbance: PoseDisturbance) -> bool:
     meta = build_open_metadata(scenario.widths_mm, scenario.section, scenario.direction)
-    sim = ScenarioSimulator(meta, num_laps=N_LAPS)
+    sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
     trace: list[float] = []
 
     def on_step(state: AckermannState, _scan: object) -> None:

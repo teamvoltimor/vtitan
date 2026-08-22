@@ -22,3 +22,10 @@ plausible_width_margin_m = 0.25
 # the robot is often powered on well away from the track and only what it
 # sees once placed should count.
 max_start_samples = 20
+
+# Width at which a raw measurement snaps to WIDE rather than NARROW. Defaults
+# to the midpoint of the two legal widths (0.8 m against a 0.03 m LIDAR
+# sigma, better than 4-sigma either way), but is tunable independently of
+# them -- shifting it off-centre trades a false NARROW for a false WIDE
+# without moving either corridor width.
+decision_boundary_m = 0.80

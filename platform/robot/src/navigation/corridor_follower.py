@@ -39,7 +39,7 @@ import math
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from shared.config.constants import CorridorDimensions, RobotSpecs
+from shared.config.constants import CorridorDimensions
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.ports import DriveCommand
@@ -56,33 +56,6 @@ class TurnSide(StrEnum):
 
     LEFT = "left"
     RIGHT = "right"
-
-_MIN_FORWARD_CLEARANCE_M = RobotSpecs.LENGTH
-"""Back off when the wall ahead is this close.
-
-The direction should have settled long before this -- measured, it resolves
-after about 0.8 m of travel with roughly 0.5 m to spare. Reaching here means it
-did not, so driving on into the corner with no plan is not an option.
-
-Stopping is not either, and used to be what happened. With no direction there is
-no plan to hand over to and nothing else is steering, so a stopped robot stays
-stopped: go_open_0020 sat at zero speed for 400 ticks with the wall 0.13 m away
-and the round expired around it. The corner branch below carries a comment
-warning of exactly that deadlock; this branch reintroduced it.
-"""
-
-_MIN_REVERSE_CLEARANCE_M = RobotSpecs.LENGTH
-"""Room needed behind before backing off is allowed.
-
-Backing blindly into whatever is behind trades one wall for another. With less
-than this the robot is boxed at both ends and holding still is genuinely all
-that is left.
-
-The robot must never cover ground backwards: the round is driven in the
-direction drawn on the day, and a robot reversing down a corridor is going the
-wrong way regardless of which way it is pointing. Clearance recovers within a
-few ticks, at which point the forward branches take over again.
-"""
 
 
 def _way_through(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> bool:
@@ -162,6 +135,8 @@ def follow_corridor(
     centering_gain = follower.CENTERING_GAIN
     heading_gain = follower.HEADING_GAIN
     turn_clearance = follower.TURN_CLEARANCE_M
+    min_forward_clearance = follower.MIN_FORWARD_CLEARANCE_M
+    min_reverse_clearance = follower.MIN_REVERSE_CLEARANCE_M
 
     forward = _forward_clearance(ranges_m, angles_rad, tuning)
     left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
@@ -172,7 +147,7 @@ def follow_corridor(
     # corridor has ended, there is no room to drive on. Hoisted out of the
     # corner branch below, which no longer fires on every close wall and so can
     # no longer be relied on to reach this.
-    if forward < _MIN_FORWARD_CLEARANCE_M:
+    if forward < min_forward_clearance:
         # Back off far enough to point somewhere useful, steering the mirror of
         # the turn: reversing swings the nose away from the steer direction, so
         # the inverted sign walks the nose toward the open side instead of
@@ -180,7 +155,7 @@ def follow_corridor(
         turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
         steering = max_centering if turn_left else -max_centering
         rear = _nearest_ray(ranges_m, angles_rad, math.pi)
-        if rear > _MIN_REVERSE_CLEARANCE_M:
+        if rear > min_reverse_clearance:
             return DriveCommand(
                 speed_mps=-speed_mps * reverse_scale,
                 steering_norm=-steering,

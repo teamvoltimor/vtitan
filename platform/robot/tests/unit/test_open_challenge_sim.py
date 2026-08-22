@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 # task robot:test SCOPE=fast).
 pytestmark = pytest.mark.slow
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
@@ -130,7 +129,7 @@ class TestPlannedWaypointsClearCorridor:
             Section.SOUTH,
             Direction.CLOCKWISE,
         )
-        sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
+        sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
         # Chassis half-width clearance to the nearest visual wall.
         clearance = RobotSpecs.WIDTH / 2
         offenders = [wp for wp in sim.waypoints if not sim.track.point_in_free_space(wp.x, wp.y, clearance)]
@@ -203,7 +202,7 @@ class TestThreeLapSolvability:
                 direction,
                 start_cell=_band_cell(band),
             )
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+            result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
             _log_result(f"WIDE  b{band} {section.capitalized:<5} {direction}", result)
             if not _within_round_limit(result):
                 failures.append((section, direction, result))
@@ -244,7 +243,7 @@ class TestThreeLapSolvability:
                 direction,
                 start_cell=_band_cell(band),
             )
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+            result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
             _log_result(f"NARROW b{band} {section.capitalized:<5} {direction}", result)
             if not _within_round_limit(result):
                 failures.append((section, direction, result))
@@ -272,10 +271,10 @@ class TestThreeLapSolvability:
             Direction.CLOCKWISE,
             start_cell=_band_cell(0),
         )
-        result = ScenarioSimulator(meta, num_laps=_N_LAPS).run()
+        result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS).run()
         _log_result(f"MIX S{south} N{north} E{east} W{west}", result)
         assert _within_round_limit(result), (
-            f"laps={result.laps_completed}/{_N_LAPS} collided={result.collided} "
+            f"laps={result.laps_completed}/{CompetitionSpecs.OPEN_CHALLENGE_LAPS} collided={result.collided} "
             f"timeout={result.timed_out} t={result.sim_time_s:.1f}s "
             f"(limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f}s) "
             f"at {result.collision_xy or result.final_pose}"
@@ -293,7 +292,7 @@ class TestThreeLapSolvability:
             # LIDAR sweep.
             cell = int(rng.integers(len(start_cells(section, {k: v / 1000.0 for k, v in widths.items()}))))
             meta = build_open_metadata(widths, section, direction, scenario_id=i, start_cell=cell)
-            result = ScenarioSimulator(meta, num_laps=_N_LAPS, seed=i).run()
+            result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=i).run()
             _log_result(
                 f"RAND#{i} {section.capitalized:<5} {direction} "
                 f"S{widths['south']} N{widths['north']} E{widths['east']} W{widths['west']}",
