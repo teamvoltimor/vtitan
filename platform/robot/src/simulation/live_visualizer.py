@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 import rclpy
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
+from std_msgs.msg import ColorRGBA
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
@@ -467,20 +468,94 @@ class LiveScenarioVisualizer(Node):
         return [self._wall_marker(index, *placement) for index, placement in enumerate(placements)]
 
     def _wall_marker(self, index: int, x: float, y: float, size_x: float, size_y: float) -> Marker:
+        # Unlit TRIANGLE_LIST box (see :meth:`_solid_box_marker`) so the wall
+        # keeps its colour at every view angle instead of being shaded by
+        # RViz's single scene light into a darker/brighter shade as you orbit.
+        return self._solid_box_marker(
+            "track",
+            index,
+            x,
+            y,
+            WallSpecs.HEIGHT / 2.0,
+            size_x,
+            size_y,
+            WallSpecs.HEIGHT,
+            WallSpecs.COLOR,
+            1.0,
+        )
+
+    @staticmethod
+    def _box_triangles(
+        cx: float,
+        cy: float,
+        cz: float,
+        sx: float,
+        sy: float,
+        sz: float,
+    ) -> list[tuple[float, float, float]]:
+        """The 12 triangles (36 vertices) of an axis-aligned box.
+
+        Wound counter-clockwise so each face normal points outward -- RViz
+        culls back-faces, so a reversed winding would make the box invisible
+        from outside.
+        """
+        hx, hy, hz = sx / 2.0, sy / 2.0, sz / 2.0
+        x0, x1 = cx - hx, cx + hx
+        y0, y1 = cy - hy, cy + hy
+        z0, z1 = cz - hz, cz + hz
+        # 8 corners: 0-3 bottom (z0), 4-7 top (z1)
+        b = [
+            (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+            (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+        ]
+        tris = [
+            (0, 2, 1), (0, 3, 2),  # bottom (-z)
+            (4, 5, 6), (4, 6, 7),  # top (+z)
+            (0, 4, 7), (0, 7, 3),  # -x
+            (1, 2, 6), (1, 6, 5),  # +x
+            (0, 1, 5), (0, 5, 4),  # -y
+            (3, 7, 6), (3, 6, 2),  # +y
+        ]
+        verts: list[tuple[float, float, float]] = []
+        for a, bb, c in tris:
+            verts.extend((b[a], b[bb], b[c]))
+        return verts
+
+    def _solid_box_marker(
+        self,
+        ns: str,
+        marker_id: int,
+        cx: float,
+        cy: float,
+        cz: float,
+        sx: float,
+        sy: float,
+        sz: float,
+        color: tuple[float, float, float],
+        alpha: float,
+    ) -> Marker:
+        """An axis-aligned box as an unlit TRIANGLE_LIST marker.
+
+        RViz shades ``CUBE``/``SPHERE`` primitives with its single directional
+        light, so a box darkens or brightens as you orbit and the colour reads
+        differently at every angle. ``TRIANGLE_LIST`` markers carry per-vertex
+        colour and are drawn with RViz's no-lighting material, so the colour
+        stays constant head-on or edge-on. Used for the floor and the walls,
+        which are large flat surfaces where the shading swing is most visible.
+        """
         m = Marker()
         m.header.frame_id = TfFrames.MAP
-        m.ns = "track"
-        m.id = index
-        m.type = Marker.CUBE
+        m.ns = ns
+        m.id = marker_id
+        m.type = Marker.TRIANGLE_LIST
         m.action = Marker.ADD
-        m.pose.position.x = x
-        m.pose.position.y = y
-        m.pose.position.z = WallSpecs.HEIGHT / 2.0
-        m.pose.orientation.w = 1.0
-        m.scale.x = size_x
-        m.scale.y = size_y
-        m.scale.z = WallSpecs.HEIGHT
-        m.color.r, m.color.g, m.color.b, m.color.a = *WallSpecs.COLOR, 1.0
+        for vx, vy, vz in self._box_triangles(cx, cy, cz, sx, sy, sz):
+            p = Point()
+            p.x, p.y, p.z = vx, vy, vz
+            m.points.append(p)
+            c = ColorRGBA()
+            c.r, c.g, c.b, c.a = color[0], color[1], color[2], alpha
+            m.colors.append(c)
         return m
 
     def _inner_block_markers(self, track: TrackModel) -> list[Marker]:
@@ -540,27 +615,28 @@ class LiveScenarioVisualizer(Node):
 
         Kept thin (config-driven ``floor_thickness``): a thick slab's side faces
         read as an opaque wall at shallow viewing angles and swamp the mat
-        colour. The thin top face nearly disappears edge-on at extreme angles,
-        but that beats the slab looking solid white from the diagonal.
+        colour. Rendered as an unlit TRIANGLE_LIST box (see
+        :meth:`_solid_box_marker`) so the mat colour stays constant white at
+        every view angle instead of being shaded by RViz's single scene light.
         """
         size = TrackDimensions.MAX_COORD - TrackDimensions.MIN_COORD
         thickness = self._rviz.floor_thickness
-        m = Marker()
-        m.header.frame_id = TfFrames.MAP
-        m.ns = "floor"
-        m.id = 0
-        m.type = Marker.CUBE
-        m.action = Marker.ADD
-        m.pose.position.x = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
-        m.pose.position.y = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
+        cx = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
+        cy = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
         # Top face stays 1 mm below z=0 so line markings render on top.
-        m.pose.position.z = -0.001 - thickness / 2.0
-        m.pose.orientation.w = 1.0
-        m.scale.x = size
-        m.scale.y = size
-        m.scale.z = thickness
-        _apply_color(m, self._rviz.colors.floor, self._rviz.floor_alpha)
-        return m
+        cz = -0.001 - thickness / 2.0
+        return self._solid_box_marker(
+            "floor",
+            0,
+            cx,
+            cy,
+            cz,
+            size,
+            size,
+            thickness,
+            (self._rviz.colors.floor.r, self._rviz.colors.floor.g, self._rviz.colors.floor.b),
+            self._rviz.floor_alpha,
+        )
 
     def _floor_marking_markers(self, track: TrackModel) -> list[Marker]:
         """Starting-square grid and corner lines.
