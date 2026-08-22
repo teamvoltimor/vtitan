@@ -45,7 +45,7 @@ from shared.domain.steering import angle_rad_to_steering_norm
 from src.config.tuning_helpers import get_tuning
 from src.navigation.corridor_estimator import classify_width
 from src.navigation.ports import DriveCommand
-from src.navigation.utils import _forward_clearance, _nearest_ray, axis_offset_rad, clamp, wrap_angle
+from src.navigation.utils import _forward_clearance, _nearest_ray, _rear_clearance, axis_offset_rad, clamp, wrap_angle
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -175,8 +175,16 @@ def follow_corridor(
         # further into the wall it is against.
         turn_left = forced_turn_side == TurnSide.LEFT if forced_turn_side is not None else left > right
         steering = max_centering if turn_left else -max_centering
-        rear = _nearest_ray(ranges_m, angles_rad, math.pi)
-        if rear > min_reverse_clearance:
+        # None means the rear sector is unreadable on this mount, which is NOT
+        # permission to reverse into it. Was a single raw ray straight back,
+        # which cannot distinguish "open" from "occluded": the occlusion wedges
+        # sit either side of that exact bearing and a no-return is substituted
+        # with max range, so the gate read 12 m of open road and backed into
+        # whatever was behind. Holding position is the worse-looking option and
+        # the correct one -- see MIN_REVERSE_CLEARANCE_M on why covering ground
+        # backwards is never a win here.
+        rear = _rear_clearance(ranges_m, angles_rad, tuning)
+        if rear is not None and rear > min_reverse_clearance:
             return DriveCommand(
                 speed_mps=-speed_mps * reverse_scale,
                 steering_norm=-steering,

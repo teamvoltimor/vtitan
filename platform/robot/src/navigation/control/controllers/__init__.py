@@ -14,6 +14,8 @@ from src.navigation.control.controllers.collision_avoidance_controller import (
     EscapeManeuver,
     ManeuverType,
     ThreatDirection,
+    bumper_gap_ahead,
+    bumper_gap_behind,
     mask_mapped_obstacles,
 )
 from src.navigation.control.controllers.stuck_detector import StuckDetector
@@ -26,5 +28,7 @@ __all__ = [
     "StuckDetector",
     "ThreatDirection",
     "WaypointController",
+    "bumper_gap_ahead",
+    "bumper_gap_behind",
     "mask_mapped_obstacles",
 ]

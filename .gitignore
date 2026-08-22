@@ -154,6 +154,9 @@ dmypy.json
 .claude/
 CLAUDE.md
 
+# OpenCode
+opencode.json
+
 # Internal programs configuration
 .rsk/
 

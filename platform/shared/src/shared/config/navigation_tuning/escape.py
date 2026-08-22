@@ -18,6 +18,19 @@ class EscapeManeuverParams(BaseModel):
     (K-turn, slalom) to clear obstacles and resume navigation.
 
     Attributes:
+        POSE_TRAIL_MIN_STEP_M: Spacing between recorded breadcrumbs on the
+            pose trail a retrace-reverse follows. Thins a stationary or
+            creeping robot's trail, which would otherwise fill the buffer with
+            one position, without dropping resolution on a moving one. Note
+            this is a distance-per-tick threshold and so interacts with speed:
+            at 0.156 m/s and 20 Hz the chassis advances ~0.008 m per tick and
+            the thinning bites, while at 0.234 m/s it advances ~0.012 m and
+            nothing is thinned at all. A module constant until 2026-08-22,
+            which meant the interaction was invisible and the value could not
+            be moved with the profile that changed the speed
+        POSE_TRAIL_LEN: Breadcrumbs kept, oldest evicted first. ~1.3 m of
+            travel at the default spacing, comfortably more than any retrace
+            distance worth driving
         REV_SPEED: Reverse speed during escapes (m/s, negative)
         REV_STEER_DEG: Road-wheel steering angle held while reversing out.
             Named ``REV_STEERING_SCALE`` until 2026-08-21, which was doubly
@@ -53,6 +66,10 @@ class EscapeManeuverParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    POSE_TRAIL_MIN_STEP_M: float = Field(
+        default=0.01, gt=0.0, validation_alias=_alias("POSE_TRAIL_MIN_STEP_M")
+    )
+    POSE_TRAIL_LEN: int = Field(default=128, gt=0, validation_alias=_alias("POSE_TRAIL_LEN"))
     REV_SPEED: float = Field(default=-0.20, validation_alias=_alias("REV_SPEED"))  # Reverse speed
     # 44.0 deg is what the previous normalised 0.8 meant at the bench-measured
     # 55 deg road-wheel limit, so this conversion changed no behaviour.

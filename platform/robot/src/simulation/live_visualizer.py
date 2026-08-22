@@ -68,6 +68,12 @@ _REAR_AXLE_COLOR = (1.0, 0.5, 0.0)
 this chassis, so colouring them apart is what makes the counter-phase legible
 at a glance instead of looking like one axle drawn twice."""
 
+_FLOOR_LINE_THICKNESS = StartingZoneSpecs.THICKNESS * 3
+"""RViz floor-marking line width.
+
+The spec says 1 mm, but that renders as a hairline at typical viewing distances.
+Scale it up for visibility while keeping it recognisably a printed line."""
+
 
 def _yaw_to_quaternion(yaw: float) -> Quaternion:
     return Quaternion(x=0.0, y=0.0, z=math.sin(yaw / 2.0), w=math.cos(yaw / 2.0))
@@ -246,6 +252,7 @@ class LiveScenarioVisualizer(Node):
         markers.markers.append(self._inner_block_marker(track))
         markers.markers.extend(self._floor_marking_markers(track))
         for i, sign in enumerate(sign_positions or []):
+            markers.markers.extend(self._sign_floor_markers(i, sign))
             markers.markers.append(self._sign_marker(i, sign))
         if parking_lot is not None:
             markers.markers.append(
@@ -361,7 +368,7 @@ class LiveScenarioVisualizer(Node):
         marker.header.frame_id = TfFrames.BELIEF
         marker.ns = "sign_estimates"
         marker.id = index
-        marker.type = Marker.CYLINDER
+        marker.type = Marker.CUBE
         marker.action = Marker.ADD
         # float() for the same reason `_sign_marker` needs it: an int assigned to
         # a Point field survives in memory and is reinterpreted bit-for-bit as a
@@ -496,8 +503,13 @@ class LiveScenarioVisualizer(Node):
         inner block and floor markings read as printed features rather than
         floating lines. Drawn first and placed slightly below z=0 so all line
         markings render on top of it without z-fighting.
+
+        The cube is deliberately thick (1 cm) rather than paper-thin: a 1 mm
+        slab viewed from a shallow angle disappears because its top face is
+        nearly edge-on, while a thicker block keeps side faces visible.
         """
         size = TrackDimensions.MAX_COORD - TrackDimensions.MIN_COORD
+        thickness = 0.01
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "floor"
@@ -506,11 +518,12 @@ class LiveScenarioVisualizer(Node):
         m.action = Marker.ADD
         m.pose.position.x = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
         m.pose.position.y = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
-        m.pose.position.z = -0.001
+        # Top face stays 1 mm below z=0 so line markings render on top.
+        m.pose.position.z = -0.001 - thickness / 2.0
         m.pose.orientation.w = 1.0
         m.scale.x = size
         m.scale.y = size
-        m.scale.z = 0.001
+        m.scale.z = thickness
         m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 1.0, 1.0
         return m
 
@@ -560,7 +573,7 @@ class LiveScenarioVisualizer(Node):
         outline.id = base_id
         outline.type = Marker.LINE_STRIP
         outline.action = Marker.ADD
-        outline.scale.x = StartingZoneSpecs.THICKNESS * 2
+        outline.scale.x = _FLOOR_LINE_THICKNESS * 2
         outline.color.r, outline.color.g, outline.color.b, outline.color.a = *StartingZoneSpecs.COLOR, 1.0
         for x, y in [*corners, corners[0]]:
             p = Point()
@@ -595,7 +608,7 @@ class LiveScenarioVisualizer(Node):
         m.id = marker_id
         m.type = Marker.LINE_LIST
         m.action = Marker.ADD
-        m.scale.x = StartingZoneSpecs.THICKNESS
+        m.scale.x = _FLOOR_LINE_THICKNESS
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         for x, y in (start, end):
             p = Point()
@@ -618,7 +631,7 @@ class LiveScenarioVisualizer(Node):
         m.header.frame_id = TfFrames.MAP
         m.ns = "signs"
         m.id = index
-        m.type = Marker.CYLINDER
+        m.type = Marker.CUBE
         m.action = Marker.ADD
         m.pose.position.x = sign.x
         m.pose.position.y = sign.y
@@ -629,6 +642,62 @@ class LiveScenarioVisualizer(Node):
         m.scale.z = TrafficSignSpecs.HEIGHT
         color = TrafficSignSpecs.RED_COLOR if sign.color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
+        return m
+
+    def _sign_floor_markers(self, index: int, sign: SignPosition) -> list[Marker]:
+        """The 5 cm × 5 cm square and 85 mm circle printed under each sign.
+
+        These are real mat features, not part of the moving obstacle, so they
+        stay in ``map`` and are drawn before the sign prism itself.
+        """
+        return [
+            self._sign_floor_square_marker(index, sign),
+            self._sign_floor_circle_marker(index, sign),
+        ]
+
+    def _sign_floor_square_marker(self, index: int, sign: SignPosition) -> Marker:
+        """The 5 cm × 5 cm square outline centred under the sign."""
+        half = TrafficSignSpecs.WIDTH / 2.0
+        corners = [
+            (sign.x - half, sign.y - half),
+            (sign.x + half, sign.y - half),
+            (sign.x + half, sign.y + half),
+            (sign.x - half, sign.y + half),
+        ]
+        m = Marker()
+        m.header.frame_id = TfFrames.MAP
+        m.ns = "sign_floor_markings"
+        m.id = index
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+        m.scale.x = _FLOOR_LINE_THICKNESS
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.0, 1.0
+        for x, y in [*corners, corners[0]]:
+            p = Point()
+            p.x, p.y, p.z = x, y, 0.0
+            m.points.append(p)
+        return m
+
+    def _sign_floor_circle_marker(self, index: int, sign: SignPosition) -> Marker:
+        """The 85 mm diameter placement circle drawn around the sign centre."""
+        radius = TrafficSignSpecs.PLACEMENT_CIRCLE_DIAMETER / 2.0
+        segments = 32
+        m = Marker()
+        m.header.frame_id = TfFrames.MAP
+        m.ns = "sign_floor_markings"
+        # Offset past the square IDs so they share a namespace but don't collide.
+        m.id = index + 1000
+        m.type = Marker.LINE_STRIP
+        m.action = Marker.ADD
+        m.scale.x = _FLOOR_LINE_THICKNESS
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.0, 1.0
+        for i in range(segments + 1):
+            angle = 2.0 * math.pi * i / segments
+            p = Point()
+            p.x = sign.x + radius * math.cos(angle)
+            p.y = sign.y + radius * math.sin(angle)
+            p.z = 0.0
+            m.points.append(p)
         return m
 
     def _parking_block_marker(self, index: int, block: BlockPosition, yaw: float) -> Marker:
