@@ -591,8 +591,8 @@ tasks:
       blocks) live to RViz2 straight from its *_metadata.json — no closed-loop
       navigator run. METADATA=path/to/*_metadata.json (relative to platform/,
       same var as gen:preview). Run `task sim:navigate:rviz` in another
-      terminal first (NOT `task sim:rviz`, which is a separate pixi/ROS2
-      install that may not discover these topics).
+      terminal first (NOT `task sim:rviz`, which loads no saved config and so
+      comes up as an empty grid).
     dir: robot
     env:
       VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
@@ -613,18 +613,28 @@ tasks:
 
   # SIM (Gazebo / ROS2 runtime)
 
+  # Gazebo and RViz come from platform/robot's `sim` pixi environment, NOT a
+  # manifest under gazebo/runtime. There used to be a second pixi.toml here
+  # declaring its own ros-kilted-* stack; it was a near-duplicate of the `sim`
+  # feature robot/pixi.toml already had, so it cost a whole second multi-GB
+  # ROS2 install and put Gazebo/RViz on a different DDS install from the
+  # /sim/* publishers — the long-standing reason `task sim:rviz` came up empty.
+  # gazebo/runtime keeps its uv environment; only the pixi one was redundant.
+  # --manifest-path leaves the working directory alone, so the relative world
+  # and module paths below still resolve against gazebo/runtime.
+
   sim:install:
-    desc: Install simulation dependencies
+    desc: Install simulation dependencies (uv env here + the shared `sim` pixi env in platform/robot)
     dir: gazebo/runtime
     cmds:
       - uv sync
-      - pixi install
+      - task: sim:init
 
   sim:init:
-    desc: Initialize Gazebo/ROS2 simulation environment via pixi (run once after clone)
-    dir: gazebo/runtime
+    desc: Initialize the Gazebo/ROS2 pixi environment shared with the robot platform (run once after clone)
+    dir: robot
     cmds:
-      - pixi install
+      - pixi install -e sim
 
   sim:gazebo:
     desc: "Launch Gazebo with an SDF world (run sim:init first). Usage: task sim:gazebo [SDF=path/to/scenario.sdf], default is the base WRO 2026 track"
@@ -632,24 +642,26 @@ tasks:
     vars:
       SDF: '{{.SDF | default "worlds/wro_track_2026.sdf"}}'
     cmds:
-      - pixi run gazebo --verbose {{.SDF}}
+      # `gz sim`, not `gazebo` — the ros-gz packages ship no binary by that
+      # name, so the previous `pixi run gazebo` could only ever fail.
+      - pixi run --manifest-path ../../robot/pixi.toml -e sim gz sim --verbose {{.SDF}}
 
   sim:rviz:
     desc: >-
-      Launch a BARE RViz against the Gazebo runtime (gazebo/runtime's own pixi
-      install, no saved config). For the closed-loop scenario visualizer use
-      `task sim:navigate:rviz` instead — this one loads no displays at all and
-      lives in a separate ROS2 install that may not discover /sim/* topics, so
-      the track comes up empty.
+      Launch a BARE RViz (no saved config) for Gazebo/hardware work. For the
+      closed-loop scenario visualizer use `task sim:navigate:rviz` instead —
+      that one loads config/live_visualization.rviz with the track, plan and
+      robot-model displays already set up. Same ROS2 install either way now, so
+      both discover /sim/* topics; the difference is only the saved config.
     dir: gazebo/runtime
     cmds:
       # Named before the launch, not after: the failure mode is a WORKING RViz
       # showing an empty grid, which reads as "the sim published nothing"
       # rather than "this is the wrong RViz". Nothing later in the session
       # corrects that impression.
-      - 'echo "NOTE: this is the Gazebo-runtime RViz — bare, no saved config. If you meant to watch task sim:navigate:visualize, stop this and run task sim:navigate:rviz (or task sim:navigate:visualize:all for both in one command)."'
+      - 'echo "NOTE: this RViz is bare — no saved config, so it loads no displays at all. If you meant to watch task sim:navigate:visualize, stop this and run task sim:navigate:rviz (or task sim:navigate:visualize:all for both in one command)."'
       - 'echo "Global Options, Fixed Frame - use odom or map if Gazebo/nav publishes one. If RViz reports a missing Fixed Frame, or Message Filter drops messages for a frame, that frame is not being published yet."'
-      - pixi run rviz2
+      - pixi run --manifest-path ../../robot/pixi.toml -e sim rviz2
 
   sim:navigate:
     desc: Run closed-loop simulation with real navigator (runs test_open_challenge_sim)
@@ -663,8 +675,8 @@ tasks:
   sim:navigate:visualize:
     desc: >-
       Run closed-loop scenario(s) live at wall-clock speed, publishing pose/LIDAR/track to
-      ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which is a
-      separate pixi/ROS2 install under gazebo/runtime and may not discover these topics).
+      ROS2 for RViz (run `task sim:navigate:rviz` first — NOT `task sim:rviz`, which loads
+      no saved config and so comes up as an empty grid).
       `-- --challenge open|obstacles` scopes to one catalog (omit for both, Open then
       Obstacles); add `-- --list` to list its scenarios, `-- --scenario 5` (or a label from
       --list) to run one, `-- --interactive` to step through every scenario in the catalog,
@@ -1139,7 +1151,7 @@ tasks:
     desc: Record scenario videos from Gazebo simulation
     dir: gazebo/runtime
     cmds:
-      - pixi run python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
+      - pixi run --manifest-path ../../robot/pixi.toml -e sim python -m src.recording.recorder --output-dir {{.OUTPUT_DIR}}/{{.CHALLENGE}}/videos
 
   record:convert:
     desc: Convert ROS2 bags to MP4 videos
