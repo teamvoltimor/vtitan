@@ -145,6 +145,7 @@ Visualization Manager:
       Name: MarkerArray
       Namespaces:
         track: true
+        floor: true
       Topic:
         Depth: 1
         Durability Policy: Volatile
