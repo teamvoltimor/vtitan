@@ -1147,19 +1147,35 @@ class CoreNavigator:
             # refuses. Without this the gate is unreachable on a chassis with
             # no rear slot, and a scenario needing one escape-reverse hits the
             # wall instead (measured on go_open #85, 2026-08-22).
-            if self._pose_trail:
-                trail_x, trail_y, trail_yaw = self._pose_trail[-1]
-                reverse_distance = abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.CONTROL_HZ
-                covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
-                if covered is not None and covered >= reverse_distance + self._tuning.clearance.CONTACT_DIST:
-                    return False
+            if self._trail_confirms_reverse(
+                reverse_distance=abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.CONTROL_HZ
+            ):
+                return False
             logger.warning("Reverse escape refused: rear sector measured nothing")
             return True
         # As a gap from the REAR bumper. Compared raw until 2026-08-22, which
         # made this gate unreachable: the sensor is at the front, so an obstacle
         # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
         # and the reverse was authorised right up to the moment of impact.
-        return rear.min_range_m < self._tuning.clearance.CONTACT_DIST  # ARM: rear raw, front converted
+        return bumper_gap_behind(rear.min_range_m) < self._tuning.clearance.CONTACT_DIST
+
+    def _trail_confirms_reverse(self, reverse_distance: float) -> bool:
+        """Whether the pose trail vouches for a reverse of ``reverse_distance``.
+
+        The trail records ground the chassis physically occupied, so it is the
+        one statement about the space behind that needs no rear sensor. It is
+        evidence, not a reading: it cannot know what moved in since, so the
+        ground must cover the WHOLE manoeuvre with ``CONTACT_DIST`` to spare.
+        An empty trail refuses -- which is exactly the told-direction wedge
+        behaviour wanted on a chassis with no rear slot. See
+        ``_reversing_into_unseen_wall`` and the stuck-escape gate, both of which
+        call this rather than trusting an unmeasured rear sector.
+        """
+        if not self._pose_trail:
+            return False
+        trail_x, trail_y, trail_yaw = self._pose_trail[-1]
+        covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
+        return covered is not None and covered >= reverse_distance + self._tuning.clearance.CONTACT_DIST
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -1239,6 +1255,40 @@ class CoreNavigator:
         commit = max(1, self._tuning.escape.ESCAPE_SIDE_COMMIT_ATTEMPTS)
         block = max(0, self._escape_count - first_attempt) // commit
         return base if block % 2 == 0 else -base
+
+    def _pivot_steer_sign(self, scan: LidarScan | None) -> float:
+        """Forward-travel steer sign that swings the nose toward the open side.
+
+        Used by the rear-free stop-and-steer pivot, where the chassis is wedged
+        front-and-back with no rear sensor to authorise a reverse. Forward travel
+        swings the nose RIGHT for a positive command (``yaw_rate =
+        (v/L)*tan(steer)`` with ``v > 0``), the opposite of reverse, so the sign
+        must point the nose toward the *wider* side clearance, not mirror the
+        reverse K-turn rule.
+
+        A side with no valid return is the clearest possible "open" reading -- a
+        wall-pinned chassis reads a close valid return on the jammed side and
+        nothing on the free side -- so a missing side is treated as maximally
+        open, never as a tie. Falls back to the committed escape side when LIDAR
+        says nothing at all, so a pivot still happens rather than stalling.
+        """
+        if scan is None or scan.ranges_m is None:
+            return self._escape_steer_sign_for_attempt()
+        left = self._collision_controller.compute_min_clearance(
+            scan.ranges_m, scan.angles_rad, center_rad=math.pi / 2, half_fov_rad=math.pi / 4
+        )
+        right = self._collision_controller.compute_min_clearance(
+            scan.ranges_m, scan.angles_rad, center_rad=-math.pi / 2, half_fov_rad=math.pi / 4
+        )
+        no_data = self._tuning.lidar_sectors.NO_DATA_RANGE_M
+        if left >= no_data and right >= no_data:
+            return self._escape_steer_sign_for_attempt()
+        # More open side wins; forward positive steer = nose right.
+        if left > right:
+            return -1.0
+        if right > left:
+            return 1.0
+        return self._escape_steer_sign_for_attempt()
 
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.
@@ -1412,7 +1462,7 @@ class CoreNavigator:
             # inside the chassis before it would trip. The NO_DATA sentinel
             # survives the conversion -- 10 m less either datum is still open
             # road -- so the no-scan branch keeps its "assume clear" meaning.
-            rear_clear = rear.min_range_m  # ARM: rear raw, front converted
+            rear_clear = bumper_gap_behind(rear.min_range_m)
             forward_clear = bumper_gap_ahead(
                 self._collision_controller.compute_forward_clearance(
                     scan.ranges_m,
@@ -1423,9 +1473,22 @@ class CoreNavigator:
         # actually open. Treating it as flatly "blocked" would leave a chassis
         # with no rear vision at all frozen in every corner where both ends
         # read blocked; there, an unseen reverse is still the better of two
-        # bad options and is what the fall-through below commands.
-        if rear_clear < self._tuning.clearance.CONTACT_DIST or (
-            rear_blind and forward_clear >= self._tuning.clearance.CONTACT_DIST
+        # bad options -- but only when the pose trail vouches for it. A blind
+        # rear with NO trail is the exact "cannot see behind" case, and the
+        # fall-through below would reverse into whatever moved in since; that
+        # must hold instead. The same evidence argument as
+        # _reversing_into_unseen_wall (ground the chassis occupied), applied to
+        # the worst-case stuck reverse so a longer escalation cannot outrun it.
+        stuck_reverse_distance = (
+            abs(self._tuning.escape.REV_SPEED) * self._tuning.escape.MAX_ESCAPE_FRAMES / self._tuning.control.CONTROL_HZ
+        )
+        blind_rear_unconfirmed = rear_blind and not self._trail_confirms_reverse(
+            reverse_distance=stuck_reverse_distance
+        )
+        if (
+            rear_clear < self._tuning.clearance.CONTACT_DIST
+            or (rear_blind and forward_clear >= self._tuning.clearance.CONTACT_DIST)
+            or blind_rear_unconfirmed
         ):
             if forward_clear >= self._tuning.clearance.CONTACT_DIST:
                 logger.warning(
@@ -1459,23 +1522,48 @@ class CoreNavigator:
                 self._debug.rear_clearance_m = rear_clear
                 self._debug.forward_clearance_m = forward_clear
                 return
+            # Both ends blocked and rear unmeasurable (the current build carries
+            # no rear slot -- see rear_sector_no_longer_available_2026_08_22):
+            # a frozen hold used to deadlock here, re-arming the same failed
+            # command every stuck window until the run timed out (27 s frozen on
+            # real hardware 2026-08-04; and the dominant term in Obstacles'
+            # 19->132 timeout rise after the LIDAR fix). The safe, rear-free
+            # recovery is a LOW-SPEED PIVOT forward -- never a reverse, since the
+            # rear gate cannot authorise one without a sensor -- steering toward
+            # the more open side so the chassis reorients out of the wedge
+            # instead of sitting in it. Forward creep, not zero speed: it walks
+            # itself clear using decisive steering the pure-pursuit path would
+            # not command for this geometry.
+            steer_sign = self._pivot_steer_sign(scan)
+            if self._escape_count == 0:
+                self._escape_sequence_start_xy = (robot_x, robot_y)
+            self._escape_count += 1
+            frames = min(
+                self._tuning.escape.K_TURN_MIN_FRAMES
+                + self._tuning.escape.STUCK_ESCALATION_FRAMES_PER_ATTEMPT * (self._escape_count - 1),
+                self._tuning.escape.MAX_ESCAPE_FRAMES,
+            )
             logger.warning(
-                "Stuck escape blocked: rear clearance %.2f m, forward clearance %.2f m - holding",
+                "Stuck escape both-blocked: rear %.2f m, forward %.2f m - stop-and-steer pivot (sign %.1f)",
                 rear_clear,
                 forward_clear,
+                steer_sign,
             )
-            self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
+            self._begin_maneuver(
+                EscapeManeuver(
+                    maneuver_type=ManeuverType.STUCK_FORWARD,
+                    steering=self._tuning.escape.rev_steer_norm() * steer_sign,
+                    speed=self._tuning.speed.creep_mps(),
+                    duration_frames=frames,
+                )
+            )
             self._stuck_detector.reset()
-            debug = self._base_debug(robot_x, robot_y, robot_yaw)
-            debug.phase = NavigatorPhase.STUCK_ESCAPE_HOLDING
-            debug.is_stuck = bool(stuck_diag["is_stuck"])
-            debug.stuck_count = int(stuck_diag["stuck_count"])
-            debug.recent_movement_m = float(stuck_diag["recent_movement"])
-            debug.rear_clearance_m = rear_clear
-            debug.forward_clearance_m = forward_clear
-            debug.commanded_speed_mps = 0.0
-            debug.commanded_steering_norm = 0.0
-            self._debug = debug
+            self._drive_active_maneuver(robot_x, robot_y, robot_yaw, phase=NavigatorPhase.STUCK_ESCAPE_MANEUVER)
+            self._debug.is_stuck = bool(stuck_diag["is_stuck"])
+            self._debug.stuck_count = int(stuck_diag["stuck_count"])
+            self._debug.recent_movement_m = float(stuck_diag["recent_movement"])
+            self._debug.rear_clearance_m = rear_clear
+            self._debug.forward_clearance_m = forward_clear
             return
 
         if self._escape_count == 0:

@@ -3,7 +3,8 @@
 Uses a minimal fake HardwareGateway (implements the HardwareGateway Protocol
 structurally) to drive CoreNavigator.step() directly, without ROS2 or the
 simulator, so these scenarios can be pinned exactly: a wall dead ahead AND
-dead behind must never produce a reversing command.
+dead behind must never produce a reversing command -- instead it must
+recover with a low-speed forward pivot (stop-and-steer) toward the open side.
 """
 
 from __future__ import annotations
@@ -28,6 +29,27 @@ from tests.test_constants import (
 )
 
 ANGLES = ANGLES_FULL_ROTATION.tolist()
+
+
+def seed_straight_pose_trail(nav: CoreNavigator, length_m: float = 1.0, spacing_m: float = 0.01) -> None:
+    """Record ``length_m`` of breadcrumbs directly behind the chassis.
+
+    The escape tests drive a robot with a single step and no history, so its
+    pose trail is empty -- exactly the state that must refuse a reverse (you
+    cannot evidence ground you have not occupied). These tests pin that a
+    FRONT-only threat still reverses; that is true on track, where the trail is
+    full, so they seed one behind the robot's ACTUAL pose (some of these tests
+    anchor off-origin). Without this the reverse gate is testing the wrong state
+    (empty-trail refusal) rather than the reversing logic. See
+    ``trail_clearance_behind`` and go_open #85 (2026-08-22).
+    """
+    pose = nav._gateway.pose
+    count = int(length_m / spacing_m)
+    # Chassis faces +x in all these fixtures (yaw=0), so "behind" is -x.
+    nav._pose_trail.extend(
+        (pose.x - (count - i) * spacing_m, pose.y, pose.yaw) for i in range(count + 1)
+    )
+
 
 
 @pytest.fixture()
@@ -62,11 +84,33 @@ class TestCriticalEscapeRearGate:
         ranges = create_scan_with_sectors(front=0.06)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+        seed_straight_pose_trail(nav)
 
         nav.step()
 
         assert gateway.commands
         assert gateway.commands[-1].speed_mps < 0, "front-only threat should trigger the reverse K-turn"
+
+    def test_rear_blind_and_trail_less_creeps_forward_not_reverse(self, waypoints, tuning):
+        """The degraded default, pinned on purpose.
+
+        On the current chassis the rear is unmeasurable AND a single step has
+        no pose trail, so there is no evidence behind at all. Reversing there is
+        reversing blind into whatever moved in since -- the documented fallback
+        is a capped forward creep, and with no trail that is the RIGHT call, not
+        a regression. This asserts the fallback rather than letting it be an
+        incidental side effect of the empty-trail refusal above.
+        """
+        ranges = create_scan_with_sectors(front=0.06)
+        gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
+        nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+        assert not nav._pose_trail, "test precondition: no history yet"
+
+        nav.step()
+
+        assert gateway.commands, "expected a published command"
+        assert gateway.commands[-1].speed_mps >= 0, "must not reverse blind into an unseen rear wall"
+        assert gateway.commands[-1].speed_mps <= tuning.speed.slow_mps(), "degraded path is a capped creep, not full speed"
 
 
 class TestMappedObstacleEscapeSplit:
@@ -141,6 +185,7 @@ class TestMappedObstacleEscapeSplit:
         undiscovered obstacle at exactly this range.
         """
         gateway, nav = self._navigator(waypoints, sign_xy=(0.0, 0.9), tuning=tuning)
+        seed_straight_pose_trail(nav)
 
         nav.step()
 
@@ -152,6 +197,7 @@ class TestMappedObstacleEscapeSplit:
         gateway, nav = self._navigator(
             waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning, mask_radius=0.0, override_tuning=override_tuning
         )
+        seed_straight_pose_trail(nav)
 
         nav.step()
 
@@ -180,6 +226,7 @@ class TestMappedObstacleEscapeSplit:
         """
         gateway, nav = self._navigator(waypoints, sign_xy=(self._FRONT_RANGE, 0.0), tuning=tuning)
         nav.sign_router._passed.add(0)
+        seed_straight_pose_trail(nav)
 
         nav.step()
 
@@ -262,9 +309,12 @@ class TestStuckEscapeRearBlocked:
             nav.step()
 
         assert all(c.speed_mps >= 0 for c in gateway.commands), "must not reverse into an unseen rear wall"
-        assert not any(abs(c.steering_norm) > 0.5 and c.speed_mps > 0 for c in gateway.commands), (
-            "must not force a forward escape when forward is also blocked"
-        )
+        # Both ends blocked with no rear sensor: the safe recovery is a low-speed
+        # forward pivot toward the open side, NOT a frozen hold (which deadlocked
+        # into timeouts). It must still never reverse, and must actually steer.
+        assert any(
+            c.speed_mps > 0 and abs(c.steering_norm) > 0.0 for c in gateway.commands
+        ), "should stop-and-steer (forward pivot) when both ends are blocked"
 
 
 class _StubParkController:
@@ -410,6 +460,7 @@ class TestEscapeEscalationIntegration:
         ranges = create_scan_with_sectors(front=0.06)
         gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES)))
         nav = CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning)
+        seed_straight_pose_trail(nav)
 
         maneuvers_begun: list[EscapeManeuver] = []
         was_active = False
