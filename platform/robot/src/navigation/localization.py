@@ -28,13 +28,6 @@ if TYPE_CHECKING:
 
     from src.navigation.track_geometry import TrackWalls
 
-_LIDAR_OFFSET_M = RobotSpecs.LIDAR_MOUNT_X_OFFSET
-"""Forward distance from the chassis centre to the LIDAR (m).
-
-Bound once at import rather than read per call: ``estimate_position`` runs a
-multi-pass grid search per tick, and this is a fixed mount fact.
-"""
-
 
 class LidarLocalizer:
     """Estimates (x, y) by matching a LIDAR sweep against known wall geometry.
@@ -154,8 +147,8 @@ class LidarLocalizer:
             # forward ray by the offset and pulled the fit along the corridor
             # axis; the simulator raycast from the centre too, so the two agreed
             # and the error was invisible in sim while present on hardware.
-            sensor_xs = xs + _LIDAR_OFFSET_M * math.cos(yaw)
-            sensor_ys = ys + _LIDAR_OFFSET_M * math.sin(yaw)
+            sensor_xs = xs + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(yaw)
+            sensor_ys = ys + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(yaw)
             predicted = self._walls.raycast_grid(sensor_xs, sensor_ys, yaw, angles)
             # Clip each ray's contribution instead of summing raw squares. A
             # plain least-squares fit is dominated by its worst rays, and the

@@ -63,14 +63,6 @@ class SimulatorContext(TuningContext[_SimulatorConstants]):
 
 _DEFAULT_SIMULATOR_CONTEXT = SimulatorContext()
 
-_LIDAR_OFFSET_M = RobotSpecs.LIDAR_MOUNT_X_OFFSET
-"""Forward distance from the chassis centre to the LIDAR (m).
-
-Same value `navigation.localization` predicts with -- the sensor model and the
-estimator that inverts it have to agree, or the localizer is matching scans
-against geometry the simulator never produced.
-"""
-
 # Backward-compatible exports for existing imports.
 CONTROL_DT = _DEFAULT_SIMULATOR_CONTEXT.constants.control_dt
 LIDAR_INVALID_RAY_RATE = _DEFAULT_SIMULATOR_CONTEXT.constants.lidar_invalid_ray_rate
@@ -504,8 +496,11 @@ class SimulatedHardwareGateway:
         # alone would have desynchronised the estimator from its own sensor
         # model: they were consistently wrong with each other, and only the
         # hardware disagreed.
-        sensor_x = self._state.x + _LIDAR_OFFSET_M * math.cos(self._state.yaw)
-        sensor_y = self._state.y + _LIDAR_OFFSET_M * math.sin(self._state.yaw)
+        sensor = Pose(self._state.x, self._state.y, self._state.yaw).sensor_origin(
+            RobotSpecs.LIDAR_MOUNT_X_OFFSET
+        )
+        sensor_x = sensor.x
+        sensor_y = sensor.y
         ranges = self._track.raycast_scan(
             sensor_x,
             sensor_y,

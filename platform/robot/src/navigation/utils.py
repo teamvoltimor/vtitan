@@ -56,6 +56,7 @@ def axis_error_rad(yaw: float) -> float:
 
 
 def _dist2d(a: Waypoint, b: Waypoint) -> float:
+    """Euclidean distance between two points with ``.x``/``.y`` attributes."""
     return math.hypot(a.x - b.x, a.y - b.y)
 
 
@@ -188,16 +189,6 @@ def _wedge_median(
         and (self_detection_threshold_m is None or r > self_detection_threshold_m)
     ]
     return float(np.median(valid)) if valid else None
-
-
-def _local_frame(robot_pos: Waypoint, robot_yaw: float, target: Waypoint) -> tuple[float, float]:
-    """Rotate ``target`` into the robot's local frame (x forward, y left)."""
-    dx = target.x - robot_pos.x
-    dy = target.y - robot_pos.y
-    cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
-    x_local = dx * cos_yaw + dy * sin_yaw
-    y_local = -dx * sin_yaw + dy * cos_yaw
-    return x_local, y_local
 
 
 def _pure_pursuit_steer(
