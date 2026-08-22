@@ -70,6 +70,8 @@ def test_dynamic_open_metadata_has_start_cell() -> None:
     assert "direction" in sc
 
 
-def test_dynamic_open_index_out_of_range_raises() -> None:
-    with pytest.raises(ValueError, match="0-639"):
-        open_scenario_by_index(640)
+def test_dynamic_open_index_wraps_modulo() -> None:
+    first = open_scenario_by_index(0)
+    wrapped = open_scenario_by_index(640)
+    assert wrapped.label == first.label
+    assert wrapped.metadata["scenario_id"] == first.metadata["scenario_id"]

@@ -25,11 +25,14 @@ unit-test battery and can still be loaded with :func:`all_test_scenarios`.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shared.config.constants import CompetitionSpecs, CorridorDimensions
+
+if TYPE_CHECKING:
+    from shared.domain.models import ScenarioMetadata
 from shared.domain.enums import Direction, Section
 
 from src.simulation.scenario_builder import build_open_metadata
@@ -93,83 +96,161 @@ def all_obstacles_demo_scenarios(fixtures_dir: Path | None = None) -> list[Named
 _OPEN_SECTIONS = (Section.SOUTH, Section.NORTH, Section.EAST, Section.WEST)
 """Canonical order used when enumerating the dynamic Open Challenge catalog."""
 
+_NARROW_MM = int(CorridorDimensions.NARROW * 1000)
+_WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
-def _open_widths_from_bits(bits: int) -> dict[str, int]:
-    """Map a 4-bit value to corridor widths in millimetres.
 
-    Bit 0 = south, 1 = north, 2 = east, 3 = west; set means wide.
+@dataclass(frozen=True, slots=True)
+class CorridorWidthSet:
+    """One complete Open Challenge corridor-width assignment, in millimetres."""
+
+    south_mm: int
+    north_mm: int
+    east_mm: int
+    west_mm: int
+
+    @classmethod
+    def from_bits(cls, bits: int) -> CorridorWidthSet:
+        """Map a 4-bit value to the four corridor widths."""
+        return cls(
+            south_mm=_WIDE_MM if bits & 0b0001 else _NARROW_MM,
+            north_mm=_WIDE_MM if bits & 0b0010 else _NARROW_MM,
+            east_mm=_WIDE_MM if bits & 0b0100 else _NARROW_MM,
+            west_mm=_WIDE_MM if bits & 0b1000 else _NARROW_MM,
+        )
+
+    def width_mm_for(self, section: Section) -> int:
+        """Width of the requested corridor."""
+        return getattr(self, f"{section.value.lower()}_mm")
+
+    def is_wide(self, section: Section) -> bool:
+        """True if the requested corridor is the wide width."""
+        return self.width_mm_for(section) == _WIDE_MM
+
+    def start_cell_count(self, section: Section) -> int:
+        """Legal starting-cell count for this corridor width."""
+        return 6 if self.is_wide(section) else 4
+
+    def as_dict(self) -> dict[str, int]:
+        """Return the widths in the shape expected by build_open_metadata."""
+        return {
+            "south": self.south_mm,
+            "north": self.north_mm,
+            "east": self.east_mm,
+            "west": self.west_mm,
+        }
+
+
+
+@dataclass(frozen=True, slots=True)
+class OpenChallengeScenarioParams:
+    """Parameters that uniquely identify one Open Challenge scenario."""
+
+    index: int
+    direction: Direction
+    widths: CorridorWidthSet
+    section: Section
+    start_cell: int
+
+    @property
+    def label(self) -> str:
+        """Short human-readable label, matching the visualizer catalog format."""
+        dir_abbrev = "cw" if self.direction is Direction.CLOCKWISE else "ccw"
+        return f"open_{self.index:04d}[{self.section.value}/{dir_abbrev}]"
+
+    def to_metadata(self) -> ScenarioMetadata:
+        """Build the full scenario metadata for this parameter set."""
+        return build_open_metadata(
+            self.widths.as_dict(),
+            self.section,
+            self.direction,
+            scenario_id=self.index,
+            start_cell=self.start_cell,
+        )
+
+    def to_named_scenario(
+        self,
+        laps: int | None = None,
+        seed: int | None = None,
+    ) -> NamedScenario:
+        """Convert to the catalog tuple used by the visualizer and tests."""
+        metadata = self.to_metadata()
+        return NamedScenario(
+            label=self.label,
+            metadata=metadata.model_dump(),
+            laps=laps if laps is not None else CompetitionSpecs.OPEN_CHALLENGE_LAPS,
+            seed=seed if seed is not None else self.index,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class OpenChallengeScenarioSpace:
+    """The complete legal Open Challenge scenario space.
+
+    Encapsulates the enumeration order and provides index-to-parameter mapping
+    without hard-coding the 640 count or the bit/section/cell layout.
     """
-    narrow_mm = int(CorridorDimensions.NARROW * 1000)
-    wide_mm = int(CorridorDimensions.WIDE * 1000)
-    return {
-        "south": wide_mm if bits & 0b0001 else narrow_mm,
-        "north": wide_mm if bits & 0b0010 else narrow_mm,
-        "east": wide_mm if bits & 0b0100 else narrow_mm,
-        "west": wide_mm if bits & 0b1000 else narrow_mm,
-    }
+
+    sections: tuple[Section, ...] = _OPEN_SECTIONS
+    directions: tuple[Direction, ...] = (
+        Direction.CLOCKWISE,
+        Direction.COUNTERCLOCKWISE,
+    )
+    _params: tuple[OpenChallengeScenarioParams, ...] = field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        # Build the deterministic enumeration once.  dataclass(frozen) allows
+        # mutation only inside __post_init__ via object.__setattr__.
+        params: list[OpenChallengeScenarioParams] = []
+        index = 0
+        for direction in self.directions:
+            for bits in range(16):
+                widths = CorridorWidthSet.from_bits(bits)
+                for section in self.sections:
+                    for cell in range(widths.start_cell_count(section)):
+                        params.append(
+                            OpenChallengeScenarioParams(
+                                index=index,
+                                direction=direction,
+                                widths=widths,
+                                section=section,
+                                start_cell=cell,
+                            )
+                        )
+                        index += 1
+        object.__setattr__(self, "_params", tuple(params))
+
+    @property
+    def size(self) -> int:
+        """Total number of scenarios in this space."""
+        return len(self._params)
+
+    def params_for_index(self, index: int) -> OpenChallengeScenarioParams:
+        """Return the parameter set for a scenario index, wrapping modulo size."""
+        return self._params[index % self.size]
+
+    def all_params(self) -> tuple[OpenChallengeScenarioParams, ...]:
+        """All parameter sets in deterministic order."""
+        return self._params
 
 
-def _open_scenario_param_tuple(
-    index: int,
-) -> tuple[Direction, dict[str, int], Section, int]:
-    """Map a 0..639 index to the parameters of one Open Challenge scenario.
-
-    Enumerates the space as:
-    direction → width bits → section → start cell.
-    """
-    if not 0 <= index < 640:
-        msg = f"Open scenario index must be 0-639, got {index}"
-        raise ValueError(msg)
-
-    direction = Direction.CLOCKWISE if index < 320 else Direction.COUNTERCLOCKWISE
-    params_index = index % 320
-    wide_mm = int(CorridorDimensions.WIDE * 1000)
-
-    counter = 0
-    for bits in range(16):
-        widths_mm = _open_widths_from_bits(bits)
-        for section in _OPEN_SECTIONS:
-            n_cells = 6 if widths_mm[section.value.lower()] == wide_mm else 4
-            for cell in range(n_cells):
-                if counter == params_index:
-                    return direction, widths_mm, section, cell
-                counter += 1
-
-    raise RuntimeError("open scenario parameter enumeration is inconsistent")
+# Singleton instance covering the full legal Open Challenge space.
+_OPEN_CHALLENGE_SPACE = OpenChallengeScenarioSpace()
 
 
 def open_scenario_by_index(index: int) -> NamedScenario:
-    """Generate one Open Challenge scenario metadata deterministically.
-
-    Covers the full legal Open Challenge scenario space:
-    4 sections × 2 directions × 16 corridor-width combinations ×
-    (4 narrow or 6 wide start cells) = 640 scenarios.
-    """
-    direction, widths_mm, section, start_cell = _open_scenario_param_tuple(index)
-    metadata = build_open_metadata(
-        widths_mm,
-        section,
-        direction,
-        scenario_id=index,
-        start_cell=start_cell,
-    )
-    dir_abbrev = "cw" if direction is Direction.CLOCKWISE else "ccw"
-    label = f"open_{index:04d}[{section.value}/{dir_abbrev}]"
-    return NamedScenario(
-        label=label,
-        metadata=metadata.model_dump(),
-        laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
-        seed=index,
-    )
+    """Generate one Open Challenge scenario metadata deterministically."""
+    return _OPEN_CHALLENGE_SPACE.params_for_index(index).to_named_scenario()
 
 
 def all_open_scenarios() -> list[NamedScenario]:
-    """The complete deterministic Open Challenge catalog (640 scenarios).
-
-    Generated on demand rather than loaded from fixtures, so every legal
-    corridor/section/direction/start-cell combination is available.
-    """
-    return [open_scenario_by_index(i) for i in range(640)]
+    """The complete deterministic Open Challenge catalog."""
+    return [
+        params.to_named_scenario()
+        for params in _OPEN_CHALLENGE_SPACE.all_params()
+    ]
 
 
 def find_scenario(selector: str, scenarios: list[NamedScenario]) -> NamedScenario:
