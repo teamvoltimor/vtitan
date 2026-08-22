@@ -720,11 +720,52 @@ tasks:
         vars:
           CLI_ARGS: '{{.CLI_ARGS}}'
 
+  sim:rviz:navigate:visualize:all:
+    desc: >-
+      Alias of sim:navigate:visualize:all, named to pair with
+      sim:gz:navigate:visualize:all. Headless physics + RViz: fast, cross-platform,
+      and the one to reach for by default.
+    cmds:
+      - task: sim:navigate:visualize:all
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+
+  sim:gz:navigate:visualize:all:
+    desc: >-
+      Gazebo physics + the ROS2 stack + RViz, in one command. The heavyweight
+      counterpart to sim:rviz:navigate:visualize:all — real rigid-body contact
+      and a rendered camera instead of the headless raycast model.
+      SDF=path/to/scenario.sdf selects the world.
+      REQUIRES Linux and `task robot:build-ws` first; see the note below.
+    # Deliberately NOT the same pipeline as the rviz variant. That one runs
+    # ScenarioSimulator in-process and publishes /sim/* itself. This one runs
+    # Gazebo as the physics/sensor source and the real ROS2 nodes on top, so it
+    # exercises the node graph rather than the navigator alone.
+    #
+    # Two hard prerequisites, both of which fail loudly rather than subtly:
+    #   * `task robot:build-ws` (colcon) — Linux only, so this whole task is
+    #     Linux-only.
+    #   * Gazebo itself does not start on Windows at all: the gz conda packages
+    #     ship .bat-only activation, so GZ_CONFIG_PATH is never set and `gz`
+    #     exits with "I cannot find any available 'gz' command". That is
+    #     pre-existing and unrelated to which manifest is used.
+    #
+    # UNVERIFIED END-TO-END: written on a Windows host where Gazebo cannot run.
+    # The pieces are the existing sim:gazebo and launch-simulator, composed.
+    platforms: [linux]
+    deps:
+      - sim:navigate:rviz
+      - sim:gazebo
+    dir: robot
+    cmds:
+      - pixi run -e sim launch-simulator
+
   sim:navigate:rviz:
-    desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track) for sim:navigate:visualize
+    desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track, robot model) for sim:navigate:visualize
     dir: robot
     cmds:
       - 'echo "Global Options, Fixed Frame defaults to map in the saved config, which does not exist without SLAM/odometry publishing it. For real-hardware topic testing with no map, change it to base_link. Symptom if left on map: MessageFilter dropping message ... discarding message because the queue is full."'
+      - 'echo "Blind runs publish the plan and sign estimates in the belief frame, which map->belief rotates onto the real track (blind always guesses a SOUTH start). If the plan looks square to the layout, that transform is missing, not the planner."'
       - pixi run -e sim viz
 
   sim:analyze:

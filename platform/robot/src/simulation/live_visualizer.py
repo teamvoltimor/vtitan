@@ -45,6 +45,7 @@ from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosit
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
+from src.navigation.utils import wrap_angle
 from src.ros2.qos import QOS_STREAM
 from src.simulation.kinematics import wheel_poses
 
@@ -123,7 +124,54 @@ class LiveScenarioVisualizer(Node):
         self._tick_count = 0
         self._wheel_roll = 0.0
         self._previous_position: tuple[float, float] | None = None
+        self._belief_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
         self.set_track(track)
+
+    def set_belief_frame(
+        self,
+        believed_start: tuple[float, float, float],
+        true_start: tuple[float, float, float],
+    ) -> None:
+        """Register how far the robot's world is rotated from the real one.
+
+        A blind run seeds the believed start from ``assumed_start_conditions``,
+        which always guesses SOUTH, while the chassis is placed at the
+        scenario's true start. The believed-vs-true offset is therefore a rigid
+        rotation by the section-relabelling angle -- NORTH reads 180 deg, EAST
+        90, WEST -90 -- measured stable to within 1.4 deg over a whole run.
+
+        The plan and the sign estimates are expressed in that believed frame,
+        so drawing them against ``map`` puts them on a track the robot is not
+        driving: on ``go_obstacles_0002`` (true section WEST) the whole path and
+        every sign estimate appear square to the real layout. This publishes
+        the offset as a transform instead of rewriting the numbers, so RViz
+        composes it and the navigator keeps reasoning in its own frame.
+
+        Both poses are ``(x, y, yaw)``. Pass equal poses -- or never call this
+        -- for a sighted run, where the belief is already correct.
+        """
+        believed_x, believed_y, believed_yaw = believed_start
+        true_x, true_y, true_yaw = true_start
+        delta_yaw = wrap_angle(true_yaw - believed_yaw)
+        # Rotate the believed origin into the true frame, then offset so the
+        # believed start lands exactly on the true one.
+        cos_d, sin_d = math.cos(delta_yaw), math.sin(delta_yaw)
+        self._belief_offset = (
+            true_x - (believed_x * cos_d - believed_y * sin_d),
+            true_y - (believed_x * sin_d + believed_y * cos_d),
+            delta_yaw,
+        )
+
+    def _broadcast_belief_frame(self, stamp: object) -> None:
+        offset_x, offset_y, offset_yaw = self._belief_offset
+        tf = TransformStamped()
+        tf.header.stamp = stamp
+        tf.header.frame_id = TfFrames.MAP
+        tf.child_frame_id = TfFrames.BELIEF
+        tf.transform.translation.x = offset_x
+        tf.transform.translation.y = offset_y
+        tf.transform.rotation = _yaw_to_quaternion(offset_yaw)
+        self._tf_broadcaster.sendTransform(tf)
 
     def set_track(
         self,
@@ -218,15 +266,21 @@ class LiveScenarioVisualizer(Node):
         would drag the whole navigation package into that env's import graph.
         """
         stamp = self.get_clock().now().to_msg()
+        # Beliefs go out in the BELIEF frame, and the transform that carries the
+        # believed-vs-true offset goes with them. Both, every tick: a marker
+        # whose frame RViz has no transform for is dropped silently, so
+        # publishing the geometry without the frame would just make the plan
+        # disappear rather than draw it in the wrong place.
+        self._broadcast_belief_frame(stamp)
         waypoints = getattr(navigator, "_waypoints", None)
         if waypoints:
             path = Path()
             path.header.stamp = stamp
-            path.header.frame_id = TfFrames.MAP
+            path.header.frame_id = TfFrames.BELIEF
             for waypoint in waypoints:
                 pose = PoseStamped()
                 pose.header.stamp = stamp
-                pose.header.frame_id = TfFrames.MAP
+                pose.header.frame_id = TfFrames.BELIEF
                 pose.pose.position.x = float(waypoint.x)
                 pose.pose.position.y = float(waypoint.y)
                 path.poses.append(pose)
@@ -251,7 +305,10 @@ class LiveScenarioVisualizer(Node):
         checked. Height and alpha are free to carry that instead.
         """
         marker = Marker()
-        marker.header.frame_id = TfFrames.MAP
+        # BELIEF, not MAP: this is where the router THINKS the sign is, and on a
+        # blind run that frame is rotated from the real track. Drawing it in map
+        # is what put the translucent signs at square-to-reality positions.
+        marker.header.frame_id = TfFrames.BELIEF
         marker.ns = "sign_estimates"
         marker.id = index
         marker.type = Marker.CYLINDER
