@@ -174,6 +174,15 @@ class SimulationTopics(BaseModel):
     is the point -- the gap between them is a real failure mode.
     """
 
+    robot_model: str
+    """Chassis, sensor mounts and the four road wheels (MarkerArray, base_link).
+
+    Its own topic rather than part of ``track`` because the wheels carry the
+    live steering angle: they change every tick, whereas the track markers are
+    cached and re-sent about once a second behind a leading DELETEALL that
+    would erase them.
+    """
+
 
 class ButtonTopics(BaseModel):
     """Physical button topics."""

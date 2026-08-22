@@ -89,6 +89,57 @@ class AckermannState:
     steer: float = 0.0  # current front-wheel angle (radians)
 
 
+@dataclass(frozen=True, slots=True)
+class WheelPose:
+    """One road wheel's chassis-frame mount point and its own steer angle.
+
+    ``name`` matches the corresponding URDF link in
+    ``platform/gazebo/runtime/robot_description/wro_robot.urdf.xacro`` so the
+    two descriptions of the same wheel can be lined up by eye.
+    """
+
+    name: str
+    x: float  # +x forward, from the chassis centre
+    y: float  # +y left, from the chassis centre
+    steer: float  # this wheel's own angle (radians, +ve = turning left)
+
+
+def wheel_poses(
+    steer: float,
+    wheelbase: float = RobotSpecs.WHEELBASE,
+    track_width: float = RobotSpecs.TRACK_WIDTH,
+    rear_steer_ratio: float | None = None,
+    context: KinematicsContext | None = None,
+) -> tuple[WheelPose, WheelPose, WheelPose, WheelPose]:
+    """Place the four road wheels for a bicycle-equivalent front angle.
+
+    Both wheels on an axle carry the SAME angle. The vTitan turns each axle with
+    one servo through one linkage, and :class:`AckermannKinematics` integrates a
+    single ``steer``, so there is no inner/outer Ackermann differential to
+    render here -- deriving one from the instantaneous centre of rotation would
+    draw geometry neither the chassis nor the model has.
+
+    The rear axle is the front angle negated and scaled by ``rear_steer_ratio``.
+    That counter-phase is the whole reason this chassis yaws twice as fast as a
+    front-steer car at the same angle (see the module docstring), and it is
+    exactly what a single rigid box in RViz cannot show.
+
+    Coordinates are relative to the chassis centre, matching
+    :class:`AckermannState`'s reference point.
+    """
+    if rear_steer_ratio is None:
+        rear_steer_ratio = (context or _DEFAULT_KINEMATICS_CONTEXT).constants.rear_steer_ratio
+    rear_steer = -steer * rear_steer_ratio
+    half_wheelbase = wheelbase / 2.0
+    half_track = track_width / 2.0
+    return (
+        WheelPose("front_left_wheel", half_wheelbase, half_track, steer),
+        WheelPose("front_right_wheel", half_wheelbase, -half_track, steer),
+        WheelPose("rear_left_wheel", -half_wheelbase, half_track, rear_steer),
+        WheelPose("rear_right_wheel", -half_wheelbase, -half_track, rear_steer),
+    )
+
+
 class AckermannKinematics:
     """Sub-stepped counter-phase four-wheel-steer integrator with hardware rate limits."""
 

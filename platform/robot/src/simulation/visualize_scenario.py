@@ -4,10 +4,9 @@ Drives the exact same ``ScenarioSimulator`` + real ``CoreNavigator`` the
 headless test battery (``tests/unit/test_open_challenge_sim.py``) runs, but
 paces it to wall-clock speed and publishes pose/LIDAR/track to ROS2 for RViz.
 
-Launch RViz from this same pixi environment — ``task sim:navigate:rviz``
-(pre-configured with TF/LaserScan/Odometry/track displays) — not
-``task sim:rviz``, which starts a *separate* pixi/ROS2 install under
-gazebo/runtime and may fail to discover these topics over DDS.
+Launch RViz with ``task sim:navigate:rviz`` (pre-configured with
+TF/LaserScan/Odometry/track/robot-model displays), not ``task sim:rviz``, which
+loads no saved config and so comes up as an empty grid.
 
 Usage (from platform/robot, in the pixi ``dev`` env — headless tests never
 need this env, only this script does):
@@ -348,9 +347,9 @@ def _run_and_visualize(scenario: NamedScenario, opts: _RunOptions) -> None:
     visualizer = LiveScenarioVisualizer(scenario_track)
     _set_track(visualizer, scenario.metadata, scenario_track)
     logger.info(
-        "Publishing /sim/odom, /scan, /sim/track, /sim/plan, /sim/sign_estimates — "
-        "run `task sim:navigate:rviz` in another terminal to watch "
-        "(NOT `task sim:rviz`: bare RViz in a separate ROS2 install, empty track). "
+        "Publishing /sim/odom, /scan, /sim/track, /sim/robot_model, /sim/plan, "
+        "/sim/sign_estimates — run `task sim:navigate:rviz` in another terminal to watch "
+        "(NOT `task sim:rviz`: bare RViz, no saved config, so it comes up empty). "
         "`task sim:navigate:visualize:all` does both in one command.",
     )
     result = _run_one(scenario, visualizer, opts)

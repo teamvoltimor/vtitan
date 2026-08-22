@@ -90,3 +90,9 @@ track = "/sim/track"
 # shows the chassis moving but not the algorithm moving it.
 plan = "/sim/plan"
 sign_estimates = "/sim/sign_estimates"
+# Chassis/sensor/wheel geometry in the base_link frame. Split off the `track`
+# topic because the wheels carry the live steering angle and so must go out
+# every tick, while the track markers are cached and re-sent about once a
+# second -- and that cached array leads with a DELETEALL, which would wipe a
+# freshly published wheel if the two shared a topic.
+robot_model = "/sim/robot_model"

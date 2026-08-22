@@ -144,7 +144,6 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        robot: true
         track: true
       Topic:
         Depth: 1
@@ -152,6 +151,20 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /sim/track
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: RobotModel
+      Namespaces:
+        robot: true
+        wheel_steer: true
+        wheels: true
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /sim/robot_model
       Value: true
     - Alpha: 1
       Buffer Length: 1
