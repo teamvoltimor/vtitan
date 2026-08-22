@@ -1,8 +1,9 @@
 """Validation of LidarLocalizer against the simulator's exact wall geometry.
 
 Generates a synthetic "real" scan from a known ground-truth pose using the
-same TrackWalls raycast the simulator itself uses, then checks the localizer
-recovers that pose (a) with clean rays, (b) under realistic LIDAR noise, and
+same TrackWalls raycast the simulator itself uses -- cast from the LIDAR mount
+rather than the chassis centre, matching both the simulator and the localizer's
+own prediction since 2026-08-21 -- then checks the localizer recovers that pose (a) with clean rays, (b) under realistic LIDAR noise, and
 (c) starting from a prior offset by a plausible per-tick displacement rather
 than the exact ground truth — the three conditions it will actually face.
 """
@@ -21,6 +22,23 @@ from src.navigation.localization import LidarLocalizer
 from src.navigation.track_geometry import TrackWalls
 
 _ANGLES = np.linspace(-math.pi, math.pi, RobotSpecs.LIDAR_SAMPLES, endpoint=False)
+
+
+def _sensor_scan(walls: TrackWalls, x: float, y: float, yaw: float, angles: np.ndarray) -> np.ndarray:
+    """Ranges a robot at ``(x, y, yaw)`` would measure.
+
+    Cast from the LIDAR, which sits ``LIDAR_MOUNT_X_OFFSET`` forward of the
+    chassis centre, not from the centre itself. Casting from the centre is what
+    these tests did until 2026-08-21, and it agreed with the simulator and the
+    localizer because all three shared the omission -- so the suite passed while
+    the modelled sensor sat 12.2 cm behind the real one.
+    """
+    return walls.raycast(
+        x + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(yaw),
+        y + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(yaw),
+        yaw,
+        angles,
+    )
 
 _UNIFORM_1000 = {Section.NORTH: 1.0, Section.SOUTH: 1.0, Section.EAST: 1.0, Section.WEST: 1.0}
 _MIXED_WIDTHS = {Section.NORTH: 1.0, Section.SOUTH: 0.6, Section.EAST: 1.0, Section.WEST: 0.6}
@@ -51,7 +69,7 @@ def _localizer_for(widths: dict[Section, float]) -> tuple[LidarLocalizer, TrackW
 @pytest.mark.parametrize("x, y, yaw", _STRAIGHT_POSES + _CORNER_POSES)
 def test_recovers_exact_pose_from_clean_scan(x, y, yaw):
     localizer, walls = _localizer_for(_UNIFORM_1000)
-    ranges = walls.raycast(x, y, yaw, _ANGLES)
+    ranges = _sensor_scan(walls, x, y, yaw, _ANGLES)
 
     # Prior offset by a plausible per-tick displacement (up to ~5 cm at 10 Hz
     # LIDAR refresh and FAST_SPEED), not the exact ground truth.
@@ -68,7 +86,7 @@ def test_recovers_pose_across_corridor_widths(widths):
     # A position that is valid across all three width configurations (the
     # narrowest corridor, 0.6 m, still leaves room at the corridor midline).
     x, y, yaw = 1.5, 0.3, 0.2
-    ranges = walls.raycast(x, y, yaw, _ANGLES)
+    ranges = _sensor_scan(walls, x, y, yaw, _ANGLES)
 
     est_x, est_y = localizer.estimate_position((x - 0.03, y - 0.03), yaw, ranges, _ANGLES)
 
@@ -81,7 +99,7 @@ def test_robust_to_realistic_lidar_noise(x, y, yaw):
     """Same poses, but with real Slamtec-C1-level Gaussian range noise."""
     localizer, walls = _localizer_for(_UNIFORM_1000)
     rng = np.random.default_rng(0)
-    clean = walls.raycast(x, y, yaw, _ANGLES)
+    clean = _sensor_scan(walls, x, y, yaw, _ANGLES)
     noisy = np.clip(
         clean + rng.normal(0.0, RobotSpecs.LIDAR_NOISE_STDDEV, clean.shape),
         RobotSpecs.LIDAR_MIN_RANGE,
@@ -109,7 +127,7 @@ def test_tracks_a_moving_pose_tick_by_tick():
 
     for _ in range(20):
         x += speed * dt
-        clean = walls.raycast(x, y, yaw, _ANGLES)
+        clean = _sensor_scan(walls, x, y, yaw, _ANGLES)
         noisy = clean + rng.normal(0.0, RobotSpecs.LIDAR_NOISE_STDDEV, clean.shape)
         est = localizer.estimate_position(est, yaw, noisy, _ANGLES)
         assert est[0] == pytest.approx(x, abs=0.05)
@@ -147,7 +165,7 @@ class TestPlausibilityGuards:
         prior = (0.05, 1.5)
         # A scan generated from a position outside the track (x < 0):
         # mathematically valid raycast geometry, physically impossible.
-        ranges = walls.raycast(-0.2, 1.5, 0.0, _ANGLES)
+        ranges = _sensor_scan(walls, -0.2, 1.5, 0.0, _ANGLES)
 
         est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
 
@@ -163,7 +181,7 @@ class TestPlausibilityGuards:
         prior = (0.9, 1.5)
         # A scan generated from a position inside the inner block:
         # mathematically valid raycast geometry, physically impossible.
-        ranges = walls.raycast(1.5, 1.5, 0.0, _ANGLES)
+        ranges = _sensor_scan(walls, 1.5, 1.5, 0.0, _ANGLES)
 
         est = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
 
@@ -182,7 +200,7 @@ class TestPlausibilityGuards:
         localizer, walls = _localizer_for(_UNIFORM_1000)
         prior = (1.35, 0.5)
         true_x, true_y = 1.5, 0.5
-        ranges = walls.raycast(true_x, true_y, 0.0, _ANGLES)
+        ranges = _sensor_scan(walls, true_x, true_y, 0.0, _ANGLES)
 
         est_x, est_y = localizer.estimate_position(prior, 0.0, ranges, _ANGLES)
 
@@ -199,12 +217,12 @@ class TestPlausibilityGuards:
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
         x0, y0 = 1.5, 0.5
-        ranges0 = walls.raycast(x0, y0, 0.0, _ANGLES)
+        ranges0 = _sensor_scan(walls, x0, y0, 0.0, _ANGLES)
         est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
         # 0.15m in 0.05s implies 3 m/s -- far beyond max_speed_mps (0.25 default).
         far_x, far_y = x0 + 0.15, y0
-        ranges1 = walls.raycast(far_x, far_y, 0.0, _ANGLES)
+        ranges1 = _sensor_scan(walls, far_x, far_y, 0.0, _ANGLES)
         est1 = localizer.estimate_position(est0, 0.0, ranges1, _ANGLES, now_s=0.05)
 
         assert est1 == est0
@@ -217,11 +235,11 @@ class TestPlausibilityGuards:
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
         x0, y0 = 1.5, 0.5
-        ranges0 = walls.raycast(x0, y0, 0.0, _ANGLES)
+        ranges0 = _sensor_scan(walls, x0, y0, 0.0, _ANGLES)
         est0 = localizer.estimate_position((x0, y0), 0.0, ranges0, _ANGLES, now_s=0.0)
 
         far_x, far_y = x0 + 0.15, y0
-        ranges1 = walls.raycast(far_x, far_y, 0.0, _ANGLES)
+        ranges1 = _sensor_scan(walls, far_x, far_y, 0.0, _ANGLES)
         est1 = localizer.estimate_position(est0, 0.0, ranges1, _ANGLES, now_s=0.05)
         assert est1 == est0  # held on first appearance
 
@@ -235,7 +253,7 @@ def test_estimate_runs_within_control_tick_budget():
     """A single estimate must comfortably fit inside a 50 ms (20 Hz) control tick."""
     localizer, walls = _localizer_for(_UNIFORM_1000)
     x, y, yaw = 1.5, 0.5, 0.0
-    ranges = walls.raycast(x, y, yaw, _ANGLES)
+    ranges = _sensor_scan(walls, x, y, yaw, _ANGLES)
 
     start = time.perf_counter()
     for _ in range(10):

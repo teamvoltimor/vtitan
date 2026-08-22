@@ -21,11 +21,19 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
+from shared.config.constants import RobotSpecs
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning.blind_nav import LocalizationParams
 
     from src.navigation.track_geometry import TrackWalls
+
+_LIDAR_OFFSET_M = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+"""Forward distance from the chassis centre to the LIDAR (m).
+
+Bound once at import rather than read per call: ``estimate_position`` runs a
+multi-pass grid search per tick, and this is a fixed mount fact.
+"""
 
 
 class LidarLocalizer:
@@ -138,7 +146,17 @@ class LidarLocalizer:
             xs = best_x + grid_dx.ravel()
             ys = best_y + grid_dy.ravel()
 
-            predicted = self._walls.raycast_grid(xs, ys, yaw, angles)
+            # Predict from where the SENSOR is, not where the body centre is.
+            # `xs`/`ys` are candidate CHASSIS poses, but the C1 sits
+            # LIDAR_MOUNT_X_OFFSET (0.1222 m) forward of centre, flush with the
+            # bumper -- so a scan taken there cannot be reproduced by casting
+            # from the centre. Until 2026-08-21 it was, which biased every
+            # forward ray by the offset and pulled the fit along the corridor
+            # axis; the simulator raycast from the centre too, so the two agreed
+            # and the error was invisible in sim while present on hardware.
+            sensor_xs = xs + _LIDAR_OFFSET_M * math.cos(yaw)
+            sensor_ys = ys + _LIDAR_OFFSET_M * math.sin(yaw)
+            predicted = self._walls.raycast_grid(sensor_xs, sensor_ys, yaw, angles)
             # Clip each ray's contribution instead of summing raw squares. A
             # plain least-squares fit is dominated by its worst rays, and the
             # worst rays are exactly the ones whose geometry isn't in
