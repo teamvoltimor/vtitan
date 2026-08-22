@@ -164,7 +164,7 @@ class Drivetrain(BaseModel):
 
 
 class Lidar(BaseModel):
-    """Slamtec C1 mount offset and orientation."""
+    """Slamtec C1 mount offset, orientation, and measurement floor."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -172,6 +172,18 @@ class Lidar(BaseModel):
     mount_z_offset: float
     inverted: bool
     mount_yaw_offset_deg: float
+
+    min_range: float
+    """Closest range the sensor can report (m).
+
+    A property of the unit, so it belongs with the rest of the hardware
+    description rather than in a hand-maintained Python constant -- which is
+    where it lived until 2026-08-21, stated as 0.05 when the C1 measures to
+    about 0.045. Anything nearer is not "no obstacle", it is unmeasurable, and
+    the difference matters wherever the chassis works close to a surface:
+    parking, wall contact, and the escape maneuver all operate inside a few
+    centimetres.
+    """
 
 
 class Imu(BaseModel):

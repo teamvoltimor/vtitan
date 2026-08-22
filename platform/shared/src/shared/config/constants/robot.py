@@ -71,8 +71,17 @@ class RobotSpecs:
 
     # LIDAR (Slamtec C1) — mounted upside-down, centered left/right, at the front of the
     # chassis (measured 2026-07-11). See docs/robot-physical-constants.md.
-    LIDAR_MIN_RANGE: Final[float] = 0.05  # 50mm minimum detection range (real sensor)
-    LIDAR_SIM_MIN_RANGE: Final[float] = 0.01  # 10mm simulation min (detect near-wall, clamp to 50mm in callback)
+    LIDAR_MIN_RANGE: Final[float] = _robot.lidar.min_range
+    """Closest range the sensor can report (m), from robot.toml [lidar].
+
+    Was hand-written here as 0.05 until 2026-08-21; the C1 measures to about
+    0.045, and a sensor spec belongs in the hardware description rather than
+    beside the simulation parameters below. LIDAR_SIM_MIN_RANGE (0.01, "clamp to
+    50mm in callback") sat next to it with ZERO consumers repo-wide and was
+    removed in the same change -- the simulator clamps to this value, so a second
+    floor that nothing read only suggested a near-wall behaviour that did not
+    exist."""
+
     LIDAR_MAX_RANGE: Final[float] = 12.0  # 12m maximum detection range
     LIDAR_SAMPLES: Final[int] = 500  # Slamtec C1 horizontal samples
     LIDAR_UPDATE_RATE: Final[float] = 10.0  # 10 Hz scan rate
