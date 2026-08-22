@@ -24,6 +24,23 @@ def tuning():
     return NavigationTuning.load_default()
 
 
+@pytest.fixture()
+def rear_visible(tuning, override_tuning):
+    """Tuning with the mount's historical ~25 deg rear slot restored.
+
+    The shipped occlusion wedges meet at 180 deg since 2026-08-22 -- the build
+    lost the slot that was its only rear vision -- so nothing behind can be
+    measured and every sensed-clearance reverse is refused. These are the
+    pre-08-22 bounds, and the reversing branches cannot be exercised without
+    them. Restoring a rear sensor on the real chassis is this same edit in the
+    config, which is why the branches are kept rather than deleted.
+    """
+    return override_tuning(
+        tuning,
+        lidar_sectors={"BLIND_WEDGE_LEFT_MIN_DEG": -160.0, "BLIND_WEDGE_RIGHT_MAX_DEG": 175.0},
+    )
+
+
 def _just_inside_turn_m(tuning: NavigationTuning) -> float:
     return tuning.corridor_follower.TURN_CLEARANCE_M - TURN_ENTRY_MARGIN_M
 
@@ -92,7 +109,7 @@ class TestCornerTurn:
 
 
 class TestSafety:
-    def test_backs_off_when_boxed_in_even_though_the_way_ahead_is_open(self, tuning) -> None:
+    def test_backs_off_when_boxed_in_even_though_the_way_ahead_is_open(self, rear_visible) -> None:
         """The emergency back-off is a fact about room, not about layout.
 
         It used to sit inside the corner branch and so depended on that branch
@@ -110,13 +127,41 @@ class TestSafety:
             return 0.9
 
         angles = _bearings()
-        cmd = follow_corridor([rng(a) for a in angles], angles, CREEP_SPEED_MPS, tuning=tuning)
+        cmd = follow_corridor([rng(a) for a in angles], angles, CREEP_SPEED_MPS, tuning=rear_visible)
         assert cmd.speed_mps < 0.0, "did not back off from a wall inside chassis length"
 
-    def test_holds_still_when_boxed_at_both_ends(self, tuning) -> None:
+    def test_refuses_to_back_off_when_the_rear_cannot_be_measured(self, tuning) -> None:
+        """Same scan, shipped wedges: unreadable behind is not permission to reverse.
+
+        The scan says 2.0 m of clear road behind, and on the shipped mount that
+        bearing is occluded, so the reading is not a measurement -- the gateway
+        substitutes max range for a no-return and the old single-ray gate read
+        it as open track. Refusing costs a back-off the robot might have got
+        away with; accepting costs a reverse into whatever is actually there.
+        """
+        close = RobotSpecs.LENGTH - 0.05
+
+        def rng(a: float) -> float:
+            if abs(a) < math.radians(10):
+                return close
+            if abs(a - math.radians(30)) < math.radians(15):
+                return 3.0
+            if abs(_wrap_pi(a - math.pi)) < math.radians(20):
+                return 2.0  # "clear" behind -- but unreadable on this mount
+            return 0.9
+
+        angles = _bearings()
+        cmd = follow_corridor([rng(a) for a in angles], angles, CREEP_SPEED_MPS, tuning=tuning)
+        assert cmd.speed_mps == pytest.approx(0.0)
+        assert cmd.steering_norm != pytest.approx(0.0), "still steers toward the open side while held"
+
+    def test_holds_still_when_boxed_at_both_ends(self, rear_visible) -> None:
+        # Rear slot restored on purpose: this is the DISTANCE branch (something
+        # is measurably too close behind), distinct from the unmeasurable case
+        # above, which reaches the same stop for a different reason.
         angles = _bearings()
         boxed = [RobotSpecs.LENGTH - 0.05] * len(angles)
-        cmd = follow_corridor(boxed, angles, CREEP_SPEED_MPS, tuning=tuning)
+        cmd = follow_corridor(boxed, angles, CREEP_SPEED_MPS, tuning=rear_visible)
         assert cmd.speed_mps == pytest.approx(0.0)
 
 
@@ -135,7 +180,7 @@ class TestForcedTurnSide:
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.LEFT)
         assert cmd.steering_norm > 0
 
-    def test_back_off_branch_honours_the_forced_side_over_clearance(self, tuning) -> None:
+    def test_back_off_branch_honours_the_forced_side_over_clearance(self, rear_visible) -> None:
         # More room on the right (0.9 m) than the left (0.3 m), close enough
         # ahead to trigger the reversing back-off branch. Unforced, and
         # forcing "right" (matching clearance), both back off with the same
@@ -144,12 +189,16 @@ class TestForcedTurnSide:
         close = RobotSpecs.LENGTH - 0.05
         scan = LidarScanBuilder().corridor(left_m=0.3, right_m=0.9, ahead_m=close).build()
 
-        unforced = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
+        unforced = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=rear_visible)
         assert unforced.speed_mps < 0.0
-        matching = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.RIGHT)
+        matching = follow_corridor(
+            scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=rear_visible, forced_turn_side=TurnSide.RIGHT
+        )
         assert matching.steering_norm == pytest.approx(unforced.steering_norm)
 
-        forced = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning, forced_turn_side=TurnSide.LEFT)
+        forced = follow_corridor(
+            scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=rear_visible, forced_turn_side=TurnSide.LEFT
+        )
         assert forced.speed_mps < 0.0, "forcing the side must not disable the back-off itself"
         assert forced.steering_norm == pytest.approx(-unforced.steering_norm)
 

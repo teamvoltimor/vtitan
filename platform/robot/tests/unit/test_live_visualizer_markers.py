@@ -23,6 +23,7 @@ import math
 import pytest
 import rclpy
 from rclpy.serialization import deserialize_message, serialize_message
+from shared.config.constants import TrafficSignSpecs
 from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, ParkingLot, SignPosition
 from visualization_msgs.msg import Marker
@@ -378,5 +379,71 @@ def test_floor_markings_respect_narrow_corridor():
         # Wide track has 4 outlines + 4*3 divisions + 8 corner lines = 24 markers.
         # Narrow track has 4 outlines + 4*2 divisions + 8 corner lines = 20 markers.
         assert len(markers) == 20
+    finally:
+        visualizer.destroy_node()
+
+
+def test_sign_markers_are_cubes_not_cylinders():
+    """Traffic signs are 5 cm × 5 cm × 10 cm rectangular prisms, not cylinders."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_sign_shape")
+    try:
+        sign = SignPosition.model_validate({"x": 1, "y": 2, "color": "red"})
+        marker = visualizer._sign_marker(0, sign)
+        assert marker.type == Marker.CUBE
+        assert marker.scale.x == pytest.approx(TrafficSignSpecs.WIDTH)
+        assert marker.scale.y == pytest.approx(TrafficSignSpecs.DEPTH)
+        assert marker.scale.z == pytest.approx(TrafficSignSpecs.HEIGHT)
+    finally:
+        visualizer.destroy_node()
+
+
+def test_sign_floor_markings_are_present():
+    """Each sign has the 5 cm square and 85 mm placement circle drawn under it."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_sign_floor")
+    try:
+        sign = SignPosition.model_validate({"x": 1.5, "y": 2.5, "color": "green"})
+        square, circle = visualizer._sign_floor_markers(0, sign)
+
+        assert square.ns == "sign_floor_markings"
+        assert square.type == Marker.LINE_STRIP
+        assert len(square.points) == 5  # closed square
+        square_half = TrafficSignSpecs.WIDTH / 2.0
+        expected_corners = sorted([
+            (sign.x + dx, sign.y + dy)
+            for dx, dy in [
+                (-square_half, -square_half),
+                (square_half, -square_half),
+                (square_half, square_half),
+                (-square_half, square_half),
+            ]
+        ])
+        actual_corners = sorted((p.x, p.y) for p in square.points[:4])
+        for actual, expected in zip(actual_corners, expected_corners, strict=True):
+            assert actual[0] == pytest.approx(expected[0])
+            assert actual[1] == pytest.approx(expected[1])
+
+        assert circle.ns == "sign_floor_markings"
+        assert circle.type == Marker.LINE_STRIP
+        assert len(circle.points) == 33  # 32 segments + closed
+        radius = TrafficSignSpecs.PLACEMENT_CIRCLE_DIAMETER / 2.0
+        for p in circle.points:
+            assert math.hypot(p.x - sign.x, p.y - sign.y) == pytest.approx(radius, abs=1e-9)
+    finally:
+        visualizer.destroy_node()
+
+
+def test_sign_estimate_marker_is_also_a_cube():
+    """Believed signs use the same prism shape as ground-truth signs."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_sign_estimate_shape")
+    try:
+        spec = SignPosition.model_validate({"x": 1, "y": 2, "color": "red"})
+        marker = visualizer._sign_estimate_marker(0, spec)
+        assert marker.type == Marker.CUBE
+        assert marker.scale.x == pytest.approx(TrafficSignSpecs.WIDTH)
+        assert marker.scale.y == pytest.approx(TrafficSignSpecs.DEPTH)
+        assert marker.scale.z == pytest.approx(TrafficSignSpecs.HEIGHT)
     finally:
         visualizer.destroy_node()

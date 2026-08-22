@@ -98,6 +98,29 @@ class RobotSpecs:
     # = 0.10 + 0.0207 ~= 0.1207, matching the long-standing z=0.12 lidar_link offset in
     # static_tfs.launch.py / the URDF within rounding).
     LIDAR_MOUNT_X_OFFSET: Final[float] = _robot.lidar.mount_x_offset
+    LIDAR_TO_FRONT_BUMPER: Final[float] = _robot.chassis.length / 2 - _robot.lidar.mount_x_offset
+    """Metres from the sensor to the FRONT bumper face (~0.028).
+
+    A forward range reading MINUS this is the true gap between the bumper and
+    the obstacle. Thresholds compared against a raw range are implicitly
+    measured from wherever the sensor happens to sit, which makes them move
+    when the mount moves -- the same defect as a fractional constant, in a
+    physical unit. Subtracting this converts to a chassis-referenced gap, so
+    re-mounting the sensor is calibration (this value re-derives) rather than a
+    retune of every threshold.
+    """
+
+    LIDAR_TO_REAR_BUMPER: Final[float] = _robot.chassis.length / 2 + _robot.lidar.mount_x_offset
+    """Metres from the sensor to the REAR bumper face (~0.272).
+
+    Nearly TEN TIMES the front figure, because the sensor sits at the front.
+    That asymmetry is why one raw-range threshold cannot serve both ends: with
+    the shipped 0.10 m contact distance, an obstacle touching the rear bumper
+    reads 0.272 m and the gate never fires, while the same 0.10 m at the front
+    is a real near-contact. Measured 2026-08-22 as the cause of a reverse guard
+    that could not fire before impact.
+    """
+
     # LIDAR sits above the chassis top by this much; add HEIGHT for the LIDAR's absolute
     # mount z (matches the long-standing z=0.12 in static_tfs.launch.py / the URDF).
     LIDAR_MOUNT_Z_OFFSET: Final[float] = _robot.lidar.mount_z_offset

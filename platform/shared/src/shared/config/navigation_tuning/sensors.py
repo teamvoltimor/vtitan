@@ -70,7 +70,7 @@ class LidarSectorParams(BaseModel):
     )
     MIN_VALID_RANGE_M: float = Field(default=0.05, validation_alias=_alias("MIN_VALID_RANGE_M"))
     BLIND_WEDGE_LEFT_MIN_DEG: float = Field(
-        default=-160.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG")
+        default=-180.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MIN_DEG")
     )
     BLIND_WEDGE_LEFT_MAX_DEG: float = Field(
         default=-115.0, validation_alias=_alias("BLIND_WEDGE_LEFT_MAX_DEG")
@@ -79,7 +79,7 @@ class LidarSectorParams(BaseModel):
         default=115.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MIN_DEG")
     )
     BLIND_WEDGE_RIGHT_MAX_DEG: float = Field(
-        default=175.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG")
+        default=180.0, validation_alias=_alias("BLIND_WEDGE_RIGHT_MAX_DEG")
     )
     THREAT_NO_DETECTION_RANGE_M: float = Field(
         default=1.0, validation_alias=_alias("THREAT_NO_DETECTION_RANGE_M")

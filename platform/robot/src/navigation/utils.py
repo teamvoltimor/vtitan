@@ -63,6 +63,92 @@ def _nearest_ray(ranges_m: Sequence[float], angles_rad: Sequence[float], target:
     return ranges_m[index]
 
 
+def trail_clearance_behind(
+    trail: Sequence[tuple[float, float, float]],
+    robot_x: float,
+    robot_y: float,
+    robot_yaw: float,
+    half_width_m: float = RobotSpecs.WIDTH / 2.0,
+) -> float | None:
+    """How far the chassis may reverse over ground it has already occupied.
+
+    This is not a sensor reading and does not pretend to be one: it is a record
+    of where the chassis physically was, which is the one statement about the
+    space behind it that needs no rear vision at all. The mount lost its rear
+    slot (see ``lidar_sectors`` blind wedges), so a reverse gate that consults
+    only LIDAR must refuse every time; this is what lets it say yes on evidence
+    instead.
+
+    Walks back from the newest breadcrumb and stops at the first one that
+    leaves a corridor of the chassis' own width — the trail is only a promise
+    about ground the footprint actually covered, so a trail that curves away is
+    no longer describing the path a reverse would take. Points still ahead of
+    the chassis are skipped rather than terminating the walk: the newest
+    breadcrumbs sit within centimetres of the current pose and their sign is
+    noise.
+
+    Deliberately conservative in two ways. The trail records the chassis
+    CENTRE, so ground occupied by the rear half of the footprint is not counted
+    -- the true clearance behind the bumper is up to LENGTH/2 greater than this
+    returns. And it says nothing about anything that MOVED into that space
+    since; on a WRO mat the walls and blocks are static, but a rear estimate is
+    never as strong as a rear measurement.
+
+    Returns:
+        Distance in metres the chassis centre may retrace, or ``None`` when the
+        trail is empty or offers nothing usable behind. ``None`` means no
+        evidence, which is not the same as no room.
+    """
+    cos_yaw, sin_yaw = math.cos(robot_yaw), math.sin(robot_yaw)
+    reachable = 0.0
+    for point_x, point_y, _ in reversed(trail):
+        delta_x, delta_y = point_x - robot_x, point_y - robot_y
+        along = delta_x * cos_yaw + delta_y * sin_yaw
+        if along > 0.0:
+            continue
+        if abs(-delta_x * sin_yaw + delta_y * cos_yaw) > half_width_m:
+            break
+        reachable = max(reachable, -along)
+    return reachable or None
+
+
+def _rear_clearance(
+    ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None
+) -> float | None:
+    """Min clearance in the rear sector, or ``None`` when the mount cannot see it.
+
+    ``None`` does not mean clear -- it means NO INFORMATION, and the two must
+    not collapse into one number. A single raw ray straight back (what this
+    replaced) cannot tell them apart: the gateway substitutes max range for a
+    no-return, so an occluded bearing reads 12 m and a reverse gate comparing
+    the distance alone waves it through into whatever is actually there.
+
+    Excluded here, and each for a different reason: the mount's occlusion
+    wedges (rays self-collide by geometry regardless of range, so they must go
+    by angle), readings below the sensor's rated minimum (not measurements),
+    and self-detection returns (the chassis and its own cabling).
+
+    Uses tuning: lidar_sectors.THREAT_HALF_FOV_DEG, MIN_VALID_RANGE_M,
+        SELF_DETECTION_THRESHOLD_M, BLIND_WEDGE_{LEFT,RIGHT}_{MIN,MAX}_DEG
+    """
+    tuning = get_tuning(tuning)
+    sectors = tuning.lidar_sectors
+    arc_rad = math.radians(sectors.THREAT_HALF_FOV_DEG)
+    wedges = (
+        (math.radians(sectors.BLIND_WEDGE_LEFT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_LEFT_MAX_DEG)),
+        (math.radians(sectors.BLIND_WEDGE_RIGHT_MIN_DEG), math.radians(sectors.BLIND_WEDGE_RIGHT_MAX_DEG)),
+    )
+    rear = [
+        r
+        for r, a in zip(ranges_m, angles_rad, strict=False)
+        if abs(wrap_angle(a - math.pi)) <= arc_rad
+        and r > sectors.MIN_VALID_RANGE_M
+        and r > sectors.SELF_DETECTION_THRESHOLD_M
+        and not any(low <= wrap_angle(a) <= high for low, high in wedges)
+    ]
+    return min(rear) if rear else None
+
+
 def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], tuning: NavigationTuning | None = None) -> float:
     """Min clearance in forward direction.
 

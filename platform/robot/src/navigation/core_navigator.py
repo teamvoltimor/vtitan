@@ -24,6 +24,8 @@ from src.navigation.control.controllers import (
     ManeuverType,
     StuckDetector,
     WaypointController,
+    bumper_gap_ahead,
+    bumper_gap_behind,
     mask_mapped_obstacles,
 )
 from src.navigation.geometry import chassis_half_diagonal_m
@@ -31,7 +33,7 @@ from src.navigation.planning.sign_lane import SignLaneParams, apply_sign_lanes
 from src.navigation.planning.waypoints import corridor_for_position
 from src.navigation.ports import DriveCommand
 from src.navigation.track_geometry import cross_track_error, path_turn_ahead
-from src.navigation.utils import wrap_angle
+from src.navigation.utils import trail_clearance_behind, wrap_angle
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
@@ -45,15 +47,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_POSE_TRAIL_MIN_STEP_M = 0.01
-"""Spacing between recorded breadcrumbs. At 0.156 m/s and 20 Hz the chassis
-advances ~0.008 m per tick, so this thins a stationary or creeping robot's
-trail (which would otherwise fill the buffer with one position) without
-dropping resolution on a moving one."""
-
-_POSE_TRAIL_LEN = 128
-"""Breadcrumbs kept: ~1.3 m of travel at the spacing above, comfortably more
-than any retrace distance worth driving."""
 
 
 def _outgoing_bearing(waypoints: list[Waypoint], index: int) -> float:
@@ -132,7 +125,7 @@ class CoreNavigator:
         # Where the chassis has physically been, newest last. The basis for a
         # retrace-reverse: ground the robot occupied a moment ago is known
         # free without any rear-facing sensor. See _retrace_steer.
-        self._pose_trail: deque[tuple[float, float, float]] = deque(maxlen=_POSE_TRAIL_LEN)
+        self._pose_trail: deque[tuple[float, float, float]] = deque(maxlen=self._tuning.escape.POSE_TRAIL_LEN)
         self._retracing = False
 
         # Controllers
@@ -537,7 +530,7 @@ class CoreNavigator:
         # without rear sensing. See _retrace_steer.
         if not self._pose_trail or math.hypot(
             robot_x - self._pose_trail[-1][0], robot_y - self._pose_trail[-1][1]
-        ) >= _POSE_TRAIL_MIN_STEP_M:
+        ) >= self._tuning.escape.POSE_TRAIL_MIN_STEP_M:
             self._pose_trail.append((robot_x, robot_y, robot_yaw))
 
         # Continue an in-progress escape maneuver until its latched duration
@@ -688,9 +681,16 @@ class CoreNavigator:
         # Get LIDAR scan from gateway
         scan = self._gateway.get_lidar_scan()
         if scan:
-            forward_clearance = self._collision_controller.compute_forward_clearance(
-                scan.ranges_m,
-                scan.angles_rad,
+            # Converted to a BUMPER gap once, here, rather than at each of the
+            # comparisons below: the no-LIDAR fallback assigns a threshold value
+            # to this same variable, so the two branches have to leave it in one
+            # frame or the degraded path means something different from the
+            # measured one.
+            forward_clearance = bumper_gap_ahead(
+                self._collision_controller.compute_forward_clearance(
+                    scan.ranges_m,
+                    scan.angles_rad,
+                )
             )
             risk = self._collision_controller.assess_risk(scan.ranges_m, scan.angles_rad)
         else:
@@ -1102,7 +1102,7 @@ class CoreNavigator:
         along = dx * cos_yaw + dy * sin_yaw
         lateral = -dx * sin_yaw + dy * cos_yaw
         distance = math.hypot(dx, dy)
-        if distance < _POSE_TRAIL_MIN_STEP_M or along > 0.0:
+        if distance < self._tuning.escape.POSE_TRAIL_MIN_STEP_M or along > 0.0:
             # Target is not actually behind the chassis -- nothing to retrace.
             return None
         return self._tuning.sign_router.retrace_steer_gain_norm(-lateral / distance)
@@ -1138,9 +1138,28 @@ class CoreNavigator:
             return False
         rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
         if not rear.measured:
+            # No rear vision on this mount, but the pose trail records ground
+            # the chassis physically occupied -- the same argument the retrace
+            # exemption above already accepts, reached by escapes that are not
+            # retraces. Evidence rather than a sensor: it cannot know what
+            # moved in since, so it has to cover the WHOLE manoeuvre with
+            # CONTACT_DIST to spare before it counts, and an empty trail still
+            # refuses. Without this the gate is unreachable on a chassis with
+            # no rear slot, and a scenario needing one escape-reverse hits the
+            # wall instead (measured on go_open #85, 2026-08-22).
+            if self._pose_trail:
+                trail_x, trail_y, trail_yaw = self._pose_trail[-1]
+                reverse_distance = abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.CONTROL_HZ
+                covered = trail_clearance_behind(self._pose_trail, trail_x, trail_y, trail_yaw)
+                if covered is not None and covered >= reverse_distance + self._tuning.clearance.CONTACT_DIST:
+                    return False
             logger.warning("Reverse escape refused: rear sector measured nothing")
             return True
-        return rear.min_range_m < self._tuning.clearance.CONTACT_DIST
+        # As a gap from the REAR bumper. Compared raw until 2026-08-22, which
+        # made this gate unreachable: the sensor is at the front, so an obstacle
+        # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
+        # and the reverse was authorised right up to the moment of impact.
+        return rear.min_range_m < self._tuning.clearance.CONTACT_DIST  # ARM: rear raw, front converted
 
     def _begin_maneuver(self, maneuver: EscapeManeuver) -> None:
         """Latch an escape maneuver so it executes for its full duration."""
@@ -1387,10 +1406,18 @@ class CoreNavigator:
             # the two stay distinguishable below (and in the log line).
             rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
             rear_blind = not rear.measured
-            rear_clear = rear.min_range_m
-            forward_clear = self._collision_controller.compute_forward_clearance(
-                scan.ranges_m,
-                scan.angles_rad,
+            # Both ends as BUMPER gaps, so the single CONTACT_DIST below means
+            # the same thing in each direction. Compared raw, it did not: the
+            # sensor is at the front, so the rear test needed an obstacle 17 cm
+            # inside the chassis before it would trip. The NO_DATA sentinel
+            # survives the conversion -- 10 m less either datum is still open
+            # road -- so the no-scan branch keeps its "assume clear" meaning.
+            rear_clear = rear.min_range_m  # ARM: rear raw, front converted
+            forward_clear = bumper_gap_ahead(
+                self._collision_controller.compute_forward_clearance(
+                    scan.ranges_m,
+                    scan.angles_rad,
+                )
             )
         # Blind behind is a reason to prefer forward, but only when forward is
         # actually open. Treating it as flatly "blocked" would leave a chassis

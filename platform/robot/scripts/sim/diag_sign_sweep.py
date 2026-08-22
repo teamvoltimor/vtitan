@@ -2267,6 +2267,21 @@ class _Approach:
     gap_m: float
     """Along-path metres from the laned waypoint to the closest approach."""
 
+    clearance_m: float
+    """Metres from the sign to the plan, in the plane, at that closest point.
+
+    The absolute quantity ``delivered_frac`` cannot express. A fraction of the
+    plateau says how much of the lane arrived, not how much room is left: a sign
+    whose plateau was never large reads the same +0.00x whether the plan misses
+    it by 20 cm or grazes it by 5. Both live on one object so the on-arc
+    population that PASSES and the one that COLLIDES can be separated by the
+    room the plan actually leaves, at the point where the chassis passes.
+
+    Unsigned, and taken from the plan the navigator holds rather than the driven
+    track, so tracking error is not in it -- this is the room the PLAN leaves,
+    and the chassis then spends some of it.
+    """
+
     in_corner_box: bool
     """``_in_corner_zone``: both coordinates outside the inner square.
 
@@ -2418,7 +2433,7 @@ def _approach_offset(
     """
     if closest is None or waypoint_index is None or not plan or waypoint_index >= len(plan):
         return None
-    _, hit_x, hit_y, segment = closest
+    clearance, hit_x, hit_y, segment = closest
     if segment >= len(plan):
         return None
     # Cumulative once rather than `_path_station_m` per lookup: the bend scan
@@ -2448,6 +2463,7 @@ def _approach_offset(
             radius = _circumradius(base[segment - 1], base[segment], base[segment + 1])
     return _Approach(
         gap_m=gap,
+        clearance_m=clearance,
         in_corner_box=_in_corner_zone(hit_x, hit_y),
         on_arc=on_arc,
         bend_gap_m=bend_gap,
@@ -3050,11 +3066,18 @@ def _report_entry_split(columns: tuple[tuple[str, list[_Approach]], ...]) -> Non
             if not sub:
                 continue
             delivered = [a.delivered_frac for a in sub]
+            room = [a.clearance_m for a in sub]
             print(
                 f"LANE-SPLIT {label:<11} {'ON ARC ' if on_arc else 'straight':<9} "
                 f"n={len(sub):>5}  delivered median {percentile(delivered, 0.5):+5.2f}x  "
                 f"p10 {percentile(delivered, 0.1):+5.2f}x  "
-                f"approach median {percentile([a.gap_m for a in sub], 0.5) * 100:6.2f}cm",
+                f"approach median {percentile([a.gap_m for a in sub], 0.5) * 100:6.2f}cm  "
+                # The absolute reading the fraction cannot give. p10 as well as
+                # the median because a collision is decided in the tail: half the
+                # population clearing 20 cm says nothing about the tenth that
+                # clears 2, and it is that tenth the chassis crashes in.
+                f"clearance median {percentile(room, 0.5) * 100:6.2f}cm  "
+                f"p10 {percentile(room, 0.1):6.4f}m",
                 flush=True,
             )
 

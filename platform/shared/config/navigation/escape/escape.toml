@@ -3,6 +3,18 @@
 #
 # See shared.config.navigation_tuning.EscapeManeuverParams.
 
+# Pose trail followed by a retrace-reverse: ground the chassis occupied a
+# moment ago is known free without any rear-facing sensor, which is the only
+# reason reversing blind is safe at all. Module constants in core_navigator
+# until 2026-08-22.
+#
+# The spacing is a distance-per-TICK threshold, so it interacts with speed: at
+# 0.156 m/s and 20 Hz the chassis advances ~0.008 m per tick and a creeping
+# robot's trail gets thinned as intended; at 0.234 m/s it advances ~0.012 m and
+# nothing is thinned. Re-check this alongside any speed-profile change.
+pose_trail_min_step_m = 0.01
+pose_trail_len = 128          # ~1.3 m of travel at the spacing above
+
 rev_speed = -0.20             # Reverse speed during escapes (m/s)
 
 # Road-wheel steering angle held while reversing out, in DEGREES.
