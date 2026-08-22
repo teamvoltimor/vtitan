@@ -24,6 +24,13 @@ stall tick counts, which no amount of straight-line driving inflates.
 Usage (from ``platform/robot``, with PYTHONPATH=".")::
 
     python scripts/sim/diag_open_first_turn.py [--sample 64] [--seed 0] [--all]
+
+Leg 1 is the only leg that bundles two independent handicaps: the blind
+direction-inference creep, and an exit corridor the robot has never driven.
+``--told-direction`` removes the first and leaves the second, which is the one
+run that tells the two apart. It is a CONTROL, not a competition condition --
+the round's direction is drawn on the day, so a told run measures a robot with
+information no robot has.
 """
 
 from __future__ import annotations
@@ -204,17 +211,24 @@ def _corner_sequence(widths_mm: dict[str, int], section: Any, direction: Any) ->
     return labels
 
 
-def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> dict[str, Any]:
+def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None, bool]) -> dict[str, Any]:
     """Run one scenario and return its per-leg profile. Primitive-valued so it pickles."""
     from shared.domain.enums import Direction, Section
 
-    index, widths, section_value, direction_value, cell, laps, tuning_path = payload
+    index, widths, section_value, direction_value, cell, laps, tuning_path, told = payload
     section = Section(section_value)
     direction = Direction(direction_value)
     widths_mm = dict(zip(SIDES, widths, strict=True))
     meta = build_open_metadata(widths_mm, section, direction, scenario_id=index, start_cell=cell)
 
-    sim = ScenarioSimulator(meta, num_laps=laps, tuning=load_tuning(tuning_path), seed=index, blind=True)
+    sim = ScenarioSimulator(
+        meta,
+        num_laps=laps,
+        tuning=load_tuning(tuning_path),
+        seed=index,
+        blind=True,
+        infer_direction=not told,
+    )
     tracer = _YawTracer(sim)
     result = sim.run(on_step=tracer.on_step)
 
@@ -322,6 +336,11 @@ def main() -> None:
         jobs=True,
     )
     add_tuning_arg(parser)
+    parser.add_argument(
+        "--told-direction",
+        action="store_true",
+        help="hand the robot its travel direction instead of inferring it (NOT a competition condition)",
+    )
     args = parser.parse_args()
 
     population = case_space()
@@ -335,10 +354,14 @@ def main() -> None:
         f"max wheel angle {math.degrees(RobotSpecs.MAX_STEERING_ANGLE):.1f} deg",
         flush=True,
     )
-    print(f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers\n", flush=True)
+    print(
+        f"{len(cases)} of {len(population)} scenarios, seed={args.seed}, {jobs} workers, "
+        f"direction {'TOLD (control)' if args.told_direction else 'inferred'}\n",
+        flush=True,
+    )
 
     payloads = [
-        (i, widths, section.value, direction.value, cell, args.laps, args.tuning)
+        (i, widths, section.value, direction.value, cell, args.laps, args.tuning, args.told_direction)
         for i, (widths, section, direction, cell) in enumerate(cases)
     ]
     rows = run_pool(_run_case, payloads, jobs, on_result=print_pool_progress("legs"))
