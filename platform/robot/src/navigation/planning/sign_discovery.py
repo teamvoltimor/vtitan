@@ -174,9 +174,21 @@ def _detection_to_world(
         if tuning.lidar_sectors.MIN_VALID_RANGE_M < lidar_range < RobotSpecs.CAMERA_FAR_CLIP:
             distance = lidar_range
 
+    # Project from where the SENSOR is, not from the body centre. `distance` is
+    # measured by the camera or the C1, and both sit 0.1222 m forward of centre
+    # (robot.toml's [camera]/[lidar] mount_x_offset -- equal today, so the
+    # bearing lookup above can treat them as coincident in the ground plane).
+    # Starting the ray at the chassis origin therefore lands every sign short by
+    # that offset, pulling the estimate ~12 cm toward the robot along its
+    # heading. localization.py took this same correction on 2026-08-21, where
+    # casting predicted rays from the centre was biasing the pose fit along the
+    # corridor axis; this consumer was missed then. Visible in RViz as sign
+    # estimates sitting 10-20 cm off the drawn signs.
+    sensor_x = robot_pos[0] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw)
+    sensor_y = robot_pos[1] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw)
     bearing = robot_yaw + theta_h
-    wx = robot_pos[0] + distance * math.cos(bearing)
-    wy = robot_pos[1] + distance * math.sin(bearing)
+    wx = sensor_x + distance * math.cos(bearing)
+    wy = sensor_y + distance * math.sin(bearing)
     return wx, wy
 
 

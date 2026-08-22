@@ -896,6 +896,26 @@ def _observation_at(
     )
 
 
+def _expected_world(distance: float, theta_h: float, robot_pos=(0.0, 0.0), robot_yaw: float = 0.0):
+    """Where a sign at ``distance``/``theta_h`` from the SENSOR really is.
+
+    ``distance`` is measured by the camera or the C1, and both sit
+    LIDAR_MOUNT_X_OFFSET (0.1222 m) forward of the chassis centre, so the ray
+    starts there -- not at ``robot_pos``. These tests asserted
+    ``robot_pos + distance * direction`` until 2026-08-22, which pinned the
+    projection to the body origin and so encoded a systematic ~12 cm
+    under-range into the expected value; sign estimates drew that far short of
+    the real signs in RViz. ``localization.py`` took the same correction on
+    2026-08-21 for its predicted rays.
+    """
+    sensor = (
+        robot_pos[0] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw),
+        robot_pos[1] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw),
+    )
+    bearing = robot_yaw + theta_h
+    return (sensor[0] + distance * math.cos(bearing), sensor[1] + distance * math.sin(bearing))
+
+
 class TestDetectionToWorld:
     """Pins the pinhole-projection math ``_detection_to_world`` uses to turn a
     bbox into a world position — previously untested (review 2026-07-11 §2.2).
@@ -905,7 +925,7 @@ class TestDetectionToWorld:
         distance, theta_h = 0.6, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
         world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0)
-        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        expected = _expected_world(distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)
 
     def test_round_trip_with_nonzero_robot_pose(self, router_config):
@@ -914,11 +934,7 @@ class TestDetectionToWorld:
         distance, theta_h = 0.5, -0.1
         det = _detection_at_distance_bearing(distance, theta_h)
         world = _detection_to_world(det, robot_pos=robot_pos, robot_yaw=robot_yaw)
-        bearing = robot_yaw + theta_h
-        expected = (
-            robot_pos[0] + distance * math.cos(bearing),
-            robot_pos[1] + distance * math.sin(bearing),
-        )
+        expected = _expected_world(distance, theta_h, robot_pos, robot_yaw)
         assert world == pytest.approx(expected, abs=1e-6)
 
     def test_bbox_shorter_than_minimum_returns_none(self, router_config):
@@ -967,7 +983,7 @@ class TestDetectionToWorldLidarFusion:
             det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
         )
 
-        expected = (true_distance * math.cos(theta_h), true_distance * math.sin(theta_h))
+        expected = _expected_world(true_distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)
 
     def test_falls_back_to_pinhole_when_lidar_ray_is_a_dropout(self, router_config):
@@ -979,7 +995,7 @@ class TestDetectionToWorldLidarFusion:
             det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
         )
 
-        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        expected = _expected_world(distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)
 
     def test_falls_back_to_pinhole_when_lidar_ray_is_self_detection(self, router_config):
@@ -992,7 +1008,7 @@ class TestDetectionToWorldLidarFusion:
             det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=ranges, lidar_angles_rad=angles,
         )
 
-        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        expected = _expected_world(distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)
 
     def test_no_lidar_data_keeps_pinhole_only_behaviour(self, router_config):
@@ -1001,7 +1017,7 @@ class TestDetectionToWorldLidarFusion:
 
         world = _detection_to_world(det, robot_pos=(0.0, 0.0), robot_yaw=0.0, lidar_ranges_m=None, lidar_angles_rad=None)
 
-        expected = (distance * math.cos(theta_h), distance * math.sin(theta_h))
+        expected = _expected_world(distance, theta_h)
         assert world == pytest.approx(expected, abs=1e-6)
 
 
