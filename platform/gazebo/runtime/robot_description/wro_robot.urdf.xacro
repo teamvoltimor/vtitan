@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot name="wro_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- Chassis/Ackermann/wheel/sensor-mount properties -- generated from
+  <!-- Chassis/Ackermann/wheel/sensor-mount properties, generated from
        platform/shared/config/robot.toml, see robot_properties.gen.xacro. -->
   <xacro:include filename="robot_properties.gen.xacro"/>
 
@@ -129,25 +129,60 @@
     <axis xyz="0 1 0"/>
   </joint>
 
-  <!-- ====== REAR WHEELS (Drive) ====== -->
+  <!-- ====== REAR WHEELS (Drive + counter-phase steering) ====== -->
 
-  <xacro:wheel_link name="rear_left_wheel"/>
+  <!-- The rear axle STEERS, opposite the front and by the same amount at
+       rear_steer_ratio=1.0. Confirmed on the real chassis 2026-07-25 and
+       re-verified by hand 2026-08-15; src/simulation/kinematics.py has
+       integrated it since, and tests/unit/test_kinematics_4ws.py guards it.
 
-  <joint name="rear_left_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="rear_left_wheel"/>
-    <origin xyz="${-half_wheelbase} ${half_track} 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+       This file did not, until 2026-08-22: the rear wheels bolted straight to
+       base_link as plain drive joints, so Gazebo was a front-steer car. That
+       is not a cosmetic difference. Counter-phase moves the instantaneous
+       centre of rotation from the rear axle to the chassis centre
+       (L_eff = wheelbase / (1 + rear_steer_ratio)), so the robot yaws TWICE as
+       fast for a given steering angle: the exact discrepancy that was found
+       and fixed on the headless side, where it had silently made every gain
+       tuned against the sim hotter on the real robot.
 
-  <xacro:wheel_link name="rear_right_wheel"/>
+       Driven by a mimic constraint rather than a controller: the stock
+       gz-sim AckermannSteering plugin below steers ONE axle by construction,
+       and mimic expresses "follower = multiplier * leader" as a physics
+       constraint, so the rear angle cannot drift out of phase with the front
+       and no extra node has to publish it. SDFormat's mimic multiplier/offset
+       are documented to match the URDF mimic tag's. -->
 
-  <joint name="rear_right_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="rear_right_wheel"/>
-    <origin xyz="${-half_wheelbase} ${-half_track} 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+  <xacro:macro name="rear_steering_assembly" params="side y_sign">
+    <xacro:steering_link name="rear_${side}_steering"/>
+
+    <joint name="rear_${side}_steering_joint" type="revolute">
+      <parent link="base_link"/>
+      <child link="rear_${side}_steering"/>
+      <origin xyz="${-half_wheelbase} ${y_sign * half_track} 0" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="${-max_steering_angle}" upper="${max_steering_angle}" effort="10" velocity="3.0"/>
+      <!-- Negative: counter-phase. rear_steer_ratio comes from robot.toml via
+           robot_properties.gen.xacro, so a chassis rebuilt front-steer-only
+           (ratio 0.0) pins the rear wheels straight without editing this file. -->
+      <mimic joint="front_${side}_steering_joint" multiplier="${-rear_steer_ratio}" offset="0"/>
+    </joint>
+
+    <xacro:wheel_link name="rear_${side}_wheel"/>
+
+    <!-- Parented to the steering link, not base_link: that re-parenting is
+         what actually makes the wheel turn. The AckermannSteering plugin still
+         drives this joint for propulsion; it is unaffected by the extra hinge
+         above it. -->
+    <joint name="rear_${side}_wheel_joint" type="continuous">
+      <parent link="rear_${side}_steering"/>
+      <child link="rear_${side}_wheel"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:rear_steering_assembly side="left" y_sign="1"/>
+  <xacro:rear_steering_assembly side="right" y_sign="-1"/>
 
   <!-- ====== SENSORS ====== -->
 
@@ -239,7 +274,7 @@
     <child link="lidar_link"/>
     <!-- z = chassis_height + lidar_mount_z = 0.12: matches static_tfs.launch.py / the Go
          SDF generator's RobotHeight + RobotLidarMountZOffset. Previously chassis_height/2
-         + 0.025 = 0.075 here only -- a pre-existing drift from those other two sources,
+         + 0.025 = 0.075 here only, a pre-existing drift from those other two sources,
          found and fixed alongside the mount-offset measurements (see
          platform/robot/docs/robot-physical-constants.md). lidar_mount_z is now generated
          from platform/shared/config/robot.toml (was a hardcoded 0.02 literal here). -->
@@ -302,7 +337,7 @@
     <parent link="base_link"/>
     <child link="imu_link"/>
     <!-- z = imu_mount_z = 0.01: matches static_tfs.launch.py / the Go SDF generator's
-         RobotImuMountZOffset. Was hardcoded to 0 here only -- a pre-existing drift from
+         RobotImuMountZOffset. Was hardcoded to 0 here only, a pre-existing drift from
          those other two sources, found while consolidating the mount-offset source of
          truth into platform/shared/config/robot.toml. -->
     <origin xyz="0 0 ${imu_mount_z}" rpy="0 0 0"/>
