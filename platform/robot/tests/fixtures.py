@@ -204,8 +204,7 @@ class MotionStateBuilder:
     def moving(self, speed_mps: float, steer_norm: float = 0.0) -> MotionStateBuilder:
         """Set motion (speed and steering angle)."""
         self.speed = speed_mps
-        max_steer = RobotSpecs.MAX_STEERING_ANGLE
-        self.steer = steer_norm * max_steer
+        self.steer = steer_norm * RobotSpecs.MAX_STEERING_ANGLE
         return self
 
     def build(self) -> MotionState:
@@ -304,7 +303,6 @@ class ParkingLotFixtures:
 
     _PARK_A = 1.00  # First block position along corridor
     _PARK_B = _PARK_A + ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH
-    _PARK_NEAR = ParkingLotSpecs.WALL_OFFSET
     _PARK_FAR = TrackDimensions.MAX_COORD - ParkingLotSpecs.WALL_OFFSET
 
     @staticmethod
@@ -319,8 +317,8 @@ class ParkingLotFixtures:
     def south() -> ParkingLot:
         """Standard parking lot in the South section."""
         return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_A, y=ParkingLotFixtures._PARK_NEAR),
-            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_B, y=ParkingLotFixtures._PARK_NEAR),
+            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_A, y=ParkingLotSpecs.WALL_OFFSET),
+            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_B, y=ParkingLotSpecs.WALL_OFFSET),
         )
 
     @staticmethod
@@ -343,8 +341,8 @@ class ParkingLotFixtures:
     def west() -> ParkingLot:
         """Standard parking lot in the West section."""
         return ParkingLot(
-            block1_position=BlockPosition(x=ParkingLotFixtures._PARK_NEAR, y=ParkingLotFixtures._PARK_A),
-            block2_position=BlockPosition(x=ParkingLotFixtures._PARK_NEAR, y=ParkingLotFixtures._PARK_B),
+            block1_position=BlockPosition(x=ParkingLotSpecs.WALL_OFFSET, y=ParkingLotFixtures._PARK_A),
+            block2_position=BlockPosition(x=ParkingLotSpecs.WALL_OFFSET, y=ParkingLotFixtures._PARK_B),
         )
 
 

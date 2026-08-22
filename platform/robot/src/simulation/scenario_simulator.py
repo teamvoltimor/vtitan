@@ -51,7 +51,6 @@ from src.simulation.scenario_result import (
 from src.simulation.simulated_hardware_gateway import (
     CONTROL_DT,
     LIDAR_INVALID_RAY_RATE,
-    LIDAR_SCAN_HZ,
     SimulatedHardwareGateway,
 )
 from src.simulation.track_model import ContactSurface, TrackModel, obstacles_from_metadata
@@ -154,7 +153,7 @@ class ScenarioSimulator:
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         infer_direction: bool | None = None,
-        lidar_hz: float = LIDAR_SCAN_HZ,
+        lidar_hz: float = RobotSpecs.LIDAR_UPDATE_RATE,
         lidar_invalid_rate: float = LIDAR_INVALID_RAY_RATE,
         wall_heading: bool = True,
         park: bool = True,

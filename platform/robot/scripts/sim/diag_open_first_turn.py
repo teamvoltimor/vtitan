@@ -40,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 if TYPE_CHECKING:
     from src.simulation.kinematics import AckermannState
 
-from shared.config.constants import CompetitionSpecs, RobotSpecs
+from shared.config.constants import CompetitionSpecs, CorridorDimensions, RobotSpecs
 from shared.config.hardware_profile import active_profiles
 
 from scripts.common.diag_base import (
@@ -76,6 +76,13 @@ _STEER_DEADBAND_RAD = 0.02
 """Steering below this is noise; a sign change across it is not a real flip."""
 
 _QUARTER_TURN_DEG = 90.0
+
+_TURN_START_DEG = 5.0
+"""Heading change from the straight that counts as the turn having begun.
+
+Small enough to catch the entry speed before the corner has scrubbed any off,
+large enough not to trigger on the centring wander of a straight -- measured
+p90 steering flips on a straight leave heading well inside this."""
 
 
 class _YawTracer:
@@ -127,33 +134,74 @@ def _monotone_progress(yaw_deg: list[float]) -> list[float]:
     return running
 
 
-def _leg_profile(index: int, ticks: list[tuple[float, float, bool]]) -> dict[str, float]:
-    """Summarise one leg's ticks of ``(speed, steer, creeping)``."""
-    driving = [(v, steer) for v, steer, creeping in ticks if not creeping]
+def _leg_profile(index: int, ticks: list[tuple[float, float, float, bool]], corner: str) -> dict[str, object]:
+    """Summarise one leg's ticks of ``(progress_deg, speed, steer, creeping)``."""
+    driving = [(v, steer) for _, v, steer, creeping in ticks if not creeping]
     flips = sum(
         1
         for (_, before), (_, after) in zip(driving, driving[1:], strict=False)
         if before * after < 0 and min(abs(before), abs(after)) > _STEER_DEADBAND_RAD
     )
+
+    # Speed at the instant the turn begins, i.e. the first tick whose heading
+    # has left the straight by TURN_START_DEG. This is the quantity that
+    # separates W->N from N->W: the two are the SAME physical corner with the
+    # SAME planned arc (verified by diag_open_corner_geometry.py -- clearance
+    # identical to three decimals), so nothing about the path explains why one
+    # fails 8/36 and the other 0/24. What differs is the state the chassis
+    # arrives in, and a wide corridor feeds the speed ladder more forward
+    # clearance than a narrow one.
+    base = index * _QUARTER_TURN_DEG
+    entering = [v for progress, v, _, creeping in ticks if not creeping and progress - base >= _TURN_START_DEG]
     return {
         "leg": index + 1,
+        "corner": corner,
         "ticks": len(ticks),
         "seconds": len(ticks) * CONTROL_DT,
-        "creep": sum(1 for _, _, creeping in ticks if creeping) * CONTROL_DT,
+        "creep": sum(1 for _, _, _, creeping in ticks if creeping) * CONTROL_DT,
         "reverse": sum(1 for v, _ in driving if v < -_STALL_SPEED_MPS),
         "stalled": sum(1 for v, _ in driving if abs(v) <= _STALL_SPEED_MPS),
         "crawling": sum(1 for v, _ in driving if _STALL_SPEED_MPS < v < _CRAWL_FRACTION * RobotSpecs.MAX_SPEED_MPS),
         "steer_flips": flips,
+        # None when the run died before this turn ever started -- which is
+        # itself the failure being investigated, so it must not read as 0.0.
+        "entry_speed": entering[0] if entering else None,
     }
 
 
-def _legs(tracer: _YawTracer) -> list[dict[str, float]]:
-    """Split a run into legs, one per turn reached, each ending as that turn completes."""
+def _legs(tracer: _YawTracer, corners: list[str]) -> list[dict[str, object]]:
+    """Split a run into legs, one per turn reached, each ending as that turn completes.
+
+    ``corners`` labels the corner each leg ENDS on, cycling with the lap, so a
+    leg's difficulty can be attributed to the width transition it is driving
+    into rather than only to its ordinal.
+    """
     progress = _monotone_progress(tracer.yaw_deg)
-    buckets: defaultdict[int, list[tuple[float, float, bool]]] = defaultdict(list)
+    buckets: defaultdict[int, list[tuple[float, float, float, bool]]] = defaultdict(list)
     for value, tick in zip(progress, zip(tracer.speed, tracer.steer, tracer.creeping, strict=True), strict=True):
-        buckets[int(value // _QUARTER_TURN_DEG)].append(tick)
-    return [_leg_profile(index, ticks) for index, ticks in sorted(buckets.items())]
+        buckets[int(value // _QUARTER_TURN_DEG)].append((value, *tick))
+    return [
+        _leg_profile(index, ticks, corners[index % len(corners)] if corners else "?")
+        for index, ticks in sorted(buckets.items())
+    ]
+
+
+def _corner_sequence(widths_mm: dict[str, int], section: Any, direction: Any) -> list[str]:
+    """``W->N`` style label for each corner, in the order this run meets them.
+
+    Index k is the corner that ENDS leg k+1, so it lines up with the turn
+    ordinals the rest of this script reports.
+    """
+    from src.navigation.planning.waypoints import _build_corridor_order, _rotate_to_start
+
+    wide = (CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2
+    order = _rotate_to_start(_build_corridor_order(direction), section)
+    labels = []
+    for i, entry in enumerate(order):
+        exit_ = order[(i + 1) % len(order)]
+        pair = (widths_mm[entry.value.lower()] / 1000.0, widths_mm[exit_.value.lower()] / 1000.0)
+        labels.append("->".join("W" if w > wide else "N" for w in pair))
+    return labels
 
 
 def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | None]) -> dict[str, Any]:
@@ -175,7 +223,7 @@ def _run_case(payload: tuple[int, tuple[int, ...], str, str, int, int, str | Non
         "verdict": _verdict(result),
         "stuck": result.stuck,
         "sim_time_s": result.sim_time_s,
-        "legs": _legs(tracer),
+        "legs": _legs(tracer, _corner_sequence(widths_mm, section, direction)),
         "label": f"{'-'.join(str(w) for w in widths)} {section.value}/{direction.value} c{cell}",
     }
 
@@ -207,6 +255,46 @@ def _leg_table(rows: list[dict[str, Any]]) -> None:
     print_table(
         table,
         ["turn", "runs", "mean time", "of it creep", "any reverse", "mean rev", "max rev", "mean crawl", "mean flips"],
+    )
+
+
+def _corner_table(rows: list[dict[str, Any]]) -> None:
+    """Entry speed and reversing per width transition, split by first corner or later.
+
+    The first corner is separated because it is the only one the robot meets
+    without having driven the exit corridor before, and because every failure
+    in the corpus lands there -- pooling it with laps 2 and 3 would dilute the
+    contrast by roughly twelve to one.
+    """
+    by_corner: defaultdict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        for leg in row["legs"]:
+            when = "first" if leg["leg"] == 1 else "later"
+            by_corner[(str(leg["corner"]), when)].append(leg)
+
+    table = []
+    for corner in ("W->W", "W->N", "N->W", "N->N"):
+        for when in ("first", "later"):
+            legs = by_corner.get((corner, when), [])
+            if not legs:
+                continue
+            speeds = [leg["entry_speed"] for leg in legs if leg["entry_speed"] is not None]
+            never = sum(1 for leg in legs if leg["entry_speed"] is None)
+            reversing = [leg for leg in legs if leg["reverse"] > 0]
+            table.append(
+                [
+                    corner,
+                    when,
+                    len(legs),
+                    f"{sum(speeds) / len(speeds):.4f}" if speeds else "-",
+                    f"{max(speeds):.4f}" if speeds else "-",
+                    never,
+                    f"{len(reversing) / len(legs):.1%}",
+                ]
+            )
+    print_table(
+        table,
+        ["corner", "turn", "count", "mean entry m/s", "max entry", "never turned", "any reverse"],
     )
 
 
@@ -264,6 +352,10 @@ def main() -> None:
 
     print("\nwhich turn owns each run's worst reversing:", flush=True)
     _worst_leg_table(rows)
+
+    print("\nby corner width transition -- the planned arc is IDENTICAL for W->N and", flush=True)
+    print("N->W (same corner, driven both ways), so any gap here is arrival state:", flush=True)
+    _corner_table(rows)
 
     ended_early = [row for row in rows if row["verdict"] != "ok"]
     if ended_early:

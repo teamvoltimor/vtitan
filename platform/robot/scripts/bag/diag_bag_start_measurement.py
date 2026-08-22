@@ -55,8 +55,6 @@ if TYPE_CHECKING:
 
     from src.navigation.ports import LidarScan
 
-_MAT = TrackDimensions.MAX_COORD
-
 
 def _read(bag_dir: Path) -> tuple[list[tuple[float, LidarScan]], list[tuple[float, NavigatorDebugSnapshot]]]:
     """Replay a bag into its (time, scan) and (time, nav_debug) streams."""
@@ -105,7 +103,7 @@ def _verdict(
     blocked = [name for name, value in rays.items() if value is None]
     if blocked:
         return f"blocked:{'+'.join(blocked)}", rays
-    closing = (rays["fwd"] + rays["back"]) - _MAT
+    closing = (rays["fwd"] + rays["back"]) - TrackDimensions.MAX_COORD
     if abs(closing) > closing_tolerance_m:
         return f"closing:{closing:+.2f}", rays
     return "ok", rays

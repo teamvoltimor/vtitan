@@ -25,9 +25,6 @@ from src.navigation.ports import DriveCommand, LidarScan
 from src.ros2.navigation.node import ROS2HardwareGateway
 from tests.ros2.test_navigation_node import _WIDTHS, _make_host_node, _scan_at, _write_metadata
 
-_NARROW = CorridorDimensions.NARROW
-_WIDE = CorridorDimensions.WIDE
-
 # A scan whose side rays give a plausible, axis-aligned 1.0 m corridor reading
 # (left=right=0.5 m at yaw=0.0) -- what measure_corridor_width and
 # DirectionEstimator both need to accept a reading rather than discard it.
@@ -47,7 +44,7 @@ class TestGatewayBeliefUpdate:
 
         from src.navigation.track_geometry import TrackWalls
 
-        gateway.set_believed_walls(TrackWalls(dict.fromkeys(Section, _NARROW)))
+        gateway.set_believed_walls(TrackWalls(dict.fromkeys(Section, CorridorDimensions.NARROW)))
 
         assert gateway._localizer is not before
         node.destroy_node()
@@ -63,7 +60,7 @@ class TestGatewayBeliefUpdate:
         from src.navigation.track_geometry import TrackWalls
         from src.simulation.track_model import TrackModel
 
-        true_widths = dict.fromkeys(Section, _WIDE)
+        true_widths = dict.fromkeys(Section, CorridorDimensions.WIDE)
         truth = (1.5, 0.5)
         # raycast_scan takes a numpy array; estimate_position accepts either.
         angles_arr = np.linspace(-math.pi, math.pi, 360)
@@ -71,7 +68,7 @@ class TestGatewayBeliefUpdate:
         ranges = TrackModel(true_widths).raycast_scan(truth[0], truth[1], 0.0, angles_arr).tolist()
 
         right = LidarLocalizer(TrackWalls(true_widths)).estimate_position(truth, 0.0, ranges, angles)
-        wrong = LidarLocalizer(TrackWalls(dict.fromkeys(Section, _NARROW))).estimate_position(
+        wrong = LidarLocalizer(TrackWalls(dict.fromkeys(Section, CorridorDimensions.NARROW))).estimate_position(
             truth,
             0.0,
             ranges,
@@ -98,7 +95,6 @@ class TestVisionCallbackParsesDetections:
     """
 
     def test_a_real_detections_message_populates_latest_detections(self, ros_context) -> None:
-        import json
 
         from std_msgs.msg import String
 
@@ -177,7 +173,7 @@ class TestBlindPrior:
 
         widths = CorridorWidthEstimator().widths
         assert set(widths) == set(Section)
-        assert all(w == _NARROW for w in widths.values())
+        assert all(w == CorridorDimensions.NARROW for w in widths.values())
 
     def test_nothing_is_marked_observed_before_driving(self) -> None:
         from src.navigation.corridor_estimator import CorridorWidthEstimator
@@ -207,7 +203,7 @@ class TestRunsWithNoScenarioFile:
 
         navigator = TrackNavigator(metadata_path=None, num_laps=3)
         try:
-            waypoints = navigator._plan(dict.fromkeys(Section, _NARROW))
+            waypoints = navigator._plan(dict.fromkeys(Section, CorridorDimensions.NARROW))
             assert len(waypoints) > 4
             # Closes back on itself: a lap, not an out-and-back.
             span_x = max(p.x for p in waypoints) - min(p.x for p in waypoints)
@@ -460,7 +456,7 @@ class TestAssumedStartConditions:
         expected = start_pose(
             Section.SOUTH,
             Direction.CLOCKWISE,
-            dict.fromkeys(("north", "south", "east", "west"), _NARROW),
+            dict.fromkeys(("north", "south", "east", "west"), CorridorDimensions.NARROW),
         )
         assert assumed["position"]["x"] == pytest.approx(expected[0])
         assert assumed["position"]["y"] == pytest.approx(expected[1])

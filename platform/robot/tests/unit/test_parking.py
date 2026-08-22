@@ -43,9 +43,6 @@ from tests.test_constants import (
     PARKING_WEST_BLOCK2,
 )
 
-_CW = Direction.CLOCKWISE
-_CCW = Direction.COUNTERCLOCKWISE
-
 _SOUTH_CFG = ParkingLotFixtures.south()
 _NORTH_CFG = ParkingLotFixtures.north()
 _EAST_CFG = ParkingLotFixtures.east()
@@ -71,7 +68,7 @@ class TestBuildZone:
             lot.block1_position,
             lot.block2_position,
             Section.SOUTH,
-            _CCW,
+            Direction.COUNTERCLOCKWISE,
         )
 
     def test_south_bay_centre(self):
@@ -95,14 +92,14 @@ class TestBuildZone:
     @pytest.mark.parametrize(
         "section,lot,direction,expected_yaw",
         [
-            (Section.SOUTH, _SOUTH_CFG, _CW, math.pi),
-            (Section.SOUTH, _SOUTH_CFG, _CCW, 0.0),
-            (Section.NORTH, _NORTH_CFG, _CW, 0.0),
-            (Section.NORTH, _NORTH_CFG, _CCW, math.pi),
-            (Section.EAST, _EAST_CFG, _CW, math.pi / 2),
-            (Section.EAST, _EAST_CFG, _CCW, -math.pi / 2),
-            (Section.WEST, _WEST_CFG, _CW, -math.pi / 2),
-            (Section.WEST, _WEST_CFG, _CCW, math.pi / 2),
+            (Section.SOUTH, _SOUTH_CFG, Direction.CLOCKWISE, math.pi),
+            (Section.SOUTH, _SOUTH_CFG, Direction.COUNTERCLOCKWISE, 0.0),
+            (Section.NORTH, _NORTH_CFG, Direction.CLOCKWISE, 0.0),
+            (Section.NORTH, _NORTH_CFG, Direction.COUNTERCLOCKWISE, math.pi),
+            (Section.EAST, _EAST_CFG, Direction.CLOCKWISE, math.pi / 2),
+            (Section.EAST, _EAST_CFG, Direction.COUNTERCLOCKWISE, -math.pi / 2),
+            (Section.WEST, _WEST_CFG, Direction.CLOCKWISE, -math.pi / 2),
+            (Section.WEST, _WEST_CFG, Direction.COUNTERCLOCKWISE, math.pi / 2),
         ],
     )
     def test_target_yaw_is_parallel_to_the_wall_and_matches_travel(
@@ -129,7 +126,7 @@ class TestBuildZone:
             (Section.EAST, _EAST_CFG),
             (Section.WEST, _WEST_CFG),
         ):
-            for direction in (_CW, _CCW):
+            for direction in (Direction.CLOCKWISE, Direction.COUNTERCLOCKWISE):
                 z = _build_zone(lot.block1_position, lot.block2_position, section, direction)
                 wall_normal = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
                 err = abs(_normalise_angle(z.target_yaw - wall_normal))
@@ -140,7 +137,7 @@ class TestBuildZone:
 
 
 class TestInsideZone:
-    def _zone(self, direction=_CCW):
+    def _zone(self, direction=Direction.COUNTERCLOCKWISE):
         return _build_zone(_bp(*PARKING_SOUTH_BLOCK1), _bp(*PARKING_SOUTH_BLOCK2), Section.SOUTH, direction)
 
     def _bay_centre(self, z):
@@ -250,7 +247,7 @@ def _simulate_park(
     start_pos: tuple[float, float],
     start_yaw: float,
     max_steps: int = 800,
-    direction: Direction = _CCW,
+    direction: Direction = Direction.COUNTERCLOCKWISE,
 ) -> ParkRun:
     """Real Ackermann bicycle-model simulation (matches the production sim/hardware).
 
@@ -363,7 +360,7 @@ for _section, _cfg in (
     (Section.EAST, _EAST_CFG),
     (Section.WEST, _WEST_CFG),
 ):
-    _zone = _build_zone(_cfg.block1_position, _cfg.block2_position, _section, _CCW)
+    _zone = _build_zone(_cfg.block1_position, _cfg.block2_position, _section, Direction.COUNTERCLOCKWISE)
     _staging = _staging_pos(_zone, _section, _PARKING_CONTEXT)
     if _section in (Section.SOUTH, Section.NORTH):
         _sign = 1.0 if _section is Section.SOUTH else -1.0
@@ -426,11 +423,11 @@ def test_degenerate_approach_still_parks(section):
 
 class TestParkControllerBasics:
     def test_not_done_initially(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, Direction.COUNTERCLOCKWISE)
         assert not ctrl.is_done
 
     def test_done_returns_zero_speed(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, Direction.COUNTERCLOCKWISE)
         # Hold the robot at a genuinely parked pose: the lot centre, wall-parallel. Taken
         # from the zone rather than hardcoded, so it stays a parked pose if the geometry
         # moves (the old literal was a perpendicular pose that no longer qualifies).
@@ -445,7 +442,7 @@ class TestParkControllerBasics:
         assert cmd2.done
 
     def test_far_robot_drives_nonzero_speed(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, Direction.COUNTERCLOCKWISE)
         cmd = ctrl.update(Pose(1.15, 2.5, 0.0))
         assert cmd.linear > 0
         assert not cmd.done
@@ -459,7 +456,7 @@ class TestParkControllerTimeout:
     def test_unreachable_target_times_out_instead_of_running_forever(self):
         # Robot held exactly on the far side of the field, never approaching
         # the zone (a stand-in for "wedged, can't make progress").
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=50)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, Direction.COUNTERCLOCKWISE, max_frames=50)
 
         for _ in range(51):
             cmd = ctrl.update(Pose(2.9, 2.9, 0.0))
@@ -470,7 +467,7 @@ class TestParkControllerTimeout:
         assert cmd.steering == 0.0
 
     def test_successful_park_is_not_flagged_as_timed_out(self):
-        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, _CCW, max_frames=400)
+        ctrl = ParkController(_SOUTH_CFG, Section.SOUTH, Direction.COUNTERCLOCKWISE, max_frames=400)
         parked_pose = Pose(ctrl.zone.gap_cx, ctrl.zone.gap_cy, ctrl.zone.target_yaw)
         for _ in range(400):
             cmd = ctrl.update(parked_pose)

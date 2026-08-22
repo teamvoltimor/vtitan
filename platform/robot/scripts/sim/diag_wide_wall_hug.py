@@ -42,7 +42,6 @@ from src.simulation.imu_error_model import SensorErrors
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _STARTS = list(product(Section, Direction))
 
 _REAL_ERRORS = SensorErrors(
@@ -78,7 +77,7 @@ def _run(args: tuple[int, int, bool]) -> _WideWallResult:
     meta = build_open_metadata(uniform_widths(width_mm), section, direction)
     result = ScenarioSimulator(
         meta,
-        num_laps=_N_LAPS,
+        num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
         sensor_errors=_REAL_ERRORS if with_errors else SensorErrors(),
     ).run()
     label = f"{section.value:>5}/{'CW' if direction is Direction.CLOCKWISE else 'CCW':<3}"

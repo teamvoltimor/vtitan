@@ -75,8 +75,6 @@ _GAP_CLEAR = SIGN_ACTIVATION_DIST + 0.2
 _GAP_PASSED = SIGN_PASSED_DIST + 0.2
 """Comfortably beyond the distance at which a sign counts as passed."""
 
-LATERAL = SIGN_LATERAL_OFFSET
-
 
 @pytest.fixture()
 def router_config(tuning_constants):
@@ -171,7 +169,6 @@ class TestOutwardLateralAxis:
 
 # WRO official grid: 6 positions per corridor
 # (depth, width) using SOUTH-corridor frame, depth ∈ {1.0, 1.5, 2.0}, width ∈ {0.4, 0.6}
-_GRID_POSITIONS = SIGN_GRID_POSITIONS
 
 # WRO 36 predefined scenarios: scenario ID → list of (color, depth, width) for SOUTH template
 # Scenarios 1-12: single pillar
@@ -211,7 +208,7 @@ def _make_single_sign_scenario_cases():
     For EAST/WEST corridors: waypoint is on the expected x side.
     """
     cases = []
-    for depth, width in _GRID_POSITIONS:
+    for depth, width in SIGN_GRID_POSITIONS:
         for color in ("red", "green"):
             # SOUTH corridor: sign at (depth, width). Outward = south (lower y).
             sx, sy = depth, width
@@ -1075,7 +1072,7 @@ class TestCameraDetectionOverridesGroundTruth:
             "green",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         expected_if_red = _apply_deformation(
             (sx, sy),
@@ -1083,7 +1080,7 @@ class TestCameraDetectionOverridesGroundTruth:
             "red",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         assert result == pytest.approx(expected_if_green, abs=1e-6)
         assert result != pytest.approx(expected_if_red, abs=1e-6)
@@ -1122,7 +1119,7 @@ class TestDeformationClamping:
             "red",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         assert wx == pytest.approx(1.5)
         assert wy < 1.0, "deformed waypoint must stay below the inner square"
@@ -1137,7 +1134,7 @@ class TestDeformationClamping:
             "green",
             Section.SOUTH,
             Direction.COUNTERCLOCKWISE,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         assert wx == pytest.approx(1.5)
         assert wy >= 0.0, "deformed waypoint must stay on the track"
@@ -1153,7 +1150,7 @@ class TestDeformationClamping:
             "red",
             Section.EAST,
             Direction.COUNTERCLOCKWISE,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         assert wy == pytest.approx(1.5)
         assert wx > 2.0, "deformed waypoint must stay clear of the inner square"
@@ -1195,7 +1192,7 @@ class TestPassSideRule:
             color,
             section,
             direction,
-            LATERAL,
+            SIGN_LATERAL_OFFSET,
         )
         ox, oy = _OUTWARD_DIR[section]
         outward_component = ox * (wx - sign.x) + oy * (wy - sign.y)

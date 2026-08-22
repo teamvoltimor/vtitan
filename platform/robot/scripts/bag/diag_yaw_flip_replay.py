@@ -41,7 +41,6 @@ _RESIDUAL_CLIP_M = 0.25
 _DEFAULT_SEED_X_M = 1.5
 _DEFAULT_SEED_Y_M = 0.25
 _DEFAULT_UNTIL_S = 8.0
-_YAW_FLIP_OFFSET_RAD = math.pi
 _DOWNSAMPLE_FACTOR = 8
 
 
@@ -117,7 +116,7 @@ def main() -> None:
 
     variants = (
         ("as-believed", 0.0, False),
-        ("flipped +pi", _YAW_FLIP_OFFSET_RAD, False),
+        ("flipped +pi", math.pi, False),
         ("as-believed/per-tick walls", 0.0, True),
     )
     for label, offset, per_tick in variants:

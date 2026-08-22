@@ -41,8 +41,7 @@ from src.navigation.race_tracker import TRAVEL_DIRS
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
-_TRACK_MAX = TrackDimensions.MAX_COORD
-_TRACK_CENTER = _TRACK_MAX / 2
+_TRACK_CENTER = TrackDimensions.MAX_COORD / 2
 
 CANONICAL_SECTION = Section.canonical()
 """The section a robot assumes when it has not been told which one it is in.
@@ -75,8 +74,8 @@ def start_pose(
     # Same signs as calculate_waypoints, so the assumed start sits on the
     # path the robot is about to be given rather than beside it.
     south_cy = widths_m["south"] / 2 + center_bias_m
-    north_cy = _TRACK_MAX - widths_m["north"] / 2 - center_bias_m
-    east_cx = _TRACK_MAX - widths_m["east"] / 2 - center_bias_m
+    north_cy = TrackDimensions.MAX_COORD - widths_m["north"] / 2 - center_bias_m
+    east_cx = TrackDimensions.MAX_COORD - widths_m["east"] / 2 - center_bias_m
     west_cx = widths_m["west"] / 2 + center_bias_m
     center = {
         Section.SOUTH: (_TRACK_CENTER, south_cy),

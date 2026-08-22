@@ -50,13 +50,6 @@ if TYPE_CHECKING:
 
     from shared.config.navigation_tuning import NavigationTuning
 
-_NARROW = CorridorDimensions.NARROW
-_WIDE = CorridorDimensions.WIDE
-
-_DECISION_BOUNDARY = (_NARROW + _WIDE) / 2.0
-"""0.8 m — the only threshold needed, halfway between the two legal widths."""
-
-
 def measure_corridor_width(
     ranges_m: Sequence[float],
     angles_rad: Sequence[float],
@@ -80,8 +73,8 @@ def measure_corridor_width(
     """
     tuning = get_tuning(tuning)
     margin = tuning.corridor_estimator.PLAUSIBLE_WIDTH_MARGIN_M
-    min_plausible_width = _NARROW - margin
-    max_plausible_width = _WIDE + margin
+    min_plausible_width = CorridorDimensions.NARROW - margin
+    max_plausible_width = CorridorDimensions.WIDE + margin
 
     # Heading error against the nearest track axis; corridors always run along one.
     axis_error = wrap_angle(yaw - round(yaw / (math.pi / 2)) * (math.pi / 2))
@@ -104,9 +97,13 @@ def measure_corridor_width(
     return None
 
 
-def classify_width(width_m: float) -> float:
-    """Snap a raw measurement to whichever of the two legal widths it is."""
-    return _NARROW if width_m < _DECISION_BOUNDARY else _WIDE
+def classify_width(width_m: float, tuning: NavigationTuning | None = None) -> float:
+    """Snap a raw measurement to whichever of the two legal widths it is.
+
+    Uses tuning: corridor_estimator.DECISION_BOUNDARY_M
+    """
+    boundary = get_tuning(tuning).corridor_estimator.DECISION_BOUNDARY_M
+    return CorridorDimensions.NARROW if width_m < boundary else CorridorDimensions.WIDE
 
 
 def section_from_heading(yaw: float, direction: Direction) -> Section:
@@ -175,14 +172,16 @@ class CorridorWidthEstimator:
     def __init__(
         self,
         min_samples: int | None = None,
-        assumed_width: float = _NARROW,
+        assumed_width: float = CorridorDimensions.NARROW,
         tuning: NavigationTuning | None = None,
         *,
         fixed: bool = False,
     ) -> None:
+        resolved_tuning = get_tuning(tuning)
         if min_samples is None:
-            min_samples = get_tuning(tuning).corridor_estimator.MIN_SAMPLES
+            min_samples = resolved_tuning.corridor_estimator.MIN_SAMPLES
         self._min_samples = min_samples
+        self._decision_boundary = resolved_tuning.corridor_estimator.DECISION_BOUNDARY_M
         self._fixed = fixed
         self._widths: dict[Section, float] = dict.fromkeys(Section, assumed_width)
         self._observed: set[Section] = set()
@@ -238,11 +237,11 @@ class CorridorWidthEstimator:
             return False
 
         votes = self._votes[section]
-        votes[1 if measured >= _DECISION_BOUNDARY else 0] += 1
+        votes[1 if measured >= self._decision_boundary else 0] += 1
         if sum(votes) < self._min_samples:
             return False
 
-        verdict = _WIDE if votes[1] > votes[0] else _NARROW
+        verdict = CorridorDimensions.WIDE if votes[1] > votes[0] else CorridorDimensions.NARROW
         self._observed.add(section)
         if math.isclose(self._widths[section], verdict):
             return False

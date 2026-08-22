@@ -50,7 +50,6 @@ if TYPE_CHECKING:
 
 _MAP_FRAME = "map"
 _ROBOT_FRAME = "base_link"
-_WALL_THICKNESS_M = WallSpecs.THICKNESS
 
 
 def _yaw_to_quaternion(yaw: float) -> Quaternion:
@@ -240,7 +239,7 @@ class LiveScenarioVisualizer(Node):
         m.id = 0
         m.type = Marker.LINE_STRIP
         m.action = Marker.ADD
-        m.scale.x = _WALL_THICKNESS_M
+        m.scale.x = WallSpecs.THICKNESS
         m.color.r, m.color.g, m.color.b, m.color.a = 0.8, 0.8, 0.8, 1.0
         edge = TrackDimensions.MAX_COORD
         for x, y in [(0.0, 0.0), (edge, 0.0), (edge, edge), (0.0, edge), (0.0, 0.0)]:

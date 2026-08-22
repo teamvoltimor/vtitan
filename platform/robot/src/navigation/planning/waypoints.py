@@ -30,10 +30,6 @@ from src.config.tuning_helpers import get_tuning
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
 
-_INNER_MIN = TrackDimensions.CORNER_MIN  # 1.0 m
-_INNER_MAX = TrackDimensions.CORNER_MAX  # 2.0 m
-
-
 def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float) -> PathPlannability:
     """Check whether the chassis fits the narrowest corridor once biased off centre.
 
@@ -199,12 +195,11 @@ def calculate_waypoints(
     east_width = widths[Section.EAST]
     west_width = widths[Section.WEST]
 
-    track_max = TrackDimensions.MAX_COORD
     # Signs put the bias toward the inner block on every side: north and east
     # corridors have the block below/left of them, south and west above/right.
-    north_cy = track_max - north_width / 2 - center_bias_m
+    north_cy = TrackDimensions.MAX_COORD - north_width / 2 - center_bias_m
     south_cy = south_width / 2 + center_bias_m
-    east_cx = track_max - east_width / 2 - center_bias_m
+    east_cx = TrackDimensions.MAX_COORD - east_width / 2 - center_bias_m
     west_cx = west_width / 2 + center_bias_m
 
     # Each corner is sized by the two corridors it joins, so a narrow-to-narrow
@@ -476,7 +471,7 @@ def _validate_bounds(waypoints: list[Waypoint]) -> None:
         ):
             msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls outside the track bounds"
             raise ValueError(msg)
-        if _INNER_MIN < x < _INNER_MAX and _INNER_MIN < y < _INNER_MAX:
+        if TrackDimensions.CORNER_MIN < x < TrackDimensions.CORNER_MAX and TrackDimensions.CORNER_MIN < y < TrackDimensions.CORNER_MAX:
             msg = f"Generated waypoint ({x:.3f}, {y:.3f}) falls inside the restricted inner square"
             raise ValueError(msg)
 
@@ -589,24 +584,24 @@ def corridor_for_position(x: float, y: float) -> Section:
     Returns:
         Section enum for the current corridor.
     """
-    in_x = _INNER_MIN <= x <= _INNER_MAX
-    in_y = _INNER_MIN <= y <= _INNER_MAX
+    in_x = TrackDimensions.CORNER_MIN <= x <= TrackDimensions.CORNER_MAX
+    in_y = TrackDimensions.CORNER_MIN <= y <= TrackDimensions.CORNER_MAX
 
-    if y < _INNER_MIN and in_x:
+    if y < TrackDimensions.CORNER_MIN and in_x:
         return Section.SOUTH
-    if y > _INNER_MAX and in_x:
+    if y > TrackDimensions.CORNER_MAX and in_x:
         return Section.NORTH
-    if x > _INNER_MAX and in_y:
+    if x > TrackDimensions.CORNER_MAX and in_y:
         return Section.EAST
-    if x < _INNER_MIN and in_y:
+    if x < TrackDimensions.CORNER_MIN and in_y:
         return Section.WEST
 
     # Corner: classify by nearest inner-boundary face. Dict insertion order
     # (S, N, E, W) preserves the original tie-break.
     face_distances = {
-        Section.SOUTH: abs(y - _INNER_MIN),
-        Section.NORTH: abs(y - _INNER_MAX),
-        Section.EAST: abs(x - _INNER_MAX),
-        Section.WEST: abs(x - _INNER_MIN),
+        Section.SOUTH: abs(y - TrackDimensions.CORNER_MIN),
+        Section.NORTH: abs(y - TrackDimensions.CORNER_MAX),
+        Section.EAST: abs(x - TrackDimensions.CORNER_MAX),
+        Section.WEST: abs(x - TrackDimensions.CORNER_MIN),
     }
     return min(face_distances, key=lambda section: face_distances[section])
