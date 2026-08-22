@@ -73,6 +73,13 @@ mypy = ">=1.14,<2"
 types-pyyaml = "*"
 types-requests = "*"
 ros-kilted-ament-cmake   = ">=2.7.4,<3"
+# Needed by tests/unit/test_gazebo_urdf_matches_chassis.py, which expands the
+# Gazebo robot description and checks it still describes this chassis. In dev
+# `import xacro` previously resolved to an EMPTY namespace package (__file__ is
+# None, no process_file), so an importorskip guard was satisfied and the test
+# silently skipped -- exactly the outcome that let an unparseable URDF sit in
+# the tree. Declared here so the check actually runs in CI.
+ros-kilted-xacro         = "*"
 colcon-common-extensions = ">=0.3.0,<0.4"
 cmake                    = ">=4.3.1,<5"
 ninja                    = ">=1.13.2,<2"

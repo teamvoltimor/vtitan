@@ -112,8 +112,15 @@ func GenerateXacro(cfg *Config) string {
 	fmt.Fprintf(&sb, "  <xacro:property name=\"track_width\" value=\"%s\"/>\n", f(cfg.Ackermann.TrackWidth))
 	fmt.Fprintf(
 		&sb,
-		"  <xacro:property name=\"max_steering_angle\" value=\"%s\"/>\n\n",
+		"  <xacro:property name=\"max_steering_angle\" value=\"%s\"/>\n",
 		f(cfg.Steering.MaxSteeringAngle()),
+	)
+	// Reaches the Go constants as RobotRearSteerRatio but was never emitted here, so the
+	// URDF had no way to express counter-phase without restating 1.0 as a literal.
+	fmt.Fprintf(
+		&sb,
+		"  <xacro:property name=\"rear_steer_ratio\" value=\"%s\"/>\n\n",
+		f(cfg.Drivetrain.RearSteerRatio),
 	)
 
 	sb.WriteString("  <!-- Wheel properties -->\n")

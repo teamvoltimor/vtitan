@@ -2250,6 +2250,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-urdfdom-headers-1.1.2-py312h24bf083_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-vision-msgs-4.2.0-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-visualization-msgs-5.5.2-np2py312h2ed9cc7_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-xacro-2.1.1-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312ha80d210_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-zstd-vendor-0.32.0-np2py312h2ed9cc7_19.conda
@@ -2864,6 +2865,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-urdfdom-headers-1.1.2-py312h9804fc4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-vision-msgs-4.2.0-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-visualization-msgs-5.5.2-np2py312h61f2ce4_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-xacro-2.1.1-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312h1cd77a6_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-zstd-vendor-0.32.0-np2py312h61f2ce4_19.conda
@@ -3395,6 +3397,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-urdfdom-headers-1.1.2-py312h7accfcc_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-vision-msgs-4.2.0-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-visualization-msgs-5.5.2-np2py312hf80f32c_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-xacro-2.1.1-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312hf844956_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-zstd-vendor-0.32.0-np2py312hf80f32c_19.conda
@@ -6578,6 +6581,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-urdfdom-headers-1.1.2-py312h24bf083_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-vision-msgs-4.2.0-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-visualization-msgs-5.5.2-np2py312h2ed9cc7_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-xacro-2.1.1-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312h2ed9cc7_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312ha80d210_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-64/ros-kilted-zstd-vendor-0.32.0-np2py312h2ed9cc7_19.conda
@@ -7242,6 +7246,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-urdfdom-headers-1.1.2-py312h9804fc4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-vision-msgs-4.2.0-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-visualization-msgs-5.5.2-np2py312h61f2ce4_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-xacro-2.1.1-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312h61f2ce4_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312h1cd77a6_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/linux-aarch64/ros-kilted-zstd-vendor-0.32.0-np2py312h61f2ce4_19.conda
@@ -7824,6 +7829,7 @@ environments:
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-urdfdom-headers-1.1.2-py312h7accfcc_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-vision-msgs-4.2.0-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-visualization-msgs-5.5.2-np2py312hf80f32c_19.conda
+      - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-xacro-2.1.1-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-yaml-cpp-vendor-9.1.0-np2py312hf80f32c_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-zenoh-cpp-vendor-0.6.6-np2py312hf844956_19.conda
       - conda: https://conda.anaconda.org/robostack-kilted/win-64/ros-kilted-zstd-vendor-0.32.0-np2py312hf80f32c_19.conda
