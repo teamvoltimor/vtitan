@@ -5,6 +5,7 @@ Replaces dictionaries and raw tuples with type-safe domain objects.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import ClassVar
@@ -36,6 +37,28 @@ class Pose:
     x: float
     y: float
     yaw: float
+
+    def distance_to(self, other: Pose) -> float:
+        """Euclidean distance from this pose to ``other`` (position only)."""
+        return math.hypot(self.x - other.x, self.y - other.y)
+
+    def bearing_to(self, other: Pose) -> float:
+        """Bearing (radians, 0 = forward/+pi/2 = left) from this pose to ``other``."""
+        return math.atan2(other.y - self.y, other.x - self.x)
+
+    def to_local_frame(self, target: Waypoint) -> tuple[float, float]:
+        """Rotate ``target`` into this pose's local frame (x forward, y left)."""
+        dx = target.x - self.x
+        dy = target.y - self.y
+        cos_yaw, sin_yaw = math.cos(self.yaw), math.sin(self.yaw)
+        return (dx * cos_yaw + dy * sin_yaw, -dx * sin_yaw + dy * cos_yaw)
+
+    def sensor_origin(self, mount_x_offset: float) -> Waypoint:
+        """World position of the LIDAR sensor (mounted ``mount_x_offset`` forward)."""
+        return Waypoint(
+            self.x + mount_x_offset * math.cos(self.yaw),
+            self.y + mount_x_offset * math.sin(self.yaw),
+        )
 
 
 @dataclass(slots=True, frozen=True)
