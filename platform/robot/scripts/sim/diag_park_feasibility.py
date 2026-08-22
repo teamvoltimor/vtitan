@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions
+from shared.config.constants import CorridorDimensions, ParkingLotSpecs, RobotSpecs, TrackDimensions, WallSpecs
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.enums import Section
 
@@ -94,9 +94,21 @@ def report_analytic() -> None:
     rows = [(w, w, w + 0.02, w + 0.04) for w in (0.20, 0.18, 0.16, 0.14)]
     print_table(rows, ["width", "m=0", "m=1cm", "m=2cm"])
 
-    print("\nSimulator's outer wall collision margin: 0.04 m (mesh 0.18 vs visual 0.10 thickness).")
-    print("-> to avoid a modelled wall contact the centre must sit >= 0.14 m from the wall,")
-    print(f"   but to be contained in a {_BAY_DEPTH:.2f} m bay it must sit <= 0.10 m from it. Contradiction.")
+    # Derived, not restated. These three numbers were literals until 2026-08-21
+    # and kept printing "mesh 0.18 vs visual 0.10 ... Contradiction" after the
+    # inflation had already been removed from track.toml -- a diagnostic
+    # reporting the bug it was written to expose, rather than the config it
+    # claimed to describe.
+    wall_margin = (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS) / 2
+    clear_of_wall = wall_margin + RobotSpecs.WIDTH / 2
+    contained = _BAY_DEPTH / 2
+    print(
+        f"\nSimulator's outer wall collision margin: {wall_margin:.2f} m "
+        f"(mesh {WallSpecs.COLLISION_THICKNESS:.2f} vs visual {WallSpecs.THICKNESS:.2f} thickness)."
+    )
+    print(f"-> to avoid a modelled wall contact the centre must sit >= {clear_of_wall:.3f} m from the wall,")
+    verdict = "Contradiction." if clear_of_wall > contained else "Compatible."
+    print(f"   but to be contained in a {_BAY_DEPTH:.2f} m bay it must sit <= {contained:.3f} m from it. {verdict}")
 
 
 def _simulate_two_arc(
@@ -193,7 +205,11 @@ def report_shuffle() -> None:
     blocks it or the real geometry does.
     """
     print("\n=== Incremental shuffle park ===\n")
-    for wall_margin, label in ((0.04, "simulator collision mesh"), (0.0, "physical mat")):
+    # Derived from the shipped wall geometry rather than the 0.04 literal this
+    # carried until 2026-08-21 -- with the inflation removed the two arms are
+    # now the same run, which is itself the result worth seeing.
+    sim_margin = (WallSpecs.COLLISION_THICKNESS - WallSpecs.THICKNESS) / 2
+    for wall_margin, label in ((sim_margin, "simulator collision mesh"), (0.0, "physical mat")):
         kin = AckermannKinematics()
         bay_mid_x = (_BAY[0] + _BAY[2]) / 2
         state = AckermannState(x=bay_mid_x, y=TrackDimensions.MAX_COORD - 0.26, yaw=math.pi)
