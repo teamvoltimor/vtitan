@@ -32,30 +32,33 @@ corner_max = 2.0
 [wall]
 height = 0.10
 thickness = 0.10
-# Collision extends 40 mm per side past the visual so the LIDAR cannot see
-# through a wall.
+# Collision geometry matches the visual wall. There is no inflation.
 #
-# DISPUTED 2026-08-21 -- the justification below is false and this value is
-# probably wrong. It read: "The LIDAR sits 30 mm ahead of the chassis front, so
-# 40 mm keeps it >=10 mm outside the visual face even at full contact." The C1
-# is FLUSH with the bumper, not proud of it: [lidar] mount_x_offset = 0.1222 is
+# It was 0.18 until 2026-08-21 -- 40 mm thicker per side than the visual mesh --
+# justified by: "The LIDAR sits 30 mm ahead of the chassis front, so 40 mm keeps
+# it >=10 mm outside the visual face even at full contact." That premise was
+# false. The C1 is FLUSH with the bumper: [lidar] mount_x_offset = 0.1222 is
 # derived as chassis.length/2 - mesh radius (0.15 - 0.0278), so the puck's front
 # tangent lands exactly on the front edge and the sensor can never be inside a
-# wall the chassis has not already entered.
+# wall the chassis has not already entered. The see-through case it guarded
+# against could not arise.
 #
-# What the 40 mm actually costs:
-#   * every corridor behaves 8 cm narrower than spec (13% of a 0.6 m corridor)
-#   * parking is ARITHMETICALLY IMPOSSIBLE -- a 0.194 m chassis in a 0.20 m bay
-#     needs its centre within 0.10 m of the wall, but collision stops it at
-#     0.14 m. The standing 0/16 park rate is this, not the robot.
+# What the 40 mm cost while it stood:
+#   * every corridor behaved 8 cm narrower than spec (13% of a 0.6 m corridor)
+#   * parking was ARITHMETICALLY IMPOSSIBLE -- a 0.194 m chassis in a 0.20 m bay
+#     needs its centre within 0.10 m of the wall, but collision stopped it at
+#     0.14 m. The long-standing 0/16 park rate was that contradiction, not the
+#     chassis and not the servo.
 #
-# NOT reverted yet, deliberately. The simulator also raycasts from the chassis
-# centre rather than the sensor (see simulated_hardware_gateway._refresh_sensors),
-# which over-reports forward clearance by ~12 cm -- the opposite direction. The
-# two may be errors that partially cancel, so dropping this to 0.10 on its own
-# could degrade results before improving them. Change both together and measure
-# a before/after; every pass rate on record was taken with both active.
-collision_thickness = 0.18
+# Landed separately from the matching LIDAR fix (6c727c87), which moved the
+# simulated sensor forward to where it really sits. The two pull opposite ways
+# at the front -- that one shortens forward ranges, this one gives the body back
+# the space it should always have had -- so they are measured apart rather than
+# bundled, or neither could be attributed.
+#
+# Every pass rate recorded before these two changes was taken with both
+# distortions active and is not comparable to anything measured after them.
+collision_thickness = 0.10
 exterior_offset = 0.05
 interior_offset = 0.05
 color = [0.0, 0.0, 0.0]
