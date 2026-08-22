@@ -41,7 +41,7 @@ from shared.config.constants import (
     WallSpecs,
 )
 from shared.config.ros_topics import RosTopicConfig
-from shared.domain.models import SignColor
+from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosition
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -128,10 +128,16 @@ class LiveScenarioVisualizer(Node):
     def set_track(
         self,
         track: TrackModel,
-        sign_positions: list[dict] | None = None,
-        parking_lot: dict | None = None,
+        sign_positions: list[SignPosition] | None = None,
+        parking_lot: ParkingLot | None = None,
     ) -> None:
-        """(Re)publish the track walls, signs, and parking lot — call again per scenario."""
+        """(Re)publish the track walls, signs, and parking lot — call again per scenario.
+
+        Takes the validated models, not the raw metadata dicts these used to
+        be. That moves the int-to-float coercion the marker builders each did
+        by hand onto the model boundary, where it happens once and cannot be
+        forgotten — see :meth:`_sign_marker`.
+        """
         markers = MarkerArray()
         # Clear every previously published marker first. Sign/parking marker IDs are just
         # 0..N-1 within their namespace — switching to a scenario with fewer signs (or no
@@ -145,10 +151,10 @@ class LiveScenarioVisualizer(Node):
             markers.markers.append(self._sign_marker(i, sign))
         if parking_lot is not None:
             markers.markers.append(
-                self._parking_block_marker(10, parking_lot["block1_position"], parking_lot.get("block1_yaw", 0.0)),
+                self._parking_block_marker(10, parking_lot.block1_position, parking_lot.block1_yaw),
             )
             markers.markers.append(
-                self._parking_block_marker(11, parking_lot["block2_position"], parking_lot.get("block2_yaw", 0.0)),
+                self._parking_block_marker(11, parking_lot.block2_position, parking_lot.block2_yaw),
             )
         self._cached_track_markers = markers
         # A new scenario teleports the robot to a new start pose. Wheel roll is
@@ -345,39 +351,44 @@ class LiveScenarioVisualizer(Node):
         m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
         return m
 
-    def _sign_marker(self, index: int, sign: dict) -> Marker:
+    def _sign_marker(self, index: int, sign: SignPosition) -> Marker:
+        """One ground-truth sign.
+
+        The x/y here used to be ``float(sign["x"])`` against a raw dict, and the
+        cast was load-bearing: whole-number coordinates parse from JSON as
+        Python ``int``, and an int assigned to a Point field looks fine
+        in-memory but is reinterpreted bit-for-bit as a float64 by CDR on the
+        wire, collapsing the sign to a near-zero subnormal on the far side.
+        ``SignPosition`` declares them ``float``, so pydantic converts once at
+        the boundary and no marker builder has to remember.
+        """
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "signs"
         m.id = index
         m.type = Marker.CYLINDER
         m.action = Marker.ADD
-        # Whole-number scenario-metadata coordinates parse from JSON as Python int, not
-        # float. Assigning an int straight to a Point field looks fine in-memory (Python
-        # doesn't care), but CDR serialization onto the wire reinterprets its bits as a
-        # float64 instead of converting the value — the sign silently jumps to ~0.0.
-        m.pose.position.x = float(sign["x"])
-        m.pose.position.y = float(sign["y"])
+        m.pose.position.x = sign.x
+        m.pose.position.y = sign.y
         m.pose.position.z = TrafficSignSpecs.Z_POSITION
         m.pose.orientation.w = 1.0
         m.scale.x = TrafficSignSpecs.WIDTH
         m.scale.y = TrafficSignSpecs.DEPTH
         m.scale.z = TrafficSignSpecs.HEIGHT
-        color = TrafficSignSpecs.RED_COLOR if sign["color"] == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
+        color = TrafficSignSpecs.RED_COLOR if sign.color == SignColor.RED else TrafficSignSpecs.GREEN_COLOR
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         return m
 
-    def _parking_block_marker(self, index: int, block: dict, yaw: float) -> Marker:
+    def _parking_block_marker(self, index: int, block: BlockPosition, yaw: float) -> Marker:
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "parking"
         m.id = index
         m.type = Marker.CUBE
         m.action = Marker.ADD
-        # See _sign_marker: JSON-int coordinates must be coerced to float before
-        # reaching a Point field, or CDR serialization corrupts them to ~0.0.
-        m.pose.position.x = float(block["x"])
-        m.pose.position.y = float(block["y"])
+        # See _sign_marker for why these are no longer float()-cast by hand.
+        m.pose.position.x = block.x
+        m.pose.position.y = block.y
         m.pose.position.z = ParkingLotSpecs.Z_POSITION
         m.pose.orientation = _yaw_to_quaternion(yaw)
         m.scale.x = ParkingLotSpecs.LENGTH

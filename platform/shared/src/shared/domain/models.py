@@ -467,6 +467,14 @@ class ParkingLot(BaseModel):
     block1_position: BlockPosition
     block2_position: BlockPosition
 
+    # simgen emits these (randomize.go picks 0 or pi/2 per block) and the SDF
+    # generator orients the real blocks by them, but the model dropped them, so
+    # anything reading the lot through here saw both blocks axis-aligned. The
+    # bay is a slot between two long blocks -- their orientation is what makes
+    # it a slot rather than a gap.
+    block1_yaw: float = 0.0
+    block2_yaw: float = 0.0
+
 
 class ScenarioMetadata(BaseModel):
     """Full scenario description for Open and Obstacles challenges.

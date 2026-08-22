@@ -24,6 +24,7 @@ import pytest
 import rclpy
 from rclpy.serialization import deserialize_message, serialize_message
 from shared.domain.enums import Section
+from shared.domain.models import BlockPosition, ParkingLot, SignPosition
 from visualization_msgs.msg import Marker
 
 from src.simulation.live_visualizer import (
@@ -144,7 +145,9 @@ def test_sign_marker_survives_cdr_roundtrip_with_int_json_coords():
     visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_sign_marker_node")
     try:
         # Whole-number x/y, exactly as json.loads() would hand back from `"x": 1`.
-        sign = {"x": 1, "y": 2, "color": "red"}
+        # Validated rather than constructed, because validation is now the step
+        # that does the int -> float conversion the marker builder used to do.
+        sign = SignPosition.model_validate({"x": 1, "y": 2, "color": "red"})
         marker = visualizer._sign_marker(0, sign)
         roundtripped = deserialize_message(serialize_message(marker), Marker)
         assert roundtripped.pose.position.x == 1.0
@@ -157,10 +160,41 @@ def test_parking_block_marker_survives_cdr_roundtrip_with_int_json_coords():
     init_rclpy_once()
     visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_parking_marker_node")
     try:
-        block = {"x": 3, "y": 2}
+        block = BlockPosition.model_validate({"x": 3, "y": 2})
         marker = visualizer._parking_block_marker(10, block, yaw=0.0)
         roundtripped = deserialize_message(serialize_message(marker), Marker)
         assert roundtripped.pose.position.x == 3.0
         assert roundtripped.pose.position.y == 2.0
     finally:
         visualizer.destroy_node()
+
+
+def test_the_models_are_what_makes_the_int_coordinates_safe():
+    """The guarantee the marker builders now lean on, asserted directly.
+
+    Both builders dropped their float() casts when they started taking models
+    instead of dicts. That is only correct if validation actually converts --
+    if pydantic ever passed an int through, the CDR corruption above would come
+    straight back, and it is silent.
+    """
+    sign = SignPosition.model_validate({"x": 1, "y": 2, "color": "red"})
+    block = BlockPosition.model_validate({"x": 3, "y": 2})
+
+    for value in (sign.x, sign.y, block.x, block.y):
+        assert type(value) is float
+
+
+def test_parking_lot_keeps_the_block_yaws():
+    """simgen randomises these to 0 or pi/2; the model used to drop them.
+
+    A lot with both blocks forced axis-aligned is not the bay the robot has to
+    park in -- the blocks' orientation is what makes it a slot.
+    """
+    lot = ParkingLot.model_validate({
+        "block1_position": {"x": 1, "y": 2},
+        "block2_position": {"x": 3, "y": 2},
+        "block1_yaw": math.pi / 2,
+    })
+
+    assert lot.block1_yaw == pytest.approx(math.pi / 2)
+    assert lot.block2_yaw == 0.0, "absent yaw means axis-aligned, not missing"
