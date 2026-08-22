@@ -57,6 +57,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from shared.domain.enums import Direction, Section
+from shared.domain.models import ParkingLot, SignPosition
 
 from src.navigation.track_geometry import corridor_widths_from_metadata
 from src.simulation.imu_error_model import SensorErrors
@@ -239,10 +240,19 @@ def _track_for(metadata: dict[str, Any]) -> TrackModel:
 
 
 def _set_track(visualizer: LiveScenarioVisualizer, metadata: dict[str, Any], track: TrackModel) -> None:
+    """Validate the raw metadata into models, then hand those to the visualizer.
+
+    This is the one place scenario JSON crosses into the drawing code, so it is
+    where the shape gets checked. Passing the dicts through unvalidated is what
+    let whole-number coordinates reach a Point field as ``int`` and serialize
+    to a near-zero subnormal -- a sign drawn inside a wall, with nothing
+    anywhere raising.
+    """
+    parking_lot = metadata.get("parking_lot")
     visualizer.set_track(
         track,
-        sign_positions=metadata["sign_positions"],
-        parking_lot=metadata.get("parking_lot"),
+        sign_positions=[SignPosition.model_validate(sign) for sign in metadata["sign_positions"]],
+        parking_lot=ParkingLot.model_validate(parking_lot) if parking_lot is not None else None,
     )
 
 
