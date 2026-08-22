@@ -56,7 +56,6 @@ class DiagMode(StrEnum):
     PERTURBED = "perturbed"
 
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 _STARTS = list(product(Section, Direction))
@@ -107,7 +106,7 @@ def _run_open(args: tuple[int, int, bool]) -> _OpenResult:
     index, width_mm, localize = args
     section, direction = _STARTS[index]
     meta = build_open_metadata(uniform_widths(width_mm), section, direction)
-    sim = ScenarioSimulator(meta, num_laps=_N_LAPS, use_lidar_localization=localize)
+    sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, use_lidar_localization=localize)
     peak = [0.0]
 
     def on_step(_state: object, _scan: object) -> None:
@@ -169,7 +168,7 @@ def report_obstacles(workers: int) -> None:
             results = list(pool.map(_run_obstacles, [(i, localize) for i in range(count)]))
             collisions = sum(1 for c, _, _ in results if c)
             laps1 = sum(1 for _, laps, _ in results if laps >= 1)
-            laps3 = sum(1 for _, laps, _ in results if laps >= _N_LAPS)
+            laps3 = sum(1 for _, laps, _ in results if laps >= CompetitionSpecs.OPEN_CHALLENGE_LAPS)
             peak = max(p for _, _, p in results)
             pose = "LIDAR-estimated" if localize else "ground truth   "
             print(

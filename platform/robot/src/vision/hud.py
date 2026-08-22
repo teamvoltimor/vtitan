@@ -44,11 +44,6 @@ from src.hardware.settings_base import CONFIG_DIR, ROBOT_ROOT, HardwareBaseSetti
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_FONT = cv2.FONT_HERSHEY_DUPLEX
-"""Duplex, not Simplex -- a cleaner double-stroke face that reads as a modern
-geometric sans at this size, instead of Simplex's single-stroke "typewriter"
-look. cv2 can't load real TTF fonts without extra system libs, so this is the
-built-in ceiling for "professional" rather than a placeholder choice."""
 _RGB = tuple[int, int, int]
 
 
@@ -64,6 +59,12 @@ class HudConfig(HardwareBaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="vision_hud_", toml_file=CONFIG_DIR / "vision" / "hud.toml")
 
+    font_face: int = cv2.FONT_HERSHEY_DUPLEX
+    """Duplex, not Simplex -- a cleaner double-stroke face that reads as a
+    modern geometric sans at this size, instead of Simplex's single-stroke
+    "typewriter" look. cv2 can't load real TTF fonts without extra system
+    libs, so this is the built-in ceiling for "professional" rather than a
+    placeholder choice."""
     font_scale: float = 0.55
     text_thickness: int = 1
     line_height_px: int = 22
@@ -188,7 +189,7 @@ def _control_lines(nav_debug: dict | None) -> list[tuple[str, str]]:
 
 
 def _text_width(text: str, config: HudConfig) -> int:
-    (w, _), _ = cv2.getTextSize(text, _FONT, config.font_scale, config.text_thickness)
+    (w, _), _ = cv2.getTextSize(text, config.font_face, config.font_scale, config.text_thickness)
     return w
 
 
@@ -236,11 +237,11 @@ def _draw_panel(canvas: np.ndarray, rows: list[tuple[str, str]], *, top: bool, l
         if y >= y1:
             break  # panel ran out of room (tiny frame) -- draw what fits, never raise
         cv2.putText(
-            canvas, label, (x0 + config.margin_px, y), _FONT, config.font_scale, config.label_rgb,
+            canvas, label, (x0 + config.margin_px, y), config.font_face, config.font_scale, config.label_rgb,
             config.text_thickness, cv2.LINE_AA,
         )
         cv2.putText(
-            canvas, value, (x0 + value_col_x, y), _FONT, config.font_scale, config.text_rgb,
+            canvas, value, (x0 + value_col_x, y), config.font_face, config.font_scale, config.text_rgb,
             config.text_thickness, cv2.LINE_AA,
         )
 

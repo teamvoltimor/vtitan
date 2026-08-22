@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.simulation.scenario_constants import N_LAPS
+from shared.config.constants import CompetitionSpecs
 
 _FIXTURES_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios"
 
@@ -62,7 +62,7 @@ def _load_fixture_scenarios(
         meta = json.loads(path.read_text())
         sc = meta["starting_conditions"]
         label = f"{label_prefix}_{meta['scenario_id']:04d}[{sc['section']}/{sc['direction']}]"
-        scenarios.append(NamedScenario(label, meta, N_LAPS, seed=meta["scenario_id"]))
+        scenarios.append(NamedScenario(label, meta, CompetitionSpecs.OPEN_CHALLENGE_LAPS, seed=meta["scenario_id"]))
     return scenarios
 
 

@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 # from the default fast test loop (see task robot:test SCOPE=fast).
 pytestmark = pytest.mark.slow
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _WIDE_MM = int(CorridorDimensions.WIDE * 1000)
 
@@ -59,7 +58,7 @@ def _run_with_disturbance(
     meta: dict[str, Any],
     disturbance: PoseDisturbance,
 ) -> tuple[Any, list[float]]:
-    sim = ScenarioSimulator(meta, num_laps=_N_LAPS)
+    sim = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS)
     trace: list[float] = []
 
     def on_step(state: AckermannState, _scan: object) -> None:
@@ -87,7 +86,7 @@ def _assert_recovers(meta: dict[str, Any], disturbance: PoseDisturbance, label: 
         result.success,
         result.collided,
         result.laps_completed,
-        _N_LAPS,
+        CompetitionSpecs.OPEN_CHALLENGE_LAPS,
     )
     assert not result.collided, f"{label}: collided after disturbance at {result.collision_xy}"
     assert result.success, f"{label}: did not complete the round after disturbance"

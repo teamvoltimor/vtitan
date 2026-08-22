@@ -47,7 +47,6 @@ from src.simulation.kinematics import AckermannKinematics
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _STARTS = list(product(Section, Direction))
 
@@ -85,7 +84,7 @@ def _run(args: tuple[Case, int]) -> tuple[bool, int, float]:
     )
     result = ScenarioSimulator(
         meta,
-        num_laps=_N_LAPS,
+        num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS,
         tuning=tuning,
         kinematics=AckermannKinematics(
             max_speed_mps=case.max_speed,
