@@ -494,9 +494,13 @@ class LiveScenarioVisualizer(Node):
         steps INWARD, so the wall stays inside the 1 m x 1 m block and never
         eats into the corridor (the corridor width between the outer wall's
         inner face and this outer face is exactly the planned corridor width --
-        0.6 m on a narrow corridor). The sides overlap by one thickness at the
-        corners so the solid block's corners close cleanly. ids 4..7 follow the
-        outer walls' 0..3.
+        0.6 m on a narrow corridor).
+
+        Corner treatment mirrors :meth:`_outer_wall_markers`: the two X-running
+        walls (north/south) span the full block width so they own the corners,
+        and the two Y-running walls (east/west) stop at their inner faces. The
+        corners close as clean filled 90 deg Ls with no cross. ids 4..7 follow
+        the outer walls' 0..3.
         """
         x_min, y_min, x_max, y_max = track.inner_block_visual
         thickness = WallSpecs.THICKNESS
@@ -504,15 +508,16 @@ class LiveScenarioVisualizer(Node):
         cy = (y_min + y_max) / 2.0
         inner_w = x_max - x_min
         inner_h = y_max - y_min
+        # X-running walls: full block width, thickness stepping inward from the
+        # top/bottom boundary. They own the four corners.
+        along = inner_w
+        # Y-running walls: butt between the top/bottom walls' inner faces.
+        across = inner_h - 2.0 * thickness
         placements = (
-            # north: runs along X, outer face on y_max, thickness inward
-            (4, cx, y_max - thickness / 2.0, inner_w + thickness, thickness),
-            # south: runs along X, outer face on y_min, thickness inward
-            (5, cx, y_min + thickness / 2.0, inner_w + thickness, thickness),
-            # east: runs along Y, outer face on x_max, thickness inward
-            (6, x_max - thickness / 2.0, cy, thickness, inner_h + thickness),
-            # west: runs along Y, outer face on x_min, thickness inward
-            (7, x_min + thickness / 2.0, cy, thickness, inner_h + thickness),
+            (4, cx, y_max - thickness / 2.0, along, thickness),  # north
+            (5, cx, y_min + thickness / 2.0, along, thickness),  # south
+            (6, x_max - thickness / 2.0, cy, thickness, across),  # east
+            (7, x_min + thickness / 2.0, cy, thickness, across),  # west
         )
         return [self._wall_marker(index, x, y, size_x, size_y) for index, x, y, size_x, size_y in placements]
 
