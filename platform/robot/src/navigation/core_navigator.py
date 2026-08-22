@@ -1296,19 +1296,19 @@ class CoreNavigator:
             # a wall or block edge from the side or even slightly behind the direction of
             # travel, not just from in front.
             #
-            # CONTACT_DIST alone isn't a safe threshold here: LIDAR range is measured from
-            # roughly the chassis centre, but the chassis itself extends up to WIDTH/2
-            # (0.10m) or LENGTH/2 (0.15m) from that centre depending on bearing -- a raw
-            # centre-to-obstacle reading of CONTACT_DIST can already mean the footprint
-            # edge, not just the sensor, has reached the obstacle. Pad by the chassis
-            # half-width so the gate reacts while there's still real clearance left.
+            # CONTACT_DIST alone isn't a safe threshold here: the chassis extends up to
+            # WIDTH/2 (0.10m) or LENGTH/2 (0.15m) from its centre depending on bearing, so a
+            # raw range reading of CONTACT_DIST can already mean the footprint edge, not just
+            # the sensor, has reached the obstacle. Pad by the chassis half-width so the gate
+            # reacts while there's still real clearance left.
             #
-            # CONTACT_DIST alone isn't a safe threshold here: LIDAR range is measured from
-            # roughly the chassis centre, but the chassis itself extends up to WIDTH/2
-            # (0.10m) or LENGTH/2 (0.15m) from that centre depending on bearing -- a raw
-            # centre-to-obstacle reading of CONTACT_DIST can already mean the footprint
-            # edge, not just the sensor, has reached the obstacle. Pad by the chassis
-            # half-width so the gate reacts while there's still real clearance left.
+            # NOTE (2026-08-21): this pad was written when rays were modelled as leaving the
+            # chassis CENTRE. Since 6c727c87 they leave the LIDAR, 0.1222m forward and flush
+            # with the bumper, so a FORWARD range now already excludes the front half of the
+            # car and this pad is conservative there rather than necessary. Lateral bearings
+            # are unchanged -- a forward shift does not alter perpendicular distance to a side
+            # wall -- so the pad is still exactly right for them. Left in place deliberately:
+            # re-tuning it belongs with the clearance recalibration, not with a geometry fix.
             #
             # This applies in both phases, including ENTER: a smaller pad there still let
             # the chassis clip a block edge in testing (the WRO-regulation gap is only
