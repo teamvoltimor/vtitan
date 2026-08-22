@@ -47,6 +47,7 @@ from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosit
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
+from src.config.rviz_visualization import Rgb, RvizVisualizationConfig
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import wrap_angle
 from src.ros2.qos import QOS_STREAM
@@ -62,17 +63,13 @@ if TYPE_CHECKING:
     from src.simulation.kinematics import AckermannState, WheelPose
     from src.simulation.track_model import TrackModel
 
-_FRONT_AXLE_COLOR = (0.0, 0.9, 0.9)
-_REAR_AXLE_COLOR = (1.0, 0.5, 0.0)
-"""Steer-arrow colours, per axle. The two axles turn in OPPOSITE directions on
-this chassis, so colouring them apart is what makes the counter-phase legible
-at a glance instead of looking like one axle drawn twice."""
 
-_FLOOR_LINE_THICKNESS = StartingZoneSpecs.THICKNESS * 3
-"""RViz floor-marking line width.
-
-The spec says 1 mm, but that renders as a hairline at typical viewing distances.
-Scale it up for visibility while keeping it recognisably a printed line."""
+def _apply_color(marker: Marker, color: Rgb, alpha: float = 1.0) -> None:
+    """Set a Marker's RGBA from an :class:`Rgb`, avoiding bare-tuple unpacking."""
+    marker.color.r = color.r
+    marker.color.g = color.g
+    marker.color.b = color.b
+    marker.color.a = alpha
 
 
 def _yaw_to_quaternion(yaw: float) -> Quaternion:
@@ -135,8 +132,16 @@ class LiveScenarioVisualizer(Node):
     reconnecting RViz subscriber can otherwise miss that first publish entirely and never
     show the markers, since a plain volatile-QoS publish isn't retained for late joiners."""
 
-    def __init__(self, track: TrackModel, node_name: str = "sim_live_visualizer") -> None:
+    def __init__(
+        self,
+        track: TrackModel,
+        node_name: str = "sim_live_visualizer",
+        rviz: RvizVisualizationConfig | None = None,
+    ) -> None:
         super().__init__(node_name)
+        # Resolved once, not per tick: load_default() re-reads and re-validates
+        # the TOML, which is not something to do at 20 Hz inside the scan path.
+        self._rviz = rviz or RvizVisualizationConfig.load_default()
         topics = RosTopicConfig.load_default()
         self._odom_pub = self.create_publisher(Odometry, topics.simulation.odom, QOS_STREAM)
         self._scan_pub = self.create_publisher(
@@ -469,9 +474,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = size_x
         m.scale.y = size_y
         m.scale.z = WallSpecs.HEIGHT
-        # Deliberately NOT WallSpecs.COLOR. That is black, which is right for
-        # the Gazebo render and invisible against RViz's dark grey background.
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.8, 0.8, 0.8, 1.0
+        m.color.r, m.color.g, m.color.b, m.color.a = *WallSpecs.COLOR, 1.0
         return m
 
     def _inner_block_marker(self, track: TrackModel) -> Marker:
@@ -493,23 +496,33 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = x_max - x_min
         m.scale.y = y_max - y_min
         m.scale.z = WallSpecs.HEIGHT
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
+        m.color.r, m.color.g, m.color.b, m.color.a = *WallSpecs.COLOR, 1.0
         return m
 
+    def _floor_line_thickness(self) -> float:
+        """RViz floor-marking line width.
+
+        The spec says 1 mm, but that renders as a hairline at typical viewing
+        distances. Scale it up for visibility while keeping it recognisably a
+        printed line -- see ``RvizVisualizationConfig.floor_line_thickness_factor``.
+        """
+        return StartingZoneSpecs.THICKNESS * self._rviz.floor_line_thickness_factor
+
     def _floor_marker(self) -> Marker:
-        """Opaque white floor plane under the track.
+        """White mat surface under the track.
 
         RViz's default grid is helpful, but a white mat surface makes the walls,
         inner block and floor markings read as printed features rather than
         floating lines. Drawn first and placed slightly below z=0 so all line
         markings render on top of it without z-fighting.
 
-        The cube is deliberately thick (1 cm) rather than paper-thin: a 1 mm
-        slab viewed from a shallow angle disappears because its top face is
-        nearly edge-on, while a thicker block keeps side faces visible.
+        Kept thin (config-driven ``floor_thickness``): a thick slab's side faces
+        read as an opaque wall at shallow viewing angles and swamp the mat
+        colour. The thin top face nearly disappears edge-on at extreme angles,
+        but that beats the slab looking solid white from the diagonal.
         """
         size = TrackDimensions.MAX_COORD - TrackDimensions.MIN_COORD
-        thickness = 0.01
+        thickness = self._rviz.floor_thickness
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "floor"
@@ -524,7 +537,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = size
         m.scale.y = size
         m.scale.z = thickness
-        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 1.0, 1.0
+        _apply_color(m, self._rviz.colors.floor, self._rviz.floor_alpha)
         return m
 
     def _floor_marking_markers(self, track: TrackModel) -> list[Marker]:
@@ -573,7 +586,7 @@ class LiveScenarioVisualizer(Node):
         outline.id = base_id
         outline.type = Marker.LINE_STRIP
         outline.action = Marker.ADD
-        outline.scale.x = _FLOOR_LINE_THICKNESS * 2
+        outline.scale.x = self._floor_line_thickness() * 2
         outline.color.r, outline.color.g, outline.color.b, outline.color.a = *StartingZoneSpecs.COLOR, 1.0
         for x, y in [*corners, corners[0]]:
             p = Point()
@@ -608,7 +621,7 @@ class LiveScenarioVisualizer(Node):
         m.id = marker_id
         m.type = Marker.LINE_LIST
         m.action = Marker.ADD
-        m.scale.x = _FLOOR_LINE_THICKNESS
+        m.scale.x = self._floor_line_thickness()
         m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
         for x, y in (start, end):
             p = Point()
@@ -670,8 +683,8 @@ class LiveScenarioVisualizer(Node):
         m.id = index
         m.type = Marker.LINE_STRIP
         m.action = Marker.ADD
-        m.scale.x = _FLOOR_LINE_THICKNESS
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.0, 1.0
+        m.scale.x = self._floor_line_thickness()
+        _apply_color(m, self._rviz.colors.sign_floor_marking, 1.0)
         for x, y in [*corners, corners[0]]:
             p = Point()
             p.x, p.y, p.z = x, y, 0.0
@@ -689,8 +702,8 @@ class LiveScenarioVisualizer(Node):
         m.id = index + 1000
         m.type = Marker.LINE_STRIP
         m.action = Marker.ADD
-        m.scale.x = _FLOOR_LINE_THICKNESS
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.0, 1.0
+        m.scale.x = self._floor_line_thickness()
+        _apply_color(m, self._rviz.colors.sign_floor_marking, 1.0)
         for i in range(segments + 1):
             angle = 2.0 * math.pi * i / segments
             p = Point()
@@ -795,7 +808,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = m.scale.y = 2.0 * RobotSpecs.WHEEL_RADIUS
         m.scale.z = RobotSpecs.WHEEL_WIDTH
         # Same dark_rubber the URDF gives its wheel visuals.
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.1, 0.1, 0.1, 1.0
+        _apply_color(m, self._rviz.colors.wheel_rubber, 1.0)
         return m
 
     def _wheel_spoke_marker(self, index: int, wheel: WheelPose) -> Marker:
@@ -823,7 +836,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = 2.0 * RobotSpecs.WHEEL_RADIUS  # a full diameter, in the wheel's plane
         m.scale.y = 0.008  # stripe width
         m.scale.z = RobotSpecs.WHEEL_WIDTH * 1.1  # proud of both sidewalls
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.9, 0.9, 0.35, 1.0
+        _apply_color(m, self._rviz.colors.wheel_spoke, 1.0)
         return m
 
     def _wheel_steer_marker(self, index: int, wheel: WheelPose) -> Marker:
@@ -849,8 +862,8 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = 2.0 * RobotSpecs.WHEEL_RADIUS  # shaft length: one wheel diameter
         m.scale.y = 0.012  # shaft diameter
         m.scale.z = 0.012  # head diameter
-        color = _FRONT_AXLE_COLOR if wheel.name.startswith("front") else _REAR_AXLE_COLOR
-        m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
+        color = self._rviz.colors.front_axle_arrow if wheel.name.startswith("front") else self._rviz.colors.rear_axle_arrow
+        _apply_color(m, color, 1.0)
         return m
 
     def _chassis_marker(self) -> Marker:
@@ -868,7 +881,7 @@ class LiveScenarioVisualizer(Node):
         # Alpha well below half on purpose: the wheels sit INSIDE this box (see
         # _wheel_marker), so at the old 0.6 the running gear was there but not
         # readable through the body.
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.0, 0.0, 0.8, 0.3
+        _apply_color(m, self._rviz.colors.chassis, self._rviz.chassis_alpha)
         return m
 
     def _robot_lidar_marker(self) -> Marker:
@@ -887,7 +900,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = RobotSpecs.LIDAR_DIAMETER
         m.scale.y = RobotSpecs.LIDAR_DIAMETER
         m.scale.z = RobotSpecs.LIDAR_HEIGHT
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.1, 0.1, 0.1, 1.0
+        _apply_color(m, self._rviz.colors.lidar, 1.0)
         return m
 
     def _camera_marker(self, orientation: Quaternion) -> Marker:
@@ -901,7 +914,7 @@ class LiveScenarioVisualizer(Node):
         m.pose.position.z = RobotSpecs.CAMERA_MOUNT_Z_OFFSET
         m.pose.orientation = orientation
         m.scale.x = m.scale.y = m.scale.z = 0.025
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.2, 0.2, 0.2, 1.0
+        _apply_color(m, self._rviz.colors.camera, 1.0)
         return m
 
     def _camera_facing_marker(self, orientation: Quaternion) -> Marker:
@@ -919,7 +932,7 @@ class LiveScenarioVisualizer(Node):
         m.scale.x = 0.15  # shaft length
         m.scale.y = 0.02  # shaft diameter
         m.scale.z = 0.02  # head diameter
-        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 0.0, 1.0
+        _apply_color(m, self._rviz.colors.camera_facing, 1.0)
         return m
 
 
