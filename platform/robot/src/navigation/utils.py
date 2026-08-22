@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+import numpy as np
 from shared.config.constants import RobotSpecs
 
 from src.config.tuning_helpers import get_tuning
@@ -163,6 +164,30 @@ def _forward_clearance(ranges_m: Sequence[float], angles_rad: Sequence[float], t
         if abs(wrap_angle(a)) <= arc_rad and r > min_valid
     ]
     return min(forward) if forward else math.inf
+
+
+def _wedge_median(
+    ranges_m: Sequence[float],
+    angles_rad: Sequence[float],
+    center_rad: float,
+    half_width_rad: float,
+    min_valid_range_m: float = 0.0,
+    self_detection_threshold_m: float | None = None,
+) -> float | None:
+    """Median valid range in a wedge about ``center_rad``, or ``None`` if none.
+
+    Median rather than mean or minimum: a mean is dragged by the occasional
+    max-range no-return, and a minimum reports whatever speck is nearest rather
+    than the wall the wedge is pointed at.
+    """
+    valid = [
+        r
+        for r, a in zip(ranges_m, angles_rad, strict=False)
+        if abs(wrap_angle(a - center_rad)) <= half_width_rad
+        and r > min_valid_range_m
+        and (self_detection_threshold_m is None or r > self_detection_threshold_m)
+    ]
+    return float(np.median(valid)) if valid else None
 
 
 def _local_frame(robot_pos: Waypoint, robot_yaw: float, target: Waypoint) -> tuple[float, float]:
