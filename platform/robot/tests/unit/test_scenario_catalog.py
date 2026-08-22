@@ -28,9 +28,11 @@ def test_find_scenario_by_index() -> None:
     assert find_scenario("27", scenarios) is scenarios[27]
 
 
-def test_find_scenario_by_index_out_of_range_raises() -> None:
-    with pytest.raises(ValueError, match="out of range"):
-        find_scenario("99", all_test_scenarios())
+def test_find_scenario_by_index_wraps_modulo() -> None:
+    scenarios = all_test_scenarios()
+    assert find_scenario("28", scenarios) is scenarios[0]
+    assert find_scenario("56", scenarios) is scenarios[0]
+    assert find_scenario("29", scenarios) is scenarios[1]
 
 
 def test_find_scenario_by_unique_label_substring() -> None:
