@@ -28,7 +28,7 @@ import time
 from typing import TYPE_CHECKING
 
 import rclpy
-from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
+from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
@@ -139,7 +139,7 @@ class LiveScenarioVisualizer(Node):
         # rendered at positions that belong to a different track layout entirely (e.g. sitting
         # on/through the new track's wall).
         markers.markers.append(Marker(action=Marker.DELETEALL))
-        markers.markers.append(self._outer_boundary_marker())
+        markers.markers.extend(self._outer_wall_markers())
         markers.markers.append(self._inner_block_marker(track))
         for i, sign in enumerate(sign_positions or []):
             markers.markers.append(self._sign_marker(i, sign))
@@ -277,18 +277,50 @@ class LiveScenarioVisualizer(Node):
         msg.ranges = list(scan.ranges_m)
         return msg
 
-    def _outer_boundary_marker(self) -> Marker:
+    def _outer_wall_markers(self) -> list[Marker]:
+        """The four boundary walls, as real boxes standing on the ground.
+
+        Was a single LINE_STRIP traced along the boundary, which got the walls
+        wrong twice over: a line strip is flat, so they had no height at all
+        and vanished the moment you left the top-down view; and it was centred
+        ON the boundary, drawing half a wall thickness INTO the drivable area.
+
+        Geometry mirrors ``addExteriorWalls`` in
+        ``gazebo/generator/internal/sdf/world.go`` so RViz and the generated
+        SDF describe the same track: centre half a thickness beyond
+        MIN/MAX_COORD, which puts the inner face exactly on the boundary the
+        collision checks use, and length spanning the mat rather than the
+        track, so the corners close.
+        """
+        outer = TrackDimensions.MAX_COORD + WallSpecs.THICKNESS / 2.0
+        inner = TrackDimensions.MIN_COORD - WallSpecs.THICKNESS / 2.0
+        centre = TrackDimensions.CENTER_COORD
+        span = TrackDimensions.MAT_SIZE + WallSpecs.THICKNESS
+        placements = (
+            (centre, outer, span, WallSpecs.THICKNESS),  # north
+            (centre, inner, span, WallSpecs.THICKNESS),  # south
+            (outer, centre, WallSpecs.THICKNESS, span),  # east
+            (inner, centre, WallSpecs.THICKNESS, span),  # west
+        )
+        return [self._wall_marker(index, *placement) for index, placement in enumerate(placements)]
+
+    def _wall_marker(self, index: int, x: float, y: float, size_x: float, size_y: float) -> Marker:
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "track"
-        m.id = 0
-        m.type = Marker.LINE_STRIP
+        m.id = index
+        m.type = Marker.CUBE
         m.action = Marker.ADD
-        m.scale.x = WallSpecs.THICKNESS
+        m.pose.position.x = x
+        m.pose.position.y = y
+        m.pose.position.z = WallSpecs.HEIGHT / 2.0
+        m.pose.orientation.w = 1.0
+        m.scale.x = size_x
+        m.scale.y = size_y
+        m.scale.z = WallSpecs.HEIGHT
+        # Deliberately NOT WallSpecs.COLOR. That is black, which is right for
+        # the Gazebo render and invisible against RViz's dark grey background.
         m.color.r, m.color.g, m.color.b, m.color.a = 0.8, 0.8, 0.8, 1.0
-        edge = TrackDimensions.MAX_COORD
-        for x, y in [(0.0, 0.0), (edge, 0.0), (edge, edge), (0.0, edge), (0.0, 0.0)]:
-            m.points.append(Point(x=x, y=y, z=0.05))
         return m
 
     def _inner_block_marker(self, track: TrackModel) -> Marker:
@@ -296,16 +328,20 @@ class LiveScenarioVisualizer(Node):
         m = Marker()
         m.header.frame_id = TfFrames.MAP
         m.ns = "track"
-        m.id = 1
+        # 4, not 1: ids 0..3 are the four outer walls now.
+        m.id = 4
         m.type = Marker.CUBE
         m.action = Marker.ADD
         m.pose.position.x = (x_min + x_max) / 2.0
         m.pose.position.y = (y_min + y_max) / 2.0
-        m.pose.position.z = 0.05
+        # Same height as the outer walls, from the same constant — these were
+        # 0.05/0.10 literals, which happened to agree with WallSpecs and would
+        # not have followed it if track.toml changed.
+        m.pose.position.z = WallSpecs.HEIGHT / 2.0
         m.pose.orientation.w = 1.0
         m.scale.x = x_max - x_min
         m.scale.y = y_max - y_min
-        m.scale.z = 0.10
+        m.scale.z = WallSpecs.HEIGHT
         m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
         return m
 
