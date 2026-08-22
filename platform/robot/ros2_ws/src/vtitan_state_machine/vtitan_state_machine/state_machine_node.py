@@ -47,7 +47,7 @@ from shared.config.constants import CompetitionSpecs
 from shared.config.ros_topics import RosTopicConfig
 from std_msgs.msg import Bool, Float32, Int32, String
 
-from src.hardware.settings_base import CONFIG_DIR, HardwareBaseSettings
+from src.hardware.settings_base import CONFIG_DIR, SAFE_SHUTDOWN_BOTH_SCRIPT, HardwareBaseSettings
 from src.ros2.params import declare_and_get_bool_param, declare_and_get_float_param, declare_and_get_int_param
 from src.ros2.qos import QOS_LATCHED_STATE, QOS_LATCHED_STATE_RELIABLE, QOS_LIVE_READOUT, QOS_STREAM
 from src.ros2.resettable_node import ResettableNode
@@ -486,7 +486,7 @@ class StateMachineNode(Node, ResettableNode):
         the state machine down with it, and an operator who gets no shutdown
         still has the same options they had before this existed.
         """
-        script = Path.home() / "vtitan" / "platform" / "robot" / "scripts" / "safe-shutdown-both.sh"
+        script = SAFE_SHUTDOWN_BOTH_SCRIPT
         if not script.is_file():
             self.get_logger().error(f"Cannot shut down: {script} not found")
             return

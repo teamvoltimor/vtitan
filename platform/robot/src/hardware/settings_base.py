@@ -27,6 +27,7 @@ from shared.config.hardware_profile import active_profiles
 # settings_base.py -> hardware -> src -> robot
 ROBOT_ROOT: Path = Path(__file__).resolve().parents[2]
 CONFIG_DIR: Path = ROBOT_ROOT / "config" / "hardware"
+SAFE_SHUTDOWN_BOTH_SCRIPT: Path = ROBOT_ROOT / "scripts" / "provisioning" / "safe-shutdown-both.sh"
 
 
 def _parse_hex_int(value: object) -> object:
