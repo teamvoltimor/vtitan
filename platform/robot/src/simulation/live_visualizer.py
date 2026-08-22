@@ -28,19 +28,21 @@ import time
 from typing import TYPE_CHECKING
 
 import rclpy
-from geometry_msgs.msg import PoseStamped, Quaternion, TransformStamped
+from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from shared.config.constants import (
     ParkingLotSpecs,
     RobotSpecs,
+    StartingZoneSpecs,
     TfFrames,
     TrackDimensions,
     TrafficSignSpecs,
     WallSpecs,
 )
 from shared.config.ros_topics import RosTopicConfig
+from shared.domain.enums import Section
 from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosition
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
@@ -48,6 +50,11 @@ from visualization_msgs.msg import Marker, MarkerArray
 from src.config.tuning_helpers import get_tuning
 from src.navigation.utils import wrap_angle
 from src.ros2.qos import QOS_STREAM
+from src.simulation.floor_markings import (
+    corner_lines,
+    starting_square_band_divisions,
+    starting_square_geometry,
+)
 from src.simulation.kinematics import wheel_poses
 
 if TYPE_CHECKING:
@@ -236,6 +243,7 @@ class LiveScenarioVisualizer(Node):
         markers.markers.append(Marker(action=Marker.DELETEALL))
         markers.markers.extend(self._outer_wall_markers())
         markers.markers.append(self._inner_block_marker(track))
+        markers.markers.extend(self._floor_marking_markers(track))
         for i, sign in enumerate(sign_positions or []):
             markers.markers.append(self._sign_marker(i, sign))
         if parking_lot is not None:
@@ -478,6 +486,95 @@ class LiveScenarioVisualizer(Node):
         m.scale.y = y_max - y_min
         m.scale.z = WallSpecs.HEIGHT
         m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
+        return m
+
+    def _floor_marking_markers(self, track: TrackModel) -> list[Marker]:
+        """Starting-square grid and corner lines.
+
+        The starting square on each corridor is a 1.0 m × corridor_width
+        rectangle divided into bands (across the corridor) and two cells (along
+        it). A wide corridor holds three bands and six cells; a narrow one holds
+        two bands and four cells. These markings are real mat print, so they are
+        drawn in the ``map`` frame exactly where the physical track carries them.
+        """
+        x_min, y_min, x_max, y_max = track.inner_block_visual
+        widths = {
+            Section.SOUTH: y_min,
+            Section.NORTH: TrackDimensions.MAX_COORD - y_max,
+            Section.EAST: TrackDimensions.MAX_COORD - x_max,
+            Section.WEST: x_min,
+        }
+        markers: list[Marker] = []
+        marker_id = 0
+
+        for section, width in widths.items():
+            markers.extend(self._starting_square_markers(section, width, marker_id))
+            marker_id += 10
+
+        for corner in corner_lines():
+            markers.append(self._thin_line_marker(marker_id, corner.start, corner.end, corner.color))
+            marker_id += 1
+
+        return markers
+
+    def _starting_square_markers(
+        self,
+        section: Section,
+        width: float,
+        base_id: int,
+    ) -> list[Marker]:
+        """Outline, band/cell divisions for one corridor's starting square."""
+        markers: list[Marker] = []
+        square = starting_square_geometry(section)
+        corners = square.corners(width)
+
+        outline = Marker()
+        outline.header.frame_id = TfFrames.MAP
+        outline.ns = "floor_markings"
+        outline.id = base_id
+        outline.type = Marker.LINE_STRIP
+        outline.action = Marker.ADD
+        outline.scale.x = StartingZoneSpecs.THICKNESS * 2
+        outline.color.r, outline.color.g, outline.color.b, outline.color.a = *StartingZoneSpecs.COLOR, 1.0
+        for x, y in [*corners, corners[0]]:
+            p = Point()
+            p.x, p.y, p.z = x, y, 0.0
+            outline.points.append(p)
+        markers.append(outline)
+
+        line_id = base_id + 1
+        for division in starting_square_band_divisions(width):
+            markers.append(
+                self._thin_line_marker(line_id, *square.across_line(division), StartingZoneSpecs.COLOR)
+            )
+            line_id += 1
+
+        markers.append(
+            self._thin_line_marker(line_id, *square.along_line(width), StartingZoneSpecs.COLOR)
+        )
+
+        return markers
+
+    def _thin_line_marker(
+        self,
+        marker_id: int,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        color: tuple[float, float, float],
+    ) -> Marker:
+        """One thin floor marking line."""
+        m = Marker()
+        m.header.frame_id = TfFrames.MAP
+        m.ns = "floor_markings"
+        m.id = marker_id
+        m.type = Marker.LINE_LIST
+        m.action = Marker.ADD
+        m.scale.x = StartingZoneSpecs.THICKNESS
+        m.color.r, m.color.g, m.color.b, m.color.a = *color, 1.0
+        for x, y in (start, end):
+            p = Point()
+            p.x, p.y, p.z = x, y, 0.0
+            m.points.append(p)
         return m
 
     def _sign_marker(self, index: int, sign: SignPosition) -> Marker:

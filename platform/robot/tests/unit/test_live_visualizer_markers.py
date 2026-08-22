@@ -321,3 +321,43 @@ def test_parking_lot_keeps_the_block_yaws():
 
     assert lot.block1_yaw == pytest.approx(math.pi / 2)
     assert lot.block2_yaw == 0.0, "absent yaw means axis-aligned, not missing"
+
+
+def test_floor_markings_present_for_wide_track():
+    """A wide track has four starting-square outlines, band/cell lines and corner lines."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_floor_markings")
+    try:
+        markers = visualizer._floor_marking_markers(_wide_track())
+        by_ns: dict[str, list[Marker]] = {}
+        for marker in markers:
+            by_ns.setdefault(marker.ns, []).append(marker)
+
+        floor = by_ns.get("floor_markings", [])
+        assert len(floor) >= 4, "expected at least one marker per corridor"
+
+        # Each wide corridor has: 1 outline + 2 band divisions + 1 cell division = 4.
+        outlines = [m for m in floor if m.type == Marker.LINE_STRIP]
+        assert len(outlines) == 4
+        assert all(len(m.points) == 5 for m in outlines)  # 4 corners closed
+    finally:
+        visualizer.destroy_node()
+
+
+def test_floor_markings_respect_narrow_corridor():
+    """A narrow corridor drops one band division, leaving one division line instead of two."""
+    init_rclpy_once()
+    track = TrackModel({
+        Section.NORTH: 0.6,
+        Section.SOUTH: 0.6,
+        Section.EAST: 0.6,
+        Section.WEST: 0.6,
+    })
+    visualizer = LiveScenarioVisualizer(track, node_name="test_floor_narrow")
+    try:
+        markers = visualizer._floor_marking_markers(track)
+        # Wide track has 4 outlines + 4*3 divisions + 8 corner lines = 24 markers.
+        # Narrow track has 4 outlines + 4*2 divisions + 8 corner lines = 20 markers.
+        assert len(markers) == 20
+    finally:
+        visualizer.destroy_node()
