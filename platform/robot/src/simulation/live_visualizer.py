@@ -241,6 +241,7 @@ class LiveScenarioVisualizer(Node):
         # rendered at positions that belong to a different track layout entirely (e.g. sitting
         # on/through the new track's wall).
         markers.markers.append(Marker(action=Marker.DELETEALL))
+        markers.markers.append(self._floor_marker())
         markers.markers.extend(self._outer_wall_markers())
         markers.markers.append(self._inner_block_marker(track))
         markers.markers.extend(self._floor_marking_markers(track))
@@ -486,6 +487,31 @@ class LiveScenarioVisualizer(Node):
         m.scale.y = y_max - y_min
         m.scale.z = WallSpecs.HEIGHT
         m.color.r, m.color.g, m.color.b, m.color.a = 0.6, 0.2, 0.2, 1.0
+        return m
+
+    def _floor_marker(self) -> Marker:
+        """Opaque white floor plane under the track.
+
+        RViz's default grid is helpful, but a white mat surface makes the walls,
+        inner block and floor markings read as printed features rather than
+        floating lines. Drawn first and placed slightly below z=0 so all line
+        markings render on top of it without z-fighting.
+        """
+        size = TrackDimensions.MAX_COORD - TrackDimensions.MIN_COORD
+        m = Marker()
+        m.header.frame_id = TfFrames.MAP
+        m.ns = "floor"
+        m.id = 0
+        m.type = Marker.CUBE
+        m.action = Marker.ADD
+        m.pose.position.x = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
+        m.pose.position.y = (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2.0
+        m.pose.position.z = -0.001
+        m.pose.orientation.w = 1.0
+        m.scale.x = size
+        m.scale.y = size
+        m.scale.z = 0.001
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 1.0, 1.0, 1.0
         return m
 
     def _floor_marking_markers(self, track: TrackModel) -> list[Marker]:

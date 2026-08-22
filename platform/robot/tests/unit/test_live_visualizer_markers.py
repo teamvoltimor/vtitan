@@ -323,6 +323,25 @@ def test_parking_lot_keeps_the_block_yaws():
     assert lot.block2_yaw == 0.0, "absent yaw means axis-aligned, not missing"
 
 
+def test_floor_marker_is_present_and_white():
+    """set_track() publishes an opaque white floor plane before walls/markings."""
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_floor_plane")
+    try:
+        visualizer.set_track(_wide_track())
+        floor = [m for m in visualizer._cached_track_markers.markers if m.ns == "floor"]
+        assert len(floor) == 1
+        marker = floor[0]
+        assert marker.type == Marker.CUBE
+        assert marker.scale.x == pytest.approx(3.0)
+        assert marker.scale.y == pytest.approx(3.0)
+        assert marker.pose.position.z < 0.0
+        assert marker.color.r == marker.color.g == marker.color.b == 1.0
+        assert marker.color.a == 1.0
+    finally:
+        visualizer.destroy_node()
+
+
 def test_floor_markings_present_for_wide_track():
     """A wide track has four starting-square outlines, band/cell lines and corner lines."""
     init_rclpy_once()
