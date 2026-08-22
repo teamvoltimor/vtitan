@@ -179,6 +179,76 @@ def test_belief_frame_carries_the_section_relabelling_rotation(true_yaw, expecte
         visualizer.destroy_node()
 
 
+class _FakeScan:
+    """Minimal stand-in for a LidarScan — the visualizer only reads these two."""
+
+    def __init__(self, angles_rad, ranges_m):
+        self.angles_rad = angles_rad
+        self.ranges_m = ranges_m
+
+
+def _full_sweep(range_m: float = 2.0, count: int = 360):
+    step = 2.0 * math.pi / count
+    angles = [-math.pi + i * step for i in range(count)]
+    return _FakeScan(angles, [range_m] * count)
+
+
+def test_scan_masks_the_bearings_the_mount_cannot_see():
+    """Drives the REAL publish path, not the builder in isolation.
+
+    Testing _build_laserscan alone is what let a TypeError ship: nothing in
+    this module had ever called publish() with a scan, so a bad call inside
+    the scan branch was invisible to the whole suite while crashing on the
+    first tick of any actual run.
+    """
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_scan_mask")
+    try:
+        scan = _full_sweep()
+        msg = visualizer._build_laserscan(scan, visualizer.get_clock().now().to_msg())
+        sectors = visualizer._lidar_sectors
+        by_degree = {
+            round(math.degrees(a)): r for a, r in zip(scan.angles_rad, msg.ranges, strict=True)
+        }
+
+        # Straight back is masked edge to edge on this mount. The sweep spans
+        # [-180, +180), so only one of the two ends is actually sampled.
+        rear = [by_degree[d] for d in (180, -180) if d in by_degree]
+        assert rear, "sweep should sample one of the two rear ends"
+        assert all(math.isnan(r) for r in rear), "straight back must be blanked"
+        assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_RIGHT_MIN_DEG) + 5])
+        assert math.isnan(by_degree[round(sectors.BLIND_WEDGE_LEFT_MAX_DEG) - 5])
+        # Forward is untouched -- masking must not eat the useful sweep.
+        for degree in (0, 45, -45, 90, -90):
+            assert by_degree[degree] == pytest.approx(2.0), f"{degree} deg should survive"
+    finally:
+        visualizer.destroy_node()
+
+
+def test_scan_mask_follows_the_config_not_a_literal():
+    """Widen the wedges and more rays blank, with no code change.
+
+    The point of reading lidar_sectors rather than restating the angles: if
+    the mount changes, editing lidar_sectors.toml is the whole edit.
+    """
+    init_rclpy_once()
+    visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_scan_mask_config")
+    try:
+        stamp = visualizer.get_clock().now().to_msg()
+        scan = _full_sweep()
+        before = sum(math.isnan(r) for r in visualizer._build_laserscan(scan, stamp).ranges)
+
+        # Same shape the real config uses, just reaching further forward.
+        visualizer._lidar_sectors = visualizer._lidar_sectors.model_copy(
+            update={"BLIND_WEDGE_LEFT_MAX_DEG": -90.0, "BLIND_WEDGE_RIGHT_MIN_DEG": 90.0},
+        )
+        after = sum(math.isnan(r) for r in visualizer._build_laserscan(scan, stamp).ranges)
+
+        assert after > before, "widening the wedges must blank more rays"
+    finally:
+        visualizer.destroy_node()
+
+
 def test_belief_frame_is_identity_for_a_sighted_run():
     """A correct belief must not move anything -- sighted runs are unaffected."""
     init_rclpy_once()
