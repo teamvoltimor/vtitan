@@ -29,8 +29,6 @@ from tests.fixtures import FakeGateway
 if TYPE_CHECKING:
     from src.navigation.ports import DriveCommand, LidarScan
 
-_MAT = TrackDimensions.MAX_COORD
-
 
 @pytest.fixture()
 def tuning():
@@ -83,7 +81,7 @@ class TestBudgetFollowsThePath:
 
     def test_measures_the_nearest_edge_whichever_it_is(self, tuning):
         """The path is scored against all four mat edges, not just the south one."""
-        near_north = [(x / 10.0, _MAT - 0.25) for x in range(5, 26)]
+        near_north = [(x / 10.0, TrackDimensions.MAX_COORD - 0.25) for x in range(5, 26)]
         nav = _navigator(near_north, tuning)
 
         assert nav._waypoint_controller.effective_transition == pytest.approx(_expected(0.25, tuning))

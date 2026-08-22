@@ -464,7 +464,6 @@ def _build_zone(
     turn around inside a bay with no room to do it.
     """
     half_fin_thickness = ParkingLotSpecs.WIDTH / 2
-    bay_depth = ParkingLotSpecs.LENGTH
     cw = direction is Direction.CLOCKWISE
 
     if section in (Section.SOUTH, Section.NORTH):
@@ -472,20 +471,20 @@ def _build_zone(
         x_min = x1 + half_fin_thickness
         x_max = x2 - half_fin_thickness
         if section is Section.SOUTH:
-            y_min, y_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + bay_depth
+            y_min, y_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + ParkingLotSpecs.LENGTH
             target_yaw = math.pi if cw else 0.0
         else:
-            y_min, y_max = TrackDimensions.MAX_COORD - bay_depth, TrackDimensions.MAX_COORD
+            y_min, y_max = TrackDimensions.MAX_COORD - ParkingLotSpecs.LENGTH, TrackDimensions.MAX_COORD
             target_yaw = 0.0 if cw else math.pi
     else:
         y1, y2 = sorted([b1.y, b2.y])
         y_min = y1 + half_fin_thickness
         y_max = y2 - half_fin_thickness
         if section is Section.EAST:
-            x_min, x_max = TrackDimensions.MAX_COORD - bay_depth, TrackDimensions.MAX_COORD
+            x_min, x_max = TrackDimensions.MAX_COORD - ParkingLotSpecs.LENGTH, TrackDimensions.MAX_COORD
             target_yaw = math.pi / 2 if cw else -math.pi / 2
         else:
-            x_min, x_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + bay_depth
+            x_min, x_max = TrackDimensions.MIN_COORD, TrackDimensions.MIN_COORD + ParkingLotSpecs.LENGTH
             target_yaw = -math.pi / 2 if cw else math.pi / 2
 
     wall_is_x = section in (Section.EAST, Section.WEST)

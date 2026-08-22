@@ -10,6 +10,7 @@ import math
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.config.navigation_tuning._shared import _alias
 
 
@@ -35,6 +36,13 @@ class CorridorEstimatorParams(BaseModel):
             rather than a total, because the robot is often powered on well
             away from the track and only what it sees once placed should
             count.
+        DECISION_BOUNDARY_M: Width (m) at which a raw measurement snaps to
+            WIDE rather than NARROW. Defaults to the midpoint of the two
+            legal widths (0.8 m against a 0.03 m LIDAR sigma, better than
+            4-sigma either way), but is its own tunable rather than always
+            being that midpoint -- shifting it off-centre would trade a
+            false NARROW for a false WIDE without moving either corridor
+            width.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -42,6 +50,10 @@ class CorridorEstimatorParams(BaseModel):
     MIN_SAMPLES: int = Field(default=12, validation_alias=_alias("MIN_SAMPLES"))
     PLAUSIBLE_WIDTH_MARGIN_M: float = Field(default=0.25, validation_alias=_alias("PLAUSIBLE_WIDTH_MARGIN_M"))
     MAX_START_SAMPLES: int = Field(default=20, validation_alias=_alias("MAX_START_SAMPLES"))
+    DECISION_BOUNDARY_M: float = Field(
+        default=(CorridorDimensions.NARROW + CorridorDimensions.WIDE) / 2.0,
+        validation_alias=_alias("DECISION_BOUNDARY_M"),
+    )
 
 
 class CorridorFollowerParams(BaseModel):
@@ -126,6 +138,29 @@ class CorridorFollowerParams(BaseModel):
             side-range limit past which a side has "opened" (leaked past the
             end of the inner block) and is no longer treated as a corridor
             wall to centre against.
+        MIN_FORWARD_CLEARANCE_M: Back off when the wall ahead is this close.
+            Defaults to the chassis length, but is its own tunable rather
+            than that constant: the direction should have settled long
+            before this -- measured, it resolves after about 0.8 m of travel
+            with roughly 0.5 m to spare. Reaching here means it did not, so
+            driving on into the corner with no plan is not an option.
+            Stopping is not either, and used to be what happened. With no
+            direction there is no plan to hand over to and nothing else is
+            steering, so a stopped robot stays stopped: go_open_0020 sat at
+            zero speed for 400 ticks with the wall 0.13 m away and the round
+            expired around it. The corner branch (TURN_CLEARANCE_M) carries a
+            comment warning of exactly that deadlock; this branch
+            reintroduced it.
+        MIN_REVERSE_CLEARANCE_M: Room needed behind before backing off is
+            allowed. Defaults to the chassis length, but is its own tunable:
+            backing blindly into whatever is behind trades one wall for
+            another, and with less than this the robot is boxed at both ends
+            and holding still is genuinely all that is left. The robot must
+            never cover ground backwards: the round is driven in the
+            direction drawn on the day, and a robot reversing down a
+            corridor is going the wrong way regardless of which way it is
+            pointing. Clearance recovers within a few ticks, at which point
+            the forward branches take over again.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -145,6 +180,8 @@ class CorridorFollowerParams(BaseModel):
     TURN_ARC_HALF_FOV_DEG: float = Field(default=15.0, validation_alias=_alias("TURN_ARC_HALF_FOV_DEG"))
     TURN_OPEN_RANGE_M: float = Field(default=1.00, validation_alias=_alias("TURN_OPEN_RANGE_M"))
     CORNER_LEAK_MARGIN_M: float = Field(default=0.35, validation_alias=_alias("CORNER_LEAK_MARGIN_M"))
+    MIN_FORWARD_CLEARANCE_M: float = Field(default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_FORWARD_CLEARANCE_M"))
+    MIN_REVERSE_CLEARANCE_M: float = Field(default=RobotSpecs.LENGTH, validation_alias=_alias("MIN_REVERSE_CLEARANCE_M"))
 
 
 class DirectionEstimatorParams(BaseModel):

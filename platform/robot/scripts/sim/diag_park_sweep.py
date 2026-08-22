@@ -34,9 +34,6 @@ _MAX_STEPS = 800
 _LATERAL_ERRORS = (-0.15, -0.05, 0.0, 0.05, 0.15)
 _YAW_ERRORS = (math.radians(-15), 0.0, math.radians(15))
 
-# Bay depth: the fins stand perpendicular to the outer wall and are LENGTH long.
-_BAY_DEPTH = ParkingLotSpecs.LENGTH
-_FIN_THICKNESS = ParkingLotSpecs.WIDTH
 _STOP_TOLERANCE = 0.01  # metres: how close to the bay midpoint counts as "stopped there"
 
 # Straight-in approach probe parameters
@@ -87,12 +84,12 @@ def _bay_rect(metadata: dict, section: Section) -> tuple[float, float, float, fl
     b1, b2 = p["block1_position"], p["block2_position"]
     along = sorted([b1["x"], b2["x"]]) if _is_ns(section) else sorted([b1["y"], b2["y"]])
     # Inner faces of the two fins.
-    a_lo = along[0] + _FIN_THICKNESS / 2
-    a_hi = along[1] - _FIN_THICKNESS / 2
+    a_lo = along[0] + ParkingLotSpecs.WIDTH / 2
+    a_hi = along[1] - ParkingLotSpecs.WIDTH / 2
     if _low_side(section):
-        d_lo, d_hi = 0.0, _BAY_DEPTH
+        d_lo, d_hi = 0.0, ParkingLotSpecs.LENGTH
     else:
-        d_lo, d_hi = TrackDimensions.MAX_COORD - _BAY_DEPTH, TrackDimensions.MAX_COORD
+        d_lo, d_hi = TrackDimensions.MAX_COORD - ParkingLotSpecs.LENGTH, TrackDimensions.MAX_COORD
     if _is_ns(section):
         return a_lo, d_lo, a_hi, d_hi
     return d_lo, a_lo, d_hi, a_hi
@@ -250,7 +247,7 @@ def report_straight_in() -> None:
     wall = 0.0 if _low_side(section) else TrackDimensions.MAX_COORD
     bay_mid = (rect[0] + rect[2]) / 2 if _is_ns(section) else (rect[1] + rect[3]) / 2
 
-    print(f"bay rect={tuple(round(v, 3) for v in rect)}  depth={_BAY_DEPTH} m  chassis width={RobotSpecs.WIDTH} m")
+    print(f"bay rect={tuple(round(v, 3) for v in rect)}  depth={ParkingLotSpecs.LENGTH} m  chassis width={RobotSpecs.WIDTH} m")
     print("lateral = chassis centre distance from the outer wall\n")
 
     kin = AckermannKinematics()

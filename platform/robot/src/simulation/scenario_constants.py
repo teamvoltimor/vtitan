@@ -8,10 +8,7 @@ dimension cannot update one of them and silently leave the others stale.
 
 from __future__ import annotations
 
-from shared.config.constants import CompetitionSpecs, CorridorDimensions
-
-N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
-"""Laps for an Open Challenge scenario run, i.e. a full round."""
+from shared.config.constants import CorridorDimensions
 
 NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 """Narrow corridor width in millimetres, as the Go generator's CLI takes it."""

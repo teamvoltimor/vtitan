@@ -28,9 +28,6 @@ from shared.domain.models import CorridorGeometry, InnerBlock, ScenarioMetadata,
 
 from src.navigation.utils import wrap_angle
 
-_TRACK_MIN = TrackDimensions.MIN_COORD
-_TRACK_MAX = TrackDimensions.MAX_COORD  # 3.0
-
 
 def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeometry:
     """Build CorridorGeometry from a per-section width dict.
@@ -43,9 +40,9 @@ def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeome
     east = widths[Section.EAST]
     west = widths[Section.WEST]
     south_y = south
-    north_y = _TRACK_MAX - north
+    north_y = TrackDimensions.MAX_COORD - north
     west_x = west
-    east_x = _TRACK_MAX - east
+    east_x = TrackDimensions.MAX_COORD - east
     return CorridorGeometry(
         north_width_m=north,
         south_width_m=south,
@@ -76,9 +73,9 @@ def corridor_widths_from_metadata(metadata: ScenarioMetadata | dict[str, Any]) -
         west = raw["west"][DictKeys.WIDTH_MM] / 1000.0
 
     south_y = south
-    north_y = _TRACK_MAX - north
+    north_y = TrackDimensions.MAX_COORD - north
     west_x = west
-    east_x = _TRACK_MAX - east
+    east_x = TrackDimensions.MAX_COORD - east
     return CorridorGeometry(
         north_width_m=north,
         south_width_m=south,
@@ -290,7 +287,7 @@ class TrackWalls:
     @staticmethod
     def _build_segments(inner: InnerBlock) -> list[_Segment]:
         """Outer track boundary (0/3) + inner block faces — what the LIDAR sees."""
-        lo, hi = _TRACK_MIN, _TRACK_MAX
+        lo, hi = TrackDimensions.MIN_COORD, TrackDimensions.MAX_COORD
         return [
             # Outer boundary (inner faces of the exterior walls).
             _Segment(lo, lo, hi, lo),  # south
@@ -410,8 +407,8 @@ class TrackWalls:
     def point_in_free_space(self, x: float, y: float, clearance: float = 0.0) -> bool:
         """Return ``True`` if (x, y) is in the navigable ring with ``clearance`` margin."""
         if not (
-            _TRACK_MIN + clearance <= x <= _TRACK_MAX - clearance
-            and _TRACK_MIN + clearance <= y <= _TRACK_MAX - clearance
+            TrackDimensions.MIN_COORD + clearance <= x <= TrackDimensions.MAX_COORD - clearance
+            and TrackDimensions.MIN_COORD + clearance <= y <= TrackDimensions.MAX_COORD - clearance
         ):
             return False
         iv = self.inner_block

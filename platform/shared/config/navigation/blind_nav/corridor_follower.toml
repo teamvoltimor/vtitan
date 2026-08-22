@@ -111,3 +111,21 @@ turn_open_range_m = 1.00
 # side has "opened" (leaked past the end of the inner block) and is no longer
 # treated as a corridor wall to centre against.
 corner_leak_margin_m = 0.35
+
+# Back off when the wall ahead is this close. Defaults to the chassis length,
+# but is tunable independently of it: the direction should have settled long
+# before this -- measured, it resolves after about 0.8 m of travel with
+# roughly 0.5 m to spare. Reaching here means it did not, so driving on into
+# the corner with no plan is not an option. Stopping is not either: with no
+# direction there is no plan to hand over to and nothing else is steering, so
+# a stopped robot stays stopped -- go_open_0020 sat at zero speed for 400
+# ticks with the wall 0.13 m away and the round expired around it.
+min_forward_clearance_m = 0.30
+
+# Room needed behind before backing off is allowed. Defaults to the chassis
+# length, but is tunable independently of it: backing blindly into whatever
+# is behind trades one wall for another, and with less than this the robot is
+# boxed at both ends and holding still is genuinely all that is left. The
+# robot must never cover ground backwards -- a robot reversing down a
+# corridor is going the wrong way regardless of which way it is pointing.
+min_reverse_clearance_m = 0.30

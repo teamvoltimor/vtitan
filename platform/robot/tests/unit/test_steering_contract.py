@@ -20,45 +20,54 @@ from shared.domain.steering import (
 
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 
-MAX = RobotSpecs.MAX_STEERING_ANGLE
-
 
 @pytest.mark.parametrize("norm", [-1.0, -0.5, 0.0, 0.25, 0.5, 1.0])
 def test_decode_matches_simulator(norm):
     """The actuator decode equals the wheel angle the simulator integrates."""
     # Rate/accel limits removed and a full-second step so the servo reaches its
     # target angle in one integration, exposing the sim's internal decode.
-    kin = AckermannKinematics(max_steer=MAX, max_steer_rate=1e9, max_accel=1e9, substeps=1)
+    kin = AckermannKinematics(
+        max_steer=RobotSpecs.MAX_STEERING_ANGLE, max_steer_rate=1e9, max_accel=1e9, substeps=1
+    )
     state = kin.step(
         AckermannState(x=0.0, y=0.0, yaw=0.0),
         target_speed=0.0,
         target_steer_norm=norm,
         dt=1.0,
     )
-    assert state.steer == pytest.approx(steering_norm_to_angle_rad(norm, MAX))
+    assert state.steer == pytest.approx(steering_norm_to_angle_rad(norm, RobotSpecs.MAX_STEERING_ANGLE))
 
 
 def test_full_command_is_max_angle():
-    assert steering_norm_to_angle_rad(1.0, MAX) == pytest.approx(MAX)
-    assert steering_norm_to_angle_rad(-1.0, MAX) == pytest.approx(-MAX)
+    assert steering_norm_to_angle_rad(1.0, RobotSpecs.MAX_STEERING_ANGLE) == pytest.approx(
+        RobotSpecs.MAX_STEERING_ANGLE
+    )
+    assert steering_norm_to_angle_rad(-1.0, RobotSpecs.MAX_STEERING_ANGLE) == pytest.approx(
+        -RobotSpecs.MAX_STEERING_ANGLE
+    )
 
 
 def test_out_of_range_is_clamped():
-    assert steering_norm_to_angle_rad(2.5, MAX) == pytest.approx(MAX)
-    assert steering_norm_to_angle_rad(-2.5, MAX) == pytest.approx(-MAX)
+    assert steering_norm_to_angle_rad(2.5, RobotSpecs.MAX_STEERING_ANGLE) == pytest.approx(
+        RobotSpecs.MAX_STEERING_ANGLE
+    )
+    assert steering_norm_to_angle_rad(-2.5, RobotSpecs.MAX_STEERING_ANGLE) == pytest.approx(
+        -RobotSpecs.MAX_STEERING_ANGLE
+    )
 
 
 def test_half_command_is_half_angle_not_half_radian():
     # Regression: the motor node treated 0.5 as 0.5 rad (~28.6 deg). The contract
-    # says 0.5 is half of MAX -- expressed against MAX rather than a literal, since
-    # the literal silently pinned a stale 30 deg steering limit and had to be edited
-    # when the real ~70 deg lock was plumbed through.
-    angle = steering_norm_to_angle_rad(0.5, MAX)
-    assert angle == pytest.approx(MAX / 2)
+    # says 0.5 is half of RobotSpecs.MAX_STEERING_ANGLE -- expressed against that
+    # rather than a literal, since the literal silently pinned a stale 30 deg
+    # steering limit and had to be edited when the real ~70 deg lock was plumbed
+    # through.
+    angle = steering_norm_to_angle_rad(0.5, RobotSpecs.MAX_STEERING_ANGLE)
+    assert angle == pytest.approx(RobotSpecs.MAX_STEERING_ANGLE / 2)
     assert angle != pytest.approx(0.5)  # the old buggy value: 0.5 read as radians
 
 
 @pytest.mark.parametrize("norm", [-1.0, -0.3, 0.0, 0.3, 1.0])
 def test_round_trip(norm):
-    angle = steering_norm_to_angle_rad(norm, MAX)
-    assert angle_rad_to_steering_norm(angle, MAX) == pytest.approx(norm)
+    angle = steering_norm_to_angle_rad(norm, RobotSpecs.MAX_STEERING_ANGLE)
+    assert angle_rad_to_steering_norm(angle, RobotSpecs.MAX_STEERING_ANGLE) == pytest.approx(norm)

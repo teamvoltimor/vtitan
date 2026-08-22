@@ -66,7 +66,6 @@ if TYPE_CHECKING:
 
     from src.navigation.ports import LidarScan
 
-_MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 _MAX_RANGE_M = RobotSpecs.LIDAR_MAX_RANGE - 0.1
 _NEAR_THRESHOLD_M = 0.05
 """Investigation threshold for --near-histogram/--dropout-symmetry: how close a return has
@@ -106,7 +105,7 @@ def _windowed(ranges: Sequence[float], angles: Sequence[float], target: float, h
     vals = [
         r
         for r, a in zip(ranges, angles, strict=False)
-        if abs(wrap_angle(a - target)) <= half_width and _MIN_VALID_M < r < _MAX_RANGE_M
+        if abs(wrap_angle(a - target)) <= half_width and RobotSpecs.LIDAR_MIN_RANGE < r < _MAX_RANGE_M
     ]
     if not vals:
         return None

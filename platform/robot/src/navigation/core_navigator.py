@@ -183,8 +183,10 @@ class CoreNavigator:
         """
         if not self._waypoints:
             return
-        mat = TrackDimensions.MAX_COORD
-        clearance = min(min(wp.x, mat - wp.x, wp.y, mat - wp.y) for wp in self._waypoints)
+        clearance = min(
+            min(wp.x, TrackDimensions.MAX_COORD - wp.x, wp.y, TrackDimensions.MAX_COORD - wp.y)
+            for wp in self._waypoints
+        )
         budget = clearance - RobotSpecs.WIDTH / 2 - self._tuning.pursuit.WALL_MARGIN_SAFETY_M
         self._waypoint_controller.set_crosstrack_budget(
             max(budget, self._tuning.pursuit.MIN_LOOKAHEAD_TRANSITION_M),

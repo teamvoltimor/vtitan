@@ -36,21 +36,6 @@ if TYPE_CHECKING:
   from src.navigation.planning.sign_router import SignSpec
   from src.navigation.track_geometry import TrackWalls
 
-LIDAR_SCAN_HZ = RobotSpecs.LIDAR_UPDATE_RATE
-"""Sweep rate of the Slamtec C1, which is what the robot actually has.
-
-Read from the sensor's own spec rather than restated, so the simulated scan
-rate cannot drift from the rate the rest of the stack assumes.
-
-The simulator previously regenerated the scan on every control tick, so the
-navigator saw a fresh position fix at 20 Hz with no age. Real scans arrive at
-half that rate and asynchronously, so most control ticks act on a fix up to a
-scan period old -- during which the chassis has moved up to 1.6 cm at full
-speed. Pass rates measured against a perfectly fresh scan are optimistic by
-however much that staleness costs.
-
-Set to 0 to restore the old always-fresh behaviour.
-"""
 
 @dataclass(frozen=True, slots=True)
 class _SimulatorConstants:
@@ -113,7 +98,21 @@ class SimulatedHardwareGateway:
         sensor_errors: SensorErrors | None = None,
         solid_walls: bool = False,
         solid_surfaces: frozenset[ContactSurface] | None = None,
-        lidar_hz: float = LIDAR_SCAN_HZ,
+        # Sweep rate of the Slamtec C1, which is what the robot actually has.
+        # Read from the sensor's own spec rather than restated, so the
+        # simulated scan rate cannot drift from the rate the rest of the
+        # stack assumes.
+        #
+        # The simulator previously regenerated the scan on every control
+        # tick, so the navigator saw a fresh position fix at 20 Hz with no
+        # age. Real scans arrive at half that rate and asynchronously, so
+        # most control ticks act on a fix up to a scan period old -- during
+        # which the chassis has moved up to 1.6 cm at full speed. Pass rates
+        # measured against a perfectly fresh scan are optimistic by however
+        # much that staleness costs.
+        #
+        # Set to 0 to restore the old always-fresh behaviour.
+        lidar_hz: float = RobotSpecs.LIDAR_UPDATE_RATE,
         lidar_invalid_rate: float | None = None,
         wall_heading: bool = True,
         tuning: NavigationTuning | None = None,

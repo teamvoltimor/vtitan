@@ -42,7 +42,6 @@ from src.ros2.navigation.ros2_hardware_gateway import _LIDAR_YAW_OFFSET_RAD
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-MIN_VALID_M = RobotSpecs.LIDAR_MIN_RANGE
 # A margin below RobotSpecs.LIDAR_MAX_RANGE so a real long-range return can be
 # told apart from the synthetic fill value substituted for a LIDAR dropout
 # (RobotSpecs.LIDAR_MAX_RANGE itself, used below).
@@ -66,7 +65,7 @@ def _arc_max(ranges: Sequence[float], angles: Sequence[float], half_fov: float) 
     vals = [
         r
         for r, a in zip(ranges, angles, strict=False)
-        if abs(wrap_angle(a)) <= half_fov and MIN_VALID_M < r < MAX_RANGE_M
+        if abs(wrap_angle(a)) <= half_fov and RobotSpecs.LIDAR_MIN_RANGE < r < MAX_RANGE_M
     ]
     return max(vals) if vals else 0.0
 

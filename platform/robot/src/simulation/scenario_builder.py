@@ -62,7 +62,6 @@ def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[floa
         Spawn poses, four for a narrow corridor and six for a wide one.
     """
     width = widths_m[section.value.lower()]
-    track_max = TrackDimensions.MAX_COORD
     layout = STARTING_ZONE_LAYOUT
 
     # The square occupies the middle metre of the side, leaving a metre of
@@ -77,11 +76,11 @@ def start_cells(section: Section, widths_m: dict[str, float]) -> list[tuple[floa
             if section is Section.SOUTH:
                 cells.append((along, across))
             elif section is Section.NORTH:
-                cells.append((along, track_max - across))
+                cells.append((along, TrackDimensions.MAX_COORD - across))
             elif section is Section.WEST:
                 cells.append((across, along))
             else:
-                cells.append((track_max - across, along))
+                cells.append((TrackDimensions.MAX_COORD - across, along))
     return cells
 
 

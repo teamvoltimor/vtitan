@@ -75,7 +75,6 @@ from src.simulation.kinematics import AckermannKinematics
 from src.simulation.scenario_builder import build_open_metadata, uniform_widths
 from src.simulation.scenario_simulator import ScenarioSimulator
 
-_N_LAPS = CompetitionSpecs.OPEN_CHALLENGE_LAPS
 _NARROW_MM = int(CorridorDimensions.NARROW * 1000)
 _STARTS = list(product(Section, Direction))
 
@@ -135,7 +134,7 @@ def _run(args: tuple[Case | None, int]) -> tuple[bool, int, float]:
         )
         kinematics = AckermannKinematics(max_speed_mps=case.max_speed, max_steer_rate=case.max_steer_rate)
 
-    result = ScenarioSimulator(meta, num_laps=_N_LAPS, tuning=tuning, kinematics=kinematics).run()
+    result = ScenarioSimulator(meta, num_laps=CompetitionSpecs.OPEN_CHALLENGE_LAPS, tuning=tuning, kinematics=kinematics).run()
     within = result.success and result.sim_time_s <= CompetitionSpecs.ROUND_TIME_LIMIT_S
     return within, result.laps_completed, result.sim_time_s
 
@@ -163,7 +162,7 @@ def main() -> None:
     print(
         f"{shipped}: max_speed {RobotSpecs.MAX_SPEED_MPS:.3f} m/s, "
         f"max wheel angle {math.degrees(RobotSpecs.MAX_STEERING_ANGLE):.1f} deg, "
-        f"limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f} s, {_N_LAPS} laps"
+        f"limit {CompetitionSpecs.ROUND_TIME_LIMIT_S:.0f} s, {CompetitionSpecs.OPEN_CHALLENGE_LAPS} laps"
     )
 
     cases: list[Case | None] = [None]

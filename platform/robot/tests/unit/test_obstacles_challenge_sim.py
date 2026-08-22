@@ -44,6 +44,8 @@ the absolute rule instead of the travel-relative one.
 
 from __future__ import annotations
 
+from typing import Any
+
 import logging
 import math
 from dataclasses import replace

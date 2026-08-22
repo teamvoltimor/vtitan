@@ -73,9 +73,6 @@ class ContactSurface(StrEnum):
     OBSTACLE = "obstacle"
     """A traffic sign or parking block, which belongs to neither wall."""
 
-_TRACK_MIN = TrackDimensions.MIN_COORD
-_TRACK_MAX = TrackDimensions.MAX_COORD
-
 
 @dataclass(frozen=True, slots=True)
 class _Box:
@@ -222,10 +219,10 @@ class TrackModel:
         )
         # Footprint must stay within this outer collision boundary.
         self._outer_collision = _Box(
-            _TRACK_MIN + collision_margin,
-            _TRACK_MIN + collision_margin,
-            _TRACK_MAX - collision_margin,
-            _TRACK_MAX - collision_margin,
+            TrackDimensions.MIN_COORD + collision_margin,
+            TrackDimensions.MIN_COORD + collision_margin,
+            TrackDimensions.MAX_COORD - collision_margin,
+            TrackDimensions.MAX_COORD - collision_margin,
         )
 
     @property

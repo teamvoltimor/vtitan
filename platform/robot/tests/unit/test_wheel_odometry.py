@@ -120,9 +120,8 @@ class TestCommandedVersusActual:
 class TestWheelOdometryModel:
     def test_wheel_angle_converts_to_distance_by_radius(self) -> None:
         """One full wheel revolution is one circumference of travel."""
-        radius = RobotSpecs.WHEEL_RADIUS
-        one_rev = WheelOdometry(distance_m=2 * math.pi * radius, speed_mps=0.0, stamp_s=0.0)
-        assert one_rev.distance_m == pytest.approx(2 * math.pi * radius)
+        one_rev = WheelOdometry(distance_m=2 * math.pi * RobotSpecs.WHEEL_RADIUS, speed_mps=0.0, stamp_s=0.0)
+        assert one_rev.distance_m == pytest.approx(2 * math.pi * RobotSpecs.WHEEL_RADIUS)
 
     def test_is_not_a_pose(self) -> None:
         """Guards the design decision: no x/y/yaw on this type.
