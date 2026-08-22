@@ -100,12 +100,17 @@ class ScenarioSimulator:
 
     ``blind`` is on by default too, for the same reason: a round the robot
     drives knowing the corridor widths is not the round it will actually be
-    given. Note what blind still does *not* withhold — the start pose and
-    section come from the scenario, so the robot always begins knowing exactly
-    where it is standing. Real hardware has no such luxury: it falls back to
-    ``assumed_start_conditions``, a fixed guess, and on 2026-08-01 that gap is
-    what a full afternoon of on-track debugging turned out to be chasing. Use
-    ``sensor_errors`` to close it; see below.
+    given. It withholds the start pose as well — see ``known_start`` below,
+    which is the arm that hands it back. A blind run seeds the BELIEVED start
+    from ``assumed_start_conditions`` (a fixed guess, always SOUTH) while the
+    chassis is physically placed at the scenario's true start, exactly as
+    hardware behaves. On 2026-08-01 that gap is what a full afternoon of
+    on-track debugging turned out to be chasing.
+
+    What blind does NOT withhold is error in the placement itself: the believed
+    start is a fixed guess, not a *perturbed* one, so the robot is wrong in a
+    known, repeatable way rather than an unpredictable one. Use
+    ``sensor_errors`` to close that; see below.
 
     ``blind=True`` withholds the *layout*. Normally the
     corridor widths in the metadata reach the robot twice over — the planned
@@ -169,6 +174,12 @@ class ScenarioSimulator:
         # Sensor error is only observable through the estimate, so it implies
         # localization for the same reason blind mode does: on ground-truth pose
         # a mis-seeded estimator is never consulted and the run is unaffected.
+        #
+        # Read the polarity carefully -- the name invites the opposite reading.
+        # use_lidar_localization=True is the HARDER condition (the robot works
+        # out where it is); False hands it ground truth and is the easier
+        # control arm. Either of blind or sensor_errors forces it True, so
+        # passing False alongside them is silently ignored rather than honoured.
         self._errors = sensor_errors or SensorErrors()
         use_lidar_localization = use_lidar_localization or blind or self._errors.any_error
 
