@@ -336,6 +336,12 @@ def _run_one(
         # metadata: under Obstacles the planned polyline IS the avoidance
         # manoeuvre, and blind runs route around discovery estimates that can
         # sit somewhere other than the true signs already on /sim/track.
+        #
+        # Refresh the belief frame every tick: in blind mode the corridor-width
+        # estimate evolves, and the lateral position of the assumed start shifts
+        # with it. Recomputing the transform keeps the drawn plan over the real
+        # track instead of letting it drift 10-20 cm behind the estimate.
+        visualizer.set_belief_frame(*sim.belief_offset_poses)
         visualizer.publish_belief(sim.navigator)
         pacer.wait()
 
