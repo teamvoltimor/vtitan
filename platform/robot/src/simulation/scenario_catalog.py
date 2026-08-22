@@ -173,13 +173,14 @@ def all_open_scenarios() -> list[NamedScenario]:
 
 
 def find_scenario(selector: str, scenarios: list[NamedScenario]) -> NamedScenario:
-    """Resolve a CLI selector to one scenario: an index, or a label substring."""
+    """Resolve a CLI selector to one scenario: an index, or a label substring.
+
+    Numeric selectors wrap modulo the catalog size, so e.g. ``--scenario 640``
+    with a 640-scenario Open Challenge catalog resolves to scenario 0.
+    """
     if selector.isdigit():
-        idx = int(selector)
-        if 0 <= idx < len(scenarios):
-            return scenarios[idx]
-        msg = f"Scenario index {idx} out of range (0-{len(scenarios) - 1})."
-        raise ValueError(msg)
+        idx = int(selector) % len(scenarios)
+        return scenarios[idx]
     matches = [s for s in scenarios if selector.lower() in s.label.lower()]
     if not matches:
         msg = f"No scenario label contains {selector!r}."

@@ -42,7 +42,7 @@ from shared.config.constants import (
 )
 from shared.config.ros_topics import RosTopicConfig
 from shared.domain.models import BlockPosition, ParkingLot, SignColor, SignPosition
-from tf2_ros import TransformBroadcaster
+from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
 from src.config.tuning_helpers import get_tuning
@@ -136,6 +136,7 @@ class LiveScenarioVisualizer(Node):
         self._plan_pub = self.create_publisher(Path, topics.simulation.plan, 1)
         self._sign_estimate_pub = self.create_publisher(MarkerArray, topics.simulation.sign_estimates, 1)
         self._tf_broadcaster = TransformBroadcaster(self)
+        self._static_tf_broadcaster = StaticTransformBroadcaster(self)
         self._cached_track_markers: MarkerArray | None = None
         self._tick_count = 0
         self._wheel_roll = 0.0
@@ -144,6 +145,8 @@ class LiveScenarioVisualizer(Node):
         # Resolved once, not per tick: load_default() re-reads and re-validates
         # the TOML, which is not something to do at 20 Hz inside the scan path.
         self._lidar_sectors = get_tuning(None).lidar_sectors
+        self._lidar_yaw_offset_rad = RobotSpecs.lidar_yaw_offset_rad()
+        self._broadcast_lidar_frame()
         self.set_track(track)
 
     def set_belief_frame(
@@ -191,6 +194,25 @@ class LiveScenarioVisualizer(Node):
         tf.transform.translation.y = offset_y
         tf.transform.rotation = _yaw_to_quaternion(offset_yaw)
         self._tf_broadcaster.sendTransform(tf)
+
+    def _broadcast_lidar_frame(self) -> None:
+        """Publish the static base_link -> lidar_link transform once.
+
+        Matches static_tfs.launch.py and the real robot URDF: the C1 is
+        mounted upside-down and forward of the chassis centre. The simulated
+        sweep is generated in the robot frame, so the LaserScan angles are
+        pre-shifted by the same yaw offset; after RViz applies this transform
+        the points land in base_link exactly where the sensor model cast them.
+        """
+        tf = TransformStamped()
+        tf.header.stamp = self.get_clock().now().to_msg()
+        tf.header.frame_id = TfFrames.BASE_LINK
+        tf.child_frame_id = TfFrames.LIDAR_LINK
+        tf.transform.translation.x = RobotSpecs.LIDAR_MOUNT_X_OFFSET
+        tf.transform.translation.y = 0.0
+        tf.transform.translation.z = RobotSpecs.HEIGHT + RobotSpecs.LIDAR_MOUNT_Z_OFFSET
+        tf.transform.rotation = _yaw_to_quaternion(self._lidar_yaw_offset_rad)
+        self._static_tf_broadcaster.sendTransform(tf)
 
     def set_track(
         self,
@@ -347,7 +369,7 @@ class LiveScenarioVisualizer(Node):
         return marker
 
     def _build_laserscan(self, scan: LidarScan, stamp: object) -> LaserScan:
-        """The sweep, with the bearings the mount cannot see blanked out.
+        """The sweep in lidar_link, with masked bearings blanked out.
 
         The raycast model casts a full circle from the LIDAR against walls and
         obstacles; it does not model the chassis occluding its own sensor. So
@@ -360,14 +382,27 @@ class LiveScenarioVisualizer(Node):
         which RViz skips rather than drawing at zero. Masked here rather than in
         the raycast because this is a display concern: the navigator applies the
         same wedges itself when it reads a sector.
+
+        The message is published in ``lidar_link`` with angles shifted by the
+        same upside-down mount rotation carried by the static
+        ``base_link -> lidar_link`` transform. RViz therefore sees the sweep
+        originate from the actual sensor position and orientation instead of
+        from the chassis centre, which used to draw forward wall hits ~12 cm
+        closer to the robot than they really were.
         """
         msg = LaserScan()
         msg.header.stamp = stamp
-        msg.header.frame_id = TfFrames.BASE_LINK
+        msg.header.frame_id = TfFrames.LIDAR_LINK
         angles = scan.angles_rad
-        msg.angle_min = angles[0]
-        msg.angle_max = angles[-1]
-        msg.angle_increment = (angles[-1] - angles[0]) / max(1, len(angles) - 1)
+        # Express the sweep in the lidar_link frame. The simulator produces
+        # angles in the robot frame (0 rad = forward); the static transform
+        # published in __init__ rotates lidar_link by lidar_yaw_offset_rad
+        # relative to base_link, so pre-subtracting that offset makes RViz
+        # render the rays in the correct robot-frame directions.
+        shifted_angles = [a - self._lidar_yaw_offset_rad for a in angles]
+        msg.angle_min = shifted_angles[0]
+        msg.angle_max = shifted_angles[-1]
+        msg.angle_increment = (shifted_angles[-1] - shifted_angles[0]) / max(1, len(shifted_angles) - 1)
         msg.range_min = RobotSpecs.LIDAR_MIN_RANGE
         msg.range_max = RobotSpecs.LIDAR_MAX_RANGE
         sectors = self._lidar_sectors
