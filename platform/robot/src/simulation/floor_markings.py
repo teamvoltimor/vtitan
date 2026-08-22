@@ -14,6 +14,8 @@ from shared.config.constants import TrackDimensions, TrackMarkings
 from shared.config.starting_zone import STARTING_ZONE_LAYOUT
 from shared.domain.enums import Section
 
+_RAY_EPSILON = 1e-9
+
 
 @dataclass(frozen=True, slots=True)
 class StartingSquareGeometry:
@@ -133,34 +135,50 @@ class CornerLine:
 def corner_lines() -> list[CornerLine]:
     """The eight 30° corner lines (four corners × two colours).
 
-    Each line starts at an inner-block corner and runs into one of the two
-    adjacent corridors at 30° to the corridor axis. Length is the corner-region
-    size (1.0 m) so the lines reach the outer edge of the corner region.
+    Each corner has two coloured lines that start at the inner-block corner,
+    run into the 1 m × 1 m corner region (the square outside the inner block),
+    and stop at the track's outer wall. The two lines are symmetric around the
+    corner bisector, each 30° from one of the inner-block walls, so they are
+    15° on either side of the bisector.
     """
     lines: list[CornerLine] = []
-    size = TrackDimensions.CORNER_SIZE
-    half = size / 2.0
-    angle = TrackMarkings.ANGLE
 
-    # Helper to build the two lines at one corner.
-    def _corner(cx: float, cy: float, dx_in: int, dy_in: int) -> None:
-        # dx_in/dy_in are +1/-1 pointing along the two corridor directions
-        # away from the inner block into the adjacent corridors.
-        for color, axis, sign in (
-            (TrackMarkings.ORANGE_COLOR, "x", dx_in),
-            (TrackMarkings.BLUE_COLOR, "y", dy_in),
+    def _extend(
+        cx: float,
+        cy: float,
+        dx: float,
+        dy: float,
+        sx: int,
+        sy: int,
+    ) -> tuple[float, float]:
+        """Return where the ray from (cx,cy) in direction (dx,dy) hits the corner-region edge."""
+        x_max = cx + max(sx, 0)
+        x_min = cx + min(sx, 0)
+        y_max = cy + max(sy, 0)
+        y_min = cy + min(sy, 0)
+        ts: list[float] = []
+        if dx > _RAY_EPSILON:
+            ts.append((x_max - cx) / dx)
+        elif dx < -_RAY_EPSILON:
+            ts.append((x_min - cx) / dx)
+        if dy > _RAY_EPSILON:
+            ts.append((y_max - cy) / dy)
+        elif dy < -_RAY_EPSILON:
+            ts.append((y_min - cy) / dy)
+        t = min(t for t in ts if t > 0)
+        return cx + t * dx, cy + t * dy
+
+    def _corner(cx: float, cy: float, sx: int, sy: int) -> None:
+        # Bisector points into the corner region (diagonal).
+        bisector = math.atan2(sy, sx)
+        offset = math.radians(TrackMarkings.ANGLE / 2.0)  # 15°
+        for color, angle in (
+            (TrackMarkings.ORANGE_COLOR, bisector - offset),
+            (TrackMarkings.BLUE_COLOR, bisector + offset),
         ):
-            if axis == "x":
-                # Line into the east/west corridor, 30° from the x-axis.
-                end_x = cx + sign * half * math.cos(math.radians(angle))
-                end_y = cy + sign * half * math.sin(math.radians(angle))
-            else:
-                # Line into the north/south corridor, 30° from the y-axis.
-                end_x = cx + sign * half * math.sin(math.radians(angle))
-                end_y = cy + sign * half * math.cos(math.radians(angle))
-            lines.append(CornerLine((cx, cy), (end_x, end_y), color))
+            end = _extend(cx, cy, math.cos(angle), math.sin(angle), sx, sy)
+            lines.append(CornerLine((cx, cy), end, color))
 
-    # Inner-block corners (1.0 / 2.0 in both axes).
     _corner(TrackDimensions.CORNER_MIN, TrackDimensions.CORNER_MIN, -1, -1)  # SW
     _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MIN, 1, -1)   # SE
     _corner(TrackDimensions.CORNER_MAX, TrackDimensions.CORNER_MAX, 1, 1)    # NE

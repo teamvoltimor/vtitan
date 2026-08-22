@@ -65,7 +65,7 @@ def test_corner_lines_start_at_inner_block_corners() -> None:
 
 
 def test_corner_lines_are_at_30_degrees_to_a_wall() -> None:
-    """Each corner line is 30° from one axis and 60° from the other."""
+    """Each corner line is 30° from one inner-block wall and 60° from the other."""
     lines = corner_lines()
     for line in lines:
         dx = abs(line.end[0] - line.start[0])
@@ -73,3 +73,22 @@ def test_corner_lines_are_at_30_degrees_to_a_wall() -> None:
         angle = math.degrees(math.atan2(dy, dx))
         acute = min(angle, 90.0 - angle)
         assert acute == pytest.approx(30.0, abs=0.1)
+
+
+def test_corner_lines_end_on_outer_walls() -> None:
+    """Each line reaches the track border, not an arbitrary short length."""
+    for line in corner_lines():
+        end_x, end_y = line.end
+        on_vertical_wall = math.isclose(end_x, 0.0) or math.isclose(end_x, 3.0)
+        on_horizontal_wall = math.isclose(end_y, 0.0) or math.isclose(end_y, 3.0)
+        assert on_vertical_wall or on_horizontal_wall
+
+
+def test_corner_lines_stay_inside_corner_regions() -> None:
+    """No line drifts into a corridor; both endpoints are within the 1m corner square."""
+    for line in corner_lines():
+        for x, y in (line.start, line.end):
+            assert 0.0 <= x <= 3.0
+            assert 0.0 <= y <= 3.0
+            # At least one coordinate is on the inner-block side of the corner.
+            assert (x <= 2.0 and y <= 2.0) or (x >= 1.0 and y <= 2.0) or (x >= 1.0 and y >= 1.0) or (x <= 2.0 and y >= 1.0)
